@@ -25,6 +25,8 @@ export default async function handler(req, res) {
 
     const wsHist = [];
     const wgHist = [];
+    const twHist = [];   /* uimaveden lampotila — oma sarja, koska anturi voi
+                            katkoa eri kohdissa kuin tuulianturi */
     let latest = null;
     let latestMs = -Infinity;
     let latestValid = null;     /* uusin rivi jossa ws ei ole NaN — käytetään näytölle */
@@ -55,6 +57,7 @@ export default async function handler(req, res) {
       if (utcMs >= cutoffMs) {
         wsHist.push({ t: hhmm, v: ws, d: wdir, iso: utcTime });
         wgHist.push({ t: hhmm, v: gust, iso: utcTime });
+        if (tw != null) twHist.push({ t: hhmm, v: tw, iso: utcTime });
       }
 
       /* Uusin havainto = suurin UTC-aikaleima — ei oleteta rivijärjestystä */
@@ -89,7 +92,7 @@ export default async function handler(req, res) {
       tw: latest.tw,
       time: display.hhmm,
       utcTime: display.utcTime,
-      history: { ws: wsHist, wg: wgHist }
+      history: { ws: wsHist, wg: wgHist, tw: twHist }
     });
   } catch (err) {
     return res.status(500).json({ error: err.message, station: STATION.name });

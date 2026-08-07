@@ -4168,14 +4168,16 @@ function _addObsMarkers(map) {
     _stationDots.forEach(function(d) { d.setIcon(icon); });
   }
 
-  function mkWindIcon(zoom, ws, wg, stName, isPrim, waterTemp) {
+  /* Pikanäkymän tuulikortti. Uimaveden lämpötila oli ennen tässä, mutta se
+     leikkasi kortin leveyttä eikä kuulu tuulihavainnon pikasilmäykseen —
+     nyt se on omana historiagraafinaan kortista avautuvassa näkymässä. */
+  function mkWindIcon(zoom, ws, wg, stName, isPrim) {
     var z = zoom || 5;
     if (isPrim && z >= 8) {
       /* Käytä appin yksikkömuunnosta — Units.fmt() + Units.label() */
       var wsStr = ws != null ? Units.fmt(ws) : '—';
       var unitLbl = Units.label();
       var wgStr  = wg != null ? Units.fmt(wg) : null;
-      var twStr  = waterTemp != null ? waterTemp.toFixed(1) + '°' : null;
       var html =
         '<div style="'
           +'display:flex;align-items:center;gap:5px;'
@@ -4199,18 +4201,8 @@ function _addObsMarkers(map) {
               +'color:rgba(245,200,66,.42);border-left:1px solid rgba(245,200,66,.18);'
               +'padding-left:5px;margin-left:1px">↑'+wgStr+'</span>'
             : '')
-          +(twStr
-            ? '<span style="display:flex;align-items:center;gap:2px;'
-              +'font-family:DM Mono,monospace;font-size:7px;'
-              +'color:rgba(41,232,168,.65);border-left:1px solid rgba(255,255,255,.12);'
-              +'padding-left:5px;margin-left:1px">'
-              +'<svg width="8" height="5" viewBox="0 0 14 8" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0">'
-                +'<path d="M0 5 Q2 2 4 5 Q6 8 8 5 Q10 2 12 5 Q13 6.5 14 5" stroke="'+C_WATER+'" stroke-width="1.6" stroke-linecap="round" fill="none"/>'
-              +'</svg>'
-              +twStr+'</span>'
-            : '')
         +'</div>';
-      return L.divIcon({ className:'', html:html, iconAnchor:[0, 11], iconSize:[twStr ? 135 : 105, 22] });
+      return L.divIcon({ className:'', html:html, iconAnchor:[0, 11], iconSize:[105, 22] });
     } else {
       /* Pieni piste */
       var sz = z < 8 ? 5 : z < 10 ? 7 : 8;
@@ -4342,7 +4334,7 @@ function _addObsMarkers(map) {
           if (hv !== null) { ws = hv.ws; wg = hv.wg; }
           /* hv === null → historia ei ulotu tähän hetkeen → pysytään latest:ssa */
         }
-        m.marker.setIcon(mkWindIcon(z, ws, wg, m.stName, m.type === 'wind-prim', m.waterTemp));
+        m.marker.setIcon(mkWindIcon(z, ws, wg, m.stName, m.type === 'wind-prim'));
       } else {
         m.marker.setIcon(mkWaterIcon(z, m.temp, m.prim));
       }
@@ -4424,8 +4416,7 @@ function _addObsMarkers(map) {
       .on('click', function(){ _openObsSheet('kruunuvuori', KV_STATION); }).addTo(map);
     var kvEntry = { marker: m, type: 'wind-prim', ws: null, wg: null,
       wsLatest: null, wgLatest: null, stName: KV_STATION.name,
-      layerGroup: 'fmi-sea', place: KV_STATION.place, history: null,
-      waterTemp: null };
+      layerGroup: 'fmi-sea', place: KV_STATION.place, history: null };
     _obsMarkers.push(kvEntry);
     if (typeof _applyMapLayers === 'function') _applyMapLayers();
     /* Ruksi-sijaintimerkki — pysyy aina täsmälleen paikallaan,
@@ -4498,9 +4489,8 @@ function _addObsMarkers(map) {
         var wg = data.wg != null ? +data.wg : ws;
         kvEntry.ws = ws; kvEntry.wg = wg;
         kvEntry.wsLatest = ws; kvEntry.wgLatest = wg;
-        kvEntry.history = data.history || null; /* {ws:[{t,v,d}], wg:[{t,v}]} — HH:MM formaatti */
-        kvEntry.waterTemp = data.tw != null ? +data.tw : null;
-        kvEntry.marker.setIcon(mkWindIcon(map.getZoom(), ws, wg, KV_STATION.name, true, kvEntry.waterTemp));
+        kvEntry.history = data.history || null; /* {ws:[{t,v,d}], wg:[{t,v}], tw:[{t,v}]} — HH:MM formaatti */
+        kvEntry.marker.setIcon(mkWindIcon(map.getZoom(), ws, wg, KV_STATION.name, true));
         _avoidSpotOverlap(); /* setIcon loi uuden DOM-elementin — sovella väistö uudelleen */
       })
       .catch(function() { /* Lataus epäonnistui — jätä tyhjäksi */ });
@@ -4633,7 +4623,20 @@ function _openObsSheet(type, station) {
           if(data.tw!=null) sub+='\u2002🌊'+data.tw.toFixed(1)+'°C';
           updateHero(Units.fmt(data.ws),sub,wc);
         }
-        if(el&&data&&data.history) _renderLiveHistory(el,data.history,data);
+        if(el&&data&&data.history){
+          _renderLiveHistory(el,data.history,data);
+          /* Uimaveden lämpötila omaan lohkoonsa tuuligraafin alle.
+             _renderLiveHistory kirjoittaa el.innerHTML:n uusiksi 12h/24h-
+             vaihdossa, joten vesigraafi elää sisaruselementissä. */
+          var twEl=document.getElementById(cid+'-tw');
+          if(!twEl){
+            twEl=document.createElement('div');
+            twEl.id=cid+'-tw';
+            twEl.style.cssText='margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,.06)';
+            el.parentNode.insertBefore(twEl,el.nextSibling);
+          }
+          _renderWaterTempHistory(twEl,data.history.tw,data);
+        }
         else if(el) el.innerHTML='<div style="text-align:center;font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
       })
       .catch(function(){
@@ -6259,6 +6262,148 @@ function _fmiDropdown(panelEl, stations, selected, onSelect) {
   return wrap;
 }
 
+/* Uimaveden lämpötilan historia — sama visuaalinen kieli kuin
+   _renderLiveHistory():n tuuligraafilla (12h/24h-valitsin, pehmennetty
+   viiva + gradienttitäyttö, ristikkokohdistin ja tooltip), mutta oma
+   minttuinen sävy ja °C-asteikko. Erillinen funktio siksi, että tuuligraafi
+   on kauttaaltaan tuulikohtainen: ColorRamp-gradientti, puuskasarja,
+   suuntanuolet ja Units-muunnos eivät päde lämpötilaan. */
+function _renderWaterTempHistory(el, twData, meta) {
+  var pts0 = (twData || []).filter(function(p){ return p && p.v != null; });
+  if (!pts0.length) {
+    el.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:16px">Ei vesihistoriaa</div>';
+    return;
+  }
+  var hours = el._twHours || 12;
+  var cutIdx = Math.max(0, pts0.length - Math.round(pts0.length * hours / 24));
+  var pts = pts0.slice(cutIdx);
+  var n = pts.length;
+  var vals = pts.map(function(p){ return p.v; });
+  var times = pts.map(function(p){ return p.t; });
+  var minV = Math.min.apply(null, vals), maxV = Math.max.apply(null, vals);
+  /* Kapea vaihteluväli on vedelle tavallinen — pidä akseli vähintään
+     0.6 °C levyisenä, muutoin mittauskohina näyttäisi dramaattiselta */
+  var span = Math.max(0.6, (maxV - minV) * 1.6);
+  var mid = (maxV + minV) / 2;
+  var lo = mid - span / 2, hi = mid + span / 2;
+
+  var W = 300, H = 108, padX = 36, padY = 10, labH = 20, TH = H + labH;
+  function xOf(i){ return padX + i / (n - 1 || 1) * (W - padX - 8); }
+  function yOf(v){ return padY + (1 - (v - lo) / (hi - lo || 1)) * (H - padY * 2); }
+  function iOf(x){ return Math.max(0, Math.min(n - 1, Math.round((x - padX) / (W - padX - 8) * (n - 1)))); }
+
+  function smoothPath(vs){
+    if (vs.length < 2) return '';
+    var d = 'M' + xOf(0).toFixed(1) + ',' + yOf(vs[0]).toFixed(1);
+    for (var i = 1; i < vs.length; i++) {
+      var x0 = xOf(i-1), y0 = yOf(vs[i-1]), x1 = xOf(i), y1 = yOf(vs[i]), cx = (x0 + x1) / 2;
+      d += ' C' + cx.toFixed(1) + ',' + y0.toFixed(1) + ' ' + cx.toFixed(1) + ',' + y1.toFixed(1) + ' ' + x1.toFixed(1) + ',' + y1.toFixed(1);
+    }
+    return d;
+  }
+  var linePath = smoothPath(vals);
+  var areaPath = linePath ? linePath + ' L' + xOf(n-1).toFixed(1) + ',' + (H - padY) + ' L' + xOf(0).toFixed(1) + ',' + (H - padY) + ' Z' : '';
+  var lastVal = vals[n-1], lastX = xOf(n-1), lastY = yOf(lastVal);
+
+  /* Y-akseli — askel sovitetaan vaihteluväliin, vesi liikkuu kymmenyksinä */
+  var yLabels = '';
+  var rawStep = (hi - lo) / 4;
+  var yStep = [0.1, 0.2, 0.5, 1, 2, 5].find(function(s){ return s >= rawStep; }) || 5;
+  var dec = yStep < 1 ? 1 : 0;
+  for (var yv = Math.ceil(lo / yStep) * yStep; yv <= hi + 1e-6; yv += yStep) {
+    if (yv < lo + (hi-lo)*0.06 || yv > hi - (hi-lo)*0.06) continue;
+    var gy = yOf(yv);
+    yLabels += '<text x="'+(padX-6)+'" y="'+gy.toFixed(1)+'" font-family="DM Mono,monospace" font-size="7.5" fill="rgba(255,255,255,.3)" text-anchor="end" dominant-baseline="middle">'+yv.toFixed(dec)+'°</text>'
+      + '<line x1="'+padX+'" y1="'+gy.toFixed(1)+'" x2="'+(W-8)+'" y2="'+gy.toFixed(1)+'" stroke="rgba(255,255,255,.05)" stroke-width="1"/>';
+  }
+
+  /* X-akseli — tasatunnit, mutta harvennettuna. Anturi raportoi 10 min välein,
+     joten 24 h näkymässä tasatunteja on 24 kpl noin 260 px matkalla eivätkä
+     ne mahdu vierekkäin. Otetaan joka n:s tunti niin että väliin jää tilaa. */
+  var hourIdx = [];
+  for (var xi = 0; xi < times.length; xi++) {
+    if (times[xi] && times[xi].slice(3,5) === '00') {
+      var lx = xOf(xi);
+      if (lx >= padX + 8 && lx <= W - 16) hourIdx.push(xi);
+    }
+  }
+  var MIN_PX = 26;
+  var everyNth = hourIdx.length > 1
+    ? Math.max(1, Math.ceil(MIN_PX / ((xOf(hourIdx[hourIdx.length-1]) - xOf(hourIdx[0])) / (hourIdx.length - 1) || MIN_PX)))
+    : 1;
+  var xlbls = '';
+  for (var hi = 0; hi < hourIdx.length; hi++) {
+    if (hi % everyNth) continue;
+    var li = hourIdx[hi];
+    xlbls += '<text x="'+xOf(li).toFixed(1)+'" y="'+(TH-4)+'" font-family="DM Mono,monospace" font-size="7.5" fill="rgba(255,255,255,.25)" text-anchor="middle">'+times[li].slice(0,2)+'</text>';
+  }
+
+  var id = 'twh-' + Math.random().toString(36).slice(2,7);
+  var segBtns = ['12h','24h'].map(function(p){
+    var a = (p === '12h' && hours === 12) || (p === '24h' && hours === 24);
+    return '<button data-tw-period="'+p+'" style="flex:1;font-family:DM Mono,monospace;font-size:9px;padding:4px 8px;border:none;white-space:nowrap;background:'+(a?'rgba(41,232,168,.15)':'transparent')+';color:'+(a?'rgba(41,232,168,.95)':'rgba(255,255,255,.35)')+';border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:all .15s">'+p+'</button>';
+  }).join('');
+
+  el.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;min-width:0">'
+      +'<div style="font-family:DM Mono,monospace;font-size:8px;font-weight:700;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:1.2px">Uimaveden lämpötila</div>'
+      +'<div style="display:flex;flex-shrink:0;background:rgba(255,255,255,.06);border-radius:10px;padding:2px;gap:1px;border:1px solid rgba(255,255,255,.08)">'+segBtns+'</div>'
+    +'</div>'
+    +'<div style="position:relative">'
+      +'<div id="'+id+'-tip" style="display:none;position:absolute;background:rgba(4,8,20,.97);border:1px solid rgba(41,232,168,.22);border-radius:12px;padding:8px 14px;pointer-events:none;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.7);z-index:100;transform:translateX(-50%)"></div>'
+      +'<svg id="'+id+'" viewBox="0 0 '+W+' '+TH+'" style="width:calc(100% + 32px);margin-left:-32px;display:block;touch-action:none;overflow:visible">'
+        +'<defs><linearGradient id="'+id+'-g" x1="0" y1="0" x2="0" y2="1">'
+          +'<stop offset="0%" stop-color="rgba(41,232,168,.22)"/><stop offset="100%" stop-color="rgba(41,232,168,0)"/>'
+        +'</linearGradient></defs>'
+        +yLabels
+        +(areaPath?'<path d="'+areaPath+'" fill="url(#'+id+'-g)"/>':'')
+        +(linePath?'<path d="'+linePath+'" fill="none" stroke="rgba(41,232,168,.9)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>':'')
+        +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastY.toFixed(1)+'" r="5" fill="rgba(41,232,168,.15)" pointer-events="none"><animate attributeName="r" values="4;8;4" dur="3s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.6;0;0.6" dur="3s" repeatCount="indefinite"/></circle>'
+        +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastY.toFixed(1)+'" r="3.5" fill="rgba(41,232,168,1)" stroke="rgba(255,255,255,.5)" stroke-width="1.5" pointer-events="none"/>'
+        +'<line id="'+id+'-vline" x1="-1" y1="'+padY+'" x2="-1" y2="'+H+'" stroke="rgba(255,255,255,.35)" stroke-width="1" stroke-dasharray="3,3" pointer-events="none" visibility="hidden"/>'
+        +'<circle id="'+id+'-dot" cx="-1" cy="-1" r="4.5" fill="rgba(41,232,168,.95)" stroke="rgba(255,255,255,.5)" stroke-width="1.5" pointer-events="none" visibility="hidden"/>'
+        +'<rect id="'+id+'-hit" x="'+padX+'" y="'+padY+'" width="'+(W-padX-8)+'" height="'+(H-padY)+'" fill="transparent" style="cursor:crosshair"/>'
+        +xlbls
+      +'</svg>'
+    +'</div>'
+    +'<div style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;padding:0 2px">'
+      +'<div style="font-family:DM Mono,monospace;font-size:8px;color:rgba(41,232,168,.5)">▬ Vesi <b style="color:rgba(41,232,168,.95)">'+lastVal.toFixed(1)+'</b> °C</div>'
+      +'<div style="font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.18)">'+((meta&&meta.station)||'')+'</div>'
+    +'</div>';
+
+  var svg = document.getElementById(id), hit = document.getElementById(id+'-hit');
+  var vl = document.getElementById(id+'-vline'), dot = document.getElementById(id+'-dot');
+  var tip = document.getElementById(id+'-tip');
+  if (!hit) return;
+  function showTip(cx){
+    var r = svg.getBoundingClientRect();
+    var idx = iOf((cx - r.left) / r.width * W), x = xOf(idx), y = yOf(vals[idx]);
+    vl.setAttribute('x1', x.toFixed(1)); vl.setAttribute('x2', x.toFixed(1)); vl.setAttribute('visibility','visible');
+    dot.setAttribute('cx', x.toFixed(1)); dot.setAttribute('cy', y.toFixed(1)); dot.setAttribute('visibility','visible');
+    tip.innerHTML = '<div style="font-size:18px;font-weight:700;color:rgba(41,232,168,.95);letter-spacing:-.5px;line-height:1">'+vals[idx].toFixed(1)+' <span style="font-size:11px;font-weight:400;opacity:.6">°C</span></div>'
+      +'<div style="color:rgba(255,255,255,.28);font-size:9px;margin-top:4px;font-family:DM Mono,monospace">'+(times[idx]||'')+'</div>';
+    tip.style.left = ((x / W) * r.width) + 'px';
+    tip.style.top = Math.max(2, (y / TH) * r.height - 56) + 'px';
+    tip.style.display = 'block';
+  }
+  function hideTip(){
+    tip.style.display='none';
+    vl.setAttribute('visibility','hidden'); vl.setAttribute('x1','-1'); vl.setAttribute('x2','-1');
+    dot.setAttribute('visibility','hidden'); dot.setAttribute('cx','-1'); dot.setAttribute('cy','-1');
+  }
+  hit.addEventListener('mousemove', function(e){ showTip(e.clientX); }, {passive:true});
+  hit.addEventListener('mouseleave', hideTip, {passive:true});
+  hit.addEventListener('touchstart', function(e){ if(e.touches[0]) showTip(e.touches[0].clientX); }, {passive:true});
+  hit.addEventListener('touchmove', function(e){ e.preventDefault(); if(e.touches[0]) showTip(e.touches[0].clientX); }, {passive:false});
+  hit.addEventListener('touchend', function(){ setTimeout(hideTip, 2000); }, {passive:true});
+  el.querySelectorAll('[data-tw-period]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      el._twHours = btn.dataset.twPeriod === '24h' ? 24 : 12;
+      _renderWaterTempHistory(el, twData, meta);
+    }, {passive:true});
+  });
+}
+
 function _renderLiveHistory(el, data, wx) {
   const wsData=data.ws||[], wgData=data.wg||[];
   if(!wsData.length){ el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:20px">Ei historiadataa</div>'; return; }
@@ -6307,13 +6452,26 @@ function _renderLiveHistory(el, data, wx) {
     yLabels+='<line x1="'+padX+'" y1="'+gy.toFixed(1)+'" x2="'+(W-8)+'" y2="'+gy.toFixed(1)+'" stroke="rgba(255,255,255,.05)" stroke-width="1"/>';
   }
 
-  /* X-akseli — tasatunnit */
-  var xlbls='';
+  /* X-akseli — tasatunnit, harvennettuna niin että labelit eivät mene
+     päällekkäin. Havainnot tulevat 10 min välein, joten 24 h näkymässä
+     tasatunteja on 28 kpl noin 260 px matkalla (mitattu väli 6 px, label
+     ~10 px leveä) — ilman harvennusta rivi oli lukukelvoton mössö. */
+  var hourIdx=[];
   for(var xi=0;xi<times.length;xi++){
     if(times[xi]&&times[xi].slice(3,5)==='00'){
-      var lx=xOf(xi); if(lx<padX+8||lx>W-16) continue;
-      xlbls+='<text x="'+lx.toFixed(1)+'" y="'+(TH-4)+'" font-family="DM Mono,monospace" font-size="7.5" fill="rgba(255,255,255,.25)" text-anchor="middle">'+times[xi].slice(0,2)+'</text>';
+      var lx=xOf(xi);
+      if(lx>=padX+8&&lx<=W-16) hourIdx.push(xi);
     }
+  }
+  var MIN_PX=26;
+  var everyNth=hourIdx.length>1
+    ? Math.max(1,Math.ceil(MIN_PX/((xOf(hourIdx[hourIdx.length-1])-xOf(hourIdx[0]))/(hourIdx.length-1)||MIN_PX)))
+    : 1;
+  var xlbls='';
+  for(var hi=0;hi<hourIdx.length;hi++){
+    if(hi%everyNth) continue;
+    var li=hourIdx[hi];
+    xlbls+='<text x="'+xOf(li).toFixed(1)+'" y="'+(TH-4)+'" font-family="DM Mono,monospace" font-size="7.5" fill="rgba(255,255,255,.25)" text-anchor="middle">'+times[li].slice(0,2)+'</text>';
   }
 
   var svgId='fmi-svg-'+Math.random().toString(36).slice(2,7);
