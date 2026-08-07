@@ -3,6 +3,11 @@ import https from 'https';
 const CSV_URL = 'https://swell.fmi.fi/Marinehelsinki/csv/kruunuvuorenselka_weatherdata.csv';
 const STATION = { name: 'Kruunuvuorenselkä', place: 'kruunuvuorenselka', lat: 60.163, lng: 24.997 };
 const HISTORY_HOURS = 30; /* pidetään historia samaa suuruusluokkaa kuin muilla asemilla (24h + marginaali) */
+/* Uimaveden lämpötila esitetään 7/30 vrk/max -jaksoina kuten muutkin
+   uimavesipisteet, joten sille otetaan koko CSV:n kattama jakso (~14 vrk).
+   Harvennetaan 30 minuuttiin: lähde on 10 min välein eli ~2000 riviä, ja
+   graafi piirtää joka tapauksessa enintään 300 pistettä. */
+const TW_STEP = 3;
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -25,8 +30,10 @@ export default async function handler(req, res) {
 
     const wsHist = [];
     const wgHist = [];
-    const twHist = [];   /* uimaveden lampotila — oma sarja, koska anturi voi
-                            katkoa eri kohdissa kuin tuulianturi */
+    /* Uimaveden lampotila omana sarjanaan: ISO-aikaleima (ei HH:MM), koska
+       jakso on paivia eika tunteja — sama pistemuoto {t,v} kuin UiRas-
+       asemilla, jolloin frontend voi kayttaa samaa graafia. */
+    const twAll = [];
     let latest = null;
     let latestMs = -Infinity;
     let latestValid = null;     /* uusin rivi jossa ws ei ole NaN — käytetään näytölle */
@@ -57,8 +64,9 @@ export default async function handler(req, res) {
       if (utcMs >= cutoffMs) {
         wsHist.push({ t: hhmm, v: ws, d: wdir, iso: utcTime });
         wgHist.push({ t: hhmm, v: gust, iso: utcTime });
-        if (tw != null) twHist.push({ t: hhmm, v: tw, iso: utcTime });
       }
+      /* Vesisarja koko CSV:n ajalta, ei tuntirajausta */
+      if (tw != null) twAll.push({ ms: utcMs, t: utcTime, v: tw });
 
       /* Uusin havainto = suurin UTC-aikaleima — ei oleteta rivijärjestystä */
       if (utcMs > latestMs) {
@@ -92,7 +100,12 @@ export default async function handler(req, res) {
       tw: latest.tw,
       time: display.hhmm,
       utcTime: display.utcTime,
-      history: { ws: wsHist, wg: wgHist, tw: twHist }
+      history: { ws: wsHist, wg: wgHist },
+      /* Aikajarjestyksessa ja harvennettuna — CSV:n rivijarjestykseen ei luoteta */
+      waterHistory: twAll
+        .sort(function (a, b) { return a.ms - b.ms; })
+        .filter(function (_, i) { return i % TW_STEP === 0; })
+        .map(function (p) { return { t: p.t, v: p.v }; })
     });
   } catch (err) {
     return res.status(500).json({ error: err.message, station: STATION.name });
