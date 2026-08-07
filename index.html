@@ -2607,18 +2607,21 @@ function resizeCanvases() {
 /* -- SPATIAL INDEX ---------------------------------------------- */
 const SpatialIndex = {
   cells: {}, cellSize: 0.35,
-  build(wf) {
+  spacing: 0.25,   /* viewport-hilan väli asteina — idw() mitoittaa ytimensä tällä */
+  /* build(wf, spacing): spacing = ViewportGrid.gridStep(zoom), eli se väli
+     jolla dataa on OIKEASTI haettu. Aiemmin väli arvattiin katsomalla
+     windFieldin 50 ensimmäistä pistettä — mutta ne ovat globaalin 15°
+     pohjahilan pisteitä, joten arvaus oli aina 15 ja cellSize leikkautui
+     maksimiinsa 5°. Silloin nearby(lat,lng,3) palautti KAIKKI pisteet
+     (mitattu: 81 kpl joka pikselille), eli haku ei rajannut mitään ja
+     jokainen pikseli summasi koko näkymän yli. */
+  build(wf, spacing) {
     this.cells = {};
-    if (wf.length >= 4) {
-      const sample = wf.slice(0, Math.min(50, wf.length));
-      let minD = 999;
-      for (let i = 0; i < sample.length - 1; i++) {
-        for (let j = i + 1; j < Math.min(i + 5, sample.length); j++) {
-          const d = Math.abs(sample[i].lat - sample[j].lat) + Math.abs(sample[i].lng - sample[j].lng);
-          if (d > 0.01 && d < minD) minD = d;
-        }
-      }
-      this.cellSize = Math.max(0.3, Math.min(5, minD * 1.2));
+    if (spacing > 0) {
+      this.spacing = spacing;
+      /* Solu = puolet idw():n tukisäteestä (R = 3*spacing), jolloin
+         lat-suunnassa riittää 2 solua joka suuntaan. */
+      this.cellSize = Math.max(0.05, spacing * 1.5);
     }
     for (let i = 0; i < wf.length; i++) {
       const f = wf[i], k = this._key(f.lat, f.lng);
@@ -2627,9 +2630,16 @@ const SpatialIndex = {
     }
   },
   _key(lat, lng) { return (Math.floor(lat / this.cellSize) << 16) | (Math.floor(lng / this.cellSize) & 0xFFFF); },
-  nearby(lat, lng, r) {
+  /* nearby(lat, lng, rLat, rLng): solusäde erikseen lat- ja lng-suuntaan.
+     Solut ovat neliöitä ASTEISSA, mutta etäisyysmitta puristaa pituuspiiriä
+     cos(lat):lla — 60°N leveyspiirillä yksi lng-aste on vain puoli lat-astetta.
+     Yhteisellä säteellä haku jäisi siis lng-suunnassa liian kapeaksi, ja
+     tukisäteen sisällä olevia pisteitä putoaisi pois sen mukaan missä kohtaa
+     solua ollaan — juuri sellainen tuottaa saumoja. rLng annetaan erikseen. */
+  nearby(lat, lng, rLat, rLng) {
+    if (rLng === undefined) rLng = rLat;
     const r0 = Math.floor(lat / this.cellSize), c0 = Math.floor(lng / this.cellSize), out = [];
-    for (let dr = -r; dr <= r; dr++) for (let dc = -r; dc <= r; dc++) {
+    for (let dr = -rLat; dr <= rLat; dr++) for (let dc = -rLng; dc <= rLng; dc++) {
       const cell = this.cells[((r0+dr)<<16)|((c0+dc)&0xFFFF)];
       if (cell) for (let i = 0; i < cell.length; i++) out.push(cell[i]);
     }
@@ -2638,19 +2648,36 @@ const SpatialIndex = {
 };
 
 /* -- SURFACE TYPE ----------------------------------------------- */
+/* Paloittain lineaarinen interpolointi ankkuripisteiden välillä.
+   Käytetään rannikkolinjan approksimaatiossa PORTAIDEN sijaan: portaat
+   (lng < 24.5 ? A : B) tekivät isMarine():een pystysuoran epäjatkuvuuden,
+   joka näkyi tuulikartalla saumana keskellä merta. */
+function _lerpAnchors(x, anchors) {
+  if (x <= anchors[0][0]) return anchors[0][1];
+  for (let i = 1; i < anchors.length; i++) {
+    if (x <= anchors[i][0]) {
+      const a = anchors[i-1], b = anchors[i];
+      return a[1] + ((x - a[0]) / (b[0] - a[0])) * (b[1] - a[1]);
+    }
+  }
+  return anchors[anchors.length-1][1];
+}
+
 function isMarine(lat, lng) {
+  /* Rannikkogradientti: 0 = maa, 0.5 = rantaviiva, 1 = avomeri.
+     Monotoninen smoothstep — jatkuva ja derivoituva, toisin kuin aiempi
+     paloittainen versio joka HYPPÄSI 0.00 -> 0.15 kohdassa d = -0.15
+     (eli "merisyys" kasvoi sisämaahan päin mentäessä). Se hyppy piirtyi
+     rannan suuntaisena raitana tuulikartalle. */
   function coastGrad(pos, coastVal, seaDir) {
-    const d = (pos - coastVal) * seaDir;
-    if (d > 0.20) return 1.0;
-    if (d > 0.0)  return 0.5 + 0.5 * (d / 0.20);
-    if (d > -0.15) return 0.5 * (1.0 + d / 0.15);
-    if (d > -0.30) return 0.15 * (1.0 + (d + 0.15) / 0.15);
-    return 0.0;
+    const d = (pos - coastVal) * seaDir;   /* + = merelle päin, asteina */
+    const t = Math.min(1, Math.max(0, (d + 0.25) / 0.50));
+    return t * t * (3 - 2 * t);
   }
   if (lng >= 23.0 && lng <= 28.5 && lat <= 60.8) {
-    const finCoast = lng < 24.5 ? 60.12 : lng < 26.0 ? 60.14 : lng < 27.5 ? 60.10 : 60.06;
+    const finCoast = _lerpAnchors(lng, [[23.75,60.12],[25.25,60.14],[26.75,60.10],[28.00,60.06]]);
     const fin = coastGrad(lat, finCoast, -1);
-    const estCoast = lng < 25.0 ? 59.50 : lng < 26.5 ? 59.45 : 59.40;
+    const estCoast = _lerpAnchors(lng, [[24.00,59.50],[25.75,59.45],[27.50,59.40]]);
     const est = coastGrad(lat, estCoast, 1);
     return Math.min(fin, est);
   }
@@ -2666,7 +2693,9 @@ function isMarine(lat, lng) {
     return 1.0;
   }
   if (lat >= 60.7 && lat < 63.0 && lng <= 22.5) {
-    const coastLng = lat < 61.0 ? 21.5 : lat < 61.8 ? 21.4 : 21.0 + (lat - 61.8) * 0.3;
+    /* Sama porras->ankkuri-muunnos kuin Suomenlahdella: aiempi versio
+       pudotti rannikon 21.4 -> 21.0 kohdassa lat 61.8 (0.4° hyppy). */
+    const coastLng = _lerpAnchors(lat, [[60.85,21.5],[61.40,21.4],[63.00,21.36]]);
     return coastGrad(lng, coastLng, -1);
   }
   if (lat >= 63.0 && lat < 64.0 && lng <= 23.5) {
@@ -2694,24 +2723,53 @@ function isMarine(lat, lng) {
   return 0.5;
 }
 
+/* Pehmennetty Shepard-interpolointi kompaktilla tuella.
+ *
+ * Aiempi paino oli puhdas 1/d², joka on ÄÄRETÖN datapisteessä. Silloin
+ * jokainen hilapiste muuttuu paikalliseksi ääriarvoksi ja kartalle syntyy
+ * hilavälin mittainen pilkkukuvio ("bullseye") — juuri ne laikut jotka
+ * näkyivät merellä. Kaksi muutosta poistaa sen:
+ *
+ *   1) eps² nimittäjässä  -> paino on äärellinen myös d = 0 kohdalla,
+ *      joten datapiste ei enää imaise arvoa itseensä.
+ *   2) (1 - d²/R²)² kartio -> paino menee pehmeästi nollaan säteellä R,
+ *      joten pisteen astuminen naapurustoon ei tee hyppyä.
+ *
+ * eps ja R skaalataan hilavälillä, jotta sama koodi toimii globaalista
+ * näkymästä (5°) paikalliseen (0.25°). Rannikkopainotus (surfaceW)
+ * säilyy ennallaan — se erottaa meri- ja maatuulen toisistaan. */
 function idw(lat, lng) {
-  let nb = SpatialIndex.nearby(lat, lng, 3);
-  if (!nb.length) nb = SpatialIndex.nearby(lat, lng, 8);
+  const step = SpatialIndex.spacing || 0.25;
+  const R    = 3.0 * step;
+  const eps2 = (0.45 * step) * (0.45 * step);
+  const R2   = R * R;
+  /* Solusäde niin että KOKO tukisäde R mahtuu hakuikkunaan — lng-suunnassa
+     leveämpi, koska etäisyysmitassa lng skaalataan cos(lat):lla. */
+  const cosLat = Math.max(0.15, Math.cos(lat * Math.PI / 180));
+  const rLat = Math.max(1, Math.ceil(R / SpatialIndex.cellSize));
+  const rLng = Math.max(1, Math.ceil(R / (SpatialIndex.cellSize * cosLat)));
+  let nb = SpatialIndex.nearby(lat, lng, rLat, rLng);
+  if (!nb.length) nb = SpatialIndex.nearby(lat, lng, rLat * 3, rLng * 3);
   if (!nb.length) return { u: 0, v: 0, ms: 0 };
   let sw = 0, su = 0, sv = 0;
-  const cos2 = Math.cos(lat * Math.PI / 180) ** 2;
+  const cos2 = cosLat * cosLat;
   const querySurface = isMarine(lat, lng);
+  let bestD2 = Infinity, best = null;
   for (let i = 0; i < nb.length; i++) {
     const f = nb[i], dlat = lat - f.lat, dlng = lng - f.lng;
     const d2 = dlat * dlat + dlng * dlng * cos2;
-    if (d2 < 1e-6) return { u: f.u, v: f.v, ms: f.ms };
-    const d = Math.sqrt(d2), distW = 1.0 / (d * d);
+    if (d2 < bestD2) { bestD2 = d2; best = f; }
+    if (d2 >= R2) continue;
+    const taper = 1 - d2 / R2;
     const ptSurface = f.marine !== undefined ? f.marine : isMarine(f.lat, f.lng);
     const similarity = 1.0 - Math.abs(querySurface - ptSurface);
     const surfaceW = 0.5 + similarity * 1.5;
-    const w = distW * surfaceW;
+    const w = (taper * taper) / (d2 + eps2) * surfaceW;
     sw += w; su += f.u * w; sv += f.v * w;
   }
+  /* Katvealue: yksikään piste ei osunut säteen sisään — käytä lähintä
+     sellaisenaan, jolloin reuna pysyy jatkuvana eikä pudota nollaan. */
+  if (!sw) return best ? { u: best.u, v: best.v, ms: best.ms } : { u: 0, v: 0, ms: 0 };
   const u = su / sw, v = sv / sw;
   return { u, v, ms: Math.sqrt(u * u + v * v) };
 }
@@ -3173,7 +3231,10 @@ function buildWindField(hourIdx) {
     const rad = (h.winddirection_10m[idx] || 0) * Math.PI / 180;
     State.windField.push({ lat: pt.lat, lng: pt.lng, u: -ms*Math.sin(rad), v: -ms*Math.cos(rad), ms, marine: isMarine(pt.lat, pt.lng) });
   }
-  SpatialIndex.build(State.windField);
+  /* Kerro indeksille millä välillä dataa on oikeasti haettu — idw()
+     mitoittaa pehmennyksen ja tukisäteen tällä. */
+  const gridStep = State.map ? ViewportGrid.gridStep(State.map.getZoom()) : 0.25;
+  SpatialIndex.build(State.windField, gridStep);
   const vb = State.map ? State.map.getBounds() : null;
   return WindTexture.build(State.windField, vb).then(() => { Crosshair.refresh(); WeatherWidget.refresh(); }).catch(e => console.error('[WindTexture]', e));
 }
