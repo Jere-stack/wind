@@ -19,14 +19,22 @@ npm run preview   # esikatsele tuotantobuildia paikallisesti
 - `api/*.js` — Vercelin serverless-funktiot (FMI-havainnot, HARMONIE-ennuste,
   Kruunuvuorenselän ja Uiraan mittausdata -proxyt). ES-moduuleja, koska
   `package.json`:ssa on `"type": "module"` — `require()` ei toimi näissä.
-  Näitä ei ajeta Vite-devissä. Frontend käyttää `API_BASE`-vakiota
-  (`index.html`): tuotannossa suhteellinen `/api`, jolloin sivu ja API tulevat
-  aina samasta deploysta; localhostilla osoite osoittaa tuotantoon, joten
-  `npm run dev` toimii sellaisenaan ilman paikallista API-serveriä.
+- `vite.config.js` — build-asetukset sekä `vercel-api-dev`-plugin, joka ajaa
+  `api/*.js`-funktiot myös `npm run dev`- ja `npm run preview` -servereissä.
+  Muutokset api-tiedostoihin näkyvät ilman dev-serverin uudelleenkäynnistystä.
 - `vercel.json` — Vercel-deployn asetukset (build-komento, output-hakemisto,
   funktioiden aikakatkaisut ja rewrite-säännöt).
 
+## API-osoitteet
+
+Frontend käyttää vakiota `API_BASE = '/api'` (`index.html`), eli funktiot
+haetaan aina samasta originista kuin sivu — niin tuotannossa kuin devissä.
+Koodissa ei ole yhtään absoluuttista host-osoitetta omaan palveluun, joten
+sivu ja API ovat aina samaa versiota eikä projekti riipu mistään erikseen
+deployatusta ympäristöstä.
+
 ## Deploy
 
-Sovellus on deployattu osoitteeseen `foilwind.vercel.app` Vercelin kautta.
-Vercel ajaa `npm run build`:n ja julkaisee `dist/`-hakemiston sekä `api/`-funktiot.
+Vercel ajaa `npm run build`:n ja julkaisee `dist/`-hakemiston sekä
+`api/`-funktiot. Deployn tulee tapahtua tästä reposta, jotta sivu ja sen
+`/api`-funktiot pysyvät samassa versiossa.

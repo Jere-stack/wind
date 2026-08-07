@@ -3065,15 +3065,12 @@ function renderLoop(ts) {
 }
 
 /* -- WEATHER BATCH API ------------------------------------------ */
-/* Serverless-funktiot haetaan SAMASTA deploysta kuin sivu. Aiemmin osoite
-   oli kovakoodattu erikseen deployattuun foilwind.vercel.app:iin, jolloin
-   sivu ja API saattoivat olla eri versioita — juuri niin kavi kun API sai
-   uusia kenttia mutta sivu puhui yha vanhalle deploylle.
-   Vite-devissa (localhost) ei ole paikallista API-serveria, joten siella
-   osoitetaan tuotantoon jotta `npm run dev` toimii sellaisenaan. */
-const API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
-  ? 'https://wind-delta.vercel.app/api'
-  : '/api';
+/* Serverless-funktiot haetaan aina samasta originista kuin sivu, sekä
+   tuotannossa että kehityksessä. Vite ajaa api/*.js -funktiot devissä ja
+   previewissä paikallisesti (katso vite.config.js), joten sovellus ei
+   riipu mistään ulkoisesta deploysta eikä sivu voi joutua eri versioon
+   kuin sen oma API. */
+const API_BASE = '/api';
 
 /* HARMONIE 2.5km proxy per piste, Open-Meteo fallback batchina */
 const HARMONIE_BASE = API_BASE + '/harmonie';
