@@ -1,10 +1,10 @@
-const https = require('https');
+import https from 'https';
 
 const CSV_URL = 'https://swell.fmi.fi/Marinehelsinki/csv/kruunuvuorenselka_weatherdata.csv';
 const STATION = { name: 'Kruunuvuorenselkä', place: 'kruunuvuorenselka', lat: 60.163, lng: 24.997 };
 const HISTORY_HOURS = 30; /* pidetään historia samaa suuruusluokkaa kuin muilla asemilla (24h + marginaali) */
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'public, s-maxage=300'); /* data päivittyy n. 10min välein */
 

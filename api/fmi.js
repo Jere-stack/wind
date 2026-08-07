@@ -1,4 +1,4 @@
-const https = require('https');
+import https from 'https';
 
 const STATIONS = [
   { place: 'kaisaniemi', name: 'Helsinki Kaisaniemi',      lat: 60.17523, lng: 24.94459, type: 'weather', fmisid: null },
@@ -104,7 +104,7 @@ async function fetchMaritime(lat,lng,params,start,fmisid){
   return '';
 }
 
-module.exports = async function handler(req,res){
+export default async function handler(req,res){
   /* FINDSTATION: testaa FMISID:t oikealla datalla */
   if(req.query.findstation==='1'){
     res.setHeader('Access-Control-Allow-Origin','*');

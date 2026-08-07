@@ -1,4 +1,4 @@
-const https = require('https');
+import https from 'https';
 
 /* FMI HARMONIE 2.5km + Open-Meteo jatko
    - HARMONIE: 2 vrk historiaa + 2 vrk ennustetta
@@ -15,7 +15,7 @@ function fetchHarmonieXml(lat, lng) {
       + '&request=getFeature'
       + '&storedquery_id=fmi::forecast::harmonie::surface::point::timevaluepair'
       + '&latlon=' + lat + ',' + lng
-      + '&parameters=WindSpeedMS,WindDirection,WindGust,Temperature,WeatherSymbol3'
+      + '&parameters=WindSpeedMS,WindDirection,WindGust,Temperature,WeatherSymbol3,TotalCloudCover'
       + '&timestep=60'
       + '&starttime=' + start
       + '&endtime=' + end;
@@ -31,7 +31,7 @@ function fetchHarmonieXml(lat, lng) {
 function fetchOM(lat, lng) {
   return new Promise(function(resolve, reject) {
     var url = OM_URL + '?latitude=' + lat + '&longitude=' + lng
-      + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m,weather_code'
+      + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m,weather_code,cloud_cover'
       + '&wind_speed_unit=ms&timezone=auto&forecast_days=16';
     https.get(url, function(res) {
       var body = '';
@@ -56,6 +56,12 @@ function toLocal(iso) {
   return d.toISOString().slice(0, 16);
 }
 
+/* Parsii jokaisen parametrin aika->arvo -kartaksi. NaN sailytetaan null:na,
+   jotta parametrit voidaan myohemmin kohdistaa SAMALLE aika-akselille.
+   Aiemmin NaN-arvot pudotettiin tasta suoraan, jolloin eri parametrien
+   taulukoista tuli ERIPITUISIA ja ne liukuivat toistensa suhteen -- esim.
+   weather_code palasi 365-alkioisena kun muut olivat 366, eli saasymboli
+   naytettiin vaaralle tunnille. */
 function parseHarmonie(xml) {
   var series = {};
   var re = /gml:id="[^"]*-([a-zA-Z0-9]+)"[\s\S]*?(<wml2:point[\s\S]*?<\/wml2:MeasurementTimeseries>)/g;
@@ -63,19 +69,49 @@ function parseHarmonie(xml) {
   while ((m = re.exec(xml)) !== null) {
     var param = m[1].toLowerCase();
     var block = m[2];
-    var pairs = [];
+    var map = {}, times = [], any = false;
     var tvRe = /<wml2:time>([^<]+)<\/wml2:time>\s*<wml2:value>([^<]+)<\/wml2:value>/g;
     var tv;
     while ((tv = tvRe.exec(block)) !== null) {
       var v = parseFloat(tv[2]);
-      if (!isNaN(v)) pairs.push({ t: tv[1], v: v });
+      times.push(tv[1]);
+      if (isNaN(v)) { map[tv[1]] = null; }
+      else { map[tv[1]] = v; any = true; }
     }
-    if (pairs.length) series[param] = pairs;
+    if (any) series[param] = { map: map, times: times };
   }
   return series;
 }
 
-module.exports = async function handler(req, res) {
+/* FMI WeatherSymbol3 -> WMO weather code.
+   HARMONIE palauttaa FMI:n OMAA symboliasteikkoa (1 = selkeaa, 2 = puoli-
+   pilvista, 3 = pilvista, 21- kuuroja, 31- vesisadetta, ...), kun taas
+   Open-Meteo -jatko kayttaa WMO-koodeja. Ilman muunnosta sama taulukko
+   sisaltaisi kahta eri asteikkoa, ja koodit menisivat pahasti ristiin:
+   esim. FMI 51 = heikkoa LUMISADETTA mutta WMO 51 = heikkoa TIHKUA.
+   Muunnetaan siis HARMONIE-osa WMO:ksi, jolloin koko sarja on yhta asteikkoa.
+
+   Asteikko on ristiintarkistettu HARMONIE:n omaa TotalCloudCover- ja
+   Precipitation1h-dataa vastaan (8 pistetta, 60 h): symboli 1 -> pilvisyys
+   ka 8 %, 2 -> 56 %, 3 -> 92 %; 31/32/33 -> sade 0.17 / 1.1 / 4.5 mm/h. */
+var FMI_SYMBOL_TO_WMO = {
+  1: 0,   2: 2,   3: 3,                    /* selkeaa / puolipilvista / pilvista */
+  21: 80, 22: 81, 23: 82,                  /* sadekuurot */
+  31: 61, 32: 63, 33: 65,                  /* vesisade */
+  41: 85, 42: 85, 43: 86,                  /* lumikuurot */
+  51: 71, 52: 73, 53: 75,                  /* lumisade */
+  61: 95, 62: 95, 63: 95, 64: 96,          /* ukkonen */
+  71: 83, 72: 83, 73: 84,                  /* rantakuurot */
+  81: 68, 82: 68, 83: 69,                  /* rantasade */
+  91: 45, 92: 45                           /* utu / sumu */
+};
+function fmiSymbolToWmo(v) {
+  if (v == null) return null;
+  var w = FMI_SYMBOL_TO_WMO[Math.round(v)];
+  return w === undefined ? null : w;
+}
+
+export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=300');
 
@@ -101,6 +137,7 @@ module.exports = async function handler(req, res) {
         var oh = omResult.value.hourly;
         return res.status(200).json({
           source: 'Open-Meteo fallback',
+          harmonie_hours: 0,
           hourly: {
             time:              oh.time,
             windspeed_10m:     oh.wind_speed_10m,
@@ -108,6 +145,7 @@ module.exports = async function handler(req, res) {
             windgusts_10m:     oh.wind_gusts_10m,
             temperature_2m:    oh.temperature_2m,
             weather_code:      oh.weather_code,
+            cloudcover:        oh.cloud_cover,
           }
         });
       }
@@ -122,18 +160,32 @@ module.exports = async function handler(req, res) {
     var wgKey = keys.find(function(k){ return k.includes('windgust'); });
     var tKey  = keys.find(function(k){ return k.includes('temperature'); });
     var wxKey = keys.find(function(k){ return k.includes('weathersymbol'); });
+    var ccKey = keys.find(function(k){ return k.includes('totalcloudcover'); });
 
-    if (!wsKey || !series[wsKey].length) {
+    if (!wsKey || !series[wsKey].times.length) {
       return res.status(200).json({ error: 'no wind data', debug_keys: keys });
     }
 
-    /* Muodostetaan HARMONIE-aikasarja */
-    var hTimes = series[wsKey].map(function(p){ return toLocal(p.t); });
-    var hWs    = series[wsKey].map(function(p){ return p.v; });
-    var hWd    = wdKey ? series[wdKey].map(function(p){ return p.v; }) : hWs.map(function(){ return 0; });
-    var hWg    = wgKey ? series[wgKey].map(function(p){ return p.v; }) : hWs.slice();
-    var hT     = tKey  ? series[tKey].map(function(p){ return p.v; })  : null;
-    var hWx    = wxKey ? series[wxKey].map(function(p){ return p.v; }) : null;
+    /* Yhteinen aika-akseli: tuulennopeuden ne hetket joilla on arvo.
+       Kaikki muut parametrit poimitaan TAMAN akselin mukaan aikaleiman
+       perusteella, ei jarjestysnumerolla -- silloin yhden parametrin
+       puuttuva arvo ei enaa siirra muita. */
+    var axis = series[wsKey].times.filter(function(t){ return series[wsKey].map[t] != null; });
+    function pick(key, xform) {
+      if (!key) return null;
+      var s = series[key];
+      return axis.map(function(t){
+        var v = (t in s.map) ? s.map[t] : null;
+        return (v != null && xform) ? xform(v) : v;
+      });
+    }
+    var hTimes = axis.map(toLocal);
+    var hWs    = pick(wsKey);
+    var hWd    = wdKey ? pick(wdKey) : hWs.map(function(){ return 0; });
+    var hWg    = wgKey ? pick(wgKey) : hWs.slice();
+    var hT     = pick(tKey);
+    var hWx    = wxKey ? pick(wxKey, fmiSymbolToWmo) : null;
+    var hCc    = pick(ccKey);
 
     /* Jos Open-Meteo saatavilla, liitetaan se HARMONIE:n peraan */
     if (omResult.status === 'fulfilled' && omResult.value.hourly) {
@@ -155,12 +207,17 @@ module.exports = async function handler(req, res) {
         hWd    = hWd.concat(oh.wind_direction_10m.slice(spliceIdx));
         hWg    = hWg.concat(oh.wind_gusts_10m.slice(spliceIdx));
         if (hT && oh.temperature_2m)   hT  = hT.concat(oh.temperature_2m.slice(spliceIdx));
+        /* Open-Meteo on jo WMO-asteikolla, HARMONIE-osa muunnettiin siihen */
         if (hWx && oh.weather_code)    hWx = hWx.concat(oh.weather_code.slice(spliceIdx));
+        if (hCc && oh.cloud_cover)     hCc = hCc.concat(oh.cloud_cover.slice(spliceIdx));
       }
     }
 
     return res.status(200).json({
       source:  'FMI HARMONIE 2.5km + Open-Meteo',
+      /* Montako ensimmaista alkiota on FMI HARMONIE:a -- loput Open-Meteo:a.
+         Frontend voi kertoa kayttajalle kumpi lahde on kyseessa. */
+      harmonie_hours: axis.length,
       hourly:  {
         time:              hTimes,
         windspeed_10m:     hWs,
@@ -168,6 +225,7 @@ module.exports = async function handler(req, res) {
         windgusts_10m:     hWg,
         temperature_2m:    hT,
         weather_code:      hWx,
+        cloudcover:        hCc,
       }
     });
   } catch (err) {

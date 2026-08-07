@@ -396,7 +396,7 @@ body {
 #wx-widget.hidden { opacity: 0; }
 #wx-icon { font-size: 30px; line-height: 1; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
 #wx-temp { font-family: 'DM Mono', monospace; font-size: 28px; font-weight: 500; color: var(--text); line-height: 1; letter-spacing: -0.5px; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
-#wx-desc { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); line-height: 1.2; max-width: 80px; }
+#wx-desc { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); line-height: 1.2; max-width: 96px; }
 
 /* ============================================================
    BOTTOM PANEL  z:20
@@ -1441,6 +1441,7 @@ body {
 .wx-hour-icon { font-size: 22px; line-height: 1; }
 .wx-hour-temp { font-family: "DM Mono",monospace; font-size: 13px; font-weight: 700; color: #fff; }
 .wx-hour-wind { font-family: "DM Mono",monospace; font-size: 9px; font-weight: 600; }
+.wx-hour-cloud { font-family: "DM Mono",monospace; font-size: 8px; color: rgba(255,255,255,.38); }
 
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 /* -- SPOT CARD ENHANCEMENTS ------------------------------------- */
@@ -6792,7 +6793,20 @@ const WeatherWidget = {
     61: ['🌧','Kevyttä sadetta'], 63: ['🌧','Sadetta'], 65: ['🌧','Rankkasadetta'],
     71: ['🌨','Kevyttä lunta'], 73: ['🌨','Lumisadetta'], 75: ['🌨','Tiheää lunta'],
     80: ['🌦','Sadekuuroja'], 81: ['🌧','Kuuroja'], 82: ['⛈','Rankkakuuroja'],
-    95: ['⛈','Ukkosmyrsky'], 96: ['⛈','Ukkosta, rakeita'], 99: ['⛈','Ukkosta, rakeita']
+    95: ['⛈','Ukkosmyrsky'], 96: ['⛈','Ukkosta, rakeita'], 99: ['⛈','Ukkosta, rakeita'],
+    /* FMI:n WeatherSymbol3 kattaa raennan ja lumikuurot, joille Open-Meteo
+       -taulukossa ei ollut vastinetta — api/harmonie.js muuntaa ne naihin. */
+    68: ['🌨','Räntäsadetta'], 69: ['🌨','Räntäsadetta'],
+    83: ['🌨','Räntäkuuroja'], 84: ['🌨','Räntäkuuroja'],
+    85: ['🌨','Lumikuuroja'], 86: ['🌨','Tiheitä lumikuuroja']
+  },
+  /* Sijainnin pyoristys valimuistiavaimeksi. 0.1 astetta ~ 11 km pohjois-
+     etelasuunnassa; aiempi 0.5 astetta (~55 km) heitti hukkaan HARMONIE:n
+     2.5 km erotuskyvyn — Helsinki ja Porkkala osuivat samaan ruutuun. */
+  _key(c) {
+    const lat = (Math.round(c.lat * 10) / 10).toFixed(1);
+    const lng = (Math.round(c.lng * 10) / 10).toFixed(1);
+    return lat + ',' + lng;
   },
   init() {
     this._el = document.getElementById('wx-widget');
@@ -6804,22 +6818,47 @@ const WeatherWidget = {
     clearTimeout(this._fetchTimer);
     this._fetchTimer = setTimeout(() => this._update(), 500);
   },
+  /* Saatiedot FMI HARMONIE 2.5km -mallista saman proxyn kautta jota
+     tuulikarttakin kayttaa. Proxy palauttaa lampotilan, saasymbolin ja
+     pilvisyyden, ja jatkaa Open-Meteolla HARMONIE:n ennustejakson jalkeen.
+     Jos proxy ei vastaa lainkaan, pudotaan suoraan Open-Meteoon, jottei
+     widget jaa tyhjaksi. */
   async _update() {
     if (!State.map || !this._el) return;
     const c = State.map.getCenter();
-    const lat = (Math.round(c.lat * 2) / 2).toFixed(1);
-    const lng = (Math.round(c.lng * 2) / 2).toFixed(1);
-    const key = lat + ',' + lng;
+    const key = this._key(c);
     if (this._cache[key] && Date.now() - this._cache[key].ts < 30 * 60 * 1000) {
       this._render(this._cache[key].data, State.currentHourIdx); return;
     }
+    const [lat, lng] = key.split(',');
+    try {
+      const r = await fetch(HARMONIE_BASE + '?lat=' + lat + '&lng=' + lng);
+      if (r.ok) {
+        const data = await r.json();
+        /* cloudcover toimii myos version tunnisteena: vain se proxy-versio
+           joka palauttaa pilvisyyden osaa muuntaa FMI:n WeatherSymbol3:n
+           WMO-koodeiksi. Vanhemmalta versiolta saatu vastaus sisaltaisi
+           kahta eri koodiasteikkoa sekaisin, joten siita pudotaan
+           mieluummin Open-Meteoon kuin naytetaan vaaria symboleja. */
+        if (data && data.hourly && data.hourly.temperature_2m && data.hourly.cloudcover) {
+          this._cache[key] = { ts: Date.now(), data };
+          this._render(data, State.currentHourIdx);
+          return;
+        }
+      }
+    } catch(e) {}
     try {
       const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lng
-        + '&hourly=temperature_2m,weather_code&forecast_days=5&timezone=auto';
+        + '&hourly=temperature_2m,weather_code,cloud_cover&forecast_days=5&timezone=auto';
       const r = await fetch(url);
       if (!r.ok) return;
       const data = await r.json();
-      if (data && data.hourly) { this._cache[key] = { ts: Date.now(), data }; this._render(data, State.currentHourIdx); }
+      if (data && data.hourly) {
+        if (data.hourly.cloud_cover && !data.hourly.cloudcover) data.hourly.cloudcover = data.hourly.cloud_cover;
+        data.source = 'Open-Meteo'; data.harmonie_hours = 0;
+        this._cache[key] = { ts: Date.now(), data };
+        this._render(data, State.currentHourIdx);
+      }
     } catch(e) {}
   },
   _render(data, hourIdx) {
@@ -6837,17 +6876,26 @@ const WeatherWidget = {
     const temp = h.temperature_2m ? h.temperature_2m[idx] : null;
     const code = h.weather_code ? h.weather_code[idx] : 0;
     const info = this._codes[code] || ['🌡',''];
+    const cc = h.cloudcover ? h.cloudcover[idx] : null;
     this._el.classList.remove('hidden');
     this._iconEl.textContent = info[0];
     this._tempEl.textContent = temp != null ? Math.round(temp) + '°' : '--°';
-    this._descEl.textContent = info[1];
+    /* Pilvisyys sanallisen kuvauksen perään — HARMONIE antaa sen prosentteina */
+    this._descEl.textContent = cc != null
+      ? info[1] + ' · ' + Math.round(cc) + '%'
+      : info[1];
+  },
+  /* Onko naytetty tunti FMI HARMONIE:a vai Open-Meteo-jatkoa */
+  sourceAt(data, idx) {
+    if (!data) return '';
+    const n = data.harmonie_hours || 0;
+    if (n > 0 && idx < n) return 'FMI HARMONIE 2.5 km';
+    return data.source === 'Open-Meteo' ? 'Open-Meteo' : 'Open-Meteo (HARMONIE-jakson jälkeen)';
   },
   refresh() {
     if (!this._el) return;
     const c = State.map ? State.map.getCenter() : null; if (!c) return;
-    const lat = (Math.round(c.lat * 2) / 2).toFixed(1);
-    const lng = (Math.round(c.lng * 2) / 2).toFixed(1);
-    const key = lat + ',' + lng;
+    const key = this._key(c);
     if (this._cache[key]) this._render(this._cache[key].data, State.currentHourIdx);
     else this.scheduleUpdate();
   }
@@ -7488,9 +7536,9 @@ const WxPanel = {
   render() {
     if (!State.map) return;
     const c = State.map.getCenter();
-    const lat = (Math.round(c.lat * 2) / 2).toFixed(1);
-    const lng = (Math.round(c.lng * 2) / 2).toFixed(1);
-    const key = lat + ',' + lng;
+    /* Sama avain kuin WeatherWidgetilla, jotta paneeli osuu samaan
+       valimuistiin eika laukaise ylimaaraista hakua */
+    const key = WeatherWidget._key(c);
     const cached = WeatherWidget._cache[key];
     const scroll = document.getElementById('wx-panel-scroll');
     if (!cached || !cached.data || !cached.data.hourly) {
@@ -7527,13 +7575,20 @@ const WxPanel = {
         windStr = '<div class="wx-hour-wind" style="color:rgb('+cRamp.r+','+cRamp.g+','+cRamp.b+')">'
           + Units.fmt(ms) + '<span style="opacity:.6;font-size:8px"> '+Units.label()+'</span></div>';
       }
+      const cc = h.cloudcover ? h.cloudcover[i] : null;
+      const ccStr = cc != null
+        ? '<div class="wx-hour-cloud">' + Math.round(cc) + '%</div>' : '';
       return '<div class="wx-hour' + (isNow ? ' now' : '') + '">'
         + '<div class="wx-hour-time">' + hh + ':00</div>'
         + '<div class="wx-hour-icon">' + info[0] + '</div>'
         + '<div class="wx-hour-temp">' + temp + '°</div>'
+        + ccStr
         + windStr
         + '</div>';
     }).join('');
+    /* Nayta mista lahteesta nakyva jakso tulee */
+    const titleEl = document.getElementById('wx-panel-title');
+    if (titleEl) titleEl.textContent = 'Tuntisää · ' + WeatherWidget.sourceAt(cached.data, startIdx);
     /* Scroll to now */
     setTimeout(() => {
       const nowEl = scroll.querySelector('.now');

@@ -1,10 +1,10 @@
-const zlib = require('zlib');
-const https = require('https');
+import zlib from 'zlib';
+import https from 'https';
 
 const BASE = 'https://iot.fvh.fi/opendata/uiras/';
 const YEARS = [2025, 2026];
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'public, s-maxage=3600');
 
