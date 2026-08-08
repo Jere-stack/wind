@@ -3136,6 +3136,25 @@ const CoastShade = {
           key: coords.x + ':' + coords.y + ':' + coords.z
         });
         return cvs;
+      },
+
+      /* Leaflet häivyttää uuden zoom-tason laatat sisään 200 ms:ssä ja karsii
+       * vanhan tason vasta sen jälkeen. Läpinäkymättömällä pohjakartalla se on
+       * juuri oikein, mutta läpinäkyvällä varjolla molemmat tasot piirtyvät
+       * päällekkäin: sama rantaviiva kahteen kertaan, jolloin alpha 0.38
+       * kasautuu arvoon 0.62. Kartta siis välähti tummempana ja palasi.
+       * Mitattuna z11 oli opacity 1.00 samaan aikaan kun z13 häivyttyi
+       * 0.94 → 1.00, ja päällekkäisyys kesti noin 250 ms.
+       *
+       * Pakotetaan tälle kerrokselle välitön vaihto: Leafletin oma
+       * ei-häivytettävä haara merkitsee laatan heti aktiiviseksi ja karsii
+       * vanhan tason samassa framessa, joten päällekkäisyyttä ei synny.
+       * Pohjakartan häivytys jää ennalleen — lippu palautetaan heti. */
+      _tileReady(coords, err, tile) {
+        const map = this._map, fade = map && map._fadeAnimated;
+        if (map) map._fadeAnimated = false;
+        try { L.GridLayer.prototype._tileReady.call(this, coords, err, tile); }
+        finally { if (map) map._fadeAnimated = fade; }
       }
     });
     this.layer = new Layer({
