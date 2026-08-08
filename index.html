@@ -3088,8 +3088,18 @@ const COAST_TILE_SUB = 'abcd';
 
 const CoastShade = {
   map: null, tiles: null, layer: null, disabled: false,
-  _cache: new Map(),      /* 'z/x/y' -> Promise<Image|null> */
-  _cacheMax: 160,
+  _cache: new Map(),      /* 'z/x/y' -> Promise<Image|null>, vain omat kuvat */
+  /* Yksi dekoodattu @2x-laatta vie noin megatavun, joten tämä pidetään
+     pienenä: sen ainoa tehtävä on jakaa naapurit saman erän laattojen kesken.
+     Valtaosa naapureista tulee suoraan Leafletin elävistä laatoista, joten
+     tänne päätyy vain näkymän ympärille jäävä kehä. */
+  _cacheMax: 24,
+
+  /* Valmiit varjot muistiin, jotta kertaalleen laskettu zoom-taso ilmestyy
+     heti uudelleen. Tallennetaan tiiviisti: yksi tavu per pikseli, ylin bitti
+     kertoo kummasta kaistasta on kyse ja loput seitsemän alphan. Se on
+     neljäsosa RGBA:sta, eli 65 kt laatalta. */
+  _shade: new Map(), _shadeMax: 64,
 
   P: {
     NS:      256,   /* laskentanäytteitä laatan sivulla (laatta = 256 CSS px,
@@ -3147,7 +3157,33 @@ const CoastShade = {
     this.disabled = true;
     if (this.layer && this.map) { this.map.removeLayer(this.layer); this.layer = null; }
     this._cache.clear();
+    this._shade.clear();
     this._queue.length = 0;
+    this._pending.length = 0;
+  },
+
+  _remember(key, store) {
+    if (this._shade.size >= this._shadeMax) {
+      const first = this._shade.keys().next();
+      if (!first.done) this._shade.delete(first.value);
+    }
+    this._shade.set(key, store);
+  },
+
+  /* Piirtää muistetun varjon laatalle. Noin 1 ms, kun laskenta on 7–9 ms. */
+  _paintRemembered(cvs, store) {
+    const NS = this.P.NS, ctx = cvs.getContext('2d');
+    ctx.clearRect(0, 0, NS, NS);
+    if (!store) return;
+    const img = ctx.createImageData(NS, NS), d = img.data;
+    const DK = this.P.DARK, LT = this.P.LIGHT;
+    for (let i = 0, n = NS * NS; i < n; i++) {
+      const v = store[i];
+      if (!v) continue;
+      const c = (v & 128) ? DK : LT, b4 = i * 4;
+      d[b4] = c[0]; d[b4 + 1] = c[1]; d[b4 + 2] = c[2]; d[b4 + 3] = (v & 127) << 1;
+    }
+    ctx.putImageData(img, 0, 0);
   },
 
   /* Työjono aikabudjetilla.
@@ -3172,24 +3208,14 @@ const CoastShade = {
 
   _enqueue(job) {
     if (this.disabled) { job.done(null, job.cvs); return; }
-    /* Zoom-taso vaihtui kesken erän: päästetään edellisen tason laatat
-       menemään heti. Muuten ne jäisivät merkitsemättä valmiiksi eikä Leaflet
-       voisi karsia niitä — mitattuna nipistyksen aikana varjocanvaseja kertyi
-       45 kun pohjakartalla oli 15, ja ylimääräinen kompositointi näkyi
-       ruutuajassa (p95 44 ms → 104 ms). */
-    const last = this._queue.length ? this._queue[this._queue.length - 1]
-               : (this._pending.length ? this._pending[this._pending.length - 1] : null);
-    if (last && last.coords.z !== job.coords.z) {
-      const stale = this._queue.splice(0).concat(this._pending);
-      this._pending = [];
-      /* done() EI saa lähteä synkronisesti: olemme createTile:n sisällä, ja
-         Leafletin _tileReady palaa heti jos laattaa ei ole vielä lisätty
-         _tiles-hakemistoon. Silloin laatta jäisi ikuisiksi ajoiksi
-         merkitsemättä ladatuksi eikä sitä voisi karsia. */
-      setTimeout(function () {
-        for (let i = 0; i < stale.length; i++) stale[i].done(null, stale[i].cvs);
-      }, 0);
-    }
+    /* HUOM: jonossa olevia töitä ei saa hylätä tyhjällä canvasilla, vaikka
+       zoom-taso vaihtuisi kesken erän. Aiemmin tehtiin niin, ja koska
+       zoomSnap animoi sormen noston jälkeen lähimpään puolikkaaseen tasoon,
+       Leaflet ehti pyytää laattoja kahdelta tasolta peräkkäin — jolloin juuri
+       valmistuvan tason erä hylättiin. Mitattuna viisi laattaa yhdestätoista
+       jäi pysyvästi tyhjäksi, eikä niitä koskaan laskettu uudelleen: varjo
+       katosi kartalta. Vanhentuneet työt ovat joka tapauksessa halpoja, koska
+       _drain ohittaa laatat jotka Leaflet on jo karsinut. */
     this._queue.push(job);
     if (this._draining) return;
     this._draining = true;
@@ -3234,7 +3260,26 @@ const CoastShade = {
           if (this.disabled) { job.done(null, job.cvs); continue; }
           /* Laatta on voitu karsia näkymästä jo ennen kuin sen vuoro tuli */
           if (!job.layer._tiles || !job.layer._tiles[job.key]) { job.done(null, job.cvs); continue; }
-          try { await this._renderTile(job.coords, job.cvs); } catch (e) { /* jätä tyhjäksi */ }
+          /* Muistettu varjo: pelkkä uudelleenpiirto, ei kuvalatauksia eikä
+             laskentaa. Tämä tekee jo kertaalleen nähdystä zoom-tasosta
+             välittömän. */
+          const memo = this._shade.get(job.key);
+          if (memo !== undefined) {
+            this._paintRemembered(job.cvs, memo);
+            this._pending.push(job);
+            continue;
+          }
+          let ok = true;
+          try { ok = await this._renderTile(job.coords, job.cvs); }
+          catch (e) { ok = true; /* virhe: ei jäädä silmukkaan */ }
+          if (ok === false && (job.tries = (job.tries || 0) + 1) <= 2) {
+            /* Keskilaatan kuva ei ollut saatavilla. Pudotetaan se välimuistista
+               ja yritetään uudelleen — muuten yksi epäonnistunut lataus jättäisi
+               laatan pysyvästi varjottomaksi. */
+            this._cache.delete(job.coords.z + '/' + job.coords.x + '/' + job.coords.y);
+            this._queue.push(job);
+            continue;
+          }
           this._pending.push(job);
         }
         if (this._queue.length) await new Promise(function (r) { setTimeout(r, 0); });
@@ -3256,26 +3301,37 @@ const CoastShade = {
   },
 
   /* Yksi pohjakartan laatta kuvana. Ensisijaisesti Leafletin jo lataamista
-     laatoista — silloin pyyntöä ei synny lainkaan. */
+     laatoista — silloin pyyntöä ei synny lainkaan.
+     Laatta on kelvollinen vasta kun se on oikean kokoinen: Leaflet asettaa
+     poistetun laatan src:ksi 1×1 läpinäkyvän kuvan, jolloin naturalWidth on 1. */
+  _usable(el) {
+    return !!(el && el.complete && el.naturalWidth >= this.P.NS);
+  },
+
   _image(x, y, z) {
+    /* Leafletin elävä laatta jos se on juuri nyt kelvollinen. Tätä EI panna
+       välimuistiin: Leaflet nollaa elementin src:n kun laatta poistetaan
+       näkymästä, ja välimuistissa ollut viite alkaisi piirtää tyhjää.
+       Mitattuna juuri se katkaisi varjon: toisella käynnillä samassa
+       näkymässä laskenta onnistui mutta tuotti pelkkää tyhjää, koska maski
+       luki läpinäkyvän puskurin kokonaan vedeksi. */
+    const live = this.tiles && this.tiles._tiles && this.tiles._tiles[x + ':' + y + ':' + z];
+    if (live && this._usable(live.el)) return Promise.resolve(live.el);
+
     const key = z + '/' + x + '/' + y;
     const hit = this._cache.get(key);
     if (hit) return hit;
 
-    const live = this.tiles && this.tiles._tiles && this.tiles._tiles[x + ':' + y + ':' + z];
-    let pr;
-    if (live && live.el && live.el.complete && live.el.naturalWidth) {
-      pr = Promise.resolve(live.el);
-    } else {
-      const self = this;
-      pr = new Promise(function (resolve) {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = function () { resolve(img.naturalWidth ? img : null); };
-        img.onerror = function () { resolve(null); };
-        img.src = self._url(x, y, z);
-      });
-    }
+    /* Oma kuva-olio on turvallinen välimuistiin: sitä ei jaeta Leafletin
+       kanssa eikä kukaan muuta sen src:ää. Sama URL osuu selaimen cacheen. */
+    const self = this;
+    const pr = new Promise(function (resolve) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = function () { resolve(self._usable(img) ? img : null); };
+      img.onerror = function () { resolve(null); };
+      img.src = self._url(x, y, z);
+    });
     if (this._cache.size >= this._cacheMax) {
       /* Yksinkertainen katto: pudota vanhin merkintä */
       const first = this._cache.keys().next();
@@ -3353,7 +3409,7 @@ const CoastShade = {
   /* Palauttaa lupauksen. Kutsuja (_drain) hoitaa Leafletin done-kutsun ja
      aikabudjetin, jotta tämä funktio voi keskittyä pelkkään laskentaan. */
   async _renderTile(coords, cvs) {
-    if (this.disabled) return;
+    if (this.disabled) return true;
     const self = this, P = this.P, z = coords.z;
     const NS = P.NS;
     const zf = this._radiusScale(z);
@@ -3373,7 +3429,7 @@ const CoastShade = {
     }
 
     const imgs = await Promise.all(jobs.map(function (j) { return j.pr; }));
-    if (self.disabled) return;
+    if (self.disabled) return true;
     {
       const W = NS + 2 * pad, H = W;
       const buf = document.createElement('canvas');
@@ -3387,7 +3443,9 @@ const CoastShade = {
       let centreOk = false;
       for (let i = 0; i < jobs.length; i++) {
         const img = imgs[i];
-        if (!img) continue;
+        /* Varmistus vielä piirtohetkellä: elementti on voitu nollata sen
+           jälkeen kun se noudettiin. */
+        if (!self._usable(img)) continue;
         const j = jobs[i];
         if (j.dx === 0 && j.dy === 0) centreOk = true;
         const x0 = pad + j.dx * NS, y0 = pad + j.dy * NS;
@@ -3401,9 +3459,10 @@ const CoastShade = {
             cx0, cy0, cx1 - cx0, cy1 - cy0);
         } catch (e) { /* yksittäinen laatta ei piirtynyt */ }
       }
-      /* Ilman keskilaattaa ei ole mitään mielekästä piirrettävää. Jätetään
-         laatta tyhjäksi; Leaflet pyytää sen uudelleen kun näkymä muuttuu. */
-      if (!centreOk) return;
+      /* Ilman keskilaattaa ei voi laskea mitään. Kerrotaan siitä kutsujalle,
+         joka yrittää uudelleen — muuten yksikin epäonnistunut kuvalataus
+         jättäisi laatan pysyvästi varjottomaksi. */
+      if (!centreOk) return false;
 
       let d;
       try {
@@ -3412,7 +3471,7 @@ const CoastShade = {
         /* Canvas saastui (laatta ilman CORS-otsakkeita) — korostus ei ole
            mahdollinen. Poistetaan käytöstä, jotta kartta toimii muuten. */
         self.disable();
-        return;
+        return true;
       }
 
       const n = W * H;
@@ -3428,7 +3487,11 @@ const CoastShade = {
       /* Pelkkää ulappaa tai pelkkää sisämaata — ei rantaa, ei varjoa.
          Ohitetaan avaus, kolme sumennusta ja maalaus kokonaan. Suomenlahdella
          ja sisämaassa tämä on iso osa näkymän laatoista. */
-      if (!water || !land) return;
+      if (!water || !land) {
+        /* Ei rantaa — muistetaan sekin, jottei tätä lasketa uudelleen. */
+        self._remember(coords.x + ':' + coords.y + ':' + z, null);
+        return true;
+      }
       const bd = new Float32Array(n), bl = new Float32Array(n);
 
       /* Teiden reunanpehmennys osuu vesikaistalle: tie on 42 ja maa 9, joten
@@ -3479,7 +3542,24 @@ const CoastShade = {
       const ctx = cvs.getContext('2d');
       ctx.clearRect(0, 0, NS, NS);
       ctx.drawImage(buf, pad, pad, NS, NS, 0, 0, NS, NS);
+
+      /* Talteen tiiviissä muodossa. Luetaan suoraan lasketusta puskurista
+         rajauksen kohdalta, joten ylimääräistä getImageData-lukua ei tarvita. */
+      const store = new Uint8Array(NS * NS);
+      for (let ty = 0; ty < NS; ty++) {
+        const srow = ((ty + pad) * W + pad) * 4, drow = ty * NS;
+        for (let tx = 0; tx < NS; tx++) {
+          const b4 = srow + tx * 4, a = o[b4 + 3];
+          if (!a) continue;
+          /* ylin bitti: 1 = varjo (tumma), 0 = reunus (vaalea) */
+          store[drow + tx] = (o[b4] < 64 ? 128 : 0) | (a >> 1);
+        }
+      }
+      self._remember(coords.x + ':' + coords.y + ':' + z, store);
     }
+    /* true = laatta on valmis (myös kun siinä ei ole rantaa lainkaan);
+       false = keskilaatan kuvaa ei saatu, kutsuja yrittää uudelleen */
+    return true;
   }
 };
 
