@@ -3050,69 +3050,219 @@ const WindTexture = {
  *   vesi (meri JA järvet) 36–38   maa 9   rakennukset 6   moottoritiet 3
  *   kadut 16–17                   veden reunaviiva 42
  * Vesi on siis maata VAALEAMPI, ja meri ja järvet ovat täsmälleen samaa
- * arvoa — yksi kynnys poimii rannikon, saariston ja sisäjärvet kerralla.
- * Yläraja tarvitaan koska tiet piirretään vettä vaaleammin (42): pelkkä
+ * arvoa — yksi kaista poimii rannikon, saariston ja sisäjärvet kerralla.
+ * Yläraja tarvitaan koska tiet piirretään vettä VAALEAMMIN (42): pelkkä
  * alaraja poimisi koko tieverkon mukaan.
  *
  * Miksi pikseleistä eikä rantaviiva-aineistosta: Suomen saaristossa on
  * kymmeniä tuhansia saaria, joten riittävän tarkka vektoriaineisto olisi
- * kymmeniä megatavuja. Pohjakartan laatat ovat jo selaimessa, joten
- * geometria on ilmainen ja täsmää pikselilleen joka zoom-tasolla.
+ * kymmeniä megatavuja. Pohjakartan laatat ovat jo selaimessa.
  *
  * Miksi liuku molemmin puolin: koska vesi on tällä pohjakartalla maata
  * vaaleampi, PELKKÄ veden tummennus rannassa (Windyn tapa, jossa vesi on
  * tummempi) pienentäisi rajan kontrastia — 38−9=29 kapenisi noin 20−9=11.
- * Siksi maan puolelle tulee leveä varjo ja veden puolelle kapea vaalea
- * reunus: kontrasti rajalla kasvaa ja liuku on silti pehmeä.
+ * Siksi maan puolelle tulee varjo ja veden puolelle kapea vaalea reunus.
  *
- * Kustannus: mitattuna 6–12 ms per rakennus 133×287 -maskilla. Ajetaan vain
- * moveend/zoomend:issä, ei eleen aikana — eleen ajan Leaflet venyttää valmista
- * overlayta kartan mukana samoin kuin lämpökarttaa. */
+ * MIKSI LAATTAKERROS eikä yksi näkymän kokoinen overlay: overlay oli
+ * sidottu rakennushetken lat/lng-rajoihin, joten zoomatessa selain venytti
+ * sitä. Mitattuna kohdistus pysyi ±0.1 % tarkkuudella oikeana, mutta kuvaa
+ * suurennettiin jopa 2× samalla kun sen lähdetarkkuus oli vain 0.34×
+ * näkymästä — eli rantaviivan siluettia näytettiin noin 6× suurennuksella
+ * terävän pohjakartan päällä. Kaksi samaa muotoa eri terävyydellä luki
+ * silmässä kahtena karttana, ja zoomend rakensi uuden jolloin ne
+ * "yhdistyivät". Sama syy teki varjosta epäselvän lähelle zoomattuna.
+ *
+ * L.GridLayer korjaa tämän juurineen: varjo kuuluu samaan laattapyramidiin
+ * kuin pohjakartta, joten Leaflet skaalaa, siirtää ja häivyttää sen
+ * TÄSMÄLLEEN samalla koneistolla ja samalla hetkellä. Liu'un leveys on
+ * määritelty laattapikseleinä, joten se pysyy ruudulla vakiona joka
+ * zoom-tasolla eikä veny koskaan.
+ *
+ * Sumennus tarvitsee reunojensa yli naapuridataa, muuten laattojen rajoille
+ * syntyisi saumat. Siksi jokainen varjolaatta lasketaan 3×3 naapurustosta
+ * ja siitä leikataan keskiosa. Naapurit otetaan ensisijaisesti Leafletin jo
+ * lataamista laatoista, eli useimmiten ilman yhtään verkkopyyntöä. */
+
+const COAST_TILE_TPL = 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png';
+const COAST_TILE_SUB = 'abcd';
+
 const CoastShade = {
-  map: null, tiles: null, overlay: null, disabled: false,
-  _scratch: null, _sctx: null, _out: null, _octx: null,
-  _pending: null, _sig: '',
+  map: null, tiles: null, layer: null, disabled: false,
+  _cache: new Map(),      /* 'z/x/y' -> Promise<Image|null> */
+  _cacheMax: 160,
 
   P: {
-    SCALE:   0.34,  /* maskin resoluutio näkymästä — pehmeä liuku ei tarvitse enempää */
+    NS:      256,   /* laskentanäytteitä laatan sivulla (laatta = 256 CSS px,
+                       eli 1 näyte/CSS-pikseli — noin 3× entinen tarkkuus) */
     T_LO:    28,    /* vesi: harmaasävy tästä ylöspäin... */
     T_HI:    40,    /* ...mutta vain tähän asti (tiet ovat 42) */
-    R_DARK:  14,    /* varjon leveys ruutupikseleinä, maan puolella */
-    A_DARK:  0.62,
+    R_DARK:  8,     /* varjon leveys CSS-pikseleinä, maan puolella */
+    A_DARK:  0.38,
     DARK:    [0, 2, 8],
-    R_LIGHT: 4,     /* reunuksen leveys ruutupikseleinä, veden puolella */
-    A_LIGHT: 0.07,
+    R_LIGHT: 3,     /* reunuksen leveys CSS-pikseleinä, veden puolella */
+    A_LIGHT: 0.06,
     LIGHT:   [140, 175, 205],
-    GAMMA:   1.25   /* >1 terävöittää liukua rannan lähellä */
+    GAMMA:   1.25,  /* >1 terävöittää liukua rannan lähellä */
+    BUDGET_MS: 12   /* laskenta-aika per tehtävä ennen kuin selain päästetään
+                       piirtämään — katso _drain() */
   },
 
   /* Kaukana zoomattuna saaristossa on tuhansia pikkusaaria näkymää kohti, ja
-     täysleveä varjo yhdistäisi ne yhdeksi paksuksi mustaksi vyöksi. Kapennetaan
+     täysleveä varjo yhdistäisi ne yhdeksi paksuksi vyöksi. Kapennetaan
      liukua portaattomasti ulos zoomatessa, niin rantaviivan muoto säilyy. */
   _radiusScale(z) {
-    return _lerpAnchors(z, [[5, 0.45], [7, 0.62], [9, 0.85], [11, 1.0]]);
+    return _lerpAnchors(z, [[5, 0.55], [8, 0.78], [11, 1.0]]);
   },
 
   init(map, tiles) {
     this.map = map; this.tiles = tiles;
     const self = this;
-    map.on('moveend zoomend', function () { self.schedule(); });
-    /* Laattojen valmistuminen on oma liipaisin: panoroinnin jälkeen uudet
-       laatat saapuvat vasta moveend:in jälkeen. */
-    tiles.on('load', function () { self.schedule(); });
-    this.schedule();
+    const Layer = L.GridLayer.extend({
+      createTile(coords, done) {
+        const cvs = document.createElement('canvas');
+        cvs.width = self.P.NS; cvs.height = self.P.NS;
+        self._enqueue({
+          coords: coords, cvs: cvs, done: done, layer: this,
+          key: coords.x + ':' + coords.y + ':' + coords.z
+        });
+        return cvs;
+      }
+    });
+    this.layer = new Layer({
+      pane: 'coast', className: 'coast-shade', tileSize: 256, keepBuffer: 2
+    }).addTo(map);
   },
 
-  /* Koalesoi liipaisimet yhdeksi rakennukseksi ja ohittaa turhat: sama
-     näkymä + sama määrä ladattuja laattoja = sama tulos. */
-  schedule() {
-    if (this.disabled || !this.map) return;
+  disable() {
+    this.disabled = true;
+    if (this.layer && this.map) { this.map.removeLayer(this.layer); this.layer = null; }
+    this._cache.clear();
+    this._queue.length = 0;
+  },
+
+  /* Työjono aikabudjetilla.
+   *
+   * Leaflet luo kaikki näkymän laatat samassa silmukassa, ja jos varjo
+   * laskettaisiin suoraan createTile:ssä, viisitoista laattaa peräkkäin
+   * lukitsisi pääsäikeen. Mitattuna 4× hidastetulla suorittimella (puhelinta
+   * vastaava) nipistyksen ruutuajan p95 nousi 45 ms:stä 167 ms:ään ja yli
+   * 50 ms:n ruutuja tuli 4 → 28.
+   *
+   * Promise-ketjutus ei riitä: await palaa mikrotehtäväjonon kautta, joka
+   * ajetaan ennen piirtoa. Siksi väliin tarvitaan oikea setTimeout-luovutus.
+   * Tehdään töitä budjetin verran, päästetään selain piirtämään, jatketaan. */
+  _queue: [], _draining: false,
+
+  _enqueue(job) {
+    if (this.disabled) { job.done(null, job.cvs); return; }
+    this._queue.push(job);
+    if (this._draining) return;
+    this._draining = true;
+    /* Tyhjennys EI saa alkaa synkronisesti: _enqueue kutsutaan createTile:n
+       sisältä, ja Leaflet lisää laatan _tiles-hakemistoonsa vasta kun
+       createTile on palannut. Synkronisesti ajettuna karsinta-tarkistus
+       hylkäisi jokaisen laatan heti "jo poistettuna". Oma tehtävä myös
+       niputtaa koko näkymän laatat yhteen tyhjennykseen. */
     const self = this;
-    if (this._pending) return;
-    this._pending = setTimeout(function () {
-      self._pending = null;
-      self.build();
-    }, 70);
+    setTimeout(function () { self._drain(); }, 0);
+  },
+
+  async _drain() {
+    while (this._queue.length) {
+      const t0 = performance.now();
+      while (this._queue.length && performance.now() - t0 < this.P.BUDGET_MS) {
+        const job = this._queue.shift();
+        if (this.disabled) { job.done(null, job.cvs); continue; }
+        /* Laatta on voitu karsia näkymästä jo ennen kuin sen vuoro tuli */
+        if (!job.layer._tiles || !job.layer._tiles[job.key]) { job.done(null, job.cvs); continue; }
+        try { await this._renderTile(job.coords, job.cvs); } catch (e) { /* jätä tyhjäksi */ }
+        job.done(null, job.cvs);
+      }
+      if (this._queue.length) await new Promise(function (r) { setTimeout(r, 0); });
+    }
+    this._draining = false;
+  },
+
+  _url(x, y, z) {
+    return L.Util.template(COAST_TILE_TPL, {
+      s: COAST_TILE_SUB[Math.abs(x + y) % COAST_TILE_SUB.length],
+      x: x, y: y, z: z,
+      /* Sama {r} kuin Leaflet itse käyttää, jotta osutaan samaan
+         selaincacheen eikä laatta ladata toista kertaa. */
+      r: L.Browser.retina ? '@2x' : ''
+    });
+  },
+
+  /* Yksi pohjakartan laatta kuvana. Ensisijaisesti Leafletin jo lataamista
+     laatoista — silloin pyyntöä ei synny lainkaan. */
+  _image(x, y, z) {
+    const key = z + '/' + x + '/' + y;
+    const hit = this._cache.get(key);
+    if (hit) return hit;
+
+    const live = this.tiles && this.tiles._tiles && this.tiles._tiles[x + ':' + y + ':' + z];
+    let pr;
+    if (live && live.el && live.el.complete && live.el.naturalWidth) {
+      pr = Promise.resolve(live.el);
+    } else {
+      const self = this;
+      pr = new Promise(function (resolve) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = function () { resolve(img.naturalWidth ? img : null); };
+        img.onerror = function () { resolve(null); };
+        img.src = self._url(x, y, z);
+      });
+    }
+    if (this._cache.size >= this._cacheMax) {
+      /* Yksinkertainen katto: pudota vanhin merkintä */
+      const first = this._cache.keys().next();
+      if (!first.done) this._cache.delete(first.value);
+    }
+    this._cache.set(key, pr);
+    return pr;
+  },
+
+  /* Math.pow oli mitattuna maalaussilmukan suurin yksittäinen kulu: 4.8 ms
+     85 000 pikselille, kaksi kutsua kussakin. Gamma on vakio, joten
+     korvataan hakutaululla. */
+  _lut: null,
+  _gamma() {
+    if (this._lut) return this._lut;
+    const t = new Float32Array(257);
+    for (let i = 0; i <= 256; i++) t[i] = Math.pow(i / 256, this.P.GAMMA);
+    this._lut = t;
+    return t;
+  },
+
+  /* 3×3 avaus: kutistus + laajennus, erottelevana min/max-parina.
+     Sama tulos kuin laatikkokeskiarvoilla ja kynnystyksellä, mutta
+     mitattuna 3.2 ms → 1.0 ms: Uint8 vie neljäsosan muistikaistasta ja
+     pystysuunta käydään riveittäin, ei sarakkeittain. */
+  _open3(m, tmp, w, h) {
+    let x, y, r0, r1, r2;
+    for (y = 0; y < h; y++) {                    /* kutistus, vaaka */
+      r1 = y * w;
+      for (x = 0; x < w; x++) {
+        tmp[r1 + x] = (m[r1 + (x > 0 ? x - 1 : 0)] && m[r1 + x]
+                    && m[r1 + (x < w - 1 ? x + 1 : w - 1)]) ? 1 : 0;
+      }
+    }
+    for (y = 0; y < h; y++) {                    /* kutistus, pysty */
+      r0 = (y > 0 ? y - 1 : 0) * w; r1 = y * w; r2 = (y < h - 1 ? y + 1 : h - 1) * w;
+      for (x = 0; x < w; x++) m[r1 + x] = (tmp[r0 + x] && tmp[r1 + x] && tmp[r2 + x]) ? 1 : 0;
+    }
+    for (y = 0; y < h; y++) {                    /* laajennus, vaaka */
+      r1 = y * w;
+      for (x = 0; x < w; x++) {
+        tmp[r1 + x] = (m[r1 + (x > 0 ? x - 1 : 0)] || m[r1 + x]
+                    || m[r1 + (x < w - 1 ? x + 1 : w - 1)]) ? 1 : 0;
+      }
+    }
+    for (y = 0; y < h; y++) {                    /* laajennus, pysty */
+      r0 = (y > 0 ? y - 1 : 0) * w; r1 = y * w; r2 = (y < h - 1 ? y + 1 : h - 1) * w;
+      for (x = 0; x < w; x++) m[r1 + x] = (tmp[r0 + x] || tmp[r1 + x] || tmp[r2 + x]) ? 1 : 0;
+    }
   },
 
   /* Erotteleva laatikkosumennus. Kaksi ajoa ≈ gaussinen, O(n) per ajo. */
@@ -3138,113 +3288,133 @@ const CoastShade = {
     }
   },
 
-  build() {
-    if (this.disabled || !this.map || !this.tiles) return;
-    const map = this.map, P = this.P;
-    const size = map.getSize();
-    const W = Math.max(2, Math.round(size.x * P.SCALE));
-    const H = Math.max(2, Math.round(size.y * P.SCALE));
-    if (!this._scratch) {
-      this._scratch = document.createElement('canvas');
-      this._sctx = this._scratch.getContext('2d', { willReadFrequently: true });
-      this._out = document.createElement('canvas');
-      this._octx = this._out.getContext('2d');
-    }
-    const sctx = this._sctx, octx = this._octx;
-    this._scratch.width = W; this._scratch.height = H;
-    sctx.clearRect(0, 0, W, H);
-
-    /* Piirrä näkyvät laatat pienennettyyn apucanvasiin. Laatan paikka
-       lasketaan sen ruutukoordinaateista, ei DOM-transformista — eleen
-       aikana transform on kesken mutta koordinaatit ovat aina tarkat. */
-    const z = map.getZoom(), pb = map.getPixelBounds(), ts = this.tiles.getTileSize().x;
-    let drawn = 0, loaded = 0;
-    for (const k in this.tiles._tiles) {
-      const t = this.tiles._tiles[k];
-      if (!t.el || !t.loaded || !t.current || t.coords.z !== z) continue;
-      if (!t.el.complete || !t.el.naturalWidth) continue;
-      loaded++;
-      const px = t.coords.x * ts - pb.min.x, py = t.coords.y * ts - pb.min.y;
-      try {
-        sctx.drawImage(t.el, px * P.SCALE, py * P.SCALE, ts * P.SCALE, ts * P.SCALE);
-        drawn++;
-      } catch (e) { /* yksittäinen laatta ei piirtynyt — jatketaan muilla */ }
-    }
-    if (!drawn) return;
-
-    /* Sama näkymä ja sama määrä laattoja → tulos olisi identtinen. Ohitetaan,
-       jottei laattojen latausryöppy rakenna samaa kuvaa monta kertaa. */
-    const sig = z + '|' + Math.round(pb.min.x) + '|' + Math.round(pb.min.y)
-              + '|' + W + '|' + H + '|' + loaded;
-    if (sig === this._sig) return;
-    this._sig = sig;
-
-    let d;
-    try {
-      d = sctx.getImageData(0, 0, W, H).data;
-    } catch (e) {
-      /* Canvas saastui (laatta ilman CORS-otsakkeita) — korostus ei ole
-         mahdollinen tässä ympäristössä. Poistetaan käytöstä pysyvästi,
-         jotta kartta toimii muuten normaalisti. */
-      this.disable();
-      return;
-    }
-
-    const n = W * H;
-    const mask = new Float32Array(n), bd = new Float32Array(n), bl = new Float32Array(n);
-    for (let i = 0; i < n; i++) {
-      const b4 = i * 4, v = d[b4];
-      /* Puuttuva laatta (alpha 0) luetaan vedeksi: silloin laatta-aukon
-         reunaan ei synny valerantaa. */
-      mask[i] = (d[b4 + 3] < 8 || (v >= P.T_LO && v <= P.T_HI)) ? 1 : 0;
-    }
+  /* Palauttaa lupauksen. Kutsuja (_drain) hoitaa Leafletin done-kutsun ja
+     aikabudjetin, jotta tämä funktio voi keskittyä pelkkään laskentaan. */
+  async _renderTile(coords, cvs) {
+    if (this.disabled) return;
+    const self = this, P = this.P, z = coords.z;
+    const NS = P.NS;
     const zf = this._radiusScale(z);
-    const rd = Math.max(1, Math.round(P.R_DARK * zf * P.SCALE));
-    const rl = Math.max(1, Math.round(P.R_LIGHT * zf * P.SCALE));
-    this._blur(mask, bd, W, H, rd); this._blur(bd, bd, W, H, rd);
-    this._blur(mask, bl, W, H, rl); this._blur(bl, bl, W, H, rl);
+    /* Sumennussäteet näytteinä. NS vastaa 256 CSS px:ää. */
+    const k = NS / 256;
+    const rd = Math.max(1, Math.round(P.R_DARK * zf * k));
+    const rl = Math.max(1, Math.round(P.R_LIGHT * zf * k));
+    /* Reunus: kaksi sumennusajoa levittää dataa 2r, plus varmuusvara */
+    const pad = 2 * rd + 2;
 
-    this._out.width = W; this._out.height = H;
-    const out = octx.createImageData(W, H), o = out.data;
-    const DK = P.DARK, LT = P.LIGHT;
-    for (let j = 0; j < n; j++) {
-      const m0 = mask[j];
-      /* Leveä sumennus vuotaa vedestä maalle → varjo maan puolella */
-      let gL = bd[j] - m0; if (gL < 0) gL = 0;
-      /* Kapea sumennus jää rannassa maskia pienemmäksi → reunus veden puolella */
-      let gW = m0 - bl[j]; if (gW < 0) gW = 0;
-      const aL = Math.pow(Math.min(1, gL * 2), P.GAMMA) * P.A_DARK;
-      const aW = Math.pow(Math.min(1, gW * 2), P.GAMMA) * P.A_LIGHT;
-      /* Kaistat ovat rajan eri puolilla eivätkä mene päällekkäin, joten
-         vahvempi voittaa ja jokainen pikseli saa yhden värin. */
-      let R, G, B, A;
-      if (aL >= aW) { R = DK[0]; G = DK[1]; B = DK[2]; A = aL; }
-      else          { R = LT[0]; G = LT[1]; B = LT[2]; A = aW; }
-      if (A <= 0.003) { o[j * 4 + 3] = 0; continue; }
-      const b4 = j * 4;
-      o[b4] = R; o[b4 + 1] = G; o[b4 + 2] = B; o[b4 + 3] = Math.round(Math.min(1, A) * 255);
+    /* Naapurusto: 3×3 laattaa. Useimmiten kaikki jo Leafletin muistissa. */
+    const jobs = [];
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        jobs.push({ dx: dx, dy: dy, pr: this._image(coords.x + dx, coords.y + dy, z) });
+      }
     }
-    octx.putImageData(out, 0, 0);
 
-    const bounds = map.getBounds();
-    let url;
-    try { url = this._out.toDataURL(); } catch (e) { this.disable(); return; }
-    if (this.overlay) {
-      this.overlay.setUrl(url);
-      this.overlay.setBounds(bounds);
-    } else {
-      this.overlay = L.imageOverlay(url, bounds, {
-        pane: 'coast', interactive: false, className: 'coast-shade'
-      }).addTo(map);
+    const imgs = await Promise.all(jobs.map(function (j) { return j.pr; }));
+    if (self.disabled) return;
+    {
+      const W = NS + 2 * pad, H = W;
+      const buf = document.createElement('canvas');
+      buf.width = W; buf.height = H;
+      const bctx = buf.getContext('2d', { willReadFrequently: true });
+
+      /* Naapureista tarvitaan VAIN reunuksen levyinen kaistale, ei koko
+         laattaa: puskuri ulottuu naapurin puolelle vain pad-pikseliä.
+         Rajataan piirto siihen — muuten jokainen varjolaatta skaalaisi
+         yhdeksän koko laattaa, mikä oli mitattuna suurin yksittäinen kulu. */
+      let centreOk = false;
+      for (let i = 0; i < jobs.length; i++) {
+        const img = imgs[i];
+        if (!img) continue;
+        const j = jobs[i];
+        if (j.dx === 0 && j.dy === 0) centreOk = true;
+        const x0 = pad + j.dx * NS, y0 = pad + j.dy * NS;
+        const cx0 = Math.max(0, x0), cy0 = Math.max(0, y0);
+        const cx1 = Math.min(W, x0 + NS), cy1 = Math.min(H, y0 + NS);
+        if (cx1 <= cx0 || cy1 <= cy0) continue;
+        const sc = img.naturalWidth / NS; /* lähdepikseliä per kohdepikseli */
+        try {
+          bctx.drawImage(img,
+            (cx0 - x0) * sc, (cy0 - y0) * sc, (cx1 - cx0) * sc, (cy1 - cy0) * sc,
+            cx0, cy0, cx1 - cx0, cy1 - cy0);
+        } catch (e) { /* yksittäinen laatta ei piirtynyt */ }
+      }
+      /* Ilman keskilaattaa ei ole mitään mielekästä piirrettävää. Jätetään
+         laatta tyhjäksi; Leaflet pyytää sen uudelleen kun näkymä muuttuu. */
+      if (!centreOk) return;
+
+      let d;
+      try {
+        d = bctx.getImageData(0, 0, W, H).data;
+      } catch (e) {
+        /* Canvas saastui (laatta ilman CORS-otsakkeita) — korostus ei ole
+           mahdollinen. Poistetaan käytöstä, jotta kartta toimii muuten. */
+        self.disable();
+        return;
+      }
+
+      const n = W * H;
+      const mask = new Uint8Array(n), work = new Uint8Array(n);
+      const bd = new Float32Array(n), bl = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        const b4 = i * 4, v = d[b4];
+        /* Puuttuva naapuri (alpha 0) luetaan vedeksi: silloin laatan reunaan
+           ei synny valerantaa vaan pelkkä hieman vaimeampi liuku. */
+        mask[i] = (d[b4 + 3] < 8 || (v >= P.T_LO && v <= P.T_HI)) ? 1 : 0;
+      }
+
+      /* Teiden reunanpehmennys osuu vesikaistalle: tie on 42 ja maa 9, joten
+         niiden välinen liukuma käy arvojen 36–38 kautta. Siitä syntyi ohuita
+         valevesijuovia pitkin tieverkkoa. Poistetaan ne AVAUKSELLA
+         (kutistus + laajennus): se hävittää alle 3 px leveät vesirakenteet
+         mutta jättää kaiken muun ennalleen.
+         Symmetrinen enemmistösuodatin EI kelpaa — se täyttäisi yhden pikselin
+         luodot vedeksi, ja saaristossa niitä on tuhansia. Avaus säilyttää ne,
+         koska pieni maalaikku vain kasvaa kutistusvaiheessa ja palautuu
+         laajennuksessa. */
+      self._open3(mask, work, W, H);
+      /* Varjo: kaksi ajoa (pehmeä, leveä). Reunus: yksi ajo riittää, koska
+         se on vain muutaman pikselin levyinen. */
+      self._blur(mask, bd, W, H, rd); self._blur(bd, bd, W, H, rd);
+      self._blur(mask, bl, W, H, rl);
+
+      const out = bctx.createImageData(W, H), o = out.data;
+      const DK = P.DARK, LT = P.LIGHT, lut = self._gamma();
+      const AD = P.A_DARK, AL = P.A_LIGHT;
+      for (let j2 = 0; j2 < n; j2++) {
+        const m0 = mask[j2];
+        /* Leveä sumennus vuotaa vedestä maalle → varjo maan puolella */
+        const gL = bd[j2] - m0;
+        /* Kapea sumennus jää rannassa maskia pienemmäksi → reunus veden puolella */
+        const gW = m0 - bl[j2];
+        const b4 = j2 * 4;
+        /* Valtaosa pikseleistä on kaukana rannasta (sisämaa, ulappa) eikä saa
+           kumpaakaan kaistaa — ohitetaan ne ennen kaikkea muuta työtä. */
+        if (gL <= 0 && gW <= 0) { o[b4 + 3] = 0; continue; }
+        /* Kaistat ovat rajan eri puolilla eivätkä mene päällekkäin, joten
+           vahvempi voittaa ja jokainen pikseli saa yhden värin. */
+        let R, G, B, A;
+        if (gL > 0) {
+          let i = (gL * 512) | 0; if (i > 256) i = 256;
+          A = lut[i] * AD; R = DK[0]; G = DK[1]; B = DK[2];
+        } else {
+          let i = (gW * 512) | 0; if (i > 256) i = 256;
+          A = lut[i] * AL; R = LT[0]; G = LT[1]; B = LT[2];
+        }
+        if (A <= 0.003) { o[b4 + 3] = 0; continue; }
+        o[b4] = R; o[b4 + 1] = G; o[b4 + 2] = B; o[b4 + 3] = (A * 255 + 0.5) | 0;
+      }
+      bctx.putImageData(out, 0, 0);
+
+      /* Leikkaa keskiosa laatalle — reunuksen tarkoitus oli vain antaa
+         sumennukselle naapuridataa. */
+      const ctx = cvs.getContext('2d');
+      ctx.clearRect(0, 0, NS, NS);
+      ctx.drawImage(buf, pad, pad, NS, NS, 0, 0, NS, NS);
     }
-  },
-
-  disable() {
-    this.disabled = true;
-    if (this._pending) { clearTimeout(this._pending); this._pending = null; }
-    if (this.overlay) { this.map.removeLayer(this.overlay); this.overlay = null; }
   }
 };
+
 
 /* -- HEATMAP ---------------------------------------------------- */
 /* drawColorField(skipBlur)
