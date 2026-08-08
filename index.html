@@ -59,7 +59,8 @@ body {
    MAP  z:1
    ============================================================ */
 #map { position: absolute; inset: 0; z-index: 1; background: var(--bg); touch-action: none; }
-/* Coastline vignette — tummentaa kartan reunoja */
+/* Ruudun reunavinjetti — tummentaa NÄKYMÄN reunoja, ei liity rantaviivaan.
+   Rantaviivan korostus on CoastShade (oma pane 'coast'). */
 #map::after {
   content: '';
   position: absolute; inset: 0; z-index: 2;
@@ -2524,11 +2525,49 @@ function initMap() {
     worldCopyJump: true, doubleClickZoom: false, tap: false, tapTolerance: 15
   });
 
-  /* Pohjakartta */
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
-    subdomains: 'abcd', maxZoom: 19,
+  /* Pohjakartta.
+     crossOrigin: CARTO palauttaa Access-Control-Allow-Origin: *, joten laatat
+     voi ladata CORS-tilassa. Silloin niiden pikselit ovat luettavissa eikä
+     canvas saastu — CoastShade johtaa rantaviivan suoraan niistä. */
+  var baseTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+    subdomains: 'abcd', maxZoom: 19, crossOrigin: 'anonymous',
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
   }).addTo(map);
+
+  /* Rantaviivan korostus omaan paneeseen lämpökartan päälle (overlayPane 400)
+     mutta merkkien alle (markerPane 600).
+     Miksi päälle: lämpökartta piirretään mix-blend-mode: screen -tilassa koko
+     näkymään, myös maan päälle. Alempaa paneesta (250) mitattuna korostus
+     hävisi käytännössä kokonaan — screen kirkastaa alleen jäävän pohjakartan
+     detailin pois. Windyssä rantaviiva on samasta syystä tuulikerroksen
+     päällä. */
+  map.createPane('coast');
+  map.getPane('coast').style.zIndex = 450;
+  map.getPane('coast').style.pointerEvents = 'none';
+  CoastShade.init(map, baseTiles);
+
+  /* Turvaverkko: crossOrigin tarkoittaa että laatta ladataan CORS-tilassa, ja
+     jos palvelin joskus lakkaisi lähettämästä Access-Control-Allow-Origin:ia,
+     SELAIN HYLKÄISI KAIKKI LAATAT — koko pohjakartta katoaisi rantaviivan
+     korostuksen takia. Siksi: jos yhtään laattaa ei ole onnistunut ja virheitä
+     alkaa kertyä, vaihdetaan tavalliseen laattakerrokseen ja luovutaan
+     korostuksesta. Verkkohäiriö ei laukaise tätä, koska se vaatii että
+     onnistuneita latauksia on nolla. */
+  (function () {
+    var ok = 0, bad = 0, swapped = false;
+    baseTiles.on('tileload', function () { ok++; });
+    baseTiles.on('tileerror', function () {
+      bad++;
+      if (swapped || ok > 0 || bad < 4) return;
+      swapped = true;
+      CoastShade.disable();
+      map.removeLayer(baseTiles);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+        subdomains: 'abcd', maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
+      }).addTo(map);
+    });
+  })();
 
 
   State.map = map;
@@ -3000,6 +3039,210 @@ const WindTexture = {
     const u = w00*this.uData[i00] + w01*this.uData[i01] + w10*this.uData[i10] + w11*this.uData[i11];
     const v = w00*this.vData[i00] + w01*this.vData[i01] + w10*this.vData[i10] + w11*this.vData[i11];
     return { u, v, ms: Math.sqrt(u*u + v*v) };
+  }
+};
+
+/* -- RANTAVIIVAN KOROSTUS --------------------------------------- */
+/* Erottaa veden ja maan pehmeällä liu'ulla rajan molemmin puolin.
+ *
+ * Mistä geometria tulee: pohjakartan omista pikseleistä. CARTO dark_nolabels
+ * on puhdasta harmaasävyä ja käyttää vain ~11 eri arvoa. Mitattuna:
+ *   vesi (meri JA järvet) 36–38   maa 9   rakennukset 6   moottoritiet 3
+ *   kadut 16–17                   veden reunaviiva 42
+ * Vesi on siis maata VAALEAMPI, ja meri ja järvet ovat täsmälleen samaa
+ * arvoa — yksi kynnys poimii rannikon, saariston ja sisäjärvet kerralla.
+ * Yläraja tarvitaan koska tiet piirretään vettä vaaleammin (42): pelkkä
+ * alaraja poimisi koko tieverkon mukaan.
+ *
+ * Miksi pikseleistä eikä rantaviiva-aineistosta: Suomen saaristossa on
+ * kymmeniä tuhansia saaria, joten riittävän tarkka vektoriaineisto olisi
+ * kymmeniä megatavuja. Pohjakartan laatat ovat jo selaimessa, joten
+ * geometria on ilmainen ja täsmää pikselilleen joka zoom-tasolla.
+ *
+ * Miksi liuku molemmin puolin: koska vesi on tällä pohjakartalla maata
+ * vaaleampi, PELKKÄ veden tummennus rannassa (Windyn tapa, jossa vesi on
+ * tummempi) pienentäisi rajan kontrastia — 38−9=29 kapenisi noin 20−9=11.
+ * Siksi maan puolelle tulee leveä varjo ja veden puolelle kapea vaalea
+ * reunus: kontrasti rajalla kasvaa ja liuku on silti pehmeä.
+ *
+ * Kustannus: mitattuna 6–12 ms per rakennus 133×287 -maskilla. Ajetaan vain
+ * moveend/zoomend:issä, ei eleen aikana — eleen ajan Leaflet venyttää valmista
+ * overlayta kartan mukana samoin kuin lämpökarttaa. */
+const CoastShade = {
+  map: null, tiles: null, overlay: null, disabled: false,
+  _scratch: null, _sctx: null, _out: null, _octx: null,
+  _pending: null, _sig: '',
+
+  P: {
+    SCALE:   0.34,  /* maskin resoluutio näkymästä — pehmeä liuku ei tarvitse enempää */
+    T_LO:    28,    /* vesi: harmaasävy tästä ylöspäin... */
+    T_HI:    40,    /* ...mutta vain tähän asti (tiet ovat 42) */
+    R_DARK:  14,    /* varjon leveys ruutupikseleinä, maan puolella */
+    A_DARK:  0.62,
+    DARK:    [0, 2, 8],
+    R_LIGHT: 4,     /* reunuksen leveys ruutupikseleinä, veden puolella */
+    A_LIGHT: 0.07,
+    LIGHT:   [140, 175, 205],
+    GAMMA:   1.25   /* >1 terävöittää liukua rannan lähellä */
+  },
+
+  /* Kaukana zoomattuna saaristossa on tuhansia pikkusaaria näkymää kohti, ja
+     täysleveä varjo yhdistäisi ne yhdeksi paksuksi mustaksi vyöksi. Kapennetaan
+     liukua portaattomasti ulos zoomatessa, niin rantaviivan muoto säilyy. */
+  _radiusScale(z) {
+    return _lerpAnchors(z, [[5, 0.45], [7, 0.62], [9, 0.85], [11, 1.0]]);
+  },
+
+  init(map, tiles) {
+    this.map = map; this.tiles = tiles;
+    const self = this;
+    map.on('moveend zoomend', function () { self.schedule(); });
+    /* Laattojen valmistuminen on oma liipaisin: panoroinnin jälkeen uudet
+       laatat saapuvat vasta moveend:in jälkeen. */
+    tiles.on('load', function () { self.schedule(); });
+    this.schedule();
+  },
+
+  /* Koalesoi liipaisimet yhdeksi rakennukseksi ja ohittaa turhat: sama
+     näkymä + sama määrä ladattuja laattoja = sama tulos. */
+  schedule() {
+    if (this.disabled || !this.map) return;
+    const self = this;
+    if (this._pending) return;
+    this._pending = setTimeout(function () {
+      self._pending = null;
+      self.build();
+    }, 70);
+  },
+
+  /* Erotteleva laatikkosumennus. Kaksi ajoa ≈ gaussinen, O(n) per ajo. */
+  _blur(src, dst, w, h, r) {
+    const tmp = new Float32Array(w * h);
+    const norm = 1 / (2 * r + 1);
+    let x, y, i, acc;
+    for (y = 0; y < h; y++) {
+      const row = y * w; acc = 0;
+      for (i = -r; i <= r; i++) acc += src[row + Math.min(w - 1, Math.max(0, i))];
+      for (x = 0; x < w; x++) {
+        tmp[row + x] = acc * norm;
+        acc += src[row + Math.min(w - 1, x + r + 1)] - src[row + Math.max(0, x - r)];
+      }
+    }
+    for (x = 0; x < w; x++) {
+      acc = 0;
+      for (i = -r; i <= r; i++) acc += tmp[Math.min(h - 1, Math.max(0, i)) * w + x];
+      for (y = 0; y < h; y++) {
+        dst[y * w + x] = acc * norm;
+        acc += tmp[Math.min(h - 1, y + r + 1) * w + x] - tmp[Math.max(0, y - r) * w + x];
+      }
+    }
+  },
+
+  build() {
+    if (this.disabled || !this.map || !this.tiles) return;
+    const map = this.map, P = this.P;
+    const size = map.getSize();
+    const W = Math.max(2, Math.round(size.x * P.SCALE));
+    const H = Math.max(2, Math.round(size.y * P.SCALE));
+    if (!this._scratch) {
+      this._scratch = document.createElement('canvas');
+      this._sctx = this._scratch.getContext('2d', { willReadFrequently: true });
+      this._out = document.createElement('canvas');
+      this._octx = this._out.getContext('2d');
+    }
+    const sctx = this._sctx, octx = this._octx;
+    this._scratch.width = W; this._scratch.height = H;
+    sctx.clearRect(0, 0, W, H);
+
+    /* Piirrä näkyvät laatat pienennettyyn apucanvasiin. Laatan paikka
+       lasketaan sen ruutukoordinaateista, ei DOM-transformista — eleen
+       aikana transform on kesken mutta koordinaatit ovat aina tarkat. */
+    const z = map.getZoom(), pb = map.getPixelBounds(), ts = this.tiles.getTileSize().x;
+    let drawn = 0, loaded = 0;
+    for (const k in this.tiles._tiles) {
+      const t = this.tiles._tiles[k];
+      if (!t.el || !t.loaded || !t.current || t.coords.z !== z) continue;
+      if (!t.el.complete || !t.el.naturalWidth) continue;
+      loaded++;
+      const px = t.coords.x * ts - pb.min.x, py = t.coords.y * ts - pb.min.y;
+      try {
+        sctx.drawImage(t.el, px * P.SCALE, py * P.SCALE, ts * P.SCALE, ts * P.SCALE);
+        drawn++;
+      } catch (e) { /* yksittäinen laatta ei piirtynyt — jatketaan muilla */ }
+    }
+    if (!drawn) return;
+
+    /* Sama näkymä ja sama määrä laattoja → tulos olisi identtinen. Ohitetaan,
+       jottei laattojen latausryöppy rakenna samaa kuvaa monta kertaa. */
+    const sig = z + '|' + Math.round(pb.min.x) + '|' + Math.round(pb.min.y)
+              + '|' + W + '|' + H + '|' + loaded;
+    if (sig === this._sig) return;
+    this._sig = sig;
+
+    let d;
+    try {
+      d = sctx.getImageData(0, 0, W, H).data;
+    } catch (e) {
+      /* Canvas saastui (laatta ilman CORS-otsakkeita) — korostus ei ole
+         mahdollinen tässä ympäristössä. Poistetaan käytöstä pysyvästi,
+         jotta kartta toimii muuten normaalisti. */
+      this.disable();
+      return;
+    }
+
+    const n = W * H;
+    const mask = new Float32Array(n), bd = new Float32Array(n), bl = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const b4 = i * 4, v = d[b4];
+      /* Puuttuva laatta (alpha 0) luetaan vedeksi: silloin laatta-aukon
+         reunaan ei synny valerantaa. */
+      mask[i] = (d[b4 + 3] < 8 || (v >= P.T_LO && v <= P.T_HI)) ? 1 : 0;
+    }
+    const zf = this._radiusScale(z);
+    const rd = Math.max(1, Math.round(P.R_DARK * zf * P.SCALE));
+    const rl = Math.max(1, Math.round(P.R_LIGHT * zf * P.SCALE));
+    this._blur(mask, bd, W, H, rd); this._blur(bd, bd, W, H, rd);
+    this._blur(mask, bl, W, H, rl); this._blur(bl, bl, W, H, rl);
+
+    this._out.width = W; this._out.height = H;
+    const out = octx.createImageData(W, H), o = out.data;
+    const DK = P.DARK, LT = P.LIGHT;
+    for (let j = 0; j < n; j++) {
+      const m0 = mask[j];
+      /* Leveä sumennus vuotaa vedestä maalle → varjo maan puolella */
+      let gL = bd[j] - m0; if (gL < 0) gL = 0;
+      /* Kapea sumennus jää rannassa maskia pienemmäksi → reunus veden puolella */
+      let gW = m0 - bl[j]; if (gW < 0) gW = 0;
+      const aL = Math.pow(Math.min(1, gL * 2), P.GAMMA) * P.A_DARK;
+      const aW = Math.pow(Math.min(1, gW * 2), P.GAMMA) * P.A_LIGHT;
+      /* Kaistat ovat rajan eri puolilla eivätkä mene päällekkäin, joten
+         vahvempi voittaa ja jokainen pikseli saa yhden värin. */
+      let R, G, B, A;
+      if (aL >= aW) { R = DK[0]; G = DK[1]; B = DK[2]; A = aL; }
+      else          { R = LT[0]; G = LT[1]; B = LT[2]; A = aW; }
+      if (A <= 0.003) { o[j * 4 + 3] = 0; continue; }
+      const b4 = j * 4;
+      o[b4] = R; o[b4 + 1] = G; o[b4 + 2] = B; o[b4 + 3] = Math.round(Math.min(1, A) * 255);
+    }
+    octx.putImageData(out, 0, 0);
+
+    const bounds = map.getBounds();
+    let url;
+    try { url = this._out.toDataURL(); } catch (e) { this.disable(); return; }
+    if (this.overlay) {
+      this.overlay.setUrl(url);
+      this.overlay.setBounds(bounds);
+    } else {
+      this.overlay = L.imageOverlay(url, bounds, {
+        pane: 'coast', interactive: false, className: 'coast-shade'
+      }).addTo(map);
+    }
+  },
+
+  disable() {
+    this.disabled = true;
+    if (this._pending) { clearTimeout(this._pending); this._pending = null; }
+    if (this.overlay) { this.map.removeLayer(this.overlay); this.overlay = null; }
   }
 };
 
@@ -8409,12 +8652,15 @@ const _loadingSafety = setTimeout(() => {
     +   '<button data-pp="tiles"     style="flex:1"></button>'
     +   '<button data-pp="snap"      style="flex:1"></button>'
     + '</div>'
+    + '<div style="display:flex;gap:4px;margin-top:4px">'
+    +   '<button data-pp="coast"     style="flex:1"></button>'
+    + '</div>'
     + '<div style="font-size:8px;color:rgba(255,255,255,.35);margin-top:5px">napauta lukemia = nollaa huiput</div>';
   document.body.appendChild(el);
 
-  var off = { particles: false, heatmap: false, markers: false, field: false, tiles: false, snap: false };
+  var off = { particles: false, heatmap: false, markers: false, field: false, tiles: false, snap: false, coast: false };
   var LBL = { particles: 'Partikkelit', heatmap: 'Lämpökartta', markers: 'Merkit', field: 'Kenttä',
-              tiles: 'Tiilet', snap: 'Snap 0.5' };
+              tiles: 'Tiilet', snap: 'Snap 0.5', coast: 'Rantaviiva' };
 
   /* Ele- ja jälkivaihe erikseen. Nykiminen ITSE nipistyksen aikana ja
      nykäisy sen loputtua ovat eri ongelmia ja vaativat eri korjauksen,
@@ -8467,6 +8713,10 @@ const _loadingSafety = setTimeout(() => {
       /* Kaikki karttamerkit: spotit, tuulikortit, asemaruksit */
       document.querySelectorAll('.leaflet-marker-pane').forEach(function (e) {
         e.style.display = off.markers ? 'none' : '';
+      });
+    } else if (k === 'coast') {
+      document.querySelectorAll('.coast-shade').forEach(function (e) {
+        e.style.display = off.coast ? 'none' : '';
       });
     }
     else if (k === 'tiles') {
