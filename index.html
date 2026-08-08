@@ -89,25 +89,7 @@ body {
   /* Multiply: vaalealla pohjalla tuulivarit painuvat luonnollisesti kartalle */
   mix-blend-mode: screen;
   image-rendering: auto;
-  /* HUOM: tässä oli ennen transition: filter 0.3s.
-     updateHeatmapBlur() ajetaan joka zoomin päätteeksi ja blur-säde muuttuu
-     joka zoom-tasolla (z8 9px, z9 7px, z10 4px, z11 3px), joten siirtymä
-     animoi koko ruudun kokoista sumennusta 300 ms — noin 18 ruutua
-     sumennetun ja screen-blendatun kuvan uudelleenrasterointia juuri siinä
-     kohdassa missä zoomaus loppuu. Sumennuksen hyppy ei näy, koska
-     tekstuuri joka tapauksessa piirretään samalla hetkellä uusiksi. */
-}
-
-/* Zoom-animaation ajaksi kevennetään kalleimmat efektit. backdrop-filter on
-   iOS:llä raskaimpia: se lukee ja sumentaa taustan jokaisessa ruudussa, ja
-   Leaflet skaalaa merkkejä transformilla koko animaation ajan. Kortit ovat
-   pieniä ja liikkeessä, joten taustasumennuksen puuttuminen ~250 ms ajan ei
-   näy — toisin kuin lämpökartan oma blur, joka jätetään koskematta ettei
-   tekstuuri näyttäisi hetkeksi karkealta. */
-body.map-zooming .leaflet-marker-icon *,
-body.map-zooming .leaflet-marker-icon {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+  transition: filter 0.3s, -webkit-filter 0.3s;
 }
 .heatmap-overlay img {
   mix-blend-mode: screen;
@@ -2613,12 +2595,6 @@ function initMap() {
     }, 350);
   }
 
-  /* Kevennetty tila zoom-animaation ajaksi — katso .map-zooming CSS:ssä.
-     zoomend tulee Leafletissä aina zoomstartin jälkeen, myös nipistyksessä,
-     joten luokka ei jää päälle. */
-  map.on('zoomstart', () => { document.body.classList.add('map-zooming'); });
-  map.on('zoomend',   () => { document.body.classList.remove('map-zooming'); });
-
   let _prevZoom = map.getZoom();
   map.on('zoomend', () => {
     if (State._dragZooming) return;
@@ -2843,52 +2819,6 @@ const WindTexture = {
   latMin: 0, latMax: 0, lngMin: 0, lngMax: 0,
   COARSE_STEP: 3,        /* vakiotarkkuus */
   SCRUB_STEP: 6,         /* aikajanaa raahatessa — päivitys ehtii joka ruutuun */
-  _tmpCanvas: null,
-
-  /* Osaako selain sumentaa canvasille? Safari 16.4+ ja kaikki nykyselaimet
-     osaavat. Vanhemmissa ctx.filter on olemassa mutta jää huomiotta, joten
-     tunnistus tehdään piirtämällä: sumennetun pisteen pitää vuotaa
-     naapuripikseliin. Jos ei osaa, sumennus jää CSS:n hoidettavaksi kuten
-     ennenkin — ulkoasu ei siis muutu millään selaimella. */
-  canBakeBlur() {
-    if (this._canBake !== undefined) return this._canBake;
-    try {
-      const c = document.createElement('canvas'); c.width = 9; c.height = 9;
-      const x = c.getContext('2d');
-      x.fillStyle = '#fff'; x.fillRect(4, 4, 1, 1);
-      const src = document.createElement('canvas'); src.width = 9; src.height = 9;
-      src.getContext('2d').drawImage(c, 0, 0);
-      x.clearRect(0, 0, 9, 9);
-      x.filter = 'blur(2px)';
-      x.drawImage(src, 0, 0);
-      x.filter = 'none';
-      /* Naapuripikselin pitää saada valoa jos sumennus toimi */
-      this._canBake = x.getImageData(6, 4, 1, 1).data[3] > 0;
-    } catch (e) { this._canBake = false; }
-    return this._canBake;
-  },
-
-  /* CSS-sumennus on ruutupikseleissä, mutta tekstuuripikseli on eri kokoinen.
-     Muunnetaan mittaamalla kuinka leveä overlay on ruudulla. */
-  _blurTexels(cssBlur) {
-    const map = State.map;
-    if (!map || !this.cols) return 0;
-    try {
-      const a = map.latLngToContainerPoint(L.latLng(this.latMin, this.lngMin));
-      const b = map.latLngToContainerPoint(L.latLng(this.latMax, this.lngMax));
-      const screenW = Math.abs(b.x - a.x);
-      if (!(screenW > 0)) return 0;
-      const texelPx = screenW / this.cols;
-      const raw = cssBlur / texelPx;
-      /* Isolla zoomilla overlay ulottuu 0.5° yli näkymän, joten se on ruudulla
-         moninkertainen näkymään nähden ja yksi tekstuuripikseli venyy monen
-         ruutupikselin levyiseksi. Silloin CSS-mittainen sumennus jäisi alle
-         yhden tekselin eikä tekisi mitään, ja jyrkkä gradientti voisi näkyä
-         portaana bilineaarisen venytyksen jäljiltä. Varmistetaan että
-         naapuritekselit sekoittuvat aina edes hieman. */
-      return texelPx > 2 ? Math.max(raw, 0.6) : raw;
-    } catch (e) { return 0; }
-  },
 
   /* build(windField, viewportBounds, coarseStep)
    *
@@ -2987,50 +2917,12 @@ const WindTexture = {
           }
         }
         self.ctx.putImageData(img, 0, 0);
-        self._bakeEffects(zoom);
         resolve();
       }
       /* Harvennuksen jälkeen työ on murto-osa entisestä, joten setTimeout-
          pilkkomista tarvitaan vasta selvästi isommilla tekstuureilla. */
       if (n / (STEP * STEP) < 40000) buildAll(); else setTimeout(buildAll, 0);
     });
-  },
-
-  /* Sumennus ja värikylläisyys tekstuuriin, ei CSS-filtteriksi.
-   *
-   * CSS-filtteri pakottaa elementin omalle piirtopinnalle, joka pitää
-   * rasteroida uudelleen aina kun sen mittakaava muuttuu — ja Leaflet
-   * skaalaa overlayta transformilla koko zoom-animaation ajan. Kun efektit
-   * ovat valmiiksi kuvassa, overlay on tavallinen bittikartta jonka
-   * skaalaus on pelkkä GPU-operaatio.
-   *
-   * Sivuvaikutus on itse asiassa oikeampi lopputulos: CSS-sumennus oli
-   * kiinni ruutupikseleissä, joten se pysyi samana vaikka kuva suureni
-   * animaation aikana. Paistettu sumennus skaalautuu kuvan mukana, eli se
-   * on sidottu maastoon niin kuin datakin.
-   *
-   * Jos selain ei osaa sumentaa canvasille, tästä palataan hiljaisesti
-   * CSS-filtteriin — updateHeatmapBlur() katsoo saman lipun. */
-  _bakeEffects(zoom) {
-    if (!this.canBakeBlur()) return;
-    const cssBlur = Math.max(3, Math.round(22 - (zoom - 2) * 2.2));
-    const sat = zoom <= 5 ? 1.6 : 1.4;
-    const bt = this._blurTexels(cssBlur);
-    /* Alle puolen tekstuuripikselin sumennus ei näy — jätetään pois, mutta
-       kylläisyys ajetaan silti. */
-    const blurPart = bt >= 0.5 ? 'blur(' + bt.toFixed(2) + 'px) ' : '';
-    if (!this._tmpCanvas) this._tmpCanvas = document.createElement('canvas');
-    const tmp = this._tmpCanvas;
-    if (tmp.width !== this.cols || tmp.height !== this.rows) {
-      tmp.width = this.cols; tmp.height = this.rows;
-    }
-    const tctx = tmp.getContext('2d');
-    tctx.clearRect(0, 0, this.cols, this.rows);
-    tctx.drawImage(this.canvas, 0, 0);
-    this.ctx.clearRect(0, 0, this.cols, this.rows);
-    this.ctx.filter = blurPart + 'saturate(' + sat + ')';
-    this.ctx.drawImage(tmp, 0, 0);
-    this.ctx.filter = 'none';
   },
 
   sampleWind(lat, lng) {
@@ -3076,16 +2968,11 @@ function drawColorField() {
 function updateHeatmapBlur() {
   if (!State.map) return;
   const z = State.map.getZoom();
-  /* Sumennus ja kylläisyys paistetaan tekstuuriin (WindTexture._bakeEffects),
-     jolloin overlay on tavallinen bittikartta eikä sitä tarvitse rasteroida
-     uudelleen zoom-animaation joka ruudussa. CSS-filtteriin palataan vain
-     jos selain ei osaa sumentaa canvasille. */
-  const baked = WindTexture.canBakeBlur();
   /* Blur: zoomissa 5+ tarkempi, kaukaa pehmeampi */
   const blur = Math.max(3, Math.round(22 - (z - 2) * 2.2));
   /* Saturate vahvistaa vareja screen-blendauksen kanssa */
   const sat = z <= 5 ? 1.6 : 1.4;
-  const fStr = baked ? '' : 'blur(' + blur + 'px) saturate(' + sat + ')';
+  const fStr = 'blur(' + blur + 'px) saturate(' + sat + ')';
   document.querySelectorAll('.heatmap-overlay').forEach(el => {
     el.style.filter = fStr;
     el.style.webkitFilter = fStr;
@@ -3110,6 +2997,21 @@ const PerfTracker = {
     if (this._frames.length < 2) return 60;
     const dt = this._frames[this._frames.length - 1] - this._frames[0];
     return Math.round((this._frames.length - 1) / (dt / 1000));
+  },
+  /* Pisin yksittäinen ruutuväli puskurissa. Keskiarvo-FPS piilottaa juuri sen
+     mikä tuntuu nykimisenä: yksi 200 ms ruutu 60 fps:n seassa ei näy
+     keskiarvossa käytännössä lainkaan, mutta se tuntuu sormessa. */
+  worstFrame() {
+    let w = 0;
+    for (let i = 1; i < this._frames.length; i++) {
+      const d = this._frames[i] - this._frames[i-1];
+      if (d > w) w = d;
+    }
+    return w;
+  },
+  span() {
+    if (this._frames.length < 2) return 0;
+    return this._frames[this._frames.length - 1] - this._frames[0];
   },
   _adjust(ts) {
     this._lastAdj = ts;
@@ -3175,6 +3077,8 @@ function resetParticles() {
   if (windCtx) windCtx.clearRect(0, 0, windCvs.width / dpr, windCvs.height / dpr);
   PerfTracker.reset();
   State.particles = [];
+  /* Mittauskytkin pitää partikkelit poissa myös kun kenttä ladataan uusiksi */
+  if (State._perfNoParticles) return;
   const n = nParticles();
   for (let i = 0; i < n; i++) State.particles.push(makeParticle(true));
 }
@@ -3198,6 +3102,9 @@ function startRenderLoop() {
 function renderLoop(ts) {
   requestAnimationFrame(renderLoop);
   PerfTracker.frame(ts || performance.now());
+  /* Mittauskytkin (?perf=1) — pysäyttää partikkelityön kokonaan, ei pelkkää
+     piirtoa, jotta kytkimen vaikutus kertoo partikkelien todellisen hinnan. */
+  if (State._perfNoParticles) return;
   const { windCtx, windCvs, windField, map, particles, dpr } = State;
   if (!windCtx || !windCvs.width || !windField.length || !map) return;
   const W = window.innerWidth, H = window.innerHeight;
@@ -8268,6 +8175,112 @@ const _loadingSafety = setTimeout(() => {
     hideLoading();
   }
 }, 12000);
+
+/* -- MITTAUSPANEELI (?perf=1) ------------------------------------
+   Laite mittaa itseään. Headless-ympäristöstä ei pysty luotettavasti
+   arvioimaan iOS Safarin ruutuaikoja, joten sulavuusongelmia ei kannata
+   ratkoa päättelemällä — tämä näyttää oikeat luvut oikealla laitteella ja
+   antaa kytkeä kerroksia pois yksi kerrallaan, jolloin syy löytyy
+   kokeilemalla eikä arvaamalla.
+
+   Ei tee mitään ellei osoitteessa ole ?perf=1. */
+(function perfPanel() {
+  try {
+    if (!/[?&]perf=1\b/.test(location.search)) return;
+  } catch (e) { return; }
+
+  var worstEver = 0;
+  var el = document.createElement('div');
+  el.id = 'perf-panel';
+  el.style.cssText =
+    'position:fixed;top:calc(var(--sat) + 92px);left:50%;transform:translateX(-50%);'
+    + 'z-index:9999;background:rgba(4,8,18,.92);border:1px solid rgba(255,255,255,.14);'
+    + 'border-radius:10px;padding:7px 10px;font-family:DM Mono,monospace;font-size:10px;'
+    + 'color:#fff;text-align:center;backdrop-filter:none;-webkit-backdrop-filter:none;'
+    + 'box-shadow:0 2px 12px rgba(0,0,0,.6);white-space:nowrap;-webkit-user-select:none;user-select:none';
+  el.innerHTML =
+    '<div id="pp-stats" style="line-height:1.5"></div>'
+    + '<div style="display:flex;gap:4px;margin-top:6px">'
+    +   '<button data-pp="particles" style="flex:1"></button>'
+    +   '<button data-pp="heatmap"   style="flex:1"></button>'
+    +   '<button data-pp="markers"   style="flex:1"></button>'
+    + '</div>'
+    + '<div style="font-size:8px;color:rgba(255,255,255,.35);margin-top:5px">napauta lukemia = nollaa huippu</div>';
+  document.body.appendChild(el);
+
+  var off = { particles: false, heatmap: false, markers: false };
+  var LBL = { particles: 'Partikkelit', heatmap: 'Lämpökartta', markers: 'Merkit' };
+
+  function paintButtons() {
+    el.querySelectorAll('[data-pp]').forEach(function (b) {
+      var k = b.dataset.pp, isOff = off[k];
+      b.textContent = LBL[k] + (isOff ? ' ✕' : ' ✓');
+      b.style.cssText = 'flex:1;font-family:DM Mono,monospace;font-size:9px;padding:5px 4px;'
+        + 'border:1px solid ' + (isOff ? 'rgba(255,90,90,.5)' : 'rgba(41,232,168,.4)') + ';'
+        + 'background:' + (isOff ? 'rgba(255,90,90,.16)' : 'rgba(41,232,168,.14)') + ';'
+        + 'color:' + (isOff ? 'rgba(255,150,150,.95)' : 'rgba(41,232,168,.95)') + ';'
+        + 'border-radius:7px;cursor:pointer;-webkit-tap-highlight-color:transparent';
+    });
+  }
+
+  function apply(k) {
+    if (k === 'particles') {
+      State._perfNoParticles = off.particles;
+      if (State.windCvs) State.windCvs.style.visibility = off.particles ? 'hidden' : '';
+      /* resetParticles kunnioittaa lippua, joten se sekä tyhjentää että
+         estää uudelleentäytön — ja palauttaa hiukkaset kun kytkin avataan. */
+      resetParticles();
+    } else if (k === 'heatmap') {
+      document.querySelectorAll('.heatmap-overlay').forEach(function (e) {
+        e.style.display = off.heatmap ? 'none' : '';
+      });
+    } else if (k === 'markers') {
+      /* Kaikki karttamerkit: spotit, tuulikortit, asemaruksit */
+      document.querySelectorAll('.leaflet-marker-pane').forEach(function (e) {
+        e.style.display = off.markers ? 'none' : '';
+      });
+    }
+  }
+
+  el.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-pp]');
+    if (btn) {
+      e.stopPropagation();
+      var k = btn.dataset.pp;
+      off[k] = !off[k];
+      apply(k);
+      paintButtons();
+      worstEver = 0;   /* huippu nollataan kun kerros vaihtuu */
+      return;
+    }
+    worstEver = 0;
+  }, { passive: true });
+
+  /* Lämpökartta piirretään uudelleen usein — pidetään piilotus voimassa */
+  var _reapply = setInterval(function () { if (off.heatmap) apply('heatmap'); }, 500);
+
+  var stats = el.querySelector('#pp-stats');
+  setInterval(function () {
+    if (typeof PerfTracker === 'undefined') return;
+    var fps = PerfTracker.fps();
+    var worst = Math.round(PerfTracker.worstFrame());
+    var span = (PerfTracker.span() / 1000).toFixed(1);
+    if (worst > worstEver) worstEver = worst;
+    var col = fps >= 50 ? '#29e8a8' : fps >= 30 ? '#f5c842' : '#ff6b6b';
+    var wcol = worstEver <= 25 ? '#29e8a8' : worstEver <= 60 ? '#f5c842' : '#ff6b6b';
+    var z = State.map ? State.map.getZoom() : 0;
+    stats.innerHTML =
+      '<span style="color:' + col + ';font-size:14px;font-weight:700">' + fps + '</span>'
+      + '<span style="color:rgba(255,255,255,.4)"> fps</span>'
+      + '<span style="color:rgba(255,255,255,.2)">  ·  </span>'
+      + 'pahin <span style="color:' + wcol + ';font-weight:700">' + worst + '</span>'
+      + '<span style="color:rgba(255,255,255,.4)">/' + worstEver + ' ms</span>'
+      + '<br><span style="color:rgba(255,255,255,.45)">ikkuna ' + span + ' s  ·  zoom '
+      + (Math.round(z * 100) / 100) + '  ·  hiukkasia ' + (State.particles ? State.particles.length : 0) + '</span>';
+  }, 250);
+
+  paintButtons();
+})();
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => { clearTimeout(_loadingSafety); main(); });
