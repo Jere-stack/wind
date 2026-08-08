@@ -2595,6 +2595,61 @@ function initMap() {
     }, 350);
   }
 
+  /* ── Lämpökartan kate nipistyksen aikana ─────────────────────────
+     Overlayn rajat lyödään lukkoon tekstuuria rakennettaessa: näkymä + vPad.
+     Ulos zoomatessa näkymä kasvaa yli niiden, ja lämpökartta jää kattamaan
+     vain keskiosan — mitattuna 57 % ruudusta noin 2,5 zoom-tason jälkeen.
+     Sormien noustessa zoomend rakentaa uuden ja kate palaa, mutta koko eleen
+     ajan reuna näkyy. Sisään zoomatessa ongelmaa ei ole, koska vanha tekstuuri
+     vain suurenee.
+
+     Tehdään minimi ja vain kun se on tarpeen: rakennetaan uusiksi silloin kun
+     näkymä ei enää mahdu tekstuurin rajojen sisään. Käytännössä tämä laukeaa
+     muutaman kerran eleen aikana eikä joka ruudussa, ja käyttää samaa karkeaa
+     tarkkuutta kuin aikajanan raahaus. */
+  var _hmBusy = false, _hmPending = false, _hmRaf = false;
+
+  function _heatmapCovers() {
+    if (!WindTexture.msData) return false;
+    var v = map.getBounds();
+    return WindTexture.latMin <= v.getSouth() && WindTexture.latMax >= v.getNorth()
+        && WindTexture.lngMin <= v.getWest()  && WindTexture.lngMax >= v.getEast();
+  }
+
+  function _heatmapCatchUp() {
+    if (_hmBusy) { _hmPending = true; return; }
+    _hmBusy = true;
+    /* Zoom on muuttunut, joten interpoloinnin ydin mitoitetaan uudelleen —
+       muuten kaukana toisistaan olevat pisteet jäisivät tukisäteen ulkopuolelle
+       ja ulos zoomattu näkymä muuttuisi laikukkaaksi. */
+    SpatialIndex.build(State.windField, ViewportGrid.gridStep(map.getZoom()));
+    WindTexture.build(State.windField, map.getBounds(), WindTexture.SCRUB_STEP)
+      .then(function () {
+        /* skipBlur: updateHeatmapBlur vaihtaisi sumennuksen arvoa ja
+           .heatmap-overlay:n 0.3 s siirtymä käynnistyisi joka kerta. zoomend
+           asettaa oikean arvon kerran, kun ele on ohi. */
+        drawColorField(true);
+        _hmBusy = false;
+        if (_hmPending) { _hmPending = false; _heatmapCatchUp(); }
+      })
+      .catch(function () { _hmBusy = false; });
+  }
+
+  map.on('zoom', function () {
+    /* Ohjelmallisen zoom-animaation aikana Leaflet pitää karttatasoja
+       transformin alla eikä ole vielä päivittänyt lopullista tilaa —
+       overlayn rajojen siirtäminen silloin nykäisisi sitä paikaltaan.
+       Nipistyksessä tätä lippua ei ole päällä. */
+    if (map._animatingZoom) return;
+    if (!State.windField || !State.windField.length) return;
+    if (_hmRaf) return;
+    _hmRaf = true;
+    requestAnimationFrame(function () {
+      _hmRaf = false;
+      if (!_heatmapCovers()) _heatmapCatchUp();
+    });
+  });
+
   let _prevZoom = map.getZoom();
   map.on('zoomend', () => {
     if (State._dragZooming) return;
@@ -2947,7 +3002,12 @@ const WindTexture = {
 };
 
 /* -- HEATMAP ---------------------------------------------------- */
-function drawColorField() {
+/* drawColorField(skipBlur)
+   skipBlur ohittaa sumennuksen päivityksen. Nipistyksen aikana zoom muuttuu
+   jatkuvasti, ja koska sumennuksen säde riippuu zoomista, updateHeatmapBlur
+   käynnistäisi .heatmap-overlay:n 0.3 s filter-siirtymän joka päivityksellä.
+   Oikea arvo asetetaan kerran kun ele päättyy. */
+function drawColorField(skipBlur) {
   if (!WindTexture.canvas || !State.map || !WindTexture.msData) return;
   const url = WindTexture.canvas.toDataURL();
   const bounds = L.latLngBounds(
@@ -2962,7 +3022,7 @@ function drawColorField() {
       opacity: 1, interactive: false, className: 'heatmap-overlay', pane: 'overlayPane'
     }).addTo(State.map);
   }
-  updateHeatmapBlur();
+  if (!skipBlur) updateHeatmapBlur();
 }
 
 function updateHeatmapBlur() {
