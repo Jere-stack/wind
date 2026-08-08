@@ -4188,41 +4188,47 @@ function _addObsMarkers(map) {
     _stationDots.forEach(function(d) { d.setIcon(icon); });
   }
 
-  /* Pikanäkymän tuulikortti. Uimaveden lämpötila oli ennen tässä, mutta se
-     leikkasi kortin leveyttä eikä kuulu tuulihavainnon pikasilmäykseen —
-     nyt se on omana historiagraafinaan kortista avautuvassa näkymässä. */
-  function mkWindIcon(zoom, ws, wg, stName, isPrim) {
+  /* Pikanäkymän tuulikortti.
+   *
+   * Windy-henkinen pelkistys: kortti on pelkkä lukema, ei koristetta.
+   * Aiemmin tässä oli iso kylläisen keltainen Syne-numero, pilleriksi
+   * pyöristetty keltareunainen laatikko sekä puuska- ja vesilukemat —
+   * kymmeniä kortteja kerralla ruudulla se luki raskaana keltaisena
+   * massana ja peitti alleen sen lämpökartan jota sen pitäisi täydentää.
+   *
+   * Nyt: neutraali hiusrajattu laatikko, pieni monospace-numero ja
+   * himmeä viiri. Väri jää lämpökartalle ja kortti pysyy luettavana
+   * sen päällä. Puuska on siirretty kortista avautuvaan graafiin.
+   *
+   * Yksikkö pidetään mukana, koska se on käyttäjän vaihdettavissa
+   * (m/s ↔ solmut) eikä pelkkä luku kertoisi kumpi on kyseessä. */
+  function mkWindIcon(zoom, ws, stName, isPrim) {
     var z = zoom || 5;
     if (isPrim && z >= 8) {
       /* Käytä appin yksikkömuunnosta — Units.fmt() + Units.label() */
       var wsStr = ws != null ? Units.fmt(ws) : '—';
       var unitLbl = Units.label();
-      var wgStr  = wg != null ? Units.fmt(wg) : null;
       var html =
         '<div style="'
-          +'display:flex;align-items:center;gap:5px;'
-          +'background:rgba(6,9,18,0.58);'   /* läpinäkyvämpi */
-          +'border:1px solid rgba(245,200,66,0.22);'
-          +'border-radius:20px;'
-          +'padding:3px 9px 3px 5px;'
+          +'display:inline-flex;align-items:baseline;gap:3px;'
+          +'background:rgba(9,13,21,0.72);'
+          +'border:1px solid rgba(255,255,255,0.10);'
+          +'border-radius:5px;'
+          +'padding:2px 5px;'
           +'cursor:pointer;'
-          +'backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);'
-          +'box-shadow:0 1px 10px rgba(0,0,0,.5);'
+          +'backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);'
+          +'box-shadow:0 1px 4px rgba(0,0,0,.45);'
           +'white-space:nowrap;'
         +'">'
-          +_windVaneSvg(C_WIND, 14)
-          +'<span style="font-family:Syne,system-ui;font-weight:800;font-size:13px;'
-            +'color:'+C_WIND+';line-height:1;letter-spacing:-0.2px">'+wsStr+'</span>'
-          +'<span style="font-family:DM Mono,monospace;font-size:7px;'
-            +'color:rgba(245,200,66,.38);align-self:flex-end;margin-bottom:1px">'
-            +unitLbl+'</span>'
-          +(wgStr
-            ? '<span style="font-family:DM Mono,monospace;font-size:7px;'
-              +'color:rgba(245,200,66,.42);border-left:1px solid rgba(245,200,66,.18);'
-              +'padding-left:5px;margin-left:1px">↑'+wgStr+'</span>'
-            : '')
+          +'<span style="align-self:center;display:flex">'+_windVaneSvg('rgba(255,255,255,.42)', 10)+'</span>'
+          +'<span style="font-family:DM Mono,monospace;font-weight:500;font-size:11px;'
+            +'color:rgba(255,255,255,.92);line-height:1;letter-spacing:-0.2px">'+wsStr+'</span>'
+          +'<span style="font-family:DM Mono,monospace;font-size:6.5px;'
+            +'color:rgba(255,255,255,.32);line-height:1">'+unitLbl+'</span>'
         +'</div>';
-      return L.divIcon({ className:'', html:html, iconAnchor:[0, 11], iconSize:[105, 22] });
+      /* iconSize vastaa uutta, kapeampaa korttia — _avoidSpotOverlap mittaa
+         väistökynnyksen suoraan elementistä, joten se seuraa tätä itsestään. */
+      return L.divIcon({ className:'', html:html, iconAnchor:[0, 9], iconSize:[62, 18] });
     } else {
       /* Pieni piste */
       var sz = z < 8 ? 5 : z < 10 ? 7 : 8;
@@ -4354,7 +4360,7 @@ function _addObsMarkers(map) {
           if (hv !== null) { ws = hv.ws; wg = hv.wg; }
           /* hv === null → historia ei ulotu tähän hetkeen → pysytään latest:ssa */
         }
-        m.marker.setIcon(mkWindIcon(z, ws, wg, m.stName, m.type === 'wind-prim'));
+        m.marker.setIcon(mkWindIcon(z, ws, m.stName, m.type === 'wind-prim'));
       } else {
         m.marker.setIcon(mkWaterIcon(z, m.temp, m.prim));
       }
@@ -4383,7 +4389,7 @@ function _addObsMarkers(map) {
     /* 1. Lisää ensin kaikki markerit ilman dataa */
     FMI_MAP_STATIONS.forEach(function(st) {
       var isPrim = !!PRIM_FMI[st.place];
-      var icon = mkWindIcon(map.getZoom(), null, null, st.name, isPrim);
+      var icon = mkWindIcon(map.getZoom(), null, st.name, isPrim);
       var m = L.marker([st.lat,st.lng],{icon:icon,zIndexOffset:isPrim?-50:-100})
         .on('click',function(){ _openObsSheet('fmi',st); }).addTo(map);
       var _lg = FMI_SEA_PLACES[st.place] ? 'fmi-sea' : 'fmi-land';
@@ -4419,7 +4425,7 @@ function _addObsMarkers(map) {
         entry.wsLatest = ws; entry.wgLatest = wg;
         entry.history = histData; /* {ws:[{t,v,d}], wg:[{t,v}]} */
         /* Päivitä ikoni */
-        entry.marker.setIcon(mkWindIcon(map.getZoom(), ws, wg, st.name, isPrim));
+        entry.marker.setIcon(mkWindIcon(map.getZoom(), ws, st.name, isPrim));
       }, function() { /* Lataus epäonnistui — jätä tyhjäksi */ });
     });
   })();
@@ -4431,7 +4437,7 @@ function _addObsMarkers(map) {
   (function() {
     var KV_STATION = { name: 'Kruunuvuorenselkä', place: 'kruunuvuorenselka', lat: 60.163, lng: 24.997 };
 
-    var icon = mkWindIcon(map.getZoom(), null, null, KV_STATION.name, true);
+    var icon = mkWindIcon(map.getZoom(), null, KV_STATION.name, true);
     var m = L.marker([KV_STATION.lat, KV_STATION.lng], { icon: icon, zIndexOffset: -50 })
       .on('click', function(){ _openObsSheet('kruunuvuori', KV_STATION); }).addTo(map);
     var kvEntry = { marker: m, type: 'wind-prim', ws: null, wg: null,
@@ -4456,11 +4462,10 @@ function _addObsMarkers(map) {
       var inner = el ? el.firstElementChild : null;
       if (!inner) return;
 
-      /* Väistö on kalibroitu pilli-kortin leveydelle (105-135px).
-         Pienessä piste-tilassa (z<8) tätä ei tarvita eikä pidä soveltaa —
-         muuten 75px kynnys työntää 5px pistettä satunnaiselta näyttävästi
-         aina kun mikä tahansa spotti sattuu olemaan lähellä. Nollataan
-         transform ja palataan heti jos kortti EI ole tällä hetkellä pilli. */
+      /* Väistö koskee vain kortti-tilaa. Pienessä piste-tilassa (z<8) tätä ei
+         tarvita eikä pidä soveltaa — muuten kynnys työntää 5px pistettä
+         satunnaiselta näyttävästi aina kun mikä tahansa spotti sattuu olemaan
+         lähellä. Nollataan transform ja palataan heti jos EI olla korttitilassa. */
       var z = map.getZoom();
       var isPillNow = (z >= 8); /* sama ehto kuin mkWindIcon:n isPrim&&z>=8 -haarassa */
       if (!isPillNow) {
@@ -4469,7 +4474,11 @@ function _addObsMarkers(map) {
       }
 
       var kvPt = map.latLngToContainerPoint([KV_STATION.lat, KV_STATION.lng]);
-      var THRESH = 75; /* px — pilli-kortin suunnilleen puolikas leveys */
+      /* Kynnys mitataan kortin todellisesta leveydestä, ei kovakoodattuna —
+         muuten se jää vanhan leveän kortin mittoihin kun korttia kavennetaan.
+         Kortti venyy ankkurista oikealle, joten puolikas leveys + pieni
+         marginaali riittää. */
+      var THRESH = Math.max(40, (inner.offsetWidth || 62) * 0.6 + 18);
       var minDist = Infinity, pushX = 0, pushY = -1;
       var spotsList = (typeof SPOTS !== 'undefined') ? SPOTS : [];
 
@@ -4510,7 +4519,7 @@ function _addObsMarkers(map) {
         kvEntry.ws = ws; kvEntry.wg = wg;
         kvEntry.wsLatest = ws; kvEntry.wgLatest = wg;
         kvEntry.history = data.history || null; /* {ws:[{t,v,d}], wg:[{t,v}], tw:[{t,v}]} — HH:MM formaatti */
-        kvEntry.marker.setIcon(mkWindIcon(map.getZoom(), ws, wg, KV_STATION.name, true));
+        kvEntry.marker.setIcon(mkWindIcon(map.getZoom(), ws, KV_STATION.name, true));
         _avoidSpotOverlap(); /* setIcon loi uuden DOM-elementin — sovella väistö uudelleen */
       })
       .catch(function() { /* Lataus epäonnistui — jätä tyhjäksi */ });
