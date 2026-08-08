@@ -8203,13 +8203,39 @@ const _loadingSafety = setTimeout(() => {
     + '<div style="display:flex;gap:4px;margin-top:6px">'
     +   '<button data-pp="particles" style="flex:1"></button>'
     +   '<button data-pp="heatmap"   style="flex:1"></button>'
-    +   '<button data-pp="markers"   style="flex:1"></button>'
     + '</div>'
-    + '<div style="font-size:8px;color:rgba(255,255,255,.35);margin-top:5px">napauta lukemia = nollaa huippu</div>';
+    + '<div style="display:flex;gap:4px;margin-top:4px">'
+    +   '<button data-pp="markers"   style="flex:1"></button>'
+    +   '<button data-pp="field"     style="flex:1"></button>'
+    + '</div>'
+    + '<div style="font-size:8px;color:rgba(255,255,255,.35);margin-top:5px">napauta lukemia = nollaa huiput</div>';
   document.body.appendChild(el);
 
-  var off = { particles: false, heatmap: false, markers: false };
-  var LBL = { particles: 'Partikkelit', heatmap: 'Lämpökartta', markers: 'Merkit' };
+  var off = { particles: false, heatmap: false, markers: false, field: false };
+  var LBL = { particles: 'Partikkelit', heatmap: 'Lämpökartta', markers: 'Merkit', field: 'Kenttä' };
+
+  /* Ele- ja jälkivaihe erikseen. Nykiminen ITSE nipistyksen aikana ja
+     nykäisy sen loputtua ovat eri ongelmia ja vaativat eri korjauksen,
+     mutta yksi "pahin ruutuväli" sekoittaa ne keskenään. */
+  var phase = null, worstGesture = 0, worstSettle = 0, lastFieldMs = 0, settleUntil = 0;
+  var _hooked = false;
+  function hookMap() {
+    if (_hooked || !State.map) return;
+    _hooked = true;
+    State.map.on('zoomstart', function () { phase = 'gesture'; });
+    State.map.on('zoomend', function () { phase = 'settle'; settleUntil = performance.now() + 700; });
+    /* Kentän uudelleenrakennus on zoomendin raskain osa — mitataan se
+       suoraan laitteella sen sijaan että päättelisimme ruutuajoista. */
+    var origBuild = WindTexture.build.bind(WindTexture);
+    WindTexture.build = function (wf, vb, cs) {
+      if (off.field) { lastFieldMs = 0; return Promise.resolve(); }   /* kytkin: ohita kokonaan */
+      var t0 = performance.now();
+      return origBuild(wf, vb, cs).then(function (r) {
+        lastFieldMs = Math.round(performance.now() - t0);
+        return r;
+      });
+    };
+  }
 
   function paintButtons() {
     el.querySelectorAll('[data-pp]').forEach(function (b) {
@@ -8240,6 +8266,7 @@ const _loadingSafety = setTimeout(() => {
         e.style.display = off.markers ? 'none' : '';
       });
     }
+    /* 'field' vaikuttaa WindTexture.build-kääreen kautta — ei mitään tässä */
   }
 
   el.addEventListener('click', function (e) {
@@ -8250,33 +8277,54 @@ const _loadingSafety = setTimeout(() => {
       off[k] = !off[k];
       apply(k);
       paintButtons();
-      worstEver = 0;   /* huippu nollataan kun kerros vaihtuu */
+      worstEver = worstGesture = worstSettle = 0;  /* huiput nollataan kun kerros vaihtuu */
       return;
     }
-    worstEver = 0;
+    worstEver = worstGesture = worstSettle = 0;
   }, { passive: true });
 
   /* Lämpökartta piirretään uudelleen usein — pidetään piilotus voimassa */
   var _reapply = setInterval(function () { if (off.heatmap) apply('heatmap'); }, 500);
 
+  /* Oma ruutumittaus. PerfTracker.worstFrame() antaa huipun ~1-2 s ikkunasta,
+     joka kattaa sekä eleen että sen jälkeisen vaiheen — sillä ei voi eritellä
+     kumpi nykii. Tässä jokainen ruutuväli kirjataan sille vaiheelle jossa se
+     todella tapahtui. */
+  var _prevTs = performance.now();
+  (function tick(ts) {
+    requestAnimationFrame(tick);
+    var d = ts - _prevTs; _prevTs = ts;
+    if (d > worstEver) worstEver = d;
+    if (phase === 'gesture') { if (d > worstGesture) worstGesture = d; }
+    else if (phase === 'settle') {
+      if (d > worstSettle) worstSettle = d;
+      if (ts > settleUntil) phase = null;
+    }
+  })(performance.now());
+
   var stats = el.querySelector('#pp-stats');
   setInterval(function () {
     if (typeof PerfTracker === 'undefined') return;
+    hookMap();
     var fps = PerfTracker.fps();
-    var worst = Math.round(PerfTracker.worstFrame());
-    var span = (PerfTracker.span() / 1000).toFixed(1);
-    if (worst > worstEver) worstEver = worst;
-    var col = fps >= 50 ? '#29e8a8' : fps >= 30 ? '#f5c842' : '#ff6b6b';
-    var wcol = worstEver <= 25 ? '#29e8a8' : worstEver <= 60 ? '#f5c842' : '#ff6b6b';
+    var c = function (v, a, b) { return v <= a ? '#29e8a8' : v <= b ? '#f5c842' : '#ff6b6b'; };
+    var rd = Math.round;
     var z = State.map ? State.map.getZoom() : 0;
     stats.innerHTML =
-      '<span style="color:' + col + ';font-size:14px;font-weight:700">' + fps + '</span>'
-      + '<span style="color:rgba(255,255,255,.4)"> fps</span>'
-      + '<span style="color:rgba(255,255,255,.2)">  ·  </span>'
-      + 'pahin <span style="color:' + wcol + ';font-weight:700">' + worst + '</span>'
-      + '<span style="color:rgba(255,255,255,.4)">/' + worstEver + ' ms</span>'
-      + '<br><span style="color:rgba(255,255,255,.45)">ikkuna ' + span + ' s  ·  zoom '
-      + (Math.round(z * 100) / 100) + '  ·  hiukkasia ' + (State.particles ? State.particles.length : 0) + '</span>';
+      '<span style="color:' + c(-fps, -50, -30) + ';font-size:14px;font-weight:700">' + fps + '</span>'
+      + '<span style="color:rgba(255,255,255,.4)"> fps  ·  huippu </span>'
+      + '<span style="color:' + c(worstEver, 25, 60) + ';font-weight:700">' + rd(worstEver) + ' ms</span>'
+      + '<br><span style="color:rgba(255,255,255,.5)">ele </span>'
+      + '<span style="color:' + c(worstGesture, 25, 60) + ';font-weight:700">' + rd(worstGesture) + '</span>'
+      + '<span style="color:rgba(255,255,255,.35)"> ms  ·  </span>'
+      + '<span style="color:rgba(255,255,255,.5)">jälki </span>'
+      + '<span style="color:' + c(worstSettle, 25, 60) + ';font-weight:700">' + rd(worstSettle) + '</span>'
+      + '<span style="color:rgba(255,255,255,.35)"> ms  ·  </span>'
+      + '<span style="color:rgba(255,255,255,.5)">kenttä </span>'
+      + '<span style="color:' + c(lastFieldMs, 30, 80) + ';font-weight:700">' + lastFieldMs + '</span>'
+      + '<span style="color:rgba(255,255,255,.35)"> ms</span>'
+      + '<br><span style="color:rgba(255,255,255,.4)">zoom ' + (Math.round(z * 100) / 100)
+      + '  ·  hiukkasia ' + (State.particles ? State.particles.length : 0) + '</span>';
   }, 250);
 
   paintButtons();
