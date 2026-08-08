@@ -4437,7 +4437,15 @@ function _addObsMarkers(map) {
   /* Vaihda kaikkien sijaintimerkkien ikoni zoomin mukaan — kutsutaan
    * updateIcons():n yhteydessä, samalla hetkellä kun tuulikortitkin
    * vaihtavat pilli/piste-tilan välillä. */
+  var _stationDotMode = null;
   function _updateStationDots() {
+    /* _makeStationIcon haarautuu vain kynnyksestä z>=8, joten ikoni kannattaa
+       vaihtaa vain kun se kynnys ylitetään. Ilman tätä jokainen updateIcons()
+       — myös aikajanan joka askel — luo uudet DOM-elementit kaikille
+       ruksimerkeille turhaan. */
+    var mode = map.getZoom() >= 8;
+    if (mode === _stationDotMode) return;
+    _stationDotMode = mode;
     var icon = _makeStationIcon(map.getZoom());
     _stationDots.forEach(function(d) { d.setIcon(icon); });
   }
@@ -4534,6 +4542,38 @@ function _addObsMarkers(map) {
     }
   }
 
+  /* ── Ikonin allekirjoitus ───────────────────────────────────── */
+  /* Palauttaa merkkijonon joka kuvaa TÄSMÄLLEEN sen mitä mkWindIcon /
+   * mkWaterIcon tuottaisi näillä argumenteilla. updateIcons() vertaa tätä
+   * merkille viimeksi asetettuun ja jättää setIcon():in väliin jos mikään
+   * näkyvä ei muuttunut.
+   *
+   * Miksi: setIcon() heittää vanhan DOM-elementin pois ja luo uuden. Se on
+   * turhaa työtä 23 asemalle kerrallaan, mutta pahempaa on että uusi elementti
+   * syntyy aina nollatransformilla — Kruunuvuorenselän kortti, joka väistää
+   * lähellä olevaa spottia, hyppäsi siksi joka päivityksellä hetkeksi takaisin
+   * spotin päälle. Aikajanaa liu'uttaessa updateIcons() ajetaan monta kertaa
+   * sekunnissa, jolloin kortti näytti liikkuvan holtittomasti.
+   *
+   * HUOM: nämä on pidettävä samassa haarautumislogiikassa kuin itse ikonin
+   * rakentajat yllä — jos rakentajan ehto tai sisältö muuttuu, muuta myös
+   * tämä, muutoin ikoni voi jäädä vanhaan asuun. */
+  function _windIconSig(zoom, ws, isPrim) {
+    var z = zoom || 5;
+    if (isPrim && z >= 8) {
+      return 'p|' + (ws != null ? Units.fmt(ws) : '—') + '|' + Units.label();
+    }
+    /* Piste: koko ja läpinäkyvyys tulevat samoista zoom-kynnyksistä */
+    return 'd|' + (z < 8 ? 0 : z < 10 ? 1 : 2);
+  }
+  function _waterIconSig(zoom, temp, isPrim) {
+    var z = zoom || 5;
+    if (isPrim && z >= 9) {
+      return 'p|' + (temp != null ? temp.toFixed(1) : '—');
+    }
+    return 'd|' + (z < 8 ? 0 : 1);
+  }
+
   /* ── Päivittää ikonit zoom-muutoksessa ──────────────────────── */
   /* Hae historia-arvo lähimmälle ajanhetkelle */
   /* Muunna FMI "HH:MM" (Suomen aika) Unix-millisekunteiksi */
@@ -4592,8 +4632,23 @@ function _addObsMarkers(map) {
     return { ws: ws, wg: wg };
   }
 
+  /* Aikajanalta valittu hetki millisekunteina, tai null jos aikajanaa ei ole
+     vielä rakennettu. Tarvitaan silloin kun updateIcons() kutsutaan ilman
+     eksplisiittistä hetkeä (esim. zoomend) — muuten asemien lukemat
+     palaisivat "nyt"-hetkeen vaikka käyttäjä katsoo toista tuntia. */
+  function _tlSelectedTs() {
+    try {
+      var t = State._tlTimes && State._tlTimes[State.currentHourIdx];
+      return t ? new Date(t).getTime() : null;
+    } catch (e) { return null; }
+  }
+
   function updateIcons(targetTs) {
     var z = map.getZoom();
+    /* Leafletin tapahtumakuuntelijat välittävät tapahtumaobjektin ensimmäisenä
+       argumenttina, joten kutsuttaessa map.on('zoomend', updateIcons) targetTs
+       ei ole luku. Otetaan silloin hetki aikajanalta. */
+    if (typeof targetTs !== 'number') targetTs = _tlSelectedTs();
     /* Historiahaku VAIN jos valittu aika on menneisyydessä tai juuri nyt.
      * Aiempi bugi: _fmiTimeToMs rakentaa kellonajan KOHDEAJAN kalenteripäivästä,
      * joten tulevaisuuden (ennuste-)aika saattoi vahingossa täsmätä samaan
@@ -4614,14 +4669,24 @@ function _addObsMarkers(map) {
           if (hv !== null) { ws = hv.ws; wg = hv.wg; }
           /* hv === null → historia ei ulotu tähän hetkeen → pysytään latest:ssa */
         }
-        m.marker.setIcon(mkWindIcon(z, ws, m.stName, m.type === 'wind-prim'));
+        var sig = _windIconSig(z, ws, m.type === 'wind-prim');
+        if (sig !== m._iconSig) {
+          m._iconSig = sig;
+          m.marker.setIcon(mkWindIcon(z, ws, m.stName, m.type === 'wind-prim'));
+        }
       } else {
-        m.marker.setIcon(mkWaterIcon(z, m.temp, m.prim));
+        var wsig = _waterIconSig(z, m.temp, m.prim);
+        if (wsig !== m._iconSig) {
+          m._iconSig = wsig;
+          m.marker.setIcon(mkWaterIcon(z, m.temp, m.prim));
+        }
       }
-      /* setIcon loi uuden DOM-elementin — jos tällä merkillä on oma
-         väistölogiikka (esim. Kruunuvuorenselkä), sovella se heti uudelleen.
-         Näin väistö toimii RIIPPUMATTA siitä mikä käynnisti päivityksen
-         (zoomend, yksikön vaihto, timelinen liu'utus, ...). */
+      /* Jos setIcon() ajettiin, se loi uuden DOM-elementin — jos tällä
+         merkillä on oma väistölogiikka (esim. Kruunuvuorenselkä), sovella se
+         heti samassa framessa. Kutsutaan myös silloin kun setIcon jätettiin
+         väliin: silloin transform on jo oikea eikä sen uudelleenasetus tee
+         mitään, mutta zoomin muuttuminen ilman ikonin vaihtoa (esim. z 10→11
+         pilli-tilassa samalla lukemalla) päivittää väistön etäisyyden. */
       if (typeof m._avoidOverlap === 'function') m._avoidOverlap();
     });
     /* Ruksi-sijaintimerkit näkyvät/piiloutuvat samalla zoom-kynnyksellä
@@ -4678,7 +4743,9 @@ function _addObsMarkers(map) {
         entry.ws = ws; entry.wg = wg;
         entry.wsLatest = ws; entry.wgLatest = wg;
         entry.history = histData; /* {ws:[{t,v,d}], wg:[{t,v}]} */
-        /* Päivitä ikoni */
+        /* Päivitä ikoni — pidä allekirjoitus mukana, jotta seuraava
+           updateIcons() ei luo elementtiä uudelleen turhaan */
+        entry._iconSig = _windIconSig(map.getZoom(), ws, isPrim);
         entry.marker.setIcon(mkWindIcon(map.getZoom(), ws, st.name, isPrim));
       }, function() { /* Lataus epäonnistui — jätä tyhjäksi */ });
     });
@@ -4745,7 +4812,11 @@ function _addObsMarkers(map) {
         if (d < minDist) { minDist = d; pushX = dx; pushY = dy; }
       }
 
-      inner.style.transition = 'transform .25s ease';
+      /* Ei transitionia. Elementti voi olla juuri setIcon():in luoma, jolloin
+         sen transform on nolla — transition animoisi silloin joka kerta
+         nollasta lopulliseen kohtaan, eli kortti lähtisi spotin päältä ja
+         liukuisi paikalleen. Väistö on kortin pysyvä sijainti, ei liike, joten
+         se asetetaan kerralla samassa framessa jossa elementti syntyi. */
       if (minDist < THRESH) {
         var len = Math.sqrt(pushX * pushX + pushY * pushY);
         var ux, uy;
@@ -4773,6 +4844,7 @@ function _addObsMarkers(map) {
         kvEntry.ws = ws; kvEntry.wg = wg;
         kvEntry.wsLatest = ws; kvEntry.wgLatest = wg;
         kvEntry.history = data.history || null; /* {ws:[{t,v,d}], wg:[{t,v}], tw:[{t,v}]} — HH:MM formaatti */
+        kvEntry._iconSig = _windIconSig(map.getZoom(), ws, true);
         kvEntry.marker.setIcon(mkWindIcon(map.getZoom(), ws, KV_STATION.name, true));
         _avoidSpotOverlap(); /* setIcon loi uuden DOM-elementin — sovella väistö uudelleen */
       })
