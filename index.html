@@ -8208,11 +8208,16 @@ const _loadingSafety = setTimeout(() => {
     +   '<button data-pp="markers"   style="flex:1"></button>'
     +   '<button data-pp="field"     style="flex:1"></button>'
     + '</div>'
+    + '<div style="display:flex;gap:4px;margin-top:4px">'
+    +   '<button data-pp="tiles"     style="flex:1"></button>'
+    +   '<button data-pp="snap"      style="flex:1"></button>'
+    + '</div>'
     + '<div style="font-size:8px;color:rgba(255,255,255,.35);margin-top:5px">napauta lukemia = nollaa huiput</div>';
   document.body.appendChild(el);
 
-  var off = { particles: false, heatmap: false, markers: false, field: false };
-  var LBL = { particles: 'Partikkelit', heatmap: 'Lämpökartta', markers: 'Merkit', field: 'Kenttä' };
+  var off = { particles: false, heatmap: false, markers: false, field: false, tiles: false, snap: false };
+  var LBL = { particles: 'Partikkelit', heatmap: 'Lämpökartta', markers: 'Merkit', field: 'Kenttä',
+              tiles: 'Tiilet', snap: 'Snap 0.5' };
 
   /* Ele- ja jälkivaihe erikseen. Nykiminen ITSE nipistyksen aikana ja
      nykäisy sen loputtua ovat eri ongelmia ja vaativat eri korjauksen,
@@ -8240,7 +8245,8 @@ const _loadingSafety = setTimeout(() => {
   function paintButtons() {
     el.querySelectorAll('[data-pp]').forEach(function (b) {
       var k = b.dataset.pp, isOff = off[k];
-      b.textContent = LBL[k] + (isOff ? ' ✕' : ' ✓');
+      /* snap ei ole pois/päällä vaan arvonvalinta — näytetään käytössä oleva */
+      b.textContent = k === 'snap' ? ('Snap ' + (isOff ? '0' : '0.5')) : (LBL[k] + (isOff ? ' ✕' : ' ✓'));
       b.style.cssText = 'flex:1;font-family:DM Mono,monospace;font-size:9px;padding:5px 4px;'
         + 'border:1px solid ' + (isOff ? 'rgba(255,90,90,.5)' : 'rgba(41,232,168,.4)') + ';'
         + 'background:' + (isOff ? 'rgba(255,90,90,.16)' : 'rgba(41,232,168,.14)') + ';'
@@ -8265,6 +8271,20 @@ const _loadingSafety = setTimeout(() => {
       document.querySelectorAll('.leaflet-marker-pane').forEach(function (e) {
         e.style.display = off.markers ? 'none' : '';
       });
+    }
+    else if (k === 'tiles') {
+      /* Pohjakartta. Jos tämäkään ei vaikuta, jäljellä on enää Leafletin oma
+         zoom-animaatio ja selaimen kompositointi. */
+      document.querySelectorAll('.leaflet-tile-pane').forEach(function (e) {
+        e.style.display = off.tiles ? 'none' : '';
+      });
+    } else if (k === 'snap') {
+      /* zoomSnap 0.5 tarkoittaa että nipistyksen JÄLKEEN Leaflet animoi
+         lähimpään puolikkaaseen zoom-tasoon. Se ei näy huonona ruutuaikana
+         lainkaan — se on liike joka tapahtuu kun sormi on jo nostettu, eli
+         täsmälleen sama ilmiö jonka korjasimme aikajanasta. Arvolla 0
+         zoom jää tarkalleen siihen mihin sormi sen jätti. */
+      if (State.map) State.map.options.zoomSnap = off.snap ? 0 : 0.5;
     }
     /* 'field' vaikuttaa WindTexture.build-kääreen kautta — ei mitään tässä */
   }
