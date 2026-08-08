@@ -89,7 +89,25 @@ body {
   /* Multiply: vaalealla pohjalla tuulivarit painuvat luonnollisesti kartalle */
   mix-blend-mode: screen;
   image-rendering: auto;
-  transition: filter 0.3s, -webkit-filter 0.3s;
+  /* HUOM: tässä oli ennen transition: filter 0.3s.
+     updateHeatmapBlur() ajetaan joka zoomin päätteeksi ja blur-säde muuttuu
+     joka zoom-tasolla (z8 9px, z9 7px, z10 4px, z11 3px), joten siirtymä
+     animoi koko ruudun kokoista sumennusta 300 ms — noin 18 ruutua
+     sumennetun ja screen-blendatun kuvan uudelleenrasterointia juuri siinä
+     kohdassa missä zoomaus loppuu. Sumennuksen hyppy ei näy, koska
+     tekstuuri joka tapauksessa piirretään samalla hetkellä uusiksi. */
+}
+
+/* Zoom-animaation ajaksi kevennetään kalleimmat efektit. backdrop-filter on
+   iOS:llä raskaimpia: se lukee ja sumentaa taustan jokaisessa ruudussa, ja
+   Leaflet skaalaa merkkejä transformilla koko animaation ajan. Kortit ovat
+   pieniä ja liikkeessä, joten taustasumennuksen puuttuminen ~250 ms ajan ei
+   näy — toisin kuin lämpökartan oma blur, joka jätetään koskematta ettei
+   tekstuuri näyttäisi hetkeksi karkealta. */
+body.map-zooming .leaflet-marker-icon *,
+body.map-zooming .leaflet-marker-icon {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 .heatmap-overlay img {
   mix-blend-mode: screen;
@@ -2594,6 +2612,12 @@ function initMap() {
       }).catch(() => { /* Ei dataa — slider pysyy cachessa */ });
     }, 350);
   }
+
+  /* Kevennetty tila zoom-animaation ajaksi — katso .map-zooming CSS:ssä.
+     zoomend tulee Leafletissä aina zoomstartin jälkeen, myös nipistyksessä,
+     joten luokka ei jää päälle. */
+  map.on('zoomstart', () => { document.body.classList.add('map-zooming'); });
+  map.on('zoomend',   () => { document.body.classList.remove('map-zooming'); });
 
   let _prevZoom = map.getZoom();
   map.on('zoomend', () => {
