@@ -2487,7 +2487,7 @@ const State = {
   _tlTimes: null, _tlSpeeds: null, _tlDirs: null, _tlTicks: [],
   _lastTlHour: -1,
   /* Aikajanan oma, ohjelmallinen vieritys — katso _tlSetScrollLeft() */
-  _tlSelfScroll: false, _tlSelfScrollT: null,
+  _tlSelfScroll: false, _tlSelfScrollT: null, _tlTouching: false,
 };
 
 /* -- TOAST ------------------------------------------------------ */
@@ -7081,9 +7081,24 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
   let _rafPending = false, _fieldBusy = false, _pendingFrac = null;
 
   /* Sormi janalla kumoaa oman scrollin merkinnän heti: käyttäjän ele saa aina
-     etusijan, vaikka ohjelmallinen scroll olisi juuri ehtinyt tapahtua. */
+     etusijan, vaikka ohjelmallinen scroll olisi juuri ehtinyt tapahtua.
+     _tlTouching kertoo lisäksi että ele on kesken — silloin renderTimeline()
+     ei merkitse omaa vieritystään ohitettavaksi, jottei kesken olevan
+     raahauksen tapahtumia niellä. */
   ['pointerdown', 'touchstart', 'wheel'].forEach(function (n) {
-    tl.addEventListener(n, function () { State._tlSelfScroll = false; }, { passive: true });
+    tl.addEventListener(n, function () {
+      State._tlSelfScroll = false;
+      if (n !== 'wheel') State._tlTouching = true;
+    }, { passive: true });
+  });
+  /* Eleen päättyminen kuunnellaan IKKUNASTA, ei janasta: kosketus alkaa
+     tikistä, ja renderTimeline() voi rakentaa tikit uudelleen kesken eleen.
+     Silloin alkuperäinen kohde on irrotettu DOM:sta eikä touchend enää
+     kupli #tl-scroll:iin — lippu jäisi päälle pysyvästi ja koko ohitus
+     lakkaisi toimimasta. Ikkunatasolla tapahtuma tulee aina. */
+  ['pointerup', 'pointercancel', 'touchend', 'touchcancel'].forEach(function (n) {
+    window.addEventListener(n, function () { State._tlTouching = false; },
+      { passive: true, capture: true });
   });
 
   /* Jatkuva sijainti aikajanalla — murtoluku tikkien välillä. */
@@ -7189,6 +7204,10 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
  * puretaan kun selain on ehtinyt lähettää scroll+scrollend, tai heti kun
  * sormi koskee janaa — käyttäjän ele ei siis koskaan jää huomiotta. */
 function _tlBeginSelfScroll() {
+  /* Kesken olevaa elettä ei ohiteta koskaan — jos jana rakennetaan uudelleen
+     juuri kun sormi raahaa (esim. taustalla valmistunut viewport-haku), sen
+     scroll-tapahtumat käsitellään normaalisti kuten ennenkin. */
+  if (State._tlTouching) return;
   State._tlSelfScroll = true;
   clearTimeout(State._tlSelfScrollT);
   State._tlSelfScrollT = setTimeout(function () { State._tlSelfScroll = false; }, 300);
