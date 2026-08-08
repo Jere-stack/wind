@@ -1444,6 +1444,23 @@ body {
 .wx-hour-cloud { font-family: "DM Mono",monospace; font-size: 8px; color: rgba(255,255,255,.38); }
 
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* Spottimerkin koko ja nimikyltti muuttuvat zoomin mukana. Merkki
+   piirretään aina samankokoisena ja kutistetaan CSS-transformilla, jolloin
+   muutos voidaan ANIMOIDA — ikonin uudelleenrakentaminen hyppäisi suoraan
+   uuteen kokoon. Ulkomitat pysyvät vakiona, joten ankkuri ei liiku eikä
+   kyltti nytkähdä ympyrän kasvaessa. */
+.spot-ring {
+  transform-origin: 50% 50%;
+  transition: transform .32s cubic-bezier(.32, .72, 0, 1);
+  pointer-events: auto; cursor: pointer;
+}
+.spot-lbl {
+  transition: opacity .28s ease, transform .32s cubic-bezier(.32, .72, 0, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .spot-ring, .spot-lbl { transition: none; }
+}
 /* -- SPOT CARD ENHANCEMENTS ------------------------------------- */
 
 /* Sun bar */
@@ -2573,7 +2590,15 @@ function initMap() {
   map.on('zoomend', () => {
     if (State._dragZooming) return;
     const newZoom = map.getZoom();
-    if (newZoom !== _prevZoom) { _prevZoom = newZoom; renderSpots(State.currentHourIdx); }
+    if (newZoom !== _prevZoom) {
+      /* Pelkkä koon ja nimikyltin päivitys riittää, ja vain se voi animoitua.
+         Täysi renderSpots() tarvitaan vasta kun ylitetään raja jolla merkin
+         tyyppi vaihtuu pisteen ja ympyrän välillä (z=5). */
+      const crossedDotBoundary = (newZoom < 5) !== (_prevZoom < 5);
+      _prevZoom = newZoom;
+      if (crossedDotBoundary || !State.markers.length) renderSpots(State.currentHourIdx);
+      else updateSpotScale(newZoom);
+    }
     WindTexture.build(State.windField, map.getBounds()).then(() => {
       drawColorField(); resetParticles(); Crosshair.refresh();
     });
@@ -3350,45 +3375,91 @@ function spotIndexColor(score) {
   return `rgb(${r},${g},${b})`;
 }
 
+/* Spottiympyrän halkaisija zoomin mukaan.
+ *
+ * Aiemmin koko vaihtui portaissa: 28px (z5–6) → 36px + nimikyltti (z≥7).
+ * Kaukaa katsottuna z7–9 näyttää koko Suomenlahden, ja täysikokoiset
+ * ympyrät nimineen täyttivät kartan — ja z6→z7 rajalla koko hyppäsi
+ * kerralla ja nimi ilmestyi tyhjästä.
+ *
+ * Nyt halkaisija kasvaa yhtenäisenä käyränä z6:n 24 pikselistä z12:n
+ * 36 pikseliin. Interpolointi on smoothstep, ei lineaarinen: muutos
+ * lähtee ja pysähtyy pehmeästi, joten peräkkäiset zoom-tasot eivät tunnu
+ * portailta vaan yhdeltä liikkeeltä. Nimikyltti tulee vasta lähellä. */
+const SPOT_BASE = 36;   /* piirtokoko — näkyvä koko saadaan skaalaamalla */
+function spotIconSize(zoom) {
+  const Z0 = 6, Z1 = 12, S0 = 24, S1 = SPOT_BASE;
+  const t = Math.min(1, Math.max(0, (zoom - Z0) / (Z1 - Z0)));
+  return Math.round(S0 + t * t * (3 - 2 * t) * (S1 - S0));
+}
+/* Nimikyltti vain kun ollaan tarpeeksi lähellä että se on luettava
+   eikä kilpaile naapureidensa kanssa. */
+const SPOT_LABEL_MIN_ZOOM = 10;
+
+/* Päivittää olemassa olevat merkit paikallaan zoomin muuttuessa. Koko
+   renderSpots() rakentaisi ikonit uusiksi, jolloin selain ei voi animoida
+   muutosta vaan merkki loksahtaisi suoraan uuteen kokoon. */
+function updateSpotScale(zoom) {
+  const scale = spotIconSize(zoom) / SPOT_BASE;
+  const showLbl = zoom >= SPOT_LABEL_MIN_ZOOM;
+  for (const m of State.markers) {
+    const el = m.getElement && m.getElement();
+    if (!el) continue;
+    const ring = el.querySelector('.spot-ring');
+    if (ring) ring.style.transform = 'scale(' + scale.toFixed(3) + ')';
+    const lbl = el.querySelector('.spot-lbl');
+    if (lbl) {
+      lbl.style.opacity = showLbl ? '1' : '0';
+      lbl.style.transform = 'translateY(' + (showLbl ? 0 : -2) + 'px)';
+      lbl.style.pointerEvents = showLbl ? 'auto' : 'none';
+    }
+  }
+}
+
 /* SVG circle marker with arc progress bar + score + name */
 function spotMarkerSVG(score, name, size) {
   const col = spotIndexColor(score);
-  const R = size / 2 - 3;          /* arc radius */
+  /* Viivanpaksuus, säde ja fonttikoko skaalautuvat halkaisijan mukana —
+     muuten pienennetyssä ympyrässä olisi täysikokoinen rengas ja numero,
+     jotka eivät mahtuisi sisään. Suhdeluvut on johdettu alkuperäisestä
+     36px koosta: 3/36 ja 15/36. */
+  const sw = Math.max(2, size * (3 / 36));
+  const R = size / 2 - sw;         /* arc radius */
   const cx = size / 2, cy = size / 2;
   const circ = 2 * Math.PI * R;
   const filled = circ * (score / 100);
   const gap = circ - filled;
 
-  /* Arc starts at top (-90°) */
-  const trackArc = `M ${cx} ${cy - R} A ${R} ${R} 0 1 1 ${cx - 0.01} ${cy - R}`;
-  const fillArc  = `M ${cx} ${cy - R} A ${R} ${R} 0 1 1 ${cx - 0.01} ${cy - R}`;
-
-  /* Use stroke-dasharray trick on a full circle path */
   const scoreStr = String(score);
-  const fontSize = score >= 100 ? 13 : 15;
+  const fontSize = size * (score >= 100 ? 13 / 36 : 15 / 36);
 
   return (
     `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">`
     /* Black bg circle */
     + `<circle cx="${cx}" cy="${cy}" r="${size/2}" fill="rgba(6,9,18,0.82)"/>`
     /* Track ring (dark) */
-    + `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="3"/>`
+    + `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="${sw.toFixed(2)}"/>`
     /* Progress arc */
-    + `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${col}" stroke-width="3" stroke-linecap="round"`
+    + `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${col}" stroke-width="${sw.toFixed(2)}" stroke-linecap="round"`
     + ` stroke-dasharray="${filled} ${gap}" stroke-dashoffset="${circ * 0.25}" transform="rotate(-90 ${cx} ${cy})"/>`
     /* Score number */
-    + `<text x="${cx}" y="${cy + fontSize*0.35}" text-anchor="middle" font-family="DM Mono,monospace" font-size="${fontSize}" font-weight="700" fill="${col}">${scoreStr}</text>`
+    + `<text x="${cx}" y="${cy + fontSize*0.35}" text-anchor="middle" font-family="DM Mono,monospace" font-size="${fontSize.toFixed(2)}" font-weight="700" fill="${col}">${scoreStr}</text>`
     + `</svg>`
   );
 }
 
-/* Name label below circle */
-function spotNameLabel(name, col) {
+/* Name label below circle. Näkyvyys ohjataan opacityllä eikä poistamalla
+   elementtiä, jotta se voi häivähtää esiin kun zoomataan lähelle. */
+function spotNameLabel(name, col, visible) {
   return (
-    `<div style="font-family:'DM Mono',monospace;font-size:8px;font-weight:600;color:${col};`
+    `<div class="spot-lbl" style="font-family:'DM Mono',monospace;font-size:8px;font-weight:600;color:${col};`
     + `text-align:center;line-height:1.2;margin-top:2px;`
     + `text-shadow:0 1px 3px rgba(0,0,0,0.9);white-space:nowrap;max-width:64px;`
-    + `overflow:hidden;text-overflow:ellipsis;">${name}</div>`
+    + `overflow:hidden;text-overflow:ellipsis;`
+    + `opacity:${visible ? 1 : 0};transform:translateY(${visible ? 0 : -2}px);`
+    /* Osumakohde seuraa näkyvyyttä: näkyvä nimi kasvattaa kosketusaluetta,
+       häivytetty ei jää nappaamaan kartan kosketuksia tyhjästä. */
+    + `pointer-events:${visible ? 'auto' : 'none'};cursor:pointer;">${name}</div>`
   );
 }
 
@@ -3436,23 +3507,23 @@ function renderSpots(hourIdx) {
 
     let html, iconW, iconH, anchor;
 
-    if (zoom >= 7) {
-      /* Full circle (36px) + name label */
-      const sz = 36;
+    if (zoom >= 5) {
+      /* Merkki piirretään aina SPOT_BASE-kokoisena ja kutistetaan
+         transformilla — ulkomitat ja ankkuri pysyvät siis vakiona kaikilla
+         zoom-tasoilla, ja koon muutos voidaan animoida ilman että merkki
+         hyppää paikaltaan. */
+      const scale = spotIconSize(zoom) / SPOT_BASE;
+      const withName = zoom >= SPOT_LABEL_MIN_ZOOM;
       html = (
-        '<div style="display:inline-flex;flex-direction:column;align-items:center;cursor:pointer">'
-        + spotMarkerSVG(score, spot.name, sz)
-        + spotNameLabel(spot.name, col)
+        '<div style="display:inline-flex;flex-direction:column;align-items:center;pointer-events:none">'
+        + '<div class="spot-ring" style="transform:scale(' + scale.toFixed(3) + ')">'
+        + spotMarkerSVG(score, spot.name, SPOT_BASE)
+        + '</div>'
+        + spotNameLabel(spot.name, col, withName)
         + '</div>'
       );
-      iconW = 64; iconH = sz + 14;
-      anchor = [iconW / 2, sz / 2];
-    } else if (zoom >= 5) {
-      /* Smaller circle (28px), no name */
-      const sz = 28;
-      html = '<div style="cursor:pointer">' + spotMarkerSVG(score, spot.name, sz) + '</div>';
-      iconW = sz; iconH = sz;
-      anchor = [sz / 2, sz / 2];
+      iconW = 64; iconH = SPOT_BASE + 14;
+      anchor = [iconW / 2, SPOT_BASE / 2];
     } else {
       /* Tiny dot for far zoom */
       const c = ColorRamp.rgb(dms);
