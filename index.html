@@ -3131,6 +3131,16 @@ const CoastShade = {
     this.layer = new Layer({
       pane: 'coast', className: 'coast-shade', tileSize: 256, keepBuffer: 2
     }).addTo(map);
+
+    /* Eleen aikana ei lasketa mitään — katso _drain(). */
+    map.on('zoomstart movestart', function () { self._busy = true; });
+    map.on('zoomend moveend', function () {
+      self._busy = false;
+      if (!self._draining && self._queue.length) {
+        self._draining = true;
+        setTimeout(function () { self._drain(); }, 0);
+      }
+    });
   },
 
   disable() {
@@ -3151,10 +3161,35 @@ const CoastShade = {
    * Promise-ketjutus ei riitä: await palaa mikrotehtäväjonon kautta, joka
    * ajetaan ennen piirtoa. Siksi väliin tarvitaan oikea setTimeout-luovutus.
    * Tehdään töitä budjetin verran, päästetään selain piirtämään, jatketaan. */
-  _queue: [], _draining: false,
+  _queue: [], _pending: [], _draining: false,
+
+  /* Ilmoittaa Leafletille valmiit laatat. Kutsutaan kerralla koko erälle. */
+  _flush() {
+    const p = this._pending;
+    this._pending = [];
+    for (let i = 0; i < p.length; i++) p[i].done(null, p[i].cvs);
+  },
 
   _enqueue(job) {
     if (this.disabled) { job.done(null, job.cvs); return; }
+    /* Zoom-taso vaihtui kesken erän: päästetään edellisen tason laatat
+       menemään heti. Muuten ne jäisivät merkitsemättä valmiiksi eikä Leaflet
+       voisi karsia niitä — mitattuna nipistyksen aikana varjocanvaseja kertyi
+       45 kun pohjakartalla oli 15, ja ylimääräinen kompositointi näkyi
+       ruutuajassa (p95 44 ms → 104 ms). */
+    const last = this._queue.length ? this._queue[this._queue.length - 1]
+               : (this._pending.length ? this._pending[this._pending.length - 1] : null);
+    if (last && last.coords.z !== job.coords.z) {
+      const stale = this._queue.splice(0).concat(this._pending);
+      this._pending = [];
+      /* done() EI saa lähteä synkronisesti: olemme createTile:n sisällä, ja
+         Leafletin _tileReady palaa heti jos laattaa ei ole vielä lisätty
+         _tiles-hakemistoon. Silloin laatta jäisi ikuisiksi ajoiksi
+         merkitsemättä ladatuksi eikä sitä voisi karsia. */
+      setTimeout(function () {
+        for (let i = 0; i < stale.length; i++) stale[i].done(null, stale[i].cvs);
+      }, 0);
+    }
     this._queue.push(job);
     if (this._draining) return;
     this._draining = true;
@@ -3168,19 +3203,46 @@ const CoastShade = {
   },
 
   async _drain() {
-    while (this._queue.length) {
-      const t0 = performance.now();
-      while (this._queue.length && performance.now() - t0 < this.P.BUDGET_MS) {
-        const job = this._queue.shift();
-        if (this.disabled) { job.done(null, job.cvs); continue; }
-        /* Laatta on voitu karsia näkymästä jo ennen kuin sen vuoro tuli */
-        if (!job.layer._tiles || !job.layer._tiles[job.key]) { job.done(null, job.cvs); continue; }
-        try { await this._renderTile(job.coords, job.cvs); } catch (e) { /* jätä tyhjäksi */ }
-        job.done(null, job.cvs);
+    /* Valmiit laatat kerätään talteen eikä ilmoiteta Leafletille heti.
+     *
+     * Miksi: Leaflet pitää edellisen zoom-tason laatat näkyvissä kunnes
+     * uudet on ladattu, ja paljastaa uudet yksi kerrallaan. Pohjakartalla se
+     * ei häiritse, koska laatta näyttää lähes samalta molemmilla tasoilla.
+     * Varjolla näyttää: liu'un leveys on ruutupikseleissä vakio, joten
+     * skaalattu vanha laatta on kaksi kertaa leveämpi kuin viereinen uusi.
+     * Ero näkyi tarkkarajaisina neliöinä ruudulla.
+     *
+     * Kun done() kutsutaan vasta kun koko jono on laskettu, taso vaihtuu
+     * yhdellä kertaa: sitä ennen näkyy tasaisesti vanha taso skaalattuna,
+     * sen jälkeen tasaisesti uusi. Neliöitä ei voi syntyä. */
+    try {
+      while (this._queue.length) {
+        /* Ei lasketa kesken eleen. Yhden laatan varjo maksaa 7–9 ms, ja
+           viisitoista laattaa kesken nipistyksen vei mitattuna ruutuajan
+           p95:n 45 ms:stä 110 ms:ään. Lämpökartta tekee jo samoin: raskas
+           työ ajetaan vasta kun ele on ohi. Sitä ennen Leaflet näyttää
+           edellisen tason laatat skaalattuna, kuten pohjakartallakin.
+           Laskuri nollataan joka kierroksella ja estää jumin vain siltä
+           varalta ettei zoomend/moveend tulisi lainkaan. */
+        let guard = 0;
+        while (this._busy && guard++ < 120) {
+          await new Promise(function (r) { setTimeout(r, 16); });
+        }
+        const t0 = performance.now();
+        while (this._queue.length && performance.now() - t0 < this.P.BUDGET_MS) {
+          const job = this._queue.shift();
+          if (this.disabled) { job.done(null, job.cvs); continue; }
+          /* Laatta on voitu karsia näkymästä jo ennen kuin sen vuoro tuli */
+          if (!job.layer._tiles || !job.layer._tiles[job.key]) { job.done(null, job.cvs); continue; }
+          try { await this._renderTile(job.coords, job.cvs); } catch (e) { /* jätä tyhjäksi */ }
+          this._pending.push(job);
+        }
+        if (this._queue.length) await new Promise(function (r) { setTimeout(r, 0); });
       }
-      if (this._queue.length) await new Promise(function (r) { setTimeout(r, 0); });
+    } finally {
+      this._flush();
+      this._draining = false;
     }
-    this._draining = false;
   },
 
   _url(x, y, z) {
@@ -3355,13 +3417,19 @@ const CoastShade = {
 
       const n = W * H;
       const mask = new Uint8Array(n), work = new Uint8Array(n);
-      const bd = new Float32Array(n), bl = new Float32Array(n);
+      let water = 0, land = 0;
       for (let i = 0; i < n; i++) {
         const b4 = i * 4, v = d[b4];
         /* Puuttuva naapuri (alpha 0) luetaan vedeksi: silloin laatan reunaan
            ei synny valerantaa vaan pelkkä hieman vaimeampi liuku. */
-        mask[i] = (d[b4 + 3] < 8 || (v >= P.T_LO && v <= P.T_HI)) ? 1 : 0;
+        if (d[b4 + 3] < 8 || (v >= P.T_LO && v <= P.T_HI)) { mask[i] = 1; water = 1; }
+        else { mask[i] = 0; land = 1; }
       }
+      /* Pelkkää ulappaa tai pelkkää sisämaata — ei rantaa, ei varjoa.
+         Ohitetaan avaus, kolme sumennusta ja maalaus kokonaan. Suomenlahdella
+         ja sisämaassa tämä on iso osa näkymän laatoista. */
+      if (!water || !land) return;
+      const bd = new Float32Array(n), bl = new Float32Array(n);
 
       /* Teiden reunanpehmennys osuu vesikaistalle: tie on 42 ja maa 9, joten
          niiden välinen liukuma käy arvojen 36–38 kautta. Siitä syntyi ohuita
