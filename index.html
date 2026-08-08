@@ -3169,6 +3169,10 @@ const CoastShade = {
         self._draining = true;
         setTimeout(function () { self._drain(); }, 0);
       }
+      /* Varmistus eleen jälkeen: jos jokin laatta on jäänyt viimeistelemättä,
+         se korjataan tässä. Katso _sweep(). */
+      clearTimeout(self._sweepT);
+      self._sweepT = setTimeout(function () { self._sweep(); }, 500);
     });
   },
 
@@ -3179,6 +3183,7 @@ const CoastShade = {
     this._shade.clear();
     this._queue.length = 0;
     this._pending.length = 0;
+    clearTimeout(this._sweepT);
   },
 
   _remember(key, store) {
@@ -3216,7 +3221,7 @@ const CoastShade = {
    * Promise-ketjutus ei riitä: await palaa mikrotehtäväjonon kautta, joka
    * ajetaan ennen piirtoa. Siksi väliin tarvitaan oikea setTimeout-luovutus.
    * Tehdään töitä budjetin verran, päästetään selain piirtämään, jatketaan. */
-  _queue: [], _pending: [], _draining: false,
+  _queue: [], _pending: [], _draining: false, _busy: false, _sweepT: null,
 
   /* Ilmoittaa Leafletille valmiit laatat. Kutsutaan kerralla koko erälle. */
   _flush() {
@@ -3304,8 +3309,40 @@ const CoastShade = {
         if (this._queue.length) await new Promise(function (r) { setTimeout(r, 0); });
       }
     } finally {
-      this._flush();
+      /* Järjestys on tärkeä: _draining on nollattava ENNEN _flush():ia.
+         done() voi saada Leafletin luomaan laattoja saman tien, ja jos
+         _draining on silloin vielä päällä, _enqueue ei ajasta uutta
+         tyhjennystä — työ jäisi jonoon ilman tekijää ja laatta jäisi
+         Leafletin kirjanpidossa lataamattomaksi eli näkymättömäksi. */
       this._draining = false;
+      this._flush();
+      if (this._queue.length && !this._draining) {
+        this._draining = true;
+        const self = this;
+        setTimeout(function () { self._drain(); }, 0);
+      } else {
+        this._sweep();
+      }
+    }
+  },
+
+  /* Vahtikoira. Laatta joka jää Leafletin kirjanpidossa lataamattomaksi on
+     näkymätön (.leaflet-tile on visibility:hidden kunnes se saa luokan
+     leaflet-tile-loaded), eli varjo puuttuu juuri siitä kohtaa. Mitattuna
+     niitä kertyi ajoittain kymmeniä toistuvissa eleissä. Sen sijaan että
+     luottaisin siihen että jokainen polku muistaa kutsua done():n, käydään
+     taso läpi ja viimeistellään kaikki joille ei ole työtä kesken. */
+  _sweep() {
+    const layer = this.layer;
+    if (this.disabled || !layer || !layer._tiles) return;
+    if (this._draining || this._queue.length || this._pending.length) return;
+    for (const key in layer._tiles) {
+      const t = layer._tiles[key];
+      if (!t.el || t.loaded) continue;
+      this._enqueue({
+        coords: t.coords, cvs: t.el, layer: layer, key: key,
+        done: layer._tileReady.bind(layer, t.coords)
+      });
     }
   },
 
