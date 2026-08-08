@@ -2843,6 +2843,52 @@ const WindTexture = {
   latMin: 0, latMax: 0, lngMin: 0, lngMax: 0,
   COARSE_STEP: 3,        /* vakiotarkkuus */
   SCRUB_STEP: 6,         /* aikajanaa raahatessa — päivitys ehtii joka ruutuun */
+  _tmpCanvas: null,
+
+  /* Osaako selain sumentaa canvasille? Safari 16.4+ ja kaikki nykyselaimet
+     osaavat. Vanhemmissa ctx.filter on olemassa mutta jää huomiotta, joten
+     tunnistus tehdään piirtämällä: sumennetun pisteen pitää vuotaa
+     naapuripikseliin. Jos ei osaa, sumennus jää CSS:n hoidettavaksi kuten
+     ennenkin — ulkoasu ei siis muutu millään selaimella. */
+  canBakeBlur() {
+    if (this._canBake !== undefined) return this._canBake;
+    try {
+      const c = document.createElement('canvas'); c.width = 9; c.height = 9;
+      const x = c.getContext('2d');
+      x.fillStyle = '#fff'; x.fillRect(4, 4, 1, 1);
+      const src = document.createElement('canvas'); src.width = 9; src.height = 9;
+      src.getContext('2d').drawImage(c, 0, 0);
+      x.clearRect(0, 0, 9, 9);
+      x.filter = 'blur(2px)';
+      x.drawImage(src, 0, 0);
+      x.filter = 'none';
+      /* Naapuripikselin pitää saada valoa jos sumennus toimi */
+      this._canBake = x.getImageData(6, 4, 1, 1).data[3] > 0;
+    } catch (e) { this._canBake = false; }
+    return this._canBake;
+  },
+
+  /* CSS-sumennus on ruutupikseleissä, mutta tekstuuripikseli on eri kokoinen.
+     Muunnetaan mittaamalla kuinka leveä overlay on ruudulla. */
+  _blurTexels(cssBlur) {
+    const map = State.map;
+    if (!map || !this.cols) return 0;
+    try {
+      const a = map.latLngToContainerPoint(L.latLng(this.latMin, this.lngMin));
+      const b = map.latLngToContainerPoint(L.latLng(this.latMax, this.lngMax));
+      const screenW = Math.abs(b.x - a.x);
+      if (!(screenW > 0)) return 0;
+      const texelPx = screenW / this.cols;
+      const raw = cssBlur / texelPx;
+      /* Isolla zoomilla overlay ulottuu 0.5° yli näkymän, joten se on ruudulla
+         moninkertainen näkymään nähden ja yksi tekstuuripikseli venyy monen
+         ruutupikselin levyiseksi. Silloin CSS-mittainen sumennus jäisi alle
+         yhden tekselin eikä tekisi mitään, ja jyrkkä gradientti voisi näkyä
+         portaana bilineaarisen venytyksen jäljiltä. Varmistetaan että
+         naapuritekselit sekoittuvat aina edes hieman. */
+      return texelPx > 2 ? Math.max(raw, 0.6) : raw;
+    } catch (e) { return 0; }
+  },
 
   /* build(windField, viewportBounds, coarseStep)
    *
@@ -2941,12 +2987,50 @@ const WindTexture = {
           }
         }
         self.ctx.putImageData(img, 0, 0);
+        self._bakeEffects(zoom);
         resolve();
       }
       /* Harvennuksen jälkeen työ on murto-osa entisestä, joten setTimeout-
          pilkkomista tarvitaan vasta selvästi isommilla tekstuureilla. */
       if (n / (STEP * STEP) < 40000) buildAll(); else setTimeout(buildAll, 0);
     });
+  },
+
+  /* Sumennus ja värikylläisyys tekstuuriin, ei CSS-filtteriksi.
+   *
+   * CSS-filtteri pakottaa elementin omalle piirtopinnalle, joka pitää
+   * rasteroida uudelleen aina kun sen mittakaava muuttuu — ja Leaflet
+   * skaalaa overlayta transformilla koko zoom-animaation ajan. Kun efektit
+   * ovat valmiiksi kuvassa, overlay on tavallinen bittikartta jonka
+   * skaalaus on pelkkä GPU-operaatio.
+   *
+   * Sivuvaikutus on itse asiassa oikeampi lopputulos: CSS-sumennus oli
+   * kiinni ruutupikseleissä, joten se pysyi samana vaikka kuva suureni
+   * animaation aikana. Paistettu sumennus skaalautuu kuvan mukana, eli se
+   * on sidottu maastoon niin kuin datakin.
+   *
+   * Jos selain ei osaa sumentaa canvasille, tästä palataan hiljaisesti
+   * CSS-filtteriin — updateHeatmapBlur() katsoo saman lipun. */
+  _bakeEffects(zoom) {
+    if (!this.canBakeBlur()) return;
+    const cssBlur = Math.max(3, Math.round(22 - (zoom - 2) * 2.2));
+    const sat = zoom <= 5 ? 1.6 : 1.4;
+    const bt = this._blurTexels(cssBlur);
+    /* Alle puolen tekstuuripikselin sumennus ei näy — jätetään pois, mutta
+       kylläisyys ajetaan silti. */
+    const blurPart = bt >= 0.5 ? 'blur(' + bt.toFixed(2) + 'px) ' : '';
+    if (!this._tmpCanvas) this._tmpCanvas = document.createElement('canvas');
+    const tmp = this._tmpCanvas;
+    if (tmp.width !== this.cols || tmp.height !== this.rows) {
+      tmp.width = this.cols; tmp.height = this.rows;
+    }
+    const tctx = tmp.getContext('2d');
+    tctx.clearRect(0, 0, this.cols, this.rows);
+    tctx.drawImage(this.canvas, 0, 0);
+    this.ctx.clearRect(0, 0, this.cols, this.rows);
+    this.ctx.filter = blurPart + 'saturate(' + sat + ')';
+    this.ctx.drawImage(tmp, 0, 0);
+    this.ctx.filter = 'none';
   },
 
   sampleWind(lat, lng) {
@@ -2992,11 +3076,16 @@ function drawColorField() {
 function updateHeatmapBlur() {
   if (!State.map) return;
   const z = State.map.getZoom();
+  /* Sumennus ja kylläisyys paistetaan tekstuuriin (WindTexture._bakeEffects),
+     jolloin overlay on tavallinen bittikartta eikä sitä tarvitse rasteroida
+     uudelleen zoom-animaation joka ruudussa. CSS-filtteriin palataan vain
+     jos selain ei osaa sumentaa canvasille. */
+  const baked = WindTexture.canBakeBlur();
   /* Blur: zoomissa 5+ tarkempi, kaukaa pehmeampi */
   const blur = Math.max(3, Math.round(22 - (z - 2) * 2.2));
   /* Saturate vahvistaa vareja screen-blendauksen kanssa */
   const sat = z <= 5 ? 1.6 : 1.4;
-  const fStr = 'blur(' + blur + 'px) saturate(' + sat + ')';
+  const fStr = baked ? '' : 'blur(' + blur + 'px) saturate(' + sat + ')';
   document.querySelectorAll('.heatmap-overlay').forEach(el => {
     el.style.filter = fStr;
     el.style.webkitFilter = fStr;
