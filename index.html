@@ -2486,6 +2486,8 @@ const State = {
   _panning: false, _dragZooming: false,
   _tlTimes: null, _tlSpeeds: null, _tlDirs: null, _tlTicks: [],
   _lastTlHour: -1,
+  /* Aikajanan oma, ohjelmallinen vieritys — katso _tlSetScrollLeft() */
+  _tlSelfScroll: false, _tlSelfScrollT: null,
 };
 
 /* -- TOAST ------------------------------------------------------ */
@@ -7004,7 +7006,13 @@ function nowIdx(times) {
 }
 
 function renderTimeline(times, speeds, dirs, activeIdx) {
-  const tl = document.getElementById('tl-scroll'); tl.innerHTML = '';
+  const tl = document.getElementById('tl-scroll');
+  /* Sisällön tyhjennys kutistaa vieritysalueen nollaan, jolloin selain
+     lähettää scroll-tapahtuman aivan kuin sormi olisi vetänyt janan alkuun.
+     Merkitään koko uudelleenrakennus omaksi vieritykseksi — lippu jatkuu
+     rAF:n _tlSetScrollLeft():iin asti. */
+  _tlBeginSelfScroll();
+  tl.innerHTML = '';
   if (!times || !times.length) return;
   State._tlTimes = times; State._tlSpeeds = speeds; State._tlDirs = dirs;
   State._tlTicks = [];
@@ -7055,7 +7063,7 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
 
   requestAnimationFrame(() => {
     const target = State._tlTicks[activeIdx];
-    if (target) tl.scrollLeft = target.offsetLeft - tl.offsetWidth / 2 + TICK_W / 2;
+    if (target) _tlSetScrollLeft(tl, target.offsetLeft - tl.offsetWidth / 2 + TICK_W / 2);
     _tlUpdateNow(activeIdx);
   });
 
@@ -7071,6 +7079,12 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
 
   let _scrollTimer = null;
   let _rafPending = false, _fieldBusy = false, _pendingFrac = null;
+
+  /* Sormi janalla kumoaa oman scrollin merkinnän heti: käyttäjän ele saa aina
+     etusijan, vaikka ohjelmallinen scroll olisi juuri ehtinyt tapahtua. */
+  ['pointerdown', 'touchstart', 'wheel'].forEach(function (n) {
+    tl.addEventListener(n, function () { State._tlSelfScroll = false; }, { passive: true });
+  });
 
   /* Jatkuva sijainti aikajanalla — murtoluku tikkien välillä. */
   function _fracFromScroll() {
@@ -7111,6 +7125,7 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
   }
 
   tl.addEventListener('scroll', () => {
+    if (State._tlSelfScroll) return;
     if (_rafPending) return;
     _rafPending = true;
     requestAnimationFrame(() => {
@@ -7134,6 +7149,7 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
 
   if ('onscrollend' in tl) {
     tl.addEventListener('scrollend', () => {
+      if (State._tlSelfScroll) { State._tlSelfScroll = false; return; }
       clearTimeout(_scrollTimer);
       _tlCommitSelection(tl);
     }, { passive: true });
@@ -7154,6 +7170,36 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
       if (State.sheetSpot) openSheet(State.sheetSpot, idx);
     }
   });
+}
+
+/* Asettaa aikajanan vierityksen OHJELMALLISESTI.
+ *
+ * renderTimeline() ajetaan uudelleen joka kartansiirrolla, ja se asettaa
+ * scrollLeft:in nykyisen tunnin kohdalle. Selain lähettää siitä täsmälleen
+ * saman scroll-tapahtuman kuin sormen raahauksesta, joten janan kuuntelijat
+ * pitivät sitä käyttäjän valintana: ne rakensivat tuulikentän uudelleen ja
+ * kutsuivat resetParticles():ia, joka tyhjentää partikkelicanvasin.
+ *
+ * Mitattuna yksi nipistys tuotti kolme kenttärakennusta ja kolme
+ * partikkelinollausta noin puolen sekunnin sisällä — lämpökartan kuva
+ * vaihdettiin kolmesti ja sen 0.3 s sumennussiirtymä käynnistyi joka kerta.
+ * Se oli se välkkyminen jonka käyttäjä näki zoomatessa.
+ *
+ * Merkitään oma scroll omaksi, jotta kuuntelijat ohittavat sen. Lippu
+ * puretaan kun selain on ehtinyt lähettää scroll+scrollend, tai heti kun
+ * sormi koskee janaa — käyttäjän ele ei siis koskaan jää huomiotta. */
+function _tlBeginSelfScroll() {
+  State._tlSelfScroll = true;
+  clearTimeout(State._tlSelfScrollT);
+  State._tlSelfScrollT = setTimeout(function () { State._tlSelfScroll = false; }, 300);
+}
+
+function _tlSetScrollLeft(tl, x) {
+  /* Sama arvo ei tuota scroll-tapahtumaa lainkaan, joten ei myöskään lippua
+     joka voisi jäädä päälle turhaan. */
+  if (Math.abs(tl.scrollLeft - x) < 0.5) return;
+  _tlBeginSelfScroll();
+  tl.scrollLeft = x;
 }
 
 function _tlUpdateNow(idx) {
