@@ -117,6 +117,58 @@ rantaviivan ero **20.1 → 41.5**.
   vihreä–keltainen–punainen-perheessä itsessään, ei näissä säädöissä.
   Korjaus vaatisi rampin vaihtamista toiseen väriperheeseen.
 
+## Valikoiden ulkoasu — Merikartta
+
+Sovelluksessa on **kaksi maailmaa**, ja raja niiden välillä on tarkoituksellinen:
+
+- **Kartta on tumma.** Pohjakartta, lämpökartta, partikkelit, spottimerkit,
+  yläpalkki, aikajana, tähtäin ja karttanapit. Väri asuu täällä, koska
+  tuulisävy tarkoittaa jotain.
+- **Paneelit ovat paperia.** Asetuspaneeli, spottikortti/havaintokortti ja
+  ennustepaneeli. Nämä ovat lähes neutraaleja, jotta ne eivät kilpaile datan
+  kanssa.
+
+Sävyt on otettu suomalaisesta merikartasta: maa-alueen kellertävä pohja,
+kartan musta teksti ja merikartan magenta, joka on myös se sävy johon
+tuuliramppi päättyy 20 m/s kohdalla.
+
+### Tokenit
+
+`:root`issa on `--surface / --surface-hi / --surface-lo`, `--hairline(-soft)`,
+`--ink / --ink-2 / --ink-3`, `--accent`, `--info`. Kaikki musteet läpäisevät
+WCAG AA:n kummallakin pinnalla (14.3 / 5.9 / 4.6 : 1).
+
+Asiat jotka eivät ole ilmeisiä:
+
+- **`--accent` on ainoa toimintoväri.** Se varataan kytkimille ja
+  toiminnoille. Valittu valintasiru on **mustetta**, ei aksenttia: kolme
+  siruryhmää näkyy yhtä aikaa, joten aksenttitäyttö toisi ruudulle kolme
+  magentaa laattaa ja söisi tehon siitä missä se merkitsee jotain.
+- **`var()` ei toimi SVG:n esitysattribuuteissa.** `fill="var(--ink)"` ei
+  renderöidy. Kaavioiden ja renkaiden attribuuteissa on siksi literaalit;
+  inline-tyyleissä (`style="color:…"`) tokenit toimivat normaalisti.
+- **Emojit poistettiin** valintasiruista. Mallin nimi tekstinä on siistimpi
+  kuin väärä ikoni, eikä uusia ikoneita tarvittu.
+
+### Kaksi ramppia
+
+`ColorRamp.rgb()` on kartalle, `ColorRamp.ink()` paneeleihin. Sama
+sävyjärjestys, sama `msToT`, samat väliankkurit — vain kylläisyys eroaa.
+Syy: kartan neonvihreä on beigellä 1.49:1 ja keltainen 1.34:1, eli kuusi
+yhdeksästä ankkurista on lukukelvottomia. Mustevariantti on 4.56–6.6:1.
+Sama pätee spotti-indeksiin: `spotIndexColor()` kartalle,
+`spotIndexInk()` paneeleihin, ja `spotMarkerSVG(..., paperi)` vaihtaa
+renkaan taustan ja uran.
+
+**Jos lisäät paneeliin tuulivärillisen luvun, käytä `ink()`-versiota.**
+Kartan versio näyttää siellä siltä kuin teksti olisi haalistunut.
+
+### Typografia
+
+Syne ja DM Mono poistettiin. Käyttöliittymä käyttää järjestelmäfonttia
+(iPhonella SF Pro), numerot samaa perhettä `tabular-nums`-asetuksella.
+Kaksi ulkoista fonttilatausta vähemmän.
+
 ## API-osoitteet
 
 Frontend käyttää vakiota `API_BASE = '/api'` (`index.html`), eli funktiot

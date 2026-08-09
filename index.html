@@ -21,10 +21,41 @@
    CSS VARIABLES & RESET
    ============================================================ */
 :root {
+  /* ------------------------------------------------------------
+     MERIKARTTA — valikoiden pinnat ja musteet.
+     Väri asuu kartalla, ei valikoissa: tuulisävy tarkoittaa jotain,
+     joten paneelit ovat lähes neutraaleja ja luovuttavat kylläisyyden
+     datalle. Sävyt on otettu suomalaisesta merikartasta: maa-alueen
+     kellertävä pohja, kartan musta teksti ja merikartan magenta, joka
+     on myös se sävy johon tuuliramppi päättyy 20 m/s kohdalla.
+     Kaikki musteet läpäisevät WCAG AA:n kummallakin pinnalla.
+     ------------------------------------------------------------ */
+  --surface:      #F0E7CE;   /* paneelin pohja                        */
+  --surface-hi:   #FAF5E7;   /* korotettu: rivit, kaaviolaatikot      */
+  --surface-lo:   #E4D8B8;   /* upotettu: segmenttiraita, palkin ura  */
+  --hairline:     #CDBE9A;   /* erotin — ei koskaan tekstiä           */
+  --hairline-soft:#DFD4B6;
+
+  --ink:    #101A20;         /* otsikot, arvot, nimet      14.3:1 */
+  --ink-2:  #4C5960;         /* kuvaukset, yksiköt          5.9:1 */
+  --ink-3:  #5F696F;         /* labelit, lähdetiedot        4.6:1 */
+
+  --accent: #B4005A;         /* AINOA toimintoväri          5.5:1 */
+  --accent-soft: rgba(180,0,90,0.10);
+  --info:   #1C5C86;         /* vesi, havaintolähde         5.8:1 */
+
+  /* Kartan päällä kelluvat sirut: sama paperi, oma varjo. */
+  --chip:      rgba(240,231,206,0.95);
+  --chip-line: rgba(16,26,32,0.10);
+
+  --shadow-1: 0 1px 2px rgba(16,26,32,.10);
+  --shadow-2: 0 4px 14px rgba(6,12,16,.30);
+  --shadow-3: 0 -8px 34px rgba(4,8,12,.46);
+
+  /* Kartta pysyy tummana — nämä eivät ole paneelivärejä. */
   --bg:     #060912;
   --panel:  rgba(6,9,18,0.88);
   --border: rgba(255,255,255,0.09);
-  --accent: #29e8a8;
   --accent-glow: rgba(41,232,168,0.15);
   --text:   #ddeeff;
   --muted:  rgba(180,215,255,0.45);
@@ -207,202 +238,159 @@ body {
 /* ============================================================
    SETTINGS — Apple Liquid Glass popover
    ============================================================ */
-/* ── Settings drawer — Windy-tyylinen liukupaneeli ───────── */
-/* Overlay — kattaa koko näytön, läpinäkyvä, klikkaus sulkee */
+/* Liukupaneeli oikealta. Läpinäkymätön paperipinta: tekstiä luetaan
+   vesillä ja auringossa, ei liikkuvan lämpökartan päältä. */
 #settings-overlay {
   position: fixed; inset: 0; z-index: 50;
-  background: transparent;
+  background: rgba(6,10,14,0);
   pointer-events: none;
+  transition: background .34s ease;
 }
 #settings-overlay.open {
   pointer-events: all;
+  background: rgba(6,10,14,.32);
 }
 
-/* Drawer — koko ruudun korkea, liukuu OIKEALTA (asetukset-nappi on oikealla) */
 #settings-popup {
   position: fixed; z-index: 51;
   top: 0; right: 0; bottom: 0;
-  width: 88vw;                          /* jättää 12% karttaa näkyviin vasemmalle */
+  width: 88vw;
   display: flex; flex-direction: column;
-  background: transparent;
-  border-left: none;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
+  background: var(--surface);
+  box-shadow: -14px 0 40px rgba(4,8,12,.42);
   transform: translateX(100%);
   transition: transform .34s cubic-bezier(.4,0,.2,1);
   overflow: hidden;
   pointer-events: all;
 }
-#settings-popup.open {
-  transform: translateX(0);
-}
+#settings-popup.open { transform: translateX(0); }
 
-/* Safe area top — täysin läpinäkymätön */
 #sp-header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: calc(env(safe-area-inset-top) + 16px) 20px 14px;
-  background: rgba(6,9,18,0.98);
-  border-bottom: 1px solid rgba(255,255,255,.10);
+  padding: calc(env(safe-area-inset-top) + 14px) 18px 13px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--hairline);
   flex-shrink: 0;
 }
 #sp-title {
-  font-family: 'Syne', system-ui; font-weight: 700;
-  font-size: 16px; color: rgba(255,255,255,.92);
-  letter-spacing: 0.2px;
+  font-size: 17px; font-weight: 600; color: var(--ink);
+  letter-spacing: -0.01em;
 }
 #sp-close {
+  font-size: 15px; font-weight: 500; color: var(--accent);
+  padding: 4px 2px 4px 12px;
   -webkit-user-select: none; user-select: none;
   transition: opacity .15s;
 }
-#sp-close:active { opacity: .6; }
+#sp-close:active { opacity: .5; }
 
-/* Scrollattava runko */
 #sp-body-wrap { position: relative; flex: 1; overflow: hidden; }
 #sp-body {
   position: absolute; inset: 0;
   overflow-y: auto; overflow-x: hidden;
-  padding: 12px 16px calc(env(safe-area-inset-bottom) + 32px);
+  padding: 4px 16px calc(env(safe-area-inset-bottom) + 32px);
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  /* Lisätilaa scrollattavuuden takia — kortit erottuvat kartasta */
 }
 #sp-body::-webkit-scrollbar { display: none; }
+#sp-body-inner { padding-bottom: 40vh; }
 
-/* Lisätään extra padding-bottom sp-bodyn sisältöön scrollin takia */
-#sp-body-inner {
-  padding-bottom: 40vh;  /* runsas tyhjä tila alhaalla — scrollausta varten */
-}
-
-/* Osiot */
 .sp-section { padding: 16px 0 4px; }
-.sp-divider {
-  height: 1px; background: rgba(255,255,255,.06); margin: 4px 0;
-}
+.sp-divider { height: 1px; background: var(--hairline); margin: 4px 0; }
+
+/* Ryhmäotsikko. Versaali on iOS:n oma tapa, mutta luettavassa koossa:
+   11 px, paino 600, kevyt harvennus — ei 9 px kolmanneksen opasiteetilla. */
 .sp-label {
-  font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 500;
-  color: rgba(255,255,255,.3); letter-spacing: 1.6px; text-transform: uppercase;
-  margin-bottom: 12px;
+  font-size: 11px; font-weight: 600;
+  color: var(--ink-3); letter-spacing: .06em; text-transform: uppercase;
+  margin-bottom: 9px;
 }
 
-/* Chips */
-/* Korttikontti asetuslohkoille */
+/* Lohko on pelkkä ryhmä, ei kortti. Kun kaikki on korostettu, mikään ei ole. */
 .sp-card {
-  background: rgba(6,9,18,0.82);
-  border: 1px solid rgba(255,255,255,.10);
-  border-radius: 14px;
-  padding: 14px 14px 12px;
-  margin-bottom: 10px;
-  -webkit-backdrop-filter: blur(20px);
-  backdrop-filter: blur(20px);
+  padding: 0;
+  margin-bottom: 22px;
+  background: none; border: none;
 }
 .sp-card:last-child { margin-bottom: 0; }
 
+/* Valintasirut */
 .sp-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .sp-chip {
-  height: 32px; border-radius: 10px; padding: 0 13px;
-  border: 1px solid rgba(255,255,255,.08);
-  background: rgba(255,255,255,.05);
-  color: rgba(255,255,255,.55);
-  font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 500;
-  display: flex; align-items: center; gap: 5px; cursor: pointer;
-  transition: all .15s ease;
+  height: 34px; border-radius: 9px; padding: 0 14px;
+  background: var(--surface-lo);
+  color: var(--ink-2);
+  font-size: 13px; font-weight: 500;
+  display: flex; align-items: center; cursor: pointer;
+  transition: background .15s ease, color .15s ease, transform .12s ease;
   -webkit-user-select: none; user-select: none;
 }
-.sp-chip:active { transform: scale(0.93); }
+.sp-chip:active { transform: scale(0.96); }
+/* Valittu siru on MUSTETTA, ei aksenttia. Kolme siruryhmää näkyy yhtä aikaa,
+   joten aksenttitäyttö toisi ruudulle kolme magentaa laattaa ja söisi sen
+   tehon siitä missä se merkitsee jotain: kytkimet ja toiminnot. Musteella
+   valinta on 14.3:1 eikä jätä epäselvyyttä. */
 .sp-chip.active {
-  background: rgba(41,232,168,.14);
-  border-color: rgba(41,232,168,.38);
-  color: var(--accent);
+  background: var(--ink);
+  color: var(--surface);
+  font-weight: 600;
 }
-.sp-chip .l-icon { font-size: 12px; }
 
-/* Toggle-rivi */
+/* Karttatasot: rivit yhtenä korotettuna listana, erottimet vain väleissä. */
+.sp-rows {
+  background: var(--surface-hi);
+  border-radius: 12px;
+  overflow: hidden;
+}
 .sp-toggle-row {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 11px 0;
-  border-bottom: 1px solid rgba(255,255,255,.05);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--hairline-soft);
   cursor: pointer; -webkit-user-select: none; user-select: none;
 }
-.sp-toggle-row:last-child { border-bottom: none; padding-bottom: 0; }
-.sp-toggle-left { display: flex; align-items: center; gap: 12px; }
+.sp-toggle-row:last-child { border-bottom: none; }
+.sp-toggle-row:active { background: var(--surface-lo); }
+.sp-toggle-left { display: flex; align-items: center; gap: 11px; min-width: 0; }
+
+/* Selitepiste on kartan merkin väri, ei paneelin väri — siksi se saa ohuen
+   musteen reunan, jotta kylläinen sävy erottuu vaalealta paperilta sävynsä
+   säilyttäen. Näin merkin ja rivin yhteys pysyy. */
 .sp-toggle-dot {
-  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(16,26,32,.45);
 }
-.sp-toggle-name {
-  font-family: 'DM Mono', monospace; font-size: 12px;
-  color: rgba(255,255,255,.78); font-weight: 500;
-}
+.sp-toggle-name { font-size: 14px; color: var(--ink); }
 .sp-toggle-sub {
-  font-family: 'DM Mono', monospace; font-size: 9px;
-  color: rgba(255,255,255,.28); margin-top: 2px;
+  font-size: 12px; color: var(--ink-3); margin-top: 1px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
 /* iOS-kytkin */
 .sp-toggle {
-  width: 40px; height: 22px; border-radius: 11px;
-  background: rgba(255,255,255,.12);
+  width: 40px; height: 24px; border-radius: 12px;
+  background: var(--surface-lo);
+  box-shadow: inset 0 0 0 1px var(--hairline);
   position: relative; flex-shrink: 0;
-  transition: background .22s ease;
+  transition: background .22s ease, box-shadow .22s ease;
 }
 .sp-toggle::after {
   content: ''; position: absolute;
-  top: 3px; left: 3px;
-  width: 16px; height: 16px; border-radius: 8px;
-  background: rgba(255,255,255,.85);
+  top: 2px; left: 2px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #fff;
   transition: transform .22s cubic-bezier(.4,0,.2,1);
-  box-shadow: 0 1px 4px rgba(0,0,0,.35);
+  box-shadow: 0 1px 3px rgba(16,26,32,.28);
 }
-.sp-toggle.on { background: var(--accent); }
-.sp-toggle.on::after { transform: translateX(18px); }
+.sp-toggle.on { background: var(--accent); box-shadow: none; }
+.sp-toggle.on::after { transform: translateX(16px); }
 
-.sp-chip .l-icon { font-size: 11px; }
-
-/* Toggle-rivi (karttatasot) */
-.sp-toggle-row {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid rgba(255,255,255,.05);
-  cursor: pointer;
-  -webkit-user-select: none; user-select: none;
+/* Lähdetiedot paneelin pohjalla */
+.sp-credit {
+  margin-top: 20px; padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+  font-size: 11px; line-height: 1.5; color: var(--ink-3);
 }
-.sp-toggle-row:last-child { border-bottom: none; }
-.sp-toggle-left {
-  display: flex; align-items: center; gap: 10px;
-}
-.sp-toggle-dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  flex-shrink: 0;
-}
-.sp-toggle-name {
-  font-family: 'DM Mono', monospace; font-size: 11px;
-  color: rgba(255,255,255,.72);
-}
-.sp-toggle-sub {
-  font-family: 'DM Mono', monospace; font-size: 9px;
-  color: rgba(255,255,255,.28); margin-top: 1px;
-}
-
-/* iOS-tyylinen toggle-kytkin */
-.sp-toggle {
-  width: 36px; height: 20px; border-radius: 10px;
-  background: rgba(255,255,255,.12);
-  position: relative; flex-shrink: 0;
-  transition: background .2s ease;
-}
-.sp-toggle::after {
-  content: '';
-  position: absolute; top: 2px; left: 2px;
-  width: 16px; height: 16px; border-radius: 8px;
-  background: rgba(255,255,255,.9);
-  transition: transform .2s cubic-bezier(.4,0,.2,1);
-  box-shadow: 0 1px 4px rgba(0,0,0,.3);
-}
-.sp-toggle.on {
-  background: var(--accent);
-}
-.sp-toggle.on::after {
-  transform: translateX(16px);
-}
+.sp-credit a { color: var(--ink-2); text-underline-offset: 2px; }
 
 /* ============================================================
    WEATHER WIDGET
@@ -553,9 +541,9 @@ body {
 }
 
 .htick-bar.foilable { box-shadow: 0 0 6px rgba(80,237,120,0.5); }
-.gi-steady  { color: rgb(80,237,120); }
-.gi-gusty   { color: rgb(240,220,0); }
-.gi-extreme { color: rgb(255,90,90); }
+.gi-steady  { color: #2A702D; }
+.gi-gusty   { color: #7A5D07; }
+.gi-extreme { color: #992018; }
 .spot-trend { font-size: 8px; color: var(--muted); margin-top: 1px; text-align: center; }
 
 /* ============================================================
@@ -587,9 +575,10 @@ body {
    SPOT LIST — Ranked spots panel
    ============================================================ */
 #spot-list {
+  color: var(--ink);
   position: absolute; bottom: 0; left: 0; right: 0; z-index: 30;
-  background: rgba(10,14,26,.97);
-  border-top: 1px solid rgba(41,232,168,.2);
+  background: var(--surface);
+  border-top: 1px solid var(--hairline);
   border-radius: var(--sheet-radius) var(--sheet-radius) 0 0;
   -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px);
   box-shadow: 0 -8px 40px rgba(0,0,0,.6);
@@ -606,49 +595,49 @@ body {
 #spot-list.dragging { transition: none; }
 #spot-list-handle {
   display: flex; justify-content: center; padding: 14px 0 8px;
-  position: sticky; top: 0; background: rgba(10,14,26,.97); z-index: 1;
+  position: sticky; top: 0; background: var(--surface); z-index: 1;
   cursor: grab;
 }
 #spot-list-handle:active { cursor: grabbing; }
 #spot-list-handle::after {
   content: ''; width: 40px; height: 4px; border-radius: 2px;
-  background: rgba(255,255,255,.25);
+  background: var(--surface-lo);
   transition: background .15s;
 }
-#spot-list-handle:active::after { background: rgba(255,255,255,.45); }
+#spot-list-handle:active::after { background: var(--surface-lo); }
 .sl-header {
   padding: 4px 20px 14px; display: flex; justify-content: space-between; align-items: center;
 }
 .sl-title { font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
-.sl-count { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); }
+.sl-count { font-variant-numeric: tabular-nums; font-size: 10px; color: var(--ink-3); }
 .sl-item {
   display: flex; align-items: center; gap: 12px;
   padding: 12px 20px; border-bottom: 1px solid var(--border);
   cursor: pointer; transition: background .12s;
   touch-action: manipulation;
 }
-.sl-item:active { background: rgba(41,232,168,.08); }
+.sl-item:active { background: var(--accent-soft); }
 .sl-rank {
-  font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 700;
-  color: var(--muted); width: 20px; text-align: center; flex-shrink: 0;
+  font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 700;
+  color: var(--ink-3); width: 20px; text-align: center; flex-shrink: 0;
 }
 .sl-dot {
   width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
-  border: 1.5px solid rgba(255,255,255,.4);
+  border: 1.5px solid var(--hairline);
 }
 .sl-info { flex: 1; min-width: 0; }
 .sl-name { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sl-desc { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); margin-top: 1px; }
+.sl-desc { font-variant-numeric: tabular-nums; font-size: 9px; color: var(--ink-3); margin-top: 1px; }
 .sl-wind { text-align: right; flex-shrink: 0; }
 .sl-wind-val {
-  font-family: 'DM Mono', monospace; font-size: 18px; font-weight: 500;
+  font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 500;
   line-height: 1;
 }
-.sl-wind-sub { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); margin-top: 2px; }
+.sl-wind-sub { font-variant-numeric: tabular-nums; font-size: 9px; color: var(--ink-3); margin-top: 2px; }
 .sl-badge-foilable {
-  display: inline-block; font-family: 'DM Mono', monospace; font-size: 8px;
-  background: rgba(80,237,120,.15); color: rgb(80,237,120);
-  border: 1px solid rgba(80,237,120,.3); border-radius: 4px;
+  display: inline-block; font-variant-numeric: tabular-nums; font-size: 8px;
+  background: var(--surface-lo); color: var(--ink-2);
+  border: 1px solid var(--hairline); border-radius: 4px;
   padding: 1px 5px; margin-left: 6px; vertical-align: middle;
 }
 
@@ -709,10 +698,10 @@ body {
 
 #sheet {
   position: absolute; bottom: 0; left: 0; right: 0; z-index: 30;
-  background: rgba(10,14,26,.98);
+  background: var(--surface);
+  color: var(--ink);
   border-radius: var(--sheet-radius) var(--sheet-radius) 0 0;
-  -webkit-backdrop-filter: blur(28px); backdrop-filter: blur(28px);
-  box-shadow: 0 -16px 60px rgba(0,0,0,.75);
+  box-shadow: var(--shadow-3);
   -webkit-transform: translate3d(0,100%,0); transform: translate3d(0,100%,0);
   transition: transform .38s var(--spring);
   max-height: 82vh;
@@ -735,10 +724,11 @@ body {
 #sheet-handle::after {
   content: ''; display: block;
   width: 36px; height: 4px; border-radius: 2px;
-  background: rgba(255,255,255,.2);
+  background: var(--hairline);
+  opacity: .9;
   transition: background .15s, width .15s;
 }
-#sheet-handle:active::after { background: rgba(255,255,255,.4); width: 50px; }
+#sheet-handle:active::after { background: var(--ink-3); width: 50px; }
 
 #sheet-scroll {
   flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
@@ -793,11 +783,11 @@ body {
 .sh-tp-arrow {
   flex-shrink: 0; width: 32px; height: 56px;
   display: flex; align-items: center; justify-content: center;
-  color: rgba(255,255,255,.4); cursor: pointer;
+  color: var(--ink-3); cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: color .1s; z-index: 1;
 }
-.sh-tp-arrow:active { color: rgba(255,255,255,.9); }
+.sh-tp-arrow:active { color: var(--ink); }
 /* Native-scroll ikkuna */
 .sh-tp-window {
   flex: 1;
@@ -830,88 +820,88 @@ body {
 }
 /* Päivämäärä */
 .sh-tpslot-day {
-  font-family: 'DM Mono', monospace;
+  font-variant-numeric: tabular-nums;
   font-size: 8px; letter-spacing: .3px;
-  color: rgba(255,255,255,.0);
+  color: var(--hairline-soft);
   height: 11px; line-height: 11px; white-space: nowrap;
   transition: color .15s;
 }
-.sh-tpslot-day.vis { color: rgba(255,255,255,.38); }
+.sh-tpslot-day.vis { color: var(--ink-3); }
 /* Kellonaika */
 .sh-tpslot-time {
-  font-family: 'DM Mono', monospace;
+  font-variant-numeric: tabular-nums;
   font-size: 11px; font-weight: 400;
-  color: rgba(255,255,255,.22);
+  color: var(--ink-3);
   white-space: nowrap; line-height: 1;
   transition: color .15s, transform .15s;
   transform-origin: center;
 }
-.sh-tpslot.past .sh-tpslot-time    { color: rgba(255,255,255,.13); }
-.sh-tpslot.past .sh-tpslot-day.vis { color: rgba(255,255,255,.18); }
+.sh-tpslot.past .sh-tpslot-time    { color: var(--hairline); }
+.sh-tpslot.past .sh-tpslot-day.vis { color: var(--hairline); }
 /* Valittu: scale() ei aiheuta layout-reflow'ta */
 .sh-tpslot.active .sh-tpslot-time {
-  color: rgba(255,255,255,.95); font-weight: 700;
+  color: var(--ink); font-weight: 700;
   transform: scale(1.7);
 }
-.sh-tpslot.active .sh-tpslot-day.vis { color: rgba(255,255,255,.6); }
+.sh-tpslot.active .sh-tpslot-day.vis { color: var(--ink-2); }
 /* Hover-like dragin aikana */
 .sh-tpslot.near .sh-tpslot-time {
-  color: rgba(41,232,168,.85); font-weight: 600;
+  color: var(--accent); font-weight: 600;
   transform: scale(1.3);
 }
-.sh-tpslot.near .sh-tpslot-day.vis { color: rgba(41,232,168,.55); }
+.sh-tpslot.near .sh-tpslot-day.vis { color: var(--accent); }
 /* NYT */
 .sh-tpslot-now {
-  font-family: 'DM Mono', monospace;
+  font-variant-numeric: tabular-nums;
   font-size: 7px; font-weight: 700; letter-spacing: .8px;
-  color: rgba(100,255,160,.85); line-height: 1;
+  color: var(--accent); line-height: 1;
 }
 .sh-name {
   font-size: 20px; font-weight: 800; letter-spacing: -.4px;
   margin-bottom: 2px; line-height: 1.15; word-break: break-word;
 }
 .sh-desc {
-  font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted);
+  font-variant-numeric: tabular-nums; font-size: 10px; color: var(--ink-3);
 }
 .sh-hero-right { text-align: right; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .sh-big-wind {
-  font-family: 'Syne', system-ui; font-size: 52px; font-weight: 800;
+   font-size: 52px; font-weight: 800;
   line-height: 0.88; letter-spacing: -2.5px;
 }
 .sh-big-unit {
-  font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 400;
-  color: rgba(255,255,255,.30); letter-spacing: 1px;
+  font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 400;
+  color: var(--ink-3); letter-spacing: 1px;
   display: inline; margin-left: 3px; vertical-align: 6px;
 }
 .sh-big-gust {
-  font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500;
-  color: rgba(255,255,255,.40); margin-top: 4px; letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 500;
+  color: var(--ink-3); margin-top: 4px; letter-spacing: 0.5px;
 }
 .sh-hero-tags {
   display: flex; flex-direction: column; align-items: flex-end; gap: 5px;
 }
 .sh-hero-tag {
-  font-family: 'DM Mono', monospace; font-size: 9px;
+  font-variant-numeric: tabular-nums; font-size: 9px;
   padding: 3px 8px; border-radius: 7px;
-  border: 1px solid rgba(255,255,255,.1);
-  background: rgba(255,255,255,.04);
+  border: 1px solid var(--hairline);
+  background: var(--hairline-soft);
   white-space: nowrap;
 }
 .sh-hero-live {
-  font-family: 'DM Mono', monospace; font-size: 10px;
+  font-variant-numeric: tabular-nums; font-size: 10px;
   padding: 5px 10px; border-radius: 8px;
-  border: 1px solid rgba(100,255,160,.2);
-  background: rgba(100,255,160,.06);
+  border: 1px solid var(--hairline);
+  background: var(--accent-soft);
   display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
 }
 .sh-hero-live-val { font-size: 13px; font-weight: 700; }
-.sh-hero-live-lbl { font-size: 8px; color: rgba(100,255,160,.5); }
+.sh-hero-live-lbl { font-size: 8px; color: var(--accent); }
 
 /* Foilability badge — pill, compact, integrated */
 .sh-foil-badge {
   display: inline-flex; align-items: center; gap: 7px;
   padding: 5px 12px 5px 8px; border-radius: 99px;
-  font-family: 'DM Mono', monospace;
+  font-variant-numeric: tabular-nums;
   font-size: 11px; font-weight: 600; letter-spacing: .3px;
   margin-bottom: 16px;
   border-width: 1px; border-style: solid;
@@ -929,26 +919,26 @@ body {
   display: flex; flex-direction: column; align-items: center; gap: 3px;
 }
 .sh-stat-label {
-  font-family: 'DM Mono', monospace; font-size: 8px;
-  color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px;
+  font-variant-numeric: tabular-nums; font-size: 8px;
+  color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.8px;
 }
 .sh-stat-value {
-  font-family: 'DM Mono', monospace; font-size: 16px; font-weight: 500;
+  font-variant-numeric: tabular-nums; font-size: 16px; font-weight: 500;
   line-height: 1; letter-spacing: -0.5px;
 }
 .sh-stat-sub {
-  font-family: 'DM Mono', monospace; font-size: 8px;
-  color: var(--muted); letter-spacing: 0.3px;
+  font-variant-numeric: tabular-nums; font-size: 8px;
+  color: var(--ink-3); letter-spacing: 0.3px;
 }
 .sh-stat-live {
-  border-color: rgba(100,255,160,.2);
-  background: rgba(100,255,160,.04);
+  border-color: var(--hairline);
+  background: var(--accent-soft);
   cursor: pointer;
   -webkit-user-select: none; user-select: none;
 }
 .sh-stat-live.expanded {
-  border-color: rgba(100,255,160,.4);
-  background: rgba(100,255,160,.08);
+  border-color: var(--hairline);
+  background: var(--accent-soft);
 }
 /* Live-paneeli: sama grid-span malli kuin water-panel */
 .sh-stat-live-panel {
@@ -967,19 +957,19 @@ body {
 /* Asemavalitsin dropdown */
 .fmi-station-trigger {
   display: inline-flex; align-items: center; gap: 7px;
-  font-family: 'DM Mono', monospace; font-size: 9px;
-  color: rgba(100,255,160,.9); cursor: pointer;
-  background: rgba(100,255,160,.07); border: 1px solid rgba(100,255,160,.2);
+  font-variant-numeric: tabular-nums; font-size: 9px;
+  color: var(--accent); cursor: pointer;
+  background: var(--accent-soft); border: 1px solid var(--hairline);
   border-radius: 8px; padding: 4px 10px;
   -webkit-user-select: none; user-select: none;
   transition: background .15s;
 }
 .fmi-station-trigger-name {
-  font-weight: 700; color: rgba(100,255,160,.95);
+  font-weight: 700; color: var(--accent);
 }
-.fmi-station-trigger-dist { color: rgba(255,255,255,.4); font-size: 8px; }
+.fmi-station-trigger-dist { color: var(--ink-3); font-size: 8px; }
 .fmi-station-trigger-arrow {
-  margin-left: 2px; color: rgba(100,255,160,.85);
+  margin-left: 2px; color: var(--accent);
   transition: transform .2s; font-size: 11px;
 }
 .fmi-station-trigger.open .fmi-station-trigger-arrow { transform: rotate(180deg); }
@@ -991,7 +981,7 @@ body {
   display: none;
   position: absolute; top: calc(100% + 4px); left: 0; right: 0;
   background: rgba(12,18,36,.98);
-  border: 1px solid rgba(100,255,160,.2);
+  border: 1px solid var(--hairline);
   border-radius: 12px;
   overflow-y: auto;
   max-height: 220px;
@@ -1003,51 +993,51 @@ body {
 .fmi-dropdown-item {
   display: flex; align-items: center; justify-content: space-between;
   padding: 7px 12px; cursor: pointer;
-  font-family: 'DM Mono', monospace; font-size: 10px;
-  border-bottom: 1px solid rgba(255,255,255,.04);
+  font-variant-numeric: tabular-nums; font-size: 10px;
+  border-bottom: 1px solid var(--hairline-soft);
   transition: background .12s;
   -webkit-user-select: none; user-select: none;
 }
 .fmi-dropdown-item:last-child { border-bottom: none; }
-.fmi-dropdown-item:active { background: rgba(100,255,160,.1); }
-.fmi-dropdown-item.selected { background: rgba(100,255,160,.08); }
+.fmi-dropdown-item:active { background: var(--accent-soft); }
+.fmi-dropdown-item.selected { background: var(--accent-soft); }
 .fmi-dropdown-item-left { display: flex; flex-direction: column; gap: 2px; }
-.fmi-dropdown-item-name { color: rgba(255,255,255,.85); font-weight: 700; }
+.fmi-dropdown-item-name { color: var(--ink); font-weight: 700; }
 .fmi-dropdown-item-tag {
-  font-size: 8px; color: rgba(100,255,160,.5);
-  background: rgba(100,255,160,.08); border-radius: 4px;
+  font-size: 8px; color: var(--accent);
+  background: var(--accent-soft); border-radius: 4px;
   padding: 1px 5px; align-self: flex-start;
 }
-.fmi-dropdown-item-dist { color: rgba(255,255,255,.3); font-size: 9px; }
-.fmi-dropdown-item-check { color: rgba(100,255,160,.8); font-size: 12px; }
+.fmi-dropdown-item-dist { color: var(--ink-3); font-size: 9px; }
+.fmi-dropdown-item-check { color: var(--accent); font-size: 12px; }
 .sh-stat-water {
   cursor: pointer;
-  border-color: rgba(41,232,168,.2);
-  background: rgba(41,232,168,.05);
+  border-color: var(--hairline);
+  background: var(--accent-soft);
   transition: background .15s, border-color .15s;
   -webkit-user-select: none; user-select: none;
 }
 .sh-stat-water.expanded {
-  border-color: rgba(41,232,168,.4);
-  background: rgba(41,232,168,.1);
+  border-color: var(--hairline);
+  background: var(--accent-soft);
 }
 .sh-stat-water-name {
-  font-family: 'DM Mono', monospace; font-size: 7px;
-  color: rgba(41,232,168,.5); text-align: center;
+  font-variant-numeric: tabular-nums; font-size: 7px;
+  color: var(--accent); text-align: center;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   max-width: 100%; line-height: 1;
 }
 .sh-stat-water-toggle {
-  font-family: 'DM Mono', monospace; font-size: 7px;
-  color: rgba(41,232,168,.45); letter-spacing: 0.2px;
+  font-variant-numeric: tabular-nums; font-size: 7px;
+  color: var(--accent); letter-spacing: 0.2px;
   margin-top: 1px;
 }
 /* Kaavio avautuu stats-gridin alle omalle rivilleen */
 .sh-stat-water-panel {
   display: none;
   grid-column: 1 / -1;
-  background: rgba(41,232,168,.07);
-  border: 1px solid rgba(41,232,168,.2);
+  background: var(--accent-soft);
+  border: 1px solid var(--hairline);
   border-radius: 12px;
   padding: 10px 12px;
   margin-top: -4px;
@@ -1059,8 +1049,8 @@ body {
   display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px;
 }
 .sh-cond-card {
-  background: rgba(255,255,255,.035);
-  border: 1px solid rgba(255,255,255,.07);
+  background: var(--hairline-soft);
+  border: 1px solid var(--hairline-soft);
   border-radius: 12px; padding: 10px 12px;
   display: flex; align-items: center; gap: 8px;
 }
@@ -1071,12 +1061,12 @@ body {
 .sh-cond-icon { font-size: 18px; flex-shrink: 0; }
 .sh-cond-info {}
 .sh-cond-label {
-  font-family: 'DM Mono', monospace; font-size: 8px;
-  color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px;
+  font-variant-numeric: tabular-nums; font-size: 8px;
+  color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.8px;
   margin-bottom: 2px;
 }
 .sh-cond-val {
-  font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500;
+  font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 500;
   line-height: 1;
 }
 
@@ -1087,42 +1077,42 @@ body {
   margin-bottom: 8px;
 }
 .sh-chart-title {
-  font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted);
+  font-variant-numeric: tabular-nums; font-size: 9px; color: var(--ink-3);
   text-transform: uppercase; letter-spacing: 1.5px;
 }
 .sh-chart-peak {
-  font-family: 'DM Mono', monospace; font-size: 9px;
+  font-variant-numeric: tabular-nums; font-size: 9px;
   color: var(--accent);
 }
 .sh-chart {
   display: flex; align-items: flex-end; gap: 3px; height: 64px;
-  background: rgba(255,255,255,.02); border-radius: 10px; padding: 8px;
+  background: var(--hairline-soft); border-radius: 10px; padding: 8px;
 }
 .sh-bar {
   flex: 1; min-width: 4px; border-radius: 3px 3px 0 0;
   position: relative; cursor: default;
   transition: opacity .15s;
 }
-.sh-bar.foilable { box-shadow: 0 0 4px rgba(80,237,120,0.35); }
+.sh-bar.foilable { }
 .sh-chart-labels {
   display: flex; justify-content: space-between; margin-top: 5px;
   padding: 0 8px;
 }
 .sh-chart-labels span {
-  font-family: 'DM Mono', monospace; font-size: 8px; color: var(--muted);
+  font-variant-numeric: tabular-nums; font-size: 8px; color: var(--ink-3);
 }
 
 /* Wind rose */
 .sh-windrose { display: flex; justify-content: center; margin: 14px 0 4px; }
-.sh-windrose svg { filter: drop-shadow(0 0 8px rgba(41,232,168,.1)); }
+.sh-windrose svg { }
 
 /* Badge variants */
-.b-calm    { background: rgba(80,160,255,.06);  color: rgb(80,160,255);  border-color: rgba(80,160,255,.18); }
-.b-light   { background: rgba(0,220,180,.06);  color: rgb(0,220,180);  border-color: rgba(0,220,180,.18); }
-.b-good    { background: rgba(80,237,120,.06); color: rgb(80,237,120); border-color: rgba(80,237,120,.18); }
-.b-perfect { background: rgba(240,220,0,.06);  color: rgb(240,220,0);  border-color: rgba(240,220,0,.18); }
-.b-strong  { background: rgba(255,130,50,.06); color: rgb(255,130,50); border-color: rgba(255,80,8,.18); }
-.b-danger  { background: rgba(255,90,90,.06);  color: rgb(255,90,90);  border-color: rgba(255,10,10,.18); }
+.b-calm    { background: rgba(80,160,255,.06);  color: #1F4FA0;  border-color: rgba(80,160,255,.18); }
+.b-light   { background: rgba(14,115,97,.10);  color: #0E7361;  border-color: rgba(14,115,97,.28); }
+.b-good    { background: rgba(42,112,45,.10); color: #2A702D; border-color: rgba(42,112,45,.28); }
+.b-perfect { background: rgba(240,220,0,.06);  color: #7A5D07;  border-color: rgba(240,220,0,.18); }
+.b-strong  { background: rgba(255,130,50,.06); color: #9A5116; border-color: rgba(255,80,8,.18); }
+.b-danger  { background: rgba(255,90,90,.06);  color: #992018;  border-color: rgba(255,10,10,.18); }
 
 /* ============================================================
    ERROR TOAST  z:50
@@ -1318,9 +1308,10 @@ body {
   gap: 6px;
 }
 #forecast-panel {
+  color: var(--ink);
   position: absolute; bottom: 0; left: 0; right: 0; z-index: 31;
-  background: rgba(8,12,24,.97);
-  border-top: 1px solid rgba(41,232,168,.2);
+  background: var(--surface);
+  border-top: 1px solid var(--hairline);
   border-radius: 22px 22px 0 0;
   -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px);
   box-shadow: 0 -8px 40px rgba(0,0,0,.7);
@@ -1333,76 +1324,77 @@ body {
 }
 #forecast-panel.open { -webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0); }
 #fc-handle { display: flex; justify-content: center; padding: 10px 0 6px;
-  position: sticky; top: 0; background: rgba(8,12,24,.97); z-index: 1; }
+  position: sticky; top: 0; background: var(--surface); z-index: 1; }
 #fc-handle::after { content: ''; width: 36px; height: 4px; border-radius: 2px;
-  background: rgba(255,255,255,.2); }
+  background: var(--surface-lo); }
 #fc-header { padding: 4px 20px 14px; }
 #fc-title { font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
-#fc-subtitle { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); margin-top: 2px; }
+#fc-subtitle { font-variant-numeric: tabular-nums; font-size: 10px; color: var(--ink-3); margin-top: 2px; }
 /* Toggle switches */
 #fc-toggles { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
 .fc-toggle {
   display: flex; align-items: center; gap: 8px;
-  font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 500;
-  color: var(--muted); cursor: pointer; user-select: none;
+  font-variant-numeric: tabular-nums; font-size: 10px; font-weight: 500;
+  color: var(--ink-3); cursor: pointer; user-select: none;
 }
 .fc-toggle input { display: none; }
 .fc-track {
   width: 36px; height: 20px; border-radius: 10px;
-  background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.15);
+  background: var(--surface-lo); border: 1px solid var(--hairline);
   position: relative; transition: background .2s, border-color .2s;
   flex-shrink: 0;
 }
 .fc-toggle input:checked ~ .fc-track {
-  background: rgba(41,232,168,.25); border-color: rgba(41,232,168,.5);
+  background: var(--accent); border-color: var(--accent);
 }
 .fc-thumb {
   position: absolute; top: 2px; left: 2px;
   width: 14px; height: 14px; border-radius: 50%;
-  background: rgba(255,255,255,.4);
-  transition: transform .2s, background .2s;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(16,26,32,.28);
+  transition: transform .2s;
 }
 .fc-toggle input:checked ~ .fc-track .fc-thumb {
-  transform: translateX(16px); background: var(--accent);
+  transform: translateX(16px);
 }
 /* Day groups */
 .fc-day { padding: 0 20px 4px; margin-bottom: 4px; }
 .fc-day-label {
-  font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 700;
-  color: rgba(41,232,168,.6); letter-spacing: 1.5px; text-transform: uppercase;
-  padding: 12px 0 8px; border-top: 1px solid rgba(255,255,255,.06);
+  font-variant-numeric: tabular-nums; font-size: 9px; font-weight: 700;
+  color: var(--ink-3); letter-spacing: .08em; text-transform: uppercase;
+  padding: 12px 0 8px; border-top: 1px solid var(--hairline);
 }
 .fc-day:first-child .fc-day-label { border-top: none; }
 /* Window cards */
 .fc-window {
   display: flex; align-items: center; gap: 12px;
   padding: 10px 12px; border-radius: 12px; margin-bottom: 6px;
-  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.07);
+  background: var(--surface-hi); border: 1px solid var(--hairline);
   cursor: pointer; transition: background .12s;
 }
-.fc-window:active { background: rgba(41,232,168,.1); }
+.fc-window:active { background: var(--accent-soft); }
 .fc-window-score {
   width: 42px; height: 42px; flex-shrink: 0;
 }
 .fc-window-info { flex: 1; min-width: 0; }
 .fc-window-time {
-  font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 700;
-  color: var(--text); line-height: 1.1;
+  font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 700;
+  color: var(--ink); line-height: 1.1;
 }
 .fc-window-spot {
   font-size: 12px; font-weight: 700; margin-top: 1px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .fc-window-detail {
-  font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); margin-top: 2px;
+  font-variant-numeric: tabular-nums; font-size: 9px; color: var(--ink-3); margin-top: 2px;
 }
 .fc-window-wind { text-align: right; flex-shrink: 0; }
 .fc-window-ms {
-  font-family: 'DM Mono', monospace; font-size: 18px; font-weight: 600; line-height: 1;
+  font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 600; line-height: 1;
 }
-.fc-window-unit { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); }
+.fc-window-unit { font-variant-numeric: tabular-nums; font-size: 9px; color: var(--ink-3); }
 .fc-empty { padding: 24px 20px; text-align: center;
-  font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); }
+  font-variant-numeric: tabular-nums; font-size: 11px; color: var(--ink-3); }
 
 /* -- UNITS PICKER — pill menu ------------------------------------ */
 #units-picker {
@@ -1426,7 +1418,7 @@ body {
 .up-option:active { opacity: 0.5; }
 .up-label {
   font-family: "DM Mono", monospace; font-size: 17px; font-weight: 500;
-  color: rgba(255,255,255,0.75); letter-spacing: 0.5px;
+  color: var(--ink); letter-spacing: 0.5px;
   text-shadow: 0 1px 8px rgba(0,0,0,0.8);
 }
 .up-option.active .up-label { color: #fff; font-weight: 700; }
@@ -1438,7 +1430,7 @@ body {
   left: 0; right: 0;
   z-index: 41;
   background: rgba(6,9,18,.96);
-  border-bottom: 1px solid rgba(255,255,255,.08);
+  border-bottom: 1px solid var(--hairline);
   -webkit-backdrop-filter: blur(28px); backdrop-filter: blur(28px);
   box-shadow: 0 8px 32px rgba(0,0,0,.5);
   pointer-events: none; opacity: 0;
@@ -1448,9 +1440,9 @@ body {
 #wx-panel.open { opacity: 1; pointer-events: all; transform: translateY(0); }
 #wx-panel-header {
   padding: 10px 20px 8px;
-  border-bottom: 1px solid rgba(255,255,255,.06);
+  border-bottom: 1px solid var(--hairline);
 }
-#wx-panel-title { font-size: 11px; font-weight: 700; color: rgba(255,255,255,.5); letter-spacing: 1px; text-transform: uppercase; }
+#wx-panel-title { font-size: 11px; font-weight: 700; color: var(--ink-2); letter-spacing: 1px; text-transform: uppercase; }
 #wx-panel-sub { display: none; }
 #wx-panel-close { display: none; }
 #wx-panel-scroll {
@@ -1464,12 +1456,12 @@ body {
   min-width: 54px; padding: 8px 4px; border-radius: 12px;
   flex-shrink: 0; transition: background .12s;
 }
-.wx-hour.now { background: rgba(41,232,168,.12); border: 1px solid rgba(41,232,168,.25); }
-.wx-hour-time { font-family: "DM Mono",monospace; font-size: 9px; color: rgba(255,255,255,.4); font-weight: 500; }
+.wx-hour.now { background: var(--accent-soft); border: 1px solid var(--hairline); }
+.wx-hour-time { font-family: "DM Mono",monospace; font-size: 9px; color: var(--ink-3); font-weight: 500; }
 .wx-hour-icon { font-size: 22px; line-height: 1; }
 .wx-hour-temp { font-family: "DM Mono",monospace; font-size: 13px; font-weight: 700; color: #fff; }
 .wx-hour-wind { font-family: "DM Mono",monospace; font-size: 9px; font-weight: 600; }
-.wx-hour-cloud { font-family: "DM Mono",monospace; font-size: 8px; color: rgba(255,255,255,.38); }
+.wx-hour-cloud { font-family: "DM Mono",monospace; font-size: 8px; color: var(--ink-3); }
 
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
@@ -1495,20 +1487,20 @@ body {
 .sh-sun-arc {
   margin: 0 -20px 18px;
   position: relative;
-  font-family: 'DM Mono', monospace;
+  font-variant-numeric: tabular-nums;
 }
 .sh-sun-arc svg { display: block; width: 100%; }
 .sh-sun-times {
   display: flex; justify-content: space-between;
   padding: 0 20px;
-  font-family: 'DM Mono', monospace; font-size: 8px;
+  font-variant-numeric: tabular-nums; font-size: 8px;
   color: rgba(255,200,80,.45);
   margin-top: -2px;
 }
 .sh-sun-center {
   text-align: center;
-  font-family: 'DM Mono', monospace; font-size: 9px;
-  color: rgba(255,210,80,.7);
+  font-variant-numeric: tabular-nums; font-size: 9px;
+  color: #7A5D07;
   margin-top: 3px;
 }
 
@@ -1518,41 +1510,41 @@ body {
   display: flex; justify-content: space-between; align-items: baseline;
   margin-bottom: 8px;
 }
-.sh-24h-title { font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 600; color: rgba(255,255,255,.7); margin-bottom: 2px;
-  color: rgba(255,255,255,.6); letter-spacing: .5px; }
-.sh-24h-peak { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--accent); }
+.sh-24h-title { font-variant-numeric: tabular-nums; font-size: 10px; font-weight: 600; color: var(--ink-2); margin-bottom: 2px;
+  color: var(--ink-2); letter-spacing: .5px; }
+.sh-24h-peak { font-variant-numeric: tabular-nums; font-size: 9px; color: var(--accent); }
 .sh-24h-svg { width: 100%; display: block; }
 
 /* FMI station card */
 .sh-fmi {
-  background: rgba(41,232,168,.06); border: 1px solid rgba(41,232,168,.15);
+  background: var(--accent-soft); border: 1px solid var(--hairline);
   border-radius: 12px; padding: 10px 14px; margin-bottom: 14px;
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
 }
 .sh-fmi-left { flex: 1; min-width: 0; }
-.sh-fmi-name { font-size: 11px; font-weight: 700; color: var(--text);
+.sh-fmi-name { font-size: 11px; font-weight: 700; color: var(--ink);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sh-fmi-meta { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); margin-top: 2px; }
+.sh-fmi-meta { font-variant-numeric: tabular-nums; font-size: 9px; color: var(--ink-3); margin-top: 2px; }
 .sh-fmi-wind { text-align: right; flex-shrink: 0; }
-.sh-fmi-ms { font-family: 'DM Mono', monospace; font-size: 20px; font-weight: 700; line-height: 1; }
-.sh-fmi-unit { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); }
-.sh-fmi-loading { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); }
+.sh-fmi-ms { font-variant-numeric: tabular-nums; font-size: 20px; font-weight: 700; line-height: 1; }
+.sh-fmi-unit { font-variant-numeric: tabular-nums; font-size: 9px; color: var(--ink-3); }
+.sh-fmi-loading { font-variant-numeric: tabular-nums; font-size: 10px; color: var(--ink-3); }
 
 /* Navigate button */
 .sh-nav-btn {
   display: flex; align-items: center; justify-content: center; gap: 8px;
   width: 100%; padding: 12px; border-radius: 14px; margin-bottom: 8px;
-  background: rgba(41,232,168,.08); border: 1px solid rgba(41,232,168,.2);
-  font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 600;
+  background: var(--accent-soft); border: 1px solid var(--hairline);
+  font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 600;
   color: var(--accent); cursor: pointer; transition: background .12s;
   -webkit-user-select: none; user-select: none;
 }
-.sh-nav-btn:active { background: rgba(41,232,168,.18); }
+.sh-nav-btn:active { background: var(--surface-lo); }
 .sh-nav-btn svg { flex-shrink: 0; }
 
 /* -- UIRAS VEDENLÄMPÖ ------------------------------------------- */
 .sh-uiras {
-  background: rgba(41,232,168,.07); border: 1px solid rgba(41,232,168,.18);
+  background: var(--accent-soft); border: 1px solid var(--hairline);
   border-radius: 14px; padding: 12px 14px; margin-bottom: 14px;
 }
 .sh-uiras-header {
@@ -1561,17 +1553,17 @@ body {
 }
 .sh-uiras-left { flex: 1; min-width: 0; }
 .sh-uiras-name {
-  font-size: 11px; font-weight: 700; color: var(--text);
+  font-size: 11px; font-weight: 700; color: var(--ink);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.sh-uiras-meta { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); margin-top: 2px; }
+.sh-uiras-meta { font-variant-numeric: tabular-nums; font-size: 9px; color: var(--ink-3); margin-top: 2px; }
 .sh-uiras-temp { text-align: right; flex-shrink: 0; }
-.sh-uiras-val { font-family: 'DM Mono', monospace; font-size: 22px; font-weight: 700; color: #2de; line-height: 1; }
-.sh-uiras-unit { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); }
+.sh-uiras-val { font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 700; color: #2de; line-height: 1; }
+.sh-uiras-unit { font-variant-numeric: tabular-nums; font-size: 9px; color: var(--ink-3); }
 .sh-uiras-toggle {
   width: 100%; margin-top: 10px; padding: 8px 0 0;
-  border: none; background: none; border-top: 1px solid rgba(41,232,168,.12);
-  font-family: 'DM Mono', monospace; font-size: 10px; color: rgba(41,232,168,.7);
+  border: none; background: none; border-top: 1px solid var(--accent-soft);
+  font-variant-numeric: tabular-nums; font-size: 10px; color: var(--accent);
   cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
   -webkit-user-select: none; user-select: none;
 }
@@ -1581,14 +1573,14 @@ body {
   display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap;
 }
 .sh-uiras-chip {
-  font-family: 'DM Mono', monospace; font-size: 9px; padding: 3px 8px;
-  border-radius: 8px; border: 1px solid rgba(41,232,168,.25);
-  color: rgba(41,232,168,.6); cursor: pointer; background: none;
+  font-variant-numeric: tabular-nums; font-size: 9px; padding: 3px 8px;
+  border-radius: 8px; border: 1px solid var(--hairline);
+  color: var(--accent); cursor: pointer; background: none;
   -webkit-user-select: none; user-select: none; transition: background .12s;
 }
 .sh-uiras-chip.active {
-  background: rgba(41,232,168,.15); color: var(--accent);
-  border-color: rgba(41,232,168,.4);
+  background: var(--surface-lo); color: var(--accent);
+  border-color: var(--hairline);
 }
 </style>
 </head>
@@ -1700,13 +1692,8 @@ body {
     <!-- Otsikko -->
     <div id="sp-header">
       <span id="sp-title">Asetukset</span>
-      <!-- Sulje-nuoli — pyyhkäise vasemmalle tai paina -->
-      <button id="sp-close" onclick="_closeSettings()" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.07);border:none;border-radius:16px;padding:6px 12px 6px 8px;color:rgba(255,255,255,.5);font-family:'DM Mono',monospace;font-size:10px;cursor:pointer">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <polyline points="9 18 15 12 9 6"/>
-        </svg>
-        Sulje
-      </button>
+      <button id="sp-close" onclick="_closeSettings()"
+              style="background:none;border:none;font:inherit;cursor:pointer">Valmis</button>
     </div>
     <!-- Scrollattava sisältö -->
     <div id="sp-body-wrap">
@@ -1717,11 +1704,11 @@ body {
         <div class="sp-card">
           <div class="sp-label">Sääennuste</div>
           <div class="sp-chips" id="models">
-            <div class="sp-chip" data-model="fmi_harmonie"><span class="l-icon">🇫🇮</span>FMI</div>
-            <div class="sp-chip active" data-model="best_match"><span class="l-icon">🌐</span>Auto</div>
-            <div class="sp-chip" data-model="icon_eu"><span class="l-icon">🇪🇺</span>ICON</div>
-            <div class="sp-chip" data-model="ecmwf_ifs025"><span class="l-icon">🌍</span>ECMWF</div>
-            <div class="sp-chip" data-model="gfs_seamless"><span class="l-icon">🇺🇸</span>GFS</div>
+            <div class="sp-chip" data-model="fmi_harmonie">FMI</div>
+            <div class="sp-chip active" data-model="best_match">Auto</div>
+            <div class="sp-chip" data-model="icon_eu">ICON</div>
+            <div class="sp-chip" data-model="ecmwf_ifs025">ECMWF</div>
+            <div class="sp-chip" data-model="gfs_seamless">GFS</div>
           </div>
         </div>
 
@@ -1729,8 +1716,8 @@ body {
         <div class="sp-card">
           <div class="sp-label">Tuulikerros</div>
           <div class="sp-chips" id="layers">
-            <div class="sp-chip active" data-layer="wind"><span class="l-icon">💨</span>Tuuli</div>
-            <div class="sp-chip" data-layer="gust"><span class="l-icon">🌊</span>Puuska</div>
+            <div class="sp-chip active" data-layer="wind">Tuuli</div>
+            <div class="sp-chip" data-layer="gust">Puuska</div>
           </div>
         </div>
 
@@ -1749,6 +1736,7 @@ body {
         <div class="sp-card">
           <div class="sp-label">Karttatasot</div>
 
+          <div class="sp-rows">
           <div class="sp-toggle-row" data-layer-toggle="fmi-sea">
             <div class="sp-toggle-left">
               <div class="sp-toggle-dot" style="background:#f5c842"></div>
@@ -1792,16 +1780,15 @@ body {
             </div>
             <div class="sp-toggle" id="toggle-uiras-sec"></div>
           </div>
+          </div>
 
           <!-- Karttalähteen maininta. Esrin ehdot vaativat "Powered by Esri"
                -maininnan ja datan lähteiden nimet; kartta itse on jätetty
                vapaaksi (attributionControl: false), joten se on tässä. -->
-          <div style="margin-top:14px;padding-top:10px;border-top:1px solid rgba(255,255,255,.07);
-                      font-size:9px;line-height:1.5;color:rgba(255,255,255,.32)">
-            Kartta: Powered by <a href="https://www.esri.com/" target="_blank" rel="noopener"
-              style="color:rgba(255,255,255,.45)">Esri</a> — Esri, HERE, Garmin,
-            © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener"
-              style="color:rgba(255,255,255,.45)">OpenStreetMap</a>&nbsp;contributors.
+          <div class="sp-credit">
+            Kartta: Powered by <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a>
+            — Esri, HERE, Garmin,
+            © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>&nbsp;contributors.
             Säädata: Ilmatieteen laitos, Open-Meteo.
           </div>
 
@@ -2188,15 +2175,53 @@ const ColorRamp = (() => {
       _cssAlphaLUT[a][i] = 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + alpha.toFixed(2) + ')';
     }
   }
+  /* Mustevariantti käyttöliittymään.
+     Kartan ramppi on suunniteltu mustaa merta vasten. Paneelin beigellä
+     kuusi yhdeksästä sen sävystä on lukukelvottomia: 8 m/s on 1.49:1 ja
+     10 m/s 1.34:1. Tässä on sama sävyjärjestys — sininen, turkoosi,
+     vihreä, kulta, oranssi, punainen, magenta — musteen kylläisyydellä,
+     jolloin jokainen arvo on vähintään 4.56:1 paneelin pinnalla ja
+     5.16:1 korotetulla. Merkitys ei muutu missään; vain se, mitä vasten
+     väri luetaan. Väliankkurit ovat Lab-keskiarvoja samasta syystä kuin
+     kartan rampissa. */
+  const RAMP_INK = [
+    { t: 0.000, r:  95, g: 105, b: 111 },  /*    0 m/s  tyyni harmaa */
+    { t: 0.050, r:  75, g:  92, b: 136 },  /*    1 m/s */
+    { t: 0.100, r:  31, g:  79, b: 160 },  /*    2 m/s  sininen */
+    { t: 0.160, r:  31, g:  94, b: 147 },  /*    3 m/s */
+    { t: 0.220, r:  20, g: 108, b: 134 },  /*    4 m/s  merensininen */
+    { t: 0.290, r:  22, g: 112, b: 116 },  /*    5 m/s */
+    { t: 0.360, r:  14, g: 115, b:  97 },  /*    6 m/s  turkoosi */
+    { t: 0.430, r:  36, g: 113, b:  72 },  /*    7 m/s */
+    { t: 0.500, r:  42, g: 112, b:  45 },  /*    8 m/s  vihreä */
+    { t: 0.575, r:  90, g: 104, b:  29 },  /*    9 m/s */
+    { t: 0.650, r: 122, g:  93, b:   7 },  /*   10 m/s  kulta */
+    { t: 0.715, r: 138, g:  88, b:  15 },  /* 11.5 m/s */
+    { t: 0.780, r: 154, g:  81, b:  22 },  /*   13 m/s  oranssi */
+    { t: 0.840, r: 154, g:  60, b:  23 },  /* 14.5 m/s */
+    { t: 0.900, r: 153, g:  32, b:  24 },  /*   16 m/s  punainen */
+    { t: 0.950, r: 149, g:  37, b:  61 },  /*   18 m/s */
+    { t: 1.000, r: 142, g:  42, b:  97 },  /*   20 m/s  magenta */
+  ];
+  const _inkLUT = new Array(LUT_SIZE);
+  const _inkCssLUT = new Array(LUT_SIZE);
+  for (let i = 0; i < LUT_SIZE; i++) {
+    const c = interpolate(RAMP_INK, msToT(i * 0.1));
+    _inkLUT[i] = c;
+    _inkCssLUT[i] = 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')';
+  }
+
   function _lutIdx(ms) { return Math.min(LUT_SIZE - 1, Math.max(0, Math.round(ms * 10))); }
   function rgb(ms) { return _rgbLUT[_lutIdx(ms)]; }
+  function ink(ms) { return _inkLUT[_lutIdx(ms)]; }
+  function inkCss(ms) { return _inkCssLUT[_lutIdx(ms)]; }
   function css(ms, alpha) {
     const idx = _lutIdx(ms);
     if (alpha === undefined || alpha >= 0.99) return _cssLUT[idx];
     const ai = Math.min(ALPHA_STEPS - 1, Math.max(0, Math.round(alpha * ALPHA_STEPS) - 1));
     return _cssAlphaLUT[ai][idx];
   }
-  return { rgb, css, msToT };
+  return { rgb, css, msToT, ink, inkCss };
 })();
 
 /* -- SPOTS ----------------------------------------------------- */
@@ -3653,6 +3678,30 @@ function spotIndex(ms, windDeg, bestDirs, gustMs) {
    65  = #4de87a (green)
    100 = #00ff88 (bright green)
    Uses RGB lerp between keypoints                              */
+/* Spotti-indeksin mustevariantti paneeleihin. Kartalla rengas piirtyy
+   mustan taustan päälle, joten siellä käytetään kirkasta versiota; paperilla
+   samat sävyt olisivat 1.5:1. Askeleet vastaavat toisiaan yksi yhteen. */
+function spotIndexInk(score) {
+  const stops = [
+    [  0, [ 95, 105, 111]],
+    [ 25, [ 88,  98, 104]],
+    [ 35, [122,  93,   7]],
+    [ 48, [ 90, 104,  29]],
+    [ 60, [ 52, 112,  40]],
+    [ 75, [ 42, 112,  45]],
+    [100, [ 14, 115,  97]],
+  ];
+  const t = Math.max(0, Math.min(100, score));
+  let i = 0;
+  while (i < stops.length - 2 && stops[i+1][0] <= t) i++;
+  const [s0, c0] = stops[i], [s1, c1] = stops[i+1];
+  const f = (t - s0) / (s1 - s0);
+  const r = Math.round(c0[0] + f * (c1[0] - c0[0]));
+  const g = Math.round(c0[1] + f * (c1[1] - c0[1]));
+  const b = Math.round(c0[2] + f * (c1[2] - c0[2]));
+  return `rgb(${r},${g},${b})`;
+}
+
 function spotIndexColor(score) {
   const stops = [
     [  0, [100, 102, 130]],   /* dark grey   */
@@ -3716,8 +3765,8 @@ function updateSpotScale(zoom) {
 }
 
 /* SVG circle marker with arc progress bar + score + name */
-function spotMarkerSVG(score, name, size) {
-  const col = spotIndexColor(score);
+function spotMarkerSVG(score, name, size, paperi) {
+  const col = paperi ? spotIndexInk(score) : spotIndexColor(score);
   /* Viivanpaksuus, säde ja fonttikoko skaalautuvat halkaisijan mukana —
      muuten pienennetyssä ympyrässä olisi täysikokoinen rengas ja numero,
      jotka eivät mahtuisi sisään. Suhdeluvut on johdettu alkuperäisestä
@@ -3735,14 +3784,14 @@ function spotMarkerSVG(score, name, size) {
   return (
     `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">`
     /* Black bg circle */
-    + `<circle cx="${cx}" cy="${cy}" r="${size/2}" fill="rgba(6,9,18,0.82)"/>`
+    + `<circle cx="${cx}" cy="${cy}" r="${size/2}" fill="${paperi ? '#FAF5E7' : 'rgba(6,9,18,0.82)'}"/>`
     /* Track ring (dark) */
-    + `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="${sw.toFixed(2)}"/>`
+    + `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${paperi ? '#E4D8B8' : 'rgba(255,255,255,0.12)'}" stroke-width="${sw.toFixed(2)}"/>`
     /* Progress arc */
     + `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${col}" stroke-width="${sw.toFixed(2)}" stroke-linecap="round"`
     + ` stroke-dasharray="${filled} ${gap}" stroke-dashoffset="${circ * 0.25}" transform="rotate(-90 ${cx} ${cy})"/>`
     /* Score number */
-    + `<text x="${cx}" y="${cy + fontSize*0.35}" text-anchor="middle" font-family="DM Mono,monospace" font-size="${fontSize.toFixed(2)}" font-weight="700" fill="${col}">${scoreStr}</text>`
+    + `<text x="${cx}" y="${cy + fontSize*0.35}" text-anchor="middle" font-size="${fontSize.toFixed(2)}" font-weight="700" fill="${col}">${scoreStr}</text>`
     + `</svg>`
   );
 }
@@ -3751,7 +3800,7 @@ function spotMarkerSVG(score, name, size) {
    elementtiä, jotta se voi häivähtää esiin kun zoomataan lähelle. */
 function spotNameLabel(name, col, visible) {
   return (
-    `<div class="spot-lbl" style="font-family:'DM Mono',monospace;font-size:8px;font-weight:600;color:${col};`
+    `<div class="spot-lbl" style="font-variant-numeric:tabular-nums;font-size:8px;font-weight:600;color:${col};`
     + `text-align:center;line-height:1.2;margin-top:2px;`
     + `text-shadow:0 1px 3px rgba(0,0,0,0.9);white-space:nowrap;max-width:64px;`
     + `overflow:hidden;text-overflow:ellipsis;`
@@ -3996,7 +4045,7 @@ function _isPKS(spot){return spot.lat>=59.9&&spot.lat<=60.5&&spot.lng>=24.3&&spo
       cEl.style.display = 'block';
       if (aEl) aEl.textContent = '▲';
       if (cEl.dataset.ok) return;
-      cEl.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:16px">Ladataan historiaa...</div>';
+      cEl.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--muted);text-align:center;padding:16px">Ladataan historiaa...</div>';
       if (typeof Haptics !== 'undefined') Haptics.light();
       try {
         const pts = await UiRas.history(stationId);
@@ -4004,7 +4053,7 @@ function _isPKS(spot){return spot.lat>=59.9&&spot.lat<=60.5&&spot.lng>=24.3&&spo
         cEl.dataset.ok = '1';
         _uirasChart(cEl, pts, 'all', 1);
       } catch(e) {
-        cEl.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.7);text-align:center;padding:12px">Historiadataa ei saatavilla</div>';
+        cEl.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.7);text-align:center;padding:12px">Historiadataa ei saatavilla</div>';
       }
       return;
     }
@@ -4028,7 +4077,7 @@ function _isPKS(spot){return spot.lat>=59.9&&spot.lat<=60.5&&spot.lng>=24.3&&spo
       liveBtn.classList.add('expanded');
       if (toggleEl) toggleEl.textContent = '▲ Sulje';
       if (panel.dataset.ok) return;
-      panel.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:16px">Ladataan...</div>';
+      panel.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--muted);text-align:center;padding:16px">Ladataan...</div>';
       /* Hae 24h historia FMI proxylta */
       const spotRef = State.sheetSpot;
       if (!spotRef) return;
@@ -4039,7 +4088,7 @@ function _isPKS(spot){return spot.lat>=59.9&&spot.lat<=60.5&&spot.lng>=24.3&&spo
         panel.dataset.ok = '1';
         _renderLiveHistory(panel, data, wx);
       }).catch(function(){
-        panel.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.7);text-align:center;padding:12px">Historiadataa ei saatavilla</div>';
+        panel.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.7);text-align:center;padding:12px">Historiadataa ei saatavilla</div>';
       });
       return;
     }
@@ -4067,14 +4116,14 @@ function _isPKS(spot){return spot.lat>=59.9&&spot.lat<=60.5&&spot.lng>=24.3&&spo
       if (toggleEl) toggleEl.textContent = '▲ Sulje';
       if (panel.dataset.ok) return;
 
-      panel.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:14px">Ladataan...</div>';
+      panel.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--muted);text-align:center;padding:14px">Ladataan...</div>';
       try {
         const pts = await UiRas.history(stationId);
         if (!pts || !pts.length) throw new Error('tyhjä');
         panel.dataset.ok = '1';
         _uirasChart(panel, pts, '30d', 1);
       } catch(err) {
-        panel.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.7);text-align:center;padding:12px">Ei dataa</div>';
+        panel.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.7);text-align:center;padding:12px">Ei dataa</div>';
       }
     }
   }, { passive: true });
@@ -4113,18 +4162,18 @@ function buildUirasPlaceholder(spot) {
   });
 
   /* Palauta HTML heti — napit käyttävät data-attribuutteja delegaation kautta */
-  return '<div id="' + cardId + '" style="background:rgba(41,232,168,.07);border:1px solid rgba(41,232,168,.18);border-radius:14px;padding:12px 14px;margin-bottom:14px">'
+  return '<div id="' + cardId + '" style="background:var(--accent-soft);border:1px solid var(--hairline);border-radius:14px;padding:12px 14px;margin-bottom:14px">'
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
       + '<div style="flex:1;min-width:0">'
         + '<div style="font-size:11px;font-weight:700;color:var(--text)">🏊 ' + station.name + '</div>'
-        + '<div data-uiras-meta style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted);margin-top:2px">' + dist + ' · ladataan...</div>'
+        + '<div data-uiras-meta style="font-variant-numeric:tabular-nums;font-size:9px;color:var(--muted);margin-top:2px">' + dist + ' · ladataan...</div>'
       + '</div>'
       + '<div style="text-align:right;flex-shrink:0;margin-left:12px">'
-        + '<div data-uiras-temp style="font-family:DM Mono,monospace;font-size:24px;font-weight:700;color:#4dd;line-height:1">—</div>'
-        + '<div style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted)">°C</div>'
+        + '<div data-uiras-temp style="font-variant-numeric:tabular-nums;font-size:24px;font-weight:700;color:#4dd;line-height:1">—</div>'
+        + '<div style="font-variant-numeric:tabular-nums;font-size:9px;color:var(--muted)">°C</div>'
       + '</div>'
     + '</div>'
-    + '<button id="' + btnId + '" data-uiras-btn data-uiras-btn-id="' + station.id + '" data-uiras-btn-chart="' + chartId + '" style="width:100%;border:none;background:none;border-top:1px solid rgba(41,232,168,.15);padding:8px 0 0;font-family:DM Mono,monospace;font-size:10px;color:rgba(41,232,168,.7);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;-webkit-user-select:none;user-select:none">'
+    + '<button id="' + btnId + '" data-uiras-btn data-uiras-btn-id="' + station.id + '" data-uiras-btn-chart="' + chartId + '" style="width:100%;border:none;background:none;border-top:1px solid var(--surface-lo);padding:8px 0 0;font-variant-numeric:tabular-nums;font-size:10px;color:var(--accent);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;-webkit-user-select:none;user-select:none">'
       + '<span data-uiras-arr>▼</span> Näytä lämpötilahistoria'
     + '</button>'
     + '<div id="' + chartId + '" style="display:none;margin-top:10px"></div>'
@@ -4197,8 +4246,8 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
   for(var yv=yStart; yv<=maxV+0.01; yv+=yStep){
     if(yv<lo+padV*0.5||yv>hi-padV*0.5) continue;
     var gy=yOf(yv);
-    yLabels+='<text x="'+(padX-6)+'" y="'+gy.toFixed(1)+'" font-family="DM Mono,monospace" font-size="7.5" fill="rgba(255,255,255,.3)" text-anchor="end" dominant-baseline="middle">'+yv.toFixed(yStep<1?1:0)+'°</text>';
-    yLabels+='<line x1="'+padX+'" y1="'+gy.toFixed(1)+'" x2="'+(W-8)+'" y2="'+gy.toFixed(1)+'" stroke="rgba(255,255,255,.05)" stroke-width="1"/>';
+    yLabels+='<text x="'+(padX-6)+'" y="'+gy.toFixed(1)+'" font-size="7.5" fill="#5F696F" text-anchor="end" dominant-baseline="middle">'+yv.toFixed(yStep<1?1:0)+'°</text>';
+    yLabels+='<line x1="'+padX+'" y1="'+gy.toFixed(1)+'" x2="'+(W-8)+'" y2="'+gy.toFixed(1)+'" stroke="#DFD4B6" stroke-width="1"/>';
   }
 
   /* X-akseli — pikselileveys-perusteinen tiheys, ei päällekkäisyyttä */
@@ -4223,7 +4272,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     if(lx<padX+8||lx>W-16) continue;
     if(lx-lastLx<minPxBetween) continue; /* varmuustarkistus päällekkäisyydelle */
     lastLx=lx;
-    xl+='<text x="'+lx.toFixed(1)+'" y="'+(TH-4)+'" font-family="DM Mono,monospace" font-size="7.5" fill="rgba(255,255,255,.25)" text-anchor="middle">'+fd.getDate()+'.'+( fd.getMonth()+1)+'.</text>';
+    xl+='<text x="'+lx.toFixed(1)+'" y="'+(TH-4)+'" font-size="7.5" fill="#5F696F" text-anchor="middle">'+fd.getDate()+'.'+( fd.getMonth()+1)+'.</text>';
   }
 
   /* Min/max callout */
@@ -4231,8 +4280,8 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     var lx=xOf(idx), ly=yOf(draw[idx].v);
     var anchor=lx<padX+30?'start':lx>W-30?'end':'middle';
     var oy=isMax?-13:13;
-    return '<circle cx="'+lx.toFixed(1)+'" cy="'+ly.toFixed(1)+'" r="2.5" fill="'+(isMax?'rgba(0,220,255,.9)':'rgba(0,150,210,.6)')+'" pointer-events="none"/>'
-      +'<text x="'+lx.toFixed(1)+'" y="'+(ly+oy).toFixed(1)+'" font-family="DM Mono,monospace" font-size="8" fill="'+(isMax?'rgba(0,220,255,.8)':'rgba(0,170,210,.55)')+'" text-anchor="'+anchor+'" pointer-events="none">'+draw[idx].v.toFixed(1)+'°</text>';
+    return '<circle cx="'+lx.toFixed(1)+'" cy="'+ly.toFixed(1)+'" r="2.5" fill="'+(isMax?'var(--accent)':'rgba(0,150,210,.6)')+'" pointer-events="none"/>'
+      +'<text x="'+lx.toFixed(1)+'" y="'+(ly+oy).toFixed(1)+'" font-size="8" fill="'+(isMax?'rgba(0,220,255,.8)':'rgba(0,170,210,.55)')+'" text-anchor="'+anchor+'" pointer-events="none">'+draw[idx].v.toFixed(1)+'°</text>';
   }
   var minMaxLabels=(maxV-minV>0.5)?(mkCallout(maxIdx,true)+mkCallout(minIdx,false)):'';
 
@@ -4243,9 +4292,9 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
   var periods=[['7d','7 vrk'],['30d','30 vrk'],['all','Max']];
   var segBtns=periods.map(function(pv){
     var a=pv[0]===period;
-    return '<button data-up="'+pv[0]+'" style="flex:1;font-family:DM Mono,monospace;font-size:9px;padding:4px 6px;border:none;white-space:nowrap;'
+    return '<button data-up="'+pv[0]+'" style="flex:1;font-variant-numeric:tabular-nums;font-size:9px;padding:4px 6px;border:none;white-space:nowrap;'
       +'background:'+(a?'rgba(0,210,255,.18)':'transparent')+';'
-      +'color:'+(a?'rgba(0,220,255,.95)':'rgba(255,255,255,.35)')+';'
+      +'color:'+(a?'var(--accent)':'var(--ink-3)')+';'
       +'border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:all .15s">'+pv[1]+'</button>';
   }).join('');
 
@@ -4253,21 +4302,21 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     /* Header */
     '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;min-width:0">'
       +'<div id="'+svgId+'-dd" style="min-width:0;overflow:visible;position:relative"></div>'
-      +'<div style="display:flex;flex-shrink:0;background:rgba(255,255,255,.06);border-radius:10px;padding:2px;gap:1px;border:1px solid rgba(255,255,255,.08)">'
+      +'<div style="display:flex;flex-shrink:0;background:var(--hairline-soft);border-radius:10px;padding:2px;gap:1px;border:1px solid var(--hairline-soft)">'
         +segBtns
       +'</div>'
     +'</div>'
 
     /* SVG */
     +'<div style="position:relative">'
-      +'<div id="'+svgId+'-tip" style="display:none;position:absolute;background:rgba(4,8,20,.97);border:1px solid rgba(41,232,168,.25);border-radius:12px;padding:8px 14px;pointer-events:none;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.7);z-index:100;transform:translateX(-50%);transition:left .05s,top .05s"></div>'
+      +'<div id="'+svgId+'-tip" style="display:none;position:absolute;background:rgba(4,8,20,.97);border:1px solid var(--hairline);border-radius:12px;padding:8px 14px;pointer-events:none;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.7);z-index:100;transform:translateX(-50%);transition:left .05s,top .05s"></div>'
       /* Ylitys 18px eikä 36px: 36:lla y-akselin labelit (esim. "19.0°")
          alkoivat kohdasta x = -5.4 eli ensimmäinen merkki jäi ruudun
          ulkopuolelle ja akselissa luki "9.0°". */
       +'<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" style="width:calc(100% + 18px);margin-left:-18px;display:block;touch-action:none;overflow:visible">'
         +'<defs>'
           +'<linearGradient id="'+gradId+'" x1="0" y1="0" x2="0" y2="1">'
-            +'<stop offset="0%" stop-color="rgba(41,232,168,.3)"/>'
+            +'<stop offset="0%" stop-color="rgba(42,112,45,.22)"/>'
             +'<stop offset="55%" stop-color="rgba(0,160,220,.1)"/>'
             +'<stop offset="100%" stop-color="rgba(0,120,200,.0)"/>'
           +'</linearGradient>'
@@ -4281,11 +4330,11 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
         /* Min/max */
         +minMaxLabels
         /* Viimeisin piste */
-        +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastY.toFixed(1)+'" r="5" fill="rgba(41,232,168,.15)" pointer-events="none"><animate attributeName="r" values="4;8;4" dur="3s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.6;0;0.6" dur="3s" repeatCount="indefinite"/></circle>'
-        +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastY.toFixed(1)+'" r="3.5" fill="rgba(0,220,255,1)" stroke="rgba(255,255,255,.5)" stroke-width="1.5" pointer-events="none"/>'
+        +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastY.toFixed(1)+'" r="5" fill="rgba(42,112,45,.18)" pointer-events="none"><animate attributeName="r" values="4;8;4" dur="3s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.6;0;0.6" dur="3s" repeatCount="indefinite"/></circle>'
+        +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastY.toFixed(1)+'" r="3.5" fill="#B4005A" stroke="#4C5960" stroke-width="1.5" pointer-events="none"/>'
         /* Crosshair */
-        +'<line id="'+svgId+'-vl" x1="-1" y1="'+padY+'" x2="-1" y2="'+H+'" stroke="rgba(41,232,168,.4)" stroke-width="1" stroke-dasharray="3,3" pointer-events="none"/>'
-        +'<circle id="'+svgId+'-dot" cx="-1" cy="-1" r="4.5" fill="rgba(0,220,255,.95)" stroke="rgba(255,255,255,.5)" stroke-width="1.5" pointer-events="none" visibility="hidden"/>'
+        +'<line id="'+svgId+'-vl" x1="-1" y1="'+padY+'" x2="-1" y2="'+H+'" stroke="#CDBE9A" stroke-width="1" stroke-dasharray="3,3" pointer-events="none"/>'
+        +'<circle id="'+svgId+'-dot" cx="-1" cy="-1" r="4.5" fill="#B4005A" stroke="#4C5960" stroke-width="1.5" pointer-events="none" visibility="hidden"/>'
         /* Hit */
         +'<rect id="'+svgId+'-hit" x="'+padX+'" y="'+padY+'" width="'+(W-padX-8)+'" height="'+(H-padY)+'" fill="transparent" style="cursor:crosshair"/>'
         /* X-akseli */
@@ -4295,8 +4344,8 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
 
     /* Footer */
     +'<div style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;padding:0 2px">'
-      +'<div style="font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.2)">'+(sourceLabel||'UiRas')+' · '+(stationName||'')+'</div>'
-      +'<div style="font-family:DM Mono,monospace;font-size:13px;color:rgba(0,210,255,.9);font-weight:700;letter-spacing:-.3px">'+lastVal.toFixed(1)+'<span style="font-size:9px;font-weight:400;color:rgba(0,210,255,.5)"> °C</span></div>'
+      +'<div style="font-variant-numeric:tabular-nums;font-size:8px;color:var(--hairline)">'+(sourceLabel||'UiRas')+' · '+(stationName||'')+'</div>'
+      +'<div style="font-variant-numeric:tabular-nums;font-size:13px;color:rgba(0,210,255,.9);font-weight:700;letter-spacing:-.3px">'+lastVal.toFixed(1)+'<span style="font-size:9px;font-weight:400;color:rgba(0,210,255,.5)"> °C</span></div>'
     +'</div>';
 
   /* Tooltip interaktio */
@@ -4313,7 +4362,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     var dstr=d.getDate()+'.'+(d.getMonth()+1)+'. '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
     var val=draw[idx].v.toFixed(1);
     tip.innerHTML='<div style="font-size:18px;font-weight:700;color:rgba(0,215,255,.95);letter-spacing:-.5px;line-height:1">'+val+'<span style="font-size:11px;font-weight:400;color:rgba(0,200,255,.55)"> °C</span></div>'
-      +'<div style="color:rgba(255,255,255,.3);font-size:9px;margin-top:4px;font-family:DM Mono,monospace">'+dstr+'</div>';
+      +'<div style="color:var(--ink-3);font-size:9px;margin-top:4px;font-family:DM Mono,monospace">'+dstr+'</div>';
     var r=svg.getBoundingClientRect();
     var tipTop=Math.max(2,(y/TH)*r.height-58);
     tip.style.left=_tipLeftPx(tip,r,x,W)+'px';tip.style.top=tipTop+'px';tip.style.display='block';
@@ -4357,12 +4406,12 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     /* Rakenna trigger-nappi */
     function makeTriggerHtml(st){
       return '<button id="'+trId+'" style="display:flex;align-items:center;gap:6px;'
-        +'background:rgba(41,232,168,.08);border:1px solid rgba(41,232,168,.2);'
-        +'border-radius:8px;font-family:DM Mono,monospace;font-size:9px;'
-        +'color:rgba(0,220,255,.9);cursor:pointer;padding:4px 10px;'
+        +'background:var(--accent-soft);border:1px solid var(--hairline);'
+        +'border-radius:8px;font-variant-numeric:tabular-nums;font-size:9px;'
+        +'color:var(--accent);cursor:pointer;padding:4px 10px;'
         +'-webkit-user-select:none;user-select:none;">'
-        +'<span style="font-weight:700;color:rgba(0,220,255,.95)">'+st.name+'</span>'
-        +'<span style="color:rgba(255,255,255,.38);font-size:8px;margin-left:2px">'+st.km.toFixed(1)+'km</span>'
+        +'<span style="font-weight:700;color:var(--accent)">'+st.name+'</span>'
+        +'<span style="color:var(--ink-3);font-size:8px;margin-left:2px">'+st.km.toFixed(1)+'km</span>'
         +'<svg width="12" height="12" viewBox="0 0 12 12" style="flex-shrink:0;margin-left:2px">'
           +'<polyline points="2,4 6,8 10,4" fill="none" stroke="rgba(0,220,255,.85)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
         +'</svg></button>';
@@ -4373,18 +4422,18 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
       var items=sorted.map(function(st){
         var active=st.id===curSt.id;
         return '<div data-uiras-pick="'+st.id+'" style="display:flex;justify-content:space-between;align-items:center;'
-          +'padding:11px 16px;cursor:pointer;font-family:DM Mono,monospace;font-size:11px;'
-          +'border-bottom:1px solid rgba(255,255,255,.04);-webkit-user-select:none;user-select:none;'
-          +(active?'background:rgba(41,232,168,.1)':'')+';">'
+          +'padding:11px 16px;cursor:pointer;font-variant-numeric:tabular-nums;font-size:11px;'
+          +'border-bottom:1px solid var(--hairline-soft);-webkit-user-select:none;user-select:none;'
+          +(active?'background:var(--accent-soft)':'')+';">'
           +'<span style="color:rgba(255,255,255,'+(active?'.95':'.7')+');font-weight:'+(active?700:400)+'">'
             +st.name+'</span>'
           +'<div style="display:flex;align-items:center;gap:8px;">'
-            +'<span style="color:rgba(255,255,255,.3);font-size:10px">'+st.km.toFixed(1)+' km</span>'
-            +(active?'<span style="color:rgba(41,232,168,.8);font-size:12px">✓</span>':'')
+            +'<span style="color:var(--ink-3);font-size:10px">'+st.km.toFixed(1)+' km</span>'
+            +(active?'<span style="color:var(--accent);font-size:12px">✓</span>':'')
           +'</div></div>';
       }).join('');
       return '<div id="'+menuId+'" style="display:none;position:absolute;top:calc(100% + 6px);left:0;'
-        +'min-width:190px;background:rgba(10,14,28,.98);border:1px solid rgba(41,232,168,.18);'
+        +'min-width:190px;background:rgba(10,14,28,.98);border:1px solid var(--hairline);'
         +'border-radius:14px;overflow:hidden;z-index:300;box-shadow:0 12px 40px rgba(0,0,0,.7);'
         +'-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)">'+items+'</div>';
     }
@@ -4429,7 +4478,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
           if(uiLbl) uiLbl.textContent='Uimaveden lämpötila · '+st.name;
         }
         /* Lataa uusi data */
-        el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:16px">Ladataan '+st.name+'...</div>';
+        el.innerHTML='<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--muted);text-align:center;padding:16px">Ladataan '+st.name+'...</div>';
         Promise.allSettled([UiRas.history(st.id),UiRas.loadLatest()]).then(function(results){
           var pts2=results[0].status==='fulfilled'?results[0].value:null;
           var latest=results[1].status==='fulfilled'?results[1].value:null;
@@ -4437,9 +4486,9 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
             _updateUirasCard(wsIdRef,latest[st.id].temp,st.name);
           el._period=period;
           if(pts2&&pts2.length) _uirasChartInteractive(el,pts2,st.name,st,spotLat,spotLng);
-          else el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);text-align:center;padding:16px">Ei dataa</div>';
+          else el.innerHTML='<div style="font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.6);text-align:center;padding:16px">Ei dataa</div>';
         }).catch(function(){
-          el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);text-align:center;padding:16px">Ei dataa</div>';
+          el.innerHTML='<div style="font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.6);text-align:center;padding:16px">Ei dataa</div>';
         });
         return;
       }
@@ -4454,7 +4503,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
         if(m) m.style.display='none';
       });
     }
-  } else if(ddEl){    ddEl.innerHTML='<span style="font-family:DM Mono,monospace;font-size:9px;color:rgba(41,232,168,.5)">🌊 '+(stationName||'Vedenlämpö')+'</span>';
+  } else if(ddEl){    ddEl.innerHTML='<span style="font-variant-numeric:tabular-nums;font-size:9px;color:var(--accent)">🌊 '+(stationName||'Vedenlämpö')+'</span>';
   }
 
 }
@@ -4590,7 +4639,7 @@ function _addObsMarkers(map) {
         '<div style="'
           +'display:inline-flex;align-items:baseline;gap:3px;'
           +'background:rgba(9,13,21,0.72);'
-          +'border:1px solid rgba(255,255,255,0.10);'
+          +'border:1px solid var(--hairline);'
           +'border-radius:5px;'
           +'padding:2px 5px;'
           +'cursor:pointer;'
@@ -4598,11 +4647,11 @@ function _addObsMarkers(map) {
           +'box-shadow:0 1px 4px rgba(0,0,0,.45);'
           +'white-space:nowrap;'
         +'">'
-          +'<span style="align-self:center;display:flex">'+_windVaneSvg('rgba(255,255,255,.42)', 10)+'</span>'
-          +'<span style="font-family:DM Mono,monospace;font-weight:500;font-size:11px;'
-            +'color:rgba(255,255,255,.92);line-height:1;letter-spacing:-0.2px">'+wsStr+'</span>'
-          +'<span style="font-family:DM Mono,monospace;font-size:6.5px;'
-            +'color:rgba(255,255,255,.32);line-height:1">'+unitLbl+'</span>'
+          +'<span style="align-self:center;display:flex">'+_windVaneSvg('var(--ink-3)', 10)+'</span>'
+          +'<span style="font-variant-numeric:tabular-nums;font-weight:500;font-size:11px;'
+            +'color:var(--ink);line-height:1;letter-spacing:-0.2px">'+wsStr+'</span>'
+          +'<span style="font-variant-numeric:tabular-nums;font-size:6.5px;'
+            +'color:var(--ink-3);line-height:1">'+unitLbl+'</span>'
         +'</div>';
       /* iconSize vastaa uutta, kapeampaa korttia — _avoidSpotOverlap mittaa
          väistökynnyksen suoraan elementistä, joten se seuraa tätä itsestään. */
@@ -4636,7 +4685,7 @@ function _addObsMarkers(map) {
         className:'',
         html:'<div style="display:flex;align-items:center;gap:4px;cursor:pointer">'
           +waveSmall
-          +'<span style="font-family:DM Mono,monospace;font-size:10px;font-weight:500;'
+          +'<span style="font-variant-numeric:tabular-nums;font-size:10px;font-weight:500;'
             +'color:'+C_WATER+';white-space:nowrap;'
             +'text-shadow:0 1px 4px rgba(0,0,0,.95)">'+tStr+'</span>'
           +'</div>',
@@ -4999,9 +5048,9 @@ function _openObsSheet(type, station) {
   State.sheetSpot=null;
 
   var isWater=(type==='uiras');
-  var accent=isWater?'rgba(0,215,185,1)':'rgba(100,255,160,1)';
-  var accentFaint=isWater?'rgba(0,215,185,.12)':'rgba(100,255,160,.12)';
-  var accentBorder=isWater?'rgba(0,215,185,.2)':'rgba(100,255,160,.2)';
+  var accent=isWater?'var(--accent)':'#2A702D';
+  var accentFaint=isWater?'var(--hairline)':'var(--hairline)';
+  var accentBorder=isWater?'var(--hairline)':'var(--hairline)';
   var icon=isWater?'🌊':'🛰';
   var typeLabel=isWater?'Uimaveden lämpötila':'Tuulihavainto';
   var srcLabel=isWater?'UiRas · Forum Virium Helsinki':(type==='kruunuvuori'?'Merellinen Helsinki · FMI':'Ilmatieteenlaitos · FMI');
@@ -5019,32 +5068,32 @@ function _openObsSheet(type, station) {
       +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">'
         +'<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;background:'+accentFaint+';border:1px solid '+accentBorder+'">'
           +'<span style="font-size:13px">'+icon+'</span>'
-          +'<span style="font-family:DM Mono,monospace;font-size:9px;color:'+accent+';letter-spacing:.5px;text-transform:uppercase">'+typeLabel+'</span>'
+          +'<span style="font-variant-numeric:tabular-nums;font-size:9px;color:'+accent+';letter-spacing:.5px;text-transform:uppercase">'+typeLabel+'</span>'
         +'</div>'
       +'</div>'
       /* Nimi + arvo rinnakkain */
       +'<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px">'
         +'<div style="flex:1;min-width:0">'
-          +'<div style="font-size:22px;font-weight:800;color:rgba(255,255,255,.95);letter-spacing:-.5px;line-height:1.1;margin-bottom:4px;word-break:break-word">'+station.name+'</div>'
-          +'<div id="'+chipId+'" style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,255,255,.35)">'+srcLabel+'</div>'
+          +'<div style="font-size:22px;font-weight:800;color:var(--ink);letter-spacing:-.5px;line-height:1.1;margin-bottom:4px;word-break:break-word">'+station.name+'</div>'
+          +'<div id="'+chipId+'" style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3)">'+srcLabel+'</div>'
         +'</div>'
         +'<div style="text-align:right;flex-shrink:0">'
-          +'<div id="'+valId+'" style="font-family:DM Mono,monospace;font-size:48px;font-weight:200;line-height:1;color:'+accent+';opacity:.2;letter-spacing:-2px;transition:opacity .4s,color .4s">—</div>'
-          +'<div id="'+subId+'" style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,255,255,.3);margin-top:2px">'+unit+'</div>'
+          +'<div id="'+valId+'" style="font-variant-numeric:tabular-nums;font-size:48px;font-weight:200;line-height:1;color:'+accent+';opacity:.2;letter-spacing:-2px;transition:opacity .4s,color .4s">—</div>'
+          +'<div id="'+subId+'" style="font-variant-numeric:tabular-nums;font-size:11px;color:var(--ink-3);margin-top:2px">'+unit+'</div>'
         +'</div>'
       +'</div>'
     +'</div>'
 
     /* -- Graafi -- */
     +'<div id="'+cid+'" style="min-height:40px">'
-      +'<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:20px;color:rgba(255,255,255,.2);font-family:DM Mono,monospace;font-size:10px">'
-        +'<svg width="14" height="14" viewBox="0 0 14 14" style="animation:spin 1.2s linear infinite"><circle cx="7" cy="7" r="5" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="1.5"/><path d="M7 2 A5 5 0 0 1 12 7" fill="none" stroke="'+accent+'" stroke-width="1.5" stroke-linecap="round"/></svg>'
+      +'<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:20px;color:var(--hairline);font-variant-numeric:tabular-nums;font-size:10px">'
+        +'<svg width="14" height="14" viewBox="0 0 14 14" style="animation:spin 1.2s linear infinite"><circle cx="7" cy="7" r="5" fill="none" stroke="#CDBE9A" stroke-width="1.5"/><path d="M7 2 A5 5 0 0 1 12 7" fill="none" stroke="'+accent+'" stroke-width="1.5" stroke-linecap="round"/></svg>'
         +'Ladataan...'
       +'</div>'
     +'</div>'
 
     /* -- Footer -- */
-    +'<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.06);font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.18);text-align:center">'
+    +'<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--hairline-soft);font-variant-numeric:tabular-nums;font-size:8px;color:var(--hairline);text-align:center">'
       +(isWater?'UiRas avoin data · Forum Virium Helsinki':(type==='kruunuvuori'?'Merellinen Helsinki · swell.fmi.fi':'Ilmatieteenlaitos · avoin data'))
     +'</div>';
 
@@ -5077,7 +5126,7 @@ function _openObsSheet(type, station) {
         if(el&&hist) _renderLiveHistory(el,Object.assign({},hist,{place:okSt.place}),latData);
       },
       function() {
-        if(el) el.innerHTML='<div style="text-align:center;font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
+        if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
       }
     );
   } else if(type==='kruunuvuori'){
@@ -5106,17 +5155,17 @@ function _openObsSheet(type, station) {
             if(!twEl){
               twEl=document.createElement('div');
               twEl.id=cid+'-tw';
-              twEl.style.cssText='margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,.06)';
+              twEl.style.cssText='margin-top:18px;padding-top:14px;border-top:1px solid var(--hairline-soft)';
               el.parentNode.insertBefore(twEl,el.nextSibling);
             }
             _uirasChartInteractive(twEl,twPts,data.station||'Kruunuvuorenselkä',
               null,null,null,'Merellinen Helsinki');
           }
         }
-        else if(el) el.innerHTML='<div style="text-align:center;font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
+        else if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
       })
       .catch(function(){
-        if(el) el.innerHTML='<div style="text-align:center;font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
+        if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
       });
   } else {
     Promise.allSettled([
@@ -5131,9 +5180,9 @@ function _openObsSheet(type, station) {
         updateHero(t.toFixed(1),'°C'+(timeStr?'  ·  '+timeStr:''),accent);
       }
       if(el&&pts&&pts.length) _uirasChartInteractive(el,pts,station.name,station,station.lat,station.lng);
-      else if(el) el.innerHTML='<div style="text-align:center;font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
+      else if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
     }).catch(function(){
-      if(el) el.innerHTML='<div style="text-align:center;font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
+      if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
     });
   }
 }
@@ -5148,8 +5197,8 @@ function openSheet(spot, hourIdx) {
     const sheet = document.getElementById('sheet');
     const sc    = document.getElementById('sheet-content');
     if (sheet && sc) {
-      sc.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:32px;font-family:DM Mono,monospace;font-size:11px;color:rgba(255,255,255,.4)">'
-        + '<svg width="18" height="18" viewBox="0 0 18 18" style="animation:spin 1s linear infinite"><circle cx="9" cy="9" r="7" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="1.5"/><path d="M9 2 A7 7 0 0 1 16 9" fill="none" stroke="rgba(100,255,160,.7)" stroke-width="1.5" stroke-linecap="round"/></svg>'
+      sc.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:32px;font-variant-numeric:tabular-nums;font-size:11px;color:var(--ink-3)">'
+        + '<svg width="18" height="18" viewBox="0 0 18 18" style="animation:spin 1s linear infinite"><circle cx="9" cy="9" r="7" fill="none" stroke="#CDBE9A" stroke-width="1.5"/><path d="M9 2 A7 7 0 0 1 16 9" fill="none" stroke="#E4D8B8" stroke-width="1.5" stroke-linecap="round"/></svg>'
         + spot.name + '</div>';
       sheet.classList.add('open');
       document.getElementById('sheet-overlay').classList.add('open');
@@ -5174,7 +5223,7 @@ function openSheet(spot, hourIdx) {
         spot.wx = om;
       }
       if (!spot.wx) {
-        if (sc) sc.innerHTML = '<div style="text-align:center;padding:32px;font-family:DM Mono,monospace;font-size:11px;color:rgba(255,100,100,.6)">Ei säädataa tässä paikassa</div>';
+        if (sc) sc.innerHTML = '<div style="text-align:center;padding:32px;font-variant-numeric:tabular-nums;font-size:11px;color:rgba(255,100,100,.6)">Ei säädataa tässä paikassa</div>';
         return;
       }
       /* Laske nykyinen tuntiindeksi */
@@ -5196,7 +5245,7 @@ function openSheet(spot, hourIdx) {
   const badge    = windBadge(ms);
   const gi       = gustIndex(ms, gst);
   const trend    = windTrend(h, idx);
-  const c        = ColorRamp.rgb(ms);
+  const c        = ColorRamp.ink(ms);
   const colorStr = 'rgb('+c.r+','+c.g+','+c.b+')';
   /* Validoi vedenlämpö — fallback lähimpään spottiin jolla on arvo */
   const _rawWaterTemp = spot._waterTemp;
@@ -5331,8 +5380,8 @@ function openSheet(spot, hourIdx) {
       '<defs>'
         /* Gradient menneelle viivaosalle */
         + '<linearGradient id="gp'+uid+'" x1="0" y1="0" x2="1" y2="0">'
-          + '<stop offset="0%" stop-color="rgba(255,180,40,.35)"/>'
-          + '<stop offset="100%" stop-color="rgba(255,225,80,.9)"/>'
+          + '<stop offset="0%" stop-color="rgba(154,81,22,.30)"/>'
+          + '<stop offset="100%" stop-color="rgba(122,93,7,.85)"/>'
         + '</linearGradient>'
         /* Clippath: 0 → sunX leveydelle */
         + '<clipPath id="cp'+uid+'">'
@@ -5344,8 +5393,8 @@ function openSheet(spot, hourIdx) {
         + '</clipPath>'
         /* Täyttöalue päivälle (kaaren alle horisontista) */
         + '<linearGradient id="gd'+uid+'" x1="0" y1="0" x2="0" y2="1">'
-          + '<stop offset="0%" stop-color="rgba(255,210,80,.15)"/>'
-          + '<stop offset="100%" stop-color="rgba(255,210,80,.02)"/>'
+          + '<stop offset="0%" stop-color="rgba(122,93,7,.14)"/>'
+          + '<stop offset="100%" stop-color="rgba(122,93,7,.02)"/>'
         + '</linearGradient>'
         /* Clippath päiväalueelle (vain horisontin yläpuoli) */
         + '<clipPath id="cd'+uid+'">'
@@ -5363,7 +5412,7 @@ function openSheet(spot, hourIdx) {
 
       /* Koko sinikäyrä — tuleva osa: himmeä */
       + '<polyline points="'+allPts+'"'
-        + ' fill="none" stroke="rgba(255,255,255,.2)" stroke-width="2.5"'
+        + ' fill="none" stroke="#CDBE9A" stroke-width="2.5"'
         + ' stroke-linecap="round" stroke-linejoin="round"'
         + ' clip-path="url(#cf'+uid+')"/>'
 
@@ -5376,15 +5425,15 @@ function openSheet(spot, hourIdx) {
 
       /* Horisonttiviiva */
       + '<line x1="0" y1="'+HOR_Y+'" x2="'+VW+'" y2="'+HOR_Y+'"'
-        + ' stroke="rgba(255,255,255,.2)" stroke-width="0.75"/>'
+        + ' stroke="#CDBE9A" stroke-width="0.75"/>'
 
       /* Nousu/lasku merkintäviivat */
       + '<line x1="'+riseX.toFixed(1)+'" y1="'+(HOR_Y-4)+'"'
         + ' x2="'+riseX.toFixed(1)+'" y2="'+(HOR_Y+4)+'"'
-        + ' stroke="rgba(255,210,80,.45)" stroke-width="1"/>'
+        + ' stroke="rgba(122,93,7,.45)" stroke-width="1"/>'
       + '<line x1="'+setX.toFixed(1)+'" y1="'+(HOR_Y-4)+'"'
         + ' x2="'+setX.toFixed(1)+'" y2="'+(HOR_Y+4)+'"'
-        + ' stroke="rgba(255,210,80,.45)" stroke-width="1"/>'
+        + ' stroke="rgba(122,93,7,.45)" stroke-width="1"/>'
 
       /* Aurinko */
       + (sunAboveHorizon
@@ -5402,7 +5451,7 @@ function openSheet(spot, hourIdx) {
       + ((!isSelectedNow && realNowN >= 0 && realNowN <= 1)
         ? (function(){
             var rnX = (realNowN * VW).toFixed(1);
-            return '<line x1="'+rnX+'" y1="'+(HOR_Y-AMP-4)+'" x2="'+rnX+'" y2="'+(HOR_Y+2)+'"'              + ' stroke="rgba(255,255,255,.2)" stroke-width="1" stroke-dasharray="2,3"/>'              + '<text x="'+rnX+'" y="'+(HOR_Y+14)+'" font-family="DM Mono,monospace" font-size="7"'              + ' fill="rgba(255,255,255,.25)" text-anchor="middle">NYT</text>';
+            return '<line x1="'+rnX+'" y1="'+(HOR_Y-AMP-4)+'" x2="'+rnX+'" y2="'+(HOR_Y+2)+'"'              + ' stroke="#CDBE9A" stroke-width="1" stroke-dasharray="2,3"/>'              + '<text x="'+rnX+'" y="'+(HOR_Y+14)+'" font-size="7"'              + ' fill="#5F696F" text-anchor="middle">NYT</text>';
           })()
         : '')
 
@@ -5410,20 +5459,20 @@ function openSheet(spot, hourIdx) {
       + (function(){
           var tx = (nowN * VW).toFixed(1);
           /* Tikki: pieni pystyviiva horisontin alla */
-          return '<line x1="'+tx+'" y1="'+HOR_Y+'" x2="'+tx+'" y2="'+(HOR_Y+5)+'"'            + ' stroke="rgba(255,255,255,.45)" stroke-width="1.5" stroke-linecap="round"/>'            /* Teksti: valittu kellonaika */
-            + '<text x="'+tx+'" y="'+(HOR_Y+14)+'" font-family="DM Mono,monospace" font-size="8"'            + ' fill="rgba(255,255,255,'+(isSelectedNow?'0':'.4')+')" text-anchor="'            + (nowN < 0.15 ? 'start' : nowN > 0.85 ? 'end' : 'middle')+'"'            + '>'+('0'+new Date(nowMs).getHours()).slice(-2)+':00</text>';
+          return '<line x1="'+tx+'" y1="'+HOR_Y+'" x2="'+tx+'" y2="'+(HOR_Y+5)+'"'            + ' stroke="#4C5960" stroke-width="1.5" stroke-linecap="round"/>'            /* Teksti: valittu kellonaika */
+            + '<text x="'+tx+'" y="'+(HOR_Y+14)+'" font-size="8"'            + ' fill="rgba(255,255,255,'+(isSelectedNow?'0':'.4')+')" text-anchor="'            + (nowN < 0.15 ? 'start' : nowN > 0.85 ? 'end' : 'middle')+'"'            + '>'+('0'+new Date(nowMs).getHours()).slice(-2)+':00</text>';
         })()
 
       /* Kellonajat — piilota jos valittu-merkki liian lähellä */
       + (Math.abs(nowN*VW - riseN*VW) > 30
         ? '<text x="'+riseX.toFixed(1)+'" y="'+(HOR_Y+14)+'"'
-          + ' font-family="DM Mono,monospace" font-size="8"'
-          + ' fill="rgba(255,210,80,.55)" text-anchor="middle">'+fmt(rise)+'</text>'
+          + ' font-size="8"'
+          + ' fill="#7A5D07" text-anchor="middle">'+fmt(rise)+'</text>'
         : '')
       + (Math.abs(nowN*VW - setN*VW) > 30
         ? '<text x="'+setX.toFixed(1)+'" y="'+(HOR_Y+14)+'"'
-          + ' font-family="DM Mono,monospace" font-size="8"'
-          + ' fill="rgba(255,210,80,.55)" text-anchor="middle">'+fmt(set)+'</text>'
+          + ' font-size="8"'
+          + ' fill="#7A5D07" text-anchor="middle">'+fmt(set)+'</text>'
         : '')
 
       /* Statuslabel — kaaren yläpuolella auringon kohdalla tai keskellä */
@@ -5432,7 +5481,7 @@ function openSheet(spot, hourIdx) {
           var ty = Math.max(8, sunY - 10);
           var anch = tx < 50 ? 'start' : tx > VW-50 ? 'end' : 'middle';
           return '<text x="'+tx.toFixed(1)+'" y="'+ty.toFixed(1)+'"'
-            + ' font-family="DM Mono,monospace" font-size="9"'
+            + ' font-size="9"'
             + ' fill="rgba(255,220,80,'+(isDaytime?'.85':'.35')+')"'
             + ' text-anchor="'+anch+'" font-weight="600">'+statusLine+'</text>';
         })()
@@ -5550,7 +5599,7 @@ function openSheet(spot, hourIdx) {
       for(var si=0;si<bgStops.length;si++){
         var sv = bgStops[si];
         if(sv > maxV) sv = maxV;
-        var cc = ColorRamp.rgb(sv);
+        var cc = ColorRamp.ink(sv);
         /* offset: 0% = ylaosa (maxV), 100% = alaosa (0 m/s) */
         var pct = (100 - sv/maxV*100).toFixed(1);
         var alpha = sv > 0 ? 0.32 : 0.05;
@@ -5570,7 +5619,7 @@ function openSheet(spot, hourIdx) {
       for(var wsi=0;wsi<gradSampleN;wsi++){
         var wpct = (wsi/(gradSampleN-1)*100).toFixed(1);
         var wvi = Math.round(wsi/(gradSampleN-1)*(vals.length-1));
-        var wcc = ColorRamp.rgb(vals[wvi]||0);
+        var wcc = ColorRamp.ink(vals[wvi]||0);
         windGradStops += '<stop offset="'+wpct+'%" stop-color="rgb('+wcc.r+','+wcc.g+','+wcc.b+')"/>';
       }
       var windLinGrad = '<linearGradient id="'+windLinGradId+'" x1="0" y1="0" x2="1" y2="0">'+windGradStops+'</linearGradient>';
@@ -5601,11 +5650,11 @@ function openSheet(spot, hourIdx) {
           var lbl = periodKey==='24h'
             ? (('0'+hr).slice(-2)+':00')
             : (dayNames[d.getDay()]+' '+day+'.');
-          labels+='<text x="'+x+'" y="'+(TH-1)+'" font-family="DM Mono,monospace" font-size="7.5" fill="rgba(255,255,255,.55)" text-anchor="middle">'+lbl+'</text>';
+          labels+='<text x="'+x+'" y="'+(TH-1)+'" font-size="7.5" fill="#4C5960" text-anchor="middle">'+lbl+'</text>';
         } else if(hr%hourStep===0&&hr!==0){
           if(periodKey==='24h'||periodKey==='5d'){
             var fillA=periodKey==='24h'?'.35':'.2';
-            labels+='<text x="'+x+'" y="'+(TH-1)+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,'+fillA+')" text-anchor="middle">'+('0'+hr).slice(-2)+'</text>';
+            labels+='<text x="'+x+'" y="'+(TH-1)+'" font-size="7" fill="rgba(255,255,255,'+fillA+')" text-anchor="middle">'+('0'+hr).slice(-2)+'</text>';
           }
         }
       }
@@ -5615,21 +5664,21 @@ function openSheet(spot, hourIdx) {
       var yStep = maxV>15?4:maxV>8?2:1;
       for(var yv=yStep;yv<=Math.ceil(maxV);yv+=yStep){
         var yy=yOf(yv).toFixed(1);
-        ylbls+='<text x="'+(Y_PAD-6)+'" y="'+yy+'" font-family="DM Mono,monospace" font-size="7.5" fill="rgba(255,255,255,.28)" text-anchor="end" dominant-baseline="middle">'+yv+'</text>';
-        ylbls+='<line x1="'+Y_PAD+'" y1="'+yy+'" x2="'+(W-PAD)+'" y2="'+yy+'" stroke="rgba(255,255,255,.05)" stroke-width="0.5"/>';
+        ylbls+='<text x="'+(Y_PAD-6)+'" y="'+yy+'" font-size="7.5" fill="#5F696F" text-anchor="end" dominant-baseline="middle">'+yv+'</text>';
+        ylbls+='<line x1="'+Y_PAD+'" y1="'+yy+'" x2="'+(W-PAD)+'" y2="'+yy+'" stroke="#DFD4B6" stroke-width="0.5"/>';
       }
       /* 6 m/s foilausalue-viiva */
       if(6 < maxV) {
         var fyBot6 = yOf(6).toFixed(1);
         ylbls+='<line x1="'+Y_PAD+'" y1="'+fyBot6+'" x2="'+(W-PAD)+'" y2="'+fyBot6+'" stroke="rgba(100,220,255,.12)" stroke-width="1" stroke-dasharray="4,3"/>';
-        ylbls+='<text x="'+(W-PAD-2)+'" y="'+fyBot6+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(100,220,255,.35)" text-anchor="end" dominant-baseline="auto" dy="-2">6</text>';
+        ylbls+='<text x="'+(W-PAD-2)+'" y="'+fyBot6+'" font-size="7" fill="rgba(100,220,255,.35)" text-anchor="end" dominant-baseline="auto" dy="-2">6</text>';
       }
 
       /* HARMONIE raja */
       var harmMarker='';
       if(harmCutX){
-        harmMarker='<line x1="'+harmCutX+'" y1="'+PAD+'" x2="'+harmCutX+'" y2="'+(CHART_H-PAD)+'" stroke="rgba(100,255,160,.35)" stroke-width="1" stroke-dasharray="3,3"/>'
-          +'<text x="'+harmCutX+'" y="'+(PAD+8)+'" font-family="DM Mono,monospace" font-size="6.5" fill="rgba(100,255,160,.45)" text-anchor="middle">FMI</text>';
+        harmMarker='<line x1="'+harmCutX+'" y1="'+PAD+'" x2="'+harmCutX+'" y2="'+(CHART_H-PAD)+'" stroke="#CDBE9A" stroke-width="1" stroke-dasharray="3,3"/>'
+          +'<text x="'+harmCutX+'" y="'+(PAD+8)+'" font-size="6.5" fill="#E4D8B8" text-anchor="middle">FMI</text>';
       }
 
       /* Muu mallien placeholder g */
@@ -5638,7 +5687,7 @@ function openSheet(spot, hourIdx) {
       /* Tooltip-pisteet per malli (paivitetaan JS:ssa) */
       var dotEls='<circle id="'+svgId+'-dot-main" cx="-10" cy="-10" r="4" fill="white" stroke="rgba(0,0,0,.3)" stroke-width="1" pointer-events="none"/>';
       COMPARE_MODELS.forEach(function(m){
-        dotEls+='<circle id="'+svgId+'-dot-'+m.key+'" cx="-10" cy="-10" r="3" fill="none" stroke="rgba(255,255,255,.0)" stroke-width="0" pointer-events="none"/>';
+        dotEls+='<circle id="'+svgId+'-dot-'+m.key+'" cx="-10" cy="-10" r="3" fill="none" stroke="#DFD4B6" stroke-width="0" pointer-events="none"/>';
       });
 
       var svg='<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" '
@@ -5652,12 +5701,12 @@ function openSheet(spot, hourIdx) {
         + modelsG
         + harmMarker
         /* NYT-viiva (vain jos ei ole valittu nykyhetki) */
-        + (nowSlot!==selectedSlot ? '<line x1="'+nowX+'" y1="'+PAD+'" x2="'+nowX+'" y2="'+(CHART_H-PAD)+'" stroke="rgba(255,255,255,.3)" stroke-width="1" stroke-dasharray="2,2"/><text x="'+nowX+'" y="'+(PAD+8)+'" font-family="DM Mono,monospace" font-size="6.5" fill="rgba(255,255,255,.4)" text-anchor="middle">NYT</text>' : '')
+        + (nowSlot!==selectedSlot ? '<line x1="'+nowX+'" y1="'+PAD+'" x2="'+nowX+'" y2="'+(CHART_H-PAD)+'" stroke="#5F696F" stroke-width="1" stroke-dasharray="2,2"/><text x="'+nowX+'" y="'+(PAD+8)+'" font-size="6.5" fill="#5F696F" text-anchor="middle">NYT</text>' : '')
         /* Valittu hetki -- korostettu */
-        + '<line x1="'+selX+'" y1="'+PAD+'" x2="'+selX+'" y2="'+(CHART_H-PAD)+'" stroke="rgba(255,255,255,.85)" stroke-width="1.5" stroke-dasharray="3,2"/>'
+        + '<line x1="'+selX+'" y1="'+PAD+'" x2="'+selX+'" y2="'+(CHART_H-PAD)+'" stroke="#101A20" stroke-width="1.5" stroke-dasharray="3,2"/>'
         + labels
         /* Tooltip pystyviiva + pisteet */
-        + '<line id="'+svgId+'-vl" x1="-10" y1="'+PAD+'" x2="-10" y2="'+(CHART_H-PAD)+'" stroke="rgba(255,255,255,.5)" stroke-width="1" stroke-dasharray="3,2" pointer-events="none" visibility="hidden"/>'
+        + '<line id="'+svgId+'-vl" x1="-10" y1="'+PAD+'" x2="-10" y2="'+(CHART_H-PAD)+'" stroke="#4C5960" stroke-width="1" stroke-dasharray="3,2" pointer-events="none" visibility="hidden"/>'
         + dotEls
         + '<rect id="'+svgId+'-hit" x="'+Y_PAD+'" y="'+PAD+'" width="'+(W-Y_PAD-PAD)+'" height="'+(CHART_H-PAD*2)+'" fill="transparent" style="cursor:crosshair"/>'
         + '</svg>';
@@ -5678,21 +5727,21 @@ function openSheet(spot, hourIdx) {
     }
 
     /* Period-napit — segmented control */
-    var periodBtns='<div style="display:flex;flex-shrink:0;background:rgba(255,255,255,.06);border-radius:10px;padding:2px;gap:1px;border:1px solid rgba(255,255,255,.08)">'
+    var periodBtns='<div style="display:flex;flex-shrink:0;background:var(--hairline-soft);border-radius:10px;padding:2px;gap:1px;border:1px solid var(--hairline-soft)">'
       +PERIODS.map(function(p){
         var a=p.key===activePeriod;
-        return '<button data-cp="'+p.key+'" style="flex:1;font-family:DM Mono,monospace;font-size:9px;padding:4px 6px;border:none;white-space:nowrap;background:'+(a?'rgba(100,220,255,.18)':'transparent')+';color:'+(a?'rgba(100,220,255,.95)':'rgba(255,255,255,.35)')+';border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:all .15s">'+p.label+'</button>';
+        return '<button data-cp="'+p.key+'" style="flex:1;font-variant-numeric:tabular-nums;font-size:9px;padding:4px 6px;border:none;white-space:nowrap;background:'+(a?'rgba(100,220,255,.18)':'transparent')+';color:'+(a?'var(--accent)':'var(--ink-3)')+';border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:all .15s">'+p.label+'</button>';
       }).join('')+'</div>';
 
     /* Legenda -- paivitetaan kun mallit latautuu */
-    var legendHtml='<div id="'+sectionId+'-leg" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:6px;font-family:DM Mono,monospace;font-size:8px">'
+    var legendHtml='<div id="'+sectionId+'-leg" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:6px;font-variant-numeric:tabular-nums;font-size:8px">'
       +'<span><span id="'+sectionId+'-leg-main-dot" style="color:rgba(100,220,255,.85)">&#9632;</span> '+activeLabel+'</span>'
       +COMPARE_MODELS.map(function(m){
-        return '<span id="'+sectionId+'-leg-'+m.key+'" style="color:rgba(255,255,255,.2)"><span style="font-size:10px">&#8212;</span> '+m.label+'</span>';
+        return '<span id="'+sectionId+'-leg-'+m.key+'" style="color:var(--hairline)"><span style="font-size:10px">&#8212;</span> '+m.label+'</span>';
       }).join('')
       +'</div>';
 
-    var tipHtml='<div id="'+sectionId+'-tip" style="display:none;position:absolute;background:rgba(4,8,20,.97);border:1px solid rgba(100,200,255,.2);border-radius:12px;padding:8px 14px;font-family:DM Mono,monospace;font-size:9px;pointer-events:none;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.7);z-index:100;min-width:110px;transform:translateX(-50%)"></div>';
+    var tipHtml='<div id="'+sectionId+'-tip" style="display:none;position:absolute;background:rgba(4,8,20,.97);border:1px solid rgba(100,200,255,.2);border-radius:12px;padding:8px 14px;font-variant-numeric:tabular-nums;font-size:9px;pointer-events:none;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.7);z-index:100;min-width:110px;transform:translateX(-50%)"></div>';
 
     var firstDraw=buildSvg(activePeriod);
 
@@ -5741,20 +5790,20 @@ function openSheet(spot, hourIdx) {
             var v=mapped[i];
             /* FMI-modessa nayta kaikki mallit -- ei katkaista HARMONIE-rajasta */
             if(v==null){ if(pts.length>1){drawSeg(mg,pts,m);} pts=[];inSeg=false; continue; }
-            var cc=ColorRamp.rgb(v);
+            var cc=ColorRamp.ink(v);
             var yy=(CHART_H-PAD-(v/(globalMax||1))*(CHART_H-PAD*2)).toFixed(1);
             pts.push({x:d.xOf(i).toFixed(1),y:yy,v:v,cc:cc});
           }
           if(pts.length>1) drawSeg(mg,pts,m);
           /* Legenda aktiiviseksi */
           var legEl=document.getElementById(sectionId+'-leg-'+m.key);
-          if(legEl){ legEl.style.color='rgba(255,255,255,.8)'; legEl.querySelector('span').style.color=getModelColor(m.key); }
+          if(legEl){ legEl.style.color='var(--ink)'; legEl.querySelector('span').style.color=getModelColor(m.key); }
         });
       }
 
       function getModelColor(key){
         var cols={ecmwf:'rgba(80,180,255,.9)',icon:'rgba(255,200,80,.9)',gfs:'rgba(200,100,255,.8)'};
-        return cols[key]||'rgba(255,255,255,.6)';
+        return cols[key]||'var(--ink-2)';
       }
 
       function drawSeg(mg,pts,m){
@@ -5785,7 +5834,7 @@ function openSheet(spot, hourIdx) {
         secEl.querySelectorAll('[data-cp]').forEach(function(btn){
           var a=btn.dataset.cp===periodKey;
           btn.style.background=a?'rgba(100,220,255,.18)':'transparent';
-          btn.style.color=a?'rgba(100,220,255,.95)':'rgba(255,255,255,.35)';
+          btn.style.color=a?'var(--accent)':'var(--ink-3)';
         });
         var wrap=document.getElementById(sectionId+'-wrap');
         if(!wrap) return;
@@ -5820,7 +5869,7 @@ function openSheet(spot, hourIdx) {
           vlEl.setAttribute('visibility','visible');vlEl.setAttribute('x1',x.toFixed(1));vlEl.setAttribute('x2',x.toFixed(1));
 
           var mainV=d.vals[i];
-          var mainCc=ColorRamp.rgb(mainV);
+          var mainCc=ColorRamp.ink(mainV);
           var mainCol='rgb('+mainCc.r+','+mainCc.g+','+mainCc.b+')';
           /* Paapiste */
           if(dotMain){
@@ -5841,7 +5890,7 @@ function openSheet(spot, hourIdx) {
               if(dot){dot.setAttribute('cx','-10');dot.setAttribute('cy','-10');}
               return;
             }
-            var cc=ColorRamp.rgb(v);
+            var cc=ColorRamp.ink(v);
             var col='rgb('+cc.r+','+cc.g+','+cc.b+')';
             if(dot){
               dot.setAttribute('cx',x.toFixed(1));
@@ -5861,7 +5910,7 @@ function openSheet(spot, hourIdx) {
           var timeStr=t?(('0'+t.getDate()).slice(-2)+'.'+(t.getMonth()+1)+'. '+('0'+t.getHours()).slice(-2)+':00'):'';
           var isPast=i<d.nowSlot;
 
-          var html='<div style="color:rgba(255,255,255,.4);margin-bottom:5px;font-size:8px">'+timeStr+(isPast?' &#183; mennyt':'')+'</div>';
+          var html='<div style="color:var(--ink-3);margin-bottom:5px;font-size:8px">'+timeStr+(isPast?' &#183; mennyt':'')+'</div>';
           entries.forEach(function(e){
             html+='<div style="display:flex;justify-content:space-between;gap:14px;margin-bottom:2px;'+(e.isMain?'font-weight:700':'')+'">'
               +'<span style="color:'+e.col+'">'+e.label+'</span>'
@@ -5934,7 +5983,7 @@ function openSheet(spot, hourIdx) {
        loaded async and injected after sheet opens */
     const CURRENT_TTL = 10 * 60 * 1000; /* 10 min cache */
     function renderFmi(el, cMs, cDir, cGst) {
-      const cc = ColorRamp.rgb(cMs);
+      const cc = ColorRamp.ink(cMs);
       el.innerHTML = '<div class="sh-fmi-left">'
         + '<div class="sh-fmi-name">🛰 Reaaliaikainen havainto</div>'
         + '<div class="sh-fmi-meta">' + dirArrow(cDir) + ' ' + Math.round(cDir) + '° · Puuska ' + Units.fmt(cGst) + ' ' + Units.label() + '</div>'
@@ -6007,12 +6056,12 @@ function openSheet(spot, hourIdx) {
           + '<div class="sh-desc">' + spot.desc + '</div>'
           + (()=>{
               const si2 = spotIndex(ms, dir, spot.bestDirs, gst);
-              const sc2 = spotIndexColor(si2);
-              const svg2 = spotMarkerSVG(si2, '', 48);
+              const sc2 = spotIndexInk(si2);
+              const svg2 = spotMarkerSVG(si2, '', 48, true);
               const dirs2 = spot.bestDirs ? spot.bestDirs.join(' · ') : '';
               return '<div style="display:inline-flex;align-items:center;gap:10px;margin-top:8px">'
                 + svg2
-                + '<div style="font-family:DM Mono,monospace;line-height:1.5">'
+                + '<div style="font-variant-numeric:tabular-nums;line-height:1.5">'
                 + '<div style="font-size:9px;color:rgba(180,215,255,.5);text-transform:uppercase;letter-spacing:1px">Spottiindeksi</div>'
                 + '<div style="font-size:11px;color:'+sc2+';font-weight:600">'+dirs2+'</div>'
                 + '</div></div>';
@@ -6071,28 +6120,28 @@ function openSheet(spot, hourIdx) {
     /* 24h tuuliennuste — heti sliderin ja foil-badgen jälkeen */
     + build24hChart()
     /* Havainnot-rivi */
-    + '<div style="font-family:DM Mono,monospace;font-size:8px;font-weight:700;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:5px">Havainnot</div>'    + '<div class="sh-stats" id="sh-stats-live">'      + _tempDewComboCard(fmiId + '-tmp', fmiId + '-dew')      + (_uirasStation ? _uirasLinkCard(_waterStatId, _uirasStation) : _statCard('Vesi', waterTemp, _waterTempSource || '°C', null))      + _fmiLinkCard(fmiId)      + (function(){          var fmiGustId = fmiId + '-gust-lnk';          var gstFmt = Units.fmt(gst);          var gcc = ColorRamp.rgb(gst);          var gcol = 'rgb('+gcc.r+','+gcc.g+','+gcc.b+')';          return '<div class="sh-stat" id="'+fmiGustId+'">'            + '<span class="sh-stat-label">💨 Puuska</span>'            + '<span class="sh-stat-value" id="'+fmiGustId+'-val" style="color:'+gcol+'">'+gstFmt+'</span>'            + '<span class="sh-stat-sub" id="'+fmiGustId+'-sub">'+Units.label()+' enn.</span>'          + '</div>';        })()    + '</div>'
+    + '<div style="font-variant-numeric:tabular-nums;font-size:8px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:5px">Havainnot</div>'    + '<div class="sh-stats" id="sh-stats-live">'      + _tempDewComboCard(fmiId + '-tmp', fmiId + '-dew')      + (_uirasStation ? _uirasLinkCard(_waterStatId, _uirasStation) : _statCard('Vesi', waterTemp, _waterTempSource || '°C', null))      + _fmiLinkCard(fmiId)      + (function(){          var fmiGustId = fmiId + '-gust-lnk';          var gstFmt = Units.fmt(gst);          var gcc = ColorRamp.rgb(gst);          var gcol = 'rgb('+gcc.r+','+gcc.g+','+gcc.b+')';          return '<div class="sh-stat" id="'+fmiGustId+'">'            + '<span class="sh-stat-label">💨 Puuska</span>'            + '<span class="sh-stat-value" id="'+fmiGustId+'-val" style="color:'+gcol+'">'+gstFmt+'</span>'            + '<span class="sh-stat-sub" id="'+fmiGustId+'-sub">'+Units.label()+' enn.</span>'          + '</div>';        })()    + '</div>'
     /* Aurinkokaari — tuuliruusun tilalle */
     + buildSunBar()
     + '<div style="height:8px"></div>'
 
     /* FMI historia-kaavio */
     + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">'
-      + '<span style="font-family:DM Mono,monospace;font-size:9px;color:rgba(100,255,160,.45);letter-spacing:.3px" id="' + fmiId + '-chart-lbl">Tuulihavainto · ladataan...</span>'
-      + '<div style="flex:1;height:1px;background:rgba(100,255,160,.08)"></div>'
+      + '<span style="font-variant-numeric:tabular-nums;font-size:9px;color:var(--accent);letter-spacing:.3px" id="' + fmiId + '-chart-lbl">Tuulihavainto · ladataan...</span>'
+      + '<div style="flex:1;height:1px;background:var(--accent-soft)"></div>'
     + '</div>'
     + '<div id="' + fmiId + '-hist" class="sh-stat-live-panel open" style="margin-bottom:6px">'
-      + '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:14px">Ladataan...</div>'
+      + '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--muted);text-align:center;padding:14px">Ladataan...</div>'
     + '</div>'
 
     /* UiRas vedenlämpö */
     + (_uirasStation
         ? '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">'
-            + '<span style="font-family:DM Mono,monospace;font-size:9px;color:rgba(41,232,168,.45);letter-spacing:.3px" id="uiras-chart-lbl-' + _waterStatId + '">Uimaveden lämpötila · ' + _uirasStation.name + '</span>'
-            + '<div style="flex:1;height:1px;background:rgba(41,232,168,.08)"></div>'
+            + '<span style="font-variant-numeric:tabular-nums;font-size:9px;color:var(--accent);letter-spacing:.3px" id="uiras-chart-lbl-' + _waterStatId + '">Uimaveden lämpötila · ' + _uirasStation.name + '</span>'
+            + '<div style="flex:1;height:1px;background:var(--accent-soft)"></div>'
           + '</div>'
           + '<div id="uiras-always-' + _waterStatId + '" class="sh-stat-live-panel open" style="margin-bottom:6px">'
-            + '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:14px">Ladataan...</div>'
+            + '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--muted);text-align:center;padding:14px">Ladataan...</div>'
           + '</div>'
         : '')
 
@@ -6257,10 +6306,10 @@ function openSheet(spot, hourIdx) {
     /* Aseta gradient #sheet-elementille jotta handle-alue on yhtenäinen */
     var sheetEl = document.getElementById('sheet');
     if (!sheetEl) return;
-    var cc = ColorRamp.rgb(ms);
+    var cc = ColorRamp.ink(ms);
     var r = cc.r, g = cc.g, b = cc.b;
-    sheetEl.style.background = 'rgba(10,14,26,.98)';
-    sheetEl.style.backgroundImage = 'linear-gradient(180deg, rgba('+r+','+g+','+b+',.06) 0%, transparent 160px)';
+    sheetEl.style.background = 'var(--surface)';
+    sheetEl.style.backgroundImage = 'linear-gradient(180deg, rgba('+r+','+g+','+b+',.10) 0%, transparent 150px)';
   })();
 
   /* Lataa FMI latest + historia — 2 kutsua, ei Open-Meteo -kutsuja */
@@ -6304,7 +6353,7 @@ function openSheet(spot, hourIdx) {
         if (latData && !spot._currentWx) _updateFmiCard(fmiId, latData);
       },
       function() {
-        if (histEl) histEl.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.5);text-align:center;padding:10px">Havaintodata ei saatavilla</div>';
+        if (histEl) histEl.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.5);text-align:center;padding:10px">Havaintodata ei saatavilla</div>';
       }
     );
   })();
@@ -6353,7 +6402,7 @@ function openSheet(spot, hourIdx) {
       if (chartLbl) chartLbl.textContent = 'Uimaveden lämpötila · ' + bestSt.name;
       _uirasChartInteractive(uirasHistEl, pts, bestSt.name, bestSt, spot.lat, spot.lng);
     }).catch(function() {
-      if (uirasHistEl) uirasHistEl.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.5);text-align:center;padding:10px">Vedenlämpödata ei saatavilla</div>';
+      if (uirasHistEl) uirasHistEl.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.5);text-align:center;padding:10px">Vedenlämpödata ei saatavilla</div>';
     });
   }
 }
@@ -6361,10 +6410,10 @@ function openSheet(spot, hourIdx) {
 /* Yksinkertainen vesi-stat — pelkkä arvo, ei nappia */
 function _waterStatSimple(id, station) {
   const shortName = station.name.replace(/uimaranta/gi,'').trim();
-  return '<div id="' + id + '" class="sh-stat" style="border-color:rgba(41,232,168,.2);background:rgba(41,232,168,.05)">'
+  return '<div id="' + id + '" class="sh-stat" style="border-color:var(--hairline);background:var(--accent-soft)">'
     + '<span class="sh-stat-label">🏊 Vesi</span>'
     + '<span data-ws-val class="sh-stat-value" style="color:#4dd">—</span>'
-    + '<span class="sh-stat-sub" style="color:rgba(41,232,168,.4)">' + shortName + '</span>'
+    + '<span class="sh-stat-sub" style="color:var(--accent)">' + shortName + '</span>'
   + '</div>';
 }
 
@@ -6389,8 +6438,8 @@ function _tempDewComboCard(tmpId, dewId) {
   return '<div class="sh-stat">'
     + '<span class="sh-stat-label">🌡 Lämpö</span>'
     + '<div style="display:flex;flex-direction:column;align-items:flex-start;gap:1px">'
-      + '<span id="'+tmpId+'" class="sh-stat-value" style="color:rgba(255,200,100,.5)">—</span>'
-      + '<span id="'+dewId+'" style="font-family:DM Mono,monospace;font-size:10px;color:rgba(100,200,255,.4);margin-top:1px">—°<span style="font-size:8px;opacity:.6"> kaste</span></span>'
+      + '<span id="'+tmpId+'" class="sh-stat-value" style="color:#7A5D07">—</span>'
+      + '<span id="'+dewId+'" style="font-variant-numeric:tabular-nums;font-size:10px;color:rgba(100,200,255,.4);margin-top:1px">—°<span style="font-size:8px;opacity:.6"> kaste</span></span>'
     + '</div>'
     + '<span class="sh-stat-sub">°C</span>'
   + '</div>';
@@ -6401,10 +6450,10 @@ function _fmiLinkCard(fmiId) {
   var eid = fmiId + '-hist';
   return '<div class="sh-stat" id="'+fmiId+'-lnk" style="cursor:pointer" onclick="_scrollToSection(\''+eid+'\')">'
     + '<span class="sh-stat-label">📡 Tuuli</span>'
-    + '<span id="'+fmiId+'-lnk-val" class="sh-stat-value" style="color:rgba(100,255,160,.4)">—</span>'
+    + '<span id="'+fmiId+'-lnk-val" class="sh-stat-value" style="color:var(--accent)">—</span>'
     + '<div style="display:flex;flex-direction:column;gap:0">'
-      + '<span id="'+fmiId+'-lnk-name" style="font-family:DM Mono,monospace;font-size:8px;color:rgba(100,255,160,.55);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62px">—</span>'
-      + '<span id="'+fmiId+'-lnk-sub" style="font-family:DM Mono,monospace;font-size:8px;color:rgba(100,255,160,.3);line-height:1.3">—</span>'
+      + '<span id="'+fmiId+'-lnk-name" style="font-variant-numeric:tabular-nums;font-size:8px;color:var(--accent);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62px">—</span>'
+      + '<span id="'+fmiId+'-lnk-sub" style="font-variant-numeric:tabular-nums;font-size:8px;color:var(--ink-3);line-height:1.3">—</span>'
     + '</div>'
   + '</div>';
 }
@@ -6415,20 +6464,20 @@ function _uirasLinkCard(id, station) {
   var eid = 'uiras-always-' + id;
   return '<div class="sh-stat" id="'+id+'-lnk" style="cursor:pointer" onclick="_scrollToSection(\''+eid+'\')">'
     + '<span class="sh-stat-label">🏊 Vesi</span>'
-    + '<span id="'+id+'-lnk-val" class="sh-stat-value" style="color:rgba(41,232,168,.4)">—</span>'
-    + '<span id="'+id+'-lnk-name" class="sh-stat-sub" style="color:rgba(41,232,168,.45);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62px">'+shortName+'</span>'
+    + '<span id="'+id+'-lnk-val" class="sh-stat-value" style="color:var(--accent)">—</span>'
+    + '<span id="'+id+'-lnk-name" class="sh-stat-sub" style="color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62px">'+shortName+'</span>'
   + '</div>';
 }
 
 /* Päivittää kaikki havaintoboksit — kutsutaan aina kun asema vaihtuu */
 function _updateFmiCard(fmiId, fmi) {
-  var cc = ColorRamp.rgb(fmi.ws || 0);
+  var cc = ColorRamp.ink(fmi.ws || 0);
   var col = 'rgb('+cc.r+','+cc.g+','+cc.b+')';
   /* Hero pysyy ennusteessa — ei päivitetä */
   /* Lämpö + kastepiste */
   var te = document.getElementById(fmiId+'-tmp');
   var de = document.getElementById(fmiId+'-dew');
-  if (te && fmi.tmp != null) { te.textContent = fmi.tmp.toFixed(1); te.style.color = 'rgba(255,200,100,.9)'; }
+  if (te && fmi.tmp != null) { te.textContent = fmi.tmp.toFixed(1); te.style.color = '#7A5D07'; }
   if (de && fmi.dew != null) { de.textContent = fmi.dew.toFixed(1)+'°'; de.style.color = 'rgba(100,200,255,.9)'; }
   /* Tuuli-linkki-kortti: arvo + asemanimi + aika */
   var lv = document.getElementById(fmiId+'-lnk-val');
@@ -6441,16 +6490,16 @@ function _updateFmiCard(fmiId, fmi) {
   if (fmi.wg != null) {
     var gv2 = document.getElementById(fmiId+'-gust-lnk-val');
     var gs2 = document.getElementById(fmiId+'-gust-lnk-sub');
-    var gcc2 = ColorRamp.rgb(fmi.wg || 0);
+    var gcc2 = ColorRamp.ink(fmi.wg || 0);
     if (gv2) { gv2.textContent = Units.fmt(fmi.wg); gv2.style.color = 'rgb('+gcc2.r+','+gcc2.g+','+gcc2.b+')'; }
-    if (gs2) { gs2.textContent = Units.label()+' hav.'; gs2.style.color = 'rgba(255,255,255,.35)'; }
+    if (gs2) { gs2.textContent = Units.label()+' hav.'; gs2.style.color = 'var(--ink-3)'; }
   }
 }
 
 function _updateUirasCard(waterStatId, temp, stationName) {
   var lv = document.getElementById(waterStatId+'-lnk-val');
   var ln = document.getElementById(waterStatId+'-lnk-name');
-  if (lv && temp != null) { lv.textContent = temp.toFixed(1); lv.style.color = 'rgba(41,232,168,.9)'; }
+  if (lv && temp != null) { lv.textContent = temp.toFixed(1); lv.style.color = 'var(--accent)'; }
   if (ln && stationName) ln.textContent = stationName;
 }
 
@@ -6469,7 +6518,7 @@ function _trendStatCard(trend) {
   /* windTrend palauttaa cls: 'gi-gusty' (nouseva) tai 'gi-steady' (laskeva) tai '' */
   const col = trend.arrow === '↑' ? 'rgba(255,160,80,.9)'
              : trend.arrow === '↓' ? 'rgba(80,180,255,.9)'
-             : 'rgba(255,255,255,.45)';
+             : 'var(--ink-2)';
   return '<div class="sh-stat">'
     + '<span class="sh-stat-label">Trendi</span>'
     + '<span class="sh-stat-value" style="color:' + col + '">' + trend.arrow + ' ' + trend.label + '</span>'
@@ -6480,10 +6529,10 @@ function _trendStatCard(trend) {
 /* Puuskaisuus-stat-kortti */
 function _gustStatCard(gi) {
   /* gustIndex palauttaa cls: 'gi-steady' / 'gi-gusty' / 'gi-extreme' */
-  const col = gi.cls === 'gi-steady'  ? 'rgba(100,255,160,.9)'
+  const col = gi.cls === 'gi-steady'  ? '#2A702D'
              : gi.cls === 'gi-gusty'  ? 'rgba(255,200,80,.9)'
              : gi.cls === 'gi-extreme'? 'rgba(255,100,80,.9)'
-             : 'rgba(255,255,255,.45)';
+             : 'var(--ink-2)';
   return '<div class="sh-stat">'
     + '<span class="sh-stat-label">Puuskaisuus</span>'
     + '<span class="sh-stat-value" style="color:' + col + ';font-size:13px">' + gi.label + '</span>'
@@ -6556,7 +6605,7 @@ function _liveStatCard(id, spot) {
 function _tempStatCard(id) {
   return '<div id="' + id + '" class="sh-stat">'
     + '<span class="sh-stat-label">🌡 Lämpötila</span>'
-    + '<span class="sh-stat-value" style="color:rgba(255,200,100,.6)">—</span>'
+    + '<span class="sh-stat-value" style="color:#7A5D07">—</span>'
     + '<span class="sh-stat-sub">°C</span>'
   + '</div>';
 }
@@ -6583,7 +6632,7 @@ function _wxLabel(wc) {
 }
 
 function _renderLive(el, wx) {
-  const cc  = ColorRamp.rgb(wx.ms);
+  const cc  = ColorRamp.ink(wx.ms);
   const col = 'rgb(' + cc.r + ',' + cc.g + ',' + cc.b + ')';
   const id  = el.id.replace('-live','');
 
@@ -6603,7 +6652,7 @@ function _renderLive(el, wx) {
   const dewEl = document.getElementById(id + '-dew');
   if (tmpEl && wx.tmp != null) {
     const tEl = tmpEl.querySelector('.sh-stat-value');
-    if (tEl) { tEl.textContent = wx.tmp.toFixed(1); tEl.style.color = 'rgba(255,200,100,.9)'; }
+    if (tEl) { tEl.textContent = wx.tmp.toFixed(1); tEl.style.color = '#7A5D07'; }
   }
   if (dewEl && wx.dew != null) {
     const dEl = dewEl.querySelector('.sh-stat-value');
@@ -6676,11 +6725,11 @@ function _fmiDropdown(panelEl, stations, selected, onSelect) {
   trigger.className = 'fmi-station-trigger';
   function updateTrigger(st) {
     trigger.innerHTML =
-      '<span style="color:rgba(255,255,255,.3)">Asema</span>'
+      '<span style="color:var(--ink-3)">Asema</span>'
       + '<span class="fmi-station-trigger-name">' + st.name + '</span>'
       + (st.tag ? '<span class="fmi-dropdown-item-tag">' + st.tag + '</span>' : '')
       + '<span class="fmi-station-trigger-dist">' + st.km.toFixed(1) + ' km</span>'
-      + '<svg width="10" height="10" viewBox="0 0 10 10" style="flex-shrink:0;margin-left:auto"><polyline points="2,3 5,7 8,3" fill="none" stroke="rgba(100,255,160,.5)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      + '<svg width="10" height="10" viewBox="0 0 10 10" style="flex-shrink:0;margin-left:auto"><polyline points="2,3 5,7 8,3" fill="none" stroke="#E4D8B8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   }
   updateTrigger(selected);
 
@@ -6740,7 +6789,7 @@ function _fmiDropdown(panelEl, stations, selected, onSelect) {
 
 function _renderLiveHistory(el, data, wx) {
   const wsData=data.ws||[], wgData=data.wg||[];
-  if(!wsData.length){ el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:20px">Ei historiadataa</div>'; return; }
+  if(!wsData.length){ el.innerHTML='<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--muted);text-align:center;padding:20px">Ei historiadataa</div>'; return; }
   var hours=el._fmiHours||12;
   var cutIdx=Math.max(0,wsData.length-Math.round(wsData.length*hours/24));
   var wsSlice=wsData.slice(cutIdx), wgSlice=wgData.length?wgData.slice(cutIdx):[];
@@ -6782,8 +6831,8 @@ function _renderLiveHistory(el, data, wx) {
   for(var yv=yStart; yv<=maxV+0.01; yv+=yStep){
     if(yv<minV+0.3||yv>maxV-0.3) continue;
     var gy=yOf(yv);
-    yLabels+='<text x="'+(padX-6)+'" y="'+gy.toFixed(1)+'" font-family="DM Mono,monospace" font-size="7.5" fill="rgba(255,255,255,.28)" text-anchor="end" dominant-baseline="middle">'+yv.toFixed(0)+'</text>';
-    yLabels+='<line x1="'+padX+'" y1="'+gy.toFixed(1)+'" x2="'+(W-8)+'" y2="'+gy.toFixed(1)+'" stroke="rgba(255,255,255,.05)" stroke-width="1"/>';
+    yLabels+='<text x="'+(padX-6)+'" y="'+gy.toFixed(1)+'" font-size="7.5" fill="#5F696F" text-anchor="end" dominant-baseline="middle">'+yv.toFixed(0)+'</text>';
+    yLabels+='<line x1="'+padX+'" y1="'+gy.toFixed(1)+'" x2="'+(W-8)+'" y2="'+gy.toFixed(1)+'" stroke="#DFD4B6" stroke-width="1"/>';
   }
 
   /* X-akseli — tasatunnit, harvennettuna niin että labelit eivät mene
@@ -6805,14 +6854,14 @@ function _renderLiveHistory(el, data, wx) {
   for(var hi=0;hi<hourIdx.length;hi++){
     if(hi%everyNth) continue;
     var li=hourIdx[hi];
-    xlbls+='<text x="'+xOf(li).toFixed(1)+'" y="'+(TH-4)+'" font-family="DM Mono,monospace" font-size="7.5" fill="rgba(255,255,255,.25)" text-anchor="middle">'+times[li].slice(0,2)+'</text>';
+    xlbls+='<text x="'+xOf(li).toFixed(1)+'" y="'+(TH-4)+'" font-size="7.5" fill="#5F696F" text-anchor="middle">'+times[li].slice(0,2)+'</text>';
   }
 
   var svgId='fmi-svg-'+Math.random().toString(36).slice(2,7);
   var wsGId=svgId+'-wsg', wgGId=svgId+'-wgg';
 
   /* ColorRamp viivaan — gradient stops tuulen mukaan */
-  function colorStop(val){var c=ColorRamp.rgb(Units.deconvert?Units.deconvert(val):val);return 'rgb('+c.r+','+c.g+','+c.b+')';}
+  function colorStop(val){var c=ColorRamp.ink(Units.deconvert?Units.deconvert(val):val);return 'rgb('+c.r+','+c.g+','+c.b+')';}
   var windGradStops='';
   var sampleN=Math.min(n,16);
   for(var si=0;si<sampleN;si++){
@@ -6824,50 +6873,50 @@ function _renderLiveHistory(el, data, wx) {
   /* Segment control */
   var segBtns=['12h','24h'].map(function(p){
     var a=(p==='12h'&&hours===12)||(p==='24h'&&hours===24);
-    return '<button data-fmi-period="'+p+'" style="flex:1;font-family:DM Mono,monospace;font-size:9px;padding:4px 8px;border:none;white-space:nowrap;background:'+(a?'rgba(100,255,160,.15)':'transparent')+';color:'+(a?'rgba(100,255,160,.95)':'rgba(255,255,255,.35)')+';border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:all .15s">'+p+'</button>';
+    return '<button data-fmi-period="'+p+'" style="flex:1;font-variant-numeric:tabular-nums;font-size:9px;padding:4px 8px;border:none;white-space:nowrap;background:'+(a?'var(--surface-lo)':'transparent')+';color:'+(a?'#2A702D':'var(--ink-3)')+';border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:all .15s">'+p+'</button>';
   }).join('');
 
   el.innerHTML=
     '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;min-width:0">'
       +'<div id="'+svgId+'-fmidd" style="flex:1;min-width:0;overflow:visible"></div>'
-      +'<div style="display:flex;flex-shrink:0;background:rgba(255,255,255,.06);border-radius:10px;padding:2px;gap:1px;border:1px solid rgba(255,255,255,.08)">'
+      +'<div style="display:flex;flex-shrink:0;background:var(--hairline-soft);border-radius:10px;padding:2px;gap:1px;border:1px solid var(--hairline-soft)">'
         +segBtns
       +'</div>'
     +'</div>'
     +'<div style="position:relative">'
-      +'<div id="'+svgId+'-tip" style="display:none;position:absolute;background:rgba(4,8,20,.97);border:1px solid rgba(100,255,160,.2);border-radius:12px;padding:8px 14px;pointer-events:none;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.7);z-index:100;transform:translateX(-50%)"></div>'
+      +'<div id="'+svgId+'-tip" style="display:none;position:absolute;background:rgba(4,8,20,.97);border:1px solid var(--hairline);border-radius:12px;padding:8px 14px;pointer-events:none;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.7);z-index:100;transform:translateX(-50%)"></div>'
       +'<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" style="width:calc(100% + 32px);margin-left:-32px;display:block;touch-action:none;overflow:visible">'
         +'<defs>'
           +'<linearGradient id="'+wsGId+'-wind" x1="0" y1="0" x2="1" y2="0">'
             +windGradStops
           +'</linearGradient>'
-          +'<linearGradient id="'+wsGId+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(100,255,160,.2)"/><stop offset="100%" stop-color="rgba(100,255,160,.0)"/></linearGradient>'
-          +(wgArea?'<linearGradient id="'+wgGId+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(255,200,100,.12)"/><stop offset="100%" stop-color="rgba(255,200,100,.0)"/></linearGradient>':'')
+          +'<linearGradient id="'+wsGId+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(42,112,45,.24)"/><stop offset="100%" stop-color="rgba(180,0,90,0.10)"/></linearGradient>'
+          +(wgArea?'<linearGradient id="'+wgGId+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(122,93,7,.16)"/><stop offset="100%" stop-color="rgba(255,200,100,.0)"/></linearGradient>':'')
         +'</defs>'
         +yLabels
         +(wgArea?'<path d="'+wgArea+'" fill="url(#'+wgGId+')" />':'')
-        +(wgPath?'<path d="'+wgPath+'" fill="none" stroke="rgba(255,200,100,.4)" stroke-width="1.5" stroke-linecap="round"/>':'')
+        +(wgPath?'<path d="'+wgPath+'" fill="none" stroke="#7A5D07" stroke-width="1.5" stroke-linecap="round"/>':'')
         +(wsArea?'<path d="'+wsArea+'" fill="url(#'+wsGId+')" />':'')
         /* Tuuliviiva ColorRamp-gradientilla */
         +(wsPath?'<path d="'+wsPath+'" fill="none" stroke="url(#'+wsGId+'-wind)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>':'')
         +(lastYws!=null?
-          '<circle cx="'+lastX.toFixed(1)+'" cy="'+lastYws.toFixed(1)+'" r="5" fill="rgba(100,255,160,.15)" pointer-events="none"><animate attributeName="r" values="4;8;4" dur="3s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.6;0;0.6" dur="3s" repeatCount="indefinite"/></circle>'
-          +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastYws.toFixed(1)+'" r="3.5" fill="rgba(100,255,160,1)" stroke="rgba(255,255,255,.5)" stroke-width="1.5" pointer-events="none"/>'
+          '<circle cx="'+lastX.toFixed(1)+'" cy="'+lastYws.toFixed(1)+'" r="5" fill="rgba(42,112,45,.18)" pointer-events="none"><animate attributeName="r" values="4;8;4" dur="3s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.6;0;0.6" dur="3s" repeatCount="indefinite"/></circle>'
+          +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastYws.toFixed(1)+'" r="3.5" fill="#2A702D" stroke="#4C5960" stroke-width="1.5" pointer-events="none"/>'
           :'')
-        +(lastYwg!=null?'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastYwg.toFixed(1)+'" r="3" fill="rgba(255,200,100,.9)" stroke="rgba(255,255,255,.3)" stroke-width="1" pointer-events="none"/>':'')
-        +'<line id="'+svgId+'-vline" x1="-1" y1="'+padY+'" x2="-1" y2="'+H+'" stroke="rgba(255,255,255,.35)" stroke-width="1" stroke-dasharray="3,3" pointer-events="none" visibility="hidden"/>'
-        +'<circle id="'+svgId+'-dot-ws" cx="-1" cy="-1" r="4.5" fill="rgba(100,255,160,.95)" stroke="rgba(255,255,255,.5)" stroke-width="1.5" pointer-events="none" visibility="hidden"/>'
-        +(wgU.length?'<circle id="'+svgId+'-dot-wg" cx="-1" cy="-1" r="3.5" fill="rgba(255,200,100,.9)" stroke="rgba(255,255,255,.3)" stroke-width="1" pointer-events="none" visibility="hidden"/>':'')
+        +(lastYwg!=null?'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastYwg.toFixed(1)+'" r="3" fill="#7A5D07" stroke="#5F696F" stroke-width="1" pointer-events="none"/>':'')
+        +'<line id="'+svgId+'-vline" x1="-1" y1="'+padY+'" x2="-1" y2="'+H+'" stroke="#5F696F" stroke-width="1" stroke-dasharray="3,3" pointer-events="none" visibility="hidden"/>'
+        +'<circle id="'+svgId+'-dot-ws" cx="-1" cy="-1" r="4.5" fill="#2A702D" stroke="#4C5960" stroke-width="1.5" pointer-events="none" visibility="hidden"/>'
+        +(wgU.length?'<circle id="'+svgId+'-dot-wg" cx="-1" cy="-1" r="3.5" fill="#7A5D07" stroke="#5F696F" stroke-width="1" pointer-events="none" visibility="hidden"/>':'')
         +'<rect id="'+svgId+'-hit" x="'+padX+'" y="'+padY+'" width="'+(W-padX-8)+'" height="'+(H-padY)+'" fill="transparent" style="cursor:crosshair"/>'
         +xlbls
       +'</svg>'
     +'</div>'
     +'<div style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;padding:0 2px">'
-      +'<div style="display:flex;gap:10px;font-family:DM Mono,monospace;font-size:8px">'
-        +'<span style="color:rgba(100,255,160,.5)">▬ Tuuli'+(latWs!=null?' <b style="color:rgba(100,255,160,.9)">'+latWs.toFixed(1)+'</b> '+Units.label():'')+'</span>'
-        +(wgU.length?'<span style="color:rgba(255,200,100,.5)">▬ Puuska'+(latWg!=null?' <b style="color:rgba(255,200,100,.85)">'+latWg.toFixed(1)+'</b>':'')+'</span>':'')
+      +'<div style="display:flex;gap:10px;font-variant-numeric:tabular-nums;font-size:8px">'
+        +'<span style="color:var(--accent)">▬ Tuuli'+(latWs!=null?' <b style="color:#2A702D">'+latWs.toFixed(1)+'</b> '+Units.label():'')+'</span>'
+        +(wgU.length?'<span style="color:#7A5D07">▬ Puuska'+(latWg!=null?' <b style="color:#7A5D07">'+latWg.toFixed(1)+'</b>':'')+'</span>':'')
       +'</div>'
-      +'<div style="font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.18)">'+(data.station||'FMI')+'</div>'
+      +'<div style="font-variant-numeric:tabular-nums;font-size:8px;color:var(--hairline)">'+(data.station||'FMI')+'</div>'
     +'</div>';
 
   /* Tooltip + crosshair */
@@ -6887,11 +6936,11 @@ function _renderLiveHistory(el, data, wx) {
     var wgVal=wgU[idx]!=null?wgU[idx].toFixed(1):null;
     var dir=wsDirs&&wsDirs[idx]!=null?wsDirs[idx]:null;
     var dirHtml=dir!=null?'<span style="display:inline-block;transform:rotate('+(dir+180)+'deg);font-size:12px;line-height:1">↑</span> ':'' ;
-    var cc=ColorRamp.rgb(wsU[idx]||0);
+    var cc=ColorRamp.ink(wsU[idx]||0);
     var wColor='rgb('+cc.r+','+cc.g+','+cc.b+')';
     tip.innerHTML='<div style="font-size:18px;font-weight:700;color:'+wColor+';letter-spacing:-.5px;line-height:1">'+dirHtml+wsVal+' <span style="font-size:11px;font-weight:400;opacity:.6">'+Units.label()+'</span></div>'
-      +(wgVal?'<div style="font-size:10px;color:rgba(255,200,100,.75);margin-top:3px">Puuska '+wgVal+' '+Units.label()+'</div>':'')
-      +'<div style="color:rgba(255,255,255,.28);font-size:9px;margin-top:4px;font-family:DM Mono,monospace">'+(times[idx]||'')+'</div>';
+      +(wgVal?'<div style="font-size:10px;color:#7A5D07;margin-top:3px">Puuska '+wgVal+' '+Units.label()+'</div>':'')
+      +'<div style="color:var(--ink-3);font-size:9px;margin-top:4px;font-family:DM Mono,monospace">'+(times[idx]||'')+'</div>';
     var r=svg.getBoundingClientRect();
     tip.style.left=_tipLeftPx(tip,r,x,W)+'px';
     tip.style.top=(yw!=null?Math.max(2,(yw/TH)*r.height-62):4)+'px';
@@ -6933,7 +6982,7 @@ function _renderLiveHistory(el, data, wx) {
         var lbl = document.getElementById(fmiIdRef + '-chart-lbl');
         if (lbl) lbl.textContent = 'Tuulihavainto · ' + st.name;
       }
-      el.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:10px">Ladataan '+st.name+'...</div>';
+      el.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--muted);text-align:center;padding:10px">Ladataan '+st.name+'...</div>';
       /* Järjestetään: valittu asema ensin, sitten muut fallbackina */
       var fallbackList = [st].concat(stations.filter(function(s){ return s.place !== st.place; }));
       _fmiLoadWithFallback(fallbackList, hours,
@@ -6949,7 +6998,7 @@ function _renderLiveHistory(el, data, wx) {
           _renderLiveHistory(el, Object.assign({}, nd, {place: okSt.place}), lat2||wx);
         },
         function() {
-          el.innerHTML = '<div style="text-align:center;padding:10px;color:rgba(255,100,100,.7);font-family:DM Mono,monospace;font-size:10px">Ei dataa saatavilla</div>';
+          el.innerHTML = '<div style="text-align:center;padding:10px;color:rgba(255,100,100,.7);font-variant-numeric:tabular-nums;font-size:10px">Ei dataa saatavilla</div>';
         }
       );
     });
@@ -7007,9 +7056,9 @@ function _renderLiveHistory(el, data, wx) {
     /* Tooltip teksti */
     var t = times[idx] || '';
     tip.innerHTML =
-      '<div style="color:rgba(255,255,255,.4);margin-bottom:3px">'+t+'</div>'
-      +'<div style="color:rgba(100,255,160,.9)">Tuuli: '+wsV.toFixed(1)+' '+Units.label()+'</div>'
-      +(wgV!=null?'<div style="color:rgba(255,200,100,.9)">Puuska: '+wgV.toFixed(1)+' '+Units.label()+'</div>':'');
+      '<div style="color:var(--ink-3);margin-bottom:3px">'+t+'</div>'
+      +'<div style="color:#2A702D">Tuuli: '+wsV.toFixed(1)+' '+Units.label()+'</div>'
+      +(wgV!=null?'<div style="color:#7A5D07">Puuska: '+wgV.toFixed(1)+' '+Units.label()+'</div>':'');
 
     /* Tooltip sijainti — pysyy SVG:n sisällä */
     var rect = svg.getBoundingClientRect();
@@ -7165,7 +7214,7 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
     tick.dataset.idx = i;
     const barH = Math.max(5, (ms / maxMs) * 72);
     const foilable = ms >= 8;
-    tick.innerHTML = '<div class="htick-bar' + (foilable ? ' foilable' : '') + '" style="height:' + barH + 'px;background:rgb(' + bc.r + ',' + bc.g + ',' + bc.b + ')' + (foilable ? ';border-bottom:2px solid rgb(80,237,120)' : '') + '"></div>'
+    tick.innerHTML = '<div class="htick-bar' + (foilable ? ' foilable' : '') + '" style="height:' + barH + 'px;background:rgb(' + bc.r + ',' + bc.g + ',' + bc.b + ')' + (foilable ? ';border-bottom:2px solid #2A702D' : '') + '"></div>'
       + '<span class="htick-lbl">' + ('0'+hour).slice(-2) + '</span>';
     tl.appendChild(tick);
     State._tlTicks.push(tick);
@@ -7346,7 +7395,7 @@ function _tlUpdateNow(idx) {
   const dateStr = DAY[d.getDay()] + ' ' + d.getDate() + '.' + (d.getMonth()+1) + '.';
   const bubble = document.getElementById('tl-time-bubble');
   if (bubble) bubble.innerHTML =
-    '<div style="font-size:9px;color:rgba(41,232,168,.85);letter-spacing:.5px;font-weight:700;margin-bottom:1px">' + dateStr + '</div>'
+    '<div style="font-size:9px;color:var(--accent);letter-spacing:.5px;font-weight:700;margin-bottom:1px">' + dateStr + '</div>'
     + '<div style="font-size:18px;font-weight:700;letter-spacing:1px;color:#fff;line-height:1">' + hh + ':00</div>';
 }
 
@@ -7602,19 +7651,19 @@ function buildWindRoseSVG(h, idx) {
   for (let i = 0; i < DIRS; i++) {
     const ang = (i * (360 / DIRS) - 90) * Math.PI / 180;
     const r = (bins[i] / maxBin) * R;
-    const c = ColorRamp.rgb(bins[i] / (count > 0 ? count / DIRS : 1));
+    const c = ColorRamp.ink(bins[i] / (count > 0 ? count / DIRS : 1));
     const x = cx + Math.cos(ang) * r, y = cy + Math.sin(ang) * r;
     if (r > 2) {
       paths += '<line x1="'+cx+'" y1="'+cy+'" x2="'+x+'" y2="'+y+'" stroke="rgb('+c.r+','+c.g+','+c.b+')" stroke-width="4" stroke-linecap="round" opacity="0.7"/>';
       dots += '<circle cx="'+x+'" cy="'+y+'" r="3" fill="rgb('+c.r+','+c.g+','+c.b+')"/>';
     }
     if (labels[i]) {
-      lbls += '<text x="'+(cx+Math.cos(ang)*(R+12))+'" y="'+(cy+Math.sin(ang)*(R+12))+'" text-anchor="middle" dominant-baseline="central" fill="rgba(180,215,255,0.4)" font-size="8" font-family="DM Mono,monospace">'+labels[i]+'</text>';
+      lbls += '<text x="'+(cx+Math.cos(ang)*(R+12))+'" y="'+(cy+Math.sin(ang)*(R+12))+'" text-anchor="middle" dominant-baseline="central" fill="rgba(180,215,255,0.4)" font-size="8">'+labels[i]+'</text>';
     }
   }
-  const rings = '<circle cx="'+cx+'" cy="'+cy+'" r="'+(R*0.33)+'" fill="none" stroke="rgba(255,255,255,0.06)"/>'
-    + '<circle cx="'+cx+'" cy="'+cy+'" r="'+(R*0.66)+'" fill="none" stroke="rgba(255,255,255,0.06)"/>'
-    + '<circle cx="'+cx+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="rgba(255,255,255,0.08)"/>';
+  const rings = '<circle cx="'+cx+'" cy="'+cy+'" r="'+(R*0.33)+'" fill="none" stroke="#DFD4B6"/>'
+    + '<circle cx="'+cx+'" cy="'+cy+'" r="'+(R*0.66)+'" fill="none" stroke="#DFD4B6"/>'
+    + '<circle cx="'+cx+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="#DFD4B6"/>';
   return '<div class="sh-windrose"><svg width="160" height="160" viewBox="0 0 140 140">'+rings+paths+dots+lbls+'</svg></div>';
 }
 
@@ -7967,13 +8016,13 @@ const ForecastPanel = {
       '<div class="fc-day">'
       + '<div class="fc-day-label">' + dayLabel + '</div>'
       + windows.map(w => {
-          const col = spotIndexColor(w.score);
-          const svg = spotMarkerSVG(w.score, '', 42);
+          const col = spotIndexInk(w.score);
+          const svg = spotMarkerSVG(w.score, '', 42, true);
           const t0  = new Date(w.windowStart);
           const t1  = new Date(w.windowEnd);
           const fmt = t => ('0'+t.getHours()).slice(-2) + ':00';
           const arrow = dirArrow(w.dir);
-          const cRamp = ColorRamp.rgb(w.ms);
+          const cRamp = ColorRamp.ink(w.ms);
           const msCol = 'rgb('+cRamp.r+','+cRamp.g+','+cRamp.b+')';
           return '<div class="fc-window" data-spot="'+w.spot.name+'" data-time="'+w.windowStart+'">'
             + '<div class="fc-window-score">' + svg + '</div>'
@@ -8161,7 +8210,7 @@ const WxPanel = {
     const cached = WeatherWidget._cache[key];
     const scroll = document.getElementById('wx-panel-scroll');
     if (!cached || !cached.data || !cached.data.hourly) {
-      scroll.innerHTML = '<div style="padding:20px;color:var(--muted);font-family:DM Mono,monospace;font-size:11px;text-align:center">Ladataan säätietoja...</div>';
+      scroll.innerHTML = '<div style="padding:20px;color:var(--muted);font-variant-numeric:tabular-nums;font-size:11px;text-align:center">Ladataan säätietoja...</div>';
       WeatherWidget.scheduleUpdate();
       return;
     }
@@ -8190,7 +8239,7 @@ const WxPanel = {
         const sh = nearestSpot.wx.hourly;
         const sIdx = Math.min(State.currentHourIdx + k, sh.windspeed_10m.length - 1);
         const ms = sh.windspeed_10m[sIdx] || 0;
-        const cRamp = ColorRamp.rgb(ms);
+        const cRamp = ColorRamp.ink(ms);
         windStr = '<div class="wx-hour-wind" style="color:rgb('+cRamp.r+','+cRamp.g+','+cRamp.b+')">'
           + Units.fmt(ms) + '<span style="opacity:.6;font-size:8px"> '+Units.label()+'</span></div>';
       }
@@ -8506,7 +8555,7 @@ const _loadingSafety = setTimeout(() => {
   el.style.cssText =
     'position:fixed;top:calc(var(--sat) + 92px);left:50%;transform:translateX(-50%);'
     + 'z-index:9999;background:rgba(4,8,18,.92);border:1px solid rgba(255,255,255,.14);'
-    + 'border-radius:10px;padding:7px 10px;font-family:DM Mono,monospace;font-size:10px;'
+    + 'border-radius:10px;padding:7px 10px;font-variant-numeric:tabular-nums;font-size:10px;'
     + 'color:#fff;text-align:center;backdrop-filter:none;-webkit-backdrop-filter:none;'
     + 'box-shadow:0 2px 12px rgba(0,0,0,.6);white-space:nowrap;-webkit-user-select:none;user-select:none';
   el.innerHTML =
@@ -8558,7 +8607,7 @@ const _loadingSafety = setTimeout(() => {
       var k = b.dataset.pp, isOff = off[k];
       /* snap ei ole pois/päällä vaan arvonvalinta — näytetään käytössä oleva */
       b.textContent = k === 'snap' ? ('Snap ' + (isOff ? '0' : '0.5')) : (LBL[k] + (isOff ? ' ✕' : ' ✓'));
-      b.style.cssText = 'flex:1;font-family:DM Mono,monospace;font-size:9px;padding:5px 4px;'
+      b.style.cssText = 'flex:1;font-variant-numeric:tabular-nums;font-size:9px;padding:5px 4px;'
         + 'border:1px solid ' + (isOff ? 'rgba(255,90,90,.5)' : 'rgba(41,232,168,.4)') + ';'
         + 'background:' + (isOff ? 'rgba(255,90,90,.16)' : 'rgba(41,232,168,.14)') + ';'
         + 'color:' + (isOff ? 'rgba(255,150,150,.95)' : 'rgba(41,232,168,.95)') + ';'
