@@ -3116,6 +3116,7 @@ const CoastShade = {
     A_LIGHT: 0.06,
     LIGHT:   [140, 175, 205],
     GAMMA:   1.25,  /* >1 terävöittää liukua rannan lähellä */
+    FADE_MS:  220,  /* tasojen ristihäivytys — katso _flush() */
     BUDGET_MS: 12   /* laskenta-aika per tehtävä ennen kuin selain päästetään
                        piirtämään — katso _drain() */
   },
@@ -3224,13 +3225,64 @@ const CoastShade = {
    * Promise-ketjutus ei riitä: await palaa mikrotehtäväjonon kautta, joka
    * ajetaan ennen piirtoa. Siksi väliin tarvitaan oikea setTimeout-luovutus.
    * Tehdään töitä budjetin verran, päästetään selain piirtämään, jatketaan. */
-  _queue: [], _pending: [], _draining: false, _busy: false, _sweepT: null,
+  _queue: [], _pending: [], _draining: false, _busy: false, _sweepT: null, _fadeToken: 0,
 
-  /* Ilmoittaa Leafletille valmiit laatat. Kutsutaan kerralla koko erälle. */
+  /* Ilmoittaa Leafletille valmiit laatat. Kutsutaan kerralla koko erälle.
+   *
+   * Zoom-tason vaihtuessa tehdään ristihäivytys itse. Leafletin oma häivytys
+   * ei kelpaa läpinäkyvälle varjolle, koska se pitää vanhan tason täydessä
+   * kirkkaudessa uuden häivyttyessä sen päälle — sama rantaviiva kahdesti,
+   * jolloin tummuus kasvaa 62 % ja kartta välähtää tummempana. Pelkkä
+   * välitön vaihto taas vaihtaa koko varjon yhdessä framessa, ja sekin
+   * näkyy välähdyksenä.
+   *
+   * Tässä vanha taso himmenee samaa tahtia kuin uusi kirkastuu, jolloin
+   * yhteisalpha pysyy lähes vakiona: puolivälissä 1−(1−a/2)² = 0.34 kun
+   * a = 0.38, eli 10 % vajaus tummuudessa sen sijaan että se kasvaisi 62 %.
+   *
+   * Panoroinnissa taso ei vaihdu, jolloin häivytystä ei tehdä lainkaan. */
   _flush() {
     const p = this._pending;
     this._pending = [];
-    for (let i = 0; i < p.length; i++) p[i].done(null, p[i].cvs);
+    if (!p.length) return;
+    const layer = this.layer;
+    if (!layer || !layer._levels) {
+      for (let i = 0; i < p.length; i++) p[i].done(null, p[i].cvs);
+      return;
+    }
+    const zNew = p[0].coords.z;
+    const olds = [];
+    for (const z in layer._levels) {
+      if (+z !== zNew && layer._levels[z].el) olds.push(layer._levels[z].el);
+    }
+
+    /* Karsinta pois päältä häivytyksen ajaksi: Leaflet poistaisi vanhan tason
+       heti kun uudet laatat merkitään aktiivisiksi, eikä häivytettävää olisi. */
+    const prune = layer._pruneTiles;
+    layer._pruneTiles = function () {};
+    try {
+      for (let i = 0; i < p.length; i++) p[i].done(null, p[i].cvs);
+    } finally {
+      layer._pruneTiles = prune;
+    }
+
+    const nu = layer._levels[zNew] && layer._levels[zNew].el;
+    if (!nu || !olds.length) { layer._pruneTiles(); return; }
+
+    const token = ++this._fadeToken;
+    const self = this;
+    nu.style.opacity = '0';
+    const t0 = performance.now();
+    (function step() {
+      if (self.disabled || token !== self._fadeToken) return;
+      const f = Math.min(1, (performance.now() - t0) / self.P.FADE_MS);
+      nu.style.opacity = String(f);
+      for (let i = 0; i < olds.length; i++) olds[i].style.opacity = String(1 - f);
+      if (f < 1) { requestAnimationFrame(step); return; }
+      nu.style.opacity = '';
+      for (let i = 0; i < olds.length; i++) olds[i].style.opacity = '';
+      if (layer._map) layer._pruneTiles();
+    })();
   },
 
   /* Aloittaa kuvien lataukset koko jonolle kerralla. Ilman tätä kunkin laatan
