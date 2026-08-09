@@ -59,8 +59,17 @@ body {
    MAP  z:1
    ============================================================ */
 #map { position: absolute; inset: 0; z-index: 1; background: var(--bg); touch-action: none; }
-/* Ruudun reunavinjetti — tummentaa NÄKYMÄN reunoja, ei liity rantaviivaan.
-   Rantaviivan korostus on CoastShade (oma pane 'coast'). */
+/* Pohjakartan sävynsäätö.
+   Esrin laatoilla vesi on 35 ja maa 77. Molemmat ovat selvästi alle
+   keskiharmaan, joten contrast TUMMENTAA ja KASVATTAA eroa samaan aikaan:
+   arvolla 1.4 vesi menee nollaan ja maa arvoon 57, eli ero 42 -> 57 ja
+   kartta palaa tummaksi. Ilman tätä kartta olisi lämpökartan alla selvästi
+   vaaleampi kuin ennen, ja tuulivärit menettäisivät tehonsa.
+   Suodin on pelkkä värimatriisi ja ajetaan kompositoinnissa, joten se ei
+   maksa ruutuaikaa. */
+.basemap { filter: contrast(1.4); }
+
+/* Ruudun reunavinjetti — tummentaa NÄKYMÄN reunoja. */
 #map::after {
   content: '';
   position: absolute; inset: 0; z-index: 2;
@@ -1775,6 +1784,18 @@ body {
             <div class="sp-toggle" id="toggle-uiras-sec"></div>
           </div>
 
+          <!-- Karttalähteen maininta. Esrin ehdot vaativat "Powered by Esri"
+               -maininnan ja datan lähteiden nimet; kartta itse on jätetty
+               vapaaksi (attributionControl: false), joten se on tässä. -->
+          <div style="margin-top:14px;padding-top:10px;border-top:1px solid rgba(255,255,255,.07);
+                      font-size:9px;line-height:1.5;color:rgba(255,255,255,.32)">
+            Kartta: Powered by <a href="https://www.esri.com/" target="_blank" rel="noopener"
+              style="color:rgba(255,255,255,.45)">Esri</a> — Esri, HERE, Garmin,
+            © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener"
+              style="color:rgba(255,255,255,.45)">OpenStreetMap</a>&nbsp;contributors.
+            Säädata: Ilmatieteen laitos, Open-Meteo.
+          </div>
+
         </div><!-- /sp-body-inner -->
         </div>
       </div><!-- /sp-body -->
@@ -2525,42 +2546,42 @@ function initMap() {
     worldCopyJump: true, doubleClickZoom: false, tap: false, tapTolerance: 15
   });
 
-  /* Pohjakartta.
-     crossOrigin: CARTO palauttaa Access-Control-Allow-Origin: *, joten laatat
-     voi ladata CORS-tilassa. Silloin niiden pikselit ovat luettavissa eikä
-     canvas saastu — CoastShade johtaa rantaviivan suoraan niistä. */
-  var baseTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
-    subdomains: 'abcd', maxZoom: 19, crossOrigin: 'anonymous',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
+  /* Pohjakartta: Esri Dark Gray Canvas.
+   *
+   * Vaihdettiin CARTO dark_nolabels -kartasta, koska siina maa ja vesi
+   * erottuivat huonosti: maa harmaa 9 ja vesi 36-38, eli ero vain 11 %
+   * kirkkausasteikosta — ja vesi oli maata VAALEAMPI, mika on karttana
+   * takaperin. Talla kartalla vesi on 35,34,39 ja maa 77,77,79, eli ero on
+   * 42 yksikkoa ja oikeinpain. Siksi erillista rantaviivan korostusta ei
+   * enaa tarvita.
+   *
+   * Osoitteessa on {z}/{y}/{x} — Esrin ArcGIS-laattapalvelu antaa rivin
+   * ennen saraketta, toisin kuin tavallinen XYZ.
+   *
+   * maxNativeZoom 16: z17 palauttaa vaalean "ei dataa" -laatan.
+   * detectRetina: laatat ovat 256 px eivatka @2x kuten CARTOlla, joten
+   * ilman tata ne venytettaisiin retinanaytolla pehmeiksi. Leaflet hakee
+   * silloin yhta tasoa syvemmalta ja piirtaa puolikkaana. Laatat ovat
+   * pienia (noin 5 kt), joten nelinkertainen maara on yha kevyempi kuin
+   * CARTOn @2x-laatat. */
+  var baseTiles = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19, maxNativeZoom: 16, detectRetina: true, className: 'basemap',
+    attribution: 'Powered by <a href="https://www.esri.com/">Esri</a> &mdash; '
+      + 'Esri, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   }).addTo(map);
 
-  /* Rantaviivan korostus omaan paneeseen lämpökartan päälle (overlayPane 400)
-     mutta merkkien alle (markerPane 600).
-     Miksi päälle: lämpökartta piirretään mix-blend-mode: screen -tilassa koko
-     näkymään, myös maan päälle. Alempaa paneesta (250) mitattuna korostus
-     hävisi käytännössä kokonaan — screen kirkastaa alleen jäävän pohjakartan
-     detailin pois. Windyssä rantaviiva on samasta syystä tuulikerroksen
-     päällä. */
-  map.createPane('coast');
-  map.getPane('coast').style.zIndex = 450;
-  map.getPane('coast').style.pointerEvents = 'none';
-  CoastShade.init(map, baseTiles);
-
-  /* Turvaverkko: crossOrigin tarkoittaa että laatta ladataan CORS-tilassa, ja
-     jos palvelin joskus lakkaisi lähettämästä Access-Control-Allow-Origin:ia,
-     SELAIN HYLKÄISI KAIKKI LAATAT — koko pohjakartta katoaisi rantaviivan
-     korostuksen takia. Siksi: jos yhtään laattaa ei ole onnistunut ja virheitä
-     alkaa kertyä, vaihdetaan tavalliseen laattakerrokseen ja luovutaan
-     korostuksesta. Verkkohäiriö ei laukaise tätä, koska se vaatii että
-     onnistuneita latauksia on nolla. */
+  /* Varatie. Pohjakartta on nyt Esrin palvelussa, jonka kaytto edellyttaa
+     heidan ehtojaan — jos palvelu joskus estyy tai katoaa, kartta jaisi
+     kokonaan tyhjaksi. Palataan silloin CARTOon, joka oli tassa aiemmin.
+     Verkkohairio ei laukaise tata, koska se vaatii ettei yksikaan laatta ole
+     onnistunut. Rantaviiva on CARTOlla heikompi, mutta kartta toimii. */
   (function () {
     var ok = 0, bad = 0, swapped = false;
     baseTiles.on('tileload', function () { ok++; });
     baseTiles.on('tileerror', function () {
       bad++;
-      if (swapped || ok > 0 || bad < 4) return;
+      if (swapped || ok > 0 || bad < 6) return;
       swapped = true;
-      CoastShade.disable();
       map.removeLayer(baseTiles);
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
         subdomains: 'abcd', maxZoom: 19,
@@ -2568,7 +2589,6 @@ function initMap() {
       }).addTo(map);
     });
   })();
-
 
   State.map = map;
   _addObsMarkers(map);
@@ -3041,686 +3061,6 @@ const WindTexture = {
     return { u, v, ms: Math.sqrt(u*u + v*v) };
   }
 };
-
-/* -- RANTAVIIVAN KOROSTUS --------------------------------------- */
-/* Erottaa veden ja maan pehmeällä liu'ulla rajan molemmin puolin.
- *
- * Mistä geometria tulee: pohjakartan omista pikseleistä. CARTO dark_nolabels
- * on puhdasta harmaasävyä ja käyttää vain ~11 eri arvoa. Mitattuna:
- *   vesi (meri JA järvet) 36–38   maa 9   rakennukset 6   moottoritiet 3
- *   kadut 16–17                   veden reunaviiva 42
- * Vesi on siis maata VAALEAMPI, ja meri ja järvet ovat täsmälleen samaa
- * arvoa — yksi kaista poimii rannikon, saariston ja sisäjärvet kerralla.
- * Yläraja tarvitaan koska tiet piirretään vettä VAALEAMMIN (42): pelkkä
- * alaraja poimisi koko tieverkon mukaan.
- *
- * Miksi pikseleistä eikä rantaviiva-aineistosta: Suomen saaristossa on
- * kymmeniä tuhansia saaria, joten riittävän tarkka vektoriaineisto olisi
- * kymmeniä megatavuja. Pohjakartan laatat ovat jo selaimessa.
- *
- * Miksi liuku molemmin puolin: koska vesi on tällä pohjakartalla maata
- * vaaleampi, PELKKÄ veden tummennus rannassa (Windyn tapa, jossa vesi on
- * tummempi) pienentäisi rajan kontrastia — 38−9=29 kapenisi noin 20−9=11.
- * Siksi maan puolelle tulee varjo ja veden puolelle kapea vaalea reunus.
- *
- * MIKSI LAATTAKERROS eikä yksi näkymän kokoinen overlay: overlay oli
- * sidottu rakennushetken lat/lng-rajoihin, joten zoomatessa selain venytti
- * sitä. Mitattuna kohdistus pysyi ±0.1 % tarkkuudella oikeana, mutta kuvaa
- * suurennettiin jopa 2× samalla kun sen lähdetarkkuus oli vain 0.34×
- * näkymästä — eli rantaviivan siluettia näytettiin noin 6× suurennuksella
- * terävän pohjakartan päällä. Kaksi samaa muotoa eri terävyydellä luki
- * silmässä kahtena karttana, ja zoomend rakensi uuden jolloin ne
- * "yhdistyivät". Sama syy teki varjosta epäselvän lähelle zoomattuna.
- *
- * L.GridLayer korjaa tämän juurineen: varjo kuuluu samaan laattapyramidiin
- * kuin pohjakartta, joten Leaflet skaalaa, siirtää ja häivyttää sen
- * TÄSMÄLLEEN samalla koneistolla ja samalla hetkellä. Liu'un leveys on
- * määritelty laattapikseleinä, joten se pysyy ruudulla vakiona joka
- * zoom-tasolla eikä veny koskaan.
- *
- * Sumennus tarvitsee reunojensa yli naapuridataa, muuten laattojen rajoille
- * syntyisi saumat. Siksi jokainen varjolaatta lasketaan 3×3 naapurustosta
- * ja siitä leikataan keskiosa. Naapurit otetaan ensisijaisesti Leafletin jo
- * lataamista laatoista, eli useimmiten ilman yhtään verkkopyyntöä. */
-
-const COAST_TILE_TPL = 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png';
-const COAST_TILE_SUB = 'abcd';
-
-const CoastShade = {
-  map: null, tiles: null, layer: null, disabled: false,
-  _cache: new Map(),      /* 'z/x/y' -> Promise<Image|null>, vain omat kuvat */
-  /* Yksi dekoodattu @2x-laatta vie noin megatavun, joten tämä pidetään
-     pienenä ja se tyhjennetään kun erä on valmis. Valtaosa naapureista tulee
-     suoraan Leafletin elävistä laatoista, joten tänne päätyy vain näkymän
-     ympärille jäävä kehä — mutta koko erän kehä pitää mahtua yhtä aikaa,
-     muuten lämmitetyt kuvat karsiutuisivat juuri ennen käyttöä. */
-  _cacheMax: 64,
-
-  /* Valmiit varjot muistiin, jotta kertaalleen laskettu zoom-taso ilmestyy
-     heti uudelleen. Tallennetaan tiiviisti: yksi tavu per pikseli, ylin bitti
-     kertoo kummasta kaistasta on kyse ja loput seitsemän alphan. Se on
-     neljäsosa RGBA:sta, eli 65 kt laatalta. */
-  _shade: new Map(), _shadeMax: 64,
-
-  P: {
-    NS:      256,   /* laskentanäytteitä laatan sivulla — laatta on 256 CSS px,
-                       eli yksi näyte CSS-pikseliä kohti */
-    /* T_LO/T_HI: kynnykset joilla LASKETAAN onko laatassa sekä vettä että
-       maata. Jos ei ole, koko laatta ohitetaan. Itse maskin muodostaa
-       SOFT_LO/SOFT_HI -ramppi, ei näämä. */
-    T_LO:    28,
-    T_HI:    40,    /* tätä vaaleampi ei ole vettä lainkaan — tiet ovat 42 */
-    SOFT_LO: 12,    /* maskin ramppi: tästä alkaa vesi... */
-    SOFT_HI: 34,    /* ...ja tähän mennessä se on täyttä. Väli 13–34 on
-                       pohjakartan omaa reunanpehmennystä, josta saadaan
-                       rantaviivan alipikselitarkka sijainti. */
-    R_DARK:  8,     /* varjon leveys CSS-pikseleinä, maan puolella */
-    A_DARK:  0.38,
-    DARK:    [0, 2, 8],
-    R_LIGHT: 3,     /* reunuksen leveys CSS-pikseleinä, veden puolella */
-    A_LIGHT: 0.06,
-    LIGHT:   [140, 175, 205],
-    GAMMA:   1.25,  /* >1 terävöittää liukua rannan lähellä */
-    FADE_MS:  220,  /* tasojen ristihäivytys — katso _flush() */
-    BUDGET_MS: 12   /* laskenta-aika per tehtävä ennen kuin selain päästetään
-                       piirtämään — katso _drain() */
-  },
-
-  /* Kaukana zoomattuna saaristossa on tuhansia pikkusaaria näkymää kohti, ja
-     täysleveä varjo yhdistäisi ne yhdeksi paksuksi vyöksi. Kapennetaan
-     liukua portaattomasti ulos zoomatessa, niin rantaviivan muoto säilyy. */
-  _radiusScale(z) {
-    return _lerpAnchors(z, [[5, 0.55], [8, 0.78], [11, 1.0]]);
-  },
-
-  init(map, tiles) {
-    this.map = map; this.tiles = tiles;
-    const self = this;
-    const Layer = L.GridLayer.extend({
-      createTile(coords, done) {
-        const cvs = document.createElement('canvas');
-        cvs.width = self.P.NS; cvs.height = self.P.NS;
-        self._enqueue({
-          coords: coords, cvs: cvs, done: done, layer: this,
-          key: coords.x + ':' + coords.y + ':' + coords.z
-        });
-        return cvs;
-      },
-
-      /* Leaflet häivyttää uuden zoom-tason laatat sisään 200 ms:ssä ja karsii
-       * vanhan tason vasta sen jälkeen. Läpinäkymättömällä pohjakartalla se on
-       * juuri oikein, mutta läpinäkyvällä varjolla molemmat tasot piirtyvät
-       * päällekkäin: sama rantaviiva kahteen kertaan, jolloin alpha 0.38
-       * kasautuu arvoon 0.62. Kartta siis välähti tummempana ja palasi.
-       * Mitattuna z11 oli opacity 1.00 samaan aikaan kun z13 häivyttyi
-       * 0.94 → 1.00, ja päällekkäisyys kesti noin 250 ms.
-       *
-       * Pakotetaan tälle kerrokselle välitön vaihto: Leafletin oma
-       * ei-häivytettävä haara merkitsee laatan heti aktiiviseksi ja karsii
-       * vanhan tason samassa framessa, joten päällekkäisyyttä ei synny.
-       * Pohjakartan häivytys jää ennalleen — lippu palautetaan heti. */
-      _tileReady(coords, err, tile) {
-        const map = this._map, fade = map && map._fadeAnimated;
-        if (map) map._fadeAnimated = false;
-        try { L.GridLayer.prototype._tileReady.call(this, coords, err, tile); }
-        finally { if (map) map._fadeAnimated = fade; }
-      }
-    });
-    this.layer = new Layer({
-      pane: 'coast', className: 'coast-shade', tileSize: 256, keepBuffer: 2
-    }).addTo(map);
-
-    /* Eleen aikana ei lasketa mitään — katso _drain(). */
-    map.on('zoomstart movestart', function () { self._busy = true; });
-    map.on('zoomend moveend', function () {
-      self._busy = false;
-      if (!self._draining && self._queue.length) {
-        self._draining = true;
-        setTimeout(function () { self._drain(); }, 0);
-      }
-      /* Varmistus eleen jälkeen: jos jokin laatta on jäänyt viimeistelemättä,
-         se korjataan tässä. Katso _sweep(). */
-      clearTimeout(self._sweepT);
-      self._sweepT = setTimeout(function () { self._sweep(); }, 500);
-    });
-  },
-
-  disable() {
-    this.disabled = true;
-    if (this.layer && this.map) { this.map.removeLayer(this.layer); this.layer = null; }
-    this._cache.clear();
-    this._shade.clear();
-    this._queue.length = 0;
-    this._pending.length = 0;
-    clearTimeout(this._sweepT);
-  },
-
-  _remember(key, store) {
-    if (this._shade.size >= this._shadeMax) {
-      const first = this._shade.keys().next();
-      if (!first.done) this._shade.delete(first.value);
-    }
-    this._shade.set(key, store);
-  },
-
-  /* Piirtää muistetun varjon laatalle. Noin 1 ms, kun laskenta on 7–9 ms. */
-  _paintRemembered(cvs, store) {
-    const NS = this.P.NS, ctx = cvs.getContext('2d');
-    ctx.clearRect(0, 0, NS, NS);
-    if (!store) return;
-    const img = ctx.createImageData(NS, NS), d = img.data;
-    const DK = this.P.DARK, LT = this.P.LIGHT;
-    for (let i = 0, n = NS * NS; i < n; i++) {
-      const v = store[i];
-      if (!v) continue;
-      const c = (v & 128) ? DK : LT, b4 = i * 4;
-      d[b4] = c[0]; d[b4 + 1] = c[1]; d[b4 + 2] = c[2]; d[b4 + 3] = (v & 127) << 1;
-    }
-    ctx.putImageData(img, 0, 0);
-  },
-
-  /* Työjono aikabudjetilla.
-   *
-   * Leaflet luo kaikki näkymän laatat samassa silmukassa, ja jos varjo
-   * laskettaisiin suoraan createTile:ssä, viisitoista laattaa peräkkäin
-   * lukitsisi pääsäikeen. Mitattuna 4× hidastetulla suorittimella (puhelinta
-   * vastaava) nipistyksen ruutuajan p95 nousi 45 ms:stä 167 ms:ään ja yli
-   * 50 ms:n ruutuja tuli 4 → 28.
-   *
-   * Promise-ketjutus ei riitä: await palaa mikrotehtäväjonon kautta, joka
-   * ajetaan ennen piirtoa. Siksi väliin tarvitaan oikea setTimeout-luovutus.
-   * Tehdään töitä budjetin verran, päästetään selain piirtämään, jatketaan. */
-  _queue: [], _pending: [], _draining: false, _busy: false, _sweepT: null, _fadeToken: 0,
-
-  /* Ilmoittaa Leafletille valmiit laatat. Kutsutaan kerralla koko erälle.
-   *
-   * Zoom-tason vaihtuessa tehdään ristihäivytys itse. Leafletin oma häivytys
-   * ei kelpaa läpinäkyvälle varjolle, koska se pitää vanhan tason täydessä
-   * kirkkaudessa uuden häivyttyessä sen päälle — sama rantaviiva kahdesti,
-   * jolloin tummuus kasvaa 62 % ja kartta välähtää tummempana. Pelkkä
-   * välitön vaihto taas vaihtaa koko varjon yhdessä framessa, ja sekin
-   * näkyy välähdyksenä.
-   *
-   * Tässä vanha taso himmenee samaa tahtia kuin uusi kirkastuu, jolloin
-   * yhteisalpha pysyy lähes vakiona: puolivälissä 1−(1−a/2)² = 0.34 kun
-   * a = 0.38, eli 10 % vajaus tummuudessa sen sijaan että se kasvaisi 62 %.
-   *
-   * Panoroinnissa taso ei vaihdu, jolloin häivytystä ei tehdä lainkaan. */
-  _flush() {
-    const p = this._pending;
-    this._pending = [];
-    if (!p.length) return;
-    const layer = this.layer;
-    if (!layer || !layer._levels) {
-      for (let i = 0; i < p.length; i++) p[i].done(null, p[i].cvs);
-      return;
-    }
-    const zNew = p[0].coords.z;
-    const olds = [];
-    for (const z in layer._levels) {
-      if (+z !== zNew && layer._levels[z].el) olds.push(layer._levels[z].el);
-    }
-
-    /* Karsinta pois päältä häivytyksen ajaksi: Leaflet poistaisi vanhan tason
-       heti kun uudet laatat merkitään aktiivisiksi, eikä häivytettävää olisi. */
-    const prune = layer._pruneTiles;
-    layer._pruneTiles = function () {};
-    try {
-      for (let i = 0; i < p.length; i++) p[i].done(null, p[i].cvs);
-    } finally {
-      layer._pruneTiles = prune;
-    }
-
-    const nu = layer._levels[zNew] && layer._levels[zNew].el;
-    if (!nu || !olds.length) { layer._pruneTiles(); return; }
-
-    const token = ++this._fadeToken;
-    const self = this;
-    nu.style.opacity = '0';
-    const t0 = performance.now();
-    (function step() {
-      if (self.disabled || token !== self._fadeToken) return;
-      const f = Math.min(1, (performance.now() - t0) / self.P.FADE_MS);
-      nu.style.opacity = String(f);
-      for (let i = 0; i < olds.length; i++) olds[i].style.opacity = String(1 - f);
-      if (f < 1) { requestAnimationFrame(step); return; }
-      nu.style.opacity = '';
-      for (let i = 0; i < olds.length; i++) olds[i].style.opacity = '';
-      if (layer._map) layer._pruneTiles();
-    })();
-  },
-
-  /* Aloittaa kuvien lataukset koko jonolle kerralla. Ilman tätä kunkin laatan
-     yhdeksän naapuria alkavat latautua vasta kun sen vuoro tulee, jolloin
-     lataukset menevät sarjaan: mitattuna 12 laatan erässä kuvien odotus oli
-     132 ms ja itse laskenta 151 ms. */
-  _warm() {
-    const q = this._queue;
-    for (let i = 0; i < q.length; i++) {
-      const job = q[i];
-      if (job.warmed) continue;
-      job.warmed = true;
-      /* Muistettu varjo ei tarvitse kuvia lainkaan */
-      if (this._shade.get(job.key) !== undefined) continue;
-      const c = job.coords;
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) this._image(c.x + dx, c.y + dy, c.z);
-      }
-    }
-  },
-
-  _enqueue(job) {
-    if (this.disabled) { job.done(null, job.cvs); return; }
-    /* HUOM: jonossa olevia töitä ei saa hylätä tyhjällä canvasilla, vaikka
-       zoom-taso vaihtuisi kesken erän. Aiemmin tehtiin niin, ja koska
-       zoomSnap animoi sormen noston jälkeen lähimpään puolikkaaseen tasoon,
-       Leaflet ehti pyytää laattoja kahdelta tasolta peräkkäin — jolloin juuri
-       valmistuvan tason erä hylättiin. Mitattuna viisi laattaa yhdestätoista
-       jäi pysyvästi tyhjäksi, eikä niitä koskaan laskettu uudelleen: varjo
-       katosi kartalta. Vanhentuneet työt ovat joka tapauksessa halpoja, koska
-       _drain ohittaa laatat jotka Leaflet on jo karsinut. */
-    this._queue.push(job);
-    if (this._draining) return;
-    this._draining = true;
-    /* Tyhjennys EI saa alkaa synkronisesti: _enqueue kutsutaan createTile:n
-       sisältä, ja Leaflet lisää laatan _tiles-hakemistoonsa vasta kun
-       createTile on palannut. Synkronisesti ajettuna karsinta-tarkistus
-       hylkäisi jokaisen laatan heti "jo poistettuna". Oma tehtävä myös
-       niputtaa koko näkymän laatat yhteen tyhjennykseen. */
-    const self = this;
-    setTimeout(function () { self._drain(); }, 0);
-  },
-
-  async _drain() {
-    /* Valmiit laatat kerätään talteen eikä ilmoiteta Leafletille heti.
-     *
-     * Miksi: Leaflet pitää edellisen zoom-tason laatat näkyvissä kunnes
-     * uudet on ladattu, ja paljastaa uudet yksi kerrallaan. Pohjakartalla se
-     * ei häiritse, koska laatta näyttää lähes samalta molemmilla tasoilla.
-     * Varjolla näyttää: liu'un leveys on ruutupikseleissä vakio, joten
-     * skaalattu vanha laatta on kaksi kertaa leveämpi kuin viereinen uusi.
-     * Ero näkyi tarkkarajaisina neliöinä ruudulla.
-     *
-     * Kun done() kutsutaan vasta kun koko jono on laskettu, taso vaihtuu
-     * yhdellä kertaa: sitä ennen näkyy tasaisesti vanha taso skaalattuna,
-     * sen jälkeen tasaisesti uusi. Neliöitä ei voi syntyä. */
-    try {
-      while (this._queue.length) {
-        this._warm();
-        /* Ei lasketa kesken eleen. Yhden laatan varjo maksaa 7–9 ms, ja
-           viisitoista laattaa kesken nipistyksen vei mitattuna ruutuajan
-           p95:n 45 ms:stä 110 ms:ään. Lämpökartta tekee jo samoin: raskas
-           työ ajetaan vasta kun ele on ohi. Sitä ennen Leaflet näyttää
-           edellisen tason laatat skaalattuna, kuten pohjakartallakin.
-           Laskuri nollataan joka kierroksella ja estää jumin vain siltä
-           varalta ettei zoomend/moveend tulisi lainkaan. */
-        let guard = 0;
-        while (this._busy && guard++ < 120) {
-          await new Promise(function (r) { setTimeout(r, 16); });
-        }
-        const t0 = performance.now();
-        while (this._queue.length && performance.now() - t0 < this.P.BUDGET_MS) {
-          const job = this._queue.shift();
-          if (this.disabled) { job.done(null, job.cvs); continue; }
-          /* Laatta on voitu karsia näkymästä jo ennen kuin sen vuoro tuli */
-          if (!job.layer._tiles || !job.layer._tiles[job.key]) { job.done(null, job.cvs); continue; }
-          /* Muistettu varjo: pelkkä uudelleenpiirto, ei kuvalatauksia eikä
-             laskentaa. Tämä tekee jo kertaalleen nähdystä zoom-tasosta
-             välittömän. */
-          const memo = this._shade.get(job.key);
-          if (memo !== undefined) {
-            this._paintRemembered(job.cvs, memo);
-            this._pending.push(job);
-            continue;
-          }
-          let ok = true;
-          try { ok = await this._renderTile(job.coords, job.cvs); }
-          catch (e) { ok = true; /* virhe: ei jäädä silmukkaan */ }
-          if (ok === false && (job.tries = (job.tries || 0) + 1) <= 2) {
-            /* Keskilaatan kuva ei ollut saatavilla. Pudotetaan se välimuistista
-               ja yritetään uudelleen — muuten yksi epäonnistunut lataus jättäisi
-               laatan pysyvästi varjottomaksi. */
-            this._cache.delete(job.coords.z + '/' + job.coords.x + '/' + job.coords.y);
-            this._queue.push(job);
-            continue;
-          }
-          this._pending.push(job);
-        }
-        if (this._queue.length) await new Promise(function (r) { setTimeout(r, 0); });
-      }
-    } finally {
-      /* Järjestys on tärkeä: _draining on nollattava ENNEN _flush():ia.
-         done() voi saada Leafletin luomaan laattoja saman tien, ja jos
-         _draining on silloin vielä päällä, _enqueue ei ajasta uutta
-         tyhjennystä — työ jäisi jonoon ilman tekijää ja laatta jäisi
-         Leafletin kirjanpidossa lataamattomaksi eli näkymättömäksi. */
-      this._draining = false;
-      this._flush();
-      /* Kuvavälimuistia tarvitaan vain erän ajan: naapurit jaetaan vierekkäisten
-         laattojen kesken. Sen jälkeen se on pelkkää muistia — yksi dekoodattu
-         @2x-laatta on noin megatavu. Uusintakäynnit osuvat varjomuistiin
-         eivätkä tarvitse kuvia lainkaan. */
-      this._cache.clear();
-      if (this._queue.length && !this._draining) {
-        this._draining = true;
-        const self = this;
-        setTimeout(function () { self._drain(); }, 0);
-      } else {
-        this._sweep();
-      }
-    }
-  },
-
-  /* Vahtikoira. Laatta joka jää Leafletin kirjanpidossa lataamattomaksi on
-     näkymätön (.leaflet-tile on visibility:hidden kunnes se saa luokan
-     leaflet-tile-loaded), eli varjo puuttuu juuri siitä kohtaa. Mitattuna
-     niitä kertyi ajoittain kymmeniä toistuvissa eleissä. Sen sijaan että
-     luottaisin siihen että jokainen polku muistaa kutsua done():n, käydään
-     taso läpi ja viimeistellään kaikki joille ei ole työtä kesken. */
-  _sweep() {
-    const layer = this.layer;
-    if (this.disabled || !layer || !layer._tiles) return;
-    if (this._draining || this._queue.length || this._pending.length) return;
-    for (const key in layer._tiles) {
-      const t = layer._tiles[key];
-      if (!t.el || t.loaded) continue;
-      this._enqueue({
-        coords: t.coords, cvs: t.el, layer: layer, key: key,
-        done: layer._tileReady.bind(layer, t.coords)
-      });
-    }
-  },
-
-  _url(x, y, z) {
-    return L.Util.template(COAST_TILE_TPL, {
-      s: COAST_TILE_SUB[Math.abs(x + y) % COAST_TILE_SUB.length],
-      x: x, y: y, z: z,
-      /* Sama {r} kuin Leaflet itse käyttää, jotta osutaan samaan
-         selaincacheen eikä laatta ladata toista kertaa. */
-      r: L.Browser.retina ? '@2x' : ''
-    });
-  },
-
-  /* Yksi pohjakartan laatta kuvana. Ensisijaisesti Leafletin jo lataamista
-     laatoista — silloin pyyntöä ei synny lainkaan.
-     Laatta on kelvollinen vasta kun se on oikean kokoinen: Leaflet asettaa
-     poistetun laatan src:ksi 1×1 läpinäkyvän kuvan, jolloin naturalWidth on 1. */
-  _usable(el) {
-    return !!(el && el.complete && el.naturalWidth >= this.P.NS);
-  },
-
-  _image(x, y, z) {
-    /* Leafletin elävä laatta jos se on juuri nyt kelvollinen. Tätä EI panna
-       välimuistiin: Leaflet nollaa elementin src:n kun laatta poistetaan
-       näkymästä, ja välimuistissa ollut viite alkaisi piirtää tyhjää.
-       Mitattuna juuri se katkaisi varjon: toisella käynnillä samassa
-       näkymässä laskenta onnistui mutta tuotti pelkkää tyhjää, koska maski
-       luki läpinäkyvän puskurin kokonaan vedeksi. */
-    const live = this.tiles && this.tiles._tiles && this.tiles._tiles[x + ':' + y + ':' + z];
-    if (live && this._usable(live.el)) return Promise.resolve(live.el);
-
-    const key = z + '/' + x + '/' + y;
-    const hit = this._cache.get(key);
-    if (hit) return hit;
-
-    /* Oma kuva-olio on turvallinen välimuistiin: sitä ei jaeta Leafletin
-       kanssa eikä kukaan muuta sen src:ää. Sama URL osuu selaimen cacheen. */
-    const self = this;
-    const pr = new Promise(function (resolve) {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = function () { resolve(self._usable(img) ? img : null); };
-      img.onerror = function () { resolve(null); };
-      img.src = self._url(x, y, z);
-    });
-    if (this._cache.size >= this._cacheMax) {
-      /* Yksinkertainen katto: pudota vanhin merkintä */
-      const first = this._cache.keys().next();
-      if (!first.done) this._cache.delete(first.value);
-    }
-    this._cache.set(key, pr);
-    return pr;
-  },
-
-  /* Math.pow oli mitattuna maalaussilmukan suurin yksittäinen kulu: 4.8 ms
-     85 000 pikselille, kaksi kutsua kussakin. Gamma on vakio, joten
-     korvataan hakutaululla. */
-  _lut: null,
-  _gamma() {
-    if (this._lut) return this._lut;
-    const t = new Float32Array(257);
-    for (let i = 0; i <= 256; i++) t[i] = Math.pow(i / 256, this.P.GAMMA);
-    this._lut = t;
-    return t;
-  },
-
-  /* 3×3 avaus harmaasävyllä: kutistus (paikallinen minimi) ja sen jälkeen
-     laajennus (paikallinen maksimi). Binäärisellä maskilla sama operaatio
-     poisti tieviirut, mutta pakotti rantaviivan yhden näytteen tarkkuuteen —
-     3× näytöllä se näkyi porrastuksena laiturin reunassa. Harmaasävyversio
-     poistaa viirut samalla tavalla mutta säilyttää reunan alipikselitarkkuuden.
-     Erotteleva: vaaka ja pysty erikseen, pystysuunta riveittäin. */
-  _open3(m, tmp, w, h) {
-    let x, y, r0, r1, r2, a, b, c;
-    for (y = 0; y < h; y++) {                    /* kutistus, vaaka */
-      r1 = y * w;
-      for (x = 0; x < w; x++) {
-        a = m[r1 + (x > 0 ? x - 1 : 0)]; b = m[r1 + x]; c = m[r1 + (x < w - 1 ? x + 1 : w - 1)];
-        tmp[r1 + x] = a < b ? (a < c ? a : c) : (b < c ? b : c);
-      }
-    }
-    for (y = 0; y < h; y++) {                    /* kutistus, pysty */
-      r0 = (y > 0 ? y - 1 : 0) * w; r1 = y * w; r2 = (y < h - 1 ? y + 1 : h - 1) * w;
-      for (x = 0; x < w; x++) {
-        a = tmp[r0 + x]; b = tmp[r1 + x]; c = tmp[r2 + x];
-        m[r1 + x] = a < b ? (a < c ? a : c) : (b < c ? b : c);
-      }
-    }
-    for (y = 0; y < h; y++) {                    /* laajennus, vaaka */
-      r1 = y * w;
-      for (x = 0; x < w; x++) {
-        a = m[r1 + (x > 0 ? x - 1 : 0)]; b = m[r1 + x]; c = m[r1 + (x < w - 1 ? x + 1 : w - 1)];
-        tmp[r1 + x] = a > b ? (a > c ? a : c) : (b > c ? b : c);
-      }
-    }
-    for (y = 0; y < h; y++) {                    /* laajennus, pysty */
-      r0 = (y > 0 ? y - 1 : 0) * w; r1 = y * w; r2 = (y < h - 1 ? y + 1 : h - 1) * w;
-      for (x = 0; x < w; x++) {
-        a = tmp[r0 + x]; b = tmp[r1 + x]; c = tmp[r2 + x];
-        m[r1 + x] = a > b ? (a > c ? a : c) : (b > c ? b : c);
-      }
-    }
-  },
-
-  /* Erotteleva laatikkosumennus. Kaksi ajoa ≈ gaussinen, O(n) per ajo. */
-  _blur(src, dst, w, h, r) {
-    const tmp = new Float32Array(w * h);
-    const norm = 1 / (2 * r + 1);
-    let x, y, i, acc;
-    for (y = 0; y < h; y++) {
-      const row = y * w; acc = 0;
-      for (i = -r; i <= r; i++) acc += src[row + Math.min(w - 1, Math.max(0, i))];
-      for (x = 0; x < w; x++) {
-        tmp[row + x] = acc * norm;
-        acc += src[row + Math.min(w - 1, x + r + 1)] - src[row + Math.max(0, x - r)];
-      }
-    }
-    for (x = 0; x < w; x++) {
-      acc = 0;
-      for (i = -r; i <= r; i++) acc += tmp[Math.min(h - 1, Math.max(0, i)) * w + x];
-      for (y = 0; y < h; y++) {
-        dst[y * w + x] = acc * norm;
-        acc += tmp[Math.min(h - 1, y + r + 1) * w + x] - tmp[Math.max(0, y - r) * w + x];
-      }
-    }
-  },
-
-  /* Palauttaa lupauksen. Kutsuja (_drain) hoitaa Leafletin done-kutsun ja
-     aikabudjetin, jotta tämä funktio voi keskittyä pelkkään laskentaan. */
-  async _renderTile(coords, cvs) {
-    if (this.disabled) return true;
-    const self = this, P = this.P, z = coords.z;
-    const NS = P.NS;
-    const zf = this._radiusScale(z);
-    /* Sumennussäteet näytteinä. NS vastaa 256 CSS px:ää. */
-    const k = NS / 256;
-    const rd = Math.max(1, Math.round(P.R_DARK * zf * k));
-    const rl = Math.max(1, Math.round(P.R_LIGHT * zf * k));
-    /* Reunus: kaksi sumennusajoa levittää dataa 2r, plus varmuusvara */
-    const pad = 2 * rd + 2;
-
-    /* Naapurusto: 3×3 laattaa. Useimmiten kaikki jo Leafletin muistissa. */
-    const jobs = [];
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        jobs.push({ dx: dx, dy: dy, pr: this._image(coords.x + dx, coords.y + dy, z) });
-      }
-    }
-
-    const imgs = await Promise.all(jobs.map(function (j) { return j.pr; }));
-    if (self.disabled) return true;
-    {
-      const W = NS + 2 * pad, H = W;
-      const buf = document.createElement('canvas');
-      buf.width = W; buf.height = H;
-      const bctx = buf.getContext('2d', { willReadFrequently: true });
-
-      /* Naapureista tarvitaan VAIN reunuksen levyinen kaistale, ei koko
-         laattaa: puskuri ulottuu naapurin puolelle vain pad-pikseliä.
-         Rajataan piirto siihen — muuten jokainen varjolaatta skaalaisi
-         yhdeksän koko laattaa, mikä oli mitattuna suurin yksittäinen kulu. */
-      let centreOk = false;
-      for (let i = 0; i < jobs.length; i++) {
-        const img = imgs[i];
-        /* Varmistus vielä piirtohetkellä: elementti on voitu nollata sen
-           jälkeen kun se noudettiin. */
-        if (!self._usable(img)) continue;
-        const j = jobs[i];
-        if (j.dx === 0 && j.dy === 0) centreOk = true;
-        const x0 = pad + j.dx * NS, y0 = pad + j.dy * NS;
-        const cx0 = Math.max(0, x0), cy0 = Math.max(0, y0);
-        const cx1 = Math.min(W, x0 + NS), cy1 = Math.min(H, y0 + NS);
-        if (cx1 <= cx0 || cy1 <= cy0) continue;
-        const sc = img.naturalWidth / NS; /* lähdepikseliä per kohdepikseli */
-        try {
-          bctx.drawImage(img,
-            (cx0 - x0) * sc, (cy0 - y0) * sc, (cx1 - cx0) * sc, (cy1 - cy0) * sc,
-            cx0, cy0, cx1 - cx0, cy1 - cy0);
-        } catch (e) { /* yksittäinen laatta ei piirtynyt */ }
-      }
-      /* Ilman keskilaattaa ei voi laskea mitään. Kerrotaan siitä kutsujalle,
-         joka yrittää uudelleen — muuten yksikin epäonnistunut kuvalataus
-         jättäisi laatan pysyvästi varjottomaksi. */
-      if (!centreOk) return false;
-
-      let d;
-      try {
-        d = bctx.getImageData(0, 0, W, H).data;
-      } catch (e) {
-        /* Canvas saastui (laatta ilman CORS-otsakkeita) — korostus ei ole
-           mahdollinen. Poistetaan käytöstä, jotta kartta toimii muuten. */
-        self.disable();
-        return true;
-      }
-
-      const n = W * H;
-      const mask = new Float32Array(n), work = new Float32Array(n);
-      let water = 0, land = 0;
-      const SLO = P.SOFT_LO, SPAN = P.SOFT_HI - P.SOFT_LO;
-      for (let i = 0; i < n; i++) {
-        const b4 = i * 4, v = d[b4];
-        /* Puuttuva naapuri (alpha 0) luetaan vedeksi: silloin laatan reunaan
-           ei synny valerantaa vaan pelkkä hieman vaimeampi liuku. */
-        if (d[b4 + 3] < 8) { mask[i] = 1; water = 1; continue; }
-        /* Tiet ovat vettä vaaleampia (42) — ne eivät ole vettä lainkaan. */
-        if (v > P.T_HI) { mask[i] = 0; land = 1; continue; }
-        /* Pehmeä ramppi maan (9) ja veden (36–38) välillä. Pohjakartan oma
-           reunanpehmennys tuottaa väliarvot 13–34, joista saadaan rantaviivan
-           alipikselitarkka sijainti ilman lisätyötä. */
-        const t = (v - SLO) / SPAN;
-        const m0 = t <= 0 ? 0 : (t >= 1 ? 1 : t);
-        mask[i] = m0;
-        if (v >= P.T_LO) water = 1; else land = 1;
-      }
-      /* Pelkkää ulappaa tai pelkkää sisämaata — ei rantaa, ei varjoa.
-         Ohitetaan avaus, kolme sumennusta ja maalaus kokonaan. Suomenlahdella
-         ja sisämaassa tämä on iso osa näkymän laatoista. */
-      if (!water || !land) {
-        /* Ei rantaa — muistetaan sekin, jottei tätä lasketa uudelleen. */
-        self._remember(coords.x + ':' + coords.y + ':' + z, null);
-        return true;
-      }
-      const bd = new Float32Array(n), bl = new Float32Array(n);
-
-      /* Teiden reunanpehmennys osuu vesikaistalle: tie on 42 ja maa 9, joten
-         niiden välinen liukuma käy arvojen 36–38 kautta. Siitä syntyi ohuita
-         valevesijuovia pitkin tieverkkoa. Poistetaan ne AVAUKSELLA
-         (kutistus + laajennus): se hävittää alle 3 px leveät vesirakenteet
-         mutta jättää kaiken muun ennalleen.
-         Symmetrinen enemmistösuodatin EI kelpaa — se täyttäisi yhden pikselin
-         luodot vedeksi, ja saaristossa niitä on tuhansia. Avaus säilyttää ne,
-         koska pieni maalaikku vain kasvaa kutistusvaiheessa ja palautuu
-         laajennuksessa. */
-      self._open3(mask, work, W, H);
-      /* Varjo: kaksi ajoa (pehmeä, leveä). Reunus: yksi ajo riittää, koska
-         se on vain muutaman pikselin levyinen. */
-      self._blur(mask, bd, W, H, rd); self._blur(bd, bd, W, H, rd);
-      self._blur(mask, bl, W, H, rl);
-
-      const out = bctx.createImageData(W, H), o = out.data;
-      const DK = P.DARK, LT = P.LIGHT, lut = self._gamma();
-      const AD = P.A_DARK, AL = P.A_LIGHT;
-      for (let j2 = 0; j2 < n; j2++) {
-        const m0 = mask[j2];
-        /* Leveä sumennus vuotaa vedestä maalle → varjo maan puolella */
-        const gL = bd[j2] - m0;
-        /* Kapea sumennus jää rannassa maskia pienemmäksi → reunus veden puolella */
-        const gW = m0 - bl[j2];
-        const b4 = j2 * 4;
-        /* Valtaosa pikseleistä on kaukana rannasta (sisämaa, ulappa) eikä saa
-           kumpaakaan kaistaa — ohitetaan ne ennen kaikkea muuta työtä. */
-        if (gL <= 0 && gW <= 0) { o[b4 + 3] = 0; continue; }
-        /* Kaistat ovat rajan eri puolilla eivätkä mene päällekkäin, joten
-           vahvempi voittaa ja jokainen pikseli saa yhden värin. */
-        let R, G, B, A;
-        if (gL > 0) {
-          let i = (gL * 512) | 0; if (i > 256) i = 256;
-          A = lut[i] * AD; R = DK[0]; G = DK[1]; B = DK[2];
-        } else {
-          let i = (gW * 512) | 0; if (i > 256) i = 256;
-          A = lut[i] * AL; R = LT[0]; G = LT[1]; B = LT[2];
-        }
-        if (A <= 0.003) { o[b4 + 3] = 0; continue; }
-        o[b4] = R; o[b4 + 1] = G; o[b4 + 2] = B; o[b4 + 3] = (A * 255 + 0.5) | 0;
-      }
-      bctx.putImageData(out, 0, 0);
-
-      /* Leikkaa keskiosa laatalle — reunuksen tarkoitus oli vain antaa
-         sumennukselle naapuridataa. */
-      const ctx = cvs.getContext('2d');
-      ctx.clearRect(0, 0, NS, NS);
-      ctx.drawImage(buf, pad, pad, NS, NS, 0, 0, NS, NS);
-
-      /* Talteen tiiviissä muodossa. Luetaan suoraan lasketusta puskurista
-         rajauksen kohdalta, joten ylimääräistä getImageData-lukua ei tarvita. */
-      const store = new Uint8Array(NS * NS);
-      for (let ty = 0; ty < NS; ty++) {
-        const srow = ((ty + pad) * W + pad) * 4, drow = ty * NS;
-        for (let tx = 0; tx < NS; tx++) {
-          const b4 = srow + tx * 4, a = o[b4 + 3];
-          if (!a) continue;
-          /* ylin bitti: 1 = varjo (tumma), 0 = reunus (vaalea) */
-          store[drow + tx] = (o[b4] < 64 ? 128 : 0) | (a >> 1);
-        }
-      }
-      self._remember(coords.x + ':' + coords.y + ':' + z, store);
-    }
-    /* true = laatta on valmis (myös kun siinä ei ole rantaa lainkaan);
-       false = keskilaatan kuvaa ei saatu, kutsuja yrittää uudelleen */
-    return true;
-  }
-};
-
 
 /* -- HEATMAP ---------------------------------------------------- */
 /* drawColorField(skipBlur)
@@ -9128,15 +8468,12 @@ const _loadingSafety = setTimeout(() => {
     +   '<button data-pp="tiles"     style="flex:1"></button>'
     +   '<button data-pp="snap"      style="flex:1"></button>'
     + '</div>'
-    + '<div style="display:flex;gap:4px;margin-top:4px">'
-    +   '<button data-pp="coast"     style="flex:1"></button>'
-    + '</div>'
     + '<div style="font-size:8px;color:rgba(255,255,255,.35);margin-top:5px">napauta lukemia = nollaa huiput</div>';
   document.body.appendChild(el);
 
-  var off = { particles: false, heatmap: false, markers: false, field: false, tiles: false, snap: false, coast: false };
+  var off = { particles: false, heatmap: false, markers: false, field: false, tiles: false, snap: false };
   var LBL = { particles: 'Partikkelit', heatmap: 'Lämpökartta', markers: 'Merkit', field: 'Kenttä',
-              tiles: 'Tiilet', snap: 'Snap 0.5', coast: 'Rantaviiva' };
+              tiles: 'Tiilet', snap: 'Snap 0.5' };
 
   /* Ele- ja jälkivaihe erikseen. Nykiminen ITSE nipistyksen aikana ja
      nykäisy sen loputtua ovat eri ongelmia ja vaativat eri korjauksen,
@@ -9189,10 +8526,6 @@ const _loadingSafety = setTimeout(() => {
       /* Kaikki karttamerkit: spotit, tuulikortit, asemaruksit */
       document.querySelectorAll('.leaflet-marker-pane').forEach(function (e) {
         e.style.display = off.markers ? 'none' : '';
-      });
-    } else if (k === 'coast') {
-      document.querySelectorAll('.coast-shade').forEach(function (e) {
-        e.style.display = off.coast ? 'none' : '';
       });
     }
     else if (k === 'tiles') {

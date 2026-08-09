@@ -25,40 +25,39 @@ npm run preview   # esikatsele tuotantobuildia paikallisesti
 - `vercel.json` — Vercel-deployn asetukset (build-komento, output-hakemisto,
   funktioiden aikakatkaisut ja rewrite-säännöt).
 
-## Rantaviivan korostus (CoastShade)
+## Pohjakartta
 
-`index.html`:ssä oleva `CoastShade` piirtää liu'un veden ja maan rajaan, koska
-pohjakartalla ne erottuvat huonosti: CARTO `dark_nolabels` piirtää maan
-harmaalla 9 ja veden 36–38, eli ero on vain 11 % kirkkausasteikosta.
+Esri Dark Gray Canvas, `services.arcgisonline.com/.../World_Dark_Gray_Base`.
 
-Muutamia asioita jotka eivät ole ilmeisiä koodia lukiessa:
+Vaihdettiin CARTO `dark_nolabels` -kartasta, koska siinä maa ja vesi
+erottuivat huonosti: maa harmaa 9 ja vesi 36–38, eli ero vain 11 %
+kirkkausasteikosta — ja vesi oli maata *vaaleampi*, mikä on karttana
+takaperin. Sitä paikkailtiin lasketulla varjokerroksella, joka johti
+rantaviivan pohjakartan pikseleistä. Se toimi mutta oli jatkuva
+kitkanlähde: laattojen välkkyminen, tarkentuminen zoomatessa ja
+ajoittainen katoaminen. Kerros poistettiin kun pohjakartta korjasi
+alkuperäisen syyn.
 
-- **Geometria tulee pohjakartan omista pikseleistä**, ei erillisestä
-  rantaviiva-aineistosta. Suomen saaristossa on kymmeniä tuhansia saaria,
-  joten riittävän tarkka vektoriaineisto olisi kymmeniä megatavuja. Laatat
-  ovat jo selaimessa, ja `crossOrigin` tekee niiden pikseleistä luettavia.
-  Siksi varjo ei voi koskaan olla sivussa rannasta.
-- **Se on `L.GridLayer`**, ei yksi näkymän kokoinen overlay. Overlay venyi
-  zoomatessa ja luki silmässä toisena karttana.
-- **Se on lämpökartan PÄÄLLÄ** (oma pane, z-index 450). Alempaa mitattuna se
-  hävisi käytännössä kokonaan: lämpökartan `mix-blend-mode: screen` vaimentaa
-  alleen jäävän kontrastin kertoimella (1 − päällyskerros), mikä on tässä
-  17–46-kertainen vaimennus.
-- **Laskenta odottaa eleen loppua** (`_busy`) ja tehdään aikabudjetilla
-  (`_drain`). Suoraan kesken nipistyksen ajettuna 15 laattaa vei ruutuajan
-  p95:n 45 ms:stä 110 ms:ään.
-- **Tasot ristihäivytetään itse** (`_flush`). Leafletin oma häivytys pitää
-  vanhan tason täydessä kirkkaudessa, jolloin läpinäkyvä varjo piirtyy
-  kahdesti ja kartta välähtää tummempana.
-- **`_sweep()` on vahtikoira.** Laatta joka jää Leafletin kirjanpidossa
-  lataamattomaksi on `visibility:hidden`, eli varjo puuttuu siitä kohtaa.
-  Sen sijaan että luotettaisiin jokaisen polun muistavan kutsua `done()`,
-  taso käydään läpi eleen jälkeen ja puuttuvat viimeistellään.
-- **Älä laita Leafletin eläviä laattaelementtejä välimuistiin.** Leaflet
-  asettaa poistetun laatan `src`:ksi 1×1 läpinäkyvän kuvan, jolloin niistä
-  piirtyy tyhjää ja varjo katoaa. `_usable()` tarkistaa koon.
+Yksityiskohtia jotka eivät ole ilmeisiä:
 
-Kytkin A/B-vertailuun: `?perf=1` → "Rantaviiva".
+- **Osoitteessa on `{z}/{y}/{x}`** — ArcGIS antaa rivin ennen saraketta,
+  toisin kuin tavallinen XYZ.
+- **`maxNativeZoom: 16`** — z17 palauttaa vaalean "ei dataa" -laatan.
+- **`detectRetina: true`** — laatat ovat 256 px eivätkä @2x kuten CARTOlla.
+  Ilman tätä ne venytettäisiin retinanäytöllä pehmeiksi. Laatat ovat pieniä
+  (noin 5 kt), joten neljänkertainen määrä on yhä kevyempi kuin CARTOn
+  @2x-laatat.
+- **`.basemap { filter: contrast(1.4) }`** — Esrin vesi on 35 ja maa 77,
+  molemmat selvästi alle keskiharmaan, joten contrast tummentaa ja kasvattaa
+  eroa samaan aikaan: vesi menee nollaan ja maa arvoon 57, ero 42 → 57.
+  Ilman tätä kartta olisi lämpökartan alla selvästi vaaleampi kuin ennen ja
+  tuulivärit menettäisivät tehonsa. Suodin on värimatriisi ja ajetaan
+  kompositoinnissa; mitattuna sen kustannus ei erotu kohinasta.
+- **Nimistö**: z4–z6 sisältää maiden ja merialueiden nimiä (Esrin base ei ole
+  täysin labels-vapaa). z7:stä ylöspäin ei nimistöä.
+- **Attribuutio** on asetuspaneelin alalaidassa, ei kartalla — kartta luodaan
+  `attributionControl: false`. Esrin ehdot vaativat "Powered by Esri"
+  -maininnan ja datalähteiden nimet, joten sitä riviä ei saa poistaa.
 
 ## API-osoitteet
 
