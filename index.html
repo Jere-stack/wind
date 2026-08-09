@@ -69,19 +69,13 @@ body {
    maksa ruutuaikaa. */
 .basemap { filter: contrast(1.4); }
 
-/* Ruudun reunavinjetti — tummentaa NÄKYMÄN reunoja. */
-#map::after {
-  content: '';
-  position: absolute; inset: 0; z-index: 2;
-  pointer-events: none;
-  background: radial-gradient(ellipse 120% 120% at 50% 50%,
-    transparent 40%,
-    rgba(0,4,12,0.25) 70%,
-    rgba(0,4,12,0.55) 100%
-  );
-}
-
-
+/* Tässä oli reunavinjetti (#map::after, z-index 2), joka ei koskaan
+   piirtynyt: Leafletin karttapaneeli on #map:n sisällä z-indexillä 400,
+   joten vinjetti jäi kartan alle. Poistettu, koska ulkoasu ei muutu ja
+   toimivalta näyttävä sääntö johtaa lukijaa harhaan. Jos reunojen
+   tummennus halutaan takaisin, se tarvitsee oman kerroksen #map:n
+   ulkopuolelle — yksi z-index ei riitä, koska koko karttapaneeli
+   paneeleineen on yksi pinoamiskonteksti. */
 
 /* ============================================================
    WIND CANVASES  z:2-3
