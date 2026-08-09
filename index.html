@@ -3103,12 +3103,17 @@ const CoastShade = {
   _shade: new Map(), _shadeMax: 64,
 
   P: {
-    NS:      256,   /* laskentanäytteitä laatan sivulla (laatta = 256 CSS px,
-                       eli 1 näyte/CSS-pikseli — noin 3× entinen tarkkuus) */
-    T_LO:    28,    /* vesi: harmaasävy tästä ylöspäin... */
-    T_HI:    40,    /* ...mutta vain tähän asti (tiet ovat 42) */
-    SOFT_LO: 12,    /* pehmeän maskin ramppi: tästä alkaa vesi... */
-    SOFT_HI: 34,    /* ...ja tähän mennessä se on täyttä */
+    NS:      256,   /* laskentanäytteitä laatan sivulla — laatta on 256 CSS px,
+                       eli yksi näyte CSS-pikseliä kohti */
+    /* T_LO/T_HI: kynnykset joilla LASKETAAN onko laatassa sekä vettä että
+       maata. Jos ei ole, koko laatta ohitetaan. Itse maskin muodostaa
+       SOFT_LO/SOFT_HI -ramppi, ei näämä. */
+    T_LO:    28,
+    T_HI:    40,    /* tätä vaaleampi ei ole vettä lainkaan — tiet ovat 42 */
+    SOFT_LO: 12,    /* maskin ramppi: tästä alkaa vesi... */
+    SOFT_HI: 34,    /* ...ja tähän mennessä se on täyttä. Väli 13–34 on
+                       pohjakartan omaa reunanpehmennystä, josta saadaan
+                       rantaviivan alipikselitarkka sijainti. */
     R_DARK:  8,     /* varjon leveys CSS-pikseleinä, maan puolella */
     A_DARK:  0.38,
     DARK:    [0, 2, 8],
