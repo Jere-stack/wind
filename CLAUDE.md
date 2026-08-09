@@ -59,6 +59,64 @@ Yksityiskohtia jotka eivät ole ilmeisiä:
   `attributionControl: false`. Esrin ehdot vaativat "Powered by Esri"
   -maininnan ja datalähteiden nimet, joten sitä riviä ei saa poistaa.
 
+## Lämpökartta pohjakartan päällä
+
+Lämpökartta on `L.imageOverlay`, joka lisätään **laattapaneeliin**
+(`pane: 'tilePane'`) ja sekoitetaan pohjaan `mix-blend-mode: plus-lighter`
+-tilassa. Molemmat asiat ovat välttämättömiä; kumpikaan ei toimi yksin.
+
+**Paneeli ratkaisee sen, vaikuttaako sekoitustila lainkaan.**
+`mix-blend-mode` sekoittuu vain oman pinoamiskontekstinsa sisällä, ja
+jokainen Leafletin paneeli on oma kontekstinsa (`position:absolute` +
+`z-index`). Kun lämpökartta oli `overlayPane`ssa (z 400), sen alla ei ollut
+mitään — se sekoittui läpinäkyvää vasten, eli sekoitustila oli kuollutta
+koodia. Mitattuna sovelluksessa 9,1 m/s tuulessa rantaviivan luminanssiero
+oli `normal`, `screen` ja `plus-lighter` -tiloissa **täsmälleen sama 16.7**.
+Laattapaneelissa taustana on pohjakartta ja sama mittaus antaa
+normal 16.7 / screen 24.7 / **plus-lighter 42.2**.
+
+**Miksi juuri plus-lighter.** `screen` laskee `1-(1-pohja)(1-tuuli)`, jolloin
+maan ja veden ero kutistuu kertoimella `(1 - alfa*tuulivari)` — eli katoaa
+sitä enemmän mitä kovempi tuuli, juuri siellä minne katsotaan. Erillisessä
+mittauksessa oikeilla Esri-laatoilla ero putosi 53:sta 35:een 10 m/s
+kohdalla. `plus-lighter` laskee `pohja + alfa*tuuli`, jolloin ero säilyy
+sellaisenaan: 55–57 koko rampin yli. Sovelluksen A/B ennen ja jälkeen:
+rantaviivan ero **20.1 → 41.5**.
+
+- **Piirtojärjestys ei muutu** paneelin vaihdosta: laattapaneelissa on
+  ennestään vain pohjakartta, ja merkit ovat markerPanessa (z 600).
+- **Sekoitustila on kahdessa paikassa** — CSS:ssä ja `updateHeatmapBlur`in
+  inline-tyylissä (`HEAT_BLEND`). Molemmat päättelevät sen samalla
+  `CSS.supports`-säännöllä. Jos vain CSS:ää muuttaa, inline-arvo ohittaa sen.
+- **Varatie**: `@supports not (mix-blend-mode: plus-lighter)` palaa
+  `screen`iin. Tuki on Chrome 108+ ja Safari 16.4+; vanhemmissa kartta
+  toimii ja on yhä parempi kuin ennen (24.7 vs 16.7), koska paneelikorjaus
+  herättää myös screenin.
+- **`contrast(1.4)` on mitattu optimi, ei arvaus.** Pyyhkäisy 1.25 / 1.4 /
+  1.55: rantaviivan ero 46.3 / 48.9 / 41.3. Yli 1.4 alkaa painaa myös maata
+  kohti mustaa (maa on keskiharmaan alapuolella), jolloin ero taas kapenee.
+
+### Väriramppi
+
+- **Väliankkurit.** Rampissa on 17 riviä, joista 8 on väliankkureita:
+  segmentin päätepisteiden Lab-keskiarvoja. Ilman niitä sRGB-interpolointi
+  etenee epätasaisesti — 9→10 m/s harppasi 26.7 dE kun 16→17 liikkui 5.3,
+  eli sama nopeusero näytti viisi kertaa suuremmalta. Väliankkurit tasaavat
+  suhteen 5.0:sta 2.8:aan ilman että sovellukseen tuodaan väriavaruus-
+  matematiikkaa. **Merkitsevät sävyt (8 vihreä, 10 keltainen, 13 oranssi)
+  ovat tarkalleen ennallaan** — vain niiden välit ja kärki muuttuivat.
+- **Kärki on magenta, ei tummaa viiniä.** Vanha ramppi tummui yli 16 m/s
+  (L\* 36 → 20), joten myrsky näytti vaimeammalta kuin 13 m/s. Nyt L\* nousee
+  loppuun asti (36 → 47).
+- **Alfakäyrän kuutiollinen lisätermi** nostaa vain kärkeä: 8 m/s pysyy
+  0.45:ssä, 20 m/s nousee 0.60:stä 0.75:een. Additiivisessa sekoituksessa
+  tämä ei syö rantaviivan kontrastia, koska maan ja veden ero ei riipu
+  alfasta. `screen`in kanssa se olisi ollut mahdotonta.
+- **Värisokeus on yhä ratkaisematta.** 10 ja 13 m/s ovat deuteranoopille
+  käytännössä sama väri (dE 3.4 vanhassa, 2.2 uudessa) — vika on
+  vihreä–keltainen–punainen-perheessä itsessään, ei näissä säädöissä.
+  Korjaus vaatisi rampin vaihtamista toiseen väriperheeseen.
+
 ## API-osoitteet
 
 Frontend käyttää vakiota `API_BASE = '/api'` (`index.html`), eli funktiot

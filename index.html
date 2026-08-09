@@ -94,15 +94,30 @@ body {
   -webkit-backface-visibility: hidden; backface-visibility: hidden;
 }
 #c-wind { z-index: 3; transition: opacity 0.15s; }
+/* Additiivinen sekoitus lämpökartalle.
+   screen laskee tuloksen 1-(1-pohja)(1-tuuli), jolloin maan ja veden ero
+   kutistuu kertoimella (1 - alfa*tuulivari): mitä kovempi tuuli, sitä
+   enemmän rantaviiva katoaa. Mitattuna ero putosi 53:sta 35:een juuri
+   8-13 m/s kohdalla eli siinä missä karttaa katsotaan.
+   plus-lighter laskee pohja + alfa*tuuli, jolloin ero säilyy sellaisenaan
+   (mitattu 55-57 koko rampin yli) eivätkä tuulivärit vaimene.
+   HUOM: tämä sääntö vaikuttaa vain koska lämpökartta on samassa
+   pinoamiskontekstissa pohjakartan kanssa — ks. pane: 'tilePane'
+   drawColorField-funktiossa. Väärässä paneelissa mikä tahansa arvo tästä
+   tuottaa saman lopputuloksen. */
 .heatmap-overlay {
   opacity: 1.0;
-  /* Multiply: vaalealla pohjalla tuulivarit painuvat luonnollisesti kartalle */
-  mix-blend-mode: screen;
+  mix-blend-mode: plus-lighter;
   image-rendering: auto;
   transition: filter 0.3s, -webkit-filter 0.3s;
 }
 .heatmap-overlay img {
-  mix-blend-mode: screen;
+  mix-blend-mode: plus-lighter;
+}
+/* Chrome 108 / Safari 16.4 alle: screen toimii kuten ennenkin. */
+@supports not (mix-blend-mode: plus-lighter) {
+  .heatmap-overlay,
+  .heatmap-overlay img { mix-blend-mode: screen; }
 }
 
 /* ============================================================
@@ -2108,16 +2123,36 @@ const Units = {
 
 /* -- COLOUR RAMP ------------------------------------------------ */
 const ColorRamp = (() => {
+  /* Nimetyt sävyt ovat ne joita sovellus käyttää merkitsevinä rajoina
+     (8 vihreä, 10 keltainen, 13 oranssi). Niiden VÄLISSÄ on väliankkurit,
+     joiden väri on segmentin päätepisteiden Lab-keskiarvo. Ilman niitä
+     sRGB-interpolointi etenee epätasaisesti: 9->10 m/s harppasi 26.7 dE
+     kun 16->17 liikkui 5.3 — sama nopeusero näytti viisi kertaa
+     suuremmalta muutokselta. Väliankkurit tasaavat suhteen 5.0:sta 2.8:aan
+     lisäämättä sovellukseen väriavaruusmatematiikkaa.
+
+     Yli 16 m/s nousee punaisesta magentaan eikä tummu viiniksi kuten ennen.
+     Vanha kärki putosi kirkkaudessa (L* 36 -> 20) samalla kun tuuli kasvoi,
+     joten myrsky näytti vaimeammalta kuin 13 m/s. Nyt L* nousee loppuun
+     asti (36 -> 47). */
   const RAMP = [
-    { t: 0.00, r: 10,  g: 20,  b: 80  },  /* 0 m/s   tumma sininen */
-    { t: 0.10, r: 0,   g: 50,  b: 200 },  /* 2 m/s   sininen */
-    { t: 0.22, r: 0,   g: 153, b: 204 },  /* 4 m/s   sinivihrea */
-    { t: 0.36, r: 0,   g: 204, b: 136 },  /* 6 m/s   vaaleanvihrea */
-    { t: 0.50, r: 0,   g: 221, b: 68  },  /* 8 m/s   puhtaan vihrea */
-    { t: 0.65, r: 221, g: 204, b: 0   },  /* 10 m/s  keltainen */
-    { t: 0.78, r: 255, g: 119, b: 0   },  /* 13 m/s  oranssi */
-    { t: 0.90, r: 238, g: 17,  b: 17  },  /* 16 m/s  punainen */
-    { t: 1.00, r: 170, g: 0,   b: 51  },  /* 20 m/s  tumma viinipuna */
+    { t: 0.000, r:  10, g:  20, b:  80 },  /*  0 m/s   tumma sininen */
+    { t: 0.050, r:  11, g:  35, b: 138 },  /*  1 m/s */
+    { t: 0.100, r:   0, g:  50, b: 200 },  /*  2 m/s   sininen */
+    { t: 0.160, r:  37, g: 103, b: 203 },  /*  3 m/s */
+    { t: 0.220, r:   0, g: 153, b: 204 },  /*  4 m/s   sinivihrea */
+    { t: 0.290, r:  37, g: 178, b: 171 },  /*  5 m/s */
+    { t: 0.360, r:   0, g: 204, b: 136 },  /*  6 m/s   vaaleanvihrea */
+    { t: 0.430, r:  19, g: 212, b: 105 },  /*  7 m/s */
+    { t: 0.500, r:   0, g: 221, b:  68 },  /*  8 m/s   puhtaan vihrea */
+    { t: 0.575, r: 154, g: 214, b:  45 },  /*  9 m/s */
+    { t: 0.650, r: 221, g: 204, b:   0 },  /* 10 m/s   keltainen */
+    { t: 0.715, r: 241, g: 165, b:   0 },  /* 11.5 m/s */
+    { t: 0.780, r: 255, g: 119, b:   0 },  /* 13 m/s   oranssi */
+    { t: 0.840, r: 254, g:  87, b:  49 },  /* 14.5 m/s */
+    { t: 0.900, r: 252, g:  38, b:  72 },  /* 16 m/s   punainen */
+    { t: 0.950, r: 255, g:  76, b: 130 },  /* 18 m/s */
+    { t: 1.000, r: 255, g: 105, b: 190 },  /* 20 m/s   magenta */
   ];
   function msToT(ms) {
     const m = Math.min(Config.MAX_MS, Math.max(0, ms));
@@ -3028,7 +3063,13 @@ const WindTexture = {
             const base = idx * 4;
             const rgb = ColorRamp.rgb(ms);
             const t = ms / Config.MAX_MS;
-            const a = ms < 0.3 ? 0.08 : Math.min(0.65, 0.10 + 0.55 * (1 - Math.exp(-2.5 * t)));
+            /* Kuutiollinen lisätermi nostaa vain kärkeä: 8 m/s pysyy 0.45:ssä
+               mutta 20 m/s nousee 0.60:stä 0.75:een. Additiivisessa
+               sekoituksessa se ei syö rantaviivan kontrastia — maan ja veden
+               ero on alfasta riippumaton — joten kovan tuulen saa näkymään
+               ilman että kartta katoaa alta. */
+            const a = ms < 0.3 ? 0.08
+              : Math.min(0.75, 0.10 + 0.55 * (1 - Math.exp(-2.5 * t)) + 0.10 * t * t * t);
             d[base] = rgb.r; d[base+1] = rgb.g; d[base+2] = rgb.b; d[base+3] = Math.round(a * 255);
           }
         }
@@ -3079,30 +3120,50 @@ function drawColorField(skipBlur) {
     State.heatmapOverlay.setUrl(url);
     State.heatmapOverlay.setBounds(bounds);
   } else {
+    /* pane: 'tilePane' EI ole makuasia. mix-blend-mode sekoittuu vain oman
+       pinoamiskontekstinsa sisällä, ja jokainen Leafletin paneeli on oma
+       kontekstinsa (position:absolute + z-index). overlayPanessa (z 400)
+       lämpökartan alla ei ole mitään, joten se sekoittui läpinäkyvää vasten
+       — mitattuna screen, plus-lighter ja normal antoivat täsmälleen saman
+       tuloksen (rantaviivan ero 16.7 kaikilla). Sekoitustila oli siis
+       kuollutta koodia. Laattapaneelissa (z 200) taustana on pohjakartta ja
+       sekoitus vaikuttaa: sama mittaus antaa normal 16.7, screen 24.7,
+       plus-lighter 42.2.
+       Piirtojärjestys ei muutu: paneelissa on ennestään vain pohjakartta,
+       ja lämpökartta tulee sen päälle. Merkit ovat markerPanessa (z 600). */
     State.heatmapOverlay = L.imageOverlay(url, bounds, {
-      opacity: 1, interactive: false, className: 'heatmap-overlay', pane: 'overlayPane'
+      opacity: 1, interactive: false, className: 'heatmap-overlay', pane: 'tilePane'
     }).addTo(State.map);
   }
   if (!skipBlur) updateHeatmapBlur();
 }
+
+/* Sama arvo kuin CSS:n @supports-haarassa. Tämä asetetaan inline-tyyliin,
+   joten se on pakko päätellä samalla säännöllä — muuten inline-arvo
+   ohittaisi varasäännön vanhoissa selaimissa. */
+const HEAT_BLEND = (window.CSS && CSS.supports && CSS.supports('mix-blend-mode', 'plus-lighter'))
+  ? 'plus-lighter' : 'screen';
 
 function updateHeatmapBlur() {
   if (!State.map) return;
   const z = State.map.getZoom();
   /* Blur: zoomissa 5+ tarkempi, kaukaa pehmeampi */
   const blur = Math.max(3, Math.round(22 - (z - 2) * 2.2));
-  /* Saturate vahvistaa vareja screen-blendauksen kanssa */
+  /* Saturate vahvistaa vareja sekoituksen kanssa */
   const sat = z <= 5 ? 1.6 : 1.4;
   const fStr = 'blur(' + blur + 'px) saturate(' + sat + ')';
   document.querySelectorAll('.heatmap-overlay').forEach(el => {
     el.style.filter = fStr;
     el.style.webkitFilter = fStr;
-    /* Varmista mix-blend-mode pysyy -- jotkut selaimet resetoivat sen */
-    el.style.mixBlendMode = 'screen';
+    /* Sekoitustila kirjoitetaan uudestaan joka päivityksellä. Alkuperäinen
+       perustelu oli "jotkut selaimet resetoivat sen"; todellinen syy sille
+       ettei sekoitus näkynyt oli paneelin pinoamiskonteksti, ei selain.
+       Rivi on silti vaaraton ja pitää inline-tyylin CSS:n kanssa samana. */
+    el.style.mixBlendMode = HEAT_BLEND;
   });
   /* Myos img-lapsi jos Leaflet lisaa sen */
   document.querySelectorAll('.heatmap-overlay img').forEach(img => {
-    img.style.mixBlendMode = 'screen';
+    img.style.mixBlendMode = HEAT_BLEND;
   });
 }
 
