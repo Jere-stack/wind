@@ -3090,10 +3090,11 @@ const CoastShade = {
   map: null, tiles: null, layer: null, disabled: false,
   _cache: new Map(),      /* 'z/x/y' -> Promise<Image|null>, vain omat kuvat */
   /* Yksi dekoodattu @2x-laatta vie noin megatavun, joten tämä pidetään
-     pienenä: sen ainoa tehtävä on jakaa naapurit saman erän laattojen kesken.
-     Valtaosa naapureista tulee suoraan Leafletin elävistä laatoista, joten
-     tänne päätyy vain näkymän ympärille jäävä kehä. */
-  _cacheMax: 24,
+     pienenä ja se tyhjennetään kun erä on valmis. Valtaosa naapureista tulee
+     suoraan Leafletin elävistä laatoista, joten tänne päätyy vain näkymän
+     ympärille jäävä kehä — mutta koko erän kehä pitää mahtua yhtä aikaa,
+     muuten lämmitetyt kuvat karsiutuisivat juuri ennen käyttöä. */
+  _cacheMax: 64,
 
   /* Valmiit varjot muistiin, jotta kertaalleen laskettu zoom-taso ilmestyy
      heti uudelleen. Tallennetaan tiiviisti: yksi tavu per pikseli, ylin bitti
@@ -3106,6 +3107,8 @@ const CoastShade = {
                        eli 1 näyte/CSS-pikseli — noin 3× entinen tarkkuus) */
     T_LO:    28,    /* vesi: harmaasävy tästä ylöspäin... */
     T_HI:    40,    /* ...mutta vain tähän asti (tiet ovat 42) */
+    SOFT_LO: 12,    /* pehmeän maskin ramppi: tästä alkaa vesi... */
+    SOFT_HI: 34,    /* ...ja tähän mennessä se on täyttä */
     R_DARK:  8,     /* varjon leveys CSS-pikseleinä, maan puolella */
     A_DARK:  0.38,
     DARK:    [0, 2, 8],
@@ -3230,6 +3233,25 @@ const CoastShade = {
     for (let i = 0; i < p.length; i++) p[i].done(null, p[i].cvs);
   },
 
+  /* Aloittaa kuvien lataukset koko jonolle kerralla. Ilman tätä kunkin laatan
+     yhdeksän naapuria alkavat latautua vasta kun sen vuoro tulee, jolloin
+     lataukset menevät sarjaan: mitattuna 12 laatan erässä kuvien odotus oli
+     132 ms ja itse laskenta 151 ms. */
+  _warm() {
+    const q = this._queue;
+    for (let i = 0; i < q.length; i++) {
+      const job = q[i];
+      if (job.warmed) continue;
+      job.warmed = true;
+      /* Muistettu varjo ei tarvitse kuvia lainkaan */
+      if (this._shade.get(job.key) !== undefined) continue;
+      const c = job.coords;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) this._image(c.x + dx, c.y + dy, c.z);
+      }
+    }
+  },
+
   _enqueue(job) {
     if (this.disabled) { job.done(null, job.cvs); return; }
     /* HUOM: jonossa olevia töitä ei saa hylätä tyhjällä canvasilla, vaikka
@@ -3267,6 +3289,7 @@ const CoastShade = {
      * sen jälkeen tasaisesti uusi. Neliöitä ei voi syntyä. */
     try {
       while (this._queue.length) {
+        this._warm();
         /* Ei lasketa kesken eleen. Yhden laatan varjo maksaa 7–9 ms, ja
            viisitoista laattaa kesken nipistyksen vei mitattuna ruutuajan
            p95:n 45 ms:stä 110 ms:ään. Lämpökartta tekee jo samoin: raskas
@@ -3316,6 +3339,11 @@ const CoastShade = {
          Leafletin kirjanpidossa lataamattomaksi eli näkymättömäksi. */
       this._draining = false;
       this._flush();
+      /* Kuvavälimuistia tarvitaan vain erän ajan: naapurit jaetaan vierekkäisten
+         laattojen kesken. Sen jälkeen se on pelkkää muistia — yksi dekoodattu
+         @2x-laatta on noin megatavu. Uusintakäynnit osuvat varjomuistiin
+         eivätkä tarvitse kuvia lainkaan. */
+      this._cache.clear();
       if (this._queue.length && !this._draining) {
         this._draining = true;
         const self = this;
@@ -3409,33 +3437,41 @@ const CoastShade = {
     return t;
   },
 
-  /* 3×3 avaus: kutistus + laajennus, erottelevana min/max-parina.
-     Sama tulos kuin laatikkokeskiarvoilla ja kynnystyksellä, mutta
-     mitattuna 3.2 ms → 1.0 ms: Uint8 vie neljäsosan muistikaistasta ja
-     pystysuunta käydään riveittäin, ei sarakkeittain. */
+  /* 3×3 avaus harmaasävyllä: kutistus (paikallinen minimi) ja sen jälkeen
+     laajennus (paikallinen maksimi). Binäärisellä maskilla sama operaatio
+     poisti tieviirut, mutta pakotti rantaviivan yhden näytteen tarkkuuteen —
+     3× näytöllä se näkyi porrastuksena laiturin reunassa. Harmaasävyversio
+     poistaa viirut samalla tavalla mutta säilyttää reunan alipikselitarkkuuden.
+     Erotteleva: vaaka ja pysty erikseen, pystysuunta riveittäin. */
   _open3(m, tmp, w, h) {
-    let x, y, r0, r1, r2;
+    let x, y, r0, r1, r2, a, b, c;
     for (y = 0; y < h; y++) {                    /* kutistus, vaaka */
       r1 = y * w;
       for (x = 0; x < w; x++) {
-        tmp[r1 + x] = (m[r1 + (x > 0 ? x - 1 : 0)] && m[r1 + x]
-                    && m[r1 + (x < w - 1 ? x + 1 : w - 1)]) ? 1 : 0;
+        a = m[r1 + (x > 0 ? x - 1 : 0)]; b = m[r1 + x]; c = m[r1 + (x < w - 1 ? x + 1 : w - 1)];
+        tmp[r1 + x] = a < b ? (a < c ? a : c) : (b < c ? b : c);
       }
     }
     for (y = 0; y < h; y++) {                    /* kutistus, pysty */
       r0 = (y > 0 ? y - 1 : 0) * w; r1 = y * w; r2 = (y < h - 1 ? y + 1 : h - 1) * w;
-      for (x = 0; x < w; x++) m[r1 + x] = (tmp[r0 + x] && tmp[r1 + x] && tmp[r2 + x]) ? 1 : 0;
+      for (x = 0; x < w; x++) {
+        a = tmp[r0 + x]; b = tmp[r1 + x]; c = tmp[r2 + x];
+        m[r1 + x] = a < b ? (a < c ? a : c) : (b < c ? b : c);
+      }
     }
     for (y = 0; y < h; y++) {                    /* laajennus, vaaka */
       r1 = y * w;
       for (x = 0; x < w; x++) {
-        tmp[r1 + x] = (m[r1 + (x > 0 ? x - 1 : 0)] || m[r1 + x]
-                    || m[r1 + (x < w - 1 ? x + 1 : w - 1)]) ? 1 : 0;
+        a = m[r1 + (x > 0 ? x - 1 : 0)]; b = m[r1 + x]; c = m[r1 + (x < w - 1 ? x + 1 : w - 1)];
+        tmp[r1 + x] = a > b ? (a > c ? a : c) : (b > c ? b : c);
       }
     }
     for (y = 0; y < h; y++) {                    /* laajennus, pysty */
       r0 = (y > 0 ? y - 1 : 0) * w; r1 = y * w; r2 = (y < h - 1 ? y + 1 : h - 1) * w;
-      for (x = 0; x < w; x++) m[r1 + x] = (tmp[r0 + x] || tmp[r1 + x] || tmp[r2 + x]) ? 1 : 0;
+      for (x = 0; x < w; x++) {
+        a = tmp[r0 + x]; b = tmp[r1 + x]; c = tmp[r2 + x];
+        m[r1 + x] = a > b ? (a > c ? a : c) : (b > c ? b : c);
+      }
     }
   },
 
@@ -3531,14 +3567,23 @@ const CoastShade = {
       }
 
       const n = W * H;
-      const mask = new Uint8Array(n), work = new Uint8Array(n);
+      const mask = new Float32Array(n), work = new Float32Array(n);
       let water = 0, land = 0;
+      const SLO = P.SOFT_LO, SPAN = P.SOFT_HI - P.SOFT_LO;
       for (let i = 0; i < n; i++) {
         const b4 = i * 4, v = d[b4];
         /* Puuttuva naapuri (alpha 0) luetaan vedeksi: silloin laatan reunaan
            ei synny valerantaa vaan pelkkä hieman vaimeampi liuku. */
-        if (d[b4 + 3] < 8 || (v >= P.T_LO && v <= P.T_HI)) { mask[i] = 1; water = 1; }
-        else { mask[i] = 0; land = 1; }
+        if (d[b4 + 3] < 8) { mask[i] = 1; water = 1; continue; }
+        /* Tiet ovat vettä vaaleampia (42) — ne eivät ole vettä lainkaan. */
+        if (v > P.T_HI) { mask[i] = 0; land = 1; continue; }
+        /* Pehmeä ramppi maan (9) ja veden (36–38) välillä. Pohjakartan oma
+           reunanpehmennys tuottaa väliarvot 13–34, joista saadaan rantaviivan
+           alipikselitarkka sijainti ilman lisätyötä. */
+        const t = (v - SLO) / SPAN;
+        const m0 = t <= 0 ? 0 : (t >= 1 ? 1 : t);
+        mask[i] = m0;
+        if (v >= P.T_LO) water = 1; else land = 1;
       }
       /* Pelkkää ulappaa tai pelkkää sisämaata — ei rantaa, ei varjoa.
          Ohitetaan avaus, kolme sumennusta ja maalaus kokonaan. Suomenlahdella
