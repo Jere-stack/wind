@@ -119,14 +119,21 @@ rantaviivan ero **20.1 → 41.5**.
 
 ## Valikoiden ulkoasu — Merikartta
 
-Sovelluksessa on **kaksi maailmaa**, ja raja niiden välillä on tarkoituksellinen:
+Sovelluksessa on **kaksi maailmaa**, ja raja kulkee sen mukaan mikä on
+dataa ja mikä käyttöliittymää — ei sen mukaan missä elementti sijaitsee:
 
-- **Kartta on tumma.** Pohjakartta, lämpökartta, partikkelit, spottimerkit,
-  yläpalkki, aikajana, tähtäin ja karttanapit. Väri asuu täällä, koska
-  tuulisävy tarkoittaa jotain.
-- **Paneelit ovat paperia.** Asetuspaneeli, spottikortti/havaintokortti ja
-  ennustepaneeli. Nämä ovat lähes neutraaleja, jotta ne eivät kilpaile datan
-  kanssa.
+- **Kartta on tumma ja pitää kaikki värit.** Pohjakartta, lämpökartta,
+  partikkelit, spottimerkit ja asemamerkkien pillerit. Väri asuu täällä,
+  koska tuulisävy tarkoittaa jotain.
+- **Kaikki käyttöliittymä on paperia.** Paneelit (asetukset,
+  spottikortti/havaintokortti, ennustepaneeli), kartan päällä kelluvat
+  sirut (sääwidget, tähtäimen lukema, tuuliasteikko), karttanapit,
+  aikajana ja latausruutu.
+
+Kartan päällä kelluvat elementit ovat siis **paperisiruja tummalla
+kartalla** (`--chip`), eivät tummia laatikoita. Asemamerkkien pillerit ovat
+poikkeus: ne ovat kartalla ja tummia, koska ne ovat dataa lämpökartan
+päällä. Jos niiden tekstin vaihtaa musteeksi, lukema katoaa kokonaan.
 
 Sävyt on otettu suomalaisesta merikartasta: maa-alueen kellertävä pohja,
 kartan musta teksti ja merikartan magenta, joka on myös se sävy johon
