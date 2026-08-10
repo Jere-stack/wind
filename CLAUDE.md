@@ -119,24 +119,83 @@ rantaviivan ero **20.1 → 41.5**.
 
 ## Valikoiden ulkoasu — Merikartta
 
-Sovelluksessa on **kaksi maailmaa**, ja raja kulkee sen mukaan mikä on
-dataa ja mikä käyttöliittymää — ei sen mukaan missä elementti sijaitsee:
+Sovelluksessa on **kolme maailmaa**, ja raja kulkee sen mukaan mitä asia
+on — ei sen mukaan missä se sijaitsee:
 
-- **Kartta on tumma ja pitää kaikki värit.** Pohjakartta, lämpökartta,
-  partikkelit, spottimerkit ja asemamerkkien pillerit. Väri asuu täällä,
-  koska tuulisävy tarkoittaa jotain.
-- **Kaikki käyttöliittymä on paperia.** Paneelit (asetukset,
-  spottikortti/havaintokortti, ennustepaneeli), kartan päällä kelluvat
-  esineet (yläreunan kapseli, aikavalitsin), karttanapit ja latausruutu.
-
-Kartan päällä kelluvat elementit ovat siis **paperisiruja tummalla
-kartalla** (`--chip`), eivät tummia laatikoita. Asemamerkkien pillerit ovat
-poikkeus: ne ovat kartalla ja tummia, koska ne ovat dataa lämpökartan
-päällä. Jos niiden tekstin vaihtaa musteeksi, lukema katoaa kokonaan.
+- **Tuulikenttä pitää värin.** Pohjakartta, lämpökartta ja partikkelit.
+  **Sävy tarkoittaa tuulennopeutta, ja vain sitä.**
+- **Mitattu data on tummaa pilleriä kartalla.** Havaintoasemien lukemat.
+  Ne ovat lämpökartan päällä, joten niiden on oltava tummia — musteeksi
+  vaihdettuna lukema katoaisi kokonaan.
+- **Kaikki muu on paperia.** Paneelit, kartan päällä kelluvat esineet
+  (kapseli, aikavalitsin), karttanapit, latausruutu — ja **spottimerkit**.
 
 Sävyt on otettu suomalaisesta merikartasta: maa-alueen kellertävä pohja,
 kartan musta teksti ja merikartan magenta, joka on myös se sävy johon
 tuuliramppi päättyy 20 m/s kohdalla.
+
+### Kartan datakieli
+
+Aiemmin kartalla oli **neljä kilpailevaa kieltä**: tummat pillerit
+tuulelle, keltaiset pisteet (`#f5c842`) maa-asemille, mintunväriset aallot
+(`#29e8a8`) vedenlämmölle ja sinivalkoiset ruksit sijainneille. Kolme
+ensimmäistä olivat kategoriavärejä lämpökartan päällä, jonka oma väri taas
+tarkoitti jotain. Kaikkien tasojen ollessa päällä ruudulla oli neljä
+väriperhettä yhtä aikaa eikä yksikään niistä kertonut mitään.
+
+Nyt kaikki lukemat jakavat **saman tumman pillerin ja saman vaalean
+musteen** (`INK_1/INK_2/INK_3`). Ero syntyy **glyfistä**: tuuliviiri vs.
+aalto. Toissijaiset asemat ovat pisteitä samassa musteessa — ero
+ensisijaisiin on koko ja kirkkaus, ei sävy.
+
+- **Asetusten tasolegenda näyttää glyfin, ei väripalloa.** Kun kartalta
+  poistui väri, värilegenda olisi kertonut asiaa jota kartalla ei ole.
+  Legendan glyfi on täsmälleen sama jonka merkki piirtää.
+- **Tyhjä pilleri putoaa pisteeksi.** Vedenlämpöasema ilman lukemaa
+  näytti ennen `~ — °C`, joka vie saman tilan kuin oikea lukema muttei
+  kerro mitään.
+
+### Spottimerkit ovat paperia
+
+Sama spotti näytti ennen eri asialta kartalla (tumma levy, neonvihreä
+rengas) ja ennustepaneelissa (paperi, mustekaari) — vaikka kyse on samasta
+esineestä. Nyt kartan merkki on sama paperimerkki kuin paneelissa:
+`spotMarkerSVG(..., paperi = true)` ja `spotIndexInk()`.
+
+Kaksi syytä, joista jälkimmäinen on tärkeämpi:
+
+1. **Sama esine näyttää samalta kaikkialla.**
+2. **Neonvihreä `rgb(0,255,140)` oli sama sävy kuin lämpökartan 8 m/s.**
+   Spotin pistemäärä ja tuulennopeus kilpailivat samasta sävystä, joten
+   kumpikaan ei ollut luettava toisen päällä. Musteramppi on vaimea ja
+   asuu paperilla, joten se ei osu lämpökartan kanssa yhteen.
+
+**Nimikyltti ei ota indeksin väriä.** Merkki kertoo pisteet jo kahdesti
+(kaaren pituus ja luku); kolmas kerros tekisi nimen luettavuudesta
+indeksin panttivangin — matalan pistemäärän spotin nimi olisi harmaa.
+
+### Väistö: kumpi spotti saa täyden merkin
+
+Helsingin edustalla on kahdeksan spottia noin 20 km:n matkalla. Zoomilla 9
+ne ovat ruudulla 30 px:n päässä toisistaan, eli renkaat menivät ristiin ja
+luvut lukukelvottomiksi. Mitattuna **55,7 % renkaiden pinta-alasta oli
+toisen renkaan alla zoomilla 8** ja 23,3 % zoomilla 9.
+
+`_valitseTaydetSpotit()` tekee ahneen valinnan pistemäärän mukaan: kasan
+paras saa täyden renkaan, muut kutistuvat pisteiksi. Mittaus väistön
+jälkeen: **0 % kummallakin zoomilla.**
+
+- **Mitään ei piiloteta.** Piste on yhtä lailla napautettava ja kertoo
+  että spotti on siinä — luettavaksi vain tarjotaan se joka juuri nyt
+  kannattaa lukea.
+- **Kynnys on ruutupikseleissä**, joten kasat purkautuvat itsestään kun
+  zoomaa lähemmäs.
+- **Hävinnyt piste piirtyy renkaan ALLE** (`zIndexOffset: -1000`), muuten
+  se jäisi puolittain renkaan päälle ja näyttäisi virheeltä.
+- **Zoomatessa spotteja ei piirretä uudelleen** vaan skaalataan — se
+  säilyttää animaation. Väistöjoukko kuitenkin riippuu zoomista, joten
+  `_spotVaistoMuuttuisi()` tarkistaa erikseen muuttuisiko se, ja vain
+  silloin ajetaan täysi `renderSpots()`.
 
 ### Tokenit
 

@@ -454,10 +454,18 @@ body {
 /* Selitepiste on kartan merkin väri, ei paneelin väri — siksi se saa ohuen
    musteen reunan, jotta kylläinen sävy erottuu vaalealta paperilta sävynsä
    säilyttäen. Näin merkin ja rivin yhteys pysyy. */
+/* Tasolegenda näyttää GLYFIN eikä väripalloa. Kartalla värit poistuivat
+   havaintomerkeistä — sävy on varattu tuulennopeudelle — joten värilegenda
+   olisi kertonut asiaa jota kartalla ei enää ole. Glyfi on täsmälleen sama
+   jonka merkki kartalla piirtää, joten legendan ja kartan välillä ei ole
+   käännöstä. Toissijaiset tasot ovat himmeämpiä, kuten merkitkin. */
 .sp-toggle-dot {
-  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
-  box-shadow: inset 0 0 0 1px rgba(16,26,32,.45);
+  width: 18px; height: 18px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ink-2);
 }
+.sp-toggle-dot.toissijainen { color: var(--ink-3); opacity: .6; }
+.sp-toggle-dot svg { display: block; }
 .sp-toggle-name { font-size: 14px; color: var(--ink); }
 .sp-toggle-sub {
   font-size: 12px; color: var(--ink-3); margin-top: 1px;
@@ -1861,7 +1869,7 @@ body {
           <div class="sp-rows">
           <div class="sp-toggle-row" data-layer-toggle="fmi-sea">
             <div class="sp-toggle-left">
-              <div class="sp-toggle-dot" style="background:#f5c842"></div>
+              <div class="sp-toggle-dot"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><line x1="12" y1="4" x2="12" y2="20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".55"/><path d="M12 7 L19 9 L12 11 Z" fill="currentColor"/><circle cx="12" cy="20" r="1.5" fill="currentColor" opacity=".7"/></svg></div>
               <div>
                 <div class="sp-toggle-name">FMI · Meri</div>
                 <div class="sp-toggle-sub">Harmaja, Itätoukki, Vuosaari</div>
@@ -1872,7 +1880,7 @@ body {
 
           <div class="sp-toggle-row" data-layer-toggle="uiras-prim">
             <div class="sp-toggle-left">
-              <div class="sp-toggle-dot" style="background:#29e8a8"></div>
+              <div class="sp-toggle-dot"><svg width="16" height="10" viewBox="0 0 14 8" fill="none"><path d="M0 5 Q2 2 4 5 Q6 8 8 5 Q10 2 12 5 Q13 6.5 14 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg></div>
               <div>
                 <div class="sp-toggle-name">Rantalämpötilat</div>
                 <div class="sp-toggle-sub">Mustikkamaa, Uunisaari, Pihlajasaari…</div>
@@ -1883,7 +1891,7 @@ body {
 
           <div class="sp-toggle-row" data-layer-toggle="fmi-land">
             <div class="sp-toggle-left">
-              <div class="sp-toggle-dot" style="background:#f5c842;opacity:.5"></div>
+              <div class="sp-toggle-dot toissijainen"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><line x1="12" y1="4" x2="12" y2="20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".55"/><path d="M12 7 L19 9 L12 11 Z" fill="currentColor"/><circle cx="12" cy="20" r="1.5" fill="currentColor" opacity=".7"/></svg></div>
               <div>
                 <div class="sp-toggle-name">FMI · Maa</div>
                 <div class="sp-toggle-sub">Kaisaniemi, Kumpula, Malmi…</div>
@@ -1894,7 +1902,7 @@ body {
 
           <div class="sp-toggle-row" data-layer-toggle="uiras-sec">
             <div class="sp-toggle-left">
-              <div class="sp-toggle-dot" style="background:#29e8a8;opacity:.45"></div>
+              <div class="sp-toggle-dot toissijainen"><svg width="16" height="10" viewBox="0 0 14 8" fill="none"><path d="M0 5 Q2 2 4 5 Q6 8 8 5 Q10 2 12 5 Q13 6.5 14 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg></div>
               <div>
                 <div class="sp-toggle-name">Muut uimapaikat</div>
                 <div class="sp-toggle-sub">Marjaniemi, Rastila, Pikkukoski…</div>
@@ -1931,38 +1939,42 @@ body {
       <div id="bottom-bar-spacer"></div>
       <!-- Yksi pino oikealla: sijainti, vapaa piste, kalenteri, asetukset -->
       <div id="btn-spots-wrap">
-        <div class="mctl" id="btn-loc">
-          <!-- Dot + ring — selkeästi erilainen kuin tähtäin-crosshair alla -->
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8">
-            <circle cx="12" cy="12" r="3" fill="white" stroke="none"/>
-            <circle cx="12" cy="12" r="8"/>
+        <!-- Karttanapit. Kaikki neljä ikonia ovat samaa piirtotapaa: 22 px
+             ruutu, viivanpaksuus 1.8, currentColor. Kolmessa ensimmäisessä
+             oli vielä tumman teeman jäänne stroke="white" — paperisirulla
+             valkoinen viiva on käytännössä näkymätön. Koot olivat myös
+             20/34/34/22, joten ikonit lukivat eri painoisina. -->
+        <div class="mctl" id="btn-loc" title="Oma sijainti">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/>
+            <circle cx="12" cy="12" r="7.6"/>
+            <line x1="12" y1="1.8" x2="12" y2="4.4" stroke-linecap="round"/>
+            <line x1="12" y1="19.6" x2="12" y2="22.2" stroke-linecap="round"/>
+            <line x1="1.8" y1="12" x2="4.4" y2="12" stroke-linecap="round"/>
+            <line x1="19.6" y1="12" x2="22.2" y2="12" stroke-linecap="round"/>
           </svg>
         </div>
         <div class="mctl" id="btn-freespot" title="Avaa tämän paikan tiedot">
-          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <!-- Tähtäinympyrä -->
-            <circle cx="12" cy="12" r="3.5"/>
-            <!-- Neljä tähtäinviivaa -->
-            <line x1="12" y1="2"  x2="12" y2="6"/>
-            <line x1="12" y1="18" x2="12" y2="22"/>
-            <line x1="2"  y1="12" x2="6"  y2="12"/>
-            <line x1="18" y1="12" x2="22" y2="12"/>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <!-- Karttanuppineula: erottuu sijaintinapin renkaasta muodoltaan
+                 eikä vain kooltaan. -->
+            <path d="M12 21.5c0 0-6.6-7-6.6-11.4a6.6 6.6 0 1 1 13.2 0c0 4.4-6.6 11.4-6.6 11.4z"/>
+            <circle cx="12" cy="10" r="2.4"/>
           </svg>
         </div>
         <div class="mctl" id="fc-btn" title="Parhaat ajankohdat">
-          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="4" width="18" height="18" rx="3"/>
-            <line x1="3" y1="9" x2="21" y2="9"/>
-            <line x1="8" y1="2" x2="8" y2="6"/>
-            <line x1="16" y1="2" x2="16" y2="6"/>
-            <circle cx="8" cy="14" r="1.2" fill="white" stroke="none"/>
-            <circle cx="12" cy="14" r="1.2" fill="white" stroke="none"/>
-            <circle cx="16" cy="14" r="1.2" fill="white" stroke="none"/>
-            <circle cx="8" cy="18" r="1.2" fill="white" stroke="none"/>
-            <circle cx="12" cy="18" r="1.2" fill="white" stroke="none"/>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3.2" y="4.6" width="17.6" height="16.6" rx="3"/>
+            <line x1="3.2" y1="9.6" x2="20.8" y2="9.6"/>
+            <line x1="8" y1="2.6" x2="8" y2="6.4"/>
+            <line x1="16" y1="2.6" x2="16" y2="6.4"/>
+            <circle cx="8.4" cy="14" r="1.3" fill="currentColor" stroke="none"/>
+            <circle cx="12" cy="14" r="1.3" fill="currentColor" stroke="none"/>
+            <circle cx="15.6" cy="14" r="1.3" fill="currentColor" stroke="none"/>
+            <circle cx="8.4" cy="17.8" r="1.3" fill="currentColor" stroke="none"/>
+            <circle cx="12" cy="17.8" r="1.3" fill="currentColor" stroke="none"/>
           </svg>
         </div>
-        <!-- Asetukset — Windy-tyylinen keltainen korostus -->
         <div class="mctl mctl-settings" id="btn-settings">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
             <line x1="4" y1="6" x2="20" y2="6"/>
@@ -2418,7 +2430,13 @@ const SPOTS = [
   { name: 'Kruunuvuorenranta', lat: 60.1650, lng: 25.0105, desc: 'Itäväylän kupeessa',             bestDirs: ['N','S','SW']          },
   { name: 'Puuskaniemi',       lat: 60.1727, lng: 25.0853, desc: 'Jollaksen edusta – avoin',       bestDirs: ['SE']                  },
   { name: 'Kallahti',          lat: 60.1871, lng: 25.1408, desc: 'Vuosaaren ranta – itätuulet',    bestDirs: ['S','SW','W']          },
-  { name: 'Porkkala',          lat: 59.988,  lng: 24.397,  desc: 'Avomeri – luoteistuulet',        bestDirs: ['NW']                   }
+  { name: 'Porkkala',          lat: 59.988,  lng: 24.397,  desc: 'Avomeri – luoteistuulet',        bestDirs: ['NW']                   },
+  /* Emäsalon eteläkärki, FMI:n havaintoaseman (60.20382, 25.62546) kohdalla
+     mutta ~180 m etelään eli heti rantaviivan jälkeen vedessä. Sijainti on
+     tarkistettu pohjakartalta: aseman kohdalla on niemen viimeinen maapala
+     ja sen eteläpuolella avautuu Suomenlahti. Spotti on siis vedessä eikä
+     asemamerkin päällä, jolloin kumpikin merkki pysyy luettavana. */
+  { name: 'Emäsalo',           lat: 60.20220, lng: 25.62546, desc: 'Emäsalon kärki – avomeri',       bestDirs: ['SE','S','SW']          }
 ];
 
 /* -- VIEWPORT GRID ---------------------------------------------- */
@@ -2743,6 +2761,7 @@ const State = {
   sheetSpot: null,
   _panning: false, _dragZooming: false,
   _tlTimes: null, _tlSpeeds: null, _tlDirs: null, _tlTicks: [],
+  _spotTaydetAvain: '',   /* mitkä spotit saivat täyden merkin viime piirrossa */
   _lastTlHour: -1,
   /* Aikajanan oma, ohjelmallinen vieritys — katso _tlSetScrollLeft() */
   _tlSelfScroll: false, _tlSelfScrollT: null, _tlTouching: false,
@@ -2966,8 +2985,10 @@ function initMap() {
          tyyppi vaihtuu pisteen ja ympyrän välillä (z=5). */
       const crossedDotBoundary = (newZoom < 5) !== (_prevZoom < 5);
       _prevZoom = newZoom;
-      if (crossedDotBoundary || !State.markers.length) renderSpots(State.currentHourIdx);
-      else updateSpotScale(newZoom);
+      if (crossedDotBoundary || !State.markers.length
+          || _spotVaistoMuuttuisi(State.currentHourIdx, newZoom)) {
+        renderSpots(State.currentHourIdx);
+      } else updateSpotScale(newZoom);
     }
     WindTexture.build(State.windField, map.getBounds()).then(() => {
       drawColorField(); resetParticles(); Crosshair.refresh();
@@ -3893,27 +3914,6 @@ function spotIndexInk(score) {
   return `rgb(${r},${g},${b})`;
 }
 
-function spotIndexColor(score) {
-  const stops = [
-    [  0, [100, 102, 130]],   /* dark grey   */
-    [ 25, [130, 132, 155]],   /* grey        */
-    [ 35, [160, 175,  25]],   /* yellow      */
-    [ 48, [130, 210,  35]],   /* yellow-green */
-    [ 60, [ 80, 225,  70]],   /* light green */
-    [ 75, [ 40, 230, 110]],   /* green       */
-    [100, [  0, 255, 140]],   /* bright green */
-  ];
-  const s = Math.max(0, Math.min(100, score));
-  let i = 0;
-  while (i < stops.length - 2 && stops[i+1][0] <= s) i++;
-  const [s0, c0] = stops[i], [s1, c1] = stops[i+1];
-  const t = (s - s0) / (s1 - s0);
-  const r = Math.round(c0[0] + t * (c1[0] - c0[0]));
-  const g = Math.round(c0[1] + t * (c1[1] - c0[1]));
-  const b = Math.round(c0[2] + t * (c1[2] - c0[2]));
-  return `rgb(${r},${g},${b})`;
-}
-
 /* Spottiympyrän halkaisija zoomin mukaan.
  *
  * Aiemmin koko vaihtui portaissa: 28px (z5–6) → 36px + nimikyltti (z≥7).
@@ -3956,8 +3956,15 @@ function updateSpotScale(zoom) {
 }
 
 /* SVG circle marker with arc progress bar + score + name */
-function spotMarkerSVG(score, name, size, paperi) {
-  const col = paperi ? spotIndexInk(score) : spotIndexColor(score);
+/* Spottimerkki on PAPERIA myös kartalla. Aiemmin tässä oli kaksi muotoa:
+   tumma levy neonvihreällä renkaalla kartalle ja paperinen paneeleihin.
+   Sama spotti näytti siis eri asialta riippuen siitä mistä sitä katsoi —
+   ja kartan neonvihreä rgb(0,255,140) oli sama sävy kuin lämpökartan
+   8 m/s, joten pistemäärä ja tuulennopeus kilpailivat samasta väristä.
+   Nyt muotoja on yksi ja musteramppi asuu paperilla, missä se ei osu
+   lämpökartan kanssa yhteen. */
+function spotMarkerSVG(score, name, size) {
+  const col = spotIndexInk(score);
   /* Viivanpaksuus, säde ja fonttikoko skaalautuvat halkaisijan mukana —
      muuten pienennetyssä ympyrässä olisi täysikokoinen rengas ja numero,
      jotka eivät mahtuisi sisään. Suhdeluvut on johdettu alkuperäisestä
@@ -3975,9 +3982,9 @@ function spotMarkerSVG(score, name, size, paperi) {
   return (
     `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">`
     /* Black bg circle */
-    + `<circle cx="${cx}" cy="${cy}" r="${size/2}" fill="${paperi ? '#FAF5E7' : 'rgba(6,9,18,0.82)'}"/>`
+    + `<circle cx="${cx}" cy="${cy}" r="${size/2}" fill="#FAF5E7"/>`
     /* Track ring (dark) */
-    + `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${paperi ? '#E4D8B8' : 'rgba(255,255,255,0.12)'}" stroke-width="${sw.toFixed(2)}"/>`
+    + `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="#E4D8B8" stroke-width="${sw.toFixed(2)}"/>`
     /* Progress arc */
     + `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${col}" stroke-width="${sw.toFixed(2)}" stroke-linecap="round"`
     + ` stroke-dasharray="${filled} ${gap}" stroke-dashoffset="${circ * 0.25}" transform="rotate(-90 ${cx} ${cy})"/>`
@@ -3987,13 +3994,19 @@ function spotMarkerSVG(score, name, size, paperi) {
   );
 }
 
-/* Name label below circle. Näkyvyys ohjataan opacityllä eikä poistamalla
-   elementtiä, jotta se voi häivähtää esiin kun zoomataan lähelle. */
+/* Nimikyltti merkin alla. Näkyvyys ohjataan opacityllä eikä poistamalla
+   elementtiä, jotta se voi häivähtää esiin kun zoomataan lähelle.
+
+   Nimi ei ota indeksin väriä: merkki kertoo pisteet jo kahdesti (kaaren
+   pituus ja luku), ja kolmas kerros samaa tietoa tekisi nimestä
+   luettavuudeltaan indeksin panttivangin — matalan pistemäärän spotin nimi
+   olisi harmaa. Nyt nimi on aina samaa vaaleaa mustetta ja pysyy
+   luettavana lämpökartan jokaisella värillä. */
 function spotNameLabel(name, col, visible) {
   return (
-    `<div class="spot-lbl" style="font-variant-numeric:tabular-nums;font-size:8px;font-weight:600;color:${col};`
-    + `text-align:center;line-height:1.2;margin-top:2px;`
-    + `text-shadow:0 1px 3px rgba(0,0,0,0.9);white-space:nowrap;max-width:64px;`
+    `<div class="spot-lbl" style="font-variant-numeric:tabular-nums;font-size:8.5px;font-weight:600;color:rgba(240,231,206,.95);`
+    + `text-align:center;line-height:1.2;margin-top:3px;`
+    + `text-shadow:0 1px 3px rgba(6,9,18,0.95),0 0 2px rgba(6,9,18,0.8);white-space:nowrap;max-width:64px;`
     + `overflow:hidden;text-overflow:ellipsis;`
     + `opacity:${visible ? 1 : 0};transform:translateY(${visible ? 0 : -2}px);`
     /* Osumakohde seuraa näkyvyyttä: näkyvä nimi kasvattaa kosketusaluetta,
@@ -4031,24 +4044,86 @@ function gustIndex(ms, gst) {
   return { val: gi, label: 'Hyvin puuskainen', cls: 'gi-extreme' };
 }
 
-function renderSpots(hourIdx) {
-  for (const m of State.markers) m.remove(); State.markers = [];
-  const layer = State.activeLayer, zoom = State.map ? State.map.getZoom() : 5;
+/* Kumpi spotti saa täyden merkin kun kaksi menee päällekkäin?
+ *
+ * Helsingin edustalla on kahdeksan spottia noin 20 km:n matkalla. Zoomilla
+ * 9 ne ovat ruudulla 30 px:n päässä toisistaan eli lukemat menevät ristiin
+ * — pahimmillaan kolme rengasta samassa kasassa, eikä yhdestäkään saa
+ * selvää. Sama ongelma syntyy aina kun kaikki karttatasot ovat päällä:
+ * merkkejä on enemmän kuin tilaa.
+ *
+ * Ratkaisu on ahne valinta pistemäärän mukaan: paras spotti kasasta saa
+ * täyden renkaan, muut kutistuvat pisteiksi. Mitään ei piiloteta — piste
+ * kertoo että spotti on olemassa ja sitä voi napauttaa — mutta luettavaksi
+ * tarjotaan se joka juuri nyt kannattaa lukea. Zoomatessa kasat purkautuvat
+ * itsestään, koska kynnys on ruutupikseleissä eikä asteissa.
+ *
+ * Kynnys on merkin halkaisija: kaksi merkkiä saa koskettaa mutta ei mennä
+ * päällekkäin. */
+function _valitseTaydetSpotit(pisteytetyt, zoom) {
+  const taydet = new Set();
+  if (!State.map) { pisteytetyt.forEach(s => taydet.add(s.spot)); return taydet; }
+  const kynnys = spotIconSize(zoom);
+  const sijoitetut = [];
+  /* Paras ensin — kasan voittaja on aina se jolla on korkein pistemäärä. */
+  const jarjestys = pisteytetyt.slice().sort((a, b) => b.score - a.score);
+  for (const s of jarjestys) {
+    const p = State.map.latLngToContainerPoint([s.spot.lat, s.spot.lng]);
+    let vapaa = true;
+    for (const q of sijoitetut) {
+      if (Math.hypot(p.x - q.x, p.y - q.y) < kynnys) { vapaa = false; break; }
+    }
+    if (vapaa) { sijoitetut.push(p); taydet.add(s.spot); }
+  }
+  return taydet;
+}
+
+function _taysienAvain(taydet) {
+  return SPOTS.map(sp => (taydet.has(sp) ? '1' : '0')).join('');
+}
+
+/* Muuttuisiko väistöjoukko tällä zoomilla? Zoomatessa spotteja ei piirretä
+   uudelleen vaan skaalataan — se säilyttää animaation. Väistöjoukko
+   kuitenkin riippuu zoomista, joten se on tarkistettava erikseen: jos kasa
+   purkautuu tai syntyy, merkkien SISÄLTÖ muuttuu eikä pelkkä skaalaus riitä. */
+function _spotVaistoMuuttuisi(hourIdx, zoom) {
+  const pisteytetyt = [];
   for (const spot of SPOTS) {
     if (!spot.wx || !spot.wx.hourly) continue;
     const h = spot.wx.hourly, idx = Math.min(hourIdx, h.windspeed_10m.length - 1);
     const ms  = h.windspeed_10m[idx] || 0;
     const gst = (h.windgusts_10m && h.windgusts_10m[idx]) || ms;
     const dir = h.winddirection_10m[idx] || 0;
+    pisteytetyt.push({ spot, score: spotIndex(ms, dir, spot.bestDirs, gst) });
+  }
+  return _taysienAvain(_valitseTaydetSpotit(pisteytetyt, zoom)) !== State._spotTaydetAvain;
+}
+
+function renderSpots(hourIdx) {
+  for (const m of State.markers) m.remove(); State.markers = [];
+  const layer = State.activeLayer, zoom = State.map ? State.map.getZoom() : 5;
+
+  /* Kaksi kierrosta: ensin pisteet, sitten piirto. Väistölogiikka tarvitsee
+     kaikkien spottien pistemäärät ennen kuin ensimmäistäkään voi piirtää. */
+  const pisteytetyt = [];
+  for (const spot of SPOTS) {
+    if (!spot.wx || !spot.wx.hourly) continue;
+    const h = spot.wx.hourly, idx = Math.min(hourIdx, h.windspeed_10m.length - 1);
+    const ms  = h.windspeed_10m[idx] || 0;
+    const gst = (h.windgusts_10m && h.windgusts_10m[idx]) || ms;
+    const dir = h.winddirection_10m[idx] || 0;
+    pisteytetyt.push({ spot, ms, gst, dir, score: spotIndex(ms, dir, spot.bestDirs, gst) });
+  }
+  const taydet = _valitseTaydetSpotit(pisteytetyt, zoom);
+  State._spotTaydetAvain = _taysienAvain(taydet);
+
+  for (const { spot, ms, gst, dir, score } of pisteytetyt) {
     const dms = layer === 'gust' ? gst : ms;
+    const col = spotIndexInk(score);
 
-    /* v7: score 0–100 */
-    const score = spotIndex(ms, dir, spot.bestDirs, gst);
-    const col   = spotIndexColor(score);
+    let html, iconW, iconH, anchor, pisteena = false;
 
-    let html, iconW, iconH, anchor;
-
-    if (zoom >= 5) {
+    if (zoom >= 5 && taydet.has(spot)) {
       /* Merkki piirretään aina SPOT_BASE-kokoisena ja kutistetaan
          transformilla — ulkomitat ja ankkuri pysyvät siis vakiona kaikilla
          zoom-tasoilla, ja koon muutos voidaan animoida ilman että merkki
@@ -4066,17 +4141,25 @@ function renderSpots(hourIdx) {
       iconW = 64; iconH = SPOT_BASE + 14;
       anchor = [iconW / 2, SPOT_BASE / 2];
     } else {
-      /* Tiny dot for far zoom */
-      const c = ColorRamp.rgb(dms);
-      const sz = 7;
-      html = `<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:${col};border:1.5px solid rgba(255,255,255,.5);box-shadow:0 0 6px ${col}88;cursor:pointer"></div>`;
+      /* Piste: joko liian kaukaa zoomattu tai kasassa hävinnyt spotti.
+         Paperia sekin, jotta spotti näyttää spotilta myös silloin kun luku
+         ei mahdu — rengas kertoo sen olevan sama esine kuin täysi merkki,
+         ja se on yhtä lailla napautettava. */
+      const sz = 9;
+      html = `<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:var(--surface-hi);`
+        + `box-shadow:0 0 0 2px ${col},0 1px 3px rgba(6,9,18,.5);cursor:pointer"></div>`;
       iconW = sz; iconH = sz;
       anchor = [sz / 2, sz / 2];
+      pisteena = true;
     }
 
     const icon = L.divIcon({ className: '', html, iconSize: [iconW, iconH], iconAnchor: anchor });
     State.markers.push(
-      L.marker([spot.lat, spot.lng], { icon })
+      /* Kasassa hävinnyt piste piirtyy aina voittajan renkaan ALLE. Muuten
+         se jäisi puolittain renkaan päälle ja näyttäisi virheeltä — nyt
+         rengas peittää sen siististi ja piste näkyy vain siltä osin kuin
+         se on renkaan ulkopuolella. */
+      L.marker([spot.lat, spot.lng], { icon, zIndexOffset: pisteena ? -1000 : 0 })
         .on('click', () => {
           Haptics.medium();
           const map = State.map;
@@ -4707,11 +4790,25 @@ function _uirasChart(el,allPts,period,avgWin){ _uirasChartInteractive(el,allPts,
 
 /* Havaintoasema- ja uimavesikarttapisteet */
 function _addObsMarkers(map) {
-  /* ── Värit ──────────────────────────────────────────────────── */
-  var C_WIND  = '#f5c842';  /* Tuuliasema (keltainen)   */
-  var C_WATER = '#29e8a8';  /* Vedenlämpö (minttu)      */
-  var C_STATION = 'rgba(233,238,245,0.62)'; /* Asemien todellinen sijainti
-                                               (läpikuultava harmaanvalkoinen) */
+  /* ── Kartan datakieli ───────────────────────────────────────── */
+  /* Kartalla SÄVY TARKOITTAA TUULENNOPEUTTA — se on lämpökartan tehtävä.
+     Siksi mikään muu kartalla ei saa omaa sävyään: havaintomerkit
+     tunnistautuvat MUODOSTA (viiri vs. aalto) ja jakavat saman pinnan.
+
+     Aiemmin tässä oli kolme kilpailevaa väriä: keltainen tuuliasemille,
+     minttu vedenlämmölle ja sinivalkoinen sijaintirukseille. Ne eivät
+     tarkoittaneet mitään — ne olivat kategoriavärejä lämpökartan päällä,
+     jonka oma väri taas tarkoitti jotain. Kaikkien tasojen ollessa päällä
+     kartalla oli neljä visuaalista kieltä yhtä aikaa.
+
+     Nyt kaikki lukemat ovat samaa tummaa pilleriä ja samaa vaaleaa
+     mustetta. Ero syntyy glyfistä ja lukemasta, ei väristä. */
+  var INK_1     = 'rgba(240,231,206,0.95)';  /* lukema */
+  var INK_2     = 'rgba(240,231,206,0.55)';  /* glyfi, yksikkö, ruksi */
+  var INK_3     = 'rgba(240,231,206,0.38)';  /* kaukainen piste */
+  var PILL_BG   = 'rgba(9,13,21,0.78)';
+  var PILL_LINE = 'rgba(240,231,206,0.22)';
+  var C_STATION = INK_2;
   var _obsMarkers = [];
   var _stationDots = []; /* Pienet ruksi-sijaintimerkit prim-asemille */
 
@@ -4729,6 +4826,30 @@ function _addObsMarkers(map) {
       /* Pallo mastossa */
       +'<circle cx="12" cy="20" r="1.5" fill="'+color+'" opacity="0.6"/>'
       +'</svg>';
+  }
+
+  /* Jaettu pilleri: sama pinta jokaiselle kartan lukemalle riippumatta
+     siitä onko kyse tuulesta vai vedenlämmöstä. Kun pinta on yhteinen,
+     glyfi jää ainoaksi eroksi — ja glyfi on juuri se joka kertoo mistä
+     suureesta on kyse. */
+  function _pilleri(glyfi, arvo, yksikko) {
+    return '<div style="'
+        +'display:inline-flex;align-items:baseline;gap:3px;'
+        +'background:'+PILL_BG+';'
+        +'border:1px solid '+PILL_LINE+';'
+        +'border-radius:5px;'
+        +'padding:2px 5px;'
+        +'cursor:pointer;'
+        +'backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);'
+        +'box-shadow:0 1px 4px rgba(0,0,0,.45);'
+        +'white-space:nowrap;'
+      +'">'
+        +'<span style="align-self:center;display:flex">'+glyfi+'</span>'
+        +'<span style="font-variant-numeric:tabular-nums;font-weight:500;font-size:11px;'
+          +'color:'+INK_1+';line-height:1;letter-spacing:-0.2px">'+arvo+'</span>'
+        +'<span style="font-variant-numeric:tabular-nums;font-size:6.5px;'
+          +'color:'+INK_2+';line-height:1">'+yksikko+'</span>'
+      +'</div>';
   }
 
   /* Ruksi-ikoni — merkkaa havaintoaseman TODELLISEN sijainnin
@@ -4828,36 +4949,19 @@ function _addObsMarkers(map) {
       /* Käytä appin yksikkömuunnosta — Units.fmt() + Units.label() */
       var wsStr = ws != null ? Units.fmt(ws) : '—';
       var unitLbl = Units.label();
-      var html =
-        '<div style="'
-          +'display:inline-flex;align-items:baseline;gap:3px;'
-          +'background:rgba(9,13,21,0.78);'
-          +'border:1px solid rgba(240,231,206,0.22);'
-          +'border-radius:5px;'
-          +'padding:2px 5px;'
-          +'cursor:pointer;'
-          +'backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);'
-          +'box-shadow:0 1px 4px rgba(0,0,0,.45);'
-          +'white-space:nowrap;'
-        +'">'
-          +'<span style="align-self:center;display:flex">'+_windVaneSvg('rgba(240,231,206,.55)', 10)+'</span>'
-          +'<span style="font-variant-numeric:tabular-nums;font-weight:500;font-size:11px;'
-            +'color:rgba(240,231,206,.95);line-height:1;letter-spacing:-0.2px">'+wsStr+'</span>'
-          +'<span style="font-variant-numeric:tabular-nums;font-size:6.5px;'
-            +'color:rgba(240,231,206,.5);line-height:1">'+unitLbl+'</span>'
-        +'</div>';
+      var html = _pilleri(_windVaneSvg(INK_2, 10), wsStr, unitLbl);
       /* iconSize vastaa uutta, kapeampaa korttia — _avoidSpotOverlap mittaa
          väistökynnyksen suoraan elementistä, joten se seuraa tätä itsestään. */
       return L.divIcon({ className:'', html:html, iconAnchor:[0, 9], iconSize:[62, 18] });
     } else {
-      /* Pieni piste */
+      /* Toissijainen asema on piste samaa mustetta — ero ensisijaiseen on
+         koko ja kirkkaus, ei sävy. */
       var sz = z < 8 ? 5 : z < 10 ? 7 : 8;
-      var op = z < 8 ? 0.38 : 0.68;
       return L.divIcon({
         className:'',
         html:'<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;'
-          +'background:'+C_WIND+';opacity:'+op+';cursor:pointer;'
-          +'box-shadow:0 0 '+sz+'px '+C_WIND+'44"></div>',
+          +'background:'+(z < 8 ? INK_3 : INK_2)+';cursor:pointer;'
+          +'box-shadow:0 0 0 1px rgba(9,13,21,.45)"></div>',
         iconSize:[sz,sz], iconAnchor:[sz/2,sz/2]
       });
     }
@@ -4869,29 +4973,28 @@ function _addObsMarkers(map) {
     var wavePath = 'M0 5 Q2 2 4 5 Q6 8 8 5 Q10 2 12 5 Q13 6.5 14 5';
     var waveSmall = '<svg width="12" height="7" viewBox="0 0 14 8" fill="none"'
       +' xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;display:block">'
-      +'<path d="'+wavePath+'" stroke="'+C_WATER+'" stroke-width="1.5"'
+      +'<path d="'+wavePath+'" stroke="'+INK_2+'" stroke-width="1.6"'
         +' stroke-linecap="round" fill="none"/>'
       +'</svg>';
-    if (isPrim && z >= 9) {
-      var tStr = temp != null ? temp.toFixed(1)+'°' : '—';
+    /* Pilleri vain kun lukema on olemassa. Tyhjä pilleri ("~ — °C") vie
+       saman tilan kuin oikea lukema mutta ei kerro mitään — ilman dataa
+       asema putoaa takaisin pisteeksi, joka kertoo vain että mittauspiste
+       on olemassa. */
+    if (isPrim && z >= 9 && temp != null) {
+      /* Sama pilleri kuin tuulella. Aiemmin vedenlämpö oli pinnaton
+         minttuteksti mustalla varjolla — se luki eri kielellä kuin
+         tuulilukema ja katosi vaalean lämpökartan päälle. */
       return L.divIcon({
-        className:'',
-        html:'<div style="display:flex;align-items:center;gap:4px;cursor:pointer">'
-          +waveSmall
-          +'<span style="font-variant-numeric:tabular-nums;font-size:10px;font-weight:500;'
-            +'color:'+C_WATER+';white-space:nowrap;'
-            +'text-shadow:0 1px 4px rgba(0,0,0,.95)">'+tStr+'</span>'
-          +'</div>',
-        iconAnchor:[0,3], iconSize:[52,14]
+        className:'', html: _pilleri(waveSmall, temp.toFixed(1), '°C'),
+        iconAnchor:[0,9], iconSize:[54,18]
       });
     } else {
-      var op = z < 8 ? 0.25 : 0.42;
       return L.divIcon({
         className:'',
-        html:'<div style="opacity:'+op+';cursor:pointer;line-height:0">'
+        html:'<div style="cursor:pointer;line-height:0">'
           +'<svg width="10" height="6" viewBox="0 0 14 8" fill="none"'
             +' xmlns="http://www.w3.org/2000/svg">'
-            +'<path d="'+wavePath+'" stroke="'+C_WATER+'" stroke-width="1.5"'
+            +'<path d="'+wavePath+'" stroke="'+(z < 8 ? INK_3 : INK_2)+'" stroke-width="1.8"'
               +' stroke-linecap="round" fill="none"/>'
           +'</svg>'
           +'</div>',
@@ -4926,8 +5029,8 @@ function _addObsMarkers(map) {
   }
   function _waterIconSig(zoom, temp, isPrim) {
     var z = zoom || 5;
-    if (isPrim && z >= 9) {
-      return 'p|' + (temp != null ? temp.toFixed(1) : '—');
+    if (isPrim && z >= 9 && temp != null) {
+      return 'p|' + temp.toFixed(1);
     }
     return 'd|' + (z < 8 ? 0 : 1);
   }
@@ -6251,7 +6354,7 @@ function openSheet(spot, hourIdx) {
           + (()=>{
               const si2 = spotIndex(ms, dir, spot.bestDirs, gst);
               const sc2 = spotIndexInk(si2);
-              const svg2 = spotMarkerSVG(si2, '', 48, true);
+              const svg2 = spotMarkerSVG(si2, '', 48);
               const dirs2 = spot.bestDirs ? spot.bestDirs.join(' · ') : '';
               return '<div style="display:inline-flex;align-items:center;gap:10px;margin-top:8px">'
                 + svg2
@@ -8322,7 +8425,7 @@ const ForecastPanel = {
       + '<div class="fc-day-label">' + dayLabel + '</div>'
       + windows.map(w => {
           const col = spotIndexInk(w.score);
-          const svg = spotMarkerSVG(w.score, '', 42, true);
+          const svg = spotMarkerSVG(w.score, '', 42);
           const t0  = new Date(w.windowStart);
           const t1  = new Date(w.windowEnd);
           const fmt = t => ('0'+t.getHours()).slice(-2) + ':00';
