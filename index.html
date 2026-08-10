@@ -147,74 +147,113 @@ body {
 
 /* ============================================================
 /* ============================================================
-   MITTARISIRU  z:22 — kartan yläreunan ainoa esine
+/* ============================================================
+   YLÄREUNAN INFOPANEELI  z:22
    ============================================================ */
-/* Yläreunassa oli kolme objektia: sääsiru vasemmalla (55 px), tähtäimen
-   lukema keskellä (70 px) ja tuuliasteikko oikealla (120 px). Kolme eri
-   korkeutta, kolme eri alareunaa ja 90 px:n aukko keskelle — ja sääsiru
-   sekä lukema kuvasivat samaa pistettä, koska molemmat lukevat
-   map.getCenter(). Nyt ne ovat yksi mittari, jonka osana asteikko on. */
+/* Kiinni ylälaidassa ja koko leveydeltä. Kelluva siru jätti ylälaitaan
+   raon, jossa näkyi kaistale karttaa sen ylä- ja alapuolella — paneeli
+   näytti irtonaiselta. Nyt se on pinta joka alkaa ruudun reunasta ja
+   pyöristyy vain alakulmista, kuten iOS:n ylälaidan pinnat.
+
+   Kaksi tilaa: suppea (tuuli, sää, asteikko) ja .laaja (lisäksi tuntisää).
+   Sama detent-kuvio kuin alalaidan sheetissä, ylösalaisin. */
 #crosshair-readout {
-  position: fixed; top: calc(var(--sat) + 10px); left: 50%; z-index: 22;
-  transform: translateX(-50%);
+  position: fixed; top: 0; left: 0; right: 0; z-index: 22;
   pointer-events: all;
-  /* Kiinteä leveys: detaljirivin teksti vaihtuu ("pilvistä" /
-     "rankkasadetta") ja vaihtuva leveys saisi sirun hyppimään kun karttaa
-     panoroi. Asteikko pysyy samalla myös aina saman mittaisena. */
-  width: 244px;
-  background: var(--chip);
-  border-radius: 16px;
-  padding: 9px 14px 10px;
-  box-shadow: var(--shadow-2);
-  transition: opacity 0.3s;
+  background: var(--surface);
+  border-radius: 0 0 22px 22px;
+  box-shadow: 0 6px 22px rgba(6,12,16,.30);
+  padding-top: var(--sat);
+  transition: opacity .3s;
 }
 #crosshair-readout.hidden { opacity: 0; }
 
-.cr-hero {
-  display: flex; align-items: baseline; justify-content: center; gap: 8px;
-}
+.ts-body { padding: 10px calc(var(--sal) + 16px) 0 calc(var(--sar) + 16px); }
+
+/* Suppean tilan rivi: iso lukema ankkuroi vasemman reunan, sää työntyy
+   oikeaan. Koko leveys on käytössä, joten kaikki mahtuu yhdelle riville. */
+.ts-row { display: flex; align-items: baseline; gap: 9px; }
 .cr-speed {
   font-variant-numeric: tabular-nums;
-  font-size: 27px; font-weight: 600;
+  font-size: 28px; font-weight: 600;
   line-height: 1; letter-spacing: -0.03em;
   color: var(--ink);
   cursor: pointer;
   display: inline-flex; align-items: baseline; gap: 3px;
+  flex-shrink: 0;
 }
 .cr-speed-unit { font-size: 11px; font-weight: 500; color: var(--ink-3); letter-spacing: 0; }
-.cr-dir {
-  display: inline-flex; align-items: baseline; gap: 3px;
-  font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums;
-}
-.cr-dir-arrow { font-size: 13px; line-height: 1; }
 
-.cr-detail {
-  display: flex; align-items: baseline; justify-content: center; gap: 0;
-  margin-top: 3px;
+.ts-dir {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  align-self: center;
+}
+/* Piirretty nuoli kääntyy asteen tarkkuudella; merkkifontin nuoli osasi
+   vain kahdeksan suuntaa. */
+.ts-arrow {
+  width: 15px; height: 15px; display: block;
+  transition: transform .35s cubic-bezier(.32,.72,.24,1);
+}
+.ts-meta {
+  margin-left: auto; text-align: right;
   font-size: 11.5px; color: var(--ink-3);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap; overflow: hidden;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  align-self: center;
 }
-/* Erotin syntyy vasta kun säätieto on olemassa — tyhjää riviä ei aloiteta
-   pisteellä. */
 #cr-wx:not(.hidden)::before { content: ' · '; white-space: pre; }
 #cr-wx.hidden { display: none; }
 
-/* Asteikko on osa mittaria: hiusviiva erottaa sen lukemasta. */
-.cr-scale { margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--hairline); }
-.cr-scale-bar {
+/* Asteikko käyttää koko leveyden — se on kartan väriselite, ja koko
+   ruudun levyisenä se lukee mitta-asteikkona eikä pikkukorttina. */
+.ts-scale { margin-top: 9px; }
+.ts-scale-bar {
   height: 6px; border-radius: 3px;
   box-shadow: inset 0 0 0 1px var(--chip-line);
 }
-.cr-scale-ticks {
-  display: flex; justify-content: space-between; margin-top: 3px;
-}
-.cr-scale-ticks .ws-tick {
+.ts-scale-ticks { display: flex; justify-content: space-between; margin-top: 3px; }
+.ts-scale-ticks .ws-tick {
   font-variant-numeric: tabular-nums; font-size: 9px; font-weight: 600;
   line-height: 1; color: var(--ink-3);
 }
 
-/* ============================================================
+/* Laaja tila. max-height animoituu; sisältö on aina DOMissa, joten
+   tuntisään renderöinti ei riipu tilasta. */
+.ts-more {
+  max-height: 0; overflow: hidden;
+  transition: max-height .38s cubic-bezier(.32,.72,.24,1), opacity .25s;
+  opacity: 0;
+}
+#crosshair-readout.laaja .ts-more { max-height: 42vh; opacity: 1; }
+.ts-more-title {
+  font-size: 11px; font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ink-3);
+  margin: 14px 0 8px; padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+}
+#wx-panel-scroll {
+  display: flex; gap: 6px; overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+#wx-panel-scroll::-webkit-scrollbar { display: none; }
+
+/* Kahva. Koko leveydeltä osuma-alue mutta viiva on pieni ja keskellä. */
+.ts-handle {
+  display: block; width: 100%; height: 22px;
+  border: none; background: none; padding: 0;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.ts-handle span {
+  display: block; width: 34px; height: 4px; margin: 6px auto 0;
+  border-radius: 2px; background: var(--hairline);
+  transition: width .2s, background .2s;
+}
+.ts-handle:active span { width: 46px; background: var(--ink-3); }
+#crosshair-readout.laaja .ts-handle span { width: 46px; }
+
    MAP CONTROLS — bottom bar row
    ============================================================ */
 #bottom-bar {
@@ -1448,45 +1487,25 @@ body {
 }
 .up-option.active .up-label { color: #fff; font-weight: 700; }
 
-/* -- HOURLY WEATHER PANEL --------------------------------------- */
-#wx-panel {
-  position: fixed;
-  top: calc(var(--sat) + 56px);
-  left: 0; right: 0;
-  z-index: 41;
-  background: rgba(6,9,18,.96);
-  border-bottom: 1px solid var(--hairline);
-  -webkit-backdrop-filter: blur(28px); backdrop-filter: blur(28px);
-  box-shadow: 0 8px 32px rgba(0,0,0,.5);
-  pointer-events: none; opacity: 0;
-  transform: translateY(-12px);
-  transition: opacity .2s, transform .2s;
-}
-#wx-panel.open { opacity: 1; pointer-events: all; transform: translateY(0); }
-#wx-panel-header {
-  padding: 10px 20px 8px;
-  border-bottom: 1px solid var(--hairline);
-}
-#wx-panel-title { font-size: 11px; font-weight: 700; color: var(--ink-2); letter-spacing: 1px; text-transform: uppercase; }
-#wx-panel-sub { display: none; }
-#wx-panel-close { display: none; }
-#wx-panel-scroll {
-  display: flex; gap: 4px; overflow-x: auto; overflow-y: hidden;
-  padding: 10px 20px 14px; scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-#wx-panel-scroll::-webkit-scrollbar { display: none; }
+/* -- TUNTISÄÄ — paneelin laajan tilan sisältö -------------------- */
+/* #wx-panel poistui: sen sisältö on nyt yläreunan infopaneelin laajassa
+   tilassa. Vain tuntisolujen tyylit jäivät; #wx-panel-scroll tyylitellään
+   infopaneelin lohkossa. */
+/* Tuntisolut olivat tumman teeman tyyleillä (#fff, DM Mono) — paperilla
+   lämpötila oli valkoista valkoisella. Nyt musteella ja
+   järjestelmäfontilla kuten muukin käyttöliittymä. */
 .wx-hour {
   display: flex; flex-direction: column; align-items: center; gap: 3px;
-  min-width: 54px; padding: 8px 4px; border-radius: 12px;
+  min-width: 56px; padding: 9px 5px; border-radius: 12px;
   flex-shrink: 0; transition: background .12s;
+  background: var(--surface-hi);
 }
-.wx-hour.now { background: var(--surface-lo); border: 1px solid var(--hairline); }
-.wx-hour-time { font-family: "DM Mono",monospace; font-size: 9px; color: var(--ink-3); font-weight: 500; }
-.wx-hour-icon { font-size: 22px; line-height: 1; }
-.wx-hour-temp { font-family: "DM Mono",monospace; font-size: 13px; font-weight: 700; color: #fff; }
-.wx-hour-wind { font-family: "DM Mono",monospace; font-size: 9px; font-weight: 600; }
-.wx-hour-cloud { font-family: "DM Mono",monospace; font-size: 8px; color: var(--ink-3); }
+.wx-hour.now { background: var(--surface-lo); }
+.wx-hour-time { font-variant-numeric: tabular-nums; font-size: 10px; color: var(--ink-3); font-weight: 600; }
+.wx-hour-icon { font-size: 20px; line-height: 1; }
+.wx-hour-temp { font-variant-numeric: tabular-nums; font-size: 15px; font-weight: 600; color: var(--ink); letter-spacing: -.02em; }
+.wx-hour-wind { font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 600; }
+.wx-hour-cloud { font-variant-numeric: tabular-nums; font-size: 10px; color: var(--ink-3); }
 
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
@@ -1653,21 +1672,36 @@ body {
   <canvas id="c-wind"></canvas>
 
 
-  <!-- Mittarisiru. Tuuli ja sää kuvaavat samaa pistettä (molemmat lukevat
-       map.getCenter()), joten ne ovat yksi esine eivätkä kaksi. Asteikko on
-       osa mittaria, ei erillinen viitekortti kartan kulmassa. -->
+  <!-- Ylareunan infopaneeli. Kiinni ylalaidassa ja koko leveydeltä, kaksi
+       tilaa: suppea (tuuli + sää + asteikko) ja laaja (lisäksi tuntisää).
+       Tila vaihtuu kahvasta — sama kuvio kuin alalaidan sheetissä, ylösalaisin. -->
   <div id="crosshair-readout" class="hidden">
-    <div class="cr-hero">
-      <span class="cr-speed" id="cr-speed">--<span class="cr-speed-unit">m/s</span></span>
-      <span class="cr-dir"><span class="cr-dir-arrow" id="cr-dir-arrow">↓</span><span id="cr-dir-deg">--°</span></span>
+    <div class="ts-body">
+      <div class="ts-row">
+        <span class="cr-speed" id="cr-speed">--<span class="cr-speed-unit">m/s</span></span>
+        <span class="ts-dir">
+          <!-- Piirretty nuoli, ei merkkifontin nuoli: kääntyy tarkkaan
+               kulmaan eikä kahdeksaan portaaseen. -->
+          <svg class="ts-arrow" id="cr-dir-arrow" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 2.6 V21.4 M5.9 9.4 L12 2.6 L18.1 9.4"
+                  fill="none" stroke="currentColor" stroke-width="2.2"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span id="cr-dir-deg">--°</span>
+        </span>
+        <span class="ts-meta"><span id="cr-gust"></span><span id="cr-wx" class="hidden"></span></span>
+      </div>
+      <div class="ts-scale">
+        <div id="wind-scale-bar" class="ts-scale-bar"></div>
+        <div id="wind-scale-ticks" class="ts-scale-ticks"></div>
+      </div>
+      <div class="ts-more" id="ts-more">
+        <div class="ts-more-title">Tuntisää · tähtäimen kohta</div>
+        <div id="wx-panel-scroll"></div>
+      </div>
     </div>
-    <div class="cr-detail">
-      <span id="cr-gust"></span><span id="cr-wx" class="hidden"></span>
-    </div>
-    <div class="cr-scale">
-      <div id="wind-scale-bar" class="cr-scale-bar"></div>
-      <div id="wind-scale-ticks" class="cr-scale-ticks"></div>
-    </div>
+    <button class="ts-handle" id="ts-handle" type="button" aria-expanded="false"
+            aria-label="Näytä tuntisää"><span></span></button>
   </div>
 
   <div id="crosshair">
@@ -1683,16 +1717,6 @@ body {
 
 
   <!-- Hourly weather panel -->
-  <div id="wx-panel">
-    <div id="wx-panel-header">
-      <div>
-        <div id="wx-panel-title">Tuntisää</div>
-        <div id="wx-panel-sub">Karttatähtäimen kohta</div>
-      </div>
-      <div id="wx-panel-close">✕</div>
-    </div>
-    <div id="wx-panel-scroll"></div>
-  </div>
 
   <!-- Units picker -->
   <div id="units-picker">
@@ -7634,7 +7658,11 @@ const Crosshair = {
     this._speedEl.innerHTML = '<span style="color:'+colorStr+'">'+Units.fmt(w.ms)+'</span><span class="cr-speed-unit">'+Units.label()+'</span>';
     const dir = (Math.atan2(-w.u, -w.v) * 180 / Math.PI + 360) % 360;
     const arrows = ['↓','↙','←','↖','↑','↗','→','↘'];
-    this._arrowEl.textContent = arrows[Math.round(dir / 45) % 8];
+    /* Nuoli osoittaa siihen suuntaan johon tuuli puhaltaa. dir on suunta
+       josta tuulee, joten nuoli kääntyy dir + 180. Aiemmin tässä oli
+       merkkifontin nuoli kahdeksassa portaassa: 194° näytti samalta kuin
+       180°. Piirretty nuoli kääntyy asteen tarkkuudella. */
+    this._arrowEl.style.transform = 'rotate(' + ((dir + 180) % 360).toFixed(1) + 'deg)';
     this._arrowEl.style.color = colorStr;
     this._degEl.textContent = Math.round(dir) + '°';
     if (this._windArrow) this._windArrow.style.transform = 'rotate(' + Math.round(dir) + 'deg)';
@@ -8225,12 +8253,18 @@ const WxPanel = {
     this._open = true;
     UnitsPicker.close();
     this.render();
-    document.getElementById('wx-panel').classList.add('open');
+    const ts = document.getElementById('crosshair-readout');
+    ts.classList.add('laaja');
+    const h = document.getElementById('ts-handle');
+    if (h) { h.setAttribute('aria-expanded', 'true'); h.setAttribute('aria-label', 'Piilota tuntisää'); }
     Haptics.light();
   },
   close() {
     this._open = false;
-    document.getElementById('wx-panel').classList.remove('open');
+    const ts = document.getElementById('crosshair-readout');
+    if (ts) ts.classList.remove('laaja');
+    const h = document.getElementById('ts-handle');
+    if (h) { h.setAttribute('aria-expanded', 'false'); h.setAttribute('aria-label', 'Näytä tuntisää'); }
   },
   render() {
     if (!State.map) return;
@@ -8303,29 +8337,29 @@ document.getElementById('cr-wx').addEventListener('click', (e) => {
   WxPanel.toggle();
 }, { passive: false });
 
-document.getElementById('wx-panel-close').addEventListener('click', () => WxPanel.close(), { passive: true });
+/* Kahva: napautus vaihtaa tilaa, pystypyyhkäisy avaa alas ja sulkee ylös.
+   Sama ele kuin alalaidan sheetissä, peilattuna. */
+(function () {
+  const ts = document.getElementById('crosshair-readout');
+  const handle = document.getElementById('ts-handle');
+  if (!ts || !handle) return;
 
-/* -- WX-PANEL swipe up to dismiss -------------------------------- */
-(function() {
-  const panel = document.getElementById('wx-panel');
+  handle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    WxPanel.toggle();
+  }, { passive: false });
+
   let startY = 0, dragging = false;
-  panel.addEventListener('touchstart', e => {
-    startY = e.touches[0].clientY; dragging = true;
-    panel.style.transition = 'none';
-  }, { passive: true });
-  panel.addEventListener('touchmove', e => {
-    if (!dragging) return;
-    const dy = startY - e.touches[0].clientY; /* positive = swipe up */
-    if (dy > 0) panel.style.transform = 'translateY(' + (-dy) + 'px)';
-  }, { passive: true });
-  panel.addEventListener('touchend', e => {
+  const alku = (y) => { startY = y; dragging = true; };
+  const loppu = (y) => {
     if (!dragging) return;
     dragging = false;
-    panel.style.transition = '';
-    panel.style.transform = '';
-    const dy = startY - e.changedTouches[0].clientY;
-    if (dy > 40) WxPanel.close();
-  }, { passive: true });
+    const dy = y - startY;              /* alas = positiivinen */
+    if (dy > 34 && !WxPanel._open) WxPanel.open();
+    else if (dy < -34 && WxPanel._open) WxPanel.close();
+  };
+  ts.addEventListener('touchstart', e => alku(e.touches[0].clientY), { passive: true });
+  ts.addEventListener('touchend',   e => loppu(e.changedTouches[0].clientY), { passive: true });
 })();
 
 /* -- FORECAST PANEL — swipe down to dismiss --------------------- */

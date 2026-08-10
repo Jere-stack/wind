@@ -202,31 +202,37 @@ kummaltakin puolelta. Koko jalanjälki kuplan ylälaidasta ruudun pohjaan on
 - **`TICK_W` JS:ssä ja `.htick` flex-basis CSS:ssä on pidettävä samana**,
   muuten keskitys valuu.
 
-### Yläreunan mittarisiru
+### Yläreunan infopaneeli
 
 Yläreunassa oli kolme esinettä: sääsiru vasemmalla (55 px), tähtäimen lukema
 keskellä (70 px) ja tuuliasteikko oikealla (120 px). Kolme eri korkeutta,
 kolme eri alareunaa ja 90 px:n aukko keskelle.
 
 Ratkaiseva havainto: **sääsiru ja tähtäimen lukema kuvasivat samaa pistettä**
-— molemmat lukevat `map.getCenter()`. Kaksi esinettä yhdelle sijainnille on
-se mikä sai yläreunan näyttämään sekavalta. Ne ovat nyt yksi mittari, ja
-asteikko on sen osa hiusviivan alapuolella. Yläreunan syvyys 130 px → 105 px,
-ja kolme esinettä → yksi.
+— molemmat lukevat `map.getCenter()`. Ne ovat nyt yksi paneeli, joka on
+kiinni ylälaidassa ja koko ruudun levyinen.
 
-- **`#crosshair-readout` on kiinteän levyinen (244 px).** Detaljirivin teksti
-  vaihtuu ("pilvistä" / "rankkasadetta"), ja vaihtuva leveys saisi sirun
-  hyppimään karttaa panoroitaessa. Kiinteä leveys pitää myös asteikon aina
-  saman mittaisena.
-- **Kaksi napautuskohdetta yhdessä sirussa**: iso luku avaa
-  yksikkövalitsimen, sääosa (`#cr-wx`) avaa sääpaneelin. Molemmat toimivat
-  kuten ennenkin, vain sijainti muuttui.
-- **Asteikko on vaakasuora ja matalasta korkeaan**, koska se luetaan samaan
-  suuntaan kuin teksti. Palkki näyttää KARTAN rampin — se on kartan selite —
-  mutta lukemat ovat mustetta, koska ne luetaan paperilta.
-- **Emoji poistui sääikonista.** Se oli viimeinen jäljellä ollut; sanallinen
-  kuvaus kertoo saman tarkemmin. `WeatherWidget._codes` sisältää yhä emojit
-  taulukossa, mutta niitä ei enää käytetä — vain `info[1]` eli sana.
+- **`#crosshair-readout` on `top: 0` ja koko leveydeltä**, pyöristys vain
+  alakulmissa, `padding-top: var(--sat)`. Kelluvana siruna se jätti
+  ylälaitaan raon jossa näkyi kaistale karttaa sen ylä- ja alapuolella —
+  paneeli näytti irtonaiselta.
+- **Kaksi tilaa.** Suppea (87 px): tuuli, suunta, puuska, sää ja asteikko.
+  Laaja (`.laaja`, ~240 px): lisäksi tuntisää. `WxPanel.open()/close()`
+  ohjaa luokkaa; sisältö on aina DOMissa, joten renderöinti ei riipu
+  tilasta. Kahvasta napautus vaihtaa tilan, pystypyyhkäisy avaa ja sulkee.
+- **Erillinen `#wx-panel` poistettiin.** Sen sisältö on laaja tila;
+  `#wx-panel-scroll` on yhä sama elementti, joten `WxPanel.render()` toimii
+  ennallaan. Vanhat `#wx-panel`-säännöt piti poistaa, koska myöhempi
+  `#wx-panel-scroll` olisi voittanut uuden asettelun.
+- **Suunnan nuoli on piirretty SVG, ei merkkifontin nuoli.** Vanha
+  `dirArrow()` kvantisoi kahdeksaan suuntaan: 194° näytti samalta kuin 180°.
+  Nuoli kääntyy `rotate(dir + 180)` — plus 180, koska `dir` on suunta josta
+  tuulee ja nuoli osoittaa siihen minne tuuli puhaltaa.
+- **Asteikko käyttää koko leveyden.** Koko ruudun levyisenä se lukee
+  mitta-asteikkona eikä pikkukorttina.
+
+Kaksi napautuskohdetta säilyi: iso luku avaa yksikkövalitsimen, sääosa
+(`#cr-wx`) avaa laajan tilan.
 
 ## API-osoitteet
 
