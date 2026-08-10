@@ -252,23 +252,56 @@ vaaleanpunainen — ja `--ink-3` putoaa alle AA:n **jokaisella** alfalla,
 koska sillä on kiinteälläkin pinnalla vain 4,6:1. Siedettävä siirtymä
 vaatisi 96 %:n pinnan, jolloin itse ilmiö on näkymätön. Sweet spotia ei ole.
 
-Napautuskohteita on kaksi: **tuuliosa avaa yksikkövalitsimen, sääosa
-tuntisään.** Kuuntelijat ovat painikkeissa eivätkä niiden sisällä olevissa
-lukemissa — kahdella kuuntelijalla kupliva napautus laukaisisi `toggle()`:n
-kahdesti eli ei kertaakaan.
+**Kaikki kolme osaa ovat napautettavia**, ja jokainen laajentaa oman
+lukemansa: suunta avaa esitystavan, tuuli yksikön, sää tuntisään.
+Kuuntelijat ovat painikkeissa eivätkä niiden sisällä olevissa lukemissa —
+kahdella kuuntelijalla kupliva napautus laukaisisi `toggle()`:n kahdesti
+eli ei kertaakaan.
+
+### Kapselin valitsimet
+
+Suunta- ja yksikkökortti ovat samaa muottia (`Valitsin`): sama paperi,
+sama sijoituslogiikka, sama rakenne. Yhteinen tehdasfunktio tekee kolme
+asiaa joita kahdella erillisellä toteutuksella ei saisi ilmaiseksi —
+kortit eivät voi ajautua erinäköisiksi, toisen avaaminen sulkee toisen
+ilman että ne tuntevat toisensa (`Valitsin.suljeKaikki`), ja uusi kortti
+on muutaman rivin työ.
+
+Kortti keskitetään **sen osan alle jota napautettiin**, ei koko kapselin
+eikä ruudun keskelle: valikko kuuluu siihen mitä osoitettiin. Reunoille
+jää 12 px, jottei kortti valu ulos kapean laitteen laidassa.
+
+Rivin oikeassa laidassa on aina **sama lukema siinä muodossa jota rivi
+tarjoaa**, joten kortti kertoo samalla mitä valinta tarkoittaa. Valittu
+rivi on mustetäyttö kuten asetusten sirut, ei aksenttia.
+
+### Suunnan esitystapa
+
+Asteet tai ilmansuunta (`fs_suuntamuoto`). Kaksi muotoa tekevät eri työn
+eivätkä ole toistensa hienompia versioita: **asteet antavat tarkkuuden,
+nimi luettavuuden.**
+
+- **Kirjainmuotoa (SSW) ei ole.** Se on asteita epätarkempi ja nimeä
+  vaikeampi lukea, eli häviää kummallekin siinä mitä ne tekevät. Se olisi
+  ollut helppo lisätä kolmanneksi riviksi juuri siksi ettei siitä
+  tarvitse päättää mitään.
+- **Nimet ovat ablatiivissa** ("lounaasta"), koska tuulen suunta on se
+  josta tuulee. Nuoli osoittaa päinvastaiseen suuntaan (`rotate(dir+180)`)
+  ja on aina ollut niin — sana ei tuo uutta ristiriitaa vaan sanoo
+  ääneen sen minkä asteluku jättää arvattavaksi.
+- **Nimet ovat kahdeksassa portaassa, asteet yhdessä.** Se on työnjako
+  eikä epäjohdonmukaisuus: kuudentoista portaan nimi olisi
+  "etelälounaasta" — pidempi kuin lukema jonka se korvaa.
+- Pisin nimi ("pohjoisesta") mahtuu 320 px:n laitteelle levein
+  mahdollinen muu sisältö rinnalla: kapseli on silloin 246 px.
 
 ### Yksikkövalitsin
 
 Oli viimeinen tumman teeman jäänne: pohjaton pillerilista keskellä ruutua,
 DM Monolla ja valkoisella tekstillä varjostettuna — paperilla valittu rivi
-oli valkoista beigellä eli näkymätön. Nyt kortti on samaa paperia kuin
-muutkin paneelit ja aukeaa siihen mihin osoitettiin: keskitettynä
-**tuuliosan** alle, ei koko kapselin eikä ruudun keskelle. Reunoille jää
-12 px, jottei kortti valu ulos kapean laitteen laidassa.
-
-Yksikön vieressä on **sama tuuli siinä yksikössä** (`Units.fmtIn`), joten
-valitsin kertoo samalla mitä valinta tarkoittaa. Valittu rivi on
-mustetäyttö kuten asetusten sirut, ei aksenttia.
+oli valkoista beigellä eli näkymätön. Nyt se on `Valitsin`-kortti muiden
+joukossa, ja yksikön vieressä on **sama tuuli siinä yksikössä**
+(`Units.fmtIn`).
 
 ## API-osoitteet
 

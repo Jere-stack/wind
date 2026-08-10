@@ -1505,35 +1505,41 @@ body {
 .fc-empty { padding: 24px 20px; text-align: center;
   font-variant-numeric: tabular-nums; font-size: 11px; color: var(--ink-3); }
 
-/* -- YKSIKKÖVALITSIN — paperikortti lukeman alla ------------------ */
-/* Oli viimeinen tumman teeman jäänne: pohjaton pillerilista keskellä
-   ruutua, DM Monolla ja valkoisella tekstillä varjostettuna. Paperilla
-   valittu rivi oli valkoista beigellä eli näkymätön.
+/* -- VALINTAKORTIT — paperikortti kapselin osan alla -------------- */
+/* Yksikkövalitsin oli viimeinen tumman teeman jäänne: pohjaton
+   pillerilista keskellä ruutua, DM Monolla ja valkoisella tekstillä
+   varjostettuna. Paperilla valittu rivi oli valkoista beigellä eli
+   näkymätön.
 
-   Nyt kortti on samaa paperia kuin muutkin paneelit ja se aukeaa siihen
-   mihin osoitettiin: vasen reuna samassa linjassa lukeman kanssa, ei
-   ruudun keskellä. Sijainti ja aukeamissuunta asetetaan JS:ssä sen mukaan
-   kummasta yläreunan muodosta se avattiin.
+   Nyt kortti on samaa paperia kuin muutkin paneelit ja aukeaa siihen
+   mihin osoitettiin — sen kapselin osan alle jota napautettiin, ei
+   ruudun keskelle.
 
-   Yksikön vieressä on sama tuuli siinä yksikössä, joten valitsin kertoo
-   samalla mitä valinta tarkoittaa — luku on jo ruudulla vertailtavana
-   eikä yksikköä tarvitse muistaa ulkoa. */
-#units-picker {
+   Molemmat kortit (yksikkö ja suuntamuoto) jakavat nämä tyylit, jotta
+   kapselin kaksi valitsinta eivät voi ajautua erinäköisiksi. Rivin
+   oikeassa laidassa on aina se sama lukema siinä muodossa jota rivi
+   tarjoaa, joten kortti kertoo samalla mitä valinta tarkoittaa —
+   arvoa ei tarvitse muistaa ulkoa. */
+.valintakortti {
   position: fixed;
   z-index: 40;
-  width: 152px; padding: 4px;
+  padding: 4px;
   background: var(--surface-hi);
   border-radius: 14px;
   box-shadow: var(--shadow-2);
-  transform-origin: top left;
+  transform-origin: top center;
   transform: translateY(-6px) scale(0.96);
   opacity: 0; pointer-events: none;
   transition: opacity .15s ease, transform .15s cubic-bezier(.32,.72,.24,1);
 }
-#units-picker.open {
+.valintakortti.open {
   opacity: 1; pointer-events: all;
   transform: translateY(0) scale(1);
 }
+#units-picker { width: 152px; }
+/* Suuntakortti on leveämpi, koska ilmansuunta on sana eikä luku:
+   pisin ("pohjoisesta") vie 68 px arvosarakkeessa. */
+#suunta-picker { width: 176px; }
 .up-option {
   display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
   padding: 7px 10px; border-radius: 10px; cursor: pointer;
@@ -1740,14 +1746,14 @@ body {
        vasemmalta oikealle — suunta, tuuli, sää. Tuuliosa avaa
        yksikkövalitsimen, sääosa tuntisään. -->
   <div id="kapseli" class="hidden">
-    <span class="kap-osa kap-suunta-osa">
+    <button class="kap-osa kap-suunta-osa" type="button" aria-label="Vaihda suunnan esitystapa">
       <svg class="ts-arrow" id="kap-nuoli" viewBox="0 0 24 24" aria-hidden="true">
         <path d="M12 2.6 V21.4 M5.9 9.4 L12 2.6 L18.1 9.4"
               fill="none" stroke="currentColor" stroke-width="2.2"
               stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <span class="kap-suunta" id="kap-suunta">--&deg;</span>
-    </span>
+    </button>
     <span class="kap-jako"></span>
     <button class="kap-osa kap-tuuli" type="button" aria-label="Vaihda yksikk&ouml;">
       <span class="kap-rivi">
@@ -1785,11 +1791,18 @@ body {
   <!-- Hourly weather panel -->
 
   <!-- Yksikkövalitsin. Arvosarake täytetään JS:ssä nykyisestä tuulesta. -->
-  <div id="units-picker">
+  <div id="units-picker" class="valintakortti">
     <div class="up-option" data-unit="ms"><span class="up-label">m/s</span><span class="up-value"></span></div>
     <div class="up-option" data-unit="kts"><span class="up-label">solmua</span><span class="up-value"></span></div>
     <div class="up-option" data-unit="kmh"><span class="up-label">km/h</span><span class="up-value"></span></div>
     <div class="up-option" data-unit="bft"><span class="up-label">bft</span><span class="up-value"></span></div>
+  </div>
+
+  <!-- Suunnan esitystapa. Arvosarake näyttää nykyisen suunnan kummassakin
+       muodossa, joten valinta ei ole arvailua. -->
+  <div id="suunta-picker" class="valintakortti">
+    <div class="up-option" data-suunta="asteet"><span class="up-label">Asteet</span><span class="up-value"></span></div>
+    <div class="up-option" data-suunta="nimi"><span class="up-label">Ilmansuunta</span><span class="up-value"></span></div>
   </div>
 
   <!-- Settings overlay (tummentaa taustan) -->
@@ -2164,6 +2177,49 @@ function makeSwipeable(sheetEl, onDismiss, opts) {
 }
 
 /* -- UNITS ------------------------------------------------------ */
+/* -- SUUNNAN ESITYSTAPA -------------------------------------------
+   Kapselissa suunta näkyy joko asteina tai ilmansuuntana. Kaksi muotoa
+   tekevät eri työn eivätkä ole toistensa hienompia versioita: asteet
+   antavat tarkkuuden, nimi antaa luettavuuden. Siksi valittavana ei ole
+   kirjainmuotoa (SSW) — se on asteita epätarkempi ja nimeä vaikeampi
+   lukea, eli häviää kummallekin siinä mitä ne tekevät.
+
+   Nimet ovat ablatiivissa ("lounaasta"), koska tuulen suunta on se josta
+   tuulee. Sama sekaannus on nuolen kanssa, joka kääntyy dir + 180 juuri
+   tästä syystä. Muoto sanoo suunnan ääneen niin ettei sitä voi lukea
+   väärin päin.
+
+   Nimet ovat kahdeksassa portaassa, asteet yhdessä. Se ei ole
+   epäjohdonmukaisuutta vaan työnjako: jos nimikin kvantisoisi
+   kuudessatoista portaassa, tuloksena olisi "etelälounaasta" — pidempi
+   kuin lukema jonka se korvaa. */
+const SUUNTA_NIMET = ['pohjoisesta','koillisesta','idästä','kaakosta',
+                      'etelästä','lounaasta','lännestä','luoteesta'];
+const Suunta = {
+  _muoto: 'asteet',
+  init() {
+    try {
+      const s = localStorage.getItem('fs_suuntamuoto');
+      if (s === 'asteet' || s === 'nimi') this._muoto = s;
+    } catch(e) {}
+    this._syncChips();
+  },
+  get() { return this._muoto; },
+  set(muoto) {
+    if (muoto !== 'asteet' && muoto !== 'nimi') return;
+    this._muoto = muoto;
+    try { localStorage.setItem('fs_suuntamuoto', muoto); } catch(e) {}
+    this._syncChips();
+  },
+  nimi(deg) { return SUUNTA_NIMET[Math.round(((deg % 360) + 360) % 360 / 45) % 8]; },
+  fmt(deg) { return this._muoto === 'nimi' ? this.nimi(deg) : Math.round(deg) + '°'; },
+  fmtIn(deg, muoto) { return muoto === 'nimi' ? this.nimi(deg) : Math.round(deg) + '°'; },
+  _syncChips() {
+    document.querySelectorAll('#suunta-picker .up-option').forEach(el =>
+      el.classList.toggle('active', el.dataset.suunta === this._muoto));
+  }
+};
+
 const Units = {
   _active: 'ms',
   _defs: {
@@ -7253,7 +7309,7 @@ function closeSheet() {
 document.getElementById('sheet-overlay').addEventListener('click', () => {
   closeSheet();
   ForecastPanel.close();
-  if (typeof UnitsPicker !== 'undefined') UnitsPicker.close();
+  if (typeof Valitsin !== 'undefined') Valitsin.suljeKaikki();
   if (typeof WxPanel !== 'undefined') WxPanel.close();
 }, { passive: true });
 document.getElementById('sheet-handle').addEventListener('click', closeSheet, { passive: true });
@@ -7800,6 +7856,7 @@ const Crosshair = {
   _el: null, _nopeusEl: null, _nuoliEl: null, _suuntaEl: null, _puuskaEl: null,
   _chEl: null, _windArrow: null, _updateTimer: null,
   _ms: null,   /* viimeisin tuuli m/s — yksikkövalitsin näyttää sen muunnokset */
+  _dir: null,  /* viimeisin suunta asteina — suuntavalitsin näyttää sen muodot */
   init() {
     this._el = document.getElementById('kapseli');
     this._nopeusEl = document.getElementById('kap-nopeus');
@@ -7840,7 +7897,8 @@ const Crosshair = {
        180°. Piirretty nuoli kääntyy asteen tarkkuudella. */
     this._nuoliEl.style.transform = 'rotate(' + ((dir + 180) % 360).toFixed(1) + 'deg)';
     this._nuoliEl.style.color = colorStr;
-    this._suuntaEl.textContent = Math.round(dir) + '°';
+    this._dir = dir;
+    this._suuntaEl.textContent = Suunta.fmt(dir);
     if (this._windArrow) this._windArrow.style.transform = 'rotate(' + Math.round(dir) + 'deg)';
 
     /* Puuska on harmaa eikä rampin värinen, vaikka se on tuulitieto: jos
@@ -8359,51 +8417,98 @@ document.getElementById('fc-btn').addEventListener('click', (e) => {
   });
 })();
 
-/* -- YKSIKKÖVALITSIN ---------------------------------------------
-   Avautuu tuuliosaa napauttamalla, sulkeutuu muualta. Kortti aukeaa siihen
-   mihin osoitettiin — kapselin tuuliosan alle, ei ruudun keskelle. */
-const UnitsPicker = {
-  _open: false,
-  toggle() { this._open ? this.close() : this.open(); },
-  open() {
-    this._open = true;
-    this._syncActive();
-    this._sijoita();
-    document.getElementById('units-picker').classList.add('open');
-    Haptics.light();
-  },
-  _sijoita() {
-    const picker = document.getElementById('units-picker');
-    const tuuliosa = document.querySelector('.kap-tuuli');
-    const kapseli = document.getElementById('kapseli');
-    if (!tuuliosa || !kapseli) return;
-    const r = tuuliosa.getBoundingClientRect();
-    picker.style.top = (kapseli.getBoundingClientRect().bottom + 8) + 'px';
-    /* Kortti keskitetään TUULIOSAN alle eikä koko kapselin, koska valikko
-       kuuluu siihen mitä napautettiin. Reunoille jätetään 12 px, jottei
-       kortti valu ulos ruudulta kapean laitteen laidassa. */
-    const leveys = picker.offsetWidth;
-    const x = r.left + r.width / 2 - leveys / 2;
-    picker.style.left = Math.round(Math.min(Math.max(x, 12), innerWidth - leveys - 12)) + 'px';
-  },
-  close() {
-    this._open = false;
-    document.getElementById('units-picker').classList.remove('open');
-  },
-  _syncActive() {
-    const u = Units.get();
-    const ms = Crosshair._ms;
-    document.querySelectorAll('.up-option').forEach(el => {
-      el.classList.toggle('active', el.dataset.unit === u);
-      /* Arvosarake kertoo mitä valinta tarkoittaa juuri nyt. Ilman tuulta
-         (kartta vielä latautuu) sarake jää tyhjäksi eikä näytä nollaa. */
-      const v = el.querySelector('.up-value');
-      if (v) v.textContent = (ms != null) ? Units.fmtIn(ms, el.dataset.unit) : '';
-    });
-    document.querySelectorAll('#units .sp-chip').forEach(c =>
-      c.classList.toggle('active', c.dataset.unit === u));
-  }
+/* -- KAPSELIN VALITSIMET ------------------------------------------
+   Kapselin kaksi vasenta osaa avaavat kumpikin oman paperikorttinsa:
+   tuuliosa yksikön, suuntaosa suunnan esitystavan. Kortit ovat samaa
+   muottia (Valitsin), jotta ne eivät voi ajautua erinäköisiksi tai
+   käyttäytyä eri tavoin — ja jotta toisen avaaminen sulkee toisen
+   ilman että kumpikin joutuu tuntemaan toisensa. */
+function Valitsin(korttiId, ankkuriValitsin, taytaRivit) {
+  return {
+    _open: false,
+    _kortti() { return document.getElementById(korttiId); },
+    toggle() { this._open ? this.close() : this.open(); },
+    open() {
+      Valitsin.suljeKaikki(this);
+      this._open = true;
+      this._syncActive();
+      this._sijoita();
+      this._kortti().classList.add('open');
+      Haptics.light();
+    },
+    close() {
+      this._open = false;
+      this._kortti().classList.remove('open');
+    },
+    _sijoita() {
+      const kortti = this._kortti();
+      const ankkuri = document.querySelector(ankkuriValitsin);
+      const kapseli = document.getElementById('kapseli');
+      if (!ankkuri || !kapseli) return;
+      const r = ankkuri.getBoundingClientRect();
+      kortti.style.top = (kapseli.getBoundingClientRect().bottom + 8) + 'px';
+      /* Kortti keskitetään SEN OSAN alle jota napautettiin eikä koko
+         kapselin, koska valikko kuuluu siihen mitä osoitettiin. Reunoille
+         jätetään 12 px, jottei kortti valu ulos kapean laitteen laidassa. */
+      const leveys = kortti.offsetWidth;
+      const x = r.left + r.width / 2 - leveys / 2;
+      kortti.style.left = Math.round(Math.min(Math.max(x, 12), innerWidth - leveys - 12)) + 'px';
+    },
+    _syncActive() { taytaRivit(this._kortti()); }
+  };
+}
+Valitsin._kaikki = [];
+Valitsin.suljeKaikki = function (paitsi) {
+  Valitsin._kaikki.forEach(v => { if (v !== paitsi) v.close(); });
 };
+
+const UnitsPicker = Valitsin('units-picker', '.kap-tuuli', (kortti) => {
+  const u = Units.get(), ms = Crosshair._ms;
+  kortti.querySelectorAll('.up-option').forEach(el => {
+    el.classList.toggle('active', el.dataset.unit === u);
+    /* Arvosarake kertoo mitä valinta tarkoittaa juuri nyt. Ilman tuulta
+       (kartta vielä latautuu) sarake jää tyhjäksi eikä näytä nollaa. */
+    const v = el.querySelector('.up-value');
+    if (v) v.textContent = (ms != null) ? Units.fmtIn(ms, el.dataset.unit) : '';
+  });
+  document.querySelectorAll('#units .sp-chip').forEach(c =>
+    c.classList.toggle('active', c.dataset.unit === u));
+});
+
+const SuuntaPicker = Valitsin('suunta-picker', '.kap-suunta-osa', (kortti) => {
+  const m = Suunta.get(), dir = Crosshair._dir;
+  kortti.querySelectorAll('.up-option').forEach(el => {
+    el.classList.toggle('active', el.dataset.suunta === m);
+    const v = el.querySelector('.up-value');
+    if (v) v.textContent = (dir != null) ? Suunta.fmtIn(dir, el.dataset.suunta) : '';
+  });
+});
+Valitsin._kaikki = [UnitsPicker, SuuntaPicker];
+
+/* Suuntamuoto valittu — lukema päivittyy heti eikä vasta seuraavassa
+   kartan liikkeessä. */
+document.getElementById('suunta-picker').addEventListener('click', e => {
+  const opt = e.target.closest('.up-option');
+  if (!opt) return;
+  if (opt.dataset.suunta !== Suunta.get()) {
+    Haptics.selection();
+    Suunta.set(opt.dataset.suunta);
+    Crosshair.refresh();
+  }
+  SuuntaPicker.close();
+}, { passive: true });
+
+/* Suuntaosa avaa suuntavalitsimen. */
+(function () {
+  const el = document.querySelector('.kap-suunta-osa');
+  if (!el) return;
+  el.style.cursor = 'pointer';
+  el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    WxPanel.close();
+    SuuntaPicker.toggle();
+  }, { passive: false });
+})();
 
 /* Tuuliosa avaa yksikkövalitsimen. Kuuntelija on painikkeessa eikä
    lukemassa: lukema on painikkeen sisällä, ja kahdella kuuntelijalla
@@ -8463,7 +8568,7 @@ const WxPanel = {
   toggle() { this._open ? this.close() : this.open(); },
   open() {
     this._open = true;
-    UnitsPicker.close();
+    Valitsin.suljeKaikki();
     this.render();
     document.getElementById('hourly-sheet').classList.add('auki');
     document.getElementById('kapseli').classList.add('vaistyy');
@@ -8549,7 +8654,7 @@ const WxPanel = {
   el.style.cursor = 'pointer';
   el.addEventListener('click', (e) => {
     e.stopPropagation();
-    UnitsPicker.close();
+    Valitsin.suljeKaikki();
     WxPanel.toggle();
   }, { passive: false });
 })();
@@ -8612,9 +8717,9 @@ const WxPanel = {
   }, { passive: true });
 })();
 
-/* Close pickers on outside tap */
+/* Napautus muualle sulkee kaikki kapselin kortit ja tuntisään. */
 document.addEventListener('click', () => {
-  UnitsPicker.close();
+  Valitsin.suljeKaikki();
   WxPanel.close();
 }, { passive: true });
 
@@ -8760,7 +8865,7 @@ function scheduleRefresh() {
 /* -- MAIN ------------------------------------------------------- */
 function main() {
   buildLegend(); initMap(); initCanvases();
-  Crosshair.init(); WeatherWidget.init(); Units.init();
+  Crosshair.init(); WeatherWidget.init(); Units.init(); Suunta.init();
   /* Palauta tallennettu malli */
   (function() {
     var saved = State.activeModel;
