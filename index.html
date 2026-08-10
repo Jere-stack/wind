@@ -148,111 +148,122 @@ body {
 /* ============================================================
 /* ============================================================
 /* ============================================================
-   YLÄREUNAN INFOPANEELI  z:22
+/* ============================================================
+   YLÄREUNAN KULMAT  z:22
    ============================================================ */
-/* Kiinni ylälaidassa ja koko leveydeltä. Kelluva siru jätti ylälaitaan
-   raon, jossa näkyi kaistale karttaa sen ylä- ja alapuolella — paneeli
-   näytti irtonaiselta. Nyt se on pinta joka alkaa ruudun reunasta ja
-   pyöristyy vain alakulmista, kuten iOS:n ylälaidan pinnat.
+/* Neljännesympyrä kummassakin yläkulmassa: vasemmalla tuuli, oikealla sää.
+   Muoto syntyy yhdellä border-radiuksella neliöön — kun leveys, korkeus ja
+   säde ovat samat, kaari on aito ympyrän neljännes eikä pyöristetty
+   suorakulmio. Kaaren keskipiste on ruudun kulmassa.
 
-   Kaksi tilaa: suppea (tuuli, sää, asteikko) ja .laaja (lisäksi tuntisää).
-   Sama detent-kuvio kuin alalaidan sheetissä, ylösalaisin. */
-#crosshair-readout {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 22;
-  pointer-events: all;
+   Väriasteikko poistui yläreunasta: kartan värit ja merkkien lukemat
+   kertovat saman, ja asteikko on asetuspaneelissa viitteenä.
+
+   Sisältö tarvitsee tiedon siitä, paljonko leveyttä kullakin korkeudella
+   on: kaari on x² + y² = R², joten y-kohdalla mahtuu √(R²−y²). Siksi rivit
+   lyhenevät alaspäin ja pisin (iso lukema) on ylimpänä. */
+:root { --kulma-r: 164px; }
+
+.kulma {
+  position: fixed; top: 0; z-index: 22;
+  width: var(--kulma-r); height: var(--kulma-r);
   background: var(--surface);
-  border-radius: 0 0 22px 22px;
-  box-shadow: 0 6px 22px rgba(6,12,16,.30);
-  padding-top: var(--sat);
-  transition: opacity .3s;
+  pointer-events: all;
+  transition: opacity .28s ease, transform .28s ease;
 }
-#crosshair-readout.hidden { opacity: 0; }
+.kulma-v { left: 0;  border-bottom-right-radius: var(--kulma-r); }
+.kulma-o { right: 0; border-bottom-left-radius:  var(--kulma-r); }
+.kulma.hidden { opacity: 0; pointer-events: none; }
+/* Laajassa tilassa kulmat väistyvät omaa kulmaansa kohti, jolloin nauha
+   näyttää kasvavan niistä eikä ilmestyvän päälle. */
+.kulma.vaistyy { opacity: 0; pointer-events: none; }
+.kulma-v.vaistyy { transform-origin: top left;  transform: scale(.9); }
+.kulma-o.vaistyy { transform-origin: top right; transform: scale(.9); }
 
-.ts-body { padding: 10px calc(var(--sal) + 16px) 0 calc(var(--sar) + 16px); }
+.kulma-sisus {
+  padding-top: calc(var(--sat) + 12px);
+  display: flex; flex-direction: column;
+}
+.kulma-v .kulma-sisus { padding-left: calc(var(--sal) + 18px); align-items: flex-start; text-align: left; }
+.kulma-o .kulma-sisus { padding-right: calc(var(--sar) + 18px); align-items: flex-end; text-align: right; }
 
-/* Suppean tilan rivi: iso lukema ankkuroi vasemman reunan, sää työntyy
-   oikeaan. Koko leveys on käytössä, joten kaikki mahtuu yhdelle riville. */
-.ts-row { display: flex; align-items: baseline; gap: 9px; }
+.kulma-rivi1 { display: flex; align-items: center; gap: 7px; line-height: 1; }
+.kulma-rivi2 { margin-top: 3px; font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.kulma-rivi3 {
+  margin-top: 2px; font-size: 11.5px; color: var(--ink-3);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+
 .cr-speed {
   font-variant-numeric: tabular-nums;
-  font-size: 28px; font-weight: 600;
-  line-height: 1; letter-spacing: -0.03em;
+  font-size: 30px; font-weight: 600;
+  line-height: 1; letter-spacing: -0.035em;
   color: var(--ink);
   cursor: pointer;
   display: inline-flex; align-items: baseline; gap: 3px;
-  flex-shrink: 0;
 }
 .cr-speed-unit { font-size: 11px; font-weight: 500; color: var(--ink-3); letter-spacing: 0; }
 
-.ts-dir {
-  display: inline-flex; align-items: center; gap: 3px;
-  font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
-  align-self: center;
-}
 /* Piirretty nuoli kääntyy asteen tarkkuudella; merkkifontin nuoli osasi
    vain kahdeksan suuntaa. */
 .ts-arrow {
-  width: 15px; height: 15px; display: block;
+  width: 17px; height: 17px; display: block; flex-shrink: 0;
   transition: transform .35s cubic-bezier(.32,.72,.24,1);
 }
-.ts-meta {
-  margin-left: auto; text-align: right;
-  font-size: 11.5px; color: var(--ink-3);
+
+/* Sääkulma: piirretty ikoni, ei emoji. */
+.kulma-ikoni { color: var(--ink-2); margin-bottom: 5px; }
+.kulma-ikoni .wx-ikoni { display: block; }
+#wx-temp {
+  font-size: 30px; font-weight: 600; line-height: 1;
+  letter-spacing: -0.035em; color: var(--ink);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  align-self: center;
 }
-#cr-wx:not(.hidden)::before { content: ' · '; white-space: pre; }
 #cr-wx.hidden { display: none; }
 
-/* Asteikko käyttää koko leveyden — se on kartan väriselite, ja koko
-   ruudun levyisenä se lukee mitta-asteikkona eikä pikkukorttina. */
-.ts-scale { margin-top: 9px; }
-.ts-scale-bar {
-  height: 6px; border-radius: 3px;
-  box-shadow: inset 0 0 0 1px var(--chip-line);
+/* ============================================================
+   TUNTISÄÄ — laaja tila  z:23
+   ============================================================ */
+/* Kulmat väistyvät ja tuntisää liukuu esiin koko leveydeltä. Kaksi
+   erillistä pintaa olisi näyttänyt kolmelta esineeltä; nyt näkyvissä on
+   aina joko kulmat tai nauha, ei molempia. */
+#hourly-sheet {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 23;
+  background: var(--surface);
+  border-radius: 0 0 22px 22px;
+  box-shadow: 0 6px 22px rgba(6,12,16,.30);
+  padding: calc(var(--sat) + 14px) calc(var(--sar) + 16px) 0 calc(var(--sal) + 16px);
+  transform: translateY(-100%);
+  transition: transform .38s cubic-bezier(.32,.72,.24,1);
+  pointer-events: none;
 }
-.ts-scale-ticks { display: flex; justify-content: space-between; margin-top: 3px; }
-.ts-scale-ticks .ws-tick {
-  font-variant-numeric: tabular-nums; font-size: 9px; font-weight: 600;
+#hourly-sheet.auki { transform: translateY(0); pointer-events: all; }
+.ws-tick {
+  font-variant-numeric: tabular-nums; font-size: 10px; font-weight: 600;
   line-height: 1; color: var(--ink-3);
 }
-
-/* Laaja tila. max-height animoituu; sisältö on aina DOMissa, joten
-   tuntisään renderöinti ei riipu tilasta. */
-.ts-more {
-  max-height: 0; overflow: hidden;
-  transition: max-height .38s cubic-bezier(.32,.72,.24,1), opacity .25s;
-  opacity: 0;
-}
-#crosshair-readout.laaja .ts-more { max-height: 42vh; opacity: 1; }
-.ts-more-title {
+.hs-title {
   font-size: 11px; font-weight: 600; letter-spacing: .06em;
-  text-transform: uppercase; color: var(--ink-3);
-  margin: 14px 0 8px; padding-top: 12px;
-  border-top: 1px solid var(--hairline);
+  text-transform: uppercase; color: var(--ink-3); margin-bottom: 9px;
 }
 #wx-panel-scroll {
   display: flex; gap: 6px; overflow-x: auto;
-  padding-bottom: 4px;
+  padding-bottom: 2px;
   scrollbar-width: none; -webkit-overflow-scrolling: touch;
 }
 #wx-panel-scroll::-webkit-scrollbar { display: none; }
 
-/* Kahva. Koko leveydeltä osuma-alue mutta viiva on pieni ja keskellä. */
 .ts-handle {
-  display: block; width: 100%; height: 22px;
+  display: block; width: 100%; height: 24px;
   border: none; background: none; padding: 0;
   cursor: pointer; -webkit-tap-highlight-color: transparent;
 }
 .ts-handle span {
-  display: block; width: 34px; height: 4px; margin: 6px auto 0;
+  display: block; width: 36px; height: 4px; margin: 8px auto 0;
   border-radius: 2px; background: var(--hairline);
   transition: width .2s, background .2s;
 }
-.ts-handle:active span { width: 46px; background: var(--ink-3); }
-#crosshair-readout.laaja .ts-handle span { width: 46px; }
+.ts-handle:active span { width: 48px; background: var(--ink-3); }
 
 /* ============================================================
    MAP CONTROLS — bottom bar row
@@ -1503,7 +1514,7 @@ body {
 }
 .wx-hour.now { background: var(--surface-lo); }
 .wx-hour-time { font-variant-numeric: tabular-nums; font-size: 10px; color: var(--ink-3); font-weight: 600; }
-.wx-hour-icon { font-size: 20px; line-height: 1; }
+.wx-hour-icon { line-height: 1; color: var(--ink-2); }
 .wx-hour-temp { font-variant-numeric: tabular-nums; font-size: 15px; font-weight: 600; color: var(--ink); letter-spacing: -.02em; }
 .wx-hour-wind { font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 600; }
 .wx-hour-cloud { font-variant-numeric: tabular-nums; font-size: 10px; color: var(--ink-3); }
@@ -1673,36 +1684,40 @@ body {
   <canvas id="c-wind"></canvas>
 
 
-  <!-- Ylareunan infopaneeli. Kiinni ylalaidassa ja koko leveydeltä, kaksi
-       tilaa: suppea (tuuli + sää + asteikko) ja laaja (lisäksi tuntisää).
-       Tila vaihtuu kahvasta — sama kuvio kuin alalaidan sheetissä, ylösalaisin. -->
-  <div id="crosshair-readout" class="hidden">
-    <div class="ts-body">
-      <div class="ts-row">
+  <!-- Yläreunan kulmat. Neljännesympyrä kummassakin kulmassa: vasemmalla
+       tuuli, oikealla sää. Muoto on tehty yhdellä border-radiuksella
+       neliöön, eli se on aito neljännes eikä pyöristetty laatikko.
+       Väriasteikko poistui — kartan värit ja merkkien lukemat kertovat
+       saman, ja asteikko on nyt asetuspaneelissa viitteenä. -->
+  <div id="crosshair-readout" class="kulma kulma-v hidden">
+    <div class="kulma-sisus">
+      <div class="kulma-rivi1">
         <span class="cr-speed" id="cr-speed">--<span class="cr-speed-unit">m/s</span></span>
-        <span class="ts-dir">
-          <!-- Piirretty nuoli, ei merkkifontin nuoli: kääntyy tarkkaan
-               kulmaan eikä kahdeksaan portaaseen. -->
-          <svg class="ts-arrow" id="cr-dir-arrow" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 2.6 V21.4 M5.9 9.4 L12 2.6 L18.1 9.4"
-                  fill="none" stroke="currentColor" stroke-width="2.2"
-                  stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <span id="cr-dir-deg">--°</span>
-        </span>
-        <span class="ts-meta"><span id="cr-gust"></span><span id="cr-wx" class="hidden"></span></span>
+        <svg class="ts-arrow" id="cr-dir-arrow" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 2.6 V21.4 M5.9 9.4 L12 2.6 L18.1 9.4"
+                fill="none" stroke="currentColor" stroke-width="2.2"
+                stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
       </div>
-      <div class="ts-scale">
-        <div id="wind-scale-bar" class="ts-scale-bar"></div>
-        <div id="wind-scale-ticks" class="ts-scale-ticks"></div>
-      </div>
-      <div class="ts-more" id="ts-more">
-        <div class="ts-more-title">Tuntisää · tähtäimen kohta</div>
-        <div id="wx-panel-scroll"></div>
-      </div>
+      <div class="kulma-rivi2"><span id="cr-dir-deg">--°</span></div>
+      <div class="kulma-rivi3"><span id="cr-gust"></span></div>
     </div>
+  </div>
+
+  <div id="wx-corner" class="kulma kulma-o hidden">
+    <div class="kulma-sisus">
+      <div class="kulma-ikoni" id="wx-ikoni"></div>
+      <div class="kulma-rivi1"><span id="wx-temp">--°</span></div>
+      <div class="kulma-rivi3"><span id="cr-wx" class="hidden"></span></div>
+    </div>
+  </div>
+
+  <!-- Laaja tila: tuntisää liukuu esiin koko leveydeltä ja kulmat väistyvät. -->
+  <div id="hourly-sheet">
+    <div class="hs-title">Tuntisää · tähtäimen kohta</div>
+    <div id="wx-panel-scroll"></div>
     <button class="ts-handle" id="ts-handle" type="button" aria-expanded="false"
-            aria-label="Näytä tuntisää"><span></span></button>
+            aria-label="Piilota tuntisää"><span></span></button>
   </div>
 
   <div id="crosshair">
@@ -1828,6 +1843,12 @@ body {
           <!-- Karttalähteen maininta. Esrin ehdot vaativat "Powered by Esri"
                -maininnan ja datan lähteiden nimet; kartta itse on jätetty
                vapaaksi (attributionControl: false), joten se on tässä. -->
+          <div class="sp-label" style="margin-top:22px">Tuulen väriasteikko</div>
+          <div style="background:var(--surface-hi);border-radius:12px;padding:12px 13px 11px">
+            <div id="wind-scale-bar" style="height:8px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--chip-line)"></div>
+            <div id="wind-scale-ticks" style="display:flex;justify-content:space-between;margin-top:5px"></div>
+          </div>
+
           <div class="sp-credit">
             Kartta: Powered by <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a>
             — Esri, HERE, Garmin,
@@ -2621,6 +2642,9 @@ const Toast = {
 };
 
 /* -- LEGEND ----------------------------------------------------- */
+/* Väriasteikko poistui yläreunasta — kartan värit ja merkkien lukemat
+   kertovat saman. Funktio jäi, koska sama asteikko piirretään nyt
+   asetuspaneeliin viitteeksi; ilman kohde-elementtiä se ei tee mitään. */
 function buildLegend() {
   const bar = document.getElementById('wind-scale-bar');
   const ticks = document.getElementById('wind-scale-ticks');
@@ -7506,6 +7530,65 @@ function stopPlay() {
   document.getElementById('play-icon').innerHTML = '<path d="M7 4.5v15l12-7.5z" fill="currentColor"/>';
 }
 
+/* Piirretyt sääikonit. Yksi 24x24 ruudukko, viivanpaksuus 2, pyöreät päät —
+   sama piirtotapa kuin sovelluksen muissa ikoneissa. Emojit korvautuvat
+   näillä: emoji renderöityy jokaisella laitteella eri tyylillä eikä
+   noudata sovelluksen väriä, piirretty ikoni tekee molemmat. */
+const WX_ICONS = (() => {
+  const pilvi = 'M7.6 18.5h8.6a3.9 3.9 0 0 0 .3-7.8 5.4 5.4 0 0 0-10.4 1.1 3.5 3.5 0 0 0 1.5 6.7z';
+  const aurinko = (cx, cy, r) =>
+    `<circle cx="${cx}" cy="${cy}" r="${r}"/>` +
+    [0,45,90,135,180,225,270,315].map(a => {
+      const t = a * Math.PI / 180;
+      const x1 = cx + Math.cos(t) * (r + 2.2), y1 = cy + Math.sin(t) * (r + 2.2);
+      const x2 = cx + Math.cos(t) * (r + 4.6), y2 = cy + Math.sin(t) * (r + 4.6);
+      return `<path d="M${x1.toFixed(1)} ${y1.toFixed(1)}L${x2.toFixed(1)} ${y2.toFixed(1)}"/>`;
+    }).join('');
+  const pisarat = (ys) => ys.map(([x, y]) =>
+    `<path d="M${x} ${y}l-1.1 2.6"/>`).join('');
+
+  return {
+    selkea:   aurinko(12, 12, 4.4),
+    puoli:    aurinko(9, 9.5, 3.3) + `<path d="${pilvi}"/>`,
+    pilvinen: `<path d="${pilvi}"/>`,
+    sumu:     '<path d="M4 9.5h16"/><path d="M6 13.5h13"/><path d="M4.5 17.5h15"/>',
+    sade:     `<path d="${pilvi}"/>` + pisarat([[9.5, 20.4], [13, 20.4], [16.5, 20.4]]),
+    kuuro:    `<path d="${pilvi}"/>` + pisarat([[10.5, 20.4], [15, 20.4]]),
+    lumi:     `<path d="${pilvi}"/>`
+              + '<path d="M9.6 20.2v2.4M8.5 20.8l2.2 1.2M10.7 20.8l-2.2 1.2"/>'
+              + '<path d="M15.4 20.2v2.4M14.3 20.8l2.2 1.2M16.5 20.8l-2.2 1.2"/>',
+    ranta:    `<path d="${pilvi}"/>` + pisarat([[9.8, 20.4]])
+              + '<path d="M15.4 20.2v2.4M14.3 20.8l2.2 1.2M16.5 20.8l-2.2 1.2"/>',
+    ukkonen:  `<path d="${pilvi}"/>`
+              + '<path d="M13.2 19.4l-2.8 3.4h2.4l-1 2.6" stroke-linejoin="round"/>'
+  };
+})();
+
+/* WMO-koodi -> ikonin avain. Sama jako kuin sanallisessa kuvauksessa. */
+function wxIconKey(code) {
+  if (code === 0) return 'selkea';
+  if (code === 1 || code === 2) return 'puoli';
+  if (code === 3) return 'pilvinen';
+  if (code === 45 || code === 48) return 'sumu';
+  if (code >= 51 && code <= 55) return 'sade';
+  if (code >= 61 && code <= 65) return 'sade';
+  if (code === 68 || code === 69 || code === 83 || code === 84) return 'ranta';
+  if (code >= 71 && code <= 75) return 'lumi';
+  if (code === 85 || code === 86) return 'lumi';
+  if (code >= 80 && code <= 82) return 'kuuro';
+  if (code >= 95) return 'ukkonen';
+  return 'pilvinen';
+}
+
+/* Ikoni SVG-elementtinä. viewBox on 26 korkea, jotta sateen ja lumen
+   merkit mahtuvat pilven alle leikkautumatta. */
+function wxIconSVG(code, koko) {
+  const k = wxIconKey(code);
+  return '<svg class="wx-ikoni" width="' + koko + '" height="' + koko + '" viewBox="0 0 24 26" '
+    + 'fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" '
+    + 'aria-hidden="true">' + WX_ICONS[k] + '</svg>';
+}
+
 /* -- WEATHER WIDGET --------------------------------------------- */
 const WeatherWidget = {
   _el: null, _iconEl: null, _tempEl: null, _descEl: null,
@@ -7533,8 +7616,11 @@ const WeatherWidget = {
     return lat + ',' + lng;
   },
   init() {
-    /* Sää ei ole enää oma siru vaan mittarisirun detaljirivin loppuosa. */
+    /* Sää on oikean yläkulman neljännes: piirretty ikoni, lämpötila ja sana. */
     this._el = document.getElementById('cr-wx');
+    this._kulma = document.getElementById('wx-corner');
+    this._ikoniEl = document.getElementById('wx-ikoni');
+    this._tempEl = document.getElementById('wx-temp');
   },
   scheduleUpdate() {
     clearTimeout(this._fetchTimer);
@@ -7584,7 +7670,11 @@ const WeatherWidget = {
     } catch(e) {}
   },
   _render(data, hourIdx) {
-    if (!data || !data.hourly) { this._el.classList.add('hidden'); return; }
+    if (!data || !data.hourly) {
+      this._el.classList.add('hidden');
+      if (this._kulma) this._kulma.classList.add('hidden');
+      return;
+    }
     const h = data.hourly;
     let idx = Math.min(hourIdx, (h.temperature_2m || []).length - 1);
     if (State._tlTimes && State._tlTimes[hourIdx] && h.time) {
@@ -7600,12 +7690,12 @@ const WeatherWidget = {
     const info = this._codes[code] || ['🌡',''];
     const cc = h.cloudcover ? h.cloudcover[idx] : null;
     this._el.classList.remove('hidden');
-    /* Emoji jäi pois: se oli viimeinen jäljellä ollut, ja sanallinen kuvaus
-       kertoo saman tarkemmin. Pilvisyysprosentti jätetään pois detaljiriviltä,
-       koska rivi on jaettu puuskan kanssa — koko luku on sääpaneelissa. */
-    const sana = (info[1] || '').toLowerCase();
-    this._el.textContent = (temp != null ? Math.round(temp) + '°' : '--°')
-      + (sana ? ' · ' + sana : '');
+    if (this._kulma) this._kulma.classList.remove('hidden');
+    /* Emoji korvattiin piirretyllä ikonilla: emoji renderöityy jokaisella
+       laitteella eri tyylillä eikä noudata sovelluksen väriä. */
+    if (this._ikoniEl) this._ikoniEl.innerHTML = wxIconSVG(code, 30);
+    if (this._tempEl) this._tempEl.textContent = temp != null ? Math.round(temp) + '°' : '--°';
+    this._el.textContent = (info[1] || '').toLowerCase();
   },
   /* Onko naytetty tunti FMI HARMONIE:a vai Open-Meteo-jatkoa */
   sourceAt(data, idx) {
@@ -8254,18 +8344,18 @@ const WxPanel = {
     this._open = true;
     UnitsPicker.close();
     this.render();
-    const ts = document.getElementById('crosshair-readout');
-    ts.classList.add('laaja');
+    document.getElementById('hourly-sheet').classList.add('auki');
+    document.querySelectorAll('.kulma').forEach(k => k.classList.add('vaistyy'));
     const h = document.getElementById('ts-handle');
-    if (h) { h.setAttribute('aria-expanded', 'true'); h.setAttribute('aria-label', 'Piilota tuntisää'); }
+    if (h) h.setAttribute('aria-expanded', 'true');
     Haptics.light();
   },
   close() {
     this._open = false;
-    const ts = document.getElementById('crosshair-readout');
-    if (ts) ts.classList.remove('laaja');
+    document.getElementById('hourly-sheet').classList.remove('auki');
+    document.querySelectorAll('.kulma').forEach(k => k.classList.remove('vaistyy'));
     const h = document.getElementById('ts-handle');
-    if (h) { h.setAttribute('aria-expanded', 'false'); h.setAttribute('aria-label', 'Näytä tuntisää'); }
+    if (h) h.setAttribute('aria-expanded', 'false');
   },
   render() {
     if (!State.map) return;
@@ -8314,7 +8404,7 @@ const WxPanel = {
         ? '<div class="wx-hour-cloud">' + Math.round(cc) + '%</div>' : '';
       return '<div class="wx-hour' + (isNow ? ' now' : '') + '">'
         + '<div class="wx-hour-time">' + hh + ':00</div>'
-        + '<div class="wx-hour-icon">' + info[0] + '</div>'
+        + '<div class="wx-hour-icon">' + wxIconSVG(code, 22) + '</div>'
         + '<div class="wx-hour-temp">' + temp + '°</div>'
         + ccStr
         + windStr
@@ -8331,8 +8421,8 @@ const WxPanel = {
   }
 };
 
-document.getElementById('cr-wx').style.cursor = 'pointer';
-document.getElementById('cr-wx').addEventListener('click', (e) => {
+document.getElementById('wx-corner').style.cursor = 'pointer';
+document.getElementById('wx-corner').addEventListener('click', (e) => {
   e.stopPropagation();
   UnitsPicker.close();
   WxPanel.toggle();
@@ -8341,26 +8431,29 @@ document.getElementById('cr-wx').addEventListener('click', (e) => {
 /* Kahva: napautus vaihtaa tilaa, pystypyyhkäisy avaa alas ja sulkee ylös.
    Sama ele kuin alalaidan sheetissä, peilattuna. */
 (function () {
-  const ts = document.getElementById('crosshair-readout');
+  const sheet = document.getElementById('hourly-sheet');
   const handle = document.getElementById('ts-handle');
-  if (!ts || !handle) return;
+  const wxKulma = document.getElementById('wx-corner');
+  if (!sheet || !handle) return;
 
-  handle.addEventListener('click', (e) => {
-    e.stopPropagation();
-    WxPanel.toggle();
-  }, { passive: false });
+  /* Kahva nauhassa sulkee, sääkulma avaa. */
+  handle.addEventListener('click', (e) => { e.stopPropagation(); WxPanel.close(); }, { passive: false });
 
   let startY = 0, dragging = false;
   const alku = (y) => { startY = y; dragging = true; };
-  const loppu = (y) => {
+  const loppu = (y, auki) => {
     if (!dragging) return;
     dragging = false;
     const dy = y - startY;              /* alas = positiivinen */
-    if (dy > 34 && !WxPanel._open) WxPanel.open();
-    else if (dy < -34 && WxPanel._open) WxPanel.close();
+    if (dy > 34 && !auki) WxPanel.open();
+    else if (dy < -34 && auki) WxPanel.close();
   };
-  ts.addEventListener('touchstart', e => alku(e.touches[0].clientY), { passive: true });
-  ts.addEventListener('touchend',   e => loppu(e.changedTouches[0].clientY), { passive: true });
+  if (wxKulma) {
+    wxKulma.addEventListener('touchstart', e => alku(e.touches[0].clientY), { passive: true });
+    wxKulma.addEventListener('touchend',   e => loppu(e.changedTouches[0].clientY, false), { passive: true });
+  }
+  sheet.addEventListener('touchstart', e => alku(e.touches[0].clientY), { passive: true });
+  sheet.addEventListener('touchend',   e => loppu(e.changedTouches[0].clientY, true), { passive: true });
 })();
 
 /* -- FORECAST PANEL — swipe down to dismiss --------------------- */
