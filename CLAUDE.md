@@ -176,6 +176,32 @@ Syne ja DM Mono poistettiin. Käyttöliittymä käyttää järjestelmäfonttia
 (iPhonella SF Pro), numerot samaa perhettä `tabular-nums`-asetuksella.
 Kaksi ulkoista fonttilatausta vähemmän.
 
+### Aikavalitsin
+
+Aikavalitsin on **säädin, ei paneeli**. Se oli 130 px + turva-alue eli 19 %
+ruudusta, reunasta reunaan ulottuvana paperinauhana ja 72 px korkein
+palkein — se luki toisena paneelina kartan alla ja peitti juuri sitä merta
+jota sen pitäisi täydentää.
+
+Nyt se on kelluva siru (`#tl-wrap::before`), jonka ohi kartta jatkuu
+kummaltakin puolelta. Koko jalanjälki kuplan ylälaidasta ruudun pohjaan on
+111 px eli 13 % (ennen 203 px / 24 %).
+
+- **Palkit ovat 22 px, eivät 72.** Muodon lukemiseen ei tarvita korkeutta,
+  koska palkkia verrataan naapuriin eikä asteikkoon. Kokeiltiin myös
+  meteogrammikäyrää: se litistyy nauhan korkeudella lukukelvottomaksi,
+  koska käyrä vaatii yhteisen nollatason jota pitää seurata silmällä.
+- **Kupla on yksirivinen.** Kaksirivinen oli 39 px ja sen magenta päiväys
+  oli koko valitsimen äänekkäin elementti. Päiväys näkyy jo janan
+  päiväerottimessa, joten kupla tarvitsee vain viikonpäivän.
+- **NYT-merkki on palkkien yläpuolella**, ei tuntirivillä — siellä se
+  törmäsi lukemaan ("NYT15").
+- **Play-nappi näyttää 32 px:ltä mutta osuu 44 px:n alalta**
+  (`::after`-laajennus), eli Applen kosketusminimi täyttyy ilman että
+  säädin lihoo.
+- **`TICK_W` JS:ssä ja `.htick` flex-basis CSS:ssä on pidettävä samana**,
+  muuten keskitys valuu.
+
 ## API-osoitteet
 
 Frontend käyttää vakiota `API_BASE = '/api'` (`index.html`), eli funktiot
