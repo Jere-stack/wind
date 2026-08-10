@@ -202,6 +202,32 @@ kummaltakin puolelta. Koko jalanjälki kuplan ylälaidasta ruudun pohjaan on
 - **`TICK_W` JS:ssä ja `.htick` flex-basis CSS:ssä on pidettävä samana**,
   muuten keskitys valuu.
 
+### Yläreunan mittarisiru
+
+Yläreunassa oli kolme esinettä: sääsiru vasemmalla (55 px), tähtäimen lukema
+keskellä (70 px) ja tuuliasteikko oikealla (120 px). Kolme eri korkeutta,
+kolme eri alareunaa ja 90 px:n aukko keskelle.
+
+Ratkaiseva havainto: **sääsiru ja tähtäimen lukema kuvasivat samaa pistettä**
+— molemmat lukevat `map.getCenter()`. Kaksi esinettä yhdelle sijainnille on
+se mikä sai yläreunan näyttämään sekavalta. Ne ovat nyt yksi mittari, ja
+asteikko on sen osa hiusviivan alapuolella. Yläreunan syvyys 130 px → 105 px,
+ja kolme esinettä → yksi.
+
+- **`#crosshair-readout` on kiinteän levyinen (244 px).** Detaljirivin teksti
+  vaihtuu ("pilvistä" / "rankkasadetta"), ja vaihtuva leveys saisi sirun
+  hyppimään karttaa panoroitaessa. Kiinteä leveys pitää myös asteikon aina
+  saman mittaisena.
+- **Kaksi napautuskohdetta yhdessä sirussa**: iso luku avaa
+  yksikkövalitsimen, sääosa (`#cr-wx`) avaa sääpaneelin. Molemmat toimivat
+  kuten ennenkin, vain sijainti muuttui.
+- **Asteikko on vaakasuora ja matalasta korkeaan**, koska se luetaan samaan
+  suuntaan kuin teksti. Palkki näyttää KARTAN rampin — se on kartan selite —
+  mutta lukemat ovat mustetta, koska ne luetaan paperilta.
+- **Emoji poistui sääikonista.** Se oli viimeinen jäljellä ollut; sanallinen
+  kuvaus kertoo saman tarkemmin. `WeatherWidget._codes` sisältää yhä emojit
+  taulukossa, mutta niitä ei enää käytetä — vain `info[1]` eli sana.
+
 ## API-osoitteet
 
 Frontend käyttää vakiota `API_BASE = '/api'` (`index.html`), eli funktiot

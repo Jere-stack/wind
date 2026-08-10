@@ -146,62 +146,72 @@ body {
 }
 
 /* ============================================================
-   TOPBAR  z:20
+/* ============================================================
+   MITTARISIRU  z:22 — kartan yläreunan ainoa esine
    ============================================================ */
-#topbar {
-  position: absolute; top: 0; left: 0; right: 0; z-index: 20;
-  padding: calc(var(--sat) + 10px) calc(var(--sar) + 14px) 48px calc(var(--sal) + 14px);
-  background: none;
-  display: flex; align-items: flex-end; justify-content: space-between;
-  pointer-events: none;
-}
-
-/* Wind readout */
+/* Yläreunassa oli kolme objektia: sääsiru vasemmalla (55 px), tähtäimen
+   lukema keskellä (70 px) ja tuuliasteikko oikealla (120 px). Kolme eri
+   korkeutta, kolme eri alareunaa ja 90 px:n aukko keskelle — ja sääsiru
+   sekä lukema kuvasivat samaa pistettä, koska molemmat lukevat
+   map.getCenter(). Nyt ne ovat yksi mittari, jonka osana asteikko on. */
 #crosshair-readout {
   position: fixed; top: calc(var(--sat) + 10px); left: 50%; z-index: 22;
   transform: translateX(-50%);
   pointer-events: all;
-  text-align: center;
-  transition: opacity 0.3s;
+  /* Kiinteä leveys: detaljirivin teksti vaihtuu ("pilvistä" /
+     "rankkasadetta") ja vaihtuva leveys saisi sirun hyppimään kun karttaa
+     panoroi. Asteikko pysyy samalla myös aina saman mittaisena. */
+  width: 244px;
   background: var(--chip);
-  border-radius: 14px;
-  padding: 7px 14px 8px;
+  border-radius: 16px;
+  padding: 9px 14px 10px;
   box-shadow: var(--shadow-2);
-  -webkit-backdrop-filter: saturate(1.4); backdrop-filter: saturate(1.4);
+  transition: opacity 0.3s;
 }
 #crosshair-readout.hidden { opacity: 0; }
+
+.cr-hero {
+  display: flex; align-items: baseline; justify-content: center; gap: 8px;
+}
 .cr-speed {
   font-variant-numeric: tabular-nums;
   font-size: 27px; font-weight: 600;
   line-height: 1; letter-spacing: -0.03em;
-  display: flex; align-items: baseline; justify-content: center; gap: 3px;
+  color: var(--ink);
+  cursor: pointer;
+  display: inline-flex; align-items: baseline; gap: 3px;
 }
 .cr-speed-unit { font-size: 11px; font-weight: 500; color: var(--ink-3); letter-spacing: 0; }
-.cr-details {
-  display: flex; gap: 6px; justify-content: center; margin-top: 2px;
-  font-variant-numeric: tabular-nums; font-size: 11px;
-  color: var(--ink-2);
-  align-items: center;
+.cr-dir {
+  display: inline-flex; align-items: baseline; gap: 3px;
+  font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums;
 }
-.cr-dir-arrow { font-size: 13px; line-height: 1; color: var(--ink-2); }
-.cr-gust {
-  font-size: 11px; margin-top: 1px;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink-3);
-  text-align: center;
-}
+.cr-dir-arrow { font-size: 13px; line-height: 1; }
 
-#timebox { pointer-events: none; display: flex; align-items: flex-end; margin-left: auto; }
-.topbar-scale {
-  display: flex; align-items: center; gap: 6px; pointer-events: none;
-  background: var(--chip); border-radius: 12px;
-  padding: 8px 9px; box-shadow: var(--shadow-2);
+.cr-detail {
+  display: flex; align-items: baseline; justify-content: center; gap: 0;
+  margin-top: 3px;
+  font-size: 11.5px; color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap; overflow: hidden;
 }
-.topbar-scale-bar { width: 8px; height: 104px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--chip-line); }
-.topbar-scale-ticks { display: flex; flex-direction: column; justify-content: space-between; height: 104px; }
-.topbar-scale-ticks .ws-tick {
+/* Erotin syntyy vasta kun säätieto on olemassa — tyhjää riviä ei aloiteta
+   pisteellä. */
+#cr-wx:not(.hidden)::before { content: ' · '; white-space: pre; }
+#cr-wx.hidden { display: none; }
+
+/* Asteikko on osa mittaria: hiusviiva erottaa sen lukemasta. */
+.cr-scale { margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--hairline); }
+.cr-scale-bar {
+  height: 6px; border-radius: 3px;
+  box-shadow: inset 0 0 0 1px var(--chip-line);
+}
+.cr-scale-ticks {
+  display: flex; justify-content: space-between; margin-top: 3px;
+}
+.cr-scale-ticks .ws-tick {
   font-variant-numeric: tabular-nums; font-size: 9px; font-weight: 600;
-  line-height: 1; text-align: right; color: var(--ink-2);
+  line-height: 1; color: var(--ink-3);
 }
 
 /* ============================================================
@@ -398,23 +408,6 @@ body {
 .sp-credit a { color: var(--ink-2); text-underline-offset: 2px; }
 
 /* ============================================================
-   WEATHER WIDGET
-   ============================================================ */
-#wx-widget {
-  position: fixed; top: calc(var(--sat) + 8px); left: calc(var(--sal) + 12px); z-index: 22;
-  pointer-events: all; cursor: pointer; display: flex; align-items: center; gap: 8px;
-  transition: opacity 0.3s;
-  background: var(--chip);
-  border-radius: 14px;
-  padding: 7px 12px 8px 10px;
-  box-shadow: var(--shadow-2);
-}
-#wx-widget:active { background: var(--surface-lo); }
-#wx-widget.hidden { opacity: 0; }
-#wx-icon { font-size: 26px; line-height: 1; }
-#wx-temp { font-variant-numeric: tabular-nums; font-size: 26px; font-weight: 600; color: var(--ink); line-height: 1; letter-spacing: -0.03em; }
-#wx-desc { font-size: 11px; color: var(--ink-3); line-height: 1.25; max-width: 104px; }
-
 /* ============================================================
    BOTTOM PANEL  z:20
    ============================================================ */
@@ -1659,22 +1652,22 @@ body {
 </div>
   <canvas id="c-wind"></canvas>
 
-  <div id="topbar">
-    <div id="timebox">
-      <div class="topbar-scale">
-        <div id="wind-scale-ticks" class="topbar-scale-ticks"></div>
-        <div id="wind-scale-bar" class="topbar-scale-bar"></div>
-      </div>
-    </div>
-  </div>
 
+  <!-- Mittarisiru. Tuuli ja sää kuvaavat samaa pistettä (molemmat lukevat
+       map.getCenter()), joten ne ovat yksi esine eivätkä kaksi. Asteikko on
+       osa mittaria, ei erillinen viitekortti kartan kulmassa. -->
   <div id="crosshair-readout" class="hidden">
-    <div class="cr-speed" id="cr-speed">--<span class="cr-speed-unit">m/s</span></div>
-    <div class="cr-details">
-      <span class="cr-dir-arrow" id="cr-dir-arrow">↓</span>
-      <span id="cr-dir-deg">--°</span>
+    <div class="cr-hero">
+      <span class="cr-speed" id="cr-speed">--<span class="cr-speed-unit">m/s</span></span>
+      <span class="cr-dir"><span class="cr-dir-arrow" id="cr-dir-arrow">↓</span><span id="cr-dir-deg">--°</span></span>
     </div>
-    <div class="cr-gust" id="cr-gust"></div>
+    <div class="cr-detail">
+      <span id="cr-gust"></span><span id="cr-wx" class="hidden"></span>
+    </div>
+    <div class="cr-scale">
+      <div id="wind-scale-bar" class="cr-scale-bar"></div>
+      <div id="wind-scale-ticks" class="cr-scale-ticks"></div>
+    </div>
   </div>
 
   <div id="crosshair">
@@ -1688,13 +1681,6 @@ body {
     </div>
   </div>
 
-  <div id="wx-widget" class="hidden">
-    <span id="wx-icon">☀️</span>
-    <div>
-      <div id="wx-temp">--°</div>
-      <div id="wx-desc">Ladataan...</div>
-    </div>
-  </div>
 
   <!-- Hourly weather panel -->
   <div id="wx-panel">
@@ -2614,14 +2600,18 @@ function buildLegend() {
   const bar = document.getElementById('wind-scale-bar');
   const ticks = document.getElementById('wind-scale-ticks');
   if (!bar || !ticks) return;
-  const stops = [{val:12,lbl:'12+'},{val:9,lbl:'9'},{val:7,lbl:'7'},{val:6,lbl:'6'},{val:5,lbl:'5'},{val:3.5,lbl:'3.5'},{val:2,lbl:'2'},{val:0,lbl:'0'}];
-  bar.style.background = 'linear-gradient(to bottom,' + stops.map(s => {
+  /* Vaakasuora ja matalasta korkeaan: asteikko luetaan samaan suuntaan kuin
+     teksti, ja se on nyt osa mittarisirua eikä pystysuora kortti kulmassa.
+     Palkki näyttää KARTAN rampin, koska se on kartan selite. */
+  const stops = [{val:0,lbl:'0'},{val:2,lbl:''},{val:3.5,lbl:''},{val:5,lbl:''},
+                 {val:6,lbl:'6'},{val:7,lbl:''},{val:9,lbl:''},{val:12,lbl:'12+'}];
+  bar.style.background = 'linear-gradient(to right,' + stops.map(s => {
     const c = ColorRamp.rgb(s.val); return 'rgb('+c.r+','+c.g+','+c.b+')';
   }).join(',') + ')';
   /* Palkki näyttää KARTAN rampin, koska se on kartan selite. Lukemat ovat
      mustetta, koska ne luetaan paperisirulta — kartan sävyt olisivat siinä
      1.3–2.7:1. Tämä on sama kahden rampin sääntö kuin muualla. */
-  ticks.innerHTML = stops.map(s =>
+  ticks.innerHTML = stops.filter(s => s.lbl).map(s =>
     '<span class="ws-tick">' + s.lbl + '</span>'
   ).join('');
 }
@@ -7518,10 +7508,8 @@ const WeatherWidget = {
     return lat + ',' + lng;
   },
   init() {
-    this._el = document.getElementById('wx-widget');
-    this._iconEl = document.getElementById('wx-icon');
-    this._tempEl = document.getElementById('wx-temp');
-    this._descEl = document.getElementById('wx-desc');
+    /* Sää ei ole enää oma siru vaan mittarisirun detaljirivin loppuosa. */
+    this._el = document.getElementById('cr-wx');
   },
   scheduleUpdate() {
     clearTimeout(this._fetchTimer);
@@ -7587,12 +7575,12 @@ const WeatherWidget = {
     const info = this._codes[code] || ['🌡',''];
     const cc = h.cloudcover ? h.cloudcover[idx] : null;
     this._el.classList.remove('hidden');
-    this._iconEl.textContent = info[0];
-    this._tempEl.textContent = temp != null ? Math.round(temp) + '°' : '--°';
-    /* Pilvisyys sanallisen kuvauksen perään — HARMONIE antaa sen prosentteina */
-    this._descEl.textContent = cc != null
-      ? info[1] + ' · ' + Math.round(cc) + '%'
-      : info[1];
+    /* Emoji jäi pois: se oli viimeinen jäljellä ollut, ja sanallinen kuvaus
+       kertoo saman tarkemmin. Pilvisyysprosentti jätetään pois detaljiriviltä,
+       koska rivi on jaettu puuskan kanssa — koko luku on sääpaneelissa. */
+    const sana = (info[1] || '').toLowerCase();
+    this._el.textContent = (temp != null ? Math.round(temp) + '°' : '--°')
+      + (sana ? ' · ' + sana : '');
   },
   /* Onko naytetty tunti FMI HARMONIE:a vai Open-Meteo-jatkoa */
   sourceAt(data, idx) {
@@ -7664,7 +7652,9 @@ const Crosshair = {
     }
     if (gustMs != null && gustMs > w.ms * 1.05) {
       const gc = ColorRamp.ink(gustMs);
-      this._gustEl.innerHTML = 'Puuska <span style="color:rgb('+gc.r+','+gc.g+','+gc.b+')">'+Units.fmt(gustMs)+'</span> '+Units.label();
+      /* Yksikkö on jo herorivillä, joten sitä ei toisteta tässä — detaljirivi
+         jakaa tilan säätiedon kanssa ja siru on kiinteän levyinen. */
+      this._gustEl.innerHTML = 'puuska <span style="color:rgb('+gc.r+','+gc.g+','+gc.b+')">'+Units.fmt(gustMs)+'</span>';
       this._gustEl.style.display = '';
     } else { this._gustEl.style.display = 'none'; }
   },
@@ -8306,8 +8296,8 @@ const WxPanel = {
   }
 };
 
-document.getElementById('wx-widget').style.cursor = 'pointer';
-document.getElementById('wx-widget').addEventListener('click', (e) => {
+document.getElementById('cr-wx').style.cursor = 'pointer';
+document.getElementById('cr-wx').addEventListener('click', (e) => {
   e.stopPropagation();
   UnitsPicker.close();
   WxPanel.toggle();
