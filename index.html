@@ -979,7 +979,7 @@ body {
   margin-bottom: 16px;
   border-width: 1px; border-style: solid;
 }
-.sh-foil-badge .badge-icon { font-size: 14px; line-height: 1; }
+.sh-foil-badge .badge-icon { display: none; }
 
 /* Stats row */
 .sh-stats {
@@ -1942,7 +1942,7 @@ body {
   <div id="toast"></div>
   <!-- v6: rate-limit banner -->
   <div id="rl-banner">
-    <div id="rl-banner-text">⚠️ API-raja täynnä — tuulidata ei päivity. Nollautuu klo 02:00 UTC.</div>
+    <div id="rl-banner-text">API-raja täynnä — tuulidata ei päivity. Nollautuu klo 02:00 UTC.</div>
     <div id="rl-banner-close" onclick="document.getElementById('rl-banner').classList.remove('show')">&#x2715;</div>
   </div>
   <div id="refresh-dot"></div>
@@ -3886,13 +3886,15 @@ function spotNameLabel(name, col, visible) {
 
 function dirArrow(deg) { return ['\u2193','\u2199','\u2190','\u2196','\u2191','\u2197','\u2192','\u2198'][Math.round((deg % 360) / 45) % 8]; }
 
+/* Merkin väri kertoo asteikon ja teksti sanoo saman — emoji oli kolmas
+   kerros samaa tietoa, ja se oli ainoa paikka jossa emoji jäi jäljelle. */
 function windBadge(ms) {
-  if (ms < 4)  return { text: 'Tyyni – ei sovi', cls: 'b-calm', icon: '😴' };
-  if (ms < 6)  return { text: 'Rajatuuli – kokeile', cls: 'b-light', icon: '🌬' };
-  if (ms < 9)  return { text: 'Ajettava!', cls: 'b-good', icon: '🪁' };
-  if (ms < 13) return { text: 'Hyvä! Foilaile!', cls: 'b-perfect', icon: '⚡' };
-  if (ms < 18) return { text: 'Kova – kokenut', cls: 'b-strong', icon: '💪' };
-  return { text: 'Liian kova', cls: 'b-danger', icon: '⛔' };
+  if (ms < 4)  return { text: 'Tyyni – ei sovi', cls: 'b-calm', icon: '' };
+  if (ms < 6)  return { text: 'Rajatuuli – kokeile', cls: 'b-light', icon: '' };
+  if (ms < 9)  return { text: 'Ajettava!', cls: 'b-good', icon: '' };
+  if (ms < 13) return { text: 'Hyvä! Foilaile!', cls: 'b-perfect', icon: '' };
+  if (ms < 18) return { text: 'Kova – kokenut', cls: 'b-strong', icon: '' };
+  return { text: 'Liian kova', cls: 'b-danger', icon: '' };
 }
 
 function windTrend(h, idx) {
@@ -4238,11 +4240,11 @@ function buildUirasPlaceholder(spot) {
   return '<div id="' + cardId + '" style="background:var(--accent-soft);border:1px solid var(--hairline);border-radius:14px;padding:12px 14px;margin-bottom:14px">'
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
       + '<div style="flex:1;min-width:0">'
-        + '<div style="font-size:11px;font-weight:700;color:var(--text)">🏊 ' + station.name + '</div>'
+        + '<div style="font-size:11px;font-weight:700;color:var(--ink)">' + station.name + '</div>'
         + '<div data-uiras-meta style="font-variant-numeric:tabular-nums;font-size:9px;color:var(--muted);margin-top:2px">' + dist + ' · ladataan...</div>'
       + '</div>'
       + '<div style="text-align:right;flex-shrink:0;margin-left:12px">'
-        + '<div data-uiras-temp style="font-variant-numeric:tabular-nums;font-size:24px;font-weight:700;color:#4dd;line-height:1">—</div>'
+        + '<div data-uiras-temp style="font-variant-numeric:tabular-nums;font-size:24px;font-weight:700;color:var(--info);line-height:1">—</div>'
         + '<div style="font-variant-numeric:tabular-nums;font-size:9px;color:var(--muted)">°C</div>'
       + '</div>'
     + '</div>'
@@ -4498,7 +4500,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
           +'padding:11px 16px;cursor:pointer;font-variant-numeric:tabular-nums;font-size:11px;'
           +'border-bottom:1px solid var(--hairline-soft);-webkit-user-select:none;user-select:none;'
           +(active?'background:var(--accent-soft)':'')+';">'
-          +'<span style="color:rgba(255,255,255,'+(active?'.95':'.7')+');font-weight:'+(active?700:400)+'">'
+          +'<span style="color:'+(active?'var(--ink)':'var(--ink-2)')+';font-weight:'+(active?600:400)+'">'
             +st.name+'</span>'
           +'<div style="display:flex;align-items:center;gap:8px;">'
             +'<span style="color:var(--ink-3);font-size:10px">'+st.km.toFixed(1)+' km</span>'
@@ -4576,7 +4578,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
         if(m) m.style.display='none';
       });
     }
-  } else if(ddEl){    ddEl.innerHTML='<span style="font-variant-numeric:tabular-nums;font-size:9px;color:var(--accent)">🌊 '+(stationName||'Vedenlämpö')+'</span>';
+  } else if(ddEl){    ddEl.innerHTML='<span style="font-variant-numeric:tabular-nums;font-size:9px;color:var(--accent)">'+(stationName||'Vedenlämpö')+'</span>';
   }
 
 }
@@ -5124,7 +5126,7 @@ function _openObsSheet(type, station) {
   var accent=isWater?'var(--accent)':'#2A702D';
   var accentFaint=isWater?'var(--hairline)':'var(--hairline)';
   var accentBorder=isWater?'var(--hairline)':'var(--hairline)';
-  var icon=isWater?'🌊':'🛰';
+  var icon=isWater?vesiIkonSVG(15):asemaIkonSVG(15);
   var typeLabel=isWater?'Uimaveden lämpötila':'Tuulihavainto';
   var srcLabel=isWater?'UiRas · Forum Virium Helsinki':(type==='kruunuvuori'?'Merellinen Helsinki · FMI':'Ilmatieteenlaitos · FMI');
   var unit=isWater?'°C':Units.label();
@@ -5140,7 +5142,7 @@ function _openObsSheet(type, station) {
       /* Tyyppichip */
       +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">'
         +'<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;background:'+accentFaint+';border:1px solid '+accentBorder+'">'
-          +'<span style="font-size:13px">'+icon+'</span>'
+          +'<span style="display:inline-flex;color:'+accent+'">'+icon+'</span>'
           +'<span style="font-variant-numeric:tabular-nums;font-size:9px;color:'+accent+';letter-spacing:.5px;text-transform:uppercase">'+typeLabel+'</span>'
         +'</div>'
       +'</div>'
@@ -5151,7 +5153,7 @@ function _openObsSheet(type, station) {
           +'<div id="'+chipId+'" style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3)">'+srcLabel+'</div>'
         +'</div>'
         +'<div style="text-align:right;flex-shrink:0">'
-          +'<div id="'+valId+'" style="font-variant-numeric:tabular-nums;font-size:48px;font-weight:200;line-height:1;color:'+accent+';opacity:.2;letter-spacing:-2px;transition:opacity .4s,color .4s">—</div>'
+          +'<div id="'+valId+'" style="font-variant-numeric:tabular-nums;font-size:46px;font-weight:600;line-height:1;color:'+accent+';opacity:.2;letter-spacing:-.035em;transition:opacity .4s,color .4s">—</div>'
           +'<div id="'+subId+'" style="font-variant-numeric:tabular-nums;font-size:11px;color:var(--ink-3);margin-top:2px">'+unit+'</div>'
         +'</div>'
       +'</div>'
@@ -5213,7 +5215,7 @@ function _openObsSheet(type, station) {
           var sub=Units.label();
           if(data.wd!=null) sub+='\u2002'+dirArrow(data.wd)+' '+Math.round(data.wd)+'°';
           if(data.time) sub+='\u2002'+data.time;
-          if(data.tw!=null) sub+='\u2002🌊'+data.tw.toFixed(1)+'°C';
+          if(data.tw!=null) sub+='\u2002vesi '+data.tw.toFixed(1)+'°C';
           updateHero(Units.fmt(data.ws),sub,wc);
         }
         if(el&&data&&data.history){
@@ -5516,7 +5518,7 @@ function openSheet(spot, hourIdx) {
               + '<animate attributeName="opacity" values=".45;.1;.45" dur="3s" repeatCount="indefinite"/>'
             + '</circle>'
             + '<circle cx="'+sunX.toFixed(1)+'" cy="'+sunY.toFixed(1)+'" r="4.5"'
-              + ' fill="white" stroke="rgba(255,235,100,.7)" stroke-width="1.5"/>'
+              + ' fill="#FAF5E7" stroke="#7A5D07" stroke-width="1.5"/>'
           /* Yöllä: piste horisontin alapuolella — piilota */
           : '')
 
@@ -5533,7 +5535,7 @@ function openSheet(spot, hourIdx) {
           var tx = (nowN * VW).toFixed(1);
           /* Tikki: pieni pystyviiva horisontin alla */
           return '<line x1="'+tx+'" y1="'+HOR_Y+'" x2="'+tx+'" y2="'+(HOR_Y+5)+'"'            + ' stroke="#4C5960" stroke-width="1.5" stroke-linecap="round"/>'            /* Teksti: valittu kellonaika */
-            + '<text x="'+tx+'" y="'+(HOR_Y+14)+'" font-size="8"'            + ' fill="rgba(255,255,255,'+(isSelectedNow?'0':'.4')+')" text-anchor="'            + (nowN < 0.15 ? 'start' : nowN > 0.85 ? 'end' : 'middle')+'"'            + '>'+('0'+new Date(nowMs).getHours()).slice(-2)+':00</text>';
+            + '<text x="'+tx+'" y="'+(HOR_Y+14)+'" font-size="8"'            + ' fill="'+(isSelectedNow?'transparent':'#5F696F')+'" text-anchor="'            + (nowN < 0.15 ? 'start' : nowN > 0.85 ? 'end' : 'middle')+'"'            + '>'+('0'+new Date(nowMs).getHours()).slice(-2)+':00</text>';
         })()
 
       /* Kellonajat — piilota jos valittu-merkki liian lähellä */
@@ -5555,7 +5557,7 @@ function openSheet(spot, hourIdx) {
           var anch = tx < 50 ? 'start' : tx > VW-50 ? 'end' : 'middle';
           return '<text x="'+tx.toFixed(1)+'" y="'+ty.toFixed(1)+'"'
             + ' font-size="9"'
-            + ' fill="rgba(255,220,80,'+(isDaytime?'.85':'.35')+')"'
+            + ' fill="'+(isDaytime?'#7A5D07':'#8A8F93')+'"'
             + ' text-anchor="'+anch+'" font-weight="600">'+statusLine+'</text>';
         })()
     ;
@@ -5726,8 +5728,9 @@ function openSheet(spot, hourIdx) {
           labels+='<text x="'+x+'" y="'+(TH-1)+'" font-size="7.5" fill="#4C5960" text-anchor="middle">'+lbl+'</text>';
         } else if(hr%hourStep===0&&hr!==0){
           if(periodKey==='24h'||periodKey==='5d'){
-            var fillA=periodKey==='24h'?'.35':'.2';
-            labels+='<text x="'+x+'" y="'+(TH-1)+'" font-size="7" fill="rgba(255,255,255,'+fillA+')" text-anchor="middle">'+('0'+hr).slice(-2)+'</text>';
+            /* Paperilla riittää yksi mustetaso: aiemmin tässä oli valkoisen
+               alfa .35/.2, joka oli vaalealla käytännössä näkymätön. */
+            labels+='<text x="'+x+'" y="'+(TH-1)+'" font-size="8" fill="#5F696F" text-anchor="middle">'+('0'+hr).slice(-2)+'</text>';
           }
         }
       }
@@ -5758,7 +5761,7 @@ function openSheet(spot, hourIdx) {
       var modelsG='<g id="'+svgId+'-mg"></g>';
 
       /* Tooltip-pisteet per malli (paivitetaan JS:ssa) */
-      var dotEls='<circle id="'+svgId+'-dot-main" cx="-10" cy="-10" r="4" fill="white" stroke="rgba(0,0,0,.3)" stroke-width="1" pointer-events="none"/>';
+      var dotEls='<circle id="'+svgId+'-dot-main" cx="-10" cy="-10" r="4" fill="#FAF5E7" stroke="rgba(16,26,32,.45)" stroke-width="1" pointer-events="none"/>';
       COMPARE_MODELS.forEach(function(m){
         dotEls+='<circle id="'+svgId+'-dot-'+m.key+'" cx="-10" cy="-10" r="3" fill="none" stroke="#DFD4B6" stroke-width="0" pointer-events="none"/>';
       });
@@ -6058,7 +6061,7 @@ function openSheet(spot, hourIdx) {
     function renderFmi(el, cMs, cDir, cGst) {
       const cc = ColorRamp.ink(cMs);
       el.innerHTML = '<div class="sh-fmi-left">'
-        + '<div class="sh-fmi-name">🛰 Reaaliaikainen havainto</div>'
+        + '<div class="sh-fmi-name">' + asemaIkonSVG(13) + ' Reaaliaikainen havainto</div>'
         + '<div class="sh-fmi-meta">' + dirArrow(cDir) + ' ' + Math.round(cDir) + '° · Puuska ' + Units.fmt(cGst) + ' ' + Units.label() + '</div>'
       + '</div>'
       + '<div class="sh-fmi-wind">'
@@ -6200,7 +6203,7 @@ function openSheet(spot, hourIdx) {
 
     /* FMI historia-kaavio */
     + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">'
-      + '<span style="font-variant-numeric:tabular-nums;font-size:9px;color:var(--accent);letter-spacing:.3px" id="' + fmiId + '-chart-lbl">Tuulihavainto · ladataan...</span>'
+      + '<span style="font-variant-numeric:tabular-nums;font-size:10px;font-weight:600;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase" id="' + fmiId + '-chart-lbl">Tuulihavainto · ladataan...</span>'
       + '<div style="flex:1;height:1px;background:var(--hairline)"></div>'
     + '</div>'
     + '<div id="' + fmiId + '-hist" class="sh-stat-live-panel open" style="margin-bottom:6px">'
@@ -6484,8 +6487,8 @@ function openSheet(spot, hourIdx) {
 function _waterStatSimple(id, station) {
   const shortName = station.name.replace(/uimaranta/gi,'').trim();
   return '<div id="' + id + '" class="sh-stat" style="border-color:var(--hairline);background:var(--surface-hi)">'
-    + '<span class="sh-stat-label">🏊 Vesi</span>'
-    + '<span data-ws-val class="sh-stat-value" style="color:#4dd">—</span>'
+    + '<span class="sh-stat-label">Vesi</span>'
+    + '<span data-ws-val class="sh-stat-value" style="color:var(--info)">—</span>'
     + '<span class="sh-stat-sub" style="color:var(--accent)">' + shortName + '</span>'
   + '</div>';
 }
@@ -6497,8 +6500,8 @@ function _waterStatCard(id, station) {
   /* Nappi pysyy ylärivissä — panel on erillinen grid-item koko leveydellä */
   const btn = '<div id="' + id + '" class="sh-stat sh-stat-water" '
     + 'data-uiras-water-btn data-uiras-station-id="' + station.id + '" data-uiras-panel-id="' + panelId + '">'
-    + '<span class="sh-stat-label">🏊 Vesi</span>'
-    + '<span data-ws-val class="sh-stat-value" style="color:#4dd">—</span>'
+    + '<span class="sh-stat-label">Vesi</span>'
+    + '<span data-ws-val class="sh-stat-value" style="color:var(--info)">—</span>'
     + '<span class="sh-stat-water-name">' + shortName + '</span>'
     + '<span data-ws-toggle class="sh-stat-water-toggle">▼ Historia</span>'
   + '</div>';
@@ -6509,7 +6512,7 @@ function _waterStatCard(id, station) {
 /* Lämpötila + kastepiste yhdistettynä */
 function _tempDewComboCard(tmpId, dewId) {
   return '<div class="sh-stat">'
-    + '<span class="sh-stat-label">🌡 Lämpö</span>'
+    + '<span class="sh-stat-label">Lämpö</span>'
     + '<div style="display:flex;flex-direction:column;align-items:flex-start;gap:1px">'
       + '<span id="'+tmpId+'" class="sh-stat-value" style="color:#7A5D07">—</span>'
       + '<span id="'+dewId+'" style="font-variant-numeric:tabular-nums;font-size:10px;color:rgba(100,200,255,.4);margin-top:1px">—°<span style="font-size:8px;opacity:.6"> kaste</span></span>'
@@ -6522,7 +6525,7 @@ function _tempDewComboCard(tmpId, dewId) {
 function _fmiLinkCard(fmiId) {
   var eid = fmiId + '-hist';
   return '<div class="sh-stat" id="'+fmiId+'-lnk" style="cursor:pointer" onclick="_scrollToSection(\''+eid+'\')">'
-    + '<span class="sh-stat-label">📡 Tuuli</span>'
+    + '<span class="sh-stat-label">Tuuli</span>'
     + '<span id="'+fmiId+'-lnk-val" class="sh-stat-value" style="color:var(--accent)">—</span>'
     + '<div style="display:flex;flex-direction:column;gap:0">'
       + '<span id="'+fmiId+'-lnk-name" style="font-variant-numeric:tabular-nums;font-size:8px;color:var(--accent);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62px">—</span>'
@@ -6536,7 +6539,7 @@ function _uirasLinkCard(id, station) {
   var shortName = station.name.replace(/uimaranta/gi,'').replace(/\s*\(.*\)/,'').trim();
   var eid = 'uiras-always-' + id;
   return '<div class="sh-stat" id="'+id+'-lnk" style="cursor:pointer" onclick="_scrollToSection(\''+eid+'\')">'
-    + '<span class="sh-stat-label">🏊 Vesi</span>'
+    + '<span class="sh-stat-label">Vesi</span>'
     + '<span id="'+id+'-lnk-val" class="sh-stat-value" style="color:var(--accent)">—</span>'
     + '<span id="'+id+'-lnk-name" class="sh-stat-sub" style="color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62px">'+shortName+'</span>'
   + '</div>';
@@ -6666,7 +6669,7 @@ function _liveStatCard(id, spot) {
 
   return '<div id="' + id + '-live" class="sh-stat sh-stat-live"'
     + ' data-uiras-live-btn data-live-panel="' + id + '-panel">'
-    + '<span class="sh-stat-label">📡 Havainto</span>'
+    + '<span class="sh-stat-label">Havainto</span>'
     + '<span data-live-val class="sh-stat-value" style="color:rgba(150,255,180,.6)">—</span>'
     + '<span data-live-sub class="sh-stat-sub">— ' + Units.label() + '</span>'
     + '<span data-live-toggle class="sh-stat-water-toggle">▼ Historia</span>'
@@ -6677,31 +6680,37 @@ function _liveStatCard(id, spot) {
 /* Placeholder stat-kortit lämpötilalle ja kastepisteelle */
 function _tempStatCard(id) {
   return '<div id="' + id + '" class="sh-stat">'
-    + '<span class="sh-stat-label">🌡 Lämpötila</span>'
+    + '<span class="sh-stat-label">Lämpötila</span>'
     + '<span class="sh-stat-value" style="color:#7A5D07">—</span>'
     + '<span class="sh-stat-sub">°C</span>'
   + '</div>';
 }
 function _dewStatCard(id) {
   return '<div id="' + id + '" class="sh-stat">'
-    + '<span class="sh-stat-label">💧 Kastepiste</span>'
+    + '<span class="sh-stat-label">Kastepiste</span>'
     + '<span class="sh-stat-value" style="color:rgba(100,200,255,.6)">—</span>'
     + '<span class="sh-stat-sub">°C</span>'
   + '</div>';
 }
 
-/* Sääkoodi → lyhyt teksti + emoji */
+/* Sääkoodi → piirretty ikoni + lyhyt teksti. Emojit poistuivat: ne
+   renderöityvät joka laitteella eri tyylillä eivätkä noudata sovelluksen
+   väriä. Ikoni tulee samasta kirjastosta kuin yläkulman ja tuntisään. */
 function _wxLabel(wc) {
   if (wc == null) return '';
-  if (wc === 0)           return '☀️ Selkeää';
-  if (wc <= 3)            return '🌤 Puolipilv.';
-  if (wc <= 48)           return '☁️ Pilvistä';
-  if (wc <= 57)           return '🌦 Tihkusadetta';
-  if (wc <= 67)           return '🌧 Sadetta';
-  if (wc <= 77)           return '🌨 Lumisadetta';
-  if (wc <= 82)           return '🌦 Raesadetta';
-  if (wc <= 99)           return '⛈ Ukkosmyrsky';
-  return '';
+  const teksti =
+      wc === 0  ? 'Selkeää'
+    : wc <= 3   ? 'Puolipilv.'
+    : wc <= 48  ? 'Pilvistä'
+    : wc <= 57  ? 'Tihkusadetta'
+    : wc <= 67  ? 'Sadetta'
+    : wc <= 77  ? 'Lumisadetta'
+    : wc <= 82  ? 'Raesadetta'
+    : wc <= 99  ? 'Ukkosmyrsky'
+    : '';
+  if (!teksti) return '';
+  return '<span style="display:inline-flex;align-items:center;gap:4px;vertical-align:-3px">'
+    + wxIconSVG(wc, 14) + teksti + '</span>';
 }
 
 function _renderLive(el, wx) {
@@ -6714,7 +6723,7 @@ function _renderLive(el, wx) {
   const valEl    = el.querySelector('[data-live-val]');
   const subEl    = el.querySelector('[data-live-sub]');
   const toggleEl = el.querySelector('[data-live-toggle]');
-  if (lblEl && wx.station) lblEl.textContent = '📡 ' + wx.station;
+  if (lblEl && wx.station) lblEl.textContent = wx.station;
   if (valEl)    { valEl.textContent = Units.fmt(wx.ms); valEl.style.color = col; }
   if (subEl)    subEl.textContent = dirArrow(wx.dir) + ' ' + Math.round(wx.dir) + '° · ' + Units.label();
   if (toggleEl) toggleEl.textContent = el.classList.contains('expanded') ? '▲ Sulje' : '▼ Historia';
@@ -6963,7 +6972,7 @@ function _renderLiveHistory(el, data, wx) {
           +'<linearGradient id="'+wsGId+'-wind" x1="0" y1="0" x2="1" y2="0">'
             +windGradStops
           +'</linearGradient>'
-          +'<linearGradient id="'+wsGId+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(42,112,45,.24)"/><stop offset="100%" stop-color="rgba(180,0,90,0.10)"/></linearGradient>'
+          +'<linearGradient id="'+wsGId+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(42,112,45,.24)"/><stop offset="100%" stop-color="rgba(42,112,45,0)"/></linearGradient>'
           +(wgArea?'<linearGradient id="'+wgGId+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(122,93,7,.16)"/><stop offset="100%" stop-color="rgba(255,200,100,.0)"/></linearGradient>':'')
         +'</defs>'
         +yLabels
@@ -7563,6 +7572,24 @@ const WX_ICONS = (() => {
               + '<path d="M13.2 19.4l-2.8 3.4h2.4l-1 2.6" stroke-linejoin="round"/>'
   };
 })();
+
+/* Havaintoasema ja vesi: samat viivat kuin sääikoneissa, jotta merkinnät
+   ovat samaa perhettä eivätkä kahta eri piirtotapaa. */
+function asemaIkonSVG(koko) {
+  return '<svg width="' + koko + '" height="' + koko + '" viewBox="0 0 24 24" fill="none" '
+    + 'stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">'
+    + '<path d="M12 11.5v9"/><path d="M8.5 20.5h7"/>'
+    + '<path d="M8.8 8.3a4.5 4.5 0 0 1 6.4 0"/>'
+    + '<path d="M6.2 5.5a8.2 8.2 0 0 1 11.6 0"/>'
+    + '<circle cx="12" cy="11" r="1.6" fill="currentColor" stroke="none"/></svg>';
+}
+function vesiIkonSVG(koko) {
+  return '<svg width="' + koko + '" height="' + koko + '" viewBox="0 0 24 24" fill="none" '
+    + 'stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">'
+    + '<path d="M3 9.5c2.2-2 4.3-2 6.5 0s4.3 2 6.5 0 4.3-2 5 -.6"/>'
+    + '<path d="M3 14.5c2.2-2 4.3-2 6.5 0s4.3 2 6.5 0 4.3-2 5 -.6"/>'
+    + '<path d="M3 19.5c2.2-2 4.3-2 6.5 0s4.3 2 6.5 0 4.3-2 5 -.6"/></svg>';
+}
 
 /* WMO-koodi -> ikonin avain. Sama jako kuin sanallisessa kuvauksessa. */
 function wxIconKey(code) {
