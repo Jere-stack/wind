@@ -127,8 +127,7 @@ dataa ja mikä käyttöliittymää — ei sen mukaan missä elementti sijaitsee:
   koska tuulisävy tarkoittaa jotain.
 - **Kaikki käyttöliittymä on paperia.** Paneelit (asetukset,
   spottikortti/havaintokortti, ennustepaneeli), kartan päällä kelluvat
-  sirut (sääwidget, tähtäimen lukema, tuuliasteikko), karttanapit,
-  aikajana ja latausruutu.
+  esineet (yläreunan kapseli, aikavalitsin), karttanapit ja latausruutu.
 
 Kartan päällä kelluvat elementit ovat siis **paperisiruja tummalla
 kartalla** (`--chip`), eivät tummia laatikoita. Asemamerkkien pillerit ovat
@@ -202,102 +201,74 @@ kummaltakin puolelta. Koko jalanjälki kuplan ylälaidasta ruudun pohjaan on
 - **`TICK_W` JS:ssä ja `.htick` flex-basis CSS:ssä on pidettävä samana**,
   muuten keskitys valuu.
 
-### Yläreuna
+### Yläreuna — kapseli
 
-Yläreunassa oli ensin kolme esinettä (sääsiru, tähtäimen lukema, tuuliasteikko)
-kolmella eri korkeudella. Ratkaiseva havainto oli että **sääsiru ja lukema
-kuvasivat samaa pistettä** — molemmat lukevat `map.getCenter()` — joten ne
-yhdistettiin. Nyt ne ovat kaksi neljännesympyrää, kummassakin yläkulmassa yksi:
-vasemmalla tuuli, oikealla sää. Väriasteikko poistui kokonaan; kartan värit ja
-merkkien lukemat kertovat saman, ja asteikko on asetuspaneelissa viitteenä.
+Yläreunassa on **tasan yksi esine**: kelluva kapseli kartan päällä.
 
-Muoto syntyy yhdellä border-radiuksella neliöön. Kun leveys, korkeus ja säde
-ovat samat, kaari on aito ympyrän neljännes eikä pyöristetty suorakulmio, ja
-kaaren keskipiste on ruudun kulmassa.
+Sitä ennen tässä oli kolme esinettä (sääsiru, tähtäimen lukema,
+tuuliasteikko) kolmella eri korkeudella, sitten koko leveyden infopaneeli,
+sitten kaksi neljännesympyrää yläkulmissa. Kaaret toimivat, mutta niiden
+säde oli sidottu sisältöön kaavalla `√(R²−y²)`: jokainen tekstin muutos
+pakotti laskemaan säteen uudelleen ja leikkaamaan alarivit kaareen.
+Kaaret veivät 10,7 % ruudusta, kapseli vie 4,3 %.
 
-**Säde seuraa sisällöstä, ei mausta.** Kaari on `x² + y² = R²`, joten
-y-syvyydellä mahtuu `√(R²−y²)`. Rajoittava rivi on **hero** (luku + yksikkö +
-nuoli), joka on leveimmillään heti turva-alueen alla — ei alarivi, kuten voisi
-luulla. Siksi alarivien lyhentäminen ei tuo yhtään pikseliä: pienin säde on
-sama tekstillä `209° · 9.0` ja pelkällä `209°`. Sama syy tekee kolmesta
-lyhyestä rivistä tehokkaamman kuin yksi pitkä rivi (R 148 vs 160) — pitkä rivi
-on leveä syvällä, missä kaari on jo kapea.
+Ratkaiseva havainto koko sarjan taustalla: **sääsiru ja tuulilukema
+kuvasivat samaa pistettä** — molemmat lukevat `map.getCenter()`. Siksi ne
+kuuluvat samaan esineeseen.
 
-Ratkaistuna tälle sisällölle ja iPhonen turva-alueelle: tuuli vaatii R 148,
-sää R 120. Käytössä on **150 / 150**, koska symmetria valittiin hierarkian
-sijaan; edellinen 164 oli 18 ja 46 px sisältöään suurempi.
+**Kolme osaa vasemmalta oikealle: suunta, tuuli, sää.** Jako on tekemisen
+mukaan — suunta kertoo mistä, tuuli kuinka kovaa, sää millaista — ja kaksi
+hiusviivaa erottavat ryhmät niin ettei rivi lue yhtenä jonona. Kapselin
+leveys ei ole sidottu mihinkään: rivi kasvaa ja kutistuu sisällön mukana.
 
-- **Kirjasinkoko on osa sädettä.** Hero 26 px kuuluu R 150:een. Jos heroa
-  kasvattaa, säde on laskettava uudelleen.
-- **Sääikoni on lämpötilan rinnalla, ei yläpuolella.** Omalla rivillään se
-  työntäisi sanan 27 px syvemmälle, missä kaari on enää 60 px leveä eikä
-  "kevyttä sadetta" mahdu.
-- **`sovitaKulmatekstit()` laskee alarivien `max-width`in kaaresta.** Se on
-  varmistus eikä asettelu: pisin sääsana ("tiheitä lumikuuroja") mahtuu 1,5
-  px:n varalla, ja se vara riippuu kirjasimen metriikasta — testiselain ei
-  käytä SF Prota. Ilman rajaa pisin sana valuisi kaaren yli kartalle jollain
-  laitteella; rajan kanssa se katkeaa kolmeen pisteeseen. Riveillä on
-  `min-height`, jotta raja lasketaan oikein myös tyhjänä — muuten
-  käynnistyksessä laskettu raja jäisi 30 px liian löysäksi.
-- **Kaarella on 1 px hiusviiva.** Neljänneksessä oikea ja ala reuna ovat
-  kokonaan kaarta, joten `border-right` + `border-bottom` piirtää tasan kaaren
-  eikä yhtään suoraa pätkää. Viiva tekee muodosta piirretyn eikä leikatun.
-- **Kapein laite saa pienemmän kaaren.** Kaksi 150 px:n kaarta vie 300 px, eli
-  320 px:n ruudulla väliin jäisi 20 px karttaa. `@media (max-width: 360px)`
-  pudottaa säteen 132:een ja kirjasimet vastaavasti.
-- **Suunnan nuoli on piirretty SVG.** Vanha `dirArrow()` kvantisoi kahdeksaan
-  suuntaan: 194° näytti samalta kuin 180°. Nuoli kääntyy `rotate(dir + 180)` —
-  plus 180, koska `dir` on suunta josta tuulee ja nuoli osoittaa siihen minne
-  tuuli puhaltaa.
+- **Puuska on harmaa eikä rampin värinen**, vaikka se on tuulitieto. Jos
+  molemmat luvut ovat värillisiä ja saman kokoisia, silmä ei tiedä kumpaa
+  katsoa. Väri varataan sille luvulle joka kertoo pääseekö vesille.
+  Puuska on 10,5 px `--ink-3`, keskituuli 23 px rampin musteella.
+- **Puuska on nimetty.** Kokeiltiin nimeämätöntä pikkulukua ja pinottua
+  saraketta (yksikkö päällä, puuska alla): zoomattuna jälkimmäinen lukee
+  murtolukuna. Sana on lyhyempi kuin sen selittäminen jälkikäteen.
+- **Ei ajatusviivaa.** `7.9–11.7 m/s` luetaan välinä, mutta väli vaatii
+  tasavahvat luvut — pienennetty jälkiosa rikkoo juuri sen lukutavan.
+  Joko väli tasavahvana tai puuska erillisenä; ei molempia.
+- **Puuskarivi säilyttää tilansa** (`visibility` eikä `display`) kun
+  puuskatietoa ei ole, jottei kapselin korkeus hyppisi sen mukaan onko
+  lähimmällä ennustepisteellä puuskaa.
+- **`width: max-content`** on pakollinen. Kiinteä sijoitus + `left: 50%`
+  ilman `right`ia antaa käytettäväksi vain ruudun oikean puoliskon
+  (195 px), jolloin lukema katkeaa kahdelle riville. Testattu 320 px:iin
+  asti kaikilla yksiköillä: levein sisältö on 254 px.
+- **Sanallinen sääkuvaus jäi pois.** Ikoni kertoo sään, ja "tiheitä
+  lumikuuroja" leventäisi kapselia kolmanneksella. Sana on tuntisäässä.
+- **Suunnan nuoli on piirretty SVG.** Vanha `dirArrow()` kvantisoi
+  kahdeksaan suuntaan: 194° näytti samalta kuin 180°. Nuoli kääntyy
+  `rotate(dir + 180)` — plus 180, koska `dir` on suunta josta tuulee ja
+  nuoli osoittaa siihen minne tuuli puhaltaa.
 
 **Läpikuultavuus on mitattu pois.** iOS-tyylinen materiaali (läpikuultava
-pinta + `backdrop-filter`) siirtää beigeä tuulen mukana dE 7,5–11,9 vielä 90
-%:n pinnalla — kartan vihreällä siitä tulee salvia, myrskyllä
-vaaleanpunainen — ja `--ink-3` putoaa alle AA:n **jokaisella** alfalla, koska
-sillä on kiinteälläkin pinnalla vain 4,6:1. Siedettävä siirtymä vaatisi 96 %:n
-pinnan, jolloin itse ilmiö on näkymätön. Sweet spotia ei ole.
+pinta + `backdrop-filter`) siirtää beigeä tuulen mukana dE 7,5–11,9 vielä
+90 %:n pinnalla — kartan vihreällä siitä tulee salvia, myrskyllä
+vaaleanpunainen — ja `--ink-3` putoaa alle AA:n **jokaisella** alfalla,
+koska sillä on kiinteälläkin pinnalla vain 4,6:1. Siedettävä siirtymä
+vaatisi 96 %:n pinnan, jolloin itse ilmiö on näkymätön. Sweet spotia ei ole.
 
-### Kapseli — yläreunan vaihtoehto
-
-Asetuksissa (`Yläreuna`) voi vaihtaa kaaret yhteen kelluvaan kapseliin.
-Kaaret vievät 10,7 % ruudusta, kapseli 3,8 %. Kaaret ovat kiinni kulmissa ja
-lukevat kehyksenä, kapseli kelluu kartan päällä ja lukee kojeena — kumpi on
-parempi riippuu katsooko karttaa vai lukemaa, joten valinta on asetuksissa
-eikä koodissa. `YlaMuoto` muistaa sen `localStorage`ssa (`fs_ylareuna`).
-
-- **Sisältö on tiiviimpi, ei suppeampi.** Kaarten kolme riviä mahtuvat yhdelle:
-  `7.9–11.7 m/s ↗ 209° │ ☁ 17°`. Puuska on välin toinen luku eikä oma rivinsä
-  — tuuli luetaan muutenkin välinä, ja suurempi luku on aina puuska, joten
-  sanaa ei tarvita. Ilman puuskatietoa väli kutistuu yhdeksi luvuksi.
-- **`width: max-content`** on pakollinen. Kiinteä sijoitus + `left: 50%` ilman
-  `right`ia antaa käytettäväksi vain ruudun oikean puoliskon (195 px), jolloin
-  lukema katkeaa kahdelle riville. Testattu 320 px:iin asti: levein sisältö
-  (km/h, kolminumeroinen suunta, miinuslämpötila) on 280 px.
-
-### Molemmat muodot pysyvät synkassa
-
-Sama lukema näkyy siinä muodossa joka on käytössä. Jos päivitys osoittaisi
-id:llä yhteen elementtiin, toinen muoto jäisi jälkeen heti kun jompaakumpaa
-muuttaa. Siksi **molemmat julistavat samat paikat `data-paikka`-määreellä** ja
-`Crosshair`/`WeatherWidget` kirjoittavat kaikkiin (`paikat(nimi)`): muodot
-eivät voi eriytyä. Napautuskohteet ovat molemmissa samat — lukema avaa
-yksikkövalitsimen, sääosa tuntisään.
-
-Kapselissa kuuntelija on painikkeessa ja kaaressa itse lukemassa, ei
-molemmissa: kapselin lukema on painikkeen sisällä, ja kupliva napautus
-laukaisisi `toggle()`:n kahdesti eli ei kertaakaan.
+Napautuskohteita on kaksi: **tuuliosa avaa yksikkövalitsimen, sääosa
+tuntisään.** Kuuntelijat ovat painikkeissa eivätkä niiden sisällä olevissa
+lukemissa — kahdella kuuntelijalla kupliva napautus laukaisisi `toggle()`:n
+kahdesti eli ei kertaakaan.
 
 ### Yksikkövalitsin
 
-Oli viimeinen tumman teeman jäänne: pohjaton pillerilista keskellä ruutua, DM
-Monolla ja valkoisella tekstillä varjostettuna — paperilla valittu rivi oli
-valkoista beigellä eli näkymätön. Nyt kortti on samaa paperia kuin muutkin
-paneelit ja aukeaa siihen mihin osoitettiin: kaaressa vasen reuna lukeman
-kanssa samassa linjassa (x 16), kapselissa keskitettynä kapselin alle.
+Oli viimeinen tumman teeman jäänne: pohjaton pillerilista keskellä ruutua,
+DM Monolla ja valkoisella tekstillä varjostettuna — paperilla valittu rivi
+oli valkoista beigellä eli näkymätön. Nyt kortti on samaa paperia kuin
+muutkin paneelit ja aukeaa siihen mihin osoitettiin: keskitettynä
+**tuuliosan** alle, ei koko kapselin eikä ruudun keskelle. Reunoille jää
+12 px, jottei kortti valu ulos kapean laitteen laidassa.
 
 Yksikön vieressä on **sama tuuli siinä yksikössä** (`Units.fmtIn`), joten
-valitsin kertoo samalla mitä valinta tarkoittaa. Valittu rivi on mustetäyttö
-kuten asetusten sirut, ei aksenttia.
+valitsin kertoo samalla mitä valinta tarkoittaa. Valittu rivi on
+mustetäyttö kuten asetusten sirut, ei aksenttia.
 
 ## API-osoitteet
 

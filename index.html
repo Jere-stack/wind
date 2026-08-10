@@ -148,194 +148,118 @@ body {
 /* ============================================================
 /* ============================================================
 /* ============================================================
-/* ============================================================
-   YLÄREUNAN KULMAT  z:22
+   YLÄREUNAN KAPSELI  z:22
    ============================================================ */
-/* Neljännesympyrä kummassakin yläkulmassa: vasemmalla tuuli, oikealla sää.
-   Muoto syntyy yhdellä border-radiuksella neliöön — kun leveys, korkeus ja
-   säde ovat samat, kaari on aito ympyrän neljännes eikä pyöristetty
-   suorakulmio. Kaaren keskipiste on ruudun kulmassa.
+/* Yläreunassa on tasan yksi esine: kelluva kapseli kartan päällä.
 
-   Väriasteikko poistui yläreunasta: kartan värit ja merkkien lukemat
-   kertovat saman, ja asteikko on asetuspaneelissa viitteenä.
+   Sitä ennen tässä oli kaksi neljännesympyrää, kummassakin yläkulmassa
+   yksi. Ne toimivat, mutta veivät 10,7 % ruudusta, ja niiden säde oli
+   sidottu sisältöön kaavalla √(R²−y²) — jokainen tekstin muutos pakotti
+   laskemaan säteen uudelleen ja leikkaamaan alarivit kaareen. Kapseli
+   vie 4,3 % eikä sen leveys ole sidottu mihinkään: rivi kasvaa ja
+   kutistuu sisällön mukana.
 
-   Sisältö tarvitsee tiedon siitä, paljonko leveyttä kullakin korkeudella
-   on: kaari on x² + y² = R², joten y-kohdalla mahtuu √(R²−y²). Siksi rivit
-   lyhenevät alaspäin ja pisin (iso lukema) on ylimpänä.
-
-   Säde ei ole makuasia vaan seuraa sisällöstä. Rajoittava rivi on hero
-   (luku + yksikkö + nuoli), joka on leveimmillään heti turva-alueen alla
-   — ei alarivi, kuten voisi luulla. Siksi alarivien lyhentäminen ei tuo
-   yhtään pikseliä: pienin säde on sama tekstillä "209° · 9.0" ja pelkällä
-   "209°". Nykyinen säde on ratkaistu numeerisesti tälle sisällölle ja
-   iPhonen turva-alueelle, ja sopivuus tarkistetaan mittaamalla jokaisen
-   tekstilaatikon jokainen nurkka kaarta vasten. Jos hero-riviä kasvattaa,
-   säde on laskettava uudelleen. */
-:root { --kulma-r: 150px; }
-/* Kaksi 150 px:n kaarta vie 300 px ylälaidasta. 390 px:n puhelimella siitä
-   jää 90 px karttaa väliin, 375:llä 75 — mutta 320:llä vain 20, jolloin
-   kaaret käytännössä koskettavat toisiaan. Kapein laite saa siis pienemmän
-   kaaren ja sitä vastaavan pienemmän kirjasimen; suhde säilyy, ja alarivien
-   raja lasketaan joka tapauksessa kaaresta. */
-@media (max-width: 360px) {
-  :root { --kulma-r: 132px; }
-  .cr-speed, #wx-temp { font-size: 23px; }
-  .kulma-rivi2 { font-size: 11px; }
-  .kulma-rivi3 { font-size: 10.5px; }
-  .ts-arrow { width: 13px; height: 13px; }
-  .kulma-v .kulma-sisus { padding-left: calc(var(--sal) + 15px); }
-  .kulma-o .kulma-sisus { padding-right: calc(var(--sar) + 15px); }
-}
-
-.kulma {
-  position: fixed; top: 0; z-index: 22;
-  width: var(--kulma-r); height: var(--kulma-r);
-  background: var(--surface);
-  pointer-events: all;
-  transition: opacity .28s ease, transform .28s ease;
-}
-/* Neljänneksessä oikea ja ala reuna ovat kokonaan kaarta — suoraa pätkää ei
-   jää lainkaan — joten border piirtää tasan kaaren viivan. Viiva tekee
-   muodosta piirretyn eikä kartasta leikatun palan. */
-.kulma-v {
-  left: 0;  border-bottom-right-radius: var(--kulma-r);
-  border-right: 1px solid var(--hairline);
-  border-bottom: 1px solid var(--hairline);
-}
-.kulma-o {
-  right: 0; border-bottom-left-radius: var(--kulma-r);
-  border-left: 1px solid var(--hairline);
-  border-bottom: 1px solid var(--hairline);
-}
-.kulma.hidden { opacity: 0; pointer-events: none; }
-/* Laajassa tilassa kulmat väistyvät omaa kulmaansa kohti, jolloin nauha
-   näyttää kasvavan niistä eikä ilmestyvän päälle. */
-.kulma.vaistyy { opacity: 0; pointer-events: none; }
-.kulma-v.vaistyy { transform-origin: top left;  transform: scale(.9); }
-.kulma-o.vaistyy { transform-origin: top right; transform: scale(.9); }
-
-.kulma-sisus {
-  padding-top: calc(var(--sat) + 12px);
-  display: flex; flex-direction: column;
-}
-.kulma-v .kulma-sisus { padding-left: calc(var(--sal) + 18px); align-items: flex-start; text-align: left; }
-.kulma-o .kulma-sisus { padding-right: calc(var(--sar) + 18px); align-items: flex-end; text-align: right; }
-
-.kulma-rivi1 { display: flex; align-items: center; gap: 7px; line-height: 1; }
-/* Alarivien max-width lasketaan JS:ssä kaaresta (katso sovitaKulmatekstit).
-   Leikkaus on varmistus, ei asettelu: pisin sääsana mahtuu 1,5 px:n varalla,
-   ja se vara riippuu kirjasimen metriikasta — testiselain ei käytä SF Prota.
-   Ilman tätä pisin sana valuisi kaaren yli kartan päälle jollain laitteella.
-
-   min-height pitää rivin korkeuden samana myös tyhjänä. Ilman sitä raja
-   laskettaisiin käynnistyksessä liian ylhäältä (tyhjä rivi on 0 px korkea)
-   ja jäisi 30 px liian löysäksi juuri sille sanalle jota varten se on. */
-.kulma-rivi2, .kulma-rivi3 {
-  overflow: hidden; text-overflow: ellipsis;
-  line-height: 1.25; min-height: 1.25em;
-}
-.kulma-rivi2 { margin-top: 4px; font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
-.kulma-rivi3 {
-  margin-top: 2px; font-size: 11.5px; color: var(--ink-3);
-  font-variant-numeric: tabular-nums; white-space: nowrap;
-}
-
-/* Kirjasinkoot ovat osa sädettä: hero määrää kaaren, ja kaari kutistui
-   164:stä 150:een. 26 px pitää tiheyden samana pienemmässä muodossa. */
-.cr-speed {
-  font-variant-numeric: tabular-nums;
-  font-size: 26px; font-weight: 600;
-  line-height: 1; letter-spacing: -0.035em;
-  color: var(--ink);
-  cursor: pointer;
-  display: inline-flex; align-items: baseline; gap: 3px;
-}
-.cr-speed-unit { font-size: 11px; font-weight: 500; color: var(--ink-3); letter-spacing: 0; }
-
-/* Piirretty nuoli kääntyy asteen tarkkuudella; merkkifontin nuoli osasi
-   vain kahdeksan suuntaa. */
-.ts-arrow {
-  width: 15px; height: 15px; display: block; flex-shrink: 0;
-  transition: transform .35s cubic-bezier(.32,.72,.24,1);
-}
-
-/* Sääkulma: piirretty ikoni, ei emoji. Ikoni on lämpötilan RINNALLA eikä sen
-   yläpuolella: omalla rivillään se työntäisi sanan 27 px syvemmälle, missä
-   kaari on enää 60 px leveä eikä "kevyttä sadetta" mahdu. Rinnalla se ei
-   syvennä sisältöä lainkaan. */
-.kulma-ikoni { color: var(--ink-2); display: flex; }
-.kulma-ikoni .wx-ikoni { display: block; }
-#wx-temp {
-  font-size: 26px; font-weight: 600; line-height: 1;
-  letter-spacing: -0.035em; color: var(--ink);
-  font-variant-numeric: tabular-nums;
-}
-[data-paikka="saa-sana"].hidden { display: none; }
-
-/* ============================================================
-   YLÄREUNAN KAPSELI — kaarten vaihtoehto  z:22
-   ============================================================ */
-/* Sama sisältö ja samat eleet kuin kaarissa, yksi esine kahden sijaan.
-   Kaaret vievät 10,7 % ruudusta, kapseli 3,8 %.
-
-   Kaaret ovat kiinni ruudun kulmissa ja lukevat kehyksenä; kapseli kelluu
-   kartan päällä ja lukee kojeena. Kumpi on parempi riippuu siitä katsooko
-   karttaa vai lukemaa, joten valinta on asetuksissa eikä koodissa.
-
-   Kaksi puolta ovat erillisiä painikkeita: tuulipuoli avaa yksikkövalinnan,
-   sääpuoli tuntisään — täsmälleen kuten kaarissa. */
+   Kolme osaa vasemmalta oikealle: SUUNTA, TUULI, SÄÄ. Jako on tekemisen
+   mukaan — suunta kertoo mistä, tuuli kuinka kovaa, sää millaista — ja
+   hiusviivat erottavat ryhmät toisistaan niin ettei rivi lue yhtenä
+   jonona. Vain keskiosa on napautettava kahdesti eri tavalla: tuuli
+   avaa yksikkövalitsimen, sää tuntisään. */
 #kapseli {
   position: fixed; z-index: 22;
   top: calc(var(--sat) + 10px); left: 50%;
   transform: translateX(-50%);
-  display: none; align-items: center;
+  display: flex; align-items: stretch;
   /* Kiinteä sijoitus + left:50% ilman rightia antaa käytettäväksi vain
      ruudun oikean puoliskon (195 px), jolloin lukema katkeaa kahdelle
      riville. max-content ottaa sisällön leveyden ja translate keskittää. */
   width: max-content; max-width: calc(100vw - 24px);
-  height: 46px; padding: 0 5px;
-  border-radius: 23px;
+  height: 54px; padding: 0 4px;
+  border-radius: 27px;
   background: var(--surface);
   border: 1px solid var(--hairline);
   box-shadow: var(--shadow-2);
   pointer-events: all;
   transition: opacity .28s ease, transform .28s ease;
 }
-body.yla-kapseli #kapseli { display: flex; }
-body.yla-kapseli .kulma { display: none; }
 #kapseli.hidden { opacity: 0; pointer-events: none; }
+/* Tuntisään auetessa kapseli väistyy ylös, jolloin nauha näyttää
+   kasvavan sen tilalle eikä ilmestyvän päälle. */
 #kapseli.vaistyy {
   opacity: 0; pointer-events: none;
-  transform: translateX(-50%) translateY(-8px) scale(.96);
+  transform: translateX(-50%) translateY(-10px) scale(.96);
 }
 
 .kap-osa {
-  display: flex; align-items: center; gap: 7px;
-  height: 38px; padding: 0 11px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 0 12px;
   background: none; border: none; font: inherit; color: inherit;
-  border-radius: 19px; cursor: pointer;
+  border-radius: 22px; cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   -webkit-user-select: none; user-select: none;
 }
 .kap-osa:active { background: var(--surface-lo); }
-#kapseli .cr-speed { font-size: 21px; white-space: nowrap; }
-#kapseli .ts-arrow { width: 14px; height: 14px; }
-.kap-jako { width: 1px; height: 22px; background: var(--hairline); flex-shrink: 0; }
-.kap-pieni { font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+/* Hiusviiva ei ulotu reunoihin asti: kapselin pyöristys söisi sen päät. */
+.kap-jako { width: 1px; background: var(--hairline); flex-shrink: 0; align-self: center; height: 24px; }
+
+/* Suunta. Nuoli on piirretty SVG ja kääntyy asteen tarkkuudella;
+   merkkifontin nuoli osasi vain kahdeksan suuntaa, jolloin 194° näytti
+   samalta kuin 180°. Nuoli kääntyy rotate(dir + 180), koska dir on
+   suunta josta tuulee ja nuoli osoittaa siihen minne tuuli puhaltaa. */
+.ts-arrow {
+  width: 14px; height: 14px; display: block; flex-shrink: 0;
+  transition: transform .35s cubic-bezier(.32,.72,.24,1);
+}
+.kap-suunta { font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+/* Tuuli. Keskiosa on kaksirivinen: lukema ylhäällä, puuska sen alla
+   pienempänä ja harmaana. Puuska EI ole rampin väreissä vaikka se on
+   tuulitieto — jos molemmat luvut ovat värillisiä ja saman kokoisia,
+   silmä ei tiedä kumpaa katsoa. Nyt värillinen luku on aina se joka
+   kertoo pääsääkö vesille. */
+.kap-tuuli { flex-direction: column; gap: 2px; }
+.kap-rivi { display: flex; align-items: baseline; gap: 3px; }
+.cr-speed {
+  font-variant-numeric: tabular-nums;
+  font-size: 23px; font-weight: 600;
+  line-height: 1; letter-spacing: -0.03em;
+  color: var(--ink);
+  display: inline-flex; align-items: baseline; gap: 3px;
+  white-space: nowrap;
+}
+.cr-speed-unit { font-size: 11px; font-weight: 500; color: var(--ink-3); letter-spacing: 0; }
+/* Sana kulkee luvun mukana: nimeämätön pikkuluku voisi olla mitä tahansa,
+   ja "puuska" on lyhyempi kuin sen selittäminen jälkikäteen. */
+.kap-puuska {
+  font-size: 10.5px; line-height: 1;
+  color: var(--ink-3); font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.kap-puuska.hidden { visibility: hidden; }
+
+/* Sää: piirretty ikoni, ei emoji — emoji renderöityy jokaisella laitteella
+   eri tyylillä eikä noudata sovelluksen väriä. */
 .kap-ikoni { color: var(--ink-2); display: flex; }
 .kap-ikoni .wx-ikoni { display: block; }
 .kap-lampo {
-  font-size: 20px; font-weight: 600; line-height: 1;
+  font-size: 21px; font-weight: 600; line-height: 1;
   letter-spacing: -0.03em; color: var(--ink);
   font-variant-numeric: tabular-nums;
+}
+
+/* Kapein laite: 320 px:n ruudulla kapseli mahtuu vielä levein sisällöin,
+   mutta reunoihin jäisi vain 20 px. Tiivistetään välit. */
+@media (max-width: 360px) {
+  .kap-osa { padding: 0 9px; gap: 5px; }
+  .cr-speed { font-size: 21px; }
+  .kap-lampo { font-size: 19px; }
 }
 
 /* ============================================================
    TUNTISÄÄ — laaja tila  z:23
    ============================================================ */
-/* Kulmat väistyvät ja tuntisää liukuu esiin koko leveydeltä. Kaksi
-   erillistä pintaa olisi näyttänyt kolmelta esineeltä; nyt näkyvissä on
-   aina joko kulmat tai nauha, ei molempia. */
+/* Kapseli väistyy ja tuntisää liukuu esiin koko leveydeltä. Kaksi
+   erillistä pintaa olisi näyttänyt kahdelta esineeltä; nyt näkyvissä on
+   aina joko kapseli tai nauha, ei molempia. */
 #hourly-sheet {
   position: fixed; top: 0; left: 0; right: 0; z-index: 23;
   background: var(--surface);
@@ -1812,57 +1736,33 @@ body.yla-kapseli .kulma { display: none; }
   <canvas id="c-wind"></canvas>
 
 
-  <!-- Yläreunan kulmat. Neljännesympyrä kummassakin kulmassa: vasemmalla
-       tuuli, oikealla sää. Muoto on tehty yhdellä border-radiuksella
-       neliöön, eli se on aito neljännes eikä pyöristetty laatikko.
-       Väriasteikko poistui — kartan värit ja merkkien lukemat kertovat
-       saman, ja asteikko on nyt asetuspaneelissa viitteenä. -->
-  <div id="crosshair-readout" class="kulma kulma-v hidden">
-    <div class="kulma-sisus">
-      <div class="kulma-rivi1">
-        <span class="cr-speed" data-paikka="nopeus" id="cr-speed">--<span class="cr-speed-unit">m/s</span></span>
-        <svg class="ts-arrow" data-paikka="nuoli" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 2.6 V21.4 M5.9 9.4 L12 2.6 L18.1 9.4"
-                fill="none" stroke="currentColor" stroke-width="2.2"
-                stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </div>
-      <div class="kulma-rivi2"><span data-paikka="suunta">--°</span></div>
-      <div class="kulma-rivi3"><span data-paikka="puuska"></span></div>
-    </div>
-  </div>
-
-  <div id="wx-corner" class="kulma kulma-o hidden">
-    <div class="kulma-sisus">
-      <div class="kulma-rivi1">
-        <span class="kulma-ikoni" data-paikka="saa-ikoni"></span>
-        <span id="wx-temp" data-paikka="lampo">--°</span>
-      </div>
-      <div class="kulma-rivi3"><span data-paikka="saa-sana" class="hidden"></span></div>
-    </div>
-  </div>
-
-  <!-- Vaihtoehtoinen yläreuna: yksi kapseli kahden kaaren sijaan. Sama
-       sisältö, samat eleet — vain muoto vaihtuu. Näkyy kun body:llä on
-       luokka yla-kapseli. -->
+  <!-- Yläreunan kapseli: yksi kelluva rivi kartan päällä. Kolme osaa
+       vasemmalta oikealle — suunta, tuuli, sää. Tuuliosa avaa
+       yksikkövalitsimen, sääosa tuntisään. -->
   <div id="kapseli" class="hidden">
-    <button class="kap-osa kap-tuuli" type="button" aria-label="Vaihda yksikkö">
-      <span class="cr-speed" data-paikka="nopeus-vali">--<span class="cr-speed-unit">m/s</span></span>
-      <svg class="ts-arrow" data-paikka="nuoli" viewBox="0 0 24 24" aria-hidden="true">
+    <span class="kap-osa kap-suunta-osa">
+      <svg class="ts-arrow" id="kap-nuoli" viewBox="0 0 24 24" aria-hidden="true">
         <path d="M12 2.6 V21.4 M5.9 9.4 L12 2.6 L18.1 9.4"
               fill="none" stroke="currentColor" stroke-width="2.2"
               stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-      <span class="kap-pieni" data-paikka="suunta">--°</span>
+      <span class="kap-suunta" id="kap-suunta">--&deg;</span>
+    </span>
+    <span class="kap-jako"></span>
+    <button class="kap-osa kap-tuuli" type="button" aria-label="Vaihda yksikk&ouml;">
+      <span class="kap-rivi">
+        <span class="cr-speed" id="kap-nopeus">--<span class="cr-speed-unit">m/s</span></span>
+      </span>
+      <span class="kap-puuska hidden" id="kap-puuska"></span>
     </button>
     <span class="kap-jako"></span>
-    <button class="kap-osa kap-saa" type="button" aria-label="Näytä tuntisää">
-      <span class="kap-ikoni" data-paikka="saa-ikoni" data-koko="18"></span>
-      <span class="kap-lampo" data-paikka="lampo">--°</span>
+    <button class="kap-osa kap-saa" type="button" aria-label="N&auml;yt&auml; tuntis&auml;&auml;">
+      <span class="kap-ikoni" id="kap-saa-ikoni"></span>
+      <span class="kap-lampo" id="kap-lampo">--&deg;</span>
     </button>
   </div>
 
-  <!-- Laaja tila: tuntisää liukuu esiin koko leveydeltä ja kulmat väistyvät. -->
+  <!-- Laaja tila: tuntisää liukuu esiin koko leveydeltä ja kapseli väistyy. -->
   <div id="hourly-sheet">
     <div class="hs-title">Tuntisää · tähtäimen kohta</div>
     <div id="wx-panel-scroll"></div>
@@ -1940,14 +1840,6 @@ body.yla-kapseli .kulma { display: none; }
           </div>
         </div>
 
-        <!-- Yläreunan muoto -->
-        <div class="sp-card">
-          <div class="sp-label">Yläreuna</div>
-          <div class="sp-chips" id="ylareuna">
-            <div class="sp-chip active" data-yla="kaaret">Kaaret</div>
-            <div class="sp-chip" data-yla="kapseli">Kapseli</div>
-          </div>
-        </div>
 
         <!-- Karttatasot — vain FMI Meri päällä oletuksena -->
         <div class="sp-card">
@@ -3608,41 +3500,6 @@ function renderLoop(ts) {
     windCtx.stroke();
   }
 }
-
-/* -- YLÄREUNAN PAIKAT -------------------------------------------- */
-/* Yläreunalla on kaksi muotoa — kaaret ja kapseli — ja sama lukema näkyy
-   siinä kummassa on käytössä. Jos päivitys osoittaisi id:llä yhteen
-   elementtiin, toinen muoto jäisi jälkeen heti kun jompaakumpaa muuttaa.
-   Siksi molemmat julistavat samat paikat data-paikka-määreellä ja
-   päivitys kirjoittaa kaikkiin: muodot eivät voi eriytyä. */
-function paikat(nimi) { return document.querySelectorAll('[data-paikka="' + nimi + '"]'); }
-function paikka(nimi) { return document.querySelector('[data-paikka="' + nimi + '"]'); }
-
-/* Kaaren alarivit eivät saa valua muodon yli. Kaari on x² + y² = R², joten
-   rivin alareunan syvyydellä y mahtuu √(R²−y²) miinus se sisennys jolla rivi
-   alkaa. Säde on mitoitettu sisällölle, mutta pisimmällä sääsanalla varaa on
-   vain 1,5 px — ja se riippuu kirjasimen metriikasta ja turva-alueen
-   korkeudesta, jotka vaihtelevat laitteittain. Siksi raja lasketaan
-   mitatuista arvoista eikä kirjoiteta CSS:ään vakiona. */
-function sovitaKulmatekstit() {
-  const R = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kulma-r'));
-  if (!R) return;
-  document.querySelectorAll('.kulma').forEach(k => {
-    const kb = k.getBoundingClientRect();
-    if (!kb.height) return;
-    const vasen = k.classList.contains('kulma-v');
-    k.querySelectorAll('.kulma-rivi2, .kulma-rivi3').forEach(el => {
-      el.style.maxWidth = '';
-      const b = el.getBoundingClientRect();
-      const y = b.bottom - kb.top;
-      const sisennys = vasen ? (b.left - kb.left) : (kb.right - b.right);
-      const tila = Math.sqrt(Math.max(R * R - y * y, 0)) - sisennys;
-      el.style.maxWidth = Math.max(0, Math.floor(tila)) + 'px';
-    });
-  });
-}
-addEventListener('resize', sovitaKulmatekstit);
-addEventListener('orientationchange', () => setTimeout(sovitaKulmatekstit, 120));
 
 /* -- WEATHER BATCH API ------------------------------------------ */
 /* Serverless-funktiot haetaan aina samasta originista kuin sivu, sekä
@@ -6900,7 +6757,7 @@ function _dewStatCard(id) {
 
 /* Sääkoodi → piirretty ikoni + lyhyt teksti. Emojit poistuivat: ne
    renderöityvät joka laitteella eri tyylillä eivätkä noudata sovelluksen
-   väriä. Ikoni tulee samasta kirjastosta kuin yläkulman ja tuntisään. */
+   väriä. Ikoni tulee samasta kirjastosta kuin kapselin ja tuntisään. */
 function _wxLabel(wc) {
   if (wc == null) return '';
   const teksti =
@@ -7823,7 +7680,7 @@ function wxIconSVG(code, koko) {
 
 /* -- WEATHER WIDGET --------------------------------------------- */
 const WeatherWidget = {
-  _el: null, _kulma: null,
+  _ikoniEl: null, _tempEl: null,
   _cache: {}, _fetchTimer: null,
   _codes: {
     0: ['☀️','Selkeää'], 1: ['🌤','Melko selkeää'], 2: ['⛅','Puolipilvistä'], 3: ['☁️','Pilvistä'],
@@ -7848,9 +7705,12 @@ const WeatherWidget = {
     return lat + ',' + lng;
   },
   init() {
-    /* Sää on oikean yläkulman neljännes: piirretty ikoni, lämpötila ja sana. */
-    this._el = paikka('saa-sana');
-    this._kulma = document.getElementById('wx-corner');
+    /* Sää on kapselin oikea osa: piirretty ikoni ja lämpötila. Sanallinen
+       kuvaus ("kevyttä sadetta") on tuntisäässä — yhdellä rivillä ikoni
+       kertoo sen jo, eikä sana mahtuisi kapseliin leventämättä sitä
+       kolmanneksella. */
+    this._ikoniEl = document.getElementById('kap-saa-ikoni');
+    this._tempEl = document.getElementById('kap-lampo');
   },
   scheduleUpdate() {
     clearTimeout(this._fetchTimer);
@@ -7862,7 +7722,7 @@ const WeatherWidget = {
      Jos proxy ei vastaa lainkaan, pudotaan suoraan Open-Meteoon, jottei
      widget jaa tyhjaksi. */
   async _update() {
-    if (!State.map || !this._el) return;
+    if (!State.map || !this._tempEl) return;
     const c = State.map.getCenter();
     const key = this._key(c);
     if (this._cache[key] && Date.now() - this._cache[key].ts < 30 * 60 * 1000) {
@@ -7900,11 +7760,7 @@ const WeatherWidget = {
     } catch(e) {}
   },
   _render(data, hourIdx) {
-    if (!data || !data.hourly) {
-      paikat('saa-sana').forEach(e => e.classList.add('hidden'));
-      if (this._kulma) this._kulma.classList.add('hidden');
-      return;
-    }
+    if (!data || !data.hourly) return;
     const h = data.hourly;
     let idx = Math.min(hourIdx, (h.temperature_2m || []).length - 1);
     if (State._tlTimes && State._tlTimes[hourIdx] && h.time) {
@@ -7919,20 +7775,10 @@ const WeatherWidget = {
     const code = h.weather_code ? h.weather_code[idx] : 0;
     const info = this._codes[code] || ['🌡',''];
     const cc = h.cloudcover ? h.cloudcover[idx] : null;
-    if (this._kulma) this._kulma.classList.remove('hidden');
     /* Emoji korvattiin piirretyllä ikonilla: emoji renderöityy jokaisella
-       laitteella eri tyylillä eikä noudata sovelluksen väriä. Ikoni on
-       kaaressa 22 px ja kapselissa 18 px, joten koko luetaan elementiltä. */
-    paikat('saa-ikoni').forEach(e => e.innerHTML = wxIconSVG(code, +(e.dataset.koko || 22)));
-    paikat('lampo').forEach(e => e.textContent = temp != null ? Math.round(temp) + '°' : '--°');
-    paikat('saa-sana').forEach(e => {
-      e.classList.remove('hidden');
-      e.textContent = (info[1] || '').toLowerCase();
-    });
-    /* Sääsana on kaaren ahtain rivi. Raja lasketaan uudelleen tässä eikä
-       tuulen päivityksessä, koska tämä ajetaan kerran puolessa tunnissa —
-       tuulen päivitys ajetaan panoroidessa 16 kertaa sekunnissa. */
-    if (typeof sovitaKulmatekstit === 'function') sovitaKulmatekstit();
+       laitteella eri tyylillä eikä noudata sovelluksen väriä. */
+    if (this._ikoniEl) this._ikoniEl.innerHTML = wxIconSVG(code, 18);
+    if (this._tempEl) this._tempEl.textContent = temp != null ? Math.round(temp) + '°' : '--°';
   },
   /* Onko naytetty tunti FMI HARMONIE:a vai Open-Meteo-jatkoa */
   sourceAt(data, idx) {
@@ -7951,11 +7797,15 @@ const WeatherWidget = {
 
 /* -- CROSSHAIR -------------------------------------------------- */
 const Crosshair = {
-  _el: null, _kapseli: null, _chEl: null, _windArrow: null, _updateTimer: null,
+  _el: null, _nopeusEl: null, _nuoliEl: null, _suuntaEl: null, _puuskaEl: null,
+  _chEl: null, _windArrow: null, _updateTimer: null,
   _ms: null,   /* viimeisin tuuli m/s — yksikkövalitsin näyttää sen muunnokset */
   init() {
-    this._el = document.getElementById('crosshair-readout');
-    this._kapseli = document.getElementById('kapseli');
+    this._el = document.getElementById('kapseli');
+    this._nopeusEl = document.getElementById('kap-nopeus');
+    this._nuoliEl = document.getElementById('kap-nuoli');
+    this._suuntaEl = document.getElementById('kap-suunta');
+    this._puuskaEl = document.getElementById('kap-puuska');
     this._chEl = document.getElementById('crosshair');
     this._windArrow = document.getElementById('ch-wind-arrow');
     if (!State.map) return;
@@ -7968,61 +7818,44 @@ const Crosshair = {
     if (this._updateTimer) return;
     this._updateTimer = setTimeout(() => { this._updateTimer = null; this._update(); }, 60);
   },
-  /* Piilottaa sekä kaaret että kapselin — kumpi tahansa on käytössä. */
-  _piilota(piiloon) {
-    if (this._el) this._el.classList.toggle('hidden', piiloon);
-    if (this._kapseli) this._kapseli.classList.toggle('hidden', piiloon);
-  },
   _update() {
     if (!this._el || !State.map) return;
     const center = State.map.getCenter();
     let w;
     if (WindTexture.msData) w = WindTexture.sampleWind(center.lat, center.lng);
     else if (State.windField.length) w = idw(center.lat, center.lng);
-    else { this._piilota(true); return; }
-    if (w.ms < 0.05) { this._piilota(true); return; }
-    this._piilota(false);
+    else { this._el.classList.add('hidden'); return; }
+    if (w.ms < 0.05) { this._el.classList.add('hidden'); return; }
+    this._el.classList.remove('hidden');
     const c = ColorRamp.ink(w.ms);
     const colorStr = 'rgb('+c.r+','+c.g+','+c.b+')';
     this._ms = w.ms;
-    paikat('nopeus').forEach(e => e.innerHTML =
-      '<span style="color:'+colorStr+'">'+Units.fmt(w.ms)+'</span><span class="cr-speed-unit">'+Units.label()+'</span>');
-    const dir = (Math.atan2(-w.u, -w.v) * 180 / Math.PI + 360) % 360;
     const gust = this._puuska(center);
+    this._nopeusEl.innerHTML =
+      '<span style="color:'+colorStr+'">'+Units.fmt(w.ms)+'</span><span class="cr-speed-unit">'+Units.label()+'</span>';
+    const dir = (Math.atan2(-w.u, -w.v) * 180 / Math.PI + 360) % 360;
     /* Nuoli osoittaa siihen suuntaan johon tuuli puhaltaa. dir on suunta
        josta tuulee, joten nuoli kääntyy dir + 180. Aiemmin tässä oli
        merkkifontin nuoli kahdeksassa portaassa: 194° näytti samalta kuin
        180°. Piirretty nuoli kääntyy asteen tarkkuudella. */
-    paikat('nuoli').forEach(e => {
-      e.style.transform = 'rotate(' + ((dir + 180) % 360).toFixed(1) + 'deg)';
-      e.style.color = colorStr;
-    });
-    paikat('suunta').forEach(e => e.textContent = Math.round(dir) + '°');
+    this._nuoliEl.style.transform = 'rotate(' + ((dir + 180) % 360).toFixed(1) + 'deg)';
+    this._nuoliEl.style.color = colorStr;
+    this._suuntaEl.textContent = Math.round(dir) + '°';
     if (this._windArrow) this._windArrow.style.transform = 'rotate(' + Math.round(dir) + 'deg)';
 
-    /* Kaaret: puuska omalla rivillään sanan kanssa. */
-    if (gust != null) {
-      const gc = ColorRamp.ink(gust);
-      /* Yksikkö on jo herorivillä, joten sitä ei toisteta tässä — detaljirivi
-         jakaa tilan säätiedon kanssa ja siru on kiinteän levyinen. */
-      paikat('puuska').forEach(e => {
-        e.innerHTML = 'puuska <span style="color:rgb('+gc.r+','+gc.g+','+gc.b+')">'+Units.fmt(gust)+'</span>';
-        e.style.display = '';
-      });
-    } else { paikat('puuska').forEach(e => e.style.display = 'none'); }
+    /* Puuska on harmaa eikä rampin värinen, vaikka se on tuulitieto: jos
+       molemmat luvut ovat värillisiä, silmä ei tiedä kumpaa katsoa. Väri
+       varataan sille luvulle joka kertoo pääseekö vesille.
 
-    /* Kapseli: sama tieto yhtenä välinä, koska yhdellä rivillä ei ole tilaa
-       omalle puuskariville — ja koska tuuli luetaan muutenkin välinä
-       ("seiskasta kahteentoista"). Väli ei tarvitse sanaa "puuska": suurempi
-       luku on aina puuska. Ilman puuskatietoa väli kutistuu yhdeksi luvuksi. */
-    paikat('nopeus-vali').forEach(e => {
-      let s = '<span style="color:'+colorStr+'">'+Units.fmt(w.ms)+'</span>';
-      if (gust != null) {
-        const gc = ColorRamp.ink(gust);
-        s += '<span style="color:rgb('+gc.r+','+gc.g+','+gc.b+')">–'+Units.fmt(gust)+'</span>';
-      }
-      e.innerHTML = s + '<span class="cr-speed-unit">'+Units.label()+'</span>';
-    });
+       Ilman puuskaa rivi jää tyhjäksi mutta säilyttää tilansa
+       (visibility eikä display), jottei kapselin korkeus hyppisi sen
+       mukaan onko lähimmällä ennustepisteellä puuskatietoa. */
+    if (gust != null) {
+      this._puuskaEl.textContent = 'puuska ' + Units.fmt(gust);
+      this._puuskaEl.classList.remove('hidden');
+    } else {
+      this._puuskaEl.classList.add('hidden');
+    }
   },
   /* Lähimmän ennustepisteen puuska nykyiselle tunnille, tai null jos sitä ei
      ole tai se ei eroa keskituulesta merkittävästi. */
@@ -8527,9 +8360,8 @@ document.getElementById('fc-btn').addEventListener('click', (e) => {
 })();
 
 /* -- YKSIKKÖVALITSIN ---------------------------------------------
-   Avautuu tuulilukemaa napauttamalla, sulkeutuu muualta. Kortti aukeaa
-   siihen mihin osoitettiin: kaarissa lukeman vasempaan reunaan, kapselissa
-   kapselin alle keskelle. */
+   Avautuu tuuliosaa napauttamalla, sulkeutuu muualta. Kortti aukeaa siihen
+   mihin osoitettiin — kapselin tuuliosan alle, ei ruudun keskelle. */
 const UnitsPicker = {
   _open: false,
   toggle() { this._open ? this.close() : this.open(); },
@@ -8542,28 +8374,17 @@ const UnitsPicker = {
   },
   _sijoita() {
     const picker = document.getElementById('units-picker');
+    const tuuliosa = document.querySelector('.kap-tuuli');
     const kapseli = document.getElementById('kapseli');
-    const kaari = document.getElementById('crosshair-readout');
-    const kapselissa = document.body.classList.contains('yla-kapseli');
-    const lahde = kapselissa ? kapseli : kaari;
-    if (!lahde) return;
-    const r = lahde.getBoundingClientRect();
-    picker.style.top = (r.bottom + 8) + 'px';
-    if (kapselissa) {
-      /* Kapseli kelluu keskellä, joten kortti keskitetään sen alle. */
-      picker.style.left = Math.round(r.left + r.width / 2 - picker.offsetWidth / 2) + 'px';
-      picker.style.transformOrigin = 'top center';
-    } else {
-      /* Kaaressa kortin vasen reuna asettuu samaan linjaan lukeman kanssa,
-         ei ruudun keskelle: valikko kuuluu siihen mitä napautettiin.
-         Kaaren alareuna on tässä kohdassa ylempänä kuin sen laatikon
-         alareuna (kaari on x²+y²=R²), mutta 8 px laatikosta riittää
-         väliksi eikä kortti koskaan koske kaarta. */
-      const sisennys = parseFloat(getComputedStyle(document.documentElement)
-        .getPropertyValue('--sal')) || 0;
-      picker.style.left = (sisennys + 16) + 'px';
-      picker.style.transformOrigin = 'top left';
-    }
+    if (!tuuliosa || !kapseli) return;
+    const r = tuuliosa.getBoundingClientRect();
+    picker.style.top = (kapseli.getBoundingClientRect().bottom + 8) + 'px';
+    /* Kortti keskitetään TUULIOSAN alle eikä koko kapselin, koska valikko
+       kuuluu siihen mitä napautettiin. Reunoille jätetään 12 px, jottei
+       kortti valu ulos ruudulta kapean laitteen laidassa. */
+    const leveys = picker.offsetWidth;
+    const x = r.left + r.width / 2 - leveys / 2;
+    picker.style.left = Math.round(Math.min(Math.max(x, 12), innerWidth - leveys - 12)) + 'px';
   },
   close() {
     this._open = false;
@@ -8584,15 +8405,11 @@ const UnitsPicker = {
   }
 };
 
-/* Tuulilukema avaa valitsimen kummassakin muodossa. Kapselissa kuuntelija
-   on painikkeessa ja kaaressa itse lukemassa — ei molemmissa, sillä
-   kapselin lukema on painikkeen sisällä ja kupliva napautus laukaisisi
-   toggle():n kahdesti eli ei kertaakaan. */
+/* Tuuliosa avaa yksikkövalitsimen. Kuuntelija on painikkeessa eikä
+   lukemassa: lukema on painikkeen sisällä, ja kahdella kuuntelijalla
+   kupliva napautus laukaisisi toggle():n kahdesti eli ei kertaakaan. */
 (function () {
-  const kohteet = [
-    document.querySelector('#crosshair-readout [data-paikka="nopeus"]'),
-    document.querySelector('.kap-tuuli')
-  ];
+  const kohteet = [document.querySelector('.kap-tuuli')];
   kohteet.forEach(el => {
     if (!el) return;
     el.style.cursor = 'pointer';
@@ -8638,47 +8455,6 @@ document.getElementById('units').addEventListener('click', e => {
   applyUnit(chip.dataset.unit);
 }, { passive: true });
 
-/* -- YLÄREUNAN MUOTO ---------------------------------------------
-   Kaaret ja kapseli näyttävät saman sisällön eri muodossa. Vaihto on
-   pelkkä luokka bodyssä: molemmat ovat aina DOM:issa ja saavat samat
-   päivitykset data-paikka-määreiden kautta, joten kumpikaan ei ehdi
-   vanhentua piilossa. */
-const YlaMuoto = {
-  _muoto: 'kaaret',
-  init() {
-    try {
-      const s = localStorage.getItem('fs_ylareuna');
-      if (s === 'kapseli' || s === 'kaaret') this._muoto = s;
-    } catch(e) {}
-    this._sovella();
-  },
-  set(muoto) {
-    if (muoto !== 'kaaret' && muoto !== 'kapseli') return;
-    if (muoto === this._muoto) return;
-    this._muoto = muoto;
-    try { localStorage.setItem('fs_ylareuna', muoto); } catch(e) {}
-    Haptics.selection();
-    this._sovella();
-    /* Valitsin osoittaa muotoon joka juuri vaihtui — sen sijainti ei enää
-       päde, joten se suljetaan mieluummin kuin jätetään leijumaan. */
-    if (typeof UnitsPicker !== 'undefined') UnitsPicker.close();
-  },
-  _sovella() {
-    document.body.classList.toggle('yla-kapseli', this._muoto === 'kapseli');
-    document.querySelectorAll('#ylareuna .sp-chip').forEach(c =>
-      c.classList.toggle('active', c.dataset.yla === this._muoto));
-    /* Kaaret ovat kapselitilassa display:none, jolloin niitä ei voi mitata.
-       Raja lasketaan siis aina kun ne palaavat näkyviin. */
-    if (typeof sovitaKulmatekstit === 'function') sovitaKulmatekstit();
-  }
-};
-document.getElementById('ylareuna').addEventListener('click', e => {
-  const chip = e.target.closest('.sp-chip');
-  if (!chip) return;
-  YlaMuoto.set(chip.dataset.yla);
-}, { passive: true });
-YlaMuoto.init();
-
 /* -- HOURLY WEATHER PANEL -----------------------------------------
    Opens on wx-widget tap. Shows today + rest of today hourly.
    Uses already-cached WeatherWidget data — 0 extra API calls.    */
@@ -8690,7 +8466,7 @@ const WxPanel = {
     UnitsPicker.close();
     this.render();
     document.getElementById('hourly-sheet').classList.add('auki');
-    document.querySelectorAll('.kulma, #kapseli').forEach(k => k.classList.add('vaistyy'));
+    document.getElementById('kapseli').classList.add('vaistyy');
     const h = document.getElementById('ts-handle');
     if (h) h.setAttribute('aria-expanded', 'true');
     Haptics.light();
@@ -8698,7 +8474,7 @@ const WxPanel = {
   close() {
     this._open = false;
     document.getElementById('hourly-sheet').classList.remove('auki');
-    document.querySelectorAll('.kulma, #kapseli').forEach(k => k.classList.remove('vaistyy'));
+    document.getElementById('kapseli').classList.remove('vaistyy');
     const h = document.getElementById('ts-handle');
     if (h) h.setAttribute('aria-expanded', 'false');
   },
@@ -8766,8 +8542,9 @@ const WxPanel = {
   }
 };
 
-/* Sääpuoli avaa tuntisään — kaaressa koko kulma, kapselissa sen oikea puoli. */
-[document.getElementById('wx-corner'), document.querySelector('.kap-saa')].forEach(el => {
+/* Kapselin sääosa avaa tuntisään. */
+(function () {
+  const el = document.querySelector('.kap-saa');
   if (!el) return;
   el.style.cursor = 'pointer';
   el.addEventListener('click', (e) => {
@@ -8775,17 +8552,17 @@ const WxPanel = {
     UnitsPicker.close();
     WxPanel.toggle();
   }, { passive: false });
-});
+})();
 
 /* Kahva: napautus vaihtaa tilaa, pystypyyhkäisy avaa alas ja sulkee ylös.
    Sama ele kuin alalaidan sheetissä, peilattuna. */
 (function () {
   const sheet = document.getElementById('hourly-sheet');
   const handle = document.getElementById('ts-handle');
-  const wxKulma = document.getElementById('wx-corner');
+  const saaOsa = document.querySelector('.kap-saa');
   if (!sheet || !handle) return;
 
-  /* Kahva nauhassa sulkee, sääkulma avaa. */
+  /* Kahva nauhassa sulkee, kapselin sääosa avaa. */
   handle.addEventListener('click', (e) => { e.stopPropagation(); WxPanel.close(); }, { passive: false });
 
   let startY = 0, dragging = false;
@@ -8797,9 +8574,9 @@ const WxPanel = {
     if (dy > 34 && !auki) WxPanel.open();
     else if (dy < -34 && auki) WxPanel.close();
   };
-  if (wxKulma) {
-    wxKulma.addEventListener('touchstart', e => alku(e.touches[0].clientY), { passive: true });
-    wxKulma.addEventListener('touchend',   e => loppu(e.changedTouches[0].clientY, false), { passive: true });
+  if (saaOsa) {
+    saaOsa.addEventListener('touchstart', e => alku(e.touches[0].clientY), { passive: true });
+    saaOsa.addEventListener('touchend',   e => loppu(e.changedTouches[0].clientY, false), { passive: true });
   }
   sheet.addEventListener('touchstart', e => alku(e.touches[0].clientY), { passive: true });
   sheet.addEventListener('touchend',   e => loppu(e.changedTouches[0].clientY, true), { passive: true });
@@ -8984,10 +8761,6 @@ function scheduleRefresh() {
 function main() {
   buildLegend(); initMap(); initCanvases();
   Crosshair.init(); WeatherWidget.init(); Units.init();
-  /* Alarivien raja lasketaan kaaresta vasta kun asettelu on olemassa.
-     Rivien y-paikat eivät riipu tekstistä, joten tämä ei tarvitse
-     toistoa jokaisella päivityksellä — vain kun asettelu muuttuu. */
-  sovitaKulmatekstit();
   /* Palauta tallennettu malli */
   (function() {
     var saved = State.activeModel;
