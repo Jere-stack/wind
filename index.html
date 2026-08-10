@@ -561,7 +561,15 @@ body {
   border-left: 1px solid var(--hairline);
 }
 
-.htick-bar.foilable { box-shadow: inset 0 -2px 0 rgba(42,112,45,.55); }
+/* Foilable-palkilla EI ole omaa koristetta. Aiemmin tassa oli ensin vihrea
+   ulkohehku (tumman teeman jaanne) ja sitten sisavarjo palkin alareunassa —
+   jalkimmainen piirsi 2 px vihrean kaistan palkin pohjaan, jolloin esim.
+   10 m/s palkki oli kullanvarinen ylhaalta ja vihrea alhaalta. Mitattuna
+   variero palkin sisalla oli jopa 97 yksikkoa.
+   Merkinta oli myos turha: palkin oma vari kertoo nopeuden jo ramppina,
+   ja 8 m/s on siina vihrea. Luokka jaa paikalleen, koska se on olemassa
+   myos muualla, mutta janassa se ei maalaa mitaan. */
+.htick-bar.foilable { }
 .gi-steady  { color: #2A702D; }
 .gi-gusty   { color: #7A5D07; }
 .gi-extreme { color: #992018; }
@@ -7240,7 +7248,13 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
     tick.dataset.idx = i;
     const barH = Math.max(3, (ms / maxMs) * 22);
     const foilable = ms >= 8;
-    tick.innerHTML = '<div class="htick-bar' + (foilable ? ' foilable' : '') + '" style="height:' + barH + 'px;background:rgb(' + bc.r + ',' + bc.g + ',' + bc.b + ')' + (foilable ? ';border-bottom:2px solid #2A702D' : '') + '"></div>'
+    /* Palkki on YHTÄ väriä ylhäältä alas. Tässä oli aiemmin foilable-tunneille
+       oma alleviivaus (alun perin kirkas vihreä tumman teeman merkintä), joka
+       mustemigraation jälkeen piirsi vihreän reunan kullanvärisen palkin
+       pohjaan: 10 m/s palkki oli ylhäältä kulta ja alhaalta vihreä, mitattuna
+       97 yksikön väriero palkin sisällä. Merkintä oli myös turha, koska palkin
+       oma ramppiväri kertoo nopeuden jo — 8 m/s on siinä vihreä. */
+    tick.innerHTML = '<div class="htick-bar' + (foilable ? ' foilable' : '') + '" style="height:' + barH + 'px;background:rgb(' + bc.r + ',' + bc.g + ',' + bc.b + ')"></div>'
       + '<span class="htick-lbl">' + ('0'+hour).slice(-2) + '</span>';
     tl.appendChild(tick);
     State._tlTicks.push(tick);
