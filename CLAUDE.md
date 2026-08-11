@@ -432,40 +432,90 @@ se leikkasi koko kartan pois. Nopeus ilman kuvaa ei ole nopeutta.
 Siksi ainoa vipu on **pikselimäärä**: partikkelicanvas piirretään enintään
 2× tarkkuudella (2,96 → 1,32 Mpx). Lepotila 19 → 24 fps.
 
-### Partikkelit pysyvät kartalla raahatessa
+### Partikkelit pysyvät kartalla — ja jatkavat liikettään
 
-Aiemmin raahaus jäädytti partikkelit, himmensi canvasin 25 %:iin ja pyyhki
-sen lopuksi — jäljet katosivat ja koko kenttä syntyi uudelleen. Nyt ne
-pysyvät maastossa kuten Windyn verkkoversiossa.
+Tästä on tehty kolme versiota, ja kaksi ensimmäistä olivat väärin:
 
-**Se on myös halvempi kuin ennen, ei kalliimpi.** Partikkelit ovat jo
-valmiiksi lat/lng-koordinaateissa, eli maantieteellisesti ankkuroituja —
-vain piirto oli sidottu ruutuun. Siksi eleen ajaksi ei tarvitse piirtää
-mitään: valmista bittikarttaa siirretään kartan mukana CSS-muunnoksella,
-joka ajetaan kompositorissa. Vanha tapa häivytti canvasin joka ruudussa,
-mikä on juuri se mikä maksaa (katso yllä: likaantuminen ~33 ms).
+1. Raahaus **jäädytti** partikkelit, himmensi canvasin 25 %:iin ja pyyhki
+   sen lopuksi. Jäljet katosivat ja koko kenttä syntyi uudelleen.
+2. Valmista bittikarttaa **siirrettiin CSS-muunnoksella** eleen ajan.
+   Jäljet pysyivät maastossa, mutta liike pysähtyi silti — canvasiin ei
+   piirretty mitään koko eleen aikana. Eleen jälkeen kenttä rakennettiin
+   uusiksi, ja siinä meni noin 15 ruutua ennen kuin liike näytti
+   jatkuvan. Juuri tämä tuntui viiveeltä.
 
-**Mitattu vetoele, 4× kuristus:** 30 → **57 fps**, ruutuväli 33,3 → 16,7 ms.
+Kumpikin osti nopeutta lopettamalla animaation. Nyt liike ei katkea
+missään vaiheessa, ja se maksaa saman kuin versio joka animoi mutta ei
+pysynyt maastossa.
 
-- **Kiinnitys on pikselintarkka.** Testi piirtää merkin tunnettuun
-  koordinaattiin, raahaa karttaa ja vertaa merkin ruutupaikkaa siihen mihin
-  sama koordinaatti projisoituu: **0,00 px ero** kahdeksalla askeleella.
-- **Muunnos leivotaan bittikarttaan eleen päättyessä** (`KanvasEle.lopeta`).
-  Ilman sitä kuva hyppäisi lähtöpaikalleen sillä hetkellä kun sormi nousee.
-- **Partikkeleita ei enää nollata moveendissä.** Ne ovat oikeilla
-  paikoillaan uudessa näkymässä; ulkopuolelle jääneet syntyvät uudelleen
-  silmukan omasta rajatarkistuksesta.
-- **Zoomissa pidetään entinen häivytys.** Leaflet asettaa `_zoom`in
-  lopulliseen arvoonsa heti animaation alussa, joten `getZoomScale`
-  palauttaisi ykkösen koko animaation ajan ja jäljet jäisivät väärään
-  kokoon — mitattu: canvasin mittakaava pysyi 1.000 vaikka kartta skaalautui.
-- **Vahtikoira.** `moveend` on ainoa asia joka päättää eleen, ja se voi jäädä
-  tulematta: kun veto päättyy ikkunan ulkopuolella, kartta oli pysähtynyt
-  (`_moving` false) mutta `_panning` jäi todeksi eikä ele päättynyt koskaan.
-  Vika on vanha — ennen tätä jumiutunut `_panning` olisi häivyttänyt
-  partikkelit pysyvästi — mutta siirtomuunnos teki siitä näkyvän. Jos elettä
-  ei kuulu 250 ms:iin eikä kartta liiku, ele päätetään itse. Lisäksi
-  `dragend` on toinen varmistus.
+**Perusta: partikkelit ovat jo lat/lng-koordinaateissa.** Vain piirto on
+sidottu ruutuun. Kentän vaihtuessa ne ovat siis yhä oikeissa paikoissaan —
+`resetParticles()` ei enää tyhjennä canvasia eikä arvo kenttää uusiksi,
+vaan sovittaa pelkän lukumäärän. Tyhjennys tapahtuu vain kun canvasin
+sisältö on oikeasti pätemätön (ikkunan koon muutos, asennon vaihto).
+
+Kartta liikkuu kahdella tavalla, ja ne vaativat eri ratkaisun
+(`KanvasSiirto`):
+
+- **Siirto** (raahaus, inertia, `setView`): bittikarttaa siirretään joka
+  ruudussa sen verran kuin kartta liikkui, ja uudet pätkät piirretään
+  nykyiseen projektioon. Siirto pyöristetään kokonaisiin laitepikseleihin
+  ettei kuva sumene, ja pyöristyksen jäännös kannetaan seuraavaan ruutuun
+  ettei pitkässä raahauksessa kerry ryömintää.
+- **Zoom** (rulla, tuplanapautus, napit, nipistys): mittakaava muuttuu, ja
+  bittikartan skaalaus 60 kertaa sekunnissa sotkisi jäljet puuroksi.
+  Siksi zoomin ajaksi **projektio jäädytetään** ja canvas venytetään
+  CSS-muunnoksella — bittikarttaan ei kosketa, se skaalautuu
+  kompositoinnissa kerran ruudussa. Simulaatio jatkuu jäädytetyssä
+  projektiossa, joten jäljet venyvät maaston mukana ja liike jatkuu. Kun
+  zoom on ohi, muunnos paistetaan kerran bittikarttaan.
+
+Asiat jotka eivät ole ilmeisiä:
+
+- **Leaflet valehtelee animaation ajan.** `zoomanim` syttyy ennen kuin
+  kartan tila hyppää maaliin, ja heti sen jälkeen `getZoom()` ja
+  `latLngToContainerPoint()` kertovat jo maalin — vaikka kuva on vasta
+  lähdössä ja karttatasoja venytetään 0,25 s CSS-siirtymällä. Siksi
+  lähtötila on luettava juuri siinä tapahtumassa, ja canvasille annetaan
+  sama siirtymä (`transform .25s cubic-bezier(0,0,.25,1)`).
+- **`transform-origin: 0 0` on pakollinen.** Muunnos lasketaan ruudun
+  vasemmasta ylänurkasta kuten Leafletillä; oletusorigo (keskellä)
+  skaalaisi väärästä kohdasta.
+- **Nipistys ei ole animaatio.** Siinä Leaflet siirtää karttaa suoraan
+  joka ruudussa murtoluku-zoomilla, eikä `_animatingZoom` ole päällä.
+  Ele tunnistetaan Leafletin omasta `pinch`-lipusta (`map.on('zoom')`).
+  Ilman sitä samaan haaraan päätyisi myös kertaloikka (`setView`), jonka
+  `zoomend` on jo ehtinyt tapahtua — canvas jäisi pysyvästi venytetyksi.
+  Tämä oli oikeasti rikki: mittaus näytti canvasin skaalan jämähtäneen
+  arvoon 32.
+- **Yli kahden zoom-tason venytystä ei paisteta** vaan canvas
+  tyhjennetään: kuva olisi pelkkää puuroa, ja jäljet syntyvät takaisin
+  puolessa sekunnissa.
+- **Häivytys ja siirto ovat sama veto.** `copy` korvaa kohteen lähteellä,
+  ja `globalAlpha` kertoo lähteen läpinäkyvyydellä — tulos on sama kuin
+  erillinen `destination-in`-häivytys. Se säästää yhden koko canvasin
+  läpikäynnin joka ruudussa, mikä on tässä se mikä maksaa (katso yllä:
+  likaantuminen ~33 ms). **Mitattuna vetoele 19 → 26 fps.**
+- **Rajat ja zoom luetaan `GeoProject`ista, ei kartalta.** Silmukan on
+  nähtävä kartta yhtenä johdonmukaisena tilana: jos rajat luettaisiin
+  animaation aikana suoraan kartalta, partikkelit syntyisivät uudelleen
+  eri projektiossa kuin missä ne piirretään.
+
+**Mitattu, 4× kuristus, DPR 3, vetoele:** versio joka jäädytti 53 fps,
+versio joka animoi muttei pysynyt maastossa 27 fps, **tämä 26 fps**. Eli
+maastossa pysyminen on käytännössä ilmaista; hinta tulee animoinnista,
+joka on koko pointti. Lepotila on ennallaan (16 fps molemmissa).
+
+**Mitattu kiinnitys.** Testi maalaa laikun tunnettuun koordinaattiin ja
+katsoo joka askeleen jälkeen, onko laikku yhä siinä mihin koordinaatti
+projisoituu: **100 % kahdeksalla askeleella ja inertian läpi.** Zoomissa
+verrataan Leafletin omaan zoom-animoituun merkkiin: ero **≤ 1,9 px** koko
+animaation ajan, ja se on `GeoProject`in lineaarisen approksimaation
+oma virhe (kontrollimittaus antaa saman luvun ilman canvasia).
+
+**Liike ei pysähdy kertaakaan.** Ruutu ruudulta mitattuna 60 partikkelin
+otoksesta: raahauksessa, zoomissa, nipistyksessä ja heti eleiden jälkeen
+**0 jäätynyttä ruutua** — aiemmin zoomissa niitä oli 12 peräkkäin.
 
 ### Kolme mitattua korjausta
 
