@@ -432,6 +432,41 @@ se leikkasi koko kartan pois. Nopeus ilman kuvaa ei ole nopeutta.
 Siksi ainoa vipu on **pikselimäärä**: partikkelicanvas piirretään enintään
 2× tarkkuudella (2,96 → 1,32 Mpx). Lepotila 19 → 24 fps.
 
+### Partikkelit pysyvät kartalla raahatessa
+
+Aiemmin raahaus jäädytti partikkelit, himmensi canvasin 25 %:iin ja pyyhki
+sen lopuksi — jäljet katosivat ja koko kenttä syntyi uudelleen. Nyt ne
+pysyvät maastossa kuten Windyn verkkoversiossa.
+
+**Se on myös halvempi kuin ennen, ei kalliimpi.** Partikkelit ovat jo
+valmiiksi lat/lng-koordinaateissa, eli maantieteellisesti ankkuroituja —
+vain piirto oli sidottu ruutuun. Siksi eleen ajaksi ei tarvitse piirtää
+mitään: valmista bittikarttaa siirretään kartan mukana CSS-muunnoksella,
+joka ajetaan kompositorissa. Vanha tapa häivytti canvasin joka ruudussa,
+mikä on juuri se mikä maksaa (katso yllä: likaantuminen ~33 ms).
+
+**Mitattu vetoele, 4× kuristus:** 30 → **57 fps**, ruutuväli 33,3 → 16,7 ms.
+
+- **Kiinnitys on pikselintarkka.** Testi piirtää merkin tunnettuun
+  koordinaattiin, raahaa karttaa ja vertaa merkin ruutupaikkaa siihen mihin
+  sama koordinaatti projisoituu: **0,00 px ero** kahdeksalla askeleella.
+- **Muunnos leivotaan bittikarttaan eleen päättyessä** (`KanvasEle.lopeta`).
+  Ilman sitä kuva hyppäisi lähtöpaikalleen sillä hetkellä kun sormi nousee.
+- **Partikkeleita ei enää nollata moveendissä.** Ne ovat oikeilla
+  paikoillaan uudessa näkymässä; ulkopuolelle jääneet syntyvät uudelleen
+  silmukan omasta rajatarkistuksesta.
+- **Zoomissa pidetään entinen häivytys.** Leaflet asettaa `_zoom`in
+  lopulliseen arvoonsa heti animaation alussa, joten `getZoomScale`
+  palauttaisi ykkösen koko animaation ajan ja jäljet jäisivät väärään
+  kokoon — mitattu: canvasin mittakaava pysyi 1.000 vaikka kartta skaalautui.
+- **Vahtikoira.** `moveend` on ainoa asia joka päättää eleen, ja se voi jäädä
+  tulematta: kun veto päättyy ikkunan ulkopuolella, kartta oli pysähtynyt
+  (`_moving` false) mutta `_panning` jäi todeksi eikä ele päättynyt koskaan.
+  Vika on vanha — ennen tätä jumiutunut `_panning` olisi häivyttänyt
+  partikkelit pysyvästi — mutta siirtomuunnos teki siitä näkyvän. Jos elettä
+  ei kuulu 250 ms:iin eikä kartta liiku, ele päätetään itse. Lisäksi
+  `dragend` on toinen varmistus.
+
 ### Kolme mitattua korjausta
 
 1. **`SpatialIndex.nearby()` sai yhden alkion muistin.** Tulos riippuu vain

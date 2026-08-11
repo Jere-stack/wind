@@ -2885,22 +2885,25 @@ function initMap() {
 
   map.on('moveend', () => {
     if (State._dragZooming) return;
+    /* Leivotaan eleen muunnos bittikarttaan ENNEN kuin projektio päivitetään,
+       jotta jäljet jäävät siihen maastoon johon ne piirrettiin. */
+    KanvasEle.lopeta(map);
     GeoProject.update(map);
-    const { windCtx, windCvs, dpr } = State;
-    /* Tyhjennä canvas ja nollaa partikkelit välittömästi */
-    if (windCtx) windCtx.clearRect(0, 0, windCvs.width / dpr, windCvs.height / dpr);
-    State.particles = [];   /* Nollaa partikkelit — uudet spawnaa kun data ladattu */
-    State.windCvs.style.opacity = '1';
+    /* Partikkeleita EI nollata. Ne ovat lat/lng-koordinaateissa, joten ne
+       ovat jo oikeilla paikoillaan uudessa näkymässä; näkymän ulkopuolelle
+       jääneet syntyvät uudelleen silmukan omasta rajatarkistuksesta. Vanha
+       nollaus pyyhki koko kentän ja rakensi sen alusta joka raahauksella. */
     State._panning = false;
     PerfTracker.reset();
-    const c = map.getCenter();
     _scheduleViewportLoad();
   });
 
-  map.on('movestart', () => { State._panning = true; });
+  map.on('movestart', () => { State._panning = true; KanvasEle.aloita(map); });
+  /* dragend tulee myös silloin kun moveend jää tulematta. */
+  map.on('dragend', () => { KanvasEle.lopeta(map); State._panning = false; });
   map.on('move', () => {
     if (State._dragZooming) return;
-    State.windCvs.style.opacity = '0.25';
+    KanvasEle.paivita(map);
   });
 
   /* Tallennetaan edellinen hakualue kynnystarkistusta varten */
@@ -3016,12 +3019,16 @@ function initMap() {
         renderSpots(State.currentHourIdx);
       } else updateSpotScale(newZoom);
     }
+    KanvasEle.lopeta(map);
     WindTexture.build(State.windField, map.getBounds()).then(() => {
       drawColorField(); resetParticles(); Crosshair.refresh();
     });
   });
 
+  /* Zoomissa jäljet häivytetään kuten ennenkin — katso KanvasEle.paivita:n
+     perustelu siitä miksi muunnosta ei voi laskea zoom-animaation aikana. */
   map.on('zoom', () => { State.windCvs.style.opacity = '0.25'; });
+  map.on('zoomend', () => { State.windCvs.style.opacity = '1'; });
 
   /* Asenna tuplanapauta-zoom */
   _installDoubleTapZoom(map);
@@ -3567,6 +3574,113 @@ function respawn(p) {
   p.vlat = 0; p.vlng = 0; p.age = 0; p.sampleTimer = 0;
 }
 
+
+/* -- PARTIKKELIT PYSYVÄT KARTALLA ELEEN AIKANA ------------------- */
+/* Aiemmin raahaus jäädytti partikkelit, himmensi canvasin 25 %:iin ja
+   pyyhki sen lopuksi — jäljet katosivat ja koko kenttä syntyi uudelleen.
+   Se luki nykäyksenä juuri siinä kohtaa jossa liike on käsissä.
+   
+   Partikkelit ovat jo valmiiksi lat/lng-koordinaateissa, eli ne OVAT
+   maantieteellisesti ankkuroituja — vain piirto oli sidottu ruutuun.
+   Siksi eleen ajaksi ei tarvitse piirtää mitään: valmista bittikarttaa
+   siirretään kartan mukana CSS-muunnoksella, jolloin jäljet pysyvät
+   paikoillaan maastossa. Sama keino kuin Leafletin omissa canvas-tasoissa.
+   
+   Tämä on myös HALVEMPI kuin ennen. Mitattuna canvasin likaannuttaminen
+   maksaa noin 33 ms sekoituskerroksen takia (katso Sujuvuus-luku), ja
+   vanha tapa likasi sen joka ruudussa häivytyksellä. Nyt eleen aikana
+   canvasiin ei kosketa lainkaan — muunnos ajetaan kompositorissa.
+   
+   Eleen päättyessä muunnos LEIVOTAAN bittikarttaan: sama affiini piirretään
+   kerran canvasille itselleen, minkä jälkeen CSS-muunnos nollataan. Ilman
+   sitä kuva hyppäisi takaisin lähtöpaikalleen sillä hetkellä kun sormi
+   nousee. */
+const KanvasEle = {
+  aktiivinen: false, ankkuri: null, a0: null, z0: 0, _tmp: null, _viimeksi: 0,
+
+  /* Vahtikoira. moveend on ainoa asia joka päättää eleen, ja se voi jäädä
+     tulematta: jos veto päättyy ikkunan ulkopuolella, Leaflet ei aina saa
+     päätöstapahtumaa lainkaan. Mitattuna kartta oli pysähtynyt (_moving
+     false) mutta _panning jäi todeksi eikä ele päättynyt koskaan.
+     
+     Vika on vanha — ennen tätä muutosta jumiutunut _panning olisi
+     häivyttänyt partikkelit pysyvästi — mutta siirtomuunnos tekee siitä
+     näkyvän, joten se korjataan tässä. Jos elettä ei ole kuulunut 250 ms:iin
+     eikä kartta liiku, ele päätetään itse. */
+  vahdi(map) {
+    if (!this.aktiivinen) return;
+    if (performance.now() - this._viimeksi < 250) return;
+    if (map && map._moving) return;
+    this.lopeta(map);
+    State._panning = false;
+    GeoProject.update(map);
+  },
+
+  aloita(map) {
+    if (!State.windCvs) return;
+    this._viimeksi = performance.now();
+    this.ankkuri = map.getCenter();
+    this.a0 = map.latLngToContainerPoint(this.ankkuri);
+    this.z0 = map.getZoom();
+    this.aktiivinen = true;
+  },
+
+  /* Muunnos joka vie ELEEN ALUSSA piirretyn kuvan nykyiseen näkymään:
+     ankkuripiste a0 siirtyy siihen mihin sama koordinaatti on nyt, ja
+     zoomin muutos skaalaa saman pisteen ympäri. */
+  _muunnos(map) {
+    const a1 = map.latLngToContainerPoint(this.ankkuri);
+    return { dx: a1.x - this.a0.x, dy: a1.y - this.a0.y,
+             s: map.getZoomScale(map.getZoom(), this.z0) };
+  },
+
+  /* Zoom-animaation aikana muunnosta EI voi laskea oikein: Leaflet asettaa
+     _zoomin lopulliseen arvoonsa heti animaation alussa ja liikuttaa kuvaa
+     CSS:llä, joten getZoomScale palauttaisi ykkösen koko animaation ajan ja
+     jäljet jäisivät väärään kokoon. Mitattu: canvasin mittakaava pysyi
+     1.000 koko animaation, vaikka kartta skaalautui.
+     
+     Siksi zoomissa pidetään entinen keino — canvas häivytetään — ja siirto
+     rajataan panorointiin, jossa latLngToContainerPoint seuraa elettä
+     tarkasti (mitattu 0,00 px virhe kahdeksalla askeleella). */
+  paivita(map) {
+    if (!this.aktiivinen || !State.windCvs) return;
+    this._viimeksi = performance.now();
+    const c = State.windCvs;
+    if (map._animatingZoom) { c.style.opacity = '0.25'; return; }
+    const m = this._muunnos(map);
+    if (!isFinite(m.dx) || !isFinite(m.dy) || !isFinite(m.s) || m.s <= 0) return;
+    c.style.transformOrigin = this.a0.x + 'px ' + this.a0.y + 'px';
+    c.style.transform = 'translate3d(' + m.dx.toFixed(2) + 'px,' + m.dy.toFixed(2) + 'px,0) scale(' + m.s.toFixed(4) + ')';
+  },
+
+  lopeta(map) {
+    if (!this.aktiivinen) return;
+    this.aktiivinen = false;
+    const cvs = State.windCvs, ctx = State.windCtx, dpr = State.dpr;
+    const m = this._muunnos(map);
+    cvs.style.transform = ''; cvs.style.transformOrigin = ''; cvs.style.opacity = '1';
+    if (!ctx || !isFinite(m.dx) || !isFinite(m.s) || m.s <= 0) return;
+    /* Leivotaan sama affiini bittikarttaan. Väliaikaiscanvas on pysyvä,
+       jotta elettä kohti ei varata uutta puskuria. */
+    if (!this._tmp) this._tmp = document.createElement('canvas');
+    const t = this._tmp;
+    if (t.width !== cvs.width || t.height !== cvs.height) { t.width = cvs.width; t.height = cvs.height; }
+    const tg = t.getContext('2d');
+    tg.setTransform(1, 0, 0, 1, 0, 0);
+    tg.clearRect(0, 0, t.width, t.height);
+    tg.drawImage(cvs, 0, 0);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, cvs.width, cvs.height);
+    /* CSS: transform-origin a0 -> T(a0)·T(d)·S(s)·T(-a0), laitepikseleinä */
+    ctx.translate((this.a0.x + m.dx) * dpr, (this.a0.y + m.dy) * dpr);
+    ctx.scale(m.s, m.s);
+    ctx.translate(-this.a0.x * dpr, -this.a0.y * dpr);
+    ctx.drawImage(t, 0, 0);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+};
+
 /* -- RENDER LOOP ------------------------------------------------ */
 let _renderLoopRunning = false;
 function startRenderLoop() {
@@ -3584,13 +3698,13 @@ function renderLoop(ts) {
   if (!windCtx || !windCvs.width || !windField.length || !map) return;
   const W = window.innerWidth, H = window.innerHeight;
 
-  if (State._panning) {
-    windCtx.globalCompositeOperation = 'destination-in';
-    windCtx.fillStyle = 'rgba(0,0,0,0.85)';
-    windCtx.fillRect(0, 0, W, H);
-    windCtx.globalCompositeOperation = 'source-over';
-    return;
-  }
+  /* Eleen aikana canvasiin ei kosketa lainkaan: kuvaa siirretään kartan
+     mukana CSS-muunnoksella (KanvasEle). Aiemmin tässä häivytettiin koko
+     canvas joka ruudussa, mikä oli mitattuna sen kalleinta mitä canvasille
+     voi eleen aikana tehdä — likaantuminen pakottaa sekoituskerroksen
+     laskemaan uudelleen. */
+  KanvasEle.vahdi(map);
+  if (State._panning || KanvasEle.aktiivinen) return;
   if (!GeoProject._valid) GeoProject.update(map);
 
   const target = nParticles();
