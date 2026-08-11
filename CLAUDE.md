@@ -134,6 +134,45 @@ Sävyt on otettu suomalaisesta merikartasta: maa-alueen kellertävä pohja,
 kartan musta teksti ja merikartan magenta, joka on myös se sävy johon
 tuuliramppi päättyy 20 m/s kohdalla.
 
+### Spottikortin migraatio
+
+Spottikortti jäi pitkään ainoaksi pinnaksi jota ei ollut viety
+Merikartta-paletille — kartta, asetukset ja ennustepaneeli mittasivat
+0 alitusta, spottikortti 18. Nyt sekin on 0.
+
+Löydökset olivat samaa perhettä eivätkä makuasioita:
+
+- **`--muted` oli itse tumman teeman jäänne** (`rgba(180,215,255,.45)`,
+  1,09:1). Se oli 13 paikassa, useimmiten "Ladataan…"-teksteissä. Token
+  poistettiin ja käytöt korvattiin `--ink-3`:lla.
+- **`--hairline` ja `--hairline-soft` olivat TEKSTIN värinä** viidessä
+  paikassa ja koko tuntinauhassa (1,49:1). Ne ovat viivojen värejä; mennyt
+  tunti vaimennetaan nyt musteasteikolla, joka on suunniteltu luettavaksi.
+- **Kuvaajien tooltipeissä oli tumma tausta mutta muste tekstinä** —
+  eli ne olivat lukukelvottomia. Puolittainen migraatio: sisältö oli
+  viety paperille, pinta ei.
+- **`--accent` oli datavärinä** Tuuli- ja Vesi-lukemissa. Aksentti on
+  toimintoväri; asemavalitsin saa sen, lukema ei.
+- **Kartan ramppi paneelissa**: puuskalukema käytti `ColorRamp.rgb()`:tä.
+  Nyt `ink()`, kuten sääntö sanoo.
+- **HAVAINNOT-ruudukossa oli neljä eri väriä** (oliivi, vaaleansininen,
+  magenta, kartan ramppi). Nyt värillä on yksi merkitys: tuuli ja puuska
+  kantavat musterampin, lämpö ja vesi ovat mustetta. Toinen väriasteikko
+  samassa ruudukossa tekisi rampista merkityksettömän.
+- **Virhepinnat** (`#toast`, `#rl-banner`) olivat vaaleaa oranssia ja
+  punaista DM Monolla läpikuultavan sävytyksen päällä. Virheilmoitus on
+  juuri se teksti jonka on pakko mennä perille: nyt paperia ja mustetta,
+  ja virheellisyys tulee vasemman reunan varoitusviivasta.
+- **Tuntinauhan reunahäivytys**: viimeinen lukema katkesi keskeltä
+  numeroa ("19:0") ja näytti vialta. Sama keino kuin aikajanassa.
+- **Emoji-taulukko poistettiin.** `_codes` oli pareja `[emoji, sana]`,
+  mutta emojia ei renderöity enää missään — se oli ansa joka olisi
+  palauttanut ne heti kun joku lukisi `info[0]`. Sanaakaan ei luettu:
+  molemmissa lukijoissa oli `const info` jota ei käytetty. Nyt `_kuvaus`
+  on sanat, ja sana on tuntisään ikonin `aria-label` — piirretty SVG ei
+  muuten kerro ruudunlukijalle mitään.
+- **Kuollut `buildWindRoseSVG`** (määritelty, ei kutsuttu) poistettiin.
+
 ### Kartan datakieli
 
 Aiemmin kartalla oli **neljä kilpailevaa kieltä**: tummat pillerit
