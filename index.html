@@ -3033,7 +3033,21 @@ function initMap() {
 function initCanvases() {
   State.windCvs = document.getElementById('c-wind');
   State.windCtx = State.windCvs.getContext('2d');
-  State.dpr = window.devicePixelRatio || 1;
+  /* Partikkelicanvas piirretään enintään 2x tarkkuudella, vaikka näyttö
+     olisi 3x.
+     
+     Syy ei ole piirron hinta vaan kompositio: canvasin ALLA on lämpökartta
+     jolla on mix-blend-mode: plus-lighter, ja jokainen canvasin muutos
+     pakottaa selaimen sekoittamaan sen uudelleen. Kustannus on suhteessa
+     canvasin PIKSELIMÄÄRÄÄN, ei siihen mitä siihen piirretään: mitattuna
+     2x2 pikselin kirjoitus maksoi täsmälleen saman kuin koko ruudun täyttö.
+     iPhonen 3x tarkkuudella canvas on 2,96 Mpx, 2x tarkkuudella 1,32 Mpx.
+     Mitattu lepotila 4x kuristuksella: 19 -> 24 fps.
+     
+     Partikkelit ovat pehmeitä 2-4 px viivoja pyöreillä päillä, joten 2x on
+     yhä kaksinkertainen ylinäytteistys — ero ei näy. Muut pinnat (kartta,
+     merkit, teksti) piirtyvät edelleen laitteen omalla tarkkuudella. */
+  State.dpr = Math.min(2, window.devicePixelRatio || 1);
   resizeCanvases();
   window.addEventListener('resize', () => { resizeCanvases(); resetParticles(); }, { passive: true });
   window.addEventListener('orientationchange', () => { setTimeout(() => { resizeCanvases(); resetParticles(); }, 250); }, { passive: true });
@@ -3060,6 +3074,7 @@ const SpatialIndex = {
      jokainen pikseli summasi koko näkymän yli. */
   build(wf, spacing) {
     this.cells = {};
+    this._muistiOk = false; this._muisti = null;
     if (spacing > 0) {
       this.spacing = spacing;
       /* Solu = puolet idw():n tukisäteestä (R = 3*spacing), jolloin
@@ -3081,13 +3096,34 @@ const SpatialIndex = {
      solua ollaan — juuri sellainen tuottaa saumoja. rLng annetaan erikseen. */
   nearby(lat, lng, rLat, rLng) {
     if (rLng === undefined) rLng = rLat;
-    const r0 = Math.floor(lat / this.cellSize), c0 = Math.floor(lng / this.cellSize), out = [];
+    const r0 = Math.floor(lat / this.cellSize), c0 = Math.floor(lng / this.cellSize);
+    /* Yhden alkion muisti.
+     *
+     * Tulos riippuu VAIN solukoordinaateista ja hakusäteestä, ei tarkasta
+     * lat/lng-parista. Lämpökartan harva hila on säännöllinen ristikko, ja
+     * mitattuna solu on 0,75° kun hilasolmujen väli on 0,012° — eli noin
+     * 60 peräkkäistä solmua osuu samaan soluun ja saa täsmälleen saman
+     * naapurijoukon. Ilman muistia jokainen niistä varasi oman taulukkonsa
+     * ja kopioi samat 57 pistettä uudelleen.
+     *
+     * Mitattu osuus: nearby() oli 38,3 ms idw():n 50,1 ms:stä, eli 76 %
+     * työstä oli saman vastauksen laskemista yhä uudelleen.
+     *
+     * Muisti on tarkka eikä likiarvo: sama avain -> sama joukko. Kutsujat
+     * eivät muokkaa palautettua taulukkoa (idw vain lukee sen läpi), joten
+     * saman viittauksen jakaminen on turvallista. build() nollaa muistin. */
+    if (this._muistiOk && r0 === this._mR && c0 === this._mC
+        && rLat === this._mRL && rLng === this._mRG) return this._muisti;
+    const out = [];
     for (let dr = -rLat; dr <= rLat; dr++) for (let dc = -rLng; dc <= rLng; dc++) {
       const cell = this.cells[((r0+dr)<<16)|((c0+dc)&0xFFFF)];
       if (cell) for (let i = 0; i < cell.length; i++) out.push(cell[i]);
     }
+    this._muisti = out; this._muistiOk = true;
+    this._mR = r0; this._mC = c0; this._mRL = rLat; this._mRG = rLng;
     return out;
-  }
+  },
+  _muisti: null, _muistiOk: false, _mR: 0, _mC: 0, _mRL: 0, _mRG: 0
 };
 
 /* -- SURFACE TYPE ----------------------------------------------- */
@@ -3779,6 +3815,24 @@ function _lerpWind(ms0, dir0, ms1, dir1, f) {
   return { ms, dir };
 }
 
+/* Aikaleimat lukuina, laskettuna kerran per aikasarja.
+ *
+ * buildWindField etsii jokaiselle ennustepisteelle lähimmän tunnin, ja teki
+ * sen jäsentämällä aikaleiman merkkijonosta joka kerta: 113 pistettä x noin
+ * 107 aikaleimaa = 12 087 new Date() -kutsua JOKA kutsulla. Aikasarja ei
+ * kuitenkaan muutu — vain haettava hetki muuttuu.
+ *
+ * Välimuisti asuu itse hourly-oliossa, joten se katoaa luonnostaan kun data
+ * korvataan uudella hausta. Mitattuna haku 8,7 ms -> 0,52 ms. */
+function _ts(h) {
+  if (!h.__ts || h.__ts.length !== h.time.length) {
+    const n = h.time.length, a = new Float64Array(n);
+    for (let i = 0; i < n; i++) a[i] = new Date(h.time[i]).getTime();
+    h.__ts = a;
+  }
+  return h.__ts;
+}
+
 function buildWindField(hourIdx, opts) {
   State.windField = [];
   const all = ViewportGrid.getAllPoints();
@@ -3791,12 +3845,13 @@ function buildWindField(hourIdx, opts) {
     let ms, dir;
     if (targetTime && h.time && h.time.length) {
       /* Etsi hetkeä ympäröivä pari ja interpoloi niiden välillä */
+      const ts = _ts(h);
       let j = 0, bestDiff = Infinity;
-      for (let k = 0; k < h.time.length; k++) {
-        const diff = Math.abs(new Date(h.time[k]).getTime() - targetTime);
+      for (let k = 0; k < ts.length; k++) {
+        const diff = Math.abs(ts[k] - targetTime);
         if (diff < bestDiff) { bestDiff = diff; j = k; }
       }
-      const tj = new Date(h.time[j]).getTime();
+      const tj = ts[j];
       let a = j, b = j;
       if (targetTime > tj && j + 1 < h.time.length) b = j + 1;
       else if (targetTime < tj && j > 0) a = j - 1;
@@ -3806,7 +3861,7 @@ function buildWindField(hourIdx, opts) {
       else {
         const msB = layer === 'gust' ? ((h.windgusts_10m && h.windgusts_10m[b]) || h.windspeed_10m[b] || 0) : (h.windspeed_10m[b] || 0);
         const dirB = h.winddirection_10m[b] || 0;
-        const ta = new Date(h.time[a]).getTime(), tb = new Date(h.time[b]).getTime();
+        const ta = ts[a], tb = ts[b];
         const f = tb > ta ? Math.max(0, Math.min(1, (targetTime - ta) / (tb - ta))) : 0;
         const w = _lerpWind(msA, dirA, msB, dirB, f);
         ms = w.ms; dir = w.dir;
@@ -3824,7 +3879,12 @@ function buildWindField(hourIdx, opts) {
   const gridStep = State.map ? ViewportGrid.gridStep(State.map.getZoom()) : 0.25;
   SpatialIndex.build(State.windField, gridStep);
   const vb = State.map ? State.map.getBounds() : null;
-  const step = (opts && opts.scrub) ? WindTexture.SCRUB_STEP : WindTexture.COARSE_STEP;
+  const scrub = !!(opts && opts.scrub);
+  /* Karkea esikatselu jää ruudulle kunnes tarkka versio ajetaan. Lippu
+     kertoo _tlCommitSelectionille onko siivottavaa — ilman sitä se joutui
+     rakentamaan kentän varmuuden vuoksi joka kerta. */
+  State._karkeaRuudulla = scrub;
+  const step = scrub ? WindTexture.SCRUB_STEP : WindTexture.COARSE_STEP;
   return WindTexture.build(State.windField, vb, step)
     .then(() => {
       /* Raahauksen aikana päivitetään vain kartta — tähtäin ja säawidget
@@ -7646,6 +7706,11 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
     }).catch(() => { _fieldBusy = false; });
   }
 
+  /* Käyttäjän kosketus voittaa aina: jos play on kesken ja sormi tarttuu
+     aikajanaan, esikatselut palaavat heti käyttöön. */
+  ['touchstart', 'pointerdown', 'wheel'].forEach(t =>
+    tl.addEventListener(t, () => { State._tlOhjelmallinen = false; }, { passive: true }));
+
   tl.addEventListener('scroll', () => {
     if (State._tlSelfScroll) return;
     if (_rafPending) return;
@@ -7660,7 +7725,7 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
         State._tlLastTick = nearest;
         _tlUpdateNow(nearest);
       }
-      _previewField(frac);
+      if (!State._tlOhjelmallinen) _previewField(frac);
     });
     /* Varmistus vanhoille selaimille joilla ei ole scrollend-tapahtumaa.
        Natiivi snäppäys on jo asettanut sijainnin, joten tässä ei enää
@@ -7758,6 +7823,7 @@ function _tlCommitSelection(tl) {
     const dist = Math.abs(center - (ticks[i].offsetLeft + 12)); /* 12 = TICK_W/2 */
     if (dist < bestDist) { bestDist = dist; bestIdx = i; }
   }
+  State._tlOhjelmallinen = false;
   const changed = bestIdx !== State.currentHourIdx;
   State.currentHourIdx = bestIdx;
   State._lastTlHour = bestIdx;
@@ -7766,14 +7832,27 @@ function _tlCommitSelection(tl) {
     renderSpots(bestIdx);
     if (State.sheetSpot) openSheet(State.sheetSpot, bestIdx);
   }
-  /* Täystarkka kenttä ajetaan aina lopuksi, myös kun tunti ei vaihtunut —
-     raahaus on voinut jättää karkean esikatselun ruudulle. */
-  buildWindField(bestIdx).then(() => { drawColorField(); resetParticles(); });
+  /* Täystarkka kenttä ajetaan kun tunti vaihtui TAI kun raahaus on jättänyt
+     karkean esikatselun ruudulle.
+
+     Ennen tämä ajettiin aina. Sillä oli väliä vain raahauksen jälkeen, mutta
+     hinta maksettiin joka kerta: play kutsuu scrollTimelineTo():ta, jonka
+     pehmeä vieritys laukaisee sekä 140 ms:n ajastimen että scrollend-
+     tapahtuman. Mitattuna 22 kentänrakennusta noin 11 askeleelle, ja yksi
+     rakennus on 45 ms — eli puolet play'n työstä oli saman kentän
+     rakentamista uudelleen. */
+  if (changed || State._karkeaRuudulla) {
+    buildWindField(bestIdx).then(() => { drawColorField(); resetParticles(); });
+  }
 }
 
 function scrollTimelineTo(idx) {
   const tl = document.getElementById('tl-scroll');
   if (!tl || !State._tlTicks || !State._tlTicks[idx]) return;
+  /* Play vierittää ohjelmallisesti ja määränpää on jo tiedossa. Esikatselut
+     ovat sormen seuraamista varten — ohjelmallisessa vierityksessä ne ovat
+     pelkkää työtä, joka tehdään uudelleen heti kun vieritys pysähtyy. */
+  State._tlOhjelmallinen = true;
   const target = State._tlTicks[idx];
   tl.scrollTo({ left: target.offsetLeft - tl.offsetWidth / 2 + 10, behavior: 'smooth' });
 }
@@ -7969,9 +8048,10 @@ const WeatherWidget = {
     let idx = Math.min(hourIdx, (h.temperature_2m || []).length - 1);
     if (State._tlTimes && State._tlTimes[hourIdx] && h.time) {
       const target = new Date(State._tlTimes[hourIdx]).getTime();
+      const ts = _ts(h);
       let bestDiff = Infinity;
-      for (let j = 0; j < h.time.length; j++) {
-        const diff = Math.abs(new Date(h.time[j]).getTime() - target);
+      for (let j = 0; j < ts.length; j++) {
+        const diff = Math.abs(ts[j] - target);
         if (diff < bestDiff) { bestDiff = diff; idx = j; }
       }
     }

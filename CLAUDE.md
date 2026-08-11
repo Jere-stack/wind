@@ -401,6 +401,87 @@ oli valkoista beigellä eli näkymätön. Nyt se on `Valitsin`-kortti muiden
 joukossa, ja yksikön vieressä on **sama tuuli siinä yksikössä**
 (`Units.fmtIn`).
 
+## Sujuvuus — mitattu, ei arvattu
+
+Kaikki alla oleva on mitattu Chromiumissa **4× CPU-kuristuksella**, DPR 3,
+390×844. Se approksimoi puhelinta muttei ole iOS Safari — kompositiota
+koskevat löydökset ovat Chromiumin, ja Safari voi käyttäytyä toisin.
+
+### Juurisyy: sekoituskerros canvasin alla
+
+Partikkelicanvas on lämpökartan **päällä**, ja lämpökartalla on
+`mix-blend-mode: plus-lighter` ja `filter: blur()`. Jokainen canvasin muutos
+pakottaa selaimen sekoittamaan koko kerroksen uudelleen.
+
+**Kustannus on suhteessa canvasin pikselimäärään, ei siihen mitä siihen
+piirretään.** Mitattu ablaatio: canvasiin ei kosketa 60 fps → **2×2
+pikselin kirjoitus 20 fps** → koko ruudun täyttö 20 fps → häivytys +
+kaikki viivat 17 fps. Pelkkä likaantuminen maksaa ~33 ms.
+
+Kustannus jakautuu kahtia: `filter` 18 → 34 fps, `mix-blend-mode`
+34 → 60 fps. Kumpaakaan ei voi poistaa — sekoitus on rantaviivan kontrasti
+(20,1 → 41,5, katso lämpökartan luku).
+
+**Mikään CSS-eristys ei auta.** Kokeiltu ja mitattu tehottomaksi:
+`will-change: transform`, `translateZ(0)`, `isolation: isolate`,
+`contain: strict` canvasille; `contain: paint`, `will-change`,
+`isolation` tilePanelle; `contain: layout paint` kartalle. `contain: paint`
+Leafletin paneelilla näytti 61 fps — mutta paneelin laatikko on 0×0, joten
+se leikkasi koko kartan pois. Nopeus ilman kuvaa ei ole nopeutta.
+
+Siksi ainoa vipu on **pikselimäärä**: partikkelicanvas piirretään enintään
+2× tarkkuudella (2,96 → 1,32 Mpx). Lepotila 19 → 24 fps.
+
+### Kolme mitattua korjausta
+
+1. **`SpatialIndex.nearby()` sai yhden alkion muistin.** Tulos riippuu vain
+   solukoordinaateista, ja lämpökartan harva hila on säännöllinen ristikko:
+   solu on 0,75° kun solmuväli on 0,012°, eli ~60 peräkkäistä solmua saa
+   saman vastauksen. Ilman muistia jokainen varasi oman taulukkonsa ja
+   kopioi samat 57 pistettä. Mitattu: `nearby` oli 38,3 ms `idw`:n
+   50,1 ms:stä. **idw 58,8 → 20,2 ms (−66 %), tekstuurirakennus 83 → 45 ms.**
+   Varmistettu bittitarkaksi: 10 201 solmua, **0 poikkeamaa**.
+
+2. **Aikaleimat esilasketaan** (`_ts(h)`). `buildWindField` jäsensi
+   `new Date(...)` 12 087 kertaa joka kutsulla, vaikka aikasarja ei muutu.
+   **8,7 → 0,52 ms.** Välimuisti asuu `hourly`-oliossa ja katoaa
+   luonnostaan kun data korvataan.
+
+3. **Play ei enää rakenna kenttää kolmesti askelta kohti.** `scrollTimelineTo`
+   vierittää pehmeästi, ja jokainen vieritystapahtuma laukaisi
+   esikatselurakennuksen — ne ovat sormen seuraamista varten, mutta
+   ohjelmallisessa vierityksessä määränpää on jo tiedossa. Lisäksi
+   `_tlCommitSelection` rakensi kentän aina, myös kun tunti ei vaihtunut.
+   **9 sekunnin play: 29 → 10 rakennusta, työ 1042 → 494 ms.**
+   Käyttäjän kosketus aikajanaan nollaa lipun heti, joten raahaus toimii
+   ennallaan.
+
+### Lopputulos
+
+| | ennen | jälkeen |
+|---|---|---|
+| Lepo, ruutuväli | 66,7 ms | 50 ms |
+| Zoom, fps | 13 | 17 |
+| Zoom, p95 ruutu | 166,6 ms | 100 ms |
+| Play, fps | 11 | 16 |
+| Play, p95 ruutu | 200 ms | 116,7 ms |
+
+### Hypoteesit jotka mittaus kaatoi
+
+Nämä näyttivät ilmeisiltä pullonkauloilta eivätkä olleet. Ei muutettu:
+
+- **`canvas.toDataURL()`** joka lämpökartan päivityksessä: 5–7 ms. Epäilin
+  synkronista PNG-pakkausta pääsyyksi; se on kohinaa.
+- **Partikkeliviivat yksittäisinä `stroke()`-kutsuina**: 175 viivaa 0,5 ms.
+  Niputus yhteen polkuun per väri säästäisi 0,07 ms.
+- **`ColorRamp.css()`-merkkijonot** joka partikkelille joka ruudussa:
+  0,04 ms.
+- **Väriramppi tekstuurin täytössä**: 0,4 ms 24 ms:stä. LUT-taulukko ei
+  kannata.
+- **Häivytyksen `destination-in fillRect`** koko canvasin yli: 0,02 ms.
+- **Canvasin rauhoittaminen eleen aikana**: ei mitattavaa hyötyä
+  panoroinnissa eikä zoomauksessa.
+
 ## API-osoitteet
 
 Frontend käyttää vakiota `API_BASE = '/api'` (`index.html`), eli funktiot
