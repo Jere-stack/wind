@@ -464,13 +464,48 @@ Kartta liikkuu kahdella tavalla, ja ne vaativat eri ratkaisun
   ettei pitkässä raahauksessa kerry ryömintää.
 - **Zoom** (rulla, tuplanapautus, napit, nipistys): mittakaava muuttuu, ja
   bittikartan skaalaus 60 kertaa sekunnissa sotkisi jäljet puuroksi.
-  Siksi zoomin ajaksi **projektio jäädytetään** ja canvas venytetään
+  Siksi zoomin ajaksi **ruudusto jäädytetään** ja canvas venytetään
   CSS-muunnoksella — bittikarttaan ei kosketa, se skaalautuu
   kompositoinnissa kerran ruudussa. Simulaatio jatkuu jäädytetyssä
-  projektiossa, joten jäljet venyvät maaston mukana ja liike jatkuu. Kun
+  ruudustossa, joten jäljet venyvät maaston mukana ja liike jatkuu. Kun
   zoom on ohi, muunnos paistetaan kerran bittikarttaan.
 
+#### CSS-muunnos kelpaa vain suurentamaan
+
+Tämä oli seuraava vika. CSS-muunnos liikuttaa canvasin **suorakulmiota**,
+joten alle yhden mittakaava kutistaa canvasin ruutua pienemmäksi eikä
+reunoille jää mitään. Mitattuna kolmen zoom-tason nipistys ulos kuristi
+partikkelikerroksen ruudun pinta-alasta **100 % → 54 % → 22 % → 4 % → 2 %**.
+Kartan reunat olivat tyhjät ja keskellä oli suorakulmio partikkeleita.
+
+Sääntö on siis: **pidä sisältö siinä ruudustossa jossa muunnos suurenee.**
+
+| ele | sisältö | canvas |
+|---|---|---|
+| siirto | nykyisessä ruudustossa | ei muunnosta (bittikartta siirtyy) |
+| zoom sisään | lähtöruudustossa | 1 → s, paistetaan lopuksi |
+| zoom ulos, animoitu | paistetaan heti maaliruudustoon | 1/s → 1 |
+| zoom ulos, nipistys | paistetaan joka ruudussa nykyiseen | ei muunnosta |
+
+Ulospäin animoidussa zoomissa canvas kulkee siis **käänteismuunnoksesta
+identiteettiin**: se aloittaa suurennettuna eikä käy hetkeäkään ruutua
+pienempänä. Siirtymä on sama kuin karttatasoilla, ja koska selain
+interpoloi sen, omaa pehmennyskäyrää ei tarvitse mallintaa. Peitto on
+mitattuna **100 % kaikissa eleissä ja kaikissa vaiheissa**.
+
+Nipistyksessä maalia ei tiedetä, joten ulospäin sisältö paistetaan joka
+ruudussa. Se maksaa saman kuin raahaus — yksi koko canvasin veto
+ruudussa — ja mitattuna nipistyksen ruutunopeus ei eronnut edellisestä
+versiosta (13–15 fps ulos, 14 sisään, 4× kuristuksella).
+
 Asiat jotka eivät ole ilmeisiä:
+
+- **Nipistyksen CSS-muunnosta ei saa paistaa seuraavassa ruudussa.**
+  Animaation päätyttyä muunnos pitää paistaa, mutta nipistyksen muunnos
+  elää yli ruutujen ja päivittyy joka ruudussa. Kun molemmat kulkivat
+  saman lipun kautta, nipistys sisäänpäin paistoi joka ruudussa: mittaus
+  näytti canvasin skaalan jäävän arvoon 1,20 vaikka ele oli 3,8-kertainen,
+  ja ruutunopeus putosi 15:stä 11:een. Siksi `_animoitu` erottaa nämä.
 
 - **Leaflet valehtelee animaation ajan.** `zoomanim` syttyy ennen kuin
   kartan tila hyppää maaliin, ja heti sen jälkeen `getZoom()` ja
@@ -516,6 +551,41 @@ oma virhe (kontrollimittaus antaa saman luvun ilman canvasia).
 **Liike ei pysähdy kertaakaan.** Ruutu ruudulta mitattuna 60 partikkelin
 otoksesta: raahauksessa, zoomissa, nipistyksessä ja heti eleiden jälkeen
 **0 jäätynyttä ruutua** — aiemmin zoomissa niitä oli 12 peräkkäin.
+
+#### Tiheys tasataan joka ruudussa
+
+Kenttä oli oikeassa paikassa mutta väärässä tiheydessä. Ulos zoomatessa
+kaikki partikkelit jäivät ryppääksi ruudun keskelle, koska mikään ei
+levittänyt niitä uudelle alueelle: mitattuna **32 ruutulohkoa 36:sta oli
+tyhjänä heti eleen jälkeen**, 23 vielä sekunnin kuluttua, ja luonnollinen
+uusiutuminen (`DROP_RATE` + ikäraja) vei siitä noin viisi sekuntia.
+Windyssä kenttä on täynnä heti kun sormi nousee.
+
+`Tiheys.tasaa()` vertaa nykyistä näkymää edelliseen ruutuun ja siirtää
+leikkausalueelta pois sen määrän joka ylittää tasaisen tiheyden:
+
+```
+ihanne   = partikkeleita × leikkauksen ala / näkymän ala
+ylimäärä = leikkauksessa olevat − ihanne
+```
+
+- **Ulos zoomatessa** koko kenttä on leikkauksessa mutta ihanne on murto-osa:
+  kolme zoom-tasoa siirtää seitsemän kahdeksasosaa. Mitattuna tyhjiä
+  lohkoja **32/36 → 2/36**, ja sekunnin kuluttua 1/36 — sama kuin
+  lepotilassa.
+- **Sisään zoomatessa** ylimäärää ei ole. Tiheys korjautuu itsestään, koska
+  silmukka arpoo uudelleen näkymän ulkopuolelle jääneet.
+- **Raahauksessa ylimäärä on nolla**, koska leikkauksessa on jo valmiiksi
+  oikea tiheys ja pois vierineet hoitaa rajatarkistus. Tämä ero on syy
+  laskea ylimäärä leikkauksen sisällä olevista eikä koko kentästä: pelkkä
+  pinta-alaosuus arpoisi raahauksessa turhaan ~2 % kentästä joka ruudussa,
+  eli lyhentäisi jälkiä juuri silloin kun karttaa liikutetaan. Mitattu
+  keski-ikä pysyy: lepo 208, raahaus 154 (pelkkä rajatarkistus), jälkeen 211.
+
+`respawn()` myös **näytteistää tuulen heti** — ilman sitä partikkeli kantaa
+entisen paikkansa nopeutta pari ruutua, ja jos se oli alle 0,3 m/s, se ei
+liiku lainkaan. Ja **arpoo iän** kun siirto on iso, jottei koko kenttä
+kuolisi samalla ruudulla viiden sekunnin päästä.
 
 ### Kolme mitattua korjausta
 

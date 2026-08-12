@@ -3637,22 +3637,26 @@ function respawn(p, arvoIka) {
    uusiutuminen (DROP_RATE + ikäraja) vei siitä noin viisi sekuntia.
    Windyssä kenttä on täynnä heti kun sormi nousee.
 
-   Sääntö on yhden rivin mittainen ja pätee kaikkiin eleisiin:
-   arvotaan uudelleen se osuus partikkeleista joka vastaa näkymän siitä
-   osasta jota ei ollut näkyvissä edellisessä ruudussa.
+   Sääntö: katsotaan sitä osaa näkymästä joka oli näkyvissä myös
+   edellisessä ruudussa (leikkaus), ja siirretään sieltä pois se määrä
+   joka ylittää tasaisen tiheyden.
 
-     p = 1 - (edellisen ja nykyisen näkymän leikkaus) / nykyinen näkymä
+     ihanne     = partikkeleita * leikkauksen ala / näkymän ala
+     ylimäärä   = leikkauksessa olevat - ihanne
 
-   - Ulos zoomatessa uutta aluetta on paljon, joten p on suuri ja kenttä
-     levittäytyy heti. Kolme zoom-tasoa kerralla antaa p = 0,875, eli
-     seitsemän kahdeksasosaa siirtyy — juuri se määrä joka palauttaa
-     tasaisen tiheyden.
-   - Sisään zoomatessa uutta aluetta ei ole (p = 0). Tiheys korjautuu
-     itsestään, koska silmukka arpoo uudelleen ne jotka jäivät näkymän
-     ulkopuolelle.
-   - Raahauksessa p on paljastuneen kaistan osuus, eli muutaman
-     partikkelin luokkaa ruudussa. Paikallaan p on nolla eikä mitään
-     tapahdu — sääntö ei siis kuluta mitään silloin kun ei ole tarvetta.
+   Ylimäärä on tarkalleen se mikä pitää siirtää — ei enempää:
+
+   - Ulos zoomatessa koko kenttä on leikkauksessa mutta ihanne on murto-osa
+     siitä. Kolme zoom-tasoa kerralla siirtää seitsemän kahdeksasosaa, eli
+     juuri sen minkä tasainen tiheys vaatii.
+   - Sisään zoomatessa leikkaus on koko uusi näkymä, ihanne on kaikki
+     partikkelit, eikä ylimäärää ole. Tiheys korjautuu itsestään, koska
+     silmukka arpoo uudelleen ne jotka jäivät näkymän ulkopuolelle.
+   - Raahauksessa ylimäärä on nolla: leikkauksessa on jo valmiiksi
+     tasainen tiheys, ja pois vierineet hoitaa silmukan rajatarkistus.
+     Ilman tätä erottelua raahaus arpoisi turhaan noin 2 % kentästä joka
+     ruudussa, eli jäljet lyhenisivät juuri silloin kun karttaa liikutetaan.
+   - Paikallaan ei tapahdu mitään.
 
    Tämä ajetaan joka ruudussa eikä vain eleen lopussa, jotta kenttä on
    tasainen myös eleen aikana. */
@@ -3661,19 +3665,30 @@ const Tiheys = {
   tasaa(nyt, hiukkaset) {
     const e = this.b;
     this.b = nyt;
-    if (!e || !nyt) return 0;
+    if (!e || !nyt || !hiukkaset.length) return 0;
     const lw = Math.min(e.e, nyt.e) - Math.max(e.w, nyt.w);
     const lh = Math.min(e.n, nyt.n) - Math.max(e.s, nyt.s);
-    const leikkaus = (lw > 0 && lh > 0) ? lw * lh : 0;
+    if (!(lw > 0) || !(lh > 0)) return 0;   /* ei yhteistä aluetta — silmukan rajatarkistus hoitaa */
     const ala = (nyt.e - nyt.w) * (nyt.n - nyt.s);
     if (!(ala > 0)) return 0;
-    const p = 1 - leikkaus / ala;
-    if (!(p > 0.004)) return 0;
-    let n = 0;
-    for (let i = 0; i < hiukkaset.length; i++) {
-      if (Math.random() < p) { respawn(hiukkaset[i], true); n++; }
+    const w = Math.max(e.w, nyt.w), i = Math.min(e.e, nyt.e);
+    const s = Math.max(e.s, nyt.s), n = Math.min(e.n, nyt.n);
+    let sisalla = 0;
+    for (let k = 0; k < hiukkaset.length; k++) {
+      const q = hiukkaset[k];
+      if (q.lng >= w && q.lng <= i && q.lat >= s && q.lat <= n) sisalla++;
     }
-    return n;
+    const ylimaara = sisalla - hiukkaset.length * (lw * lh) / ala;
+    if (!(ylimaara > 0.5)) return 0;
+    const p = ylimaara / sisalla;
+    let siirretty = 0;
+    for (let k = 0; k < hiukkaset.length; k++) {
+      const q = hiukkaset[k];
+      if (q.lng >= w && q.lng <= i && q.lat >= s && q.lat <= n && Math.random() < p) {
+        respawn(q, true); siirretty++;
+      }
+    }
+    return siirretty;
   },
   nollaa() { this.b = null; }
 };
@@ -3732,6 +3747,7 @@ const KanvasSiirto = {
   z0: null,         /* sisällön ruuduston zoom */
   haivytti: false,  /* hoitiko muunnos myös häivytyksen */
   _css: null,       /* null | 'sisaan' | 'ulos' — mitä CSS-muunnos pitää */
+  _animoitu: false, /* CSS-muunnos on Leafletin animaatiota varten, ei nipistystä */
   _nipistys: false, /* sormet kartalla — Leafletin pinch-lippu */
   _jx: 0, _jy: 0,   /* pyöristyksen jäännös laitepikseleinä */
 
@@ -3750,7 +3766,7 @@ const KanvasSiirto = {
   },
 
   _poistaCss(cvs) {
-    this._css = null;
+    this._css = null; this._animoitu = false;
     cvs.style.transition = '';
     cvs.style.transform = 'translate3d(0,0,0)';
   },
@@ -3822,7 +3838,7 @@ const KanvasSiirto = {
 
     if (s >= 1) {
       /* Sisään: sisältö jää lähtöruudustoon, canvas suurenee 1 → s. */
-      this._css = 'sisaan';
+      this._css = 'sisaan'; this._animoitu = true;
       cvs.style.transition = SIIRTYMA;
       cvs.style.transform = this._muunnosCss(s, tx, ty);
       return;
@@ -3843,7 +3859,7 @@ const KanvasSiirto = {
     void cvs.offsetWidth;
     cvs.style.transition = SIIRTYMA;
     cvs.style.transform = 'translate3d(0,0,0)';
-    this._css = 'ulos';
+    this._css = 'ulos'; this._animoitu = true;
   },
 
   /* Zoom on ohi. Sisään zoomatessa CSS-muunnos paistetaan bittikarttaan;
@@ -3878,10 +3894,20 @@ const KanvasSiirto = {
          piirto jatkuu normaalisti. Sisäänpäin ruudusto on jäädytetty. */
       return this._css === 'ulos';
     }
-    if (this._css) { this.paista(map, ctx, dpr, cvs); return true; }
+    /* Animaatio on ohi mutta zoomend ei ole vielä ehtinyt paistaa.
+       Nipistyksen CSS-muunnos EI kuulu tänne: se elää yli ruutujen ja
+       päivittyy joka ruudussa — jos se paistettaisiin tässä, koko ele
+       muuttuisi ruudunmittaisiksi uudelleennäytteistyksiksi. */
+    if (this._animoitu) { this.paista(map, ctx, dpr, cvs); return true; }
 
     const z = map.getZoom();
-    if (z === this.z0) { this._siirra(map, ctx, dpr, cvs, haivytys); return true; }
+    if (z === this.z0) {
+      /* Nipistys palasi lähtömittakaavaan: CSS pitää enää siirtoa, ja se
+         leivotaan bittikarttaan alla — muuten siirto näkyisi kahdesti. */
+      if (this._css) this._poistaCss(cvs);
+      this._siirra(map, ctx, dpr, cvs, haivytys);
+      return true;
+    }
 
     const s = map.getZoomScale(z, this.z0);
     const p1 = map.latLngToContainerPoint(this.ref);
@@ -3896,7 +3922,11 @@ const KanvasSiirto = {
       cvs.style.transform = this._muunnosCss(s, p1.x - s * this.p0.x, p1.y - s * this.p0.y);
       return false;
     }
-    /* Nipistys ulos ja kertaloikka: paistetaan nykyiseen ruudustoon. */
+    /* Nipistys ulos ja kertaloikka: paistetaan nykyiseen ruudustoon.
+       Jos nipistys kääntyi sisältä ulos, CSS-muunnos otetaan ensin pois —
+       sisältö on yhä lähtöruudustossa, joten alla oleva paisto vie sen
+       oikein nykyiseen. */
+    if (this._css) this._poistaCss(cvs);
     if (s >= 0.25 && s <= 4) {
       this._muunna(ctx, dpr, cvs, s, p1.x - s * this.p0.x, p1.y - s * this.p0.y, haivytys);
     } else this._tyhjenna(ctx, dpr, cvs);
