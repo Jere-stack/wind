@@ -3518,11 +3518,25 @@ const PerfTracker = {
   reset() { this._targetParticles = nParticlesBase(); this._frames = []; }
 };
 
+/* Partikkelimäärä on RUUDUN PINTA-ALASTA, ei zoomista.
+ *
+ * Zoomiin sidottu taulukko (800 kaukana … 120 lähellä) oli maantieteellisen
+ * ajattelun jäänne: kun partikkeli oli lat/lng-piste, laaja näkymä tarvitsi
+ * enemmän niitä kattaakseen suuremman alueen. Ruutukoordinaateissa alue on
+ * aina sama ruutu, joten sama tiheys näyttää samalta joka zoom-tasolla.
+ *
+ * Määrä nostettiin 120:stä noin 440:een 390×844 ruudulla. Se on mitattu
+ * päätös eikä makuasia: kustannus on canvasin likaantumisessa eikä siinä
+ * mitä siihen piirretään, ja mitattuna 120 → 400 vei 4× kuristuksella
+ * lepotilan 24 → 22 fps ja vetoeleen 20 → 18. Kolminkertainen määrä
+ * kahdeksan prosentin hinnalla — ja vasta sillä kenttä lukee virtauksena
+ * eikä irrallisina viivoina.
+ *
+ * PerfTracker pudottaa määrää jos ruutunopeus ei riitä, joten hitaammilla
+ * laitteilla tämä on yläraja eikä lupaus. */
 function nParticlesBase() {
-  const z = State.map ? State.map.getZoom() : 5;
-  if (z <= 3) return 800; if (z <= 5) return 600; if (z <= 7) return 500;
-  if (z <= 8) return 350; if (z <= 9) return 250; if (z <= 10) return 180;
-  return 120;
+  const ala = (State.vw || 390) * (State.vh || 844);
+  return Math.max(200, Math.min(900, Math.round(ala / 820)));
 }
 function nParticles() { return PerfTracker.getTarget(); }
 function particleLineWidth(ms) { return 2.0 + (ms / Config.MAX_MS) * 2.2; }

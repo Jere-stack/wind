@@ -619,7 +619,72 @@ Kaksi kohtaa joihin kompastuin ja jotka mittaus paljasti:
 Tyhjiä ruutulohkoja on 0 kaikissa eleissä 400 ms:n kuluttua, ja
 peittävyys 100 % koko ajan.
 
-#### Sivutuotteena tiheämpi ja tarkempi kenttä
+#### Partikkelit kuuluvat NÄKYVÄLLE alueelle, ei sisältöruudustoon
+
+Ruutukoordinaatteihin siirtyminen ei yksin riittänyt. Partikkelit
+arvottiin ja karsittiin sisällön ruudustoon — mutta canvasilla voi olla
+CSS-muunnos, jolloin vain osa sisällöstä on ruudulla. Sisään
+nipistettäessä näkyvien määrä romahti **120:stä seitsemään** (keskiarvo
+41), eli kenttä käytännössä tyhjeni juuri silloin kun sitä katsottiin.
+
+Se ei näkynyt mittareissa, koska mittarini laski partikkelit sisällön
+ruudustossa. **Mittari oli väärässä koordinaatistossa, ei sovellus.**
+Sen jälkeen kun mittaus vietiin canvasin CSS-muunnoksen läpi, vika näkyi
+ensimmäisellä ajolla.
+
+- `State.alue` on näkyvä alue sisällön koordinaateissa: CSS-muunnoksen
+  käänteiskuva ruudusta. Sitä käyttävät sekä `respawn` että silmukan
+  rajatarkistus, joten koko budjetti on aina siellä missä se näkyy.
+- **Näkyvä alue voi muuttua ilman että sisältöä muunnetaan.** Nipistys
+  sisään `maxZoom`in yli pomauttaa lopuksi takaisin, ja silloin
+  partikkelit jäivät siihen pieneen laatikkoon joka oli näkyvissä eleen
+  huipulla: 27 ruutulohkoa 36:sta tyhjänä, eikä tilanne korjaantunut
+  itsestään. Siksi tasaus vertaa **näkyvän alueen** muutosta
+  (`AlueVahti`), ja sisällön muunnos vain siirtää muistissa olevaa
+  edellistä aluetta mukanaan.
+- **CSS-siirtymän aikana muunnos elää selaimen käsissä**, joten alue
+  luetaan siltä ruutu ruudulta. Ilman sitä alue hyppäsi maaliin heti ja
+  näkyviä oli 0,25 s ajan 44/120.
+
+**Mitattu ruudun läpi** (CV/Poisson, 1,0 = yhtä tasainen kuin arvottu):
+
+| ele | CV/Poisson | näkyvissä | tyhjiä lohkoja 400 ms:n jälkeen |
+|---|---|---|---|
+| lepo | 1,09–1,18 | 98–99 % | 0–1 |
+| zoom ulos 1 taso | 0,93–1,13 | 98–99 % | 0–1 |
+| zoom ulos 3 tasoa | 0,92–1,15 | 98–100 % | 0 |
+| nipistys ulos | 1,00–1,35 | 99–100 % | 0 |
+| nipistys sisään | 0,93–1,12 | 90–100 % | 0 |
+| raahaus | 0,90–1,34 | 98–99 % | 0 |
+
+#### Ja lopuksi: kenttä oli liian harva
+
+Koneisto oli kunnossa mutta lopputulos ei. 120 partikkelia 390×844
+ruudulla on hajanaisia viivoja, ei virtauskenttä.
+
+Määrä oli sidottu **zoomiin** (800 kaukana … 120 lähellä). Sekin oli
+maantieteellisen ajattelun jäänne: kun partikkeli oli lat/lng-piste, laaja
+näkymä tarvitsi enemmän niitä kattaakseen suuremman alueen.
+Ruutukoordinaateissa alue on aina sama ruutu, joten määrä tulee **ruudun
+pinta-alasta** — sama tiheys näyttää samalta joka zoom-tasolla.
+
+Nosto 120 → noin 440 on mitattu päätös. Kustannus on canvasin
+likaantumisessa eikä siinä mitä siihen piirretään, ja pyyhkäisy 4×
+kuristuksella, DPR 3, näyttää sen:
+
+| partikkeleita | lepo | vetoele | p95 |
+|---|---|---|---|
+| 120 | 24 fps | 20 fps | 67 ms |
+| 250 | 23 | 19 | 67 |
+| **400** | **22** | **18** | **83** |
+| 600 | 19 | 17 | 83 |
+| 900 | 19 | 16 | 100 |
+
+Kolminkertainen määrä kahdeksan prosentin hinnalla. `PerfTracker` pudottaa
+määrää jos ruutunopeus ei riitä, joten tämä on yläraja eikä lupaus.
+
+#### Sivutuotteena tarkempi kenttä
+
 
 - **Koko budjetti näkyy.** Ennen partikkelit arvottiin 15 % näkymää
   laajemmalta laatikolta, eli **41 % niistä oli aina ruudun
