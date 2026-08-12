@@ -587,6 +587,38 @@ entisen paikkansa nopeutta pari ruutua, ja jos se oli alle 0,3 m/s, se ei
 liiku lainkaan. Ja **arpoo iän** kun siirto on iso, jottei koko kenttä
 kuolisi samalla ruudulla viiden sekunnin päästä.
 
+#### Ja kerran vielä eleen lopussa — mittaamalla
+
+Ruutukohtainen tasaus yksin ei riitä, koska se **laahaa**: jokainen kierros
+levittää partikkelit siihen näkymään joka on sillä hetkellä, ja ulos
+zoomatessa se on vielä pieni. Lopputulos on tasaisempi kuin ilman mitään,
+mutta yhä selvästi kasassa.
+
+Mittarina on partikkelien paikkajakauman hajonta 6×6 ruudukossa
+suhteutettuna siihen mitä **satunnainen sijoittelu itse tuottaa**
+(Poisson-raja √(36/n)). Arvo 1,0 tarkoittaa "yhtä tasainen kuin arvottu";
+lepotila mittaa 1,04–1,10, eli se on se mihin pyritään. Kolme ajoa per
+vaihtoehto:
+
+| kertatasaus eleen lopussa | lepo | zoom ulos 1 | nipistys ulos 3 |
+|---|---|---|---|
+| ei mitään | 1,10 | **1,40** | **1,42** |
+| suorakulmio eleen alkutilaa vasten | 1,05 | 1,37 | 1,24 |
+| **4×4 ruudukko, mitattu jakauma** | 1,04 | **1,16** | **1,08** |
+
+`Tiheys.tasaaRuudukko()` jakaa näkymän 4×4 ruudukkoon, laskee montako
+partikkelia kussakin on ja siirtää liian täysistä ruuduista ylimäärän.
+**Se ei nojaa historiaan lainkaan**, ja juuri siksi se toimii molemmissa
+eleissä: suorakulmiovertailu eleen alkutilaa vasten korjaa nipistyksen
+(jossa tasaus laahaa) mutta ylikorjaa animoidun zoomin (jossa ei laahaa,
+koska Leaflet hyppää maaliin heti).
+
+Kokeiltiin myös **koko kentän nollaamista** ulos zoomatessa, kuten Windy
+näyttäisi tekevän. Se on tasaisin (1,02) mutta canvas tyhjenee hetkeksi:
+mustetta 494 vs. 1552 kohdassa +150 ms, eli takaisin se sama viive josta
+koko urakka alkoi. Ruudukkotasaus antaa lähes saman tasaisuuden ilman
+kuoppaa ja säilyttää tiheyden (123 näkyvissä vs. nollauksen 111).
+
 ### Kolme mitattua korjausta
 
 1. **`SpatialIndex.nearby()` sai yhden alkion muistin.** Tulos riippuu vain
