@@ -552,72 +552,90 @@ oma virhe (kontrollimittaus antaa saman luvun ilman canvasia).
 otoksesta: raahauksessa, zoomissa, nipistyksessä ja heti eleiden jälkeen
 **0 jäätynyttä ruutua** — aiemmin zoomissa niitä oli 12 peräkkäin.
 
-#### Tiheys tasataan joka ruudussa
+#### Tiheys ei ole ylläpidettävä asia vaan määritelmä
 
-Kenttä oli oikeassa paikassa mutta väärässä tiheydessä. Ulos zoomatessa
-kaikki partikkelit jäivät ryppääksi ruudun keskelle, koska mikään ei
-levittänyt niitä uudelle alueelle: mitattuna **32 ruutulohkoa 36:sta oli
-tyhjänä heti eleen jälkeen**, 23 vielä sekunnin kuluttua, ja luonnollinen
-uusiutuminen (`DROP_RATE` + ikäraja) vei siitä noin viisi sekuntia.
-Windyssä kenttä on täynnä heti kun sormi nousee.
+Tässä meni kolme kierrosta väärään suuntaan, ja kannattaa tietää miksi.
 
-`Tiheys.tasaa()` vertaa nykyistä näkymää edelliseen ruutuun ja siirtää
-leikkausalueelta pois sen määrän joka ylittää tasaisen tiheyden:
+Partikkelit elivät **lat/lng-koordinaateissa**. Ajatus on houkutteleva —
+partikkeli "on" kartalla — mutta se tekee tiheydestä näkymän funktion:
+ulos zoomatessa sama joukko kattaa kahdeksasosan ruudusta, eikä mikään
+palauta sitä. Mitattuna kolmen zoom-tason nipistys jätti 32 ruutulohkoa
+36:sta tyhjäksi, ja luonnollinen uusiutuminen vei siitä viisi sekuntia.
 
-```
-ihanne   = partikkeleita × leikkauksen ala / näkymän ala
-ylimäärä = leikkauksessa olevat − ihanne
-```
+Sitä paikattiin kolmella perättäisellä koneistolla — ruutukohtainen
+pinta-alasääntö, sama sääntö leikkauksen sisältä laskettuna, ja lopuksi
+kertatasaus 4×4 ruudukolla eleen lopussa. Jokainen paransi mittaria,
+eikä yksikään korjannut syytä. Paras niistä jäi 1,16–1,42-kertaiseksi
+satunnaisjakaumaan nähden.
 
-- **Ulos zoomatessa** koko kenttä on leikkauksessa mutta ihanne on murto-osa:
-  kolme zoom-tasoa siirtää seitsemän kahdeksasosaa. Mitattuna tyhjiä
-  lohkoja **32/36 → 2/36**, ja sekunnin kuluttua 1/36 — sama kuin
-  lepotilassa.
-- **Sisään zoomatessa** ylimäärää ei ole. Tiheys korjautuu itsestään, koska
-  silmukka arpoo uudelleen näkymän ulkopuolelle jääneet.
-- **Raahauksessa ylimäärä on nolla**, koska leikkauksessa on jo valmiiksi
-  oikea tiheys ja pois vierineet hoitaa rajatarkistus. Tämä ero on syy
-  laskea ylimäärä leikkauksen sisällä olevista eikä koko kentästä: pelkkä
-  pinta-alaosuus arpoisi raahauksessa turhaan ~2 % kentästä joka ruudussa,
-  eli lyhentäisi jälkiä juuri silloin kun karttaa liikutetaan. Mitattu
-  keski-ikä pysyy: lepo 208, raahaus 154 (pelkkä rajatarkistus), jälkeen 211.
+**Partikkeli on nyt ruutupiste (x, y).** Silloin tasainen tiheys ei ole
+ylläpidettävä asia vaan määritelmä: uusi partikkeli arvotaan tasaisesti
+ruudulta. Tuuli haetaan kääntämällä ruutupiste koordinaatiksi — yksi
+kerto- ja yhteenlasku suuntaa kohti. Sama rakenne on Cameron Beccarion
+`earth`-projektissa ja siitä johdetuissa (Windy, leaflet-velocity).
 
-`respawn()` myös **näytteistää tuulen heti** — ilman sitä partikkeli kantaa
-entisen paikkansa nopeutta pari ruutua, ja jos se oli alle 0,3 m/s, se ei
-liiku lainkaan. Ja **arpoo iän** kun siirto on iso, jottei koko kenttä
-kuolisi samalla ruudulla viiden sekunnin päästä.
+Koko tasauskoneisto poistui. Tilalle jäi yksi sääntö:
 
-#### Ja kerran vielä eleen lopussa — mittaamalla
+> **Canvasin sisältö ja partikkelit ovat aina samassa ruudustossa.**
 
-Ruutukohtainen tasaus yksin ei riitä, koska se **laahaa**: jokainen kierros
-levittää partikkelit siihen näkymään joka on sillä hetkellä, ja ulos
-zoomatessa se on vielä pieni. Lopputulos on tasaisempi kuin ilman mitään,
-mutta yhä selvästi kasassa.
+Kun bittikarttaa muunnetaan `(s, tx, ty)`:llä, samat luvut ajetaan
+partikkeleille (`siirraPartikkelit`). Ruutukoordinaateissa myös se mitä
+näkymän muutos vaatii on eksakti eikä arvio: edellinen ruutu on nyt
+suorakulmio `[tx, ty, tx+sW, ty+sH]`, paljastunut alue on ruutu miinus
+se, ja sinne kuuluu `N × paljastunutAla / ala` partikkelia. Ne otetaan
+ensin niistä jotka valuivat reunan yli.
 
-Mittarina on partikkelien paikkajakauman hajonta 6×6 ruudukossa
-suhteutettuna siihen mitä **satunnainen sijoittelu itse tuottaa**
-(Poisson-raja √(36/n)). Arvo 1,0 tarkoittaa "yhtä tasainen kuin arvottu";
-lepotila mittaa 1,04–1,10, eli se on se mihin pyritään. Kolme ajoa per
-vaihtoehto:
+Tästä seuraa oikea käytös kaikissa eleissä ilman erikoistapauksia:
 
-| kertatasaus eleen lopussa | lepo | zoom ulos 1 | nipistys ulos 3 |
-|---|---|---|---|
-| ei mitään | 1,10 | **1,40** | **1,42** |
-| suorakulmio eleen alkutilaa vasten | 1,05 | 1,37 | 1,24 |
-| **4×4 ruudukko, mitattu jakauma** | 1,04 | **1,16** | **1,08** |
+- **Raahauksessa** reunan yli valuneiden määrä on tasan se minkä
+  paljastunut kaista tarvitsee, joten ylimääräisiä ei siirretä eivätkä
+  jäljet lyhene.
+- **Ulos zoomatessa** reunan yli ei valu ketään ja kehä saa `N(1−s²)`
+  partikkelia — tasan se määrä joka pitää tiheyden ennallaan.
+- **Sisään zoomatessa** paljastunutta alaa ei ole, ja reunan yli menneet
+  arvotaan tasaisesti koko ruudulle.
 
-`Tiheys.tasaaRuudukko()` jakaa näkymän 4×4 ruudukkoon, laskee montako
-partikkelia kussakin on ja siirtää liian täysistä ruuduista ylimäärän.
-**Se ei nojaa historiaan lainkaan**, ja juuri siksi se toimii molemmissa
-eleissä: suorakulmiovertailu eleen alkutilaa vasten korjaa nipistyksen
-(jossa tasaus laahaa) mutta ylikorjaa animoidun zoomin (jossa ei laahaa,
-koska Leaflet hyppää maaliin heti).
+Kaksi kohtaa joihin kompastuin ja jotka mittaus paljasti:
 
-Kokeiltiin myös **koko kentän nollaamista** ulos zoomatessa, kuten Windy
-näyttäisi tekevän. Se on tasaisin (1,02) mutta canvas tyhjenee hetkeksi:
-mustetta 494 vs. 1552 kohdassa +150 ms, eli takaisin se sama viive josta
-koko urakka alkoi. Ruudukkotasaus antaa lähes saman tasaisuuden ilman
-kuoppaa ja säilyttää tiheyden (123 näkyvissä vs. nollauksen 111).
+- **Siirrettävät on otettava kutistuneen laatikon sisältä**, ei mistä
+  tahansa. Muuten osa osumista menee jo valmiiksi paljastuneelle
+  alueelle, laatikko jää liian tiheäksi ja kehä liian täyteen —
+  nipistyksessä kenttä jäi kaksi kertaa epätasaisemmaksi kuin
+  satunnaisjakauma.
+- **Täydennys ei saa arpoa takaisinpanolla.** 118 arvontaa 120
+  partikkelista osuu vain noin 75 eri partikkeliin, joten loput jäävät
+  paikalleen. Sama oire, sama mittaustulos.
+
+**Mitattu (CV/Poisson, 1,0 = yhtä tasainen kuin arvottu):**
+
+| ele | ennen | nyt |
+|---|---|---|
+| lepo | 1,10 | 1,11–1,29 |
+| zoom ulos 1 taso | 1,40 | **0,89–1,19** |
+| zoom ulos 3 tasoa | — | **0,92–1,14** |
+| nipistys ulos | 1,42 | **0,92–1,25** |
+| raahaus | — | **0,97–1,13** |
+
+Tyhjiä ruutulohkoja on 0 kaikissa eleissä 400 ms:n kuluttua, ja
+peittävyys 100 % koko ajan.
+
+#### Sivutuotteena tiheämpi ja tarkempi kenttä
+
+- **Koko budjetti näkyy.** Ennen partikkelit arvottiin 15 % näkymää
+  laajemmalta laatikolta, eli **41 % niistä oli aina ruudun
+  ulkopuolella**. Nyt näkyvissä on 96–100 %. Sama partikkelimäärä piirtää
+  1,7-kertaisen tiheyden: mitattu muste 2100–2600 → **3100–4700**.
+- **Piirto on tarkkaa.** Ennen jokainen partikkeli projisoitiin
+  `GeoProject`in lineaarisella approksimaatiolla, joka heitti z10:llä
+  ~5 px. Nyt approksimaatio vaikuttaa vain siihen mistä kohtaa tuuli
+  luetaan, ei siihen mihin viiva piirtyy.
+- **Ikäraja pitää jäljet tasapituisina.** Ennen ikä katkaisi vain
+  heikossa tuulessa olevat, joten kovassa tuulessa partikkeli eli kunnes
+  osui reunaan. Nyt `MAX_AGE` koskee kaikkia.
+- **Halvempi.** Silmukasta poistui projektio ja kosini partikkelia kohti;
+  nopeuskertoimet lasketaan kerran ruudussa. Mitattu 4× kuristuksella,
+  DPR 3: lepo 24, veto 22, nipistys 15–16 fps — eli ennallaan tai hitusen
+  parempi, ja se puolitoistakertaisella määrällä näkyviä partikkeleita.
 
 ### Kolme mitattua korjausta
 

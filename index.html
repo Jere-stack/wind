@@ -2095,6 +2095,7 @@ const Config = {
   GEO_SPEED: 0.003,
   WIND_SAMPLE_INTERVAL: 2,
   FADE_OPACITY: 0.94,
+  MAX_AGE: 300,
   DROP_RATE: 0.003,
   DROP_RATE_BUMP: 0.008,
   DATA_REFRESH_MS: 60 * 60 * 1000,
@@ -2791,6 +2792,7 @@ const State = {
   refreshTimer: null,
   sheetSpot: null,
   _dragZooming: false,
+  vw: 0, vh: 0,   /* näkymän koko CSS-pikseleinä — partikkelit ovat ruutukoordinaateissa */
   _tlTimes: null, _tlSpeeds: null, _tlDirs: null, _tlTicks: [],
   _spotTaydetAvain: '',   /* mitkä spotit saivat täyden merkin viime piirrossa */
   _lastTlHour: -1,
@@ -3014,9 +3016,6 @@ function initMap() {
     if (State.windCtx) KanvasSiirto.paista(map, State.windCtx, State.dpr, State.windCvs);
     if (State._dragZooming) return;
     const newZoom = map.getZoom();
-    /* Ele on ohi: tasataan kenttä kerran mittaamalla. */
-    GeoProject.update(map);
-    Tiheys.tasaaRuudukko(GeoProject.b, State.particles);
     if (newZoom !== _prevZoom) {
       /* Pelkkä koon ja nimikyltin päivitys riittää, ja vain se voi animoitua.
          Täysi renderSpots() tarvitaan vasta kun ylitetään raja jolla merkin
@@ -3067,6 +3066,7 @@ function initCanvases() {
 
 function resizeCanvases() {
   const w = window.innerWidth, h = window.innerHeight, dpr = State.dpr;
+  State.vw = w; State.vh = h;
   const cvs = State.windCvs;
   cvs.width = w * dpr; cvs.height = h * dpr;
   cvs.style.width = w + 'px'; cvs.style.height = h + 'px';
@@ -3521,30 +3521,12 @@ function nParticlesBase() {
 }
 function nParticles() { return PerfTracker.getTarget(); }
 function particleLineWidth(ms) { return 2.0 + (ms / Config.MAX_MS) * 2.2; }
-function rndGeo() {
-  /* Sama näkymä johon silmukka piirtää — ks. GeoProject. */
-  const b = GeoProject._valid ? GeoProject.b : null;
-  if (b) {
-    const pad = 0.15, ls = b.n - b.s, gs = b.e - b.w;
-    return { lat: b.s-ls*pad+Math.random()*ls*(1+pad*2), lng: b.w-gs*pad+Math.random()*gs*(1+pad*2) };
-  }
-  const m = State.map;
-  if (m) {
-    const q = m.getBounds(), pad = 0.15, ls = q.getNorth()-q.getSouth(), gs = q.getEast()-q.getWest();
-    return { lat: q.getSouth()-ls*pad+Math.random()*ls*(1+pad*2), lng: q.getWest()-gs*pad+Math.random()*gs*(1+pad*2) };
-  }
-  return { lat: 58 + Math.random() * 12, lng: 18 + Math.random() * 13 };
-}
-
-/* Ruutuprojektio, jota partikkelisilmukka käyttää. Myös näkymän rajat ja
-   zoom otetaan talteen tässä: silmukan on nähtävä kartta yhtenä
-   johdonmukaisena tilana. Zoom-animaation aikana Leaflet on jo maalissa
-   vaikka kuva on lähdössä, ja jos rajat luettaisiin silloin suoraan
-   kartalta, partikkelit syntyisivät uudelleen eri projektiossa kuin missä
-   ne piirretään. */
+/* Ruutuprojektio: näkymän kulmat kerran, sitten kerto- ja yhteenlasku.
+   Zoom otetaan talteen tässä, koska silmukan on nähtävä kartta yhtenä
+   johdonmukaisena tilana — zoom-animaation aikana Leaflet on jo maalissa
+   vaikka kuva on vasta lähdössä. */
 const GeoProject = {
-  _ox: 0, _oy: 0, _sx: 1, _sy: 1, _valid: false,
-  b: null, zoom: 0, latPad: 0, lngPad: 0,
+  _ox: 0, _oy: 0, _sx: 1, _sy: 1, _valid: false, zoom: 0,
   update(map) {
     const b = map.getBounds();
     const nw = map.latLngToContainerPoint(b.getNorthWest());
@@ -3553,9 +3535,6 @@ const GeoProject = {
     this._sx = (se.x - nw.x) / (b.getEast() - b.getWest());
     this._sy = (se.y - nw.y) / (b.getSouth() - b.getNorth());
     this._west = b.getWest(); this._north = b.getNorth();
-    this.b = { s: b.getSouth(), n: b.getNorth(), w: b.getWest(), e: b.getEast() };
-    this.latPad = (this.b.n - this.b.s) * 0.2;
-    this.lngPad = (this.b.e - this.b.w) * 0.2;
     this.zoom = map.getZoom();
     this._valid = true;
   },
@@ -3565,16 +3544,46 @@ const GeoProject = {
   invalidate() { this._valid = false; }
 };
 
-function geo2px(lat, lng) {
-  if (GeoProject._valid) return GeoProject.project(lat, lng);
-  const pt = State.map.latLngToContainerPoint(L.latLng(lat, lng));
-  return { x: pt.x, y: pt.y };
+/* -- PARTIKKELIT OVAT RUUTUPISTEITÄ ------------------------------ */
+/* Partikkelit elivät pitkään lat/lng-koordinaateissa. Ajatus on
+   houkutteleva — partikkeli "on" kartalla — mutta se tekee tiheydestä
+   näkymän funktion: ulos zoomatessa sama joukko kattaa kahdeksasosan
+   ruudusta, eikä mikään palauta sitä. Sitä paikattiin kolmella
+   perättäisellä koneistolla, ja jokainen niistä oli oire samasta
+   perusvirheestä.
+
+   Nyt partikkeli on ruutupiste (x, y). Tasainen tiheys ei ole enää
+   ylläpidettävä asia vaan määritelmä: uusi partikkeli arvotaan
+   tasaisesti ruudulta. Tuuli haetaan kääntämällä ruutupiste
+   koordinaatiksi — yksi kerto- ja yhteenlasku suuntaa kohti. Sama
+   rakenne on Cameron Beccarion earth-projektissa ja siitä johdetuissa
+   (Windy, leaflet-velocity).
+
+   Kaksi seurausta jotka näkyvät suoraan:
+
+   - **Koko budjetti näkyy.** Ennen partikkelit arvottiin 15 % näkymää
+     laajemmalta laatikolta, eli 41 % niistä oli aina ruudun
+     ulkopuolella. Sama määrä piirtää nyt 1,7-kertaisen tiheyden.
+   - **Piirto on tarkkaa.** Ennen jokainen partikkeli projisoitiin
+     lineaarisella approksimaatiolla, joka heitti z10:llä ~5 px. Nyt
+     approksimaatio vaikuttaa vain siihen mistä kohtaa tuuli luetaan,
+     ei siihen mihin viiva piirtyy.
+
+   Yksi sääntö pitää tämän kasassa: **canvasin sisältö ja partikkelit
+   ovat aina samassa ruudustossa.** Kun bittikarttaa muunnetaan, samat
+   luvut ajetaan partikkeleille — ks. KanvasSiirto._muunna. */
+function naytteista(p) {
+  const G = GeoProject;
+  const lat = G._north + (p.y - G._oy) / G._sy;
+  const lng = G._west  + (p.x - G._ox) / G._sx;
+  const w = WindTexture.sampleWind(lat, lng);
+  p.u = w.u; p.v = w.v; p.ms = w.ms;
 }
 function makeParticle(rAge) {
-  const g = rndGeo();
-  return { lat: g.lat, lng: g.lng, plat: g.lat, plng: g.lng, vlat: 0, vlng: 0, u: 0, v: 0, ms: 0,
-    sampleTimer: Math.floor(Math.random() * Config.WIND_SAMPLE_INTERVAL),
-    age: rAge ? Math.floor(Math.random() * 320) : 0 };
+  const p = { x: 0, y: 0, px: 0, py: 0, vx: 0, vy: 0, u: 0, v: 0, ms: 0, sampleTimer: 0, age: 0 };
+  respawn(p, rAge);
+  p.sampleTimer = Math.floor(Math.random() * Config.WIND_SAMPLE_INTERVAL);
+  return p;
 }
 /* resetParticles(kova)
  *
@@ -3601,7 +3610,6 @@ function resetParticles(kova) {
     State.particles = [];
     if (windCvs) KanvasSiirto._poistaCss(windCvs);
     KanvasSiirto.nollaa(State.map);
-    Tiheys.nollaa();
   }
   /* Mittauskytkin pitää partikkelit poissa myös kun kenttä ladataan uusiksi */
   if (State._perfNoParticles) { State.particles = []; return; }
@@ -3612,133 +3620,135 @@ function resetParticles(kova) {
 function sampleWind(p) {
   p.sampleTimer++; if (p.sampleTimer < Config.WIND_SAMPLE_INTERVAL) return;
   p.sampleTimer = 0;
-  const w = WindTexture.sampleWind(p.lat, p.lng); p.u = w.u; p.v = w.v; p.ms = w.ms;
+  naytteista(p);
 }
-/* respawn(p, arvoIka)
+
+/* respawn(p, arvoIka, alue)
+ *
+ * Arvonta on tasainen ruudulla — siinä koko tiheydenhallinta.
+ *
+ * alue rajaa arvonnan yhteen suorakulmioon. Sitä käytetään kun näkymä on
+ * juuri paljastanut uutta aluetta: silloin uudet partikkelit kuuluvat
+ * sinne eivätkä minne tahansa (ks. Reunatasaus).
  *
  * Tuuli näytteistetään heti. Ilman sitä partikkeli kantaisi entisen
  * paikkansa nopeutta pari ruutua — ja jos se oli alle 0,3 m/s, se ei
  * liikkuisi lainkaan ennen seuraavaa näytettä.
  *
- * arvoIka arpoo iän. Sitä käytetään kun partikkeleita siirretään paljon
- * kerralla (näkymän muutos): jos ne kaikki syntyisivät nollaikäisinä, ne
- * myös kuolisivat samalla ruudulla noin viiden sekunnin päästä, ja kenttä
- * sykkisi. */
-function respawn(p, arvoIka) {
-  const g = rndGeo(); p.lat = g.lat; p.lng = g.lng; p.plat = g.lat; p.plng = g.lng;
-  p.vlat = 0; p.vlng = 0;
-  p.age = arvoIka ? Math.floor(Math.random() * 320) : 0;
+ * arvoIka arpoo iän. Jos suuri joukko syntyisi nollaikäisinä, se myös
+ * kuolisi samalla ruudulla viiden sekunnin päästä ja kenttä sykkisi. */
+function respawn(p, arvoIka, alue) {
+  if (alue) {
+    p.x = alue[0] + Math.random() * (alue[2] - alue[0]);
+    p.y = alue[1] + Math.random() * (alue[3] - alue[1]);
+  } else {
+    p.x = Math.random() * State.vw;
+    p.y = Math.random() * State.vh;
+  }
+  p.px = p.x; p.py = p.y;
+  p.vx = 0; p.vy = 0;
+  p.age = arvoIka ? (Math.random() * Config.MAX_AGE) | 0 : 0;
   p.sampleTimer = 0;
-  const w = WindTexture.sampleWind(p.lat, p.lng); p.u = w.u; p.v = w.v; p.ms = w.ms;
+  naytteista(p);
 }
 
-/* -- TIHEYDEN TASAUS -------------------------------------------- */
-/* Kun näkymä muuttuu, partikkelit ovat väärässä paikassa tiheytenä
-   mitattuna: ulos zoomatessa koko kenttä on yhtenä ryppäänä ruudun
-   keskellä ja loput kartasta on tyhjää. Mitattuna kolmen zoom-tason
-   nipistys jätti 32 ruutulohkoa 36:sta tyhjäksi, ja luonnollinen
-   uusiutuminen (DROP_RATE + ikäraja) vei siitä noin viisi sekuntia.
-   Windyssä kenttä on täynnä heti kun sormi nousee.
+/* -- REUNATASAUS ------------------------------------------------- */
+/* Kun näkymä liikkuu, ruudulle paljastuu alue jota ei ollut äsken:
+   raahauksessa kaista reunasta, ulos zoomatessa kehys joka puolelta.
+   Se alue tarvitsee oman osuutensa partikkeleista — ei enempää eikä
+   vähempää.
+   
+   Ruutukoordinaateissa tämä on eksakti eikä arvio. Kun muunnos on
+   (s, tx, ty), edellinen ruutu on nyt suorakulmio [tx, ty, tx+s*W,
+   ty+s*H]. Paljastunut alue on ruutu miinus se — enintään neljä
+   suorakulmiota. Jos tiheys on d = N/ala, uudelle alueelle kuuluu
+   d * paljastunutAla partikkelia, ja ne otetaan ensisijaisesti niistä
+   jotka valuivat ruudun ulkopuolelle.
 
-   Sääntö: katsotaan sitä osaa näkymästä joka oli näkyvissä myös
-   edellisessä ruudussa (leikkaus), ja siirretään sieltä pois se määrä
-   joka ylittää tasaisen tiheyden.
+   Siksi tämä on oikein kaikissa eleissä ilman erikoistapauksia:
 
-     ihanne     = partikkeleita * leikkauksen ala / näkymän ala
-     ylimäärä   = leikkauksessa olevat - ihanne
+   - Raahauksessa ulos valuneiden määrä on tasan se minkä paljastunut
+     kaista tarvitsee, joten ylimääräisiä ei siirretä eivätkä jäljet
+     lyhene.
+   - Ulos zoomatessa ulos ei valu ketään, ja kehys saa N*(1-s²)
+     partikkelia — tasan se määrä joka pitää tiheyden ennallaan.
+   - Sisään zoomatessa paljastunutta alaa ei ole, ja reunan yli menneet
+     arvotaan tasaisesti koko ruudulle.
 
-   Ylimäärä on tarkalleen se mikä pitää siirtää — ei enempää:
+   Mitään ei siis tarvitse mitata jälkikäteen eikä korjata eleen
+   lopussa. */
+const Reunatasaus = {
+  r: [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]],
+  n: 0, ala: 0,
 
-   - Ulos zoomatessa koko kenttä on leikkauksessa mutta ihanne on murto-osa
-     siitä. Kolme zoom-tasoa kerralla siirtää seitsemän kahdeksasosaa, eli
-     juuri sen minkä tasainen tiheys vaatii.
-   - Sisään zoomatessa leikkaus on koko uusi näkymä, ihanne on kaikki
-     partikkelit, eikä ylimäärää ole. Tiheys korjautuu itsestään, koska
-     silmukka arpoo uudelleen ne jotka jäivät näkymän ulkopuolelle.
-   - Raahauksessa ylimäärä on nolla: leikkauksessa on jo valmiiksi
-     tasainen tiheys, ja pois vierineet hoitaa silmukan rajatarkistus.
-     Ilman tätä erottelua raahaus arpoisi turhaan noin 2 % kentästä joka
-     ruudussa, eli jäljet lyhenisivät juuri silloin kun karttaa liikutetaan.
-   - Paikallaan ei tapahdu mitään.
-
-   Tämä ajetaan joka ruudussa eikä vain eleen lopussa, jotta kenttä on
-   tasainen myös eleen aikana. */
-const Tiheys = {
-  b: null,
-  tasaa(nyt, hiukkaset) {
-    const e = this.b;
-    this.b = nyt;
-    if (!e || !nyt || !hiukkaset.length) return 0;
-    const lw = Math.min(e.e, nyt.e) - Math.max(e.w, nyt.w);
-    const lh = Math.min(e.n, nyt.n) - Math.max(e.s, nyt.s);
-    if (!(lw > 0) || !(lh > 0)) return 0;   /* ei yhteistä aluetta — silmukan rajatarkistus hoitaa */
-    const ala = (nyt.e - nyt.w) * (nyt.n - nyt.s);
-    if (!(ala > 0)) return 0;
-    const w = Math.max(e.w, nyt.w), i = Math.min(e.e, nyt.e);
-    const s = Math.max(e.s, nyt.s), n = Math.min(e.n, nyt.n);
-    let sisalla = 0;
-    for (let k = 0; k < hiukkaset.length; k++) {
-      const q = hiukkaset[k];
-      if (q.lng >= w && q.lng <= i && q.lat >= s && q.lat <= n) sisalla++;
-    }
-    const ylimaara = sisalla - hiukkaset.length * (lw * lh) / ala;
-    if (!(ylimaara > 0.5)) return 0;
-    const p = ylimaara / sisalla;
-    let siirretty = 0;
-    for (let k = 0; k < hiukkaset.length; k++) {
-      const q = hiukkaset[k];
-      if (q.lng >= w && q.lng <= i && q.lat >= s && q.lat <= n && Math.random() < p) {
-        respawn(q, true); siirretty++;
-      }
-    }
-    return siirretty;
+  /* Paljastunut alue suorakulmioina, kun edellinen ruutu on nyt
+     (vx0,vy0)-(vx1,vy1). */
+  laske(vx0, vy0, vx1, vy1, W, H) {
+    this.n = 0; this.ala = 0;
+    const x0 = Math.max(0, Math.min(W, vx0)), x1 = Math.max(0, Math.min(W, vx1));
+    const y0 = Math.max(0, Math.min(H, vy0)), y1 = Math.max(0, Math.min(H, vy1));
+    if (!(x1 > x0) || !(y1 > y0)) { this._lisaa(0, 0, W, H); return; }
+    this._lisaa(0,  0,  W,  y0);   /* ylä    */
+    this._lisaa(0,  y1, W,  H);    /* ala    */
+    this._lisaa(0,  y0, x0, y1);   /* vasen  */
+    this._lisaa(x1, y0, W,  y1);   /* oikea  */
   },
-
-  /* Kertatasaus eleen lopussa.
-   *
-   * Ruutukohtainen tasaus pitää kentän täytenä eleen aikana mutta laahaa:
-   * jokainen kierros levittää partikkelit siihen näkymään joka on sillä
-   * hetkellä, ja nipistyksessä ulos se on vielä pieni. Lopputulos on
-   * mitattuna 1,3-kertaa epätasaisempi kuin satunnaisjakauma.
-   *
-   * Tämä ei nojaa historiaan lainkaan vaan mittaa todellisen jakauman:
-   * näkymä jaetaan 4×4 ruudukkoon ja liian täysistä ruuduista siirretään
-   * ylimäärä. Siksi se ei voi yli- eikä alikorjata sen mukaan mitä eleen
-   * aikana sattui tapahtumaan — ja siksi se kelpaa sekä nipistykseen
-   * (jossa tasaus laahaa) että animoituun zoomiin (jossa se ei laahaa).
-   *
-   * Siirto säilyttää partikkelien määrän, joten tiheys ei laske: vain
-   * paikat vaihtuvat. */
-  tasaaRuudukko(b, hiukkaset) {
-    if (!b || hiukkaset.length < 32) return 0;
-    const N = 4, lw = b.e - b.w, lh = b.n - b.s;
-    if (!(lw > 0) || !(lh > 0)) return 0;
-    const laskuri = new Int32Array(N * N);
-    const ruutu = new Int8Array(hiukkaset.length).fill(-1);
-    let sisalla = 0;
-    for (let i = 0; i < hiukkaset.length; i++) {
-      const q = hiukkaset[i];
-      if (q.lat < b.s || q.lat > b.n || q.lng < b.w || q.lng > b.e) continue;
-      const gx = Math.min(N - 1, ((q.lng - b.w) / lw * N) | 0);
-      const gy = Math.min(N - 1, ((b.n - q.lat) / lh * N) | 0);
-      const k = gy * N + gx;
-      ruutu[i] = k; laskuri[k]++; sisalla++;
-    }
-    if (sisalla < N * N * 2) return 0;
-    const tavoite = sisalla / (N * N);
-    let siirretty = 0;
-    for (let i = 0; i < hiukkaset.length; i++) {
-      const k = ruutu[i];
-      if (k < 0) continue;
-      const yli = laskuri[k] - tavoite;
-      if (yli > 0 && Math.random() < yli / laskuri[k]) { respawn(hiukkaset[i], true); siirretty++; }
-    }
-    return siirretty;
+  _lisaa(x0, y0, x1, y1) {
+    const a = (x1 - x0) * (y1 - y0);
+    if (!(a > 0)) return;
+    const r = this.r[this.n++];
+    r[0] = x0; r[1] = y0; r[2] = x1; r[3] = y1; r[4] = a;
+    this.ala += a;
   },
-
-  nollaa() { this.b = null; }
+  /* Arpoo yhden paljastuneista suorakulmioista pinta-alan suhteessa. */
+  alue() {
+    if (!this.n) return null;
+    let k = Math.random() * this.ala;
+    for (let i = 0; i < this.n; i++) { k -= this.r[i][4]; if (k <= 0) return this.r[i]; }
+    return this.r[this.n - 1];
+  }
 };
 
+/* Ajetaan aina kun bittikarttaa muunnetaan: partikkelit samaan
+   muunnokseen, ja paljastunut alue täytetään. */
+function siirraPartikkelit(s, tx, ty) {
+  const hiuk = State.particles, W = State.vw, H = State.vh;
+  if (!hiuk.length) return;
+  const vx0 = tx, vy0 = ty, vx1 = tx + s * W, vy1 = ty + s * H;
+  Reunatasaus.laske(vx0, vy0, vx1, vy1, W, H);
+  const tarve = Math.round(hiuk.length * Reunatasaus.ala / (W * H));
+  let siirretty = 0, laatikossa = 0;
+
+  for (let i = 0; i < hiuk.length; i++) {
+    const p = hiuk[i];
+    p.x = s * p.x + tx;  p.y = s * p.y + ty;
+    p.px = s * p.px + tx; p.py = s * p.py + ty;
+    if (p.x < 0 || p.x > W || p.y < 0 || p.y > H) {
+      /* Reunan yli valuneet menevät sinne minne uutta alaa paljastui. */
+      respawn(p, true, siirretty < tarve ? Reunatasaus.alue() : null);
+      siirretty++;
+    } else if (p.x >= vx0 && p.x <= vx1 && p.y >= vy0 && p.y <= vy1) {
+      laatikossa++;
+    }
+  }
+
+  /* Ulos zoomatessa kukaan ei valu reunan yli: ylimäärä on kutistuneen
+     laatikon sisällä, ja se on myös ainoa paikka josta siirtää saa. Jos
+     siirrettävät arvottaisiin koko kentästä, osa osuisi jo valmiiksi
+     paljastuneelle alueelle — laatikko jäisi liian tiheäksi ja kehä
+     kasvaisi liian täyteen. Mitattuna nipistys jätti kentän kaksi kertaa
+     epätasaisemmaksi kuin satunnaisjakauma juuri siitä syystä. */
+  const vaje = tarve - siirretty;
+  if (vaje > 0 && laatikossa > 0) {
+    const osuus = vaje / laatikossa;
+    for (let i = 0; i < hiuk.length; i++) {
+      const p = hiuk[i];
+      if (p.x >= vx0 && p.x <= vx1 && p.y >= vy0 && p.y <= vy1 && Math.random() < osuus) {
+        respawn(p, true, Reunatasaus.alue());
+      }
+    }
+  }
+}
 
 /* -- PARTIKKELIT PYSYVÄT KARTALLA JA JATKAVAT LIIKETTÄÄN ---------- */
 /* Ensin partikkelit jäädytettiin eleen ajaksi ja canvas himmennettiin.
@@ -3805,10 +3815,14 @@ const KanvasSiirto = {
     this._jx = 0; this._jy = 0;
   },
 
+  /* Sisältö heitetään pois, joten myös partikkelit arvotaan uudelleen:
+     ruudusto vaihtui eikä vanhoilla paikoilla ole enää merkitystä. */
   _tyhjenna(ctx, dpr, cvs) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, cvs.width, cvs.height);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const hiuk = State.particles;
+    for (let i = 0; i < hiuk.length; i++) respawn(hiuk[i], true);
   },
 
   _poistaCss(cvs) {
@@ -3841,6 +3855,10 @@ const KanvasSiirto = {
     ctx.globalCompositeOperation = 'source-over';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (haivytys) this.haivytti = true;
+    /* Partikkelit samaan ruudustoon kuin sisältö — tästä yhdestä
+       kutsusta riippuu se, ettei niitä tarvitse tasata jälkikäteen.
+       Siirto annetaan pyöristettynä, samoina pikseleinä kuin kuvalle. */
+    siirraPartikkelit(s, e / dpr, f / dpr);
   },
 
   /* Pelkkä siirto: paistetaan bittikarttaan ja siirretään kiintopiste
@@ -3996,7 +4014,7 @@ function renderLoop(ts) {
   if (State._perfNoParticles) return;
   const { windCtx, windCvs, windField, map, particles, dpr } = State;
   if (!windCtx || !windCvs.width || !windField.length || !map) return;
-  const W = window.innerWidth, H = window.innerHeight;
+  const W = State.vw, H = State.vh;
 
   /* Siirretään jo piirretyt jäljet kartan mukana ja päivitetään projektio.
      Raahauksessa kartta liikkuu joka ruudussa ja projektio seuraa perässä;
@@ -4009,10 +4027,6 @@ function renderLoop(ts) {
   while (particles.length > target) particles.pop();
   while (particles.length < target) particles.push(makeParticle(true));
 
-  /* Pidetään tiheys tasaisena siinä näkymässä johon piirretään. Tämä on
-     se mikä täyttää kartan heti kun näkymä muuttuu. */
-  Tiheys.tasaa(GeoProject.b, particles);
-
   /* Häivytys jää tekemättä vain jos siirtoveto teki sen jo. */
   if (!KanvasSiirto.haivytti) {
     windCtx.globalCompositeOperation = 'destination-in';
@@ -4022,11 +4036,17 @@ function renderLoop(ts) {
   }
   windCtx.lineCap = 'round';
 
-  /* Zoom ja rajat luetaan projektiosta eikä kartalta: ks. GeoProject. */
+  /* Nopeus pikseleinä ruutua kohti. Kertoimet tulevat suoraan
+     projektiosta, joten sama tuuli näyttää yhtä nopealta joka
+     zoom-tasolla — leveysasteen kosini otetaan näkymän keskeltä, koska
+     se muuttuu ruudun mitalla alle prosentin. */
   const zoom = GeoProject.zoom;
   const geoSpd = Config.GEO_SPEED / Math.pow(2, zoom - 5) * (zoom >= 9 ? 0.7 : 1.0);
-  const bounds = GeoProject.b;
-  const latPad = GeoProject.latPad, lngPad = GeoProject.lngPad;
+  const keskiLat = GeoProject._north + (H * 0.5 - GeoProject._oy) / GeoProject._sy;
+  const cosLat = Math.max(0.1, Math.cos(keskiLat * Math.PI / 180));
+  const kx = geoSpd * GeoProject._sx / cosLat;
+  const ky = geoSpd * GeoProject._sy;
+  const hitaus = Config.INERTIA, uutta = 1 - Config.INERTIA;
 
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i];
@@ -4035,26 +4055,21 @@ function renderLoop(ts) {
     const dropChance = Config.DROP_RATE + speedT * Config.DROP_RATE_BUMP;
     if (p.ms < 0.3 || Math.random() < dropChance) {
       p.age++;
-      if (p.age > 300 || Math.random() < dropChance * 0.5) respawn(p);
+      if (p.age > Config.MAX_AGE || Math.random() < dropChance * 0.5) respawn(p);
       continue;
     }
-    p.plat = p.lat; p.plng = p.lng;
-    const cosLat = Math.cos(p.lat * Math.PI / 180);
-    p.vlat = p.vlat * Config.INERTIA + p.v * geoSpd * (1 - Config.INERTIA);
-    p.vlng = p.vlng * Config.INERTIA + (p.u * geoSpd / (cosLat > 0.1 ? cosLat : 0.1)) * (1 - Config.INERTIA);
-    p.lat += p.vlat; p.lng += p.vlng; p.age++;
-    if (p.lat < bounds.s-latPad || p.lat > bounds.n+latPad ||
-        p.lng < bounds.w-lngPad || p.lng > bounds.e+lngPad) { respawn(p); continue; }
-    const prev = geo2px(p.plat, p.plng);
-    const curr = geo2px(p.lat, p.lng);
-    if (curr.x < -10 || curr.x > W+10 || curr.y < -10 || curr.y > H+10) continue;
-    const lw = particleLineWidth(p.ms);
-    const alpha = Math.min(0.9, 0.3 + speedT * 0.6);
+    p.px = p.x; p.py = p.y;
+    p.vx = p.vx * hitaus + p.u * kx * uutta;
+    p.vy = p.vy * hitaus + p.v * ky * uutta;
+    p.x += p.vx; p.y += p.vy; p.age++;
+    /* Ikäraja on se mikä pitää jäljet tasapituisina: ilman sitä kovassa
+       tuulessa oleva partikkeli eläisi kunnes se osuu reunaan. */
+    if (p.age > Config.MAX_AGE || p.x < -4 || p.x > W + 4 || p.y < -4 || p.y > H + 4) { respawn(p); continue; }
     windCtx.beginPath();
-    windCtx.moveTo(prev.x, prev.y);
-    windCtx.lineTo(curr.x, curr.y);
-    windCtx.lineWidth = lw;
-    windCtx.strokeStyle = ColorRamp.css(p.ms, alpha);
+    windCtx.moveTo(p.px, p.py);
+    windCtx.lineTo(p.x, p.y);
+    windCtx.lineWidth = particleLineWidth(p.ms);
+    windCtx.strokeStyle = ColorRamp.css(p.ms, Math.min(0.9, 0.3 + speedT * 0.6));
     windCtx.stroke();
   }
 }
