@@ -2793,6 +2793,10 @@ const State = {
   sheetSpot: null,
   _dragZooming: false,
   vw: 0, vh: 0,   /* näkymän koko CSS-pikseleinä — partikkelit ovat ruutukoordinaateissa */
+  /* Näkyvä alue SISÄLLÖN ruudustossa. Sama kuin ruutu paitsi silloin kun
+     canvasilla on CSS-muunnos: silloin vain osa sisällöstä on ruudulla, ja
+     partikkelit kuuluvat sinne missä ne näkyvät. */
+  alue: { x0: 0, y0: 0, x1: 0, y1: 0 },
   _tlTimes: null, _tlSpeeds: null, _tlDirs: null, _tlTicks: [],
   _spotTaydetAvain: '',   /* mitkä spotit saivat täyden merkin viime piirrossa */
   _lastTlHour: -1,
@@ -3067,6 +3071,7 @@ function initCanvases() {
 function resizeCanvases() {
   const w = window.innerWidth, h = window.innerHeight, dpr = State.dpr;
   State.vw = w; State.vh = h;
+  paivitaAlue(1, 0, 0);
   const cvs = State.windCvs;
   cvs.width = w * dpr; cvs.height = h * dpr;
   cvs.style.width = w + 'px'; cvs.style.height = h + 'px';
@@ -3579,6 +3584,28 @@ function naytteista(p) {
   const w = WindTexture.sampleWind(lat, lng);
   p.u = w.u; p.v = w.v; p.ms = w.ms;
 }
+/* Näkyvä alue sisällön ruudustossa: canvasin CSS-muunnoksen käänteiskuva
+   ruudusta. Ilman tätä sisään nipistettäessä partikkelit arvottaisiin
+   koko sisältöruudustoon, josta vain murto-osa on näkyvissä — mitattuna
+   näkyviä oli pahimmillaan 7 sadastakahdestakymmenestä. */
+function paivitaAlue(s, tx, ty) {
+  const a = State.alue;
+  if (!(s > 0) || (s === 1 && !tx && !ty)) {
+    a.x0 = 0; a.y0 = 0; a.x1 = State.vw; a.y1 = State.vh; return;
+  }
+  a.x0 = -tx / s; a.y0 = -ty / s;
+  a.x1 = (State.vw - tx) / s; a.y1 = (State.vh - ty) / s;
+}
+/* CSS-siirtymän aikana muunnos elää selaimen käsissä, joten näkyvä alue
+   luetaan siltä. Ilman tätä alue hyppäisi maaliin heti ja partikkelit
+   syntyisivät 0,25 s ajan alueelle josta vain murto-osa on ruudulla —
+   mitattuna näkyviä oli hetkellisesti 44 sadastakahdestakymmenestä. */
+function paivitaAlueRuudulta(cvs) {
+  const tr = getComputedStyle(cvs).transform;
+  if (!tr || tr === 'none') { paivitaAlue(1, 0, 0); return; }
+  const m = new DOMMatrixReadOnly(tr);
+  paivitaAlue(m.a, m.e, m.f);
+}
 function makeParticle(rAge) {
   const p = { x: 0, y: 0, px: 0, py: 0, vx: 0, vy: 0, u: 0, v: 0, ms: 0, sampleTimer: 0, age: 0 };
   respawn(p, rAge);
@@ -3610,6 +3637,7 @@ function resetParticles(kova) {
     State.particles = [];
     if (windCvs) KanvasSiirto._poistaCss(windCvs);
     KanvasSiirto.nollaa(State.map);
+    AlueVahti.e = null;
   }
   /* Mittauskytkin pitää partikkelit poissa myös kun kenttä ladataan uusiksi */
   if (State._perfNoParticles) { State.particles = []; return; }
@@ -3642,8 +3670,9 @@ function respawn(p, arvoIka, alue) {
     p.x = alue[0] + Math.random() * (alue[2] - alue[0]);
     p.y = alue[1] + Math.random() * (alue[3] - alue[1]);
   } else {
-    p.x = Math.random() * State.vw;
-    p.y = Math.random() * State.vh;
+    const a = State.alue;
+    p.x = a.x0 + Math.random() * (a.x1 - a.x0);
+    p.y = a.y0 + Math.random() * (a.y1 - a.y0);
   }
   p.px = p.x; p.py = p.y;
   p.vx = 0; p.vy = 0;
@@ -3653,45 +3682,43 @@ function respawn(p, arvoIka, alue) {
 }
 
 /* -- REUNATASAUS ------------------------------------------------- */
-/* Kun näkymä liikkuu, ruudulle paljastuu alue jota ei ollut äsken:
-   raahauksessa kaista reunasta, ulos zoomatessa kehys joka puolelta.
-   Se alue tarvitsee oman osuutensa partikkeleista — ei enempää eikä
-   vähempää.
-   
-   Ruutukoordinaateissa tämä on eksakti eikä arvio. Kun muunnos on
-   (s, tx, ty), edellinen ruutu on nyt suorakulmio [tx, ty, tx+s*W,
-   ty+s*H]. Paljastunut alue on ruutu miinus se — enintään neljä
-   suorakulmiota. Jos tiheys on d = N/ala, uudelle alueelle kuuluu
-   d * paljastunutAla partikkelia, ja ne otetaan ensisijaisesti niistä
-   jotka valuivat ruudun ulkopuolelle.
+/* Kun näkyvä alue muuttuu, sinne paljastuu kaistale tai kehä jota ei
+   ollut äsken. Se tarvitsee oman osuutensa partikkeleista — ei enempää
+   eikä vähempää.
 
-   Siksi tämä on oikein kaikissa eleissä ilman erikoistapauksia:
+   Näkyvä alue muuttuu kahdesta syystä, ja molemmat on otettava huomioon:
 
-   - Raahauksessa ulos valuneiden määrä on tasan se minkä paljastunut
-     kaista tarvitsee, joten ylimääräisiä ei siirretä eivätkä jäljet
-     lyhene.
-   - Ulos zoomatessa ulos ei valu ketään, ja kehys saa N*(1-s²)
-     partikkelia — tasan se määrä joka pitää tiheyden ennallaan.
-   - Sisään zoomatessa paljastunutta alaa ei ole, ja reunan yli menneet
-     arvotaan tasaisesti koko ruudulle.
+   1. Sisältö liikkuu ruudulla (raahaus, ulos zoomaus): bittikarttaa
+      muunnetaan, ja partikkelit muunnetaan mukana. Alue pysyy samana,
+      mutta sen aiempi sijainti siirtyy.
+   2. Näkyvä alue itse muuttuu (nipistys sisään): canvasilla on
+      CSS-muunnos, jolloin vain osa sisällöstä on ruudulla. Bittikarttaan
+      ei kosketa lainkaan.
 
-   Mitään ei siis tarvitse mitata jälkikäteen eikä korjata eleen
-   lopussa. */
+   Aluksi vain 1 oli katettu, ja se riitti tavalliseen zoomiin. Mutta
+   nipistys sisään maxZoomin yli pomauttaa lopuksi takaisin, ja silloin
+   näkyvä alue kasvaa ilman että sisältöä muunnetaan: partikkelit jäivät
+   siihen pieneen laatikkoon joka oli näkyvissä eleen huipulla — mitattuna
+   27 ruutulohkoa 36:sta jäi tyhjäksi eikä tilanne korjaantunut itsestään.
+
+   Siksi vertailu tehdään NÄKYVÄN ALUEEN muutoksesta, ja sisällön muunnos
+   vain siirtää muistissa olevaa edellistä aluetta mukanaan. */
 const Reunatasaus = {
-  r: [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]],
+  r: [[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],
   n: 0, ala: 0,
 
-  /* Paljastunut alue suorakulmioina, kun edellinen ruutu on nyt
-     (vx0,vy0)-(vx1,vy1). */
-  laske(vx0, vy0, vx1, vy1, W, H) {
+  /* Alue "uusi miinus vanha" enintään neljänä suorakulmiona. */
+  laske(vanha, uusi) {
     this.n = 0; this.ala = 0;
-    const x0 = Math.max(0, Math.min(W, vx0)), x1 = Math.max(0, Math.min(W, vx1));
-    const y0 = Math.max(0, Math.min(H, vy0)), y1 = Math.max(0, Math.min(H, vy1));
-    if (!(x1 > x0) || !(y1 > y0)) { this._lisaa(0, 0, W, H); return; }
-    this._lisaa(0,  0,  W,  y0);   /* ylä    */
-    this._lisaa(0,  y1, W,  H);    /* ala    */
-    this._lisaa(0,  y0, x0, y1);   /* vasen  */
-    this._lisaa(x1, y0, W,  y1);   /* oikea  */
+    const x0 = Math.max(uusi.x0, Math.min(uusi.x1, vanha.x0));
+    const x1 = Math.max(uusi.x0, Math.min(uusi.x1, vanha.x1));
+    const y0 = Math.max(uusi.y0, Math.min(uusi.y1, vanha.y0));
+    const y1 = Math.max(uusi.y0, Math.min(uusi.y1, vanha.y1));
+    if (!(x1 > x0) || !(y1 > y0)) { this._lisaa(uusi.x0, uusi.y0, uusi.x1, uusi.y1); return; }
+    this._lisaa(uusi.x0, uusi.y0, uusi.x1, y0);        /* ylä   */
+    this._lisaa(uusi.x0, y1,      uusi.x1, uusi.y1);   /* ala   */
+    this._lisaa(uusi.x0, y0,      x0,      y1);        /* vasen */
+    this._lisaa(x1,      y0,      uusi.x1, y1);        /* oikea */
   },
   _lisaa(x0, y0, x1, y1) {
     const a = (x1 - x0) * (y1 - y0);
@@ -3709,45 +3736,66 @@ const Reunatasaus = {
   }
 };
 
-/* Ajetaan aina kun bittikarttaa muunnetaan: partikkelit samaan
-   muunnokseen, ja paljastunut alue täytetään. */
-function siirraPartikkelit(s, tx, ty) {
-  const hiuk = State.particles, W = State.vw, H = State.vh;
-  if (!hiuk.length) return;
-  const vx0 = tx, vy0 = ty, vx1 = tx + s * W, vy1 = ty + s * H;
-  Reunatasaus.laske(vx0, vy0, vx1, vy1, W, H);
-  const tarve = Math.round(hiuk.length * Reunatasaus.ala / (W * H));
-  let siirretty = 0, laatikossa = 0;
+const AlueVahti = {
+  e: null,   /* näkyvä alue edellisessä ruudussa, sisällön koordinaateissa */
 
+  nollaa() {
+    const a = State.alue;
+    this.e = { x0: a.x0, y0: a.y0, x1: a.x1, y1: a.y1 };
+  },
+
+  /* Sisältöä muunnettiin: edellinen alue siirtyy samalla muunnoksella,
+     jotta sitä voi verrata nykyiseen samassa koordinaatistossa. */
+  muunna(s, tx, ty) {
+    const e = this.e; if (!e) return;
+    e.x0 = s * e.x0 + tx; e.y0 = s * e.y0 + ty;
+    e.x1 = s * e.x1 + tx; e.y1 = s * e.y1 + ty;
+  },
+
+  /* Täyttää paljastuneen alueen. Ylimäärä otetaan siitä osasta joka oli
+     näkyvissä myös äsken — siellä se on. */
+  tasaa() {
+    const a = State.alue, hiuk = State.particles;
+    if (!this.e) { this.nollaa(); return; }
+    if (!hiuk.length) { this.nollaa(); return; }
+    const ala = (a.x1 - a.x0) * (a.y1 - a.y0);
+    if (!(ala > 0)) { this.nollaa(); return; }
+    Reunatasaus.laske(this.e, a);
+    const tarve = Math.round(hiuk.length * Reunatasaus.ala / ala);
+    if (tarve > 0) {
+      const e = this.e;
+      let vanhassa = 0;
+      for (let i = 0; i < hiuk.length; i++) {
+        const p = hiuk[i];
+        if (p.x >= e.x0 && p.x <= e.x1 && p.y >= e.y0 && p.y <= e.y1) vanhassa++;
+      }
+      if (vanhassa > 0) {
+        /* Siirrettävät otetaan vanhalta alueelta, koska ylimäärä on
+           siellä. Jos ne arvottaisiin koko kentästä, osa osuisi jo
+           valmiiksi paljastuneelle alueelle ja tasaus jäisi vajaaksi. */
+        const osuus = tarve / vanhassa;
+        for (let i = 0; i < hiuk.length; i++) {
+          const p = hiuk[i];
+          if (p.x >= e.x0 && p.x <= e.x1 && p.y >= e.y0 && p.y <= e.y1 && Math.random() < osuus) {
+            respawn(p, true, Reunatasaus.alue());
+          }
+        }
+      }
+    }
+    this.nollaa();
+  }
+};
+
+/* Ajetaan aina kun bittikarttaa muunnetaan: partikkelit samaan
+   muunnokseen kuin sisältö. Tasaus tehdään erikseen silmukassa. */
+function siirraPartikkelit(s, tx, ty) {
+  const hiuk = State.particles;
   for (let i = 0; i < hiuk.length; i++) {
     const p = hiuk[i];
     p.x = s * p.x + tx;  p.y = s * p.y + ty;
     p.px = s * p.px + tx; p.py = s * p.py + ty;
-    if (p.x < 0 || p.x > W || p.y < 0 || p.y > H) {
-      /* Reunan yli valuneet menevät sinne minne uutta alaa paljastui. */
-      respawn(p, true, siirretty < tarve ? Reunatasaus.alue() : null);
-      siirretty++;
-    } else if (p.x >= vx0 && p.x <= vx1 && p.y >= vy0 && p.y <= vy1) {
-      laatikossa++;
-    }
   }
-
-  /* Ulos zoomatessa kukaan ei valu reunan yli: ylimäärä on kutistuneen
-     laatikon sisällä, ja se on myös ainoa paikka josta siirtää saa. Jos
-     siirrettävät arvottaisiin koko kentästä, osa osuisi jo valmiiksi
-     paljastuneelle alueelle — laatikko jäisi liian tiheäksi ja kehä
-     kasvaisi liian täyteen. Mitattuna nipistys jätti kentän kaksi kertaa
-     epätasaisemmaksi kuin satunnaisjakauma juuri siitä syystä. */
-  const vaje = tarve - siirretty;
-  if (vaje > 0 && laatikossa > 0) {
-    const osuus = vaje / laatikossa;
-    for (let i = 0; i < hiuk.length; i++) {
-      const p = hiuk[i];
-      if (p.x >= vx0 && p.x <= vx1 && p.y >= vy0 && p.y <= vy1 && Math.random() < osuus) {
-        respawn(p, true, Reunatasaus.alue());
-      }
-    }
-  }
+  AlueVahti.muunna(s, tx, ty);
 }
 
 /* -- PARTIKKELIT PYSYVÄT KARTALLA JA JATKAVAT LIIKETTÄÄN ---------- */
@@ -3823,12 +3871,14 @@ const KanvasSiirto = {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const hiuk = State.particles;
     for (let i = 0; i < hiuk.length; i++) respawn(hiuk[i], true);
+    AlueVahti.nollaa();
   },
 
   _poistaCss(cvs) {
     this._css = null; this._animoitu = false;
     cvs.style.transition = '';
     cvs.style.transform = 'translate3d(0,0,0)';
+    paivitaAlue(1, 0, 0);
   },
 
   /* Muuntaa canvasin sisällön: p' = s*p + (tx,ty), yksiköt CSS-pikseleitä.
@@ -3905,6 +3955,9 @@ const KanvasSiirto = {
       this._css = 'sisaan'; this._animoitu = true;
       cvs.style.transition = SIIRTYMA;
       cvs.style.transform = this._muunnosCss(s, tx, ty);
+      /* Maalin näkyvä alue heti: uudet partikkelit syntyvät sinne mihin
+         ollaan menossa, joten kenttä on valmis kun animaatio päättyy. */
+      paivitaAlue(s, tx, ty);
       return;
     }
 
@@ -3924,6 +3977,7 @@ const KanvasSiirto = {
     cvs.style.transition = SIIRTYMA;
     cvs.style.transform = 'translate3d(0,0,0)';
     this._css = 'ulos'; this._animoitu = true;
+    paivitaAlue(1, 0, 0);   /* maalissa canvas on identiteetillä */
   },
 
   /* Zoom on ohi. Sisään zoomatessa CSS-muunnos paistetaan bittikarttaan;
@@ -3983,7 +4037,9 @@ const KanvasSiirto = {
     if (s > 1 && this._nipistys) {
       this._css = 'sisaan';
       cvs.style.transition = '';
-      cvs.style.transform = this._muunnosCss(s, p1.x - s * this.p0.x, p1.y - s * this.p0.y);
+      const ctx2 = p1.x - s * this.p0.x, cty = p1.y - s * this.p0.y;
+      cvs.style.transform = this._muunnosCss(s, ctx2, cty);
+      paivitaAlue(s, ctx2, cty);
       return false;
     }
     /* Nipistys ulos ja kertaloikka: paistetaan nykyiseen ruudustoon.
@@ -4027,6 +4083,12 @@ function renderLoop(ts) {
   while (particles.length > target) particles.pop();
   while (particles.length < target) particles.push(makeParticle(true));
 
+  /* CSS-muunnoksen alla näkyvä alue elää ruutu ruudulta. */
+  if (KanvasSiirto._css) paivitaAlueRuudulta(windCvs);
+
+  /* Näkyvä alue on nyt tiedossa: täytetään se mitä siihen paljastui. */
+  AlueVahti.tasaa();
+
   /* Häivytys jää tekemättä vain jos siirtoveto teki sen jo. */
   if (!KanvasSiirto.haivytti) {
     windCtx.globalCompositeOperation = 'destination-in';
@@ -4047,6 +4109,7 @@ function renderLoop(ts) {
   const kx = geoSpd * GeoProject._sx / cosLat;
   const ky = geoSpd * GeoProject._sy;
   const hitaus = Config.INERTIA, uutta = 1 - Config.INERTIA;
+  const alue = State.alue;
 
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i];
@@ -4064,7 +4127,9 @@ function renderLoop(ts) {
     p.x += p.vx; p.y += p.vy; p.age++;
     /* Ikäraja on se mikä pitää jäljet tasapituisina: ilman sitä kovassa
        tuulessa oleva partikkeli eläisi kunnes se osuu reunaan. */
-    if (p.age > Config.MAX_AGE || p.x < -4 || p.x > W + 4 || p.y < -4 || p.y > H + 4) { respawn(p); continue; }
+    if (p.age > Config.MAX_AGE ||
+        p.x < alue.x0 - 4 || p.x > alue.x1 + 4 ||
+        p.y < alue.y0 - 4 || p.y > alue.y1 + 4) { respawn(p); continue; }
     windCtx.beginPath();
     windCtx.moveTo(p.px, p.py);
     windCtx.lineTo(p.x, p.y);
