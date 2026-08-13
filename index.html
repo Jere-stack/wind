@@ -130,7 +130,19 @@ body {
   opacity: 0; pointer-events: none; z-index: -1;
   -webkit-transform-origin: 0 0; transform-origin: 0 0;
 }
-#c-wind { z-index: 3; transition: opacity 0.15s; }
+#c-wind {
+  z-index: 3; transition: opacity 0.15s;
+  /* Partikkelit KIRKASTAVAT kenttää, eivät peitä sitä. Ilman tätä ne
+     piirtyvät samalla värillä kuin lämpökartta samassa nopeudessa, eli
+     omaa taustaansa vasten — mitattuna 26 % musteesta jäi alle 1,15
+     kontrastin, mikä on käytännössä näkymätön. Additiivisena jokainen
+     veto nostaa luminanssia, joten jälki erottuu aina.
+     Sama perustelu ja sama varatie kuin lämpökartalla. */
+  mix-blend-mode: plus-lighter;
+}
+@supports not (mix-blend-mode: plus-lighter) {
+  #c-wind { mix-blend-mode: screen; }
+}
 /* Additiivinen sekoitus lämpökartalle.
    screen laskee tuloksen 1-(1-pohja)(1-tuuli), jolloin maan ja veden ero
    kutistuu kertoimella (1 - alfa*tuulivari): mitä kovempi tuuli, sitä
@@ -3818,13 +3830,23 @@ const Nippu = {
   vari: new Array(NIPUT * TASOT.length),
   leveys: new Array(NIPUT * TASOT.length)
 };
+/* Väri vaalennetaan kohti valkoista. Rampin sävy kertoo yhä nopeuden,
+   mutta luminanssi nousee taustan yli — additiivinen sekoitus yksin ei
+   riitä, koska tummat sävyt lisäävät vähän. Kärki on vaaleampi kuin
+   häntä, jolloin jälki lukee suuntansa. */
+const VAALEA = [0.30, 0.42, 0.58];
 (function () {
   for (let n = 0; n < NIPUT; n++) {
     const t = (n + 0.5) / NIPUT, ms = t * Config.MAX_MS;
     const lw = particleLineWidth(ms);
     const a0 = Math.min(0.95, 0.38 + t * 0.6);
+    const c = ColorRamp.rgb(ms);
     for (let k = 0; k < TASOT.length; k++) {
-      Nippu.vari[n * TASOT.length + k] = ColorRamp.css(ms, a0 * TASOALFA[k]);
+      const v = VAALEA[k];
+      const r = Math.round(c.r + (255 - c.r) * v);
+      const g = Math.round(c.g + (255 - c.g) * v);
+      const b = Math.round(c.b + (255 - c.b) * v);
+      Nippu.vari[n * TASOT.length + k] = 'rgba(' + r + ',' + g + ',' + b + ',' + (a0 * TASOALFA[k]).toFixed(3) + ')';
       Nippu.leveys[n * TASOT.length + k] = lw * TASOLEV[k];
     }
   }
@@ -4251,17 +4273,27 @@ function buildWindField(hourIdx, opts) {
     const h = pt.wx.hourly;
     let ms, dir;
     if (targetTime && h.time && h.time.length) {
-      /* Etsi hetkeä ympäröivä pari ja interpoloi niiden välillä */
+      /* Etsi hetkeä ympäröivä pari ja interpoloi niiden välillä.
+       *
+       * Haku oli lineaarinen: jokainen ennustepiste kävi koko aikasarjan
+       * läpi, eli 113 pistettä × 107 aikaleimaa = 12 000 vertailua joka
+       * kutsulla. Aikasarja on nouseva, joten puolitushaku riittää — ja
+       * koska kaikilla pisteillä on käytännössä sama tuntiruudukko,
+       * tulos vielä muistetaan aikasarjaa kohti. Play kutsuu tätä joka
+       * askeleella, ja mitattuna se oli koko askeleen kallein osa. */
       const ts = _ts(h);
-      let j = 0, bestDiff = Infinity;
-      for (let k = 0; k < ts.length; k++) {
-        const diff = Math.abs(ts[k] - targetTime);
-        if (diff < bestDiff) { bestDiff = diff; j = k; }
+      let a, b;
+      if (h.__hakuT === targetTime && h.__hakuA !== undefined) {
+        a = h.__hakuA; b = h.__hakuB;
+      } else {
+        let lo = 0, hi = ts.length - 1;
+        while (lo < hi) { const mid = (lo + hi) >> 1; if (ts[mid] < targetTime) lo = mid + 1; else hi = mid; }
+        /* lo on ensimmäinen >= targetTime */
+        if (targetTime <= ts[0]) { a = b = 0; }
+        else if (targetTime >= ts[ts.length - 1]) { a = b = ts.length - 1; }
+        else { a = lo - 1; b = lo; }
+        h.__hakuT = targetTime; h.__hakuA = a; h.__hakuB = b;
       }
-      const tj = ts[j];
-      let a = j, b = j;
-      if (targetTime > tj && j + 1 < h.time.length) b = j + 1;
-      else if (targetTime < tj && j > 0) a = j - 1;
       const msA = layer === 'gust' ? ((h.windgusts_10m && h.windgusts_10m[a]) || h.windspeed_10m[a] || 0) : (h.windspeed_10m[a] || 0);
       const dirA = h.winddirection_10m[a] || 0;
       if (a === b) { ms = msA; dir = dirA; }
@@ -8061,6 +8093,10 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
      raahauksen tapahtumia niellä. */
   ['pointerdown', 'touchstart', 'wheel'].forEach(function (n) {
     tl.addEventListener(n, function () {
+      /* Käyttäjä voittaa aina. Ilman tätä play jatkoi omaa laskuriaan
+         raahauksen alla ja ohitti sormen: mitattuna janaa vedettiin
+         taaksepäin ja tunti eteni silti eteenpäin. */
+      if (State.isPlaying) stopPlay();
       State._tlSelfScroll = false;
       if (n !== 'wheel') State._tlTouching = true;
     }, { passive: true });
@@ -8100,10 +8136,21 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
      viimeisin sijainti jää jonoon ja ajetaan heti perään — näin päivitys
      seuraa sormea jäämättä jälkeen eikä kutsuja kasaudu. */
   var _builtFrac = null;
+  /* Play käyttää samaa esikatselua kuin sormella raahaus: karkea tarkkuus
+     ja korkeintaan yksi rakennus lennossa. */
+  State._esikatsele = _previewField;
   function _previewField(frac) {
     /* Ohita jos sijainti ei ole käytännössä muuttunut — muuten sama hetki
-       rakennettaisiin kahdesti, kerran rAF:sta ja kerran jonosta. */
-    if (_builtFrac != null && Math.abs(frac - _builtFrac) < 0.02) return;
+       rakennettaisiin kahdesti, kerran rAF:sta ja kerran jonosta.
+       
+       Kynnys on eri sormella ja play'lla. Sormea seuratessa kentän on
+       oltava siinä missä sormi, joten kynnys on pieni. Play etenee itse
+       tasaisesti eikä kukaan vertaa sen sijaintia mihinkään, joten siellä
+       riittää noin kymmenen rakennusta tuntiaskelta kohti: kenttä sulaa
+       yhtä sulavasti mutta työtä on murto-osa. Partikkelit liikkuvat
+       joka ruudussa joka tapauksessa. */
+    const kynnys = State.isPlaying ? 0.11 : 0.02;
+    if (_builtFrac != null && Math.abs(frac - _builtFrac) < kynnys) return;
     if (_fieldBusy) { _pendingFrac = frac; return; }
     _fieldBusy = true; _builtFrac = frac;
     buildWindField(frac, { scrub: true }).then(() => {
@@ -8264,22 +8311,91 @@ function scrollTimelineTo(idx) {
   tl.scrollTo({ left: target.offsetLeft - tl.offsetWidth / 2 + 10, behavior: 'smooth' });
 }
 
+/* Vie jana ja kenttä murtolukusijaintiin. Sama funktio ajetaan joka
+   ruudussa play'n aikana. */
+function _playSijainti(tl, frac) {
+  const ticks = State._tlTicks;
+  if (!tl || !ticks || ticks.length < 2) return;
+  const i = Math.max(0, Math.min(ticks.length - 2, Math.floor(frac)));
+  const t0 = ticks[i], t1 = ticks[i + 1];
+  const x = t0.offsetLeft + (t1.offsetLeft - t0.offsetLeft) * (frac - i);
+  _tlSetScrollLeft(tl, x - tl.offsetWidth / 2 + 11);
+
+  const lahin = Math.round(frac);
+  if (lahin !== State._tlLastTick) {
+    State._tlLastTick = lahin;
+    State.currentHourIdx = lahin;
+    State._lastTlHour = lahin;
+    _tlUpdateNow(lahin);
+    renderSpots(lahin);
+    if (State.sheetSpot) openSheet(State.sheetSpot, lahin);
+  }
+  if (State._esikatsele) State._esikatsele(frac);
+}
+
 /* -- PLAY ------------------------------------------------------- */
+/* Play eteni ennen tunti kerrallaan: ajastin vieritti janan pehmeästi
+ * seuraavaan tikkiin, ja vasta kun vieritys pysähtyi (~300 ms) kenttä
+ * rakennettiin kerralla. Siitä seurasi kaksi vikaa. Kartta laahasi janan
+ * perässä kolmanneksen sekunnin, ja koko tunnin työ osui yhteen ruutuun —
+ * mitattuna WindTexture.build on 57 ms neljän kertaluokan kuristuksella,
+ * eli nykäys joka askeleella.
+ *
+ * Nyt play liikkuu JATKUVASTI. Sijainti on murtoluku, jana seuraa sitä
+ * ruutu ruudulta ja kenttä päivitetään samalla koneistolla kuin sormella
+ * raahatessa: karkea tarkkuus ja korkeintaan yksi rakennus lennossa.
+ * Kenttä siis sulaa tunnista toiseen sen sijaan että hyppäisi, eikä
+ * yksikään ruutu joudu tekemään koko työtä.
+ *
+ * Lopetettaessa valinta vahvistetaan lähimpään tuntiin täydellä
+ * tarkkuudella. */
 function togglePlay() {
-  const btn = document.getElementById('btn-play'), icon = document.getElementById('play-icon');
   if (State.isPlaying) { stopPlay(); return; }
+  const btn = document.getElementById('btn-play'), icon = document.getElementById('play-icon');
+  if (!State._tlTicks || !State._tlTicks.length) return;
   Haptics.light();
-  State.isPlaying = true; btn.classList.add('playing');
+  State.isPlaying = true;
+  btn.classList.add('playing');
+  btn.setAttribute('aria-label', 'Pysäytä ajan toisto');
+  btn.setAttribute('aria-pressed', 'true');
   icon.innerHTML = '<rect x="5" y="4" width="4" height="16" rx="1" fill="currentColor"/><rect x="15" y="4" width="4" height="16" rx="1" fill="currentColor"/>';
-  if (!State._tlTicks || !State._tlTicks.length) { stopPlay(); return; }
-  let cur = State.currentHourIdx || 0;
-  State.playTimer = setInterval(() => { cur++; if (cur >= State._tlTicks.length) cur = 0; scrollTimelineTo(cur); }, Config.PLAY_INTERVAL_MS);
+
+  const tl = document.getElementById('tl-scroll');
+  let frac = State.currentHourIdx || 0, edellinen = 0;
+
+  function askel(ts) {
+    if (!State.isPlaying) return;
+    State._playRaf = requestAnimationFrame(askel);
+    if (!edellinen) { edellinen = ts; return; }
+    const dt = Math.min(100, ts - edellinen);   /* taustavälilehti ei saa hypätä */
+    edellinen = ts;
+    const n = State._tlTicks.length;
+    frac += dt / Config.PLAY_INTERVAL_MS;
+    if (frac >= n - 1) frac -= (n - 1);
+    _playSijainti(tl, frac);
+  }
+  State._playRaf = requestAnimationFrame(askel);
 }
+
 function stopPlay() {
-  State.isPlaying = false; clearInterval(State.playTimer);
-  document.getElementById('btn-play').classList.remove('playing');
+  if (!State.isPlaying) return;
+  State.isPlaying = false;
+  cancelAnimationFrame(State._playRaf);
+  const btn = document.getElementById('btn-play');
+  btn.classList.remove('playing');
+  btn.setAttribute('aria-label', 'Toista aika');
+  btn.setAttribute('aria-pressed', 'false');
   document.getElementById('play-icon').innerHTML = '<path d="M7 4.5v15l12-7.5z" fill="currentColor"/>';
+  /* Vahvista lähin tunti täydellä tarkkuudella. */
+  const tl = document.getElementById('tl-scroll');
+  if (tl) _tlCommitSelection(tl);
 }
+
+/* Selain nukuttaa taustavälilehden rAF:n; ilman tätä play jatkaisi
+   näennäisesti mutta hyppäisi palatessa. */
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && State.isPlaying) stopPlay();
+});
 
 /* Piirretyt sääikonit. Yksi 24x24 ruudukko, viivanpaksuus 2, pyöreät päät —
    sama piirtotapa kuin sovelluksen muissa ikoneissa. Emojit korvautuvat

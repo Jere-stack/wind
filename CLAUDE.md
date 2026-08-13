@@ -705,6 +705,64 @@ segmentit kerätään nopeusluokan ja tason mukaan `Path2D`-poluiksi.
 227 antoi 24 fps, 451 antoi 14 fps, 313 antoi 18–19 fps — eli yhä puolet
 enemmän kuin se versio jota tämä korvaa, ja kenttä lukee virtauksena.
 
+### Partikkelit kirkastavat kenttää, eivät peitä sitä
+
+Partikkeli piirrettiin samalla rampin värillä kuin lämpökartta samassa
+nopeudessa — eli **omaa taustaansa vasten**. Mitattuna ruudulta (sama
+kuva partikkelien kanssa ja ilman, luminanssiero pikseleittäin):
+
+| | ennen | nyt |
+|---|---|---|
+| kontrasti omaan taustaan, mediaani | 1,30 | **1,72** |
+| alle 1,15 (käytännössä näkymätön) | **26 %** | 10 % |
+| alle 1,30 | 50 % | 22 % |
+| ylin | 2,32 | 4,21 |
+
+Kaksi muutosta, molemmat sovelluksessa jo käytössä olevaa kieltä:
+
+- **`mix-blend-mode: plus-lighter` partikkelicanvasille.** Sama perustelu
+  ja sama varatie kuin lämpökartalla: additiivisena jokainen veto nostaa
+  luminanssia, joten jälki erottuu aina.
+- **Väri vaalennetaan kohti valkoista** (30 % hännässä, 58 % kärjessä).
+  Additiivinen sekoitus yksin ei riitä, koska tummat sävyt lisäävät
+  vähän. Rampin sävy kertoo yhä nopeuden, mutta luminanssi nousee
+  taustan yli — ja kärki on vaaleampi kuin häntä, jolloin jälki lukee
+  suuntansa.
+
+### Play liikkuu jatkuvasti, ei tunti kerrallaan
+
+Play eteni ajastimella: se vieritti janan pehmeästi seuraavaan tikkiin ja
+vasta kun vieritys pysähtyi (~300 ms) kenttä rakennettiin kerralla. Siitä
+seurasi kolme vikaa, kaksi näkyvää ja yksi mitattava.
+
+- **Kartta laahasi janan perässä** kolmanneksen sekunnin.
+- **Play ohitti käyttäjän.** Se piti omaa laskuriaan, joten janaan
+  tarttuminen kesken toiston ei pysäyttänyt sitä: mitattuna janaa
+  vedettiin taaksepäin ja tunti eteni silti eteenpäin.
+- **Koko tunnin työ osui yhteen ruutuun.** `WindTexture.build` on 57 ms
+  neljän kertaluokan kuristuksella, eli nykäys joka askeleella.
+
+Nyt sijainti on murtoluku, jana seuraa sitä ruutu ruudulta ja kenttä
+päivitetään samalla koneistolla kuin sormella raahatessa: karkea tarkkuus
+ja korkeintaan yksi rakennus lennossa. Kenttä **sulaa** tunnista toiseen
+eikä hyppää.
+
+- **Kynnys on eri sormella ja play'lla.** Sormea seuratessa kentän on
+  oltava siinä missä sormi (0,02 h). Play etenee itse tasaisesti eikä
+  kukaan vertaa sen sijaintia mihinkään, joten siellä riittää ~10
+  rakennusta tuntiaskelta kohti (0,11 h). Partikkelit liikkuvat joka
+  ruudussa joka tapauksessa, joten silmä ei näe eroa — mutta mittari
+  näkee: ruutunopeus 26 → 31 fps ja pahin ruutu 83 → 50 ms.
+- **Käyttäjä voittaa aina.** Kosketus janaan pysäyttää toiston.
+- **Taustavälilehti pysäyttää toiston** (`visibilitychange`), muuten rAF
+  nukkuisi ja play hyppäisi palatessa.
+- Lopetettaessa valinta vahvistetaan lähimpään tuntiin täydellä
+  tarkkuudella.
+
+**Mitattu lopputulos:** tuntiaskel 787–826 ms (tasainen), pahin ruutu
+50 ms — pienempi kuin alkuperäisen askeltavan version 67 ms. Aikajanan
+loksahdus osuu **0,0 px** tarkkuudella oikeaan tuntiin.
+
 ### Kolme mitattua korjausta
 
 1. **`SpatialIndex.nearby()` sai yhden alkion muistin.** Tulos riippuu vain
