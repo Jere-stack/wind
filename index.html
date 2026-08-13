@@ -2094,7 +2094,7 @@ const Config = {
   INERTIA: 0.78,
   GEO_SPEED: 0.003,
   WIND_SAMPLE_INTERVAL: 2,
-  FADE_OPACITY: 0.94,
+  FADE_OPACITY: 0.955,
   MAX_AGE: 300,
   DROP_RATE: 0.003,
   DROP_RATE_BUMP: 0.008,
@@ -3062,7 +3062,7 @@ function initCanvases() {
      Partikkelit ovat pehmeitä 2-4 px viivoja pyöreillä päillä, joten 2x on
      yhä kaksinkertainen ylinäytteistys — ero ei näy. Muut pinnat (kartta,
      merkit, teksti) piirtyvät edelleen laitteen omalla tarkkuudella. */
-  State.dpr = Math.min(2, window.devicePixelRatio || 1);
+  State.dpr = Math.min(3, window.devicePixelRatio || 1);
   resizeCanvases();
   window.addEventListener('resize', () => { resizeCanvases(); resetParticles(true); }, { passive: true });
   window.addEventListener('orientationchange', () => { setTimeout(() => { resizeCanvases(); resetParticles(true); }, 250); }, { passive: true });
@@ -3536,10 +3536,22 @@ const PerfTracker = {
  * laitteilla tämä on yläraja eikä lupaus. */
 function nParticlesBase() {
   const ala = (State.vw || 390) * (State.vh || 844);
-  return Math.max(200, Math.min(900, Math.round(ala / 820)));
+  return Math.max(140, Math.min(520, Math.round(ala / 1450)));
 }
 function nParticles() { return PerfTracker.getTarget(); }
 function particleLineWidth(ms) { return 2.0 + (ms / Config.MAX_MS) * 2.2; }
+
+/* Nopeusluokat piirtoa varten. Väri, leveys ja alfa lasketaan luokan
+   keskikohdasta kerran; silmukka vain kerää segmentit. */
+const NIPUT = 10;
+const Nippu = { polut: new Array(NIPUT), vari: new Array(NIPUT), leveys: new Array(NIPUT) };
+(function () {
+  for (let k = 0; k < NIPUT; k++) {
+    const t = (k + 0.5) / NIPUT, ms = t * Config.MAX_MS;
+    Nippu.leveys[k] = particleLineWidth(ms);
+    Nippu.vari[k] = ColorRamp.css(ms, Math.min(0.9, 0.3 + t * 0.6));
+  }
+})();
 /* Ruutuprojektio: näkymän kulmat kerran, sitten kerto- ja yhteenlasku.
    Zoom otetaan talteen tässä, koska silmukan on nähtävä kartta yhtenä
    johdonmukaisena tilana — zoom-animaation aikana Leaflet on jo maalissa
@@ -4125,6 +4137,16 @@ function renderLoop(ts) {
   const hitaus = Config.INERTIA, uutta = 1 - Config.INERTIA;
   const alue = State.alue;
 
+  /* Piirto nipuissa. Yksi veto partikkelia kohti on canvas2d:ssä lähes
+     kokonaan kutsuoverheadia: beginPath, kaksi koordinaattia, kaksi
+     tyylin asetusta ja stroke — ja tyylin vaihto katkaisee ajurin
+     erävedon joka kerta. Segmentit kerätään nopeusluokkiin ja kukin
+     luokka piirretään yhtenä polkuna, jolloin vetoja on luokkien verran
+     eikä partikkelien. Luokkia on 10, eli viivanleveys pyöristyy 0,22 px
+     tarkkuudella ja alfa 0,06 tarkkuudella — kumpikaan ei erotu, mutta
+     mitattuna tämä maksaa DPR 3:n takaisin. */
+  for (let k = 0; k < NIPUT; k++) Nippu.polut[k] = null;
+
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i];
     sampleWind(p);
@@ -4144,12 +4166,19 @@ function renderLoop(ts) {
     if (p.age > Config.MAX_AGE ||
         p.x < alue.x0 - 4 || p.x > alue.x1 + 4 ||
         p.y < alue.y0 - 4 || p.y > alue.y1 + 4) { respawn(p); continue; }
-    windCtx.beginPath();
-    windCtx.moveTo(p.px, p.py);
-    windCtx.lineTo(p.x, p.y);
-    windCtx.lineWidth = particleLineWidth(p.ms);
-    windCtx.strokeStyle = ColorRamp.css(p.ms, Math.min(0.9, 0.3 + speedT * 0.6));
-    windCtx.stroke();
+    const k = speedT >= 1 ? NIPUT - 1 : (speedT * NIPUT) | 0;
+    let polku = Nippu.polut[k];
+    if (!polku) polku = Nippu.polut[k] = new Path2D();
+    polku.moveTo(p.px, p.py);
+    polku.lineTo(p.x, p.y);
+  }
+
+  for (let k = 0; k < NIPUT; k++) {
+    const polku = Nippu.polut[k];
+    if (!polku) continue;
+    windCtx.lineWidth = Nippu.leveys[k];
+    windCtx.strokeStyle = Nippu.vari[k];
+    windCtx.stroke(polku);
   }
 }
 

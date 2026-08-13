@@ -657,31 +657,50 @@ ensimmäisellä ajolla.
 | nipistys sisään | 0,93–1,12 | 90–100 % | 0 |
 | raahaus | 0,90–1,34 | 98–99 % | 0 |
 
-#### Ja lopuksi: kenttä oli liian harva
+#### Ja lopuksi: se mikä oikeasti näytti huonolta
 
-Koneisto oli kunnossa mutta lopputulos ei. 120 partikkelia 390×844
-ruudulla on hajanaisia viivoja, ei virtauskenttä.
+Kaikki yllä oleva oli oikein ja kenttä näytti silti huonommalta kuin
+ennen koko urakkaa. Ainoa tapa selvittää miksi oli **renderöidä sama
+näkymä molemmilla versioilla ja katsoa kuvia rinnakkain.** Sen olisi
+pitänyt olla ensimmäinen teko, ei viimeinen.
 
-Määrä oli sidottu **zoomiin** (800 kaukana … 120 lähellä). Sekin oli
-maantieteellisen ajattelun jäänne: kun partikkeli oli lat/lng-piste, laaja
-näkymä tarvitsi enemmän niitä kattaakseen suuremman alueen.
-Ruutukoordinaateissa alue on aina sama ruutu, joten määrä tulee **ruudun
-pinta-alasta** — sama tiheys näyttää samalta joka zoom-tasolla.
+Kuvista näki heti: vanhassa oli pitkiä pyyhkäiseviä juovia, uudessa
+lyhyitä tikkuja. Ja mittaus kertoi että syy ei ollut siellä missä sitä
+haettiin — nopeus (0,56 vs 0,49 px/ruutu) ja häivytys (0,9439/ruutu
+molemmissa) olivat käytännössä samat.
 
-Nosto 120 → noin 440 on mitattu päätös. Kustannus on canvasin
-likaantumisessa eikä siinä mitä siihen piirretään, ja pyyhkäisy 4×
-kuristuksella, DPR 3, näyttää sen:
+**Syy oli DPR-katto.** Aiempi "suorituskykykorjaus" rajasi
+partikkelicanvasin kahteen kertaan (`Math.min(2, devicePixelRatio)`),
+ja iPhonella se on kolme. Sama versio DPR 2:lla on sumeaa puuroa ja
+DPR 3:lla terävä. Katto oli väärä säästökohde, ja sen kompensoiminen
+partikkelimäärää nostamalla teki kentästä levottoman sen sijaan että se
+olisi rauhallinen.
 
-| partikkeleita | lepo | vetoele | p95 |
-|---|---|---|---|
-| 120 | 24 fps | 20 fps | 67 ms |
-| 250 | 23 | 19 | 67 |
-| **400** | **22** | **18** | **83** |
-| 600 | 19 | 17 | 83 |
-| 900 | 19 | 16 | 100 |
+Ratkaiseva luku on tämä: **versio jota pidettiin parempana ajoi
+täsmälleen samalla nopeudella** kuin nyt — 4× kuristuksella, DPR 3,
+12 fps levossa ja 10 vetoeleessä. DPR 3 maksoi sen jo silloin. Katto osti
+nopeutta jota kukaan ei pyytänyt, hinnalla josta välitettiin.
 
-Kolminkertainen määrä kahdeksan prosentin hinnalla. `PerfTracker` pudottaa
-määrää jos ruutunopeus ei riitä, joten tämä on yläraja eikä lupaus.
+Kolme säätöä palauttivat ilmeen:
+
+- **`State.dpr` katto 2 → 3.** Terävyys takaisin.
+- **Tiheys 440 → noin 230** (`ala / 1450`). Rauhallinen, ei levoton.
+- **`FADE_OPACITY` 0,94 → 0,955.** Jälki elää noin 1,5× pidempään, eli
+  juovat pyyhkäisevät kuten ennen.
+
+**Piirto nipuissa maksoi tarkkuuden takaisin.** Yksi veto partikkelia
+kohti on canvas2d:ssä lähes kokonaan kutsuoverheadia, ja tyylin vaihto
+katkaisee ajurin erävedon joka kerta. Segmentit kerätään kymmeneen
+nopeusluokkaan ja kukin luokka piirretään yhtenä `Path2D`-polkuna:
+vetoja on luokkien verran eikä partikkelien. Viivanleveys pyöristyy
+0,22 px ja alfa 0,06 tarkkuudella — kumpikaan ei erotu.
+
+Kaadettu hypoteesi kannattaa tietää: **DPR 3:lla lämpökartan
+`filter: blur()` ja `mix-blend-mode` eivät ole enää pullonkaula.**
+Mitattuna 11 fps → 10 → 11 kun ne kytkettiin pois. Aiempi mittaus (filter
+18 → 34 fps) tehtiin DPR 2:lla, eikä se yleisty. DPR 3:lla kustannus on
+canvasin pikselimäärä sinänsä, eikä sitä voi ostaa pois kompositointia
+keventämällä.
 
 #### Sivutuotteena tarkempi kenttä
 
