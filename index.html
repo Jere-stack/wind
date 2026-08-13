@@ -2887,6 +2887,15 @@ function initMap() {
    * CARTOn @2x-laatat. */
   var baseTiles = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
     maxZoom: 19, maxNativeZoom: 16, detectRetina: true, className: 'basemap',
+    /* updateWhenIdle: Leafletin oletus on mobiililaitteella TOSI, eli
+       laattoja ei haeta lainkaan liikkeen aikana vaan vasta kun kartta
+       pysahtyy. Sivulle vieritettaessa se nakyy suoraan: mitattuna
+       terava laattapeitto oli eleen aikana 45 % ja palasi taydeksi vasta
+       685 ms kuluttua. Oletus on vuosien takaa, kun laattojen purku
+       nykaisi vierityksen; nyt tyo on selaimen omassa saikeessa.
+       keepBuffer 3 (oletus 2) pitaa juuri ohitetut laatat muistissa,
+       joten takaisinpain vieritys ei lataa mitaan. */
+    updateWhenIdle: false, keepBuffer: 3, updateInterval: 120,
     attribution: 'Powered by <a href="https://www.esri.com/">Esri</a> &mdash; '
       + 'Esri, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   }).addTo(map);
@@ -2906,9 +2915,63 @@ function initMap() {
       map.removeLayer(baseTiles);
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
         subdomains: 'abcd', maxZoom: 19,
+        /* Samat vierityksen asetukset kuin varsinaisella pohjakartalla.
+           Kulkusuunnan esihakua ei asenneta — varatie on hataratilanne
+           eika sita ole mitattu. */
+        updateWhenIdle: false, keepBuffer: 3, updateInterval: 120,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
       }).addTo(map);
     });
+  })();
+
+  /* ── Laattojen esihaku kulkusuuntaan ─────────────────────────────
+   *
+   * Leaflet hakee tasan ne laatat jotka ovat nakymassa juuri nyt — ei
+   * yhtaan enempaa. Vieritettaessa se tarkoittaa etta laatta tilataan
+   * vasta kun sen reuna on jo tullut ruudulle, ja verkkoviiveen ajan
+   * siina kohtaa on venytetty isovanhempi eli sumea lapi.
+   *
+   * Tavallinen kiertotie on hakea yksi laattarengas joka suuntaan.
+   * Mitattuna se auttaa mutta maksaa 56 % enemman laattapyyntoja JOKA
+   * kerta kun nakyma vaihtuu, myos silloin kun karttaa ei vierita
+   * lainkaan — kolme neljasosaa renkaasta on aina vaaralla puolella.
+   *
+   * Tassa pehmuste annetaan vain sinne minne ollaan menossa, ja vain
+   * kun kartta liikkuu. Paikallaan olevan kartan kustannus on tasan
+   * nolla. Mitattuna (700 px heitto 450 ms:ssa, 180 ms laattaviive):
+   *
+   *   Leafletin oletus         terava peitto 45 %   taysi vasta 685 ms
+   *   + updateWhenIdle: false                56 %                487 ms
+   *   + rengas joka suuntaan                 76 %                508 ms
+   *   + esihaku kulkusuuntaan             62-70 %            460-476 ms
+   *
+   * Suunta luetaan kartan keskipisteen siirtymasta pikseleina. Zoomin
+   * aikana vertailukohta on eri mittakaavassa, joten silloin pehmustetta
+   * ei anneta lainkaan — zoomatessa uutta aluetta ei paljastu reunalta
+   * vaan joka puolelta, eika suunnalla ole merkitysta. */
+  (function () {
+    var alkup = baseTiles._pxBoundsToTileRange;
+    /* Jos Leafletin sisus on muuttunut, jataan esihaku pois — kartta
+       toimii ilman sita tasan kuten ennenkin. */
+    if (typeof alkup !== 'function' || !L.Bounds) return;
+    var ESI = 2, dx = 0, dy = 0, edell = null, nollaus = null;
+    map.on('move', function () {
+      var z = map.getZoom(), k = map.project(map.getCenter(), z);
+      if (edell && edell.z === z) { dx = k.x - edell.x; dy = k.y - edell.y; }
+      else { dx = dy = 0; }
+      edell = { x: k.x, y: k.y, z: z };
+      /* Liikkeen loputtua suunta unohdetaan, jotta seuraava haku
+         paikallaan olevalle kartalle ei viela pehmusta mitaan. */
+      clearTimeout(nollaus);
+      nollaus = setTimeout(function () { dx = dy = 0; edell = null; }, 250);
+    });
+    baseTiles._pxBoundsToTileRange = function (b) {
+      var r = alkup.call(this, b);
+      if (dx > -2 && dx < 2 && dy > -2 && dy < 2) return r;
+      return new L.Bounds(
+        r.min.subtract([dx < -1 ? ESI : 0, dy < -1 ? ESI : 0]),
+        r.max.add(    [dx >  1 ? ESI : 0, dy >  1 ? ESI : 0]));
+    };
   })();
 
   State.map = map;
@@ -2921,6 +2984,17 @@ function initMap() {
        jääneet partikkelit syntyvät uudelleen silmukan rajatarkistuksesta. */
     PerfTracker.reset();
     _scheduleViewportLoad();
+
+    /* Eleen aikaiset kiinniottorakennukset ovat karkeita (SCRUB_STEP),
+       ja zoomille tarkan version palauttaa zoomend. Siirrolla ei ollut
+       vastaavaa: karkea tekstuuri jäi ruudulle toistaiseksi, koska ainoa
+       muu tarkka rakennus on datahaun perässä ja sillä on oma kynnyksensä
+       — pienessä siirrossa se ei laukea lainkaan. Rakennetaan tarkka
+       versio kun kartta on pysähtynyt ja velkaa on. */
+    if (WindTexture.msData && WindTexture.askel > WindTexture.COARSE_STEP
+        && State.windField && State.windField.length) {
+      _heatmapCatchUp(WindTexture.COARSE_STEP);
+    }
   });
 
   /* Zoom-animaatio: canvas venyy samalla muunnoksella ja samalla
@@ -2932,17 +3006,40 @@ function initMap() {
   /* Tallennetaan edellinen hakualue kynnystarkistusta varten */
   var _lastLoadBounds = null;
 
-  function _viewportMovedEnough(bounds) {
+  function _viewportMovedEnough(bounds, osuus) {
     if (!_lastLoadBounds) return true;
-    /* A: Tarkista onko liikuttu yli 30% näkymän leveydestä */
     var vw = bounds.getEast()  - bounds.getWest();
     var vh = bounds.getNorth() - bounds.getSouth();
     var dx = Math.abs((bounds.getWest() + vw/2) - (_lastLoadBounds.getWest() + (_lastLoadBounds.getEast()-_lastLoadBounds.getWest())/2));
     var dy = Math.abs((bounds.getSouth() + vh/2) - (_lastLoadBounds.getSouth() + (_lastLoadBounds.getNorth()-_lastLoadBounds.getSouth())/2));
-    return dx > vw * 0.30 || dy > vh * 0.30;
+    var k = osuus === undefined ? 0.22 : osuus;
+    return dx > vw * k || dy > vh * k;
   }
 
-  function _scheduleViewportLoad() {
+  /* Ennakoiva haku kesken eleen.
+   *
+   * Ennen data haettiin vasta kun ele oli ohi ja sen päälle odotettiin
+   * 350 ms. Pitkässä vierityksessä koko ele siis kului odottaen, ja vasta
+   * sen jälkeen alkoi sekunnin mittainen haku. Nyt haku alkaa mitattuna
+   * noin 1,2 s aiemmin, eli suunnilleen silloin kun uusi alue tulee
+   * ruudulle eikä vasta kun sitä on jo katsottu hetki.
+   *
+   * Nyt haku lähtee heti kun näkymä on liikkunut tarpeeksi, sormi
+   * kartalla tai ei. Kaksi vartijaa pitää sen järkevänä: loadViewport
+   * peruu edellisen keskeneräisen pyynnön, joten liian tiheä laukaisu
+   * estäisi kaiken valmistumisen — siksi kesken eleen vaaditaan puolen
+   * ruudun siirtymä ja vähintään 600 ms edellisestä. */
+  var _vpViimeksi = 0;
+  function _vpEleenAikana() {
+    if (map._animatingZoom) return;
+    var nyt = performance.now();
+    if (nyt - _vpViimeksi < 600) return;
+    if (!_viewportMovedEnough(map.getBounds(), 0.5)) return;
+    _vpViimeksi = nyt;
+    _scheduleViewportLoad(true);
+  }
+
+  function _scheduleViewportLoad(heti) {
     clearTimeout(State._vpTimer);
     State._vpTimer = setTimeout(() => {
       var bounds = map.getBounds();
@@ -2969,7 +3066,7 @@ function initMap() {
           drawColorField(); resetParticles(); Crosshair.refresh();
         });
       }).catch(() => { /* Ei dataa — slider pysyy cachessa */ });
-    }, 350);
+    }, heti ? 0 : 350);
   }
 
   /* ── Lämpökartan kate nipistyksen aikana ─────────────────────────
@@ -2984,33 +3081,63 @@ function initMap() {
      näkymä ei enää mahdu tekstuurin rajojen sisään. Käytännössä tämä laukeaa
      muutaman kerran eleen aikana eikä joka ruudussa, ja käyttää samaa karkeaa
      tarkkuutta kuin aikajanan raahaus. */
-  var _hmBusy = false, _hmPending = false, _hmRaf = false;
+  /* _hmPending on odottavan rakennuksen ASKEL, ei pelkkä tosi/epätosi:
+     eleen aikana pyydetään karkeaa ja pysähdyttäessä tarkkaa, ja jos
+     molemmat osuvat samaan jonoon, tarkempi voittaa. */
+  var _hmBusy = false, _hmPending = 0, _hmRaf = false;
 
-  function _heatmapCovers() {
+  /* marginaali on osuus näkymästä: 0 kysyy "onko reuna jo paljastunut",
+     0,35 kysyy "onko reuna paljastumassa". Jälkimmäisellä rakennus ehtii
+     alkaa ennen kuin sitä tarvitaan — rakennus itse kestää parisataa
+     millisekuntia, ja heitossa sen verran ehtii kulua reunan yli. */
+  function _heatmapCovers(marginaali) {
     if (!WindTexture.msData) return false;
-    var v = map.getBounds();
-    return WindTexture.latMin <= v.getSouth() && WindTexture.latMax >= v.getNorth()
-        && WindTexture.lngMin <= v.getWest()  && WindTexture.lngMax >= v.getEast();
+    var v = map.getBounds(), m = marginaali || 0;
+    var mw = (v.getEast() - v.getWest()) * m, mh = (v.getNorth() - v.getSouth()) * m;
+    return WindTexture.latMin <= v.getSouth() - mh && WindTexture.latMax >= v.getNorth() + mh
+        && WindTexture.lngMin <= v.getWest()  - mw && WindTexture.lngMax >= v.getEast()  + mw;
   }
 
-  function _heatmapCatchUp() {
-    if (_hmBusy) { _hmPending = true; return; }
+  function _heatmapCatchUp(askel) {
+    askel = askel || WindTexture.SCRUB_STEP;
+    if (_hmBusy) { _hmPending = Math.min(_hmPending || 99, askel); return; }
     _hmBusy = true;
     /* Zoom on muuttunut, joten interpoloinnin ydin mitoitetaan uudelleen —
        muuten kaukana toisistaan olevat pisteet jäisivät tukisäteen ulkopuolelle
        ja ulos zoomattu näkymä muuttuisi laikukkaaksi. */
     SpatialIndex.build(State.windField, ViewportGrid.gridStep(map.getZoom()));
-    WindTexture.build(State.windField, map.getBounds(), WindTexture.SCRUB_STEP)
+    WindTexture.build(State.windField, map.getBounds(), askel)
       .then(function () {
         /* skipBlur: updateHeatmapBlur vaihtaisi sumennuksen arvoa ja
            .heatmap-overlay:n 0.3 s siirtymä käynnistyisi joka kerta. zoomend
            asettaa oikean arvon kerran, kun ele on ohi. */
         drawColorField(true);
         _hmBusy = false;
-        if (_hmPending) { _hmPending = false; _heatmapCatchUp(); }
+        if (_hmPending) { var s = _hmPending; _hmPending = 0; _heatmapCatchUp(s); }
       })
       .catch(function () { _hmBusy = false; });
   }
+
+  /* Sama kate-tarkistus siirrolle. Ennen se oli vain zoomissa, joten
+     sivulle vieritettäessä lämpökartta jäi sinne mihin se oli rakennettu:
+     mitattuna yksi nopea heitto jätti 30 % ruudusta värittämättä, eikä
+     tilanne korjaantunut itsestään lainkaan — vain uusi datahaku olisi
+     rakentanut tekstuurin uudelleen, ja sillä on oma kynnyksensä.
+     Tarkistus on kevyt (neljä vertailua) ja rakennus lähtee vain jos
+     näkymä on oikeasti karannut rajojen ulkopuolelle. */
+  map.on('move', function () {
+    if (map._animatingZoom) return;
+    _vpEleenAikana();
+    if (!State.windField || !State.windField.length) return;
+    if (_hmRaf) return;
+    _hmRaf = true;
+    requestAnimationFrame(function () {
+      _hmRaf = false;
+      /* Siirrossa uusi alue paljastuu reunalta ja sen näkee tulossa,
+         joten rakennus aloitetaan ennakkoon. */
+      if (!_heatmapCovers(0.35)) _heatmapCatchUp();
+    });
+  });
 
   map.on('zoom', function (e) {
     /* Nipistyksessä Leaflet ei animoi vaan siirtää karttaa suoraan joka
@@ -3293,6 +3420,7 @@ const WindTexture = {
   latMin: 0, latMax: 0, lngMin: 0, lngMax: 0,
   COARSE_STEP: 3,        /* vakiotarkkuus */
   SCRUB_STEP: 6,         /* aikajanaa raahatessa — päivitys ehtii joka ruutuun */
+  askel: 0,              /* millä askeleella ruudulla oleva tekstuuri on laskettu */
 
   /* build(windField, viewportBounds, coarseStep)
    *
@@ -3314,7 +3442,14 @@ const WindTexture = {
       const zoom = State.map ? State.map.getZoom() : 5;
       let laMin, laMax, loMin, loMax;
       if (viewportBounds) {
-        const vPad = zoom <= 5 ? 2 : 0.5;
+        /* Pehmuste mitoitetaan NÄKYMÄN mukaan eikä vakiona: puolikas aste
+           on z9:llä puoli ruutua mutta z13:lla kymmenen ruutua, eli
+           lähellä turhaa työtä ja kaukana liian vähän. Yksi ruudullinen
+           joka suuntaan riittää tavalliseen vieritykseen ilman että
+           tekstuuri kasvaa kohtuuttomaksi. */
+        const vLat = viewportBounds.getNorth() - viewportBounds.getSouth();
+        const vLng = viewportBounds.getEast() - viewportBounds.getWest();
+        const vPad = zoom <= 5 ? 2 : Math.max(vLat, vLng);
         laMin = Math.max(-85, viewportBounds.getSouth() - vPad);
         laMax = Math.min(85, viewportBounds.getNorth() + vPad);
         loMin = viewportBounds.getWest() - vPad;
@@ -3349,6 +3484,10 @@ const WindTexture = {
       /* Harvennusaskel: pikselit joiden väliin arvot interpoloidaan.
          1 = laske joka pikseli (vanha käytös). */
       const STEP = Math.max(1, Math.round(coarseStep || WindTexture.COARSE_STEP));
+      /* Millä tarkkuudella ruudulla oleva tekstuuri on laskettu. Eleen
+         aikaiset kiinniottorakennukset ovat karkeita, ja kutsujan on
+         voitava nähdä jälkikäteen että tarkka versio on vielä velkaa. */
+      this.askel = STEP;
 
       function buildAll() {
         /* 1) idw() vain harvan hilan solmuissa */
@@ -3549,10 +3688,25 @@ const PerfTracker = {
  * laitteilla tämä on yläraja eikä lupaus. */
 function nParticlesBase() {
   const ala = (State.vw || 390) * (State.vh || 844);
-  return Math.max(200, Math.min(760, Math.round(ala / 1050)));
+  return Math.max(60, Math.min(520, Math.round(ala / 1500)));
 }
 function nParticles() { return PerfTracker.getTarget(); }
-function particleLineWidth(ms) { return 2.0 + (ms / Config.MAX_MS) * 2.2; }
+/* Leveys ja määrä on valittu yhdessä, mitattuna.
+ *
+ * Mittari: "luettava peitto" = osuus ruudusta jossa on partikkelimustetta
+ * jonka kontrasti omaan taustaansa on vähintään 1,5. Se rankaisee sekä
+ * liian ohuista (kontrasti jää alle) että liian harvoista (peittoa ei
+ * kerry). Pyyhkäisy vakioidulla mustemäärällä:
+ *
+ *   leveys ×1,00, n 313   luettava peitto 2,95 %   näkymätöntä 12 %
+ *   leveys ×1,25, n 251                   3,27 %                11 %
+ *   leveys ×1,50, n 209                   3,55 %                 9 %   <-
+ *   leveys ×1,80, n 174                   3,39 %                 9 %
+ *
+ * Syy on antialiasointi: ohut viiva menettää huippualfansa osittaiseen
+ * peittoon, paksu ei. Sama muste luettavampana — ja kolmannes vähemmän
+ * partikkeleita on myös halvempi piirtää. */
+function particleLineWidth(ms) { return 3.0 + (ms / Config.MAX_MS) * 3.3; }
 
 const NIPUT = 10;   /* nopeusluokkia piirtoa varten */
 /* Ruutuprojektio: näkymän kulmat kerran, sitten kerto- ja yhteenlasku.

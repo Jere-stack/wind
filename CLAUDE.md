@@ -701,9 +701,35 @@ ja jokainen veto on yhtenäinen polylinja.
 Vetoja on `NIPUT × TASOT` = 30 ruutua kohti, ei partikkelien verran:
 segmentit kerätään nopeusluokan ja tason mukaan `Path2D`-poluiksi.
 
-**Tiheys** on 390×844 ruudulla noin 310 (`ala / 1050`). Sekin on mitattu:
-227 antoi 24 fps, 451 antoi 14 fps, 313 antoi 18–19 fps — eli yhä puolet
-enemmän kuin se versio jota tämä korvaa, ja kenttä lukee virtauksena.
+#### Isompi ja harvempi lukee paremmin kuin ohut ja tiheä
+
+Ensimmäinen tiheys oli noin 310 hiukkasta 390×844 ruudulla (`ala / 1050`),
+ja se valittiin ruutunopeudella: 227 antoi 24 fps, 451 antoi 14 fps, 313
+antoi 18–19 fps. Ruutunopeus ei kuitenkaan kerro erottuuko jälki.
+
+Mittari joka kertoo: **luettava peitto** = osuus ruudusta jossa on
+partikkelimustetta, jonka kontrasti *omaan taustaansa* on vähintään 1,5.
+Se rankaisee molemmista suunnista — liian ohut jää kontrastin alle, liian
+harva ei kerrytä peittoa. Pyyhkäisy niin että mustemäärä pysyy vakiona
+(leveys ylös, määrä alas samassa suhteessa):
+
+| leveys | n | luettava peitto | näkymätöntä |
+|---|---|---|---|
+| ×1,00 | 313 | 2,95 % | 12 % |
+| ×1,25 | 251 | 3,27 % | 11 % |
+| **×1,50** | **209** | **3,55 %** | **9 %** |
+| ×1,80 | 174 | 3,39 % | 9 % |
+
+Optimi on ×1,50 ja se on aito huippu, ei pyyhkäisyn reuna. Syy on
+antialiasointi: ohut viiva menettää huippualfansa osittaiseen peittoon,
+paksu ei. Sama muste luettavampana — ja kolmannes vähemmän partikkeleita
+on myös halvempi piirtää. Kaksi kierrosta DPR 3:lla ja 4× kuristuksella,
+313 → 219 hiukkasta: **levossa 19/17 → 23/21 fps**, vetoeleessä
+18/17 → 18/20 fps.
+
+Käytännössä `particleLineWidth` on `3,0 + ms/MAX_MS × 3,3` ja tiheys
+`ala / 1500`. **Nämä kaksi kuuluvat yhteen.** Jos toista muuttaa
+yksinään, mustemäärä muuttuu ja pyyhkäisyn tulos ei enää päde.
 
 ### Partikkelit kirkastavat kenttää, eivät peitä sitä
 
@@ -728,6 +754,107 @@ Kaksi muutosta, molemmat sovelluksessa jo käytössä olevaa kieltä:
   vähän. Rampin sävy kertoo yhä nopeuden, mutta luminanssi nousee
   taustan yli — ja kärki on vaaleampi kuin häntä, jolloin jälki lukee
   suuntansa.
+
+### Nopea sivuvieritys — kolme kerrosta, kolme ennakointia
+
+Kun karttaa heittää sivulle, uutta aluetta paljastuu reunalta nopeammin
+kuin mikään kerros ehtii reagoida. Kaikki kolme kerrosta odottivat ennen
+samaa asiaa — että jotain on **jo** puuttunut ruudulta — ja lähtivät
+vasta sitten liikkeelle. Nyt kaikki kolme katsovat eteenpäin.
+
+Mittausasetelma: 700 px heitto 450 ms:ssa (sama minkä Leafletin inertia
+tekee), 180 ms verkkoviive laatoille, näytteet joka ruudulla.
+
+#### 1. Pohjakartta: esihaku kulkusuuntaan
+
+Leafletin oletus `updateWhenIdle` on **mobiililaitteella tosi**, eli
+laattoja ei haeta lainkaan liikkeen aikana. Oletus on ajalta jolloin
+laattojen purku nykäisi vierityksen. Sen kanssa terävä laattapeitto oli
+eleen aikana 45 % ja palasi täydeksi vasta 685 ms kuluttua — siihen asti
+puolet ruudusta oli venytettyä isovanhempaa eli sumeaa.
+
+Leaflet hakee tasan sen mitä on näkyvissä juuri nyt, ei laattaakaan
+enempää. Tavallinen kiertotie on hakea yksi rengas joka suuntaan; se
+auttaa, mutta maksaa 56 % enemmän pyyntöjä **joka kerta kun näkymä
+vaihtuu**, myös silloin kun karttaa ei vieritetä — kolme neljäsosaa
+renkaasta on aina väärällä puolella.
+
+Tässä pehmuste annetaan vain sinne minne ollaan menossa, ja vain kun
+kartta liikkuu. **Paikallaan olevan kartan kustannus on tasan nolla.**
+
+| | terävä peitto eleen aikana | täysi vasta |
+|---|---|---|
+| Leafletin oletus | 45 % | 685 ms |
+| `updateWhenIdle: false` | 56 % | 487 ms |
+| rengas joka suuntaan | 76 % | 508 ms |
+| **esihaku kulkusuuntaan** | **62–70 %** | **460–476 ms** |
+
+Suunta luetaan kartan keskipisteen siirtymästä pikseleinä. Zoomin aikana
+vertailukohta on eri mittakaavassa, joten silloin pehmustetta ei anneta
+lainkaan — eikä tarvitakaan, koska zoomatessa uutta aluetta paljastuu
+joka puolelta eikä suunnalla ole merkitystä.
+
+Toteutus korvaa `_pxBoundsToTileRange`-metodin laattatasolla. Se on
+Leafletin sisusta, joten korvaus asennetaan vain jos metodi on olemassa
+— muuten kartta toimii tasan kuten ennenkin, ilman esihakua.
+
+#### 2. Lämpökartta: rakennus alkaa ennen kuin reuna paljastuu
+
+Kate-tarkistus oli **vain zoomissa**. Sivulle vieritettäessä lämpökartta
+jäi sinne mihin se oli rakennettu: mitattuna yksi nopea heitto jätti
+30 % ruudusta värittämättä, eikä tilanne korjaantunut itsestään
+lainkaan — vain uusi datahaku olisi rakentanut tekstuurin uudelleen, ja
+sillä on oma kynnyksensä.
+
+Kolme korjausta:
+
+- **Sama kate-tarkistus siirrolle.** Neljä vertailua kehyksessä.
+- **Pehmuste mitoitetaan näkymän mukaan** eikä vakiona: puolikas aste on
+  z9:llä puoli ruutua mutta z13:lla kymmenen ruutua, eli lähellä turhaa
+  työtä ja kaukana liian vähän.
+- **Rakennus alkaa ennakkoon.** `_heatmapCovers(0,35)` kysyy "onko reuna
+  *paljastumassa*", ei "onko reuna jo paljastunut". Ilman tätä
+  lämpökartan kate putosi 66 %:iin heitossa, koska rakennus hävisi kisan
+  laattojen lataukselle — nyt se on **100 % joka näytteessä**.
+
+#### 3. Ennustedata: haku lähtee kesken eleen
+
+Data haettiin vasta kun ele oli ohi ja sen päälle odotettiin 350 ms —
+koko ele siis kului odottaen, ja vasta sen jälkeen alkoi sekunnin
+mittainen haku. Nyt haku lähtee heti kun näkymä on liikkunut tarpeeksi,
+sormi kartalla tai ei: mitattuna haku alkaa **1 958 ms kohdalla eikä
+3 205 ms kohdalla**, eli 1,25 s aiemmin. Kaksi vartijaa pitää sen
+järkevänä: `loadViewport` peruu
+edellisen keskeneräisen pyynnön, joten liian tiheä laukaisu estäisi
+kaiken valmistumisen — siksi kesken eleen vaaditaan puolen ruudun
+siirtymä ja vähintään 600 ms edellisestä.
+
+**Tässä kaatui myös hypoteesi.** Näytti siltä että vierityksen jälkeen
+näkymässä oli vain 5 ennustepistettä 12:sta eikä tilanne korjaantunut.
+Suoraan mitattuna kaikki 49 pyydettyä pistettä olivat ladattuina,
+näkymän neljä hilapistettä mukaan lukien. Ero oli **spoteissa**:
+Helsingin edustalla niitä on näkyvissä kahdeksan, idempänä yksi. Datan
+lataus ei ollut rikki lainkaan.
+
+#### Karkea tekstuuri oli velkaa jota kukaan ei perinyt
+
+Eleen aikaiset kiinniottorakennukset ovat karkeita (`SCRUB_STEP` 6), ja
+zoomille tarkan version palauttaa `zoomend`. Siirrolla ei ollut
+vastaavaa. Kun kate-tarkistus laajennettiin siirtoon, syntyi tilanne
+jossa karkea tekstuuri jäi ruudulle **toistaiseksi**: ainoa muu tarkka
+rakennus on datahaun perässä, eikä se laukea pienessä siirrossa.
+
+`WindTexture.askel` kertoo nyt millä tarkkuudella ruudulla oleva
+tekstuuri on laskettu, ja `moveend` rakentaa tarkan version jos velkaa
+on. Mitattuna: heiton aikana askel 6, 600 ms kuluttua takaisin 3, kate
+100 % koko ajan — myös pienessä siirrossa joka ei ylitä datahaun
+kynnystä.
+
+`_hmPending` on samalla muutettu totuusarvosta **askeleeksi**: eleen
+aikana pyydetään karkeaa ja pysähdyttäessä tarkkaa, ja jos molemmat
+osuvat samaan jonoon, tarkempi voittaa. `WindTexture.build` kirjoittaa
+jaettuja kenttiä (`cols`, `latMin`, …), joten kahta rakennusta ei saa
+olla lennossa yhtä aikaa.
 
 ### Play liikkuu jatkuvasti, ei tunti kerrallaan
 
