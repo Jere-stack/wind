@@ -113,14 +113,22 @@ body {
 #c-wind {
   position: absolute; top: 0; left: 0;
   pointer-events: none;
+  /* Canvasia EI venytetä CSS:llä missään vaiheessa. Jäljet ovat
+     geometriaa ja ne piirretään joka ruutu uudelleen nykyiseen
+     muunnokseen — venytetty bittikartta muuttuisi turvonneiksi
+     palloiksi (ks. Jalki). */
   -webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0);
-  /* Zoomin aikana canvas venytetään samalla muunnoksella kuin
-     karttatasot (ks. KanvasSiirto). Muunnos lasketaan ruudun
-     vasemmasta ylänurkasta, kuten Leafletillä — oletusorigo keskellä
-     skaalaisi väärästä kohdasta. */
-  -webkit-transform-origin: 0 0; transform-origin: 0 0;
   will-change: contents;
   -webkit-backface-visibility: hidden; backface-visibility: hidden;
+}
+/* Kello Leafletin zoom-animaatiolle. Leaflet venyttää karttatasot
+   0,25 s CSS-siirtymällä; tämä näkymätön elementti saa saman siirtymän,
+   ja siitä luetaan joka ruudussa se muunnos jossa kartta juuri nyt on.
+   Näin animaation pehmennyskäyrää ei tarvitse mallintaa itse. */
+#c-wind-kello {
+  position: absolute; top: 0; left: 0; width: 1px; height: 1px;
+  opacity: 0; pointer-events: none; z-index: -1;
+  -webkit-transform-origin: 0 0; transform-origin: 0 0;
 }
 #c-wind { z-index: 3; transition: opacity 0.15s; }
 /* Additiivinen sekoitus lämpökartalle.
@@ -1779,6 +1787,7 @@ body {
     <div id="map"></div>
 </div>
   <canvas id="c-wind"></canvas>
+  <div id="c-wind-kello"></div>
 
 
   <!-- Yläreunan kapseli: yksi kelluva rivi kartan päällä. Kolme osaa
@@ -2094,7 +2103,6 @@ const Config = {
   INERTIA: 0.78,
   GEO_SPEED: 0.003,
   WIND_SAMPLE_INTERVAL: 2,
-  FADE_OPACITY: 0.955,
   MAX_AGE: 300,
   DROP_RATE: 0.003,
   DROP_RATE_BUMP: 0.008,
@@ -2905,11 +2913,9 @@ function initMap() {
 
   /* Zoom-animaatio: canvas venyy samalla muunnoksella ja samalla
      siirtymällä kuin karttatasot, ja piirto jatkuu jäädytettyyn
-     projektioon — ks. KanvasSiirto. Tapahtuma syttyy ennen kuin kartan
+     projektioon — ks. Ruudusto. Tapahtuma syttyy ennen kuin kartan
      tila hyppää maaliin, joten tässä luettu projektio on lähtötila. */
-  map.on('zoomanim', (e) => {
-    if (State.windCtx) KanvasSiirto.zoomAnim(map, State.windCtx, State.dpr, State.windCvs, e.center, e.zoom);
-  });
+  map.on('zoomanim', (e) => { Ruudusto.zoomAnim(map, e.center, e.zoom); });
 
   /* Tallennetaan edellinen hakualue kynnystarkistusta varten */
   var _lastLoadBounds = null;
@@ -2997,7 +3003,6 @@ function initMap() {
   map.on('zoom', function (e) {
     /* Nipistyksessä Leaflet ei animoi vaan siirtää karttaa suoraan joka
        ruudussa, ja vain tämä lippu erottaa eleen kertaloikasta. */
-    if (e && e.pinch) KanvasSiirto._nipistys = true;
     /* Ohjelmallisen zoom-animaation aikana Leaflet pitää karttatasoja
        transformin alla eikä ole vielä päivittänyt lopullista tilaa —
        overlayn rajojen siirtäminen silloin nykäisisi sitä paikaltaan.
@@ -3014,10 +3019,6 @@ function initMap() {
 
   let _prevZoom = map.getZoom();
   map.on('zoomend', () => {
-    /* Zoom on ohi: partikkelicanvasin venytys paistetaan bittikarttaan ja
-       projektio vapautetaan. Tämä tehdään ennen kaikkea muuta ja myös
-       silloin kun muu päivitys ohitetaan. */
-    if (State.windCtx) KanvasSiirto.paista(map, State.windCtx, State.dpr, State.windCvs);
     if (State._dragZooming) return;
     const newZoom = map.getZoom();
     if (newZoom !== _prevZoom) {
@@ -3536,22 +3537,12 @@ const PerfTracker = {
  * laitteilla tämä on yläraja eikä lupaus. */
 function nParticlesBase() {
   const ala = (State.vw || 390) * (State.vh || 844);
-  return Math.max(140, Math.min(520, Math.round(ala / 1450)));
+  return Math.max(200, Math.min(760, Math.round(ala / 1050)));
 }
 function nParticles() { return PerfTracker.getTarget(); }
 function particleLineWidth(ms) { return 2.0 + (ms / Config.MAX_MS) * 2.2; }
 
-/* Nopeusluokat piirtoa varten. Väri, leveys ja alfa lasketaan luokan
-   keskikohdasta kerran; silmukka vain kerää segmentit. */
-const NIPUT = 10;
-const Nippu = { polut: new Array(NIPUT), vari: new Array(NIPUT), leveys: new Array(NIPUT) };
-(function () {
-  for (let k = 0; k < NIPUT; k++) {
-    const t = (k + 0.5) / NIPUT, ms = t * Config.MAX_MS;
-    Nippu.leveys[k] = particleLineWidth(ms);
-    Nippu.vari[k] = ColorRamp.css(ms, Math.min(0.9, 0.3 + t * 0.6));
-  }
-})();
+const NIPUT = 10;   /* nopeusluokkia piirtoa varten */
 /* Ruutuprojektio: näkymän kulmat kerran, sitten kerto- ja yhteenlasku.
    Zoom otetaan talteen tässä, koska silmukan on nähtävä kartta yhtenä
    johdonmukaisena tilana — zoom-animaation aikana Leaflet on jo maalissa
@@ -3602,7 +3593,7 @@ const GeoProject = {
 
    Yksi sääntö pitää tämän kasassa: **canvasin sisältö ja partikkelit
    ovat aina samassa ruudustossa.** Kun bittikarttaa muunnetaan, samat
-   luvut ajetaan partikkeleille — ks. KanvasSiirto._muunna. */
+   luvut ajetaan partikkeleille — ks. siirraPartikkelit. */
 function naytteista(p) {
   const G = GeoProject;
   const lat = G._north + (p.y - G._oy) / G._sy;
@@ -3622,18 +3613,9 @@ function paivitaAlue(s, tx, ty) {
   a.x0 = -tx / s; a.y0 = -ty / s;
   a.x1 = (State.vw - tx) / s; a.y1 = (State.vh - ty) / s;
 }
-/* CSS-siirtymän aikana muunnos elää selaimen käsissä, joten näkyvä alue
-   luetaan siltä. Ilman tätä alue hyppäisi maaliin heti ja partikkelit
-   syntyisivät 0,25 s ajan alueelle josta vain murto-osa on ruudulla —
-   mitattuna näkyviä oli hetkellisesti 44 sadastakahdestakymmenestä. */
-function paivitaAlueRuudulta(cvs) {
-  const tr = getComputedStyle(cvs).transform;
-  if (!tr || tr === 'none') { paivitaAlue(1, 0, 0); return; }
-  const m = new DOMMatrixReadOnly(tr);
-  paivitaAlue(m.a, m.e, m.f);
-}
 function makeParticle(rAge) {
-  const p = { x: 0, y: 0, px: 0, py: 0, vx: 0, vy: 0, u: 0, v: 0, ms: 0, sampleTimer: 0, age: 0 };
+  const p = { x: 0, y: 0, vx: 0, vy: 0, u: 0, v: 0, ms: 0, sampleTimer: 0, age: 0,
+              nippu: 0, hn: 0, hx: new Float32Array(JALKI), hy: new Float32Array(JALKI) };
   respawn(p, rAge);
   p.sampleTimer = Math.floor(Math.random() * Config.WIND_SAMPLE_INTERVAL);
   return p;
@@ -3661,8 +3643,7 @@ function resetParticles(kova) {
   if (kova) {
     if (windCtx) windCtx.clearRect(0, 0, windCvs.width / dpr, windCvs.height / dpr);
     State.particles = [];
-    if (windCvs) KanvasSiirto._poistaCss(windCvs);
-    KanvasSiirto.nollaa(State.map);
+    Ruudusto.nollaa(State.map);
     AlueVahti.e = null;
   }
   /* Mittauskytkin pitää partikkelit poissa myös kun kenttä ladataan uusiksi */
@@ -3700,8 +3681,7 @@ function respawn(p, arvoIka, alue) {
     p.x = a.x0 + Math.random() * (a.x1 - a.x0);
     p.y = a.y0 + Math.random() * (a.y1 - a.y0);
   }
-  p.px = p.x; p.py = p.y;
-  p.vx = 0; p.vy = 0;
+  p.vx = 0; p.vy = 0; p.hn = 0;
   p.age = arvoIka ? (Math.random() * Config.MAX_AGE) | 0 : 0;
   p.sampleTimer = 0;
   naytteista(p);
@@ -3709,31 +3689,12 @@ function respawn(p, arvoIka, alue) {
 
 /* -- REUNATASAUS ------------------------------------------------- */
 /* Kun näkyvä alue muuttuu, sinne paljastuu kaistale tai kehä jota ei
-   ollut äsken. Se tarvitsee oman osuutensa partikkeleista — ei enempää
-   eikä vähempää.
-
-   Näkyvä alue muuttuu kahdesta syystä, ja molemmat on otettava huomioon:
-
-   1. Sisältö liikkuu ruudulla (raahaus, ulos zoomaus): bittikarttaa
-      muunnetaan, ja partikkelit muunnetaan mukana. Alue pysyy samana,
-      mutta sen aiempi sijainti siirtyy.
-   2. Näkyvä alue itse muuttuu (nipistys sisään): canvasilla on
-      CSS-muunnos, jolloin vain osa sisällöstä on ruudulla. Bittikarttaan
-      ei kosketa lainkaan.
-
-   Aluksi vain 1 oli katettu, ja se riitti tavalliseen zoomiin. Mutta
-   nipistys sisään maxZoomin yli pomauttaa lopuksi takaisin, ja silloin
-   näkyvä alue kasvaa ilman että sisältöä muunnetaan: partikkelit jäivät
-   siihen pieneen laatikkoon joka oli näkyvissä eleen huipulla — mitattuna
-   27 ruutulohkoa 36:sta jäi tyhjäksi eikä tilanne korjaantunut itsestään.
-
-   Siksi vertailu tehdään NÄKYVÄN ALUEEN muutoksesta, ja sisällön muunnos
-   vain siirtää muistissa olevaa edellistä aluetta mukanaan. */
+   ollut äsken, ja se tarvitsee oman osuutensa partikkeleista. Sääntö
+   vertaa näkyvän alueen muutosta, joten se kattaa raahauksen, zoomin ja
+   nipistyksen ilman erikoistapauksia. */
 const Reunatasaus = {
   r: [[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],
   n: 0, ala: 0,
-
-  /* Alue "uusi miinus vanha" enintään neljänä suorakulmiona. */
   laske(vanha, uusi) {
     this.n = 0; this.ala = 0;
     const x0 = Math.max(uusi.x0, Math.min(uusi.x1, vanha.x0));
@@ -3741,10 +3702,10 @@ const Reunatasaus = {
     const y0 = Math.max(uusi.y0, Math.min(uusi.y1, vanha.y0));
     const y1 = Math.max(uusi.y0, Math.min(uusi.y1, vanha.y1));
     if (!(x1 > x0) || !(y1 > y0)) { this._lisaa(uusi.x0, uusi.y0, uusi.x1, uusi.y1); return; }
-    this._lisaa(uusi.x0, uusi.y0, uusi.x1, y0);        /* ylä   */
-    this._lisaa(uusi.x0, y1,      uusi.x1, uusi.y1);   /* ala   */
-    this._lisaa(uusi.x0, y0,      x0,      y1);        /* vasen */
-    this._lisaa(x1,      y0,      uusi.x1, y1);        /* oikea */
+    this._lisaa(uusi.x0, uusi.y0, uusi.x1, y0);
+    this._lisaa(uusi.x0, y1,      uusi.x1, uusi.y1);
+    this._lisaa(uusi.x0, y0,      x0,      y1);
+    this._lisaa(x1,      y0,      uusi.x1, y1);
   },
   _lisaa(x0, y0, x1, y1) {
     const a = (x1 - x0) * (y1 - y0);
@@ -3753,7 +3714,6 @@ const Reunatasaus = {
     r[0] = x0; r[1] = y0; r[2] = x1; r[3] = y1; r[4] = a;
     this.ala += a;
   },
-  /* Arpoo yhden paljastuneista suorakulmioista pinta-alan suhteessa. */
   alue() {
     if (!this.n) return null;
     let k = Math.random() * this.ala;
@@ -3763,27 +3723,19 @@ const Reunatasaus = {
 };
 
 const AlueVahti = {
-  e: null,   /* näkyvä alue edellisessä ruudussa, sisällön koordinaateissa */
-
+  e: null,
   nollaa() {
     const a = State.alue;
     this.e = { x0: a.x0, y0: a.y0, x1: a.x1, y1: a.y1 };
   },
-
-  /* Sisältöä muunnettiin: edellinen alue siirtyy samalla muunnoksella,
-     jotta sitä voi verrata nykyiseen samassa koordinaatistossa. */
   muunna(s, tx, ty) {
     const e = this.e; if (!e) return;
     e.x0 = s * e.x0 + tx; e.y0 = s * e.y0 + ty;
     e.x1 = s * e.x1 + tx; e.y1 = s * e.y1 + ty;
   },
-
-  /* Täyttää paljastuneen alueen. Ylimäärä otetaan siitä osasta joka oli
-     näkyvissä myös äsken — siellä se on. */
   tasaa() {
     const a = State.alue, hiuk = State.particles;
-    if (!this.e) { this.nollaa(); return; }
-    if (!hiuk.length) { this.nollaa(); return; }
+    if (!this.e || !hiuk.length) { this.nollaa(); return; }
     const ala = (a.x1 - a.x0) * (a.y1 - a.y0);
     if (!(ala > 0)) { this.nollaa(); return; }
     Reunatasaus.laske(this.e, a);
@@ -3796,9 +3748,6 @@ const AlueVahti = {
         if (p.x >= e.x0 && p.x <= e.x1 && p.y >= e.y0 && p.y <= e.y1) vanhassa++;
       }
       if (vanhassa > 0) {
-        /* Siirrettävät otetaan vanhalta alueelta, koska ylimäärä on
-           siellä. Jos ne arvottaisiin koko kentästä, osa osuisi jo
-           valmiiksi paljastuneelle alueelle ja tasaus jäisi vajaaksi. */
         const osuus = tarve / vanhassa;
         for (let i = 0; i < hiuk.length; i++) {
           const p = hiuk[i];
@@ -3812,274 +3761,182 @@ const AlueVahti = {
   }
 };
 
-/* Ajetaan aina kun bittikarttaa muunnetaan: partikkelit samaan
-   muunnokseen kuin sisältö. Tasaus tehdään erikseen silmukassa. */
-function siirraPartikkelit(s, tx, ty) {
-  const hiuk = State.particles;
-  for (let i = 0; i < hiuk.length; i++) {
-    const p = hiuk[i];
-    p.x = s * p.x + tx;  p.y = s * p.y + ty;
-    p.px = s * p.px + tx; p.py = s * p.py + ty;
-  }
-  AlueVahti.muunna(s, tx, ty);
-}
+/* -- JÄLKI ON GEOMETRIAA, EI PIKSELEITÄ -------------------------- */
+/* Klassinen tapa piirtää tuulipartikkeleita on jättää jäljet canvasille
+   ja häivyttää koko kuvaa vähän joka ruudussa. Se on halpaa ja näyttää
+   hyvältä — kunnes karttaa zoomataan. Silloin valmis bittikartta pitäisi
+   venyttää uuteen mittakaavaan, ja 2–4-kertainen venytys muuttaa ohuet
+   viivat turvonneiksi palloiksi. Mitattuna juuri niin kävi: zoom sisään
+   jätti ruudulle sumeaa möykkyä, joka vielä jäi elämään häivytyksen ajan.
+   Kiertoteitä on kokeiltu kolme (jäädytys, CSS-venytys, paisto
+   bittikarttaan) ja jokainen kaatui samaan asiaan.
 
-/* -- PARTIKKELIT PYSYVÄT KARTALLA JA JATKAVAT LIIKETTÄÄN ---------- */
-/* Ensin partikkelit jäädytettiin eleen ajaksi ja canvas himmennettiin.
-   Sitten koko bittikarttaa siirrettiin CSS-muunnoksella, jolloin jäljet
-   pysyivät maastossa mutta liike pysähtyi — ja eleen jälkeen kenttä
-   rakennettiin uusiksi, mikä näkyi viiveenä ennen kuin liike jatkui.
+   Nyt jokainen partikkeli muistaa oman polkunsa: JALKI viimeisintä
+   paikkaa rengaspuskurissa. Canvas tyhjennetään joka ruudussa ja polut
+   piirretään uudelleen. Silloin
+   
+   - mitään ei koskaan venytetä: zoomissa jälki piirtyy uudelleen
+     nykyiseen muunnokseen ja on yhtä terävä kuin levossa,
+   - canvasille ei tarvitse tehdä CSS-muunnosta, joten se peittää aina
+     koko ruudun eikä kutistu reunoilta,
+   - jäljen pituus on suora luku (JALKI × ASKEL ruutua) eikä
+     häivytysvakion sivutuote.
 
-   Kumpikaan ei ollut se mitä haettiin. Liike ei saa katketa missään
-   vaiheessa — eikä partikkelikerros saa jättää ruudun reunoja tyhjäksi.
+   Hinta on se että jäljet piirretään joka ruutu uudelleen. Se on
+   pienempi kuin miltä kuulostaa: canvasin tyhjennys maksaa saman kuin
+   häivytysveto, ja segmentit niputetaan nopeus- ja häivytysluokkiin,
+   joten vetoja on luokkien verran eikä partikkelien.
 
-   Työkaluja on kaksi, ja niillä on tarkat rajat:
-
-   A) BITTIKARTAN MUUNTAMINEN. Yksi drawImage canvasilta itselleen
-      'copy'-tilassa siirtää ja skaalaa jäljet sekä tyhjentää paljastuvan
-      reunan yhdellä vedolla. Toimii aina, mutta näytteistää kuvan
-      uudelleen: pelkkä siirto pyöristetään kokonaisiin laitepikseleihin
-      (jäännös kannetaan seuraavaan ruutuun, jottei pitkässä raahauksessa
-      kerry ryömintää), skaalaus taas pehmentää jälkiä vähän kerrallaan.
-
-   B) CANVASIN CSS-MUUNNOS. Ilmainen: ajetaan kompositoinnissa eikä
-      bittikarttaan kosketa lainkaan. Mutta se liikuttaa canvasin
-      SUORAKULMIOTA. Jos mittakaava on alle yhden, canvas kutistuu
-      pienemmäksi kuin ruutu, ja reunoille ei jää mitään — mitattuna
-      kolmen zoom-tason nipistys ulos kuristi partikkelikerroksen
-      **2 %:iin ruudun pinta-alasta**. Siksi CSS-muunnosta käytetään
-      vain kun se SUURENTAA (s ≥ 1); silloin peitto on aina vähintään
-      täysi.
-
-   Tästä seuraa sääntö: pidä canvasin sisältö siinä ruudustossa jossa
-   muunnos suurenee.
-
-   - Siirto (raahaus, inertia): A, kokonaispikselein. Terävä.
-   - Zoom SISÄÄN: sisältö jää lähtöruudustoon ja canvas suurenee → B.
-     Muunnos paistetaan bittikarttaan kerran, kun zoom on ohi.
-   - Zoom ULOS, animoitu: sisältö paistetaan HETI maaliruudustoon (A,
-     kerran), ja canvas aloittaa suurennettuna 1/s ja päätyy
-     identiteettiin → B. Peitto ei käy alle täyden hetkeäkään.
-   - Zoom ULOS, nipistys: maalia ei tiedetä, joten sisältö paistetaan
-     joka ruudussa nykyiseen ruudustoon (A). Canvas pysyy täytenä.
-     Hinta on sama kuin raahauksessa: yksi koko canvasin veto ruudussa.
-
-   Animoidussa zoomissa Leaflet ilmoittaa maalin zoomanim-tapahtumalla ja
-   siirtää kartan tilan HETI maaliin, vaikka kuva on vasta lähdössä.
-   Siksi lähtötila on luettava juuri siinä tapahtumassa. Canvas saa saman
-   0,25 s siirtymän kuin karttatasot, ja selain interpoloi sen — omaa
-   pehmennyskäyrää ei tarvitse mallintaa. */
+   Paikat talletetaan joka toinen ruutu: polku on hitausvaimennettu ja
+   siis sileä, joten väliin jäävä piste ei näy. Pään ja uusimman
+   talletetun pisteen väli piirretään aina erikseen, jottei kärki nyki. */
+/* Sama siirtymä kuin Leafletin karttatasoilla. */
 const SIIRTYMA = 'transform .25s cubic-bezier(0,0,.25,1)';
+const JALKI = 20;          /* talletettuja pisteitä */
+const ASKEL = 4;           /* ruutua pisteiden välissä — jälki on siis
+                              JALKI × ASKEL = 80 ruutua pitkä */
 
-const KanvasSiirto = {
-  ref: null,        /* kiintopiste maastossa */
-  p0: null,         /* sen ruutupaikka sisällön ruudustossa */
-  z0: null,         /* sisällön ruuduston zoom */
-  haivytti: false,  /* hoitiko muunnos myös häivytyksen */
-  _css: null,       /* null | 'sisaan' | 'ulos' — mitä CSS-muunnos pitää */
-  _animoitu: false, /* CSS-muunnos on Leafletin animaatiota varten, ei nipistystä */
-  _nipistys: false, /* sormet kartalla — Leafletin pinch-lippu */
-  _jx: 0, _jy: 0,   /* pyöristyksen jäännös laitepikseleinä */
+/* Häivytys tehdään SISÄKKÄISILLÄ VEDOILLA, ei segmentti kerrallaan.
+ *
+ * Ensimmäinen yritys antoi jokaiselle segmentille oman alfansa. Se on
+ * ilmeinen tapa ja se näytti helmiketjulta: segmentti on lyhyempi kuin
+ * viivan leveys, joten pyöreät päät jäävät päällekkäin, ja vierekkäiset
+ * segmentit eri alfalla tekevät niistä erillisiä pisaroita.
+ *
+ * Nyt sama jälki piirretään kolmesti: koko pituudelta himmeänä, kaksi
+ * kolmasosaa kirkkaampana ja kärkiosa kirkkaimpana. Alfat kertautuvat,
+ * joten häntä jää himmeäksi ja kärki nousee — mutta jokainen veto on
+ * yhtenäinen polylinja, joten pyöreitä päitä on vain kaksi per veto eikä
+ * yhtä per piste. Vetoja on kolme partikkelia kohti ja ne niputetaan
+ * nopeusluokkiin, joten stroke-kutsuja on 30 eikä partikkelien verran. */
+const TASOT    = [1.0, 0.62, 0.30];  /* osuus jäljestä kärjestä lukien */
+const TASOALFA = [0.26, 0.34, 0.52]; /* kerrannainen alfa per veto */
+const TASOLEV  = [0.60, 0.80, 1.00]; /* ja leveys: häntä ohuempi kuin kärki */
+
+const Nippu = {
+  polut: new Array(NIPUT * TASOT.length),
+  vari: new Array(NIPUT * TASOT.length),
+  leveys: new Array(NIPUT * TASOT.length)
+};
+(function () {
+  for (let n = 0; n < NIPUT; n++) {
+    const t = (n + 0.5) / NIPUT, ms = t * Config.MAX_MS;
+    const lw = particleLineWidth(ms);
+    const a0 = Math.min(0.95, 0.38 + t * 0.6);
+    for (let k = 0; k < TASOT.length; k++) {
+      Nippu.vari[n * TASOT.length + k] = ColorRamp.css(ms, a0 * TASOALFA[k]);
+      Nippu.leveys[n * TASOT.length + k] = lw * TASOLEV[k];
+    }
+  }
+})();
+
+/* Ruudusto: missä muunnoksessa partikkelien koordinaatit ovat suhteessa
+   ruutuun juuri nyt.
+   
+   Normaalisti muunnos on identiteetti: koordinaatit ovat ruutupisteitä
+   ja liike seuraa karttaa suoraan. Leafletin zoom-animaation ajan kartan
+   tila on jo maalissa mutta kuva vasta matkalla, joten koordinaatisto
+   jäädytetään ja piirto tehdään sen muunnoksen läpi jossa kartta on
+   NÄHTÄVISSÄ — se luetaan #c-wind-kello -elementiltä, jolla on sama
+   CSS-siirtymä kuin karttatasoilla. */
+const Ruudusto = {
+  ref: null, p0: null, z0: null,
+  m: { s: 1, tx: 0, ty: 0 },
+  _kello: null, _anim: false,
 
   nollaa(map) {
     if (!map) return;
     this.ref = map.getCenter();
     this.p0 = map.latLngToContainerPoint(this.ref);
     this.z0 = map.getZoom();
-    this._jx = 0; this._jy = 0;
+    this.m.s = 1; this.m.tx = 0; this.m.ty = 0;
   },
 
-  /* Sisältö heitetään pois, joten myös partikkelit arvotaan uudelleen:
-     ruudusto vaihtui eikä vanhoilla paikoilla ole enää merkitystä. */
-  _tyhjenna(ctx, dpr, cvs) {
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, cvs.width, cvs.height);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const hiuk = State.particles;
-    for (let i = 0; i < hiuk.length; i++) respawn(hiuk[i], true);
-    AlueVahti.nollaa();
+  kello() {
+    if (!this._kello) this._kello = document.getElementById('c-wind-kello');
+    return this._kello;
   },
 
-  _poistaCss(cvs) {
-    this._css = null; this._animoitu = false;
-    cvs.style.transition = '';
-    cvs.style.transform = 'translate3d(0,0,0)';
-    paivitaAlue(1, 0, 0);
-  },
-
-  /* Muuntaa canvasin sisällön: p' = s*p + (tx,ty), yksiköt CSS-pikseleitä.
-     Samalla vedolla hoidetaan jälkien häivytys: 'copy' korvaa kohteen
-     lähteellä, ja globalAlpha kertoo lähteen läpinäkyvyydellä — se on
-     tulokseltaan sama kuin erillinen destination-in-häivytys, mutta
-     säästää yhden koko canvasin läpikäynnin joka ruudussa. Se kannattaa,
-     koska canvasin likaantuminen pakottaa alla olevan lämpökartan
-     sekoituskerroksen laskemaan uudelleen. */
-  _muunna(ctx, dpr, cvs, s, tx, ty, haivytys) {
-    let a = s * dpr, e = tx * dpr, f = ty * dpr;
-    if (s === 1) {
-      e += this._jx; f += this._jy;
-      const re = Math.round(e), rf = Math.round(f);
-      this._jx = e - re; this._jy = f - rf;
-      e = re; f = rf;
-      if (!e && !f) return;
-    } else { this._jx = 0; this._jy = 0; }
-    ctx.setTransform(a, 0, 0, a, e, f);
-    ctx.globalCompositeOperation = 'copy';
-    if (haivytys) ctx.globalAlpha = haivytys;
-    ctx.drawImage(cvs, 0, 0, cvs.width / dpr, cvs.height / dpr);
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    if (haivytys) this.haivytti = true;
-    /* Partikkelit samaan ruudustoon kuin sisältö — tästä yhdestä
-       kutsusta riippuu se, ettei niitä tarvitse tasata jälkikäteen.
-       Siirto annetaan pyöristettynä, samoina pikseleinä kuin kuvalle. */
-    siirraPartikkelit(s, e / dpr, f / dpr);
-  },
-
-  /* Pelkkä siirto: paistetaan bittikarttaan ja siirretään kiintopiste
-     mukana, jolloin canvasin sisältö pysyy nykyisessä projektiossa. */
-  _siirra(map, ctx, dpr, cvs, haivytys) {
-    const p1 = map.latLngToContainerPoint(this.ref);
-    const tx = p1.x - this.p0.x, ty = p1.y - this.p0.y;
-    this.p0 = p1;
-    if (!tx && !ty) return;
-    if (!isFinite(tx) || !isFinite(ty) ||
-        Math.abs(tx) * dpr > cvs.width || Math.abs(ty) * dpr > cvs.height) {
-      /* Hyppy yli ruudun mitan (setView muualle) — siirto ei toisi
-         mitään talteen. */
-      this._tyhjenna(ctx, dpr, cvs); this._jx = 0; this._jy = 0; return;
-    }
-    this._muunna(ctx, dpr, cvs, 1, tx, ty, haivytys);
-  },
-
-  _muunnosCss(s, tx, ty) {
-    return 'translate3d(' + tx + 'px,' + ty + 'px,0) scale(' + s + ')';
-  },
-
-  /* Animoitu zoom alkaa tai saa uuden maalin. Kutsutaan zoomanimista,
-     joka syttyy ennen kuin kartan tila hyppää maaliin — tässä luettu
-     projektio on siis vielä lähtötila. */
-  zoomAnim(map, ctx, dpr, cvs, keskus, zoom) {
+  /* Animoitu zoom alkaa tai saa uuden maalin: kello lähtee kohti maalia
+     samalla siirtymällä kuin karttatasot. */
+  zoomAnim(map, keskus, zoom) {
     if (!this.ref) this.nollaa(map);
-    if (!this._css) {
-      this._siirra(map, ctx, dpr, cvs);   /* mahdollinen siirto talteen */
-      GeoProject.update(map);             /* lähtöruudusto */
+    const k = this.kello();
+    if (!k) return;
+    if (!this._anim) {
+      this._siirra(map);          /* mahdollinen siirto talteen */
+      GeoProject.update(map);     /* jäädytä lähtöruudusto */
       this.z0 = map.getZoom();
       this.p0 = map.latLngToContainerPoint(this.ref);
+      k.style.transition = 'none';
+      k.style.transform = 'translate3d(0,0,0) scale(1)';
+      void k.offsetWidth;
+      this._anim = true;
     }
-    /* F vie lähtöruuduston maaliin: maalissa maalikeskus on ruudun
-       keskellä, joten F(p) = s*(p - pKeskus) + puolikas. */
     const s = map.getZoomScale(zoom, this.z0);
     const pk = GeoProject.project(keskus.lat, keskus.lng);
     const koko = map.getSize();
-    const tx = koko.x / 2 - s * pk.x, ty = koko.y / 2 - s * pk.y;
-    if (!isFinite(s) || !(s > 0) || !isFinite(tx)) return;
-
-    if (s >= 1) {
-      /* Sisään: sisältö jää lähtöruudustoon, canvas suurenee 1 → s. */
-      this._css = 'sisaan'; this._animoitu = true;
-      cvs.style.transition = SIIRTYMA;
-      cvs.style.transform = this._muunnosCss(s, tx, ty);
-      /* Maalin näkyvä alue heti: uudet partikkelit syntyvät sinne mihin
-         ollaan menossa, joten kenttä on valmis kun animaatio päättyy. */
-      paivitaAlue(s, tx, ty);
-      return;
-    }
-
-    /* Ulos: sisältö paistetaan heti maaliruudustoon, ja canvas kulkee
-       käänteismuunnoksesta (suurennos 1/s) identiteettiin. Näin sisältö
-       on jo valmiiksi siinä ruudustossa jossa piirto jatkuu, eikä canvas
-       ole hetkeäkään ruutua pienempi.
-
-       CSS-siirtymä pitää käynnistää uudelleen: ensin lähtöarvo ilman
-       siirtymää, sitten pakotettu tyylin laskenta, ja vasta sen jälkeen
-       maali. Muuten selain interpoloisi edellisestä arvosta. */
-    if (this._css) this._poistaCss(cvs);
-    this._muunna(ctx, dpr, cvs, s, tx, ty);
-    cvs.style.transition = 'none';
-    cvs.style.transform = this._muunnosCss(1 / s, -tx / s, -ty / s);
-    void cvs.offsetWidth;
-    cvs.style.transition = SIIRTYMA;
-    cvs.style.transform = 'translate3d(0,0,0)';
-    this._css = 'ulos'; this._animoitu = true;
-    paivitaAlue(1, 0, 0);   /* maalissa canvas on identiteetillä */
+    if (!isFinite(s) || !(s > 0)) return;
+    k.style.transition = SIIRTYMA;
+    k.style.transform = 'translate3d(' + (koko.x / 2 - s * pk.x) + 'px,'
+                      + (koko.y / 2 - s * pk.y) + 'px,0) scale(' + s + ')';
   },
 
-  /* Zoom on ohi. Sisään zoomatessa CSS-muunnos paistetaan bittikarttaan;
-     ulos zoomatessa se on jo paistettu, joten riittää päästää canvas
-     paikalleen. Sisäänpäin muunnos lasketaan oikeasta lopputilasta eikä
-     maalin arvauksesta: kiintopisteen paikka nyt vs. lähtöruudustossa. */
-  paista(map, ctx, dpr, cvs) {
-    const tila = this._css;
-    this._nipistys = false;
-    if (tila) this._poistaCss(cvs);
-    if (!this.ref) { this.nollaa(map); return; }
-    if (tila !== 'ulos') {
-      const s = map.getZoomScale(map.getZoom(), this.z0);
-      const p1 = map.latLngToContainerPoint(this.ref);
-      if (isFinite(s) && s >= 0.25 && s <= 4 && isFinite(p1.x)) {
-        /* Yli kahden zoom-tason venytys olisi kuvana pelkkää puuroa, ja
-           jäljet syntyvät takaisin puolessa sekunnissa. */
-        this._muunna(ctx, dpr, cvs, s, p1.x - s * this.p0.x, p1.y - s * this.p0.y);
-      } else this._tyhjenna(ctx, dpr, cvs);
-    }
-    this.nollaa(map);
+  /* Pelkkä siirto/skaalaus: koordinaatit viedään nykyiseen ruutuun. */
+  _siirra(map) {
+    const p1 = map.latLngToContainerPoint(this.ref);
+    const z = map.getZoom();
+    const s = map.getZoomScale(z, this.z0);
+    if (!isFinite(s) || !(s > 0) || !isFinite(p1.x)) return;
+    const tx = p1.x - s * this.p0.x, ty = p1.y - s * this.p0.y;
+    if (s === 1 && !tx && !ty) return;
+    siirraPartikkelit(s, tx, ty);
+    this.p0 = p1; this.z0 = z;
   },
 
-  /* Palauttaa true jos projektion saa päivittää normaalisti, false jos
-     sisältö pysyy jäädytetyssä ruudustossa. Asettaa lipun haivytti, jos
-     jälkien häivytys tuli hoidettua samalla vedolla. */
-  paivita(map, ctx, dpr, cvs, haivytys) {
-    this.haivytti = false;
+  /* Kutsutaan joka ruudussa ennen piirtoa. Palauttaa true jos
+     projektion saa päivittää (eli koordinaatisto ei ole jäädytetty). */
+  paivita(map) {
     if (!this.ref) { this.nollaa(map); return true; }
     if (map._animatingZoom) {
-      /* Ulospäin sisältö on maaliruudustossa, jossa kartta jo on, joten
-         piirto jatkuu normaalisti. Sisäänpäin ruudusto on jäädytetty. */
-      return this._css === 'ulos';
-    }
-    /* Animaatio on ohi mutta zoomend ei ole vielä ehtinyt paistaa.
-       Nipistyksen CSS-muunnos EI kuulu tänne: se elää yli ruutujen ja
-       päivittyy joka ruudussa — jos se paistettaisiin tässä, koko ele
-       muuttuisi ruudunmittaisiksi uudelleennäytteistyksiksi. */
-    if (this._animoitu) { this.paista(map, ctx, dpr, cvs); return true; }
-
-    const z = map.getZoom();
-    if (z === this.z0) {
-      /* Nipistys palasi lähtömittakaavaan: CSS pitää enää siirtoa, ja se
-         leivotaan bittikarttaan alla — muuten siirto näkyisi kahdesti. */
-      if (this._css) this._poistaCss(cvs);
-      this._siirra(map, ctx, dpr, cvs, haivytys);
-      return true;
-    }
-
-    const s = map.getZoomScale(z, this.z0);
-    const p1 = map.latLngToContainerPoint(this.ref);
-    if (!isFinite(s) || !(s > 0) || !isFinite(p1.x)) {
-      this._tyhjenna(ctx, dpr, cvs); this.nollaa(map); return true;
-    }
-    /* Nipistys sisään: CSS suurentaa, peitto säilyy, bittikarttaan ei
-       kosketa. Ei siirtymää — kartta liikkuu joka ruudussa. */
-    if (s > 1 && this._nipistys) {
-      this._css = 'sisaan';
-      cvs.style.transition = '';
-      const ctx2 = p1.x - s * this.p0.x, cty = p1.y - s * this.p0.y;
-      cvs.style.transform = this._muunnosCss(s, ctx2, cty);
-      paivitaAlue(s, ctx2, cty);
+      /* Luetaan kellosta se muunnos jossa kartta juuri nyt näkyy. */
+      const k = this.kello();
+      const tr = k ? getComputedStyle(k).transform : 'none';
+      if (tr && tr !== 'none') {
+        const dm = new DOMMatrixReadOnly(tr);
+        this.m.s = dm.a; this.m.tx = dm.e; this.m.ty = dm.f;
+      }
+      paivitaAlue(this.m.s, this.m.tx, this.m.ty);
       return false;
     }
-    /* Nipistys ulos ja kertaloikka: paistetaan nykyiseen ruudustoon.
-       Jos nipistys kääntyi sisältä ulos, CSS-muunnos otetaan ensin pois —
-       sisältö on yhä lähtöruudustossa, joten alla oleva paisto vie sen
-       oikein nykyiseen. */
-    if (this._css) this._poistaCss(cvs);
-    if (s >= 0.25 && s <= 4) {
-      this._muunna(ctx, dpr, cvs, s, p1.x - s * this.p0.x, p1.y - s * this.p0.y, haivytys);
-    } else this._tyhjenna(ctx, dpr, cvs);
-    this.nollaa(map);
+    if (this._anim) {
+      /* Animaatio ohi: koordinaatit maaliruudustoon ja kello nollaan. */
+      this._anim = false;
+      const k = this.kello();
+      if (k) { k.style.transition = 'none'; k.style.transform = 'translate3d(0,0,0) scale(1)'; }
+      this.m.s = 1; this.m.tx = 0; this.m.ty = 0;
+      this._siirra(map);
+      paivitaAlue(1, 0, 0);
+      return true;
+    }
+    this.m.s = 1; this.m.tx = 0; this.m.ty = 0;
+    this._siirra(map);
+    paivitaAlue(1, 0, 0);
     return true;
   }
 };
+
+/* Partikkelit ja niiden polut samaan muunnokseen kuin ruudusto. */
+function siirraPartikkelit(s, tx, ty) {
+  const hiuk = State.particles;
+  for (let i = 0; i < hiuk.length; i++) {
+    const p = hiuk[i];
+    p.x = s * p.x + tx;  p.y = s * p.y + ty;
+    const hx = p.hx, hy = p.hy;
+    for (let j = 0; j < p.hn; j++) { hx[j] = s * hx[j] + tx; hy[j] = s * hy[j] + ty; }
+  }
+  AlueVahti.muunna(s, tx, ty);
+}
 
 /* -- RENDER LOOP ------------------------------------------------ */
 let _renderLoopRunning = false;
@@ -4098,31 +3955,17 @@ function renderLoop(ts) {
   if (!windCtx || !windCvs.width || !windField.length || !map) return;
   const W = State.vw, H = State.vh;
 
-  /* Siirretään jo piirretyt jäljet kartan mukana ja päivitetään projektio.
-     Raahauksessa kartta liikkuu joka ruudussa ja projektio seuraa perässä;
-     sisään zoomatessa ruudusto jäädytetään ja canvas suurenee CSS:llä
-     karttatasojen mukana (KanvasSiirto). Kumpikin polku piirtää joka
-     ruudussa — mitään ei ohiteta, joten liike ei katkea. */
-  if (KanvasSiirto.paivita(map, windCtx, dpr, windCvs, Config.FADE_OPACITY) || !GeoProject._valid) GeoProject.update(map);
+  /* Ruudusto kertoo missä muunnoksessa koordinaatit ovat suhteessa
+     ruutuun. Zoom-animaation ajan se on jäädytetty ja piirto tehdään
+     kellosta luetun muunnoksen läpi; muuten se on identiteetti. */
+  if (Ruudusto.paivita(map) || !GeoProject._valid) GeoProject.update(map);
 
   const target = nParticles();
   while (particles.length > target) particles.pop();
   while (particles.length < target) particles.push(makeParticle(true));
 
-  /* CSS-muunnoksen alla näkyvä alue elää ruutu ruudulta. */
-  if (KanvasSiirto._css) paivitaAlueRuudulta(windCvs);
-
   /* Näkyvä alue on nyt tiedossa: täytetään se mitä siihen paljastui. */
   AlueVahti.tasaa();
-
-  /* Häivytys jää tekemättä vain jos siirtoveto teki sen jo. */
-  if (!KanvasSiirto.haivytti) {
-    windCtx.globalCompositeOperation = 'destination-in';
-    windCtx.fillStyle = 'rgba(0,0,0,' + Config.FADE_OPACITY + ')';
-    windCtx.fillRect(0, 0, W, H);
-    windCtx.globalCompositeOperation = 'source-over';
-  }
-  windCtx.lineCap = 'round';
 
   /* Nopeus pikseleinä ruutua kohti. Kertoimet tulevat suoraan
      projektiosta, joten sama tuuli näyttää yhtä nopealta joka
@@ -4136,17 +3979,9 @@ function renderLoop(ts) {
   const ky = geoSpd * GeoProject._sy;
   const hitaus = Config.INERTIA, uutta = 1 - Config.INERTIA;
   const alue = State.alue;
+  const talleta = (State._ruutu = (State._ruutu | 0) + 1) % ASKEL === 0;
 
-  /* Piirto nipuissa. Yksi veto partikkelia kohti on canvas2d:ssä lähes
-     kokonaan kutsuoverheadia: beginPath, kaksi koordinaattia, kaksi
-     tyylin asetusta ja stroke — ja tyylin vaihto katkaisee ajurin
-     erävedon joka kerta. Segmentit kerätään nopeusluokkiin ja kukin
-     luokka piirretään yhtenä polkuna, jolloin vetoja on luokkien verran
-     eikä partikkelien. Luokkia on 10, eli viivanleveys pyöristyy 0,22 px
-     tarkkuudella ja alfa 0,06 tarkkuudella — kumpikaan ei erotu, mutta
-     mitattuna tämä maksaa DPR 3:n takaisin. */
-  for (let k = 0; k < NIPUT; k++) Nippu.polut[k] = null;
-
+  /* --- 1. liike ------------------------------------------------- */
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i];
     sampleWind(p);
@@ -4157,29 +3992,59 @@ function renderLoop(ts) {
       if (p.age > Config.MAX_AGE || Math.random() < dropChance * 0.5) respawn(p);
       continue;
     }
-    p.px = p.x; p.py = p.y;
     p.vx = p.vx * hitaus + p.u * kx * uutta;
     p.vy = p.vy * hitaus + p.v * ky * uutta;
     p.x += p.vx; p.y += p.vy; p.age++;
-    /* Ikäraja on se mikä pitää jäljet tasapituisina: ilman sitä kovassa
-       tuulessa oleva partikkeli eläisi kunnes se osuu reunaan. */
+    /* Ikäraja pitää jäljet tasapituisina: ilman sitä kovassa tuulessa
+       oleva partikkeli eläisi kunnes se osuu reunaan. */
     if (p.age > Config.MAX_AGE ||
         p.x < alue.x0 - 4 || p.x > alue.x1 + 4 ||
         p.y < alue.y0 - 4 || p.y > alue.y1 + 4) { respawn(p); continue; }
-    const k = speedT >= 1 ? NIPUT - 1 : (speedT * NIPUT) | 0;
-    let polku = Nippu.polut[k];
-    if (!polku) polku = Nippu.polut[k] = new Path2D();
-    polku.moveTo(p.px, p.py);
-    polku.lineTo(p.x, p.y);
+    if (talleta) {
+      /* Rengaspuskuri: uusin ensimmäisenä, vanhin putoaa pois. */
+      const hx = p.hx, hy = p.hy, n = p.hn < JALKI ? p.hn : JALKI - 1;
+      for (let j = n; j > 0; j--) { hx[j] = hx[j-1]; hy[j] = hy[j-1]; }
+      hx[0] = p.x; hy[0] = p.y;
+      if (p.hn < JALKI) p.hn++;
+    }
+    p.nippu = speedT >= 1 ? NIPUT - 1 : (speedT * NIPUT) | 0;
   }
 
-  for (let k = 0; k < NIPUT; k++) {
-    const polku = Nippu.polut[k];
-    if (!polku) continue;
-    windCtx.lineWidth = Nippu.leveys[k];
-    windCtx.strokeStyle = Nippu.vari[k];
-    windCtx.stroke(polku);
+  /* --- 2. piirto ------------------------------------------------ */
+  windCtx.setTransform(1, 0, 0, 1, 0, 0);
+  windCtx.clearRect(0, 0, windCvs.width, windCvs.height);
+  const M = Ruudusto.m, ms = M.s * dpr;
+  windCtx.setTransform(ms, 0, 0, ms, M.tx * dpr, M.ty * dpr);
+  windCtx.lineCap = 'round';
+  windCtx.lineJoin = 'round';
+
+  const polut = Nippu.polut;
+  for (let k = 0; k < polut.length; k++) polut[k] = null;
+
+  const TN = TASOT.length;
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i];
+    if (p.hn < 2 || p.ms < 0.3) continue;
+    const pohja = p.nippu * TN, hx = p.hx, hy = p.hy;
+    for (let k = 0; k < TN; k++) {
+      const n = Math.round(p.hn * TASOT[k]);
+      if (n < 1) continue;
+      const polku = polut[pohja + k] || (polut[pohja + k] = new Path2D());
+      polku.moveTo(p.x, p.y);
+      for (let j = 0; j < n; j++) polku.lineTo(hx[j], hy[j]);
+    }
   }
+
+  for (let n = 0; n < NIPUT; n++) {
+    for (let k = 0; k < TN; k++) {
+      const polku = polut[n * TN + k];
+      if (!polku) continue;
+      windCtx.lineWidth = Nippu.leveys[n * TN + k];
+      windCtx.strokeStyle = Nippu.vari[n * TN + k];
+      windCtx.stroke(polku);
+    }
+  }
+  windCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
 /* -- WEATHER BATCH API ------------------------------------------ */

@@ -657,69 +657,53 @@ ensimmäisellä ajolla.
 | nipistys sisään | 0,93–1,12 | 90–100 % | 0 |
 | raahaus | 0,90–1,34 | 98–99 % | 0 |
 
-#### Ja lopuksi: se mikä oikeasti näytti huonolta
+#### Jälki on geometriaa, ei pikseleitä
 
-Kaikki yllä oleva oli oikein ja kenttä näytti silti huonommalta kuin
-ennen koko urakkaa. Ainoa tapa selvittää miksi oli **renderöidä sama
-näkymä molemmilla versioilla ja katsoa kuvia rinnakkain.** Sen olisi
-pitänyt olla ensimmäinen teko, ei viimeinen.
+Klassinen tapa piirtää tuulipartikkeleita on jättää jäljet canvasille ja
+häivyttää koko kuvaa vähän joka ruudussa. Se on halpaa ja näyttää
+hyvältä — kunnes karttaa zoomataan. Silloin valmis bittikartta pitäisi
+venyttää uuteen mittakaavaan, ja 2–4-kertainen venytys muuttaa ohuet
+viivat **turvonneiksi palloiksi**. Kiertoteitä kokeiltiin kolme
+(jäädytys, CSS-venytys, paisto bittikarttaan) ja jokainen kaatui samaan
+asiaan, koska jälki oli tallessa vain pikseleinä.
 
-Kuvista näki heti: vanhassa oli pitkiä pyyhkäiseviä juovia, uudessa
-lyhyitä tikkuja. Ja mittaus kertoi että syy ei ollut siellä missä sitä
-haettiin — nopeus (0,56 vs 0,49 px/ruutu) ja häivytys (0,9439/ruutu
-molemmissa) olivat käytännössä samat.
+Nyt jokainen partikkeli muistaa oman polkunsa: 20 viimeisintä paikkaa,
+joka neljäs ruutu. Canvas tyhjennetään joka ruudussa ja polut piirretään
+uudelleen nykyiseen muunnokseen. Siitä seuraa neljä asiaa:
 
-**Syy oli DPR-katto.** Aiempi "suorituskykykorjaus" rajasi
-partikkelicanvasin kahteen kertaan (`Math.min(2, devicePixelRatio)`),
-ja iPhonella se on kolme. Sama versio DPR 2:lla on sumeaa puuroa ja
-DPR 3:lla terävä. Katto oli väärä säästökohde, ja sen kompensoiminen
-partikkelimäärää nostamalla teki kentästä levottoman sen sijaan että se
-olisi rauhallinen.
+- **Mitään ei koskaan venytetä.** Zoomissa jälki on yhtä terävä kuin
+  levossa.
+- **Canvasille ei tarvita CSS-muunnosta**, joten se peittää aina koko
+  ruudun eikä kutistu reunoilta. Koko `_css`/`paista`/bittikartan
+  paisto -koneisto poistui.
+- **Jäljen pituus on suora luku** (`JALKI × ASKEL` = 80 ruutua) eikä
+  häivytysvakion sivutuote. `FADE_OPACITY` poistui.
+- **Ruutunopeus kaksinkertaistui.** 4× kuristuksella, DPR 3: 12 → 24 fps
+  levossa. Syy on se, että canvas on nyt enimmäkseen tyhjä: häivytettävä
+  kuva piti koko ruudun verran mustetta, jonka sekoituskerros joutui
+  laskemaan joka ruudussa uudelleen.
 
-Ratkaiseva luku on tämä: **versio jota pidettiin parempana ajoi
-täsmälleen samalla nopeudella** kuin nyt — 4× kuristuksella, DPR 3,
-12 fps levossa ja 10 vetoeleessä. DPR 3 maksoi sen jo silloin. Katto osti
-nopeutta jota kukaan ei pyytänyt, hinnalla josta välitettiin.
+Zoom-animaation ajan kartan tila on jo maalissa mutta kuva vasta
+matkalla. Siihen ei tarvita omaa pehmennyskäyrää: **`#c-wind-kello` on
+näkymätön elementti jolla on sama CSS-siirtymä kuin karttatasoilla**, ja
+siltä luetaan joka ruudussa se muunnos jossa kartta juuri nyt näkyy.
+Selain hoitaa easingin, me luemme tuloksen.
 
-Kolme säätöä palauttivat ilmeen:
+**Häivytys tehdään sisäkkäisillä vedoilla, ei segmentti kerrallaan.**
+Ensimmäinen yritys antoi jokaiselle segmentille oman alfansa, ja se
+näytti helmiketjulta: segmentti on lyhyempi kuin viivan leveys, joten
+pyöreät päät jäävät päällekkäin ja vierekkäiset alfat tekevät niistä
+erillisiä pisaroita. Nyt sama jälki piirretään kolmesti — koko
+pituudelta himmeänä ja ohuena, kaksi kolmasosaa kirkkaampana, kärkiosa
+kirkkaimpana ja paksuimpana. Alfat kertautuvat, joten muoto on komeetta,
+ja jokainen veto on yhtenäinen polylinja.
 
-- **`State.dpr` katto 2 → 3.** Terävyys takaisin.
-- **Tiheys 440 → noin 230** (`ala / 1450`). Rauhallinen, ei levoton.
-- **`FADE_OPACITY` 0,94 → 0,955.** Jälki elää noin 1,5× pidempään, eli
-  juovat pyyhkäisevät kuten ennen.
+Vetoja on `NIPUT × TASOT` = 30 ruutua kohti, ei partikkelien verran:
+segmentit kerätään nopeusluokan ja tason mukaan `Path2D`-poluiksi.
 
-**Piirto nipuissa maksoi tarkkuuden takaisin.** Yksi veto partikkelia
-kohti on canvas2d:ssä lähes kokonaan kutsuoverheadia, ja tyylin vaihto
-katkaisee ajurin erävedon joka kerta. Segmentit kerätään kymmeneen
-nopeusluokkaan ja kukin luokka piirretään yhtenä `Path2D`-polkuna:
-vetoja on luokkien verran eikä partikkelien. Viivanleveys pyöristyy
-0,22 px ja alfa 0,06 tarkkuudella — kumpikaan ei erotu.
-
-Kaadettu hypoteesi kannattaa tietää: **DPR 3:lla lämpökartan
-`filter: blur()` ja `mix-blend-mode` eivät ole enää pullonkaula.**
-Mitattuna 11 fps → 10 → 11 kun ne kytkettiin pois. Aiempi mittaus (filter
-18 → 34 fps) tehtiin DPR 2:lla, eikä se yleisty. DPR 3:lla kustannus on
-canvasin pikselimäärä sinänsä, eikä sitä voi ostaa pois kompositointia
-keventämällä.
-
-#### Sivutuotteena tarkempi kenttä
-
-
-- **Koko budjetti näkyy.** Ennen partikkelit arvottiin 15 % näkymää
-  laajemmalta laatikolta, eli **41 % niistä oli aina ruudun
-  ulkopuolella**. Nyt näkyvissä on 96–100 %. Sama partikkelimäärä piirtää
-  1,7-kertaisen tiheyden: mitattu muste 2100–2600 → **3100–4700**.
-- **Piirto on tarkkaa.** Ennen jokainen partikkeli projisoitiin
-  `GeoProject`in lineaarisella approksimaatiolla, joka heitti z10:llä
-  ~5 px. Nyt approksimaatio vaikuttaa vain siihen mistä kohtaa tuuli
-  luetaan, ei siihen mihin viiva piirtyy.
-- **Ikäraja pitää jäljet tasapituisina.** Ennen ikä katkaisi vain
-  heikossa tuulessa olevat, joten kovassa tuulessa partikkeli eli kunnes
-  osui reunaan. Nyt `MAX_AGE` koskee kaikkia.
-- **Halvempi.** Silmukasta poistui projektio ja kosini partikkelia kohti;
-  nopeuskertoimet lasketaan kerran ruudussa. Mitattu 4× kuristuksella,
-  DPR 3: lepo 24, veto 22, nipistys 15–16 fps — eli ennallaan tai hitusen
-  parempi, ja se puolitoistakertaisella määrällä näkyviä partikkeleita.
+**Tiheys** on 390×844 ruudulla noin 310 (`ala / 1050`). Sekin on mitattu:
+227 antoi 24 fps, 451 antoi 14 fps, 313 antoi 18–19 fps — eli yhä puolet
+enemmän kuin se versio jota tämä korvaa, ja kenttä lukee virtauksena.
 
 ### Kolme mitattua korjausta
 
