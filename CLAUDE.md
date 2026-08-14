@@ -731,6 +731,48 @@ Käytännössä `particleLineWidth` on `3,0 + ms/MAX_MS × 3,3` ja tiheys
 `ala / 1500`. **Nämä kaksi kuuluvat yhteen.** Jos toista muuttaa
 yksinään, mustemäärä muuttuu ja pyyhkäisyn tulos ei enää päde.
 
+#### Jäljen pituus rajataan ruudulla, ei ruuduissa
+
+Jälki oli vakiomittainen ajassa: `JALKI × ASKEL` = 80 ruutua liikettä.
+Silloin sen pituus **ruudulla** on suoraan nopeus × 80, eli kovassa
+tuulessa monikerta siitä mitä heikossa. Mitattuna tasaisella kentällä
+z9:llä, sama hiukkasmäärä:
+
+| m/s | jälki px | muste px² | peitto ruudusta |
+|---|---|---|---|
+| 4 | 23,8 | 6 717 | 2,35 % |
+| 12 | 73,7 | 77 395 | 19,44 % |
+| 20 | 101,8 | 132 808 | **30,87 %** |
+
+Kolmannes ruudusta täynnä viivaa. Myrsky ei näyttänyt kovalta tuulelta
+vaan sotkulta, koska yksittäinen jälki ei erottunut naapureistaan.
+
+Kolme asiaa kasvaa nopeuden mukana yhtä aikaa — pituus 4,3×, leveys
+1,7× ja alfa 2,2× — eli mustetta on kärjessä noin 16-kertaisesti.
+Leveyttä ja alfaa ei voi laskea, koska ne ovat juuri se mikä tekee
+yksittäisestä jäljestä luettavan (ks. edellinen luku), ja tausta on
+kovassa tuulessa kirkkaimmillaan. Pituus on ainoa joka saa kylläistyä.
+
+`JALKI_MAX_PX` on pyyhkäisty:
+
+| raja | 4 m/s | 12 m/s | 20 m/s | suhde 20/4 |
+|---|---|---|---|---|
+| ei rajaa | 2,35 % | 19,44 % | 30,87 % | 13,1× |
+| 80 px | 2,17 % | 18,14 % | 23,07 % | 10,6× |
+| **62 px** | **2,28 %** | **16,75 %** | **21,10 %** | **9,3×** |
+| 45 px | 2,34 % | 14,31 % | 16,33 % | 7,0× |
+
+62 px valittiin koska se **ei kosketa heikkoa tuulta lainkaan** (2,35 →
+2,28 %, eli raja puree vasta noin 8 m/s yläpuolella) mutta leikkaa
+kärjestä kolmanneksen. 45 px veisi pidemmälle, mutta silloin 12 ja
+20 m/s ovat pituudeltaan käytännössä sama (40,7 ja 39,7 px) — nopeuden
+kolmesta vihjeestä yksi katoaisi.
+
+Toteutus on jaolasku liikesilmukassa: pisteet ovat `nopeus × ASKEL`
+pikselin päässä toisistaan, joten rajaan mahtuva määrä on suoraan
+`JALKI_MAX_PX / (nopeus × ASKEL)`. `TASOT`-osuudet lasketaan tästä
+rajatusta määrästä, joten komeetan muoto säilyy sellaisenaan.
+
 ### Partikkelit kirkastavat kenttää, eivät peitä sitä
 
 Partikkeli piirrettiin samalla rampin värillä kuin lämpökartta samassa
@@ -855,6 +897,82 @@ aikana pyydetään karkeaa ja pysähdyttäessä tarkkaa, ja jos molemmat
 osuvat samaan jonoon, tarkempi voittaa. `WindTexture.build` kirjoittaa
 jaettuja kenttiä (`cols`, `latMin`, …), joten kahta rakennusta ei saa
 olla lennossa yhtä aikaa.
+
+### Kerrokset samassa paikassa, samaan aikaan
+
+"Kartan eri layerit päivittyvät eri aikaan" oli oikea havainto, mutta
+syy ei ollut ajoituksessa.
+
+**Mittari pitää rakentaa oikein.** Ensimmäinen versio vertasi jokaista
+kerrosta `map.latLngToContainerPoint`iin. Se on väärä totuus: eleen
+aikana Leaflet on jo maalitilassa vaikka ruudulla on vielä lähtötila,
+joten mittari näytti 33–628 px eroja siellä missä kerrokset olivat
+keskenään tarkalleen kohdallaan. Toimiva mittari lukee **jokaisen
+kerroksen oman renderoidyn suorakulmion** (`getBoundingClientRect`) ja
+kysyy mihin kohtaan ruutua kukin piirtää saman koordinaatin:
+
+- pohjakartta: se ladattu laatta joka kattaa pisteen, `_tileCoordsToBounds`
+- lämpökartta: overlayn `<img>` + `getBounds()`
+- partikkelit: `Ruudusto.m ∘ GeoProject`
+
+Leveysasteen ja ruudun y:n välillä on Mercator, joten muunnos tehdään
+`ln(tan(π/4 + φ/2))`-avaruudessa — muuten mittari itse tuottaa juuri sen
+virheen jota etsitään.
+
+**Lämpökartta oli koko ajan kunnossa** — 0,1–0,5 px pohjakartasta
+kaikissa eleissä. Leafletin `ImageOverlay` hoitaa zoom-animaation itse,
+eikä `setUrl`in asynkronisuudella ollut väliä (mediaani 9–13 ms).
+
+**Partikkelikerros oli vinossa 4,0 px z9:llä ja 14,8 px z7:llä.**
+`GeoProject` sovitti ruudun y:n suoraan leveysasteeseen:
+
+    y = oy + (lat − north) · sy
+
+Mercatorissa se on kaari, ei suora, ja lineaarisen sovitteen virhe on
+suurimmillaan juuri ruudun keskellä. `(h²/8)·y″(φ)` ennustaa z9:lle
+3,7 px ja z7:lle 14,7 px — eli mitatut luvut tasan. Virhe **riippuu
+näkymän korkeudesta asteina**, joten se muuttuu zoomatessa: kenttä
+liukui maastoon nähden joka kerta kun zoomia vaihdettiin. Se näyttää
+ajoitusvirheeltä vaikka on projektiovirhe.
+
+Korjattuna `project`/`lat` kulkevat Mercator-y:n kautta ja **ero on
+0,0–0,5 px kaikissa eleissä**.
+
+Kaksi asiaa jotka menivät samalla oikein:
+
+- **Nopeuden pohjoiskerroin luettiin `_sy`:stä.** Se oli px astetta
+  kohti; nyt `_sy` on px Mercator-yksikköä kohti eikä kelpaa
+  nopeudeksi. Mercatorissa mittakaava on paikallisesti sama molempiin
+  suuntiin, joten `ky = −kx` — mikä oli myös vanhan koodin arvo
+  likimäärin, joten liike ei muuttunut.
+- **`naytteista` käyttää samaa käänteiskuvaa.** Jos vain `project`
+  korjattaisiin, partikkeli piirtyisi eri paikkaan kuin mistä se
+  näytteistää tuulen.
+
+#### Zoomista riippuva ulkoasu lähtee kartan mukana
+
+Sumennuksen säde ja spottimerkkien koko riippuvat zoomista, ja
+molemmat päivitettiin vasta `zoomend`issä. Kummallakin on oma
+pehmennyksensä (0,30 s ja 0,32 s), joten ne lähtivät liikkeelle vasta
+kun kartta oli jo pysähtynyt. Mitattuna (animoitu zoom, 3 tasoa,
+hetket zoomin alusta):
+
+| | ennen | nyt |
+|---|---|---|
+| zoom lähtee liikkeelle | +96 ms | +95 ms |
+| sumennus maalissa | **+722 ms** | **+95 ms** |
+| merkin skaala maalissa | **+400 ms** | **+247 ms** |
+
+Sumennus asettui siis 370 ms *sen jälkeen* kun kartta oli jo
+pysähtynyt — juuri silloin kun silmä on levossa ja huomaa sen.
+Merkkien skaala on nyt maalissa täsmälleen kun kartan animaatio
+päättyy, ei 150 ms myöhemmin.
+
+Molemmat saavat maaliarvonsa `zoomanim`issa, eli heti animaation
+alussa, ja muuttuvat kartan liikkeen alla. **Nipistyksessä ei**:
+siinä `zoomanim` syttyy joka sormenliikkeellä ja arvon kirjoittaminen
+uudelleen käynnistäisi siirtymän joka kerta. Leaflet erottaa nämä
+`e.noUpdate`-lipulla — nipistyksessä se on tosi.
 
 ### Play liikkuu jatkuvasti, ei tunti kerrallaan
 

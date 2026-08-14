@@ -3001,7 +3001,27 @@ function initMap() {
      siirtymällä kuin karttatasot, ja piirto jatkuu jäädytettyyn
      projektioon — ks. Ruudusto. Tapahtuma syttyy ennen kuin kartan
      tila hyppää maaliin, joten tässä luettu projektio on lähtötila. */
-  map.on('zoomanim', (e) => { Ruudusto.zoomAnim(map, e.center, e.zoom); });
+  map.on('zoomanim', (e) => {
+    Ruudusto.zoomAnim(map, e.center, e.zoom);
+
+    /* Zoomista riippuvat ulkoasut liikkeelle SAMAAN AIKAAN kartan kanssa.
+     *
+     * Sumennuksen säde ja spottimerkkien koko riippuvat zoomista, ja
+     * molemmat päivitettiin vasta zoomendissä. Kummallakin on oma
+     * pehmennyksensä (0,30 s ja 0,32 s), joten ne lähtivät liikkeelle
+     * vasta kun kartta oli jo pysähtynyt: kartta 0–250 ms, merkit ja
+     * sumennus 250–570 ms. Ruudulla se näyttää siltä että kerrokset
+     * tulevat perässä eri aikaan.
+     *
+     * Nyt ne saavat maaliarvonsa heti animaation alussa ja pehmenevät
+     * kartan kanssa päällekkäin. Nipistyksessä (e.noUpdate) tätä ei
+     * tehdä: siinä zoomanim syttyy joka sormenliikkeellä, ja arvon
+     * kirjoittaminen uudelleen käynnistäisi siirtymän joka kerta.
+     * Nipistys hoidetaan yhä zoomendissä. */
+    if (e.noUpdate) return;
+    updateHeatmapBlur(e.zoom);
+    updateSpotScale(e.zoom);
+  });
 
   /* Tallennetaan edellinen hakualue kynnystarkistusta varten */
   var _lastLoadBounds = null;
@@ -3606,9 +3626,11 @@ function drawColorField(skipBlur) {
 const HEAT_BLEND = (window.CSS && CSS.supports && CSS.supports('mix-blend-mode', 'plus-lighter'))
   ? 'plus-lighter' : 'screen';
 
-function updateHeatmapBlur() {
+/* zoom voidaan antaa erikseen: zoomanim tietää maalin ennen kuin kartta
+   on siellä, ja sumennus halutaan matkaan samaan aikaan kartan kanssa. */
+function updateHeatmapBlur(zoom) {
   if (!State.map) return;
-  const z = State.map.getZoom();
+  const z = zoom === undefined ? State.map.getZoom() : zoom;
   /* Blur: zoomissa 5+ tarkempi, kaukaa pehmeampi */
   const blur = Math.max(3, Math.round(22 - (z - 2) * 2.2));
   /* Saturate vahvistaa vareja sekoituksen kanssa */
@@ -3713,22 +3735,52 @@ const NIPUT = 10;   /* nopeusluokkia piirtoa varten */
    Zoom otetaan talteen tässä, koska silmukan on nähtävä kartta yhtenä
    johdonmukaisena tilana — zoom-animaation aikana Leaflet on jo maalissa
    vaikka kuva on vasta lähdössä. */
+/* Leveysaste ei ole lineaarinen ruudulla.
+ *
+ * Ruudusto sovitti y:n suoraan leveysasteeseen: y = oy + (lat−north)·sy.
+ * Mercatorissa se on kaari eikä suora, ja sovitteen virhe on suurimmillaan
+ * juuri ruudun keskellä. Mitattuna partikkelikerros oli pohjakartasta
+ * 4,0 px sivussa z9:llä ja 14,8 px z7:llä — eikä virhe ollut ohimenevä
+ * vaan vakio joka ruudussa.
+ *
+ * Pahinta on että se RIIPPUU NÄKYMÄN KORKEUDESTA asteina: (h²/8)·y″(φ)
+ * ennustaa z9:lle 3,7 px ja z7:lle 14,7 px, eli tasan mitatut luvut.
+ * Zoomatessa virhe siis muuttuu, ja partikkelikenttä liukuu maastoon
+ * nähden joka kerta kun zoomia vaihtaa. Se näyttää siltä kuin kerrokset
+ * päivittyisivät eri aikaan, vaikka kyse on projektiosta.
+ *
+ * Nyt y lasketaan samassa avaruudessa kuin Leaflet sen laskee. */
+const MERC_RAD = Math.PI / 180;
+/* Sama napojen rajaus kuin Leafletin omassa projektiossa: navalla kaava
+   karkaa äärettömyyteen, ja maailmankartta loppuu joka tapauksessa
+   tähän leveyteen. */
+const MERC_MAX = 85.0511287798;
+function ymerc(lat) {
+  const q = lat > MERC_MAX ? MERC_MAX : (lat < -MERC_MAX ? -MERC_MAX : lat);
+  return Math.log(Math.tan(Math.PI / 4 + q * MERC_RAD / 2));
+}
+function ymercInv(y) { return (2 * Math.atan(Math.exp(y)) - Math.PI / 2) / MERC_RAD; }
+
 const GeoProject = {
-  _ox: 0, _oy: 0, _sx: 1, _sy: 1, _valid: false, zoom: 0,
+  _ox: 0, _oy: 0, _sx: 1, _sy: 1, _yN: 0, _valid: false, zoom: 0,
   update(map) {
     const b = map.getBounds();
     const nw = map.latLngToContainerPoint(b.getNorthWest());
     const se = map.latLngToContainerPoint(b.getSouthEast());
     this._ox = nw.x; this._oy = nw.y;
     this._sx = (se.x - nw.x) / (b.getEast() - b.getWest());
-    this._sy = (se.y - nw.y) / (b.getSouth() - b.getNorth());
-    this._west = b.getWest(); this._north = b.getNorth();
+    this._west = b.getWest();
+    this._yN = ymerc(b.getNorth());
+    this._sy = (se.y - nw.y) / (ymerc(b.getSouth()) - this._yN);
     this.zoom = map.getZoom();
     this._valid = true;
   },
   project(lat, lng) {
-    return { x: this._ox + (lng - this._west) * this._sx, y: this._oy + (lat - this._north) * this._sy };
+    return { x: this._ox + (lng - this._west) * this._sx,
+             y: this._oy + (ymerc(lat) - this._yN) * this._sy };
   },
+  /* Käänteiskuva: ruudun y takaisin leveysasteeksi. */
+  lat(y) { return ymercInv(this._yN + (y - this._oy) / this._sy); },
   invalidate() { this._valid = false; }
 };
 
@@ -3762,8 +3814,8 @@ const GeoProject = {
    luvut ajetaan partikkeleille — ks. siirraPartikkelit. */
 function naytteista(p) {
   const G = GeoProject;
-  const lat = G._north + (p.y - G._oy) / G._sy;
-  const lng = G._west  + (p.x - G._ox) / G._sx;
+  const lat = G.lat(p.y);
+  const lng = G._west + (p.x - G._ox) / G._sx;
   const w = WindTexture.sampleWind(lat, lng);
   p.u = w.u; p.v = w.v; p.ms = w.ms;
 }
@@ -3781,7 +3833,8 @@ function paivitaAlue(s, tx, ty) {
 }
 function makeParticle(rAge) {
   const p = { x: 0, y: 0, vx: 0, vy: 0, u: 0, v: 0, ms: 0, sampleTimer: 0, age: 0,
-              nippu: 0, hn: 0, hx: new Float32Array(JALKI), hy: new Float32Array(JALKI) };
+              nippu: 0, hn: 0, piirra: JALKI,
+              hx: new Float32Array(JALKI), hy: new Float32Array(JALKI) };
   respawn(p, rAge);
   p.sampleTimer = Math.floor(Math.random() * Config.WIND_SAMPLE_INTERVAL);
   return p;
@@ -3960,7 +4013,29 @@ const AlueVahti = {
 const SIIRTYMA = 'transform .25s cubic-bezier(0,0,.25,1)';
 const JALKI = 20;          /* talletettuja pisteitä */
 const ASKEL = 4;           /* ruutua pisteiden välissä — jälki on siis
-                              JALKI × ASKEL = 80 ruutua pitkä */
+                              enintään JALKI × ASKEL = 80 ruutua pitkä */
+
+/* Jäljen pituuden yläraja RUUDULLA, ei ruuduissa.
+ *
+ * Jälki oli vakiomittainen ajassa: 80 ruutua liikettä. Silloin sen pituus
+ * ruudulla on suoraan nopeus × 80, eli kovassa tuulessa se on monikerta
+ * siitä mitä heikossa. Mitattuna (tasainen kenttä, z9, sama hiukkasmäärä):
+ *
+ *    m/s    jälki px    muste px²    peitto ruudusta
+ *      4       21,5         8 269         2,97 %
+ *      8       48,8        45 118        12,99 %
+ *     12       65,8        69 475        18,35 %
+ *     16       94,9       107 537        25,46 %
+ *     20      100,0       131 630        29,87 %
+ *
+ * Kymmenkertainen ero peitossa saman kentän sisällä. Myrsky ei näyttänyt
+ * kovalta tuulelta vaan sotkulta, koska ruutu oli kolmanneksen täynnä
+ * viivaa eikä yksittäistä jälkeä eronnut naapureistaan.
+ *
+ * Nopeus luetaan yhä kolmesta asiasta — väristä, liikkeen vauhdista ja
+ * jäljen pituudesta — mutta pituus kylläistyy tähän rajaan sen sijaan
+ * että kasvaisi rajatta. */
+const JALKI_MAX_PX = 62;
 
 /* Häivytys tehdään SISÄKKÄISILLÄ VEDOILLA, ei segmentti kerrallaan.
  *
@@ -4149,10 +4224,15 @@ function renderLoop(ts) {
      se muuttuu ruudun mitalla alle prosentin. */
   const zoom = GeoProject.zoom;
   const geoSpd = Config.GEO_SPEED / Math.pow(2, zoom - 5) * (zoom >= 9 ? 0.7 : 1.0);
-  const keskiLat = GeoProject._north + (H * 0.5 - GeoProject._oy) / GeoProject._sy;
+  const keskiLat = GeoProject.lat(H * 0.5);
   const cosLat = Math.max(0.1, Math.cos(keskiLat * Math.PI / 180));
+  /* Mercatorissa mittakaava on paikallisesti sama molempiin suuntiin,
+     joten pohjoisen kerroin on idän kerroin miinusmerkkisenä (ruudun y
+     kasvaa alaspäin). Ennen tämä luettiin _sy:stä, joka oli px astetta
+     kohti — käytännössä sama luku, mutta nyt _sy on Mercator-yksikköä
+     kohti eikä kelpaa nopeudeksi sellaisenaan. */
   const kx = geoSpd * GeoProject._sx / cosLat;
-  const ky = geoSpd * GeoProject._sy;
+  const ky = -kx;
   const hitaus = Config.INERTIA, uutta = 1 - Config.INERTIA;
   const alue = State.alue;
   const talleta = (State._ruutu = (State._ruutu | 0) + 1) % ASKEL === 0;
@@ -4184,6 +4264,12 @@ function renderLoop(ts) {
       if (p.hn < JALKI) p.hn++;
     }
     p.nippu = speedT >= 1 ? NIPUT - 1 : (speedT * NIPUT) | 0;
+    /* Montako talletettua pistettä mahtuu pituusrajaan. Pisteet ovat
+       nopeus × ASKEL pikselin päässä toisistaan, joten tämä on jako
+       eikä polun mittausta — ja hitausvaimennuksen takia nopeus muuttuu
+       jäljen matkalla niin vähän, ettei tarkempi laskenta näkyisi. */
+    const vpx = Math.sqrt(p.vx * p.vx + p.vy * p.vy) * ASKEL;
+    p.piirra = vpx > 0.05 ? Math.max(2, Math.min(JALKI, Math.ceil(JALKI_MAX_PX / vpx))) : JALKI;
   }
 
   /* --- 2. piirto ------------------------------------------------ */
@@ -4202,8 +4288,11 @@ function renderLoop(ts) {
     const p = particles[i];
     if (p.hn < 2 || p.ms < 0.3) continue;
     const pohja = p.nippu * TN, hx = p.hx, hy = p.hy;
+    /* Kärjestä lukien niin monta pistettä kuin pituusrajaan mahtuu.
+       TASOT-osuudet lasketaan tästä, joten komeetan muoto säilyy. */
+    const hn = p.hn < p.piirra ? p.hn : p.piirra;
     for (let k = 0; k < TN; k++) {
-      const n = Math.round(p.hn * TASOT[k]);
+      const n = Math.round(hn * TASOT[k]);
       if (n < 1) continue;
       const polku = polut[pohja + k] || (polut[pohja + k] = new Path2D());
       polku.moveTo(p.x, p.y);
