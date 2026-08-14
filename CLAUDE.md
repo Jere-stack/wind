@@ -812,8 +812,35 @@ kolmesta vihjeestä yksi katoaisi.
 
 Toteutus on jaolasku liikesilmukassa: pisteet ovat `nopeus × ASKEL`
 pikselin päässä toisistaan, joten rajaan mahtuva määrä on suoraan
-`JALKI_MAX_PX / (nopeus × ASKEL)`. `TASOT`-osuudet lasketaan tästä
-rajatusta määrästä, joten komeetan muoto säilyy sellaisenaan.
+`JALKI_MAX_PX / (nopeus × ASKEL)`.
+
+#### Lyhennys osuu eri nopeuksiin eri kautta
+
+Jälki oli yhä liian pitkä, ja lyhennys piti tehdä **kahdesta suunnasta
+kerralla**, koska ne purevat eri nopeuksiin:
+
+- **Heikossa tuulessa pituuden ratkaisee aika**, `JALKI × ASKEL`
+  ruutua. Katto ei purista siellä lainkaan.
+- **Kovassa tuulessa pituuden ratkaisee katto** `JALKI_MAX_PX`.
+
+Vain toista säätämällä toinen pää jäisi ennalleen. Katto laskettiin
+62 → 46 px ja aikaperustainen pituus 80 → 60 ruutuun.
+
+**Aikapituus lyhennettiin askelta pienentämällä, ei pisteitä
+vähentämällä**, vaikka `15 × 4` ja `20 × 3` antavat saman 60 ruutua.
+Ensimmäinen yritys oli `15 × 4`, ja kovassa tuulessa jälkeen jäi silloin
+**6,6 pistettä**: rajaan mahtuva määrä on `raja / (nopeus × ASKEL)`, eikä
+pistemäärän vähentäminen vaikuta siihen mitenkään. Niin harvasta hilasta
+nauhan reunaan tuli näkyvä nykäys. Askeleella 3 samaan 46 pikseliin
+mahtuu 8,4 pistettä ja reuna on sileä.
+
+Tiheämpi talletus ei maksa mitään mitattavaa. Molemmat variantit ajettiin
+samassa vertailussa: ruutumäärät olivat 37–52 kummallakin, eikä ero
+erottunut kohinasta. Välissä ehdittiin epäillä että `ASKEL 3` ohentaisi
+kenttää — hiukkasmäärä valui 212:sta 102:een pitkän ajon aikana — mutta
+**sama valuminen tapahtui myös `15 × 4` -variantilla**. Se on
+`PerfTracker`in normaalia sopeutumista tässä kontissa, ei tämän
+muutoksen aiheuttamaa.
 
 ### Partikkelit kirkastavat kenttää, eivät peitä sitä
 

@@ -4231,8 +4231,18 @@ const AlueVahti = {
 /* Sama siirtymä kuin Leafletin karttatasoilla. */
 const SIIRTYMA = 'transform .25s cubic-bezier(0,0,.25,1)';
 const JALKI = 20;          /* talletettuja pisteitä */
-const ASKEL = 4;           /* ruutua pisteiden välissä — jälki on siis
-                              enintään JALKI × ASKEL = 80 ruutua pitkä */
+/* Ruutua pisteiden välissä — jälki on enintään JALKI × ASKEL = 60 ruutua.
+ *
+ * Askel oli 4 ja pisteitä 20 (80 ruutua). Jäljen lyhentäminen tehtiin
+ * askelta pienentämällä eikä pistemäärää vähentämällä, vaikka molemmat
+ * antavat saman 60 ruudun pituuden. Syy on kovassa tuulessa: siellä
+ * pituuden ratkaisee `JALKI_MAX_PX`, ja rajaan mahtuvien pisteiden määrä
+ * on `raja / (nopeus × ASKEL)`. Pistemäärää vähentämällä 18 m/s jälkeen
+ * jäi 6,6 pistettä, ja niin harvasta hilasta nauhan reunaan tuli näkyvä
+ * nykäys. Askeleella 3 samaan pituuteen mahtuu 10 pistettä ja reuna on
+ * sileä — heikossa tuulessa taas askel ratkaisee pituuden, ja siellä
+ * 20 × 3 antaa saman lyhennyksen kuin 15 × 4 olisi antanut. */
+const ASKEL = 3;
 
 /* Jäljen pituuden yläraja RUUDULLA, ei ruuduissa.
  *
@@ -4253,8 +4263,14 @@ const ASKEL = 4;           /* ruutua pisteiden välissä — jälki on siis
  *
  * Nopeus luetaan yhä kolmesta asiasta — väristä, liikkeen vauhdista ja
  * jäljen pituudesta — mutta pituus kylläistyy tähän rajaan sen sijaan
- * että kasvaisi rajatta. */
-const JALKI_MAX_PX = 62;
+ * että kasvaisi rajatta.
+ *
+ * Pituutta lyhennettiin kahdesta suunnasta kerralla, koska raja ja
+ * aikapituus purevat eri nopeuksiin: heikossa tuulessa pituuden
+ * ratkaisee `JALKI × ASKEL` ruutua eikä tämä raja pure lainkaan, kovassa
+ * tuulessa taas päinvastoin. Vain toista säätämällä toinen pää jäisi
+ * ennalleen. Aikapituus 80 → 60 ruutua, tämä raja 62 → 46 px. */
+const JALKI_MAX_PX = 46;
 
 /* Häivytys tehdään SISÄKKÄISILLÄ VEDOILLA, ei segmentti kerrallaan.
  *
