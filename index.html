@@ -3947,7 +3947,7 @@ function nParticles() { return PerfTracker.getTarget(); }
  * Syy on antialiasointi: ohut viiva menettää huippualfansa osittaiseen
  * peittoon, paksu ei. Sama muste luettavampana — ja kolmannes vähemmän
  * partikkeleita on myös halvempi piirtää. */
-function particleLineWidth(ms) { return 3.0 + (ms / Config.MAX_MS) * 3.3; }
+function particleLineWidth(ms) { return 2.5 + (ms / Config.MAX_MS) * 2.7; }
 
 const NIPUT = 10;   /* nopeusluokkia piirtoa varten */
 /* Ruutuprojektio: näkymän kulmat kerran, sitten kerto- ja yhteenlasku.
@@ -4269,36 +4269,103 @@ const JALKI_MAX_PX = 62;
  * yhtenäinen polylinja, joten pyöreitä päitä on vain kaksi per veto eikä
  * yhtä per piste. Vetoja on kolme partikkelia kohti ja ne niputetaan
  * nopeusluokkiin, joten stroke-kutsuja on 30 eikä partikkelien verran. */
-const TASOT    = [1.0, 0.62, 0.30];  /* osuus jäljestä kärjestä lukien */
-const TASOALFA = [0.26, 0.34, 0.52]; /* kerrannainen alfa per veto */
-const TASOLEV  = [0.60, 0.80, 1.00]; /* ja leveys: häntä ohuempi kuin kärki */
-
 const Nippu = {
-  polut: new Array(NIPUT * TASOT.length),
-  vari: new Array(NIPUT * TASOT.length),
-  leveys: new Array(NIPUT * TASOT.length)
+  polut: new Array(NIPUT),
+  vari: new Array(NIPUT),
+  leveys: new Array(NIPUT)
 };
 /* Väri vaalennetaan kohti valkoista. Rampin sävy kertoo yhä nopeuden,
    mutta luminanssi nousee taustan yli — additiivinen sekoitus yksin ei
-   riitä, koska tummat sävyt lisäävät vähän. Kärki on vaaleampi kuin
-   häntä, jolloin jälki lukee suuntansa. */
-const VAALEA = [0.30, 0.42, 0.58];
+   riitä, koska tummat sävyt lisäävät vähän. */
+const VAALEA = 0.44;
 (function () {
   for (let n = 0; n < NIPUT; n++) {
     const t = (n + 0.5) / NIPUT, ms = t * Config.MAX_MS;
-    const lw = particleLineWidth(ms);
-    const a0 = Math.min(0.95, 0.38 + t * 0.6);
+    const a0 = Math.min(0.50, 0.22 + t * 0.33);
     const c = ColorRamp.rgb(ms);
-    for (let k = 0; k < TASOT.length; k++) {
-      const v = VAALEA[k];
-      const r = Math.round(c.r + (255 - c.r) * v);
-      const g = Math.round(c.g + (255 - c.g) * v);
-      const b = Math.round(c.b + (255 - c.b) * v);
-      Nippu.vari[n * TASOT.length + k] = 'rgba(' + r + ',' + g + ',' + b + ',' + (a0 * TASOALFA[k]).toFixed(3) + ')';
-      Nippu.leveys[n * TASOT.length + k] = lw * TASOLEV[k];
-    }
+    const r = Math.round(c.r + (255 - c.r) * VAALEA);
+    const g = Math.round(c.g + (255 - c.g) * VAALEA);
+    const b = Math.round(c.b + (255 - c.b) * VAALEA);
+    Nippu.vari[n] = 'rgba(' + r + ',' + g + ',' + b + ',' + a0.toFixed(3) + ')';
+    Nippu.leveys[n] = particleLineWidth(ms);
   }
 })();
+
+/* -- JÄLKI ON KAPENEVA NAUHA, EI PINO VETOJA ---------------------
+ *
+ * Aiemmin sama jälki piirrettiin kolmesti eri pituudella, eri leveydellä
+ * ja eri alfalla, jolloin alfat kertautuivat ja muoto oli muka komeetta.
+ * Lähikuvasta näkyy mitä se oikeasti oli: **kolme pyöreäpäistä kapselia
+ * päällekkäin**. Leveämmän kirkkaan vedon pyöreä pää työntyi kapeamman
+ * himmeän yli, ja alfa vaihtui portaana kahdessa kohtaa. Jälki luki
+ * makkarajonona, ei virtauksena — sitä vaikutelmaa ei saa pois alfaa tai
+ * leveyttä säätämällä, koska vika on muodossa.
+ *
+ * Nyt jälki on yksi täytetty monikulmio: polun ympärille lasketaan
+ * reunaviiva, jonka puolileveys kapenee kärjestä hännän nollaan.
+ * Seurauksena
+ *
+ *   - päätyjä ei ole lainkaan, joten mikään ei työnny minkään yli,
+ *   - alfa on vakio koko jäljellä eikä portaita synny,
+ *   - häivytys tulee muodosta: kapeneva nauha vie vähemmän mustetta
+ *     hännässä, ja additiivisessa sekoituksessa se lukee himmenemisenä,
+ *   - piirtokutsuja on 10 eikä 30, koska tasoja on yksi.
+ *
+ * Normaali lasketaan naapuripisteiden erotuksesta, jolloin mutkassa
+ * reuna kääntyy pehmeästi eikä nurkkaa synny. */
+const _nauhaX = new Float32Array(JALKI + 1);
+const _nauhaY = new Float32Array(JALKI + 1);
+const _nauhaNx = new Float32Array(JALKI + 1);
+const _nauhaNy = new Float32Array(JALKI + 1);
+const _nauhaW = new Float32Array(JALKI + 1);
+
+function nauha(polku, p, hn, leveys) {
+  const N = hn + 1;                 /* kärki + talletetut pisteet */
+  _nauhaX[0] = p.x; _nauhaY[0] = p.y;
+  for (let j = 1; j < N; j++) { _nauhaX[j] = p.hx[j-1]; _nauhaY[j] = p.hy[j-1]; }
+  const puoli = leveys * 0.5, viim = N - 1;
+  for (let j = 0; j < N; j++) {
+    const a = j === 0 ? 0 : j - 1;
+    const b = j === viim ? viim : j + 1;
+    const dx = _nauhaX[b] - _nauhaX[a], dy = _nauhaY[b] - _nauhaY[a];
+    const pit = Math.sqrt(dx * dx + dy * dy);
+    if (pit < 1e-6) { _nauhaNx[j] = 0; _nauhaNy[j] = 0; }
+    else { _nauhaNx[j] = -dy / pit; _nauhaNy[j] = dx / pit; }
+    /* Kapeneminen: kärjessä täysi leveys, hännässä nolla.
+       1−t² on TASAINEN kärjessä (derivaatta nolla), mikä on koko juju:
+       kärkeen tulee pyöristys, ja jos leveys kapenee heti sen takaa, pää
+       pullistuu nauhan yli ja jäljelle jää väkänen. Tasainen alku sulattaa
+       pyöristyksen nauhaan, ja kapeneminen kiihtyy vasta häntää kohti. */
+    const t = j / viim;
+    _nauhaW[j] = puoli * (1 - t * t);
+  }
+  /* Reunaviiva piirretään käyrinä pisteiden puolivälien kautta. Suorina
+     jaksoina muoto on särmikäs, koska kovassa tuulessa pisteitä on vain
+     yhdeksän viidenkymmenen pikselin matkalla — juuri se särmikkyys
+     lukee "pikselinä". Käyrä maksaa saman määrän polkukomentoja. */
+  const px = _nauhaX, py = _nauhaY, nx = _nauhaNx, ny = _nauhaNy, w = _nauhaW;
+  polku.moveTo(px[0] + nx[0] * w[0], py[0] + ny[0] * w[0]);
+  for (let j = 1; j < viim; j++) {
+    const ax = px[j] + nx[j] * w[j], ay = py[j] + ny[j] * w[j];
+    const bx = px[j+1] + nx[j+1] * w[j+1], by = py[j+1] + ny[j+1] * w[j+1];
+    polku.quadraticCurveTo(ax, ay, (ax + bx) * 0.5, (ay + by) * 0.5);
+  }
+  polku.lineTo(px[viim], py[viim]);              /* häntä: leveys on nolla */
+  for (let j = viim - 1; j > 0; j--) {
+    const ax = px[j] - nx[j] * w[j], ay = py[j] - ny[j] * w[j];
+    const bx = px[j-1] - nx[j-1] * w[j-1], by = py[j-1] - ny[j-1] * w[j-1];
+    polku.quadraticCurveTo(ax, ay, (ax + bx) * 0.5, (ay + by) * 0.5);
+  }
+  polku.lineTo(px[0] - nx[0] * w[0], py[0] - ny[0] * w[0]);
+  /* Kärki pyöristetään puoliympyrällä. Ilman sitä nauha alkaa
+     kohtisuoralla katkaisulla, joka lukee terävänä särmänä juuri siinä
+     kohdassa mihin katse menee. */
+  if (w[0] > 0.15) {
+    const suunta = Math.atan2(nx[0], -ny[0]);   /* normaali +90° = kulkusuunta */
+    polku.arc(px[0], py[0], w[0], suunta + Math.PI / 2, suunta - Math.PI / 2, true);
+  }
+  polku.closePath();
+}
 
 /* Ruudusto: missä muunnoksessa partikkelien koordinaatit ovat suhteessa
    ruutuun juuri nyt.
@@ -4496,37 +4563,25 @@ function renderLoop(ts) {
   windCtx.clearRect(0, 0, windCvs.width, windCvs.height);
   const M = Ruudusto.m, ms = M.s * dpr;
   windCtx.setTransform(ms, 0, 0, ms, M.tx * dpr, M.ty * dpr);
-  windCtx.lineCap = 'round';
-  windCtx.lineJoin = 'round';
 
   const polut = Nippu.polut;
   for (let k = 0; k < polut.length; k++) polut[k] = null;
 
-  const TN = TASOT.length;
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i];
     if (p.hn < 2 || p.ms < 0.3) continue;
-    const pohja = p.nippu * TN, hx = p.hx, hy = p.hy;
-    /* Kärjestä lukien niin monta pistettä kuin pituusrajaan mahtuu.
-       TASOT-osuudet lasketaan tästä, joten komeetan muoto säilyy. */
+    /* Kärjestä lukien niin monta pistettä kuin pituusrajaan mahtuu. */
     const hn = p.hn < p.piirra ? p.hn : p.piirra;
-    for (let k = 0; k < TN; k++) {
-      const n = Math.round(hn * TASOT[k]);
-      if (n < 1) continue;
-      const polku = polut[pohja + k] || (polut[pohja + k] = new Path2D());
-      polku.moveTo(p.x, p.y);
-      for (let j = 0; j < n; j++) polku.lineTo(hx[j], hy[j]);
-    }
+    if (hn < 2) continue;
+    const nip = p.nippu;
+    nauha(polut[nip] || (polut[nip] = new Path2D()), p, hn, Nippu.leveys[nip]);
   }
 
   for (let n = 0; n < NIPUT; n++) {
-    for (let k = 0; k < TN; k++) {
-      const polku = polut[n * TN + k];
-      if (!polku) continue;
-      windCtx.lineWidth = Nippu.leveys[n * TN + k];
-      windCtx.strokeStyle = Nippu.vari[n * TN + k];
-      windCtx.stroke(polku);
-    }
+    const polku = polut[n];
+    if (!polku) continue;
+    windCtx.fillStyle = Nippu.vari[n];
+    windCtx.fill(polku);
   }
   windCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }

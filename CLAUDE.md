@@ -689,17 +689,59 @@ näkymätön elementti jolla on sama CSS-siirtymä kuin karttatasoilla**, ja
 siltä luetaan joka ruudussa se muunnos jossa kartta juuri nyt näkyy.
 Selain hoitaa easingin, me luemme tuloksen.
 
-**Häivytys tehdään sisäkkäisillä vedoilla, ei segmentti kerrallaan.**
-Ensimmäinen yritys antoi jokaiselle segmentille oman alfansa, ja se
-näytti helmiketjulta: segmentti on lyhyempi kuin viivan leveys, joten
-pyöreät päät jäävät päällekkäin ja vierekkäiset alfat tekevät niistä
-erillisiä pisaroita. Nyt sama jälki piirretään kolmesti — koko
-pituudelta himmeänä ja ohuena, kaksi kolmasosaa kirkkaampana, kärkiosa
-kirkkaimpana ja paksuimpana. Alfat kertautuvat, joten muoto on komeetta,
-ja jokainen veto on yhtenäinen polylinja.
+#### Jälki on kapeneva nauha, ei pino vetoja
 
-Vetoja on `NIPUT × TASOT` = 30 ruutua kohti, ei partikkelien verran:
-segmentit kerätään nopeusluokan ja tason mukaan `Path2D`-poluiksi.
+Häivytystä yritettiin kahdesti vedoilla, ja molemmat kaatuivat samaan
+asiaan: **veto on paksu ja sillä on päät.**
+
+1. *Segmentti kerrallaan, kullakin oma alfa.* Näytti helmiketjulta —
+   segmentti on lyhyempi kuin viivan leveys, joten pyöreät päät jäävät
+   päällekkäin ja vierekkäiset alfat tekevät niistä erillisiä pisaroita.
+2. *Kolme sisäkkäistä vetoa* eri pituudella, leveydellä ja alfalla.
+   Tämä luettiin pitkään "komeetaksi", mutta lähikuva kertoi muuta:
+   **kolme pyöreäpäistä kapselia päällekkäin**. Leveämmän kirkkaan vedon
+   pyöreä pää työntyi kapeamman himmeän yli, ja alfa vaihtui portaana
+   kahdessa kohtaa. Kovassa tuulessa pisteitä oli vain yhdeksän
+   viidenkymmenen pikselin matkalla, joten polylinja oli myös
+   särmikäs. Yhdessä ne lukivat makkarajonona.
+
+Kumpaakaan ei saa pois alfaa tai leveyttä säätämällä, koska **vika on
+muodossa**. Nyt jälki on yksi täytetty monikulmio: polun ympärille
+lasketaan reunaviiva, jonka puolileveys kapenee kärjestä hännän nollaan.
+
+- **Päätyjä ei ole**, joten mikään ei työnny minkään yli.
+- **Alfa on vakio koko jäljellä** eikä portaita synny. Häivytys tulee
+  muodosta: kapeneva nauha vie vähemmän mustetta hännässä, ja
+  additiivisessa sekoituksessa se lukee himmenemisenä.
+- **Reunat ovat käyriä.** Pisteiden puolivälien kautta kulkeva
+  neliöllinen käyrä maksaa saman määrän polkukomentoja kuin suora
+  jakso, ja poistaa juuri sen särmikkyyden joka luki "pikselinä".
+- **Piirtokutsuja on 10 eikä 30**, koska tasoja on yksi.
+
+Kolme yksityiskohtaa jotka eivät ole ilmeisiä:
+
+- **Kapeneminen on `1 − t²`, ei `1 − t`.** Se on tasainen kärjessä
+  (derivaatta nolla). Kärkeen tulee pyöristys, ja jos leveys kapenee
+  heti sen takaa, pää pullistuu nauhan yli ja jäljelle jää **väkänen**.
+  Tasainen alku sulattaa pyöristyksen nauhaan.
+- **Kärki pyöristetään puoliympyrällä.** Ilman sitä nauha alkaa
+  kohtisuoralla katkaisulla juuri siinä kohdassa mihin katse menee.
+- **Normaali lasketaan naapuripisteiden erotuksesta**, jolloin mutkassa
+  reuna kääntyy pehmeästi eikä nurkkaa synny.
+
+Mitattu peitto ruudusta (tasainen kenttä, z9):
+
+| m/s | kolme vetoa | nauha |
+|---|---|---|
+| 4 | 2,3 % | 2,5 % |
+| 12 | 16,8 % | 11,1 % |
+| 20 | 21,1 % | 14,4 % |
+
+Nauha on kevyempi kovassa tuulessa mutta ei heikossa — juuri se mitä
+haettiin. Leveys ja alfa laskettiin samalla (`2,5 + 2,7·t` ja alfakatto
+0,50), koska täytetty muoto on tiiviimpi kuin kolme osittain
+päällekkäistä vetoa: ilman laskua yksittäinen jälki luki umpinaisena
+teränä (musteen keskiarvo 77 → 93).
 
 #### Isompi ja harvempi lukee paremmin kuin ohut ja tiheä
 
@@ -1041,10 +1083,30 @@ pahimmat ruudut 218/263/196 ms → **129/161/113 ms**.
 Pahimmissa ruuduissa on nyt kaksi erää: `WindTexture.build` 21–37 ms
 (pohja johon välimuisti ei pure, koska ele vaihtaa geometrian) ja
 ruutuja joissa **ei ole yhtään instrumentoitua työtä** mutta jotka
-kestävät 110–161 ms. Jälkimmäinen on partikkelivetojen piirtoa ja
-selaimen omaa työtä. Se on sama katto joka näkyy lepotilassa, ja ainoa
-vipu siihen on canvasin resoluutio — ulkonäkökysymys, ei
-suorituskykykysymys.
+kestävät 110–161 ms. Jälkimmäinen on partikkelien piirtoa ja selaimen
+omaa työtä. Se on sama katto joka näkyy lepotilassa.
+
+### Aikajana ja play
+
+Mittarit 4× kuristuksella ovat tarkoituksella pessimistisiä: **tyhjä
+sivu samassa kontissa on 17 ms**, eli kuristus on kolmen vuoden takaisen
+puhelimen karkea vastine. Sama mitattuna 2×:llä, joka vastaa
+lähemmin nykylaitetta:
+
+| | 4× | 2× |
+|---|---|---|
+| aikajanan raahaus | 15 fps / 69 ms | **50 fps / 20 ms** |
+| play | 19 fps / 53 ms | **40 fps / 25 ms** |
+
+Toiminnallisesti: loksahdus janan keskelle 0 px, play'n tuntivälit
+788–831 ms (tavoite 800), ja janaan tarttuminen pysäyttää playn.
+
+**Aikajanan raahaus on lepotilan pohjaan sidottu, ei kentän työhön.**
+Yksi askel maksaa 4× kuristuksella noin 19 ms — `WindTexture.build`
+11 ms (välimuisti puree, 19 osumaa 22:sta) ja `drawColorField` 6 ms —
+mutta lepotilan ruutu on 48 ms. Kentän työn puolittaminenkaan ei siis
+muuttaisi ruutunopeutta olennaisesti; siihen tarvittaisiin
+partikkelicanvasin resoluutio, joka on ulkonäkökysymys.
 
 ### Kerrokset samassa paikassa, samaan aikaan
 
