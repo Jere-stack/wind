@@ -898,6 +898,154 @@ osuvat samaan jonoon, tarkempi voittaa. `WindTexture.build` kirjoittaa
 jaettuja kenttiä (`cols`, `latMin`, …), joten kahta rakennusta ei saa
 olla lennossa yhtä aikaa.
 
+### Mihin ruutuaika oikeasti menee
+
+Mitattu DPR 3:lla ja 4× CPU-kuristuksella. **Ympäristön pohja
+tarkistettiin ensin:** tyhjä sivu samassa kontissa antaa 17 ms / 60 fps,
+ja täyden ruudun canvas jota tyhjennetään joka ruutu antaa myös 17 ms.
+Luvut ovat siis sovelluksen, eivät kontin.
+
+**Mikä EI ole kallista** — jokainen mitattu erikseen, ero ≤ 3 ms eli
+kohinaa:
+
+| kytkin pois | vaikutus |
+|---|---|
+| lämpökartan `filter: blur() saturate()` | ei mitään |
+| lämpökartta kokonaan piiloon | ei mitään |
+| `mix-blend-mode` kummallakaan kerroksella | ei mitään |
+| `clearRect` täydelle DPR 3 -canvasille | ei mitään |
+| `isMarine`, `SpatialIndex.build` | 0,1 ms |
+
+Aiempi arvaus että sekoituskerros olisi juurisyy **ei päde**. Se
+mitattiin kerran kumulatiivisilla kytkimillä, jolloin peräkkäiset
+muutokset kasautuivat samaan lukuun. Riippumattomasti mitattuna
+sekoitus on ilmainen.
+
+**Mikä on kallista:**
+
+- **Partikkelivetojen piirto.** Eristettynä (219 hiukkasta, 30 vetoa,
+  60 px jäljet): DPR 3 → 65 ms, DPR 2 → 47 ms. Kustannus on suoraan
+  verrannollinen jäljen kokonaispituuteen ruudulla — sama syy kuin
+  `JALKI_MAX_PX`:n takana. Kevyessä tuulessa (21 px jäljet) sama joukko
+  maksaa vain 13 ms.
+- **Tekstuurin rakennus**, ks. seuraava luku.
+
+Tästä seuraa että **lepotilan ruutuaika on koko sovelluksen katto**:
+kaikki eleet kulkevat sen päällä. Ainoa jäljellä oleva vipu siihen on
+partikkelicanvasin resoluutio, ja se on ulkonäkökysymys eikä
+suorituskykykysymys — sitä ei saa ratkaista mittaamalla yksin.
+
+### Kentän rakennus: kaksi mitattua optimointia
+
+`WindTexture.build` oli 45 ms (300×300, askel 3, 4× kuristus). Se ajetaan
+joka datahaun jälkeen, joka eleen kiinniotossa, joka aikajanan
+askeleella ja joka play-tunnilla — aikajanaa raahatessa 18 kertaa 2,5
+sekunnissa.
+
+**1. Väri ja alfa yhtenä 32-bittisenä hakuna.** Täyttösilmukka ajoi
+jokaiselle 90 000 pikselille `ColorRamp.rgb()`:n ja alfakaavan
+(`Math.exp` + kuutio) — mitattuna 4,5 + 4,6 ms. Ramppi on jo valmiiksi
+kvantisoitu 0,1 m/s välein, joten alfan vieminen samaan hilaan ei muuta
+kuvaa: ero on korkeintaan 0,002 alfayksikköä, ja päälle ajetaan vielä
+3–22 px sumennus. `pikseliLUT()` pakkaa värin ja alfan 201-alkioiseksi
+`Uint32Array`ksi, jolloin täyttö on yksi luku ja yksi kirjoitus neljän
+sijaan. **Tavujärjestys tarkistetaan ajossa** — kanvaspuskuri on
+RGBA-tavuina ja pakkautuu eri järjestyksessä little- ja
+big-endian-koneilla.
+
+**2. idw-painot talteen kun kartta on paikallaan.** Painot riippuvat
+vain geometriasta: hilasolmujen ja ennustepisteiden sijainneista.
+Aikajanaa raahatessa kartta ei liiku lainkaan — vain arvot vaihtuvat —
+ja silti sama naapurihaku, `isMarine` ja etäisyyslaskenta ajettiin 18
+kertaa. `IdwPainot` tallettaa normalisoidut painot ja tekee jatkossa
+pelkän painotetun summan.
+
+Talletusajo on kalliimpi kuin tavallinen rakennus (64 ms vs 23 ms),
+joten se kannattaa vain jos sama geometria toistuu vielä monta kertaa.
+Kaksi ehtoa, molemmat mitattuja:
+
+- **Kolme peräkkäistä osumaa.** Kahdella osumalla riitti että kaksi
+  eleen aikaista kiinniottorakennusta sattui samoihin rajoihin, ja
+  talletus maksettiin väärässä paikassa: raahauksen rakennukset
+  nousivat 110 ms:stä 163 ms:iin ja eleen jälkeiseen ruutuun tuli
+  62 ms:n rakennus. Aikajanan raahauksessa rakennuksia on 18 ja
+  play'ssä yli 30, joten kolmas osuma tulee heti eikä hyöty siirry.
+- **Vain paikallaan olevalla kartalla.** Liikkeessä geometria vaihtuu
+  joka tapauksessa, eikä välimuistille ole käyttöä.
+
+Indeksit osoittavat siihen taulukkoon josta `SpatialIndex` on rakennettu,
+ja `SpatialIndex.wf` tarkistetaan ennen kuin painoja luetaan tai
+talletetaan — muuten eri taulukolla rakennettu indeksi osoittaisi väärään
+pisteeseen.
+
+**Tulos** (300×300, askel 3, 4× kuristus):
+
+| | ennen | nyt |
+|---|---|---|
+| peräkkäiset ajot samalla geometrialla | 45 ms | 23 → *64* → 25 → **11 → 11 → 11** |
+| vaihtuva geometria (ele) | 45 ms | **16–21 ms** |
+
+Kertaluontoinen 64 ms on talletusajo. Vaihtuvan geometrian hyöty tulee
+kokonaan hakutaulusta.
+
+**Tarkistettu alkio alkiolta.** Suora laskenta ja välimuistista luettu
+antavat saman `msData`:n ja `uData`:n (ero 0 kuudella desimaalilla), ja
+90 000 pikselistä **yksi** eroaa yhden LUT-lokeron eli 0,1 m/s verran.
+Syy on liukulukujen summausjärjestys: suora tie laskee `su/sw`, luettu
+tie summaa valmiiksi normalisoidut painot, eikä liukulukuyhteenlasku ole
+assosiatiivinen. Yksi pikseli 90 000:sta 3–22 px sumennuksen alla ei ole
+havaittavissa. Sama tarkistus ajettiin myös muuttuneella kentällä
+(kertoimet 1,37 ja 0,61): siinä ero oli 0 pikseliä.
+
+### Työ pois eleen päältä
+
+Kaksi erää joita ei tarvitse tehdä juuri silloin kun sormi liikkuu.
+
+**Kentän rakennus odottaa liikkeen loppuun.** Ennakoiva datahaku lähtee
+kesken eleen (ks. edellä), ja sen valmistuttua koko ketju —
+`buildWindField` + `drawColorField` + `resetParticles` — ajettiin siinä
+ruudussa mihin lataus sattui osumaan. Mitattuna raahauksessa
+`buildWindField` oli 28–65 ms ja koko ketju kasautui yhteen 125–214 ms:n
+ruutuun. Data on jo muistissa; ainoa mitä siirtäminen maksaa on että
+väritys päivittyy vasta kartan pysähtyessä, ja sitä varten on oma
+kiinniottonsa. `State.liikkeessa` kertoo tilan, ja velka maksetaan
+`moveend`issä.
+
+**Aikajana ei rakenna DOMia uusiksi turhaan.** `renderTimeline` tyhjensi
+`#tl-scroll`in ja loi noin 370 elementtiä joka kutsulla — mitattuna
+**27–43 ms**. Heiton pahimmassa ruudussa (214 ms) se oli suurin
+yksittäinen erä, ja siinä kahdesti.
+
+Ensin kokeiltiin muistiota: ohita jos lähdedata on sama olio. **Se ei
+riittänyt** — vieritettäessä kartan keskipiste vaihtuu, jolloin lähin
+ennustepiste on oikeasti eri ja data siis eri. Mittaus näytti sen
+suoraan: `updateTimelineToCenter` oli yhä 40 ms, kahdesti.
+
+Oikea havainto on että **rakenne tulee aikaleimoista, ei arvoista**.
+Montako tikkiä, mihin päiväerottimet ja NYT-viiva osuvat, mitkä tunnit
+saavat nimikyltin — kaikki tulee `times`-taulukosta, ja kaikki
+ennustepisteet tulevat samasta mallista samalla tuntiruudukolla. Vain
+palkin korkeus ja väri muuttuvat. Nopea tie päivittää ne paikallaan ja
+jättää DOMin koskematta.
+
+Ehtoihin kuuluu **NYT-indeksi**: "mennyt"-tila on sidottu siihen ja se
+siirtyy kellon mukana, joten tunnin vaihtuessa on rakennettava kokonaan.
+Muistio päivitetään `renderTimeline`ssä eikä kutsujassa, jotta myös sen
+kolme suoraa kutsujaa pitävät sen ajan tasalla.
+
+Mitattuna `updateTimelineToCenter` **40 ms → 0–8 ms**, ja heiton
+pahimmat ruudut 218/263/196 ms → **129/161/113 ms**.
+
+#### Mikä jäi jäljelle
+
+Pahimmissa ruuduissa on nyt kaksi erää: `WindTexture.build` 21–37 ms
+(pohja johon välimuisti ei pure, koska ele vaihtaa geometrian) ja
+ruutuja joissa **ei ole yhtään instrumentoitua työtä** mutta jotka
+kestävät 110–161 ms. Jälkimmäinen on partikkelivetojen piirtoa ja
+selaimen omaa työtä. Se on sama katto joka näkyy lepotilassa, ja ainoa
+vipu siihen on canvasin resoluutio — ulkonäkökysymys, ei
+suorituskykykysymys.
+
 ### Kerrokset samassa paikassa, samaan aikaan
 
 "Kartan eri layerit päivittyvät eri aikaan" oli oikea havainto, mutta

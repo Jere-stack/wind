@@ -2797,6 +2797,7 @@ function _installDoubleTapZoom(map) {
 /* -- STATE ------------------------------------------------------ */
 const State = {
   map: null,
+  liikkeessa: false,   /* kartta on kesken eleen tai animaation */
   heatmapOverlay: null,
   windCvs: null, windCtx: null,
   particles: [],
@@ -3059,6 +3060,33 @@ function initMap() {
     _scheduleViewportLoad(true);
   }
 
+  /* Kentän uudelleenrakennus on eleen kallein yksittäinen työ.
+   *
+   * Ennakoiva datahaku lähtee kesken eleen, ja sen valmistuttua tämä
+   * ketju ajettiin siinä ruudussa mihin lataus sattui osumaan. Mitattuna
+   * raahauksessa buildWindField oli 28–65 ms ja koko ketju kasautui
+   * yhteen 125–214 ms:n ruutuun — sormi kartalla.
+   *
+   * Data on nyt haettu ja odottaa muistissa; ainoa mitä siirtäminen
+   * maksaa on että väritys päivittyy vasta kun kartta pysähtyy, ja
+   * sitä varten on jo oma kiinniottonsa (_heatmapCatchUp). Ajetaan
+   * rakennus siis vasta liikkeen loputtua. */
+  var _kenttaVelkaa = false;
+  function _rakennaKentta() {
+    if (State.liikkeessa) { _kenttaVelkaa = true; return; }
+    _kenttaVelkaa = false;
+    buildWindField(State.currentHourIdx).then(() => {
+      drawColorField(); resetParticles(); Crosshair.refresh();
+    });
+  }
+
+  /* State.liikkeessa on myös IdwPainot'n käytössä — ks. sen talletusehto. */
+  map.on('movestart zoomstart', function () { State.liikkeessa = true; });
+  map.on('moveend zoomend', function () {
+    State.liikkeessa = false;
+    if (_kenttaVelkaa) _rakennaKentta();
+  });
+
   function _scheduleViewportLoad(heti) {
     clearTimeout(State._vpTimer);
     State._vpTimer = setTimeout(() => {
@@ -3082,9 +3110,7 @@ function initMap() {
         ViewportGrid.invalidateCache();
         /* Päivitä slider uudella datalla kun se on saatavilla */
         updateTimelineToCenter();
-        buildWindField(State.currentHourIdx).then(() => {
-          drawColorField(); resetParticles(); Crosshair.refresh();
-        });
+        _rakennaKentta();
       }).catch(() => { /* Ei dataa — slider pysyy cachessa */ });
     }, heti ? 0 : 350);
   }
@@ -3258,8 +3284,14 @@ const SpatialIndex = {
          lat-suunnassa riittää 2 solua joka suuntaan. */
       this.cellSize = Math.max(0.05, spacing * 1.5);
     }
+    /* __i on pisteen paikka tässä taulukossa. IdwPainot tallettaa painot
+       indekseinä, ja wf-viite kertoo mihin taulukkoon ne osoittavat —
+       ilman sitä eri taulukolla rakennettu indeksi osoittaisi väärään
+       pisteeseen. */
+    this.wf = wf;
     for (let i = 0; i < wf.length; i++) {
       const f = wf[i], k = this._key(f.lat, f.lng);
+      f.__i = i;
       if (!this.cells[k]) this.cells[k] = [];
       this.cells[k].push(f);
     }
@@ -3430,6 +3462,163 @@ function idw(lat, lng) {
   return { u, v, ms: Math.sqrt(u * u + v * v) };
 }
 
+/* -- IDW-PAINOT TALTEEN ------------------------------------------
+ *
+ * idw() on kentän rakennuksen kallein osa: 300×300 tekstuurissa
+ * askeleella 3 se ajetaan 10 201 hilasolmussa, ja jokainen niistä
+ * varaa naapuritaulukon, kutsuu isMarine():n ja laskee etäisyydet.
+ * Mitattuna koko rakennus on 45 ms, josta idw noin 30 ms.
+ *
+ * Painot riippuvat VAIN GEOMETRIASTA: solmujen ja ennustepisteiden
+ * sijainneista. Aikajanaa raahatessa kartta ei liiku lainkaan — vain
+ * pisteiden arvot vaihtuvat — ja silti sama laskenta ajetaan 18 kertaa
+ * 2,5 sekunnissa. Talletetaan painot ja tehdään jatkossa pelkkä
+ * painotettu summa.
+ *
+ * Välimuistia EI rakenneta ensimmäisellä kerralla. Eleessä geometria
+ * vaihtuu joka rakennuksella, jolloin välimuisti ehtisi vanhentua ennen
+ * käyttöä ja sen rakentaminen olisi pelkkä lisäkustannus. Vasta kun
+ * sama geometria tulee vastaan TOISEN kerran peräkkäin, se kannattaa.
+ * Näin raahaus ja nipistys eivät maksa tästä mitään ja aikajana saa
+ * hyödyn heti toisesta ruudusta alkaen. */
+const IdwPainot = {
+  avain: '', valmis: '', osumat: 0, alku: null, idx: null, paino: null, vara: null,
+  /* Yli tämän menevä pariluku jätetään tallettamatta: 600 000 paria on
+     Int32 + Float32 = 4,8 MB, eikä sitä kannata ylittää puhelimessa. */
+  MAX_PARIA: 600000,
+
+  _avain(wf, tex, STEP) {
+    let h = wf.length | 0;
+    for (let i = 0; i < wf.length; i++) {
+      const f = wf[i];
+      h = (Math.imul(h, 16777619) ^ ((f.lat * 1000) | 0) ^ (((f.lng * 1000) | 0) << 11)) | 0;
+    }
+    return STEP + '|' + tex.cols + 'x' + tex.rows + '|' + wf.length + '|' + h
+      + '|' + tex.latMin.toFixed(5) + ',' + tex.latMax.toFixed(5)
+      + ',' + tex.lngMin.toFixed(5) + ',' + tex.lngMax.toFixed(5)
+      + '|' + SpatialIndex.spacing;
+  },
+
+  taytaHila(wf, tex, STEP, gc, gr, latStep, lngStep, gu, gv) {
+    const solmuja = gc * gr;
+    /* Indeksit osoittavat siihen taulukkoon josta SpatialIndex on
+       rakennettu. Jos se on eri, ei voi tallettaa eikä lukea. */
+    const sama = SpatialIndex.wf === wf;
+    const avain = sama ? this._avain(wf, tex, STEP) : '';
+
+    /* Nopea tie: painot ovat tallessa tälle geometrialle. */
+    if (avain && this.valmis === avain) {
+      const alku = this.alku, idx = this.idx, pai = this.paino, vara = this.vara;
+      for (let n = 0; n < solmuja; n++) {
+        const a = alku[n], b = alku[n + 1];
+        if (a === b) {
+          const v = vara[n];
+          if (v >= 0) { gu[n] = wf[v].u; gv[n] = wf[v].v; }
+          continue;
+        }
+        let u = 0, v = 0;
+        for (let k = a; k < b; k++) { const f = wf[idx[k]], w = pai[k]; u += f.u * w; v += f.v * w; }
+        gu[n] = u; gv[n] = v;
+      }
+      return;
+    }
+
+    /* Kannattaako talletus?
+     *
+     * Talletusajo on kalliimpi kuin tavallinen (mitattuna 64 ms vs 23 ms),
+     * joten se kannattaa vain jos sama geometria toistuu vielä monta
+     * kertaa. Kaksi ehtoa, molemmat mitattuja:
+     *
+     * KOLME peräkkäistä osumaa. Kahdella osumalla riitti että kaksi
+     * kiinniottorakennusta sattui samoihin rajoihin, ja talletus
+     * maksettiin eleen aikana tai heti sen jälkeen — mitattuna
+     * raahauksen rakennukset nousivat 110 ms:stä 163 ms:iin ja eleen
+     * jälkeiseen ruutuun tuli 62 ms:n rakennus. Aikajanan raahauksessa
+     * rakennuksia on 18 ja play'ssä yli 30, joten kolmas osuma tulee
+     * heti eikä hyöty siirry käytännössä lainkaan.
+     *
+     * Kartan on oltava PAIKALLAAN. Liikkeessä geometria vaihtuu joka
+     * tapauksessa, eikä välimuistille ole käyttöä. */
+    if (avain && this.avain === avain) this.osumat++; else this.osumat = 1;
+    const talleta = !!avain && this.osumat >= 3 && !State.liikkeessa;
+    this.avain = avain;
+    if (!talleta) {
+      this.valmis = '';
+      for (let j = 0; j < gr; j++) {
+        const rr = Math.min(tex.rows - 1, j * STEP);
+        const lat = tex.latMax - rr * latStep;
+        for (let i = 0; i < gc; i++) {
+          const cc = Math.min(tex.cols - 1, i * STEP);
+          const w = idw(lat, tex.lngMin + cc * lngStep);
+          gu[j * gc + i] = w.u; gv[j * gc + i] = w.v;
+        }
+      }
+      return;
+    }
+
+    /* Hidas tie kerran: sama laskenta, mutta painot otetaan talteen. */
+    const alku = new Int32Array(solmuja + 1);
+    const vara = new Int32Array(solmuja).fill(-1);
+    const idxL = [], paiL = [];
+    for (let j = 0; j < gr; j++) {
+      const rr = Math.min(tex.rows - 1, j * STEP);
+      const lat = tex.latMax - rr * latStep;
+      for (let i = 0; i < gc; i++) {
+        const n = j * gc + i;
+        alku[n] = idxL.length;
+        const cc = Math.min(tex.cols - 1, i * STEP);
+        const w = idwPainoin(lat, tex.lngMin + cc * lngStep, wf, idxL, paiL);
+        gu[n] = w.u; gv[n] = w.v;
+        vara[n] = w.vara;
+      }
+    }
+    alku[solmuja] = idxL.length;
+    if (idxL.length > this.MAX_PARIA) { this.valmis = ''; return; }
+    this.alku = alku; this.vara = vara;
+    this.idx = Int32Array.from(idxL);
+    this.paino = Float32Array.from(paiL);
+    this.valmis = avain;
+  },
+
+  unohda() { this.avain = ''; this.valmis = ''; this.osumat = 0;
+    this.alku = this.idx = this.paino = this.vara = null; }
+};
+
+/* Sama laskenta kuin idw(), mutta normalisoidut painot kirjataan ulos.
+   Pidetään erillään, jottei idw():n kuumaan silmukkaan tule haaraa. */
+function idwPainoin(lat, lng, wf, idxUlos, paiUlos) {
+  const step = SpatialIndex.spacing || 0.25;
+  const R = 3.0 * step, eps2 = (0.45 * step) * (0.45 * step), R2 = R * R;
+  const cosLat = Math.max(0.15, Math.cos(lat * Math.PI / 180));
+  const rLat = Math.max(1, Math.ceil(R / SpatialIndex.cellSize));
+  const rLng = Math.max(1, Math.ceil(R / (SpatialIndex.cellSize * cosLat)));
+  let nb = SpatialIndex.nearby(lat, lng, rLat, rLng);
+  if (!nb.length) nb = SpatialIndex.nearby(lat, lng, rLat * 3, rLng * 3);
+  if (!nb.length) return { u: 0, v: 0, vara: -1 };
+  const cos2 = cosLat * cosLat;
+  const querySurface = isMarine(lat, lng);
+  let sw = 0, su = 0, sv = 0, bestD2 = Infinity, best = -1;
+  const alkuPari = idxUlos.length;
+  for (let i = 0; i < nb.length; i++) {
+    const f = nb[i], dlat = lat - f.lat, dlng = lng - f.lng;
+    const d2 = dlat * dlat + dlng * dlng * cos2;
+    if (d2 < bestD2) { bestD2 = d2; best = f.__i; }
+    if (d2 >= R2) continue;
+    const taper = 1 - d2 / R2;
+    const ptSurface = f.marine !== undefined ? f.marine : isMarine(f.lat, f.lng);
+    const surfaceW = 0.5 + (1.0 - Math.abs(querySurface - ptSurface)) * 1.5;
+    const w = (taper * taper) / (d2 + eps2) * surfaceW;
+    sw += w; su += f.u * w; sv += f.v * w;
+    idxUlos.push(f.__i); paiUlos.push(w);
+  }
+  if (!sw) {
+    idxUlos.length = alkuPari; paiUlos.length = alkuPari;
+    return best >= 0 ? { u: wf[best].u, v: wf[best].v, vara: best } : { u: 0, v: 0, vara: -1 };
+  }
+  for (let k = alkuPari; k < paiUlos.length; k++) paiUlos[k] /= sw;
+  return { u: su / sw, v: sv / sw, vara: -1 };
+}
+
 function px2ll(x, y) { const ll = State.map.containerPointToLatLng(L.point(x, y)); return { lat: ll.lat, lng: ll.lng }; }
 
 /* -- WIND TEXTURE ----------------------------------------------- */
@@ -3441,6 +3630,50 @@ const WindTexture = {
   COARSE_STEP: 3,        /* vakiotarkkuus */
   SCRUB_STEP: 6,         /* aikajanaa raahatessa — päivitys ehtii joka ruutuun */
   askel: 0,              /* millä askeleella ruudulla oleva tekstuuri on laskettu */
+
+  /* Väri ja alfa yhtenä pakattuna hakutauluna.
+   *
+   * Täyttösilmukka ajaa jokaiselle pikselille ColorRamp.rgb():n ja
+   * alfakaavan, jossa on Math.exp ja kuutio. Mitattuna 300×300
+   * tekstuurilla (90 000 pikseliä) ne ovat 4,5 ms + 4,6 ms — eli noin
+   * 9 ms JOKAISESTA rakennuksesta. Aikajanaa raahatessa rakennuksia on
+   * 18 kappaletta 2,5 sekunnissa.
+   *
+   * Ramppi on jo valmiiksi kvantisoitu 0,1 m/s välein (ColorRamp
+   * LUT_SIZE 201), joten alfan kvantisointi samaan hilaan ei muuta
+   * kuvaa — ero on korkeintaan 0,002 alfayksikköä, ja sen päällä ajetaan
+   * vielä 3–22 px sumennus.
+   *
+   * Taulu on 32-bittinen, jolloin täyttö on yksi luku ja yksi kirjoitus
+   * neljän sijaan. Tavujärjestys tarkistetaan ajossa: kanvasin puskuri
+   * on RGBA-tavuina, ja se pakkautuu 32-bittiseksi eri järjestyksessä
+   * little- ja big-endian-koneilla. */
+  _pikseliLUT: null,
+  pikseliLUT() {
+    if (this._pikseliLUT) return this._pikseliLUT;
+    const koe = new Uint32Array(1);
+    new Uint8Array(koe.buffer)[0] = 1;
+    const little = koe[0] === 1;
+    const n = 201, lut = new Uint32Array(n);
+    for (let i = 0; i < n; i++) {
+      const ms = i * 0.1;
+      const c = ColorRamp.rgb(ms);
+      const t = ms / Config.MAX_MS;
+      /* Kuutiollinen lisätermi nostaa vain kärkeä: 8 m/s pysyy 0.45:ssä
+         mutta 20 m/s nousee 0.60:stä 0.75:een. Additiivisessa
+         sekoituksessa se ei syö rantaviivan kontrastia — maan ja veden
+         ero on alfasta riippumaton — joten kovan tuulen saa näkymään
+         ilman että kartta katoaa alta. */
+      const a = ms < 0.3 ? 0.08
+        : Math.min(0.75, 0.10 + 0.55 * (1 - Math.exp(-2.5 * t)) + 0.10 * t * t * t);
+      const A = Math.round(a * 255);
+      lut[i] = little
+        ? (((A << 24) | (c.b << 16) | (c.g << 8) | c.r) >>> 0)
+        : (((c.r << 24) | (c.g << 16) | (c.b << 8) | A) >>> 0);
+    }
+    this._pikseliLUT = lut;
+    return lut;
+  },
 
   /* build(windField, viewportBounds, coarseStep)
    *
@@ -3497,7 +3730,8 @@ const WindTexture = {
       this.vData = new Float32Array(n);
       this.msData = new Float32Array(n);
       const img = this.ctx.createImageData(this.cols, this.rows);
-      const d = img.data;
+      const d32 = new Uint32Array(img.data.buffer);
+      const lut = this.pikseliLUT();
       const latStep = latSpan / this.rows, lngStep = lngSpan / this.cols;
       const self = this;
 
@@ -3514,15 +3748,7 @@ const WindTexture = {
         const gc = Math.floor((self.cols - 1) / STEP) + 2;  /* +1 solmu reunan yli */
         const gr = Math.floor((self.rows - 1) / STEP) + 2;
         const gu = new Float32Array(gc * gr), gv = new Float32Array(gc * gr);
-        for (let j = 0; j < gr; j++) {
-          const rr = Math.min(self.rows - 1, j * STEP);
-          const lat = self.latMax - rr * latStep;
-          for (let i = 0; i < gc; i++) {
-            const cc = Math.min(self.cols - 1, i * STEP);
-            const w = idw(lat, self.lngMin + cc * lngStep);
-            gu[j * gc + i] = w.u; gv[j * gc + i] = w.v;
-          }
-        }
+        IdwPainot.taytaHila(windField, self, STEP, gc, gr, latStep, lngStep, gu, gv);
 
         /* 2) Bilineaarinen täyttö. Interpoloidaan u ja v, ei nopeutta ja
            suuntaa erikseen — suunnan interpolointi asteina menisi rikki
@@ -3542,17 +3768,10 @@ const WindTexture = {
             const ms = Math.sqrt(u * u + v * v);
             const idx = r * self.cols + c;
             self.uData[idx] = u; self.vData[idx] = v; self.msData[idx] = ms;
-            const base = idx * 4;
-            const rgb = ColorRamp.rgb(ms);
-            const t = ms / Config.MAX_MS;
-            /* Kuutiollinen lisätermi nostaa vain kärkeä: 8 m/s pysyy 0.45:ssä
-               mutta 20 m/s nousee 0.60:stä 0.75:een. Additiivisessa
-               sekoituksessa se ei syö rantaviivan kontrastia — maan ja veden
-               ero on alfasta riippumaton — joten kovan tuulen saa näkymään
-               ilman että kartta katoaa alta. */
-            const a = ms < 0.3 ? 0.08
-              : Math.min(0.75, 0.10 + 0.55 * (1 - Math.exp(-2.5 * t)) + 0.10 * t * t * t);
-            d[base] = rgb.r; d[base+1] = rgb.g; d[base+2] = rgb.b; d[base+3] = Math.round(a * 255);
+            /* Väri ja alfa yhtenä hakuna, yhtenä 32-bittisenä kirjoituksena.
+               Kaava ja ramppi ovat pikseliLUT():ssa. */
+            let li = (ms * 10 + 0.5) | 0;
+            d32[idx] = lut[li > 200 ? 200 : li];
           }
         }
         self.ctx.putImageData(img, 0, 0);
@@ -8235,6 +8454,20 @@ function updateTimelineToCenter() {
   const h = p.wx.hourly;
   const layer = State.activeLayer;
   const sp = layer === 'gust' ? (h.windgusts_10m || h.windspeed_10m) : h.windspeed_10m;
+  /* renderTimeline rakentaa koko janan DOMin uusiksi — noin 370
+     elementtiä, mitattuna 27–43 ms. Sitä kutsutaan 2–3 kertaa yhtä
+     datahakua kohti (kynnystarkistus, cachesta heti, ja uudelleen kun
+     lataus valmistuu), ja useimmiten lähdedata on tasan sama: keskellä
+     on sama ennustepiste kuin hetki sitten. Mitattuna se oli suurin
+     yksittäinen erä heiton pahimmassa ruudussa.
+
+     Vertailu tehdään VIITTEILLÄ: loadBatch korvaa pisteen wx-olion
+     kokonaan, joten uusi data näkyy aina uutena viitteenä. Muistio
+     päivitetään renderTimelinessä, jotta myös sen suorat kutsijat
+     pitävät sen ajan tasalla. */
+  const m = State._tlMuisti;
+  if (m && m.times === h.time && m.speeds === sp && m.dirs === h.winddirection_10m
+      && m.activeIdx === State.currentHourIdx) return;
   renderTimeline(h.time, sp, h.winddirection_10m, State.currentHourIdx);
 }
 
@@ -8248,8 +8481,50 @@ function nowIdx(times) {
   return best;
 }
 
+/* Vain palkkien arvot uusiksi, rakenne paikallaan.
+ *
+ * Janan RAKENNE tulee aikaleimoista: montako tikkiä, mihin päiväerottimet
+ * ja NYT-viiva osuvat, mitkä tunnit saavat nimikyltin. Kartan keskipisteen
+ * vaihtuessa aikaleimat ovat samat — kaikki ennustepisteet tulevat samasta
+ * mallista samalla tuntiruudukolla — ja vain palkin korkeus ja väri
+ * muuttuvat. Silloin 370 elementin uudelleenluonti on turhaa työtä. */
+const TL_TIKKI_LEV = 22;   /* sama kuin .htick flex-basis */
+function _tlPaivitaPalkit(speeds) {
+  const tikit = State._tlTicks;
+  let maxMs = 1;
+  for (let i = 0; i < speeds.length; i++) { if ((speeds[i] || 0) > maxMs) maxMs = speeds[i]; }
+  for (let i = 0; i < tikit.length; i++) {
+    const ms = speeds[i] || 0, bc = ColorRamp.ink(ms);
+    const bar = tikit[i].firstElementChild;
+    if (!bar) continue;
+    bar.style.height = Math.max(3, (ms / maxMs) * 22) + 'px';
+    bar.style.background = 'rgb(' + bc.r + ',' + bc.g + ',' + bc.b + ')';
+    bar.classList.toggle('foilable', ms >= 8);
+  }
+}
+
 function renderTimeline(times, speeds, dirs, activeIdx) {
+  /* Mitä ruudulla nyt on — ks. updateTimelineToCenter. */
+  State._tlMuisti = { times: times, speeds: speeds, dirs: dirs, activeIdx: activeIdx };
   const tl = document.getElementById('tl-scroll');
+  /* Nopea tie: sama rakenne kuin ruudulla jo on. Ehtoihin kuuluu myös
+     NYT-indeksi, koska "mennyt"-tila on sidottu siihen ja se siirtyy
+     kellon mukana. */
+  const vanhat = State._tlTimes;
+  if (times && times.length && State._tlTicks && State._tlTicks.length === times.length
+      && vanhat && vanhat.length === times.length
+      && vanhat[0] === times[0] && vanhat[times.length - 1] === times[times.length - 1]
+      && State._tlNytIdx === nowIdx(times)) {
+    _tlPaivitaPalkit(speeds);
+    State._tlTimes = times; State._tlSpeeds = speeds; State._tlDirs = dirs;
+    _tlBeginSelfScroll();
+    requestAnimationFrame(() => {
+      const target = State._tlTicks[activeIdx];
+      if (target) _tlSetScrollLeft(tl, target.offsetLeft - tl.offsetWidth / 2 + TL_TIKKI_LEV / 2);
+      _tlUpdateNow(activeIdx);
+    });
+    return;
+  }
   /* Sisällön tyhjennys kutistaa vieritysalueen nollaan, jolloin selain
      lähettää scroll-tapahtuman aivan kuin sormi olisi vetänyt janan alkuun.
      Merkitään koko uudelleenrakennus omaksi vieritykseksi — lippu jatkuu
@@ -8259,7 +8534,7 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
   if (!times || !times.length) return;
   State._tlTimes = times; State._tlSpeeds = speeds; State._tlDirs = dirs;
   State._tlTicks = [];
-  const TICK_W = 22;   /* sama kuin .htick flex-basis */
+  const TICK_W = TL_TIKKI_LEV;
   const DAY = ['Su','Ma','Ti','Ke','To','Pe','La']; let lastDay = -1;
 
   let maxMs = 1;
@@ -8270,6 +8545,7 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
   tl.appendChild(spacerL);
 
   const realNowIdx = nowIdx(times);
+  State._tlNytIdx = realNowIdx;
   let nowMarkerInserted = false;
 
   for (let i = 0; i < times.length; i++) {
