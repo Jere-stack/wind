@@ -4270,7 +4270,7 @@ const ASKEL = 3;
  * ratkaisee `JALKI × ASKEL` ruutua eikä tämä raja pure lainkaan, kovassa
  * tuulessa taas päinvastoin. Vain toista säätämällä toinen pää jäisi
  * ennalleen. Aikapituus 80 → 60 ruutua, tämä raja 62 → 46 px. */
-const JALKI_MAX_PX = 46;
+const JALKI_MAX_PX = 32;
 
 /* Häivytys tehdään SISÄKKÄISILLÄ VEDOILLA, ei segmentti kerrallaan.
  *
@@ -4328,17 +4328,55 @@ const VAALEA = 0.44;
  *   - piirtokutsuja on 10 eikä 30, koska tasoja on yksi.
  *
  * Normaali lasketaan naapuripisteiden erotuksesta, jolloin mutkassa
- * reuna kääntyy pehmeästi eikä nurkkaa synny. */
-const _nauhaX = new Float32Array(JALKI + 1);
-const _nauhaY = new Float32Array(JALKI + 1);
-const _nauhaNx = new Float32Array(JALKI + 1);
-const _nauhaNy = new Float32Array(JALKI + 1);
-const _nauhaW = new Float32Array(JALKI + 1);
+ * reuna kääntyy pehmeästi eikä nurkkaa synny.
+ *
+ * NAUHA TIHENNETÄÄN PIIRTOVAIHEESSA. Talletettujen pisteiden väli on
+ * `nopeus × ASKEL`, joten kovassa tuulessa pituusrajaan mahtuu vain
+ * kourallinen pisteitä — 32 pikselin rajalla 18 m/s tuulessa 6,6.
+ * Niin harvasta hilasta kapeneminen astuu portaina ja nauhan reunaan
+ * tulee näkyvä nykäys. Se rajoitti aiemmin sitä kuinka lyhyeksi jäljen
+ * saattoi säätää.
+ *
+ * Nyt pisteiden väliin lasketaan lisänäytteitä kunnes niitä on
+ * vähintään `NAUHA_MIN`. Kapeneminen otetaan jatkuvasta kaavasta, joten
+ * porras katoaa; sijainti interpoloidaan suoraan, ja reunan pyöristys
+ * hoituu samalla puolivälikäyrällä kuin ennenkin. Sileys ei siis enää
+ * riipu siitä montako pistettä rajaan sattuu mahtumaan. */
+const NAUHA_MIN = 14;          /* vähintään näin monta näytettä nauhaan */
+const _NAUHA_MAX = 48;
+const _nauhaX = new Float32Array(_NAUHA_MAX);
+const _nauhaY = new Float32Array(_NAUHA_MAX);
+const _nauhaNx = new Float32Array(_NAUHA_MAX);
+const _nauhaNy = new Float32Array(_NAUHA_MAX);
+const _nauhaW = new Float32Array(_NAUHA_MAX);
+const _raakaX = new Float32Array(JALKI + 1);
+const _raakaY = new Float32Array(JALKI + 1);
 
 function nauha(polku, p, hn, leveys) {
-  const N = hn + 1;                 /* kärki + talletetut pisteet */
-  _nauhaX[0] = p.x; _nauhaY[0] = p.y;
-  for (let j = 1; j < N; j++) { _nauhaX[j] = p.hx[j-1]; _nauhaY[j] = p.hy[j-1]; }
+  const N0 = hn + 1;                /* kärki + talletetut pisteet */
+  _raakaX[0] = p.x; _raakaY[0] = p.y;
+  for (let j = 1; j < N0; j++) { _raakaX[j] = p.hx[j-1]; _raakaY[j] = p.hy[j-1]; }
+
+  /* Tihennys: montako lisänäytettä kunkin raakavälin sisään. */
+  const valeja = N0 - 1;
+  let osat = Math.ceil((NAUHA_MIN - 1) / valeja);
+  if (osat < 1) osat = 1;
+  if (valeja * osat + 1 > _NAUHA_MAX) osat = Math.floor((_NAUHA_MAX - 1) / valeja);
+  const N = valeja * osat + 1;
+  if (osat === 1) {
+    for (let j = 0; j < N0; j++) { _nauhaX[j] = _raakaX[j]; _nauhaY[j] = _raakaY[j]; }
+  } else {
+    for (let v = 0; v < valeja; v++) {
+      const ax = _raakaX[v], ay = _raakaY[v];
+      const bx = _raakaX[v+1], by = _raakaY[v+1];
+      for (let s = 0; s < osat; s++) {
+        const f = s / osat, i = v * osat + s;
+        _nauhaX[i] = ax + (bx - ax) * f; _nauhaY[i] = ay + (by - ay) * f;
+      }
+    }
+    _nauhaX[N-1] = _raakaX[valeja]; _nauhaY[N-1] = _raakaY[valeja];
+  }
+
   const puoli = leveys * 0.5, viim = N - 1;
   for (let j = 0; j < N; j++) {
     const a = j === 0 ? 0 : j - 1;
@@ -4351,14 +4389,13 @@ function nauha(polku, p, hn, leveys) {
        1−t² on TASAINEN kärjessä (derivaatta nolla), mikä on koko juju:
        kärkeen tulee pyöristys, ja jos leveys kapenee heti sen takaa, pää
        pullistuu nauhan yli ja jäljelle jää väkänen. Tasainen alku sulattaa
-       pyöristyksen nauhaan, ja kapeneminen kiihtyy vasta häntää kohti. */
+       pyöristyksen nauhaan, ja kapeneminen kiihtyy vasta häntää kohti.
+       Kaava on jatkuva, joten tihennys poistaa portaat sellaisenaan. */
     const t = j / viim;
     _nauhaW[j] = puoli * (1 - t * t);
   }
-  /* Reunaviiva piirretään käyrinä pisteiden puolivälien kautta. Suorina
-     jaksoina muoto on särmikäs, koska kovassa tuulessa pisteitä on vain
-     yhdeksän viidenkymmenen pikselin matkalla — juuri se särmikkyys
-     lukee "pikselinä". Käyrä maksaa saman määrän polkukomentoja. */
+  /* Reunaviiva piirretään käyrinä pisteiden puolivälien kautta, jolloin
+     suorista jaksoista tulee sileä muoto eikä särmikäs monikulmio. */
   const px = _nauhaX, py = _nauhaY, nx = _nauhaNx, ny = _nauhaNy, w = _nauhaW;
   polku.moveTo(px[0] + nx[0] * w[0], py[0] + ny[0] * w[0]);
   for (let j = 1; j < viim; j++) {

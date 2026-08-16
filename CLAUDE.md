@@ -842,6 +842,33 @@ kenttää — hiukkasmäärä valui 212:sta 102:een pitkän ajon aikana — mutt
 `PerfTracker`in normaalia sopeutumista tässä kontissa, ei tämän
 muutoksen aiheuttamaa.
 
+#### Sileys irrotettiin pistemäärästä
+
+Katto laskettiin vielä 46 → 32 px, ja silloin 18 m/s jälkeen jäi taas
+**6,6 pistettä** ja nykäys palasi. Sama seinä siis vastaan uudestaan:
+talletusväli on `nopeus × ASKEL`, joten mitä lyhyempi jälki, sitä
+harvempi hila — ja askeleen pienentäminen edelleen olisi lyhentänyt myös
+heikkoa tuulta, jota ei haluttu lyhentää enempää.
+
+Nykäys ei kuitenkaan johdu siitä montako pistettä on **talletettu** vaan
+siitä montako kertaa **kapeneminen näytteistetään**. Nauha tihennetään
+nyt piirtovaiheessa: raakapisteiden väliin lasketaan lisänäytteitä
+kunnes niitä on vähintään `NAUHA_MIN` (14), sijainti lineaarisesti ja
+leveys jatkuvasta kaavasta. Portaat katoavat, ja **sileys ei enää riipu
+siitä montako pistettä pituusrajaan sattuu mahtumaan** — katon saa nyt
+säätää vapaasti ilman että muoto hajoaa.
+
+Tihennys tehdään vain kun sitä tarvitaan: jos raakapisteitä on jo
+tarpeeksi, `osat` on 1 eikä mitään lasketa turhaan.
+
+Jäljen pituus kovassa tuulessa lopulta:
+
+| | 18 m/s | 10 m/s |
+|---|---|---|
+| kolmen vedon pino | 52 px | 47 px |
+| nauha, katto 46 | 41 px | 41 px |
+| **nauha, katto 32 + tihennys** | **28 px** | **30 px** |
+
 ### Partikkelit kirkastavat kenttää, eivät peitä sitä
 
 Partikkeli piirrettiin samalla rampin värillä kuin lämpökartta samassa
