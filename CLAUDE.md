@@ -326,6 +326,18 @@ Syne ja DM Mono poistettiin. Käyttöliittymä käyttää järjestelmäfonttia
 (iPhonella SF Pro), numerot samaa perhettä `tabular-nums`-asetuksella.
 Kaksi ulkoista fonttilatausta vähemmän.
 
+**Poisto oli pitkään kesken, ja se on syytä tietää.** Sävyt ja tyylit
+vaihdettiin, mutta `body { font-family: 'Syne', sans-serif }` jäi paikalleen
+ja `<head>` jäi lataamaan fontin Google Fontsista. Koska se oli tiedoston
+**ainoa** `font-family`-sääntö, koko käyttöliittymä oli oikealla laitteella
+Syneä — vaikka tämä luku sanoi toista. Kehitysympäristössä virhettä ei
+näkynyt, koska fonttiosoitteeseen ei ollut yhteyttä ja selain putosi
+varafonttiin: ruutukaappaukset näyttivät juuri siltä kuin dokumentaatio
+lupasi. Nyt `body` pyytää järjestelmäpinoa ja fonttilinkit on poistettu.
+Opetus: kun ulkoinen resurssi poistetaan, tarkista sekä sen linkki että
+sitä käyttävä sääntö — ja muista että estetty verkko piilottaa juuri tämän
+virheen.
+
 ### Aikavalitsin
 
 Aikavalitsin on **säädin, ei paneeli**. Se oli 130 px + turva-alue eli 19 %
@@ -1388,3 +1400,210 @@ deployatusta ympäristöstä.
 Vercel ajaa `npm run build`:n ja julkaisee `dist/`-hakemiston sekä
 `api/`-funktiot. Deployn tulee tapahtua tästä reposta, jotta sivu ja sen
 `/api`-funktiot pysyvät samassa versiossa.
+
+## Vesimaski — partikkelit vain vedelle
+
+Partikkelit arvotaan vain vesialueille. Maa/vesi-ruudukko luetaan
+**pohjakartan pikseleistä**: näyte 8 ruudun välein, kynnys 56 (Esrin
+laatassa vesi on noin 35 ja maa 77; CSS:n `contrast(1.4)` on esityssuodin
+eikä vaikuta luettuihin pikseleihin). Laatat ovat JPEG-pakattuja, joten
+arvot kohisevat — 56 on niin keskellä ettei kohina käännä luokitusta.
+
+Sama pikselilähde oli aiemmin näkyvän varjokerroksen takana, ja se
+poistettiin jatkuvana kitkanlähteenä (ks. Pohjakartta). Kolme eroa joiden
+takia se ei toistu:
+
+- **Maskista ei piirretä mitään.** Se vaikuttaa vain siihen mihin uusi
+  partikkeli arvotaan, joten väärä solu on näkymätön eikä artefakti.
+- **Se päivitetään vain liikkeen loputtua** ja laattakerroksen `load`issa,
+  ei ruudussa.
+- **Se kytkee itsensä pois** jos lukeminen epäonnistuu — saastunut canvas,
+  lataamattomat laatat, poikkeus. Vikatila on nykyinen toiminta, ei
+  rikkinäinen kartta.
+
+Laattakerros tarvitsee `crossOrigin: true`, muuten canvas saastuu ja
+`getImageData` heittää. ArcGIS palauttaa `Access-Control-Allow-Origin: *`.
+
+Asiat jotka eivät ole ilmeisiä:
+
+- **Määrä skaalataan veden osuudella** (`nParticles`). Ilman sitä maalle
+  osuvien arvontojen hylkääminen pakkaisi saman määrän pienempään alaan:
+  rannikkonäkymässä tiheys nousisi noin puolitoistakertaiseksi ja ohittaisi
+  mitatun optimin. Mitattuna ennen 152 partikkelia joista noin 106 osui
+  vedelle, nyt 106 kaikki vedellä — tiheys vedellä sama.
+  **PerfTrackerin omaan säätöön ei kosketa**; se tavoittaa yhä oman lukunsa.
+- **Vesiosuudella on alaraja 0.15**, jotta sisämaassa partikkelit eivät
+  katoa kokonaan.
+- **Arvonta uusitaan enintään kuusi kertaa.** Ilman rajaa silmukka jatkuisi
+  ikuisesti näkymässä jossa ei ole vettä.
+- **Jälki saa jatkua rannan yli.** Mitattuna saaristossa maata on 30,5 %
+  ruudusta ja partikkelimusteesta maan päällä 11,1 % (tasaisella arvonnalla
+  30,5 %). Jäännös on oikein: partikkeli syntyy vedelle ja kulkeutuu rannan
+  yli, kuten tuuli tekee. Jäljen katkaisu rantaviivaan näyttäisi
+  huonommalta kuin sen antaminen jatkua.
+- **Puuttuva laatta lasketaan vedeksi** (alfa < 8), jottei ruudun laita
+  tyhjene partikkeleista sillä aikaa kun laatta latautuu.
+
+## Lämpökartta on canvas, ei PNG
+
+Tekstuuri on `KanvasYlitys` — `L.ImageOverlay`, jonka `_initImage` on
+kirjoitettu uudelleen niin että elementti **on** `WindTexture.canvas`.
+
+Ennen kierros oli canvas → `toDataURL()` → `<img src>`. Se maksoi mitattuna
+1,84 ms per päivitys 300×300 tekstuurilla (vertailuksi `putImageData`
+samalle canvasille 0,04 ms) ja tuotti 32 kt base64-merkkiä jotka selain
+purki takaisin pikseleiksi.
+
+**Kustannus ei ollut varsinainen syy.** 1,84 ms osuu vain kentän
+uudelleenrakennukseen, ei joka ruutuun. Ratkaiseva on että `setUrl` on
+**asynkroninen** ja `setBounds` ei: `img.src` alkaa latautua, mutta
+elementin koko ja paikka vaihtuvat heti. Niiden välissä ruudulla on
+edellinen tekstuuri venytettynä uusiin rajoihin — väärää dataa väärässä
+paikassa. Canvas on DOMissa sellaisenaan, joten piirto ja sijoittelu
+tapahtuvat samassa hetkessä.
+
+- **`L.ImageOverlay` osaa jo ottaa valmiin elementin, mutta tunnistaa vain
+  IMG:n** (`this._url.tagName === 'IMG'`). Siksi `_initImage` on korvattu.
+  Muu sijoittelu, zoom-animaatio ja opacity tulevat kantaluokalta
+  sellaisenaan, koska ne koskevat vain style-attribuutteja.
+- **`setUrl` on ylikirjoitettu no-opiksi**, jottei kutsuja luulisi voivansa
+  vaihtaa tekstuuria osoitteella.
+- Mitattu jälkeenpäin: elementti on CANVAS ilman `src`-attribuuttia,
+  `leaflet-tile-pane`ssa, sekoitustila `plus-lighter`, suodin tallella;
+  sisältö muuttuu sekä siirrossa että zoomissa; **kohdistusero omiin
+  rajoihinsa 0 px kaikilla neljällä reunalla.**
+- **Tekstuurin koko 300×300 on tarkistettu** eikä sitä muuteta: se näkyy
+  1232×2533 laitepikselinä, eli texel on 4,1 px ja sumennus 6–8 px peittää
+  ruudukon.
+- Poistettiin samalla kaksi kuollutta kohtaa: CSS-sääntö
+  `.heatmap-overlay img` ja sitä vastaava `querySelectorAll`. Leaflet
+  asettaa `className` suoraan kerroksen omaan elementtiin, joten sisäkkäistä
+  kuvaa ei ole koskaan ollut.
+
+## Väriasteikko kartalla
+
+Asteikko oli vain asetuspaneelissa, joten lämpökartan sävyt eivät
+tarkoittaneet mitään sille joka ei ollut avannut asetuksia. Kartalla on nyt
+`#map-scale` vasemmassa alanurkassa — bottom-barin vasen puoli oli tyhjä, ja
+selite on katseluesine joka ei osu nappien kosketusalueille.
+
+Kaksi vikaa vanhassa asteikossa, molemmat mitattuja:
+
+- **Gradientin pysäkit oli ladottu tasavälein** arvoista 0, 2, 3.5, 5, 6, 7,
+  9, 12, jolloin 0–2 m/s sai saman leveyden kuin 9–12 m/s. Pysäkit annetaan
+  nyt **prosentteina**, koska palkin x-akseli on lineaarinen nopeudessa
+  mutta `msToT` ei ole.
+- **Lukemat oli aseteltu `space-between`illä** eri levyisinä teksteinä,
+  joten 114 px palkissa "10" oli 13 px ja suurin lukema 26 px väärässä
+  kohdassa. Lukemat ovat nyt absoluuttisesti prosenttikohdissaan;
+  päätylukemat ankkuroidaan reunoihinsa (`ws-alku` / `ws-loppu`) jottei ne
+  valu ulos. Mitattuna keskikohdat osuvat ideaaliin.
+
+**Yksikkö on omalla rivillään.** Viimeiseen lukemaan liitettynä se työnsi
+lukeman irti palkin oikeasta reunasta. Asetuspaneelin lukemariviltä
+poistettiin `inline display:flex`, joka olisi kumonnut uuden asettelun —
+inline voittaa tyylisäännön.
+
+## Verkkotila
+
+`Verkkotila` näyttää sirun kun dataa ei saada. Ennen virheet katosivat
+`Promise.allSettled`in sisään ja ruudulle jäi edellinen ennuste ilman
+merkkiä siitä että se on vanha — käyttäjä ei voinut erottaa "tuuli ei ole
+muuttunut" ja "dataa ei tullut" toisistaan. Sääsovelluksessa se on paha,
+koska juuri myrskyn alla verkko on epävarmin.
+
+Kaksi tilaa, koska syy ja korjaus ovat eri:
+
+- **offline** — selain kertoo ettei yhteyttä ole. Uudelleenyritystä ei
+  tarjota; `online`-tapahtuma hakee datan itse.
+- **virhe** — yhteys on mutta ennustetta ei saatu. Yrittäminen voi auttaa.
+
+Asiat jotka eivät ole ilmeisiä:
+
+- **`loadViewport` kertoo tuloksen itse**, ei kutsujat. Latausta
+  käynnistetään neljästä paikasta: kolme käynnistyksessä ja yksi näkymän
+  muutoksessa. Kutsujiin sijoitettuna käynnistyksen epäonnistuminen olisi
+  jäänyt näkymättä — juuri se tapaus jossa ruudulla ei ole yhtään dataa.
+  Tämä myös löytyi testissä: ensimmäinen versio ilmoitti vain näkymän
+  muutoksesta eikä siru ilmestynyt lainkaan, vaikka 171 pyyntöä oli
+  palauttanut 503.
+- **Paluuarvo `null` tarkoittaa "vanhentunut lataus"**, ei virhettä.
+  `pyydetty === 0` tarkoittaa että kaikki oli välimuistissa, eli näkymälle
+  on dataa ja virhetila kuuluu poistaa.
+- **Toast ei sopinut tähän**, koska se katoaa itsestään; tila on voimassa
+  kunnes se korjautuu.
+- **Koko siru on kosketuskohde**, ei nappi sen sisällä — ks. seuraava luku.
+
+## Kosketuskohteet ja pseudoelementtien osumapinta
+
+Kaksi kohtaa, joissa 44 px:n kosketusminimi oli näennäisesti kunnossa mutta
+ei ollut. Molemmat löytyivät vain napauttamalla, eivät katsomalla.
+
+**Pseudoelementti ei kasvata osumapintaa.** Play-nappi oli 32 px ja lisäala
+haettiin `::after { inset: -6px }` -kehällä, ja kommentti väitti että
+"Applen kosketusminimi täyttyy". Mitattuna napautus 20 px keskeltä ei
+käynnistänyt toistoa — vaikka `elementFromPoint` palautti napin samassa
+pisteessä. `elementFromPoint` ei siis kerro mihin napautus menee.
+
+**Chromiumin kosketussäätö siirtää napautuksen lähimpään maalattuun
+kohteeseen.** Pelkkä elementin kasvatus 44 px:ään ei riittänyt: tapahtumat
+jäljitettynä `pointerdown` ja `touchstart` osuivat oikein nappiin, mutta
+synteettinen **`click` meni sisarelle `#tl-scroll`** — napin läpinäkyvä kehä
+hävisi vieressä olevalle vierittimelle. Siksi ympyrä täyttää nyt laatikosta
+40 px ja läpinäkyvää kehää jää 2 px, jolla ei ole enää mihin siirtyä.
+Mitattu jälkeen: napautus osuu 0, 14 ja 19 px keskeltä.
+
+**Sama sääntö verkkotilan sirussa.** Nappi yksin oli 97×22 px, ja sen
+kasvatus 44 px:ään olisi tehnyt sirusta noin 60 px korkean palkin. Siksi
+kohde on koko siru (252×44) ja nappi on näkyvä vihje, joka on yhä
+`<button>` näppäimistölle ja ruudunlukijalle — `pointer-events: none`,
+jotta napautus menee sirulle.
+
+Jos lisäät kosketuskohteen, **napauta sitä testissä.** Koon lukeminen
+`getBoundingClientRect`ista tai `elementFromPoint`ista ei kerro totuutta.
+
+## Zoom-alue
+
+`maxZoom` on 16 = pohjakartan `maxNativeZoom`. Aiemmin 13, mikä on kaupungin
+mittakaava: yksittäistä lahtea tai rantautumispaikkaa ei nähnyt, vaikka
+teräviä laattoja on z16 asti. Yli 16 Leaflet venyttäisi laatan.
+
+**Ennuste ei tarkennu zoomatessa** — HARMONIE-hila on noin 2,5 km ja
+`ViewportGrid.gridStep` pysyy 0,25 asteessa z10:stä ylös — joten z14–16
+näyttää kentän lähes tasaisena. Se on rehellistä: hienompaa tietoa ei ole,
+ja siellä katsotaan rantaviivaa ja spottia eikä kentän rakennetta.
+
+Tarkistettu ettei kenttä tyhjene korkealla zoomilla: `buildWindField` lukee
+`getAllPoints()`, joka on kumulatiivinen, ja `getViewportPoints` täyttää
+`step*2` marginaalilla. Mitattu z16:ssa: 32 laattaa, lämpökartta paikallaan,
+partikkelit toimivat, ei virheitä.
+
+## Ensilataus — mihin aika menee
+
+Mitattu Chromiumilla, 4× CPU-jarru, verkko emuloituna:
+
+| profiili | FCP | kartta käytettävissä |
+|---|---|---|
+| rajaton | 632 ms | ~5,8 s |
+| fast-3G (1,6 Mbit, 150 ms) | ~690 ms | ~5,8 s |
+| slow-3G (400 kbit, 400 ms) | 2 256 ms | ~13 s |
+
+**Bundle ei ole pullonkaula.** 217 kt siirrettynä (577 kt purettuna) ja FCP
+alle 700 ms fast-3G:llä. Aika menee **ennuste-API:n odottamiseen**:
+mitattuna 62 pyyntöä, mediaani 2 451 ms, p90 3 214 ms, ja API-ikkuna
+(ensimmäinen pyyntö → viimeinen valmis) kattoi **74 % latausajasta**.
+
+Kolme ajoa samalla profiililla: 5 736 / 6 036 / 5 761 ms, eli hajonta
+300 ms — luvut ovat vakaita, yksittäinen 9,8 s poikkeama oli
+mittausympäristön proxyn hetkellinen hidastus eikä regressio.
+
+Tehtiin: `preconnect` osoitteisiin `api.open-meteo.com` ja
+`services.arcgisonline.com`, ja poistettiin kaksi kuollutta
+fonttipyyntöä. **Preconnectin hyötyä ei voitu tässä ympäristössä mitata**,
+koska API-viive proxyn läpi on suuruusluokkaa isompi kuin säästetty
+DNS+TLS-kierros. Se on silti oikea vihje eikä maksa mitään.
+
+Jäljellä olevat, isommat: **ensimmäinen API-pyyntö lähtee vasta 1 125 ms
+kohdalla** (siihen asti jäsennetään HTML, ladataan Leaflet ja alustetaan
+sovellus), ja pyyntöjen määrä on suuri ennen ensimmäistä käyttökelpoista
+näkymää. Molemmat ovat käynnistysjärjestyksen muutoksia eivätkä säätöjä.
