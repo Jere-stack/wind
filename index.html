@@ -3014,6 +3014,10 @@ function initMap() {
        keepBuffer 3 (oletus 2) pitaa juuri ohitetut laatat muistissa,
        joten takaisinpain vieritys ei lataa mitaan. */
     updateWhenIdle: false, keepBuffer: 3, updateInterval: 120,
+    /* crossOrigin tarvitaan Vesimaskiin: ilman sitä laatan piirtäminen
+       canvasille saastuttaa sen ja getImageData heittää. ArcGIS palauttaa
+       Access-Control-Allow-Origin: *, joten pyyntö ei muutu muuten. */
+    crossOrigin: true,
     attribution: 'Powered by <a href="https://www.esri.com/">Esri</a> &mdash; '
       + 'Esri, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   }).addTo(map);
@@ -3201,7 +3205,16 @@ function initMap() {
   map.on('movestart zoomstart', function () { State.liikkeessa = true; });
   map.on('moveend zoomend', function () {
     State.liikkeessa = false;
+    /* Vesimaski ennen kentän rakennusta: resetParticles lukee sen
+       vesiosuuden partikkelimäärään, joten vanhalla maskilla ensimmäinen
+       määrä olisi edellisen näkymän mukainen. */
+    Vesimaski.paivita(map, baseTiles);
     if (_kenttaVelkaa) _rakennaKentta();
+  });
+  /* Laatat saapuvat usein vasta moveendin jälkeen, jolloin maski luettiin
+     puutteellisesta pohjasta. Luetaan uudelleen kun kerros on valmis. */
+  baseTiles.on('load', function () {
+    if (!State.liikkeessa) Vesimaski.paivita(map, baseTiles);
   });
 
   function _scheduleViewportLoad(heti) {
@@ -4048,7 +4061,13 @@ function nParticlesBase() {
   const ala = (State.vw || 390) * (State.vh || 844);
   return Math.max(60, Math.min(520, Math.round(ala / 1500)));
 }
-function nParticles() { return PerfTracker.getTarget(); }
+/* Määrä skaalataan veden osuudella, jotta TIHEYS VEDEN PÄÄLLÄ pysyy siinä
+   mihin se on mitattu. Ilman tätä maalle osuvien arvontojen hylkääminen
+   pakkaisi saman määrän pienempään alaan: rannikkonäkymässä, jossa vettä on
+   noin kaksi kolmasosaa, tiheys nousisi puolitoistakertaiseksi ja ohittaisi
+   alla mitatun optimin. PerfTrackerin omaan säätöön ei kosketa — se tavoittaa
+   yhä oman lukunsa, tästä vain piirretään se osa jota tarvitaan. */
+function nParticles() { return Math.round(PerfTracker.getTarget() * Vesimaski.vesiOsuus); }
 /* Leveys ja määrä on valittu yhdessä, mitattuna.
  *
  * Mittari: "luettava peitto" = osuus ruudusta jossa on partikkelimustetta
@@ -4213,6 +4232,102 @@ function sampleWind(p) {
   naytteista(p);
 }
 
+/* -- VESIMASKI ---------------------------------------------------
+ *
+ * Karkea maa/vesi-ruudukko, joka luetaan POHJAKARTAN pikseleistä. Käytetään
+ * yhteen asiaan: partikkelit arvotaan vain vedelle. Wingfoil-sovelluksessa
+ * maan yli lentävä jälki näyttää siltä kuin siellä voisi purjehtia.
+ *
+ * Tämä on tarkoituksella kapea. Aiemmin samasta lähteestä johdettiin
+ * näkyvä varjokerros, ja se oli jatkuva kitkanlähde: laattojen välkkyminen,
+ * tarkentuminen zoomatessa ja ajoittainen katoaminen (ks. Pohjakartta
+ * CLAUDE.md:ssä). Erot joiden takia se ei toistu tässä:
+ *
+ *   - Maskista ei piirretä mitään. Se vaikuttaa vain siihen mihin uusi
+ *     partikkeli arvotaan, joten väärä solu on näkymätön eikä artefakti.
+ *   - Se päivitetään vain liikkeen loputtua, ei ruudussa.
+ *   - Jos lukeminen epäonnistuu mistä tahansa syystä — saastunut canvas,
+ *     lataamattomat laatat, poikkeus — maski kytkee itsensä pois ja
+ *     partikkelit käyttäytyvät täsmälleen kuin ennen. Vikatila on
+ *     nykyinen toiminta, ei rikkinäinen kartta.
+ *
+ * Kynnys: Esrin laatassa vesi on noin 35 ja maa noin 77 (CSS:n
+ * contrast(1.4) on esityssuodin eikä vaikuta luettuihin pikseleihin).
+ * Laatat ovat JPEG-pakattuja, joten arvot kohisevat; 56 on välissä niin
+ * että kohina ei riitä kääntämään luokitusta. */
+const Vesimaski = {
+  SOLU: 8,            /* ruutua per solu — 390x844 -> 49x106 solua */
+  KYNNYS: 56,
+  data: null,         /* Uint8Array, 1 = vesi */
+  lev: 0, kork: 0,
+  vesiOsuus: 1,       /* 1 = ei maskia; skaalaa partikkelimäärää */
+  kaytossa: true,
+  _cv: null, _ctx: null,
+
+  paivita(map, tileLayer) {
+    if (!this.kaytossa || !map || !tileLayer) return;
+    try {
+      const vw = State.vw || map.getSize().x, vh = State.vh || map.getSize().y;
+      const lev = Math.max(1, Math.ceil(vw / this.SOLU));
+      const kork = Math.max(1, Math.ceil(vh / this.SOLU));
+      if (!this._cv) { this._cv = document.createElement('canvas'); this._ctx = this._cv.getContext('2d', { willReadFrequently: true }); }
+      if (this.lev !== lev || this.kork !== kork) {
+        this._cv.width = lev; this._cv.height = kork;
+        this.lev = lev; this.kork = kork;
+      }
+      const ctx = this._ctx;
+      ctx.clearRect(0, 0, lev, kork);
+      /* Laatat piirretään omilta ruutupaikoiltaan. Sijainti johdetaan
+         laatan maantieteellisistä rajoista eikä Leafletin sisäisistä
+         siirroista, jotta zoom-animaation kesken oleva muunnos ei siirrä
+         maskia maastoon nähden. */
+      const tiles = tileLayer._tiles || {};
+      let piirretty = 0;
+      for (const k in tiles) {
+        const t = tiles[k];
+        if (!t.current || !t.loaded || !t.el || !t.el.complete || !t.el.naturalWidth) continue;
+        if (tileLayer._tileZoom !== undefined && t.coords.z !== tileLayer._tileZoom) continue;
+        const b = tileLayer._tileCoordsToBounds(t.coords);
+        const nw = map.latLngToContainerPoint(b.getNorthWest());
+        const se = map.latLngToContainerPoint(b.getSouthEast());
+        const x = nw.x / this.SOLU, y = nw.y / this.SOLU;
+        const w = (se.x - nw.x) / this.SOLU, h = (se.y - nw.y) / this.SOLU;
+        if (w <= 0 || h <= 0) continue;
+        ctx.drawImage(t.el, x, y, w, h);
+        piirretty++;
+      }
+      if (!piirretty) { this.data = null; this.vesiOsuus = 1; return; }
+      const img = ctx.getImageData(0, 0, lev, kork).data;
+      const n = lev * kork;
+      if (!this.data || this.data.length !== n) this.data = new Uint8Array(n);
+      const d = this.data;
+      let vesi = 0;
+      for (let i = 0; i < n; i++) {
+        const o = i << 2;
+        /* Alfa 0 = laattaa ei ollut. Ne lasketaan vedeksi, jotta puuttuva
+           laatta ei tyhjennä partikkeleita ruudun laidalta. */
+        const onVesi = img[o + 3] < 8
+          || (0.2126 * img[o] + 0.7152 * img[o + 1] + 0.0722 * img[o + 2]) < this.KYNNYS;
+        d[i] = onVesi ? 1 : 0;
+        if (onVesi) vesi++;
+      }
+      /* Alaraja estää partikkelien katoamisen kun näkymä on lähes kokonaan
+         maata (sisämaa). Silloin niitä on vähän, mutta ei nolla. */
+      this.vesiOsuus = Math.max(0.15, vesi / n);
+    } catch (e) {
+      /* Yleisin syy on saastunut canvas. Ei yritetä uudelleen. */
+      this.kaytossa = false; this.data = null; this.vesiOsuus = 1;
+    }
+  },
+
+  onVesi(x, y) {
+    const d = this.data; if (!d) return true;
+    const cx = (x / this.SOLU) | 0, cy = (y / this.SOLU) | 0;
+    if (cx < 0 || cy < 0 || cx >= this.lev || cy >= this.kork) return true;
+    return d[cy * this.lev + cx] === 1;
+  }
+};
+
 /* respawn(p, arvoIka, alue)
  *
  * Arvonta on tasainen ruudulla — siinä koko tiheydenhallinta.
@@ -4228,13 +4343,20 @@ function sampleWind(p) {
  * arvoIka arpoo iän. Jos suuri joukko syntyisi nollaikäisinä, se myös
  * kuolisi samalla ruudulla viiden sekunnin päästä ja kenttä sykkisi. */
 function respawn(p, arvoIka, alue) {
-  if (alue) {
-    p.x = alue[0] + Math.random() * (alue[2] - alue[0]);
-    p.y = alue[1] + Math.random() * (alue[3] - alue[1]);
-  } else {
-    const a = State.alue;
-    p.x = a.x0 + Math.random() * (a.x1 - a.x0);
-    p.y = a.y0 + Math.random() * (a.y1 - a.y0);
+  /* Arvonta uusitaan jos osuma tuli maalle. Yritysten määrä on rajattu:
+     jos näkymä on lähes kokonaan maata, viimeinen arvonta hyväksytään
+     sellaisenaan. Ilman rajaa silmukka jatkuisi ikuisesti sisämaassa. */
+  const YRITYKSET = 6;
+  for (let i = 0; i < YRITYKSET; i++) {
+    if (alue) {
+      p.x = alue[0] + Math.random() * (alue[2] - alue[0]);
+      p.y = alue[1] + Math.random() * (alue[3] - alue[1]);
+    } else {
+      const a = State.alue;
+      p.x = a.x0 + Math.random() * (a.x1 - a.x0);
+      p.y = a.y0 + Math.random() * (a.y1 - a.y0);
+    }
+    if (Vesimaski.onVesi(p.x, p.y)) break;
   }
   p.vx = 0; p.vy = 0; p.hn = 0;
   p.age = arvoIka ? (Math.random() * Config.MAX_AGE) | 0 : 0;
