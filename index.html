@@ -5261,7 +5261,16 @@ function dirMatchScore(windDeg, bestDirs) {
    • Direction (30 pts) — how well wind matches spot's best dirs
    • Gust penalty (−20 pts max) — high gust/ms ratio reduces score
    ------------------------------------------------------------------ */
-function spotIndex(ms, windDeg, bestDirs, gustMs) {
+/* spotIndexOsat palauttaa indeksin OSINEEN, spotIndex pelkän luvun.
+ *
+ * Osat lasketaan joka tapauksessa, mutta ennen ne heitettiin pois ja
+ * käyttäjälle jäi selittämätön luku 0–100. Silloin ei voi erottaa kahta
+ * täysin eri tilannetta: "tuuli on liian heikko" ja "tuuli on hyvä mutta
+ * väärästä suunnasta". Jälkimmäinen on se joka kannattaa nähdä, koska
+ * silloin naapurispotti voi olla erinomainen samalla hetkellä.
+ *
+ * Yksi toteutus, ei kopiota: spotIndex on ohut kääre tämän ympärillä. */
+function spotIndexOsat(ms, windDeg, bestDirs, gustMs) {
   /* -- NOPEUS 0–60 pts (enemmän painoa) ------------------------
      Huippu 11–14 m/s = 60 pts. Alle 2 nolla. Yli 22 nolla.  */
   let speedPts;
@@ -5278,9 +5287,9 @@ function spotIndex(ms, windDeg, bestDirs, gustMs) {
   /* -- SUUNTA 0–30 pts ------------------------------------------
      cos²-käyrä, cutoff 80°. Painotetaan nopeudella.          */
   const speedWeight = ms <= 8 ? ms / 8 : ms <= 14 ? 1.0 : Math.max(0, 1 - (ms - 14) / 10);
-  let dirPts = 0;
+  let dirPts = 0, bestDiff = null;
   if (bestDirs && bestDirs.length) {
-    let bestDiff = 180;
+    bestDiff = 180;
     for (const d of bestDirs) {
       const optimal = DIR_DEG[d];
       if (optimal === undefined) continue;
@@ -5300,13 +5309,54 @@ function spotIndex(ms, windDeg, bestDirs, gustMs) {
      Helsingissä aina puuskaista — vain äärimmäiset rangaistaan
      1.0–1.4 → ei rangaistusta
      1.4–2.5 → −0…−5                                           */
-  let gustPenalty = 0;
+  let gustPenalty = 0, gustRatio = null;
   if (gustMs && ms > 1) {
-    const ratio = gustMs / ms;
-    if (ratio > 1.4) gustPenalty = Math.min(5, (ratio - 1.4) / 1.1 * 5);
+    gustRatio = gustMs / ms;
+    if (gustRatio > 1.4) gustPenalty = Math.min(5, (gustRatio - 1.4) / 1.1 * 5);
   }
 
-  return Math.min(100, Math.max(0, Math.round(speedPts + dirPts - gustPenalty)));
+  return {
+    score:     Math.min(100, Math.max(0, Math.round(speedPts + dirPts - gustPenalty))),
+    nopeus:    Math.round(speedPts),
+    suunta:    Math.round(dirPts),
+    puuska:    Math.round(gustPenalty),
+    /* Kulmaero lähimpään hyvään suuntaan, tai null jos spotille ei ole
+       määritelty suuntia. Tämä on se luku joka selittää matalan
+       suuntapistemäärän ihmiselle. */
+    suuntaEro: bestDiff,
+    puuskaSuhde: gustRatio,
+    /* Katot, jotta selite ei kovakoodaa niitä kahteen paikkaan. */
+    nopeusMax: 60, suuntaMax: 30
+  };
+}
+function spotIndex(ms, windDeg, bestDirs, gustMs) {
+  return spotIndexOsat(ms, windDeg, bestDirs, gustMs).score;
+}
+/* Yhden lauseen syy indeksille.
+ *
+ * Vain YKSI syy kerrallaan, tärkeysjärjestyksessä. Lista kaikista
+ * vaikuttavista tekijöistä olisi taas luettelo jota ei lueta; olennaista on
+ * se yksi asia joka ratkaisee juuri nyt. Järjestys on valittu sen mukaan
+ * mikä muuttaa päätöstä eniten: liian heikko tuuli on lopullinen este,
+ * väärä suunta ohjaa toiselle spotille, puuskaisuus on varaus. */
+function spotIndexSelite(osat, ms, bestDirs) {
+  const dirs = bestDirs && bestDirs.length ? bestDirs.join(' · ') : null;
+  if (ms < 2)  return 'Tyyntä';
+  if (ms < 5)  return 'Liian heikko';
+  if (ms >= 22) return 'Liian kova';
+  if (osat.suuntaEro !== null) {
+    if (osat.suuntaEro > 80) return 'Väärä suunta' + (dirs ? ' — paras ' + dirs : '');
+    if (osat.suuntaEro > 40) return Math.round(osat.suuntaEro) + '° sivussa parhaasta'
+      + (dirs ? ' (' + dirs + ')' : '');
+  }
+  /* Kynnys on 2 pistettä (puuskasuhde noin 1,8×) eikä 3, koska tämä on
+     rivinä toteamus kelistä eikä väite pistemäärän syystä: 1,8-kertainen
+     puuska on wingfoilatessa tuntuva vaikka sen rangaistus indeksissä on
+     pieni. Sanamuoto on siksi kuvaileva. */
+  if (osat.puuska >= 2) return 'Puuskaista'
+    + (osat.puuskaSuhde ? ' (' + osat.puuskaSuhde.toFixed(1) + '×)' : '');
+  if (ms >= 17) return 'Kova — kokeneille' + (dirs ? ' · ' + dirs : '');
+  return dirs ? 'Suunta osuu (' + dirs + ')' : 'Suunnalle ei rajausta';
 }
 
 /* Smooth gradient color: grey → yellow → light green → green
@@ -7782,15 +7832,32 @@ function openSheet(spot, hourIdx) {
           + '<div class="sh-name">' + spot.name + '</div>'
           + '<div class="sh-desc">' + spot.desc + '</div>'
           + (()=>{
-              const si2 = spotIndex(ms, dir, spot.bestDirs, gst);
-              const sc2 = spotIndexInk(si2);
-              const svg2 = spotMarkerSVG(si2, '', 48);
-              const dirs2 = spot.bestDirs ? spot.bestDirs.join(' · ') : '';
+              /* Indeksi osineen. Pelkkä luku 0–100 ei kerro miksi: 43 voi
+                 tarkoittaa "hyvä tuuli väärästä suunnasta" tai "oikea suunta
+                 mutta liian heikko", ja nämä johtavat eri päätökseen —
+                 edellisessä naapurispotti voi olla erinomainen samalla
+                 hetkellä. Osat lasketaan joka tapauksessa, joten niiden
+                 näyttäminen ei maksa mitään.
+                 Erittely on suoraan näkyvissä eikä napautuksen takana:
+                 spottikortti on jo tarkoituksella avattu näkymä, joten
+                 lisäeleen vaatiminen vain piilottaisi tiedon. */
+              const osat = spotIndexOsat(ms, dir, spot.bestDirs, gst);
+              const sc2 = spotIndexInk(osat.score);
+              const svg2 = spotMarkerSVG(osat.score, '', 48);
+              const osaTyyli = 'font-size:10px;color:var(--ink-2)';
+              const erittely =
+                '<span style="' + osaTyyli + '">'
+                + osat.nopeus + '/' + osat.nopeusMax + ' nopeus'
+                + ' · ' + osat.suunta + '/' + osat.suuntaMax + ' suunta'
+                + (osat.puuska > 0 ? ' · −' + osat.puuska + ' puuska' : '')
+                + '</span>';
               return '<div style="display:inline-flex;align-items:center;gap:10px;margin-top:8px">'
                 + svg2
-                + '<div style="font-variant-numeric:tabular-nums;line-height:1.5">'
+                + '<div style="font-variant-numeric:tabular-nums;line-height:1.45">'
                 + '<div style="font-size:9px;color:var(--ink-2);text-transform:uppercase;letter-spacing:1px">Spottiindeksi</div>'
-                + '<div style="font-size:11px;color:'+sc2+';font-weight:600">'+dirs2+'</div>'
+                + '<div style="font-size:11px;color:'+sc2+';font-weight:600">'
+                +   spotIndexSelite(osat, ms, spot.bestDirs) + '</div>'
+                + '<div>' + erittely + '</div>'
                 + '</div></div>';
             })()
         + '</div>'
