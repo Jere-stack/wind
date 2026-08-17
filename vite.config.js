@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import { pathToFileURL } from 'node:url';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { execSync } from 'node:child_process';
 
 /* Ajaa api/*.js -serverless-funktiot Viten dev- ja preview-serverissa.
  * Ilman tata frontend joutuisi kutsumaan API:a tuotannosta, jolloin
@@ -55,8 +56,34 @@ function vercelApiDev() {
   };
 }
 
+/* Versioleima index.html:aan.
+ *
+ * Sovellus on yksi HTML-tiedosto ilman hajautettuja tiedostonimiä, joten
+ * jos selain tai CDN tarjoaa vanhan index.html:n, koko sovellus on vanha
+ * eikä siitä näy mitään ulospäin. Leima kertoo suoraan käyttöliittymästä
+ * kumpaa versiota katsotaan, jolloin "eikö muutos mennyt läpi" -kysymys
+ * ratkeaa katsomalla eikä arvaamalla.
+ *
+ * Commit tulee Vercelin ympäristömuuttujasta; paikallisesti se luetaan
+ * gitistä. Jos kumpikaan ei ole saatavilla, leima on 'dev'. */
+function versioLeima() {
+  return {
+    name: 'versio-leima',
+    transformIndexHtml(html) {
+      let sha = process.env.VERCEL_GIT_COMMIT_SHA || '';
+      if (!sha) {
+        try { sha = execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+          .toString().trim(); } catch (e) { /* ei git-repoa */ }
+      }
+      const lyhyt = sha ? sha.slice(0, 7) : 'dev';
+      const aika = new Date().toISOString().slice(0, 16).replace('T', ' ');
+      return html.replace(/__BUILD_ID__/g, lyhyt + ' · ' + aika + ' UTC');
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [vercelApiDev()],
+  plugins: [vercelApiDev(), versioLeima()],
   build: {
     outDir: 'dist',
   },
