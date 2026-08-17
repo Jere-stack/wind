@@ -1665,3 +1665,38 @@ samaa API:a vasten ja tulkitse jälkimmäisen virhetilaa. Ensimmäinen ajo
 kuormittaa Open-Meteoa niin että toinen saa virheitä, ja siru näyttää
 "Ennustetta ei saatu" ilman että koodissa on vikaa — puhtaassa
 kontekstissa kaikki 169 vastausta olivat 200.
+
+## Mallien erimielisyys — tulkinta, ei uutta dataa
+
+Spottikortin ennustekaavio hakee **jo** kolme vertailumallia (ECMWF, ICON,
+GFS) yhdellä pyynnöllä ja piirtää ne katkoviivoiksi. Se mitä siitä puuttui
+oli tulkinta: kolmen päällekkäisen viivan silmäily ei vastaa siihen
+kysymykseen jota varten ne ovat — *voiko tähän lukemaan luottaa*.
+
+`mallienHajonta()` laskee suurimman eron mallien välillä valittuna hetkenä
+ja `hajontaTeksti()` kääntää sen lauseeksi. Rivi näkyy kahdessa paikassa:
+kaaviossa legendan alla ja spottikortin herossa indeksin vieressä, koska
+päätös tehdään siellä eikä kaaviota selatessa.
+
+- **Ei yhtään uutta verkkopyyntöä.** Sama data joka juuri piirrettiin
+  viivoiksi. Tämä oli myös syy olla toteuttamatta alkuperäistä ehdotusta
+  sellaisenaan ("hae toinen malli") — se olisi ollut päällekkäinen haku.
+- **Kynnykset ovat wingfoilauksen mittakaavasta**, eivät tilastollisia:
+  alle 1,5 m/s ero ei muuta kalustovalintaa eikä päätöstä; yli 4 m/s voi
+  tarkoittaa eroa "ei lähde vesille" ja "liian kova"; väli on se jossa
+  kannattaa katsoa uudestaan lähempänä.
+- **Hero-rivi on tyhjä kunnes data saapuu**, jotta kortti ei hyppää: rivi
+  ei varaa tilaa ennen kuin sillä on sisältöä.
+- Aikaikkuna on ±1,5 h valitusta hetkestä; sitä kauempaa ei kelpuuteta,
+  koska mallien tuntiruudukot voivat olla eri vaiheessa.
+
+Testattu syöttämällä vertailuvastaus proxyn ohi kolmella erolla (0,5 / 2,5
+/ 6 m/s) — kaikki kolme kynnystä tuottavat oikean lauseen sekä herossa että
+kaaviossa, ja 75 mallipolkua piirtyy.
+
+**Ympäristöhuomio:** headless-selaimessa vertailupyyntö kaatuu usein
+`net::ERR_CONNECTION_RESET`-virheeseen, vaikka sama osoite toimii curlilla
+ja palauttaa oikeat avaimet. Sovellus tekee käynnistyksessä ~169
+API-pyyntöä, ja tämä yksittäinen pyyntö lähtee niiden perään. Älä tulkitse
+tyhjää vertailukaaviota sovelluksen viaksi ennen kuin olet syöttänyt
+vastauksen testissä.

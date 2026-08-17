@@ -7359,6 +7359,47 @@ function openSheet(spot, hourIdx) {
     /* 24h: fluid (100% leveys), muut: kiintea px + vaakascroll */
     const PERIOD_W = { '24h': null, '5d': 600, 'all': 1200 };
 
+    /* Mallien hajonta = suurin ero mallien välillä valittuna hetkenä.
+     *
+     * Data on jo haettu ja piirretty viivoina, mutta kolmen päällekkäisen
+     * viivan silmäily ei vastaa siihen kysymykseen jota varten ne ovat:
+     * voiko tähän lukemaan luottaa. "Torstaina 12 m/s" on aivan eri asia
+     * kun mallit ovat 1 m/s erimielisiä kuin kun ne ovat 6 m/s.
+     *
+     * Kynnykset ovat wingfoilauksen mittakaavasta: alle 1,5 m/s ero ei
+     * muuta kalustovalintaa eikä päätöstä, yli 4 m/s voi tarkoittaa eroa
+     * "ei lähde vesille" ja "liian kova". Väli on se jossa kannattaa
+     * katsoa uudestaan lähempänä. */
+    function mallienHajonta(store, hetkiMs) {
+      const arvot = [];
+      COMPARE_MODELS.forEach(function (m) {
+        const md = store[m.id];
+        if (!md || !md.vals || !md.times) return;
+        /* lähin tunti valittuun hetkeen */
+        let paras = null, parasEro = Infinity;
+        for (let i = 0; i < md.times.length; i++) {
+          const t = new Date(md.times[i]).getTime();
+          const e = Math.abs(t - hetkiMs);
+          if (e < parasEro) { parasEro = e; paras = md.vals[i]; }
+        }
+        if (paras != null && parasEro <= 3600000 * 1.5) arvot.push(paras);
+      });
+      if (arvot.length < 2) return null;
+      const min = Math.min.apply(null, arvot), max = Math.max.apply(null, arvot);
+      return { hajonta: max - min, n: arvot.length, min: min, max: max };
+    }
+    function hajontaTeksti(h) {
+      if (!h) return '';
+      const e = Units.fmt(h.hajonta) + ' ' + Units.label();
+      if (h.hajonta < 1.5) return 'Mallit yksimielisiä (±' + e + ')';
+      if (h.hajonta < 4)   return 'Malleissa eroa ' + e + ' — tarkista lähempänä';
+      return 'Mallit eriävät ' + e + ' — ennuste epävarma';
+    }
+    function hajontaVari(h) {
+      if (!h) return 'var(--ink-3)';
+      return h.hajonta < 1.5 ? 'var(--ink-2)' : (h.hajonta < 4 ? 'var(--ink)' : 'var(--accent)');
+    }
+
     const COMPARE_MODELS = [
       { id: 'ecmwf_ifs025', label: 'ECMWF', key: 'ecmwf' },
       { id: 'icon_eu',      label: 'ICON',  key: 'icon'  },
@@ -7579,6 +7620,10 @@ function openSheet(spot, hourIdx) {
       }).join('')
       +'</div>';
 
+    /* Hajonnan tulkinta legendan alle: siina kohtaa kayttaja katsoo
+       mallien viivoja, ja tama kertoo mita ne yhdessa tarkoittavat. */
+    legendHtml += '<div id="'+sectionId+'-hajonta" style="font-size:10px;color:var(--ink-3);margin:-2px 0 6px"></div>';
+
     var tipHtml='<div id="'+sectionId+'-tip" style="display:none;position:absolute;background:var(--surface-hi);color:var(--ink);border:1px solid var(--hairline);border-radius:12px;padding:8px 14px;font-variant-numeric:tabular-nums;font-size:9px;pointer-events:none;white-space:nowrap;box-shadow:var(--shadow-2);z-index:100;min-width:110px;transform:translateX(-50%)"></div>';
 
     var firstDraw=buildSvg(activePeriod);
@@ -7637,6 +7682,13 @@ function openSheet(spot, hourIdx) {
           var legEl=document.getElementById(sectionId+'-leg-'+m.key);
           if(legEl){ legEl.style.color='var(--ink)'; legEl.querySelector('span').style.color=getModelColor(m.key); }
         });
+        /* Hajonnan tulkinta valittuun hetkeen. Ei uutta pyyntoa: sama data
+           joka juuri piirrettiin viivoiksi. */
+        var haj = mallienHajonta(modelDataStore, selectedTime);
+        var hajEl = document.getElementById(sectionId+'-hajonta');
+        if (hajEl) { hajEl.textContent = hajontaTeksti(haj); hajEl.style.color = hajontaVari(haj); }
+        var heroEl = document.getElementById('sh-hajonta');
+        if (heroEl) { heroEl.textContent = hajontaTeksti(haj); heroEl.style.color = hajontaVari(haj); }
       }
 
       function getModelColor(key){
@@ -7919,6 +7971,10 @@ function openSheet(spot, hourIdx) {
                 + '<div style="font-size:11px;color:'+sc2+';font-weight:600">'
                 +   spotIndexSelite(osat, ms, spot.bestDirs) + '</div>'
                 + '<div>' + erittely + '</div>'
+                /* Mallien yksimielisyys taytetaan kun vertailudata saapuu
+                   (drawAllModels). Tyhja kunnes se on haettu, jotta hero ei
+                   hypi — rivi ei varaa tilaa ennen kuin silla on sisaltoa. */
+                + '<div id="sh-hajonta" style="font-size:10px"></div>'
                 + '</div></div>';
             })()
         + '</div>'
