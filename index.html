@@ -299,6 +299,48 @@ body {
   font-variant-numeric: tabular-nums; font-size: 10px; font-weight: 600;
   line-height: 1; color: var(--ink-3);
 }
+/* Kartan väriasteikko. Paperisiru kuten kapseli ja karttanapit — kartan
+   päällä kelluvat esineet ovat paperia, vaikka palkki itse näyttää KARTAN
+   rampin. Lukemat ovat siksi mustetta: kartan sävyt olisivat beigellä
+   lukukelvottomia. Sama kahden rampin sääntö kuin asetuspaneelissa. */
+#map-scale {
+  pointer-events: none;
+  align-self: flex-end;
+  width: 132px;
+  background: var(--chip);
+  box-shadow: var(--shadow-2);
+  border-radius: 12px;
+  padding: 7px 9px 6px;
+}
+#map-scale-cap {
+  font-size: 8px; font-weight: 700; letter-spacing: 1.1px;
+  text-transform: uppercase; color: var(--ink-3); margin-bottom: 5px;
+}
+#map-scale-bar {
+  height: 7px; border-radius: 4px;
+  box-shadow: inset 0 0 0 1px var(--chip-line);
+}
+/* Lukemat sijoitetaan PROSENTTEIHIN eikä space-betweenillä. Palkki on 114 px
+   ja lukemat eri levyisiä, joten tasajako siirsi "10":n 13 px ja suurimman
+   lukeman 26 px väärään paikkaan — asteikko lakkasi osoittamasta sitä
+   kohtaa jota se selittää. Yksikkö on omalla rivillään samasta syystä:
+   viimeiseen lukemaan liitettynä se työnsi lukeman irti palkin reunasta. */
+#map-scale-ticks, #wind-scale-ticks {
+  position: relative; height: 10px; margin-top: 4px;
+}
+#map-scale-ticks .ws-tick, #wind-scale-ticks .ws-tick {
+  position: absolute; top: 0; white-space: nowrap;
+  -webkit-transform: translateX(-50%); transform: translateX(-50%);
+}
+#map-scale-ticks .ws-tick.ws-alku, #wind-scale-ticks .ws-tick.ws-alku {
+  -webkit-transform: none; transform: none;
+}
+#map-scale-ticks .ws-tick.ws-loppu, #wind-scale-ticks .ws-tick.ws-loppu {
+  -webkit-transform: translateX(-100%); transform: translateX(-100%);
+}
+/* Kapea ruutu: asteikko on ensimmäinen joka saa väistyä, koska nappien
+   kosketusalueet ja aikajana ovat tärkeämpiä kuin selite. */
+@media (max-width: 340px) { #map-scale { display: none; } }
 .hs-title {
   font-size: 11px; font-weight: 600; letter-spacing: .06em;
   text-transform: uppercase; color: var(--ink-3); margin-bottom: 9px;
@@ -1970,7 +2012,10 @@ body {
           <div class="sp-label" style="margin-top:22px">Tuulen väriasteikko</div>
           <div style="background:var(--surface-hi);border-radius:12px;padding:12px 13px 11px">
             <div id="wind-scale-bar" style="height:8px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--chip-line)"></div>
-            <div id="wind-scale-ticks" style="display:flex;justify-content:space-between;margin-top:5px"></div>
+            <!-- Ei inline-asettelua: lukemien sijoitus tulee CSS:stä, jossa ne
+                 ovat absoluuttisesti prosenttikohdissaan. Inline display:flex
+                 kumoaisi sen, koska inline voittaa tyylisäännön. -->
+            <div id="wind-scale-ticks"></div>
           </div>
 
           <div class="sp-credit">
@@ -1988,6 +2033,16 @@ body {
 
   <div id="bottom">
     <div id="bottom-bar">
+      <!-- Väriasteikko kartalla. Ilman tätä lämpökartan sävyt ovat
+           merkityksettömiä: asetuspaneelin asteikko ei auta kun katsotaan
+           karttaa. Sijoitettu vasempaan alanurkkaan, koska bottom-barin
+           vasen puoli on tyhjä (oikealla on nappipino) ja tämä on
+           katseluesine eikä osu nappien kosketusalueille. -->
+      <div id="map-scale">
+        <div id="map-scale-cap">Tuuli <span id="map-scale-unit">m/s</span></div>
+        <div id="map-scale-bar"></div>
+        <div id="map-scale-ticks"></div>
+      </div>
       <div id="bottom-bar-spacer"></div>
       <!-- Yksi pino oikealla: sijainti, vapaa piste, kalenteri, asetukset -->
       <div id="btn-spots-wrap">
@@ -2864,27 +2919,62 @@ const Toast = {
 };
 
 /* -- LEGEND ----------------------------------------------------- */
-/* Väriasteikko poistui yläreunasta — kartan värit ja merkkien lukemat
-   kertovat saman. Funktio jäi, koska sama asteikko piirretään nyt
-   asetuspaneeliin viitteeksi; ilman kohde-elementtiä se ei tee mitään. */
+/* Sama asteikko piirretään kahteen paikkaan: kartalle (#map-scale) ja
+   asetuspaneeliin (#wind-scale). Kartan selite on se joka oikeasti
+   tarvitaan — ilman sitä lämpökartan sävyt eivät tarkoita mitään sille
+   joka ei ole avannut asetuksia. Paneeliversio jää viitteeksi.
+
+   Palkki näyttää KARTAN rampin, koska se on kartan selite. Lukemat ovat
+   mustetta, koska ne luetaan paperisirulta — kartan sävyt olisivat beigellä
+   1.3–2.7:1. Tämä on sama kahden rampin sääntö kuin muualla.
+
+   Molemmat kohde-elementit ovat valinnaisia: funktio ohittaa sen jota ei
+   ole. */
+function _legendGradient() {
+  /* Pysäkit annetaan PROSENTTEINA, koska palkin x-akseli on lineaarinen
+     nopeudessa mutta rampin t ei ole (msToT on paloittain lineaarinen).
+     Ilman prosentteja tasavälein ladotut pysäkit venyttäisivät rampin
+     väärin: aiemmin arvot 0, 2, 3.5, 5, 6, 7, 9, 12 olivat tasavälein,
+     jolloin 0-2 m/s sai saman leveyden kuin 9-12 m/s. */
+  const osat = [];
+  for (let ms = 0; ms <= Config.MAX_MS; ms += 1) {
+    const c = ColorRamp.rgb(ms);
+    osat.push('rgb(' + c.r + ',' + c.g + ',' + c.b + ') '
+      + (ms / Config.MAX_MS * 100).toFixed(1) + '%');
+  }
+  return 'linear-gradient(to right,' + osat.join(',') + ')';
+}
+function _legendTicks(msArvot) {
+  /* Lukemat seuraavat valittua yksikköä; asteikko on kokonaislukuja, koska
+     desimaali selitteessä on turhaa tarkkuutta. Sijainti on prosentti
+     nopeusakselilla, ja päätylukemat ankkuroidaan reunoihinsa niin että ne
+     eivät valu palkin ulkopuolelle. */
+  const viim = msArvot.length - 1;
+  return msArvot.map((ms, i) => {
+    const luokka = i === 0 ? ' ws-alku' : (i === viim ? ' ws-loppu' : '');
+    return '<span class="ws-tick' + luokka + '" style="left:'
+      + (ms / Config.MAX_MS * 100).toFixed(1) + '%">'
+      + Math.round(Units.convert(ms)) + '</span>';
+  }).join('');
+}
 function buildLegend() {
+  const grad = _legendGradient();
+  /* Kartalla on koko ramppi 0-20, koska lämpökartta käyttää koko ramppia.
+     Kolme lukemaa on se mitä 132 px:ään mahtuu luettavasti. */
+  const mBar = document.getElementById('map-scale-bar');
+  const mTicks = document.getElementById('map-scale-ticks');
+  if (mBar && mTicks) {
+    mBar.style.background = grad;
+    mTicks.innerHTML = _legendTicks([0, 10, 20]);
+    const yks = document.getElementById('map-scale-unit');
+    if (yks) yks.textContent = Units.label();
+  }
   const bar = document.getElementById('wind-scale-bar');
   const ticks = document.getElementById('wind-scale-ticks');
-  if (!bar || !ticks) return;
-  /* Vaakasuora ja matalasta korkeaan: asteikko luetaan samaan suuntaan kuin
-     teksti, ja se on nyt osa mittarisirua eikä pystysuora kortti kulmassa.
-     Palkki näyttää KARTAN rampin, koska se on kartan selite. */
-  const stops = [{val:0,lbl:'0'},{val:2,lbl:''},{val:3.5,lbl:''},{val:5,lbl:''},
-                 {val:6,lbl:'6'},{val:7,lbl:''},{val:9,lbl:''},{val:12,lbl:'12+'}];
-  bar.style.background = 'linear-gradient(to right,' + stops.map(s => {
-    const c = ColorRamp.rgb(s.val); return 'rgb('+c.r+','+c.g+','+c.b+')';
-  }).join(',') + ')';
-  /* Palkki näyttää KARTAN rampin, koska se on kartan selite. Lukemat ovat
-     mustetta, koska ne luetaan paperisirulta — kartan sävyt olisivat siinä
-     1.3–2.7:1. Tämä on sama kahden rampin sääntö kuin muualla. */
-  ticks.innerHTML = stops.filter(s => s.lbl).map(s =>
-    '<span class="ws-tick">' + s.lbl + '</span>'
-  ).join('');
+  if (bar && ticks) {
+    bar.style.background = grad;
+    ticks.innerHTML = _legendTicks([0, 5, 10, 15, 20]);
+  }
 }
 
 /* -- MAP -------------------------------------------------------- */
@@ -4321,10 +4411,37 @@ const Nippu = {
    mutta luminanssi nousee taustan yli — additiivinen sekoitus yksin ei
    riitä, koska tummat sävyt lisäävät vähän. */
 const VAALEA = 0.44;
+/* screen-varatiessä (Safari < 16.4) sama alfa tuottaa vähemmän mustetta
+   kuin plus-lighterissa. Ero on tarkka eikä arvioitu:
+
+     plus-lighter  lisää  a*C
+     screen        lisää  a*C * (1 - pohja)
+
+   eli varatie menettää täsmälleen kertoimen (1 - pohja). Tästä seuraa kaksi
+   asiaa jotka eivät ole ilmeisiä:
+
+   1. Avoimella merellä, missä lämpökartta on tumma, pohja on lähellä nollaa
+      ja screen on YHTÄ HYVÄ kuin plus-lighter. Menetys ei ole tasainen.
+   2. Menetys osuu sinne missä lämpökartta on jo kirkas, eli kovan tuulen
+      alueille. Siellä (1 - pohja) painuu noin 0.4:ään.
+
+   Renderöidyn rampin tyypillinen pohja on 0.1-0.3, joten korjaus on
+   1/0.8 ~ 1.25. Se on JOHDETTU, ei mittaukseen sovitettu: yhtä oikeaa
+   vakiota ei ole, koska (1 - pohja) vaihtelee pikselistä pikseliin, ja
+   liian iso kerroin ylivalottaisi juuri sen tumman meren jossa varatie
+   toimii jo oikein.
+
+   Tätä haaraa ei ole voitu ajaa oikealla WebKitillä: Playwrightin
+   webkit-paketin lataus on estetty tässä ympäristössä, ja Chromiumissa
+   @supports-sääntöä ei voi pakottaa epätotuudeksi JS:stä (CSS.supportsin
+   korvaaminen ei vaikuta tyylisääntöihin — se harha tuotti ensin
+   virheellisen mittauksen). Haara on siis todistettu vain lähdekoodin
+   tasolla ja johdetulla laskennalla. */
+const VARATIE_BOOSTI = HEAT_BLEND === 'screen' ? 1.25 : 1;
 (function () {
   for (let n = 0; n < NIPUT; n++) {
     const t = (n + 0.5) / NIPUT, ms = t * Config.MAX_MS;
-    const a0 = Math.min(0.50, 0.22 + t * 0.33);
+    const a0 = Math.min(0.92, Math.min(0.50, 0.22 + t * 0.33) * VARATIE_BOOSTI);
     const c = ColorRamp.rgb(ms);
     const r = Math.round(c.r + (255 - c.r) * VAALEA);
     const g = Math.round(c.g + (255 - c.g) * VAALEA);
