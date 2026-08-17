@@ -1349,6 +1349,46 @@ body {
 #rl-banner-text { flex: 1; font-size: 11px; color: var(--ink); line-height: 1.4; }
 #rl-banner-close { font-size: 16px; color: var(--ink-3); cursor: pointer; padding: 2px 6px; flex-shrink: 0; }
 
+/* Verkkotila. Sama paperisiru kuin muut kartan päällä kelluvat esineet.
+   Sijoitettu kapselin alle keskelle: se on tila jonka pitää näkyä heti,
+   mutta se ei peitä karttaa eikä osu aikajanaan tai nappipinoon.
+   Reunaviiva on merikartan magenta eli --accent, koska tämä on ainoa
+   paikka jossa väri tarkoittaa "huomaa tämä" eikä tuulennopeutta. */
+#nettitila {
+  position: absolute; top: calc(var(--sat) + 74px); left: 50%; z-index: 49;
+  transform: translateX(-50%) translateY(-14px);
+  opacity: 0; pointer-events: none;
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface-hi);
+  border: 1px solid var(--hairline);
+  border-left: 3px solid var(--accent);
+  box-shadow: var(--shadow-2);
+  border-radius: 12px; padding: 8px 12px 8px 11px;
+  font-size: 12px; color: var(--ink); white-space: nowrap;
+  transition: opacity .25s, transform .25s;
+}
+#nettitila.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: all; }
+/* KOKO SIRU on uudelleenyrityksen kosketuskohde, ei pelkkä nappi sen
+   sisällä. Nappi yksin oli mitattuna 97x22 px eli reilusti alle
+   kosketusminimin, ja pelkkä napin kasvatus 44 px:ään tekisi sirusta noin
+   60 px korkean palkin. Kun kohde on siru, korkeus riittää sellaisenaan ja
+   nappi jää näkyväksi vihjeeksi — se on yhä <button>, jotta näppäimistö ja
+   ruudunlukija löytävät toiminnon. */
+#nettitila { min-height: 44px; box-sizing: border-box; }
+#nettitila.yritettavissa { cursor: pointer; }
+#nettitila.yritettavissa:active { background: var(--surface); }
+#nettitila-piste {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent); flex-shrink: 0;
+}
+#nettitila-nappi {
+  border: none; background: var(--surface-lo); color: var(--ink);
+  font: inherit; font-weight: 600; font-size: 11px;
+  border-radius: 8px; padding: 7px 10px; cursor: pointer;
+  touch-action: manipulation;
+  /* Napautus menee sirulle: sisäkkäinen kohde vain kaventaisi aluetta. */
+  pointer-events: none;
+}
 #toast {
   position: absolute; top: calc(var(--sat) + 70px); left: 50%; z-index: 50;
   transform: translateX(-50%) translateY(-20px);
@@ -2144,6 +2184,13 @@ body {
   </div>
 
   <div id="toast"></div>
+  <!-- Verkkotilan siru. Pysyy näkyvissä niin kauan kuin tila on voimassa,
+       toisin kuin toast joka katoaa itsestään. -->
+  <div id="nettitila" role="status" aria-hidden="true">
+    <span id="nettitila-piste"></span>
+    <span id="nettitila-teksti"></span>
+    <button type="button" id="nettitila-nappi">Yritä uudelleen</button>
+  </div>
   <!-- v6: rate-limit banner -->
   <div id="rl-banner">
     <div id="rl-banner-text">API-raja täynnä — tuulidata ei päivity. Nollautuu klo 02:00 UTC.</div>
@@ -2758,23 +2805,38 @@ const ViewportGrid = {
     const gridPoints = this.getViewportPoints(bounds, zoom);
     this._restoreCache(gridPoints);
     const toLoad = gridPoints.filter(p => !this._points.has(this._ptKey(p.lat, p.lng)));
-    if (!toLoad.length) { if (onProgress) onProgress(gridPoints.length, gridPoints.length); return; }
+    if (!toLoad.length) {
+      if (onProgress) onProgress(gridPoints.length, gridPoints.length);
+      /* Kaikki oli välimuistissa: näkymälle ON dataa, joten mahdollinen
+         virhetila kuuluu poistaa. */
+      Verkkotila.latausTulos({ pyydetty: 0, saatu: 0 });
+      return { pyydetty: 0, saatu: 0 };
+    }
     const batchSize = 80, batches = [];
     for (let i = 0; i < toLoad.length; i += batchSize) batches.push(toLoad.slice(i, i + batchSize));
-    let done = 0;
+    let done = 0, saatu = 0;
     for (let i = 0; i < batches.length; i += 6) {
-      if (myGen !== this._loadGeneration) return; /* uudempi lataus on jo käynnissä */
+      if (myGen !== this._loadGeneration) return null; /* uudempi lataus on jo käynnissä */
       const wave = batches.slice(i, i + 6);
       await Promise.allSettled(wave.map(b =>
         loadBatch(b, undefined, undefined, abortCtrl.signal).then(() => {
           if (myGen !== this._loadGeneration) return; /* vanhentunut — ei kirjoiteta */
-          b.forEach(p => { if (p.wx) this._points.set(this._ptKey(p.lat, p.lng), p); });
+          b.forEach(p => { if (p.wx) { this._points.set(this._ptKey(p.lat, p.lng), p); saatu++; } });
           done += b.length;
           if (onProgress) onProgress(done, toLoad.length);
         })
       ));
     }
-    if (myGen === this._loadGeneration) this._saveCache(gridPoints);
+    if (myGen !== this._loadGeneration) return null;
+    this._saveCache(gridPoints);
+    /* Tulos kerrotaan TÄSTÄ eikä kutsujista: latausta käynnistetään neljästä
+       paikasta (kolme käynnistyksessä, yksi näkymän muutoksessa), ja jos
+       ilmoitus olisi kutsujissa, käynnistyksen epäonnistuminen jäisi
+       näkymättä — juuri se tapaus jossa ruudulla ei ole mitään dataa.
+       null tarkoittaa "vanhentunut lataus"; siitä ei pidä päätellä virhettä. */
+    const tulos = { pyydetty: toLoad.length, saatu };
+    Verkkotila.latausTulos(tulos);
+    return tulos;
   },
 
   async loadSpots() {
@@ -2936,6 +2998,78 @@ const Toast = {
     el.textContent = msg; el.classList.add('show');
     clearTimeout(this._timer);
     this._timer = setTimeout(() => el.classList.remove('show'), dur || 4000);
+  }
+};
+
+/* -- VERKKOTILA --------------------------------------------------
+ *
+ * Ennen verkon katkeaminen tai API-virhe ei näkynyt mitenkään: latausten
+ * virheet katosivat Promise.allSettledin sisään, ja ruudulla jäi näkyviin
+ * edellinen ennuste ilman merkkiä siitä että se on vanha. Käyttäjä ei voi
+ * erottaa "tuuli ei ole muuttunut" ja "dataa ei tullut" toisistaan, mikä on
+ * sääsovelluksessa paha — juuri myrskyn alla verkko on epävarmin.
+ *
+ * Toast ei sovi tähän, koska se katoaa itsestään: tila on voimassa kunnes
+ * se korjautuu. Siksi oma siru, joka pysyy näkyvissä ja tarjoaa
+ * uudelleenyrityksen.
+ *
+ * Kaksi eri tilaa, koska niiden syy ja korjaus ovat eri:
+ *   offline — selain kertoo ettei yhteyttä ole. Uudelleenyritys on turha,
+ *             joten sitä ei tarjota; kuunnellaan online-tapahtumaa.
+ *   virhe   — yhteys on mutta ennustetta ei saatu. Silloin yrittäminen voi
+ *             auttaa (429, katkennut pyyntö, palvelin hetkellisesti alhaalla).
+ */
+const Verkkotila = {
+  _tila: null,          /* null | 'offline' | 'virhe' */
+  _uudelleen: null,     /* kutsuttava, joka yrittää latausta uudelleen */
+
+  init(uudelleenyritys) {
+    this._uudelleen = uudelleenyritys;
+    window.addEventListener('online', () => {
+      /* Yhteys palasi: piilota ja hae data heti, jotta käyttäjän ei tarvitse
+         tehdä mitään. */
+      this._aseta(null);
+      if (this._uudelleen) this._uudelleen();
+    });
+    window.addEventListener('offline', () => this._aseta('offline'));
+    if (navigator.onLine === false) this._aseta('offline');
+    /* Kuuntelija on sirussa eikä napissa, koska koko siru on kosketuskohde.
+       Offline-tilassa yrittäminen on turhaa, joten se ei reagoi. */
+    const siru = document.getElementById('nettitila');
+    if (siru) siru.addEventListener('click', () => {
+      if (this._tila !== 'virhe') return;
+      this._aseta(null);
+      if (this._uudelleen) this._uudelleen();
+    }, { passive: true });
+  },
+
+  /* Kutsutaan latauksen jälkeen. pyydetty === 0 tarkoittaa että kaikki oli
+     välimuistissa, eli näkymälle on dataa ja virhetila kuuluu poistaa. */
+  latausTulos(tulos) {
+    if (!tulos) return;                     /* vanhentunut lataus, ei tietoa */
+    if (navigator.onLine === false) { this._aseta('offline'); return; }
+    if (tulos.pyydetty > 0 && tulos.saatu === 0) this._aseta('virhe');
+    else this._aseta(null);
+  },
+
+  _aseta(tila) {
+    if (this._tila === tila) return;
+    this._tila = tila;
+    const siru = document.getElementById('nettitila');
+    const teksti = document.getElementById('nettitila-teksti');
+    const nappi = document.getElementById('nettitila-nappi');
+    if (!siru || !teksti || !nappi) return;
+    if (!tila) {
+      siru.classList.remove('show', 'yritettavissa');
+      siru.setAttribute('aria-hidden', 'true');
+      return;
+    }
+    const virhe = tila === 'virhe';
+    teksti.textContent = virhe ? 'Ennustetta ei saatu' : 'Ei verkkoyhteyttä';
+    nappi.style.display = virhe ? '' : 'none';
+    siru.classList.toggle('yritettavissa', virhe);
+    siru.classList.add('show');
+    siru.setAttribute('aria-hidden', 'false');
   }
 };
 
@@ -3266,14 +3400,23 @@ function initMap() {
       updateTimelineToCenter();
 
       /* Lataa uusi data taustalla — ei blockaa UI:ta */
-      ViewportGrid.loadViewport(map).then(() => {
+      ViewportGrid.loadViewport(map).then((tulos) => {
+        Verkkotila.latausTulos(tulos);
         ViewportGrid.invalidateCache();
         /* Päivitä slider uudella datalla kun se on saatavilla */
         updateTimelineToCenter();
         _rakennaKentta();
-      }).catch(() => { /* Ei dataa — slider pysyy cachessa */ });
+      }).catch(() => {
+        /* Slider pysyy cachessa, mutta virhe kerrotaan: aiemmin se katosi
+           tähän tyhjään lohkoon eikä käyttäjä nähnyt eroa vanhentuneen ja
+           tuoreen ennusteen välillä. */
+        Verkkotila.latausTulos({ pyydetty: 1, saatu: 0 });
+      });
     }, heti ? 0 : 350);
   }
+  /* Uudelleenyritys ja online-paluu käyttävät samaa polkua kuin näkymän
+     muutos, jotta virhetilasta palautuminen ei ole oma erikoistapaus. */
+  Verkkotila.init(function () { _lastLoadBounds = null; _scheduleViewportLoad(true); });
 
   /* ── Lämpökartan kate nipistyksen aikana ─────────────────────────
      Overlayn rajat lyödään lukkoon tekstuuria rakennettaessa: näkymä + vPad.
