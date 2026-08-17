@@ -834,9 +834,17 @@ on myös halvempi piirtää. Kaksi kierrosta DPR 3:lla ja 4× kuristuksella,
 313 → 219 hiukkasta: **levossa 19/17 → 23/21 fps**, vetoeleessä
 18/17 → 18/20 fps.
 
-Käytännössä `particleLineWidth` on `3,0 + ms/MAX_MS × 3,3` ja tiheys
-`ala / 1500`. **Nämä kaksi kuuluvat yhteen.** Jos toista muuttaa
-yksinään, mustemäärä muuttuu ja pyyhkäisyn tulos ei enää päde.
+**Nämä kaksi kuuluvat yhteen.** Jos toista muuttaa yksinään, mustemäärä
+muuttuu ja pyyhkäisyn tulos ei enää päde.
+
+Nykyarvot ovat `particleLineWidth` = `2,15 + ms/MAX_MS × 2,3` ja tiheys
+`ala / 1500`. Leveys on siis noin 15 % ohuempi kuin yllä mitattu optimi:
+se on **tietoinen poikkeama ulkoasun hyväksi**, tehty pyynnöstä koska
+paksu veto näyttää kartalla raskaalta. Mitattuna se ei maksanut
+luettavuutta, koska määrä palautui samaan aikaan täyteen maa/vesi-rajauksen
+poiston myötä: **luettava peitto 3,98 %** (153 hiukkasta), eli yli taulukon
+parhaan 3,55 %:n. Jos määrä joskus laskee, ohennus alkaa purra — mittaa
+uudelleen ennen kuin ohennat lisää.
 
 #### Jäljen pituus rajataan ruudulla, ei ruuduissa
 
@@ -1401,48 +1409,42 @@ Vercel ajaa `npm run build`:n ja julkaisee `dist/`-hakemiston sekä
 `api/`-funktiot. Deployn tulee tapahtua tästä reposta, jotta sivu ja sen
 `/api`-funktiot pysyvät samassa versiossa.
 
-## Vesimaski — partikkelit vain vedelle
+## Partikkelit ovat tasaisia — maa/vesi-rajaus kokeiltiin ja poistettiin
 
-Partikkelit arvotaan vain vesialueille. Maa/vesi-ruudukko luetaan
-**pohjakartan pikseleistä**: näyte 8 ruudun välein, kynnys 56 (Esrin
-laatassa vesi on noin 35 ja maa 77; CSS:n `contrast(1.4)` on esityssuodin
-eikä vaikuta luettuihin pikseleihin). Laatat ovat JPEG-pakattuja, joten
-arvot kohisevat — 56 on niin keskellä ettei kohina käännä luokitusta.
+Partikkelit arvotaan tasaisesti koko ruudulle. **Älä lisää maa/vesi-rajausta
+uudelleen ilman että se on erikseen pyydetty** — se on jo kokeiltu ja
+poistettu käyttäjän pyynnöstä, koska maan ja veden ero näkyi kartalla
+häiritsevänä.
 
-Sama pikselilähde oli aiemmin näkyvän varjokerroksen takana, ja se
-poistettiin jatkuvana kitkanlähteenä (ks. Pohjakartta). Kolme eroa joiden
-takia se ei toistu:
+Mitä kokeiltiin: karkea maa/vesi-ruudukko luettuna pohjakartan pikseleistä
+(näyte 8 ruudun välein, kynnys 56 — Esrin laatassa vesi on noin 35 ja maa
+77), `respawn` arpoi uudelleen jos osuma tuli maalle, ja partikkelimäärä
+skaalattiin veden osuudella jotta tiheys vedellä pysyi mitatussa
+optimissaan.
 
-- **Maskista ei piirretä mitään.** Se vaikuttaa vain siihen mihin uusi
-  partikkeli arvotaan, joten väärä solu on näkymätön eikä artefakti.
-- **Se päivitetään vain liikkeen loputtua** ja laattakerroksen `load`issa,
-  ei ruudussa.
-- **Se kytkee itsensä pois** jos lukeminen epäonnistuu — saastunut canvas,
-  lataamattomat laatat, poikkeus. Vikatila on nykyinen toiminta, ei
-  rikkinäinen kartta.
+Se toimi teknisesti: mitattuna saaristossa maata oli 30,5 % ruudusta ja
+partikkelimusteesta maan päällä 11,1 % — tasaisella arvonnalla 30,5 %.
+Ongelma oli esteettinen, ei tekninen: **kahden alueen ero luki kartalta
+selvästi**, ja tuuli maan yllä on kuitenkin oikeaa dataa.
 
-Laattakerros tarvitsee `crossOrigin: true`, muuten canvas saastuu ja
-`getImageData` heittää. ArcGIS palauttaa `Access-Control-Allow-Origin: *`.
+Poiston jälkeen mitattuna: maata 30,4 % ruudusta ja musteesta maalla 29,7 %,
+eli jakauma on tasainen kuten pitääkin.
 
-Asiat jotka eivät ole ilmeisiä:
+Kaksi asiaa jotka kannattaa tietää jos tähän joskus palataan:
 
-- **Määrä skaalataan veden osuudella** (`nParticles`). Ilman sitä maalle
-  osuvien arvontojen hylkääminen pakkaisi saman määrän pienempään alaan:
-  rannikkonäkymässä tiheys nousisi noin puolitoistakertaiseksi ja ohittaisi
-  mitatun optimin. Mitattuna ennen 152 partikkelia joista noin 106 osui
-  vedelle, nyt 106 kaikki vedellä — tiheys vedellä sama.
-  **PerfTrackerin omaan säätöön ei kosketa**; se tavoittaa yhä oman lukunsa.
-- **Vesiosuudella on alaraja 0.15**, jotta sisämaassa partikkelit eivät
-  katoa kokonaan.
-- **Arvonta uusitaan enintään kuusi kertaa.** Ilman rajaa silmukka jatkuisi
-  ikuisesti näkymässä jossa ei ole vettä.
-- **Jälki saa jatkua rannan yli.** Mitattuna saaristossa maata on 30,5 %
-  ruudusta ja partikkelimusteesta maan päällä 11,1 % (tasaisella arvonnalla
-  30,5 %). Jäännös on oikein: partikkeli syntyy vedelle ja kulkeutuu rannan
-  yli, kuten tuuli tekee. Jäljen katkaisu rantaviivaan näyttäisi
-  huonommalta kuin sen antaminen jatkua.
-- **Puuttuva laatta lasketaan vedeksi** (alfa < 8), jottei ruudun laita
-  tyhjene partikkeleista sillä aikaa kun laatta latautuu.
+- **Laattakerros tarvitsi `crossOrigin: true`**, muuten canvas saastuu ja
+  `getImageData` heittää. ArcGIS palauttaa `Access-Control-Allow-Origin: *`.
+  Asetus poistettiin maskin mukana, koska sillä ei ollut muuta käyttöä.
+- **Maskin poistossa meni sormi suuhun tavalla joka on syytä muistaa.**
+  Moduuli poistettiin skriptillä joka etsi lohkon lopuksi ensimmäisen
+  `};`-esiintymän — ja se osui moduulin SISÄLLÄ olevaan riviin
+  `const tiles = tileLayer._tiles || {};`. Loppuosa jäi irrallisiksi
+  lauseiksi, ja sivu kaatui virheeseen "Illegal return statement".
+  **`npm run build` meni läpi virheettä**, koska Vite ei jäsennä
+  index.html:n inline-skriptiä. Vain selain huomasi. Kun tästä tiedostosta
+  poistetaan lohkoja, tee se rivipohjaisesti (etsi rivi joka on tasan `};`)
+  ja **lataa sivu selaimessa** — buildin läpimeno ei ole todiste mistään.
+
 
 ## Lämpökartta on canvas, ei PNG
 
