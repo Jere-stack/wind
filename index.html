@@ -2769,6 +2769,38 @@ const ViewportGrid = {
     }
   },
 
+  /* Spottien ennusteet localStorageen.
+     Hilapisteet tallennettiin jo (fg_-avaimet), mutta spotit eivät — ja
+     juuri ne portittavat käynnistyksen: aikajana, spottimerkit ja
+     ensimmäinen kenttä rakennetaan bestTimelineRefin kautta spottidatasta,
+     joten ilman niitä sovellus odottaa verkkoa vaikka hila olisi levyllä. */
+  SPOT_AVAIN: 'fs_spots_',
+  _saveSpots() {
+    try {
+      const pts = {};
+      SPOTS.forEach(s => { if (s.wx) pts[s.name] = s.wx; });
+      if (!Object.keys(pts).length) return;
+      localStorage.setItem(this.SPOT_AVAIN + State.activeModel,
+        JSON.stringify({ ts: Date.now(), pts }));
+    } catch (e) { this._pruneOldCache(); }
+  },
+  /* Palauttaa tallennushetken aikaleiman, tai 0 jos mitään ei palautettu.
+     TTL:ää EI tarkisteta täällä: käyttökelpoisuus ei riipu iästä vaan
+     siitä yltääkö sarja nykyhetkeen, ja sen päättää kutsuja. */
+  _restoreSpots() {
+    try {
+      const raw = localStorage.getItem(this.SPOT_AVAIN + State.activeModel);
+      if (!raw) return 0;
+      const data = JSON.parse(raw);
+      if (!data || !data.pts) return 0;
+      let n = 0;
+      SPOTS.forEach(s => {
+        if (data.pts[s.name]) { s.wx = data.pts[s.name]; s._vanha = true; n++; }
+      });
+      return n ? (data.ts || 0) : 0;
+    } catch (e) { return 0; }
+  },
+
   _pruneOldCache() {
     const keys = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -2827,12 +2859,19 @@ const ViewportGrid = {
   },
 
   async loadSpots() {
-    const toLoad = SPOTS.filter(s => !s.wx);
+    /* `_vanha` on välimuistista palautettu spotti. Se PITÄÄ hakea uudestaan,
+       vaikka sillä on jo wx — muuten välimuistin näyttäminen estäisi tuoreen
+       haun kokonaan ja sovellus jäisi ikuisesti vanhaan ennusteeseen. */
+    const toLoad = SPOTS.filter(s => !s.wx || s._vanha);
     if (!toLoad.length) return;
     const batches = [];
     for (let i = 0; i < toLoad.length; i += 80) batches.push(toLoad.slice(i, i + 80));
     var spotFd = State.activeModel === 'fmi_harmonie' ? 2 : 16;
+    /* loadBatch ohittaa pisteen jolla on jo wx vain välimuistiosumassa;
+       varmuuden vuoksi vanhuusmerkki poistetaan vasta haun jälkeen. */
     for (const b of batches) await loadBatch(b, spotFd);
+    toLoad.forEach(s => { delete s._vanha; });
+    this._saveSpots();
   },
 
   getAllPoints() {
@@ -3007,7 +3046,8 @@ const Toast = {
  *             auttaa (429, katkennut pyyntö, palvelin hetkellisesti alhaalla).
  */
 const Verkkotila = {
-  _tila: null,          /* null | 'offline' | 'virhe' */
+  _tila: null,          /* null | 'offline' | 'virhe' | 'vanha' */
+  _vanhaTs: 0,          /* välimuistista näytetyn ennusteen aikaleima */
   _uudelleen: null,     /* kutsuttava, joka yrittää latausta uudelleen */
 
   init(uudelleenyritys) {
@@ -3036,7 +3076,27 @@ const Verkkotila = {
     if (!tulos) return;                     /* vanhentunut lataus, ei tietoa */
     if (navigator.onLine === false) { this._aseta('offline'); return; }
     if (tulos.pyydetty > 0 && tulos.saatu === 0) this._aseta('virhe');
+    else if (this._tila === 'vanha') return; /* vanhuus poistuu vasta kun spotit on haettu */
     else this._aseta(null);
+  },
+
+  /* Käynnistys näytti välimuistin. Kerrotaan se, jotta vanhaa ennustetta ei
+     luulla tuoreeksi — se olisi pahempi kuin hidas lataus. */
+  naytettiinVanha(ts) {
+    this._vanhaTs = ts || 0;
+    if (navigator.onLine === false) { this._aseta('offline'); return; }
+    this._aseta('vanha');
+  },
+  /* Tuore data saapui: vanhuusilmoitus pois. */
+  tuoreDataSaapui() {
+    this._vanhaTs = 0;
+    if (this._tila === 'vanha') this._aseta(null);
+  },
+  _vanhaTeksti() {
+    if (!this._vanhaTs) return 'Näytetään tallennettu ennuste';
+    const min = Math.max(0, Math.round((Date.now() - this._vanhaTs) / 60000));
+    const ika = min < 60 ? min + ' min' : Math.round(min / 60) + ' h';
+    return 'Ennuste ' + ika + ' vanha · päivitetään';
   },
 
   _aseta(tila) {
@@ -3052,7 +3112,8 @@ const Verkkotila = {
       return;
     }
     const virhe = tila === 'virhe';
-    teksti.textContent = virhe ? 'Ennustetta ei saatu' : 'Ei verkkoyhteyttä';
+    teksti.textContent = virhe ? 'Ennustetta ei saatu'
+      : (tila === 'vanha' ? this._vanhaTeksti() : 'Ei verkkoyhteyttä');
     nappi.style.display = virhe ? '' : 'none';
     siru.classList.toggle('yritettavissa', virhe);
     siru.classList.add('show');
@@ -10603,6 +10664,57 @@ function scheduleRefresh() {
   }, Config.DATA_REFRESH_MS);
 }
 
+/* Piirrä tallennettu ennuste HETI, ennen kuin verkkoa odotetaan.
+ *
+ * Mitattuna kartta oli käytettävissä vasta 5,8 s kohdalla, vaikka
+ * ensimmäinen maalaus tapahtui jo 0,7 s kohdalla ja API-ikkuna kattoi
+ * 74 % odotuksesta. Latausruutu odotti loadSpotsia, eli verkkoa, vaikka
+ * edellinen ennuste oli levyllä.
+ *
+ * Kaksi ehtoa, ja molemmat ovat tarkoituksellisia:
+ *
+ *  1. Sarjan on YLLETTÄVÄ NYKYHETKEEN. Ikä ei riitä kriteeriksi: kaksi
+ *     tuntia vanha ennuste on käyttökelpoinen, mutta eilinen sarja joka
+ *     loppuu ennen tätä hetkeä ei ole — silloin aikajanalla ei ole mitään
+ *     näytettävää ja nowIdx osoittaisi sarjan ulkopuolelle.
+ *  2. Vanhuus on KERROTTAVA. Vanhan ennusteen näyttäminen tuoreena on
+ *     pahempi vika kuin hidas lataus, joten Verkkotila saa siitä oman
+ *     tilansa joka poistuu vasta kun tuore data on haettu.
+ *
+ * Palauttaa tallennushetken aikaleiman, tai 0 jos välimuistia ei käytetty. */
+function _naytaValimuististaHeti() {
+  let ts = 0;
+  try {
+    ts = ViewportGrid._restoreSpots();
+    /* Hila samalla: kenttä rakennetaan hilapisteistä, ja ilman niitä
+       ensimmäinen lämpökartta olisi tyhjä vaikka aikajana toimisi. */
+    if (State.map) {
+      ViewportGrid._restoreCache(
+        ViewportGrid.getViewportPoints(State.map.getBounds(), State.map.getZoom()));
+    }
+  } catch (e) { return 0; }
+  if (!ts) return 0;
+
+  const ref = bestTimelineRef();
+  const h = ref && ref.wx && ref.wx.hourly;
+  if (!h || !h.time || !h.time.length || !h.windspeed_10m) return 0;
+  const viimeinen = new Date(h.time[h.time.length - 1]).getTime();
+  if (!(viimeinen > Date.now())) return 0;   /* sarja on kokonaan menneisyydessä */
+
+  const ni = nowIdx(h.time);
+  State.currentHourIdx = ni;
+  State._lastTlHour = ni;
+  /* Talteen, jotta tuore lataus tunnistaa onko käyttäjä siirtänyt aikajanaa
+     sillä välin — ks. spotsP.then. */
+  State._vanhaAsetettuIdx = ni;
+  const sp = State.activeLayer === 'gust'
+    ? (h.windgusts_10m || h.windspeed_10m) : h.windspeed_10m;
+  renderTimeline(h.time, sp, h.winddirection_10m, ni);
+  renderSpots(ni);
+  buildWindField(ni).then(() => { drawColorField(); resetParticles(); hideLoading(); });
+  return ts;
+}
+
 /* -- MAIN ------------------------------------------------------- */
 function main() {
   buildLegend(); initMap(); initCanvases();
@@ -10626,13 +10738,29 @@ function main() {
 
   const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
 
+  /* Välimuisti ruudulle ennen verkkoa. Tämä saa kutsua hideLoadingin, joten
+     kartta on käytettävissä heti; verkkohaku jatkuu taustalla ja korvaa
+     sisällön kun se valmistuu. */
+  const vanhaTs = _naytaValimuististaHeti();
+  if (vanhaTs) Verkkotila.naytettiinVanha(vanhaTs);
+
   const spotsP    = ViewportGrid.loadSpots().catch(e => console.warn('[loadSpots]', e));
   const viewportP = ViewportGrid.loadViewport(State.map).catch(e => console.warn('[loadViewport]', e));
 
   spotsP.then(() => {
       const ref = bestTimelineRef();
       if (ref) {
-        const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
+        /* Jos välimuisti näytettiin, käyttäjä on voinut jo siirtää aikajanaa
+           näiden sekuntien aikana. Silloin tuoreen datan saapuminen EI saa
+           nykäistä valintaa takaisin nykyhetkeen — ennen tätä muutosta
+           kartta ei ollut vielä käytettävissä, joten nollaus oli näkymätön.
+           Käyttäjän valinta tunnistetaan siitä että indeksi on eri kuin se
+           jonka välimuistipolku asetti. */
+        const kayttajaSiirsi = vanhaTs
+          && State._vanhaAsetettuIdx !== undefined
+          && State.currentHourIdx !== State._vanhaAsetettuIdx;
+        const ni = kayttajaSiirsi ? State.currentHourIdx : nowIdx(ref.wx.hourly.time);
+        State.currentHourIdx = ni;
         State._lastTlHour = ni;
         const layer = State.activeLayer;
         const sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m;
@@ -10651,6 +10779,7 @@ function main() {
       buildWindField(ni).then(() => { drawColorField(); resetParticles(); });
       renderSpots(ni);
     }
+    Verkkotila.tuoreDataSaapui();
     loadMarineTemp();
     State.lastDataLoad = Date.now();
     scheduleRefresh();

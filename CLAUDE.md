@@ -1619,3 +1619,49 @@ Jäljellä olevat, isommat: **ensimmäinen API-pyyntö lähtee vasta 1 125 ms
 kohdalla** (siihen asti jäsennetään HTML, ladataan Leaflet ja alustetaan
 sovellus), ja pyyntöjen määrä on suuri ennen ensimmäistä käyttökelpoista
 näkymää. Molemmat ovat käynnistysjärjestyksen muutoksia eivätkä säätöjä.
+
+## Käynnistys: välimuisti ruudulle ennen verkkoa
+
+Kartta oli mitattuna käytettävissä vasta **4 974 ms** kohdalla, vaikka
+ensimmäinen maalaus tapahtui jo 0,7 s kohdalla. Latausruutu odotti
+`loadSpots`ia eli verkkoa, vaikka edellinen ennuste oli levyllä.
+`_naytaValimuististaHeti()` piirtää tallennetun ennusteen ennen verkkokutsuja
+ja kutsuu `hideLoading`in itse. Mitattuna **4 974 → 2 013 ms**.
+
+Asiat jotka eivät ole ilmeisiä:
+
+- **Spotit tallennetaan nyt erikseen** (`fs_spots_<malli>`, noin 29 kt).
+  Hilapisteet olivat jo levyllä (`fg_`-avaimet), mutta juuri spotit
+  portittavat käynnistyksen: aikajana, spottimerkit ja ensimmäinen kenttä
+  rakennetaan `bestTimelineRef`in kautta spottidatasta.
+- **Palautettu spotti merkitään `_vanha`ksi.** `loadSpots` ohitti aiemmin
+  kaikki spotit joilla oli `wx`, joten välimuistin näyttäminen olisi
+  estänyt tuoreen haun kokonaan ja sovellus olisi jäänyt ikuisesti vanhaan
+  ennusteeseen. Merkki poistetaan vasta haun jälkeen.
+- **Käyttökelpoisuuden ehto on että sarja YLTÄÄ NYKYHETKEEN, ei ikä.**
+  Kaksi tuntia vanha ennuste on käyttökelpoinen; eilinen sarja joka loppuu
+  ennen tätä hetkeä ei ole, koska `nowIdx` osoittaisi sarjan ulkopuolelle.
+- **Vanhuus on kerrottava.** `Verkkotila` sai tilan `vanha`
+  ("Ennuste 2 h vanha · päivitetään"), joka poistuu vasta kun tuore data on
+  haettu. Vanhan ennusteen näyttäminen tuoreena olisi pahempi vika kuin
+  hidas lataus.
+- **Käyttäjän aikajanavalintaa ei saa nollata.** Kun kartta on käytettävissä
+  jo 2 s kohdalla, käyttäjä ehtii siirtää aikajanaa ennen kuin tuore data
+  saapuu — ja `spotsP.then` asetti aina `currentHourIdx = nowIdx(...)`.
+  Ennen tätä muutosta nollaus oli näkymätön, koska kartta ei ollut vielä
+  käytettävissä. Nyt valinta tunnistetaan vertaamalla
+  `State._vanhaAsetettuIdx`:ään ja säilytetään.
+
+**Mitattu ettei varhainen näkymä johda harhaan:** samalla tunnilla
+välimuistista piirretty lämpökartta eroaa tuoreesta keskimäärin
+**0,8 luminanssia**, ja yli viiden luminanssin eroja on 2,1 % pikseleistä.
+Kuva on siis käytännössä sama.
+
+Jäljelle jää 2,0 s, josta FCP on 0,7 s. Loppu on kartan ja Leafletin
+alustusta; sen lyhentäminen on eri työ kuin tämä.
+
+Mittausvirhe joka kannattaa välttää: älä aja kahta käynnistystä peräkkäin
+samaa API:a vasten ja tulkitse jälkimmäisen virhetilaa. Ensimmäinen ajo
+kuormittaa Open-Meteoa niin että toinen saa virheitä, ja siru näyttää
+"Ennustetta ei saatu" ilman että koodissa on vikaa — puhtaassa
+kontekstissa kaikki 169 vastausta olivat 200.
