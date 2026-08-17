@@ -606,25 +606,47 @@ body {
   pointer-events: none;
 }
 
+/* Play-nappi on 44 px eli Applen kosketusminimi, ja ympyrä täyttää siitä
+   40 px. Tähän tarvittiin kaksi korjausta, molemmat mitattuja:
+   1. Aiemmin koko oli 32 px ja lisäkeho haettiin `::after { inset: -6px }`
+      -pseudoelementillä. Se ei kasvata osumapintaa: napautus 20 px
+      keskeltä ei käynnistänyt toistoa, vaikka elementFromPoint palautti
+      napin samassa pisteessä.
+   2. Pelkkä elementin kasvatus 44 px:ään ei myöskään riittänyt. Tapahtumat
+      jäljitettynä pointerdown ja touchstart osuivat oikein nappiin, mutta
+      synteettinen CLICK meni sisarelle #tl-scroll: Chromiumin
+      kosketussäätö siirtää napautuksen lähimpään maalattuun kohteeseen, ja
+      napin läpinäkyvä kehä hävisi vieressä olevalle vierittimelle.
+   Siksi ympyrä täyttää laatikon lähes kokonaan — läpinäkyvää kehää jää
+   2 px, jolla ei ole enää mihin siirtyä. Säädin kasvaa 32 px:stä 40 px:ään,
+   mutta nappi jota ei voi luotettavasti osua on huonompi kuin nappi joka
+   näkyy. Ympyrä on yhä samassa keskipisteessä kuin ennen. */
 .tl-play-btn {
   position: absolute;
-  left: calc(var(--sal) + 15px);
-  bottom: calc(var(--sab) + 25px);
-  width: 32px; height: 32px;
+  /* 6 px pienempi kuin ennen kummassakin suunnassa, jotta 44 px:n laatikon
+     sisällä oleva 32 px:n ympyrä jää samaan paikkaan kuin vanha nappi. */
+  left: calc(var(--sal) + 9px);
+  bottom: calc(var(--sab) + 19px);
+  width: 44px; height: 44px;
   border-radius: 50%;
-  background: var(--surface-lo);
+  background: none;
   color: var(--ink);
   box-shadow: none;
   z-index: 6;
-  transition: background .2s ease, color .2s ease;
+  transition: color .2s ease;
 }
-.tl-play-btn.playing { background: var(--accent); color: #FFF3F8; }
-.tl-play-btn svg { width: 14px; height: 14px; }
-/* Nappi näyttää 32 px:ltä mutta osuu 44 px:n alalta — Applen kosketusminimi
-   täyttyy ilman että säädin lihoo. */
-.tl-play-btn::after {
-  content: ''; position: absolute; inset: -6px; border-radius: 50%;
+.tl-play-btn::before {
+  content: ''; position: absolute; inset: 2px;
+  border-radius: 50%;
+  background: var(--surface-lo);
+  transition: background .2s ease;
 }
+.tl-play-btn.playing::before { background: var(--accent); }
+.tl-play-btn.playing { color: #FFF3F8; }
+/* svg ::beforen päälle, ja .mctl:activen tausta pois — se piirtyisi koko
+   44 px:n laatikkoon eli ympyrä kasvaisi painalluksesta. */
+.tl-play-btn svg { width: 17px; height: 17px; position: relative; }
+.tl-play-btn:active { background: none; }
 
 #tl-scroll {
   display: flex; gap: 0; overflow-x: auto; overflow-y: hidden;
@@ -2980,7 +3002,16 @@ function buildLegend() {
 function initMap() {
   const map = L.map('map', {
     center: [62.5, 25.5], zoom: 5, zoomControl: false, attributionControl: false,
-    minZoom: 2, maxZoom: 13, preferCanvas: true, zoomSnap: 0.5, zoomDelta: 0.5,
+    /* maxZoom 16 = pohjakartan maxNativeZoom. Aiemmin 13, mikä on kaupungin
+       mittakaava: yksittäistä lahtea tai rantautumispaikkaa ei nähnyt,
+       vaikka teräviä laattoja on z16 asti. Yli 16 Leaflet venyttäisi
+       laatan, joten sinne ei mennä.
+       Ennuste ei tarkennu zoomatessa — HARMONIE-hila on noin 2,5 km ja
+       ViewportGrid.gridStep pysyy 0.25 asteessa z10:stä ylös — joten
+       z14-16 näyttää kentän lähes tasaisena. Se on rehellistä: hienompaa
+       tietoa ei ole olemassa, ja kartalla ollaan silloin katsomassa
+       rantaviivaa ja spottia, ei kentän rakennetta. */
+    minZoom: 2, maxZoom: 16, preferCanvas: true, zoomSnap: 0.5, zoomDelta: 0.5,
     worldCopyJump: true, doubleClickZoom: false, tap: false, tapTolerance: 15
   });
 
