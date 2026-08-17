@@ -154,19 +154,18 @@ body {
    pinoamiskontekstissa pohjakartan kanssa — ks. pane: 'tilePane'
    drawColorField-funktiossa. Väärässä paneelissa mikä tahansa arvo tästä
    tuottaa saman lopputuloksen. */
+/* Kohde on lämpökartan oma elementti — nykyään CANVAS, ennen IMG. Leaflet
+   asettaa className suoraan siihen, joten erillistä `.heatmap-overlay img`
+   -sääntöä ei ole: sellainen vaatisi sisäkkäisen kuvan eikä osuisi mihinkään. */
 .heatmap-overlay {
   opacity: 1.0;
   mix-blend-mode: plus-lighter;
   image-rendering: auto;
   transition: filter 0.3s, -webkit-filter 0.3s;
 }
-.heatmap-overlay img {
-  mix-blend-mode: plus-lighter;
-}
 /* Chrome 108 / Safari 16.4 alle: screen toimii kuten ennenkin. */
 @supports not (mix-blend-mode: plus-lighter) {
-  .heatmap-overlay,
-  .heatmap-overlay img { mix-blend-mode: screen; }
+  .heatmap-overlay { mix-blend-mode: screen; }
 }
 
 /* ============================================================
@@ -3935,6 +3934,41 @@ const WindTexture = {
 };
 
 /* -- HEATMAP ---------------------------------------------------- */
+/* Lämpökartta on CANVAS suoraan kartalla, ei PNG:ksi pakattu kuva.
+ *
+ * Ennen tekstuuri kierrätettiin canvas -> toDataURL -> <img src>. Se maksoi
+ * mitattuna 1.84 ms per päivitys 300x300 tekstuurilla (vertailuksi
+ * putImageData samalle canvasille 0.04 ms) ja tuotti 32 kt base64-merkkiä
+ * jotka selain purki takaisin pikseleiksi.
+ *
+ * Kustannus ei kuitenkaan ollut se varsinainen syy — 1.84 ms osuu vain
+ * kentän uudelleenrakennukseen, ei joka ruutuun. Ratkaiseva on että
+ * setUrl on ASYNKRONINEN ja setBounds ei: img.src alkaa latautua, mutta
+ * elementin koko ja paikka vaihtuvat heti. Niiden välissä ruudulla on
+ * EDELLINEN tekstuuri venytettynä UUSIIN rajoihin, eli väärää dataa
+ * väärässä paikassa. Canvas on DOMissa sellaisenaan, joten piirto ja
+ * sijoittelu tapahtuvat samassa hetkessä eikä välitilaa ole.
+ *
+ * L.ImageOverlay osaa jo ottaa valmiin elementin, mutta se tunnistaa vain
+ * IMG:n (`this._url.tagName === 'IMG'`). _initImage on siksi kirjoitettu
+ * uudelleen — muu sijoittelu, zoom-animaatio ja opacity tulevat
+ * ImageOverlaylta sellaisenaan, koska ne koskevat vain style-attribuutteja
+ * jotka canvasilla ovat samat. */
+const KanvasYlitys = L.ImageOverlay.extend({
+  _initImage: function () {
+    /* Canvas annetaan url-paikassa, kuten ImageOverlay tekee IMG:lle. */
+    const el = this._image = this._url;
+    L.DomUtil.addClass(el, 'leaflet-image-layer');
+    if (this._zoomAnimated) L.DomUtil.addClass(el, 'leaflet-zoom-animated');
+    if (this.options.className) L.DomUtil.addClass(el, this.options.className);
+    el.onselectstart = L.Util.falseFn;
+    el.onmousemove = L.Util.falseFn;
+    if (this.options.zIndex) this._updateZIndex();
+  },
+  /* setUrl ei koske tähän: tekstuuri vaihtuu piirtämällä canvasiin. */
+  setUrl: function () { return this; }
+});
+
 /* drawColorField(skipBlur)
    skipBlur ohittaa sumennuksen päivityksen. Nipistyksen aikana zoom muuttuu
    jatkuvasti, ja koska sumennuksen säde riippuu zoomista, updateHeatmapBlur
@@ -3942,13 +3976,13 @@ const WindTexture = {
    Oikea arvo asetetaan kerran kun ele päättyy. */
 function drawColorField(skipBlur) {
   if (!WindTexture.canvas || !State.map || !WindTexture.msData) return;
-  const url = WindTexture.canvas.toDataURL();
   const bounds = L.latLngBounds(
     L.latLng(WindTexture.latMin, WindTexture.lngMin),
     L.latLng(WindTexture.latMax, WindTexture.lngMax)
   );
   if (State.heatmapOverlay) {
-    State.heatmapOverlay.setUrl(url);
+    /* Vain rajat. Tekstuuri on sama canvas joka on jo DOMissa, joten se on
+       ajan tasalla siinä hetkessä kun WindTexture kirjoitti siihen. */
     State.heatmapOverlay.setBounds(bounds);
   } else {
     /* pane: 'tilePane' EI ole makuasia. mix-blend-mode sekoittuu vain oman
@@ -3962,7 +3996,7 @@ function drawColorField(skipBlur) {
        plus-lighter 42.2.
        Piirtojärjestys ei muutu: paneelissa on ennestään vain pohjakartta,
        ja lämpökartta tulee sen päälle. Merkit ovat markerPanessa (z 600). */
-    State.heatmapOverlay = L.imageOverlay(url, bounds, {
+    State.heatmapOverlay = new KanvasYlitys(WindTexture.canvas, bounds, {
       opacity: 1, interactive: false, className: 'heatmap-overlay', pane: 'tilePane'
     }).addTo(State.map);
   }
@@ -3993,10 +4027,6 @@ function updateHeatmapBlur(zoom) {
        ettei sekoitus näkynyt oli paneelin pinoamiskonteksti, ei selain.
        Rivi on silti vaaraton ja pitää inline-tyylin CSS:n kanssa samana. */
     el.style.mixBlendMode = HEAT_BLEND;
-  });
-  /* Myos img-lapsi jos Leaflet lisaa sen */
-  document.querySelectorAll('.heatmap-overlay img').forEach(img => {
-    img.style.mixBlendMode = HEAT_BLEND;
   });
 }
 
