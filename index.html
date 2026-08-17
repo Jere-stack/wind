@@ -308,48 +308,24 @@ body {
   font-variant-numeric: tabular-nums; font-size: 10px; font-weight: 600;
   line-height: 1; color: var(--ink-3);
 }
-/* Kartan väriasteikko. Paperisiru kuten kapseli ja karttanapit — kartan
-   päällä kelluvat esineet ovat paperia, vaikka palkki itse näyttää KARTAN
-   rampin. Lukemat ovat siksi mustetta: kartan sävyt olisivat beigellä
-   lukukelvottomia. Sama kahden rampin sääntö kuin asetuspaneelissa. */
-#map-scale {
-  pointer-events: none;
-  align-self: flex-end;
-  width: 132px;
-  background: var(--chip);
-  box-shadow: var(--shadow-2);
-  border-radius: 12px;
-  padding: 7px 9px 6px;
-}
-#map-scale-cap {
-  font-size: 8px; font-weight: 700; letter-spacing: 1.1px;
-  text-transform: uppercase; color: var(--ink-3); margin-bottom: 5px;
-}
-#map-scale-bar {
-  height: 7px; border-radius: 4px;
-  box-shadow: inset 0 0 0 1px var(--chip-line);
-}
-/* Lukemat sijoitetaan PROSENTTEIHIN eikä space-betweenillä. Palkki on 114 px
-   ja lukemat eri levyisiä, joten tasajako siirsi "10":n 13 px ja suurimman
+/* Lukemat sijoitetaan PROSENTTEIHIN eikä space-betweenillä. Palkki on eri
+   levyinen kuin lukemat, joten tasajako siirsi "10":n 13 px ja suurimman
    lukeman 26 px väärään paikkaan — asteikko lakkasi osoittamasta sitä
-   kohtaa jota se selittää. Yksikkö on omalla rivillään samasta syystä:
+   kohtaa jota se selittää. Yksikkö on omassa solussaan samasta syystä:
    viimeiseen lukemaan liitettynä se työnsi lukeman irti palkin reunasta. */
-#map-scale-ticks, #wind-scale-ticks {
+#wind-scale-ticks {
   position: relative; height: 10px; margin-top: 4px;
 }
-#map-scale-ticks .ws-tick, #wind-scale-ticks .ws-tick {
+#wind-scale-ticks .ws-tick {
   position: absolute; top: 0; white-space: nowrap;
   -webkit-transform: translateX(-50%); transform: translateX(-50%);
 }
-#map-scale-ticks .ws-tick.ws-alku, #wind-scale-ticks .ws-tick.ws-alku {
+#wind-scale-ticks .ws-tick.ws-alku {
   -webkit-transform: none; transform: none;
 }
-#map-scale-ticks .ws-tick.ws-loppu, #wind-scale-ticks .ws-tick.ws-loppu {
+#wind-scale-ticks .ws-tick.ws-loppu {
   -webkit-transform: translateX(-100%); transform: translateX(-100%);
 }
-/* Kapea ruutu: asteikko on ensimmäinen joka saa väistyä, koska nappien
-   kosketusalueet ja aikajana ovat tärkeämpiä kuin selite. */
-@media (max-width: 340px) { #map-scale { display: none; } }
 .hs-title {
   font-size: 11px; font-weight: 600; letter-spacing: .06em;
   text-transform: uppercase; color: var(--ink-3); margin-bottom: 9px;
@@ -2080,7 +2056,11 @@ body {
           <!-- Karttalähteen maininta. Esrin ehdot vaativat "Powered by Esri"
                -maininnan ja datan lähteiden nimet; kartta itse on jätetty
                vapaaksi (attributionControl: false), joten se on tässä. -->
-          <div class="sp-label" style="margin-top:22px">Tuulen väriasteikko</div>
+          <!-- Yksikkö otsikossa: lukemat seuraavat yksikkövalintaa, joten ilman
+               tätä asteikolla olisi numeroita joiden yksikköä ei kerrota
+               missään. Kartalla asteikkoa ei enää ole, joten tämä on ainoa
+               paikka jossa se lukee. -->
+          <div class="sp-label" style="margin-top:22px">Tuulen väriasteikko (<span id="wind-scale-unit">m/s</span>)</div>
           <div style="background:var(--surface-hi);border-radius:12px;padding:12px 13px 11px">
             <div id="wind-scale-bar" style="height:8px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--chip-line)"></div>
             <!-- Ei inline-asettelua: lukemien sijoitus tulee CSS:stä, jossa ne
@@ -2104,16 +2084,6 @@ body {
 
   <div id="bottom">
     <div id="bottom-bar">
-      <!-- Väriasteikko kartalla. Ilman tätä lämpökartan sävyt ovat
-           merkityksettömiä: asetuspaneelin asteikko ei auta kun katsotaan
-           karttaa. Sijoitettu vasempaan alanurkkaan, koska bottom-barin
-           vasen puoli on tyhjä (oikealla on nappipino) ja tämä on
-           katseluesine eikä osu nappien kosketusalueille. -->
-      <div id="map-scale">
-        <div id="map-scale-cap">Tuuli <span id="map-scale-unit">m/s</span></div>
-        <div id="map-scale-bar"></div>
-        <div id="map-scale-ticks"></div>
-      </div>
       <div id="bottom-bar-spacer"></div>
       <!-- Yksi pino oikealla: sijainti, vapaa piste, kalenteri, asetukset -->
       <div id="btn-spots-wrap">
@@ -3084,17 +3054,17 @@ const Verkkotila = {
 };
 
 /* -- LEGEND ----------------------------------------------------- */
-/* Sama asteikko piirretään kahteen paikkaan: kartalle (#map-scale) ja
-   asetuspaneeliin (#wind-scale). Kartan selite on se joka oikeasti
-   tarvitaan — ilman sitä lämpökartan sävyt eivät tarkoita mitään sille
-   joka ei ole avannut asetuksia. Paneeliversio jää viitteeksi.
+/* Asteikko on VAIN asetuspaneelissa. Kartalla se oli hetken aikaa, mutta
+   poistettiin tarkoituksella: tuulivärit ovat sovelluksen ydinkielioppi ja
+   käyttäjä oppii ne parissa käyttökerralla, joten pysyvä selite maksaa
+   ruutualaa jokaisella katselulla mutta hyödyttää vain ensimmäisillä.
+   Asetuspaneeli on oikea paikka: siellä se on kun sitä haetaan.
 
-   Palkki näyttää KARTAN rampin, koska se on kartan selite. Lukemat ovat
-   mustetta, koska ne luetaan paperisirulta — kartan sävyt olisivat beigellä
+   Palkki näyttää KARTAN rampin, koska se selittää karttaa. Lukemat ovat
+   mustetta, koska ne luetaan paperipinnalta — kartan sävyt olisivat beigellä
    1.3–2.7:1. Tämä on sama kahden rampin sääntö kuin muualla.
 
-   Molemmat kohde-elementit ovat valinnaisia: funktio ohittaa sen jota ei
-   ole. */
+   Kohde-elementit ovat valinnaisia: funktio ohittaa puuttuvan. */
 function _legendGradient() {
   /* Pysäkit annetaan PROSENTTEINA, koska palkin x-akseli on lineaarinen
      nopeudessa mutta rampin t ei ole (msToT on paloittain lineaarinen).
@@ -3123,23 +3093,13 @@ function _legendTicks(msArvot) {
   }).join('');
 }
 function buildLegend() {
-  const grad = _legendGradient();
-  /* Kartalla on koko ramppi 0-20, koska lämpökartta käyttää koko ramppia.
-     Kolme lukemaa on se mitä 132 px:ään mahtuu luettavasti. */
-  const mBar = document.getElementById('map-scale-bar');
-  const mTicks = document.getElementById('map-scale-ticks');
-  if (mBar && mTicks) {
-    mBar.style.background = grad;
-    mTicks.innerHTML = _legendTicks([0, 10, 20]);
-    const yks = document.getElementById('map-scale-unit');
-    if (yks) yks.textContent = Units.label();
-  }
   const bar = document.getElementById('wind-scale-bar');
   const ticks = document.getElementById('wind-scale-ticks');
-  if (bar && ticks) {
-    bar.style.background = grad;
-    ticks.innerHTML = _legendTicks([0, 5, 10, 15, 20]);
-  }
+  if (!bar || !ticks) return;
+  bar.style.background = _legendGradient();
+  ticks.innerHTML = _legendTicks([0, 5, 10, 15, 20]);
+  const yks = document.getElementById('wind-scale-unit');
+  if (yks) yks.textContent = Units.label();
 }
 
 /* -- MAP -------------------------------------------------------- */

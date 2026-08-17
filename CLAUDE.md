@@ -1480,29 +1480,39 @@ tapahtuvat samassa hetkessä.
   asettaa `className` suoraan kerroksen omaan elementtiin, joten sisäkkäistä
   kuvaa ei ole koskaan ollut.
 
-## Väriasteikko kartalla
+## Väriasteikko — vain asetuspaneelissa
 
-Asteikko oli vain asetuspaneelissa, joten lämpökartan sävyt eivät
-tarkoittaneet mitään sille joka ei ollut avannut asetuksia. Kartalla on nyt
-`#map-scale` vasemmassa alanurkassa — bottom-barin vasen puoli oli tyhjä, ja
-selite on katseluesine joka ei osu nappien kosketusalueille.
+Asteikko on `#wind-scale` asetuspaneelissa, eikä kartalla ole selitettä.
 
-Kaksi vikaa vanhassa asteikossa, molemmat mitattuja:
+**Kartalla asteikko oli hetken aikaa ja se poistettiin tarkoituksella.**
+Perustelu sen lisäämiselle oli, että lämpökartan sävyt eivät tarkoita mitään
+sille joka ei ole avannut asetuksia. Vastaperustelu voitti: tuulivärit ovat
+sovelluksen ydinkielioppi ja käyttäjä oppii ne parissa käyttökerralla, joten
+pysyvä selite maksaa ruutualaa **jokaisella** katselulla mutta hyödyttää vain
+ensimmäisillä. Asetuspaneeli on oikea paikka — siellä se on kun sitä
+haetaan. Jos asteikko joskus palaa kartalle, se kuuluu olla jotain mikä
+katoaa itsestään eikä pysyvä siru.
+
+Kaksi vikaa jotka löytyivät kartta­version yhteydessä ja jotka on korjattu
+myös paneeliversioon:
 
 - **Gradientin pysäkit oli ladottu tasavälein** arvoista 0, 2, 3.5, 5, 6, 7,
   9, 12, jolloin 0–2 m/s sai saman leveyden kuin 9–12 m/s. Pysäkit annetaan
   nyt **prosentteina**, koska palkin x-akseli on lineaarinen nopeudessa
   mutta `msToT` ei ole.
 - **Lukemat oli aseteltu `space-between`illä** eri levyisinä teksteinä,
-  joten 114 px palkissa "10" oli 13 px ja suurin lukema 26 px väärässä
-  kohdassa. Lukemat ovat nyt absoluuttisesti prosenttikohdissaan;
-  päätylukemat ankkuroidaan reunoihinsa (`ws-alku` / `ws-loppu`) jottei ne
-  valu ulos. Mitattuna keskikohdat osuvat ideaaliin.
+  joten mitattuna "10" oli 13 px ja suurin lukema 26 px väärässä kohdassa.
+  Lukemat ovat nyt absoluuttisesti prosenttikohdissaan; päätylukemat
+  ankkuroidaan reunoihinsa (`ws-alku` / `ws-loppu`) jottei ne valu ulos.
+  Mitattuna 285 px palkissa keskikohdat osuvat ideaaliin (0/71.3/142.6/213.9).
 
-**Yksikkö on omalla rivillään.** Viimeiseen lukemaan liitettynä se työnsi
-lukeman irti palkin oikeasta reunasta. Asetuspaneelin lukemariviltä
-poistettiin `inline display:flex`, joka olisi kumonnut uuden asettelun —
-inline voittaa tyylisäännön.
+**Yksikkö on otsikossa**, ei lukemarivillä: viimeiseen lukemaan liitettynä se
+työnsi lukeman irti palkin reunasta. Ilman sitä asteikolla olisi numeroita
+joiden yksikköä ei kerrota missään, koska lukemat seuraavat
+yksikkövalintaa — ja kartalta selite on poistettu.
+
+Lukemariviltä poistettiin `inline display:flex`, joka olisi kumonnut
+asettelun: **inline voittaa tyylisäännön.**
 
 ## Verkkotila
 
