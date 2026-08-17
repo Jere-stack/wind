@@ -98,24 +98,63 @@ rantaviivan ero **20.1 → 41.5**.
 
 ### Väriramppi
 
+**Kirkkaus kantaa nopeuden, sävy vain vahvistaa sitä.** Tämä on rampin
+koko suunnitteluperiaate, ja se tulee värisokeudesta.
+
+- **Miksi vanha ramppi vaihdettiin.** Vihreä–keltainen–punainen-perhe
+  romahtaa deuteranoopille yhdeksi ruskeanharmaaksi alueeksi. Mitattuna
+  renderöidyistä väreistä 1 m/s askelin, pienin dE kahden vähintään 4 m/s
+  päässä olevan nopeuden välillä oli **0.8** — eli 8 m/s ja 16 m/s olivat
+  käytännössä sama väri. Se on juuri se ero jonka takia sovellusta
+  katsotaan, joten kyse ei ollut kosmetiikasta.
+- **Mittaa renderöityjä värejä, ei rampin rivejä.** Käyttäjä ei näe
+  `RAMP`ia vaan `pohja + alfa*ramppi`. Alfakäyrä puristaa kirkkausvälin
+  (ennen 10→81 rampissa, 1→47 ruudulla), joten ruudulla sävy joutui
+  kantamaan vielä enemmän kuin rampin luvuista näytti. Rampin raakarivien
+  mittaaminen antaa liian ruusuisen kuvan.
+- **Sävypolku ja kärki.** Sininen → terässininen → turkoosi → vihreä →
+  kulta, ja kärjessä kierto lohen kautta pinkkiin. Kierto ylöspäin on
+  **b\*-akselilla, jonka dikromaatti näkee** — siksi kärki erottuu myös
+  värisokealle. Vaaleaa ja kylläistä punaista ei ole sRGB:ssä, joten
+  monotoninen kirkkaus ja vanha punainen kärki eivät mahdu yhteen.
+- **Mitattu ennen → jälkeen**, pienin dE (≥4 m/s ero / 2 m/s askel):
+
+  | näkö | ennen | jälkeen |
+  |---|---|---|
+  | normaali | 16.9 / 8.6 | 11.7 / 5.2 |
+  | deuteranooppi | 0.8 / 1.5 | 7.1 / 4.0 |
+  | protanooppi | 2.6 / 1.9 | 7.2 / 3.8 |
+  | tritanooppi | 1.6 / 0.4 | 7.7 / 3.9 |
+
+  Kaikki neljä ovat nyt samassa haarukassa 7.1–7.7 — ramppi on yhtä hyvä
+  kuin sen huonoin lukija, joten valinta tehtiin minimax-perusteella.
+- **Kirkkaus nousee monotonisesti kaikissa kolmessa näköavaruudessa**:
+  normaali 1 → 58, deuteranooppi 1 → 60, protanooppi 1 → 56. Ei siis
+  pelkästään "erottuu", vaan *kirkkaampi tarkoittaa kovempaa* jokaiselle.
+  Ennen rampissa oli kuusi laskua.
+- **Hinta on kylläisyys: keskikroma 40 → 26.** Kartta on vaimeampi kuin
+  ennen. Tämä on tietoinen vaihtokauppa, ei laiminlyönti: 11.7 dE on
+  normaalinäköiselle yhä moninkertaisesti yli erottumisrajan, ja vaaleus
+  on ainoa kanava jonka *kaikki* näkevät.
+- **Kirkkausaikataulu on verrannollinen nopeuteen, ei ankkurin
+  järjestyslukuun.** Ankkurit ovat epätasavälein (0, 2, 4, 6, 8, 10, 13,
+  16, 20). Järjestysluku antoi kirkkautta liikaa alapäähän ja liian vähän
+  yläpäähän, ja mitattuna 2 m/s askeleen pienin dE jäi 1.0:aan — juuri
+  siellä missä ero pitää nähdä. Korjaus nosti sen 4.0:aan.
 - **Väliankkurit.** Rampissa on 17 riviä, joista 8 on väliankkureita:
   segmentin päätepisteiden Lab-keskiarvoja. Ilman niitä sRGB-interpolointi
-  etenee epätasaisesti — 9→10 m/s harppasi 26.7 dE kun 16→17 liikkui 5.3,
-  eli sama nopeusero näytti viisi kertaa suuremmalta. Väliankkurit tasaavat
-  suhteen 5.0:sta 2.8:aan ilman että sovellukseen tuodaan väriavaruus-
-  matematiikkaa. **Merkitsevät sävyt (8 vihreä, 10 keltainen, 13 oranssi)
-  ovat tarkalleen ennallaan** — vain niiden välit ja kärki muuttuivat.
-- **Kärki on magenta, ei tummaa viiniä.** Vanha ramppi tummui yli 16 m/s
-  (L\* 36 → 20), joten myrsky näytti vaimeammalta kuin 13 m/s. Nyt L\* nousee
-  loppuun asti (36 → 47).
+  etenee epätasaisesti — sama nopeusero näytti eri kohdissa jopa viisi
+  kertaa erisuuruiselta — ilman että sovellukseen tuodaan väriavaruus-
+  matematiikkaa ajonaikaisesti.
 - **Alfakäyrän kuutiollinen lisätermi** nostaa vain kärkeä: 8 m/s pysyy
   0.45:ssä, 20 m/s nousee 0.60:stä 0.75:een. Additiivisessa sekoituksessa
   tämä ei syö rantaviivan kontrastia, koska maan ja veden ero ei riipu
   alfasta. `screen`in kanssa se olisi ollut mahdotonta.
-- **Värisokeus on yhä ratkaisematta.** 10 ja 13 m/s ovat deuteranoopille
-  käytännössä sama väri (dE 3.4 vanhassa, 2.2 uudessa) — vika on
-  vihreä–keltainen–punainen-perheessä itsessään, ei näissä säädöissä.
-  Korjaus vaatisi rampin vaihtamista toiseen väriperheeseen.
+
+Analyysityökalut ovat kertakäyttöisiä eivätkä ole repossa. Jos ramppiin
+koskee, mittaa uudelleen: simuloi dikromatia (Viénot–Brettel–Mollon,
+LMS-avaruus) **renderöidyistä** väreistä ja katso CIEDE2000-erot 1 m/s
+askelin. Rampin rivien katsominen ei riitä.
 
 ## Valikoiden ulkoasu — Merikartta
 
@@ -131,8 +170,10 @@ on — ei sen mukaan missä se sijaitsee:
   (kapseli, aikavalitsin), karttanapit, latausruutu — ja **spottimerkit**.
 
 Sävyt on otettu suomalaisesta merikartasta: maa-alueen kellertävä pohja,
-kartan musta teksti ja merikartan magenta, joka on myös se sävy johon
-tuuliramppi päättyy 20 m/s kohdalla.
+kartan musta teksti ja merikartan magenta. Magenta on `--accent`, siis
+toimintoväri. Aiemmin se oli myös se sävy johon tuuliramppi päättyi
+20 m/s kohdalla; värisokeuskorjauksen jälkeen rampin kärki on pinkki,
+joten yhteys on nyt vain sukulaisuus eikä sama väri.
 
 ### Spottikortin migraatio
 
@@ -257,12 +298,24 @@ Asiat jotka eivät ole ilmeisiä:
 ### Kaksi ramppia
 
 `ColorRamp.rgb()` on kartalle, `ColorRamp.ink()` paneeleihin. Sama
-sävyjärjestys, sama `msToT`, samat väliankkurit — vain kylläisyys eroaa.
-Syy: kartan neonvihreä on beigellä 1.49:1 ja keltainen 1.34:1, eli kuusi
-yhdeksästä ankkurista on lukukelvottomia. Mustevariantti on 4.56–6.6:1.
-Sama pätee spotti-indeksiin: `spotIndexColor()` kartalle,
-`spotIndexInk()` paneeleihin, ja `spotMarkerSVG(..., paperi)` vaihtaa
-renkaan taustan ja uran.
+sävypolku ja sama `msToT`, mutta **kirkkaus kulkee vastakkaisiin
+suuntiin**: kartalla se nousee tuulen mukana (musta meri alla), musteessa
+se laskee (beige paperi alla, L\* 44 → 13). Merkitys on molemmissa sama —
+kovempi tuuli tarkoittaa enemmän kontrastia pohjaan. Mustevariantti on
+4.52–13.1:1 molemmilla paneelipinnoilla.
+
+**Mustevariantti ei ole värisokeusturvallinen eikä sitä saa siksi.**
+Beigellä 4.5:1 kattaa L\*:n noin 44:ään, joten käytettävissä oleva
+kirkkausväli on kolmasosa kartan välistä; deuteranoopille pienin dE jää
+3.9:ään. Se on tässä hyväksyttävää, koska paneelissa väri on **aina luvun
+vieressä** — data on numerossa ja väri vahvistaa sen. Kartalla väri on
+ainoa koodaus, ja siksi juuri se ramppi tehtiin turvalliseksi. Älä siirrä
+kartan turvallisuusvaatimusta musteeseen äläkä päinvastoin.
+
+Sama kaksijakoisuus pätee spotti-indeksiin: `spotIndexInk()` paneeleihin
+ja `spotMarkerSVG(..., paperi)` vaihtaa renkaan taustan ja uran.
+Indeksiasteikon suunta on tuulen suhteen käänteinen — iso pisteluku on
+hyvä — joten se kulkee neutraalista kullan kautta vihreään ja turkoosiin.
 
 **Jos lisäät paneeliin tuulivärillisen luvun, käytä `ink()`-versiota.**
 Kartan versio näyttää siellä siltä kuin teksti olisi haalistunut.

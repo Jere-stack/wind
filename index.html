@@ -2350,36 +2350,56 @@ const Units = {
 
 /* -- COLOUR RAMP ------------------------------------------------ */
 const ColorRamp = (() => {
-  /* Nimetyt sävyt ovat ne joita sovellus käyttää merkitsevinä rajoina
-     (8 vihreä, 10 keltainen, 13 oranssi). Niiden VÄLISSÄ on väliankkurit,
-     joiden väri on segmentin päätepisteiden Lab-keskiarvo. Ilman niitä
-     sRGB-interpolointi etenee epätasaisesti: 9->10 m/s harppasi 26.7 dE
-     kun 16->17 liikkui 5.3 — sama nopeusero näytti viisi kertaa
-     suuremmalta muutokselta. Väliankkurit tasaavat suhteen 5.0:sta 2.8:aan
-     lisäämättä sovellukseen väriavaruusmatematiikkaa.
+  /* Ramppi on suunniteltu niin että KIRKKAUS kantaa nopeuden ja sävy vain
+     vahvistaa sitä. Syy on värisokeus: vanhassa rampissa vihreä–keltainen–
+     punainen-perhe romahti deuteranoopille yhdeksi ruskeanharmaaksi
+     alueeksi. Mitattuna renderöidyistä väreistä 1 m/s askelin, pienin dE
+     kahden vähintään 4 m/s päässä olevan nopeuden välillä oli 0.8 —
+     eli 8 m/s ja 16 m/s olivat käytännössä sama väri. Se on juuri se ero
+     jonka takia sovellusta katsotaan.
 
-     Yli 16 m/s nousee punaisesta magentaan eikä tummu viiniksi kuten ennen.
-     Vanha kärki putosi kirkkaudessa (L* 36 -> 20) samalla kun tuuli kasvoi,
-     joten myrsky näytti vaimeammalta kuin 13 m/s. Nyt L* nousee loppuun
-     asti (36 -> 47). */
+     Nyt L* nousee monotonisesti koko rampin yli (renderöitynä 1 -> 58,
+     ei yhtään laskua; ennen kuusi laskua). Sävypolku kulkee sinisestä
+     turkoosin ja vihreän kautta kultaan ja kiertyy kärjessä lohen kautta
+     pinkkiin. Kierto ylöspäin on b*-akselilla, jonka dikromaatti näkee —
+     siksi kärki erottuu myös värisokealle.
+
+     Mitattu ennen -> jälkeen, pienin dE (>=4 m/s ero / 2 m/s askel):
+       normaali       16.9/8.6 -> 11.7/5.2
+       deuteranooppi   0.8/1.5 ->  7.1/4.0
+       protanooppi     2.6/1.9 ->  7.2/3.8
+       tritanooppi     1.6/0.4 ->  7.7/3.9
+     Hinta on kylläisyys: keskikroma 40 -> 26. Ramppi on vaimeampi kuin
+     ennen, koska vaaleaa ja kylläistä punaista ei ole sRGB:ssä — ja
+     vaaleus on se mitä kaikki näkevät. Normaalinäköiselle 11.7 dE on yhä
+     moninkertaisesti yli erottumisrajan.
+
+     Kirkkausaikataulu on verrannollinen NOPEUTEEN eikä ankkurin
+     järjestyslukuun. Ankkurit ovat epätasavälein (0,2,4,6,8,10,13,16,20),
+     joten järjestysluku antaisi kirkkautta liikaa alapäähän ja liian
+     vähän ylä­päähän — juuri sinne missä 2 m/s ero pitää nähdä.
+
+     Väliankkurit ovat segmentin päätepisteiden Lab-keskiarvoja. Ilman
+     niitä sRGB-interpolointi etenee epätasaisesti: sama nopeusero näytti
+     eri kohdissa jopa viisi kertaa erisuuruiselta. */
   const RAMP = [
-    { t: 0.000, r:  10, g:  20, b:  80 },  /*  0 m/s   tumma sininen */
-    { t: 0.050, r:  11, g:  35, b: 138 },  /*  1 m/s */
-    { t: 0.100, r:   0, g:  50, b: 200 },  /*  2 m/s   sininen */
-    { t: 0.160, r:  37, g: 103, b: 203 },  /*  3 m/s */
-    { t: 0.220, r:   0, g: 153, b: 204 },  /*  4 m/s   sinivihrea */
-    { t: 0.290, r:  37, g: 178, b: 171 },  /*  5 m/s */
-    { t: 0.360, r:   0, g: 204, b: 136 },  /*  6 m/s   vaaleanvihrea */
-    { t: 0.430, r:  19, g: 212, b: 105 },  /*  7 m/s */
-    { t: 0.500, r:   0, g: 221, b:  68 },  /*  8 m/s   puhtaan vihrea */
-    { t: 0.575, r: 154, g: 214, b:  45 },  /*  9 m/s */
-    { t: 0.650, r: 221, g: 204, b:   0 },  /* 10 m/s   keltainen */
-    { t: 0.715, r: 241, g: 165, b:   0 },  /* 11.5 m/s */
-    { t: 0.780, r: 255, g: 119, b:   0 },  /* 13 m/s   oranssi */
-    { t: 0.840, r: 254, g:  87, b:  49 },  /* 14.5 m/s */
-    { t: 0.900, r: 252, g:  38, b:  72 },  /* 16 m/s   punainen */
-    { t: 0.950, r: 255, g:  76, b: 130 },  /* 18 m/s */
-    { t: 1.000, r: 255, g: 105, b: 190 },  /* 20 m/s   magenta */
+    { t: 0.000, r:   7, g:  42, b: 161 },  /*  0 m/s   tyyni sininen */
+    { t: 0.050, r:  18, g:  66, b: 182 },  /*  1 m/s */
+    { t: 0.100, r:  22, g:  90, b: 203 },  /*  2 m/s   sininen */
+    { t: 0.160, r:  25, g: 100, b: 185 },  /*  3 m/s */
+    { t: 0.220, r:  16, g: 109, b: 167 },  /*  4 m/s   terässininen */
+    { t: 0.290, r:  23, g: 118, b: 149 },  /*  5 m/s */
+    { t: 0.360, r:  14, g: 127, b: 130 },  /*  6 m/s   turkoosi */
+    { t: 0.430, r:  28, g: 136, b: 104 },  /*  7 m/s */
+    { t: 0.500, r:  20, g: 145, b:  76 },  /*  8 m/s   vihreä */
+    { t: 0.575, r:  92, g: 146, b:  53 },  /*  9 m/s */
+    { t: 0.650, r: 130, g: 146, b:  20 },  /* 10 m/s   lehtivihreä */
+    { t: 0.715, r: 164, g: 150, b:  22 },  /* 11.5 m/s */
+    { t: 0.780, r: 196, g: 152, b:  24 },  /* 13 m/s   kulta */
+    { t: 0.840, r: 225, g: 151, b:  75 },  /* 14.5 m/s */
+    { t: 0.900, r: 253, g: 149, b: 113 },  /* 16 m/s   lohi */
+    { t: 0.950, r: 255, g: 163, b: 156 },  /* 18 m/s */
+    { t: 1.000, r: 254, g: 177, b: 199 },  /* 20 m/s   pinkki */
   ];
   function msToT(ms) {
     const m = Math.min(Config.MAX_MS, Math.max(0, ms));
@@ -2422,32 +2442,39 @@ const ColorRamp = (() => {
     }
   }
   /* Mustevariantti käyttöliittymään.
-     Kartan ramppi on suunniteltu mustaa merta vasten. Paneelin beigellä
-     kuusi yhdeksästä sen sävystä on lukukelvottomia: 8 m/s on 1.49:1 ja
-     10 m/s 1.34:1. Tässä on sama sävyjärjestys — sininen, turkoosi,
-     vihreä, kulta, oranssi, punainen, magenta — musteen kylläisyydellä,
-     jolloin jokainen arvo on vähintään 4.56:1 paneelin pinnalla ja
-     5.16:1 korotetulla. Merkitys ei muutu missään; vain se, mitä vasten
-     väri luetaan. Väliankkurit ovat Lab-keskiarvoja samasta syystä kuin
-     kartan rampissa. */
+     Kartan ramppi on suunniteltu mustaa merta vasten; paneelin beigellä sen
+     vaaleat sävyt olisivat lukukelvottomia. Tässä on sama sävypolku —
+     sininen, terässininen, turkoosi, vihreä, kulta, lohi, pinkki — mutta
+     kirkkaus kulkee TOISEEN suuntaan: muste tummuu tuulen mukana (L* 44
+     -> 13). Merkitys on sama kuin kartalla, koska molemmissa kovempi tuuli
+     tarkoittaa enemmän kontrastia pohjaan. Jokainen arvo on vähintään
+     4.52:1 paneelin pinnalla ja 5.12:1 korotetulla; kärki on 13.1:1.
+
+     Tämän rampin dE-luvut jäävät kartan lukujen alle (deuteranooppi 3.9 /
+     1.6) eikä sitä saa paremmaksi: beigellä 4.5:1 kattaa L*:n noin 44:ään,
+     joten käytettävissä oleva kirkkausväli on vain kolmasosa kartan
+     välistä. Se on tässä hyväksyttävää, koska paneelissa väri on aina
+     LUVUN vieressä — data on numerossa ja väri vain vahvistaa sen. Kartalla
+     väri on ainoa koodaus, ja siksi juuri se ramppi tehtiin turvalliseksi.
+     Väliankkurit ovat Lab-keskiarvoja samasta syystä kuin kartan rampissa. */
   const RAMP_INK = [
-    { t: 0.000, r:  95, g: 105, b: 111 },  /*    0 m/s  tyyni harmaa */
-    { t: 0.050, r:  75, g:  92, b: 136 },  /*    1 m/s */
-    { t: 0.100, r:  31, g:  79, b: 160 },  /*    2 m/s  sininen */
-    { t: 0.160, r:  31, g:  94, b: 147 },  /*    3 m/s */
-    { t: 0.220, r:  20, g: 108, b: 134 },  /*    4 m/s  merensininen */
-    { t: 0.290, r:  22, g: 112, b: 116 },  /*    5 m/s */
-    { t: 0.360, r:  14, g: 115, b:  97 },  /*    6 m/s  turkoosi */
-    { t: 0.430, r:  36, g: 113, b:  72 },  /*    7 m/s */
-    { t: 0.500, r:  42, g: 112, b:  45 },  /*    8 m/s  vihreä */
-    { t: 0.575, r:  90, g: 104, b:  29 },  /*    9 m/s */
-    { t: 0.650, r: 122, g:  93, b:   7 },  /*   10 m/s  kulta */
-    { t: 0.715, r: 138, g:  88, b:  15 },  /* 11.5 m/s */
-    { t: 0.780, r: 154, g:  81, b:  22 },  /*   13 m/s  oranssi */
-    { t: 0.840, r: 154, g:  60, b:  23 },  /* 14.5 m/s */
-    { t: 0.900, r: 153, g:  32, b:  24 },  /*   16 m/s  punainen */
-    { t: 0.950, r: 149, g:  37, b:  61 },  /*   18 m/s */
-    { t: 1.000, r: 142, g:  42, b:  97 },  /*   20 m/s  magenta */
+    { t: 0.000, r: 106, g: 100, b: 131 },  /*    0 m/s  tyyni */
+    { t: 0.050, r:  99, g:  98, b: 138 },  /*    1 m/s */
+    { t: 0.100, r:  91, g:  97, b: 145 },  /*    2 m/s  sininen */
+    { t: 0.160, r:  82, g:  96, b: 132 },  /*    3 m/s */
+    { t: 0.220, r:  72, g:  94, b: 120 },  /*    4 m/s  terässininen */
+    { t: 0.290, r:  63, g:  92, b: 105 },  /*    5 m/s */
+    { t: 0.360, r:  54, g:  90, b:  91 },  /*    6 m/s  turkoosi */
+    { t: 0.430, r:  49, g:  88, b:  73 },  /*    7 m/s */
+    { t: 0.500, r:  43, g:  85, b:  55 },  /*    8 m/s  vihreä */
+    { t: 0.575, r:  58, g:  79, b:  41 },  /*    9 m/s */
+    { t: 0.650, r:  67, g:  72, b:  26 },  /*   10 m/s  lehtivihreä */
+    { t: 0.715, r:  69, g:  64, b:  20 },  /* 11.5 m/s */
+    { t: 0.780, r:  71, g:  55, b:  14 },  /*   13 m/s  kulta */
+    { t: 0.840, r:  79, g:  42, b:   9 },  /* 14.5 m/s */
+    { t: 0.900, r:  86, g:  25, b:   3 },  /*   16 m/s  lohi */
+    { t: 0.950, r:  79, g:  13, b:  21 },  /*   18 m/s */
+    { t: 1.000, r:  72, g:   0, b:  33 },  /*   20 m/s  pinkki */
   ];
   const _inkLUT = new Array(LUT_SIZE);
   const _inkCssLUT = new Array(LUT_SIZE);
@@ -4989,14 +5016,18 @@ function spotIndex(ms, windDeg, bestDirs, gustMs) {
    mustan taustan päälle, joten siellä käytetään kirkasta versiota; paperilla
    samat sävyt olisivat 1.5:1. Askeleet vastaavat toisiaan yksi yhteen. */
 function spotIndexInk(score) {
+  /* Sävyt ovat RAMP_INKin omia, jotta paneelit pysyvät yhtenä perheenä.
+     Suunta on tässä päinvastainen kuin tuulessa: iso pisteluku on hyvä,
+     joten asteikko kulkee neutraalista kullan kautta vihreään ja
+     turkoosiin. Kaikki läpäisevät AA:n molemmilla pinnoilla (4.52-9.35:1). */
   const stops = [
-    [  0, [ 95, 105, 111]],
-    [ 25, [ 88,  98, 104]],
-    [ 35, [122,  93,   7]],
-    [ 48, [ 90, 104,  29]],
-    [ 60, [ 52, 112,  40]],
-    [ 75, [ 42, 112,  45]],
-    [100, [ 14, 115,  97]],
+    [  0, [106, 100, 131]],
+    [ 25, [ 82,  96, 132]],
+    [ 35, [ 71,  55,  14]],
+    [ 48, [ 67,  72,  26]],
+    [ 60, [ 58,  79,  41]],
+    [ 75, [ 43,  85,  55]],
+    [100, [ 54,  90,  91]],
   ];
   const t = Math.max(0, Math.min(100, score));
   let i = 0;
