@@ -1058,6 +1058,21 @@ body {
   font-size: 20px; font-weight: 800; letter-spacing: -.4px;
   margin-bottom: 2px; line-height: 1.15; word-break: break-word;
 }
+/* Nimirivi: nimi venyy, napit pysyvät oikeassa reunassa. Napit ovat 44 px
+   kosketusalaltaan mutta glyfi on pienempi — sama sääntö kuin play-napissa,
+   ja tässäkin osumapinta tulee elementiltä eikä pseudoelementiltä. */
+.sh-name-rivi { display: flex; align-items: center; gap: 2px; }
+.sh-name-rivi .sh-name { flex: 1; min-width: 0; }
+.sh-ikoni {
+  flex-shrink: 0;
+  width: 44px; height: 44px; padding: 0;
+  border: none; background: none; cursor: pointer;
+  color: var(--ink-3); font-size: 20px; line-height: 1;
+  touch-action: manipulation;
+  display: flex; align-items: center; justify-content: center;
+}
+.sh-ikoni[aria-pressed="true"] { color: var(--accent); }
+.sh-ikoni:active { opacity: .5; }
 .sh-desc {
   font-variant-numeric: tabular-nums; font-size: 10px; color: var(--ink-3);
 }
@@ -3118,6 +3133,87 @@ const Verkkotila = {
     siru.classList.toggle('yritettavissa', virhe);
     siru.classList.add('show');
     siru.setAttribute('aria-hidden', 'false');
+  }
+};
+
+/* -- SUOSIKIT ---------------------------------------------------
+ *
+ * Foilaajalla on tyypillisesti 2-3 kotispottia, ja niitä katsotaan joka
+ * kerta. Suosikki vaikuttaa kolmeen asiaan:
+ *
+ *   1. Kartta avautuu niiden kohdalle oletusnäkymän sijaan.
+ *   2. Suosikki piirtyy AINA täytenä merkkinä. Merkit kilpailevat
+ *      tilasta (_valitseTaydetSpotit), ja Helsingin edustalla monta
+ *      spottia on lähekkäin — ilman tätä oma spotti voi kadota pisteeksi
+ *      juuri siksi että naapurilla sattuu olemaan parempi pistemäärä.
+ *   3. Kortissa on tähti jolla sen vaihtaa.
+ *
+ * Tallennus on nimilistana eikä indekseinä: SPOTS-taulukon järjestys voi
+ * muuttua, ja silloin indeksi osoittaisi väärään spottiin. */
+const Suosikit = {
+  AVAIN: 'fs_suosikit',
+  _lista: null,
+  lue() {
+    if (this._lista) return this._lista;
+    try {
+      const raw = localStorage.getItem(this.AVAIN);
+      this._lista = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(this._lista)) this._lista = [];
+    } catch (e) { this._lista = []; }
+    return this._lista;
+  },
+  on(nimi) { return this.lue().indexOf(nimi) >= 0; },
+  vaihda(nimi) {
+    const l = this.lue(), i = l.indexOf(nimi);
+    if (i >= 0) l.splice(i, 1); else l.push(nimi);
+    try { localStorage.setItem(this.AVAIN, JSON.stringify(l)); } catch (e) {}
+    return i < 0;              /* true = lisättiin */
+  },
+  spotit() { const l = this.lue(); return SPOTS.filter(s => l.indexOf(s.name) >= 0); }
+};
+
+/* -- JAETTAVA LINKKI --------------------------------------------
+ *
+ * Sessiot sovitaan ryhmächateissa, joten "katso Lauttasaari torstaina 15"
+ * pitää pystyä lähettämään. Tila on osoitteen hash-osassa, koska se ei
+ * aiheuta uudelleenlatausta eikä vaadi palvelimelta mitään.
+ *
+ * Aika tallennetaan ISO-leimana eikä tuntinumerona: tuntinumero on
+ * indeksi ennustesarjaan, ja sarja alkaa eri kohdasta joka latauksella.
+ * Vastaanottajalla se osoittaisi eri hetkeen kuin lähettäjällä. */
+const Linkkitila = {
+  kirjoita(spotNimi, isoAika) {
+    try {
+      const osat = [];
+      if (spotNimi) osat.push('spot=' + encodeURIComponent(spotNimi));
+      if (isoAika)  osat.push('t=' + encodeURIComponent(isoAika));
+      const uusi = osat.length ? '#' + osat.join('&') : ' ';
+      if (location.hash !== uusi) history.replaceState(null, '', uusi);
+    } catch (e) {}
+  },
+  lue() {
+    try {
+      const h = location.hash.replace(/^#/, '');
+      if (!h) return null;
+      const out = {};
+      h.split('&').forEach(function (pari) {
+        const i = pari.indexOf('=');
+        if (i > 0) out[pari.slice(0, i)] = decodeURIComponent(pari.slice(i + 1));
+      });
+      return (out.spot || out.t) ? out : null;
+    } catch (e) { return null; }
+  },
+  /* Lähin tunti annettuun ISO-aikaan. Palauttaa -1 jos sarjaa ei ole. */
+  indeksiAjalle(ajat, iso) {
+    if (!ajat || !ajat.length || !iso) return -1;
+    const kohde = new Date(iso).getTime();
+    if (isNaN(kohde)) return -1;
+    let paras = -1, parasEro = Infinity;
+    for (let i = 0; i < ajat.length; i++) {
+      const ero = Math.abs(new Date(ajat[i]).getTime() - kohde);
+      if (ero < parasEro) { parasEro = ero; paras = i; }
+    }
+    return parasEro <= 3600000 * 2 ? paras : -1;
   }
 };
 
@@ -5633,8 +5729,14 @@ function _valitseTaydetSpotit(pisteytetyt, zoom) {
   if (!State.map) { pisteytetyt.forEach(s => taydet.add(s.spot)); return taydet; }
   const kynnys = spotIconSize(zoom);
   const sijoitetut = [];
-  /* Paras ensin — kasan voittaja on aina se jolla on korkein pistemäärä. */
-  const jarjestys = pisteytetyt.slice().sort((a, b) => b.score - a.score);
+  /* Suosikit ensin, sitten paras pistemäärä. Ilman suosikkien etusijaa oma
+     kotispotti voi kadota pisteeksi juuri siksi että naapurilla sattuu
+     olemaan parempi lukema — Helsingin edustalla spotit ovat lähekkäin. */
+  const jarjestys = pisteytetyt.slice().sort(function (a, b) {
+    const sa = Suosikit.on(a.spot.name) ? 1 : 0, sb = Suosikit.on(b.spot.name) ? 1 : 0;
+    if (sa !== sb) return sb - sa;
+    return b.score - a.score;
+  });
   for (const s of jarjestys) {
     const p = State.map.latLngToContainerPoint([s.spot.lat, s.spot.lng]);
     let vapaa = true;
@@ -7969,7 +8071,13 @@ function openSheet(spot, hourIdx) {
     '<div class="sh-hero">'
       + '<div class="sh-hero-top">'
         + '<div class="sh-hero-left">'
-          + '<div class="sh-name">' + spot.name + '</div>'
+          + '<div class="sh-name-rivi">'
+            + '<span class="sh-name">' + spot.name + '</span>'
+            + '<button type="button" class="sh-ikoni" id="sh-suosikki" title="Suosikki"'
+              + ' aria-pressed="' + (Suosikit.on(spot.name) ? 'true' : 'false') + '">'
+              + (Suosikit.on(spot.name) ? '\u2605' : '\u2606') + '</button>'
+            + '<button type="button" class="sh-ikoni" id="sh-jaa" title="Kopioi linkki">\u21D7</button>'
+          + '</div>'
           + '<div class="sh-desc">' + spot.desc + '</div>'
           + (()=>{
               /* Indeksi osineen. Pelkkä luku 0–100 ei kerro miksi: 43 voi
@@ -8094,6 +8202,41 @@ function openSheet(spot, hourIdx) {
   document.getElementById('sheet').classList.add('open');
   document.getElementById('sheet-overlay').classList.add('open');
   Haptics.medium();
+
+  /* Osoite kertoo mitä katsotaan, jotta näkymän voi jakaa sellaisenaan. */
+  Linkkitila.kirjoita(spot.name, (h.time && h.time[idx]) || null);
+
+  /* Tähti ja jakonappi. Kuuntelijat sidotaan tässä eikä innerHTML:ään,
+     koska sisältö rakennetaan merkkijonona. */
+  (function () {
+    const tahti = document.getElementById('sh-suosikki');
+    if (tahti) tahti.addEventListener('click', function () {
+      const lisattiin = Suosikit.vaihda(spot.name);
+      tahti.textContent = lisattiin ? '\u2605' : '\u2606';
+      tahti.setAttribute('aria-pressed', lisattiin ? 'true' : 'false');
+      Haptics.selection();
+      Toast.show(lisattiin ? '\u2605 ' + spot.name + ' suosikkeihin'
+                           : spot.name + ' poistettu suosikeista', 2500);
+      /* Merkit uusiksi: suosikki piirtyy aina täytenä. */
+      State._spotTaydetAvain = null;
+      renderSpots(State.currentHourIdx);
+    }, { passive: true });
+
+    const jaa = document.getElementById('sh-jaa');
+    if (jaa) jaa.addEventListener('click', function () {
+      const url = location.href;
+      const kerro = function (ok) {
+        Haptics.selection();
+        Toast.show(ok ? 'Linkki kopioitu' : url, ok ? 2500 : 8000);
+      };
+      /* clipboard-API vaatii suojatun yhteyden eikä ole kaikkialla; jos se
+         ei onnistu, osoite näytetään jotta sen voi kopioida käsin. */
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(function () { kerro(true); },
+                                                function () { kerro(false); });
+      } else { kerro(false); }
+    }, { passive: true });
+  })();
 
   /* ── Time slider — native scroll snap ───────────────────────── */
   (function() {
@@ -10798,6 +10941,37 @@ function _naytaValimuististaHeti() {
   return ts;
 }
 
+/* Keskitä kartta suosikkeihin. Yksi suosikki -> setView, useampi ->
+   fitBounds, jotta kaikki näkyvät. Zoom rajataan 11:een: sitä lähempää
+   yksi spotti täyttää ruudun eikä kentästä näy mitään. */
+function _keskitaSuosikkeihin() {
+  try {
+    const sp = Suosikit.spotit();
+    if (!sp.length || !State.map) return;
+    if (sp.length === 1) { State.map.setView([sp[0].lat, sp[0].lng], 10); return; }
+    const b = L.latLngBounds(sp.map(function (s) { return [s.lat, s.lng]; }));
+    State.map.fitBounds(b, { padding: [60, 60], maxZoom: 11 });
+  } catch (e) {}
+}
+
+/* Avaa jaetun linkin osoittama spotti ja hetki.
+   Data ei ole vielä välttämättä ladattu, joten odotetaan sitä — mutta vain
+   rajallinen aika, jottei sivu jää roikkumaan jos spottia ei löydy. */
+function _avaaLinkista(linkki) {
+  const spot = SPOTS.find(function (s) { return s.name === linkki.spot; });
+  if (!spot) return;
+  if (State.map) State.map.setView([spot.lat, spot.lng], 10);
+  let yrityksia = 0;
+  (function odota() {
+    if (++yrityksia > 60) return;                    /* ~30 s ja luovutetaan */
+    const h = spot.wx && spot.wx.hourly;
+    if (!h || !h.time || !h.time.length) { setTimeout(odota, 500); return; }
+    const i = linkki.t ? Linkkitila.indeksiAjalle(h.time, linkki.t) : -1;
+    if (i >= 0) { State.currentHourIdx = i; State._lastTlHour = i; renderSpots(i); }
+    openSheet(spot, i >= 0 ? i : (State.currentHourIdx || 0));
+  })();
+}
+
 /* -- MAIN ------------------------------------------------------- */
 function main() {
   buildLegend(); initMap(); initCanvases();
@@ -10826,6 +11000,16 @@ function main() {
      sisällön kun se valmistuu. */
   const vanhaTs = _naytaValimuististaHeti();
   if (vanhaTs) Verkkotila.naytettiinVanha(vanhaTs);
+
+  /* Jaettu linkki voittaa suosikit, ja suosikit voittavat oletusnäkymän.
+     Järjestys on tarkoituksellinen: jos joku lähetti linkin, hän tarkoitti
+     juuri sitä spottia — omat suosikit eivät saa ohittaa sitä. */
+  const _linkki = Linkkitila.lue();
+  if (_linkki && _linkki.spot) {
+    _avaaLinkista(_linkki);
+  } else if (Suosikit.spotit().length) {
+    _keskitaSuosikkeihin();
+  }
 
   const spotsP    = ViewportGrid.loadSpots().catch(e => console.warn('[loadSpots]', e));
   const viewportP = ViewportGrid.loadViewport(State.map).catch(e => console.warn('[loadViewport]', e));

@@ -1735,3 +1735,36 @@ HARMONIE 145 → 12, ja kylmä käynnistys 4 479 → 2 470 ms.
 Ne lähtevät rinnakkain 13 ms:n ikkunassa ja valmistuvat aikaisin, joten ne
 eivät portita käyttövalmiutta — siksi ne jätettiin. Sama erähakukuvio
 kävisi niihin jos pyyntömäärää halutaan pienentää lisää.
+
+## Suosikit ja jaettava linkki
+
+**Suosikit** (`Suosikit`, localStorage `fs_suosikit`) vaikuttavat kolmeen
+asiaan: kartta avautuu niiden kohdalle oletusnäkymän sijaan, suosikki
+piirtyy **aina täytenä merkkinä**, ja kortissa on tähti jolla sen vaihtaa.
+
+- **Merkin etusija on se joka oikeasti merkitsee.** Merkit kilpailevat
+  tilasta (`_valitseTaydetSpotit`), ja Helsingin edustalla spotit ovat
+  lähekkäin — ilman etusijaa oma kotispotti katoaa pisteeksi juuri siksi
+  että naapurilla sattuu olemaan parempi lukema.
+- **Tallennus on nimilistana, ei indekseinä.** `SPOTS`-taulukon järjestys
+  voi muuttua, ja indeksi osoittaisi silloin väärään spottiin.
+- Yksi suosikki → `setView` zoomilla 10, useampi → `fitBounds`
+  `maxZoom: 11`. Sitä lähempää yksi spotti täyttää ruudun eikä kentästä näy
+  mitään.
+
+**Jaettava linkki** (`Linkkitila`) kirjoittaa katsotun spotin ja hetken
+osoitteen hash-osaan, ja jakonappi kopioi osoitteen leikepöydälle.
+
+- **Aika on ISO-leima, ei tuntinumero.** Tuntinumero on indeksi
+  ennustesarjaan, ja sarja alkaa eri kohdasta joka latauksella —
+  vastaanottajalla se osoittaisi eri hetkeen. Mitattu päästä päähän:
+  lähetetty `2026-08-20T01:00` (idx 40) avautui vastaanottajalla samaan
+  aikaan, vaikka indeksi ratkaistiin uudelleen.
+- **Hash eikä query**, koska se ei aiheuta uudelleenlatausta eikä vaadi
+  palvelimelta mitään.
+- **Linkki voittaa suosikit, suosikit voittavat oletusnäkymän.** Jos joku
+  lähetti linkin, hän tarkoitti juuri sitä spottia.
+- `indeksiAjalle` hyväksyy enintään 2 h poikkeaman; kauempaa ei kelpuuteta,
+  koska silloin linkki osoittaisi eri kelin kuin lähettäjä näki.
+- Leikepöytä vaatii suojatun yhteyden eikä ole kaikkialla — jos kopiointi
+  ei onnistu, osoite näytetään toastissa jotta sen voi ottaa käsin.
