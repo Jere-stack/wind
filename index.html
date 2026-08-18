@@ -5732,18 +5732,38 @@ function spotIndexSelite(osat, ms, bestDirs) {
    mustan taustan päälle, joten siellä käytetään kirkasta versiota; paperilla
    samat sävyt olisivat 1.5:1. Askeleet vastaavat toisiaan yksi yhteen. */
 function spotIndexInk(score) {
-  /* Sävyt ovat RAMP_INKin omia, jotta paneelit pysyvät yhtenä perheenä.
-     Suunta on tässä päinvastainen kuin tuulessa: iso pisteluku on hyvä,
+  /* Suunta on tässä päinvastainen kuin tuulessa: iso pisteluku on hyvä,
      joten asteikko kulkee neutraalista kullan kautta vihreään ja
-     turkoosiin. Kaikki läpäisevät AA:n molemmilla pinnoilla (4.52-9.35:1). */
+     turkoosiin.
+
+     YLÄPÄÄ ON KYLLÄISEMPI KUIN ALAPÄÄ, ja se on tarkoituksellista.
+     Aiemmin koko asteikko oli musteen kylläisyydellä, jolloin se kulutti
+     erottelukykynsä väärässä päässä: mitattuna 25 vs 60 oli dE 34.2 mutta
+     60 vs 85 vain 9.3, ja koko ajettavalla alueella 60-100 pienin dE oli
+     3.7. Kartalla se tarkoitti että kaksi hyvää spottia näyttivät samalta
+     — juuri se vertailu jota varten kartta avataan.
+
+     Syy näkyi luvuissa: kroma romahti kärjessä (C50=27, C100=13) ja
+     kirkkaus liikkui 60-100 vain viisi yksikköä. Nyt kroma nousee loppuun
+     asti (C100=30) ja kirkkaus 32 -> 44.
+
+     Mitattu ennen -> jälkeen: 60 vs 85  9.3 -> 14.8, 55 vs 80 10.2 -> 13.7.
+
+     Vaimea alapää ei ole epäjohdonmukaisuus vaan sama päätös toisin päin:
+     huono keli ei tarvitse huutaa, hyvä tarvitsee.
+
+     Kaikki läpäisevät AA:n merkin levyä (#FAF5E7) vasten: 5.13-9.88:1.
+     Kärki on 5.13:1, eli sen kylläisyyttä ei voi enää nostaa ilman että
+     kontrasti pettää — siksi peräkkäisten 10 pisteen askelten minimi jää
+     4.4:ään eikä siitä pääse ylöspäin tällä pohjalla. */
   const stops = [
     [  0, [106, 100, 131]],
     [ 25, [ 82,  96, 132]],
     [ 35, [ 71,  55,  14]],
     [ 48, [ 67,  72,  26]],
-    [ 60, [ 58,  79,  41]],
-    [ 75, [ 43,  85,  55]],
-    [100, [ 54,  90,  91]],
+    [ 60, [  0,  88,  18]],
+    [ 75, [  0, 108,  71]],
+    [100, [  0, 117, 108]],
   ];
   const t = Math.max(0, Math.min(100, score));
   let i = 0;

@@ -323,6 +323,20 @@ ja `spotMarkerSVG(..., paperi)` vaihtaa renkaan taustan ja uran.
 Indeksiasteikon suunta on tuulen suhteen käänteinen — iso pisteluku on
 hyvä — joten se kulkee neutraalista kullan kautta vihreään ja turkoosiin.
 
+**Indeksiasteikon yläpää on kylläisempi kuin alapää.** Se ei ole poikkeus
+mustesäännöstä vaan sen soveltaminen: asteikko kulutti aiemmin
+erottelukykynsä väärässä päässä. Mitattuna 25 vs 60 oli dE 34.2 mutta
+60 vs 85 vain 9.3, ja koko ajettavalla alueella 60–100 pienin dE oli 3.7 —
+kartalla kaksi hyvää spottia näyttivät samalta, mikä on juuri se vertailu
+jota varten kartta avataan. Kroma romahti kärjessä (C50=27, C100=13).
+Nyt kroma nousee loppuun (C100=30) ja kirkkaus 32 → 44; **60 vs 85 on
+9.3 → 14.8**. Vaimea alapää on sama päätös toisin päin: huono keli ei
+tarvitse huutaa.
+
+Kärki on 5.13:1 merkin levyä vasten, eli kylläisyyttä ei voi enää nostaa
+ilman että AA pettää. Siksi peräkkäisten 10 pisteen askelten minimi jää
+4.4:ään — sitä ei kannata yrittää parantaa tällä pohjalla.
+
 **Jos lisäät paneeliin tuulivärillisen luvun, käytä `ink()`-versiota.**
 Kartan versio näyttää siellä siltä kuin teksti olisi haalistunut.
 
