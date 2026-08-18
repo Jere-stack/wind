@@ -3136,6 +3136,32 @@ const Verkkotila = {
   }
 };
 
+/* Puvun paksuus vedenlämmöstä, ilmasta ja tuulesta.
+ *
+ * Sovellus kertoi kaikki kolme lukua mutta ei sitä mitä niistä seuraa.
+ * Vesi on hallitseva tekijä, mutta pelkkä vedenlämpö ei riitä: kylmä ilma
+ * ja kova tuuli jäähdyttävät märkäpuvun pinnasta koko session ajan, ja
+ * juuri se erottaa mukavan ja palelevan kelin samalla vedenlämmöllä.
+ *
+ * Korjaus on tarkoituksella maltillinen — neljäsosa vesi/ilma-erosta ja
+ * enintään kaksi astetta tuulesta — koska tämä on lähtökohta pukukaapilla
+ * eikä mittaustulos. Kylmin luokka on kuivapuku: sen rajan alapuolella
+ * märkäpuvun paksuuden hienosäätö ei ole enää oikea kysymys. */
+function pukuSuositus(vesiC, ilmaC, ms) {
+  if (vesiC == null || isNaN(vesiC)) return null;
+  const ilmaVilu  = (ilmaC != null && !isNaN(ilmaC)) ? Math.max(0, (vesiC - ilmaC) * 0.25) : 0;
+  const tuuliVilu = Math.min(2, Math.max(0, ((ms || 0) - 8) * 0.15));
+  const teho = vesiC - ilmaVilu - tuuliVilu;
+  let puku, lisat = '';
+  if      (teho >= 20) puku = 'Shortsit tai lycra';
+  else if (teho >= 17) { puku = '2 mm shortie';       lisat = 'kengät jos kivikkoa'; }
+  else if (teho >= 14) { puku = '3/2 mm';             lisat = 'kengät'; }
+  else if (teho >= 11) { puku = '4/3 mm';             lisat = 'kengät, hanskat'; }
+  else if (teho >=  8) { puku = '5/4 mm hupullinen';  lisat = 'kengät, hanskat'; }
+  else                 { puku = 'Kuivapuku';          lisat = 'huppu, kengät, hanskat'; }
+  return { puku: puku, lisat: lisat, teho: teho, korjaus: ilmaVilu + tuuliVilu };
+}
+
 /* -- SUOSIKIT ---------------------------------------------------
  *
  * Foilaajalla on tyypillisesti 2-3 kotispottia, ja niitä katsotaan joka
@@ -8166,7 +8192,17 @@ function openSheet(spot, hourIdx) {
     /* 24h tuuliennuste — heti sliderin ja foil-badgen jälkeen */
     + build24hChart()
     /* Havainnot-rivi */
-    + '<div style="font-variant-numeric:tabular-nums;font-size:8px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:5px">Havainnot</div>'    + '<div class="sh-stats" id="sh-stats-live">'      + _tempDewComboCard(fmiId + '-tmp', fmiId + '-dew')      + (_uirasStation ? _uirasLinkCard(_waterStatId, _uirasStation) : _statCard('Vesi', waterTemp, _waterTempSource || '°C', null))      + _fmiLinkCard(fmiId)      + (function(){          var fmiGustId = fmiId + '-gust-lnk';          var gstFmt = Units.fmt(gst);          var gcc = ColorRamp.ink(gst);          var gcol = 'rgb('+gcc.r+','+gcc.g+','+gcc.b+')';          return '<div class="sh-stat" id="'+fmiGustId+'">'            + '<span class="sh-stat-label">Puuska</span>'            + '<span class="sh-stat-value" id="'+fmiGustId+'-val" style="color:'+gcol+'">'+gstFmt+'</span>'            + '<span class="sh-stat-sub" id="'+fmiGustId+'-sub">'+Units.label()+' enn.</span>'          + '</div>';        })()    + '</div>'
+    + '<div style="font-variant-numeric:tabular-nums;font-size:8px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:5px">Havainnot</div>'    + '<div class="sh-stats" id="sh-stats-live">'      + _tempDewComboCard(fmiId + '-tmp', fmiId + '-dew')      + (_uirasStation ? _uirasLinkCard(_waterStatId, _uirasStation) : _statCard('Vesi', waterTemp, _waterTempSource || '°C', null))    + (function () {
+        /* Puku veden viereen: siinä kohtaa katsotaan vedenlämpöä, ja tämä
+           on se mitä siitä seuraa. Numeerinen vedenlämpö otetaan samasta
+           lähteestä kuin yllä oleva kortti, myös naapurispotin fallbackista. */
+        const vesiNum = _validWater ? _rawWaterTemp
+          : (function () { const f = _nearestValidWaterTemp(spot.lat, spot.lng); return f ? f.temp : null; })();
+        const ilmaNum = (h.temperature_2m && h.temperature_2m[idx] != null) ? h.temperature_2m[idx] : null;
+        const sug = pukuSuositus(vesiNum, ilmaNum, ms);
+        if (!sug) return '';
+        return _statCard('Puku', sug.puku, sug.lisat || 'arvio', null);
+      })()      + _fmiLinkCard(fmiId)      + (function(){          var fmiGustId = fmiId + '-gust-lnk';          var gstFmt = Units.fmt(gst);          var gcc = ColorRamp.ink(gst);          var gcol = 'rgb('+gcc.r+','+gcc.g+','+gcc.b+')';          return '<div class="sh-stat" id="'+fmiGustId+'">'            + '<span class="sh-stat-label">Puuska</span>'            + '<span class="sh-stat-value" id="'+fmiGustId+'-val" style="color:'+gcol+'">'+gstFmt+'</span>'            + '<span class="sh-stat-sub" id="'+fmiGustId+'-sub">'+Units.label()+' enn.</span>'          + '</div>';        })()    + '</div>'
     /* Aurinkokaari — tuuliruusun tilalle */
     + buildSunBar()
     + '<div style="height:8px"></div>'

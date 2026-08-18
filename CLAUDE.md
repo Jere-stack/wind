@@ -1768,3 +1768,31 @@ osoitteen hash-osaan, ja jakonappi kopioi osoitteen leikepöydälle.
   koska silloin linkki osoittaisi eri kelin kuin lähettäjä näki.
 - Leikepöytä vaatii suojatun yhteyden eikä ole kaikkialla — jos kopiointi
   ei onnistu, osoite näytetään toastissa jotta sen voi ottaa käsin.
+
+## Puvun paksuus
+
+`pukuSuositus(vesiC, ilmaC, ms)` kääntää kolme lukua yhdeksi päätökseksi.
+Kortti näytti vedenlämmön, ilman ja tuulen mutta ei sitä mitä niistä
+seuraa; suositus on veden lämpötilakortin vieressä, koska siinä kohtaa
+vedenlämpöä katsotaan.
+
+- **Vesi on hallitseva mutta ei yksin riitä.** Kylmä ilma ja kova tuuli
+  jäähdyttävät märkäpuvun pinnasta koko session ajan, ja juuri se erottaa
+  mukavan ja palelevan kelin samalla vedenlämmöllä. Korjaus on neljäsosa
+  vesi/ilma-erosta plus enintään kaksi astetta tuulesta.
+- **Korjaus on tarkoituksella maltillinen.** Tämä on lähtökohta
+  pukukaapilla, ei mittaustulos.
+- **Kylmin luokka on kuivapuku.** Alle 8 °C tehollisessa märkäpuvun
+  paksuuden hienosäätö ei ole enää oikea kysymys.
+- **Ilman vedenlämpöä ei anneta suositusta** — kortti jää silloin kokonaan
+  pois. Tämä on tavallista: kehitysympäristössä `loadMarineTemp` ei saa
+  dataa lainkaan, ja 0/12 spottia oli ilman vedenlämpöä.
+
+Mitattu kaavan rajat (vesi/ilma/tuuli → puku): 22/22/6 shortsit,
+18/18/6 2 mm, 15/15/6 3/2, 12/12/6 4/3, 9/9/6 5/4, 5/5/6 kuivapuku;
+15/5/16 pudottaa tehollisen 11,3:een eli 4/3:een.
+
+Testikuoppa jonka jo kerran astuin: `.sh-stat-label` on CSS:llä
+`text-transform: uppercase`, joten `innerText` palauttaa "PUKU" eikä
+"Puku". Testin `/^Puku/` ei osunut, ja näytti siltä ettei kortti
+renderöidy vaikka se oli DOM:issa.
