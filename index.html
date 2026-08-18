@@ -1802,7 +1802,8 @@ body {
 }
 .sh-24h-title { font-variant-numeric: tabular-nums; font-size: 10px; font-weight: 600; color: var(--ink-2); margin-bottom: 2px;
   color: var(--ink-2); letter-spacing: .5px; }
-.sh-24h-peak { font-variant-numeric: tabular-nums; font-size: 9px; color: var(--accent); }
+/* Huippulukema on datalappu, ei toiminto — ks. accent-saanto. */
+.sh-24h-peak { font-variant-numeric: tabular-nums; font-size: 9px; color: var(--ink-2); }
 .sh-24h-svg { width: 100%; display: block; }
 
 /* FMI station card */
@@ -7883,6 +7884,31 @@ function openSheet(spot, hourIdx) {
           +'<text x="'+harmCutX+'" y="'+(PAD+8)+'" font-size="6.5" fill="#E4D8B8" text-anchor="middle">FMI</text>';
       }
 
+      /* SESSIOIKKUNA: jakso jossa tuuli on ajettavaa.
+       *
+       * Kaavio nayttti kayran mutta ei vastannut kysymykseen "milloin
+       * tanaan kannattaa mennä" — sen joutui selaamaan silmalla. Nyt
+       * ajettava jakso on varjostettu taustaan.
+       *
+       * Rajat 6 ja 18 m/s eivat ole uusia lukuja vaan sovelluksen omat:
+       * foilBadge vaihtuu "Rajatuuli – kokeile" -tilasta "Ajettava!":ksi
+       * kuudessa ja "Liian kova":ksi kahdeksassatoista. Yksi maaritelma
+       * kahdessa paikassa olisi kahden totuuden alku. */
+      var ikkunat='', _ikkunaAlku=-1;
+      for(var wi=0; wi<=vals.length; wi++){
+        var ajettava = wi<vals.length && vals[wi]>=6 && vals[wi]<18;
+        if(ajettava && _ikkunaAlku<0) _ikkunaAlku=wi;
+        if(!ajettava && _ikkunaAlku>=0){
+          var x0=xOf(_ikkunaAlku), x1=xOf(wi-1);
+          /* Alle tunnin jakso ei ole sessio vaan piikki: ei varjosteta. */
+          if(wi-1>_ikkunaAlku){
+            ikkunat+='<rect x="'+x0.toFixed(1)+'" y="'+PAD+'" width="'+(x1-x0).toFixed(1)
+              +'" height="'+(CHART_H-PAD*2)+'" fill="rgba(42,112,45,.13)"/>';
+          }
+          _ikkunaAlku=-1;
+        }
+      }
+
       /* Muu mallien placeholder g */
       var modelsG='<g id="'+svgId+'-mg"></g>';
 
@@ -7897,6 +7923,7 @@ function openSheet(spot, hourIdx) {
         + '<defs>'+bgDefs+windLinGrad+'</defs>'
         /* Gradientti ensin taustalle, sitten grid-viivat päälle */
         + bgRects
+        + ikkunat
         + ylbls
         + pastSegs
         + colorSegs

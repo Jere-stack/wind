@@ -1835,3 +1835,32 @@ olisi ollut hiljaa kuollut. Kun tähän tiedostoon lisää kytkennän, tarkista
 Mitattu: alle minimin ei tekstiä; +2 → "liian kova"; −3 → "liian heikko";
 0,2 → "osunut hyvin"; duplikaatti torjutaan; 99 m/s hylätään; 80 kirjausta
 → 60 talletettua. Kortissa rivi renderöityy oikeassa polussa.
+
+## Spottikortin auditointi ja korjaukset
+
+Kortti auditoitiin kokonaan: rakenne koodista, mitattu DOM ja silmämääräinen
+tarkastus koko pituudelta. Löydökset ja korjaukset ovat commit-historiassa;
+tässä ne joista jää pysyvä sääntö.
+
+**Havaintoasema ratkaistaan yhdessä paikassa.** Kortti näytti aiemmin kaksi
+eri asemaa yhtä aikaa (tilastossa lähin, kaaviossa lähin jolla on dataa),
+eri lukemin ja ilman selitystä. `_fmiLoadWithFallback` on nyt ainoa
+auktoriteetti, koska se on ainoa joka tietää mistä dataa oikeasti saa.
+**Jos lisäät korttiin havaintoperäisen kentän, lue se samasta ratkaisusta.**
+
+**`HAVAINTO_MAX_KM = 30`.** Asemalista kattaa pääkaupunkiseudun; Hangon
+spoteille lähin on 107–112 km eli eri sääjärjestelmä. Sen yli havaintoa ei
+esitetä lainkaan vaan kerrotaan puuttuminen. Tyhjä on rehellisempi kuin
+väärä — ja tämä on sama sääntö kuin puvulla ja osuvuudella.
+
+**Sessioikkunan rajat 6 ja 18 m/s tulevat `foilBadge`sta**, eivät erillisestä
+vakiosta. Sama määritelmä kahdessa paikassa olisi kahden totuuden alku: jos
+kynnyksiä muuttaa, muuta `foilBadge`a ja ikkuna seuraa.
+
+**Tilastokortteja on neljä, ei viisi.** Ruudukko on `repeat(4, 1fr)`, joten
+viides jättäisi orvon rivin ja kolme tyhjää solua. Tuuli ja puuska ovat
+yhdessä kortissa koska ne ovat sama mittaus samalta asemalta.
+
+Mitattu kortti ennen → jälkeen: **1 148 px → 1 086 px**, aurinkokaari
+122 → 83 px, tilastorivit 2 → 1, iso lukema 52 → 38 px ja indeksirengas
+48 → 64 px.
