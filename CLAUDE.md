@@ -285,7 +285,13 @@ WCAG AA:n kummallakin pinnalla (14.3 / 5.9 / 4.6 : 1).
 
 Asiat jotka eivät ole ilmeisiä:
 
-- **`--accent` on ainoa toimintoväri.** Se varataan kytkimille ja
+- **`--accent` on toiminto- ja varoitusväri, ei korostusväri.** Sääntö
+  tarkennettiin kun spottikortti auditoitiin: magenta oli levinnyt kuuteen
+  rooliin yhdellä kortilla (asemanimi, "Avomeri", UiRas-otsikko, kaavion
+  maksimipiste, ennustepiikki, navinapit). Nyt se on varattu **toiminnoille**
+  (navinapit, kytkimet) ja **tiloille jotka vaativat huomiota**
+  (verkkotilan siru, mallien voimakas erimielisyys). Pelkkä nimilappu tai
+  datapiste ei ole kumpaakaan — ne ovat mustetta. Se varataan kytkimille ja
   toiminnoille. Valittu valintasiru on **mustetta**, ei aksenttia: kolme
   siruryhmää näkyy yhtä aikaa, joten aksenttitäyttö toisi ruudulle kolme
   magentaa laattaa ja söisi tehon siitä missä se merkitsee jotain.

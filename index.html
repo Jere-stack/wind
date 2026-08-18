@@ -1016,11 +1016,19 @@ body {
    Ne olivat tässä tekstivärinä, jolloin tuntinauhan lukemat olivat 1,49:1
    eli käytännössä lukukelvottomia. Menneen tunnin vaimennus tehdään nyt
    musteasteikolla, joka on suunniteltu luettavaksi. */
+/* Paivalappu ("18. elo") on leveampi kuin 52 px slotti, joten se
+   leikkaantui reunoista. Absoluuttinen sijoitus keskitettyna antaa sen
+   levita naapurin paalle: lappuja on vain paivanvaihdoksissa, joten
+   paallekkaisyytta ei synny. */
+.sh-tpslot { position: relative; }
 .sh-tpslot-day {
+  position: absolute; top: 0; left: 50%;
+  -webkit-transform: translateX(-50%); transform: translateX(-50%);
   font-variant-numeric: tabular-nums;
   font-size: 8px; letter-spacing: .3px;
   color: var(--ink-3);
   height: 11px; line-height: 11px; white-space: nowrap;
+  pointer-events: none;
   transition: color .15s;
 }
 .sh-tpslot-day.vis { color: var(--ink-2); }
@@ -6395,7 +6403,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     var lx=xOf(idx), ly=yOf(draw[idx].v);
     var anchor=lx<padX+30?'start':lx>W-30?'end':'middle';
     var oy=isMax?-13:13;
-    return '<circle cx="'+lx.toFixed(1)+'" cy="'+ly.toFixed(1)+'" r="2.5" fill="'+(isMax?'var(--accent)':'rgba(0,150,210,.6)')+'" pointer-events="none"/>'
+    return '<circle cx="'+lx.toFixed(1)+'" cy="'+ly.toFixed(1)+'" r="2.5" fill="'+(isMax?'var(--ink)':'rgba(0,150,210,.6)')+'" pointer-events="none"/>'
       +'<text x="'+lx.toFixed(1)+'" y="'+(ly+oy).toFixed(1)+'" font-size="8" fill="'+(isMax?'rgba(0,220,255,.8)':'rgba(0,170,210,.55)')+'" text-anchor="'+anchor+'" pointer-events="none">'+draw[idx].v.toFixed(1)+'°</text>';
   }
   var minMaxLabels=(maxV-minV>0.5)?(mkCallout(maxIdx,true)+mkCallout(minIdx,false)):'';
@@ -7821,7 +7829,12 @@ function openSheet(spot, hourIdx) {
       var areaFill='';
 
       /* X-akseli */
-      var labels='', lastDay=-1;
+      /* Paivanvaihdos ja tuntimerkinta voivat osua vierekkain: 24h-nakymassa
+         ensimmainen piste (esim. 14:00) sai paivamerkinnan ja jo seuraava
+         kolmen tunnin merkinta (15) piirtyi sen paalle. Sama suoja kuin
+         toisessa kaaviossa: pidetaan kirjaa viimeisesta x:sta. */
+      var labels='', lastDay=-1, lastLx=-999;
+      var MIN_LBL_X = 26;
       var hourStep = periodKey==='24h'?3:periodKey==='5d'?12:24;
       for(var k=0;k<times.length;k++){
         if(!times[k]) continue;
@@ -7830,12 +7843,16 @@ function openSheet(spot, hourIdx) {
         var x=xOf(k).toFixed(1);
         if(day!==lastDay){
           lastDay=day;
+          if(parseFloat(x)-lastLx<MIN_LBL_X && k>0) continue;
+          lastLx=parseFloat(x);
           var dayNames=['Su','Ma','Ti','Ke','To','Pe','La'];
           var lbl = periodKey==='24h'
             ? (('0'+hr).slice(-2)+':00')
             : (dayNames[d.getDay()]+' '+day+'.');
           labels+='<text x="'+x+'" y="'+(TH-1)+'" font-size="7.5" fill="#4C5960" text-anchor="middle">'+lbl+'</text>';
         } else if(hr%hourStep===0&&hr!==0){
+          if(parseFloat(x)-lastLx<MIN_LBL_X) continue;
+          lastLx=parseFloat(x);
           if(periodKey==='24h'||periodKey==='5d'){
             /* Paperilla riittää yksi mustetaso: aiemmin tässä oli valkoisen
                alfa .35/.2, joka oli vaalealla käytännössä näkymätön. */
@@ -8383,7 +8400,7 @@ function openSheet(spot, hourIdx) {
     /* UiRas vedenlämpö */
     + (_uirasStation
         ? '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">'
-            + '<span style="font-variant-numeric:tabular-nums;font-size:9px;color:var(--accent);letter-spacing:.3px" id="uiras-chart-lbl-' + _waterStatId + '">Uimaveden lämpötila · ' + _uirasStation.name + '</span>'
+            + '<span style="font-variant-numeric:tabular-nums;font-size:9px;color:var(--ink-3);letter-spacing:.3px" id="uiras-chart-lbl-' + _waterStatId + '">Uimaveden lämpötila · ' + _uirasStation.name + '</span>'
             + '<div style="flex:1;height:1px;background:var(--hairline)"></div>'
           + '</div>'
           + '<div id="uiras-always-' + _waterStatId + '" class="sh-stat-live-panel open" style="margin-bottom:6px">'
@@ -8667,7 +8684,17 @@ function openSheet(spot, hourIdx) {
   /* Päivitä UiRas vesi-stat + lataa historia */
   if (_uirasStation) {
     const uirasHistEl = document.getElementById('uiras-always-' + _waterStatId);
+    /* "Ladataan..." jai ennen pysyvasti nakyviin jos UiRas ei vastannut:
+       ei aikakatkaisua eika virhehaaraa. Kayttaja ei voi erottaa hidasta
+       ja rikkinaista toisistaan, joten 12 s jalkeen kerrotaan suoraan. */
+    const _uirasVahti = setTimeout(function () {
+      if (uirasHistEl && !uirasHistEl.dataset.ok) {
+        uirasHistEl.innerHTML = '<div class="sh-ei-havaintoa">Uimaveden lämpötilaa ei saatu</div>';
+      }
+    }, 12000);
     UiRas.loadLatest().then(function(map) {
+      if (uirasHistEl) uirasHistEl.dataset.ok = '1';
+      clearTimeout(_uirasVahti);
       /* Etsi lähin asema jolla on validi lämpötila — fallback seuraavaan */
       function findBestUirasTemp() {
         /* Laske etäisyys kaikkiin asemiin ja järjestä */
@@ -8723,7 +8750,7 @@ function _waterStatSimple(id, station) {
   return '<div id="' + id + '" class="sh-stat" style="border-color:var(--hairline);background:var(--surface-hi)">'
     + '<span class="sh-stat-label">Vesi</span>'
     + '<span data-ws-val class="sh-stat-value" style="color:var(--info)">—</span>'
-    + '<span class="sh-stat-sub" style="color:var(--accent)">' + shortName + '</span>'
+    + '<span class="sh-stat-sub" style="color:var(--ink-2)">' + shortName + '</span>'
   + '</div>';
 }
 
