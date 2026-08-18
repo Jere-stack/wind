@@ -1807,6 +1807,12 @@ body {
 /* Osuvuusrivi havaintolohkon alle: siinä kohtaa ennuste ja havainto ovat
    vierekkäin, ja tämä kertoo mitä niiden erosta on ajan myötä opittu.
    Koko leveys, koska lohko on flex-rivi ja tämä kuuluu sen alle. */
+/* Kun havaintoa ei ole, tilalle tulee lause eikä tyhjä laatikko —
+   käyttäjän on tiedettävä ETTEI dataa ole, ei arvattava sitä. */
+.sh-ei-havaintoa {
+  font-size: 11px; color: var(--ink-3);
+  text-align: center; padding: 22px 14px;
+}
 .sh-osuvuus {
   flex-basis: 100%;
   margin-top: 6px;
@@ -3169,6 +3175,22 @@ function pukuSuositus(vesiC, ilmaC, ms) {
   else if (teho >=  8) { puku = '5/4 mm hupullinen';  lisat = 'kengät, hanskat'; }
   else                 { puku = 'Kuivapuku';          lisat = 'huppu, kengät, hanskat'; }
   return { puku: puku, lisat: lisat, teho: teho, korjaus: ilmaVilu + tuuliVilu };
+}
+
+/* Päivitä pukusuositus kun vedenlämpö vaihtuu.
+ *
+ * Puku luki `spot._waterTemp`, mutta PKS-spoteilla VESI-kortti tulee
+ * UiRas-lähteestä — mitattuna kortti näytti "PUKU 3/2 mm" samalla kun
+ * "VESI —". Suositus perustui silloin lukemaan jota käyttäjä ei nähnyt.
+ * Nyt puku päivitetään samasta arvosta joka korttiin kirjoitetaan. */
+function _paivitaPuku(pukuId, vesiC, ilmaC, ms) {
+  const el = document.getElementById(pukuId);
+  if (!el) return;
+  const sug = pukuSuositus(vesiC, ilmaC, ms);
+  const v = el.querySelector('[data-puku-val]');
+  const a = el.querySelector('[data-puku-sub]');
+  if (v) v.textContent = sug ? sug.puku : '—';
+  if (a) a.textContent = sug ? (sug.lisat || 'arvio') : 'ei vedenlämpöä';
 }
 
 /* -- ENNUSTEEN OSUVUUS ------------------------------------------
@@ -7465,7 +7487,10 @@ function openSheet(spot, hourIdx) {
     if (isDaytime) {
       const hh = Math.floor(hoursLeft);
       const mm = Math.round((hoursLeft - hh) * 60);
-      statusLine = (hh > 0 ? hh+'h ' : '') + mm + 'min valoa';
+      /* "3h 4min valoa" luki kuin päivän pituus, vaikka luku on
+         auringonlaskuun JÄLJELLÄ oleva aika. Elokuussa Suomessa se näytti
+         suoraan väärältä: päivä on 15 h mutta kortti sanoi 3 h. */
+      statusLine = 'Valoa ' + (hh > 0 ? hh+' h ' : '') + mm + ' min';
     } else if (nowMs < riseMs) {
       statusLine = 'Nousee ' + fmt(rise);
     } else {
@@ -8195,6 +8220,7 @@ function openSheet(spot, hourIdx) {
   }
 
   const fmiId = 'fmi-' + spot.name.replace(/\s/g, '_');
+  const pukuId = 'puku-' + spot.name.replace(/[^a-z0-9]/gi, '_');
 
   document.getElementById('sheet-content').innerHTML =
     /* Hero — rakenne:
@@ -8307,8 +8333,16 @@ function openSheet(spot, hourIdx) {
           : (function () { const f = _nearestValidWaterTemp(spot.lat, spot.lng); return f ? f.temp : null; })();
         const ilmaNum = (h.temperature_2m && h.temperature_2m[idx] != null) ? h.temperature_2m[idx] : null;
         const sug = pukuSuositus(vesiNum, ilmaNum, ms);
-        if (!sug) return '';
-        return _statCard('Puku', sug.puku, sug.lisat || 'arvio', null);
+        /* Kortti renderöidään aina, myös tyhjänä: UiRas voi tuoda
+           vedenlämmön vasta myöhemmin, ja silloin tarvitaan paikka johon
+           suositus kirjoitetaan. */
+        const sisalto = sug ? sug.puku : '—';
+        const ali = sug ? (sug.lisat || 'arvio') : 'ei vedenlämpöä';
+        return '<div class="sh-stat" id="' + pukuId + '">'
+          + '<span class="sh-stat-label">Puku</span>'
+          + '<span class="sh-stat-value" data-puku-val>' + sisalto + '</span>'
+          + '<span class="sh-stat-sub" data-puku-sub>' + ali + '</span>'
+          + '</div>';
       })()      + _fmiLinkCard(fmiId)      + (function(){          var fmiGustId = fmiId + '-gust-lnk';          var gstFmt = Units.fmt(gst);          var gcc = ColorRamp.ink(gst);          var gcol = 'rgb('+gcc.r+','+gcc.g+','+gcc.b+')';          return '<div class="sh-stat" id="'+fmiGustId+'">'            + '<span class="sh-stat-label">Puuska</span>'            + '<span class="sh-stat-value" id="'+fmiGustId+'-val" style="color:'+gcol+'">'+gstFmt+'</span>'            + '<span class="sh-stat-sub" id="'+fmiGustId+'-sub">'+Units.label()+' enn.</span>'          + '</div>';        })()    + '</div>'
     /* Aurinkokaari — tuuliruusun tilalle */
     + buildSunBar()
@@ -8540,51 +8574,76 @@ function openSheet(spot, hourIdx) {
     sheetEl.style.backgroundImage = 'linear-gradient(180deg, rgba('+r+','+g+','+b+',.10) 0%, transparent 150px)';
   })();
 
-  /* Lataa FMI latest + historia — 2 kutsua, ei Open-Meteo -kutsuja */
+  /* Havainto: YKSI asema koko kortille.
+   *
+   * Ennen tässä oli kaksi rinnakkaista polkua. Tilastokortit haettiin
+   * osoitteella /api/fmi?lat&lng, joka palauttaa LÄHIMMÄN aseman, ja
+   * kaavio haettiin _fmiLoadWithFallback-ketjulla, joka ottaa lähimmän
+   * asemAN JOLLA ON DATAA. Nämä eroavat aina kun lähimmällä ei ole
+   * tuulihistoriaa: mitattuna Haukilahden kortti näytti yhtä aikaa
+   * "TUULI 2.6 · Espoo Tapiola" ja kaaviossa "HELSINKI HARMAJA 6.4",
+   * eli kaksi eri lukemaa samasta asiasta ilman selitystä.
+   *
+   * Nyt ketju ratkaisee aseman ja koko kortti käyttää sitä. Ketju on
+   * oikea auktoriteetti, koska se on ainoa joka tietää mistä dataa
+   * oikeasti saa.
+   *
+   * ETÄISYYSRAJA: jos lähin toimiva asema on kauempana kuin
+   * HAVAINTO_MAX_KM, havaintoa ei esitetä lainkaan. Asemalista kattaa
+   * pääkaupunkiseudun, ja mitattuna Hangon spoteille lähin on 107-112 km
+   * — eri sääjärjestelmä. Tyhjä on silloin rehellisempi kuin väärä. */
   (function() {
-    const histEl   = document.getElementById(fmiId + '-hist');
-    const fmiLat   = spot.lat.toFixed(4), fmiLng = spot.lng.toFixed(4);
-    const latestUrl = API_BASE + '/fmi?lat=' + fmiLat + '&lng=' + fmiLng;
-    const histUrl   = API_BASE + '/fmi?history=1&lat=' + fmiLat + '&lng=' + fmiLng;
+    const histEl = document.getElementById(fmiId + '-hist');
     const CURRENT_TTL = 10 * 60 * 1000;
 
-    /* Latest — vain jos cache vanhentunut */
-    if (!spot._currentWx || Date.now() - spot._currentWx.ts > CURRENT_TTL) {
-      fetch(latestUrl).then(function(r){ return r.json(); }).then(function(fmi){
-        if (fmi.error) return;
+    function kaytaHavainto(asema, latData, kmPaassa) {
+      if (latData && latData.ws != null) {
         spot._currentWx = {
           ts: Date.now(),
-          ms: fmi.ws || 0, dir: fmi.wd || 0, gst: fmi.wg || fmi.ws || 0,
-          tmp: fmi.tmp, dew: fmi.dew,
-          station: fmi.station, obsTime: fmi.time
+          ms: latData.ws || 0, dir: latData.wd || 0, gst: latData.wg || latData.ws || 0,
+          tmp: latData.tmp, dew: latData.dew,
+          station: asema.name, km: kmPaassa, obsTime: latData.time
         };
-        /* Päivitä lämpötila ja kastepiste stat-kortit */
-        _updateFmiCard(fmiId, fmi);
-        _kirjaaOsuvuus(spot, h, fmi.ws, fmiId);
-      }).catch(function(){});
-    } else {
-      /* Käytä cachea — päivitä silti kortit */
-      var wx = spot._currentWx;
-      if (wx && wx.ms != null) _updateFmiCard(fmiId, { ws: wx.ms, wg: wx.gst, tmp: wx.tmp, dew: wx.dew, time: wx.obsTime, station: wx.station });
-      if (wx && wx.ms != null) _kirjaaOsuvuus(spot, h, wx.ms, fmiId);
+        _updateFmiCard(fmiId, Object.assign({}, latData, { station: asema.name }));
+        _kirjaaOsuvuus(spot, h, latData.ws, fmiId);
+      }
+      /* Etäisyys ja havaintohetki alariville. Asemanimi on jo omassa
+         kentässään (-lnk-name), joten sitä ei toisteta tässä. */
+      const sub = document.getElementById(fmiId + '-lnk-sub');
+      if (sub) sub.textContent = kmPaassa.toFixed(0) + ' km'
+        + (latData && latData.time ? ' · ' + latData.time : '');
     }
 
-    /* Historia — käytä fallback-ketjua lähimmistä asemista */
-    if (!histEl) return;
-    var spotStations = _fmiStationsSorted(spot.lat, spot.lng);
+    function eiHavaintoa(syy) {
+      const lv = document.getElementById(fmiId + '-lnk-val');
+      const sub = document.getElementById(fmiId + '-lnk-sub');
+      if (lv) { lv.textContent = '—'; lv.style.color = 'var(--ink-3)'; }
+      if (sub) sub.textContent = syy;
+      const gv = document.getElementById(fmiId + '-gust-lnk-val');
+      const gs = document.getElementById(fmiId + '-gust-lnk-sub');
+      if (gv) { gv.textContent = '—'; gv.style.color = 'var(--ink-3)'; }
+      if (gs) gs.textContent = syy;
+      if (histEl) histEl.innerHTML = '<div class="sh-ei-havaintoa">' + syy + '</div>';
+      const lbl = document.getElementById(fmiId + '-chart-lbl');
+      if (lbl) lbl.textContent = 'Tuulihavainto';
+    }
+
+    const spotStations = _fmiStationsSorted(spot.lat, spot.lng);
     _fmiLoadWithFallback(spotStations, 12,
       function(okSt, latData, histData) {
+        const km = _kmValilla(spot.lat, spot.lng, okSt.lat, okSt.lng);
+        if (km > HAVAINTO_MAX_KM) {
+          eiHavaintoa('Ei havaintoasemaa lähellä (' + km.toFixed(0) + ' km)');
+          return;
+        }
+        kaytaHavainto(okSt, latData, km);
         if (!histEl) return;
         histEl.dataset.ok = '1';
-        _renderLiveHistory(histEl, Object.assign({}, histData, {place: okSt.place}), spot._currentWx || latData || null);
-        var lbl = document.getElementById(fmiId + '-chart-lbl');
+        _renderLiveHistory(histEl, Object.assign({}, histData, {place: okSt.place}), spot._currentWx || latData);
+        const lbl = document.getElementById(fmiId + '-chart-lbl');
         if (lbl) lbl.textContent = 'Tuulihavainto · ' + okSt.name;
-        /* Päivitä myös latest-data jos ei ole cachessa */
-        if (latData && !spot._currentWx) _updateFmiCard(fmiId, latData);
       },
-      function() {
-        if (histEl) histEl.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.5);text-align:center;padding:10px">Havaintodata ei saatavilla</div>';
-      }
+      function() { eiHavaintoa('Havaintoa ei saatavilla'); }
     );
   })();
 
@@ -8608,6 +8667,10 @@ function openSheet(spot, hourIdx) {
         return null;
       }
       var best = findBestUirasTemp();
+      /* Puku samasta arvosta kuin VESI-kortti — muuten ne voivat kertoa
+         eri asiaa samasta vedestä. */
+      _paivitaPuku(pukuId, best ? best.temp : null,
+        (h.temperature_2m && h.temperature_2m[idx] != null) ? h.temperature_2m[idx] : null, ms);
       /* Päivitä stat arvo */
       const el = document.getElementById(_waterStatId);
       if (el) {
@@ -8909,6 +8972,19 @@ function _renderLive(el, wx) {
 
 /* Piirtaa 24h FMI historia kaavion */
 /* Laskee ja palauttaa kaikki FMI-asemat jarjestettyna etaisyyden mukaan */
+/* Havaintoaseman suurin hyväksytty etäisyys. Yli tämän havainto kertoo
+   eri sääjärjestelmästä eikä siitä paikasta jota katsotaan: asemalista
+   kattaa pääkaupunkiseudun, ja Hangon spoteille lähin on 107-112 km.
+   30 km on se raja jolla rannikon paikallisilmiöt vielä liittyvät
+   toisiinsa — sen yli mitattu tuuli on eri asia kuin spotin tuuli. */
+const HAVAINTO_MAX_KM = 30;
+
+function _kmValilla(a, b, c, d) {
+  const R = 6371, dL = (c - a) * Math.PI / 180, dG = (d - b) * Math.PI / 180;
+  return R * 2 * Math.asin(Math.sqrt(Math.sin(dL / 2) ** 2
+    + Math.cos(a * Math.PI / 180) * Math.cos(c * Math.PI / 180) * Math.sin(dG / 2) ** 2));
+}
+
 function _fmiStationsSorted(spotLat, spotLng) {
   const ALL = [
     { place: 'kaisaniemi', name: 'Helsinki Kaisaniemi',          lat: 60.17523, lng: 24.94459, tag: null,      pref: false },
