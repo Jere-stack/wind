@@ -1796,3 +1796,36 @@ Testikuoppa jonka jo kerran astuin: `.sh-stat-label` on CSS:llä
 `text-transform: uppercase`, joten `innerText` palauttaa "PUKU" eikä
 "Puku". Testin `/^Puku/` ei osunut, ja näytti siltä ettei kortti
 renderöidy vaikka se oli DOM:issa.
+
+## Ennusteen osuvuus havaintoja vasten
+
+`Osuvuus` (localStorage `fs_osuvuus`) tallentaa ennuste–havainto-pareja ja
+kertoo onko ennuste **tällä spotilla** systemaattisesti pielessä. Rannikolla
+se on tavallista: maasto ja suojaisuus tekevät paikallisen poikkeaman jota
+2,5 km hila ei tavoita. Sovellus näytti ennusteen ja havainnon vierekkäin
+mutta heitti vertailun pois kortin sulkeutuessa.
+
+- **Vertailu tehdään NYKYHETKEN tuntiin, ei valittuun.** Valitun tunnin
+  ennusteelle ei ole havaintoa.
+- **Tunti yksilöi näytteen**, joten sama tunti kirjataan kerran vaikka
+  kortti avattaisiin monta kertaa.
+- **Epäuskottava havainto hylätään** (alle 0 tai yli 45 m/s).
+- **Alle viidellä näytteellä ei sanota mitään**, ja alle 0,5 m/s poikkeama
+  esitetään osumana eikä virheenä — se ei muuta kalustovalintaa.
+- Katto on 60 näytettä per spotti ja 30 vrk ikä.
+- Tallennus on paikallinen: se on tämän laitteen kokemus tästä spotista,
+  eikä sitä jaeta mihinkään.
+
+**Kirjaus on kahdessa kohdassa**, koska havainto saapuu kahta reittiä:
+tuoreena hakuna ja välimuistista (`CURRENT_TTL` 10 min). Välimuistihaarassa
+uutta paria ei synny, mutta rivi pitää silti piirtää.
+
+Sudenkuoppa joka maksoi kierroksen: kirjoitin kirjauksen ensin
+`renderFmi`-funktioon, joka näytti oikealta paikalta — mutta sitä ympäröivä
+`buildFmiCard` **on määritelty eikä sitä kutsuta koskaan**. Koko ominaisuus
+olisi ollut hiljaa kuollut. Kun tähän tiedostoon lisää kytkennän, tarkista
+`grep -c` että ympäröivää funktiota oikeasti kutsutaan.
+
+Mitattu: alle minimin ei tekstiä; +2 → "liian kova"; −3 → "liian heikko";
+0,2 → "osunut hyvin"; duplikaatti torjutaan; 99 m/s hylätään; 80 kirjausta
+→ 60 talletettua. Kortissa rivi renderöityy oikeassa polussa.

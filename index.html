@@ -1804,6 +1804,15 @@ body {
 .sh-fmi-meta { font-variant-numeric: tabular-nums; font-size: 9px; color: var(--ink-3); margin-top: 2px; }
 .sh-fmi-wind { text-align: right; flex-shrink: 0; }
 .sh-fmi-ms { font-variant-numeric: tabular-nums; font-size: 20px; font-weight: 700; line-height: 1; }
+/* Osuvuusrivi havaintolohkon alle: siinä kohtaa ennuste ja havainto ovat
+   vierekkäin, ja tämä kertoo mitä niiden erosta on ajan myötä opittu.
+   Koko leveys, koska lohko on flex-rivi ja tämä kuuluu sen alle. */
+.sh-osuvuus {
+  flex-basis: 100%;
+  margin-top: 6px;
+  font-size: 10px; color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
 .sh-fmi-unit { font-variant-numeric: tabular-nums; font-size: 9px; color: var(--ink-3); }
 .sh-fmi-loading { font-variant-numeric: tabular-nums; font-size: 10px; color: var(--ink-3); }
 
@@ -3160,6 +3169,104 @@ function pukuSuositus(vesiC, ilmaC, ms) {
   else if (teho >=  8) { puku = '5/4 mm hupullinen';  lisat = 'kengät, hanskat'; }
   else                 { puku = 'Kuivapuku';          lisat = 'huppu, kengät, hanskat'; }
   return { puku: puku, lisat: lisat, teho: teho, korjaus: ilmaVilu + tuuliVilu };
+}
+
+/* -- ENNUSTEEN OSUVUUS ------------------------------------------
+ *
+ * Sovellus näyttää ennusteen ja reaaliaikaisen havainnon vierekkäin, mutta
+ * heittää vertailun pois heti kun kortti suljetaan. Parien tallentaminen
+ * antaa muutamassa viikossa vastauksen kysymykseen jota kukaan muu ei
+ * kerro: onko ennuste TÄLLÄ spotilla systemaattisesti pielessä. Rannikolla
+ * se on tavallista — maasto ja suojaisuus tekevät paikallisen poikkeaman
+ * jota 2,5 km hila ei tavoita.
+ *
+ * Mitataan vain nykyhetken tuntia vasten, ei valittua: vertailukelpoinen
+ * pari on ennuste sille tunnille joka juuri nyt on menossa ja havainto
+ * samalta tunnilta. Valitun tunnin ennusteelle ei ole havaintoa.
+ *
+ * Tallennus on paikallinen eikä sitä jaeta mihinkään: se on tämän laitteen
+ * kokemus tästä spotista. */
+const Osuvuus = {
+  AVAIN: 'fs_osuvuus',
+  MAX_NAYTTEITA: 60,          /* per spotti */
+  IKA_MS: 30 * 24 * 3600000,  /* vanhemmat unohdetaan */
+  MIN_NAYTTEITA: 5,           /* alle tämän ei sanota mitään */
+  _data: null,
+
+  _lue() {
+    if (this._data) return this._data;
+    try {
+      const raw = localStorage.getItem(this.AVAIN);
+      this._data = raw ? JSON.parse(raw) : {};
+      if (!this._data || typeof this._data !== 'object') this._data = {};
+    } catch (e) { this._data = {}; }
+    return this._data;
+  },
+  _tallenna() {
+    try { localStorage.setItem(this.AVAIN, JSON.stringify(this._data)); } catch (e) {}
+  },
+
+  /* tuntiIso yksilöi näytteen: sama tunti kirjataan vain kerran, vaikka
+     kortti avattaisiin monta kertaa peräkkäin. */
+  kirjaa(spotNimi, tuntiIso, ennusteMs, havaintoMs) {
+    if (!spotNimi || !tuntiIso) return;
+    if (ennusteMs == null || havaintoMs == null) return;
+    if (isNaN(ennusteMs) || isNaN(havaintoMs)) return;
+    /* Epäuskottava havainto ei kelpaa vertailuun. */
+    if (havaintoMs < 0 || havaintoMs > 45) return;
+    const d = this._lue();
+    const lista = d[spotNimi] || (d[spotNimi] = []);
+    if (lista.some(function (n) { return n.t === tuntiIso; })) return;
+    lista.push({ t: tuntiIso, e: Math.round(ennusteMs * 10) / 10, h: Math.round(havaintoMs * 10) / 10 });
+    /* Karsinta: liian vanhat pois, ja enintään MAX_NAYTTEITA uusinta. */
+    const raja = Date.now() - this.IKA_MS;
+    d[spotNimi] = lista
+      .filter(function (n) { const ms = new Date(n.t).getTime(); return isNaN(ms) || ms >= raja; })
+      .slice(-this.MAX_NAYTTEITA);
+    this._tallenna();
+  },
+
+  /* Keskimääräinen etumerkillinen virhe: positiivinen = ennuste on ollut
+     havaintoa KOVEMPI. Mediaanin sijaan keskiarvo, koska näytteitä on
+     vähän ja yksittäinen poikkeama on tässä kiinnostava eikä kohinaa. */
+  yhteenveto(spotNimi) {
+    const lista = (this._lue()[spotNimi]) || [];
+    if (lista.length < this.MIN_NAYTTEITA) return null;
+    let summa = 0;
+    lista.forEach(function (n) { summa += (n.e - n.h); });
+    return { n: lista.length, ka: summa / lista.length };
+  },
+
+  teksti(spotNimi) {
+    const y = this.yhteenveto(spotNimi);
+    if (!y) return '';
+    const abs = Math.abs(y.ka);
+    const maara = y.n + ' havaintoa';
+    /* Alle 0,5 m/s ero ei ole kalustovalinnan kannalta mitään, joten sitä
+       ei esitetä poikkeamana vaan osumana. */
+    if (abs < 0.5) return 'Ennuste osunut hyvin täällä (' + maara + ')';
+    return 'Ennuste ollut ' + Units.fmt(abs) + ' ' + Units.label() + ' liian '
+      + (y.ka > 0 ? 'kova' : 'heikko') + ' täällä (' + maara + ')';
+  }
+};
+
+/* Kirjaa pari ja päivitä rivi. Erillinen funktio, koska havainto saapuu
+   kahta reittiä: tuoreena hakuna ja välimuistista. Molemmissa halutaan
+   sama käsittely, ja välimuistihaarassakin rivi pitää piirtää vaikka uutta
+   paria ei synny.
+   Vertailu tehdään NYKYHETKEN tuntiin, ei valittuun: valitun tunnin
+   ennusteelle ei ole havaintoa. */
+function _kirjaaOsuvuus(spot, h, havaintoMs, fmiId) {
+  try {
+    if (h && h.time && h.windspeed_10m) {
+      const nyt = nowIdx(h.time);
+      if (nyt >= 0 && h.windspeed_10m[nyt] != null) {
+        Osuvuus.kirjaa(spot.name, h.time[nyt], h.windspeed_10m[nyt], havaintoMs);
+      }
+    }
+    const el = document.getElementById(fmiId + '-osuvuus');
+    if (el) el.textContent = Osuvuus.teksti(spot.name);
+  } catch (e) {}
 }
 
 /* -- SUOSIKIT ---------------------------------------------------
@@ -8215,6 +8322,10 @@ function openSheet(spot, hourIdx) {
     + '<div id="' + fmiId + '-hist" class="sh-stat-live-panel open" style="margin-bottom:6px">'
       + '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:14px">Ladataan...</div>'
     + '</div>'
+    /* Osuvuus havaintokaavion alle: siinä ennuste ja havainto ovat samassa
+       kuvassa, ja tämä kertoo mitä niiden erosta on ajan myötä opittu.
+       Tyhjä kunnes näytteitä on tarpeeksi. */
+    + '<div class="sh-osuvuus" id="' + fmiId + '-osuvuus"></div>'
 
     /* UiRas vedenlämpö */
     + (_uirasStation
@@ -8449,11 +8560,13 @@ function openSheet(spot, hourIdx) {
         };
         /* Päivitä lämpötila ja kastepiste stat-kortit */
         _updateFmiCard(fmiId, fmi);
+        _kirjaaOsuvuus(spot, h, fmi.ws, fmiId);
       }).catch(function(){});
     } else {
       /* Käytä cachea — päivitä silti kortit */
       var wx = spot._currentWx;
       if (wx && wx.ms != null) _updateFmiCard(fmiId, { ws: wx.ms, wg: wx.gst, tmp: wx.tmp, dew: wx.dew, time: wx.obsTime, station: wx.station });
+      if (wx && wx.ms != null) _kirjaaOsuvuus(spot, h, wx.ms, fmiId);
     }
 
     /* Historia — käytä fallback-ketjua lähimmistä asemista */
