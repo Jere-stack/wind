@@ -111,16 +111,12 @@ function fmiSymbolToWmo(v) {
   return w === undefined ? null : w;
 }
 
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=300');
+/* Yhden pisteen haku. Erotettu handlerista, jotta sama logiikka palvelee
+   seka yhta pistetta etta eraa — eraversio on se joka poistaa mobiilin
+   kierrosajan pullonkaulan. */
+function _vastaus(status, body) { return { _status: status, body: body }; }
 
-  var lat = parseFloat(req.query.lat);
-  var lng = parseFloat(req.query.lng);
-  if (isNaN(lat) || isNaN(lng)) {
-    return res.status(400).json({ error: 'lat/lng required' });
-  }
-
+async function haePiste(lat, lng) {
   try {
     /* Hae HARMONIE ja Open-Meteo rinnakkain */
     var results = await Promise.allSettled([
@@ -135,7 +131,7 @@ export default async function handler(req, res) {
       /* HARMONIE ei saatavilla -- palautetaan Open-Meteo sellaisenaan */
       if (omResult.status === 'fulfilled' && omResult.value.hourly) {
         var oh = omResult.value.hourly;
-        return res.status(200).json({
+        return _vastaus(200, {
           source: 'Open-Meteo fallback',
           harmonie_hours: 0,
           hourly: {
@@ -149,7 +145,7 @@ export default async function handler(req, res) {
           }
         });
       }
-      return res.status(502).json({ error: 'both sources failed' });
+      return _vastaus(502, { error: 'both sources failed' });
     }
 
     /* Parsitaan HARMONIE */
@@ -163,7 +159,7 @@ export default async function handler(req, res) {
     var ccKey = keys.find(function(k){ return k.includes('totalcloudcover'); });
 
     if (!wsKey || !series[wsKey].times.length) {
-      return res.status(200).json({ error: 'no wind data', debug_keys: keys });
+      return _vastaus(200, { error: 'no wind data', debug_keys: keys });
     }
 
     /* Yhteinen aika-akseli: tuulennopeuden ne hetket joilla on arvo.
@@ -213,7 +209,7 @@ export default async function handler(req, res) {
       }
     }
 
-    return res.status(200).json({
+    return _vastaus(200, {
       source:  'FMI HARMONIE 2.5km + Open-Meteo',
       /* Montako ensimmaista alkiota on FMI HARMONIE:a -- loput Open-Meteo:a.
          Frontend voi kertoa kayttajalle kumpi lahde on kyseessa. */
@@ -229,7 +225,72 @@ export default async function handler(req, res) {
       }
     });
   } catch (err) {
+    return _vastaus(500, { error: err.message });
+  }
+}
+
+/* Rinnakkaisuuden rajoitin. FMI:n WFS ei pida sadasta yhtaikaisesta
+   pyynnosta, ja funktion aikakatkaisu on 30 s — kuusi kerrallaan pitaa
+   molemmat kurissa. */
+async function poolMap(lista, raja, fn) {
+  const ulos = new Array(lista.length);
+  let i = 0;
+  async function tyontekija() {
+    while (i < lista.length) {
+      const oma = i++;
+      try { ulos[oma] = await fn(lista[oma], oma); }
+      catch (e) { ulos[oma] = { error: String((e && e.message) || e) }; }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(raja, lista.length) }, tyontekija));
+  return ulos;
+}
+
+/* Enintaan nain monta pistetta yhdessa pyynnossa. Yksi piste on noin 16 kt,
+   joten 15 on noin 240 kt vastauksessa — iso mutta pakattuna kohtuullinen,
+   ja isompi era ei juuri vahentaisi kierroksia mutta kasvattaisi
+   aikakatkaisuriskia. */
+const MAX_PISTEITA = 15;
+
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=300');
+
+  /* Erahaku: pts=lat,lng;lat,lng;...
+     Vastaus on { results: [...] } samassa jarjestyksessa kuin pyydetyt
+     pisteet. Yksittaisen pisteen virhe ei kaada eraa vaan nakyy sen omana
+     alkiona, jotta yksi huono piste ei vie muita mukanaan. */
+  if (req.query.pts) {
+    const lista = String(req.query.pts).split(';')
+      .map(function (s) { return s.split(','); })
+      .filter(function (a) { return a.length === 2; })
+      .map(function (a) { return { lat: parseFloat(a[0]), lng: parseFloat(a[1]) }; })
+      .filter(function (p) { return !isNaN(p.lat) && !isNaN(p.lng); })
+      .slice(0, MAX_PISTEITA);
+    if (!lista.length) return res.status(400).json({ error: 'pts required' });
+    try {
+      const tulokset = await poolMap(lista, 6, function (p) {
+        return haePiste(p.lat, p.lng)
+          .then(function (r) { return r.body; })
+          .catch(function (e) { return { error: String((e && e.message) || e) }; });
+      });
+      return res.status(200).json({ results: tulokset });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  /* Yhden pisteen muoto sailyy ennallaan: spottikortti ja havaintopolku
+     kayttavat sita. */
+  var lat = parseFloat(req.query.lat);
+  var lng = parseFloat(req.query.lng);
+  if (isNaN(lat) || isNaN(lng)) {
+    return res.status(400).json({ error: 'lat/lng required' });
+  }
+  try {
+    const r = await haePiste(lat, lng);
+    return res.status(r._status).json(r.body);
+  } catch (err) {
     return res.status(500).json({ error: err.message });
   }
-};
-
+}

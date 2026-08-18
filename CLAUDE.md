@@ -1700,3 +1700,38 @@ ja palauttaa oikeat avaimet. Sovellus tekee käynnistyksessä ~169
 API-pyyntöä, ja tämä yksittäinen pyyntö lähtee niiden perään. Älä tulkitse
 tyhjää vertailukaaviota sovelluksen viaksi ennen kuin olet syöttänyt
 vastauksen testissä.
+
+## Käynnistyksen pyyntömäärä
+
+Mitattuna käynnistys teki **169 API-pyyntöä**. Luokiteltuna 145 niistä meni
+`/api/harmonie`-funktioon eli 86 % kaikesta. Syy: `buildHarmonieUrls`
+palautti **yhden osoitteen per piste**, ja koska oletusmalli `best_match`
+kokeilee HARMONIEa ensin, koko näkymähila haettiin pisteittäin.
+
+Korjaus on erähaku: `/api/harmonie` ottaa vastaan `pts=lat,lng;lat,lng`
+-luettelon ja hakee pisteet rinnakkain **palvelinpäässä**, missä viive on
+murto-osa mobiiliverkon kierrosajasta. Mitattu **169 → 36 pyyntöä**,
+HARMONIE 145 → 12, ja kylmä käynnistys 4 479 → 2 470 ms.
+
+- **Eräkoko on 15** sekä asiakkaassa (`HARMONIE_ERA`) että palvelimella
+  (`MAX_PISTEITA`). Yksi piste on noin 16 kt, joten erä on noin 240 kt.
+  Isompi erä ei juuri vähentäisi kierroksia mutta kasvattaisi funktion
+  30 s aikakatkaisun riskiä.
+- **Palvelimen rinnakkaisuus on rajattu kuuteen** (`poolMap`). FMI:n WFS ei
+  pidä sadasta yhtaikaisesta pyynnöstä, ja raja pitää myös funktion keston
+  kurissa.
+- **Yhden pisteen muoto säilyi tavulleen ennallaan** (16 145 tavua ennen ja
+  jälkeen). Spottikortti ja havaintopolku käyttävät sitä, joten sitä ei
+  saa rikkoa.
+- **Yhden pisteen virhe ei kaada erää** vaan näkyy omana alkionaan
+  `results`-taulukossa.
+- Sudenkuoppa jonka jo kerran astuin: `haePiste` muotoilee koordinaatit
+  itse, joten sille annetaan **numerot**. Valmiiksi `toFixed`-käsitellyn
+  merkkijonon antaminen kaatoi sen `lat.toFixed is not a function`
+  -virheeseen — ja koska erähaku nappaa pistekohtaiset virheet, se näkyi
+  vain tuloksen sisällä eikä statuskoodissa.
+
+**Jäljellä:** `/api/fmi` on nyt suurin yksittäinen erä (22 pyyntöä).
+Ne lähtevät rinnakkain 13 ms:n ikkunassa ja valmistuvat aikaisin, joten ne
+eivät portita käyttövalmiutta — siksi ne jätettiin. Sama erähakukuvio
+kävisi niihin jos pyyntömäärää halutaan pienentää lisää.

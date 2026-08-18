@@ -5043,10 +5043,28 @@ const API_BASE = '/api';
 const HARMONIE_BASE = API_BASE + '/harmonie';
 const OM_BASE       = 'https://api.open-meteo.com/v1/forecast';
 
+/* HARMONIE haetaan ERISSA, ei pisteittain.
+ *
+ * Aiemmin tama palautti yhden osoitteen per piste, ja koska best_match
+ * kokeilee HARMONIEa ensin, kaynnistys teki mitattuna 145 pyyntoa
+ * /api/harmonie-funktioon — 86 % kaikista 169 API-pyynnosta. Jokainen
+ * maksoi mobiiliverkossa oman kierrosaikansa.
+ *
+ * Nyt palvelin ottaa vastaan pisteluettelon ja hakee ne rinnakkain
+ * palvelinpaassa, missa viive on murto-osa. 15 pistetta per pyynto:
+ * yksi piste on noin 16 kt, joten era on noin 240 kt, ja isompi era ei
+ * juuri vahentaisi kierroksia mutta kasvattaisi funktion
+ * aikakatkaisuriskia. Sama raja on myos palvelimella (MAX_PISTEITA). */
+const HARMONIE_ERA = 15;
 function buildHarmonieUrls(points) {
-  return points.map(function(p) {
-    return HARMONIE_BASE + '?lat=' + p.lat.toFixed(4) + '&lng=' + p.lng.toFixed(4);
-  });
+  const urlit = [];
+  for (let i = 0; i < points.length; i += HARMONIE_ERA) {
+    const era = points.slice(i, i + HARMONIE_ERA);
+    urlit.push(HARMONIE_BASE + '?pts=' + era.map(function(p) {
+      return p.lat.toFixed(4) + ',' + p.lng.toFixed(4);
+    }).join(';'));
+  }
+  return urlit;
 }
 
 function buildBatchUrl(points, model, forecastDays, pastDays) {
@@ -5109,7 +5127,16 @@ function loadBatch(points, forecastDays, forceOM, signal) {
         if (err && err.name === 'AbortError') throw err; /* keskeytys kulkee läpi, ei laimeneta null:ksi */
         return null;
       });
-    })).then(function(results) {
+    })).then(function(vastaukset) {
+      /* Jokainen vastaus sisaltaa oman erans tulokset samassa
+         jarjestyksessa kuin pisteet lahetettiin, joten ne litistetaan
+         takaisin yhdeksi points-taulukon mittaiseksi listaksi. Yhden
+         pisteen virhe on oma alkionsa eika kaada eraa. */
+      const results = [];
+      vastaukset.forEach(function(v) {
+        if (v && Array.isArray(v.results)) results.push.apply(results, v.results);
+        else results.push(null);
+      });
       let ok = 0;
       results.forEach(function(j, i) {
         if (i < points.length && j && !j.error && j.hourly && j.hourly.windspeed_10m && j.hourly.windspeed_10m.length > 0) {
