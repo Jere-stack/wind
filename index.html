@@ -8410,10 +8410,19 @@ function openSheet(spot, hourIdx) {
     /* Havainnot-rivi */
     + '<div style="font-variant-numeric:tabular-nums;font-size:8px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:5px">Havainnot</div>'    + '<div class="sh-stats" id="sh-stats-live">'      + _tempDewComboCard(fmiId + '-tmp', fmiId + '-dew')      + (_uirasStation ? _uirasLinkCard(_waterStatId, _uirasStation) : _statCard('Vesi', waterTemp, _waterTempSource || '°C', null))    + (function () {
         /* Puku veden viereen: siinä kohtaa katsotaan vedenlämpöä, ja tämä
-           on se mitä siitä seuraa. Numeerinen vedenlämpö otetaan samasta
-           lähteestä kuin yllä oleva kortti, myös naapurispotin fallbackista. */
-        const vesiNum = _validWater ? _rawWaterTemp
-          : (function () { const f = _nearestValidWaterTemp(spot.lat, spot.lng); return f ? f.temp : null; })();
+           on se mitä siitä seuraa. Lämpötila otetaan SAMASTA lähteestä kuin
+           viereinen VESI-kortti.
+
+           UiRas-spoteilla arvoa ei arvata tässä lainkaan. VESI tulee niillä
+           UiRas-asemalta, joka vastaa vasta myöhemmin (_paivitaPuku täyttää
+           kortin silloin). Jos puku laskettaisiin tässä marine-API:n
+           `_waterTemp`-arvosta, kortti näyttäisi UiRas-vastausta odottaessa
+           — ja pysyvästi jos vastausta ei tule — yhtä aikaa "VESI —" ja
+           "PUKU 3/2 mm" eli suosituksen lukemalla jota se samassa ruudussa
+           väittää puuttuvan. Mitattuna juuri niin kävi. */
+        const vesiNum = _uirasStation ? null
+          : (_validWater ? _rawWaterTemp
+             : (function () { const f = _nearestValidWaterTemp(spot.lat, spot.lng); return f ? f.temp : null; })());
         const ilmaNum = (h.temperature_2m && h.temperature_2m[idx] != null) ? h.temperature_2m[idx] : null;
         const sug = pukuSuositus(vesiNum, ilmaNum, ms);
         /* Kortti renderöidään aina, myös tyhjänä: UiRas voi tuoda
@@ -9961,6 +9970,17 @@ function _playSijainti(tl, frac) {
     State._lastTlHour = lahin;
     _tlUpdateNow(lahin);
     renderSpots(lahin);
+    /* Kapseli ja tähtäin päivittyvät VAIN täältä playn aikana.
+       Muualla ne seuraavat buildWindFieldia, mutta se kutsutaan playssa
+       aina scrub-lipulla — ja scrub jättää ne tarkoituksella päivittämättä,
+       jotta sormea seuratessa ei tehtäisi turhaa työtä joka ruudussa.
+       Playlla ei ole sormea eikä vahvistushetkeä, joten ilman tätä kapselin
+       tuuli, suunta, puuska ja lämpötila jäätyivät koko toiston ajaksi
+       vaikka kartta ja aikakupla etenivät.
+       Kerran tuntiaskelta kohti, ei joka ruudussa: molemmat lukevat valmista
+       tekstuuria eivätkä hae verkosta, mutta turhaa työtä ei silti tehdä. */
+    Crosshair.refresh();
+    WeatherWidget.refresh();
     if (State.sheetSpot) openSheet(State.sheetSpot, lahin);
   }
   if (State._esikatsele) State._esikatsele(frac);

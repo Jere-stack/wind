@@ -1878,3 +1878,37 @@ yhdessä kortissa koska ne ovat sama mittaus samalta asemalta.
 Mitattu kortti ennen → jälkeen: **1 148 px → 1 086 px**, aurinkokaari
 122 → 83 px, tilastorivit 2 → 1, iso lukema 52 → 38 px ja indeksirengas
 48 → 64 px.
+
+
+## Play ja kapseli — mikä päivittyy mistä
+
+Kapselin tuuli, suunta ja puuska ovat `Crosshair`in, lämpötila
+`WeatherWidget`in. Molemmat päivittyvät normaalisti `buildWindField`in
+lopusta — mutta **vain kun kutsussa ei ole `scrub`-lippua**:
+
+```js
+if (!(opts && opts.scrub)) { Crosshair.refresh(); WeatherWidget.refresh(); }
+```
+
+Scrub jättää ne tarkoituksella väliin, jotta sormea seuratessa ei tehdä
+turhaa työtä joka ruudussa; vahvistushetki (`_tlCommitSelection`) hoitaa ne.
+
+**Play kulkee aina scrub-polkua eikä sillä ole vahvistushetkeä**, joten
+ilman erillistä kutsua kapseli jäätyi koko toiston ajaksi. Mitattuna: play
+eteni kahdeksan tuntia, aikakupla ja kartta seurasivat, mutta kapselin
+kaikki neljä lukemaa pysyivät ennallaan. Nyt `_playSijainti` kutsuu
+molemmat kerran tuntiaskelta kohti — ei joka ruudussa, koska ne lukevat
+valmista tekstuuria eivätkä hae verkosta mutta turhaa työtä ei silti tehdä.
+
+**Jos lisäät kapseliin tai tähtäimeen jotain, tarkista molemmat polut:**
+`buildWindField`in ei-scrub-haara *ja* `_playSijainti`. Pelkkä ensimmäinen
+näyttää toimivan kaikessa käsin tehdyssä testauksessa.
+
+### Puku ja vesi samasta lähteestä
+
+`_paivitaPuku` sitoo pukusuosituksen siihen lämpötilaan joka VESI-korttiin
+kirjoitetaan. **Alkurenderöinti ei saa arvata sitä muualta:** UiRas-spoteilla
+`vesiNum` jätetään nulliksi, koska VESI tulee niillä UiRas-asemalta joka
+vastaa vasta myöhemmin. Jos puku laskettaisiin siinä välissä marine-API:n
+`_waterTemp`-arvosta, kortti näyttäisi yhtä aikaa "VESI —" ja "PUKU 3/2 mm"
+— ja pysyvästi, jos UiRas ei vastaa. Mitattuna juuri niin kävi.
