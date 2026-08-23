@@ -14,6 +14,14 @@
 /* Service worker: kartta ja sovellus aukeavat rannalla yhdella palkilla.
    Rekisterointi vasta loadin jalkeen, jottei se kilpaile ensilatauksen
    kanssa. */
+/* Kotivalikosta avattu appi: luokka heti, ennen ensimmaista maalausta. */
+(function () {
+  var s = false;
+  try { s = window.navigator.standalone === true
+    || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches); }
+  catch (e) { s = false; }
+  if (s) document.documentElement.classList.add('standalone');
+})();
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function () {
     navigator.serviceWorker.register('/sw.js').catch(function (e) {
@@ -79,6 +87,10 @@ if ('serviceWorker' in navigator) {
   --text:   #ddeeff;
   --sat: env(safe-area-inset-top, 0px);
   --sab: env(safe-area-inset-bottom, 0px);
+  /* Aikajanalla on OMA alareunatoken. Selaimessa se on sama kuin --sab
+     (nolla, koska Safarin alapalkki vie tilan), mutta kotivalikon appissa
+     sitä pienennetään — ks. .standalone alempana. */
+  --sab-tl: env(safe-area-inset-bottom, 0px);
   --sal: env(safe-area-inset-left, 0px);
   --sar: env(safe-area-inset-right, 0px);
   --sheet-radius: 24px;
@@ -607,18 +619,35 @@ body {
    eikä asteikkoon. */
 #tl-wrap {
   position: relative; pointer-events: all;
-  height: calc(88px + var(--sab));
+  height: calc(88px + var(--sab-tl));
   overflow: visible;
-  padding: 14px 0 calc(var(--sab) + 22px);
+  padding: 14px 0 calc(var(--sab-tl) + 22px);
   background: none;
 }
+/* Kotivalikon appissa aikajana alemmas.
+ *
+ * Selaimessa env(safe-area-inset-bottom) on iPhonella nolla, koska Safarin
+ * alapalkki vie sen tilan — aikajana asettuu 8 px näkymän pohjasta ja se on
+ * hyvä. Kotivalikon appissa palkkia ei ole, ja sama inset on 34 px
+ * kotinäppäimen alueelle. Se ei siirrä aikajanaa alemmas vaan NOSTAA sitä
+ * saman verran: mitattuna rako ruudun pohjaan 8 px -> 42 px.
+ *
+ * Kotinäppäin tarvitsee tilaa mutta ei 34 px:ää. 14 px jättää raoksi noin
+ * 22 px, eli aikajana laskee 20 px alemmas kuin nyt ja pysyy silti selvästi
+ * irti indikaattorista. Selainversioon tämä ei kosketa lainkaan.
+ *
+ * Sääntö on kahdesti: display-mode kattaa nykyiset selaimet, .standalone
+ * -luokka vanhemman iOS:n jossa vain navigator.standalone kertoo tilan. */
+@media (display-mode: standalone) { :root { --sab-tl: 14px; } }
+:root.standalone { --sab-tl: 14px; }
+
 /* Kelluva alusta. Erillinen kerros scrollin takana, jotta laatikko voi olla
    sisennetty reunoista samalla kun scroll ulottuu reunasta reunaan. */
 #tl-wrap::before {
   content: '';
   position: absolute;
   left: calc(var(--sal) + 8px); right: calc(var(--sar) + 8px);
-  top: 6px; bottom: calc(var(--sab) + 8px);
+  top: 6px; bottom: calc(var(--sab-tl) + 8px);
   background: var(--chip);
   border-radius: 18px;
   box-shadow: var(--shadow-2);
@@ -645,7 +674,7 @@ body {
   /* 6 px pienempi kuin ennen kummassakin suunnassa, jotta 44 px:n laatikon
      sisällä oleva 32 px:n ympyrä jää samaan paikkaan kuin vanha nappi. */
   left: calc(var(--sal) + 9px);
-  bottom: calc(var(--sab) + 19px);
+  bottom: calc(var(--sab-tl) + 19px);
   width: 44px; height: 44px;
   border-radius: 50%;
   background: none;
@@ -711,7 +740,7 @@ body {
 #tl-indicator {
   position: absolute;
   top: 10px;
-  bottom: calc(var(--sab) + 12px);
+  bottom: calc(var(--sab-tl) + 12px);
   left: 50%; width: 2px;
   transform: translateX(-50%); pointer-events: none; z-index: 2;
   background: var(--accent);
@@ -1385,7 +1414,9 @@ body {
    tulee VAROITUSVIIVASTA vasemmassa reunassa, ei tekstin väristä: tekstin
    on pysyttävä mustetta jotta se on luettava. */
 #rl-banner {
-  position: fixed; bottom: calc(var(--sab) + 148px); left: 12px; right: 12px; z-index: 50;
+  /* --sab-tl eika --sab: banneri kelluu aikajanan ylapuolella, joten sen
+     on liikuttava saman verran, muuten vali muuttuisi standalone-tilassa. */
+  position: fixed; bottom: calc(var(--sab-tl) + 148px); left: 12px; right: 12px; z-index: 50;
   background: var(--surface-hi);
   border: 1px solid var(--hairline);
   border-left: 3px solid #9A5116;
@@ -4514,8 +4545,31 @@ function idw(lat, lng) {
     const w = (taper * taper) / (d2 + eps2) * surfaceW;
     sw += w; su += f.u * w; sv += f.v * w;
   }
-  /* Katvealue: yksikään piste ei osunut säteen sisään — käytä lähintä
-     sellaisenaan, jolloin reuna pysyy jatkuvana eikä pudota nollaan. */
+  /* Katvealue: yksikään piste ei osunut säteen sisään.
+   *
+   * Ennen tässä kopioitiin lähin piste sellaisenaan. Se pitää reunan
+   * jatkuvana mutta tuottaa LITTEÄN laikun: koko katvealue saa yhden
+   * ainoan pisteen arvon, eikä se sekoitu naapureihinsa mitenkään. Juuri
+   * se näkyy kartalla väärässä kohdassa möllöttävänä läiskänä, joka ei
+   * seuraa sitä missä oikeasti tuulee.
+   *
+   * Nyt sädettä laajennetaan nelinkertaiseksi ja painotetaan normaalisti.
+   * Tulos on sileä sekoitus lähimmistä pisteistä eikä yhden pisteen
+   * kopio. Nopeaan polkuun tämä ei koske lainkaan — haara ajetaan vain
+   * kun tukea ei löytynyt, eli silloin kun vaihtoehto olisi ollut
+   * litteä laikku. */
+  if (!sw) {
+    const RL = R * 4, RL2 = RL * RL, epsL2 = eps2 * 16;
+    const nl = SpatialIndex.nearby(lat, lng, rLat * 4, rLng * 4);
+    for (let i = 0; i < nl.length; i++) {
+      const f = nl[i], dlat = lat - f.lat, dlng = lng - f.lng;
+      const d2 = dlat * dlat + dlng * dlng * cos2;
+      if (d2 >= RL2) continue;
+      const taper = 1 - d2 / RL2;
+      const w = (taper * taper) / (d2 + epsL2);
+      sw += w; su += f.u * w; sv += f.v * w;
+    }
+  }
   if (!sw) return best ? { u: best.u, v: best.v, ms: best.ms } : { u: 0, v: 0, ms: 0 };
   const u = su / sw, v = sv / sw;
   return { u, v, ms: Math.sqrt(u * u + v * v) };
@@ -4671,6 +4725,23 @@ function idwPainoin(lat, lng, wf, idxUlos, paiUlos) {
     idxUlos.push(f.__i); paiUlos.push(w);
   }
   if (!sw) {
+    /* Sama laajennettu varatie kuin idw():ssa — ilman tata talletettu
+       polku sailyttaisi litteat laikut, koska tekstuurin rakennus kulkee
+       tasta eika idw():sta heti kun sama geometria toistuu kolmesti. */
+    idxUlos.length = alkuPari; paiUlos.length = alkuPari;
+    const RL2 = (R * 4) * (R * 4), epsL2 = eps2 * 16;
+    const nl = SpatialIndex.nearby(lat, lng, rLat * 4, rLng * 4);
+    for (let i = 0; i < nl.length; i++) {
+      const f = nl[i], dlat = lat - f.lat, dlng = lng - f.lng;
+      const d2 = dlat * dlat + dlng * dlng * cos2;
+      if (d2 >= RL2) continue;
+      const taper = 1 - d2 / RL2;
+      const w = (taper * taper) / (d2 + epsL2);
+      sw += w; su += f.u * w; sv += f.v * w;
+      idxUlos.push(f.__i); paiUlos.push(w);
+    }
+  }
+  if (!sw) {
     idxUlos.length = alkuPari; paiUlos.length = alkuPari;
     return best >= 0 ? { u: wf[best].u, v: wf[best].v, vara: best } : { u: 0, v: 0, vara: -1 };
   }
@@ -4752,6 +4823,26 @@ const WindTexture = {
     return new Promise((resolve) => {
       if (!windField.length) { resolve(); return; }
       const zoom = State.map ? State.map.getZoom() : 5;
+      /* Interpoloinnin ydin mitoitetaan TÄSSÄ eikä kutsupaikoissa.
+       *
+       * Kutsupaikkoja on kolme, ja kaksi niistä muisti kutsua
+       * SpatialIndex.buildia ennen tätä — zoomend ei. Se riitti
+       * rikkomaan koko kerroksen: ulos zoomatessa tekstuuri
+       * rakennettiin uudelle laajalle näkymälle mutta tukisäteellä joka
+       * oli mitoitettu edelliselle tiheälle zoomille. Mitattuna z13 ->
+       * z5: 38-57 % tekstuurin näytteistä jäi ilman yhtään tukipistettä,
+       * jolloin idw() putosi varatielle ja kopioi lähimmän pisteen
+       * sellaisenaan — litteitä laikkuja väärässä kohdassa. Kun z5:een
+       * tultiin suoraan, luku oli 0 %.
+       *
+       * Rakennetaan vain jos jokin oikeasti muuttui: build tyhjentää
+       * IDW-painojen muistin, ja se on aikajanan raahauksen kallein osa. */
+      if (typeof SpatialIndex !== 'undefined' && typeof ViewportGrid !== 'undefined') {
+        const vali = ViewportGrid.gridStep(zoom);
+        if (SpatialIndex.wf !== windField || SpatialIndex.spacing !== vali) {
+          SpatialIndex.build(windField, vali);
+        }
+      }
       let laMin, laMax, loMin, loMax;
       if (viewportBounds) {
         /* Pehmuste mitoitetaan NÄKYMÄN mukaan eikä vakiona: puolikas aste

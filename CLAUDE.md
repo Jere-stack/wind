@@ -2512,3 +2512,102 @@ seitsemässä `font-family`-säännössä, eli lataukset eivät ole pelkkää ro
 poisto muuttaisi ulkoasua. Mutta ne ovat kaksi ulkoista pyyntöä joka
 latauksella, ja juuri ne ovat kalleimpia heikolla yhteydellä. Tämä on oma
 päätöksensä, ei osa PWA-vaihetta.
+
+## Lämpökartta jäi väärään mittakaavaan ulos zoomatessa
+
+Oire: lähelle zoomaamisen jälkeen ulos zoomattu näkymä näytti paikoin
+väärää tietoa — litteitä läiskiä jotka eivät seuranneet sitä missä
+oikeasti tuulee, eivätkä olleet johdonmukaisia meren päällä.
+
+### Syy: kolmesta kutsupaikasta yksi unohti mitoittaa ytimen
+
+`idw()` mitoittaa tukisäteensä `R = 3 × SpatialIndex.spacing`, ja spacing
+asetetaan `SpatialIndex.build(wf, ViewportGrid.gridStep(zoom))`. Tekstuuri
+rakennetaan kolmesta paikasta:
+
+```
+buildWindField      kutsuu SpatialIndex.buildin ensin   ✓
+_heatmapCatchUp     kutsuu SpatialIndex.buildin ensin   ✓
+zoomend-käsittelijä EI KUTSU                            ✗
+```
+
+Zoomin lopettaminen menee juuri kolmatta polkua. Tekstuuri rakennettiin siis
+uudelle laajalle näkymälle mutta tukisäteellä joka oli mitoitettu
+edelliselle tiheälle zoomille — z13:n 0,25° jäi voimaan z5:llä, missä sen
+pitäisi olla 2,5°.
+
+Mitattuna z13 → z5, näytehila Suomen yli:
+
+```
+                          spacing   R        ilman tukea
+suoraan z5                2,5       7,50°     0 %
+z13 Hanko                 0,25      0,75°    38 %
+takaisin z5 (rikki)       0,25      0,75°    38 %
+sama, indeksi pakotettu   2,5       7,50°     0 %
+```
+
+**38 % tekstuurin näytteistä jäi ilman yhtään tukipistettä.** Niissä `idw()`
+putosi varatielle. Ja koska `_points` on kumulatiivinen, tila ei korjaantunut
+itsestään — vasta seuraava liike laukaisi rakennuksen jossa väli päivittyi.
+
+Korjaus on rakenteellinen eikä neljäs kutsu: **ydin mitoitetaan
+`WindTexture.build`in sisällä**, jolloin yksikään kutsupaikka ei voi unohtaa
+sitä. Rakennus tehdään vain jos väli tai kenttä oikeasti vaihtui — `build`
+tyhjentää IDW-painojen muistin, ja se on aikajanan raahauksen kallein osa.
+
+### Toinen vika: varatie kopioi lähimmän pisteen
+
+Kun tukisäteen sisään ei osu mitään, vanha koodi kopioi lähimmän pisteen
+sellaisenaan. Reuna pysyy jatkuvana, mutta koko katvealue saa **yhden ainoan
+pisteen arvon** eikä sekoitu naapureihinsa — juuri se on se litteä läiskä
+joka ei seuraa tuulta.
+
+Nyt sädettä laajennetaan nelinkertaiseksi ja painotetaan normaalisti.
+Mitattuna harvalla kentällä (2,5° data, 0,25° ydin):
+
+```
+                    uniikkeja arvoja   vaakanaapuri tasan sama
+vanha varatie         100 / 1681              79,8 %
+uusi varatie          718 / 1681              32,7 %
+```
+
+Meri/maa-suhde säilyi (8,05/7,31 → 7,99/7,41), eli fysiikka ei vääristy —
+vain lohkoisuus katoaa. Nopeaan polkuun tämä ei koske: haara ajetaan vain
+kun tukea ei löytynyt.
+
+**`idw()`:llä on kaksoiskappale.** `idwPainoin()` on sama laskenta painojen
+talletusta varten, ja tekstuurin rakennus siirtyy siihen heti kun sama
+geometria toistuu kolmesti. Varatie oli korjattava molempiin — pelkkä
+`idw()` olisi jättänyt läiskät voimaan juuri silloin kun kartta on
+paikallaan.
+
+## Aikajana kotivalikon appissa
+
+Selaimessa `env(safe-area-inset-bottom)` on iPhonella nolla, koska Safarin
+alapalkki vie sen tilan. Kotivalikon appissa palkkia ei ole ja sama inset on
+34 px kotinäppäimelle — ja koska aikajana lisää sen alareunaansa, se
+**nostaa** aikajanaa saman verran. Mitattuna rako ruudun pohjaan 8 px → 42 px.
+
+Aikajanalla on nyt oma token `--sab-tl`, joka on oletuksena sama kuin `--sab`
+mutta standalone-tilassa 14 px:
+
+```
+                              --sab-tl   rako pohjaan   play-napin ala
+selain (Safari)                  0 px        8 px           19 px
+standalone ennen                34 px       42 px           53 px
+standalone nyt                  14 px       22 px           33 px
+```
+
+Selainversio ei muutu lainkaan. Standalone laskee 20 px ja play-nappi jää
+33 px:n päähän pohjasta eli selvästi irti kotinäppäimestä.
+
+**Kaikki neljä aikajanan osaa on vaihdettava yhdessä.** Ensimmäinen versio
+vaihtoi vain `#tl-wrap`in, jolloin `.tl-play-btn` ja `#tl-indicator` jäivät
+`--sab`:iin — mitattuna siru olisi ollut 22 px:ssä ja nappi 53 px:ssä, eli
+ne olisivat erkaantuneet toisistaan. Myös `#rl-banner` kelluu aikajanan
+yläpuolella ja käyttää samaa tokenia, jottei väli muutu.
+
+Tunnistus on kahdesti: `@media (display-mode: standalone)` kattaa nykyiset
+selaimet ja `.standalone`-luokka (bootissa `navigator.standalone`) vanhemman
+iOS:n. Paneelien `padding-bottom` pitää edelleen koko `--sab`:in — ne ovat
+vieritettävää sisältöä jonka on kierrettävä kotinäppäin.
