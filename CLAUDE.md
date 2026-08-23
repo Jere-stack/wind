@@ -27,7 +27,11 @@ npm run preview   # esikatsele tuotantobuildia paikallisesti
 
 ## Pohjakartta
 
-Esri Dark Gray Canvas, `services.arcgisonline.com/.../World_Dark_Gray_Base`.
+Oletus on Esri Dark Gray Canvas,
+`services.arcgisonline.com/.../World_Dark_Gray_Base`. Asetuspaneelista voi
+valita myös vaalean tai satelliitin — ks. *Kartan asetukset*, jossa on
+niiden omat sävynsäätimet ja se miksi vaalea kääntää koko sekoituksen
+toisin päin.
 
 Vaihdettiin CARTO `dark_nolabels` -kartasta, koska siinä maa ja vesi
 erottuivat huonosti: maa harmaa 9 ja vesi 36–38, eli ero vain 11 %
@@ -47,17 +51,19 @@ Yksityiskohtia jotka eivät ole ilmeisiä:
   Ilman tätä ne venytettäisiin retinanäytöllä pehmeiksi. Laatat ovat pieniä
   (noin 5 kt), joten neljänkertainen määrä on yhä kevyempi kuin CARTOn
   @2x-laatat.
-- **`.basemap { filter: contrast(1.4) }`** — Esrin vesi on 35 ja maa 77,
-  molemmat selvästi alle keskiharmaan, joten contrast tummentaa ja kasvattaa
-  eroa samaan aikaan: vesi menee nollaan ja maa arvoon 57, ero 42 → 57.
-  Ilman tätä kartta olisi lämpökartan alla selvästi vaaleampi kuin ennen ja
-  tuulivärit menettäisivät tehonsa. Suodin on värimatriisi ja ajetaan
-  kompositoinnissa; mitattuna sen kustannus ei erotu kohinasta.
+- **`.basemap { filter: var(--pohja-suodin) }`, tummalla `contrast(1.4)`** —
+  Esrin vesi on 35 ja maa 77, molemmat selvästi alle keskiharmaan, joten
+  contrast tummentaa ja kasvattaa eroa samaan aikaan: vesi menee nollaan ja
+  maa arvoon 57, ero 42 → 57. Ilman tätä kartta olisi lämpökartan alla
+  selvästi vaaleampi kuin ennen ja tuulivärit menettäisivät tehonsa. Suodin
+  on värimatriisi ja ajetaan kompositoinnissa; mitattuna sen kustannus ei
+  erotu kohinasta. Arvo on token, koska muilla pohjakartoilla se on eri.
 - **Nimistö**: z4–z6 sisältää maiden ja merialueiden nimiä (Esrin base ei ole
   täysin labels-vapaa). z7:stä ylöspäin ei nimistöä.
 - **Attribuutio** on asetuspaneelin alalaidassa, ei kartalla — kartta luodaan
   `attributionControl: false`. Esrin ehdot vaativat "Powered by Esri"
-  -maininnan ja datalähteiden nimet, joten sitä riviä ei saa poistaa.
+  -maininnan ja *sen palvelun* datalähteet, joten rivi vaihtuu pohjakartan
+  mukana (`POHJAT[...].attr` → `#pohja-lahteet`) eikä sitä saa poistaa.
 
 ## Lämpökartta pohjakartan päällä
 
@@ -85,13 +91,21 @@ rantaviivan ero **20.1 → 41.5**.
 
 - **Piirtojärjestys ei muutu** paneelin vaihdosta: laattapaneelissa on
   ennestään vain pohjakartta, ja merkit ovat markerPanessa (z 600).
-- **Sekoitustila on kahdessa paikassa** — CSS:ssä ja `updateHeatmapBlur`in
-  inline-tyylissä (`HEAT_BLEND`). Molemmat päättelevät sen samalla
-  `CSS.supports`-säännöllä. Jos vain CSS:ää muuttaa, inline-arvo ohittaa sen.
+- **Sekoitustila on kahdessa paikassa** — CSS:n `--sekoitus`-tokenissa ja
+  `updateHeatmapBlur`in inline-tyylissä (`heatSekoitus()`). Molemmat
+  päättelevät sen samalla säännöllä. Jos vain CSS:ää muuttaa, inline-arvo
+  ohittaa sen. Vaalealla pohjakartalla arvo on `multiply` — ks. *Kartan
+  asetukset*.
 - **Varatie**: `@supports not (mix-blend-mode: plus-lighter)` palaa
   `screen`iin. Tuki on Chrome 108+ ja Safari 16.4+; vanhemmissa kartta
   toimii ja on yhä parempi kuin ennen (24.7 vs 16.7), koska paneelikorjaus
   herättää myös screenin.
+  **Ehto on tokenissa eikä ominaisuudessa, ja se on pakko.** Kun arvo tulee
+  `var()`-viittauksesta, tuntematon arvo ei enää pudota sääntöä ja jätä
+  edellistä voimaan — se tekee ominaisuudesta alustusarvoisen eli `normal`.
+  Vanha `.heatmap-overlay { mix-blend-mode: screen }` -varasääntö ei siis
+  toimisi enää. Tokeniin osuvana ehto ratkeaa ennen `var()`-purkua, jolloin
+  vanha selain ei koskaan näe sanaa `plus-lighter`.
 - **`contrast(1.4)` on mitattu optimi, ei arvaus.** Pyyhkäisy 1.25 / 1.4 /
   1.55: rantaviivan ero 46.3 / 48.9 / 41.3. Yli 1.4 alkaa painaa myös maata
   kohti mustaa (maa on keskiharmaan alapuolella), jolloin ero taas kapenee.
@@ -128,6 +142,17 @@ koko suunnitteluperiaate, ja se tulee värisokeudesta.
 
   Kaikki neljä ovat nyt samassa haarukassa 7.1–7.7 — ramppi on yhtä hyvä
   kuin sen huonoin lukija, joten valinta tehtiin minimax-perusteella.
+
+  > **Korjaus.** Yllä olevan taulukon "jälkeen"-sarake on liian ruusuinen.
+  > Se mitattiin dikromatiasimulaatiolla joka osoittautui myöhemmin
+  > virheelliseksi (LMS-käänteismatriisi ei vastannut suoraa matriisia,
+  > ks. *Kolme rikkinäistä väriaistisimulaatiota*). Korjatulla
+  > Viénot-matriisilla samat luvut tummalla pohjalla renderöitynä ovat
+  > **normaali 19.2 / deuteranooppi 4.9 / protanooppi 7.1 /
+  > tritanooppi 2.2**. Suunta oli oikea — vanha ramppi oli tätäkin
+  > huonompi — mutta *minimax ei toteutunut*: rampin heikko kohta on
+  > **tritanopia**, ei deuteranopia, ja se on 2.2 eikä 7.7. Sitä varten on
+  > nyt oma väriasteikko asetuksissa (*Kartan asetukset*).
 - **Kirkkaus nousee monotonisesti kaikissa kolmessa näköavaruudessa**:
   normaali 1 → 58, deuteranooppi 1 → 60, protanooppi 1 → 56. Ei siis
   pelkästään "erottuu", vaan *kirkkaampi tarkoittaa kovempaa* jokaiselle.
@@ -152,9 +177,38 @@ koko suunnitteluperiaate, ja se tulee värisokeudesta.
   alfasta. `screen`in kanssa se olisi ollut mahdotonta.
 
 Analyysityökalut ovat kertakäyttöisiä eivätkä ole repossa. Jos ramppiin
-koskee, mittaa uudelleen: simuloi dikromatia (Viénot–Brettel–Mollon,
-LMS-avaruus) **renderöidyistä** väreistä ja katso CIEDE2000-erot 1 m/s
-askelin. Rampin rivien katsominen ei riitä.
+koskee, mittaa uudelleen: simuloi dikromatia **renderöidyistä** väreistä ja
+katso CIEDE2000-erot 1 m/s askelin. Rampin rivien katsominen ei riitä.
+
+### Kolme rikkinäistä väriaistisimulaatiota — ja miten ne tunnistaa
+
+Tämän projektin dikromatialuvut on jouduttu mittaamaan kahdesti, koska
+ensimmäinen työkalu oli rikki eikä se näkynyt luvuista. Kolme yritystä
+kaatui peräkkäin:
+
+1. **LMS-käänteismatriisi ei vastannut suoraa matriisia.** Kovakoodattu
+   inverssi oli eri lähteestä kuin forward. Oire: tumma sininen ja
+   vaaleanpunainen päätyivät molemmat samaan väriin `(0,255,185)`.
+2. **HPE-matriisi (XYZ→LMS) ajettiin suoraan lineaarisen RGB:n läpi.**
+   Oire: puhdas sininen muuttui vihreäksi.
+3. **Toimiva:** klassiset Viénot–Brettel–Mollon -matriisit **suoraan
+   lineaarisessa sRGB:ssä**, ei LMS-välivaiheen kautta:
+
+   ```
+   deuteranopia [[0.625,0.375,0],[0.700,0.300,0],[0,0.300,0.700]]
+   protanopia   [[0.567,0.433,0],[0.558,0.442,0],[0,0.242,0.758]]
+   tritanopia   [[0.950,0.050,0],[0,0.433,0.567],[0,0.475,0.525]]
+   ```
+
+**Tarkista työkalu ennen kuin uskot sen lukuja.** Nämä kelpaavat
+tarkistuksiksi ja ne on ajettu:
+
+- dE2000: musta vs valkoinen = 100.0, sama väri itsensä kanssa = 0.0,
+  harmaa 100 vs 150 = 19.4, puhdas punainen vs vihreä = 86.6.
+- Simulaatio: deuteranoopin **sinisen rivin** pitää olla `[0, 0.3, 0.7]`,
+  eli sininen säilyy. Jos puhdas sininen muuttuu vihreäksi, matriisi on
+  väärässä avaruudessa.
+- Harmaa ei saa muuttua miksikään missään simulaatiossa.
 
 ## Valikoiden ulkoasu — Merikartta
 
@@ -317,6 +371,13 @@ kirkkausväli on kolmasosa kartan välistä; deuteranoopille pienin dE jää
 vieressä** — data on numerossa ja väri vahvistaa sen. Kartalla väri on
 ainoa koodaus, ja siksi juuri se ramppi tehtiin turvalliseksi. Älä siirrä
 kartan turvallisuusvaatimusta musteeseen äläkä päinvastoin.
+
+Mustevariantilla on nykyään **kolmas tehtävä**: vaalealla pohjakartalla se
+on lämpökartan ramppi. Se ei ollut suunniteltua vaan seurausta siitä että
+multiply-sekoitus kääntää kirkkaussuunnan — ks. *Kartan asetukset*. Siinä
+roolissa se osoittautui mitattuna paremmaksi kuin kartan omat rampit, myös
+värisokealle (6.3–7.2), koska paperia vasten signaali kulkee musteen
+määrässä. **Jos musteramppia muuttaa, se muuttuu nyt kahdessa paikassa.**
 
 Sama kaksijakoisuus pätee spotti-indeksiin: `spotIndexInk()` paneeleihin
 ja `spotMarkerSVG(..., paperi)` vaihtaa renkaan taustan ja uran.
@@ -2611,3 +2672,157 @@ Tunnistus on kahdesti: `@media (display-mode: standalone)` kattaa nykyiset
 selaimet ja `.standalone`-luokka (bootissa `navigator.standalone`) vanhemman
 iOS:n. Paneelien `padding-bottom` pitää edelleen koko `--sab`:in — ne ovat
 vieritettävää sisältöä jonka on kierrettävä kotinäppäin.
+
+## Kartan asetukset
+
+Asetuspaneelissa on neljä kartan säätöä: **pohjakartta** (tumma / vaalea /
+satelliitti), **partikkelit** (normaali / vähän / pois), **väriasteikko**
+(nykyinen / värisokeusystävällinen) ja **lämpökartan voimakkuus**
+(hillitty / normaali / voimakas).
+
+Arvot ovat yhdessä localStorage-avaimessa `fs_kartta` (JSON), eivät
+neljässä erillisessä kuten `fs_model` / `fs_unit` / `fs_suuntamuoto`. Syy:
+ne luetaan aina yhdessä, ja `<head>`:n käynnistyslohko tarvitsee niistä
+yhden ennen ensimmäistä maalausta. `Asetukset.lue()` tarkistaa jokaisen
+arvon sallittujen listaa vasten — localStoragessa voi olla mitä tahansa, ja
+tuntematon arvo saisi esimerkiksi `ColorRamp`in rakentamaan LUTin
+`undefined`iin. Testattu: rikkinäinen JSON palauttaa kaikki oletuksiin.
+
+### Vaalea pohjakartta kääntää koko sekoituksen
+
+Tämä on luvun tärkein asia, ja se seuraa yhdestä mitatusta luvusta: **Esrin
+vaalean kartan maa on 239 ja vesi 208, eli molemmat keskiharmaan
+yläpuolella.** (Tumma: 71 / 39. Satelliitti: 51 / 29.)
+
+Siitä seuraa neljä asiaa, kaikki pakollisia:
+
+1. **Sekoitustila `multiply`, ei `plus-lighter`.** Additiivinen sekoitus
+   vain työntää vaalean pohjan valkoiseksi: mitattuna rantaviivan ero
+   romahti 45.6 → 0.9 ja tuulivärit katosivat. `multiply` kertoo pohjan
+   värillä eli **lisää mustetta valkoiselle paperille**, ja rantaviiva
+   säilyy. Sama koskee partikkelikanvasta.
+2. **Partikkelien vaalennus kääntyy tummennukseksi.** `VAALEA = 0.44`
+   vetää värin kohti valkoista; multiplyssa valkoinen ei muuta paperia
+   lainkaan, eli jäljet katoaisivat kokonaan. `PAPERI_TUMMENNUS = 0.18`
+   toiseen suuntaan. Mitattuna luettava peitto on kaikilla kolmella
+   pohjalla käytännössä sama: tumma 4.97 %, vaalea 4.95 %,
+   satelliitti 5.69 %.
+3. **Lämpökartta käyttää `RAMP_INK`iä.** Kartan omat rampit vaalenevat
+   nopeuden mukana, ja multiplyn läpi niiden kirkkaus ei enää nouse
+   monotonisesti — 2 ja 8 m/s päätyivät samaan tummuuteen (dE 4.3).
+   Musteramppi on jo tehty tummenemaan tuulen mukana. Mitattuna vaalealla
+   pohjalla **11.6 normaali / 6.8 deuteran. / 7.2 protan. / 6.3 tritan.**,
+   ja L\* laskee monotonisesti.
+4. **Sävynsäätimeen tarvitaan `brightness` ennen `contrast`ia.** Pelkkä
+   kontrasti leikkaa maan valkoiseksi: puhtailta laatoilta mitattuna
+   `contrast(1.2)` vei 75 % pikseleistä arvoon 255 ja `contrast(1.4)`
+   kavensi maan ja veden eron 31 → 16. `brightness(0.78) contrast(2.1)`
+   siirtää kuvan ensin keskiharmaan alapuolelle. Valmiista ruudusta 10 m/s
+   tuulessa mitattuna: **luminanssiero 20.3 → 32.1** ja hienojen
+   yksityiskohtien säilyminen **0.73 → 1.10**, kun tuulierottelu pysyy
+   ennallaan (24.7 → 24.9).
+
+**Satelliitti on kuin tumma, vain kevyemmällä suotimella.** Ilmakuva on jo
+keskiharmaan alapuolella, joten `contrast(1.2)` tummentaa ja terävöittää
+yhtä aikaa: ruudulta mitattuna ero 38.0 → 45.7 ja yksityiskohdat
+4.15 → 4.98. `contrast(1.35)` antaisi 47.6 / 5.45 mutta painaisi 14 %
+pikseleistä puhtaaseen mustaan — syvä vesi ja varjot menettäisivät kaiken
+sisältönsä. 1.2:lla 0.7 %.
+
+**Missä nämä asuvat.** `--pohja-suodin` ja `--sekoitus` ovat CSS-tokeneita
+`:root[data-pohja=...]`-säännöissä, koska ne tarvitaan ennen ensimmäistä
+maalausta; attribuutti asetetaan `<head>`:n käynnistyslohkossa. Kaikki muu
+on `POHJAT`-taulussa ja `KarttaAsetukset.kayta()`ssa.
+
+**Tilapalkin tummennus on ainoa kohta jossa pohjakartta vaikuttaa muuhun
+kuin karttaan.** Kotivalikon appi ajaa `black-translucent`, eli iOS piirtää
+kellon ja akun valkoisena suoraan sivun päälle, eikä tyyliä voi vaihtaa
+ajossa — se luetaan kirjanmerkistä käynnistyksessä. Vaalealla kartalla
+valkoinen teksti jäisi lukukelvottomaksi, joten `body::before` tummentaa
+`--sat`:in korkuisen kaistan. Selaimessa ja ilman lovea `--sat` on 0.
+
+### Värisokeusystävällinen väriasteikko
+
+Nykyinen ramppi on kelvollinen deuteranoopille ja protanoopille (4.9 ja
+7.1) mutta romahtaa **tritanoopille: 2.2**. Se on sen todellinen heikko
+kohta — ei vihreä–keltainen, kuten tässä dokumentissa aiemmin luki.
+
+`RAMP_CVD` luopuu sävypolusta ja koodaa nopeuden lähes pelkkään
+kirkkauteen, sinisestä kellanvalkoiseen — samalla periaatteella kuin
+cividis. Tummalla pohjalla renderöitynä, pienin dE2000 kun nopeusero on
+vähintään 4 m/s:
+
+| ramppi | normaali | deuteran. | protan. | tritan. |
+|---|---|---|---|---|
+| nykyinen | 19.2 | 4.9 | 7.1 | 2.2 |
+| cividis | 9.0 | 9.4 | 9.3 | 8.3 |
+| **RAMP_CVD** | **10.9** | **10.5** | **10.3** | **11.2** |
+
+Tritanoopin erottelu viisinkertaistuu ja kahden muun kaksinkertaistuu.
+Hinta on normaalinäön erottelu, 19.2 → 10.9 — siksi tämä on asetus eikä
+uusi oletus. Rantaviiva säilyy: maan ja veden ero 10 m/s kohdalla 10.2
+(nykyisellä 12.4). Satelliittipohjalla luvut ovat 9.0 / 8.2 / 8.1 / 9.3.
+
+Cividis sellaisenaan ei kelvannut: se on suunniteltu läpinäkymättömäksi
+kuvaksi ja sen keskiharmaat sävyt ovat additiivisessa sekoituksessa lähes
+värittömiä. `RAMP_CVD` pitää saman kirkkausaikataulun mutta kääntää
+keskiosan turkoosiin ja vaaleanvihreään, jolloin se voittaa cividiksen
+jokaisella akselilla.
+
+**Asetus ei tee mitään vaalealla pohjakartalla, ja se on tulos eikä
+puute.** Subtraktiivisella pohjalla signaali kulkee musteen määrässä eli
+kirkkaudessa, jonka jokainen dikromaatti näkee — musteramppi on siellä jo
+6.3–7.2. Kartan värisokeusongelma on nimenomaan **tumman pohjan
+additiivisen sekoituksen** ongelma. Paneelin vihjeteksti vaihtuu
+pohjakartan mukana, jottei käyttäjä valitse vaihtoehtoa eikä näe mitään.
+
+### Partikkelit ja lämpökartan voimakkuus
+
+**Partikkelit.** Kerroin `nParticlesBase()`iin: normaali 1, vähän 0.45,
+pois 0. Kerroin tulee **alarajan (60) jälkeen** — toisin päin alaraja söisi
+"vähän"-asetuksen pienellä ruudulla ja "pois" palauttaisi 60 partikkelia.
+"Pois" ohittaa koko partikkelityön (`partikkelitPois()` sekä
+`resetParticles`issa että `renderLoop`issa), ei pelkkää piirtoa — akkusäästö
+on koko pointti. Mitattuna 6× kuristetulla suorittimella:
+
+```
+             lepo fps    vetoele fps
+normaali      22–24        5.6–6.7
+vähän         27           7.4–7.9
+pois          54–60       14.4–15.7
+```
+
+"Vähän" on maltillinen parannus, koska `PerfTracker` on jo laskenut
+määrän 219:stä 107–153:een kun laite on tukossa. Sen arvo on laitteessa
+joka **ei** ole tukossa mutta jonka akkua käyttäjä säästää. "Pois" on se
+iso vipu.
+
+**Lämpökartan voimakkuus.** Kerroin alfakäyrään: 0.62 / 1 / 1.45. Kerroin
+osuu myös käyrän **kattoon** (0.75) — pelkkä kertominen jättäisi kärjen
+kiinni, eli "voimakas" nostaisi vain hiljaisen pään ja jättäisi juuri sen
+kovan tuulen ennalleen jonka takia säätöä käytetään. Ylin 0.92 on
+pakollinen: kertoimella 1.45 katto nousisi yli ykkösen ja alfa pakataan
+tavuun. Mitattuna tummalla pohjalla nopeuserottelu 13.1 / 19.2 / 20.5 ja
+rantaviivan ero 11.7 / 12.4 / 10.0 — **voimakas maksaa pohjakartan
+näkyvyyttä**, mikä on säädön tarkoitus eikä vika.
+
+### Mitä pitää päivittää yhdessä
+
+Kartan ramppi on kolmessa taulussa ja kaikki kolme on rakennettava
+uudestaan kun asetus vaihtuu:
+
+- `ColorRamp.paivita()` — `_rgbLUT`, `_cssLUT`, `_cssAlphaLUT`. Taulut
+  täytetään **paikalleen** eikä korvata uusilla, koska ne ovat
+  const-sidoksia joihin sulkeumat viittaavat.
+- `WindTexture._pikseliLUT = null` — lämpökartan 32-bittinen taulu, jossa
+  on sekä väri että alfa.
+- `rakennaNippuVarit()` — partikkelien nopeusluokkien värit.
+
+Sen lisäksi `buildLegend()` (asetuspaneelin asteikko) ja
+`updateHeatmapBlur()` (kirjoittaa sekoitustilan inline-tyyliin, ohittaa
+CSS:n). `ColorRamp.ink()`-kuluttajia on 20 eikä yhtäkään tarvitse
+päivittää: musteramppi ei muutu väriasteikkoasetuksesta.
+
+Testattu 90 napautuksella 60 ms välein satunnaisessa järjestyksessä: ei
+virheitä, ja lopputila on kaikilta osin yhtenäinen (sirut, localStorage,
+laattaosoite, sekoitustila tokenissa ja inlinessä, LUTit, alfa).

@@ -22,6 +22,20 @@
   catch (e) { s = false; }
   if (s) document.documentElement.classList.add('standalone');
 })();
+/* Valittu pohjakartta juurielementtiin ENNEN ensimmaista maalausta.
+   Ilman tata vaalea pohjakartta valahtaisi kaynnistyksessa mustana:
+   #map:n tausta ja sovelluksen --bg tulevat tyylitiedostosta, ja jos ne
+   asetettaisiin vasta JS:n Asetukset-moduulissa, valissa olisi yksi
+   maalaus vaaralla varilla. Attribuutti riittaa — kaikki pohjakartasta
+   riippuvat varit ovat CSS:ssa [data-pohja]-saantoina. */
+(function () {
+  try {
+    var a = JSON.parse(localStorage.getItem('fs_kartta') || '{}');
+    if (a && (a.pohja === 'vaalea' || a.pohja === 'satelliitti')) {
+      document.documentElement.setAttribute('data-pohja', a.pohja);
+    }
+  } catch (e) { /* eheyton arvo: pysytaan oletuksessa */ }
+})();
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function () {
     navigator.serviceWorker.register('/sw.js').catch(function (e) {
@@ -81,6 +95,10 @@ if ('serviceWorker' in navigator) {
 
   /* Kartta pysyy tummana — nämä eivät ole paneelivärejä. */
   --bg:     #060912;
+  /* Pohjakartan sävynsäätö ja lämpökartan sekoitustila ovat tokeneita,
+     koska ne vaihtuvat pohjakartan mukana (ks. POHJAT). Oletus on tumma. */
+  --pohja-suodin: contrast(1.4);
+  --sekoitus: plus-lighter;
   --panel:  rgba(6,9,18,0.88);
   --border: rgba(255,255,255,0.09);
   --accent-glow: rgba(41,232,168,0.15);
@@ -128,14 +146,76 @@ body {
    ============================================================ */
 #map { position: absolute; inset: 0; z-index: 1; background: var(--bg); touch-action: none; }
 /* Pohjakartan sävynsäätö.
-   Esrin laatoilla vesi on 35 ja maa 77. Molemmat ovat selvästi alle
+   Tummalla Esri-pohjalla vesi on 35 ja maa 77. Molemmat ovat selvästi alle
    keskiharmaan, joten contrast TUMMENTAA ja KASVATTAA eroa samaan aikaan:
    arvolla 1.4 vesi menee nollaan ja maa arvoon 57, eli ero 42 -> 57 ja
    kartta palaa tummaksi. Ilman tätä kartta olisi lämpökartan alla selvästi
    vaaleampi kuin ennen, ja tuulivärit menettäisivät tehonsa.
    Suodin on pelkkä värimatriisi ja ajetaan kompositoinnissa, joten se ei
-   maksa ruutuaikaa. */
-.basemap { filter: contrast(1.4); }
+   maksa ruutuaikaa.
+
+   Arvo on token, koska se on OIKEA vain tummalle pohjalle. Vaalean pohjan
+   maa on 239 ja vesi 208, molemmat keskiharmaan YLÄpuolella, joten pelkkä
+   contrast työntää ne valkoiseen: mitattuna puhtailta laatoilta
+   contrast(1.2) leikkasi jo 75 % pikseleistä 255:een ja contrast(1.4)
+   kavensi maan ja veden eron 31:stä 16:een. Siellä tarvitaan ensin
+   brightness alle ykkösen, joka siirtää kuvan takaisin keskiharmaan
+   alapuolelle, ja vasta sitten kontrasti. Ks. POHJAT. */
+.basemap { filter: var(--pohja-suodin, contrast(1.4)); }
+
+/* Pohjakartan mukana vaihtuvat sävyt.
+   Attribuutti asetetaan <head>:n käynnistyslohkossa ennen ensimmäistä
+   maalausta, jotta vaalea kartta ei välähdä mustana. --bg näkyy kartan
+   alla ennen kuin laatat ovat ladanneet ja reunoilla ennen kuin niitä
+   ehtii hakea. */
+/* Vaalea: brightness ENNEN kontrastia. Ilman sitä kontrasti leikkaa maan
+   valkoiseksi (contrast(1.2) vei 75 % pikseleistä 255:een). Mitattuna
+   valmiista ruudusta 10 m/s tuulessa: maan ja veden luminanssiero
+   20.3 -> 32.1 ja hienojen yksityiskohtien säilyminen 0.73 -> 1.10, kun
+   tuulierottelu pysyy ennallaan (24.7 -> 24.9). Rajumpi brightness(0.74)
+   contrast(2.3) antaa 33.1 mutta painaa kartan jo harmaaksi. */
+:root[data-pohja="vaalea"] {
+  --bg: #E9E6DF; --sekoitus: multiply;
+  --pohja-suodin: brightness(0.78) contrast(2.1);
+}
+/* Satelliitti: kevyt kontrasti riittää. Ilmakuva on jo keskiharmaan
+   alapuolella, joten pelkkä contrast tummentaa ja terävöittää yhtä aikaa
+   kuten tummalla pohjalla. 1.2 mitattuna ruudulta: ero 38.0 -> 45.7 ja
+   yksityiskohdat 4.15 -> 4.98. 1.35 antaisi 47.6/5.45 mutta puhtaalta
+   laatalta mitattuna se painaisi 14 % pikseleistä puhtaaseen mustaan —
+   syvä vesi ja varjot menettäisivät kaiken sisältönsä. 1.2:lla 0.7 %. */
+:root[data-pohja="satelliitti"] {
+  --bg: #0B1020;
+  --pohja-suodin: contrast(1.2);
+}
+
+/* Tilapalkin tummennus vaalealla pohjakartalla.
+   Kotivalikon appi ajaa tilan black-translucent, eli iOS piirtää kellon ja
+   akun VALKOISENA suoraan sivun päälle. Tyyliä ei voi vaihtaa ajossa — se
+   luetaan kirjanmerkistä käynnistyksessä — joten vaalealla kartalla
+   valkoinen teksti jäisi lukukelvottomaksi. Tämä on ainoa kohta jossa
+   pohjakartta vaikuttaa muuhun kuin karttaan.
+   Selaimessa ja ilman lovea --sat on 0, jolloin korkeus on 0 eikä mitään
+   piirry. z-index 21 = kartan yllä (1) mutta kapselin alla (22). */
+:root[data-pohja="vaalea"] body::before {
+  content: ''; position: fixed; top: 0; left: 0; right: 0;
+  height: var(--sat); z-index: 21; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(6,9,18,.55), rgba(6,9,18,.26));
+}
+
+/* Sekoitustilan varatie: Chrome 108 / Safari 16.4 alle plus-lighter ei ole
+   tuettu ja screen ajaa saman asian heikommin.
+   HUOM miksi @supports on TOKENISSA eikä ominaisuudessa: kun arvo tulee
+   var()-viittauksesta, tuntematon arvo ei enää pudota sääntöä ja jätä
+   edellistä voimaan vaan tekee ominaisuudesta alustusarvoisen — eli
+   normal. Vanha `.heatmap-overlay { mix-blend-mode: screen }` -varasääntö
+   ei siis toimisi enää. Tokeniin osuvana ehto ratkeaa ennen var()-purkua,
+   jolloin vanha selain ei koskaan näe sanaa plus-lighter.
+   Vaalea pohja ei tarvitse tätä: multiply on ollut aina tuettu, ja
+   [data-pohja]-sääntö voittaa tämän tarkkuudellaan. */
+@supports not (mix-blend-mode: plus-lighter) {
+  :root { --sekoitus: screen; }
+}
 
 /* Tässä oli reunavinjetti (#map::after, z-index 2), joka ei koskaan
    piirtynyt: Leafletin karttapaneeli on #map:n sisällä z-indexillä 400,
@@ -176,10 +256,7 @@ body {
      kontrastin, mikä on käytännössä näkymätön. Additiivisena jokainen
      veto nostaa luminanssia, joten jälki erottuu aina.
      Sama perustelu ja sama varatie kuin lämpökartalla. */
-  mix-blend-mode: plus-lighter;
-}
-@supports not (mix-blend-mode: plus-lighter) {
-  #c-wind { mix-blend-mode: screen; }
+  mix-blend-mode: var(--sekoitus);
 }
 /* Additiivinen sekoitus lämpökartalle.
    screen laskee tuloksen 1-(1-pohja)(1-tuuli), jolloin maan ja veden ero
@@ -197,13 +274,9 @@ body {
    -sääntöä ei ole: sellainen vaatisi sisäkkäisen kuvan eikä osuisi mihinkään. */
 .heatmap-overlay {
   opacity: 1.0;
-  mix-blend-mode: plus-lighter;
+  mix-blend-mode: var(--sekoitus);
   image-rendering: auto;
   transition: filter 0.3s, -webkit-filter 0.3s;
-}
-/* Chrome 108 / Safari 16.4 alle: screen toimii kuten ennenkin. */
-@supports not (mix-blend-mode: plus-lighter) {
-  .heatmap-overlay { mix-blend-mode: screen; }
 }
 
 /* Nipistyksen ajaksi laattasäiliö ja lämpökartta omalle
@@ -499,6 +572,13 @@ body {
   font-size: 11px; font-weight: 600;
   color: var(--ink-3); letter-spacing: .06em; text-transform: uppercase;
   margin-bottom: 9px;
+}
+
+/* Sirurivin alle tuleva selitys. Pienempi ja kevyempi kuin ryhmäotsikko:
+   se kertoo mitä valinta tekee, eikä sitä lueta joka kerta. */
+.sp-vihje {
+  font-size: 11px; line-height: 1.45; color: var(--ink-3);
+  margin-top: 7px;
 }
 
 /* Lohko on pelkkä ryhmä, ei kortti. Kun kaikki on korostettu, mikään ei ole. */
@@ -2111,6 +2191,45 @@ body {
         </div>
 
 
+        <!-- Kartan ulkoasu ja kuormitus.
+             Neljä säätöä yhdessä kortissa, koska ne koskevat samaa asiaa:
+             miltä kartta näyttää ja mitä se maksaa. Arvot tallentuvat
+             yhteen localStorage-avaimeen (fs_kartta), ks. Asetukset. -->
+        <div class="sp-card">
+          <div class="sp-label">Pohjakartta</div>
+          <div class="sp-chips" id="asetus-pohja">
+            <div class="sp-chip active" data-arvo="tumma">Tumma</div>
+            <div class="sp-chip" data-arvo="vaalea">Vaalea</div>
+            <div class="sp-chip" data-arvo="satelliitti">Satelliitti</div>
+          </div>
+
+          <div class="sp-label" style="margin-top:18px">Partikkelit</div>
+          <div class="sp-chips" id="asetus-partikkelit">
+            <div class="sp-chip active" data-arvo="normaali">Normaali</div>
+            <div class="sp-chip" data-arvo="vahan">Vähän</div>
+            <div class="sp-chip" data-arvo="pois">Pois</div>
+          </div>
+          <div class="sp-vihje">Vähentää akun kulutusta vanhemmilla puhelimilla.</div>
+
+          <div class="sp-label" style="margin-top:18px">Väriasteikko</div>
+          <div class="sp-chips" id="asetus-ramppi">
+            <div class="sp-chip active" data-arvo="nykyinen">Nykyinen</div>
+            <div class="sp-chip" data-arvo="cvd">Värisokeusystävällinen</div>
+          </div>
+          <!-- Teksti vaihtuu pohjakartan mukana: vaalealla asteikko on jo
+               kirkkauteen perustuva, jolloin valinnalla ei ole vaikutusta.
+               Ilman tätä käyttäjä valitsisi vaihtoehdon eikä näkisi mitään
+               eikä tietäisi miksi. Ks. ColorRamp.karttaRamppi(). -->
+          <div class="sp-vihje" id="ramppi-vihje"></div>
+
+          <div class="sp-label" style="margin-top:18px">Lämpökartan voimakkuus</div>
+          <div class="sp-chips" id="asetus-lampo">
+            <div class="sp-chip" data-arvo="hillitty">Hillitty</div>
+            <div class="sp-chip active" data-arvo="normaali">Normaali</div>
+            <div class="sp-chip" data-arvo="voimakas">Voimakas</div>
+          </div>
+        </div>
+
         <!-- Karttatasot — vain FMI Meri päällä oletuksena -->
         <div class="sp-card">
           <div class="sp-label">Karttatasot</div>
@@ -2178,9 +2297,12 @@ body {
           </div>
 
           <div class="sp-credit">
+            <!-- Lähdelista vaihtuu pohjakartan mukana (ks. POHJAT): Esrin
+                 ehdot vaativat sen palvelun lähteet jota käytetään, ja
+                 World_Imageryn lähteet ovat eri kuin Canvas-karttojen. -->
             Kartta: Powered by <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a>
-            — Esri, HERE, Garmin,
-            © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>&nbsp;contributors.
+            — <span id="pohja-lahteet">Esri, HERE, Garmin,
+            © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>&nbsp;contributors.</span>
             Säädata: Ilmatieteen laitos, Open-Meteo.
             <!-- Versioleima. Sovellus on yksi HTML-tiedosto ilman hajautettuja
                  tiedostonimiä, joten vanha välimuistissa oleva index.html
@@ -2566,6 +2688,120 @@ const Units = {
   }
 };
 
+/* -- POHJAKARTAT ------------------------------------------------
+ *
+ * Kolme Esrin karttapalvelua. Jokainen tuo mukanaan kolme asiaa jotka
+ * EIVÄT ole makuasioita vaan mitattuja: sävynsäädin, lämpökartan
+ * sekoitustila ja se kumpaan suuntaan tuuliramppi kulkee. Kaksi ensin
+ * mainittua asuvat CSS:ssä [data-pohja]-sääntöinä (--pohja-suodin ja
+ * --sekoitus), koska ne tarvitaan jo ennen ensimmäistä maalausta.
+ *
+ * Mitattu laattojen luminanssi Suomenlahdella z9 (mediaani / 5. persentiili
+ * eli vesi):
+ *     tumma        71 / 39
+ *     vaalea      239 / 209
+ *     satelliitti  51 / 29
+ *
+ * Vaalea pohja on keskiharmaan YLÄpuolella, ja siitä seuraa kaikki muu.
+ * Additiivinen plus-lighter vain työntää sen kohti valkoista: mitattuna
+ * rantaviivan ero romahti 45.6:sta 0.9:ään ja tuulivärit katosivat.
+ * multiply tekee saman työn toisin päin — se KERTOO pohjan värillä, eli
+ * lisää mustetta valkoiselle paperille — ja säilyttää maan ja veden eron
+ * (22.1) sekä nopeuserot (11.4). Sama valinta pätee partikkeleihin.
+ *
+ * Suora seuraus: vaalealla pohjalla tuulen pitää TUMMUA nopeuden mukana.
+ * Kartan oma ramppi vaalenee, ja multiply-sekoituksen läpi sen kirkkaus
+ * ei enää nouse monotonisesti — 8 ja 16 m/s voivat päätyä samaan
+ * tummuuteen. Siksi vaalealla pohjalla lämpökartta käyttää RAMP_INKiä eli
+ * samaa sävypolkua paperille käännettynä (ks. ColorRamp).
+ *
+ * Attribuutio vaihtuu palvelun mukana: Esrin ehdot vaativat "Powered by
+ * Esri" -maininnan JA sen palvelun datalähteet, ja World_Imageryn lähteet
+ * ovat eri kuin Canvas-karttojen. Tätä riviä ei saa pudottaa. */
+const POHJAT = {
+  tumma: {
+    nimi: 'Tumma',
+    url: 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    attr: 'Esri, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>&nbsp;contributors.'
+  },
+  vaalea: {
+    nimi: 'Vaalea',
+    url: 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    paperi: true,
+    attr: 'Esri, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>&nbsp;contributors.'
+  },
+  satelliitti: {
+    nimi: 'Satelliitti',
+    url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attr: 'Esri, Maxar, Earthstar Geographics ja GIS-käyttäjäyhteisö.'
+  }
+};
+
+/* -- ASETUKSET --------------------------------------------------
+ *
+ * Kartan säädöt yhdessä localStorage-avaimessa (fs_kartta) eikä neljänä
+ * erillisenä: nämä luetaan aina yhdessä ja käynnistyslohko <head>:ssä
+ * tarvitsee niistä yhden ennen ensimmäistä maalausta. Vanhat yksittäiset
+ * avaimet (fs_model, fs_unit, fs_suuntamuoto) jäävät sellaisikseen.
+ *
+ * Luku on puolustava kahdesta syystä: localStorage voi sisältää minkä
+ * tahansa merkkijonon (käyttäjä, vanha versio, rikkoutunut kirjoitus), ja
+ * tuntematon arvo saisi esimerkiksi ColorRampin rakentamaan LUTin
+ * undefinediin. Siksi jokainen arvo tarkistetaan sallittujen listaa
+ * vasten ja tuntematon putoaa oletukseen. */
+const Asetukset = {
+  AVAIN: 'fs_kartta',
+  _sallitut: {
+    pohja:       ['tumma', 'vaalea', 'satelliitti'],
+    partikkelit: ['normaali', 'vahan', 'pois'],
+    ramppi:      ['nykyinen', 'cvd'],
+    lampo:       ['hillitty', 'normaali', 'voimakas']
+  },
+  arvot: { pohja: 'tumma', partikkelit: 'normaali', ramppi: 'nykyinen', lampo: 'normaali' },
+
+  lue() {
+    let raw = null;
+    try { raw = JSON.parse(localStorage.getItem(this.AVAIN) || '{}'); } catch (e) { raw = null; }
+    if (!raw || typeof raw !== 'object') return this.arvot;
+    for (const k of Object.keys(this.arvot)) {
+      if (this._sallitut[k].indexOf(raw[k]) >= 0) this.arvot[k] = raw[k];
+    }
+    return this.arvot;
+  },
+  tallenna() {
+    try { localStorage.setItem(this.AVAIN, JSON.stringify(this.arvot)); } catch (e) {}
+  },
+  aseta(avain, arvo) {
+    if (!(avain in this.arvot)) return false;
+    if (this._sallitut[avain].indexOf(arvo) < 0) return false;
+    if (this.arvot[avain] === arvo) return false;
+    this.arvot[avain] = arvo;
+    this.tallenna();
+    return true;
+  },
+
+  /* Vaalea pohjakartta = paperi: lämpökartta ja partikkelit tummentavat
+     sen sijaan että kirkastaisivat. Yksi kysymys, monta seurausta. */
+  paperi() { return !!(POHJAT[this.arvot.pohja] || {}).paperi; },
+  pohja()  { return POHJAT[this.arvot.pohja] || POHJAT.tumma; },
+
+  /* Lämpökartan voimakkuus kertoo alfakäyrän. Kerroin osuu myös käyrän
+     kattoon (0.75), muuten "voimakas" nostaisi vain hiljaisen pään ja
+     jättäisi juuri sen kovan tuulen ennalleen jota säätö koskee. */
+  lampoKerroin() {
+    return this.arvot.lampo === 'hillitty' ? 0.62
+         : this.arvot.lampo === 'voimakas' ? 1.45 : 1;
+  },
+  /* Partikkelimäärän kerroin. 'vahan' on 45 % eikä 50 %, koska
+     nParticlesBase on jo alaraja 60 — puolitus jäisi pienellä ruudulla
+     kiinni siihen eikä säädöllä olisi vaikutusta. */
+  partikkeliKerroin() {
+    return this.arvot.partikkelit === 'pois' ? 0
+         : this.arvot.partikkelit === 'vahan' ? 0.45 : 1;
+  }
+};
+Asetukset.lue();
+
 /* -- COLOUR RAMP ------------------------------------------------ */
 const ColorRamp = (() => {
   /* Ramppi on suunniteltu niin että KIRKKAUS kantaa nopeuden ja sävy vain
@@ -2600,7 +2836,7 @@ const ColorRamp = (() => {
      Väliankkurit ovat segmentin päätepisteiden Lab-keskiarvoja. Ilman
      niitä sRGB-interpolointi etenee epätasaisesti: sama nopeusero näytti
      eri kohdissa jopa viisi kertaa erisuuruiselta. */
-  const RAMP = [
+  const RAMP_KARTTA = [
     { t: 0.000, r:   7, g:  42, b: 161 },  /*  0 m/s   tyyni sininen */
     { t: 0.050, r:  18, g:  66, b: 182 },  /*  1 m/s */
     { t: 0.100, r:  22, g:  90, b: 203 },  /*  2 m/s   sininen */
@@ -2640,25 +2876,61 @@ const ColorRamp = (() => {
     const last = ramp[ramp.length - 1];
     return { r: last.r, g: last.g, b: last.b };
   }
-  const LUT_SIZE = 201;
-  const _rgbLUT = new Array(LUT_SIZE);
-  const _cssLUT = new Array(LUT_SIZE);
-  for (let i = 0; i < LUT_SIZE; i++) {
-    const ms = i * 0.1;
-    const c = interpolate(RAMP, msToT(ms));
-    _rgbLUT[i] = c;
-    _cssLUT[i] = 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')';
-  }
-  const ALPHA_STEPS = 10;
-  const _cssAlphaLUT = new Array(ALPHA_STEPS);
-  for (let a = 0; a < ALPHA_STEPS; a++) {
-    _cssAlphaLUT[a] = new Array(LUT_SIZE);
-    const alpha = (a + 1) / ALPHA_STEPS;
-    for (let i = 0; i < LUT_SIZE; i++) {
-      const c = _rgbLUT[i];
-      _cssAlphaLUT[a][i] = 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + alpha.toFixed(2) + ')';
-    }
-  }
+  /* Värisokeusystävällinen vaihtoehto — asetuspaneelin "Väriasteikko".
+   *
+   * Yllä oleva ramppi on hyvä deuteranoopille ja protanoopille (mitattuna
+   * renderöitynä pienin dE2000 vähintään 4 m/s erolle: 4.9 ja 7.1), mutta
+   * TRITANOOPILLE se romahtaa 2.2:een — sinikeltaisen akselin puuttuessa
+   * sen sini–turkoosi–vihreä-alkupää menee yhdeksi sävyksi. Se on tämän
+   * rampin todellinen heikko kohta, ei vihreä–keltainen niin kuin tässä
+   * aiemmin luki.
+   *
+   * Tämä ramppi luopuu sävypolusta kokonaan ja koodaa nopeuden lähes
+   * pelkkään kirkkauteen sinisestä kellanvalkoiseen — samalla periaatteella
+   * kuin cividis, joka on tehty juuri tähän. Kirkkauden näkevät kaikki
+   * dikromaatit yhtä hyvin, joten kaikki kolme tyyppiä saavat saman erot-
+   * telun. Mitattuna tummalla pohjalla renderöitynä:
+   *
+   *     ramppi        normaali  deuteran.  protan.  tritan.
+   *     nykyinen         19.2      4.9      7.1      2.2
+   *     cividis           9.0      9.4      9.3      8.3
+   *     tämä             10.9     10.5     10.3     11.2
+   *
+   * Eli tritanoopin erottelu viisinkertaistuu ja kahden muun kaksin-
+   * kertaistuu. Hinta on normaalinäön erottelu: 19.2 -> 10.9. Se on
+   * oikea vaihtokauppa vain jos käyttäjä sitä pyytää, ja siksi tämä on
+   * asetus eikä uusi oletus. 10.9 on yhä moninkertaisesti yli
+   * erottumisrajan.
+   *
+   * Rantaviiva säilyy: maan ja veden ero 10 m/s kohdalla on 10.2 (nykyisellä
+   * 12.4). Satelliittipohjalla luvut ovat 9.0 / 8.2 / 8.1 / 9.3 — pienemmät,
+   * koska pohja on jo valmiiksi kirjava.
+   *
+   * Miksi ei cividis sellaisenaan: se on suunniteltu läpinäkymättömäksi
+   * kuvaksi, ja sen keskiharmaat sävyt (0.4-0.6) ovat additiivisessa
+   * sekoituksessa lähes värittömiä. Tämä versio pitää saman kirkkaus-
+   * aikataulun mutta kääntää keskiosan turkoosiin ja vaaleanvihreään,
+   * jolloin se voittaa cividiksen jokaisella akselilla. */
+  const RAMP_CVD = [
+    { t: 0.000, r:   6, g:  24, b:  74 },  /*  0 m/s   yösininen */
+    { t: 0.050, r:   9, g:  33, b:  95 },  /*  1 m/s */
+    { t: 0.100, r:  18, g:  58, b: 134 },  /*  2 m/s   sininen */
+    { t: 0.160, r:  19, g:  80, b: 157 },  /*  3 m/s */
+    { t: 0.220, r:  20, g: 102, b: 180 },  /*  4 m/s   kirkas sininen */
+    { t: 0.290, r:  25, g: 122, b: 196 },  /*  5 m/s */
+    { t: 0.360, r:  30, g: 146, b: 200 },  /*  6 m/s   taivaansininen */
+    { t: 0.430, r:  66, g: 164, b: 198 },  /*  7 m/s */
+    { t: 0.500, r:  84, g: 182, b: 196 },  /*  8 m/s   turkoosi */
+    { t: 0.575, r: 129, g: 199, b: 173 },  /*  9 m/s */
+    { t: 0.650, r: 157, g: 207, b: 180 },  /* 10 m/s   vaalea vihreä */
+    { t: 0.715, r: 185, g: 214, b: 155 },  /* 11.5 m/s */
+    { t: 0.780, r: 216, g: 220, b: 146 },  /* 13 m/s   limetti */
+    { t: 0.840, r: 236, g: 219, b: 105 },  /* 14.5 m/s */
+    { t: 0.900, r: 247, g: 217, b:  92 },  /* 16 m/s   kulta */
+    { t: 0.950, r: 255, g: 233, b: 168 },  /* 18 m/s */
+    { t: 1.000, r: 255, g: 246, b: 224 },  /* 20 m/s   kellanvalkoinen */
+  ];
+
   /* Mustevariantti käyttöliittymään.
      Kartan ramppi on suunniteltu mustaa merta vasten; paneelin beigellä sen
      vaaleat sävyt olisivat lukukelvottomia. Tässä on sama sävypolku —
@@ -2694,13 +2966,65 @@ const ColorRamp = (() => {
     { t: 0.950, r:  79, g:  13, b:  21 },  /*   18 m/s */
     { t: 1.000, r:  72, g:   0, b:  33 },  /*   20 m/s  pinkki */
   ];
+  /* Kumpi ramppi kartalle.
+   *
+   * Kaksi kysymystä, tässä järjestyksessä:
+   *
+   * 1. Vaalealla pohjalla lämpökartta sekoitetaan multiplyllä, eli se
+   *    TUMMENTAA. Kartan omat rampit vaalenevat nopeuden mukana, ja sen
+   *    läpi kirkkaus ei enää nouse monotonisesti: mitattuna sekä nykyinen
+   *    että värisokeusramppi menettivät nousevan L*:n, ja 2 ja 8 m/s
+   *    päätyivät samaan tummuuteen (dE 4.3). RAMP_INK on tehty juuri tähän
+   *    — se on sama sävypolku paperille käännettynä ja tummuu tuulen
+   *    mukana. Mitattuna vaalealla pohjalla 11.6 normaali / 6.8 deuteran. /
+   *    7.2 protan. / 6.3 tritan., ja L* laskee monotonisesti.
+   *
+   * 2. Vasta tummalla ja satelliittipohjalla väriasteikon valinta ratkaisee.
+   *
+   * Tästä seuraa se joka ei ole ilmeinen: värisokeusasetus EI muuta mitään
+   * vaalealla pohjalla. Se ei ole puute vaan mittaustulos — subtraktiivisella
+   * pohjalla signaali kulkee musteen määrässä eli kirkkaudessa, jonka
+   * jokainen dikromaatti näkee. Kartan värisokeusongelma on nimenomaan
+   * tumman pohjan additiivisen sekoituksen ongelma. */
+  function karttaRamppi() {
+    if (Asetukset.paperi()) return RAMP_INK;
+    return Asetukset.arvot.ramppi === 'cvd' ? RAMP_CVD : RAMP_KARTTA;
+  }
+
+  const LUT_SIZE = 201;
+  const ALPHA_STEPS = 10;
+  const _rgbLUT = new Array(LUT_SIZE);
+  const _cssLUT = new Array(LUT_SIZE);
+  const _cssAlphaLUT = new Array(ALPHA_STEPS);
   const _inkLUT = new Array(LUT_SIZE);
   const _inkCssLUT = new Array(LUT_SIZE);
-  for (let i = 0; i < LUT_SIZE; i++) {
-    const c = interpolate(RAMP_INK, msToT(i * 0.1));
-    _inkLUT[i] = c;
-    _inkCssLUT[i] = 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')';
+
+  /* Taulut täytetään PAIKALLEEN eikä korvata uusilla. Syy on että ne ovat
+     const-sidoksia joihin sulkeumat viittaavat; uuden taulukon sijoitus
+     vaatisi let-muuttujat ja jokainen lukija joutuisi käymään getterin
+     kautta. Täyttö on 201 + 10*201 alkiota eli hetkessä ohi, ja se ajetaan
+     vain kun asetus vaihtuu. */
+  function rakennaLUTit() {
+    const kartta = karttaRamppi();
+    for (let i = 0; i < LUT_SIZE; i++) {
+      const t = msToT(i * 0.1);
+      const c = interpolate(kartta, t);
+      _rgbLUT[i] = c;
+      _cssLUT[i] = 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')';
+      const ci = interpolate(RAMP_INK, t);
+      _inkLUT[i] = ci;
+      _inkCssLUT[i] = 'rgb(' + ci.r + ',' + ci.g + ',' + ci.b + ')';
+    }
+    for (let a = 0; a < ALPHA_STEPS; a++) {
+      const rivi = _cssAlphaLUT[a] || (_cssAlphaLUT[a] = new Array(LUT_SIZE));
+      const alpha = ((a + 1) / ALPHA_STEPS).toFixed(2);
+      for (let i = 0; i < LUT_SIZE; i++) {
+        const c = _rgbLUT[i];
+        rivi[i] = 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + alpha + ')';
+      }
+    }
   }
+  rakennaLUTit();
 
   function _lutIdx(ms) { return Math.min(LUT_SIZE - 1, Math.max(0, Math.round(ms * 10))); }
   function rgb(ms) { return _rgbLUT[_lutIdx(ms)]; }
@@ -2712,7 +3036,7 @@ const ColorRamp = (() => {
     const ai = Math.min(ALPHA_STEPS - 1, Math.max(0, Math.round(alpha * ALPHA_STEPS) - 1));
     return _cssAlphaLUT[ai][idx];
   }
-  return { rgb, css, msToT, ink, inkCss };
+  return { rgb, css, msToT, ink, inkCss, paivita: rakennaLUTit };
 })();
 
 /* -- SPOTS ----------------------------------------------------- */
@@ -3954,7 +4278,7 @@ function initMap() {
    * silloin yhta tasoa syvemmalta ja piirtaa puolikkaana. Laatat ovat
    * pienia (noin 5 kt), joten nelinkertainen maara on yha kevyempi kuin
    * CARTOn @2x-laatat. */
-  var baseTiles = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+  var baseTiles = L.tileLayer(Asetukset.pohja().url, {
     maxZoom: 19, maxNativeZoom: 16, detectRetina: true, className: 'basemap',
     /* updateWhenIdle: Leafletin oletus on mobiililaitteella TOSI, eli
        laattoja ei haeta lainkaan liikkeen aikana vaan vasta kun kartta
@@ -3978,9 +4302,15 @@ function initMap() {
        venytetty, mutta varovaisessa eleessa skaalan muutos on niin pieni
        ettei sita erota. */
     updateWhenIdle: false, updateWhenZooming: false, keepBuffer: 3, updateInterval: 120,
+    /* Leafletin oma attribuutiokontrolli on pois paalta, joten tama ei
+       nay missaan — maininta on asetuspaneelin alalaidassa ja se
+       paivitetaan POHJAT-taulusta. Rivi on silti tassa, jotta laattataso
+       kantaa lahteensa mukanaan jos kontrolli joskus otetaan kayttoon. */
     attribution: 'Powered by <a href="https://www.esri.com/">Esri</a> &mdash; '
-      + 'Esri, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      + Asetukset.pohja().attr
   }).addTo(map);
+  /* Pohjakartan vaihto tarvitsee tason, ks. Pohjakartta.kayta(). */
+  State.baseTiles = baseTiles;
 
   /* Varatie. Pohjakartta on nyt Esrin palvelussa, jonka kaytto edellyttaa
      heidan ehtojaan — jos palvelu joskus estyy tai katoaa, kartta jaisi
@@ -4785,6 +5115,15 @@ const WindTexture = {
     new Uint8Array(koe.buffer)[0] = 1;
     const little = koe[0] === 1;
     const n = 201, lut = new Uint32Array(n);
+    /* Asetuspaneelin "Lämpökartan voimakkuus". Kerroin osuu myös käyrän
+       kattoon: pelkkä kertominen jättäisi kärjen 0.75:een kiinni, eli
+       "voimakas" nostaisi vain hiljaisen pään ja jättäisi juuri sen kovan
+       tuulen ennalleen jonka takia säätöä käytetään. Mitattuna tummalla
+       pohjalla nopeuserottelu (pienin dE2000, >=4 m/s ero) on
+       hillitty 13.1 / normaali 19.2 / voimakas 20.5, ja rantaviivan ero
+       11.7 / 12.4 / 10.0 — eli voimakas maksaa hieman pohjakartan
+       näkyvyyttä. Se on säädön tarkoitus eikä vika. */
+    const k = Asetukset.lampoKerroin();
     for (let i = 0; i < n; i++) {
       const ms = i * 0.1;
       const c = ColorRamp.rgb(ms);
@@ -4794,8 +5133,10 @@ const WindTexture = {
          sekoituksessa se ei syö rantaviivan kontrastia — maan ja veden
          ero on alfasta riippumaton — joten kovan tuulen saa näkymään
          ilman että kartta katoaa alta. */
-      const a = ms < 0.3 ? 0.08
-        : Math.min(0.75, 0.10 + 0.55 * (1 - Math.exp(-2.5 * t)) + 0.10 * t * t * t);
+      /* Ylin 0.92 on pakollinen eikä makuasia: kertoimella 1.45 katto
+         0.75 nousisi yli ykkösen, ja A pakataan tavuun. */
+      const a = Math.min(0.92, ms < 0.3 ? 0.08 * k
+        : Math.min(0.75 * k, (0.10 + 0.55 * (1 - Math.exp(-2.5 * t)) + 0.10 * t * t * t) * k));
       const A = Math.round(a * 255);
       lut[i] = little
         ? (((A << 24) | (c.b << 16) | (c.g << 8) | c.r) >>> 0)
@@ -5027,8 +5368,13 @@ function drawColorField(skipBlur) {
 /* Sama arvo kuin CSS:n @supports-haarassa. Tämä asetetaan inline-tyyliin,
    joten se on pakko päätellä samalla säännöllä — muuten inline-arvo
    ohittaisi varasäännön vanhoissa selaimissa. */
-const HEAT_BLEND = (window.CSS && CSS.supports && CSS.supports('mix-blend-mode', 'plus-lighter'))
+const LISAAVA_SEKOITUS = (window.CSS && CSS.supports && CSS.supports('mix-blend-mode', 'plus-lighter'))
   ? 'plus-lighter' : 'screen';
+/* Vaalealla pohjakartalla lämpökartan pitää TUMMENTAA eikä kirkastaa,
+   muuten se työntää jo valmiiksi vaalean pohjan valkoiseksi (mitattuna
+   rantaviivan ero 45.6 -> 0.9). multiply on tuettu kaikkialla, joten sillä
+   haaralla ei ole varatietä. Ks. POHJAT. */
+function heatSekoitus() { return Asetukset.paperi() ? 'multiply' : LISAAVA_SEKOITUS; }
 
 /* zoom voidaan antaa erikseen: zoomanim tietää maalin ennen kuin kartta
    on siellä, ja sumennus halutaan matkaan samaan aikaan kartan kanssa. */
@@ -5047,7 +5393,7 @@ function updateHeatmapBlur(zoom) {
        perustelu oli "jotkut selaimet resetoivat sen"; todellinen syy sille
        ettei sekoitus näkynyt oli paneelin pinoamiskonteksti, ei selain.
        Rivi on silti vaaraton ja pitää inline-tyylin CSS:n kanssa samana. */
-    el.style.mixBlendMode = HEAT_BLEND;
+    el.style.mixBlendMode = heatSekoitus();
   });
 }
 
@@ -5110,9 +5456,18 @@ const PerfTracker = {
  * laitteilla tämä on yläraja eikä lupaus. */
 function nParticlesBase() {
   const ala = (State.vw || 390) * (State.vh || 844);
-  return Math.max(60, Math.min(520, Math.round(ala / 1500)));
+  const perus = Math.max(60, Math.min(520, Math.round(ala / 1500)));
+  /* Asetuspaneelin kerroin (1 / 0.45 / 0) tulee VASTA alarajan jälkeen.
+     Toisin päin 60:n alaraja söisi "vähän"-asetuksen kokonaan pienellä
+     ruudulla, ja "pois" palauttaisi 60 partikkelia. */
+  return Math.round(perus * Asetukset.partikkeliKerroin());
 }
 function nParticles() { return PerfTracker.getTarget(); }
+/* Yksi kysymys kahdelle kytkimelle: mittauskytkin (?perf=1) ja
+   asetuspaneelin "Pois". Kumpi tahansa riittää. */
+function partikkelitPois() {
+  return !!State._perfNoParticles || Asetukset.arvot.partikkelit === 'pois';
+}
 /* Leveys ja määrä on valittu yhdessä, mitattuna.
  *
  * Mittari: "luettava peitto" = osuus ruudusta jossa on partikkelimustetta
@@ -5271,8 +5626,8 @@ function resetParticles(kova) {
     Ruudusto.nollaa(State.map);
     AlueVahti.e = null;
   }
-  /* Mittauskytkin pitää partikkelit poissa myös kun kenttä ladataan uusiksi */
-  if (State._perfNoParticles) { State.particles = []; return; }
+  /* Kytkin pitää partikkelit poissa myös kun kenttä ladataan uusiksi */
+  if (partikkelitPois()) { State.particles = []; return; }
   const n = nParticles();
   while (State.particles.length > n) State.particles.pop();
   while (State.particles.length < n) State.particles.push(makeParticle(true));
@@ -5506,20 +5861,38 @@ const VAALEA = 0.44;
    @supports-sääntöä ei voi pakottaa epätotuudeksi JS:stä (CSS.supportsin
    korvaaminen ei vaikuta tyylisääntöihin — se harha tuotti ensin
    virheellisen mittauksen). Haara on siis todistettu vain lähdekoodin
-   tasolla ja johdetulla laskennalla. */
-const VARATIE_BOOSTI = HEAT_BLEND === 'screen' ? 1.25 : 1;
-(function () {
+   tasolla ja johdetulla laskennalla.
+
+   Korjaus asuu rakennaNippuVarit()-funktiossa (muuttuja boosti), koska
+   sekoitustila ei ole enää vakio: se riippuu pohjakartasta. */
+/* Vaalealla pohjalla partikkelit sekoitetaan multiplyllä samasta syystä
+   kuin lämpökartta, ja silloin vaalennus kääntyy TUMMENNUKSEKSI: kohti
+   valkoista vedetty väri ei kerrottuna muuta paperia lainkaan, eli jäljet
+   katoaisivat. Kerroin on pienempi kuin VAALEA, koska musteen suunta on
+   valmiiksi oikea — ink-ramppi on jo tumma ja tummuu tuulen mukana. */
+const PAPERI_TUMMENNUS = 0.18;
+function rakennaNippuVarit() {
+  const paperi = Asetukset.paperi();
+  const boosti = (!paperi && LISAAVA_SEKOITUS === 'screen') ? 1.25 : 1;
   for (let n = 0; n < NIPUT; n++) {
     const t = (n + 0.5) / NIPUT, ms = t * Config.MAX_MS;
-    const a0 = Math.min(0.92, Math.min(0.50, 0.22 + t * 0.33) * VARATIE_BOOSTI);
+    const a0 = Math.min(0.92, Math.min(0.50, 0.22 + t * 0.33) * boosti);
     const c = ColorRamp.rgb(ms);
-    const r = Math.round(c.r + (255 - c.r) * VAALEA);
-    const g = Math.round(c.g + (255 - c.g) * VAALEA);
-    const b = Math.round(c.b + (255 - c.b) * VAALEA);
+    let r, g, b;
+    if (paperi) {
+      r = Math.round(c.r * (1 - PAPERI_TUMMENNUS));
+      g = Math.round(c.g * (1 - PAPERI_TUMMENNUS));
+      b = Math.round(c.b * (1 - PAPERI_TUMMENNUS));
+    } else {
+      r = Math.round(c.r + (255 - c.r) * VAALEA);
+      g = Math.round(c.g + (255 - c.g) * VAALEA);
+      b = Math.round(c.b + (255 - c.b) * VAALEA);
+    }
     Nippu.vari[n] = 'rgba(' + r + ',' + g + ',' + b + ',' + a0.toFixed(3) + ')';
     Nippu.leveys[n] = particleLineWidth(ms);
   }
-})();
+}
+rakennaNippuVarit();
 
 /* -- JÄLKI ON KAPENEVA NAUHA, EI PINO VETOJA ---------------------
  *
@@ -5752,9 +6125,11 @@ function startRenderLoop() {
 function renderLoop(ts) {
   requestAnimationFrame(renderLoop);
   PerfTracker.frame(ts || performance.now());
-  /* Mittauskytkin (?perf=1) — pysäyttää partikkelityön kokonaan, ei pelkkää
-     piirtoa, jotta kytkimen vaikutus kertoo partikkelien todellisen hinnan. */
-  if (State._perfNoParticles) return;
+  /* Kytkin pysäyttää partikkelityön kokonaan, ei pelkkää piirtoa. Sekä
+     mittauskytkimelle (?perf=1) että asetukselle tämä on koko pointti:
+     "Pois" on akkusäästö, joten advektion ja näytteistyksen on jäätävä
+     tekemättä eikä vain jäätävä näkymättä. */
+  if (partikkelitPois()) return;
   const { windCtx, windCvs, windField, map, particles, dpr } = State;
   if (!windCtx || !windCvs.width || !windField.length || !map) return;
   const W = State.vw, H = State.vh;
@@ -11636,6 +12011,134 @@ document.addEventListener('click', () => {
   WxPanel.close();
 }, { passive: true });
 
+/* -- KARTAN ASETUKSET — paneelin sirut käyttöön ------------------
+ *
+ * Neljä säätöä, yksi käsittelijä. Jokaisella on OMA vaikutusketjunsa, ja
+ * ne on pidetty erillään tarkoituksella: pohjakartan vaihto koskee kaikkea
+ * (laatat, sekoitustila, ramppi, partikkelien väri), kun taas lämpökartan
+ * voimakkuus koskee vain yhtä taulua.
+ *
+ * Yhteinen sääntö: mikään näistä ei hae verkosta mitään. Tuulikenttä on jo
+ * muistissa, joten uudelleenpiirto on paikallinen ja välitön — siksi
+ * paneelia ei suljeta valinnan jälkeen niin kuin malli- ja kerrosvalinnassa,
+ * vaan muutos näkyy paneelin takana heti ja käyttäjä voi kokeilla toista
+ * arvoa vertaamatta muistiin. */
+const KarttaAsetukset = {
+  RYHMAT: {
+    'asetus-pohja':       'pohja',
+    'asetus-partikkelit': 'partikkelit',
+    'asetus-ramppi':      'ramppi',
+    'asetus-lampo':       'lampo'
+  },
+
+  alusta() {
+    for (const id of Object.keys(this.RYHMAT)) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      this._merkitse(id);
+      el.addEventListener('click', (e) => {
+        const chip = e.target.closest('.sp-chip');
+        if (!chip || !el.contains(chip)) return;
+        const avain = this.RYHMAT[id];
+        if (!Asetukset.aseta(avain, chip.dataset.arvo)) return;
+        Haptics.light();
+        this._merkitse(id);
+        this.kayta(avain);
+      }, { passive: true });
+    }
+    /* Käynnistyksessä ne osat joita CSS ja moduulien alustus eivät hoida.
+       Pohjakartan osoite, ramppitaulut ja alfataulu syntyvät jo oikein
+       (ks. Asetukset.lue() ja ColorRamp), joten tässä ei piirretä
+       karttaa uusiksi — vain kirjoitetaan se mikä on vielä oletuksessa. */
+    this._lahteet();
+    this._ramppiVihje();
+    this._partikkeliNakyvyys();
+    document.documentElement.setAttribute('data-pohja', Asetukset.arvot.pohja);
+  },
+
+  _merkitse(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const arvo = Asetukset.arvot[this.RYHMAT[id]];
+    el.querySelectorAll('.sp-chip').forEach(c =>
+      c.classList.toggle('active', c.dataset.arvo === arvo));
+  },
+
+  _lahteet() {
+    const el = document.getElementById('pohja-lahteet');
+    if (el) el.innerHTML = Asetukset.pohja().attr;
+  },
+
+  _ramppiVihje() {
+    const el = document.getElementById('ramppi-vihje');
+    if (!el) return;
+    el.textContent = Asetukset.paperi()
+      ? 'Vaalealla pohjakartalla asteikko on jo kirkkauteen perustuva, '
+        + 'joten tämä valinta ei muuta sitä.'
+      : 'Koodaa nopeuden lähes pelkkänä kirkkautena. Erottuu myös puna-, '
+        + 'viher- ja siniheikolle näölle.';
+  },
+
+  _partikkeliNakyvyys() {
+    if (State.windCvs) State.windCvs.style.visibility = partikkelitPois() ? 'hidden' : '';
+  },
+
+  /* Lämpökartta uusiksi ilman verkkohakua. buildWindField hakisi kentän
+     rakenteen uudelleen; tässä muuttui vain väri, joten riittää rakentaa
+     tekstuuri samasta kentästä. */
+  _piirraLampokartta() {
+    WindTexture._pikseliLUT = null;
+    if (!State.map || !State.windField || !State.windField.length) return;
+    WindTexture.build(State.windField, State.map.getBounds())
+      .then(() => { drawColorField(); })
+      .catch(e => console.warn('[asetus]', e));
+  },
+
+  kayta(avain) {
+    if (avain === 'pohja') {
+      document.documentElement.setAttribute('data-pohja', Asetukset.arvot.pohja);
+      const t = State.baseTiles;
+      if (t && State.map) {
+        /* Varatie on voinut poistaa Esri-tason kokonaan (ks. tileerror
+           initMapissa). Käyttäjän oma valinta on syy yrittää uudelleen. */
+        if (!State.map.hasLayer(t)) t.addTo(State.map);
+        t.setUrl(Asetukset.pohja().url);
+      }
+      this._lahteet();
+      this._ramppiVihje();
+      /* Sekoitustila vaihtuu, ja sen mukana kumpaan suuntaan ramppi
+         kulkee. Molemmat taulut on rakennettava ennen piirtoa.
+         updateHeatmapBlur kirjoittaa sekoitustilan inline-tyyliin, joten
+         se on pakko ajaa — pelkkä CSS-tokenin vaihto ei riitä. */
+      ColorRamp.paivita();
+      rakennaNippuVarit();
+      buildLegend();
+      updateHeatmapBlur();
+      this._piirraLampokartta();
+
+    } else if (avain === 'ramppi') {
+      /* Vain kartan taulut. Paneelien musteramppi (ColorRamp.ink) ei
+         muutu, joten spottimerkkejä, tähtäintä tai aikajanaa ei tarvitse
+         piirtää uusiksi. */
+      ColorRamp.paivita();
+      rakennaNippuVarit();
+      buildLegend();
+      this._piirraLampokartta();
+
+    } else if (avain === 'lampo') {
+      this._piirraLampokartta();
+
+    } else if (avain === 'partikkelit') {
+      this._partikkeliNakyvyys();
+      /* PerfTracker pitää omaa tavoitettaan, joka on voinut jäädä
+         edellisen asetuksen tasolle. reset lukee nParticlesBasen uusiksi
+         ja resetParticles kuroo määrän siihen. */
+      PerfTracker.reset();
+      resetParticles();
+    }
+  }
+};
+
 document.getElementById('layers').addEventListener('click', e => {
   const b = e.target.closest('.sp-chip'); if (!b) return;
   const layer = b.dataset.layer; if (!layer || layer === State.activeLayer) return;
@@ -11861,6 +12364,9 @@ function _avaaLinkista(linkki) {
 function main() {
   buildLegend(); initMap(); initCanvases();
   Crosshair.init(); WeatherWidget.init(); Units.init(); Suunta.init();
+  /* Kartan asetukset vasta initCanvasesin jälkeen: partikkelikanvas on
+     silloin olemassa ja "Pois" osaa piilottaa sen heti. */
+  KarttaAsetukset.alusta();
   /* Palauta tallennettu malli */
   (function() {
     var saved = State.activeModel;
