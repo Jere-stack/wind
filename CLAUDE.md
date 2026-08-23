@@ -1912,3 +1912,98 @@ kirjoitetaan. **Alkurenderöinti ei saa arvata sitä muualta:** UiRas-spoteilla
 vastaa vasta myöhemmin. Jos puku laskettaisiin siinä välissä marine-API:n
 `_waterTemp`-arvosta, kortti näyttäisi yhtä aikaa "VESI —" ja "PUKU 3/2 mm"
 — ja pysyvästi, jos UiRas ei vastaa. Mitattuna juuri niin kävi.
+
+## Nipistyszoomin pehmennys
+
+Leafletin `TouchZoom._onTouchMove` laskee skaalan ja keskipisteen **suoraan
+sormien sijainneista joka touchmove-tapahtumassa, ilman minkäänlaista
+suodatusta**. Sormen vapina menee siis sellaisenaan muunnokseen. Tämä ei ole
+Leafletin bugi vaan puuttuva ominaisuus: Apple Maps, Google Maps ja Mapbox
+kaikki suodattavat eleen ennen kuin se päätyy kameraan.
+
+**Miksi se näkyy juuri reunoilla.** Skaalavirhe `ds` siirtää pistettä joka on
+etäisyydellä `r` ankkurista määrän `r*ds`. Ankkurin kohdalla `r = 0` eikä
+mitään näy, mutta 390×844 ruudun nurkassa `r` on noin 460 px. Sama virhe on
+keskellä näkymätön ja reunalla iso — juuri siksi ilmiö näyttää
+"reunojen värinältä" eikä zoomin epävakaudelta.
+
+### One Euro -suodin
+
+Korjaus on One Euro (Casiez, Roussel & Vogel, CHI 2012):
+`cutoff = minCutoff + beta*|nopeus|`. Se on tähän oikea työkalu koska se on
+**adaptiivinen** — hitaassa liikkeessä suodattaa voimakkaasti (vapina katoaa),
+nopeassa löysää otettaan (ele ei jää jälkeen). Kiinteä alipäästö ei kelpaisi:
+se joko jättäisi vapinan tai lisäisi viivettä tarkoitukselliseen eleeseen.
+
+**Suodatetaan sormien sijainnit, ei zoomia.** Silloin Leafletin oma
+matematiikka pysyy koskemattomana ja etäisyys sekä keskipiste pysyvät
+keskenään johdonmukaisina. Zoomin suodattaminen jälkikäteen siirtäisi
+ankkuria, koska keskipiste on laskettu eri zoomille — kartta luisuisi sormien
+alta. Toteutus (`nipistysPehmennys()` ennen `initMap`ia) korvaa
+`map.mouseEventToContainerPoint`in eleen ajaksi ja palauttaa sen `finally`ssä.
+
+Yksityiskohtia jotka eivät ole ilmeisiä:
+
+- **Sormet tunnistetaan `identifier`illa, ei järjestysnumerolla.** Jos sormi
+  nousee ja toinen laskee, indeksi osoittaisi eri sormeen ja suodin hyppäisi.
+- **Suotimia ei nollata kesken eleen.** Kolmas sormi laukaisee touchstartin,
+  joten nollaus on ehdollinen: `if (!this._zooming)`.
+- **Näytteenottotaajuutta ei oleteta.** `alpha` lasketaan mitatusta `dt`:stä,
+  joten 120 Hz ProMotion suodattaa saman verran kuin 60 Hz.
+- **Panorointia ei suodateta.** Se siirtää koko karttaa yhtä paljon
+  kaikkialla, joten `r`-vahvistusta ei ole eikä vapina erotu; suodatus vain
+  hidastaisi vasteen.
+
+### Mitatut arvot
+
+Vapina 1,5 px, nurkka `r = 460 px`, sormet paikallaan lasilla:
+
+```
+suodattamaton               8,41 px RMS
+minCutoff 1,0  beta 0,12    2,42 px RMS   (-71 %)
+```
+
+Vaikutus skaalautuu vapinan mukana: 0,5 px vapina 2,80 → 0,63 px, 2,5 px
+vapina 14,02 → 4,94 px.
+
+**Viive ei ole se hinta jolta se kuulostaa.** Puhdas viive nopean eleen aikana
+on 7,2 px, eli 1,1 % siitä 624 px:stä jonka nurkka kulkee. Ja kun sama ramppi
+ajetaan oikean vapinan kanssa, keskimääräinen ero ideaaliradasta on
+suodattamattomana **7,04 px** ja suodatettuna **6,67 px** — virhe ei siis
+lisäänny lainkaan, se vaihtaa luonnetta: satunnaisesta värinästä tasaiseksi
+jäljessälaahaukseksi, jota silmä ei lue virheeksi. Pysyvä poikkeama pidon
+aikana on 0,57 px.
+
+Löysempi `beta 0,06` veisi heilunnan 1,79 px:ään mutta nostaisi viiveen
+12,1 px:ään; se tuntuu siltä ettei kartta ole kiinni sormissa.
+
+### Mittarit jotka eivät toimineet
+
+Tämä oli kolme kertaa väärin ennen kuin oli oikein, ja kaikki kolme virhettä
+näyttivät uskottavilta lukuina:
+
+1. **Toisen erotuksen RMS selaimessa** antoi 20 px myös nollavapinalla ja
+   *pieneni* kun vapinaa lisättiin. Se mittasi omaa dispatch-tahtiani, ei
+   karttaa.
+2. **Liukuvan keskiarvon jäännös** antoi 9 px nollavapinalla: liukuva
+   keskiarvo on harhainen kaarevalla radalla, ja nurkan rata on voimakkaasti
+   kaareva (`2^dz`). Savitzky–Golay (kvadraattinen) korjaa harhan mutta
+   selaimen eleputki oli silti liian meluisa.
+3. **Poikkeama ideaalista yhtenä lukuna** sekoitti tärinän ja viiveen:
+   ensimmäinen viritys näytti että suodatus tekee asiasta 14× pahemman,
+   koska rampin aikana viive hallitsi mittaria kokonaan.
+
+Toimiva mittari on analyyttinen: 60 Hz sormirata → Leafletin kaava → nurkan
+siirtymä, ja **tärinä ja viive erikseen** — tärinä on jäännös signaalin omasta
+Savitzky–Golay-trendistä, viive keskimääräinen ero ideaaliradasta.
+Ratkaiseva tapaus ei ole ramppi vaan **pito**: sormet paikallaan lasilla,
+vapina jatkuu. Juuri silloin käyttäjä näkee reunojen värinän.
+
+Toinen ansa: **beta on eri mittakaavassa riippuen siitä mitä suodatetaan.**
+Zoomin nopeus on noin 0,5/s, sormen etäisyyden kymmeniä px/s. Ensimmäinen
+pyyhkäisy tehtiin zoomiavaruudessa ja `beta 0,15` oli siellä käytännössä
+nolla. Viritys on tehtävä siinä avaruudessa jossa toteutus toimii.
+
+Selaimessa varmistettiin vain **oikeellisuus**, ei numeroita: levitys
+70→170 px nostaa zoomin 10 → 11, kavennus palauttaa 10:een, kolmas sormi
+kesken eleen ei kaada mitään, `_zooming` ei jää päälle, ei JS-virheitä.

@@ -3445,6 +3445,116 @@ function buildLegend() {
 }
 
 /* -- MAP -------------------------------------------------------- */
+/* -- NIPISTYKSEN PEHMENNYS --------------------------------------
+ *
+ * Leafletin TouchZoom laskee skaalan ja keskipisteen SUORAAN sormien
+ * sijainneista joka touchmove-tapahtumassa, ilman minkäänlaista
+ * suodatusta. Sormen vapina menee siis sellaisenaan muunnokseen.
+ *
+ * Miksi se näkyy juuri reunoilla: skaalavirhe siirtää pistettä joka on
+ * etäisyydellä r ankkurista määrän r*ds. Ankkurin kohdalla r = 0 eikä
+ * mitään näy, mutta 390x844 ruudun nurkassa r on noin 460 px. Mitattuna
+ * 1,5 px vapina sormissa heiluttaa nurkkaa 8,4 px — yli viisinkertaisesti.
+ *
+ * Korjaus on One Euro -suodin (Casiez, Roussel & Vogel, CHI 2012). Se on
+ * juuri tähän tarkoitettu, koska se on ADAPTIIVINEN: hitaassa liikkeessä
+ * se suodattaa voimakkaasti (vapina katoaa) ja nopeassa löysää otettaan
+ * (ele ei jää jälkeen). Kiinteä alipäästö ei kelpaisi — se joko jättäisi
+ * vapinan tai lisäisi viivettä tarkoitukselliseen eleeseen.
+ *
+ * Suodatus tehdään SORMIEN SIJAINTEIHIN eikä zoomiin. Silloin Leafletin
+ * oma matematiikka pysyy koskemattomana ja etäisyys sekä keskipiste
+ * pysyvät keskenään johdonmukaisina; zoomin suodattaminen jälkikäteen
+ * siirtäisi ankkuria, koska keskipiste on laskettu eri zoomille.
+ *
+ * Parametrit on mitattu, ei arvattu (vapina 1,5 px, r = 460 px, sormet
+ * paikallaan lasilla):
+ *
+ *   suodattamaton              nurkka heiluu 8,41 px RMS
+ *   minCutoff 1,0 beta 0,12    ->  2,42 px   (-71 %)
+ *
+ * Viive nopean eleen aikana on 7,2 px, eli 1,1 % siitä 624 px:stä jonka
+ * nurkka kulkee — ja tärkeämpää: se ei kasvata kokonaispoikkeamaa. Kun
+ * sama ramppi ajetaan oikean vapinan kanssa, keskimääräinen ero
+ * ideaaliradasta on suodattamattomana 7,04 px ja suodatettuna 6,67 px.
+ * Virhe ei siis lisäänny, se vaihtaa luonnetta: satunnaisesta värinästä
+ * tasaiseksi jäljessälaahaukseksi, jota silmä ei lue virheeksi. Pysyvä
+ * poikkeama pidon aikana on 0,57 px.
+ *
+ * Löysempi suodatus (beta 0,06) veisi heilunnan 1,79 px:ään mutta
+ * nostaisi viiveen 12,1 px:ään; se tuntuisi siltä ettei kartta ole kiinni
+ * sormissa.
+ *
+ * Näytteenottotaajuutta ei oleteta: alpha lasketaan mitatusta dt:stä,
+ * joten 120 Hz ProMotion suodattaa saman verran kuin 60 Hz.
+ *
+ * Kytkeytyy pois jos Leafletin sisäiset osat eivät ole odotetut. */
+(function nipistysPehmennys() {
+  if (!window.L || !L.Map || !L.Map.TouchZoom || !L.Map.TouchZoom.prototype) return;
+  const proto = L.Map.TouchZoom.prototype;
+  const alkupMove  = proto._onTouchMove;
+  const alkupStart = proto._onTouchStart;
+  if (typeof alkupMove !== 'function' || typeof alkupStart !== 'function') return;
+
+  const MIN_CUTOFF = 1.0, BETA = 0.12, D_CUTOFF = 1.0;
+
+  function Alipaasto() {
+    let y = null;
+    return { suodata(x, a) { y = (y === null) ? x : a * x + (1 - a) * y; return y; } };
+  }
+  function OneEuro() {
+    const xf = Alipaasto(), df = Alipaasto();
+    let edellinen = null, tEd = null;
+    const alpha = (cutoff, dt) => { const r = 2 * Math.PI * cutoff * dt; return r / (r + 1); };
+    return function (x, t) {
+      if (tEd === null) { tEd = t; edellinen = x; return xf.suodata(x, 1); }
+      const dt = Math.max(1e-4, (t - tEd) / 1000); tEd = t;
+      const dx = (x - edellinen) / dt; edellinen = x;
+      const nopeus = df.suodata(dx, alpha(D_CUTOFF, dt));
+      return xf.suodata(x, alpha(MIN_CUTOFF + BETA * Math.abs(nopeus), dt));
+    };
+  }
+
+  proto._onTouchStart = function (e) {
+    /* Uusi ele, uudet suotimet — mutta ei kesken nipistyksen: kolmas sormi
+       laukaisee touchstartin, eikä sen pidä nollata käynnissä olevan eleen
+       tilaa. Sormet tunnistetaan identifierilla eikä järjestysnumerolla:
+       jos sormi nousee ja toinen laskee, indeksi osoittaisi eri sormeen ja
+       suodin hyppäisi. */
+    if (!this._zooming) this._pehmennys = {};
+    return alkupStart.call(this, e);
+  };
+
+  proto._onTouchMove = function (e) {
+    if (!this._zooming || !e.touches || e.touches.length !== 2 || !this._map) {
+      return alkupMove.call(this, e);
+    }
+    const map = this._map;
+    const alkupPiste = map.mouseEventToContainerPoint;
+    if (typeof alkupPiste !== 'function') return alkupMove.call(this, e);
+    const suotimet = this._pehmennys || (this._pehmennys = {});
+    const t = (e.timeStamp && e.timeStamp > 0) ? e.timeStamp : performance.now();
+
+    /* Sijainnit suodatetaan lennossa: Leaflet kysyy ne tämän kautta, joten
+       sen omaan laskentaan ei tarvitse koskea. Stub puretaan aina, myös
+       poikkeuksen sattuessa. */
+    map.mouseEventToContainerPoint = function (kosketus) {
+      const p = alkupPiste.call(map, kosketus);
+      const id = (kosketus && kosketus.identifier != null) ? kosketus.identifier : 'a';
+      let f = suotimet[id];
+      if (!f) f = suotimet[id] = { x: OneEuro(), y: OneEuro() };
+      p.x = f.x(p.x, t);
+      p.y = f.y(p.y, t);
+      return p;
+    };
+    try {
+      return alkupMove.call(this, e);
+    } finally {
+      map.mouseEventToContainerPoint = alkupPiste;
+    }
+  };
+})();
+
 function initMap() {
   const map = L.map('map', {
     center: [62.5, 25.5], zoom: 5, zoomControl: false, attributionControl: false,
