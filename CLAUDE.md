@@ -2270,7 +2270,114 @@ Zoomin nopeus on noin 0,5/s, sormen etäisyyden kymmeniä px/s. Ensimmäinen
 pyyhkäisy tehtiin zoomiavaruudessa ja `beta 0,15` oli siellä käytännössä
 nolla. Viritys on tehtävä siinä avaruudessa jossa toteutus toimii.
 
-Selaimessa varmistettiin vain **oikeellisuus**, ei numeroita: levitys
-70→170 px nostaa zoomin 10 → 11, kavennus palauttaa 10:een, hidas levitys
-8 px/s nostaa 10 → 10,5, kolmas sormi kesken eleen ei kaada mitään,
-`_zooming` ei jää päälle, ei JS-virheitä.
+Selaimessa varmistettiin vain **oikeellisuus**, ei numeroita. Oikeilla
+kosketustapahtumilla, `zoomSnap: 0`:n jälkeen:
+
+```
+levitys 70→170 px      10,000 → 11,217
+kavennus 170→70 px     11,217 →  9,995
+hidas 8 px/s            9,995 → 10,277
+nopea nykäisy          10,277 → 12,314
+kolmas sormi kesken    12,314 → 12,822
+```
+
+Lisäksi joka eleen jälkeen: `_zooming` false, alipikselitila purettu,
+`nipistys`-luokka poistettu, pikseliorigo kokonaisluku, ei JS-virheitä.
+
+## Eleen loppu ja tuntuma — kolme asiaa Apple Mapsista
+
+Kun eleen aikainen sileys oli mitattu kuntoon, jäljelle jäi kolme asiaa
+jotka erottavat selainkartan natiivista. Kaksi niistä ei näy missään
+sileysmittarissa, koska ne tapahtuvat sillä hetkellä kun sormet irtoavat.
+
+### 1. zoomSnap 0 — ele päättyy siihen mihin sormet sen jättivät
+
+`zoomSnap` oli 0,5, eli Leaflet animoi eleen jälkeen lähimpään puolikkaaseen
+tasoon. Mitattuna kahdeksalla eleellä:
+
+```
+sormiväli   zoom irrotettaessa   napsahti   skaalahyppy
+   116 px          11,181          11,00       13,4 %
+   180 px          11,817          12,00       13,5 %
+   240 px          12,239          12,00       18,0 %
+keskimäärin 0,133 zoomtasoa, suurin 0,239
+```
+
+**Kartta muutti kokoaan jopa 18 % sillä hetkellä kun sormet irtosivat**, joka
+ikisessä eleessä. Se on satakertaisesti suurempi epäjatkuvuus kuin ne
+alipikselin jäänteet joita eleen aikana oli hiottu. Arvolla 0 hyppy on 0,000
+kaikissa kahdeksassa tapauksessa.
+
+**Terävyys ei kärsi, vaikka niin voisi luulla.** Leaflet lataa laattatason
+`Math.round(zoom)`, joten zoom 11,5 skaalaa jo nyt z12-laattoja kertoimella
+0,707. Skaalan vaihteluväli on `[1/√2, √2]` kummallakin asetuksella —
+napsautus ei osta terävyyttä, se vain siirtää kartan pois siitä mihin se
+jätettiin.
+
+`zoomDelta` pysyy 0,5:ssä, joten napit ja kaksoisnapautus liikkuvat yhä
+siisteinä askelina. Tarkistettu ettei murtolukuzoom riko välimuisteja: kaikki
+zoomista riippuva logiikka haarukoi välejä (`ViewportGrid.gridStep`,
+ikonikoot, `_windIconSig`).
+
+### 2. Zoom-inertia
+
+Leafletissa on panorointi-inertia mutta zoomille ei mitään — zoom pysähtyy
+kuin seinään. Toteutus **ei ole oma animaatiosilmukka** vaan maalin jatko:
+eleen päättyessä zoomiin lisätään `v·TAU` ja keskipiste lasketaan uudelleen
+samalle ankkurille, minkä jälkeen Leafletin oma 250 ms:n siirtymä
+(`cubic-bezier(0,0,0.25,1)`, eli ease-out) hoitaa liu'un. Kerrosten
+synkronointi, laattojen lataus ja `zoomend` tulevat valmiina eikä mikään
+kilpaile Leafletin tilakoneen kanssa.
+
+Mitattu (kynnys 0,4 /s, TAU 0,12 s, katto 0,5):
+
+```
+ele                  zoom irrotettaessa -> lopullinen   lisä    ankkurin luisto
+nykäisy 350 ms          13,076 -> 13,475            +0,399        0,45 px
+tavallinen 900 ms       12,104 -> 12,164            +0,060        0,33 px
+varovainen 8 px/s       11,285 -> 11,285             0,000        1,07 px
+pito                    10,997 -> 10,997             0,000        0,36 px
+nykäisy ulos             9,156 ->  8,656            −0,500        0,45 px
+```
+
+**Kynnys on välttämätön, ei viimeistelyä.** Hitaassa liikkeessä
+nopeusestimaatti on lähes pelkkää vapinaa — tässä projektissa se on mitattu
+kolmesti (Holt, FIR-sovite ja lead compensation kaatuivat kaikki siihen).
+Ilman kynnystä inertia lisäisi satunnaista zoomia juuri siihen eleeseen jota
+on eniten hiottu. Mitatut nopeudet erottuvat puhtaasti: nykäisy 3,72 /s,
+tavallinen 0,85 /s, varovainen 0,093 /s, pito 0,004 /s. Kynnys vähennetään
+lisästä, joten sen ylitys ei tuota hyppyä.
+
+Katto on 0,5 eikä 0,7, koska ulospäin nykäisyssä `|v|` on suurempi kuin
+sisäänpäin: sormiväli kutistuu logaritmisella asteikolla nopeammin kuin se
+kasvaa. Katolla 0,7 pari oli +0,40 sisään ja −0,70 ulos, mikä tuntuu
+epäsymmetriseltä.
+
+### 3. Rasterointi kiinni eleen ajaksi
+
+`.nipistys .leaflet-tile-container, .nipistys .heatmap-overlay
+{ will-change: transform }`. Kun skaala muuttuu jatkuvasti, selain voi
+rasteroida sisällön uudelleen kesken eleen — se näkyy **terävyyden hyppyinä
+eikä siirtymänä**, joten mikään sijaintimittari ei sitä näe. `will-change`
+kertoo että muunnos jatkuu, jolloin selain rasteroi kerran ja skaalaa GPU:lla.
+
+Luokka on voimassa **vain eleen ajan**. Pysyvä `will-change` pitäisi kerrokset
+omassa muistissaan jatkuvasti ja estäisi alipikselitarkan tekstin renderöinnin
+levossa. Tarkistettu mittauksella: `will-change` on levossa `auto`, eleen
+aikana `transform`.
+
+`plus-lighter` kestää sen. Kompositointitason muutos on tyypillinen tapa
+rikkoa sekoitustila, joten se mitattiin: värikylläisyys 57,7 levossa → 60,5
+kesken eleen → 60,4 jälkeen.
+
+### Zoom-eleitä on kaksi
+
+`_installDoubleTapZoom` (tuplanapauta ja vedä pystysuunnassa) kutsuu
+`map._move`a **suoraan**, ohi Leafletin `TouchZoom`in. Se jäi siksi kokonaan
+ilman alipikselikäsittelyä. Eleen tila on nyt yhdessä paikassa —
+`nipistysAlkaa` / `nipistysPaattyy` — ja molemmat polut kutsuvat sitä.
+
+Samalla lisättiin puuttuva `touchcancel`-käsittelijä: ilman sitä keskeytynyt
+veto jätti `dtz.active` päälle, ja nyt se olisi jättänyt myös alipikselitilan
+ja `will-changen` pysyvästi voimaan. Leafletin oma `TouchZoom` kuuntelee
+`'touchend touchcancel'` juuri tästä syystä.

@@ -178,6 +178,23 @@ body {
   .heatmap-overlay { mix-blend-mode: screen; }
 }
 
+/* Nipistyksen ajaksi laattasäiliö ja lämpökartta omalle
+   kompositointitasolleen. Kun skaala muuttuu jatkuvasti, selain voi
+   rasteroida sisällön uudelleen kesken eleen — se näkyy terävyyden
+   hyppyinä eikä siirtymänä, joten mikään sijaintimittari ei sitä näe.
+   will-change kertoo selaimelle että muunnos jatkuu, jolloin se
+   rasteroi kerran ja skaalaa GPU:lla.
+
+   Luokka on voimassa VAIN eleen ajan. Pysyvä will-change pitäisi
+   kerrokset omassa muistissaan koko ajan ja estäisi alipikselitarkan
+   tekstin renderöinnin levossa.
+
+   Tarkistettu ettei plus-lighter rikkoudu: kompositointitason muutos on
+   tyypillinen tapa rikkoa sekoitustila, mutta mitattuna värikylläisyys
+   pysyi (57,7 levossa / 60,5 kesken eleen / 60,4 jälkeen). */
+.nipistys .leaflet-tile-container,
+.nipistys .heatmap-overlay { will-change: transform; }
+
 /* ============================================================
 /* ============================================================
 /* ============================================================
@@ -2973,6 +2990,10 @@ function _installDoubleTapZoom(map) {
       dtz.startLlng  = map.containerPointToLatLng(dtz.startPt);
       dtz.currentZoom = dtz.startZoom;
       dtz.t1 = 0; /* reset */
+      /* Sama alipikseli- ja kompositointikasittely kuin nipistyksessa:
+         tama polku kutsuu map._move'a suoraan eika kulje Leafletin
+         TouchZoomin lapi, joten se jai muuten pyoristyksen varaan. */
+      nipistysAlkaa(map);
     } else {
       dtz.active = false;
       dtz.t1 = now; dtz.x1 = t.clientX; dtz.y1 = t.clientY;
@@ -3002,6 +3023,9 @@ function _installDoubleTapZoom(map) {
 
   mapEl.addEventListener('touchend', function(e) {
     if (!dtz.active) return;
+    /* Ennen loppusijoittelua, kuten nipistyksessakin: _animateZoom laskee
+       lopullisen pikseliorigon ja se on saatava pyoristettya. */
+    nipistysPaattyy(map);
     if (dtz.animReq) { cancelAnimationFrame(dtz.animReq); dtz.animReq = null; }
     if (e.changedTouches.length === 1 && dtz.startPt) {
       var endT = e.changedTouches[0];
@@ -3023,6 +3047,17 @@ function _installDoubleTapZoom(map) {
         }
       }
     }
+    dtz.active = false;
+  }, { passive: true });
+
+  /* touchcancel puuttui. Ilman tata keskeytynyt veto jattaisi dtz.active
+     paalle — ja nyt myos alipikselitilan ja will-changen, jotka ovat
+     tarkoitettu vain eleen ajaksi. Leafletin oma TouchZoom kuuntelee
+     'touchend touchcancel' juuri tasta syysta. */
+  mapEl.addEventListener('touchcancel', function() {
+    if (!dtz.active) return;
+    if (dtz.animReq) { cancelAnimationFrame(dtz.animReq); dtz.animReq = null; }
+    nipistysPaattyy(map);
     dtz.active = false;
   }, { passive: true });
 }
@@ -3522,6 +3557,23 @@ function buildLegend() {
  * joten 120 Hz ProMotion suodattaa saman verran kuin 60 Hz.
  *
  * Kytkeytyy pois jos Leafletin sisäiset osat eivät ole odotetut. */
+/* Eleen tila yhdessä paikassa, koska zoom-eleitä on KAKSI: Leafletin
+   kahden sormen nipistys ja oma tuplanapauta-ja-vedä (_installDoubleTapZoom).
+   Jälkimmäinen kutsuu map._move'a suoraan, joten se ohitti alipikselit
+   kokonaan ennen kuin nämä otettiin yhteiseen käyttöön. */
+function nipistysAlkaa(map) {
+  if (!map) return;
+  map._nipistysKesken = true;
+  const el = map.getContainer();
+  if (el) el.classList.add('nipistys');
+}
+function nipistysPaattyy(map) {
+  if (!map) return;
+  map._nipistysKesken = false;
+  const el = map.getContainer();
+  if (el) el.classList.remove('nipistys');
+}
+
 (function nipistysPehmennys() {
   if (!window.L || !L.Map || !L.Map.TouchZoom || !L.Map.TouchZoom.prototype) return;
   const proto = L.Map.TouchZoom.prototype;
@@ -3601,7 +3653,6 @@ function buildLegend() {
    * (_getNewPixelOrigin, latLngToLayerPoint, _setZoomTransform) haetaan
    * joka kutsulla, joten ne toimivat kummin päin tahansa; ero näkyi vain
    * kuuntelijoina rekisteröidyissä. */
-  function alaPyorista(map) { map._nipistysKesken = true; }
   {
     const kesken = (m) => !!(m && m._nipistysKesken);
 
@@ -3681,11 +3732,62 @@ function buildLegend() {
        tilaa. Sormet tunnistetaan identifierilla eikä järjestysnumerolla:
        jos sormi nousee ja toinen laskee, indeksi osoittaisi eri sormeen ja
        suodin hyppäisi. */
-    if (!this._zooming) this._pehmennys = {};
+    if (!this._zooming) { this._pehmennys = {}; this._nopHist = []; }
     const r = alkupStart.call(this, e);
-    if (this._zooming && this._map) alaPyorista(this._map);
+    if (this._zooming && this._map) nipistysAlkaa(this._map);
     return r;
   };
+
+  /* -- ZOOM-INERTIA ---------------------------------------------------
+   *
+   * Leafletissa on panorointi-inertia mutta zoomille ei mitaan: zoom
+   * pysahtyy kuin seinaan sina hetkena kun sormet irtoavat. Natiivit
+   * kartat jatkavat vaimenevalla nopeudella, ja se on iso osa siita
+   * miksi ne tuntuvat natiiveilta.
+   *
+   * Toteutus ei ole oma animaatiosilmukka vaan MAALIN JATKO: eleen
+   * paattyessa zoomiin lisataan v*TAU ja keskipiste lasketaan uudelleen
+   * samalle ankkurille, minka jalkeen Leafletin oma 250 ms:n siirtyma
+   * (cubic-bezier(0,0,0.25,1), eli ease-out) hoitaa liu'un. Nain koko
+   * kerrosten synkronointi, laattojen lataus ja zoomend-tapahtumat
+   * tulevat valmiina eika mikaan kilpaile Leafletin tilakoneen kanssa.
+   *
+   * Nopeus mitataan suoran sovitteella viimeisen 100 ms ikkunaan, koska
+   * samalla mittarilla kynnys valittiin. Mitatut nopeudet:
+   *
+   *   nykaisy 350 ms      3,72 /s      -> lisa 0,40 zoomtasoa
+   *   tavallinen 900 ms   0,85 /s      -> lisa 0,05
+   *   varovainen 8 px/s   0,093 /s     -> ei mitaan
+   *   pito                0,004 /s     -> ei mitaan
+   *
+   * KYNNYS ON VALTTAMATON. Hitaassa liikkeessa nopeusestimaatti on lahes
+   * pelkkaa vapinaa — se on tassa projektissa mitattu kolmesti (Holt,
+   * FIR-sovite, lead compensation kaatuivat kaikki siihen). Ilman
+   * kynnysta inertia lisaisi satunnaista zoomia juuri siihen eleeseen
+   * jota on eniten hiottu. Kynnys vahennetaan lisasta, joten arvon
+   * ylitys ei tuota hyppya. */
+  const INERTIA_KYNNYS = 0.4;   /* zoomtasoa/s */
+  const INERTIA_TAU    = 0.12;  /* s */
+  const INERTIA_KATTO  = 0.5;   /* zoomtasoa */
+  /* Katto 0,5 eika 0,7: ulospain nykaisyssa |v| on suurempi kuin sisaanpain,
+     koska sormivali kutistuu nopeammin logaritmisella asteikolla kuin se
+     kasvaa. Katolla 0,7 mitattu pari oli +0,40 sisaan ja -0,70 ulos, mika
+     tuntuu epasymmetriselta; 0,5 kaventaa sen ja rajaa aarimmaisen
+     nykaisyn 41 %:n kokomuutokseen. */
+
+  function nopeusArvio(hist, nyt) {
+    /* Pienimman neliosumman suora (t, zoom) -pareihin viimeiselta 100 ms:lta */
+    let S0 = 0, S1 = 0, S2 = 0, T0 = 0, T1 = 0;
+    for (const [t, z] of hist) {
+      if (nyt - t > 100) continue;
+      const u = (t - nyt) / 1000;
+      S0 += 1; S1 += u; S2 += u * u; T0 += z; T1 += u * z;
+    }
+    if (S0 < 3) return 0;
+    const D = S0 * S2 - S1 * S1;
+    if (Math.abs(D) < 1e-12) return 0;
+    return (S0 * T1 - S1 * T0) / D;
+  }
 
   proto._onTouchEnd = function () {
     /* Lippu on nollattava ENNEN alkuperäistä käsittelijää. Se kutsuu
@@ -3693,7 +3795,28 @@ function buildLegend() {
        jos alipikselitila olisi vielä päällä, origo jäisi murtoluvuksi ja
        kartta olisi levossa puolikkaan pikselin sivussa eli epäterävä.
        Mitattuna juuri niin kävi: origo 298217,97 eleen jälkeen. */
-    if (this._map) this._map._nipistysKesken = false;
+    const map = this._map;
+    if (map && this._moved && this._zooming && this._pinchStartLatLng) {
+      const hist = this._nopHist;
+      const v = (hist && hist.length) ? nopeusArvio(hist, hist[hist.length - 1][0]) : 0;
+      const yli = Math.abs(v) - INERTIA_KYNNYS;
+      if (yli > 0) {
+        const lisa = Math.sign(v) * Math.min(yli * INERTIA_TAU, INERTIA_KATTO);
+        const z0 = this._zoom;
+        const z1 = map._limitZoom(z0 + lisa);
+        if (z1 !== z0) {
+          /* Ankkuri pysyy sormien alla. delta puretaan nykyisesta
+             keskipisteesta, joten viimeista kosketuspistetta ei tarvitse
+             muistaa erikseen. */
+          const d = map.project(this._pinchStartLatLng, z0)
+                       .subtract(map.project(this._center, z0));
+          this._center = map.unproject(
+            map.project(this._pinchStartLatLng, z1).subtract(d), z1);
+          this._zoom = z1;
+        }
+      }
+    }
+    nipistysPaattyy(this._map);
     return alkupEnd.apply(this, arguments);
   };
 
@@ -3723,6 +3846,11 @@ function buildLegend() {
       return alkupMove.call(this, e);
     } finally {
       map.mouseEventToContainerPoint = alkupPiste;
+      /* Zoom talteen inertian nopeusarviota varten. Suodatettu arvo, eli
+         sama jonka kayttaja nakee. */
+      const h = this._nopHist || (this._nopHist = []);
+      h.push([t, this._zoom]);
+      while (h.length > 24) h.shift();
     }
   };
 })();
@@ -3739,7 +3867,25 @@ function initMap() {
        z14-16 näyttää kentän lähes tasaisena. Se on rehellistä: hienompaa
        tietoa ei ole olemassa, ja kartalla ollaan silloin katsomassa
        rantaviivaa ja spottia, ei kentän rakennetta. */
-    minZoom: 2, maxZoom: 16, preferCanvas: true, zoomSnap: 0.5, zoomDelta: 0.5,
+    /* zoomSnap 0 = ele päättyy tarkalleen siihen mihin sormet sen jättivät.
+     *
+     * Arvolla 0,5 Leaflet animoi eleen jälkeen lähimpään puolikkaaseen
+     * tasoon. Mitattuna kahdeksalla eleellä hyppy oli keskimäärin 0,133
+     * zoomtasoa ja pahimmillaan 0,239 — eli kartta muuttaa kokoaan
+     * jopa 18 % sillä hetkellä kun sormet irtoavat. Se on satakertaisesti
+     * suurempi epäjatkuvuus kuin ne alipikselin jäänteet joita eleen
+     * aikana on hiottu, ja se osuu joka ikiseen eleeseen.
+     *
+     * Terävyys ei kärsi. Leaflet lataa laattatason Math.round(zoom), joten
+     * zoom 11,5 skaalaa jo nyt z12-laattoja kertoimella 0,707. Skaalan
+     * vaihteluväli on sama kummallakin asetuksella — napsautus ei osta
+     * terävyyttä, se vain siirtää kartan pois siitä mihin se jätettiin.
+     *
+     * zoomDelta pysyy 0,5:ssä: napit ja kaksoisnapautus liikkuvat yhä
+     * siisteinä askelina. Kaikki zoomista riippuva logiikka haarukoi
+     * välejä (ViewportGrid.gridStep, ikonikoot, _windIconSig), joten
+     * murtolukuzoom ei riko välimuisteja. */
+    minZoom: 2, maxZoom: 16, preferCanvas: true, zoomSnap: 0, zoomDelta: 0.5,
     worldCopyJump: true, doubleClickZoom: false, tap: false, tapTolerance: 15
   });
 
@@ -11798,12 +11944,12 @@ const _loadingSafety = setTimeout(() => {
         e.style.display = off.tiles ? 'none' : '';
       });
     } else if (k === 'snap') {
-      /* zoomSnap 0.5 tarkoittaa että nipistyksen JÄLKEEN Leaflet animoi
-         lähimpään puolikkaaseen zoom-tasoon. Se ei näy huonona ruutuaikana
-         lainkaan — se on liike joka tapahtuu kun sormi on jo nostettu, eli
-         täsmälleen sama ilmiö jonka korjasimme aikajanasta. Arvolla 0
-         zoom jää tarkalleen siihen mihin sormi sen jätti. */
-      if (State.map) State.map.options.zoomSnap = off.snap ? 0 : 0.5;
+      /* Kytkin PALAUTTAA vanhan napsautuksen vertailua varten. Oletus on
+         nyt 0, eli zoom jää tarkalleen siihen mihin sormet sen jättivät.
+         Arvolla 0,5 Leaflet animoi eleen jälkeen lähimpään puolikkaaseen
+         tasoon — mitattuna keskimäärin 0,133 ja pahimmillaan 0,239
+         zoomtasoa, eli jopa 18 % kokomuutos irrotushetkellä. */
+      if (State.map) State.map.options.zoomSnap = off.snap ? 0.5 : 0;
     }
     /* 'field' vaikuttaa WindTexture.build-kääreen kautta — ei mitään tässä */
   }
