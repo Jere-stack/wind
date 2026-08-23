@@ -1927,6 +1927,11 @@ mitään näy, mutta 390×844 ruudun nurkassa `r` on noin 460 px. Sama virhe on
 keskellä näkymätön ja reunalla iso — juuri siksi ilmiö näyttää
 "reunojen värinältä" eikä zoomin epävakaudelta.
 
+**Kaksi eri ongelmaa, ei yksi.** Pito (sormet paikallaan lasilla, vapina
+jatkuu) ja hidas tahallinen liike ovat erillisiä tapauksia ja vaativat eri
+mittarin. Ensimmäinen versio korjasi vain pidon; hidas liike jäi täriseväksi,
+koska nopeustermi oli jo avannut suotimen.
+
 ### One Euro -suodin
 
 Korjaus on One Euro (Casiez, Roussel & Vogel, CHI 2012):
@@ -1954,28 +1959,52 @@ Yksityiskohtia jotka eivät ole ilmeisiä:
   kaikkialla, joten `r`-vahvistusta ei ole eikä vapina erotu; suodatus vain
   hidastaisi vasteen.
 
+### Toinen aste, ei ensimmäinen
+
+Suodin on **kaksi napaa peräkkäin samalla adaptiivisella katkotaajuudella**.
+Syy on hidas tahallinen liike, jota ensimmäinen aste ei saanut kuriin.
+
+Ensimmäinen aste oli siinä jo **viivebudjettinsa rajoilla**: hitaalla
+nopeudella katkotaajuus asettuu noin 1,3 Hz:iin, mikä on 0,12 s viivettä, eikä
+sitä voi laskea ilman että kartta irtoaa sormista. Lisää vaimennusta saa vain
+suotimen **muotoa** vaihtamalla, ei parametreja säätämällä.
+
+Kaksi napaa vaimentaa 40 dB/dekadi eikä 20. Ryhmäviive on `√2/(2π·fc)` eikä
+`1/(2π·fc)`, joten samalla viiveellä katkotaajuuden saa 1,41× korkeammaksi ja
+7 Hz vapina vaimenee silti noin 3,5-kertaisesti enemmän. **Kaksi identtistä
+reaalinapaa eivät ylitä kohdetta** — ei ylihyppyä eikä soimista, mikä suorassa
+manipulaatiossa on tärkeämpää kuin Butterworthin jyrkempi kulma.
+
 ### Mitatut arvot
 
-Vapina 1,5 px, nurkka `r = 460 px`, sormet paikallaan lasilla:
+Kaikki luvut samasta harnessista: kaksi sormea (±d/2), kumpikin oma suodin,
+kosketuspisteet kvantisoituna 0,5 px laitepikselihilalle, nurkka `r = 460 px`,
+60 Hz.
 
 ```
-suodattamaton               8,41 px RMS
-minCutoff 1,0  beta 0,12    2,42 px RMS   (-71 %)
+                          pito     hidas 5 px/s    hidas 10 px/s    viive
+suodattamaton            5,90 px   10,03   37 %     5,13   32 %    4,6 px
+1. aste  mc 1,0  b 0,12  1,32 px    1,96   33 %     1,12   24 %   14,2 px
+2. aste  mc 0,8  b 0,30  1,22 px    0,82    1 %     0,63    0 %   12,2 px
 ```
 
-Vaikutus skaalautuu vapinan mukana: 0,5 px vapina 2,80 → 0,63 px, 2,5 px
-vapina 14,02 → 4,94 px.
+`pito` = nurkan heilunta RMS kun sormet ovat paikallaan.
+`hidas` = nopeuskohina suhteessa todelliseen liikkeeseen, ja niiden ruutujen
+osuus jotka menevät **väärään suuntaan**. `viive` = tavallinen ele.
 
-**Viive ei ole se hinta jolta se kuulostaa.** Puhdas viive nopean eleen aikana
-on 7,2 px, eli 1,1 % siitä 624 px:stä jonka nurkka kulkee. Ja kun sama ramppi
-ajetaan oikean vapinan kanssa, keskimääräinen ero ideaaliradasta on
-suodattamattomana **7,04 px** ja suodatettuna **6,67 px** — virhe ei siis
-lisäänny lainkaan, se vaihtaa luonnetta: satunnaisesta värinästä tasaiseksi
-jäljessälaahaukseksi, jota silmä ei lue virheeksi. Pysyvä poikkeama pidon
-aikana on 0,57 px.
+Toinen aste on parempi **joka mittarilla, viive mukaan lukien** — se ei siis
+ole vaihtokauppa vaan suoraan parempi suodin.
 
-Löysempi `beta 0,06` veisi heilunnan 1,79 px:ään mutta nostaisi viiveen
-12,1 px:ään; se tuntuu siltä ettei kartta ole kiinni sormissa.
+**Ratkaiseva mittari hitaassa liikkeessä on peruutus, ei poikkeama radalta.**
+Silmä lukee epämonotonisen liikkeen tärinäksi vaikka poikkeama olisi pieni:
+5 px/s nopeudella kartta liikkui ennen väärään suuntaan joka kolmannessa
+ruudussa. Nyt yhdessä sadasta.
+
+**Ennakointi (lead compensation) kokeiltiin ja hylättiin.** Ajatus on kumota
+viive nopeustermillä `y + v/(2π·fc)`, jolloin katkotaajuuden voisi laskea
+rajusti. Mitattuna se teki hitaasta liikkeestä **11,88** — huonomman kuin
+suodattamaton 10,03 — koska hitaalla nopeudella nopeusestimaatti on lähes
+pelkkää vapinaa ja ennakointi syöttää sen takaisin. Nollaviive, kaikki värinä.
 
 ### Mittarit jotka eivät toimineet
 
@@ -1992,18 +2021,36 @@ näyttivät uskottavilta lukuina:
 3. **Poikkeama ideaalista yhtenä lukuna** sekoitti tärinän ja viiveen:
    ensimmäinen viritys näytti että suodatus tekee asiasta 14× pahemman,
    koska rampin aikana viive hallitsi mittaria kokonaan.
+4. **Savitzky–Golay-jäännös on sokea hitaalle tapaukselle.** Se poistaa
+   kaiken trendiä hitaamman, eli juuri sen matalataajuisen huojunnan jonka
+   silmä hitaassa liikkeessä näkee. Mittari antoi hitaalle liikkeelle siistin
+   0,69 px:n luvun samaan aikaan kun kartta oikeasti peruutti joka
+   neljännessä ruudussa. Hitaan liikkeen mittari on **ruutujen välinen
+   siirtymä**: sen hajonta suhteessa keskiarvoon, ja väärään suuntaan
+   menevien ruutujen osuus.
+5. **Yhden suotimen ajaminen sormien etäisyydelle `d`** antaa eri tuloksen
+   kuin toteutus, joka suodattaa kaksi sormea erikseen. Ero ei ole
+   akateeminen: adaptiivinen katkotaajuus riippuu kunkin signaalin omasta
+   nopeudesta, ja `d` muuttuu kaksi kertaa niin nopeasti kuin kumpikaan
+   sormi. Ensimmäisen kierroksen viiveluvut olivat siksi noin puolet liian
+   pieniä. Harnessin on syötettävä `±d/2` kahtena signaalina.
 
 Toimiva mittari on analyyttinen: 60 Hz sormirata → Leafletin kaava → nurkan
-siirtymä, ja **tärinä ja viive erikseen** — tärinä on jäännös signaalin omasta
-Savitzky–Golay-trendistä, viive keskimääräinen ero ideaaliradasta.
-Ratkaiseva tapaus ei ole ramppi vaan **pito**: sormet paikallaan lasilla,
-vapina jatkuu. Juuri silloin käyttäjä näkee reunojen värinän.
+siirtymä, ja **tärinä ja viive erikseen**. Molemmat tapaukset on ajettava:
+**pito** (sormet paikallaan, vapina jatkuu) ja **hidas ramppi** (5–25 px/s).
+Nopea ele on vain regressiotarkistus.
 
-Toinen ansa: **beta on eri mittakaavassa riippuen siitä mitä suodatetaan.**
+Rataan kuuluu myös **kvantisointi**: kosketuspisteet raportoidaan
+laitepikselihilalla, ja hitaassa liikkeessä se on portaikko eikä
+satunnaiskohinaa. Sen osuus suodattamattomasta kohinasta on 25 % nopeudella
+10 px/s ja 48 % nopeudella 25 px/s — ei sivuseikka.
+
+Kolmas ansa: **beta on eri mittakaavassa riippuen siitä mitä suodatetaan.**
 Zoomin nopeus on noin 0,5/s, sormen etäisyyden kymmeniä px/s. Ensimmäinen
 pyyhkäisy tehtiin zoomiavaruudessa ja `beta 0,15` oli siellä käytännössä
 nolla. Viritys on tehtävä siinä avaruudessa jossa toteutus toimii.
 
 Selaimessa varmistettiin vain **oikeellisuus**, ei numeroita: levitys
-70→170 px nostaa zoomin 10 → 11, kavennus palauttaa 10:een, kolmas sormi
-kesken eleen ei kaada mitään, `_zooming` ei jää päälle, ei JS-virheitä.
+70→170 px nostaa zoomin 10 → 11, kavennus palauttaa 10:een, hidas levitys
+8 px/s nostaa 10 → 10,5, kolmas sormi kesken eleen ei kaada mitään,
+`_zooming` ei jää päälle, ei JS-virheitä.
