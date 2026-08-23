@@ -2381,3 +2381,103 @@ Samalla lisättiin puuttuva `touchcancel`-käsittelijä: ilman sitä keskeytynyt
 veto jätti `dtz.active` päälle, ja nyt se olisi jättänyt myös alipikselitilan
 ja `will-changen` pysyvästi voimaan. Leafletin oma `TouchZoom` kuuntelee
 `'touchend touchcancel'` juuri tästä syystä.
+
+## Kohdat 4 ja 5 — toinen hylättiin mittauksella, toinen osoittautui isoksi
+
+Nämä rakennettiin arvioitaviksi, ei suoraan käyttöön. Kummankin kattohyöty
+mitattiin ennen toteutusta: **enempää ei voi saada kuin sen mitä poistettava
+työ maksaa.**
+
+### Hylätty: yksi muunnos koko kartalle
+
+MapKitin tapa on piirtää kaikki yhteen pintaan, jolloin on tasan yksi
+matriisi eikä kerroskohtaista sijoittelua lainkaan. Leaflet-vastine olisi
+muuntaa `tilePane` kerran eleen ajaksi ja jäädyttää kerrokset.
+
+Kattohyöty mitattiin ajastamalla se työ jonka se poistaisi:
+
+```
+GridLayer._setZoomTransform   0,015 ms/ruutu
+ImageOverlay._reset           0,000 ms/ruutu
+Marker.update                 0,016 ms/ruutu   (49 merkkiä)
+YHTEENSÄ                      0,031 ms/ruutu   = 0,2 % budjetista
+```
+
+Sijainneissa ei ole mitään voitettavaa: täydellisellä syötteellä renderöinti
+on jo tasan 0,000 px kaikilla kerroksilla. Rasteroinnin osalta `will-change`
+tekee saman murto-osalla vaivasta.
+
+Blend-riski mitattiin silti, koska se oli hylkäysperusteena aiemmin: `tilePane`
+muunnettuna värikylläisyys 58,77 → 59,49 → 58,78. **Riski ei ollut todellinen**
+— mutta se ei muuta johtopäätöstä, koska hyöty on 0,031 ms.
+
+### Toteutettu: hiukkaset jäähän eleen ajaksi
+
+Ensimmäinen arvio oli väärä. Luulin hyödyksi `siirraPartikkelit`-kutsun
+poistoa, joka on 0,053 ms/ruutu — yhtä merkityksetön kuin kohta 4. Mittaus
+näytti muuta:
+
+```
+renderLoop nipistyksen aikana, 4× CPU-jarru
+  nauha (polunrakennus)   9,18 ms/ruutu   92 %   (210 kutsua/ruutu)
+  ctx.fill                0,13 ms/ruutu
+  muu (simulaatio ym.)    0,69 ms/ruutu
+```
+
+Koko kustannus on **Path2D-nauhojen rakentaminen uudelleen joka ruudussa**.
+Eleen aikana hiukkasten muodot eivät kuitenkaan juuri muutu — niitä vain
+siirretään kartan mukana.
+
+Jäädytettynä hiukkaset eivät etene, jäljet eivät muutu ja polut kelpaavat
+sellaisenaan ruudusta toiseen: piirto on yksi matriisi ja kaksi `fill`-kutsua.
+Kuva on identtinen, vain tuulianimaatio pysähtyy eleen ajaksi — panoroinnissa
+partikkelityö ohitettiin jo ennestään, joten nipistys oli epäjohdonmukaisuus
+eikä valinta.
+
+```
+renderLoop nipistyksen aikana      ennen        jälkeen
+  1× mediaani                      2,60 ms      0,00 ms
+  1× p90                           3,00 ms      0,10 ms
+  4× mediaani                      6,30 ms      0,10 ms
+  4× p90                          10,70 ms      0,60 ms
+  4× pahin ruutu                  18,30 ms      2,10 ms
+```
+
+Pahin ruutu ylitti koko 16,7 ms budjetin; nyt se on 13 % siitä.
+
+**Rekisteröinti ei muuttunut.** Sama mittari ennen ja jälkeen: hiukkas-
+koordinaatiston virhe kartan suhteen 0,545 px eleen aikana ja 0,545 px eleen
+lopussa **molemmilla versioilla**. Jäljelle jäävä 1,147 px animaation jälkeen
+on peräisin animoidun zoomin CSS-kellosta ja on ennestään olemassa.
+
+### Luovutus: älä koske jos loppuanimaatio on jo alkanut
+
+Ensimmäinen versio sulatti näin:
+
+```js
+if (this._nip) { this._nip = false; m = identiteetti; this._siirra(map); return true; }
+```
+
+Se on väärin. `_onTouchEnd` käynnistää `_animateZoom`in, joka laukaisee
+`zoomanim`in → `Ruudusto.zoomAnim` → `_siirra` on **jo tehty** ja kello ohjaa
+matriisia. Oma `_siirra` teki siirron toiseen kertaan animaation maaliin ja
+`return true` ohitti animaatiohaaran, jolloin hiukkaset hyppäsivät maalille
+kartan ollessa vielä matkalla. **Mitattuna mediaanivirhe 349 px.** Nyt sulatus
+tekee siirron vain jos animaatiota ei ole:
+
+```js
+if (!map._animatingZoom && !this._anim) { ... }
+```
+
+### Mittari joka ei kelpaa: yksittäisen hiukkasen seuranta
+
+Ensimmäinen luovutusmittari vertasi hiukkasen sijaintia ennen ja jälkeen
+eleen. Se antoi 277–349 px myös korjatulla koodilla, koska sulatuksen jälkeen
+simulaatio jatkuu: hiukkaset etenevät ja osa **respawnaa satunnaiseen
+paikkaan**. Ikäsuodatinkaan ei auta, koska respawn nollaa iän ja 700 ms:ssä se
+ehtii kasvaa yli vanhan arvon.
+
+Kelvollinen mittari ei katso hiukkasia vaan **koordinaatistoa**: kootaan
+kaikki `siirraPartikkelit`-kutsut yhdeksi affiiniksi muunnokseksi ja verrataan
+kartan täsmälliseen muunnokseen samalle referenssipisteelle. Se ei riipu
+etenemisestä eikä respawnista.
