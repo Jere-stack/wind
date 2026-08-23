@@ -2429,3 +2429,86 @@ Ja mittari joka ei kelpaa: yksittäisen hiukkasen seuranta eleen yli. Se antoi
 ja osa hiukkasista respawnaa satunnaiseen paikkaan. Kelvollinen mittari
 kokoaa `siirraPartikkelit`-kutsut yhdeksi affiiniksi muunnokseksi ja vertaa
 kartan täsmälliseen muunnokseen.
+
+## PWA — kotivalikkoon ja rannalle
+
+Vaihe 1 pushista: asennettavuus ja offline-käynnistys. Ei ilmoituksia, ei
+palvelinta, ei salaisuuksia — nämä tulisivat vasta vaiheessa 2.
+
+Tavoite on **yksi** asia: kartta ja sovellus aukeavat rannalla yhdellä
+palkilla. Ei datansäästöä eikä taustapäivitystä.
+
+### Mitä välimuistiin menee — ja mitä ei
+
+```
+/ (index.html)         verkko edellä, 3 s aikakatkaisu, varalla välimuisti
+Leaflet 1.9.4 CDN      välimuisti edellä (versioitu osoite, ei voi muuttua)
+karttalaatat           vanhene-ja-virkistä, katto 600, EI versioitu
+/api/*                 ei mitään — menee koskemattomana verkkoon
+```
+
+**`/api` on tarkoituksella ulkopuolella.** Sovelluksella on jo oma
+ennustevälimuisti localStoragessa ja se osaa merkitä datan vanhentuneeksi.
+Toinen välimuisti sen alla tarjoaisi vanhaa dataa tuoreena eikä sovellus
+tietäisi siitä mitään.
+
+**Navigointi on verkko edellä, ei välimuisti edellä.** Sovellus on yksi
+`index.html` ilman hajautettuja tiedostonimiä, joten välimuisti edellä
+jäädyttäisi koko sovelluksen vanhaan versioon eikä siitä näkyisi mitään
+ulospäin — sama ongelma jota vastaan versioleima aikanaan tehtiin. Mutta
+"yksi palkki" ei ole sama kuin "ei verkkoa", joten pelkkä verkko edellä
+jättäisi käynnistyksen roikkumaan hitaan haun taakse. Siksi 3 s aikakatkaisu:
+sen jälkeen näytetään välimuisti ja haku jatkuu taustalla.
+
+**Laattavälimuistia ei versioida.** Sen koko arvo on että eilen katsotut
+laatat ovat tallessa tänään. Jos se tyhjenisi joka deployssa, rannalla ei
+olisi mitään. Kuorivälimuisti sen sijaan versioidaan ja vanha siivotaan
+`activate`ssa.
+
+**Laatat ovat vanhene-ja-virkistä eivätkä välimuisti edellä.** Ne ovat
+`<img>`-hakuja ilman CORSia, joten vastaus on läpinäkymätön eikä sen
+onnistumista voi tarkistaa. Välimuisti edellä jättäisi yhden epäonnistuneen
+laatan pysyvästi ruudulle; virkistys korjaa sellaisen seuraavalla käynnillä
+ja välimuistista tarjoillaan silti heti.
+
+### Kaksi asiaa jotka pitää muistaa
+
+**Leima menee myös `sw.js`:ään.** Service worker päivittyy vain jos sen
+**tavut** muuttuvat — ilman leimaa uusi deploy jättäisi vanhan workerin ja sen
+mukana vanhan kuorivälimuistin voimaan. `public/` kopioidaan sellaisenaan,
+joten korvaus tehdään `versioLeima`-pluginin `writeBundle`-vaiheessa.
+
+**Devissä worker on tyhjäkäynnillä.** `public/sw.js`:ssä leima on korvaamatta,
+ja `DEV`-lippu katkaisee sekä `install`in että `fetch`in. Muuten Viten HMR ja
+oma välimuisti sotkeutuisivat keskenään.
+
+### Mitattu
+
+Preview-buildilla, oikealla verkolla:
+
+```
+rekisteröinti      scope /, aktivoituu ja ottaa sivun hallintaansa
+manifest           standalone, kolme ikonia 200, apple-touch-icon 200
+välimuistit        kuori 3 merkintää, laatat 32
+/api               ei yhtään merkintää
+OFFLINE + reload   sivu latautuu, Leaflet latautuu, kartta rakentuu,
+                   28 laattaa ruudulla, /api epäonnistuu (ei valehtele)
+deploy (uusi leima) vanha kuori siivottu, uusi luotu, laatat säilyivät,
+                   worker aktivoitui ja hallitsee
+```
+
+### Testaamisen sudenkuoppa
+
+Chromium ei pääse agenttiproxyn läpi jsdelivriin (`ERR_CONNECTION_RESET`)
+vaikka `curl` pääsee. Leaflet on siis tyngättävä testissä — ja tyngät on
+asennettava **`context.route`en eikä `page.route`en**, koska service workerin
+omat haut eivät kulje sivun reittien kautta.
+
+### Löydös jota ei korjattu
+
+`<head>`issä ladataan yhä Google Fontsista **Syne ja DM Mono**, vaikka
+CLAUDE.md:ssä lukee että ne poistettiin. Ne ovat oikeasti yhä käytössä
+seitsemässä `font-family`-säännössä, eli lataukset eivät ole pelkkää roskaa —
+poisto muuttaisi ulkoasua. Mutta ne ovat kaksi ulkoista pyyntöä joka
+latauksella, ja juuri ne ovat kalleimpia heikolla yhteydellä. Tämä on oma
+päätöksensä, ei osa PWA-vaihetta.

@@ -2,15 +2,60 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "functions": {
-    "api/uiras.js":    { "maxDuration": 30 },
-    "api/fmi.js":      { "maxDuration": 30 },
-    "api/harmonie.js": { "maxDuration": 30 }
+    "api/uiras.js": {
+      "maxDuration": 30
+    },
+    "api/fmi.js": {
+      "maxDuration": 30
+    },
+    "api/harmonie.js": {
+      "maxDuration": 30
+    }
   },
   "rewrites": [
-    { "source": "/api/uiras",    "destination": "/api/uiras.js" },
-    { "source": "/api/fmi",      "destination": "/api/fmi.js" },
-    { "source": "/api/harmonie", "destination": "/api/harmonie.js" },
-    { "source": "/(.*)",         "destination": "/index.html" }
+    {
+      "source": "/api/uiras",
+      "destination": "/api/uiras.js"
+    },
+    {
+      "source": "/api/fmi",
+      "destination": "/api/fmi.js"
+    },
+    {
+      "source": "/api/harmonie",
+      "destination": "/api/harmonie.js"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        },
+        {
+          "key": "Service-Worker-Allowed",
+          "value": "/"
+        }
+      ]
+    },
+    {
+      "source": "/manifest.webmanifest",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/manifest+json"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    }
   ]
 }
-

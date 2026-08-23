@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import { pathToFileURL } from 'node:url';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { execSync } from 'node:child_process';
 
@@ -66,18 +66,33 @@ function vercelApiDev() {
  *
  * Commit tulee Vercelin ympäristömuuttujasta; paikallisesti se luetaan
  * gitistä. Jos kumpikaan ei ole saatavilla, leima on 'dev'. */
+function tunnus() {
+  let sha = process.env.VERCEL_GIT_COMMIT_SHA || '';
+  if (!sha) {
+    try { sha = execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString().trim(); } catch (e) { /* ei git-repoa */ }
+  }
+  const lyhyt = sha ? sha.slice(0, 7) : 'dev';
+  const aika = new Date().toISOString().slice(0, 16).replace('T', ' ');
+  return lyhyt + ' · ' + aika + ' UTC';
+}
+
 function versioLeima() {
+  let ulos = 'dist';
   return {
     name: 'versio-leima',
+    configResolved(cfg) { ulos = cfg.build.outDir; },
+    /* Sama leima sw.js:aan. Service worker paivittyy vain jos sen TAVUT
+       muuttuvat — ilman leimaa uusi deploy jattaisi vanhan workerin ja sen
+       mukana vanhan kuorivalimuistin voimaan. public/ kopioidaan
+       sellaisenaan, joten korvaus tehdaan vasta kirjoituksen jalkeen. */
+    writeBundle() {
+      const t = resolve(process.cwd(), ulos, 'sw.js');
+      if (!existsSync(t)) return;
+      writeFileSync(t, readFileSync(t, 'utf8').replace(/__BUILD_ID__/g, tunnus()));
+    },
     transformIndexHtml(html) {
-      let sha = process.env.VERCEL_GIT_COMMIT_SHA || '';
-      if (!sha) {
-        try { sha = execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
-          .toString().trim(); } catch (e) { /* ei git-repoa */ }
-      }
-      const lyhyt = sha ? sha.slice(0, 7) : 'dev';
-      const aika = new Date().toISOString().slice(0, 16).replace('T', ' ');
-      return html.replace(/__BUILD_ID__/g, lyhyt + ' · ' + aika + ' UTC');
+      return html.replace(/__BUILD_ID__/g, tunnus());
     },
   };
 }
