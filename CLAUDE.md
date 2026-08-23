@@ -1927,10 +1927,21 @@ mitään näy, mutta 390×844 ruudun nurkassa `r` on noin 460 px. Sama virhe on
 keskellä näkymätön ja reunalla iso — juuri siksi ilmiö näyttää
 "reunojen värinältä" eikä zoomin epävakaudelta.
 
-**Kaksi eri ongelmaa, ei yksi.** Pito (sormet paikallaan lasilla, vapina
-jatkuu) ja hidas tahallinen liike ovat erillisiä tapauksia ja vaativat eri
-mittarin. Ensimmäinen versio korjasi vain pidon; hidas liike jäi täriseväksi,
-koska nopeustermi oli jo avannut suotimen.
+**Kolme eri tapausta, ei yksi.** Pito (sormet paikallaan lasilla), hidas
+tahallinen liike ja nopea ele vaativat kukin oman mittarinsa, ja korjaus
+joka ratkaisee yhden ei ratkaise muita. Tämä meni pieleen kahdesti ennen
+kuin vaikein tapaus tuli mitatuksi oikein.
+
+**Vaikein on hidas tahallinen liike**: toinen sormi paikallaan, toista
+siirretään niin varovasti kuin pystyy. Kaksi syytä:
+
+- **Hidas sormenliike ei ole tasaista.** Se etenee 2–4 px nykäyksin ja
+  pysähdyksin — hidas lihaskontrolli on luonnostaan katkonaista. Juuri
+  pysähdyksillä käyttäjä odottaa kartan olevan paikallaan.
+- **Ele on epäsymmetrinen.** Sormet saavat eri katkotaajuuden, koska One
+  Euro adaptoituu kunkin signaalin omaan nopeuteen. Zoom lasketaan niiden
+  **erotuksesta**, joten eri viiveet jättävät eroon keinotekoisen
+  komponentin joka elää nopeuden mukana.
 
 ### One Euro -suodin
 
@@ -1959,52 +1970,74 @@ Yksityiskohtia jotka eivät ole ilmeisiä:
   kaikkialla, joten `r`-vahvistusta ei ole eikä vapina erotu; suodatus vain
   hidastaisi vasteen.
 
-### Toinen aste, ei ensimmäinen
+### Kaksi korjausta: dCutoff ja aste
 
-Suodin on **kaksi napaa peräkkäin samalla adaptiivisella katkotaajuudella**.
-Syy on hidas tahallinen liike, jota ensimmäinen aste ei saanut kuriin.
+**1. `dCutoff` 1,0 → 0,3.** Nopeusestimaatti alipäästetään paljon tiukemmin.
+Ennen **vapina itse ajoi sitä**: mitattuna PAIKALLAAN olevan sormen
+katkotaajuus oli 1,79 Hz vaikka `minCutoff` on 1,0. Suodin avasi itsensä
+juuri sillä signaalilla jota sen piti vaimentaa. 1,5 px vapina 7,3 Hz:ssä on
+69 px/s huippunopeutta, ja `dCutoff 1,0` päästää siitä läpi noin seitsemäsosan
+— kerrottuna betalla se on enemmän kuin koko `minCutoff`.
 
-Ensimmäinen aste oli siinä jo **viivebudjettinsa rajoilla**: hitaalla
-nopeudella katkotaajuus asettuu noin 1,3 Hz:iin, mikä on 0,12 s viivettä, eikä
-sitä voi laskea ilman että kartta irtoaa sormista. Lisää vaimennusta saa vain
-suotimen **muotoa** vaihtamalla, ei parametreja säätämällä.
+Tämä on One Euron oma ansa: `beta` viritetään yleensä nopealle eleelle, mutta
+`dCutoff` ratkaisee toimiiko suodin lainkaan hitaassa päässä.
 
-Kaksi napaa vaimentaa 40 dB/dekadi eikä 20. Ryhmäviive on `√2/(2π·fc)` eikä
-`1/(2π·fc)`, joten samalla viiveellä katkotaajuuden saa 1,41× korkeammaksi ja
-7 Hz vapina vaimenee silti noin 3,5-kertaisesti enemmän. **Kaksi identtistä
-reaalinapaa eivät ylitä kohdetta** — ei ylihyppyä eikä soimista, mikä suorassa
-manipulaatiossa on tärkeämpää kuin Butterworthin jyrkempi kulma.
+**2. Toinen aste → neljäs.** Neljä napaa vaimentaa 80 dB/dekadi eikä 40.
+Ryhmäviive on `N/(2π·fc)`, joten korkeampi aste maksaa viiveenä — mutta koska
+`beta` avaa katkotaajuuden nopeassa eleessä, hinta lankeaa vain sinne missä
+vapina ei ole ongelma. **Identtiset reaalinavat eivät ylitä kohdetta**: ei
+ylihyppyä eikä soimista, mikä suorassa manipulaatiossa on tärkeämpää kuin
+Butterworthin jyrkempi kulma.
 
 ### Mitatut arvot
 
-Kaikki luvut samasta harnessista: kaksi sormea (±d/2), kumpikin oma suodin,
-kosketuspisteet kvantisoituna 0,5 px laitepikselihilalle, nurkka `r = 460 px`,
-60 Hz.
+Nämä on mitattu **oikeasta koodista**, ei mallista: Leafletin `_onTouchMove`
+kutsutaan suoraan synteettisillä tapahtumilla joiden `timeStamp` on tasan
+60 Hz, ja mitataan miten paljon ruudun nurkassa oleva maantieteellinen piste
+liikkuu. Näin dispatch-tahti ei sotke mitään mutta koko ketju — oma suodin ja
+Leafletin matematiikka — ajetaan sellaisenaan.
 
 ```
-                          pito     hidas 5 px/s    hidas 10 px/s    viive
-suodattamaton            5,90 px   10,03   37 %     5,13   32 %    4,6 px
-1. aste  mc 1,0  b 0,12  1,32 px    1,96   33 %     1,12   24 %   14,2 px
-2. aste  mc 0,8  b 0,30  1,22 px    0,82    1 %     0,63    0 %   12,2 px
+                            pito         nykivä 3 px      tasainen 4 px/s
+2. aste 0,8/0,30 dC 1,0   0,138 px/r   0,327 px/r 30 %   0,248 px/r 15 %
+                          14 vaihtoa    11 vaihtoa/s      12 vaihtoa/s
+4. aste 1,0/0,30 dC 0,3   0,008 px/r   0,118 px/r  0 %   0,060 px/r  0 %
+                           7 vaihtoa     0 vaihtoa/s       0 vaihtoa/s
 ```
 
-`pito` = nurkan heilunta RMS kun sormet ovat paikallaan.
-`hidas` = nopeuskohina suhteessa todelliseen liikkeeseen, ja niiden ruutujen
-osuus jotka menevät **väärään suuntaan**. `viive` = tavallinen ele.
+`px/r` = nurkan liike ruudusta toiseen, kohina keskiarvon ympärillä.
+`%` = ruudut jotka menevät väärään suuntaan. `vaihtoa/s` = suunnanvaihtoja
+sekunnissa.
 
-Toinen aste on parempi **joka mittarilla, viive mukaan lukien** — se ei siis
-ole vaihtokauppa vaan suoraan parempi suodin.
+**Ratkaiseva mittari on suunnanvaihto, ei poikkeama radalta.** Silmä lukee
+epämonotonisen liikkeen tärinäksi vaikka poikkeama olisi murto-osa
+pikselistä — nykäysten välisillä tauoilla se oli 9 kertaa sekunnissa, nyt 0.
+Pidossa kohina putosi 0,138 → 0,008 px ruutua kohti, eli 94 %.
 
-**Ratkaiseva mittari hitaassa liikkeessä on peruutus, ei poikkeama radalta.**
-Silmä lukee epämonotonisen liikkeen tärinäksi vaikka poikkeama olisi pieni:
-5 px/s nopeudella kartta liikkui ennen väärään suuntaan joka kolmannessa
-ruudussa. Nyt yhdessä sadasta.
+**Hinta.** Tauon aikainen huippuero kasvoi 0,34 → 0,72 px, mutta se on
+tasaista kiinniottoa ilman suunnanvaihtoja. Hidas ele laahaa noin 6 px, nopea
+zoomaus 10 ms (5 ms ennen), ja 3 px askeleen jälkeen kartta asettuu 500 ms:ssa
+(150 ms ennen) — ei valumista.
 
-**Ennakointi (lead compensation) kokeiltiin ja hylättiin.** Ajatus on kumota
-viive nopeustermillä `y + v/(2π·fc)`, jolloin katkotaajuuden voisi laskea
-rajusti. Mitattuna se teki hitaasta liikkeestä **11,88** — huonomman kuin
-suodattamaton 10,03 — koska hitaalla nopeudella nopeusestimaatti on lähes
-pelkkää vapinaa ja ennakointi syöttää sen takaisin. Nollaviive, kaikki värinä.
+### Kaksi hylättyä ratkaisua
+
+**Ennakointi (lead compensation).** Ajatus on kumota viive nopeustermillä
+`y + v/(2π·fc)`, jolloin katkotaajuuden voisi laskea rajusti. Mitattuna se
+teki hitaasta liikkeestä **11,88** — huonomman kuin suodattamaton 10,03 —
+koska hitaalla nopeudella nopeusestimaatti on lähes pelkkää vapinaa ja
+ennakointi syöttää sen takaisin. Nollaviive, kaikki värinä.
+
+**Kuollut alue nopeudessa** (`cutoff = mc + beta*max(0, |v| - v0)`). Vei
+pidon värinän lähes nollaan, mutta pieni 3 px askel ei ylitä kynnystä
+lainkaan: katkotaajuus jää pohjalle ja kartta valuu **3,2 sekuntia** askeleen
+jälkeen. Kynnys joka erottaa vapinan liikkeestä erottaa myös liikkeen
+liikkeestä.
+
+**Elesuureiden suodattaminen** (etäisyys `d` ja keskipiste `m` erikseen sen
+sijaan että suodatetaan sormet) kokeiltiin, koska se poistaisi sormien
+välisen viive-eron. Se ei kannattanut: `d` sisältää molempien sormien
+vapinan, joten sen nopeusestimaatti on vielä pahemmin vapinan ajama.
+Per-sormi voitti mitattuna.
 
 ### Mittarit jotka eivät toimineet
 
@@ -2034,11 +2067,34 @@ näyttivät uskottavilta lukuina:
    nopeudesta, ja `d` muuttuu kaksi kertaa niin nopeasti kuin kumpikaan
    sormi. Ensimmäisen kierroksen viiveluvut olivat siksi noin puolet liian
    pieniä. Harnessin on syötettävä `±d/2` kahtena signaalina.
+6. **Symmetrinen rata piilotti koko ongelman.** Kaksi kierrosta viritettiin
+   radalla jossa molemmat sormet liikkuvat yhtä paljon vastakkaisiin
+   suuntiin. Silloin sormet saavat saman katkotaajuuden eikä viive-eroa
+   synny — eli juuri se mekanismi joka käyttäjän tapauksessa tärisyttää
+   karttaa puuttui mallista kokonaan. Radan on oltava epäsymmetrinen:
+   **toinen sormi paikallaan.**
+7. **Tasainen hidas ramppi ei ole hidas liike.** Ihminen ei pysty
+   liikuttamaan sormea tasaisesti 5 px/s — liike on nykäyksiä ja taukoja.
+   Tasaisella radalla mitattuna kaikki näytti korjatulta samaan aikaan kun
+   nykivällä radalla tauoilla oli 11 suunnanvaihtoa sekunnissa.
+8. **Tauon aikainen kokonaissiirtymä sekoittaa asettumisen ja värinän.**
+   Raskaampi suodin liikkuu tauon aikana ENEMMÄN, koska se ottaa edellistä
+   nykäystä kiinni — mittari näytti siis huonommalta juuri kun asia parani.
+   Oikea luku on suunnanvaihtojen määrä sen jälkeen kun asettumiselle on
+   annettu 250 ms.
 
-Toimiva mittari on analyyttinen: 60 Hz sormirata → Leafletin kaava → nurkan
-siirtymä, ja **tärinä ja viive erikseen**. Molemmat tapaukset on ajettava:
-**pito** (sormet paikallaan, vapina jatkuu) ja **hidas ramppi** (5–25 px/s).
-Nopea ele on vain regressiotarkistus.
+Toimiva mittari kutsuu **oikeaa koodia**: `L.Map.TouchZoom.prototype._onTouchMove`
+suoraan synteettisillä tapahtumilla joiden `timeStamp` on tasan 60 Hz, ja
+lukee `tz._center` / `tz._zoom` joka kutsun jälkeen. Selaimen eletapahtumia ei
+tarvita, joten dispatch-tahti ei sotke — mutta mitään ei myöskään mallinneta.
+Analyyttinen harness on hyvä pyyhkäisyihin (satoja asetuksia sekunneissa);
+lopputulos varmistetaan aina oikealla koodilla. Ne täsmäsivät kolmen
+desimaalin tarkkuudella, mikä on hyvä merkki molemmista.
+
+Ajettavat tapaukset ovat **pito**, **nykivä hidas** (epäsymmetrinen: toinen
+sormi paikallaan, 2–4 px askelia ja 380 ms taukoja) ja **tasainen hidas**.
+Nopea ele ja asettumisaika ovat regressiotarkistuksia — jälkimmäinen sen
+varalta ettei kartta ala valua itsestään.
 
 Rataan kuuluu myös **kvantisointi**: kosketuspisteet raportoidaan
 laitepikselihilalla, ja hitaassa liikkeessä se on portaikko eikä

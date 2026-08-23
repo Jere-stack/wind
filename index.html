@@ -3468,39 +3468,49 @@ function buildLegend() {
  * pysyvät keskenään johdonmukaisina; zoomin suodattaminen jälkikäteen
  * siirtäisi ankkuria, koska keskipiste on laskettu eri zoomille.
  *
- * Suodin on TOISTA ASTETTA: kaksi napaa peräkkäin samalla adaptiivisella
- * katkotaajuudella. Ensimmäinen aste riitti pitoon mutta ei hitaaseen
- * tahalliseen liikkeeseen, joka on oma erillinen ongelmansa — sormia on
- * vaikea liikuttaa tasaisesti pienellä nopeudella, ja silloin vapina on
- * samaa kokoluokkaa kuin itse liike.
+ * VAIKEIN TAPAUS ei ole pito eikä nopea ele vaan HIDAS TAHALLINEN LIIKE:
+ * toinen sormi paikallaan, toista siirretään niin varovasti kuin pystyy.
+ * Kaksi syytä tekevät siitä pahimman:
  *
- * Parametrit on mitattu, ei arvattu. Kaikki luvut samasta harnessista:
- * kaksi sormea (+-d/2), kumpikin oma suodin, kosketuspisteet
- * kvantisoituna 0,5 px laitepikselihilalle, nurkka r = 460 px, 60 Hz.
+ *  - Hidas sormenliike ei ole tasaista. Se etenee 2-4 px nykäyksin ja
+ *    pysähdyksin, ja juuri pysähdyksillä käyttäjä odottaa kartan olevan
+ *    paikallaan.
+ *  - Sormet saavat eri katkotaajuuden, koska One Euro adaptoituu kunkin
+ *    signaalin omaan nopeuteen. Zoom lasketaan niiden EROTUKSESTA, joten
+ *    eri viiveet jättävät eroon keinotekoisen komponentin.
  *
- *                             pito    hidas 5 px/s   hidas 10 px/s   viive
- *   suodattamaton            5,90 px  10,03  37 %     5,13  32 %    4,6 px
- *   1. aste  mc 1,0  b 0,12  1,32 px   1,96  33 %     1,12  24 %   14,2 px
- *   2. aste  mc 0,8  b 0,30  1,22 px   0,82   1 %     0,63   0 %   12,2 px
+ * Kaksi korjausta, molemmat mitattuja:
  *
- * (pito = nurkan heilunta kun sormet ovat paikallaan; hidas = nopeuden
- * vaihtelu suhteessa todelliseen liikkeeseen ja niiden ruutujen osuus
- * jotka menevät väärään suuntaan; viive = tavallinen ele.) Toinen aste
- * on siis parempi joka mittarilla, viive mukaan lukien.
+ * 1. D_CUTOFF 1,0 -> 0,3. Nopeusestimaatti alipäästetään paljon
+ *    tiukemmin. Ennen vapina itse ajoi sitä: PAIKALLAAN olevan sormen
+ *    katkotaajuus oli 1,79 Hz vaikka minCutoff on 1,0 — suodin avasi
+ *    itsensä juuri sillä signaalilla jota sen piti vaimentaa.
+ * 2. Toinen aste -> NELJÄS. Neljä napaa vaimentaa 80 dB/dekadi eikä 40.
  *
- * MIKSI TOINEN ASTE. Ensimmäinen aste oli hitaassa liikkeessä jo
- * viivebudjettinsa rajoilla: katkotaajuus 1,3 Hz on 0,12 s viivettä eikä
- * sitä voi laskea ilman että kartta irtoaa sormista. Lisää vaimennusta
- * saa vain suotimen MUOTOA vaihtamalla. Kaksi napaa vaimentaa
- * 40 dB/dekadi eikä 20, joten samalla ryhmäviiveellä (1,41x korkeampi
- * katkotaajuus) 7 Hz vapina vaimenee noin 3,5-kertaisesti enemmän. Kaksi
- * identtistä reaalinapaa eivät myöskään ylitä kohdetta — ei ylihyppyä
- * eikä soimista, mikä suorassa manipulaatiossa on tärkeämpää kuin
- * Butterworthin jyrkempi kulma.
+ * Mitattuna OIKEALLA koodilla (Leafletin _onTouchMove kutsuttuna
+ * synteettisillä tapahtumilla tasan 60 Hz:llä, nurkkapisteen liike):
  *
- * Ratkaiseva mittari hitaassa liikkeessä ei ole poikkeama radalta vaan
- * PERUUTUS: kuinka moni ruutu liikkuu väärään suuntaan. Silmä lukee
- * epämonotonisen liikkeen tärinäksi vaikka poikkeama olisi pieni.
+ *                              pito        nykivä 3 px       tasainen 4 px/s
+ *   2. aste 0,8/0,30 dC 1,0  0,138 px/r  0,327 px/r 30 %   0,248 px/r 15 %
+ *                            14 vaihtoa   11 vaihtoa/s      12 vaihtoa/s
+ *   4. aste 1,0/0,30 dC 0,3  0,008 px/r  0,118 px/r  0 %   0,060 px/r  0 %
+ *                             7 vaihtoa    0 vaihtoa/s       0 vaihtoa/s
+ *
+ * Ratkaiseva mittari ei ole poikkeama radalta vaan SUUNNANVAIHTO: kuinka
+ * monta kertaa sekunnissa nurkka kääntyy takaisin. Silmä lukee
+ * epämonotonisen liikkeen tärinäksi vaikka poikkeama olisi murto-osa
+ * pikselistä. Nykäysten välisillä tauoilla se oli 9 kertaa sekunnissa,
+ * nyt 0.
+ *
+ * Hinta: tauon aikainen huippuero kasvoi 0,34 -> 0,72 px, mutta se on
+ * tasaista kiinniottoa ilman suunnanvaihtoja — sitä silmä ei lue
+ * tärinäksi. Hidas ele laahaa noin 6 px, nopea zoomaus 10 ms, ja 3 px
+ * askeleen jälkeen kartta asettuu 500 ms:ssa (ei valumista).
+ *
+ * KUOLLUT ALUE nopeudessa (cutoff = mc + beta*max(0, |v| - v0))
+ * kokeiltiin ja hylättiin. Se vei pidon värinän lähes nollaan, mutta
+ * pieni 3 px askel ei ylitä kynnystä lainkaan, jolloin katkotaajuus jää
+ * pohjalle ja kartta valuu 3,2 sekuntia askeleen jälkeen.
  *
  * ENNAKOINTI (lead compensation) kokeiltiin ja hylättiin. Ajatus on
  * kumota viive nopeustermillä, jolloin katkotaajuuden voisi laskea
@@ -3519,24 +3529,32 @@ function buildLegend() {
   const alkupStart = proto._onTouchStart;
   if (typeof alkupMove !== 'function' || typeof alkupStart !== 'function') return;
 
-  const MIN_CUTOFF = 0.8, BETA = 0.30, D_CUTOFF = 1.0;
+  const MIN_CUTOFF = 1.0, BETA = 0.30, D_CUTOFF = 0.3, NAPOJA = 4;
 
   function Alipaasto() {
     let y = null;
     return { suodata(x, a) { y = (y === null) ? x : a * x + (1 - a) * y; return y; } };
   }
   function OneEuro() {
-    /* Kaksi napaa peräkkäin samalla adaptiivisella katkotaajuudella */
-    const nap1 = Alipaasto(), nap2 = Alipaasto(), df = Alipaasto();
+    /* NAPOJA kappaletta peräkkäin samalla adaptiivisella katkotaajuudella */
+    const navat = [];
+    for (let i = 0; i < NAPOJA; i++) navat.push(Alipaasto());
+    const df = Alipaasto();
     let edellinen = null, tEd = null;
     const alpha = (cutoff, dt) => { const r = 2 * Math.PI * cutoff * dt; return r / (r + 1); };
     return function (x, t) {
-      if (tEd === null) { tEd = t; edellinen = x; nap1.suodata(x, 1); return nap2.suodata(x, 1); }
+      if (tEd === null) {
+        tEd = t; edellinen = x;
+        for (const n of navat) n.suodata(x, 1);
+        return x;
+      }
       const dt = Math.max(1e-4, (t - tEd) / 1000); tEd = t;
       const dx = (x - edellinen) / dt; edellinen = x;
       const nopeus = df.suodata(dx, alpha(D_CUTOFF, dt));
       const a = alpha(MIN_CUTOFF + BETA * Math.abs(nopeus), dt);
-      return nap2.suodata(nap1.suodata(x, a), a);
+      let y = x;
+      for (const n of navat) y = n.suodata(y, a);
+      return y;
     };
   }
 
