@@ -3527,7 +3527,9 @@ function buildLegend() {
   const proto = L.Map.TouchZoom.prototype;
   const alkupMove  = proto._onTouchMove;
   const alkupStart = proto._onTouchStart;
-  if (typeof alkupMove !== 'function' || typeof alkupStart !== 'function') return;
+  const alkupEnd   = proto._onTouchEnd;
+  if (typeof alkupMove !== 'function' || typeof alkupStart !== 'function'
+      || typeof alkupEnd !== 'function') return;
 
   const MIN_CUTOFF = 1.0, BETA = 0.30, D_CUTOFF = 0.3, NAPOJA = 4;
 
@@ -3558,6 +3560,79 @@ function buildLegend() {
     };
   }
 
+  /* -- ALIPIKSELIT ELEEN AJAKSI --------------------------------------
+   *
+   * Suodin ei yksin riittänyt, ja syy oli renderöinnissä eikä syötteessä.
+   * Mitattuna hitaassa nipistyksessä: LASKETTU zoom oli täysin sileä
+   * (kohina 0,000 px, 0 suunnanvaihtoa) mutta RENDERÖITY pohjakartan
+   * laatta heilui 0,556 px ja vaihtoi suuntaa 10 kertaa sekunnissa.
+   *
+   * Leaflet pyöristää sijainnit kokonaisiin pikseleihin joka ruudussa:
+   *
+   *   Map._getNewPixelOrigin      ...._round()
+   *   Map.latLngToLayerPoint      project(...)._round()
+   *   GridLayer._setZoomTransform ....round()
+   *   Marker.update               latLngToLayerPoint(...).round()
+   *
+   * Se on oikein paikallaan olevalle kartalle — kokonaispikseli pitää
+   * laatat ja tekstin terävinä. Nipistyksessä se on väärin: skaala
+   * muuttuu jatkuvasti, joten pyöristetty siirtymä napsahtaa pikselin
+   * kerrallaan. Hitaassa liikkeessä napsahdukset ovat harvassa, jolloin
+   * kukin näkyy erillisenä hyppynä — juuri siksi vika tuntui pahimmalta
+   * silloin kun sormea liikutti varovaisimmin.
+   *
+   * Pahempi on että jokainen KERROS pyöristää erikseen: laatat, lämpökartta
+   * (ImageOverlay) ja merkit napsahtavat eri hetkillä, jolloin ne myös
+   * liikkuvat toistensa suhteen. Lämpökartan kanvaasista 55 % askelista oli
+   * tasan kokonaisia pikseleitä.
+   *
+   * Eleen ajaksi pyöristys poistetaan kaikilta neljältä. Ele päättyy
+   * _resetView'hun, joka pyöristää kaiken takaisin, joten pehmeys maksaa
+   * terävyytenä vain sen ajan kun kartta on liikkeessä. */
+  let pyoristysPurettu = false;
+  function alaPyorista(map) {
+    map._nipistysKesken = true;
+    if (pyoristysPurettu) return;
+    pyoristysPurettu = true;
+
+    const kesken = (m) => !!(m && m._nipistysKesken);
+
+    const origOrigin = L.Map.prototype._getNewPixelOrigin;
+    L.Map.prototype._getNewPixelOrigin = function (keskus, zoom) {
+      if (!kesken(this)) return origOrigin.call(this, keskus, zoom);
+      const puoli = this.getSize()._divideBy(2);
+      return this.project(keskus, zoom)._subtract(puoli)._add(this._getMapPanePos());
+    };
+
+    const origLayerPoint = L.Map.prototype.latLngToLayerPoint;
+    L.Map.prototype.latLngToLayerPoint = function (latlng) {
+      if (!kesken(this)) return origLayerPoint.call(this, latlng);
+      return this.project(L.latLng(latlng))._subtract(this.getPixelOrigin());
+    };
+
+    if (L.GridLayer && L.GridLayer.prototype._setZoomTransform) {
+      const origZT = L.GridLayer.prototype._setZoomTransform;
+      L.GridLayer.prototype._setZoomTransform = function (taso, keskus, zoom) {
+        const m = this._map;
+        if (!kesken(m)) return origZT.call(this, taso, keskus, zoom);
+        const skaala = m.getZoomScale(zoom, taso.zoom);
+        const siirto = taso.origin.multiplyBy(skaala)
+          ._subtract(m._getNewPixelOrigin(keskus, zoom));
+        if (L.Browser.any3d) L.DomUtil.setTransform(taso.el, siirto, skaala);
+        else L.DomUtil.setPosition(taso.el, siirto);
+      };
+    }
+
+    if (L.Marker && L.Marker.prototype.update) {
+      const origUpdate = L.Marker.prototype.update;
+      L.Marker.prototype.update = function () {
+        if (!kesken(this._map)) return origUpdate.call(this);
+        if (this._icon) this._setPos(this._map.latLngToLayerPoint(this._latlng));
+        return this;
+      };
+    }
+  }
+
   proto._onTouchStart = function (e) {
     /* Uusi ele, uudet suotimet — mutta ei kesken nipistyksen: kolmas sormi
        laukaisee touchstartin, eikä sen pidä nollata käynnissä olevan eleen
@@ -3565,7 +3640,19 @@ function buildLegend() {
        jos sormi nousee ja toinen laskee, indeksi osoittaisi eri sormeen ja
        suodin hyppäisi. */
     if (!this._zooming) this._pehmennys = {};
-    return alkupStart.call(this, e);
+    const r = alkupStart.call(this, e);
+    if (this._zooming && this._map) alaPyorista(this._map);
+    return r;
+  };
+
+  proto._onTouchEnd = function () {
+    /* Lippu on nollattava ENNEN alkuperäistä käsittelijää. Se kutsuu
+       _animateZoom/_resetView, joka laskee lopullisen pikseliorigon — ja
+       jos alipikselitila olisi vielä päällä, origo jäisi murtoluvuksi ja
+       kartta olisi levossa puolikkaan pikselin sivussa eli epäterävä.
+       Mitattuna juuri niin kävi: origo 298217,97 eleen jälkeen. */
+    if (this._map) this._map._nipistysKesken = false;
+    return alkupEnd.apply(this, arguments);
   };
 
   proto._onTouchMove = function (e) {

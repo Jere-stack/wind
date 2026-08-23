@@ -2019,6 +2019,64 @@ tasaista kiinniottoa ilman suunnanvaihtoja. Hidas ele laahaa noin 6 px, nopea
 zoomaus 10 ms (5 ms ennen), ja 3 px askeleen jälkeen kartta asettuu 500 ms:ssa
 (150 ms ennen) — ei valumista.
 
+### Suodin ei riittänyt — vika oli renderöinnissä
+
+Kolme kierrosta viritettiin syötettä, ja käyttäjä näki värinän joka kerta.
+Ratkaiseva mittaus oli vasta se joka luki **renderöidyn DOMin** eikä Leafletin
+laskemia arvoja: pohjakartan laatan todellinen `getBoundingClientRect()` joka
+ruudussa.
+
+```
+hidas nipistys 6 px/s        kohina      suunnanvaihtoa/s
+laskettu zoom                0,000 px          0
+renderöity laatta x          0,556 px         10
+renderöity lämpökartta       0,549 px    55 % askelista kokonaisia pikseleitä
+```
+
+**Syöte oli täydellisen sileä ja renderöinti tärisi.** Leaflet pyöristää
+sijainnit kokonaisiin pikseleihin joka ruudussa, neljässä paikassa:
+
+```
+Map._getNewPixelOrigin        ..._round()
+Map.latLngToLayerPoint        project(...)._round()
+GridLayer._setZoomTransform   ....round()
+Marker.update                 latLngToLayerPoint(...).round()
+```
+
+Se on **oikein paikallaan olevalle kartalle** — kokonaispikseli pitää laatat
+ja tekstin terävinä. Nipistyksessä se on väärin: skaala muuttuu jatkuvasti,
+joten pyöristetty siirtymä napsahtaa pikselin kerrallaan. Hitaassa liikkeessä
+napsahdukset ovat harvassa, jolloin kukin näkyy erillisenä hyppynä — juuri
+siksi vika tuntui pahimmalta silloin kun sormea liikutti varovaisimmin, ja
+juuri siksi paremmasta suodatuksesta ei ollut apua.
+
+Pahempi on että **jokainen kerros pyöristää erikseen**: laatat, lämpökartta
+(ImageOverlay) ja merkit napsahtavat eri hetkillä, jolloin ne liikkuvat myös
+toistensa suhteen. Se on näkyvämpää kuin absoluuttinen liike.
+
+Eleen ajaksi pyöristys poistetaan kaikilta neljältä (`alaPyorista`). Mitattuna
+renderöidystä DOMista:
+
+```
+                    ennen                    jälkeen
+pito, laatta y      0,646 px  26 vaihtoa/s   0,017 px   4 vaihtoa/s
+pito, lämpökartta   0,599 px  15 vaihtoa/s   0,019 px   4 vaihtoa/s
+nykivä, laatta x    0,562 px  12 vaihtoa/s   0,097 px   0 vaihtoa/s
+nykivä, lämpökartta 0,681 px   6 vaihtoa/s   0,224 px   0 vaihtoa/s
+tasainen, laatta x  0,556 px  10 vaihtoa/s   0,073 px   0 vaihtoa/s
+```
+
+Pidossa laatan heilunta putosi **97 %** ja kokonaispikseliaskelten osuus
+42 %:sta nollaan. Liikkeessä suunnanvaihdot menivät nollaan kaikilla
+kerroksilla.
+
+**Lippu on nollattava ennen eleen loppusijoittelua, ei sen jälkeen.**
+`_onTouchEnd` kutsuu `_animateZoom`/`_resetView`, joka laskee lopullisen
+pikseliorigon. Ensimmäinen versio nollasi lipun `zoomend`-tapahtumassa, eli
+liian myöhään: origoksi jäi 298217,97 ja kartta olisi ollut levossa
+puolikkaan pikselin sivussa — pysyvästi epäterävä. Nyt nollaus tehdään
+`_onTouchEnd`in alussa ja origo on levossa kokonaisluku.
+
 ### Kaksi hylättyä ratkaisua
 
 **Ennakointi (lead compensation).** Ajatus on kumota viive nopeustermillä
@@ -2082,6 +2140,13 @@ näyttivät uskottavilta lukuina:
    nykäystä kiinni — mittari näytti siis huonommalta juuri kun asia parani.
    Oikea luku on suunnanvaihtojen määrä sen jälkeen kun asettumiselle on
    annettu 250 ms.
+9. **Kaikkein tärkein: `tz._center` / `tz._zoom` EI OLE se mitä käyttäjä
+   näkee.** Kolme kierrosta mitattiin Leafletin laskemia arvoja, ja ne
+   olivat jo toisen kierroksen jälkeen käytännössä täydellisiä — samaan
+   aikaan kun ruudulla laatta heilui puoli pikseliä kymmenen kertaa
+   sekunnissa. Kun suodatuksen parantaminen ei enää auta, vika on
+   suotimen ja pikselien VÄLISSÄ. Mittaa `getBoundingClientRect()`
+   oikeista DOM-elementeistä.
 
 Toimiva mittari kutsuu **oikeaa koodia**: `L.Map.TouchZoom.prototype._onTouchMove`
 suoraan synteettisillä tapahtumilla joiden `timeStamp` on tasan 60 Hz, ja
