@@ -3589,12 +3589,20 @@ function buildLegend() {
    * Eleen ajaksi pyöristys poistetaan kaikilta neljältä. Ele päättyy
    * _resetView'hun, joka pyöristää kaiken takaisin, joten pehmeys maksaa
    * terävyytenä vain sen ajan kun kartta on liikkeessä. */
-  let pyoristysPurettu = false;
-  function alaPyorista(map) {
-    map._nipistysKesken = true;
-    if (pyoristysPurettu) return;
-    pyoristysPurettu = true;
-
+  /* Paikkaukset asennetaan HETI, ei ensimmäisessä eleessä.
+   *
+   * Leaflet tallentaa tapahtumakuuntelijan funktioviitteen sillä hetkellä
+   * kun kerros lisätään kartalle (`map.on('zoom', this._reset, this)`).
+   * Jos prototyyppi korvataan vasta myöhemmin, jo rekisteröity kuuntelija
+   * osoittaa yhä vanhaan funktioon. Ensimmäinen versio asensi paikkaukset
+   * laiskasti eleen alkaessa, ja mitattuna ImageOverlay._reset ja
+   * Marker.update eivät silloin päivittyneet lainkaan — pyöristys jäi
+   * voimaan juuri lämpökartalle ja merkeille. Sisäisesti kutsutut
+   * (_getNewPixelOrigin, latLngToLayerPoint, _setZoomTransform) haetaan
+   * joka kutsulla, joten ne toimivat kummin päin tahansa; ero näkyi vain
+   * kuuntelijoina rekisteröidyissä. */
+  function alaPyorista(map) { map._nipistysKesken = true; }
+  {
     const kesken = (m) => !!(m && m._nipistysKesken);
 
     const origOrigin = L.Map.prototype._getNewPixelOrigin;
@@ -3629,6 +3637,40 @@ function buildLegend() {
         if (!kesken(this._map)) return origUpdate.call(this);
         if (this._icon) this._setPos(this._map.latLngToLayerPoint(this._latlng));
         return this;
+      };
+    }
+
+    /* Lämpökartta samaan muunnokseen kuin laatat.
+     *
+     * ImageOverlay._reset kirjoittaa joka ruudussa left, top, WIDTH ja
+     * HEIGHT. Kaksi jälkimmäistä ovat layout-operaatioita, ja kohteena on
+     * ruudun suurin elementti. Laatat sen sijaan liikkuvat pelkällä
+     * transformilla, joka menee suoraan kompositoinnille.
+     *
+     * Eleen ajaksi lämpökartta saa TÄSMÄLLEEN saman kaavan kuin
+     * laattataso: origin*skaala - pikseliorigo. Kaksi seurausta:
+     * kerrokset eivät voi ajautua erilleen, koska niiden sijainti
+     * lasketaan samasta lausekkeesta, eikä eleen aikana tehdä layoutia.
+     * Koko jää eleen alun arvoon ja scale hoitaa loput. */
+    if (L.ImageOverlay && L.ImageOverlay.prototype._reset) {
+      const origReset = L.ImageOverlay.prototype._reset;
+      L.ImageOverlay.prototype._reset = function () {
+        const m = this._map;
+        if (!kesken(m) || !this._image || !L.Browser.any3d) {
+          this._nipZ0 = null;
+          return origReset.call(this);
+        }
+        if (this._nipZ0 == null) {
+          this._nipZ0 = m.getZoom();
+          this._nipP0 = m.project(this._bounds.getNorthWest(), this._nipZ0);
+          origReset.call(this);       /* koko ja paikka kerran lähtöhetkellä */
+          return;
+        }
+        const z = m.getZoom();
+        const s = m.getZoomScale(z, this._nipZ0);
+        if (!isFinite(s) || !(s > 0)) return;
+        L.DomUtil.setTransform(this._image,
+          this._nipP0.multiplyBy(s)._subtract(m.getPixelOrigin()), s);
       };
     }
   }
@@ -3728,8 +3770,21 @@ function initMap() {
        685 ms kuluttua. Oletus on vuosien takaa, kun laattojen purku
        nykaisi vierityksen; nyt tyo on selaimen omassa saikeessa.
        keepBuffer 3 (oletus 2) pitaa juuri ohitetut laatat muistissa,
-       joten takaisinpain vieritys ei lataa mitaan. */
-    updateWhenIdle: false, keepBuffer: 3, updateInterval: 120,
+       joten takaisinpain vieritys ei lataa mitaan.
+
+       updateWhenZooming FALSE koskee vain nipistysta, ei vieritysta.
+       Oletuksena Leaflet luo uuden laattatason heti kun pyoristetty zoom
+       vaihtuu — myos kesken eleen. Mitattuna 3 sekunnin hitaassa
+       nipistyksessa (z11 -> z12,5) syntyi 102 DOM-solmua ja poistui 65,
+       eli kokonainen uusi laattataso ladattiin, dekoodattiin ja
+       haivytettiin sisaan silla aikaa kun kayttaja viela liikutti sormia.
+       Se nakyy valkkymisena ja teravyyden hyppyina, eika mikaan syotteen
+       suodatus poista sita. Nyt olemassa olevat laatat vain skaalautuvat
+       ja oikea taso ladataan kun ele paattyy — sama minka Apple Maps ja
+       Google Maps tekevat. Hinta: pitkassa nipistyksessa kuva on hetken
+       venytetty, mutta varovaisessa eleessa skaalan muutos on niin pieni
+       ettei sita erota. */
+    updateWhenIdle: false, updateWhenZooming: false, keepBuffer: 3, updateInterval: 120,
     attribution: 'Powered by <a href="https://www.esri.com/">Esri</a> &mdash; '
       + 'Esri, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   }).addTo(map);

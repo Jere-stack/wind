@@ -2077,7 +2077,73 @@ liian myöhään: origoksi jäi 298217,97 ja kartta olisi ollut levossa
 puolikkaan pikselin sivussa — pysyvästi epäterävä. Nyt nollaus tehdään
 `_onTouchEnd`in alussa ja origo on levossa kokonaisluku.
 
-### Kaksi hylättyä ratkaisua
+### Paikkaukset on asennettava heti, ei ensimmäisessä eleessä
+
+**Leaflet tallentaa tapahtumakuuntelijan funktioviitteen sillä hetkellä kun
+kerros lisätään kartalle** (`map.on('zoom', this._reset, this)`). Jos
+prototyypin korvaa myöhemmin, jo rekisteröity kuuntelija osoittaa yhä vanhaan
+funktioon.
+
+Ensimmäinen versio asensi pyöristyksen purun laiskasti eleen alkaessa. Kolme
+neljästä paikkauksesta toimi silti, koska ne kutsutaan sisäisesti ja haetaan
+joka kutsulla (`_getNewPixelOrigin`, `latLngToLayerPoint`,
+`_setZoomTransform`). Kaksi kuuntelijaksi rekisteröityä — `ImageOverlay._reset`
+ja `Marker.update` — eivät päivittyneet lainkaan, eli lämpökartta ja
+**kaikki 31 spottimerkkiä pyöristivät edelleen**.
+
+Mitattuna merkin liike eleen aikana:
+
+```
+                       kokonaispikseliaskelia
+laiska asennus         x 100 %   y 76–88 %
+heti latauksessa       x   7 %   y  1–2 %
+```
+
+Sata prosenttia tarkoittaa että jokainen askel oli tasan kokonainen pikseli:
+31 terävää merkkiä nykii samaan aikaan kun pohjakartta liukuu sileästi. Se on
+näkyvämpää kuin pohjakartan oma värinä, koska merkit ovat pieniä ja
+kovareunaisia.
+
+**Jos paikkaat Leafletin prototyyppiä, tarkista onko metodi rekisteröity
+kuuntelijaksi** (`getEvents()`). Jos on, paikkauksen on oltava paikallaan
+ennen `addTo(map)`:ia.
+
+### Ele ei saa ladata uusia laattoja
+
+`updateWhenZooming: false` pohjakartalle. Oletuksena Leaflet luo uuden
+laattatason heti kun pyöristetty zoom vaihtuu — myös kesken eleen. Mitattuna
+3 sekunnin hitaassa nipistyksessä (z11 → z12,5):
+
+```
+                        DOM lisätty  poistettu  laattoja paneelissa
+updateWhenZooming true       102         65      32 → 50 kesken eleen
+updateWhenZooming false       84         47      32 koko eleen ajan
+```
+
+Kokonainen laattataso ladattiin, dekoodattiin ja häivytettiin sisään sillä
+aikaa kun käyttäjä vielä liikutti sormia. Se näkyy välkkymisenä ja terävyyden
+hyppyinä, eikä mikään syötteen suodatus poista sitä. Nyt olemassa olevat
+laatat vain skaalautuvat ja oikea taso ladataan kun ele päättyy — sama minkä
+Apple Maps ja Google Maps tekevät.
+
+### Lämpökartta samaan muunnokseen kuin laatat
+
+`ImageOverlay._reset` kirjoittaa joka ruudussa `left`, `top`, **`width`** ja
+**`height`**. Kaksi jälkimmäistä ovat layout-operaatioita, ja kohteena on
+ruudun suurin elementti. Laatat sen sijaan liikkuvat pelkällä transformilla,
+joka menee suoraan kompositoinnille.
+
+Eleen ajaksi lämpökartta saa **täsmälleen saman kaavan kuin laattataso**:
+`origin * skaala - pikseliorigo`, koko jäädytetään eleen alun arvoon ja
+`scale()` hoitaa loput. Kaksi seurausta: kerrokset eivät voi ajautua
+erilleen, koska niiden sijainti tulee samasta lausekkeesta, eikä eleen aikana
+tehdä layoutia.
+
+**`mix-blend-mode: plus-lighter` kestää scale-muunnoksen** — se tarkistettiin,
+koska sekoitus on helppo rikkoa kompositointia muuttamalla. Mitattu
+värikylläisyys levossa 57,7 → kesken eleen 60,5 → eleen jälkeen 60,4.
+
+### Kolme hylättyä ratkaisua — ja mitä ne yhdessä todistavat
 
 **Ennakointi (lead compensation).** Ajatus on kumota viive nopeustermillä
 `y + v/(2π·fc)`, jolloin katkotaajuuden voisi laskea rajusti. Mitattuna se
@@ -2096,6 +2162,27 @@ sijaan että suodatetaan sormet) kokeiltiin, koska se poistaisi sormien
 välisen viive-eron. Se ei kannattanut: `d` sisältää molempien sormien
 vapinan, joten sen nopeusestimaatti on vielä pahemmin vapinan ajama.
 Per-sormi voitti mitattuna.
+
+**Holtin kaksoiseksponentti.** Alipäästö laahaa ramppia rakenteellisesti
+`v·τ` verran; Holt mallintaa myös trendin, jolloin vakionopeuksisen rampin
+pysyvä viive on nolla. Teoriassa juuri se mitä tarvitaan. Mitattuna kohina
+0,55–0,88 px/ruutu (nykyinen 0,038), 15 suunnanvaihtoa sekunnissa ja
+**4–6 px ylihyppy** kun liike pysähtyy.
+
+**Nollaviiveinen FIR** — pienimmän neliösumman suora N:n viime näytteen
+ikkunaan, arvo ikkunan lopusta. Ei takaisinkytkentää, joten ei soimista, ja
+rampilla viive on nolla. Mitattuna kohina 0,16–1,8 px/ruutu, eli sekin
+huonompi kuin nykyinen 0,028–0,25.
+
+**Mitä nämä kolme yhdessä todistavat.** Kaikki kolme yrittävät poistaa
+ramppiviiveen, ja se onnistuu vain estimoimalla signaalin **derivaatta**.
+Näillä nopeuksilla derivaatta on lähes kokonaan vapinaa: sormi etenee
+2–8 px/s, mutta 1,3 px vapina 7,3 Hz:ssä on 60 px/s huippunopeutta. Signaali-
+kohinasuhde derivaatassa on siis selvästi alle yhden, ja jokainen menetelmä
+joka nojaa siihen syöttää kohinan takaisin ulostuloon. **Syötteen puolella
+lisää pehmeyttä saa vain lisää viivettä vastaan** — se ei ole viritysasia
+vaan tiedon puute. Jos joku palaa tähän: älä yritä neljättä
+derivaattapohjaista menetelmää, vaan katso onko renderöinnissä vielä jotain.
 
 ### Mittarit jotka eivät toimineet
 
@@ -2147,6 +2234,18 @@ näyttivät uskottavilta lukuina:
    sekunnissa. Kun suodatuksen parantaminen ei enää auta, vika on
    suotimen ja pikselien VÄLISSÄ. Mittaa `getBoundingClientRect()`
    oikeista DOM-elementeistä.
+10. **Yhden kerroksen mittaaminen ei riitä.** Laatta ja lämpökartta olivat
+    jo täsmällisiä samaan aikaan kun merkit liikkuivat 100-prosenttisesti
+    kokonaisin pikselein. Mittaa jokainen kerros joka on kartan päällä:
+    laatat, lämpökartta, merkit. Erillinen mittari kullekin.
+11. **Kaikki mikä liikkuu ei liiku paikassa.** Uusien laattojen lataus ja
+    häivytys kesken eleen ei näy missään sijaintimittarissa, mutta näkyy
+    silmälle. Se mitataan `MutationObserver`illa laattapaneelista.
+12. **Ruutuaikaa ei kannata mitata headless-selaimessa.** Yritettiin:
+    mediaani 33,3 ms 1× jarrulla, eli 30 fps, ja laattaelementti vaihtui
+    kesken mittauksen niin että askelhajonnaksi tuli 30 px. Molemmat ovat
+    mittalaitteen ominaisuuksia, eivät sovelluksen. Deterministinen
+    `_onTouchMove` + kaksi rAF:ää on ainoa luotettava selainmittari tässä.
 
 Toimiva mittari kutsuu **oikeaa koodia**: `L.Map.TouchZoom.prototype._onTouchMove`
 suoraan synteettisillä tapahtumilla joiden `timeStamp` on tasan 60 Hz, ja
