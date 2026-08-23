@@ -5593,61 +5593,8 @@ const Ruudusto = {
 
   /* Kutsutaan joka ruudussa ennen piirtoa. Palauttaa true jos
      projektion saa päivittää (eli koordinaatisto ei ole jäädytetty). */
-  jaassa() { return !!this._nip; },
-
   paivita(map) {
     if (!this.ref) { this.nollaa(map); return true; }
-
-    /* NIPISTYS KESKEN — sama jäädytys kuin animoidussa zoomissa, mutta
-     * muunnos luetaan kartan tilasta eikä CSS-kellosta.
-     *
-     * Ilman tätä partikkelit muunnettiin joka ruudussa yksitellen ja
-     * jokainen jälki rakennettiin uudelleen Path2D:ksi. Mitattuna
-     * 4x CPU-jarrulla se oli 9,18 ms/ruutu, eli 92 % koko silmukan
-     * 10 ms:sta — yli puolet 16,7 ms budjetista pelkkään polunrakennukseen
-     * juuri sillä hetkellä kun kaikki muukin työ osuu samaan ruutuun.
-     * Panoroinnissa partikkelityö ohitettiin jo ennestään; nipistyksessä
-     * ei, mikä oli epäjohdonmukaisuus eikä valinta.
-     *
-     * Jäädytettynä hiukkaset eivät etene eivätkä jäljet muutu, joten polut
-     * kelpaavat sellaisenaan ruudusta toiseen ja koko piirto on yksi
-     * matriisi ja kaksi fill-kutsua. Kuva on identtinen — vain
-     * tuulianimaatio pysähtyy eleen ajaksi. */
-    if (map._nipistysKesken) {
-      if (!this._nip) {
-        this._siirra(map);            /* koordinaatit nykyiseen ruutuun */
-        GeoProject.update(map);       /* jäädytä lähtöruudusto */
-        this.z0 = map.getZoom();
-        this.p0 = map.latLngToContainerPoint(this.ref);
-        this._nip = true;
-      }
-      const s = map.getZoomScale(map.getZoom(), this.z0);
-      const p1 = map.latLngToContainerPoint(this.ref);
-      if (isFinite(s) && s > 0 && isFinite(p1.x)) {
-        this.m.s = s;
-        this.m.tx = p1.x - s * this.p0.x;
-        this.m.ty = p1.y - s * this.p0.y;
-      }
-      paivitaAlue(this.m.s, this.m.tx, this.m.ty);
-      return false;
-    }
-    if (this._nip) {
-      this._nip = false;
-      /* Ele ohi. MUTTA: jos loppuanimaatio on jo alkanut, zoomAnim on jo
-         siirtanyt koordinaatit eleen loppuruudustoon ja kello ohjaa
-         matriisia. Silloin tahan ei saa koskea — ensimmainen versio teki
-         oman _siirran ja palasi ennen animaatiohaaraa, jolloin hiukkaset
-         hyppasivat maaliin kartan ollessa viela matkalla. Mitattuna
-         mediaanivirhe 349 px. Ilman animaatiota (zoomAnimation pois tai
-         ele jossa mitaan ei liikkunut) siirto tehdaan tassa. */
-      if (!map._animatingZoom && !this._anim) {
-        this.m.s = 1; this.m.tx = 0; this.m.ty = 0;
-        this._siirra(map);
-        paivitaAlue(1, 0, 0);
-        return true;
-      }
-    }
-
     if (map._animatingZoom) {
       /* Luetaan kellosta se muunnos jossa kartta juuri nyt näkyy. */
       const k = this.kello();
@@ -5690,8 +5637,6 @@ function siirraPartikkelit(s, tx, ty) {
 
 /* -- RENDER LOOP ------------------------------------------------ */
 let _renderLoopRunning = false;
-/* Tosi kun Nippu.polut sisaltaa jaadytetyn eleen polut. */
-let _polutJaassa = false;
 function startRenderLoop() {
   if (_renderLoopRunning) return;
   _renderLoopRunning = true;
@@ -5712,18 +5657,12 @@ function renderLoop(ts) {
      kellosta luetun muunnoksen läpi; muuten se on identiteetti. */
   if (Ruudusto.paivita(map) || !GeoProject._valid) GeoProject.update(map);
 
-  /* Eleen ajan hiukkaset ovat jäässä: ei etenemistä, ei uusia hiukkasia,
-     ei alueen tasausta. Piirto tehdään Ruudusto.m:n läpi. */
-  const jaassa = Ruudusto.jaassa();
+  const target = nParticles();
+  while (particles.length > target) particles.pop();
+  while (particles.length < target) particles.push(makeParticle(true));
 
-  if (!jaassa) {
-    const target = nParticles();
-    while (particles.length > target) particles.pop();
-    while (particles.length < target) particles.push(makeParticle(true));
-
-    /* Näkyvä alue on nyt tiedossa: täytetään se mitä siihen paljastui. */
-    AlueVahti.tasaa();
-  }
+  /* Näkyvä alue on nyt tiedossa: täytetään se mitä siihen paljastui. */
+  AlueVahti.tasaa();
 
   /* Nopeus pikseleinä ruutua kohti. Kertoimet tulevat suoraan
      projektiosta, joten sama tuuli näyttää yhtä nopealta joka
@@ -5745,7 +5684,7 @@ function renderLoop(ts) {
   const talleta = (State._ruutu = (State._ruutu | 0) + 1) % ASKEL === 0;
 
   /* --- 1. liike ------------------------------------------------- */
-  for (let i = 0; !jaassa && i < particles.length; i++) {
+  for (let i = 0; i < particles.length; i++) {
     const p = particles[i];
     sampleWind(p);
     const speedT = Math.min(1, p.ms / Config.MAX_MS);
@@ -5786,22 +5725,16 @@ function renderLoop(ts) {
   windCtx.setTransform(ms, 0, 0, ms, M.tx * dpr, M.ty * dpr);
 
   const polut = Nippu.polut;
-  /* Jäässä hiukkaset eivät liiku, joten polut ovat samat joka ruudussa.
-     Ne rakennetaan kerran eleen alussa ja täytetään sen jälkeen vain
-     eri matriisin läpi — mitattuna 9,18 ms/ruutu -> 0,13 ms/ruutu. */
-  if (!jaassa || !_polutJaassa) {
-    for (let k = 0; k < polut.length; k++) polut[k] = null;
+  for (let k = 0; k < polut.length; k++) polut[k] = null;
 
-    for (let i = 0; i < particles.length; i++) {
-      const p = particles[i];
-      if (p.hn < 2 || p.ms < 0.3) continue;
-      /* Kärjestä lukien niin monta pistettä kuin pituusrajaan mahtuu. */
-      const hn = p.hn < p.piirra ? p.hn : p.piirra;
-      if (hn < 2) continue;
-      const nip = p.nippu;
-      nauha(polut[nip] || (polut[nip] = new Path2D()), p, hn, Nippu.leveys[nip]);
-    }
-    _polutJaassa = jaassa;
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i];
+    if (p.hn < 2 || p.ms < 0.3) continue;
+    /* Kärjestä lukien niin monta pistettä kuin pituusrajaan mahtuu. */
+    const hn = p.hn < p.piirra ? p.hn : p.piirra;
+    if (hn < 2) continue;
+    const nip = p.nippu;
+    nauha(polut[nip] || (polut[nip] = new Path2D()), p, hn, Nippu.leveys[nip]);
   }
 
   for (let n = 0; n < NIPUT; n++) {
