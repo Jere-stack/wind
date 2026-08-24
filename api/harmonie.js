@@ -116,6 +116,34 @@ function fmiSymbolToWmo(v) {
    kierrosajan pullonkaulan. */
 function _vastaus(status, body) { return { _status: status, body: body }; }
 
+/* Open-Meteo sellaisenaan. Tama on vastaus AINA kun HARMONIE ei anna
+   tuulta — ei vain silloin kun sen haku epaonnistuu.
+   Miksi se on oma funktionsa: aiemmin tama polku oli vain siina haarassa
+   jossa XML jai alle 500 tavun. HARMONIEn hila kattaa Pohjois-Euroopan, ja
+   sen ULKOPUOLELLA FMI palauttaa noin 800 tavun ExceptionReportin — eli
+   ohi 500 tavun rajan. Silloin mentiin parsintaan, sielta ulos
+   { error: 'no wind data' } JA rinnakkain jo haettu Open-Meteon vastaus
+   heitettiin pois. Mitattuna FMI vastaa poikkeuksella kaikkialla paitsi
+   noin lat 50-75 / lng -15..50, eli koko muu maailma sai virheen vaikka
+   data oli kadessa. */
+function _omVastaus(omResult) {
+  if (omResult.status !== 'fulfilled' || !omResult.value || !omResult.value.hourly) return null;
+  var oh = omResult.value.hourly;
+  return _vastaus(200, {
+    source: 'Open-Meteo fallback',
+    harmonie_hours: 0,
+    hourly: {
+      time:              oh.time,
+      windspeed_10m:     oh.wind_speed_10m,
+      winddirection_10m: oh.wind_direction_10m,
+      windgusts_10m:     oh.wind_gusts_10m,
+      temperature_2m:    oh.temperature_2m,
+      weather_code:      oh.weather_code,
+      cloudcover:        oh.cloud_cover,
+    }
+  });
+}
+
 async function haePiste(lat, lng) {
   try {
     /* Hae HARMONIE ja Open-Meteo rinnakkain */
@@ -129,23 +157,7 @@ async function haePiste(lat, lng) {
 
     if (xmlResult.status !== 'fulfilled' || !xmlResult.value || xmlResult.value.length < 500) {
       /* HARMONIE ei saatavilla -- palautetaan Open-Meteo sellaisenaan */
-      if (omResult.status === 'fulfilled' && omResult.value.hourly) {
-        var oh = omResult.value.hourly;
-        return _vastaus(200, {
-          source: 'Open-Meteo fallback',
-          harmonie_hours: 0,
-          hourly: {
-            time:              oh.time,
-            windspeed_10m:     oh.wind_speed_10m,
-            winddirection_10m: oh.wind_direction_10m,
-            windgusts_10m:     oh.wind_gusts_10m,
-            temperature_2m:    oh.temperature_2m,
-            weather_code:      oh.weather_code,
-            cloudcover:        oh.cloud_cover,
-          }
-        });
-      }
-      return _vastaus(502, { error: 'both sources failed' });
+      return _omVastaus(omResult) || _vastaus(502, { error: 'both sources failed' });
     }
 
     /* Parsitaan HARMONIE */
@@ -159,7 +171,9 @@ async function haePiste(lat, lng) {
     var ccKey = keys.find(function(k){ return k.includes('totalcloudcover'); });
 
     if (!wsKey || !series[wsKey].times.length) {
-      return _vastaus(200, { error: 'no wind data', debug_keys: keys });
+      /* Hilan ulkopuolella tai FMI:n poikkeus — Open-Meteo kelpaa. */
+      return _omVastaus(omResult)
+        || _vastaus(200, { error: 'no wind data', debug_keys: keys });
     }
 
     /* Yhteinen aika-akseli: tuulennopeuden ne hetket joilla on arvo.

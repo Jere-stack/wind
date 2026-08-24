@@ -2980,3 +2980,173 @@ dokumenttiin asti, joten Leafletin oma vetokäsittelijä näkee ne samalla
 tavalla kuin oikeat — juuri sitä yhteispeliä tässä testataan. Ainoa asia
 joka ei ole uskollinen on selaimen natiivi vieritys, eikä sillä ole tässä
 merkitystä.
+
+## Säädata koko maailmalle
+
+Kartta toimi Suomessa mutta ei kunnolla muualla, ja ulos zoomatessa se
+lakkasi hakemasta dataa kokonaan. Vikoja oli neljä eri kerroksessa, ja ne
+löytyivät vasta kun jokainen mitattiin erikseen.
+
+### 1. Proxy heitti pois valmiin datan HARMONIEn hilan ulkopuolella
+
+`api/harmonie.js` hakee FMI:n HARMONIEn ja Open-Meteon **rinnakkain**.
+Jos HARMONIE-haku epäonnistui, Open-Meteo palautettiin — mutta ehto oli
+`xmlResult.value.length < 500`.
+
+Hilan ulkopuolella FMI ei kaadu vaan palauttaa **noin 800 tavun
+ExceptionReportin**, eli ohi sen rajan. Silloin mentiin parsintaan, sieltä
+ulos `{ error: 'no wind data' }`, ja rinnakkain jo haettu Open-Meteon
+vastaus katosi. Koko muu maailma sai virheen vaikka data oli kädessä.
+
+Korjaus on `_omVastaus()`, jota kutsutaan **molemmista** haaroista.
+
+### 2. HARMONIEn hila on mitattu, ei arvattu
+
+FMI:n WFS:ää kysyttiin 5° hilassa lat 40–80 / lng −30…50 ja tarkennettiin
+reunoilta. Osumat: **lat 50–75, lng −15…50**. Kyseessä on käännetyn navan
+laatikko, joten se on vino — Berliini ja Nordkapp ovat sisällä, Pariisi,
+Skotlanti ja Kroatia eivät.
+
+`HARMONIE_ALUE` on sen ympäröivä suorakaide marginaalilla (47–78 / −20…55).
+**Laatikko on tarkoituksella reilu**: sisällä oleminen maksaa yhden turhan
+yrityksen jonka proxy hoitaa, mutta liian pieni laatikko veisi FMI:n
+2,5 km hilan sieltä missä se on paras.
+
+> Kohdat 1 ja 2 on pakko tehdä yhdessä. Pelkkä proxyn korjaus saisi
+> HARMONIE-polun *onnistumaan* koko maailmassa, jolloin kaikki latautuisi
+> `/api/harmonien` kautta 15 pisteen erissä — Open-Meteon oma eräosoite
+> ottaa 80 pistettä yhdellä pyynnöllä.
+
+### 3. Ulos zoomaaminen ei hakenut mitään
+
+`_viewportMovedEnough` katsoi vain keskipisteen siirtymää suhteessa
+**uuteen** näkymään. Helsingistä z9 → Suomi z5: keskipiste liikkui 3,9°
+mutta uuden näkymän korkeus oli 30°, joten kynnys 0,22 vaati 6,6°. Haku
+jäi tekemättä. Ruudulla oli z9:n kourallinen pisteitä keskellä ja muualla
+ei mitään — joka ikinen kerta kun karttaa veti kauemmas.
+
+Kaksi uutta ehtoa vanhan rinnalle:
+
+1. **Hilaväli vaihtui** — pisteet ovat eri paikoissa eivätkä vanhat kelpaa.
+2. **Näkymä ei mahdu edelliseen haettuun alueeseen** (näkymä + 2 × hilaväli,
+   ks. `getViewportPoints`). Yksi zoom-askel ulos mahtuu pehmusteeseen eikä
+   laukaise turhaa hakua; kaksi ei mahdu.
+
+Turhat laukaisut ovat halpoja: `loadViewport` palaa heti jos jokainen piste
+on jo muistissa.
+
+### 4. Katon harvennus vääristi hilan suorakaiteeksi
+
+`getViewportPoints` rajasi 600 pisteeseen suodattamalla `i % every === 0`
+rivijärjestyksessä olevasta listasta. Kun leveyssuunnassa oli 72 saraketta
+ja `every` oli 4, se pudotti kolme neljäsosaa **sarakkeista** mutta ei
+yhtään riviä: koko maailman hila oli 5° pystyssä ja 20° vaakasuunnassa.
+Ja `gridStep` — jolla IDW:n tukisäde mitoitetaan — luuli väliä yhä
+viideksi asteeksi.
+
+Nyt hilaväliä **kasvatetaan** kunnes lista mahtuu kattoon, ja käytetty väli
+jää talteen (`_viimeStep`). Tukisäde luetaan `kaytettyStep()`:llä, joka on
+`max(gridStep(zoom), _viimeStep)` — zoomatessa sisään haku on hetken
+velkaa, ja silloin on turvallisempaa ylimitoittaa säde kuin alimitoittaa.
+Ylimitoitus pehmentää, alimitoitus rikkoo (ks. *Lämpökartta jäi väärään
+mittakaavaan*).
+
+### Mitattu lopputulos
+
+Pyyntömäärät synteettisellä säädatalla, jotta luvut ovat toistettavia:
+
+```
+näkymä              OM-pyyntöjä   HARMONIE-pyyntöjä   ilman tukipistettä
+Helsinki      z9       1                5                  0/121
+Sydney        z9       2                1                  0/121
+New York      z9       2                1                  0/121
+Kap Hoorn     z7       3                1                  0/121
+Keski-Atl.    z5       7                1                  0/121
+Tyynimeri     z4      12                1                  0/121
+koko maailma  z2       9                1                  0/121
+```
+
+Jokaisessa näkymässä **0/121 näytettä jäi ilman tukipistettä** — eli
+interpolointi ei putoa varatielle missään zoomissa maapallolla.
+Ulos zoomatessa Helsingistä z9 → z2 haku laukeaa nyt joka askeleella
+(paitsi z9 → z8, jossa hila ei muutu ja näkymä mahtuu pehmusteeseen) ja
+kenttä kasvaa 61 → 1282 pisteeseen.
+
+### Tehokkuus: kolme erillistä sääntöä
+
+- **Alue** (`HARMONIE_ALUE`): hilan ulkopuolella ei yritetä FMI:tä.
+- **Tiheys** (`HARMONIE_MAX_STEP = 1.0`): HARMONIEn koko etu on 2,5 km hila.
+  Kun karttahila on 2,5 **astetta** eli noin 280 km, siitä ei näy mitään.
+  Mitattuna Helsingistä z5:een zoomatessa 123 pistettä meni FMI:lle
+  yhdeksänä pyyntönä; samat pisteet ovat Open-Meteolta kaksi. Raja pitää
+  FMI:n kaikissa näkymissä joissa Suomi täyttää ruudun tai enemmän.
+- **Erien lajittelu**: pisteet syntyvät riveittäin, joten koko maailman
+  näkymässä yhdessä 80 pisteen erässä on yhden leveyspiirin pisteitä
+  laidasta laitaan. Yksikin pohjoiseurooppalainen piste vei ennen koko
+  erän HARMONIE-polulle, joka pilkkoo sen vielä kuuteen 15 pisteen
+  pyyntöön — mitattuna 80 pistettä lähti FMI:lle vaikka niistä vain
+  neljätoista oli sen hilalla. Nyt erät ovat homogeenisia.
+
+Yhteensä nämä veivät HARMONIE-pyynnöt 74 → 32 ja pisteet 865 → 302 samalla
+yhdeksän näkymän sarjalla.
+
+**Vastapaino: karkealla haettu piste päivitetään FMI:llä kun hila tihenee.**
+Ilman sitä Suomen hila rapautuisi Open-Meteoksi pala kerrallaan joka kerta
+kun karttaa vetää kauas ja takaisin — piste oli jo olemassa, joten sitä ei
+haettaisi uudestaan koskaan. Mitattuna kylmältä z3 → z9 hakee 49 pistettä
+FMI:ltä ja näkymän pisteet ovat sen jälkeen FMI 49 / Open-Meteo 0.
+
+### Globaali karkea hila heräsi kuolleista
+
+`loadGlobalCoarse` (240 pistettä 15° hilassa, yksi vuorokausi, ~27 kt,
+localStoragessa 3 h) oli **kuollutta koodia**: sen ainoa kutsupaikka oli
+mallivalitsimessa, eikä käynnistys ole koskaan kutsunut sitä. Nyt se
+ajetaan kun näkymä on z5 tai kauempana. Se ehtii ruudulle selvästi ennen
+näkymän omaa hakua (jopa 12 pyyntöä × 16 vrk), joten maailmankartta ei ole
+tyhjä sillä aikaa kun raskas haku on kesken.
+
+Kattavuus laajennettiin samalla −55…70 → **−60…75**: vanha yläraja jätti
+pohjoisimman rivin 65:een, jolloin Pohjois-Norja ja Alaska jäivät
+tukipisteiden ulkopuolelle.
+
+## Lähdemerkintä ja aina automaattinen malli
+
+Mallivalitsin (FMI / Auto / ICON / ECMWF / GFS) **poistettiin**. Se oli
+ansa: "FMI" kiinnitti koko kartan HARMONIEen *ilman varatietä*
+(`fmi_harmonie -> HARMONIE, ei fallbackia`), ja sen hila loppuu
+Pohjois-Euroopan reunaan — muualla maailmassa kartta jäi silloin tyhjäksi
+eikä mikään kertonut miksi. Vanha `fs_model` siivotaan localStoragesta,
+jottei aiemmin FMI:hin kiinnitetty laite jää siihen tilaan.
+
+Reitityskoodi `loadBatch`issa tuntee mallit edelleen, joten valitsin on
+helppo palauttaa — mutta silloin FMI-vaihtoehto tarvitsee varatien.
+
+Tilalle tuli **lähdemerkintä**: pieni läpikuultava teksti kartan
+alalaidassa vasemmalla, joka kertoo mikä ennuste on tähtäimen alla.
+
+Kolme asiaa jotka eivät ole ilmeisiä:
+
+- **Merkintä seuraa myös aikajanaa, ei vain sijaintia.** Proxy antaa
+  HARMONIElta noin 48 h ja jatkaa siitä Open-Meteolla samaan taulukkoon;
+  `harmonie_hours` kertoo montako ensimmäistä tuntia on FMI:n omaa. Kun
+  aikajanaa vetää sen ohi, merkintä vaihtuu Open-Meteoksi vaikka paikka on
+  Suomessa.
+- **Etäisyysraja on pakollinen.** Ilman sitä merkintä valehteli pahasti:
+  kun näkymän lataus epäonnistui Sydneyn kohdalla, ainoat pisteet joilla
+  oli dataa olivat suomalaiset spotit — ja merkintä ilmoitti Australiassa
+  lähteeksi FMI HARMONIEn, 16 000 km päästä. Raja on `3 × käytetty
+  hilaväli` (sama tukisäde jolla `idw()` interpoloi) ja vähintään 8°.
+- **Sijainti mitattiin, ei arvattu.** Ensimmäinen sijoitus 104 px pohjasta
+  jäi aikajanan hetkikuplan ("Ma 11:00") alle — kupla on
+  `#tl-indicator`in pseudoelementti eikä siksi näy elementin mitoissa.
+  126 px jättää siihen 14 px raon; `#rl-banner` nostettiin 172:een.
+
+Merkintä on **kartan maailmaa eikä paneelia**: valkoinen läpikuultava
+(`--kartta-teksti`), ja vaalealla pohjakartalla se kääntyy mustaksi samalla
+tavalla kuin tilapalkin tummennus. `pointer-events: none` — se on lukema,
+ei nappi.
+
+`lahinEnnustepiste()` nostettiin `Crosshair._puuskan` sisältä omaksi
+funktiokseen ja muistettiin yhdelle kutsukierrokselle: tähtäin kysyy sitä
+nyt kahdesti (puuska ja lähde) samalla keskipisteellä, ja `getAllPoints`
+on viewportissa satoja pisteitä.

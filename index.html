@@ -99,6 +99,11 @@ if ('serviceWorker' in navigator) {
      koska ne vaihtuvat pohjakartan mukana (ks. POHJAT). Oletus on tumma. */
   --pohja-suodin: contrast(1.4);
   --sekoitus: plus-lighter;
+  /* Kartan päällä kelluva pikkuteksti (lähdemerkintä). Ei paneelimuste:
+     tämä on kartan maailmaa, joten se on valkoinen kuten kartan muutkin
+     merkinnät — ja kääntyy mustaksi vaalealla pohjakartalla. */
+  --kartta-teksti: rgba(255,255,255,0.60);
+  --kartta-teksti-varjo: 0 1px 2px rgba(0,0,0,0.55);
   --panel:  rgba(6,9,18,0.88);
   --border: rgba(255,255,255,0.09);
   --accent-glow: rgba(41,232,168,0.15);
@@ -177,6 +182,9 @@ body {
 :root[data-pohja="vaalea"] {
   --bg: #E9E6DF; --sekoitus: multiply;
   --pohja-suodin: brightness(0.78) contrast(2.1);
+  /* Valkoinen katoaisi paperille. Sama sävy kuin paneelien --ink-2. */
+  --kartta-teksti: rgba(16,26,32,0.62);
+  --kartta-teksti-varjo: 0 1px 2px rgba(255,255,255,0.55);
 }
 /* Satelliitti: kevyt kontrasti riittää. Ilmakuva on jo keskiharmaan
    alapuolella, joten pelkkä contrast tummentaa ja terävöittää yhtä aikaa
@@ -1493,10 +1501,45 @@ body {
    Nyt ne ovat samaa paperia kuin muukin kelluva kalusto. Virheellisyys
    tulee VAROITUSVIIVASTA vasemmassa reunassa, ei tekstin väristä: tekstin
    on pysyttävä mustetta jotta se on luettava. */
+/* Lähdemerkintä — mikä ennuste on tähtäimen alla juuri nyt.
+ *
+ * Kartan alalaidassa vasemmalla, aikajanan yläpuolella. --sab-tl eikä
+ * --sab: merkintä kelluu aikajanan mukana, jottei väli muutu kotivalikon
+ * appissa.
+ *
+ * 126 px on mitattu eikä arvattu. Aikajanan siru on 88 px, mutta sen
+ * yläpuolelle nousee vielä valitun hetken kupla ("Ma 11:00"), joka on
+ * #tl-indicatorin pseudoelementti eikä siksi näy elementin
+ * mitoissa — ensimmäinen sijoitus 104 px:ään jäi kuplan alle. Kupla
+ * ulottuu 734 px:ään 844 px korkealla ruudulla, eli 110 px pohjasta;
+ * 126 jättää siihen 14 px raon. #rl-banner nostettiin samalla 172:een.
+ *
+ * pointer-events: none — merkintä ei saa napata karttaeleitä. Se on
+ * lukema, ei nappi.
+ *
+ * Koko 10 px ja opasiteetti 0.60: luettavissa kun sitä katsoo, mutta ei
+ * kilpaile datan kanssa. Varjo on siksi että kartan sävy vaihtelee
+ * pikselistä pikseliin — pelkkä läpikuultava valkoinen katoaisi
+ * vaaleimman lämpökartan päälle. */
+#lahde-merkki {
+  position: fixed; z-index: 19;
+  left: calc(var(--sal) + 18px);
+  bottom: calc(var(--sab-tl) + 126px);
+  max-width: calc(100vw - var(--sal) - var(--sar) - 36px);
+  pointer-events: none;
+  font-size: 10px; font-weight: 500; letter-spacing: .02em;
+  line-height: 1.3;
+  color: var(--kartta-teksti);
+  text-shadow: var(--kartta-teksti-varjo);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  opacity: 0; transition: opacity .3s ease;
+}
+#lahde-merkki.nakyy { opacity: 1; }
+
 #rl-banner {
   /* --sab-tl eika --sab: banneri kelluu aikajanan ylapuolella, joten sen
      on liikuttava saman verran, muuten vali muuttuisi standalone-tilassa. */
-  position: fixed; bottom: calc(var(--sab-tl) + 148px); left: 12px; right: 12px; z-index: 50;
+  position: fixed; bottom: calc(var(--sab-tl) + 172px); left: 12px; right: 12px; z-index: 50;
   background: var(--surface-hi);
   border: 1px solid var(--hairline);
   border-left: 3px solid #9A5116;
@@ -2113,6 +2156,9 @@ body {
             aria-label="Piilota tuntisää"><span></span></button>
   </div>
 
+  <!-- Mikä ennuste on tähtäimen alla. Sisältö tulee Lahde-moduulista. -->
+  <div id="lahde-merkki" aria-live="polite"></div>
+
   <div id="crosshair">
     <div class="ch-ring">
       <div class="ch-dot"></div>
@@ -2158,15 +2204,20 @@ body {
       <div id="sp-body">
         <div id="sp-body-inner">
 
-        <!-- Säädata -->
+        <!-- Säädata.
+             Mallia ei enää valita käsin. Valinta oli ansa: "FMI" kiinnitti
+             koko kartan HARMONIEen ilman varatietä, ja sen hila loppuu
+             Pohjois-Euroopan reunaan — muualla maailmassa kartta jäi silloin
+             tyhjäksi eikä mikään kertonut miksi. Nyt lähde valitaan
+             sijainnin mukaan ja käytössä oleva lähde LUKEE kartalla
+             tähtäimen alla (#lahde-merkki). -->
         <div class="sp-card">
           <div class="sp-label">Sääennuste</div>
-          <div class="sp-chips" id="models">
-            <div class="sp-chip" data-model="fmi_harmonie">FMI</div>
-            <div class="sp-chip active" data-model="best_match">Auto</div>
-            <div class="sp-chip" data-model="icon_eu">ICON</div>
-            <div class="sp-chip" data-model="ecmwf_ifs025">ECMWF</div>
-            <div class="sp-chip" data-model="gfs_seamless">GFS</div>
+          <div class="sp-vihje" style="margin-top:0">
+            Lähde valitaan automaattisesti sijainnin mukaan: Pohjois-Euroopassa
+            Ilmatieteen laitoksen HARMONIE 2,5 km, muualla Open-Meteon paras
+            saatavilla oleva malli. Käytössä oleva lähde näkyy kartan
+            alalaidassa.
           </div>
         </div>
 
@@ -3085,7 +3136,12 @@ const ViewportGrid = {
   async loadGlobalCoarse(onProgress) {
     const step = 15;
     const pts = [];
-    for (let lat = -55; lat <= 70; lat += step) {
+    /* -60..75 eikä -55..70. Vanha alaraja jätti pohjoisimman rivin 65:een,
+       jolloin Pohjois-Norja, Islannin pohjoispuoli ja Alaska jäivät
+       tukipisteiden ulkopuolelle heti kun globaali hila oli ainoa lähde.
+       Rivejä tulee yksi lisää (216 -> 240 pistettä) ja ne haetaan yhtenä
+       eränä, joten kustannus on olematon. */
+    for (let lat = -60; lat <= 75; lat += step) {
       for (let lng = -180; lng <= 175; lng += step) {
         const pk = this._ptKey(lat, lng);
         if (!this._globalBase.has(pk)) pts.push({ lat, lng });
@@ -3137,23 +3193,52 @@ const ViewportGrid = {
     }
   },
 
+  KATTO: 600,   /* enintään näin monta pistettä yhdellä näkymällä */
+  _viimeStep: 0,
+
+  /* Se hilaväli jolla dataa OIKEASTI on. gridStep(zoom) kertoo mitä
+     pyydettiin, mutta koko maailmassa katto kasvattaa väliä — ja
+     interpoloinnin tukisäde mitoitetaan tällä. Liian pieni säde jättää
+     näytteet ilman tukipisteitä, jolloin idw() putoaa varatielle ja
+     kopioi lähimmän pisteen: litteitä laikkuja väärissä kohdissa (ks.
+     CLAUDE.md "Lämpökartta jäi väärään mittakaavaan").
+     max() eikä _viimeStep suoraan: zoomatessa sisään haku on hetken
+     velkaa, ja silloin on turvallisempaa ylimitoittaa säde kuin
+     alimitoittaa — ylimitoitus pehmentää, alimitoitus rikkoo. */
+  kaytettyStep(zoom) {
+    return Math.max(this.gridStep(zoom), this._viimeStep || 0);
+  },
+
   getViewportPoints(bounds, zoom) {
-    const step = this.gridStep(zoom);
-    const pad = step * 2;
-    const s = Math.max(-80, bounds.getSouth() - pad);
-    const n = Math.min(80, bounds.getNorth() + pad);
-    const w = bounds.getWest() - pad;
-    const e = bounds.getEast() + pad;
-    const pts = [];
-    for (let lat = Math.floor(s / step) * step; lat <= n; lat += step) {
-      for (let lng = Math.floor(w / step) * step; lng <= e; lng += step) {
-        pts.push({ lat: Math.round(lat * 100) / 100, lng: Math.round(lng * 100) / 100 });
+    let step = this.gridStep(zoom);
+    /* Kattoa ei enää hoideta harventamalla valmista listaa vaan
+       KASVATTAMALLA HILAVÄLIÄ kunnes lista mahtuu.
+       Vanha tapa oli `filter((_, i) => i % every === 0)` rivijärjestyksessä
+       olevalle listalle: kun leveyssuunnassa oli 72 saraketta ja every oli
+       4, se pudotti kolme neljäsosaa SARAKKEISTA mutta ei yhtään riviä.
+       Koko maailmassa hila oli siis 5° pystyssä ja 20° vaakasuunnassa, eli
+       nelinkertainen ero suuntien välillä — ja IDW:n tukisäde mitoitetaan
+       gridStepillä, joka luuli väliä yhä viideksi asteeksi. Nyt hila pysyy
+       neliönä ja gridStep kertoo sen todellisen välin. */
+    let pts;
+    for (let kierros = 0; kierros < 8; kierros++) {
+      const pad = step * 2;
+      const s = Math.max(-85, bounds.getSouth() - pad);
+      const n = Math.min(85, bounds.getNorth() + pad);
+      const w = bounds.getWest() - pad;
+      const e = bounds.getEast() + pad;
+      pts = [];
+      for (let lat = Math.floor(s / step) * step; lat <= n; lat += step) {
+        for (let lng = Math.floor(w / step) * step; lng <= e; lng += step) {
+          pts.push({ lat: Math.round(lat * 100) / 100, lng: Math.round(lng * 100) / 100 });
+        }
       }
+      if (pts.length <= this.KATTO) break;
+      step *= 2;
     }
-    if (pts.length > 600) {
-      const every = Math.ceil(pts.length / 600);
-      return pts.filter((_, i) => i % every === 0);
-    }
+    /* Käytetty väli talteen, jotta interpoloinnin tukisäde osaa mitoittaa
+       itsensä sen mukaan eikä zoomin mukaan. */
+    this._viimeStep = step;
     return pts;
   },
 
@@ -3255,7 +3340,22 @@ const ViewportGrid = {
     const bounds = map.getBounds(), zoom = map.getZoom();
     const gridPoints = this.getViewportPoints(bounds, zoom);
     this._restoreCache(gridPoints);
-    const toLoad = gridPoints.filter(p => !this._points.has(this._ptKey(p.lat, p.lng)));
+    /* Hilaväli ratkaisee kannattaako HARMONIEa yrittää — ks.
+       HARMONIE_MAX_STEP. Luettava tässä, koska se ohjaa sekä sitä mitä
+       haetaan että miten erät kootaan. */
+    const tihea = this._viimeStep > 0 && this._viimeStep <= HARMONIE_MAX_STEP;
+    const toLoad = gridPoints.filter(p => {
+      const olemassa = this._points.get(this._ptKey(p.lat, p.lng));
+      if (!olemassa) return true;
+      /* Laajassa näkymässä myös Pohjois-Eurooppa haetaan Open-Meteolta, ja
+         ne pisteet jäävät muistiin. Ilman tätä ehtoa ne EIVÄT enää koskaan
+         päivittyisi FMI:llä, koska lähelle zoomatessa piste on jo
+         olemassa — ja Suomen hila rapautuisi Open-Meteoksi pala kerrallaan
+         joka kerta kun karttaa vetää kauas ja takaisin. Hinta on muutama
+         piste per näkymä, koska vain karkean hilan solmut osuvat tähän. */
+      if (tihea && harmonieAlueella([p]) && olemassa.wx && olemassa.wx.lahde === 'om') return true;
+      return false;
+    });
     if (!toLoad.length) {
       if (onProgress) onProgress(gridPoints.length, gridPoints.length);
       /* Kaikki oli välimuistissa: näkymälle ON dataa, joten mahdollinen
@@ -3263,14 +3363,36 @@ const ViewportGrid = {
       Verkkotila.latausTulos({ pyydetty: 0, saatu: 0 });
       return { pyydetty: 0, saatu: 0 };
     }
+    /* Erät kootaan niin että HARMONIEn hilalla olevat pisteet ovat OMISSA
+       erissään.
+       Ilman tätä yksikin pohjoiseurooppalainen piste vei koko 80 pisteen
+       erän HARMONIE-polulle, ja se pilkkoo eränsä vielä kuuteen 15 pisteen
+       pyyntöön. Pisteet syntyvät riveittäin, joten koko maailman näkymässä
+       yhdessä erässä on yhden leveyspiirin pisteitä laidasta laitaan:
+       mitattuna Helsingistä z3:een zoomatessa 80 pistettä lähti FMI:lle
+       vaikka niistä vain neljätoista oli sen hilalla.
+       Kun erät ovat homogeenisia, harmonieAlueella-tarkistus on
+       yksiselitteinen ja loput menevät Open-Meteon 80 pisteen eräosoitteeseen. */
     const batchSize = 80, batches = [];
-    for (let i = 0; i < toLoad.length; i += batchSize) batches.push(toLoad.slice(i, i + batchSize));
+    const sisalla = [], ulkona = [];
+    for (const p of toLoad) ((tihea && harmonieAlueella([p])) ? sisalla : ulkona).push(p);
+    for (const lista of [sisalla, ulkona]) {
+      for (let i = 0; i < lista.length; i += batchSize) {
+        const era = lista.slice(i, i + batchSize);
+        era._omVain = (lista === ulkona);
+        batches.push(era);
+      }
+    }
     let done = 0, saatu = 0;
     for (let i = 0; i < batches.length; i += 6) {
       if (myGen !== this._loadGeneration) return null; /* uudempi lataus on jo käynnissä */
       const wave = batches.slice(i, i + 6);
       await Promise.allSettled(wave.map(b =>
-        loadBatch(b, undefined, undefined, abortCtrl.signal).then(() => {
+        /* _omVain: erä on jo lajiteltu, joten loadBatchin ei tarvitse
+           arvata mitään — ja laaja näkymä pääsee Open-Meteolle myös
+           Pohjois-Euroopan päältä. pastDays 2 säilyttää aikajanan
+           historiaosuuden, jota forceOM muuten nollaisi. */
+        loadBatch(b, undefined, b._omVain, abortCtrl.signal, 2).then(() => {
           if (myGen !== this._loadGeneration) return; /* vanhentunut — ei kirjoiteta */
           b.forEach(p => { if (p.wx) { this._points.set(this._ptKey(p.lat, p.lng), p); saatu++; } });
           done += b.length;
@@ -3622,7 +3744,12 @@ const State = {
   currentHourIdx: 0,
   windField: [],
   activeLayer: 'wind',
-  activeModel: (function(){ try{ var m=localStorage.getItem('fs_model'); return m||'best_match'; }catch(e){ return 'best_match'; } })(),
+  /* Aina automaattinen. Malli on yhä osa välimuistiavaimia ja loadBatchin
+     reititystä, joten arvo on olemassa — mutta sitä ei enää valita käsin.
+     Vanha fs_model siivotaan pois, jottei aiemmin FMI:hin kiinnitetty
+     laite jää siihen tilaan päivityksen jälkeen: sillä asetuksella kartta
+     olisi Suomen ulkopuolella tyhjä. */
+  activeModel: (function(){ try { localStorage.removeItem('fs_model'); } catch(e) {} return 'best_match'; })(),
   dpr: 1,
   isPlaying: false,
   playTimer: null,
@@ -4585,11 +4712,38 @@ function initMap() {
     updateSpotScale(e.zoom);
   });
 
-  /* Tallennetaan edellinen hakualue kynnystarkistusta varten */
-  var _lastLoadBounds = null;
+  /* Tallennetaan edellinen hakualue ja sen hilaväli kynnystarkistusta varten */
+  var _lastLoadBounds = null, _lastLoadStep = 0;
 
+  /* Kannattaako hakea uusiksi?
+   *
+   * Kolme ehtoa, ja kaksi ensimmäistä lisättiin koska ULOS ZOOMAAMINEN ei
+   * hakenut mitään. Vanha versio katsoi vain keskipisteen siirtymää
+   * suhteessa UUTEEN näkymään: kun Helsingistä z9 zoomasi Suomeen z5,
+   * keskipiste liikkui 3,9° mutta uuden näkymän korkeus oli 30°, joten
+   * kynnys 0,22 vaati 6,6°. Haku jäi tekemättä, ja ruudulla oli z9:n
+   * kourallinen pisteitä keskellä ja muualla ei mitään. Sama toistui joka
+   * kerta kun karttaa vedettiin kauemmas.
+   *
+   * 1. Hilaväli vaihtui. Pisteet ovat silloin eri paikoissa eivätkä vanhat
+   *    kelpaa, vaikka alue olisi sama.
+   * 2. Näkymä ei enää mahdu edelliseen HAETTUUN alueeseen. Haettu alue on
+   *    näkymä + 2 × hilaväli joka suuntaan (ks. getViewportPoints), joten
+   *    yksi zoom-askel ulos mahtuu vielä pehmusteeseen eikä laukaise
+   *    turhaa hakua — mutta kaksi ei mahdu, ja silloin ruudulla olisi
+   *    reunoilla tyhjää.
+   * 3. Vanha keskipistekynnys, joka hoitaa tavallisen vierityksen.
+   *
+   * Turhat laukaisut ovat halpoja: loadViewport palaa heti jos jokainen
+   * piste on jo muistissa. */
   function _viewportMovedEnough(bounds, osuus) {
     if (!_lastLoadBounds) return true;
+    if (_lastLoadStep !== ViewportGrid.gridStep(map.getZoom())) return true;
+    var pad = 2 * _lastLoadStep;
+    if (bounds.getWest()  < _lastLoadBounds.getWest()  - pad
+     || bounds.getEast()  > _lastLoadBounds.getEast()  + pad
+     || bounds.getSouth() < _lastLoadBounds.getSouth() - pad
+     || bounds.getNorth() > _lastLoadBounds.getNorth() + pad) return true;
     var vw = bounds.getEast()  - bounds.getWest();
     var vh = bounds.getNorth() - bounds.getSouth();
     var dx = Math.abs((bounds.getWest() + vw/2) - (_lastLoadBounds.getWest() + (_lastLoadBounds.getEast()-_lastLoadBounds.getWest())/2));
@@ -4661,10 +4815,30 @@ function initMap() {
         return;
       }
       _lastLoadBounds = bounds;
+      _lastLoadStep = ViewportGrid.gridStep(map.getZoom());
 
       /* B: Päivitä slider HETI jo cachessa olevalla datalla */
       ViewportGrid.invalidateCache();
       updateTimelineToCenter();
+
+      /* Globaali karkea hila kun karttaa on vedetty kauas.
+       *
+       * Yksi pyyntö, 240 pistettä, yksi vuorokausi — noin 27 kt, ja
+       * localStoragessa kolme tuntia. Se ehtii ruudulle selvästi ennen
+       * näkymän omaa hakua (jopa 8 pyyntöä × 16 vrk), joten maailmankartta
+       * ei ole tyhjä sillä aikaa kun raskas haku on kesken. Toisella
+       * käynnillä se tulee suoraan välimuistista.
+       *
+       * Vasta z5:stä ulos: lähempänä näkymän oma hila on tiheämpi ja
+       * kattaa alueen itse, jolloin tämä olisi pelkkä ylimääräinen pyyntö.
+       * Ennen tätä loadGlobalCoarse oli kuollutta koodia — sen ainoa
+       * kutsupaikka oli mallivalitsimessa, joka on nyt poistettu, eikä
+       * käynnistys ole koskaan kutsunut sitä. */
+      if (map.getZoom() <= 5) {
+        ViewportGrid.loadGlobalCoarse()
+          .then(() => { ViewportGrid.invalidateCache(); _rakennaKentta(); })
+          .catch(() => {});
+      }
 
       /* Lataa uusi data taustalla — ei blockaa UI:ta */
       ViewportGrid.loadViewport(map).then((tulos) => {
@@ -4683,7 +4857,7 @@ function initMap() {
   }
   /* Uudelleenyritys ja online-paluu käyttävät samaa polkua kuin näkymän
      muutos, jotta virhetilasta palautuminen ei ole oma erikoistapaus. */
-  Verkkotila.init(function () { _lastLoadBounds = null; _scheduleViewportLoad(true); });
+  Verkkotila.init(function () { _lastLoadBounds = null; _lastLoadStep = 0; _scheduleViewportLoad(true); });
 
   /* ── Lämpökartan kate nipistyksen aikana ─────────────────────────
      Overlayn rajat lyödään lukkoon tekstuuria rakennettaessa: näkymä + vPad.
@@ -4721,7 +4895,7 @@ function initMap() {
     /* Zoom on muuttunut, joten interpoloinnin ydin mitoitetaan uudelleen —
        muuten kaukana toisistaan olevat pisteet jäisivät tukisäteen ulkopuolelle
        ja ulos zoomattu näkymä muuttuisi laikukkaaksi. */
-    SpatialIndex.build(State.windField, ViewportGrid.gridStep(map.getZoom()));
+    SpatialIndex.build(State.windField, ViewportGrid.kaytettyStep(map.getZoom()));
     WindTexture.build(State.windField, map.getBounds(), askel)
       .then(function () {
         /* skipBlur: updateHeatmapBlur vaihtaisi sumennuksen arvoa ja
@@ -4837,7 +5011,7 @@ function resizeCanvases() {
 const SpatialIndex = {
   cells: {}, cellSize: 0.35,
   spacing: 0.25,   /* viewport-hilan väli asteina — idw() mitoittaa ytimensä tällä */
-  /* build(wf, spacing): spacing = ViewportGrid.gridStep(zoom), eli se väli
+  /* build(wf, spacing): spacing = ViewportGrid.kaytettyStep(zoom), eli se väli
      jolla dataa on OIKEASTI haettu. Aiemmin väli arvattiin katsomalla
      windFieldin 50 ensimmäistä pistettä — mutta ne ovat globaalin 15°
      pohjahilan pisteitä, joten arvaus oli aina 15 ja cellSize leikkautui
@@ -5328,7 +5502,7 @@ const WindTexture = {
        * Rakennetaan vain jos jokin oikeasti muuttui: build tyhjentää
        * IDW-painojen muistin, ja se on aikajanan raahauksen kallein osa. */
       if (typeof SpatialIndex !== 'undefined' && typeof ViewportGrid !== 'undefined') {
-        const vali = ViewportGrid.gridStep(zoom);
+        const vali = ViewportGrid.kaytettyStep(zoom);
         if (SpatialIndex.wf !== windField || SpatialIndex.spacing !== vali) {
           SpatialIndex.build(windField, vali);
         }
@@ -6402,6 +6576,52 @@ const OM_BASE       = 'https://api.open-meteo.com/v1/forecast';
  * juuri vahentaisi kierroksia mutta kasvattaisi funktion
  * aikakatkaisuriskia. Sama raja on myos palvelimella (MAX_PISTEITA). */
 const HARMONIE_ERA = 15;
+
+/* HARMONIEn hila kattaa vain Pohjois-Euroopan, ja tama on sen MITATTU
+ * ymparoiva laatikko marginaalilla.
+ *
+ * Mittaus: FMI:n WFS:aa kysyttiin 5 asteen hilassa lat 40-80 / lng -30..50
+ * ja tarkennettiin reunoilta. Hilan sisalla tulee arvoja, ulkopuolella noin
+ * 800 tavun ExceptionReport. Osumat olivat lat 50-75 ja lng -15..50 —
+ * kyseessa on kaannetyn navan laatikko, joten se on vino, ja tama on sen
+ * ymparoiva suorakaide. Esimerkiksi Berliini ja Nordkapp ovat sisalla,
+ * Pariisi, Skotlanti ja Kroatia eivat.
+ *
+ * MIKSI TAMA ON PAKKO OLLA. Proxy palauttaa nyt Open-Meteon myos silloin
+ * kun HARMONIElla ei ole dataa (ks. api/harmonie.js), eli ilman tata
+ * tarkistusta koko maailma latautuisi /api/harmonien kautta 15 pisteen
+ * erissa — ja jokainen piste maksaisi palvelimella oman FMI-kyselynsa
+ * paalle. Open-Meteon oma eraosoite ottaa 80 pistetta yhdella pyynnolla.
+ *
+ * Laatikko on TARKOITUKSELLA reilu: sisalla oleminen maksaa vain yhden
+ * turhan yrityksen jonka proxy hoitaa, mutta liian pieni laatikko veisi
+ * FMI:n 2,5 km hilan sielta missa se on paras. */
+const HARMONIE_ALUE = { etela: 47, pohjoinen: 78, lansi: -20, ita: 55 };
+
+/* Tihein hilaväli jolla HARMONIEsta on vielä hyötyä.
+ *
+ * HARMONIEn koko etu on 2,5 km hila. Kun karttahila on 2,5 ASTETTA eli
+ * noin 280 km, siitä ei näy mitään — Open-Meteon globaali malli antaa
+ * saman kuvan, ja se tulee yhdellä 80 pisteen pyynnöllä kun HARMONIE
+ * tarvitsee kuusi 15 pisteen pyyntöä joista jokainen tekee palvelimella
+ * 15 FMI-kyselyä. Mitattuna Helsingistä z5:een zoomatessa 123 pistettä
+ * meni FMI:lle yhdeksänä pyyntönä; samat pisteet ovat Open-Meteolta kaksi.
+ *
+ * Raja on 1,0° eli zoom 6 ja lähempänä. Se pitää FMI:n kaikissa niissä
+ * näkymissä joissa Suomi täyttää ruudun tai enemmän, ja pudottaa sen vain
+ * maanosa- ja maailmannäkymistä. Spotteja tämä ei koske: niiden kortit
+ * hakevat aina oman pisteensä, ja siellä 2,5 km on koko juju. */
+const HARMONIE_MAX_STEP = 1.0;
+
+function harmonieAlueella(points) {
+  for (var i = 0; i < points.length; i++) {
+    var p = points[i];
+    if (p.lat >= HARMONIE_ALUE.etela && p.lat <= HARMONIE_ALUE.pohjoinen
+     && p.lng >= HARMONIE_ALUE.lansi && p.lng <= HARMONIE_ALUE.ita) return true;
+  }
+  return false;
+}
+
 function buildHarmonieUrls(points) {
   const urlit = [];
   for (let i = 0; i < points.length; i += HARMONIE_ERA) {
@@ -6454,7 +6674,13 @@ function setRateLimited() {
   document.getElementById('rl-banner').classList.add('show');
 }
 
-function loadBatch(points, forecastDays, forceOM, signal) {
+/* pastDays on erillinen parametri eikä johdettu forceOM:sta.
+   Syy: forceOM tarkoitti ennen kahta asiaa yhtä aikaa — "ohita HARMONIE"
+   JA "hae vain vuorokausi ilman historiaa". Näkymän lataus tarvitsee nyt
+   ensimmäisen ilman toista (koko maailman hila menee Open-Meteolle mutta
+   tarvitsee saman 16 vrk + 2 vrk aikajanan kuin muutkin), joten merkitykset
+   on erotettu. */
+function loadBatch(points, forecastDays, forceOM, signal, pastDays) {
   if (_rateLimited) return Promise.resolve();
   const model = State.activeModel;
   const p0 = points[0], pN = points[points.length - 1];
@@ -6486,7 +6712,13 @@ function loadBatch(points, forecastDays, forceOM, signal) {
       let ok = 0;
       results.forEach(function(j, i) {
         if (i < points.length && j && !j.error && j.hourly && j.hourly.windspeed_10m && j.hourly.windspeed_10m.length > 0) {
-          points[i].wx = processBatchResponse(j); ok++;
+          points[i].wx = processBatchResponse(j);
+          /* Lahdemerkinta tahtaimen lukemaa varten. Proxy kertoo
+             harmonie_hoursilla montako ensimmaista tuntia on FMI:n omaa
+             2,5 km hilaa; nolla tarkoittaa etta se palautti Open-Meteon.
+             Merkinta kulkee wx:n mukana myos valimuisteihin. */
+          points[i].wx.lahde = (j.harmonie_hours > 0) ? 'fmi' : 'om';
+          ok++;
         }
       });
       if (!ok) throw new Error('harmonie_empty');
@@ -6515,7 +6747,9 @@ function loadBatch(points, forecastDays, forceOM, signal) {
         let ok = false;
         arr.forEach((j, i) => {
           if (i < points.length && j && !j.error && j.hourly) {
-            points[i].wx = processBatchResponse(j); ok = true;
+            points[i].wx = processBatchResponse(j);
+            points[i].wx.lahde = (mdl && mdl !== 'best_match') ? mdl : 'om';
+            ok = true;
           }
         });
         if (ok) { _batchCache[cacheKey] = points.map(p => p.wx||null); ViewportGrid.invalidateCache(); }
@@ -6525,15 +6759,24 @@ function loadBatch(points, forecastDays, forceOM, signal) {
 
   /* Reititys mallin mukaan:
      fmi_harmonie  -> HARMONIE, ei fallbackia (kayttaja valitsi)
-     best_match    -> HARMONIE ensin, fallback Auto
+     best_match    -> HARMONIE ensin JOS pisteet ovat sen hilalla,
+                      muuten suoraan Open-Meteo
      muu (ICON/ECMWF/GFS) -> suoraan Open-Meteo
      forceOM=true  -> aina Open-Meteo (global coarse)
      AbortError missä tahansa vaiheessa lopettaa koko ketjun heti —
      ei yritetä turhaan seuraavaa fallbackia jo keskeytetylle pyynnölle. */
+  if (!forceOM && model === 'best_match' && !harmonieAlueella(points)) {
+    /* Suomen ulkopuolella HARMONIElla ei ole mitaan annettavaa, ja
+       yrittaminen maksaisi eran verran turhia kierroksia. Ks.
+       HARMONIE_ALUE. */
+    return tryOM('best_match', 2, forecastDays || 16, 2)
+      .catch(e => { if (e.name === 'AbortError') throw e; if (e.message==='429') return tryOM('best_match', 1, forecastDays || 16, 2); throw e; })
+      .catch(e => { if (e.name === 'AbortError') throw e; if (e.message==='429') setRateLimited(); });
+  }
   if (forceOM || (model !== 'fmi_harmonie' && model !== 'best_match')) {
     const mdl = forceOM ? 'best_match' : model;
-    const pastD = forceOM ? 0 : 2;
-    const foreD = forceOM ? 1 : (forecastDays || 16);
+    const pastD = pastDays !== undefined ? pastDays : (forceOM ? 0 : 2);
+    const foreD = forecastDays || (forceOM ? 1 : 16);
     return tryOM(mdl, 2, foreD, pastD)
       .catch(e => { if (e.name === 'AbortError') throw e; if (e.message==='429') return tryOM('best_match', 1, foreD, pastD); throw e; })
       .catch(e => { if (e.name === 'AbortError') throw e; if (e.message==='429') setRateLimited(); });
@@ -6650,7 +6893,7 @@ function buildWindField(hourIdx, opts) {
   }
   /* Kerro indeksille millä välillä dataa on oikeasti haettu — idw()
      mitoittaa pehmennyksen ja tukisäteen tällä. */
-  const gridStep = State.map ? ViewportGrid.gridStep(State.map.getZoom()) : 0.25;
+  const gridStep = State.map ? ViewportGrid.kaytettyStep(State.map.getZoom()) : 0.25;
   SpatialIndex.build(State.windField, gridStep);
   const vb = State.map ? State.map.getBounds() : null;
   const scrub = !!(opts && opts.scrub);
@@ -11353,6 +11596,10 @@ const Crosshair = {
   _update() {
     if (!this._el || !State.map) return;
     const center = State.map.getCenter();
+    /* Lähdemerkintä päivittyy samasta kohdasta ja samalla keskipisteellä.
+       Ennen varhaisia paluita: merkintä on voimassa vaikka kapseli
+       piiloutuisi tyynellä. */
+    Lahde.paivita(center);
     let w;
     if (WindTexture.msData) w = WindTexture.sampleWind(center.lat, center.lng);
     else if (State.windField.length) w = idw(center.lat, center.lng);
@@ -11393,21 +11640,106 @@ const Crosshair = {
   /* Lähimmän ennustepisteen puuska nykyiselle tunnille, tai null jos sitä ei
      ole tai se ei eroa keskituulesta merkittävästi. */
   _puuska(center) {
-    let gustMs = null, minD = Infinity;
-    const cos2 = Math.cos(center.lat * Math.PI / 180) ** 2;
-    for (const pt of ViewportGrid.getAllPoints()) {
-      if (!pt.wx || !pt.wx.hourly || !pt.wx.hourly.windgusts_10m) continue;
-      const d = (center.lat - pt.lat) ** 2 + (center.lng - pt.lng) ** 2 * cos2;
-      if (d < minD) {
-        minD = d;
-        const idx2 = Math.min(State.currentHourIdx, pt.wx.hourly.windgusts_10m.length - 1);
-        gustMs = pt.wx.hourly.windgusts_10m[idx2];
-      }
-    }
+    const pt = lahinEnnustepiste(center);
+    if (!pt || !pt.wx.hourly.windgusts_10m) return null;
+    const idx2 = Math.min(State.currentHourIdx, pt.wx.hourly.windgusts_10m.length - 1);
+    const gustMs = pt.wx.hourly.windgusts_10m[idx2];
     if (gustMs == null || !(gustMs > this._ms * 1.05)) return null;
     return gustMs;
   },
   refresh() { this._update(); }
+};
+
+/* Lähin ennustepiste annetusta kohdasta.
+ *
+ * Oli aiemmin Crosshair._puuskan sisällä. Nostettu ulos kun lähdemerkintä
+ * tarvitsi saman pisteen: kaksi erillistä hakua olisi käynyt koko
+ * pistejoukon läpi kahdesti joka sormenliikkeellä.
+ *
+ * Tulos muistetaan yhdelle kutsukierrokselle. Crosshair._update kysyy sitä
+ * kahdesti (puuska ja lähde) samalla keskipisteellä, ja getAllPoints on
+ * viewportissa satoja pisteitä. Avaimena on keskipiste kolmen desimaalin
+ * tarkkuudella sekä pistejoukon koko — kumpi tahansa muuttuu, haku ajetaan
+ * uudestaan. */
+let _lahinKehe = { avain: '', pt: null };
+function lahinEnnustepiste(center) {
+  const pisteet = ViewportGrid.getAllPoints();
+  const avain = center.lat.toFixed(3) + ',' + center.lng.toFixed(3) + '|' + pisteet.length;
+  if (_lahinKehe.avain === avain) return _lahinKehe.pt;
+  let paras = null, minD = Infinity;
+  const cos2 = Math.cos(center.lat * Math.PI / 180) ** 2;
+  for (const pt of pisteet) {
+    if (!pt.wx || !pt.wx.hourly) continue;
+    const d = (center.lat - pt.lat) ** 2 + (center.lng - pt.lng) ** 2 * cos2;
+    if (d < minD) { minD = d; paras = pt; }
+  }
+  _lahinKehe = { avain: avain, pt: paras };
+  return paras;
+}
+
+/* -- LÄHDEMERKINTÄ ----------------------------------------------
+ *
+ * Kertoo mikä ennuste on tähtäimen alla juuri nyt. Ei asetus vaan lukema:
+ * mallia ei enää valita käsin, joten tämä on ainoa paikka josta lähteen
+ * näkee.
+ *
+ * Kaksi asiaa jotka eivät ole ilmeisiä:
+ *
+ * 1. **Merkintä seuraa myös AIKAJANAA, ei vain sijaintia.** Proxy antaa
+ *    HARMONIElta noin 48 h ja jatkaa siitä Open-Meteolla samaan
+ *    taulukkoon (`harmonie_hours` kertoo montako ensimmäistä tuntia on
+ *    FMI:n omaa). Kun aikajanaa vetää sen ohi, tähtäimen alla oleva data
+ *    on Open-Meteoa vaikka paikka on Suomessa — ja merkintä vaihtuu.
+ *
+ * 2. **Merkintä kertoo mitä RUUDULLA on, ei mitä pitäisi olla.** Lähde
+ *    luetaan siitä pisteestä joka on lähinnä tähtäintä, ei sijainnin
+ *    perusteella pääteltynä. Käynnistyksessä lähin piste voi hetken olla
+ *    globaalin 15 asteen hilan piste, jolloin merkintä sanoo Open-Meteo
+ *    myös Suomessa — koska juuri sitä dataa silloin näytetään.
+ *
+ * 3. **Etäisyysraja on pakollinen.** Ilman sitä merkintä valehteli
+ *    pahasti: kun näkymän lataus epäonnistui Sydneyn kohdalla, ainoat
+ *    pisteet joilla oli dataa olivat suomalaiset spotit — ja merkintä
+ *    ilmoitti Australiassa lähteeksi FMI HARMONIEn, 16 000 km päästä.
+ *    Raja on 3 × käytetty hilaväli eli sama tukisäde jolla idw()
+ *    interpoloi, ja vähintään 8° jotta globaalin 15° hilan pisteet
+ *    kelpaavat. Sen ulkopuolella ei näytetä mitään. */
+const LAHDE_RAJA_MIN = 8;   /* astetta */
+const Lahde = {
+  _el: null,
+  NIMET: {
+    fmi: 'Ilmatieteen laitos · HARMONIE 2,5 km',
+    om:  'Open-Meteo · paras saatavilla',
+    ecmwf_ifs025: 'ECMWF IFS 9 km',
+    icon_eu: 'ICON EU 7 km',
+    gfs_seamless: 'GFS 13 km'
+  },
+  alusta() {
+    this._el = document.getElementById('lahde-merkki');
+    this.paivita();
+  },
+  paivita(center) {
+    if (!this._el || !State.map) return;
+    const c = center || State.map.getCenter();
+    const pt = lahinEnnustepiste(c);
+    let nimi = null;
+    /* Ks. kohta 3 */
+    const raja = Math.max(3 * ViewportGrid.kaytettyStep(State.map.getZoom()), LAHDE_RAJA_MIN);
+    const liianKaukana = !pt || Math.abs(pt.lat - c.lat) > raja
+      || Math.abs(pt.lng - c.lng) * Math.cos(c.lat * Math.PI / 180) > raja;
+    if (!liianKaukana && pt && pt.wx && pt.wx.lahde) {
+      let avain = pt.wx.lahde;
+      if (avain === 'fmi') {
+        /* Ks. kohta 1: FMI:n osuus loppuu harmonie_hoursin kohdalla. */
+        const h = pt.wx.harmonie_hours;
+        if (h != null && State.currentHourIdx >= h) avain = 'om';
+      }
+      nimi = this.NIMET[avain] || null;
+    }
+    if (!nimi) { this._el.classList.remove('nakyy'); return; }
+    if (this._el.textContent !== nimi) this._el.textContent = nimi;
+    this._el.classList.add('nakyy');
+  }
 };
 
 /* -- MARINE API ------------------------------------------------- */
@@ -12306,40 +12638,12 @@ document.getElementById('layers').addEventListener('click', e => {
   }
 }, { passive: true });
 
-document.getElementById('models').addEventListener('click', e => {
-  const b = e.target.closest('.sp-chip'); if (!b) return;
-  const model = b.dataset.model; if (!model || model === State.activeModel) return;
-  Haptics.light();
-  document.querySelectorAll('#models .sp-chip').forEach(btn => btn.classList.remove('active')); b.classList.add('active');
-  _closeSettings();
-  State.activeModel = model;
-  try { localStorage.setItem('fs_model', model); } catch(e) {}
-  _rateLimited = false;
-  try { sessionStorage.removeItem('foilspot_rl'); } catch(e) {}
-  Object.keys(_batchCache).forEach(k => delete _batchCache[k]);
-  ViewportGrid._globalBase.clear();
-  SPOTS.forEach(s => { s.wx = null; }); ViewportGrid.invalidateCache();
-  const modelNames = { fmi_harmonie:'FMI HARMONIE 2.5km', best_match:'Auto (paras saatavilla)',
-    icon_eu:'ICON EU 7km', ecmwf_ifs025:'ECMWF IFS 9km', gfs_seamless:'GFS 13km' };
-  Toast.show('Malli: ' + (modelNames[model] || model) + '...', 3000);
-  const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
-  ViewportGrid.loadGlobalCoarse().then(() => {
-    const vp = ViewportGrid.loadViewport(State.map).catch(e => console.warn(e));
-    const sp = ViewportGrid.loadSpots().catch(e => console.warn(e));
-    return Promise.allSettled([vp, sp]);
-  }).then(() => {
-    const ref = bestTimelineRef();
-    if (ref) {
-      const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
-      buildWindField(ni).then(() => { drawColorField(); resetParticles(); });
-      const layer = State.activeLayer;
-      const sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m;
-      renderTimeline(ref.wx.hourly.time, sp, ref.wx.hourly.winddirection_10m, ni);
-      renderSpots(ni);
-    }
-    setTimeout(() => dot.classList.remove('pulse'), 1500);
-  });
-}, { passive: true });
+/* Mallivalitsin poistettiin — ks. asetuspaneelin "Sääennuste".
+   Tässä oli #models-käsittelijä joka vaihtoi State.activeModelin, tyhjensi
+   välimuistit ja latasi kaiken uudestaan. Reitityskoodi loadBatchissa
+   tuntee mallit edelleen, joten valitsin on helppo palauttaa jos sitä
+   joskus tarvitaan — mutta silloin FMI-vaihtoehto tarvitsee varatien,
+   koska sen hila kattaa vain Pohjois-Euroopan (ks. HARMONIE_ALUE). */
 
 const tlScroll = document.getElementById('tl-scroll');
 tlScroll.addEventListener('touchstart', e => {
@@ -12516,15 +12820,7 @@ function main() {
   /* Kartan asetukset vasta initCanvasesin jälkeen: partikkelikanvas on
      silloin olemassa ja "Pois" osaa piilottaa sen heti. */
   KarttaAsetukset.alusta();
-  /* Palauta tallennettu malli */
-  (function() {
-    var saved = State.activeModel;
-    if (saved && saved !== 'best_match') {
-      document.querySelectorAll('#models .sp-chip').forEach(function(c){ c.classList.remove('active'); });
-      var t = document.querySelector('#models .sp-chip[data-model="'+saved+'"]');
-      if (t) t.classList.add('active');
-    }
-  })();
+  Lahde.alusta();
   startRenderLoop();
   startProgressSimulation();
 
