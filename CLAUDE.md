@@ -3295,3 +3295,134 @@ kentälle.
 **Jos tähän palaa: mittaa totuutta vastaan, älä zoomia toista vastaan.**
 Kahden zoomin ero sekoittaa aliotannan ja virheen toisiinsa, eikä kerro
 kumpi on väärässä.
+
+## Uloin näkymä — 44 % roskaa, kymmenen texelin sumennus
+
+Käyttäjä huomasi kaksi asiaa: uloin zoomtaso "ei näytä oikealta", ja
+kerran tuli vastaan ilmoitus API-rajojen täyttymisestä. Molemmat olivat
+todellisia, ja niillä oli **kolme erillistä syytä**. Kaksi niistä
+vaikuttivat kumpaankin oireeseen yhtä aikaa, mikä on syy siihen miksi ne
+kannattaa lukea yhdessä.
+
+### 1. Lähes puolet pyydetyistä koordinaateista oli kelvottomia
+
+Leafletin `worldCopyJump` sallii kartan kelata maapallon ympäri, joten
+`map.getBounds()` ei pysy välillä −180…180. Yhdessä mitatussa z2-näkymässä
+rajat olivat **lng −238…−101**. Ne pisteet ovat aitoja *geometriana* —
+tekstuuri kattaa juuri sen alueen ja interpolointi tarvitsee pisteet
+siellä — mutta Open-Meteolle `longitude=-238` on virhe.
+
+Mitattuna yhdessä uloimmassa näkymässä **144 pistettä 324:stä eli 44 %**
+lähti roskana. Ne kuluttivat pyyntökiintiön mutta eivät palauttaneet mitään
+— eli kartta jäi harvaksi *ja* API rasittui, samasta viasta.
+
+Korjaus: `kaarraLng()` kääntää pituuspiirin takaisin väliin, ja kääntö
+tehdään **vasta osoitetta rakennettaessa** (`buildBatchUrl`,
+`buildHarmonieUrls`). Sovellus pitää oman geometriansa, API saa kelvolliset
+luvut. Sama piste voi silloin esiintyä näkymässä kahdesti (lng −240 ja
++120), joten `loadViewport` kopioi jo haetun datan kaartokopiolle ennen
+erien kokoamista — **antimeridiaanin ylittävä näkymä maksaa nyt yhden
+pyynnön viiden sijaan**.
+
+Samalla lisättiin napojen ohitus: `Math.floor(s / step) * step` menee
+rajauksen alapuolelle, ja 10 asteen hilalla −85 pyöristyy −90:een. Tarkistus
+on **silmukan sisällä eikä alkuarvossa**, jotta hila pysyy samassa
+lattiassa ja vieritys osuu jo haettuihin pisteisiin.
+
+### 2. Sumennus oli zoomin funktio, vaikka se toimii texeleissä
+
+`updateHeatmapBlur` laski `22 - (z-2) * 2.2` pikseliä. Se on zoomin
+funktio, mutta se *mitä sumennus tekee* riippuu siitä kuinka isona yksi
+`WindTexture`n texel ruudulla näkyy — eikä se seuraa zoomia, koska
+tekstuurin koko (`maxDim`) ja sen kattama alue (`vPad`) muuttuvat
+portaittain.
+
+Mitattuna sumennus texeleinä:
+
+```
+        z9    z7    z5    z4    z3    z2
+ennen   1.7   2.8   9.4   7.4   8.7   9.9
+jälkeen 1.8   2.2   2.1   2.0   1.8   2.2
+```
+
+Läheltä katsottuna sumennus oli kahden hilaruudun luokkaa ja näytti
+oikealta. Kaukaa kenttää sumennettiin **lähes kymmenen hilaruudun yli**, eli
+koko maapallo puuroutui yhdeksi tasaiseksi vihreäksi. Juuri se on se "ei
+näytä oikealta".
+
+Nyt tavoitellaan 2 texeliä joka zoomissa: se peittää interpolointihilan
+portaat mutta ei syö kentän rakennetta. Rajat 3…22 px ovat paikallaan
+poikkeustilanteita varten (tekstuuri voi olla tyhjä ensimmäisellä
+kutsulla), ja vanha käyrä on yhä varatienä siihen asti kunnes tekstuuri on
+olemassa.
+
+### 3. Novelli ratkaisu: aika-askel sovitetaan hilaväliin
+
+Tässä on se kohta jossa tarkkuutta saa **ilman että API rasittuu**.
+
+Matalapaine liikkuu noin 1,5 astetta tunnissa. Kun näkymän hila on
+10 astetta, kuvio ehtii kuudessa tunnissa liikkua tasan yhden hilavälin —
+eli tunneittainen data sisältää muutosta, jota hila **ei fysikaalisesti
+voi esittää**. Se ei ole tarkkuutta, se on tavuja. Näytteenottoteoreema
+paikkaulottuvuudessa, sovellettuna aikaan.
+
+Sääntö on siksi `aika-askel ≤ hilaväli / 1,5 °/h`, pyöristettynä
+Open-Meteon tarjoamiin arvoihin. `aikaAskelParam()` antaa `hourly_3` kun
+hila on 1,5…4,5° ja `hourly_6` sitä leveämmällä; alle 1,5° hilalla
+(spotit, lähizoomit) mitään ei muuteta.
+
+Mitattuna yhdellä pisteellä, 16 + 2 vrk:
+
+```
+                arvoja   tavuja
+hourly (ennen)     432     5687
+hourly_3           144     2356
+hourly_6            72     1438
+```
+
+**Aikaväli ei lyhene.** Aikajanaa voi yhä vetää koko 16 vuorokauden yli —
+vain turha tiheys jää pois. Tämä on olennaista: sama säästö olisi saatu
+lyhentämällä `forecast_days`ia, mutta se olisi rikkonut aikajanan (ks.
+*Lämpökartan värit* → vika 2, jossa juuri niin kävi vahingossa).
+
+Hinta mitattiin tunnettua kenttää vasten: **0.04–0.07 m/s**, kun saman
+näkymän spatiaalinen aliotantavirhe on 0.2–0.9 m/s. Eli aika-askel on
+suuruusluokkaa pienempi virhelähde kuin se hila johon se sovitetaan —
+juuri niin kuin pitääkin.
+
+### Yhteisvaikutus
+
+Viiden näkymän kierros (Suomi z6, uloin z2 kolmesta eri pituuspiiristä,
+Atlantti z4):
+
+```
+                    ennen    jälkeen
+API-paino           57009     39567   (−31 %)
+pyyntöjä               24        18
+pisteitä             1286       963
+kelvottomia koord.    144         0
+```
+
+Ja tarkkuus tunnettua kenttää vasten säilyi: z9 0.00–0.04, z5 0.06–0.36,
+z3 0.24–0.49, z2 0.80–0.86 m/s. z2:n luku on 10 asteen hilan aliotanta
+eikä vika.
+
+### Lähdemerkintä siirtyi aikajanan alle
+
+Merkinnän paikka kiersi kolme kertaa, ja jokainen kierros kertoo jotain:
+
+1. **104 px pohjasta** jäi aikajanan hetkikuplan ("Ma 11:00") alle. Kupla
+   on `#tl-indicator`in pseudoelementti eikä siksi näy elementin mitoissa
+   — sitä ei löydä muuten kuin katsomalla.
+2. **126 px** oli kuplan yläpuolella mutta kartan päällä, ja se pakotti
+   `#rl-banner`in ylemmäs. Merkintä alkoi työntää muuta kalustoa.
+3. **Aikajanan sirun alapuolella** on rako joka on jo olemassa: siru
+   päättyy `--sab-tl + 8px` pohjasta, joten alle jää selaimessa 8 px ja
+   kotivalikon appissa 22 px. Mitään ei tarvitse siirtää, ja `#rl-banner`
+   palasi omalle paikalleen 148:aan.
+
+Fontti on **8 px ja line-height 1**, koska rako on selaimessa tasan 8 px.
+Se on tarkoituksella pienempi kuin mikään muu teksti sovelluksessa — lukema
+jota vilkaistaan, ei luetaan. `bottom: 0` + `padding-bottom` eikä
+`bottom: calc(...)`, jotta merkintä ei koskaan valu turva-alueen alle
+laitteella jolla `--sab-tl` on pieni.

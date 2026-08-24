@@ -1503,16 +1503,24 @@ body {
    on pysyttävä mustetta jotta se on luettava. */
 /* Lähdemerkintä — mikä ennuste on tähtäimen alla juuri nyt.
  *
- * Kartan alalaidassa vasemmalla, aikajanan yläpuolella. --sab-tl eikä
- * --sab: merkintä kelluu aikajanan mukana, jottei väli muutu kotivalikon
- * appissa.
+ * Aikajanan ALLA, ruudun alalaidassa. --sab-tl eikä --sab: merkintä
+ * kelluu aikajanan mukana, jottei väli muutu kotivalikon appissa.
  *
- * 126 px on mitattu eikä arvattu. Aikajanan siru on 88 px, mutta sen
- * yläpuolelle nousee vielä valitun hetken kupla ("Ma 11:00"), joka on
- * #tl-indicatorin pseudoelementti eikä siksi näy elementin
- * mitoissa — ensimmäinen sijoitus 104 px:ään jäi kuplan alle. Kupla
- * ulottuu 734 px:ään 844 px korkealla ruudulla, eli 110 px pohjasta;
- * 126 jättää siihen 14 px raon. #rl-banner nostettiin samalla 172:een.
+ * Paikka kiersi kolme kertaa, ja jokainen kierros kertoo jotain:
+ *
+ * 1. 104 px pohjasta jäi aikajanan hetkikuplan ("Ma 11:00") alle. Kupla on
+ *    #tl-indicatorin pseudoelementti eikä siksi näy elementin mitoissa,
+ *    joten sitä ei löydä muuten kuin katsomalla.
+ * 2. 126 px oli kuplan yläpuolella mutta kartan päällä, ja se pakotti
+ *    #rl-bannerin ylemmäs — eli merkintä alkoi työntää muuta kalustoa.
+ * 3. Nyt se on aikajanan sirun ALAPUOLELLA siinä raossa joka on jo
+ *    olemassa: siru päättyy `--sab-tl + 8px` pohjasta, joten alle jää
+ *    selaimessa 8 px ja kotivalikon appissa 22 px. Mitään ei tarvitse
+ *    siirtää, ja #rl-banner palasi omalle paikalleen 148:aan.
+ *
+ * Fontti on 8 px ja line-height 1, koska rako on selaimessa tasan 8 px.
+ * Se on tarkoituksella pienempi kuin mikään muu teksti sovelluksessa —
+ * lukema jota vilkaistaan, ei luetaan.
  *
  * pointer-events: none — merkintä ei saa napata karttaeleitä. Se on
  * lukema, ei nappi.
@@ -1524,11 +1532,12 @@ body {
 #lahde-merkki {
   position: fixed; z-index: 19;
   left: calc(var(--sal) + 18px);
-  bottom: calc(var(--sab-tl) + 126px);
+  bottom: 0;
+  padding-bottom: max(0px, calc(var(--sab-tl) - 6px));
   max-width: calc(100vw - var(--sal) - var(--sar) - 36px);
   pointer-events: none;
-  font-size: 10px; font-weight: 500; letter-spacing: .02em;
-  line-height: 1.3;
+  font-size: 8px; font-weight: 500; letter-spacing: .02em;
+  line-height: 1;
   color: var(--kartta-teksti);
   text-shadow: var(--kartta-teksti-varjo);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -1539,7 +1548,7 @@ body {
 #rl-banner {
   /* --sab-tl eika --sab: banneri kelluu aikajanan ylapuolella, joten sen
      on liikuttava saman verran, muuten vali muuttuisi standalone-tilassa. */
-  position: fixed; bottom: calc(var(--sab-tl) + 172px); left: 12px; right: 12px; z-index: 50;
+  position: fixed; bottom: calc(var(--sab-tl) + 148px); left: 12px; right: 12px; z-index: 50;
   background: var(--surface-hi);
   border: 1px solid var(--hairline);
   border-left: 3px solid #9A5116;
@@ -3177,7 +3186,7 @@ const ViewportGrid = {
     const loadPromise = Promise.allSettled(batches.map(b =>
       /* 1 vrk, ei historiaa — lyhyt jakso on tarkoituksellinen ja
          sanotaan nyt ääneen molemmilla parametreilla. */
-      loadBatch(b, 1, true, undefined, 0).then(() => {
+      loadBatch(b, 1, true, undefined, 0, step).then(() => {
         b.forEach(p => { if (p.wx) this._globalBase.set(this._ptKey(p.lat, p.lng), p); });
         done += b.length;
         if (onProgress) onProgress(done, total);
@@ -3231,6 +3240,12 @@ const ViewportGrid = {
       const e = bounds.getEast() + pad;
       pts = [];
       for (let lat = Math.floor(s / step) * step; lat <= n; lat += step) {
+        /* Napojen yli ei kysytä. `Math.floor(s/step)*step` menee rajauksen
+           ALAPUOLELLE — kymmenen asteen hilalla -85 pyöristyy -90:een — ja
+           se piste ei ole olemassa. Hila pidetään silti samassa
+           lattiassa, jotta vieritys osuu jo haettuihin pisteisiin: siksi
+           tarkistus on tässä eikä silmukan alkuarvossa. */
+        if (lat < -85 || lat > 85) continue;
         for (let lng = Math.floor(w / step) * step; lng <= e; lng += step) {
           pts.push({ lat: Math.round(lat * 100) / 100, lng: Math.round(lng * 100) / 100 });
         }
@@ -3342,6 +3357,23 @@ const ViewportGrid = {
     const bounds = map.getBounds(), zoom = map.getZoom();
     const gridPoints = this.getViewportPoints(bounds, zoom);
     this._restoreCache(gridPoints);
+    /* Antimeridiaanin yli sama paikka esiintyy kahdesti.
+       Kartta saa mennä pituuspiirin 180 yli (worldCopyJump), joten z2:ssa
+       näkymässä on esimerkiksi sekä lng -240 että sitä vastaava +120.
+       Ne ovat eri pisteitä GEOMETRIANA mutta sama paikka MAAPALLOLLA, ja
+       ilman tätä ne haettaisiin kahdesti. Kopioidaan jo haettu data. */
+    {
+      const kaarto = new Map();
+      this._points.forEach((q) => {
+        if (q.wx) kaarto.set(this._ptKey(q.lat, kaarraLng(q.lng)), q);
+      });
+      for (const p of gridPoints) {
+        const k = this._ptKey(p.lat, p.lng);
+        if (this._points.has(k)) continue;
+        const kopio = kaarto.get(this._ptKey(p.lat, kaarraLng(p.lng)));
+        if (kopio && kopio.wx) { p.wx = kopio.wx; this._points.set(k, p); }
+      }
+    }
     /* Hilaväli ratkaisee kannattaako HARMONIEa yrittää — ks.
        HARMONIE_MAX_STEP. Luettava tässä, koska se ohjaa sekä sitä mitä
        haetaan että miten erät kootaan. */
@@ -3394,7 +3426,7 @@ const ViewportGrid = {
            arvata mitään — ja laaja näkymä pääsee Open-Meteolle myös
            Pohjois-Euroopan päältä. pastDays 2 säilyttää aikajanan
            historiaosuuden, jota forceOM muuten nollaisi. */
-        loadBatch(b, undefined, b._omVain, abortCtrl.signal, 2).then(() => {
+        loadBatch(b, undefined, b._omVain, abortCtrl.signal, 2, this._viimeStep).then(() => {
           if (myGen !== this._loadGeneration) return; /* vanhentunut — ei kirjoiteta */
           b.forEach(p => { if (p.wx) { this._points.set(this._ptKey(p.lat, p.lng), p); saatu++; } });
           done += b.length;
@@ -5706,8 +5738,29 @@ function heatSekoitus() { return Asetukset.paperi() ? 'multiply' : LISAAVA_SEKOI
 function updateHeatmapBlur(zoom) {
   if (!State.map) return;
   const z = zoom === undefined ? State.map.getZoom() : zoom;
-  /* Blur: zoomissa 5+ tarkempi, kaukaa pehmeampi */
-  const blur = Math.max(3, Math.round(22 - (z - 2) * 2.2));
+  /* Sumennus mitoitetaan TEKSTUURIN TEXELIIN, ei zoomiin.
+   *
+   * Vanha käyrä oli `22 - (z-2)*2.2` pikseliä. Se on zoomin funktio, mutta
+   * se mitä sumennus tekee riippuu siitä kuinka isona yksi tekstuurin
+   * texel ruudulla näkyy — ja se ei seuraa zoomia, koska tekstuurin koko
+   * (`maxDim`) ja sen kattama alue (`vPad`) muuttuvat portaittain.
+   *
+   * Mitattuna sumennus texeleinä:
+   *     z9 1.7   z7 2.8   z5 9.4   z4 7.4   z3 8.7   z2 9.9
+   *
+   * Eli kaukaa katsottuna kenttää sumennettiin lähes kymmenen hilaruudun
+   * yli, ja koko maapallo muuttui yhdeksi tasaiseksi vihreäksi. Läheltä
+   * sumennus oli kahden texelin luokkaa ja näytti oikealta.
+   *
+   * Nyt tavoitellaan samaa 2 texeliä joka zoomissa. Se riittää
+   * peittämään interpolointihilan portaat mutta ei syö kentän rakennetta.
+   * Rajat 3..22 px pitävät sen järkevänä myös poikkeustilanteissa. */
+  let blur = Math.max(3, Math.round(22 - (z - 2) * 2.2));
+  if (WindTexture.cols > 0 && WindTexture.lngMax > WindTexture.lngMin) {
+    const astettaTexelia = (WindTexture.lngMax - WindTexture.lngMin) / WindTexture.cols;
+    const pxAstetta = 256 * Math.pow(2, z) / 360;
+    blur = Math.max(3, Math.min(22, Math.round(2 * astettaTexelia * pxAstetta)));
+  }
   /* Saturate vahvistaa vareja sekoituksen kanssa */
   const sat = z <= 5 ? 1.6 : 1.4;
   const fStr = 'blur(' + blur + 'px) saturate(' + sat + ')';
@@ -6671,20 +6724,54 @@ function buildHarmonieUrls(points) {
   for (let i = 0; i < points.length; i += HARMONIE_ERA) {
     const era = points.slice(i, i + HARMONIE_ERA);
     urlit.push(HARMONIE_BASE + '?pts=' + era.map(function(p) {
-      return p.lat.toFixed(4) + ',' + p.lng.toFixed(4);
+      return p.lat.toFixed(4) + ',' + kaarraLng(p.lng).toFixed(4);
     }).join(';') + '&tz=' + encodeURIComponent(AIKAVYOHYKE));
   }
   return urlit;
 }
 
-function buildBatchUrl(points, model, forecastDays, pastDays) {
+/* Pituuspiiri takaisin valille -180..180.
+ *
+ * Kartta saa mennä sen yli: Leafletin worldCopyJump kelaa maailman
+ * ympäri, ja z2:ssa näkymän rajat olivat mitattuna lng -238..-101.
+ * Ne pisteet ovat olemassa GEOMETRIANA — tekstuuri kattaa juuri sen
+ * alueen ja interpolointi tarvitsee ne siellä — mutta API:lle ne ovat
+ * kelvottomia koordinaatteja. Mitattuna 144 pistettä 324:stä eli 44 %
+ * lähti roskana yhdessä z2-näkymässä.
+ *
+ * Siksi kääntö tehdään VASTA osoitetta rakennettaessa: sovellus pitää
+ * oman geometriansa, API saa kelvolliset luvut. */
+function kaarraLng(lng) {
+  return ((lng + 180) % 360 + 360) % 360 - 180;
+}
+
+/* Aika-askel sovitetaan HILAVÄLIIN.
+ *
+ * Tämä on se kohta jossa tarkkuutta saa ilman että API rasittuu.
+ * Matalapaine liikkuu noin 1,5 astetta tunnissa. Kun hila on 10 astetta,
+ * kuvio ehtii kuuden tunnin aikana liikkua yhden hilavälin — eli
+ * tunneittainen data sisältää muutosta jota hila EI VOI esittää. Se ei ole
+ * tarkkuutta vaan tavuja.
+ *
+ * Sääntö: aika-askel <= hilaväli / 1,5 °/h, pyöristettynä Open-Meteon
+ * tarjoamiin arvoihin (1 h, 3 h, 6 h). Mitattuna 16+2 vrk yhdellä
+ * pisteellä: 432 arvoa 5687 tavua -> hourly_3 144 arvoa 2356 tavua ->
+ * hourly_6 72 arvoa 1438 tavua. Aikaväli EI lyhene, joten aikajanaa voi
+ * yhä vetää koko 16 vuorokauden yli — vain turha tiheys jää pois. */
+function aikaAskelParam(step) {
+  if (!step || step <= 1.5) return '';
+  return step <= 4.5 ? '&temporal_resolution=hourly_3'
+                     : '&temporal_resolution=hourly_6';
+}
+
+function buildBatchUrl(points, model, forecastDays, pastDays, hilaStep) {
   const days = forecastDays || 16;  /* 16 vrk ennuste */
   const past = pastDays !== undefined ? pastDays : 2; /* 2 vrk historiaa oletuksena */
   let url = OM_BASE + '?latitude=' + points.map(p => p.lat.toFixed(4)).join(',')
-    + '&longitude=' + points.map(p => p.lng.toFixed(4)).join(',')
+    + '&longitude=' + points.map(p => kaarraLng(p.lng).toFixed(4)).join(',')
     + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m'
     + '&wind_speed_unit=ms' + TZ_PARAM + '&forecast_days=' + days
-    + '&past_days=' + past;
+    + '&past_days=' + past + aikaAskelParam(hilaStep);
   if (model && model !== 'best_match') url += '&models=' + model;
   return url;
 }
@@ -6724,7 +6811,7 @@ function setRateLimited() {
    ensimmäisen ilman toista (koko maailman hila menee Open-Meteolle mutta
    tarvitsee saman 16 vrk + 2 vrk aikajanan kuin muutkin), joten merkitykset
    on erotettu. */
-function loadBatch(points, forecastDays, forceOM, signal, pastDays) {
+function loadBatch(points, forecastDays, forceOM, signal, pastDays, hilaStep) {
   if (_rateLimited) return Promise.resolve();
   const model = State.activeModel;
   const p0 = points[0], pN = points[points.length - 1];
@@ -6774,12 +6861,12 @@ function loadBatch(points, forecastDays, forceOM, signal, pastDays) {
   /* Open-Meteo batch */
   function tryOM(mdl, retries, fd, past) {
     if (_rateLimited) return Promise.resolve();
-    return fetch(buildBatchUrl(points, mdl, fd, past), { signal: signal })
+    return fetch(buildBatchUrl(points, mdl, fd, past, hilaStep), { signal: signal })
       .then(r => {
         if (r.status === 429) {
           if (retries > 0) {
             return new Promise(res => setTimeout(res, (4-retries)*2000+Math.random()*1000))
-              .then(() => tryOM(mdl, retries-1, fd));
+              .then(() => tryOM(mdl, retries-1, fd, past));
           }
           throw new Error('429');
         }
