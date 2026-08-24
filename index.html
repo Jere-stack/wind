@@ -3326,44 +3326,239 @@ const ViewportGrid = {
   }
 };
 
-/* ---------------------------------------------------------------
-   Double-tap zoom + Double-tap-hold-drag zoom
-   Yksi yhtenäinen handler — ei konfliktia preventDefault:n kanssa.
-   
-   Logiikka:
-   - touchstart #1: tallenna aika + koordinaatti
-   - touchstart #2 (< 300ms, < 45px): double-tap tunnistettu
-       → Ei preventDefault vielä! Odotetaan touchend/touchmove
-       → Jos touchend nopeasti (< 150ms): nopea zoom-in
-       → Jos touchmove ennen touchend: drag-zoom mode
-   - touchmove drag-zoom: preventDefault + map._move() 60fps
-   - touchend drag-zoom: snap + Leaflet animateZoom
-   --------------------------------------------------------------- */
-/* DoubleTapDragZoom — asennetaan initMap():ssa */
+/* -- ONE EURO -SUODIN — jaettu molemmille zoom-eleille -----------
+ *
+ * Casiez, Roussel & Vogel (CHI 2012). Adaptiivinen alipäästö: hitaassa
+ * liikkeessä suodattaa voimakkaasti (vapina katoaa) ja nopeassa löysää
+ * otettaan (ele ei jää jälkeen). Kiinteä alipäästö ei kelpaisi — se joko
+ * jättäisi vapinan tai laahaisi näkyvästi.
+ *
+ * Vakiot on viritetty nipistykselle ja ne ovat PIKSELEISSÄ, joten sama
+ * viritys kelpaa myös tuplanapautusvedolle: molemmissa suodatettava
+ * suure on sormen sijainti ruudulla.
+ *
+ * Tämä oli aiemmin nipistyksen oman IIFE:n sisällä. Nostettu ulos kun
+ * yhden sormen zoom tarvitsi saman suotimen — kaksi kopiota olisi
+ * tarkoittanut kahta viritystä jotka erkanevat toisistaan. */
+const MIN_CUTOFF = 1.0, BETA = 0.30, D_CUTOFF = 0.3, NAPOJA = 4;
+
+function Alipaasto() {
+  let y = null;
+  return { suodata(x, a) { y = (y === null) ? x : a * x + (1 - a) * y; return y; } };
+}
+function OneEuro() {
+  /* NAPOJA kappaletta peräkkäin samalla adaptiivisella katkotaajuudella */
+  const navat = [];
+  for (let i = 0; i < NAPOJA; i++) navat.push(Alipaasto());
+  const df = Alipaasto();
+  let edellinen = null, tEd = null;
+  const alpha = (cutoff, dt) => { const r = 2 * Math.PI * cutoff * dt; return r / (r + 1); };
+  return function (x, t) {
+    if (tEd === null) {
+      tEd = t; edellinen = x;
+      for (const n of navat) n.suodata(x, 1);
+      return x;
+    }
+    const dt = Math.max(1e-4, (t - tEd) / 1000); tEd = t;
+    const dx = (x - edellinen) / dt; edellinen = x;
+    const nopeus = df.suodata(dx, alpha(D_CUTOFF, dt));
+    const a = alpha(MIN_CUTOFF + BETA * Math.abs(nopeus), dt);
+    let y = x;
+    for (const n of navat) y = n.suodata(y, a);
+    return y;
+  };
+}
+
+/* -- TUPLANAPAUTA JA VEDÄ — yhden sormen zoom --------------------
+ *
+ * Tuplanapautus ja sen jälkeen pystysuora veto zoomaa yhdellä sormella.
+ * Ele on natiiveista kartoista ja se on ainoa tapa zoomata kun toinen käsi
+ * on kiinni jossain muussa.
+ *
+ * NELJÄ ASIAA JOTKA EIVÄT OLE ILMEISIÄ:
+ *
+ * 1. **Leafletin oma veto on poistettava käytöstä eleen ajaksi.** Tämä
+ *    kaatoi eleen kokonaan. Leafletin `Draggable` kuuntelee `touchmove`a
+ *    DOKUMENTISTA (se lisää kuuntelijan `_onDown`issa), ja tämä moduuli
+ *    kuuntelee säiliöstä. `preventDefault` ei estä toista kuuntelijaa
+ *    mitenkään — se ei ole `stopPropagation` — eikä `stopImmediatePropagation`
+ *    auttaisi, koska se pysäyttää vain saman elementin myöhemmät
+ *    kuuntelijat ja Leafletin kuuntelija on eri elementissä.
+ *
+ *    Mitattuna jokainen sormenliike tuotti KAKSI kartan siirtoa: ensin
+ *    `map:drag` (Leaflet panoroi sormen mukana) ja sitten `map:zoom`
+ *    (tämä moduuli asettaa keskipisteen absoluuttisesti). Ne laskevat
+ *    keskipisteen eri lähtökohdasta, joten kartta nytkähti joka ruudussa
+ *    — suurin yhden ruudun hyppy oli **211 px**. `map.dragging.disable()`
+ *    on ainoa oikea korjaus; Leaflet tekee saman `BoxZoom`issa.
+ *
+ * 2. **Ankkuri on napautuskohta, ei ruudun keskikohta.** Vanha versio
+ *    laski siirtymän vain x-akselilla (`delta = startPt.x - centerPt.x`),
+ *    jolloin napautettu piste päätyi kohtaan (napautus.x, ruudun keskiY).
+ *    Ensimmäinen `_move` siis siirsi karttaa pystysuunnassa sen verran kuin
+ *    napautus oli keskikohdasta — ylhäältä napautettaessa yli 200 px, ennen
+ *    kuin zoomia oli tapahtunut lainkaan. Nyt siirtymä on `startPt -
+ *    centerPt` molemmilla akseleilla, jolloin napautettu piste pysyy tasan
+ *    sormen alla koko eleen.
+ *
+ * 3. **`zoomstart` on lähetettävä itse.** `map._move()` lähettää vain
+ *    `move`n ja `zoom`in. Ilman `_moveStart(true, false)` -kutsua
+ *    `zoomstart` ei syttynyt lainkaan, jolloin `State.liikkeessa` jäi
+ *    epätotuuteen koko eleen ajaksi — se ohjaa IdwPainot-muistia ja
+ *    suorituskyvyn vaihemittaria. Leafletin oma `TouchZoom` kutsuu
+ *    `_moveStart`ia täsmälleen samasta syystä ensimmäisellä liikkeellä.
+ *
+ * 4. **Yhden sormen zoom tarvitsee saman One Euro -suotimen kuin
+ *    nipistys.** Mitattuna nurkka (herkin kohta: zoomvirhe siirtää
+ *    ankkurista etäisyydellä r olevaa pistettä määrän `r*ln2*dz`) vaihtoi
+ *    liikesuuntaa hitaassa vedossa **14 kertaa** kun sormessa oli ±1,5 px
+ *    vapinaa, ja 40 kertaa kun vapina oli ±3 px. Ilman vapinaa nolla.
+ *    Suodatettava suure on sormen y ruudulla — samat yksiköt ja sama
+ *    dynamiikka kuin nipistyksessä, joten sama viritys kelpaa.
+ *
+ * Alipikselitarkkuus ja kompositointi tulevat `nipistysAlkaa/Paattyy`sta,
+ * samoista joita nipistys käyttää: tämä polku kutsuu `map._move`a suoraan
+ * eikä kulje `TouchZoom`in läpi, joten se jäisi muuten pyöristyksen varaan.
+ * ---------------------------------------------------------------- */
 function _installDoubleTapZoom(map) {
   var mapEl = map.getContainer();
-  var dtz = { t1: 0, x1: 0, y1: 0, active: false, animReq: null,
-               startZoom: 0, startPt: null, startLlng: null, centerPt: null, currentZoom: 0 };
+  var dtz = { t1: 0, x1: 0, y1: 0, active: false, moved: false, animReq: null,
+              startZoom: 0, startPt: null, startLlng: null, centerPt: null,
+              currentZoom: 0, vetoPois: false, suodin: null };
 
-  mapEl.addEventListener('touchstart', function(e) {
-    if (e.touches.length !== 1) { dtz.active = false; return; }
+  /* Pystysuora matka joka vastaa yhtä zoomtasoa. 128 px on sama kuin
+     ennen — herkkyyteen ei kosketa tässä korjauksessa. */
+  var PX_PER_ZOOM = 128;
+  /* Kynnys jonka yli veto on veto eikä napautus. Vanha versio päätti tämän
+     vasta touchendissä vertaamalla pystysuoraa matkaa 10 px:ään, mutta
+     zoomasi jo ennen sitä — eli lyhyt veto ensin zoomasi vähän ja sitten
+     hyppäsi kokonaisen tason. Nyt zoom alkaa vasta kynnyksen jälkeen ja
+     sama lippu ratkaisee lopetuksen. */
+  var VETO_KYNNYS = 8;
+
+  function vapautaVeto() {
+    if (!dtz.vetoPois) return;
+    dtz.vetoPois = false;
+    if (map.dragging) map.dragging.enable();
+  }
+
+  /* Keskipiste jolla ankkuri (startLlng) osuu tasan startPt:hen annetulla
+     zoomilla. Johdettu Leafletin omasta muunnoksesta:
+       containerPoint(L) = project(L,z) - pixelOrigin
+       pixelOrigin       = project(center,z) - size/2
+     joten kun center = unproject(project(L,z) - (startPt - centerPt)),
+     saadaan containerPoint(L) = startPt. */
+  function keskiZoomille(z) {
+    return map.unproject(
+      map.project(dtz.startLlng, z).subtract(dtz.startPt.subtract(dtz.centerPt)), z);
+  }
+
+  /* Tilan purku ilman kartan sijoittelua. lopetaNipistys = false vain
+     silloin kun nipistys on juuri ottamassa vallan — ks. touchstartin
+     monen sormen haara. */
+  function siivoa(lopetaNipistys) {
+    if (dtz.animReq) { cancelAnimationFrame(dtz.animReq); dtz.animReq = null; }
+    if (lopetaNipistys) nipistysPaattyy(map);
+    vapautaVeto();
+    dtz.active = false; dtz.moved = false;
+  }
+
+  /* Yhteinen lopetus touchendille ja touchcancelille. Molemmat on
+     vietävä loppuun asti: `_move` ei lähetä `zoomend`iä, ja ilman sitä
+     lämpökartta, spottimerkit ja laattojen karsinta jäisivät eleen
+     aikaiseen karkeaan tilaansa. Leafletin TouchZoom kuuntelee
+     'touchend touchcancel' samasta syystä. */
+  function paataEle(oliVeto) {
+    /* Ennen loppusijoittelua, kuten nipistyksessäkin: _animateZoom laskee
+       lopullisen pikseliorigon ja se on saatava pyöristettyä. */
+    siivoa(true);
+
+    if (!oliVeto) {
+      /* Nopea tuplanapautus → yksi taso sisään napautuskohdan ympäri.
+         startZoom eikä getZoom(): sormi on voinut liikkua kynnyksen verran,
+         jolloin getZoom() olisi jo hivenen eri.
+
+         Zoom on rajattava ENNEN setZoomAroundia, ei sen sisällä.
+         setZoomAround laskee uuden keskipisteen pyydetyn zoomin skaalalla
+         ja vasta sen jälkeen setView rajaa zoomin — eli maksimizoomissa se
+         antaa kertoimen 2 mukaisen keskipistesiirtymän mutta zoomia ei
+         tule. Mitattuna kartta panoroi 61 px ilman että zoom muuttui.
+         Rajauksen jälkeen ele on maksimissa oikein tyhjä operaatio. */
+      var kohde = map._limitZoom(dtz.startZoom + 1);
+      if (kohde !== dtz.startZoom) {
+        map.setZoomAround(dtz.startLlng, kohde, { animate: true });
+      }
+      return;
+    }
+    var loppu = map._limitZoom(dtz.currentZoom);
+    if (map.options.zoomAnimation) {
+      /* Neljäs argumentti on `noUpdate` eikä snap-arvo, vaikka Leafletin
+         oma TouchZoom antaa siihen zoomSnapin. Se välitetään sellaisenaan
+         zoomanim-tapahtumaan, ja GridLayer päättää siitä ladataanko
+         lopullisen zoomin laatat. zoomSnap on 0, eli epätosi, eli laatat
+         päivittyvät — juuri niin kuin eleen lopussa kuuluu. Sama arvo kuin
+         nipistyksessä, jotta polut eivät eroa. */
+      map._animateZoom(keskiZoomille(loppu), loppu, true, map.options.zoomSnap);
+    } else {
+      map._resetView(keskiZoomille(loppu), loppu);
+    }
+  }
+
+  mapEl.addEventListener('touchstart', function (e) {
+    if (e.touches.length !== 1) {
+      /* Toinen sormi laskeutui: nipistys ottaa vallan. Oma ajastettu
+         _move on peruttava, muuten se taistelisi TouchZoomin kanssa
+         samasta ruudusta.
+         nipistysPaattyy JÄTETÄÄN tässä kutsumatta. TouchZoomin oma
+         _onTouchStart on rekisteröity kartan luonnissa eli ENNEN tätä, ja
+         se on jo ehtinyt kutsua nipistysAlkaa. Lopetus nollaisi juuri
+         sytytetyn lipun ja veisi alipikselitarkkuuden koko nipistykseltä. */
+      if (dtz.active) siivoa(false);
+      dtz.t1 = 0;
+      return;
+    }
+    /* Vartija. Yhden sormen touchstart kesken oman eleen tarkoittaa että
+       edellinen ele ei saanut touchendiä lainkaan — käytännössä siksi että
+       kohde-elementti ehti poistua DOMista (renderSpots luo spottimerkit
+       uusiksi, ja tuplanapautus voi osua juuri merkkiin). Ilman tätä
+       `map.dragging` jäisi pysyvästi pois päältä eikä karttaa voisi enää
+       panoroida — vika josta käyttäjä ei pääse eroon muuten kuin lataamalla
+       sivun uudelleen. Mitattuna Chromium ohjaa tapahtuman irronneen
+       solmun sijaan lähimpään kiinni olevaan esi-isään, joten tätä ei
+       nykyselaimessa laukea; vartija on siltä varalta ettei niin ole.
+       Vain siivous, ei sijoittelua: keskeytyneen eleen maalia ei tiedetä
+       eikä uuden eleen alkuun haluta yllättävää zoomia. */
+    if (dtz.active) siivoa(true);
     var t = e.touches[0];
     var now = Date.now();
     var dx = t.clientX - dtz.x1, dy = t.clientY - dtz.y1;
-    var dist = Math.sqrt(dx*dx + dy*dy);
+    var dist = Math.sqrt(dx * dx + dy * dy);
 
     if (now - dtz.t1 < 300 && dist < 45) {
-      /* Double-tap tunnistettu */
+      /* Tuplanapautus tunnistettu */
+      /* Kesken oleva zoom-animaatio viedään loppuun heti eikä eleestä
+         luovuta. Leafletin TouchZoom kieltäytyy kun _animatingZoom on
+         päällä, mutta täällä se tarkoittaisi että nopea "zoomaa sisään,
+         zoomaa lisää" -sarja tiputtaa joka toisen eleen 250 ms ikkunassa.
+         _onZoomTransitionEnd on suojattu omalla lipullaan, joten kutsu on
+         turvallinen ja jättää kartan määriteltyyn tilaan. */
+      if (map._animatingZoom) map._onZoomTransitionEnd();
+      map._stop();
       dtz.active = true;
-      dtz.startZoom  = map.getZoom();
-      dtz.startPt    = map.mouseEventToContainerPoint(t);
-      dtz.centerPt   = map.getSize()._divideBy(2);
-      dtz.startLlng  = map.containerPointToLatLng(dtz.startPt);
+      dtz.moved = false;
+      dtz.startZoom   = map.getZoom();
+      dtz.startPt     = map.mouseEventToContainerPoint(t);
+      dtz.centerPt    = map.getSize()._divideBy(2);
+      dtz.startLlng   = map.containerPointToLatLng(dtz.startPt);
       dtz.currentZoom = dtz.startZoom;
+      /* Uusi ele, uusi suodin — ks. moduulin alun kohta 4. */
+      dtz.suodin = OneEuro();
       dtz.t1 = 0; /* reset */
-      /* Sama alipikseli- ja kompositointikasittely kuin nipistyksessa:
-         tama polku kutsuu map._move'a suoraan eika kulje Leafletin
-         TouchZoomin lapi, joten se jai muuten pyoristyksen varaan. */
+      /* Ks. moduulin alun kohta 1 — ilman tätä kartta nytkähtää. */
+      if (map.dragging && map.dragging.enabled()) {
+        dtz.vetoPois = true;
+        map.dragging.disable();
+      }
       nipistysAlkaa(map);
     } else {
       dtz.active = false;
@@ -3371,65 +3566,46 @@ function _installDoubleTapZoom(map) {
     }
   }, { passive: true });
 
-  mapEl.addEventListener('touchmove', function(e) {
+  mapEl.addEventListener('touchmove', function (e) {
     if (!dtz.active || e.touches.length !== 1) return;
     e.preventDefault();
     var t = e.touches[0];
     var p = map.mouseEventToContainerPoint(t);
-    var dy = dtz.startPt.y - p.y;
-    var scale = Math.pow(2, dy / 128);
+    /* Kynnysvertailu tehdään RAAALLA sijainnilla, zoom suodatetulla.
+       Toisin päin suotimen alkuvaimennus siirtäisi kynnyksen ylitystä
+       ajassa eteenpäin ja ele tuntuisi tahmealta lähtiessään. */
+    if (!dtz.moved) {
+      if (Math.abs(dtz.startPt.y - p.y) < VETO_KYNNYS
+          && Math.abs(dtz.startPt.x - p.x) < VETO_KYNNYS) return;
+      dtz.moved = true;
+      /* Ks. moduulin alun kohta 3. */
+      map._moveStart(true, false);
+    }
+    /* Ks. moduulin alun kohta 4. */
+    var ySuod = dtz.suodin(p.y, performance.now());
+    var dy = dtz.startPt.y - ySuod;
     dtz.currentZoom = Math.max(map.getMinZoom(),
                       Math.min(map.getMaxZoom(),
-                        map.getScaleZoom(scale, dtz.startZoom)));
-    var delta = L.point(dtz.startPt.x - dtz.centerPt.x, 0);
-    var center = map.unproject(
-      map.project(dtz.startLlng, dtz.currentZoom).subtract(delta),
-      dtz.currentZoom
-    );
+                        map.getScaleZoom(Math.pow(2, dy / PX_PER_ZOOM), dtz.startZoom)));
     if (dtz.animReq) cancelAnimationFrame(dtz.animReq);
-    dtz.animReq = requestAnimationFrame(function() {
-      map._move(center, dtz.currentZoom, { pinch: true, round: false });
+    dtz.animReq = requestAnimationFrame(function () {
+      dtz.animReq = null;
+      map._move(keskiZoomille(dtz.currentZoom), dtz.currentZoom, { pinch: true, round: false });
     });
   }, { passive: false });
 
-  mapEl.addEventListener('touchend', function(e) {
+  mapEl.addEventListener('touchend', function (e) {
     if (!dtz.active) return;
-    /* Ennen loppusijoittelua, kuten nipistyksessakin: _animateZoom laskee
-       lopullisen pikseliorigon ja se on saatava pyoristettya. */
-    nipistysPaattyy(map);
-    if (dtz.animReq) { cancelAnimationFrame(dtz.animReq); dtz.animReq = null; }
-    if (e.changedTouches.length === 1 && dtz.startPt) {
-      var endT = e.changedTouches[0];
-      var dy = Math.abs(endT.clientY - (dtz.startPt.y + map.getContainer().getBoundingClientRect().top));
-      if (dy < 10) {
-        /* Nopea tuplanapauta ilman vetoa → zoom in */
-        map.setZoomAround(dtz.startLlng, map.getZoom() + 1, { animate: true });
-      } else {
-        /* Drag-zoom päättyy → snap */
-        var snapped = map._limitZoom(dtz.currentZoom);
-        if (map.options.zoomAnimation) {
-          map._animateZoom(
-            map.unproject(map.project(dtz.startLlng, snapped).subtract(
-              L.point(dtz.startPt.x - dtz.centerPt.x, 0)), snapped),
-            snapped, true, map.options.zoomSnap
-          );
-        } else {
-          map._resetView(map.getCenter(), snapped);
-        }
-      }
-    }
-    dtz.active = false;
+    paataEle(dtz.moved);
   }, { passive: true });
 
-  /* touchcancel puuttui. Ilman tata keskeytynyt veto jattaisi dtz.active
-     paalle — ja nyt myos alipikselitilan ja will-changen, jotka ovat
-     tarkoitettu vain eleen ajaksi. Leafletin oma TouchZoom kuuntelee
-     'touchend touchcancel' juuri tasta syysta. */
-  mapEl.addEventListener('touchcancel', function() {
+  /* touchcancel puuttui aikanaan kokonaan. Ilman tätä keskeytynyt veto
+     jättäisi dtz.activen päälle — ja sen mukana alipikselitilan,
+     will-changen ja poistetun vedon, jotka ovat kaikki tarkoitettu vain
+     eleen ajaksi. */
+  mapEl.addEventListener('touchcancel', function () {
     if (!dtz.active) return;
-    if (dtz.animReq) { cancelAnimationFrame(dtz.animReq); dtz.animReq = null; }
-    nipistysPaattyy(map);
-    dtz.active = false;
+    paataEle(dtz.moved);
   }, { passive: true });
 }
 
@@ -3453,7 +3629,11 @@ const State = {
   lastDataLoad: 0,
   refreshTimer: null,
   sheetSpot: null,
-  _dragZooming: false,
+  /* Tässä oli _dragZooming, jota luettiin moveendin ja zoomendin alussa
+     paluuehtona mutta jota ei asetettu todeksi missään. Kaksi kuollutta
+     vartijaa: ne lupasivat ohittaa lämpökartan ja spottien uudelleenpiirron
+     tuplanapautuszoomin ajaksi, mutta juuri se piirto on eleen lopussa
+     tehtävä. Poistettu — käytös ei muutu, koska lippu oli aina epätosi. */
   vw: 0, vh: 0,   /* näkymän koko CSS-pikseleinä — partikkelit ovat ruutukoordinaateissa */
   /* Näkyvä alue SISÄLLÖN ruudustossa. Sama kuin ruutu paitsi silloin kun
      canvasilla on CSS-muunnos: silloin vain osa sisällöstä on ruudulla, ja
@@ -3954,35 +4134,6 @@ function nipistysPaattyy(map) {
   if (typeof alkupMove !== 'function' || typeof alkupStart !== 'function'
       || typeof alkupEnd !== 'function') return;
 
-  const MIN_CUTOFF = 1.0, BETA = 0.30, D_CUTOFF = 0.3, NAPOJA = 4;
-
-  function Alipaasto() {
-    let y = null;
-    return { suodata(x, a) { y = (y === null) ? x : a * x + (1 - a) * y; return y; } };
-  }
-  function OneEuro() {
-    /* NAPOJA kappaletta peräkkäin samalla adaptiivisella katkotaajuudella */
-    const navat = [];
-    for (let i = 0; i < NAPOJA; i++) navat.push(Alipaasto());
-    const df = Alipaasto();
-    let edellinen = null, tEd = null;
-    const alpha = (cutoff, dt) => { const r = 2 * Math.PI * cutoff * dt; return r / (r + 1); };
-    return function (x, t) {
-      if (tEd === null) {
-        tEd = t; edellinen = x;
-        for (const n of navat) n.suodata(x, 1);
-        return x;
-      }
-      const dt = Math.max(1e-4, (t - tEd) / 1000); tEd = t;
-      const dx = (x - edellinen) / dt; edellinen = x;
-      const nopeus = df.suodata(dx, alpha(D_CUTOFF, dt));
-      const a = alpha(MIN_CUTOFF + BETA * Math.abs(nopeus), dt);
-      let y = x;
-      for (const n of navat) y = n.suodata(y, a);
-      return y;
-    };
-  }
-
   /* -- ALIPIKSELIT ELEEN AJAKSI --------------------------------------
    *
    * Suodin ei yksin riittänyt, ja syy oli renderöinnissä eikä syötteessä.
@@ -4390,7 +4541,6 @@ function initMap() {
   _addObsMarkers(map);
 
   map.on('moveend', () => {
-    if (State._dragZooming) return;
     /* Partikkeleita EI nollata eikä canvasia tyhjennetä: liike on jatkunut
        koko eleen ajan ja jatkuu tästä eteenpäin. Näkymän ulkopuolelle
        jääneet partikkelit syntyvät uudelleen silmukan rajatarkistuksesta. */
@@ -4624,7 +4774,6 @@ function initMap() {
 
   let _prevZoom = map.getZoom();
   map.on('zoomend', () => {
-    if (State._dragZooming) return;
     const newZoom = map.getZoom();
     if (newZoom !== _prevZoom) {
       /* Pelkkä koon ja nimikyltin päivitys riittää, ja vain se voi animoitua.

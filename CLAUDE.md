@@ -2443,6 +2443,10 @@ veto jätti `dtz.active` päälle, ja nyt se olisi jättänyt myös alipikseliti
 ja `will-changen` pysyvästi voimaan. Leafletin oma `TouchZoom` kuuntelee
 `'touchend touchcancel'` juuri tästä syystä.
 
+> Tässä luvussa korjattiin vain yhden sormen zoomin **alipikselikäsittely**.
+> Itse ele oli edelleen rikki neljällä muulla tavalla — ks.
+> *Yhden sormen zoom oli rikki — neljä eri vikaa*.
+
 ## Kaksi kokeilua jotka eivät jääneet — älä tee uudestaan
 
 Molemmat rakennettiin, mitattiin ja poistettiin. Luvut kannattaa lukea, koska
@@ -2826,3 +2830,153 @@ päivittää: musteramppi ei muutu väriasteikkoasetuksesta.
 Testattu 90 napautuksella 60 ms välein satunnaisessa järjestyksessä: ei
 virheitä, ja lopputila on kaikilta osin yhtenäinen (sirut, localStorage,
 laattaosoite, sekoitustila tokenissa ja inlinessä, LUTit, alfa).
+
+## Yhden sormen zoom oli rikki — neljä eri vikaa
+
+Tuplanapauta ja vedä pystysuunnassa (`_installDoubleTapZoom`) nytkähti niin
+pahasti että ele oli käytännössä käyttökelvoton. Vikoja oli neljä, ja vain
+yksi niistä oli se joka näkyi.
+
+**Mittari.** Se maantieteellinen piste joka oli sormen alla tuplanapautuksen
+hetkellä. Jos ankkuri on oikein, sen container-piste ei liiku eleen aikana
+lainkaan. Jokainen pikseli jonka se liikkuu on kartan hyppy. Toinen luku on
+suurin yhden ruudun siirtymä.
+
+```
+                       ankkurin liike     suurin ruutuhyppy
+ennen (7 elettä)       0–245 px           0–211 px
+jälkeen                0.0 px             0.0 px
+```
+
+### 1. Leafletin oma veto panoroi samaan aikaan
+
+Tämä kaatoi eleen kokonaan ja se on tärkein havainto. Leafletin `Draggable`
+kuuntelee `touchmove`a **dokumentista** (se lisää kuuntelijan `_onDown`issa),
+ja tämä moduuli kuuntelee karttasäiliöstä. `preventDefault` ei estä toista
+kuuntelijaa mitenkään — se ei ole `stopPropagation` — eikä
+`stopImmediatePropagation` auttaisi, koska se pysäyttää vain **saman
+elementin** myöhemmät kuuntelijat.
+
+Mitattuna jokainen sormenliike tuotti kaksi kartan siirtoa peräkkäin:
+
+```
+move  →  map:drag   (Leaflet panoroi sormen mukana)
+      →  map:zoom   (tämä moduuli asettaa keskipisteen absoluuttisesti)
+```
+
+Ne laskevat keskipisteen eri lähtökohdasta, joten kartta nytkähti joka
+ruudussa. `map.dragging.disable()` eleen ajaksi on ainoa oikea korjaus;
+Leaflet tekee saman `BoxZoom`issa. Palautus `enable()`llä on tehtävä
+**jokaisella** poistumistiellä, myös `touchcancel`issa ja silloin kun toinen
+sormi vie eleen nipistykselle — muuten karttaa ei voi enää panoroida
+lainkaan ennen sivun uudelleenlatausta.
+
+### 2. Ankkuri oli väärässä paikassa
+
+Vanha versio laski siirtymän vain x-akselilla:
+
+```js
+var delta = L.point(dtz.startPt.x - dtz.centerPt.x, 0);   /* y aina 0 */
+```
+
+Napautettu piste päätyi siis kohtaan **(napautus.x, ruudun keskiY)**.
+Ensimmäinen `_move` siirsi karttaa pystysuunnassa sen verran kuin napautus
+oli keskikohdasta — ruudun yläosasta napautettaessa yli 200 px, ennen kuin
+zoomia oli tapahtunut lainkaan. Oikea siirtymä on `startPt - centerPt`
+molemmilla akseleilla. Johto:
+
+```
+containerPoint(L) = project(L,z) - pixelOrigin
+pixelOrigin       = project(center,z) - size/2
+center = unproject(project(L,z) - (startPt - centerPt))
+  ⇒ containerPoint(L) = startPt
+```
+
+### 3. `zoomstart` ei syttynyt
+
+`map._move()` lähettää vain `move`n ja `zoom`in. Ilman `_moveStart(true,
+false)` -kutsua `zoomstart` jäi kokonaan lähettämättä, jolloin
+`State.liikkeessa` oli epätosi koko eleen ajan — se ohjaa `IdwPainot`-muistia
+ja suorituskyvyn vaihemittaria. Leafletin oma `TouchZoom` kutsuu
+`_moveStart`ia täsmälleen samasta syystä ensimmäisellä liikkeellä.
+
+### 4. Vapina näkyi nurkassa
+
+Yhden sormen veto tarvitsee saman One Euro -suotimen kuin nipistys, vaikka
+siinä ei olekaan nipistyksen skaalavipua. Mittari on ruudun nurkan liike —
+zoomvirhe siirtää ankkurista etäisyydellä `r` olevaa pistettä määrän
+`r*ln2*dz`, joten nurkka on herkin kohta. Suunnanvaihdot hitaassa vedossa
+(200 px / 2 s):
+
+```
+sormen vapina    ennen        jälkeen
+±0 px             0            0
+±1,5 px          14            0
+±3 px            40            2
+```
+
+Keskimääräinen nykäys putosi samalla 5.91 → 2.25 px (±1,5 px vapinalla).
+Hinta on 6.2 px nurkassa sillä hetkellä kun sormi pysähtyy, ja se kuroutuu
+0.2 px:ään 300 ms:ssä. **Ankkuri ei kärsi lainkaan**: suodin vaikuttaa vain
+zoomin nopeuteen, ei siihen mihin ankkuri kiinnittyy.
+
+Suodin nostettiin nipistyksen IIFE:stä ulos (`OneEuro`, `Alipaasto` ja
+vakiot ovat nyt moduulitasolla), koska kaksi kopiota olisi tarkoittanut
+kahta viritystä jotka erkanevat toisistaan. Suodatettava suure on sormen y
+ruudulla — samat yksiköt ja sama dynamiikka kuin nipistyksessä.
+
+### Sivulöydökset
+
+- **`setZoomAround` on rajattava ennen kutsua, ei sen sisällä.** Se laskee
+  uuden keskipisteen *pyydetyn* zoomin skaalalla ja vasta sitten `setView`
+  rajaa zoomin. Maksimizoomissa se antoi kertoimen 2 mukaisen
+  keskipistesiirtymän mutta zoomia ei tullut: kartta panoroi **61 px** ilman
+  että mitään zoomattiin. Korjaus on `map._limitZoom(startZoom + 1)` ennen
+  kutsua ja koko kutsun ohittaminen jos tulos on sama.
+- **Napautus ja veto on erotettava kynnyksellä, ei jälkikäteen.** Vanha
+  versio zoomasi jo ensimmäisestä liikkeestä mutta päätti vasta
+  `touchend`issä oliko kyse napautuksesta (pystymatka < 10 px) — eli lyhyt
+  veto ensin zoomasi vähän ja sitten hyppäsi kokonaisen tason. Nyt 8 px:n
+  kynnys ratkaisee molemmat. **Kynnysvertailu tehdään raa'alla sijainnilla
+  ja zoom suodatetulla**: toisin päin suotimen alkuvaimennus siirtäisi
+  kynnyksen ylitystä ajassa eteenpäin ja ele tuntuisi tahmealta lähtiessään.
+- **`State._dragZooming` oli kuollut.** Sitä luettiin `moveend`in ja
+  `zoomend`in alussa paluuehtona mutta ei asetettu todeksi missään. Kaksi
+  vartijaa jotka lupasivat ohittaa lämpökartan ja spottien uudelleenpiirron
+  tuplanapautuszoomin ajaksi — mutta juuri se piirto on eleen lopussa
+  tehtävä. Poistettu; käytös ei muuttunut, koska lippu oli aina epätosi.
+- **Toisen sormen laskeutuessa EI saa kutsua `nipistysPaattyy`ta.**
+  `TouchZoom`in oma `_onTouchStart` on rekisteröity kartan luonnissa eli
+  ennen tätä moduulia, ja se on jo ehtinyt kutsua `nipistysAlkaa`. Lopetus
+  nollaisi juuri sytytetyn lipun ja veisi alipikselitarkkuuden koko
+  nipistykseltä. Siksi purku on kahtena funktiona: `siivoa(lopetaNipistys)`
+  ja sen päällä `paataEle`.
+- **Kesken oleva zoom-animaatio viedään loppuun eikä eleestä luovuta.**
+  Leafletin `TouchZoom` kieltäytyy kun `_animatingZoom` on päällä, mutta
+  täällä se tarkoittaisi että nopea "zoomaa sisään, zoomaa lisää" -sarja
+  tiputtaa joka toisen eleen 250 ms:n ikkunassa. `map._onZoomTransitionEnd()`
+  on suojattu omalla lipullaan, joten kutsu on turvallinen.
+- **Vartija kadonneen `touchend`in varalta.** Yhden sormen `touchstart`
+  kesken oman eleen tarkoittaa että edellinen ele ei saanut `touchend`iä —
+  käytännössä siksi että kohde-elementti ehti poistua DOMista (`renderSpots`
+  luo spottimerkit uusiksi, ja tuplanapautus voi osua juuri merkkiin). Ilman
+  vartijaa `dragging` jäisi pysyvästi pois päältä. Mitattuna Chromium ohjaa
+  tapahtuman irronneen solmun sijaan lähimpään kiinni olevaan esi-isään,
+  joten tätä ei nykyselaimessa laukea — vartija on siltä varalta ettei niin
+  ole.
+
+### Testaamisen sudenkuoppa
+
+**CDP:n `Input.dispatchTouchEvent` ei kelpaa peräkkäisiin eleisiin.**
+Ensimmäinen mittausajo näytti että ele toimii vain ruudun alaosassa ja
+panoroi muualla. Vika oli mittarissa: eleiden välille jäi tilaa ja
+**toinen `touchstart` katosi kokonaan**, jolloin sarjan seuraavat eleet
+mittasivat Leafletin tavallista panorointia. Sama ele yksinään ajettuna
+toimi joka kerta.
+
+Ratkaisu on luoda `TouchEvent`it sivulla itse (`new Touch(...)` +
+`new TouchEvent(...)` + `dispatchEvent` karttasäiliöön). Ne kuplivat
+dokumenttiin asti, joten Leafletin oma vetokäsittelijä näkee ne samalla
+tavalla kuin oikeat — juuri sitä yhteispeliä tässä testataan. Ainoa asia
+joka ei ole uskollinen on selaimen natiivi vieritys, eikä sillä ole tässä
+merkitystä.
