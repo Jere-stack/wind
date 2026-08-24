@@ -3426,3 +3426,186 @@ Se on tarkoituksella pienempi kuin mikään muu teksti sovelluksessa — lukema
 jota vilkaistaan, ei luetaan. `bottom: 0` + `padding-bottom` eikä
 `bottom: calc(...)`, jotta merkintä ei koskaan valu turva-alueen alle
 laitteella jolla `--sab-tl` on pieni.
+
+## Havaintoasemien kortit — mitä FMI antaa ja mitä siitä näytettiin
+
+Käyttäjä kysyi miksi Vuosaaren asemalla ei näy kartalla dataa. Vastaus ei
+ollut koodissa vaan asemassa — mutta koodi teki siitä kolme eri vikaa.
+
+### Vuosaari: asema on hiljaa, eikä sitä sanottu
+
+FMISID **151028 (Helsinki Vuosaari satama)** lakkasi lähettämästä
+**18.8.2026 klo 10:00 UTC**. Mitattuna kahden vuorokauden ikkunoissa:
+
+```
+1.–3.8.    98 riviä, kaikki kelvollisia
+10.–12.8.  98 riviä, kaikki kelvollisia
+17.–19.8.  98 riviä, 70 kelvollista   ← katko alkaa 18.8. klo 11
+20.–22.8.   0 riviä
+22.–24.8.   0 riviä
+```
+
+Asema on FMI:n rekisterissä yhä auki (`Automaattinen sääasema`), joten
+kyseessä on anturikatko eikä lakkautus. Lähin **toimiva** tuuliasema on
+Sipoo Itätoukki 12,0 km päässä; Vuosaaren satamassa ei ole toista
+tuulihavaintoa (0,1 km:n päässä oleva 104089 on kolmannen osapuolen
+ilmanlaatuasema eikä vastaa säähakuun lainkaan).
+
+Mitä sovellus teki väärin:
+
+- **Kartalla** merkki oli mykkä. `_fmiLoadWithFallback` kutsuttiin yhden
+  aseman listalla, joten varatietä ei ollut, ja epäonnistuminen jätti
+  pillerin tyhjäksi. Tyhjä pilleri näyttää samalta kuin lataamaton — ei
+  voinut päätellä oliko vika asemassa, verkossa vai sovelluksessa.
+- **Kortissa** sijaisuus tehtiin **hiljaa**. Otsikossa luki "Helsinki
+  Vuosaari satama", herossa Itätoukin lukema, ja ainoa vihje oli
+  8 px harmaa rivi kaavion alla jossa luki toisen aseman nimi. Se on
+  pahempi kuin tyhjä kortti: se on väärä vastaus oikean näköisenä.
+- **Historiaikkuna oli 24 h**, joten Vuosaaren omaa dataa ei löytynyt
+  vaikka sitä on. 168 tunnin ikkunalla se löytyy — ja siinä on koko juttu:
+  aseman viimeiset tunnit ovat yhä katsomisen arvoisia.
+
+Korjaus on kolmiosainen:
+
+1. **API kertoo iän.** `ageMin` ja `lastIso` sekä uusimmassa havainnossa
+   että historiassa. Ilman sitä käyttöliittymä ei voi erottaa "hiljainen
+   asema" -tilaa "asemaa ei ole" -tilasta.
+2. **Kartan merkki kertoo tilansa**: katkoviiva, himmennys ja teksti
+   "ei signaalia" pillerin lukeman tilalla (`_pilleri(..., hiljainen)`).
+   Merkki jää kartalle, koska asema on oikeasti olemassa.
+3. **Kortti näyttää aina sen aseman jota napautettiin.** Sijaisuus tulee
+   vasta jos omalla asemalla ei ole dataa lainkaan seitsemään
+   vuorokauteen — ja silloin otsikkokin vaihtuu. Hiljaisen aseman kortti
+   näyttää oman datansa vanhana (hero 45 % peitteellä), sanoo milloin se
+   päättyi, ja tarjoaa yhden painalluksen päässä lähimmän **tuoreen**
+   aseman ("Nyt lähistöllä · Sipoo Itätoukki 12 km · 6.8 m/s").
+
+`fetchMaritime`in bbox-varatie **poistettiin historiapolusta**: se olisi
+palauttanut toisen aseman datan tämän aseman nimellä, eli tehnyt
+palvelimella juuri sen minkä käyttöliittymästä poistettiin. Sijainen
+valitaan nyt siellä missä se voidaan myös sanoa.
+
+### Mitä FMI oikeasti antaa
+
+Kaikki mitattu opendata.fmi.fi:stä, asema 105392:
+
+| | timevaluepair | multipointcoverage |
+|---|---|---|
+| 7 vrk / 10 min / 3 parametria | 993 kt | **84 kt** |
+| sama + lämpötila | — | 89,5 kt (gzip 11,9 kt) |
+
+**Kaksitoistakertainen ero**, ja syy on formaatti: timevaluepair kirjoittaa
+jokaisen arvon omaan `<wml2:point><wml2:MeasurementTVP>`-rakenteeseensa,
+multipointcoverage on kaksi tekstiblokkia — aikaleimat ja luvut riveittäin.
+
+Kaksi rajaa jotka kannattaa muistaa:
+
+- **Aikaikkunan katto on 7 vrk.** 168 h menee läpi, 192 h vastaa
+  `Too long time interval requested!`. Siksi kortin pisin jakso on 7 vrk
+  eikä jokin pyöreämpi luku.
+- **`timestep` on validoitu.** `timestep=180` palauttaa nolla riviä
+  hiljaa, ei virhettä — sillä meni ensimmäinen "onko asema ollut hiljaa
+  aiemminkin" -mittaus pieleen, kunnes sama ikkuna arvolla 60 antoi täyden
+  datan.
+
+**Suunta ja lämpötila olivat aina saatavilla** samalla 10 minuutin
+tiheydellä; niitä ei vain pyydetty. Siksi kaavion tooltipin
+suuntanuoli oli kuollutta koodia — `p.d` oli aina `null`.
+
+Nyt `history=1` ottaa `hours`-parametrin (1…168, oletus 24) ja palauttaa
+`ws` (suunnalla), `wg`, `ta` sekä `ageMin`. Kortti pyytää 168 h,
+karttamerkit 24 h — merkit tarvitsevat historian vain aikajanan
+liu'utukseen. Käynnistys **halpeni** silti, koska sama 24 h tulee nyt
+kompaktissa muodossa: 25 kt (gzip 2,9 kt) aiemman 151 kt XML:n sijaan.
+
+`api/kruunuvuori.js` sai saman `hours`-parametrin (oletus 30, katto 336).
+Sen CSV kattaa noin 14 vrk kymmenen minuutin välein — dataa oli koko ajan,
+sitä vain leikattiin 30 tuntiin siltä ajalta kun kortti näytti korkeintaan
+vuorokauden.
+
+### Kaavio: neljä suuretta, yksi akseli
+
+**Suunta ei ole toinen y-akseli.** Asteet ja metrit sekunnissa eivät mahdu
+samalle akselille ilman että kahden asteikon kohdistus keksitään, ja
+keksitty kohdistus näyttää korrelaation jota datassa ei ole. Suunta on oma
+nauhansa kuvan alla: **kulma kertoo suunnan, väri nopeuden.** Lämpötila on
+samasta syystä vain lukemana ja tooltipissa, ei viivana.
+
+**Puuska ei ole oma viivansa.** Vanha kaavio piirsi tuulen vihreällä
+(`#2A702D`) ja puuskan oliivilla (`#7A5D07`). Mitattuna paneelin beigeä
+vasten ne ovat normaalille näölle **dE 10,9** ja protanoopille **dE 3,6** —
+käytännössä sama väri, eli viivat erosivat vain siinä että toinen oli
+ylempänä. Eikä hyvää toista sävyä ole olemassakaan: tuuliviiva on
+väriramppi joka käy läpi vihreän, kullan, oranssin ja magentan, joten mikä
+tahansa kiinteä sävy törmää siihen jossain kohtaa asteikkoa.
+
+Ratkaisu on **vaihtaa kanavaa**: puuska on vyöhyke tuuliviivan yläpuolella.
+Vyöhykkeen paksuus *on* puuskaisuus — juuri se mitä foilaaja kaaviosta
+lukee — eikä sitä tarvitse päätellä kahden samanvärisen viivan
+välimatkasta. Selitteessä tuulen avain on **sama gradientti kuin viiva**,
+koska viivalla ei ole yhtä väriä.
+
+**Harvennus säilyttää huiput.** 7 vrk on 1008 havaintoa noin 300 pikselille.
+Joka n:nnen pisteen poiminta hukkaisi puuskapiikit — ja piikit ovat se syy
+miksi kaaviota katsotaan. Siksi data niputetaan: viiva on nipun keskiarvo,
+vyöhyke nipun pienimmästä tuulesta suurimpaan puuskaan. Kuudella tunnilla
+nippuun osuu yksi havainto ja vyöhyke kutistuu luonnostaan tuulen ja
+puuskan väliksi.
+
+Asiat jotka eivät ole ilmeisiä:
+
+- **Suuntien keskiarvo on ympyrällä.** 350° ja 10° ovat 20° päässä
+  toisistaan, mutta niiden aritmeettinen keskiarvo on 180° eli täsmälleen
+  väärään suuntaan. `_havSuuntaKeskiarvo` summaa yksikkövektorit.
+- **Yksi nuoli on koko välinsä**, ei yksi nippu. Muuten 7 vrk:n nauha olisi
+  kymmenen satunnaista pistenäytettä tuhannesta havainnosta: nuoli
+  näyttäisi kertovan päivän suunnan, vaikka se kertoisi puolentoista
+  tunnin suunnan sattumanvaraisesta kohdasta.
+- **X-akselin merkinnät valitaan AJASTA, ei nipun indeksistä.** Ensimmäinen
+  versio etsi nippuja joiden keskihetki osuu tasatunnille — ja 7 vrk:n
+  jaksossa yksi nippu on puolitoista tuntia, joten tasatunnille ei osu
+  kukaan. Akselilla luki "ke 19. pe 21. la 22. ma 24.": kolme päivää
+  seitsemästä puuttui ilman mitään sääntöä.
+- **Yli 30 h merkitään päivinä.** Pelkkä kellonaika on silloin
+  kaksiselitteinen: "12 00 12 00 12" ei kerro mistä päivästä on kyse.
+  Keskiyön kohdalla on jo pystyviiva, joten päivän nimi ankkuroidaan
+  keskipäivään.
+- **`var nayta` varjosti `function nayta`.** X-akselisilmukan boolean ja
+  tooltipin funktio olivat samassa funktioskoopissa samannimisinä, joten
+  hoistattu funktio korvautui booleanilla ja kosketus kaatui
+  (`nayta is not a function`). Sen huomasi vain konsolista — kaavio
+  näytti oikealta.
+- **Vaakasuoran viivan gradientti tarvitsee `gradientUnits="userSpaceOnUse"`.**
+  `<line>`-elementin rajauslaatikon korkeus on nolla, joten oletusarvoinen
+  `objectBoundingBox` rappeutuu eikä gradientti näy lainkaan. Selitteen
+  tuuliavain oli siksi ensin näkymätön.
+- **Tooltip nousee ylös kun piste on alapuoliskossa.** Muuten se peittää
+  suuntanauhan ja aikarivin, eli juuri ne kaksi asiaa joita samalla
+  luetaan.
+- **`ColorRamp.inkCss()`, ei `rgb()`.** Kortti on paperia (ks. *Kaksi
+  ramppia*). Mustetaulu rakennetaan uudelleen kun väriasteikkoasetus
+  vaihtuu, joten kaavio, nuolet, ruusu ja tilastoluvut seuraavat
+  värisokeusramppia ilman omaa haaraa.
+
+Tilastorivi (keskituuli, kovin puuska, vallitseva suunta, lämpötila) ja
+suoraan merkityt ääriarvot ovat siellä siksi, että **tooltip saa täydentää
+mutta ei portittaa**: jokainen luku on luettavissa myös koskematta
+kaavioon. Tuuliruusu vastaa siihen mitä aikasarja ei kerro — onko tämä
+pohjois- vai etelärannan paikka.
+
+### Vesikaavio siirtyi paperille
+
+`_uirasChartInteractive` oli jäänyt vanhaan tummaan palettiin: neonsyaani
+viiva, syaanit ääriarvomerkinnät, magenta aseman nimi ja lähes musta
+tooltip — beigen paneelin päällä. Sävyt vaihdettiin `--info`-tokeniin
+(#1C5C86, dokumentoitu veden väri) ja musteisiin.
+
+Samalla paljastui piilossa ollut vika: jaksovalitsimen **valittu** nappi
+oli `var(--surface)` beige `var(--surface-hi)` lähes valkoisella, eli
+1,1:1 — käytännössä näkymätön. Se ei näkynyt aiemmin, koska taustana oli
+syaani lasitus. Nyt valittu on mustetta korotetulla pinnalla, sama kuin
+tuulikaaviossa.
+
+**`--accent` on edelleen ainoa toimintoväri.** Aseman nimi ei ole toiminto,
+joten se on mustetta; valintamerkki ja valitsimen otsikko saavat pitää
+aksentin.

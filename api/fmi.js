@@ -24,8 +24,8 @@ const STATIONS = [
 
 function km(a,b,c,d){var R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;return R*2*Math.asin(Math.sqrt(Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2));}
 function nearest(lat,lng){return STATIONS.slice().sort(function(a,b){return km(lat,lng,a.lat,a.lng)-km(lat,lng,b.lat,b.lng);})[0];}
-function isDst(d){var mar=new Date(d.getFullYear(),2,31);mar.setDate(31-mar.getDay());var oct=new Date(d.getFullYear(),9,31);oct.setDate(31-oct.getDay());return d>=mar&&d<oct;}
-function toFiTime(iso){if(!iso)return'';var d=new Date(iso);d=new Date(d.getTime()+(isDst(d)?3:2)*3600000);return('0'+d.getUTCHours()).slice(-2)+':'+('0'+d.getUTCMinutes()).slice(-2);}
+/* Kellonajan muotoilu on hhmm() alempana — Intl:lla, ei kasin kirjoitetulla
+   kesaaikasaannolla. */
 
 function fetchUrl(url){
   return new Promise(function(resolve,reject){
@@ -60,6 +60,55 @@ function parseHistory(xml){
 }
 
 function makeBbox(lat,lng,d){return(lng-d).toFixed(4)+','+(lat-d).toFixed(4)+','+(lng+d).toFixed(4)+','+(lat+d).toFixed(4);}
+
+/* Historia haetaan multipointcoveragena, ei timevaluepairina.
+ *
+ * Sama sisalto, murto-osa tavuista: mitattuna 7 vrk / 10 min / 3 parametria
+ * on timevaluepairina 993 kt ja multipointcoveragena 84 kt — kaksitoista-
+ * kertainen ero. Syy on formaatti: timevaluepair kirjoittaa jokaisen arvon
+ * omaan <wml2:point><wml2:MeasurementTVP><wml2:time>-rakenteeseensa, kun
+ * multipointcoverage on kaksi tekstiblokkia: aikaleimat ja luvut riveittain.
+ *
+ * Formaatti:
+ *   <swe:field name="WindSpeedMS"/> ...   kertoo sarakejarjestyksen
+ *   <gmlcov:positions>  "lat lng epoch"   rivi per hetki
+ *   <gml:doubleOrNilReasonTupleList>      "6.6 7.6 311.0" rivi per hetki
+ * Puuttuva arvo on NaN. */
+function parseMultipoint(xml){
+  var fields=[],fm,fre=/<swe:field\s+name="([^"]+)"/g;
+  while((fm=fre.exec(xml))!==null)fields.push(fm[1]);
+  var pm=/<gmlcov:positions>([\s\S]*?)<\/gmlcov:positions>/.exec(xml);
+  var vm=/<gml:doubleOrNilReasonTupleList>([\s\S]*?)<\/gml:doubleOrNilReasonTupleList>/.exec(xml);
+  if(!fields.length||!pm||!vm)return null;
+  var pl=pm[1].trim().split('\n'),vl=vm[1].trim().split('\n');
+  var rows=[];
+  for(var i=0;i<pl.length&&i<vl.length;i++){
+    var pc=pl[i].trim().split(/\s+/);
+    if(pc.length<3)continue;
+    var sec=parseInt(pc[2],10);
+    if(isNaN(sec))continue;
+    var vc=vl[i].trim().split(/\s+/).map(parseFloat);
+    rows.push({ms:sec*1000,v:vc});
+  }
+  return {fields:fields,rows:rows};
+}
+
+/* HH:MM pyydetyssa aikavyohykkeessa. Kasin kirjoitettu kesaaikasaanto
+   korvattiin Intl:lla samasta syysta kuin api/harmonie.js:ssa: se osaa
+   myos muut vyohykkeet kuin Suomen eika mene kesaajan vaihtumisviikolla
+   sekaisin. Formatteri on kallis rakentaa, joten se muistetaan. */
+var _tzFmt = {};
+function hhmm(ms,tz){
+  if(!_tzFmt[tz]){
+    try{ _tzFmt[tz]=new Intl.DateTimeFormat('sv-SE',{timeZone:tz,hour:'2-digit',minute:'2-digit',hour12:false}); }
+    catch(e){ _tzFmt[tz]=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Helsinki',hour:'2-digit',minute:'2-digit',hour12:false}); }
+  }
+  return _tzFmt[tz].format(new Date(ms));
+}
+function kelpoTz(tz){
+  if(!tz)return null;
+  try{ new Intl.DateTimeFormat('sv-SE',{timeZone:tz}); return tz; }catch(e){ return null; }
+}
 
 /* Weather-asema: place-parametrilla (toimii varmasti) */
 function fetchWeather(place,params,start){
@@ -216,17 +265,29 @@ export default async function handler(req,res){
   }
 
   var isHistory=req.query.history==='1';
+  var tz=kelpoTz(req.query.tz)||'Europe/Helsinki';
+  /* FMI:n yksiselitteinen katto on 7 vrk: mitattuna 168 h menee lapi ja
+     192 h vastaa "Too long time interval requested!". Alaraja 1 h. */
+  var hours=Math.max(1,Math.min(168,parseInt(req.query.hours,10)||24));
   var start=isHistory
-    ?new Date(Date.now()-24*3600000).toISOString().slice(0,16)+'Z'
+    ?new Date(Date.now()-hours*3600000).toISOString().slice(0,16)+'Z'
     :new Date(Date.now()-60*60000).toISOString().slice(0,16)+'Z';
 
   if(isHistory)res.setHeader('Cache-Control','public, s-maxage=600, stale-while-revalidate=120');
   else res.setHeader('Cache-Control','public, s-maxage=300, stale-while-revalidate=60');
 
   try{
-    var histParams='WindSpeedMS,WindGust';
+    /* Historiassa on nyt myos suunta ja lampotila. Ne olivat aina FMI:lla
+       saatavilla samalla 10 min tiheydella — niita ei vain pyydetty, joten
+       graafi ei voinut nayttaa suuntaa lainkaan ja tooltipin nuoli oli
+       kuollutta koodia (p.d oli aina null). */
+    var histParams='WindSpeedMS,WindGust,WindDirection,Temperature';
     var latParams='WindSpeedMS,WindDirection,WindGust,Temperature,DewPoint';
     var params=isHistory?histParams:latParams;
+    if(isHistory){
+      var histXml=await fetchHistoryXml(station,params,start);
+      return res.status(200).json(buildHistory(histXml,station,tz));
+    }
     var xml;
     if(station.type==='fmisid'&&station.fmisid){
       /* Suora FMISID-haku — varmin tapa tunnetuille asemille */
@@ -240,21 +301,7 @@ export default async function handler(req,res){
       xml=await fetchWeather(station.place,params,start);
     }
 
-    if(isHistory){
-      var series=parseHistory(xml);
-      var ws=series['windspeedms']||[];
-      var wg=series['windgust']||[];
-      if(!ws.length)return res.status(200).json({error:'no data',station:station.name,place:station.place,ws:[],wg:[]});
-      /* iso = yksiselitteinen aikaleima. "t" (HH:MM) on pelkkää näyttöä varten —
-         se ei riitä yksin kun historia kattaa >24h, koska sama kellonaika
-         esiintyy silloin kahdesti (eilen ja tänään) eikä niitä voi erottaa
-         toisistaan enää HH:MM-merkkijonosta. */
-      return res.status(200).json({
-        station:station.name,place:station.place,
-        ws:ws.map(function(p){return{t:toFiTime(p.t),v:p.v,iso:p.t};}),
-        wg:wg.map(function(p){return{t:toFiTime(p.t),v:p.v,iso:p.t};}),
-      });
-    }else{
+    {
       var d=parseLatest(xml);
       var ws2=d['windspeedms']||null,wd=d['winddirection']||null,wg2=d['windgust']||null;
       var t=d['temperature']||null,dp=d['dewpoint']||null;
@@ -263,9 +310,58 @@ export default async function handler(req,res){
         station:station.name,place:station.place,
         ws:ws2.v,wd:wd?wd.v:null,wg:wg2?wg2.v:null,
         tmp:t?t.v:null,dew:dp?dp.v:null,
-        time:toFiTime(ws2.t),
+        time:hhmm(Date.parse(ws2.t),tz),
+        /* Havainnon ika minuutteina. Ilman tata kayttoliittyma ei voi
+           erottaa "asema on hiljaa" -tilaa "asemaa ei ole" -tilasta, ja
+           juuri se ero jai Vuosaaressa kertomatta. */
+        lastIso:ws2.t,
+        ageMin:Math.round((Date.now()-Date.parse(ws2.t))/60000),
       });
     }
   }catch(err){return res.status(500).json({error:err.message});}
 };
+
+/* Historian XML — sama asemalogiikka kuin uusimmalle havainnolle, mutta
+   aina multipointcoverage. Maritime-asemalle ei ajeta fetchMaritimea:
+   sen bbox-varatie palauttaisi TOISEN aseman datan taman aseman nimella,
+   ja juuri se hiljainen sijaisuus on se vika jota tassa korjataan.
+   Sijainen valitaan nyt selaimessa, jossa se voidaan myos sanoa. */
+function fetchHistoryXml(station,params,start){
+  var base='https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
+    +'&storedquery_id=fmi::observations::weather::multipointcoverage'
+    +'&parameters='+params+'&timestep=10&starttime='+start;
+  if(station.fmisid)return fetchUrl(base+'&fmisid='+station.fmisid);
+  return fetchUrl(base+'&place='+encodeURIComponent(station.place));
+}
+
+function buildHistory(xml,station,tz){
+  var tyhja={error:'no data',station:station.name,place:station.place,ws:[],wg:[],ta:[]};
+  var mp=xml?parseMultipoint(xml):null;
+  if(!mp||!mp.rows.length)return tyhja;
+  var iWs=mp.fields.indexOf('WindSpeedMS'),iWg=mp.fields.indexOf('WindGust');
+  var iWd=mp.fields.indexOf('WindDirection'),iTa=mp.fields.indexOf('Temperature');
+  if(iWs<0)return tyhja;
+  var ws=[],wg=[],ta=[],viimeMs=null;
+  for(var i=0;i<mp.rows.length;i++){
+    var r=mp.rows[i],v=r.v[iWs];
+    /* iso = yksiselitteinen aikaleima. "t" (HH:MM) on pelkkaa nayttoa
+       varten — se ei riita yksin kun historia kattaa yli vuorokauden,
+       koska sama kellonaika esiintyy silloin useasti. */
+    var iso=new Date(r.ms).toISOString();
+    if(v!=null&&!isNaN(v)){
+      ws.push({t:hhmm(r.ms,tz),v:v,d:(iWd>=0&&!isNaN(r.v[iWd]))?r.v[iWd]:null,iso:iso});
+      viimeMs=r.ms;
+      if(iWg>=0&&!isNaN(r.v[iWg]))wg.push({t:hhmm(r.ms,tz),v:r.v[iWg],iso:iso});
+    }
+    if(iTa>=0&&!isNaN(r.v[iTa]))ta.push({t:hhmm(r.ms,tz),v:r.v[iTa],iso:iso});
+  }
+  if(!ws.length)return tyhja;
+  return {
+    station:station.name,place:station.place,
+    lat:station.lat,lng:station.lng,
+    ws:ws,wg:wg,ta:ta,
+    lastIso:new Date(viimeMs).toISOString(),
+    ageMin:Math.round((Date.now()-viimeMs)/60000),
+  };
+}
 

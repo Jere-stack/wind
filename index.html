@@ -7907,8 +7907,8 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     var lx=xOf(idx), ly=yOf(draw[idx].v);
     var anchor=lx<padX+30?'start':lx>W-30?'end':'middle';
     var oy=isMax?-13:13;
-    return '<circle cx="'+lx.toFixed(1)+'" cy="'+ly.toFixed(1)+'" r="2.5" fill="'+(isMax?'var(--ink)':'rgba(0,150,210,.6)')+'" pointer-events="none"/>'
-      +'<text x="'+lx.toFixed(1)+'" y="'+(ly+oy).toFixed(1)+'" font-size="8" fill="'+(isMax?'rgba(0,220,255,.8)':'rgba(0,170,210,.55)')+'" text-anchor="'+anchor+'" pointer-events="none">'+draw[idx].v.toFixed(1)+'°</text>';
+    return '<circle cx="'+lx.toFixed(1)+'" cy="'+ly.toFixed(1)+'" r="2.5" fill="'+(isMax?'var(--ink)':'#4C5960')+'" pointer-events="none"/>'
+      +'<text x="'+lx.toFixed(1)+'" y="'+(ly+oy).toFixed(1)+'" font-size="8" fill="'+(isMax?'#1C5C86':'#4C5960')+'" text-anchor="'+anchor+'" pointer-events="none">'+draw[idx].v.toFixed(1)+'°</text>';
   }
   var minMaxLabels=(maxV-minV>0.5)?(mkCallout(maxIdx,true)+mkCallout(minIdx,false)):'';
 
@@ -7919,10 +7919,13 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
   var periods=[['7d','7 vrk'],['30d','30 vrk'],['all','Max']];
   var segBtns=periods.map(function(pv){
     var a=pv[0]===period;
-    return '<button data-up="'+pv[0]+'" style="flex:1;font-variant-numeric:tabular-nums;font-size:9px;padding:4px 6px;border:none;white-space:nowrap;'
-      +'background:'+(a?'rgba(0,210,255,.18)':'transparent')+';'
-      +'color:'+(a?'var(--surface)':'var(--ink-2)')+';'
-      +'border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:all .15s">'+pv[1]+'</button>';
+    /* Sama valitsin kuin tuulikaaviossa: valittu on mustetta korotetulla
+       pinnalla. Aiemmin valittu oli var(--surface) eli beige lähes
+       valkoisella — 1.1:1, käytännössä näkymätön. */
+    return '<button data-up="'+pv[0]+'" aria-pressed="'+(a?'true':'false')+'" style="flex:1;font-variant-numeric:tabular-nums;font-size:9px;padding:4px 6px;border:none;white-space:nowrap;'
+      +'background:'+(a?'var(--surface-hi)':'transparent')+';'
+      +'color:'+(a?'var(--ink)':'var(--ink-3)')+';font-weight:'+(a?'600':'400')+';'
+      +'border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:background .15s,color .15s">'+pv[1]+'</button>';
   }).join('');
 
   el.innerHTML=
@@ -7943,9 +7946,9 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
       +'<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" style="width:calc(100% + 18px);margin-left:-18px;display:block;touch-action:none;overflow:visible">'
         +'<defs>'
           +'<linearGradient id="'+gradId+'" x1="0" y1="0" x2="0" y2="1">'
-            +'<stop offset="0%" stop-color="rgba(42,112,45,.22)"/>'
-            +'<stop offset="55%" stop-color="rgba(0,160,220,.1)"/>'
-            +'<stop offset="100%" stop-color="rgba(0,120,200,.0)"/>'
+            +'<stop offset="0%" stop-color="rgba(28,92,134,.22)"/>'
+            +'<stop offset="55%" stop-color="rgba(28,92,134,.10)"/>'
+            +'<stop offset="100%" stop-color="rgba(28,92,134,0)"/>'
           +'</linearGradient>'
         +'</defs>'
         /* Y-akseli + grid */
@@ -7953,15 +7956,15 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
         /* Aluegradietti */
         +'<path d="'+areaPath+'" fill="url(#'+gradId+')" />'
         /* Viiva */
-        +'<path d="'+linePath+'" fill="none" stroke="rgba(0,210,255,.95)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
+        +'<path d="'+linePath+'" fill="none" stroke="#1C5C86" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
         /* Min/max */
         +minMaxLabels
         /* Viimeisin piste */
-        +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastY.toFixed(1)+'" r="5" fill="rgba(42,112,45,.18)" pointer-events="none"><animate attributeName="r" values="4;8;4" dur="3s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.6;0;0.6" dur="3s" repeatCount="indefinite"/></circle>'
-        +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastY.toFixed(1)+'" r="3.5" fill="#B4005A" stroke="#4C5960" stroke-width="1.5" pointer-events="none"/>'
+        +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastY.toFixed(1)+'" r="5" fill="rgba(28,92,134,.20)" pointer-events="none"><animate attributeName="r" values="4;8;4" dur="3s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.6;0;0.6" dur="3s" repeatCount="indefinite"/></circle>'
+        +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastY.toFixed(1)+'" r="3.5" fill="#1C5C86" stroke="var(--surface-hi)" stroke-width="1.5" pointer-events="none"/>'
         /* Crosshair */
         +'<line id="'+svgId+'-vl" x1="-1" y1="'+padY+'" x2="-1" y2="'+H+'" stroke="#CDBE9A" stroke-width="1" stroke-dasharray="3,3" pointer-events="none"/>'
-        +'<circle id="'+svgId+'-dot" cx="-1" cy="-1" r="4.5" fill="#B4005A" stroke="#4C5960" stroke-width="1.5" pointer-events="none" visibility="hidden"/>'
+        +'<circle id="'+svgId+'-dot" cx="-1" cy="-1" r="4.5" fill="#1C5C86" stroke="var(--surface-hi)" stroke-width="1.5" pointer-events="none" visibility="hidden"/>'
         /* Hit */
         +'<rect id="'+svgId+'-hit" x="'+padX+'" y="'+padY+'" width="'+(W-padX-8)+'" height="'+(H-padY)+'" fill="transparent" style="cursor:crosshair"/>'
         /* X-akseli */
@@ -7972,7 +7975,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     /* Footer */
     +'<div style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;padding:0 2px">'
       +'<div style="font-variant-numeric:tabular-nums;font-size:8px;color:var(--ink-3)">'+(sourceLabel||'UiRas')+' · '+(stationName||'')+'</div>'
-      +'<div style="font-variant-numeric:tabular-nums;font-size:13px;color:rgba(0,210,255,.9);font-weight:700;letter-spacing:-.3px">'+lastVal.toFixed(1)+'<span style="font-size:9px;font-weight:400;color:rgba(0,210,255,.5)"> °C</span></div>'
+      +'<div style="font-variant-numeric:tabular-nums;font-size:13px;color:#1C5C86;font-weight:700;letter-spacing:-.3px">'+lastVal.toFixed(1)+'<span style="font-size:9px;font-weight:400;color:var(--ink-3)"> °C</span></div>'
     +'</div>';
 
   /* Tooltip interaktio */
@@ -8037,10 +8040,10 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
         +'border-radius:8px;font-variant-numeric:tabular-nums;font-size:9px;'
         +'color:var(--accent);cursor:pointer;padding:4px 10px;'
         +'-webkit-user-select:none;user-select:none;">'
-        +'<span style="font-weight:700;color:var(--accent)">'+st.name+'</span>'
+        +'<span style="font-weight:700;color:var(--ink)">'+st.name+'</span>'
         +'<span style="color:var(--ink-3);font-size:8px;margin-left:2px">'+st.km.toFixed(1)+'km</span>'
         +'<svg width="12" height="12" viewBox="0 0 12 12" style="flex-shrink:0;margin-left:2px">'
-          +'<polyline points="2,4 6,8 10,4" fill="none" stroke="rgba(0,220,255,.85)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+          +'<polyline points="2,4 6,8 10,4" fill="none" stroke="#1C5C86" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
         +'</svg></button>';
     }
 
@@ -8060,8 +8063,8 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
           +'</div></div>';
       }).join('');
       return '<div id="'+menuId+'" style="display:none;position:absolute;top:calc(100% + 6px);left:0;'
-        +'min-width:190px;background:rgba(10,14,28,.98);border:1px solid var(--hairline);'
-        +'border-radius:14px;overflow:hidden;z-index:300;box-shadow:0 12px 40px rgba(0,0,0,.7);'
+        +'min-width:190px;background:var(--surface-hi);border:1px solid var(--hairline);'
+        +'border-radius:14px;overflow:hidden;z-index:300;box-shadow:var(--shadow-2);'
         +'-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)">'+items+'</div>';
     }
 
@@ -8113,9 +8116,9 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
             _updateUirasCard(wsIdRef,latest[st.id].temp,st.name);
           el._period=period;
           if(pts2&&pts2.length) _uirasChartInteractive(el,pts2,st.name,st,spotLat,spotLng);
-          else el.innerHTML='<div style="font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.6);text-align:center;padding:16px">Ei dataa</div>';
+          else el.innerHTML='<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:16px">Ei dataa</div>';
         }).catch(function(){
-          el.innerHTML='<div style="font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.6);text-align:center;padding:16px">Ei dataa</div>';
+          el.innerHTML='<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:16px">Ei dataa</div>';
         });
         return;
       }
@@ -8130,7 +8133,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
         if(m) m.style.display='none';
       });
     }
-  } else if(ddEl){    ddEl.innerHTML='<span style="font-variant-numeric:tabular-nums;font-size:9px;color:var(--accent)">'+(stationName||'Vedenlämpö')+'</span>';
+  } else if(ddEl){    ddEl.innerHTML='<span style="font-variant-numeric:tabular-nums;font-size:9px;color:var(--ink-2)">'+(stationName||'Vedenlämpö')+'</span>';
   }
 
 }
@@ -8183,23 +8186,32 @@ function _addObsMarkers(map) {
      siitä onko kyse tuulesta vai vedenlämmöstä. Kun pinta on yhteinen,
      glyfi jää ainoaksi eroksi — ja glyfi on juuri se joka kertoo mistä
      suureesta on kyse. */
-  function _pilleri(glyfi, arvo, yksikko) {
+  /* hiljainen = asema on olemassa mutta ei lähetä. Se on eri asia kuin
+     "ei vielä ladattu", ja ero on kerrottava: Vuosaaren satama-asema oli
+     hiljaa kuusi vuorokautta ja kartalla näkyi vain tyhjä pilleri, josta
+     ei voinut päätellä oliko vika asemassa, verkossa vai sovelluksessa.
+     Katkoviiva ja himmennys sanovat "tunnettu asema, ei signaalia". */
+  function _pilleri(glyfi, arvo, yksikko, hiljainen) {
     return '<div style="'
         +'display:inline-flex;align-items:baseline;gap:3px;'
         +'background:'+PILL_BG+';'
-        +'border:1px solid '+PILL_LINE+';'
+        +'border:1px '+(hiljainen?'dashed':'solid')+' '+PILL_LINE+';'
         +'border-radius:5px;'
         +'padding:2px 5px;'
         +'cursor:pointer;'
+        +(hiljainen?'opacity:.6;':'')
         +'backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);'
         +'box-shadow:0 1px 4px rgba(0,0,0,.45);'
         +'white-space:nowrap;'
       +'">'
         +'<span style="align-self:center;display:flex">'+glyfi+'</span>'
-        +'<span style="font-variant-numeric:tabular-nums;font-weight:500;font-size:11px;'
-          +'color:'+INK_1+';line-height:1;letter-spacing:-0.2px">'+arvo+'</span>'
-        +'<span style="font-variant-numeric:tabular-nums;font-size:6.5px;'
-          +'color:'+INK_2+';line-height:1">'+yksikko+'</span>'
+        +(hiljainen
+          ? '<span style="font-variant-numeric:tabular-nums;font-size:7.5px;'
+            +'color:'+INK_2+';line-height:1;letter-spacing:.3px">ei signaalia</span>'
+          : '<span style="font-variant-numeric:tabular-nums;font-weight:500;font-size:11px;'
+            +'color:'+INK_1+';line-height:1;letter-spacing:-0.2px">'+arvo+'</span>'
+            +'<span style="font-variant-numeric:tabular-nums;font-size:6.5px;'
+            +'color:'+INK_2+';line-height:1">'+yksikko+'</span>')
       +'</div>';
   }
 
@@ -8294,13 +8306,13 @@ function _addObsMarkers(map) {
    *
    * Yksikkö pidetään mukana, koska se on käyttäjän vaihdettavissa
    * (m/s ↔ solmut) eikä pelkkä luku kertoisi kumpi on kyseessä. */
-  function mkWindIcon(zoom, ws, stName, isPrim) {
+  function mkWindIcon(zoom, ws, stName, isPrim, hiljainen) {
     var z = zoom || 5;
     if (isPrim && z >= 8) {
       /* Käytä appin yksikkömuunnosta — Units.fmt() + Units.label() */
       var wsStr = ws != null ? Units.fmt(ws) : '—';
       var unitLbl = Units.label();
-      var html = _pilleri(_windVaneSvg(INK_2, 10), wsStr, unitLbl);
+      var html = _pilleri(_windVaneSvg(INK_2, 10), wsStr, unitLbl, hiljainen);
       /* iconSize vastaa uutta, kapeampaa korttia — _avoidSpotOverlap mittaa
          väistökynnyksen suoraan elementistä, joten se seuraa tätä itsestään. */
       return L.divIcon({ className:'', html:html, iconAnchor:[0, 9], iconSize:[62, 18] });
@@ -8312,6 +8324,7 @@ function _addObsMarkers(map) {
         className:'',
         html:'<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;'
           +'background:'+(z < 8 ? INK_3 : INK_2)+';cursor:pointer;'
+          +(hiljainen?'opacity:.45;':'')
           +'box-shadow:0 0 0 1px rgba(9,13,21,.45)"></div>',
         iconSize:[sz,sz], iconAnchor:[sz/2,sz/2]
       });
@@ -8370,13 +8383,14 @@ function _addObsMarkers(map) {
    * HUOM: nämä on pidettävä samassa haarautumislogiikassa kuin itse ikonin
    * rakentajat yllä — jos rakentajan ehto tai sisältö muuttuu, muuta myös
    * tämä, muutoin ikoni voi jäädä vanhaan asuun. */
-  function _windIconSig(zoom, ws, isPrim) {
+  function _windIconSig(zoom, ws, isPrim, hiljainen) {
     var z = zoom || 5;
+    var hlj = hiljainen ? '|hlj' : '';
     if (isPrim && z >= 8) {
-      return 'p|' + (ws != null ? Units.fmt(ws) : '—') + '|' + Units.label();
+      return 'p|' + (ws != null ? Units.fmt(ws) : '—') + '|' + Units.label() + hlj;
     }
     /* Piste: koko ja läpinäkyvyys tulevat samoista zoom-kynnyksistä */
-    return 'd|' + (z < 8 ? 0 : z < 10 ? 1 : 2);
+    return 'd|' + (z < 8 ? 0 : z < 10 ? 1 : 2) + hlj;
   }
   function _waterIconSig(zoom, temp, isPrim) {
     var z = zoom || 5;
@@ -8481,10 +8495,10 @@ function _addObsMarkers(map) {
           if (hv !== null) { ws = hv.ws; wg = hv.wg; }
           /* hv === null → historia ei ulotu tähän hetkeen → pysytään latest:ssa */
         }
-        var sig = _windIconSig(z, ws, m.type === 'wind-prim');
+        var sig = _windIconSig(z, ws, m.type === 'wind-prim', m.hiljainen);
         if (sig !== m._iconSig) {
           m._iconSig = sig;
-          m.marker.setIcon(mkWindIcon(z, ws, m.stName, m.type === 'wind-prim'));
+          m.marker.setIcon(mkWindIcon(z, ws, m.stName, m.type === 'wind-prim', m.hiljainen));
         }
       } else {
         var wsig = _waterIconSig(z, m.temp, m.prim);
@@ -8542,24 +8556,37 @@ function _addObsMarkers(map) {
     FMI_MAP_STATIONS.forEach(function(st, stIdx) {
       var isPrim = !!PRIM_FMI[st.place];
       var stationList = [st];
-      _fmiLoadWithFallback(stationList, 24, function(okSt, latData, histData) {
-        /* Löydä markeri taulukosta */
-        var entry = null;
+      function loyda() {
         for (var k = 0; k < _obsMarkers.length; k++) {
-          if (_obsMarkers[k].place === st.place) { entry = _obsMarkers[k]; break; }
+          if (_obsMarkers[k].place === st.place) return _obsMarkers[k];
         }
+        return null;
+      }
+      _fmiLoadWithFallback(stationList, 24, function(okSt, latData, histData) {
+        var entry = loyda();
         if (!entry) return;
         /* Päivitä data */
         var ws = latData && latData.ws != null ? +latData.ws : null;
         var wg = latData && latData.wg != null ? +latData.wg : ws;
         entry.ws = ws; entry.wg = wg;
         entry.wsLatest = ws; entry.wgLatest = wg;
-        entry.history = histData; /* {ws:[{t,v,d}], wg:[{t,v}]} */
+        entry.history = histData; /* {ws:[{t,v,d}], wg:[{t,v}], ta:[{t,v}]} */
+        /* Historiaa on, mutta uusin havainto ei kelvannut tunnin ikkunaan
+           → asema on käytännössä hiljaa. */
+        entry.hiljainen = ws == null && !_havTuore(histData);
         /* Päivitä ikoni — pidä allekirjoitus mukana, jotta seuraava
            updateIcons() ei luo elementtiä uudelleen turhaan */
-        entry._iconSig = _windIconSig(map.getZoom(), ws, isPrim);
-        entry.marker.setIcon(mkWindIcon(map.getZoom(), ws, st.name, isPrim));
-      }, function() { /* Lataus epäonnistui — jätä tyhjäksi */ });
+        entry._iconSig = _windIconSig(map.getZoom(), ws, isPrim, entry.hiljainen);
+        entry.marker.setIcon(mkWindIcon(map.getZoom(), ws, st.name, isPrim, entry.hiljainen));
+      }, function() {
+        /* Ei havaintoja eikä historiaa — asema on hiljaa. Merkki jää
+           kartalle (se on oikeasti olemassa) mutta kertoo tilansa. */
+        var entry = loyda();
+        if (!entry) return;
+        entry.hiljainen = true;
+        entry._iconSig = _windIconSig(map.getZoom(), null, isPrim, true);
+        entry.marker.setIcon(mkWindIcon(map.getZoom(), null, st.name, isPrim, true));
+      });
     });
   })();
 
@@ -8731,6 +8758,9 @@ function _openObsSheet(type, station) {
       +'</div>'
     +'</div>'
 
+    /* -- Naapuriasema: täytetään vain jos tämä asema on hiljaa -- */
+    +'<div id="'+cid+'-naapuri"></div>'
+
     /* -- Graafi -- */
     +'<div id="'+cid+'" style="min-height:40px">'
       +'<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:20px;color:var(--ink-3);font-variant-numeric:tabular-nums;font-size:10px">'
@@ -8756,29 +8786,104 @@ function _openObsSheet(type, station) {
   }
 
   if(type==='fmi'){
-    /* Käytä valittua asemaa suoraan, sitten muut fallbackina */
-    var allStationsForFallback = _fmiStationsSorted(station.lat, station.lng);
-    /* Varmista että valittu asema on listassa ensimmäisenä */
-    var stList = [station].concat(allStationsForFallback.filter(function(s){ return s.place !== station.place; }));
-    _fmiLoadWithFallback(stList, 12,
+    /* Naapurit etäisyysjärjestyksessä — tarvitaan sekä sijaisena että
+       "nyt lähistöllä" -riville. */
+    var naapurit = _fmiStationsSorted(station.lat, station.lng)
+      .filter(function(s){ return s.place !== station.place; });
+    var naapuriEl = document.getElementById(cid+'-naapuri');
+
+    function heroArvo(d, tuore) {
+      var sub=Units.label();
+      if(d.wd!=null) sub+='\u2002'+dirArrow(d.wd)+' '+Math.round(d.wd)+'°';
+      if(d.time)     sub+='\u2002'+d.time;
+      updateHero(Units.fmt(d.ws), sub, _havInkCss(d.ws));
+      var ve=document.getElementById(valId);
+      if(ve) ve.style.opacity = tuore ? '1' : '.45';
+    }
+
+    /* Hakee lähimmän aseman jolla on TUORE lukema. Vain uusin havainto,
+       ei historiaa — tämä on yhden rivin lukema, ei toinen kaavio. */
+    function lahinTuore(lista, i, cb) {
+      if(i>=lista.length||i>=4){ cb(null); return; }
+      var s=lista[i];
+      fetch(API_BASE+'/fmi?place='+s.place+'&lat='+s.lat+'&lng='+s.lng)
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if(d&&!d.error&&d.ws!=null&&_havTuore(d)) cb(Object.assign({},d,{km:s.km,st:s}));
+          else lahinTuore(lista,i+1,cb);
+        })
+        .catch(function(){ lahinTuore(lista,i+1,cb); });
+    }
+
+    /* Rivi joka kertoo mistä saa tuoreen lukeman kun tämä asema on hiljaa.
+       Se on nappi: yksi painallus avaa naapuriaseman oman kortin. */
+    function naytaNaapuri(d) {
+      if(!naapuriEl||!d) return;
+      naapuriEl.innerHTML =
+        '<button type="button" style="width:100%;display:flex;align-items:center;gap:9px;margin-bottom:14px;padding:9px 11px;'
+        + 'border-radius:12px;background:var(--surface-hi);border:1px solid var(--hairline);cursor:pointer;text-align:left">'
+        + '<span style="font-size:7.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--ink-3);flex-shrink:0">Nyt lähistöllä</span>'
+        + '<span style="font-size:11px;color:var(--ink);font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+d.station+'</span>'
+        + '<span style="font-size:9px;color:var(--ink-3);flex-shrink:0">'+d.km.toFixed(0)+' km</span>'
+        + '<span style="margin-left:auto;flex-shrink:0;font-size:15px;font-weight:600;color:'+_havInkCss(d.ws)+'">'+Units.fmt(d.ws)
+        + '<span style="font-size:8.5px;font-weight:400;color:var(--ink-3)"> '+Units.label()+'</span></span>'
+        + '<svg width="7" height="11" viewBox="0 0 7 11" style="flex-shrink:0"><polyline points="1,1 6,5.5 1,10" fill="none" stroke="#5F696F" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+        + '</button>';
+      naapuriEl.firstChild.addEventListener('click', function(){
+        _openObsSheet('fmi', d.st);
+      }, {passive:true});
+    }
+
+    /* Vaihe 1: KLIKATTU asema, ei sijaista. Sijaisuus tehtiin ennen tässä
+       hiljaa, jolloin kortin otsikossa luki Vuosaari ja datassa oli
+       Itätoukki 12 km päästä — ainoa vihje oli 8 px harmaa rivi kaavion
+       alla. Nyt oma asema näytetään aina kun sillä on dataa, ja
+       vanhentuneisuus sanotaan sekä kaaviossa että herossa. */
+    _fmiLoadWithFallback([station], 168,
       function(okSt, latData, hist) {
-        if(latData&&latData.ws!=null){
-          var cc=ColorRamp.ink(latData.ws);
-          var wc='rgb('+cc.r+','+cc.g+','+cc.b+')';
-          var sub=Units.label();
-          if(latData.wd!=null) sub+='\u2002'+dirArrow(latData.wd)+' '+Math.round(latData.wd)+'°';
-          if(latData.time) sub+='\u2002'+latData.time;
-          updateHero(Units.fmt(latData.ws),sub,wc);
+        var tuore = _havTuore(hist);
+        if(latData&&latData.ws!=null) heroArvo(latData, _havTuore(latData));
+        else if(hist&&hist.ws.length){
+          /* Uusin havainto ei kelvannut latest-haulle (tunnin ikkuna),
+             mutta historiassa se on — näytä se vanhana. */
+          var vv=hist.ws[hist.ws.length-1];
+          heroArvo({ws:vv.v,wd:vv.d,time:vv.t}, false);
+        }
+        if(!tuore){
+          var chip=document.getElementById(chipId);
+          if(chip){
+            chip.textContent = srcLabel+' · viimeisin '+_havIkaTeksti(hist.ageMin);
+            chip.style.color = 'var(--ink-2)';
+          }
+          lahinTuore(naapurit, 0, naytaNaapuri);
         }
         if(el&&hist) _renderLiveHistory(el,Object.assign({},hist,{place:okSt.place}),latData);
       },
+      /* Vaihe 2: omalla asemalla ei ole dataa lainkaan seitsemään
+         vuorokauteen. Vasta silloin näytetään toisen aseman data — ja
+         silloin kortin otsikkokin vaihtuu, ei vain kaavion alarivi. */
       function() {
-        if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
+        _fmiLoadWithFallback(naapurit, 168,
+          function(okSt, latData, hist) {
+            var chip2=document.getElementById(chipId);
+            if(chip2){
+              chip2.innerHTML = '<span style="color:var(--ink-2)">'+station.name+' ei lähetä havaintoja</span>'
+                + '<br><span style="color:var(--ink)">Näytetään '+okSt.name+'</span>'
+                + '<span style="color:var(--ink-3)"> · '+okSt.km.toFixed(0)+' km</span>';
+            }
+            if(latData&&latData.ws!=null) heroArvo(latData, _havTuore(latData));
+            if(el&&hist) _renderLiveHistory(el,Object.assign({},hist,{place:okSt.place}),latData);
+          },
+          function() {
+            if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);padding:16px">Ei dataa</div>';
+          }
+        );
       }
     );
   } else if(type==='kruunuvuori'){
-    /* Kruunuvuorenselkä — oma proxy, ei kuulu viralliseen FMI-havaintoverkkoon */
-    fetch(API_BASE + '/kruunuvuori')
+    /* Kruunuvuorenselkä — oma proxy, ei kuulu viralliseen FMI-havaintoverkkoon.
+       168 h kuten FMI-asemillakin: kortin jaksovalitsin on sama. */
+    fetch(API_BASE + '/kruunuvuori?hours=168')
       .then(function(r){ return r.json(); })
       .then(function(data){
         if(data&&!data.error&&data.ws!=null){
@@ -10596,9 +10701,19 @@ function _fmiStationsSorted(spotLat, spotLng) {
     });
 }
 
-/* Yrittää ladata FMI-dataa asemista järjestyksessä — fallback seuraavaan jos tyhjä */
+/* Yrittää ladata FMI-dataa asemista järjestyksessä — fallback seuraavaan jos tyhjä.
+ *
+ * `hours` oli aiemmin parametri jota ei käytetty mihinkään: kutsupaikat
+ * antoivat 12 tai 24, mutta osoitteeseen ei kirjoitettu mitään ja palvelin
+ * käytti aina omaa oletustaan. Nyt se menee perille — kortti pyytää 168 h,
+ * karttamerkit 24 h.
+ *
+ * onSuccess saa aina tiedon SIITÄ asemasta jolta data oikeasti tuli. Kutsuja
+ * on vastuussa siitä että käyttöliittymä sanoo saman: hiljainen sijaisuus
+ * (kortin otsikossa yksi asema, datassa toinen) oli Vuosaaren vika. */
 function _fmiLoadWithFallback(stationList, hours, onSuccess, onFail) {
   var idx = 0;
+  var h = hours ? '&hours=' + Math.max(1, Math.min(168, hours)) : '';
   function tryNext() {
     if (idx >= stationList.length) { onFail(); return; }
     var st = stationList[idx++];
@@ -10607,7 +10722,7 @@ function _fmiLoadWithFallback(stationList, hours, onSuccess, onFail) {
     qp += 'lat='+st.lat+'&lng='+st.lng;
     Promise.allSettled([
       fetch(base+qp).then(function(r){return r.json();}),
-      fetch(base+'history=1&'+qp).then(function(r){return r.json();})
+      fetch(base+'history=1&'+qp+h).then(function(r){return r.json();})
     ]).then(function(results) {
       var lat2 = results[0].status==='fulfilled'&&!results[0].value.error ? results[0].value : null;
       var nd   = results[1].status==='fulfilled'&&results[1].value&&!results[1].value.error ? results[1].value : null;
@@ -10620,6 +10735,18 @@ function _fmiLoadWithFallback(stationList, hours, onSuccess, onFail) {
     }).catch(function(){ tryNext(); });
   }
   tryNext();
+}
+
+/* Onko havainto niin tuore että sen voi näyttää lukemana?
+   Asemat lähettävät 10 min välein, joten puolitoista tuntia on jo
+   selvä katko eikä verkkoviive. */
+var HAV_TUORE_MIN = 90;
+function _havTuore(d) { return !!d && d.ageMin != null && d.ageMin <= HAV_TUORE_MIN; }
+function _havIkaTeksti(min) {
+  if (min == null) return '';
+  if (min < HAV_TUORE_MIN) return min + ' min sitten';
+  if (min < 48 * 60) return Math.round(min / 60) + ' h sitten';
+  return Math.round(min / 1440) + ' vrk sitten';
 }
 
 /* Rakentaa dropdown-triggerin + menun */
@@ -10693,305 +10820,563 @@ function _fmiDropdown(panelEl, stations, selected, onSelect) {
   return wrap;
 }
 
+/* ── Havaintoaseman graafi ────────────────────────────────────────────
+ *
+ * Yksi kuva, neljä suuretta: tuuli, puuska, suunta ja lämpötila.
+ *
+ * SUUNTA EI OLE TOINEN Y-AKSELI. Asteet ja metrit sekunnissa eivät mahdu
+ * samalle akselille ilman että kahden asteikon kohdistus keksitään — ja
+ * keksitty kohdistus näyttää korrelaation jota datassa ei ole. Suunta on
+ * siksi oma nauhansa kuvan alla: kulma kertoo suunnan, väri nopeuden.
+ * Lämpötila on samasta syystä vain lukemana, ei viivana.
+ *
+ * PUUSKA EI OLE OMA VIIVANSA. Vanha kaavio piirsi tuulen vihreällä
+ * (#2A702D) ja puuskan oliivilla (#7A5D07). Mitattuna ne ovat normaalille
+ * näölle dE 10.9 ja protanoopille dE 3.6 — käytännössä sama väri, eli
+ * kaavion kaksi viivaa erosivat toisistaan vain siinä että toinen oli
+ * ylempänä. Eikä hyvää toista sävyä ole olemassakaan: tuuliviiva on
+ * väriramppi joka käy läpi vihreän, kullan, oranssin ja magentan, joten
+ * mikä tahansa kiinteä sävy törmää siihen jossain kohtaa asteikkoa.
+ *
+ * Ratkaisu on vaihtaa kanavaa: puuska on VYÖHYKE tuuliviivan yläpuolella,
+ * ei kilpaileva viiva. Vyöhykkeen paksuus ON puuskaisuus — juuri se mitä
+ * foilaaja kaavista lukee — eikä sitä tarvitse päätellä kahden
+ * samanvärisen viivan välimatkasta.
+ *
+ * HARVENNUS SÄILYTTÄÄ HUIPUT. 7 vrk on 1008 havaintoa noin 300 pikselille.
+ * Jos joka n:s piste poimitaan, puuskapiikit katoavat — ja piikit ovat se
+ * syy miksi kaaviota katsotaan. Siksi data niputetaan: viiva on nipun
+ * keskiarvo, vyöhyke nipun pienimmästä tuulesta suurimpaan puuskaan.
+ * Kuudella tunnilla nippuun osuu yksi havainto ja vyöhyke kutistuu
+ * luonnostaan tuulen ja puuskan väliksi.                                */
+
+function _havSuuntaKeskiarvo(kulmat) {
+  /* Suuntien keskiarvo on ympyrällä, ei lukusuoralla: 350° ja 10° ovat
+     20° päässä toisistaan, mutta niiden aritmeettinen keskiarvo on 180°
+     eli täsmälleen väärään suuntaan. Siksi yksikkövektorien summa. */
+  var sx = 0, sy = 0, n = 0;
+  for (var i = 0; i < kulmat.length; i++) {
+    var d = kulmat[i];
+    if (d == null || isNaN(d)) continue;
+    var r = d * Math.PI / 180;
+    sx += Math.sin(r); sy += Math.cos(r); n++;
+  }
+  if (!n) return null;
+  var a = Math.atan2(sx / n, sy / n) * 180 / Math.PI;
+  return (a + 360) % 360;
+}
+
+/* Kompassin lyhenne — 8 pääilmansuuntaa riittää lukemaksi, tarkka
+   astelukema on aina vieressä. */
+function _havIlmansuuntaLyhyt(deg) {
+  if (deg == null) return '';
+  return ['P', 'PI', 'I', 'KA', 'E', 'LO', 'L', 'LU'][Math.round(deg / 45) % 8];
+}
+
+/* Niputus. Palauttaa enintään maxN nippua aikajärjestyksessä. */
+function _havNiputa(ws, wg, ta, maxN) {
+  var n = ws.length;
+  if (!n) return [];
+  /* Puuska ja lämpötila indeksoidaan aikaleiman mukaan — sarjat voivat olla
+     eri pituisia jos anturi on ollut hetken hiljaa. */
+  var wgMap = {}, taMap = {};
+  for (var i = 0; i < wg.length; i++) wgMap[wg[i].iso] = wg[i].v;
+  for (var j = 0; j < ta.length; j++) taMap[ta[j].iso] = ta[j].v;
+
+  var koko = Math.max(1, Math.ceil(n / maxN));
+  var out = [];
+  for (var s = 0; s < n; s += koko) {
+    var pala = ws.slice(s, s + koko);
+    var summa = 0, minWs = Infinity, maxWs = -Infinity, maxWg = -Infinity, tSum = 0, tN = 0;
+    var kulmat = [];
+    for (var k = 0; k < pala.length; k++) {
+      var v = pala[k].v;
+      summa += v;
+      if (v < minWs) minWs = v;
+      if (v > maxWs) maxWs = v;
+      var g = wgMap[pala[k].iso];
+      if (g != null && g > maxWg) maxWg = g;
+      var tv = taMap[pala[k].iso];
+      if (tv != null) { tSum += tv; tN++; }
+      kulmat.push(pala[k].d);
+    }
+    out.push({
+      ms: Date.parse(pala[Math.floor(pala.length / 2)].iso),
+      msLoppu: Date.parse(pala[pala.length - 1].iso),
+      ws: summa / pala.length,
+      wsMin: minWs,
+      wsMax: maxWs,
+      /* Vyöhykkeen katto on puuska; jos puuskaa ei ole, tuulen huippu. */
+      wg: maxWg > -Infinity ? maxWg : maxWs,
+      d: _havSuuntaKeskiarvo(kulmat),
+      ta: tN ? tSum / tN : null,
+      n: pala.length
+    });
+  }
+  return out;
+}
+
+/* Tuuliruusu: 16 sektoria, säde = osuus ajasta, täyttö = sektorin
+   keskituuli mustevärillä. Sama sävyjärjestys kuin kartalla, joten
+   ruusun luenta ei vaadi uutta väriopastusta. */
+function _havRuusu(ws) {
+  var SEK = 16, osuus = new Array(SEK), summa = new Array(SEK), lkm = new Array(SEK);
+  for (var i = 0; i < SEK; i++) { osuus[i] = 0; summa[i] = 0; lkm[i] = 0; }
+  var kaikki = 0;
+  for (var k = 0; k < ws.length; k++) {
+    var d = ws[k].d;
+    if (d == null || isNaN(d)) continue;
+    var s = Math.round(d / (360 / SEK)) % SEK;
+    osuus[s]++; summa[s] += ws[k].v; lkm[s]++; kaikki++;
+  }
+  if (!kaikki) return null;
+  var maxOsuus = 0;
+  for (var m = 0; m < SEK; m++) { osuus[m] /= kaikki; if (osuus[m] > maxOsuus) maxOsuus = osuus[m]; }
+  return { sektorit: SEK, osuus: osuus, ka: summa.map(function (sm, i2) { return lkm[i2] ? sm / lkm[i2] : 0; }), max: maxOsuus };
+}
+
+/* Mustevariantti, ei kartan varianttia: kartan neonvihreä on paneelin
+   beigellä 1.49:1 eli lukukelvoton (ks. CLAUDE.md, "Kaksi ramppia").
+   inkCss() lukee valmiista taulusta, joka rakennetaan uudelleen kun
+   väriasteikkoasetus vaihtuu — kaavio seuraa siis värisokeusramppia
+   ilman omaa haaraa. */
+function _havInkCss(ms) { return ColorRamp.inkCss(ms); }
+
 function _renderLiveHistory(el, data, wx) {
-  const wsData=data.ws||[], wgData=data.wg||[];
-  if(!wsData.length){ el.innerHTML='<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:20px">Ei historiadataa</div>'; return; }
-  var hours=el._fmiHours||12;
-  var cutIdx=Math.max(0,wsData.length-Math.round(wsData.length*hours/24));
-  var wsSlice=wsData.slice(cutIdx), wgSlice=wgData.length?wgData.slice(cutIdx):[];
-  const n=wsSlice.length;
-  const wsU=wsSlice.map(function(p){return Units.convert(p.v);});
-  const wgU=wgSlice.map(function(p){return Units.convert(p.v);});
-  const times=wsSlice.map(function(p){return p.t;});
-  const wsDirs=wsSlice.map(function(p){return p.d!=null?p.d:null;});
-  var allV=wsU.concat(wgU).filter(function(v){return !isNaN(v);});
-  var minV=Math.max(0,Math.min.apply(null,allV)-0.5);
-  var maxV=Math.max.apply(null,allV)+1;
-  if(!isFinite(minV))minV=0; if(!isFinite(maxV))maxV=10;
+  var wsKaikki = data.ws || [], wgKaikki = data.wg || [], taKaikki = data.ta || [];
+  if (!wsKaikki.length) {
+    el.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:20px">Ei historiadataa</div>';
+    return;
+  }
 
-  const W=300,H=108,padX=32,padY=10,labH=20,TH=H+labH;
-  function xOf(i){return padX+i/(n-1||1)*(W-padX-8);}
-  function yOf(v){return padY+(1-(v-minV)/(maxV-minV||1))*(H-padY*2);}
-  function iOf(x){return Math.max(0,Math.min(n-1,Math.round((x-padX)/(W-padX-8)*(n-1))));}
+  /* ── Jakso ──────────────────────────────────────────────────────── */
+  var JAKSOT = [[6, '6 h'], [24, '24 h'], [72, '3 vrk'], [168, '7 vrk']];
+  var tunnit = el._fmiHours || 24;
+  /* Jos dataa on vähemmän kuin pyydetty jakso, älä tarjoa tyhjää ikkunaa:
+     kaikki napit joiden takana ei ole dataa jäävät pois. */
+  var kattoMs = Date.parse(wsKaikki[wsKaikki.length - 1].iso);
+  var pohjaMs = Date.parse(wsKaikki[0].iso);
+  var kattavuusH = (kattoMs - pohjaMs) / 3600000;
+  var tarjolla = JAKSOT.filter(function (j) { return j[0] <= kattavuusH * 1.35; });
+  if (!tarjolla.length) tarjolla = [JAKSOT[0]];
+  if (!tarjolla.some(function (j) { return j[0] === tunnit; })) {
+    tunnit = tarjolla[tarjolla.length - 1][0];
+    el._fmiHours = tunnit;
+  }
+  var rajaMs = kattoMs - tunnit * 3600000;
+  function ikkunassa(p) { return Date.parse(p.iso) >= rajaMs; }
+  var ws = wsKaikki.filter(ikkunassa);
+  var wg = wgKaikki.filter(ikkunassa);
+  var ta = taKaikki.filter(ikkunassa);
+  if (ws.length < 2) { ws = wsKaikki; wg = wgKaikki; ta = taKaikki; }
 
-  function smoothPath(vals){
-    if(vals.length<2)return '';
-    var d='M'+xOf(0).toFixed(1)+','+yOf(vals[0]).toFixed(1);
-    for(var i=1;i<vals.length;i++){
-      var x0=xOf(i-1),y0=yOf(vals[i-1]),x1=xOf(i),y1=yOf(vals[i]),cx=(x0+x1)/2;
-      d+=' C'+cx.toFixed(1)+','+y0.toFixed(1)+' '+cx.toFixed(1)+','+y1.toFixed(1)+' '+x1.toFixed(1)+','+y1.toFixed(1);
+  /* ── Mitat ──────────────────────────────────────────────────────── */
+  var W = 300, H = 104, padX = 26, padY = 8;
+  var suuntaY = H + 4, suuntaH = 16;          /* suuntanauha kuvan alla */
+  var labY = suuntaY + suuntaH + 11;          /* x-akselin tekstirivi   */
+  var TH = labY + 3;
+  var plotW = W - padX - 8;
+
+  var niput = _havNiputa(ws, wg, ta, Math.round(plotW / 2.4));
+  var n = niput.length;
+
+  /* Yksikkömuunnos vasta piirtoon: ColorRamp haluaa aina m/s. */
+  function U(v) { return Units.convert(v); }
+  var ylin = 0, alin = Infinity;
+  for (var i = 0; i < n; i++) {
+    if (U(niput[i].wg) > ylin) ylin = U(niput[i].wg);
+    if (U(niput[i].wsMin) < alin) alin = U(niput[i].wsMin);
+  }
+  var minV = Math.max(0, alin - (ylin - alin) * 0.12);
+  var maxV = ylin + (ylin - alin) * 0.16 + 0.3;
+  if (!isFinite(minV)) minV = 0;
+  if (!isFinite(maxV) || maxV <= minV) maxV = minV + 10;
+
+  function xOf(i) { return padX + (n <= 1 ? plotW / 2 : i / (n - 1) * plotW); }
+  function yOf(v) { return padY + (1 - (v - minV) / (maxV - minV)) * (H - padY * 2); }
+  function iOf(x) { return Math.max(0, Math.min(n - 1, Math.round((x - padX) / plotW * (n - 1)))); }
+
+  function polku(arvo) {
+    if (n < 2) return '';
+    var d = 'M' + xOf(0).toFixed(1) + ',' + yOf(arvo(niput[0])).toFixed(1);
+    for (var i2 = 1; i2 < n; i2++) {
+      var x0 = xOf(i2 - 1), y0 = yOf(arvo(niput[i2 - 1]));
+      var x1 = xOf(i2), y1 = yOf(arvo(niput[i2])), cx = (x0 + x1) / 2;
+      d += ' C' + cx.toFixed(1) + ',' + y0.toFixed(1) + ' ' + cx.toFixed(1) + ',' + y1.toFixed(1)
+        + ' ' + x1.toFixed(1) + ',' + y1.toFixed(1);
     }
     return d;
   }
-  var wsPath=smoothPath(wsU), wgPath=wgU.length?smoothPath(wgU):'';
-  var wsArea=wsPath?wsPath+' L'+xOf(n-1).toFixed(1)+','+(H-padY)+' L'+xOf(0).toFixed(1)+','+(H-padY)+' Z':'';
-  var wgArea=wgPath?wgPath+' L'+xOf(n-1).toFixed(1)+','+(H-padY)+' L'+xOf(0).toFixed(1)+','+(H-padY)+' Z':'';
-  var latWs=wsU.length?wsU[wsU.length-1]:null, latWg=wgU.length?wgU[wgU.length-1]:null;
-  var lastX=xOf(n-1), lastYws=latWs!=null?yOf(latWs):null, lastYwg=latWg!=null?yOf(latWg):null;
-
-  /* Y-akseli */
-  var yLabels='';
-  var yRange=maxV-minV||1;
-  var yStep=yRange>8?4:yRange>4?2:1;
-  var yStart=Math.ceil(minV/yStep)*yStep;
-  for(var yv=yStart; yv<=maxV+0.01; yv+=yStep){
-    if(yv<minV+0.3||yv>maxV-0.3) continue;
-    var gy=yOf(yv);
-    yLabels+='<text x="'+(padX-6)+'" y="'+gy.toFixed(1)+'" font-size="7.5" fill="#5F696F" text-anchor="end" dominant-baseline="middle">'+yv.toFixed(0)+'</text>';
-    yLabels+='<line x1="'+padX+'" y1="'+gy.toFixed(1)+'" x2="'+(W-8)+'" y2="'+gy.toFixed(1)+'" stroke="#DFD4B6" stroke-width="1"/>';
-  }
-
-  /* X-akseli — tasatunnit, harvennettuna niin että labelit eivät mene
-     päällekkäin. Havainnot tulevat 10 min välein, joten 24 h näkymässä
-     tasatunteja on 28 kpl noin 260 px matkalla (mitattu väli 6 px, label
-     ~10 px leveä) — ilman harvennusta rivi oli lukukelvoton mössö. */
-  var hourIdx=[];
-  for(var xi=0;xi<times.length;xi++){
-    if(times[xi]&&times[xi].slice(3,5)==='00'){
-      var lx=xOf(xi);
-      if(lx>=padX+8&&lx<=W-16) hourIdx.push(xi);
+  var tuuliPolku = polku(function (b) { return U(b.ws); });
+  /* Vyöhyke: yläreuna puuskan huippu, alareuna tuulen pohja — sama polku
+     takaisin päinvastaisessa järjestyksessä, jolloin täyttö sulkeutuu. */
+  var ylaP = polku(function (b) { return U(b.wg); });
+  var alaKaanteinen = '';
+  for (var q = n - 1; q >= 0; q--) {
+    var xq = xOf(q).toFixed(1), yq = yOf(U(niput[q].wsMin)).toFixed(1);
+    if (q === n - 1) alaKaanteinen += ' L' + xq + ',' + yq;
+    else {
+      var xp = xOf(q + 1), yp = yOf(U(niput[q + 1].wsMin)), cxq = (xp + xOf(q)) / 2;
+      alaKaanteinen += ' C' + cxq.toFixed(1) + ',' + yp.toFixed(1) + ' ' + cxq.toFixed(1) + ',' + yq + ' ' + xq + ',' + yq;
     }
   }
-  var MIN_PX=26;
-  var everyNth=hourIdx.length>1
-    ? Math.max(1,Math.ceil(MIN_PX/((xOf(hourIdx[hourIdx.length-1])-xOf(hourIdx[0]))/(hourIdx.length-1)||MIN_PX)))
-    : 1;
-  var xlbls='';
-  for(var hi=0;hi<hourIdx.length;hi++){
-    if(hi%everyNth) continue;
-    var li=hourIdx[hi];
-    xlbls+='<text x="'+xOf(li).toFixed(1)+'" y="'+(TH-4)+'" font-size="7.5" fill="#5F696F" text-anchor="middle">'+times[li].slice(0,2)+'</text>';
+  var vyohyke = ylaP ? ylaP + alaKaanteinen + ' Z' : '';
+
+  var svgId = 'hav-' + Math.random().toString(36).slice(2, 7);
+  var gradId = svgId + '-g', vyoId = svgId + '-v';
+
+  /* ── Y-akseli ───────────────────────────────────────────────────── */
+  var yLab = '';
+  var yVali = maxV - minV;
+  var askel = [0.5, 1, 2, 5, 10, 20, 50].find(function (s) { return yVali / s <= 4; }) || 50;
+  for (var yv = Math.ceil(minV / askel) * askel; yv <= maxV; yv += askel) {
+    var gy = yOf(yv);
+    if (gy < padY + 4 || gy > H - padY - 2) continue;
+    yLab += '<line x1="' + padX + '" y1="' + gy.toFixed(1) + '" x2="' + (W - 8) + '" y2="' + gy.toFixed(1) + '" stroke="#DFD4B6" stroke-width="1"/>'
+      + '<text x="' + (padX - 5) + '" y="' + gy.toFixed(1) + '" font-size="7.5" fill="#5F696F" text-anchor="end" dominant-baseline="middle" style="font-variant-numeric:tabular-nums">' + (askel < 1 ? yv.toFixed(1) : yv.toFixed(0)) + '</text>';
   }
 
-  var svgId='fmi-svg-'+Math.random().toString(36).slice(2,7);
-  var wsGId=svgId+'-wsg', wgGId=svgId+'-wgg';
+  /* ── X-akseli ────────────────────────────────────────────────────
+   *
+   * Merkinnät valitaan AJASTA, ei nipun indeksistä. Ensimmäinen versio
+   * etsi nippuja joiden keskihetki sattui tasatunnille — ja 7 vrk:n
+   * jaksossa yksi nippu on puolitoista tuntia, joten tasatunnille ei osu
+   * kukaan. Akselilla luki "ke 19. pe 21. la 22. ma 24.": kolme päivää
+   * seitsemästä puuttui, eikä puuttumiselle ollut mitään sääntöä.        */
+  var PAIVAT = ['su', 'ma', 'ti', 'ke', 'to', 'pe', 'la'];
+  var xLab = '', vrkViivat = '';
+  var t0 = niput[0].ms, t1 = niput[n - 1].ms;
+  function xOfTime(ms) { return padX + (t1 <= t0 ? 0 : (ms - t0) / (t1 - t0)) * plotW; }
 
-  /* ColorRamp viivaan — gradient stops tuulen mukaan */
-  function colorStop(val){var c=ColorRamp.ink(Units.deconvert?Units.deconvert(val):val);return 'rgb('+c.r+','+c.g+','+c.b+')';}
-  var windGradStops='';
-  var sampleN=Math.min(n,16);
-  for(var si=0;si<sampleN;si++){
-    var pct=(si/(sampleN-1)*100).toFixed(1);
-    var vi=Math.round(si/(sampleN-1)*(n-1));
-    windGradStops+='<stop offset="'+pct+'%" stop-color="'+colorStop(wsU[vi])+'"/>';
+  /* Askel valitaan niin että merkintöjä on 4–8 ja väli on siisti. */
+  var jaksoH = (t1 - t0) / 3600000;
+  /* Yli vuorokauden mittaisessa jaksossa pelkkä kellonaika on
+     kaksiselitteinen: "12 00 12 00 12" ei kerro mistä päivästä on kyse.
+     Siksi yli 30 h merkitään päivinä, keskipäivään ankkuroituna —
+     keskiyön kohdalla on jo pystyviiva. */
+  var paivaAskel = jaksoH > 30;
+  var askelH = paivaAskel ? 24
+    : ([1, 2, 3, 6, 12].find(function (s) { return jaksoH / s <= 7; }) || 12);
+
+  /* Vuorokauden vaihteet omana merkkinään: ohut pystyviiva kertoo mihin
+     päivään piikki osuu. Ilman sitä 7 vrk on nimetöntä mattoa. */
+  var vrk = new Date(t0); vrk.setHours(0, 0, 0, 0);
+  for (var vms = vrk.getTime(); vms <= t1; vms += 864e5) {
+    if (vms < t0) continue;
+    var vx = xOfTime(vms);
+    if (vx <= padX + 6 || vx >= W - 12) continue;
+    vrkViivat += '<line x1="' + vx.toFixed(1) + '" y1="' + padY + '" x2="' + vx.toFixed(1) + '" y2="' + (suuntaY + suuntaH) + '" stroke="#CDBE9A" stroke-width="1"/>';
   }
 
-  /* Segment control */
-  var segBtns=['12h','24h'].map(function(p){
-    var a=(p==='12h'&&hours===12)||(p==='24h'&&hours===24);
-    return '<button data-fmi-period="'+p+'" style="flex:1;font-variant-numeric:tabular-nums;font-size:9px;padding:4px 8px;border:none;white-space:nowrap;background:'+(a?'var(--ink)':'transparent')+';color:'+(a?'var(--surface)':'var(--ink-2)')+';border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:all .15s">'+p+'</button>';
+  /* Ensimmäinen merkintä pyöristetään ylös askelen monikertaan, jotta
+     kellonajat ovat 00/03/06 eivätkä 01/04/07. */
+  var alku = new Date(t0);
+  if (paivaAskel) { alku.setHours(12, 0, 0, 0); if (alku.getTime() < t0) alku.setTime(alku.getTime() + 864e5); }
+  else { alku.setMinutes(0, 0, 0); alku.setHours(Math.ceil(alku.getHours() / askelH) * askelH); }
+  var edellinenX = -99;
+  for (var tms = alku.getTime(); tms <= t1; tms += askelH * 3600000) {
+    var lx = xOfTime(tms);
+    if (lx < padX + 6 || lx > W - 10 || lx - edellinenX < 28) continue;
+    edellinenX = lx;
+    var dt = new Date(tms);
+    var teksti = paivaAskel
+      ? PAIVAT[dt.getDay()] + ' ' + dt.getDate() + '.'
+      : ('0' + dt.getHours()).slice(-2);
+    xLab += '<text x="' + lx.toFixed(1) + '" y="' + labY + '" font-size="7.5" fill="#5F696F" text-anchor="middle" style="font-variant-numeric:tabular-nums">' + teksti + '</text>';
+  }
+
+  /* ── Tuuliviivan gradientti ─────────────────────────────────────── */
+  var stops = '';
+  var otos = Math.min(n, 20);
+  for (var si = 0; si < otos; si++) {
+    var pct = otos < 2 ? 0 : (si / (otos - 1) * 100);
+    var vi = otos < 2 ? 0 : Math.round(si / (otos - 1) * (n - 1));
+    stops += '<stop offset="' + pct.toFixed(1) + '%" stop-color="' + _havInkCss(niput[vi].ws) + '"/>';
+  }
+
+  /* ── Suuntanauha ─────────────────────────────────────────────────
+   *
+   * Yksi nuoli EI ole yksi nippu vaan koko se väli jonka se peittää.
+   * Muuten 7 vrk:n nauha olisi kymmenen satunnaista pistenäytettä
+   * tuhannesta havainnosta: nuoli näyttäisi kertovan päivän suunnan,
+   * vaikka se kertoisi puolentoista tunnin suunnan sattumanvaraisesta
+   * kohdasta. Nyt jokainen nuoli on välinsä suuntien ympyräkeskiarvo ja
+   * väri sen välin keskituuli.                                          */
+  var nuolet = '';
+  var nuoliVali = 26;
+  var nuoliY = suuntaY + suuntaH / 2;
+  var nuoliaMahtuu = Math.max(2, Math.floor(plotW / nuoliVali));
+  var lohkoKoko = n / nuoliaMahtuu;
+  for (var si2 = 0; si2 < nuoliaMahtuu; si2++) {
+    var a0i = Math.floor(si2 * lohkoKoko), a1i = Math.max(a0i + 1, Math.floor((si2 + 1) * lohkoKoko));
+    var lohko = niput.slice(a0i, a1i);
+    if (!lohko.length) continue;
+    var dd = _havSuuntaKeskiarvo(lohko.map(function (b) { return b.d; }));
+    if (dd == null) continue;
+    var lohkoWs = lohko.reduce(function (s, b) { return s + b.ws; }, 0) / lohko.length;
+    var nx = padX + (si2 + 0.5) * (plotW / nuoliaMahtuu);
+    /* Nuoli osoittaa MIHIN tuuli menee — sama kuin dirArrow() muualla
+       sovelluksessa. Piirretty ylöspäin, käännetty suunta+180. */
+    nuolet += '<g transform="translate(' + nx.toFixed(1) + ',' + nuoliY.toFixed(1) + ') rotate(' + (dd + 180).toFixed(0) + ')">'
+      + '<path d="M0,-4.4 L2.9,3.1 L0,1.5 L-2.9,3.1 Z" fill="' + _havInkCss(lohkoWs) + '"/></g>';
+  }
+
+  /* ── Huiput: viimeisin arvo ja jakson kovin puuska ──────────────── */
+  var vika = niput[n - 1];
+  var vikaX = xOf(n - 1), vikaY = yOf(U(vika.ws));
+  var huippuI = 0;
+  for (var hi = 1; hi < n; hi++) if (niput[hi].wg > niput[huippuI].wg) huippuI = hi;
+  var hX = xOf(huippuI), hY = yOf(U(niput[huippuI].wg));
+  var hAnkkuri = hX < padX + 30 ? 'start' : (hX > W - 40 ? 'end' : 'middle');
+  var huippuLabel = (huippuI !== n - 1 && n > 4)
+    ? '<circle cx="' + hX.toFixed(1) + '" cy="' + hY.toFixed(1) + '" r="2.2" fill="#5F696F"/>'
+      + '<text x="' + hX.toFixed(1) + '" y="' + Math.max(7, hY - 5).toFixed(1) + '" font-size="7.5" fill="#4C5960" text-anchor="' + hAnkkuri + '" style="font-variant-numeric:tabular-nums">' + Units.fmt(niput[huippuI].wg) + '</text>'
+    : '';
+
+  /* ── Tilastorivi ────────────────────────────────────────────────── */
+  var sKa = 0, sMax = 0, sMin = Infinity;
+  for (var ti = 0; ti < ws.length; ti++) { sKa += ws[ti].v; if (ws[ti].v < sMin) sMin = ws[ti].v; }
+  sKa /= ws.length;
+  for (var gi = 0; gi < wg.length; gi++) if (wg[gi].v > sMax) sMax = wg[gi].v;
+  if (!sMax) sMax = Math.max.apply(null, ws.map(function (p) { return p.v; }));
+  var vallitseva = _havSuuntaKeskiarvo(ws.map(function (p) { return p.d; }));
+  var lampo = ta.length ? ta[ta.length - 1].v : null;
+  var ruusu = _havRuusu(ws);
+
+  function tilasto(label, arvo, ala, vari) {
+    return '<div style="min-width:0">'
+      + '<div style="font-size:7.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--ink-3);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + label + '</div>'
+      + '<div style="font-size:15px;font-weight:600;line-height:1.05;color:' + (vari || 'var(--ink)') + '">' + arvo
+      + (ala ? '<span style="font-size:8.5px;font-weight:400;color:var(--ink-3)"> ' + ala + '</span>' : '') + '</div>'
+      + '</div>';
+  }
+
+  /* Ruusu SVG:nä. 16 sektoria, säde suhteessa suurimpaan osuuteen. */
+  var ruusuSvg = '';
+  if (ruusu) {
+    var RS = 42, cxr = RS, cyr = RS, rMax = RS - 8;
+    var sektorit = '';
+    var lev = 360 / ruusu.sektorit;
+    for (var ri = 0; ri < ruusu.sektorit; ri++) {
+      if (!ruusu.osuus[ri]) continue;
+      var rr = 5 + (rMax - 5) * Math.sqrt(ruusu.osuus[ri] / ruusu.max);
+      var a0 = (ri * lev - lev / 2 - 90) * Math.PI / 180;
+      var a1 = (ri * lev + lev / 2 - 90) * Math.PI / 180;
+      /* Suunta on MISTÄ tuuli tulee, joten sektori piirretään sinne päin. */
+      var x0r = cxr + Math.cos(a0) * rr, y0r = cyr + Math.sin(a0) * rr;
+      var x1r = cxr + Math.cos(a1) * rr, y1r = cyr + Math.sin(a1) * rr;
+      sektorit += '<path d="M' + cxr + ',' + cyr + ' L' + x0r.toFixed(1) + ',' + y0r.toFixed(1)
+        + ' A' + rr.toFixed(1) + ',' + rr.toFixed(1) + ' 0 0 1 ' + x1r.toFixed(1) + ',' + y1r.toFixed(1) + ' Z"'
+        + ' fill="' + _havInkCss(ruusu.ka[ri]) + '" opacity="0.85"/>';
+    }
+    ruusuSvg = '<svg viewBox="0 0 ' + (RS * 2) + ' ' + (RS * 2) + '" style="width:84px;height:84px;flex-shrink:0" aria-label="Tuulen suuntajakauma">'
+      + '<circle cx="' + cxr + '" cy="' + cyr + '" r="' + rMax + '" fill="none" stroke="#DFD4B6" stroke-width="1"/>'
+      + '<circle cx="' + cxr + '" cy="' + cyr + '" r="' + (rMax * 0.55).toFixed(1) + '" fill="none" stroke="#DFD4B6" stroke-width="1"/>'
+      + sektorit
+      + '<text x="' + cxr + '" y="7" font-size="7" fill="#5F696F" text-anchor="middle">P</text>'
+      + '<text x="' + cxr + '" y="' + (RS * 2 - 2) + '" font-size="7" fill="#5F696F" text-anchor="middle">E</text>'
+      + '<text x="' + (RS * 2 - 3) + '" y="' + (cyr + 2.5) + '" font-size="7" fill="#5F696F" text-anchor="end">I</text>'
+      + '<text x="3" y="' + (cyr + 2.5) + '" font-size="7" fill="#5F696F" text-anchor="start">L</text>'
+      + '</svg>';
+  }
+
+  /* ── Jaksovalitsin ──────────────────────────────────────────────── */
+  var segBtns = tarjolla.map(function (j) {
+    var a = j[0] === tunnit;
+    return '<button data-fmi-period="' + j[0] + '" aria-pressed="' + (a ? 'true' : 'false') + '" style="flex:1;font-variant-numeric:tabular-nums;font-size:9px;padding:4px 7px;border:none;white-space:nowrap;'
+      + 'background:' + (a ? 'var(--surface-hi)' : 'transparent') + ';'
+      + 'color:' + (a ? 'var(--ink)' : 'var(--ink-3)') + ';font-weight:' + (a ? '600' : '400') + ';'
+      + 'border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:background .15s,color .15s">' + j[1] + '</button>';
   }).join('');
 
-  el.innerHTML=
+  /* Vanhentunut data sanotaan ääneen. Ilman tätä kortti näyttää samalta
+     riippumatta siitä onko havainto viiden minuutin vai kuuden päivän
+     takaa — ja juuri se oli Vuosaaren vika. */
+  var ika = data.ageMin != null ? data.ageMin : null;
+  var vanha = ika != null && ika > HAV_TUORE_MIN;
+  var ikaTeksti = _havIkaTeksti(ika);
+  /* "6 vrk sitten" kertoo kuinka kauan, muttei mitä. Kellonaika kertoo
+     mitä dataa kaaviossa on — ilman sitä x-akselin "08 09 10" näyttää
+     tältä aamulta. */
+  var viimeHetki = '';
+  if (vanha) {
+    var vh = new Date(Date.parse(wsKaikki[wsKaikki.length - 1].iso));
+    viimeHetki = ['su', 'ma', 'ti', 'ke', 'to', 'pe', 'la'][vh.getDay()] + ' ' + vh.getDate() + '.' + (vh.getMonth() + 1) + '. klo '
+      + ('0' + vh.getHours()).slice(-2) + ':' + ('0' + vh.getMinutes()).slice(-2);
+  }
+
+  el.innerHTML =
     '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;min-width:0">'
-      +'<div id="'+svgId+'-fmidd" style="flex:1;min-width:0;overflow:visible"></div>'
-      +'<div style="display:flex;flex-shrink:0;background:var(--surface-lo);border-radius:10px;padding:2px;gap:1px">'
-        +segBtns
-      +'</div>'
-    +'</div>'
-    +'<div style="position:relative">'
-      +'<div id="'+svgId+'-tip" style="display:none;position:absolute;background:var(--surface-hi);color:var(--ink);border:1px solid var(--hairline);border-radius:12px;padding:8px 14px;pointer-events:none;white-space:nowrap;box-shadow:var(--shadow-2);z-index:100;transform:translateX(-50%)"></div>'
-      +'<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" style="width:calc(100% + 32px);margin-left:-32px;display:block;touch-action:none;overflow:visible">'
-        +'<defs>'
-          +'<linearGradient id="'+wsGId+'-wind" x1="0" y1="0" x2="1" y2="0">'
-            +windGradStops
-          +'</linearGradient>'
-          +'<linearGradient id="'+wsGId+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(42,112,45,.24)"/><stop offset="100%" stop-color="rgba(42,112,45,0)"/></linearGradient>'
-          +(wgArea?'<linearGradient id="'+wgGId+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(122,93,7,.16)"/><stop offset="100%" stop-color="rgba(255,200,100,.0)"/></linearGradient>':'')
-        +'</defs>'
-        +yLabels
-        +(wgArea?'<path d="'+wgArea+'" fill="url(#'+wgGId+')" />':'')
-        +(wgPath?'<path d="'+wgPath+'" fill="none" stroke="#7A5D07" stroke-width="1.5" stroke-linecap="round"/>':'')
-        +(wsArea?'<path d="'+wsArea+'" fill="url(#'+wsGId+')" />':'')
-        /* Tuuliviiva ColorRamp-gradientilla */
-        +(wsPath?'<path d="'+wsPath+'" fill="none" stroke="url(#'+wsGId+'-wind)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>':'')
-        +(lastYws!=null?
-          '<circle cx="'+lastX.toFixed(1)+'" cy="'+lastYws.toFixed(1)+'" r="5" fill="rgba(42,112,45,.18)" pointer-events="none"><animate attributeName="r" values="4;8;4" dur="3s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.6;0;0.6" dur="3s" repeatCount="indefinite"/></circle>'
-          +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastYws.toFixed(1)+'" r="3.5" fill="#2A702D" stroke="#4C5960" stroke-width="1.5" pointer-events="none"/>'
-          :'')
-        +(lastYwg!=null?'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastYwg.toFixed(1)+'" r="3" fill="#7A5D07" stroke="#5F696F" stroke-width="1" pointer-events="none"/>':'')
-        +'<line id="'+svgId+'-vline" x1="-1" y1="'+padY+'" x2="-1" y2="'+H+'" stroke="#5F696F" stroke-width="1" stroke-dasharray="3,3" pointer-events="none" visibility="hidden"/>'
-        +'<circle id="'+svgId+'-dot-ws" cx="-1" cy="-1" r="4.5" fill="#2A702D" stroke="#4C5960" stroke-width="1.5" pointer-events="none" visibility="hidden"/>'
-        +(wgU.length?'<circle id="'+svgId+'-dot-wg" cx="-1" cy="-1" r="3.5" fill="#7A5D07" stroke="#5F696F" stroke-width="1" pointer-events="none" visibility="hidden"/>':'')
-        +'<rect id="'+svgId+'-hit" x="'+padX+'" y="'+padY+'" width="'+(W-padX-8)+'" height="'+(H-padY)+'" fill="transparent" style="cursor:crosshair"/>'
-        +xlbls
-      +'</svg>'
-    +'</div>'
-    +'<div style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;padding:0 2px">'
-      +'<div style="display:flex;gap:10px;font-variant-numeric:tabular-nums;font-size:8px">'
-        +'<span style="color:#2A702D">▬ Tuuli'+(latWs!=null?' <b style="color:#2A702D">'+latWs.toFixed(1)+'</b> '+Units.label():'')+'</span>'
-        +(wgU.length?'<span style="color:#7A5D07">▬ Puuska'+(latWg!=null?' <b style="color:#7A5D07">'+latWg.toFixed(1)+'</b>':'')+'</span>':'')
-      +'</div>'
-      +'<div style="font-variant-numeric:tabular-nums;font-size:8px;color:var(--ink-3)">'+(data.station||'FMI')+'</div>'
-    +'</div>';
+      + '<div id="' + svgId + '-fmidd" style="flex:1;min-width:0;overflow:visible"></div>'
+      /* Yhden napin segmenttiraita ei ole valitsin vaan koriste — se
+         näyttää siltä että vaihtoehtoja on, vaikka niitä ei ole. */
+      + (tarjolla.length > 1
+        ? '<div role="group" aria-label="Jakso" style="display:flex;flex-shrink:0;background:var(--surface-lo);border-radius:10px;padding:2px;gap:1px">' + segBtns + '</div>'
+        : '')
+    + '</div>'
 
-  /* Tooltip + crosshair */
-  var svg=document.getElementById(svgId),hit=document.getElementById(svgId+'-hit');
-  var vl=document.getElementById(svgId+'-vline');
-  var dotWs=document.getElementById(svgId+'-dot-ws'),dotWg=document.getElementById(svgId+'-dot-wg');
-  var tip=document.getElementById(svgId+'-tip');
-  if(!hit)return;
-  function svgXpx(cx){var r=svg.getBoundingClientRect();return(cx-r.left)/r.width*W;}
-  function showTip(cx){
-    var sx=svgXpx(cx),idx=iOf(sx),x=xOf(idx);
-    var yw=wsU[idx]!=null?yOf(wsU[idx]):null,yg=wgU[idx]!=null?yOf(wgU[idx]):null;
-    vl.setAttribute('x1',x.toFixed(1));vl.setAttribute('x2',x.toFixed(1));vl.setAttribute('visibility','visible');
-    if(dotWs&&yw!=null){dotWs.setAttribute('cx',x.toFixed(1));dotWs.setAttribute('cy',yw.toFixed(1));dotWs.setAttribute('visibility','visible');}
-    if(dotWg&&yg!=null){dotWg.setAttribute('cx',x.toFixed(1));dotWg.setAttribute('cy',yg.toFixed(1));dotWg.setAttribute('visibility','visible');}
-    var wsVal=wsU[idx]!=null?wsU[idx].toFixed(1):'--';
-    var wgVal=wgU[idx]!=null?wgU[idx].toFixed(1):null;
-    var dir=wsDirs&&wsDirs[idx]!=null?wsDirs[idx]:null;
-    var dirHtml=dir!=null?'<span style="display:inline-block;transform:rotate('+(dir+180)+'deg);font-size:12px;line-height:1">↑</span> ':'' ;
-    var cc=ColorRamp.ink(wsU[idx]||0);
-    var wColor='rgb('+cc.r+','+cc.g+','+cc.b+')';
-    tip.innerHTML='<div style="font-size:18px;font-weight:700;color:'+wColor+';letter-spacing:-.5px;line-height:1">'+dirHtml+wsVal+' <span style="font-size:11px;font-weight:400;opacity:.6">'+Units.label()+'</span></div>'
-      +(wgVal?'<div style="font-size:10px;color:#7A5D07;margin-top:3px">Puuska '+wgVal+' '+Units.label()+'</div>':'')
-      +'<div style="color:var(--ink-3);font-size:9px;margin-top:4px">'+(times[idx]||'')+'</div>';
-    var r=svg.getBoundingClientRect();
-    tip.style.left=_tipLeftPx(tip,r,x,W)+'px';
-    tip.style.top=(yw!=null?Math.max(2,(yw/TH)*r.height-62):4)+'px';
-    tip.style.display='block';
-  }
-  function hideTip(){
-    tip.style.display='none';
-    vl.setAttribute('visibility','hidden');vl.setAttribute('x1','-1');vl.setAttribute('x2','-1');
-    if(dotWs){dotWs.setAttribute('visibility','hidden');dotWs.setAttribute('cx','-1');dotWs.setAttribute('cy','-1');}
-    if(dotWg){dotWg.setAttribute('visibility','hidden');dotWg.setAttribute('cx','-1');dotWg.setAttribute('cy','-1');}
-  }
-  hit.addEventListener('mousemove',function(e){showTip(e.clientX);},{passive:true});
-  hit.addEventListener('mouseleave',hideTip,{passive:true});
-  hit.addEventListener('touchstart',function(e){if(e.touches[0])showTip(e.touches[0].clientX);},{passive:true});
-  hit.addEventListener('touchmove',function(e){e.preventDefault();if(e.touches[0])showTip(e.touches[0].clientX);},{passive:false});
-  hit.addEventListener('touchend',function(){setTimeout(hideTip,2000);},{passive:true});
-  el.querySelectorAll('[data-fmi-period]').forEach(function(btn){
-    btn.addEventListener('click',function(){
-      el._fmiHours=btn.dataset.fmiPeriod==='24h'?24:12;
-      _renderLiveHistory(el,data,wx);
-    },{passive:true});
-  });
+    + (vanha
+      ? '<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:10px;padding:7px 9px;border-radius:9px;background:var(--surface-lo);border:1px solid var(--hairline)">'
+        + '<span style="font-size:11px;line-height:1.3">⚠︎</span>'
+        + '<span style="font-size:9.5px;color:var(--ink-2);line-height:1.35">Asema ei lähetä juuri nyt. Viimeisin havainto '
+          + viimeHetki + ' — ' + ikaTeksti + '.</span>'
+        + '</div>'
+      : '')
 
+    + '<div style="position:relative">'
+      + '<div id="' + svgId + '-tip" role="status" style="display:none;position:absolute;background:var(--surface-hi);border:1px solid var(--hairline);border-radius:12px;padding:7px 11px;pointer-events:none;white-space:nowrap;box-shadow:var(--shadow-1);z-index:100;transform:translateX(-50%)"></div>'
+      + '<svg id="' + svgId + '" viewBox="0 0 ' + W + ' ' + TH + '" style="width:calc(100% + 22px);margin-left:-22px;display:block;touch-action:none;overflow:visible" role="img" aria-label="Tuulen historia">'
+        + '<defs>'
+          + '<linearGradient id="' + gradId + '" x1="0" y1="0" x2="1" y2="0">' + stops + '</linearGradient>'
+          + '<linearGradient id="' + vyoId + '" x1="0" y1="0" x2="0" y2="1">'
+            + '<stop offset="0%" stop-color="rgba(76,89,96,0.20)"/><stop offset="100%" stop-color="rgba(76,89,96,0.07)"/>'
+          + '</linearGradient>'
+        + '</defs>'
+        + yLab
+        + vrkViivat
+        + (vyohyke ? '<path d="' + vyohyke + '" fill="url(#' + vyoId + ')"/>' : '')
+        + (ylaP ? '<path d="' + ylaP + '" fill="none" stroke="#4C5960" stroke-width="1" stroke-opacity=".45" stroke-linecap="round"/>' : '')
+        + (tuuliPolku ? '<path d="' + tuuliPolku + '" fill="none" stroke="url(#' + gradId + ')" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' : '')
+        + huippuLabel
+        /* Viimeisin arvo saa aina suoran nimilapun — arvoa ei tarvitse
+           etsiä tooltipilla. Sammutettu kun data on vanhaa. */
+        + '<circle cx="' + vikaX.toFixed(1) + '" cy="' + vikaY.toFixed(1) + '" r="4" fill="var(--surface-hi)"/>'
+        + '<circle cx="' + vikaX.toFixed(1) + '" cy="' + vikaY.toFixed(1) + '" r="2.6" fill="' + _havInkCss(vika.ws) + '"/>'
+        + '<line x1="-1" y1="' + padY + '" x2="-1" y2="' + (suuntaY + suuntaH) + '" stroke="#5F696F" stroke-width="1" id="' + svgId + '-vl" visibility="hidden" pointer-events="none"/>'
+        + '<circle id="' + svgId + '-dot" cx="-9" cy="-9" r="3.4" fill="var(--ink)" stroke="var(--surface-hi)" stroke-width="1.6" visibility="hidden" pointer-events="none"/>'
+        + '<rect x="' + padX + '" y="' + suuntaY + '" width="' + plotW + '" height="' + suuntaH + '" fill="var(--surface-lo)" opacity=".5" rx="3"/>'
+        + nuolet
+        + xLab
+        + '<rect id="' + svgId + '-hit" x="' + padX + '" y="0" width="' + plotW + '" height="' + (suuntaY + suuntaH) + '" fill="transparent" style="cursor:crosshair"/>'
+      + '</svg>'
+    + '</div>'
 
-  /* Lisää dropdown */
-  const spotRef = State.sheetSpot;
-  if (spotRef) {
-    var allSt = _fmiStationsSorted(spotRef.lat, spotRef.lng);
-    /* Näytä max 6 lähintä; kaukospoteilla vain lähin */
-    var stations = allSt[0] && allSt[0].km > 50
-      ? allSt.slice(0, 1)
-      : allSt.slice(0, 6);
-    const curPlace = data.place || stations[0].place;
-    const selected = stations.find(function(s){ return s.place===curPlace; }) || stations[0];
-    var fmiIdRef = spotRef ? ('fmi-'+spotRef.name.replace(/\s/g,'_')) : null;
-    const dropdown = _fmiDropdown(el, stations, selected, function(st) {
-      /* Päivitä otsikko heti */
-      if (fmiIdRef) {
-        var lbl = document.getElementById(fmiIdRef + '-chart-lbl');
-        if (lbl) lbl.textContent = 'Tuulihavainto · ' + st.name;
-      }
-      el.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:10px">Ladataan '+st.name+'...</div>';
-      /* Järjestetään: valittu asema ensin, sitten muut fallbackina */
-      var fallbackList = [st].concat(stations.filter(function(s){ return s.place !== st.place; }));
-      _fmiLoadWithFallback(fallbackList, hours,
-        function(okSt, lat2, nd) {
-          if (lat2 && fmiIdRef) _updateFmiCard(fmiIdRef, lat2);
-          el._fmiHours = hours;
-          el.dataset.ok = '1';
-          if (okSt.place !== st.place) {
-            /* Näytä huomio: käytetään fallback-asemaa */
-            var lbl2 = fmiIdRef ? document.getElementById(fmiIdRef+'-chart-lbl') : null;
-            if (lbl2) lbl2.textContent = 'Tuulihavainto · ' + okSt.name + ' (lähin saatavilla)';
-          }
-          _renderLiveHistory(el, Object.assign({}, nd, {place: okSt.place}), lat2||wx);
-        },
-        function() {
-          el.innerHTML = '<div style="text-align:center;padding:10px;color:rgba(255,100,100,.7);font-variant-numeric:tabular-nums;font-size:10px">Ei dataa saatavilla</div>';
-        }
-      );
-    });
-    /* Lisää dropdown header-rivin fmidd-slottiin, ei koko elementin alkuun */
-    const ddSlot = el.querySelector('[id$="-fmidd"]');
-    if (ddSlot) {
-      ddSlot.innerHTML = '';
-      ddSlot.appendChild(dropdown);
-    } else {
-      el.insertBefore(dropdown, el.firstChild);
+    /* Selite: tuuliviivan avain on sama gradientti kuin viiva, koska
+       viivalla ei ole yhtä väriä. Vyöhykkeelle oma laatta. */
+    + '<div style="display:flex;align-items:center;gap:12px;margin-top:5px;padding:0 2px;font-size:8.5px;color:var(--ink-2);flex-wrap:wrap">'
+      + '<span style="display:inline-flex;align-items:center;gap:4px">'
+        /* gradientUnits="userSpaceOnUse": vaakasuoran viivan rajauslaatikon
+           korkeus on nolla, joten oletusarvoinen objectBoundingBox rappeutuu
+           eikä gradientti näy lainkaan. */
+        + '<svg width="16" height="4" viewBox="0 0 16 4" aria-hidden="true"><defs><linearGradient id="' + gradId + '-lk" gradientUnits="userSpaceOnUse" x1="1" y1="0" x2="15" y2="0">' + stops + '</linearGradient></defs>'
+        + '<line x1="1" y1="2" x2="15" y2="2" stroke="url(#' + gradId + '-lk)" stroke-width="2.4" stroke-linecap="round"/></svg>Tuuli</span>'
+      + '<span style="display:inline-flex;align-items:center;gap:4px">'
+        + '<svg width="14" height="9" viewBox="0 0 14 9" aria-hidden="true"><rect x="0" y="0" width="14" height="9" rx="2" fill="rgba(76,89,96,0.18)"/><line x1="0" y1="1" x2="14" y2="1" stroke="#4C5960" stroke-opacity=".45" stroke-width="1"/></svg>Puuskaväli</span>'
+      + '<span style="display:inline-flex;align-items:center;gap:4px">'
+        + '<svg width="9" height="9" viewBox="-5 -5 10 10" aria-hidden="true"><path d="M0,-4 L2.7,2.9 L0,1.4 L-2.7,2.9 Z" fill="#4C5960"/></svg>Suunta</span>'
+      + '<span style="margin-left:auto;color:var(--ink-3)">' + (data.station || 'FMI') + (ikaTeksti ? ' · ' + ikaTeksti : '') + '</span>'
+    + '</div>'
+
+    /* Lukemat ilman tooltipia: tooltip saa täydentää, ei portittaa. */
+    + '<div style="display:flex;align-items:center;gap:12px;margin-top:12px;padding-top:11px;border-top:1px solid var(--hairline-soft)">'
+      + (ruusuSvg || '')
+      + '<div style="flex:1;min-width:0;display:grid;grid-template-columns:1fr 1fr;gap:10px 12px">'
+        + tilasto('Keskituuli', Units.fmt(sKa), Units.label(), _havInkCss(sKa))
+        + tilasto('Kovin puuska', Units.fmt(sMax), Units.label(), _havInkCss(sMax))
+        + tilasto('Vallitseva', _havIlmansuuntaLyhyt(vallitseva), vallitseva != null ? Math.round(vallitseva) + '°' : '')
+        + tilasto('Lämpötila', lampo != null ? lampo.toFixed(1) : '–', '°C')
+      + '</div>'
+    + '</div>';
+
+  /* ── Vuorovaikutus ──────────────────────────────────────────────── */
+  var svg = document.getElementById(svgId), hit = document.getElementById(svgId + '-hit');
+  var vl = document.getElementById(svgId + '-vl'), dot = document.getElementById(svgId + '-dot');
+  var tip = document.getElementById(svgId + '-tip');
+  var viimeIdx = -1;
+  function svgX(cx) { var r = svg.getBoundingClientRect(); return (cx - r.left) / r.width * W; }
+  function nayta(cx) {
+    var idx = iOf(svgX(cx)), b = niput[idx], x = xOf(idx), y = yOf(U(b.ws));
+    if (idx !== viimeIdx) {
+      viimeIdx = idx;
+      if (typeof Haptics !== 'undefined' && Haptics.light) Haptics.light();
     }
+    vl.setAttribute('x1', x.toFixed(1)); vl.setAttribute('x2', x.toFixed(1)); vl.setAttribute('visibility', 'visible');
+    dot.setAttribute('cx', x.toFixed(1)); dot.setAttribute('cy', y.toFixed(1)); dot.setAttribute('visibility', 'visible');
+    var dt2 = new Date(b.ms);
+    var kello = ('0' + dt2.getHours()).slice(-2) + ':' + ('0' + dt2.getMinutes()).slice(-2);
+    var pvm = PAIVAT[dt2.getDay()] + ' ' + dt2.getDate() + '.' + (dt2.getMonth() + 1) + '.';
+    /* Yksi tooltip, kaikki sarjat samalta hetkeltä. */
+    tip.innerHTML =
+      '<div style="display:flex;align-items:baseline;gap:5px">'
+        + '<span style="font-size:17px;font-weight:600;line-height:1;color:' + _havInkCss(b.ws) + '">' + Units.fmt(b.ws) + '</span>'
+        + '<span style="font-size:9px;color:var(--ink-3)">' + Units.label() + '</span>'
+        + (b.d != null ? '<span style="margin-left:3px;font-size:9.5px;color:var(--ink-2)">'
+            + '<span style="display:inline-block;transform:rotate(' + (b.d + 180).toFixed(0) + 'deg)">↑</span> '
+            + _havIlmansuuntaLyhyt(b.d) + ' ' + Math.round(b.d) + '°</span>' : '')
+      + '</div>'
+      + '<div style="font-size:9.5px;color:var(--ink-2);margin-top:3px">Puuska ' + Units.fmt(b.wg)
+        + (b.ta != null ? ' · ' + b.ta.toFixed(1) + '°C' : '') + '</div>'
+      + '<div style="font-size:8.5px;color:var(--ink-3);margin-top:2px;font-variant-numeric:tabular-nums">' + pvm + ' ' + kello + '</div>';
+    tip.style.display = 'block';
+    /* Sijoitus vasta kun sisältö on paikallaan — offsetWidth/Height on
+       muuten edellisen lukeman mitta. */
+    var r = svg.getBoundingClientRect();
+    var isanta = tip.offsetParent || tip.parentNode;
+    var isantaW = isanta ? isanta.clientWidth : r.width;
+    var vasen = _tipLeftPx(tip, r, x, W);
+    /* transform: translateX(-50%) — rajaus tehdään keskikohdalle. */
+    var puoli = tip.offsetWidth / 2;
+    tip.style.left = Math.max(puoli + 2, Math.min(isantaW - puoli - 2, vasen)) + 'px';
+    /* Pystysuunta: jos piste on kuvan alapuoliskossa, kortti nousee ylös —
+       muuten se peittäisi suuntanauhan ja aikarivin, eli juuri ne kaksi
+       asiaa joita samalla luetaan. */
+    var yPx = (y / TH) * r.height;
+    tip.style.top = (y > (padY + H) / 2 ? 0 : Math.min(yPx + 14, r.height - tip.offsetHeight - 2)) + 'px';
+  }
+  function piilota() {
+    viimeIdx = -1;
+    tip.style.display = 'none';
+    vl.setAttribute('visibility', 'hidden');
+    dot.setAttribute('visibility', 'hidden');
+  }
+  if (hit) {
+    hit.addEventListener('mousemove', function (e) { nayta(e.clientX); }, { passive: true });
+    hit.addEventListener('mouseleave', piilota, { passive: true });
+    hit.addEventListener('touchstart', function (e) { if (e.touches[0]) nayta(e.touches[0].clientX); }, { passive: true });
+    hit.addEventListener('touchmove', function (e) { e.preventDefault(); if (e.touches[0]) nayta(e.touches[0].clientX); }, { passive: false });
+    hit.addEventListener('touchend', function () { setTimeout(piilota, 2200); }, { passive: true });
   }
 
-  /* Period napit */
-  el.querySelectorAll('[data-fmi-period]').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      el._fmiHours = parseInt(btn.dataset.fmiPeriod);
+  /* ── Jaksonapit ─────────────────────────────────────────────────── */
+  el.querySelectorAll('[data-fmi-period]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      el._fmiHours = parseInt(btn.dataset.fmiPeriod, 10);
+      if (typeof Haptics !== 'undefined' && Haptics.light) Haptics.light();
       _renderLiveHistory(el, data, wx);
     }, { passive: true });
   });
 
-  /* SVG interaktiivinen tooltip */
-  var svg = document.getElementById(svgId);
-  var hit = document.getElementById(svgId+'-hit');
-  var vline = document.getElementById(svgId+'-vline');
-  var dotWs = document.getElementById(svgId+'-dot-ws');
-  var dotWg = document.getElementById(svgId+'-dot-wg');
-  var tip   = document.getElementById(svgId+'-tip');
-  if (!svg || !hit) return;
-
-  function svgX(clientX) {
-    var rect = svg.getBoundingClientRect();
-    return (clientX - rect.left) / rect.width * W;
+  /* ── Asemavalitsin (spottikortissa) ─────────────────────────────── */
+  var spotRef = State.sheetSpot;
+  if (spotRef) {
+    var allSt = _fmiStationsSorted(spotRef.lat, spotRef.lng);
+    var stations = allSt[0] && allSt[0].km > 50 ? allSt.slice(0, 1) : allSt.slice(0, 6);
+    var curPlace = data.place || stations[0].place;
+    var selected = stations.find(function (s) { return s.place === curPlace; }) || stations[0];
+    var fmiIdRef = 'fmi-' + spotRef.name.replace(/\s/g, '_');
+    var dropdown = _fmiDropdown(el, stations, selected, function (st) {
+      var lbl = document.getElementById(fmiIdRef + '-chart-lbl');
+      if (lbl) lbl.textContent = 'Tuulihavainto · ' + st.name;
+      el.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:10px">Ladataan ' + st.name + '...</div>';
+      var fallbackList = [st].concat(stations.filter(function (s) { return s.place !== st.place; }));
+      _fmiLoadWithFallback(fallbackList, 168,
+        function (okSt, lat2, nd) {
+          if (lat2) _updateFmiCard(fmiIdRef, lat2);
+          el.dataset.ok = '1';
+          var lbl2 = document.getElementById(fmiIdRef + '-chart-lbl');
+          if (lbl2 && okSt.place !== st.place) lbl2.textContent = 'Tuulihavainto · ' + okSt.name + ' (lähin saatavilla)';
+          _renderLiveHistory(el, Object.assign({}, nd, { place: okSt.place }), lat2 || wx);
+        },
+        function () {
+          el.innerHTML = '<div style="text-align:center;padding:10px;color:var(--ink-3);font-variant-numeric:tabular-nums;font-size:10px">Ei dataa saatavilla</div>';
+        }
+      );
+    });
+    var ddSlot = el.querySelector('[id$="-fmidd"]');
+    if (ddSlot) { ddSlot.innerHTML = ''; ddSlot.appendChild(dropdown); }
   }
-
-  function showTooltip(clientX, clientY) {
-    var sx = svgX(clientX);
-    var idx = Math.max(0, Math.min(n-1, iOf(sx)));
-    var cx  = xOf(idx);
-    var wsV = wsU[idx];
-    var wgV = wgU.length > idx ? wgU[idx] : null;
-
-    /* Pystyviiva */
-    vline.setAttribute('x1', cx.toFixed(1));
-    vline.setAttribute('x2', cx.toFixed(1));
-
-    /* Pisteet viivalla */
-    dotWs.setAttribute('cx', cx.toFixed(1));
-    dotWs.setAttribute('cy', yOf(wsV).toFixed(1));
-    if (dotWg && wgV != null) {
-      dotWg.setAttribute('cx', cx.toFixed(1));
-      dotWg.setAttribute('cy', yOf(wgV).toFixed(1));
-    }
-
-    /* Tooltip teksti */
-    var t = times[idx] || '';
-    tip.innerHTML =
-      '<div style="color:var(--ink-3);margin-bottom:3px">'+t+'</div>'
-      +'<div style="color:#2A702D">Tuuli: '+wsV.toFixed(1)+' '+Units.label()+'</div>'
-      +(wgV!=null?'<div style="color:#7A5D07">Puuska: '+wgV.toFixed(1)+' '+Units.label()+'</div>':'');
-
-    /* Tooltip sijainti — pysyy SVG:n sisällä */
-    var rect = svg.getBoundingClientRect();
-    var relX = clientX - rect.left;
-    var tipW = 120;
-    var tipLeft = relX > rect.width/2 ? relX - tipW - 8 : relX + 8;
-    tip.style.left = tipLeft + 'px';
-    tip.style.top  = '4px';
-    tip.style.display = 'block';
-  }
-
-  function hideTooltip() {
-    tip.style.display = 'none';
-    vline.setAttribute('x1','-1'); vline.setAttribute('x2','-1');
-    dotWs.setAttribute('cx','-1'); dotWs.setAttribute('cy','-1');
-    if (dotWg) { dotWg.setAttribute('cx','-1'); dotWg.setAttribute('cy','-1'); }
-  }
-
-  /* Mouse events */
-  hit.addEventListener('mousemove', function(e){ showTooltip(e.clientX, e.clientY); }, { passive: true });
-  hit.addEventListener('mouseleave', hideTooltip, { passive: true });
-
-  /* Touch events */
-  hit.addEventListener('touchstart', function(e){ if(e.touches[0]) showTooltip(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
-  hit.addEventListener('touchmove',  function(e){ e.preventDefault(); if(e.touches[0]) showTooltip(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
-  hit.addEventListener('touchend', function(){ setTimeout(hideTooltip, 1500); }, { passive: true });
 }
+
 function _condCard(icon, label, value) {
   return '<div class="sh-cond-card">'
     + '<span class="sh-cond-icon">' + icon + '</span>'

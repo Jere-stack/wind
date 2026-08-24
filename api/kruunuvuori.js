@@ -2,7 +2,18 @@ import https from 'https';
 
 const CSV_URL = 'https://swell.fmi.fi/Marinehelsinki/csv/kruunuvuorenselka_weatherdata.csv';
 const STATION = { name: 'Kruunuvuorenselkä', place: 'kruunuvuorenselka', lat: 60.163, lng: 24.997 };
-const HISTORY_HOURS = 30; /* pidetään historia samaa suuruusluokkaa kuin muilla asemilla (24h + marginaali) */
+/* Historian pituus tulee kutsujalta, kuten api/fmi.js:ssa.
+ *
+ * CSV kattaa noin 14 vrk kymmenen minuutin välein, eli data on jo
+ * olemassa — sitä vain leikattiin 30 tuntiin siltä ajalta kun kortti
+ * näytti korkeintaan vuorokauden. Nyt havaintokortti pyytää 168 h (sama
+ * katto kuin FMI:n opendata antaa, jolloin jaksovalitsin käyttäytyy
+ * samoin riippumatta siitä mikä asema on auki) ja karttamerkki 30 h,
+ * jolla se osaa näyttää oikean lukeman aikajanaa liu'utettaessa.
+ * Oletus on merkin mitta: kartta latautuu käynnistyksessä, kortti vasta
+ * pyydettäessä. */
+const HISTORY_DEFAULT = 30;
+const HISTORY_MAX = 336;
 /* Uimaveden lämpötila esitetään 7/30 vrk/max -jaksoina kuten muutkin
    uimavesipisteet, joten sille otetaan koko CSV:n kattama jakso (~14 vrk).
    Harvennetaan 30 minuuttiin: lähde on 10 min välein eli ~2000 riviä, ja
@@ -26,10 +37,14 @@ export default async function handler(req, res) {
     }
 
     const dataLines = lines.slice(1); /* rivi 0 = otsikko "Localtime","UTC","Ws",... */
-    const cutoffMs = Date.now() - HISTORY_HOURS * 3600000;
+    const hours = Math.max(1, Math.min(HISTORY_MAX, parseInt(req.query.hours, 10) || HISTORY_DEFAULT));
+    const cutoffMs = Date.now() - hours * 3600000;
 
     const wsHist = [];
     const wgHist = [];
+    /* Ilman lampotila samaan sarjamuotoon kuin FMI:lla — havaintokortin
+       kaavio lukee sen tooltipiin ja tilastoriville. */
+    const taHist = [];
     /* Uimaveden lampotila omana sarjanaan: ISO-aikaleima (ei HH:MM), koska
        jakso on paivia eika tunteja — sama pistemuoto {t,v} kuin UiRas-
        asemilla, jolloin frontend voi kayttaa samaa graafia. */
@@ -62,8 +77,11 @@ export default async function handler(req, res) {
       if (isNaN(utcMs)) continue;
 
       if (utcMs >= cutoffMs) {
-        wsHist.push({ t: hhmm, v: ws, d: wdir, iso: utcTime });
-        wgHist.push({ t: hhmm, v: gust, iso: utcTime });
+        /* Anturikatkon NaN-rivit jatetaan pois sarjasta sen sijaan etta ne
+           tyontaisivat nullin kaavioon. */
+        if (ws != null) wsHist.push({ t: hhmm, v: ws, d: wdir, iso: utcTime });
+        if (gust != null) wgHist.push({ t: hhmm, v: gust, iso: utcTime });
+        if (ta != null) taHist.push({ t: hhmm, v: ta, iso: utcTime });
       }
       /* Vesisarja koko CSV:n ajalta, ei tuntirajausta */
       if (tw != null) twAll.push({ ms: utcMs, t: utcTime, v: tw });
@@ -100,7 +118,14 @@ export default async function handler(req, res) {
       tw: latest.tw,
       time: display.hhmm,
       utcTime: display.utcTime,
-      history: { ws: wsHist, wg: wgHist },
+      history: {
+        ws: wsHist, wg: wgHist, ta: taHist,
+        station: STATION.name, place: STATION.place,
+        lastIso: display.utcTime,
+        /* Havainnon ika minuutteina — kortti erottaa talla "asema on
+           hiljaa" -tilan "asemaa ei ole" -tilasta. */
+        ageMin: Math.round((Date.now() - latestValidMs) / 60000),
+      },
       /* Aikajarjestyksessa ja harvennettuna — CSV:n rivijarjestykseen ei luoteta */
       waterHistory: twAll
         .sort(function (a, b) { return a.ms - b.ms; })
