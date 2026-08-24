@@ -3175,7 +3175,9 @@ const ViewportGrid = {
     let done = 0;
     const total = pts.length;
     const loadPromise = Promise.allSettled(batches.map(b =>
-      loadBatch(b, 1, true).then(() => {
+      /* 1 vrk, ei historiaa — lyhyt jakso on tarkoituksellinen ja
+         sanotaan nyt ääneen molemmilla parametreilla. */
+      loadBatch(b, 1, true, undefined, 0).then(() => {
         b.forEach(p => { if (p.wx) this._globalBase.set(this._ptKey(p.lat, p.lng), p); });
         done += b.length;
         if (onProgress) onProgress(done, total);
@@ -6563,6 +6565,48 @@ const API_BASE = '/api';
 const HARMONIE_BASE = API_BASE + '/harmonie';
 const OM_BASE       = 'https://api.open-meteo.com/v1/forecast';
 
+/* -- KAIKKI TUNTISARJAT SAMALLA AIKAVYÖHYKKEELLÄ -----------------
+ *
+ * Tämä on lämpökartan kaikkein hankalin vika, ja se näkyi vain kartalla
+ * eikä koskaan koodia lukemalla.
+ *
+ * Open-Meteo palauttaa `timezone=auto` -pyynnöllä JOKAISEN pisteen ajat
+ * SEN OMASSA aikavyöhykkeessä — mutta merkkijonoissa ei ole vyöhykettä
+ * mukana. Kaikilla pisteillä lukee `2026-08-24T00:00`, vaikka Magadanissa
+ * se on UTC+11 ja Edmontonissa UTC−6. Mitattuna viiden pisteen rivillä
+ * lat 60 pitkin maapalloa vyöhykkeet olivat GMT+3, GMT, GMT−4, GMT−6 ja
+ * GMT+11 — sama merkkijono, 17 tunnin haitari.
+ *
+ * `_ts()` tekee `new Date(h.time[i])`, ja ilman vyöhykettä selain tulkitsee
+ * sen OMAKSI paikallisajakseen. Jokainen piste sai siis oman aikavirheensä,
+ * ja `buildWindField` etsii aikaleiman perusteella — eli poimi eri tunnin
+ * eri pisteistä. Lähellä zoomattuna kaikki pisteet ovat samassa
+ * vyöhykkeessä ja virhe on tasainen, joten kuva näyttää ehjältä. Kaukaa
+ * katsottuna näkymä ylittää vyöhykerajoja ja kenttä hajoaa: mitattuna
+ * samat koordinaatit antoivat z9:stä ja z2:sta keskimäärin 3,66 m/s eri
+ * tuulen ja korrelaatio oli 0,52.
+ *
+ * Korjaus: pyydetään KAIKKI selaimen omassa vyöhykkeessä. Silloin jokainen
+ * merkkijono tarkoittaa samaa hetkeä, `new Date()` osuu oikeaan, eikä
+ * yhdenkään näyttökohdan aikamuotoilu muutu — ne olettavat jo
+ * paikallisaikaa.
+ *
+ * Open-Meteo hyväksyy minkä tahansa IANA-vyöhykkeen ja hylkää roskan
+ * selkeästi (`error: true, reason: 'Invalid timezone'`), joten arvo on
+ * varmistettava. Intl antaa aina kelvollisen nimen; varmistus on siltä
+ * varalta ettei anna. Varatie on Europe/Helsinki eikä `auto` — yksi
+ * yhteinen akseli on tässä tärkeämpää kuin oikea vyöhyke, ja sovelluksen
+ * kotivyöhyke on se. */
+const AIKAVYOHYKE = (function () {
+  try {
+    const z = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    /* Kelpaako se oikeasti? Jos ei, Intl heittää. */
+    if (z) { new Intl.DateTimeFormat('en', { timeZone: z }).format(new Date()); return z; }
+  } catch (e) {}
+  return 'Europe/Helsinki';
+})();
+const TZ_PARAM = '&timezone=' + encodeURIComponent(AIKAVYOHYKE);
+
 /* HARMONIE haetaan ERISSA, ei pisteittain.
  *
  * Aiemmin tama palautti yhden osoitteen per piste, ja koska best_match
@@ -6628,7 +6672,7 @@ function buildHarmonieUrls(points) {
     const era = points.slice(i, i + HARMONIE_ERA);
     urlit.push(HARMONIE_BASE + '?pts=' + era.map(function(p) {
       return p.lat.toFixed(4) + ',' + p.lng.toFixed(4);
-    }).join(';'));
+    }).join(';') + '&tz=' + encodeURIComponent(AIKAVYOHYKE));
   }
   return urlit;
 }
@@ -6639,7 +6683,7 @@ function buildBatchUrl(points, model, forecastDays, pastDays) {
   let url = OM_BASE + '?latitude=' + points.map(p => p.lat.toFixed(4)).join(',')
     + '&longitude=' + points.map(p => p.lng.toFixed(4)).join(',')
     + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m'
-    + '&wind_speed_unit=ms&timezone=auto&forecast_days=' + days
+    + '&wind_speed_unit=ms' + TZ_PARAM + '&forecast_days=' + days
     + '&past_days=' + past;
   if (model && model !== 'best_match') url += '&models=' + model;
   return url;
@@ -6775,8 +6819,23 @@ function loadBatch(points, forecastDays, forceOM, signal, pastDays) {
   }
   if (forceOM || (model !== 'fmi_harmonie' && model !== 'best_match')) {
     const mdl = forceOM ? 'best_match' : model;
+    /* Vuorokausimäärät tulevat PARAMETREISTA, eivät forceOM:sta.
+     *
+     * Tässä luki `foreD = forecastDays || (forceOM ? 1 : 16)`, ja se oli
+     * paha: näkymän lataus antaa forecastDaysiksi undefined, ja kun
+     * HARMONIEn hilan ulkopuoliset erät alkoivat kulkea forceOM-lipulla,
+     * ne saivat yhden vuorokauden kuudentoista sijaan. Mitattuna
+     * Sydneyssä JOKAINEN ennustepiste oli 72 tuntia pitkä (1 vrk + 2 vrk
+     * historiaa) kun Suomessa ne olivat 372 — eli koko aikajana kutistui
+     * kolmeen vuorokauteen heti kun kartta vietiin Pohjois-Euroopan
+     * ulkopuolelle, ja sen jälkeen lämpökartta näytti viimeistä
+     * saatavilla olevaa tuntia riippumatta siitä mihin aikajana oli
+     * vedetty.
+     *
+     * Nyt forceOM tarkoittaa täsmälleen yhtä asiaa: ohita HARMONIE.
+     * Globaali karkea hila kertoo lyhyen jaksonsa itse (1 vrk, 0 historiaa). */
     const pastD = pastDays !== undefined ? pastDays : (forceOM ? 0 : 2);
-    const foreD = forecastDays || (forceOM ? 1 : 16);
+    const foreD = forecastDays || 16;
     return tryOM(mdl, 2, foreD, pastD)
       .catch(e => { if (e.name === 'AbortError') throw e; if (e.message==='429') return tryOM('best_match', 1, foreD, pastD); throw e; })
       .catch(e => { if (e.name === 'AbortError') throw e; if (e.message==='429') setRateLimited(); });
@@ -6860,6 +6919,28 @@ function buildWindField(hourIdx, opts) {
        * tulos vielä muistetaan aikasarjaa kohti. Play kutsuu tätä joka
        * askeleella, ja mitattuna se oli koko askeleen kallein osa. */
       const ts = _ts(h);
+      /* PISTE JOKA EI KATA TÄTÄ HETKEÄ JÄTETÄÄN POIS.
+       *
+       * Alla oleva haku kiinnittää hetken sarjan päihin (`targetTime >=
+       * viimeinen` -> `a = b = viimeinen`). Se on oikein kun ollaan tunnin
+       * murto-osan verran yli, mutta väärin kun piste ei yksinkertaisesti
+       * ulotu sinne asti: silloin se työntää kenttään oman VIIMEISEN
+       * tuntinsa ikään kuin se olisi pyydetty hetki.
+       *
+       * Näin kävi globaalille karkealle hilalle, jossa on vain yksi
+       * vuorokausi (forecast_days=1). Aikajanan vedettyä +72 h se tarjosi
+       * yhä eilistä dataa, ja koska sen pisteet ovat 15 asteen välein koko
+       * maapallolla, ne sekoittuivat näkymän omiin tuoreisiin pisteisiin.
+       * Mitattuna tunnetulla kentällä Suomenlahdella +72 h kohdalla
+       * keskivirhe oli z3:lla 3.24 m/s ja pahimmillaan 8.05 m/s — eli
+       * useita väriaskelia väärässä paikassa. Lähellä zoomattuna vikaa ei
+       * näkynyt, koska siellä karkeaa hilaa ei ole mukana.
+       *
+       * Tunnin toleranssi: sarjat ovat tasatunneittain ja targetTime on
+       * tuntien välissä, joten tarkka vertailu pudottaisi reunatunnit. */
+      const KATE_TOL = 3600000;
+      if (targetTime < ts[0] - KATE_TOL
+       || targetTime > ts[ts.length - 1] + KATE_TOL) continue;
       let a, b;
       if (h.__hakuT === targetTime && h.__hakuA !== undefined) {
         a = h.__hakuA; b = h.__hakuB;
@@ -8683,10 +8764,11 @@ function openSheet(spot, hourIdx) {
       document.getElementById('sheet-overlay').classList.add('open');
     }
     /* Hae Harmonie + Open-Meteo */
-    const harUrl = HARMONIE_BASE + '?lat=' + spot.lat.toFixed(4) + '&lng=' + spot.lng.toFixed(4);
+    const harUrl = HARMONIE_BASE + '?lat=' + spot.lat.toFixed(4) + '&lng=' + spot.lng.toFixed(4)
+      + '&tz=' + encodeURIComponent(AIKAVYOHYKE);
     const omUrl  = OM_BASE + '?latitude=' + spot.lat.toFixed(4) + '&longitude=' + spot.lng.toFixed(4)
       + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m'
-      + '&wind_speed_unit=ms&timezone=auto&forecast_days=7&past_days=1';
+      + '&wind_speed_unit=ms' + TZ_PARAM + '&forecast_days=7&past_days=1';
     Promise.allSettled([
       fetch(harUrl).then(r => r.json()).catch(() => null),
       fetch(omUrl).then(r => r.json()).catch(() => null)
@@ -9531,7 +9613,7 @@ function openSheet(spot, hourIdx) {
       } else {
         var modIds=COMPARE_MODELS.map(function(m){return m.id;}).join(',');
         var omUrl=OM_BASE+'?latitude='+spot.lat.toFixed(4)+'&longitude='+spot.lng.toFixed(4)
-          +'&hourly=wind_speed_10m&wind_speed_unit=ms&timezone=auto&forecast_days=16&past_days=2'
+          +'&hourly=wind_speed_10m&wind_speed_unit=ms'+TZ_PARAM+'&forecast_days=16&past_days=2'
           +'&models='+modIds;
         fetch(omUrl).then(function(r){return r.ok?r.json():null;}).then(function(data){
           if(!data||!data.hourly) return;
@@ -9581,7 +9663,7 @@ function openSheet(spot, hourIdx) {
       const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat
         + '&longitude=' + lng
         + '&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m'
-        + '&wind_speed_unit=ms&timezone=auto';
+        + '&wind_speed_unit=ms' + TZ_PARAM;
       fetch(url).then(r => r.json()).then(data => {
         if (!data.current || !el) return;
         const cw = data.current;
@@ -10284,7 +10366,7 @@ function _liveStatCard(id, spot) {
     const omUrl = 'https://api.open-meteo.com/v1/forecast?latitude=' + spot.lat.toFixed(3)
       + '&longitude=' + spot.lng.toFixed(3)
       + '&current=weather_code,precipitation'
-      + '&timezone=auto';
+      + TZ_PARAM;
 
     Promise.allSettled([
       fetch(fmiUrl).then(r => r.json()),
@@ -11504,7 +11586,8 @@ const WeatherWidget = {
     }
     const [lat, lng] = key.split(',');
     try {
-      const r = await fetch(HARMONIE_BASE + '?lat=' + lat + '&lng=' + lng);
+      const r = await fetch(HARMONIE_BASE + '?lat=' + lat + '&lng=' + lng
+        + '&tz=' + encodeURIComponent(AIKAVYOHYKE));
       if (r.ok) {
         const data = await r.json();
         /* cloudcover toimii myos version tunnisteena: vain se proxy-versio
@@ -11521,7 +11604,7 @@ const WeatherWidget = {
     } catch(e) {}
     try {
       const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lng
-        + '&hourly=temperature_2m,weather_code,cloud_cover&forecast_days=5&timezone=auto';
+        + '&hourly=temperature_2m,weather_code,cloud_cover&forecast_days=5' + TZ_PARAM;
       const r = await fetch(url);
       if (!r.ok) return;
       const data = await r.json();

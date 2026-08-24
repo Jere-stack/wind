@@ -3150,3 +3150,148 @@ ei nappi.
 funktiokseen ja muistettiin yhdelle kutsukierrokselle: tähtäin kysyy sitä
 nyt kahdesti (puuska ja lähde) samalla keskipisteellä, ja `getAllPoints`
 on viewportissa satoja pisteitä.
+
+## Lämpökartan värit olivat eri kohdissa eri zoomeilla
+
+Kolme erillistä vikaa, kaikki AJASSA eikä paikassa. Kaksi niistä syntyi
+edellisessä muutoksessa. Yhdessä ne tekivät juuri sen mitä käyttäjä
+kuvasi: kaukaa katsottuna värit olivat eri paikoissa kuin läheltä.
+
+### Mittari ensin: maailma jonka vastauksen tiedämme
+
+Kahdella ensimmäisellä mittarilla ei saanut mitään irti, ja kummankin
+epäonnistuminen kannattaa muistaa:
+
+1. **Naiivi zoomvertailu naytteisti tekstuurin ULKOPUOLELTA.**
+   `WindTexture` kattaa vain näkymän + pehmusteen, ja sen ulkopuolella
+   `sampleWind` palauttaa reuna-arvon. Ensimmäinen versio naytteisti
+   16 × 32 asteen alueen myös z9:stä, jonka tekstuuri on noin asteen
+   korkea — 90 % näytteistä oli reunapuuroa.
+2. **Kiinteä odotusaika mittasi puoliksi ladattua kenttää.** Sama näkymä
+   antoi peräkkäisillä ajoilla keskiarvot 3.06 / 4.28 / 3.14 m/s. Mittari
+   oli epävakaampi kuin ilmiö. Nyt odotetaan kunnes pistemäärä lakkaa
+   kasvamasta.
+
+Ratkaisu oli korvata säädata **analyyttisellä kentällä**:
+
+```
+ms = 9 + 5*sin(lat/12)*cos((lng - 1.5*t)/15)
+```
+
+Sileä (aallonpituus ~25°, jonka 10 asteen hilakin esittää hyvin) ja
+**vaeltava** — kuvio liikkuu 1,5 astetta tunnissa kuten oikeat
+matalapaineet. Vaeltavuus on olennaista: spatiaalisesti vakio aikatermi
+lisää saman luvun joka pisteeseen ja **kumoutuu interpoloinnissa**, joten
+se ei paljasta pistekohtaista aikavirhettä. Vaeltava aalto muuttaa
+aikavirheen näkyväksi paikkavirheeksi.
+
+Nyt mitataan ero TOTUUTEEN, ei kahden zoomin eroa toisiinsa — silloin
+tiedetään kumpi on väärässä.
+
+### Vika 1: `timezone=auto` antoi joka pisteelle oman kellon
+
+Open-Meteo palauttaa `timezone=auto` -pyynnöllä jokaisen pisteen ajat SEN
+OMASSA vyöhykkeessä — **mutta merkkijonoissa ei ole vyöhykettä mukana.**
+Mitattuna rivillä lat 60 pitkin maapalloa:
+
+```
+lng   25    tz Europe/Helsinki   offset +10800 s   time[0]=2026-08-24T00:00
+lng    0    tz Etc/GMT           offset      0 s   time[0]=2026-08-24T00:00
+lng  -60    tz Etc/GMT+4         offset -14400 s   time[0]=2026-08-24T00:00
+lng -120    tz America/Edmonton  offset -21600 s   time[0]=2026-08-24T00:00
+lng  150    tz Asia/Magadan      offset +39600 s   time[0]=2026-08-24T00:00
+```
+
+Sama merkkijono, **17 tunnin haitari**. `_ts()` tekee
+`new Date(h.time[i])`, ja ilman vyöhykettä selain tulkitsee sen omaksi
+paikallisajakseen — eli jokainen piste sai oman aikavirheensä ja
+`buildWindField` poimi eri tunnin eri pisteistä.
+
+**Miksi se näkyi vain kaukaa.** Lähellä zoomattuna kaikki pisteet ovat
+samassa vyöhykkeessä ja virhe on tasainen, joten kuva näyttää ehjältä.
+Kaukaa näkymä ylittää vyöhykerajoja ja kenttä hajoaa.
+
+Korjaus: kaikki pyydetään **selaimen omassa vyöhykkeessä** (`AIKAVYOHYKE`,
+`TZ_PARAM`). Silloin jokainen merkkijono tarkoittaa samaa hetkeä,
+`new Date()` osuu oikeaan, eikä yksikään näyttökohta muutu — ne olettavat
+jo paikallisaikaa. Open-Meteo hyväksyy minkä tahansa IANA-vyöhykkeen ja
+hylkää roskan selkeästi (`Invalid timezone`), joten arvo varmistetaan
+Intl:llä; varatie on `Europe/Helsinki` eikä `auto`, koska **yksi yhteinen
+akseli on tärkeämpää kuin oikea vyöhyke**.
+
+Sama koski `api/harmonie.js`:ää: se muotoili aina Suomen aikaan käsin
+kirjoitetulla kesäaikasäännöllä ja haki Open-Meteon jatkon
+`timezone=auto`lla. Nyt se ottaa `tz`-parametrin ja käyttää sitä
+molempiin; `Intl` hoitaa kesäajan.
+
+Mitattuna tunnetulla kentällä, keskivirhe m/s:
+
+```
+                 z9     z7     z5     z3     z2
+Tyynimeri ennen  0.14   0.57   1.78   2.42   1.99
+Tyynimeri jälkeen 0.00  0.01   0.06   0.20   0.72
+```
+
+Suurin yksittäinen virhe **5.39 → 0.64 m/s**. Suomessa luvut eivät muutu
+(0.04 → 0.04), koska Suomi on yksi vyöhyke — juuri siksi vika ei näkynyt
+kotona.
+
+### Vika 2: näkymän pisteet saivat yhden vuorokauden kuudentoista sijaan
+
+`loadBatch`issa luki `foreD = forecastDays || (forceOM ? 1 : 16)`. Kun
+HARMONIEn hilan ulkopuoliset erät alettiin lähettää `forceOM`-lipulla (ks.
+*Säädata koko maailmalle*), ne saivat yhden vuorokauden — näkymän lataus
+antaa `forecastDays`iksi `undefined`.
+
+Mitattuna aikasarjojen pituudet:
+
+```
+                     ennen        jälkeen
+FMI-pisteet          372 h        372 h
+Open-Meteo-pisteet    72 h        432 h
+aikajana Sydneyssä    72 h        372 h
+```
+
+Eli **koko aikajana kutistui kolmeen vuorokauteen** heti kun kartta vietiin
+Pohjois-Euroopan ulkopuolelle. Nyt `forceOM` tarkoittaa täsmälleen yhtä
+asiaa: ohita HARMONIE. Vuorokausimäärät tulevat parametreista.
+
+### Vika 3: liian lyhyt sarja tarjosi viimeistä tuntiaan
+
+`buildWindField`in aikahaku kiinnittää hetken sarjan päihin
+(`targetTime >= viimeinen` → `a = b = viimeinen`). Se on oikein kun ollaan
+tunnin murto-osan verran yli, mutta väärin kun piste **ei ulotu sinne
+asti**: silloin se työntää kenttään oman viimeisen tuntinsa ikään kuin se
+olisi pyydetty hetki.
+
+Näin kävi globaalille karkealle hilalle, jossa on tarkoituksella vain yksi
+vuorokausi. Aikajanan vedettyä +72 h se tarjosi yhä eilistä dataa, ja koska
+sen pisteet ovat 15 asteen välein koko maapallolla, ne sekoittuivat
+näkymän omiin tuoreisiin pisteisiin:
+
+```
+Suomenlahti +72 h    z9     z5     z3     z2
+ennen               0.03   0.68   3.77   3.95   (max 8.64)
+jälkeen             0.03   0.24   0.32   0.75   (max 2.21)
+```
+
+Korjaus on yleinen eikä koske vain globaalia hilaa: **piste joka ei kata
+pyydettyä hetkeä jätetään pois kentästä.** Tunnin toleranssi, koska sarjat
+ovat tasatunneittain ja `targetTime` on tuntien välissä.
+
+### Mitä jää jäljelle
+
+Tunnetulla kentällä keskivirhe on z9 **0.00–0.04**, z7 0.01–0.09,
+z5 0.05–0.36, z3 0.18–0.45 ja z2 0.70–0.73 m/s. z2:n virhe on 10 asteen
+hilan aliotanta eikä vika — se on sama sileneminen jonka silmä lukee
+pehmeytenä, ei siirtymänä.
+
+Oikealla säädatalla samat koordinaatit z9:stä ja z6:sta: keskiero
+**0.22 m/s, korrelaatio 0.89, nolla prosenttia yli 1,5 m/s**. Laajemmilla
+pareilla ero kasvaa (z6 vs z2: 1.37 m/s, r 0.67) ja keskiarvo laskee
+(4.86 → 3.64) — juuri niin kuin keskiarvoistaminen tekee huipukkaalle
+kentälle.
+
+**Jos tähän palaa: mittaa totuutta vastaan, älä zoomia toista vastaan.**
+Kahden zoomin ero sekoittaa aliotannan ja virheen toisiinsa, eikä kerro
+kumpi on väärässä.

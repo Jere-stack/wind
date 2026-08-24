@@ -28,11 +28,29 @@ function fetchHarmonieXml(lat, lng) {
   });
 }
 
-function fetchOM(lat, lng) {
+/* Aikavyohyke tulee asiakkaalta (tz=IANA-nimi). Oletus on Europe/Helsinki,
+   koska sovelluksen koti on siella ja vanhat kutsut eivat tunne parametria.
+
+   MIKSI TAMA ON PAKKO. Vastauksen aikaleimat ovat muotoa
+   '2026-08-24T09:00' ILMAN vyohyketta, ja selain tulkitsee sellaisen omaksi
+   paikallisajakseen. Jos palvelin muuntaa Suomen aikaan mutta selain on
+   toisessa vyohykkeessa, jokainen HARMONIE-piste on vaarassa tunnissa —
+   ja lampokartta poimii vaaran hetken juuri niiden pisteiden kohdalta.
+   Sama koskee Open-Meteon jatkoa: se haettiin ennen timezone=autolla, eli
+   PISTEEN omassa vyohykkeessa, jolloin HARMONIE-osan ja jatkon valissa oli
+   hyppy heti kun piste ei ollut Suomessa. HARMONIEn hila kattaa myos
+   Islannin, Britannian ja Keski-Euroopan, joten se ei ole teoriaa. */
+function kelpoTz(tz) {
+  if (!tz || typeof tz !== 'string' || tz.length > 64 || !/^[A-Za-z0-9_+\-\/]+$/.test(tz)) return null;
+  try { new Intl.DateTimeFormat('en', { timeZone: tz }).format(new Date()); return tz; }
+  catch (e) { return null; }
+}
+
+function fetchOM(lat, lng, tz) {
   return new Promise(function(resolve, reject) {
     var url = OM_URL + '?latitude=' + lat + '&longitude=' + lng
       + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m,weather_code,cloud_cover'
-      + '&wind_speed_unit=ms&timezone=auto&forecast_days=16';
+      + '&wind_speed_unit=ms&timezone=' + encodeURIComponent(tz) + '&forecast_days=16';
     https.get(url, function(res) {
       var body = '';
       res.on('data', function(c) { body += c; });
@@ -42,18 +60,20 @@ function fetchOM(lat, lng) {
   });
 }
 
-function isDst(d) {
-  var mar = new Date(d.getFullYear(), 2, 31);
-  mar.setDate(31 - mar.getDay());
-  var oct = new Date(d.getFullYear(), 9, 31);
-  oct.setDate(31 - oct.getDay());
-  return d >= mar && d < oct;
-}
-
-function toLocal(iso) {
-  var d = new Date(iso);
-  d = new Date(d.getTime() + (isDst(d) ? 3 : 2) * 3600000);
-  return d.toISOString().slice(0, 16);
+/* UTC-aikaleima -> 'YYYY-MM-DDTHH:MM' halutussa vyohykkeessa.
+   Tassa oli ennen kasin kirjoitettu Suomen kesaaikasaanto (viimeinen
+   sunnuntai maaliskuussa / lokakuussa). Intl osaa saman jokaiselle
+   vyohykkeelle eika sita tarvitse yllapitaa. sv-SE antaa valmiiksi
+   ISO-tyylisen 'YYYY-MM-DD HH:MM'. */
+var _muotoilijat = {};
+function toLocal(iso, tz) {
+  var f = _muotoilijat[tz];
+  if (!f) {
+    f = _muotoilijat[tz] = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+  return f.format(new Date(iso)).replace(' ', 'T');
 }
 
 /* Parsii jokaisen parametrin aika->arvo -kartaksi. NaN sailytetaan null:na,
@@ -144,12 +164,12 @@ function _omVastaus(omResult) {
   });
 }
 
-async function haePiste(lat, lng) {
+async function haePiste(lat, lng, tz) {
   try {
     /* Hae HARMONIE ja Open-Meteo rinnakkain */
     var results = await Promise.allSettled([
       fetchHarmonieXml(lat.toFixed(4), lng.toFixed(4)),
-      fetchOM(lat.toFixed(4), lng.toFixed(4))
+      fetchOM(lat.toFixed(4), lng.toFixed(4), tz)
     ]);
 
     var xmlResult = results[0];
@@ -189,7 +209,7 @@ async function haePiste(lat, lng) {
         return (v != null && xform) ? xform(v) : v;
       });
     }
-    var hTimes = axis.map(toLocal);
+    var hTimes = axis.map(function (t) { return toLocal(t, tz); });
     var hWs    = pick(wsKey);
     var hWd    = wdKey ? pick(wdKey) : hWs.map(function(){ return 0; });
     var hWg    = wgKey ? pick(wgKey) : hWs.slice();
@@ -269,6 +289,10 @@ const MAX_PISTEITA = 15;
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=300');
+  /* Vastauksen aikaleimat tassa vyohykkeessa. Vyohyke on osa OSOITETTA,
+     joten valimuisti erottaa ne toisistaan itsestaan — eri tz on eri avain.
+     Tuntematon tai puuttuva arvo putoaa sovelluksen kotivyohykkeeseen. */
+  const tz = kelpoTz(req.query.tz) || 'Europe/Helsinki';
 
   /* Erahaku: pts=lat,lng;lat,lng;...
      Vastaus on { results: [...] } samassa jarjestyksessa kuin pyydetyt
@@ -284,7 +308,7 @@ export default async function handler(req, res) {
     if (!lista.length) return res.status(400).json({ error: 'pts required' });
     try {
       const tulokset = await poolMap(lista, 6, function (p) {
-        return haePiste(p.lat, p.lng)
+        return haePiste(p.lat, p.lng, tz)
           .then(function (r) { return r.body; })
           .catch(function (e) { return { error: String((e && e.message) || e) }; });
       });
@@ -302,7 +326,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'lat/lng required' });
   }
   try {
-    const r = await haePiste(lat, lng);
+    const r = await haePiste(lat, lng, tz);
     return res.status(r._status).json(r.body);
   } catch (err) {
     return res.status(500).json({ error: err.message });
