@@ -3921,3 +3921,65 @@ maksuton), ja jos sovellus joskus saa oikeaa liikennetta, se on se
 minne siirtyä — GitHubin kaistalla on pehmeä 100 GB/kk raja ja
 välimuistiotsakkeisiin ei pääse käsiksi. Tällä mittakaavalla ero ei
 näy.
+
+### Mitä varaston jälkeen jäi jäljelle
+
+Laatat veivät kartan pois kiintiöstä, mutta ne eivät vieneet kaikkea.
+Mitattuna viisi peräkkäistä sivunlatausta maksoi yhä **25 paikkaa
+jokainen** — ei laskevasti vaan tasaisesti, eli mikään ei jäänyt talteen
+latausten välillä. 10 000 paikan vuorokausikiintiöllä se on 400
+latausta, mikä loppuu kesken yhtenä testipäivänä.
+
+Kolme kuluttajaa, kaikki sama vika: **välimuisti oli olemassa mutta
+vain muistissa.** TTL oli voimassa sivun elinajan, ja uudelleenlataus
+aloitti tyhjästä.
+
+| kuluttaja | TTL | oli | on |
+|---|---|---|---|
+| spottien ennusteet | 30 min | `localStorage`, mutta aina `_vanha` | tuoreusraja |
+| vedenlämmöt | 60 min | vain muistissa | `fs_vesi` |
+| tähtäimen sääkapseli | 30 min | vain muistissa | `fs_saa` |
+
+**Spoteilla tallennus oli jo levyllä** — vika oli lukupäässä.
+`_restoreSpots` merkitsi jokaisen palautetun spotin `_vanha`ksi, ja
+`loadSpots` hakee `_vanha`t aina uudestaan. Tallennusta siis
+kirjoitettiin ja luettiin, mutta se ei säästänyt yhtään kutsua: se
+nopeutti vain ensimmäistä ruutua. Nyt alle puolen tunnin ikäinen
+tallennus osoittaa samaan tuntiruutuun kuin uusi haku antaisi, joten
+merkintä jää pois eikä hakua tule.
+
+Samalla `main()`:iin tuli ehto vanhuussirulle: se näytettiin aina kun
+välimuistipolku ajettiin, mikä nyt lupaisi "päivitetään" latauksesta
+jota ei tule.
+
+Mitattu ennen ja jälkeen (Open-Meteo-**paikkoja**, ei HTTP-pyyntöjä —
+kiintiö veloittaa paikan, joten 80 pistettä yhdessä pyynnössä on 80):
+
+```
+lataus     ennen   jälkeen
+  1          25       25      kylmä käynnistys
+  2          25        0
+  3          25        0
+  4          25        0
+  5          25        0
+```
+
+Ja raskas selailu — 18 siirtoa Hangosta Sydneyyn ja takaisin, zoomit
+z2–z12 — maksoi **0,9 paikkaa siirtoa kohti**. Jäljelle jäänyt yksi on
+aina sama: sääkapseli uudessa 0,1 asteen ruudussa. Tuulikenttä,
+lämpökartta ja spotit tulevat laatoista.
+
+**Mittarissa oli kaksi omaa vikaa, jotka on syytä tietää jos sen
+rakentaa uudestaan.** Laskuri luki vain `latitude`-parametria, mutta
+`/api/harmonie` käyttää muotoa `pts=lat,lng;lat,lng` — kahdentoista
+pisteen erä näkyi yhtenä, eli kulu näytti kymmenkertaisesti liian
+pieneltä. Ja tynkä palautti `pts=`-haaralle väärän muodon (olio eikä
+`{results:[…]}`), jolloin sovellus piti vastausta tyhjänä ja putosi
+Open-Meteon varatielle: samat 12 spottia näkyivät haettuina kahdesti.
+Kumpikaan ei ollut sovelluksen vika.
+
+**Katto on paikkamäärässä, ei tavuissa.** `fs_saa` pitää kahdeksan
+viimeksi katsottua paikkaa, koska yksi paikka on ~4 kt (5 vrk tunnin
+välein) ja mitattuna kaksitoista paikkaa oli 57 kt. Vanhentuneet
+pudotetaan jo luettaessa, jottei tallennus kasva niistä joita ei enää
+käytetä.

@@ -3588,6 +3588,12 @@ const ViewportGrid = {
      ensimmäinen kenttä rakennetaan bestTimelineRefin kautta spottidatasta,
      joten ilman niitä sovellus odottaa verkkoa vaikka hila olisi levyllä. */
   SPOT_AVAIN: 'fs_spots_',
+  /* Tuoreusraja levyltä palautetulle spottidatalle. Ennuste on tunnin
+     välein, joten alle puolen tunnin ikäinen tallennus osoittaa samaan
+     tuntiruutuun kuin uusi haku antaisi — silloin verkkoa ei tarvita
+     lainkaan. Vanhempi kelpaa yhä näytölle (`_vanha`), mutta merkitään
+     päivitettäväksi. */
+  SPOT_TUORE_MS: 30 * 60 * 1000,
   _saveSpots() {
     try {
       const pts = {};
@@ -3607,8 +3613,9 @@ const ViewportGrid = {
       const data = JSON.parse(raw);
       if (!data || !data.pts) return 0;
       let n = 0;
+      const tuore = data.ts && (Date.now() - data.ts) < this.SPOT_TUORE_MS;
       SPOTS.forEach(s => {
-        if (data.pts[s.name]) { s.wx = data.pts[s.name]; s._vanha = true; n++; }
+        if (data.pts[s.name]) { s.wx = data.pts[s.name]; if (!tuore) s._vanha = true; n++; }
       });
       return n ? (data.ts || 0) : 0;
     } catch (e) { return 0; }
@@ -12379,6 +12386,46 @@ const WeatherWidget = {
     const lng = (Math.round(c.lng * 10) / 10).toFixed(1);
     return lat + ',' + lng;
   },
+  /* Välimuisti levylle. `_cache`in 30 min TTL oli voimassa vain sivun
+     elinajan, joten kapseli haki säänsä uudestaan joka latauksella — se on
+     nyt ainoa kohta joka vielä kuluttaa Open-Meteon kiintiötä laattojen
+     jälkeen. Sama tallennus palvelee tuntisääpaneelia, joka lukee samaa
+     `_cache`ia samalla avaimella.
+
+     Katto on paikkamäärässä eikä tavuissa: yksi paikka on ~4 kt (5 vrk
+     tunnin välein), ja kahdeksan viimeksi katsottua riittää siihen miten
+     karttaa selataan. Vanhentuneet pudotetaan jo luettaessa, jottei
+     tallennus kasva niistä joita ei enää käytetä. */
+  SAA_AVAIN: 'fs_saa',
+  SAA_TTL: 30 * 60 * 1000,
+  SAA_MAX: 8,
+  _lueValimuisti() {
+    try {
+      const raw = localStorage.getItem(this.SAA_AVAIN);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (!data || typeof data !== 'object') return;
+      const nyt = Date.now();
+      Object.keys(data).forEach(k => {
+        const e = data[k];
+        if (e && e.ts && e.data && nyt - e.ts < this.SAA_TTL) this._cache[k] = e;
+      });
+    } catch (e) { /* rikkinäinen tallennus: haetaan verkosta */ }
+  },
+  _tallennaValimuisti() {
+    try {
+      const nyt = Date.now();
+      const rivit = Object.keys(this._cache)
+        .map(k => [k, this._cache[k]])
+        .filter(([, e]) => e && e.ts && e.data && nyt - e.ts < this.SAA_TTL)
+        .sort((a, b) => b[1].ts - a[1].ts)
+        .slice(0, this.SAA_MAX);
+      if (!rivit.length) return;
+      const ulos = {};
+      rivit.forEach(([k, e]) => { ulos[k] = e; });
+      localStorage.setItem(this.SAA_AVAIN, JSON.stringify(ulos));
+    } catch (e) { /* kiintiö täynnä: välimuisti on vain optimointi */ }
+  },
   init() {
     /* Sää on kapselin oikea osa: piirretty ikoni ja lämpötila. Sanallinen
        kuvaus ("kevyttä sadetta") on tuntisäässä — yhdellä rivillä ikoni
@@ -12386,6 +12433,7 @@ const WeatherWidget = {
        kolmanneksella. */
     this._ikoniEl = document.getElementById('kap-saa-ikoni');
     this._tempEl = document.getElementById('kap-lampo');
+    this._lueValimuisti();
   },
   scheduleUpdate() {
     clearTimeout(this._fetchTimer);
@@ -12400,7 +12448,7 @@ const WeatherWidget = {
     if (!State.map || !this._tempEl) return;
     const c = State.map.getCenter();
     const key = this._key(c);
-    if (this._cache[key] && Date.now() - this._cache[key].ts < 30 * 60 * 1000) {
+    if (this._cache[key] && Date.now() - this._cache[key].ts < this.SAA_TTL) {
       this._render(this._cache[key].data, State.currentHourIdx); return;
     }
     const [lat, lng] = key.split(',');
@@ -12416,6 +12464,7 @@ const WeatherWidget = {
            mieluummin Open-Meteoon kuin naytetaan vaaria symboleja. */
         if (data && data.hourly && data.hourly.temperature_2m && data.hourly.cloudcover) {
           this._cache[key] = { ts: Date.now(), data };
+          this._tallennaValimuisti();
           this._render(data, State.currentHourIdx);
           return;
         }
@@ -12431,6 +12480,7 @@ const WeatherWidget = {
         if (data.hourly.cloud_cover && !data.hourly.cloudcover) data.hourly.cloudcover = data.hourly.cloud_cover;
         data.source = 'Open-Meteo'; data.harmonie_hours = 0;
         this._cache[key] = { ts: Date.now(), data };
+        this._tallennaValimuisti();
         this._render(data, State.currentHourIdx);
       }
     } catch(e) {}
@@ -12650,8 +12700,40 @@ const Lahde = {
 };
 
 /* -- MARINE API ------------------------------------------------- */
+/* Vedenlämmöt levylle. Ilman tätä TTL eli 60 min oli voimassa vain sivun
+   elinajan: jokainen uudelleenlataus aloitti tyhjästä ja haki kaikki
+   spotit uudestaan, eli TTL ei säästänyt yhtään kutsua siinä käytössä
+   missä sivu ladataan usein. Sama avainmuoto kuin spoteilla, mutta ilman
+   mallikohtaista päätettä — vedenlämpö ei riipu tuulimallista. */
+const MARINE_AVAIN = 'fs_vesi';
+function _lueVesiValimuisti() {
+  try {
+    const raw = localStorage.getItem(MARINE_AVAIN);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (!data || !data.pts) return;
+    SPOTS.forEach(s => {
+      const p = data.pts[s.name];
+      if (!p || !p.ts) return;
+      s._waterTemp   = p.t == null ? null : p.t;
+      s._waterTempTs = p.ts;
+    });
+  } catch (e) { /* rikkinäinen tallennus: haetaan verkosta */ }
+}
+function _tallennaVesiValimuisti() {
+  try {
+    const pts = {};
+    SPOTS.forEach(s => {
+      if (s._waterTempTs) pts[s.name] = { t: s._waterTemp, ts: s._waterTempTs };
+    });
+    if (!Object.keys(pts).length) return;
+    localStorage.setItem(MARINE_AVAIN, JSON.stringify({ pts }));
+  } catch (e) { /* kiintiö täynnä: välimuisti on vain optimointi */ }
+}
+
 async function loadMarineTemp() {
   const MARINE_TTL = 60 * 60 * 1000; /* 60 min — vedenlämpö ei muutu nopeasti */
+  _lueVesiValimuisti();
   /* Skipataan jos kaikilla spoteilla on tuore data */
   const needsUpdate = SPOTS.some(s =>
     s._waterTemp == null || !s._waterTempTs || Date.now() - s._waterTempTs > MARINE_TTL
@@ -12681,6 +12763,7 @@ async function loadMarineTemp() {
         }
       }
     });
+    _tallennaVesiValimuisti();
   } catch(e) { console.warn('[Marine]', e.message); }
 }
 
@@ -13775,7 +13858,13 @@ async function main() {
      kartta on käytettävissä heti; verkkohaku jatkuu taustalla ja korvaa
      sisällön kun se valmistuu. */
   const vanhaTs = _naytaValimuististaHeti();
-  if (vanhaTs) Verkkotila.naytettiinVanha(vanhaTs);
+  /* Vanhuudesta kerrotaan vain jos se on totta. Tuoreusrajan sisällä
+     tallennus osoittaa samaan tuntiruutuun kuin uusi haku, eikä spotteja
+     edes haeta uudestaan — silloin "päivitetään"-siru vilahtaisi ruudulla
+     lupaamassa latausta jota ei tule. */
+  if (vanhaTs && (Date.now() - vanhaTs) >= ViewportGrid.SPOT_TUORE_MS) {
+    Verkkotila.naytettiinVanha(vanhaTs);
+  }
 
   /* Jaettu linkki voittaa suosikit, ja suosikit voittavat oletusnäkymän.
      Järjestys on tarkoituksellinen: jos joku lähetti linkin, hän tarkoitti
