@@ -1985,7 +1985,7 @@ body {
   font-variant-numeric: tabular-nums;
   font-size: 10px;
   color: var(--ink-3);
-  margin: -2px 0 14px;
+  margin: -10px 0 16px;
   letter-spacing: .1px;
 }
 
@@ -10585,6 +10585,11 @@ function openSheet(spot, hourIdx) {
     + '<div class="sh-foil-badge ' + badge.cls + '" style="display:inline-flex">'      + '<span class="badge-icon">' + badge.icon + '</span>'      + badge.text    + '</div>'
     /* 24h tuuliennuste — heti sliderin ja foil-badgen jälkeen */
     + build24hChart()
+    /* Auringon LUVUT heti kaavion alle, koska ne selittavat sen
+       valokaistan: sama aika-akseli, sama asia sanoina. Aiemmin tama
+       rivi oli havaintoruutujen jalkeen — siella se oli irrallaan
+       kaikesta mihin se liittyy. */
+    + buildSunRivi()
     /* Havainnot-rivi */
     + '<div style="font-variant-numeric:tabular-nums;font-size:8px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:5px">Havainnot</div>'    + '<div class="sh-stats" id="sh-stats-live">'      + _tempDewComboCard(fmiId + '-tmp', fmiId + '-dew')      + (_uirasStation ? _uirasLinkCard(_waterStatId, _uirasStation) : _statCard('Vesi', waterTemp, _waterTempSource || '°C', null))    + (function () {
         /* Puku veden viereen: siinä kohtaa katsotaan vedenlämpöä, ja tämä
@@ -10614,11 +10619,6 @@ function openSheet(spot, hourIdx) {
           + '<span class="sh-stat-sub" data-puku-sub>' + ali + '</span>'
           + '</div>';
       })()      + _fmiLinkCard(fmiId)          + '</div>'
-    /* Auringon LUVUT. Kaari itsessään on siirtynyt tuuliennusteen
-       taustaksi (yksi aika-akseli kahden sijaan), mutta kellonajat ovat
-       silti se mitä illan suunnittelussa luetaan — ne jäävät tähän
-       yhdelle riville. */
-    + buildSunRivi()
     + '<div style="height:8px"></div>'
 
     /* FMI historia-kaavio */

@@ -4184,3 +4184,100 @@ rulla, tuplanapautus — pysyvät aina animaatiorajan sisällä.
 Mitattuna sitä ei kutsuta taustalaatalle **kertaakaan** (inval 0), eli
 paikkaus oli kuollutta koodia — laatat eivät katoa invalidoinnissa vaan
 odottavat dekoodausta.
+
+## Aurinkokaari siirtyi tuuliennusteen aika-akselille
+
+Kortilla oli **kaksi eri aika-akselia**. Tuuliennuste alkaa valitusta
+hetkestä ja jatkuu 24 h / 5 vrk / koko jakson; aurinkokaari kulki
+keskiyöstä keskiyöhön. Ne olivat päällekkäin kortilla mutta eri
+ruudukoissa, ja lukijan piti yhdistää ne päässään juuri siinä
+kysymyksessä jota varten molemmat ovat: **ehdinkö vielä vesille.**
+
+Mitattu lähtötilanne (kaari renderöitynä):
+
+- Tilarivi `Laski 17:49` osui horisonttiviivalle ja **päällekkäin
+  laskuajan `17:49` kanssa** — sama luku kahdesti, toistensa päällä.
+- Oikea reuna jäi `.sh-sun-arc { margin: 0 -20px }` -bleedin takia
+  kortin häivytyksen alle; sinne osunut valitun tunnin merkintä oli
+  lukukelvoton.
+- **9 tuntia 24:stä oli yötä**, piirrettynä horisontin alle jäävänä
+  lähes näkymättömänä käyränä. Puolet leveydestä ei kantanut tietoa.
+- Hämärää, kultaista tuntia, päivän pituutta tai sen muutosta ei ollut.
+- Pilvisyys oli haettu (`wx.hourly.cloudcover`) mutta käyttämättä:
+  graafi näytti **geometrisen valon**, ei aurinkoa.
+
+### Kaista, ei harso
+
+Ensimmäinen versio varjosti koko kuvaajan yön kohdalta. **Se ei
+toiminut**, ja syy on kerrosten määrä: kuvaajassa oli jo kaksi
+päällekkäistä taustaa — tuulen värigradientti (alfa 0,05–0,32) ja
+vihreä sessioikkuna (`rgba(42,112,45,.13)`) — ja kolmas teki niistä
+mutaa jossa mikään ei erottunut. Ruutukaappauksessa yö ja päivä
+näyttivät samalta vihertävältä sameudelta.
+
+Nyt valo ja pilvet ovat **omalla 6 px kaistallaan** tuntimerkintöjen
+yläpuolella (`LABEL_H` 16 → 24), ja kuvaajan päälle jää vain hyvin
+kevyt yöharso tunnelmaksi. Sama aika-akseli, oma kanava.
+
+Asiat jotka eivät ole ilmeisiä:
+
+- **Vaihe luokitellaan auringon KORKEUDESTA joka näytteessä**, ei
+  nousu- ja laskuajoista. Se hoitaa monen vuorokauden jaksot ilman
+  päivittäistä silmukkaa ja napa-alueet ilman erikoistapausta —
+  siellä nousua tai laskua ei yksinkertaisesti ole.
+- **Reunat tarkennetaan puolitushaulla näytteiden välistä.** Tunnin
+  hilalla pelkkä luokittelu heittäisi auringonlaskun jopa puoli
+  tuntia, ja se näkyisi suoraan siinä mihin kohtaan kaistan väri
+  vaihtuu.
+- **Yö ja pilvi eivät saa olla samaa sävyä.** Ensimmäisessä versiossa
+  molemmat olivat `rgba(76,89,96,…)` ja pilvikaton ollessa 0,50
+  täysin pilvinen päivä oli lähes yön näköinen — kaista kertoi vain
+  "tummaa" eikä sitä kumpi syy oli kyseessä. Nyt yö on sinimustetta
+  (`rgba(31,45,58,.74)`), pilvi neutraalia harmaata katolla 0,30.
+- **Matala aurinko on lämmin** (`rgba(154,81,22,.60)`), koska se on eri
+  asia kuin himmeä päivä: juuri se tunti jota illan sessiossa
+  jahdataan. Raja on +6°, vakiintunut "kultaisen tunnin" määritelmä.
+- **Täysi päivä jättää pohjauran näkyviin** eikä tyhjää kaistaa. Tyhjä
+  lukisi "ei dataa".
+- **Sade on oma 2 px kanavansa** kaistan alla: se ei muuta valon määrää
+  vaan sitä kannattaako lähteä.
+- **Kellonajat jäivät tekstiksi.** "Milloin laskee" luetaan sanoina,
+  ei käyrän kohtana. Rivi `03:09–17:49 · 14 h 40 min · −5 min/vrk ·
+  hämärä 18:35 asti` vie 14 px siinä missä kaari vei 91. Se on
+  **kaavion alla**, koska se selittää juuri sen kaistan — ensin se oli
+  havaintoruutujen jäljessä, missä se oli irrallaan kaikesta mihin
+  liittyy.
+
+### Aurinko-moduuli
+
+Vanha `calcSunTime` laski nousun ja laskun keskipäivä-approksimaatiolla
+ja **palautti null napa-alueilla**, jolloin koko kaistale katosi
+ruudulta selittämättä. Uusi `Aurinko.korkeus()` laskee korkeuskulman
+suoraan (NOAA:n yksinkertaistettu malli), jolloin samasta funktiosta
+saadaan nousu, hämärän vaiheet ja kultainen tunti — ja kaavion tausta
+voidaan luokitella ilman että nousuaikoja etsitään lainkaan.
+
+Kulmat eivät ole makuasia vaan vakiintuneita määritelmiä: −0,833°
+(yläreuna horisontissa, taittuminen mukana), −6° siviilihämärä, −18°
+tähtitieteellinen hämärä, +6° kultainen tunti.
+
+Tarkistettu 25 kohdan regressiolla:
+
+```
+Hanko 26.8.     nousu/lasku 03:09/17:49   pituus 880 min   −5 min/vrk
+Svalbard kesä   ei laskua,  keskipäivä  35,0°   -> "Aurinko ei laske"
+Svalbard talvi  ei nousua,  keskipäivä −11,8°   -> "Aurinko ei nouse"
+Antarktis kesäk. keskipäivä −4,5°                (kaamos)
+päiväntasaaja   727 min                          (~12 h)
+```
+
+Laskun `17:49` täsmää vanhan kaavan kanssa tasan; nousussa on 3 min ero
+ja uusi on se tarkempi.
+
+**Aikavyöhyke on selaimen**, kuten koko sovelluksessa (`AIKAVYOHYKE`):
+API:lta pyydetään ajat siinä vyöhykkeessä, joten `new Date(times[i])`
+on oikein. Jos spotti on eri vyöhykkeellä kuin selain, vuorokauden raja
+menee selaimen mukaan — silloin nousu ja lasku voivat osua eri
+vuorokausille eikä päivän pituutta näytetä lainkaan. Se on oikea
+degradaatio: mieluummin ei lukua kuin negatiivinen luku. Suomen
+rannikon spoteilla tilanne ei tule vastaan.
