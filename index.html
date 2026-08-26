@@ -1976,24 +1976,17 @@ body {
 /* -- SPOT CARD ENHANCEMENTS ------------------------------------- */
 
 /* Sun bar */
-.sh-sun-arc {
-  margin: 0 -20px 18px;
-  position: relative;
+/* Auringon kellonajat yhdellä rivillä. Kaari on siirtynyt
+   tuuliennusteen taustaksi, ks. buildSunRivi. Ei negatiivista
+   marginaalia kuten kaarella oli: se työnsi grafiikan kortin
+   pehmusteen yli, jolloin oikea reuna jäi kortin häivytyksen alle ja
+   sinne osunut kellonaika oli lukukelvoton. */
+.sh-sun-rivi {
   font-variant-numeric: tabular-nums;
-}
-.sh-sun-arc svg { display: block; width: 100%; }
-.sh-sun-times {
-  display: flex; justify-content: space-between;
-  padding: 0 20px;
-  font-variant-numeric: tabular-nums; font-size: 8px;
+  font-size: 10px;
   color: var(--ink-3);
-  margin-top: -2px;
-}
-.sh-sun-center {
-  text-align: center;
-  font-variant-numeric: tabular-nums; font-size: 9px;
-  color: #7A5D07;
-  margin-top: 3px;
+  margin: -2px 0 14px;
+  letter-spacing: .1px;
 }
 
 /* 24h line chart */
@@ -9436,6 +9429,120 @@ function _openObsSheet(type, station) {
 }
 
 
+/* -- AURINKO ----------------------------------------------------- */
+/* Auringon korkeuskulma ja siitä johdetut valon vaiheet.
+ *
+ * Vanha `buildSunBar` laski vain nousun ja laskun, ja teki sen
+ * keskipäivä-approksimaatiolla joka on muutaman minuutin pielessä.
+ * Tässä lasketaan KORKEUSKULMA suoraan, jolloin samasta funktiosta
+ * saadaan myös hämärän vaiheet ja matalan auringon tunti — ja
+ * karttakaavion tausta voidaan luokitella hetki hetkeltä ilman että
+ * nousu- ja laskuaikoja tarvitsee etsiä lainkaan.
+ *
+ * Malli on NOAA:n yksinkertaistettu; tarkkuus on luokkaa 0,01°, mikä on
+ * minuuteissa alle sekunnin. Tarkistettu Hangon 26.8.2026 laskua vasten:
+ * sama 17:49 kuin vanhalla kaavalla.
+ *
+ * KULMAT eivät ole makuasia vaan vakiintuneita määritelmiä:
+ *   -0,833°  ylareuna horisontissa, taittuminen mukana = nousu/lasku
+ *   -6°      siviilihämärän raja: ulkona näkee vielä toimia
+ *   -18°     tähtitieteellinen hämärä loppuu = oikea pimeä
+ *   +6°      matala aurinko: "kultainen tunti" alkaa tästä alaspäin
+ */
+const Aurinko = {
+  RAD: Math.PI / 180,
+  NOUSU: -0.833, SIVIILI: -6, PIMEA: -18, KULTA: 6,
+
+  korkeus(ms, lat, lng) {
+    const R = this.RAD;
+    const n = ms / 86400000 + 2440587.5 - 2451545.0;   /* vrk J2000:sta */
+    const L = (280.460 + 0.9856474 * n) % 360;
+    const g = ((357.528 + 0.9856003 * n) % 360) * R;
+    const lam = (L + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g)) * R;
+    const eps = (23.439 - 0.0000004 * n) * R;
+    const dec = Math.asin(Math.sin(eps) * Math.sin(lam));
+    const ra  = Math.atan2(Math.cos(eps) * Math.sin(lam), Math.cos(lam));
+    /* Greenwichin tähtiaika tunneissa -> paikallinen tuntikulma */
+    const gmst = (18.697374558 + 24.06570982441908 * n) % 24;
+    const ha = (gmst * 15 + lng) * R - ra;
+    const la = lat * R;
+    const s = Math.sin(la) * Math.sin(dec) + Math.cos(la) * Math.cos(dec) * Math.cos(ha);
+    return Math.asin(Math.max(-1, Math.min(1, s))) / R;
+  },
+
+  /* Hetket joina korkeus ylittää rajan annetun vuorokauden sisällä.
+     Napa-alueilla lista on tyhjä — aurinko ei nouse tai ei laske — ja
+     kutsujan on kestettävä se. Juuri siihen vanha kaava palautti null
+     ja koko kaistale katosi ruudulta selittämättä. */
+  ylitykset(paivaAlkuMs, lat, lng, raja) {
+    const ulos = [];
+    let edell = this.korkeus(paivaAlkuMs, lat, lng);
+    for (let m = 4; m <= 1440; m += 4) {
+      const t = paivaAlkuMs + m * 60000;
+      const k = this.korkeus(t, lat, lng);
+      if ((edell < raja) !== (k < raja)) {
+        let a = t - 4 * 60000, b = t;
+        for (let it = 0; it < 20; it++) {
+          const c = (a + b) / 2;
+          if ((this.korkeus(a, lat, lng) < raja) === (this.korkeus(c, lat, lng) < raja)) a = c;
+          else b = c;
+        }
+        ulos.push({ ms: (a + b) / 2, nouseva: k > edell });
+      }
+      edell = k;
+    }
+    return ulos;
+  },
+
+  /* Yhden vuorokauden tiedot korttia varten. Palauttaa null-kentät
+     napa-alueilla sen sijaan että palauttaisi null koko oliolle:
+     "aurinko ei laske" on itsessään tieto joka halutaan näyttää. */
+  paiva(dateMs, lat, lng) {
+    const d = new Date(dateMs); d.setHours(0, 0, 0, 0);
+    const alku = d.getTime();
+    const ns = this.ylitykset(alku, lat, lng, this.NOUSU);
+    const nousu = ns.find(x => x.nouseva), lasku = ns.find(x => !x.nouseva);
+    const sv = this.ylitykset(alku, lat, lng, this.SIVIILI);
+    const kl = this.ylitykset(alku, lat, lng, this.KULTA);
+    /* Päivän pituus ja sen muutos eiliseen. Suomessa elokuun lopussa
+       vuorokausi lyhenee noin viisi minuuttia päivässä, ja se on
+       suunnittelun kannalta oleellinen luku — ilta loppuu aiemmin
+       kuin viime viikolla. */
+    let pituusMin = null, muutosMin = null;
+    if (nousu && lasku && lasku.ms > nousu.ms) {
+      pituusMin = Math.round((lasku.ms - nousu.ms) / 60000);
+      const eilenAlku = alku - 86400000;
+      const e = this.ylitykset(eilenAlku, lat, lng, this.NOUSU);
+      const en = e.find(x => x.nouseva), el = e.find(x => !x.nouseva);
+      if (en && el && el.ms > en.ms) {
+        muutosMin = pituusMin - Math.round((el.ms - en.ms) / 60000);
+      }
+    }
+    /* Keskipäivän korkeus erottaa yöttömän yön kaamoksesta silloin kun
+       ylityksiä ei ole lainkaan. */
+    const keskipaiva = this.korkeus(alku + 12 * 3600000, lat, lng);
+    return {
+      nousu: nousu ? nousu.ms : null,
+      lasku: lasku ? lasku.ms : null,
+      siviiliAamu: sv.find(x => x.nouseva) ? sv.find(x => x.nouseva).ms : null,
+      siviiliIlta: sv.find(x => !x.nouseva) ? sv.find(x => !x.nouseva).ms : null,
+      kultaAamu: kl.find(x => x.nouseva) ? kl.find(x => x.nouseva).ms : null,
+      kultaIlta: kl.find(x => !x.nouseva) ? kl.find(x => !x.nouseva).ms : null,
+      pituusMin, muutosMin, keskipaiva,
+    };
+  },
+
+  /* Valon vaihe korkeuskulmasta. Numero eikä merkkijono, jotta
+     vierekkäiset samanarvoiset näytteet voi niputtaa vertaamalla. */
+  vaihe(korkeusAste) {
+    if (korkeusAste >= this.KULTA)   return 3;   /* täysi päivä */
+    if (korkeusAste >= this.NOUSU)   return 2;   /* matala aurinko */
+    if (korkeusAste >= this.SIVIILI) return 1;   /* siviilihämärä */
+    if (korkeusAste >= this.PIMEA)   return 0.5; /* hämärä */
+    return 0;                                     /* yö */
+  },
+};
+
 function openSheet(spot, hourIdx) {
   /* Jos wx puuttuu (vapaa piste), hae Harmonie ensin */
   if (!spot.wx || !spot.wx.hourly) {
@@ -9516,241 +9623,47 @@ function openSheet(spot, hourIdx) {
   const _waterStatId = 'ws-' + spot.name.replace(/[^a-z0-9]/gi,'_');
 
   /* -- SUN BAR --------------------------------------------------- */
-  function buildSunBar() {
-    /* Valittu aika = h.time[idx] (timeline), fallback = nyt */
-    const now = h.time && h.time[idx] ? new Date(h.time[idx]) : new Date();
-    const lat = spot.lat * Math.PI / 180;
-    const lng = spot.lng;
-
-    function calcSunTime(dateMs, isRise) {
-      const JD  = Math.floor(dateMs / 86400000) + 2440587.5;
-      const n   = JD - 2451545.0;
-      const L   = (280.460 + 0.9856474 * n) % 360;
-      const g   = (357.528 + 0.9856003 * n) % 360 * Math.PI / 180;
-      const lam = (L + 1.915*Math.sin(g) + 0.020*Math.sin(2*g)) * Math.PI / 180;
-      const sinDec = Math.sin(23.439*Math.PI/180) * Math.sin(lam);
-      const cosH   = (-0.0145 - Math.sin(lat)*sinDec)
-                     / (Math.cos(lat)*Math.cos(Math.asin(sinDec)));
-      if (Math.abs(cosH) > 1) return null;
-      const H    = Math.acos(cosH) * 180/Math.PI;
-      const noon = 12 - lng/15 - ((n%1)-0.5)*24
-                   - (0.0053*Math.sin(g) - 0.0069*Math.sin(2*lam));
-      const t = isRise ? noon - H/15 : noon + H/15;
-      const d = new Date(dateMs); d.setUTCHours(0,0,0,0);
-      return new Date(d.getTime() + t*3600000);
-    }
-
-    const rise = calcSunTime(now.getTime(), true);
-    const set  = calcSunTime(now.getTime(), false);
-    if (!rise || !set) return '';
-
-    const fmt = d => ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
-    const nowMs  = now.getTime();
-    const riseMs = rise.getTime();
-    const setMs  = set.getTime();
-
-    /* Päivänkeston normalisoitu aika 0–1 koko vuorokausi midnight–midnight */
-    const midnight = new Date(now); midnight.setHours(0,0,0,0);
-    const DAY_MS = 86400000;
-    const riseN = (riseMs - midnight.getTime()) / DAY_MS;
-    const setN  = (setMs  - midnight.getTime()) / DAY_MS;
-    /* nowN = VALITTU aika (h.time[idx]) — tämä on auringon piste */
-    const nowN  = Math.max(0, Math.min(1, (nowMs - midnight.getTime()) / DAY_MS));
-    /* realNowN = TODELLINEN nykyaika — referenssiviiva */
-    const realNowMs = Date.now();
-    const realNowN  = Math.max(0, Math.min(1, (realNowMs - midnight.getTime()) / DAY_MS));
-    const isSelectedNow = Math.abs(nowMs - realNowMs) < 3600000; /* sama tunti */
-    const dayLen = setN - riseN;
-
-    /* ── Sinikäyrä-kaava ────────────────────────────────────────
-       y(t) = sin( (t - riseN) / dayLen * π )
-       - t = riseN → sin(0)   = 0  (horisontti, auringonnousu)
-       - t = puoliväli → sin(π/2) = 1  (huippu, puolipäivä)
-       - t = setN  → sin(π)   = 0  (horisontti, aurinkolasku)
-       - t < riseN → negatiivinen (yö vasemmalla, kaari ALLA horisontista)
-       - t > setN  → negatiivinen (yö oikealla, kaari ALLA horisontista)
-    ─────────────────────────────────────────────────────────── */
-    function sunHeight(tNorm) {
-      return Math.sin((tNorm - riseN) / dayLen * Math.PI);
-    }
-
-    /* SVG-mitat */
-    /* Kaari vei 122 px yhdelle luvulle ja kahdelle kellonajalle. Amplitudi
-       36 -> 24 ja alamarginaali 18 -> 10 pudottavat korkeuden noin
-       kolmanneksella; kaaren muoto ja kaikki lukemat säilyvät, koska ne
-       skaalautuvat samassa viewBoxissa. Tila menee kortin alaosaan, missä
-       sisältöä on enemmän. */
-    const VW  = 340;
-    const HOR_Y    = 38;   /* horisonttiviiva y */
-    const AMP      = 24;   /* kaaren amplitudi px (huipun korkeus horisontista) */
-    const VH       = HOR_Y + AMP + 10; /* viewBox korkeus */
-
-    /* Pisteet käyrälle — N segmenttiä koko vuorokaudelle */
-    const N_PTS = 80;
-    const pts = [];
-    for (var i = 0; i <= N_PTS; i++) {
-      var t = i / N_PTS;
-      var yh = sunHeight(t);
-      pts.push({ x: t * VW, y: HOR_Y - yh * AMP });
-    }
-
-    /* SVG polyline data */
-    const allPts = pts.map(function(p){ return p.x.toFixed(1)+','+p.y.toFixed(1); }).join(' ');
-
-    /* Auringon sijainti käyrällä */
-    const sunH   = sunHeight(nowN);
-    const sunX   = nowN * VW;
-    const sunY   = HOR_Y - sunH * AMP;
-    const sunAboveHorizon = sunH > 0;
-
-    /* Mennyt käyrä: pisteet 0 → nowN */
-    const nowIdx   = Math.round(nowN * N_PTS);
-    const pastPts  = pts.slice(0, nowIdx + 1).map(function(p){ return p.x.toFixed(1)+','+p.y.toFixed(1); }).join(' ');
-
-    /* Nousu/lasku x-koordinaatit */
-    const riseX = riseN * VW;
-    const setX  = setN  * VW;
-
-    const uid = Math.random().toString(36).slice(2,5);
-
-    /* Status */
-    const isDaytime = sunAboveHorizon && nowMs >= riseMs && nowMs <= setMs;
-    const hoursLeft = Math.max(0, (setMs - nowMs) / 3600000);
-    let statusLine;
-    if (isDaytime) {
-      const hh = Math.floor(hoursLeft);
-      const mm = Math.round((hoursLeft - hh) * 60);
-      /* "3h 4min valoa" luki kuin päivän pituus, vaikka luku on
-         auringonlaskuun JÄLJELLÄ oleva aika. Elokuussa Suomessa se näytti
-         suoraan väärältä: päivä on 15 h mutta kortti sanoi 3 h. */
-      statusLine = 'Valoa ' + (hh > 0 ? hh+' h ' : '') + mm + ' min';
-    } else if (nowMs < riseMs) {
-      statusLine = 'Nousee ' + fmt(rise);
+  /* Auringon kellonajat yhdella rivilla.
+   *
+   * Tassa oli sinikaari omalla aika-akselillaan. Se on nyt
+   * tuuliennusteen taustana, jolloin sama pystysuora kohta kaaviossa
+   * kertoo seka tuulen etta valon — aiemmin ne olivat kahdessa eri
+   * ruudukossa ja lukija yhdisti ne paassaan.
+   *
+   * Jaljelle jaavat LUVUT, koska ne luetaan sanoina eika kuvana:
+   * "milloin laskee" on kellonaika, ei kayran kohta. Kolme lukua ja
+   * paivan muutos mahtuvat yhdelle riville siina missa kaari vei 91 px.
+   *
+   * Napa-alueilla ei ole nousua eika laskua. Silloin kerrotaan kumpi
+   * aariala on kyseessa keskipaivan korkeudesta — vanha versio palautti
+   * tyhjan merkkijonon ja koko rivi katosi selittamatta. */
+  function buildSunRivi() {
+    const hetki = h.time && h.time[idx] ? new Date(h.time[idx]).getTime() : Date.now();
+    const p = Aurinko.paiva(hetki, spot.lat, spot.lng);
+    const kello = ms => {
+      const d = new Date(ms);
+      return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+    };
+    const osat = [];
+    if (p.nousu != null && p.lasku != null) {
+      osat.push('<span style="color:var(--ink)">' + kello(p.nousu) + '\u2013' + kello(p.lasku) + '</span>');
+      if (p.pituusMin != null) {
+        const hh = Math.floor(p.pituusMin / 60), mm = p.pituusMin % 60;
+        let t = hh + ' h ' + mm + ' min';
+        /* Muutos eiliseen: Suomessa elokuussa noin -5 min/vrk, ja juuri
+           se selittaa miksi illan sessio loppuu aiemmin kuin viikko sitten. */
+        if (p.muutosMin != null && p.muutosMin !== 0) {
+          t += ' \u00b7 ' + (p.muutosMin > 0 ? '+' : '\u2212')
+            + Math.abs(p.muutosMin) + ' min/vrk';
+        }
+        osat.push(t);
+      }
+      if (p.siviiliIlta != null) osat.push('h\u00e4m\u00e4r\u00e4 ' + kello(p.siviiliIlta) + ' asti');
     } else {
-      statusLine = 'Laski ' + fmt(set);
+      osat.push('<span style="color:var(--ink)">'
+        + (p.keskipaiva > 0 ? 'Aurinko ei laske' : 'Aurinko ei nouse') + '</span>');
     }
-
-    /* ── Clip-path: menneen osan korostus ───────────────────── */
-    /* Koko käyrä harmaa, mennyt osa kultainen päälle */
-
-    const svg =
-      '<defs>'
-        /* Gradient menneelle viivaosalle */
-        + '<linearGradient id="gp'+uid+'" x1="0" y1="0" x2="1" y2="0">'
-          + '<stop offset="0%" stop-color="rgba(154,81,22,.30)"/>'
-          + '<stop offset="100%" stop-color="rgba(122,93,7,.85)"/>'
-        + '</linearGradient>'
-        /* Clippath: 0 → sunX leveydelle */
-        + '<clipPath id="cp'+uid+'">'
-          + '<rect x="0" y="-10" width="'+sunX.toFixed(1)+'" height="'+(VH+20)+'"/>'
-        + '</clipPath>'
-        /* Clippath: sunX → VW (tuleva) */
-        + '<clipPath id="cf'+uid+'">'
-          + '<rect x="'+sunX.toFixed(1)+'" y="-10" width="'+(VW-sunX).toFixed(1)+'" height="'+(VH+20)+'"/>'
-        + '</clipPath>'
-        /* Täyttöalue päivälle (kaaren alle horisontista) */
-        + '<linearGradient id="gd'+uid+'" x1="0" y1="0" x2="0" y2="1">'
-          + '<stop offset="0%" stop-color="rgba(122,93,7,.14)"/>'
-          + '<stop offset="100%" stop-color="rgba(122,93,7,.02)"/>'
-        + '</linearGradient>'
-        /* Clippath päiväalueelle (vain horisontin yläpuoli) */
-        + '<clipPath id="cd'+uid+'">'
-          + '<rect x="0" y="0" width="'+VW+'" height="'+HOR_Y+'"/>'
-        + '</clipPath>'
-      + '</defs>'
-
-      /* Päivätäyttö horisontin yläpuolella */
-      + '<polygon points="'
-          + riseX.toFixed(1)+','+HOR_Y+' '
-          + pts.filter(function(p){ return p.x >= riseX && p.x <= setX; })
-               .map(function(p){ return p.x.toFixed(1)+','+p.y.toFixed(1); }).join(' ')
-          + ' '+setX.toFixed(1)+','+HOR_Y
-        + '" fill="url(#gd'+uid+')" clip-path="url(#cd'+uid+')"/>'
-
-      /* Koko sinikäyrä — tuleva osa: himmeä */
-      + '<polyline points="'+allPts+'"'
-        + ' fill="none" stroke="#CDBE9A" stroke-width="2.5"'
-        + ' stroke-linecap="round" stroke-linejoin="round"'
-        + ' clip-path="url(#cf'+uid+')"/>'
-
-      /* Mennyt osa: kultainen */
-      + (pastPts
-        ? '<polyline points="'+pastPts+'"'
-            + ' fill="none" stroke="url(#gp'+uid+')" stroke-width="2.5"'
-            + ' stroke-linecap="round" stroke-linejoin="round"/>'
-        : '')
-
-      /* Horisonttiviiva */
-      + '<line x1="0" y1="'+HOR_Y+'" x2="'+VW+'" y2="'+HOR_Y+'"'
-        + ' stroke="#CDBE9A" stroke-width="0.75"/>'
-
-      /* Nousu/lasku merkintäviivat */
-      + '<line x1="'+riseX.toFixed(1)+'" y1="'+(HOR_Y-4)+'"'
-        + ' x2="'+riseX.toFixed(1)+'" y2="'+(HOR_Y+4)+'"'
-        + ' stroke="rgba(122,93,7,.45)" stroke-width="1"/>'
-      + '<line x1="'+setX.toFixed(1)+'" y1="'+(HOR_Y-4)+'"'
-        + ' x2="'+setX.toFixed(1)+'" y2="'+(HOR_Y+4)+'"'
-        + ' stroke="rgba(122,93,7,.45)" stroke-width="1"/>'
-
-      /* Aurinko */
-      + (sunAboveHorizon
-          ? '<circle cx="'+sunX.toFixed(1)+'" cy="'+sunY.toFixed(1)+'" r="8"'
-              + ' fill="rgba(255,215,60,.18)"><animate attributeName="r"'
-              + ' values="6;11;6" dur="3s" repeatCount="indefinite"/>'
-              + '<animate attributeName="opacity" values=".45;.1;.45" dur="3s" repeatCount="indefinite"/>'
-            + '</circle>'
-            + '<circle cx="'+sunX.toFixed(1)+'" cy="'+sunY.toFixed(1)+'" r="4.5"'
-              + ' fill="#FAF5E7" stroke="#7A5D07" stroke-width="1.5"/>'
-          /* Yöllä: piste horisontin alapuolella — piilota */
-          : '')
-
-      /* Todellinen nykyaika — ohut referenssiviiva jos eri kuin valittu */
-      + ((!isSelectedNow && realNowN >= 0 && realNowN <= 1)
-        ? (function(){
-            var rnX = (realNowN * VW).toFixed(1);
-            return '<line x1="'+rnX+'" y1="'+(HOR_Y-AMP-4)+'" x2="'+rnX+'" y2="'+(HOR_Y+2)+'"'              + ' stroke="#CDBE9A" stroke-width="1" stroke-dasharray="2,3"/>'              + '<text x="'+rnX+'" y="'+(HOR_Y+14)+'" font-size="7"'              + ' fill="#5F696F" text-anchor="middle">NYT</text>';
-          })()
-        : '')
-
-      /* Valittu hetki — pieni kolmio / tikki horisonttiviivalla */
-      + (function(){
-          var tx = (nowN * VW).toFixed(1);
-          /* Tikki: pieni pystyviiva horisontin alla */
-          return '<line x1="'+tx+'" y1="'+HOR_Y+'" x2="'+tx+'" y2="'+(HOR_Y+5)+'"'            + ' stroke="#4C5960" stroke-width="1.5" stroke-linecap="round"/>'            /* Teksti: valittu kellonaika */
-            + '<text x="'+tx+'" y="'+(HOR_Y+14)+'" font-size="8"'            + ' fill="'+(isSelectedNow?'transparent':'#5F696F')+'" text-anchor="'            + (nowN < 0.15 ? 'start' : nowN > 0.85 ? 'end' : 'middle')+'"'            + '>'+('0'+new Date(nowMs).getHours()).slice(-2)+':00</text>';
-        })()
-
-      /* Kellonajat — piilota jos valittu-merkki liian lähellä */
-      + (Math.abs(nowN*VW - riseN*VW) > 30
-        ? '<text x="'+riseX.toFixed(1)+'" y="'+(HOR_Y+14)+'"'
-          + ' font-size="8"'
-          + ' fill="#7A5D07" text-anchor="middle">'+fmt(rise)+'</text>'
-        : '')
-      + (Math.abs(nowN*VW - setN*VW) > 30
-        ? '<text x="'+setX.toFixed(1)+'" y="'+(HOR_Y+14)+'"'
-          + ' font-size="8"'
-          + ' fill="#7A5D07" text-anchor="middle">'+fmt(set)+'</text>'
-        : '')
-
-      /* Statuslabel — kaaren yläpuolella auringon kohdalla tai keskellä */
-      + (function(){
-          var tx = Math.max(40, Math.min(VW-40, sunX));
-          var ty = Math.max(8, sunY - 10);
-          var anch = tx < 50 ? 'start' : tx > VW-50 ? 'end' : 'middle';
-          return '<text x="'+tx.toFixed(1)+'" y="'+ty.toFixed(1)+'"'
-            + ' font-size="9"'
-            + ' fill="'+(isDaytime?'#7A5D07':'#8A8F93')+'"'
-            + ' text-anchor="'+anch+'" font-weight="600">'+statusLine+'</text>';
-        })()
-    ;
-
-    return '<div class="sh-sun-arc">'
-      + '<svg viewBox="0 0 '+VW+' '+VH+'"'
-        + ' preserveAspectRatio="none"'
-        + ' style="width:100%;display:block;overflow:visible">'
-        + svg
-      + '</svg>'
-    + '</div>';
+    return '<div class="sh-sun-rivi">' + osat.join(' \u00b7 ') + '</div>';
   }
 
   /* -- 24H SVG LINE CHART — menneet harmaat, nykyhetki-viiva, tiheät labels -- */
@@ -9774,7 +9687,14 @@ function openSheet(spot, hourIdx) {
 
     /* SVG-dimensiot */
     const CHART_H    = 120;  /* SVG viewBox korkeus */
-    const PAD = 4, LABEL_H = 16, TH = CHART_H + LABEL_H;
+    /* LABEL_H kasvoi 16 -> 24: kuvaajan ja tuntimerkintojen valiin
+       mahtuu VALOKAISTA (valon vaihe + pilvisyys) ja sen alle
+       sadekaista. Ne ovat omalla kaistallaan eivatka kuvaajan paalla,
+       koska paallekkaisia harsoja oli jo kaksi — tuuligradientti ja
+       vihrea sessioikkuna — ja kolmas teki kaikista mutaa. */
+    const PAD = 4, LABEL_H = 24, TH = CHART_H + LABEL_H;
+    const VALO_Y = CHART_H + 2, VALO_H = 6;   /* valo + pilvet */
+    const SADE_Y = CHART_H + 9, SADE_H = 2;   /* sade / lumi */
     const Y_PAD = 32; /* Y-akselin leveys vasemmalla */
     /* 24h: fluid (100% leveys), muut: kiintea px + vaakascroll */
     const PERIOD_W = { '24h': null, '5d': 600, 'all': 1200 };
@@ -9919,6 +9839,146 @@ function openSheet(spot, hourIdx) {
       /* Koko taustarect yhdella gradientilla */
       var bgRects = '<rect x="'+Y_PAD+'" y="'+PAD+'" width="'+(W-Y_PAD-PAD)+'" height="'+(CHART_H-PAD*2)+'" fill="url(#'+bgGradId+')"/>';
 
+      /* ── VALO JA PILVET OMALLA KAISTALLAAN ────────────────────────
+       *
+       * Ennen tama oli oma kaistaleensa kortin alaosassa: sinikaari
+       * jolla oli OMA aika-akselinsa (keskiyosta keskiyohon), kun
+       * tuulikaavio alkaa valitusta hetkesta. Kaksi eri aika-akselia
+       * samalla kortilla, ja lukijan piti yhdistaa ne paassaan juuri
+       * siina kysymyksessa jota varten molemmat ovat: ehdinko viela
+       * vesille. Nyt valo on TAMAN kaavion alalaidassa, jolloin
+       * "tuuli 9 m/s klo 18" ja "aurinko laskee 17:49" ovat samassa
+       * pystysuorassa.
+       *
+       * KAISTA EIKA HARSO. Ensimmainen versio varjosti koko kuvaajan
+       * yon kohdalta. Se ei toiminut: kuvaajassa oli jo kaksi
+       * paallekkaista taustaa — tuulen varigradientti ja vihrea
+       * sessioikkuna — ja kolmas teki niista mutaa jossa mikaan ei
+       * erottunut. Nyt valo ja pilvet ovat omalla 6 px kaistallaan
+       * tuntimerkintojen ylapuolella, ja kuvaajan paalle jaa vain
+       * hyvin kevyt yoharso tunnelmaksi.
+       *
+       * Vaihe luokitellaan auringon KORKEUDESTA joka naytteessa, ei
+       * nousu- ja laskuajoista. Se hoitaa monen vuorokauden jaksot
+       * (5 pv / kaikki) ilman erillista paivittaista silmukkaa, ja
+       * toimii napa-alueilla joilla nousua tai laskua ei ole lainkaan.
+       *
+       * Reunat tarkennetaan puolitushaulla naytteiden valista: tunnin
+       * hilalla pelkka luokittelu heittaisi auringonlaskun jopa
+       * puoli tuntia vaaraan kohtaan.
+       */
+      var valo = '', valoKaista = '';
+      if (times.length > 1) {
+        var _lat = spot.lat, _lng = spot.lng;
+        var msOf = function (i) { return new Date(times[i]).getTime(); };
+        var korkeudet = [];
+        for (var vi = 0; vi < times.length; vi++) {
+          korkeudet.push(times[vi] ? Aurinko.korkeus(msOf(vi), _lat, _lng) : 0);
+        }
+        var rajaX = function (i, kulma) {
+          var a = msOf(i), b = msOf(i + 1);
+          for (var it = 0; it < 14; it++) {
+            var c = (a + b) / 2;
+            if ((Aurinko.korkeus(a, _lat, _lng) < kulma) === (Aurinko.korkeus(c, _lat, _lng) < kulma)) a = c;
+            else b = c;
+          }
+          var os = (((a + b) / 2) - msOf(i)) / (msOf(i + 1) - msOf(i));
+          return xOf(i) + os * (xOf(i + 1) - xOf(i));
+        };
+        /* Kaistan tummuus = kuinka pimeaa on. Taysi paiva jattaa
+           pohjauran nakyviin, yo peittaa sen musteella. Matala aurinko
+           saa lampiman savyn, koska se on eri asia kuin himmea paiva —
+           juuri se tunti jota illan sessiossa jahdataan. */
+        var VAIHE_KAISTA = {
+          0:   'rgba(31,45,58,.74)',    /* yo */
+          0.5: 'rgba(56,72,86,.52)',    /* hamara */
+          1:   'rgba(90,104,116,.30)',  /* siviilihamara */
+          2:   'rgba(154,81,22,.60)',   /* matala aurinko */
+          3:   '',                       /* taysi paiva: pohjaura nakyviin */
+        };
+        /* Kuvaajan paalle jaava yoharso. Selvasti kevyempi kuin
+           kaistalla: tehtava on kertoa "tama osa on pimeaa", ei kilpailla
+           sessioikkunan kanssa. */
+        var VAIHE_HARSO = {
+          0: 'rgba(76,89,96,.13)', 0.5: 'rgba(76,89,96,.09)',
+          1: 'rgba(76,89,96,.05)', 2: '', 3: '',
+        };
+        var VAIHE_KULMA = { 0: Aurinko.PIMEA, 0.5: Aurinko.SIVIILI, 1: Aurinko.NOUSU, 2: Aurinko.KULTA };
+        var yTop = PAD, yH = CHART_H - PAD * 2;
+        /* Pohjaura koko leveydelle: tyhja kaista lukisi "ei dataa",
+           ja tayden auringon pitaa nakya joksikin. */
+        valoKaista += '<rect x="' + Y_PAD + '" y="' + VALO_Y + '" width="' + (W - Y_PAD - PAD)
+          + '" height="' + VALO_H + '" rx="1" fill="rgba(205,190,154,.45)"/>';
+        var jaksoAlkuX = xOf(0), jaksoVaihe = Aurinko.vaihe(korkeudet[0]);
+        var pala = function (x0, x1, vaihe) {
+          if (!(x1 > x0)) return;
+          var kv = VAIHE_KAISTA[vaihe];
+          if (kv) valoKaista += '<rect x="' + x0.toFixed(1) + '" y="' + VALO_Y + '" width="'
+            + (x1 - x0).toFixed(1) + '" height="' + VALO_H + '" fill="' + kv + '"/>';
+          var hv = VAIHE_HARSO[vaihe];
+          if (hv) valo += '<rect x="' + x0.toFixed(1) + '" y="' + yTop + '" width="'
+            + (x1 - x0).toFixed(1) + '" height="' + yH + '" fill="' + hv + '"/>';
+        };
+        for (var vj = 1; vj < times.length; vj++) {
+          var v2 = Aurinko.vaihe(korkeudet[vj]);
+          if (v2 === jaksoVaihe) continue;
+          var kulma = VAIHE_KULMA[Math.min(jaksoVaihe, v2)];
+          var xr = (kulma !== undefined) ? rajaX(vj - 1, kulma) : xOf(vj);
+          pala(jaksoAlkuX, xr, jaksoVaihe);
+          jaksoAlkuX = xr; jaksoVaihe = v2;
+        }
+        pala(jaksoAlkuX, xOf(times.length - 1), jaksoVaihe);
+
+        /* PILVET. "Aurinkoista" ei ole sama asia kuin "valoisaa", ja
+           pilvisyys on jo haettu jokaiselle spotille (wx.hourly.cloudcover
+           tulee samasta proxysta kuin tuuli), joten se ei maksa yhtaan
+           rajapintakutsua eika lisatavua.
+           Harso vain valoisiin tunteihin: yolla pilvipeite ei muuta sita
+           mita silma nakee. Alaraja 25 %, koska sen alla taivas on
+           kayttajan silmin selkea ja tuskin nakyva harso olisi kohinaa. */
+        var ccArr = h.cloudcover || null;
+        if (ccArr && ccArr.length) {
+          var ccIdxOf = {};
+          for (var ci = 0; ci < allTimes.length; ci++) ccIdxOf[allTimes[ci]] = ci;
+          for (var cj = 0; cj < times.length - 1; cj++) {
+            if (korkeudet[cj] < Aurinko.NOUSU) continue;
+            var ck = ccIdxOf[times[cj]];
+            var cc2 = (ck !== undefined && ccArr[ck] != null) ? ccArr[ck] : null;
+            if (cc2 == null || cc2 < 25) continue;
+            /* Katto 0.30 eika 0.50, ja savy neutraali harmaa eika yon
+               sinimuste: taysin pilvinen PAIVA ei saa nayttaa yolta.
+               Ensimmaisessa versiossa ne olivat samaa savya ja lahes
+               samaa tummuutta, jolloin kaista kertoi vain "tummaa" eika
+               sita kumpi syy oli kyseessa. */
+            var aa = Math.min(0.30, (cc2 - 25) / 75 * 0.30);
+            valoKaista += '<rect x="' + xOf(cj).toFixed(1) + '" y="' + VALO_Y + '" width="'
+              + (xOf(cj + 1) - xOf(cj)).toFixed(1) + '" height="' + VALO_H
+              + '" fill="rgba(122,126,122,' + aa.toFixed(3) + ')"/>';
+          }
+        }
+
+        /* SADE omalla ohuella kaistallaan valokaistan alla. Sade ei muuta
+           valon maaraa vaan sita kannattaako lahtea, joten se on oma
+           kanavansa. WMO-koodit: 51-67 tihku ja vesisade, 71-77 ja 85-86
+           lumi, 80-82 kuurot, 95+ ukkonen. */
+        var wcArr = h.weather_code || null;
+        if (wcArr && wcArr.length) {
+          var wcIdxOf = {};
+          for (var wi2 = 0; wi2 < allTimes.length; wi2++) wcIdxOf[allTimes[wi2]] = wi2;
+          for (var wj = 0; wj < times.length - 1; wj++) {
+            var wk = wcIdxOf[times[wj]];
+            var code = (wk !== undefined) ? wcArr[wk] : null;
+            if (code == null) continue;
+            var lunta = (code >= 71 && code <= 77) || (code >= 85 && code <= 86);
+            var sataa = (code >= 51 && code <= 67) || (code >= 80 && code <= 82) || (code >= 95);
+            if (!sataa && !lunta) continue;
+            valoKaista += '<rect x="' + xOf(wj).toFixed(1) + '" y="' + SADE_Y + '" width="'
+              + (xOf(wj + 1) - xOf(wj)).toFixed(1) + '" height="' + SADE_H + '" fill="'
+              + (lunta ? 'rgba(31,79,160,.40)' : 'rgba(31,79,160,.70)') + '"/>';
+          }
+        }
+      }
+
       /* Paaviiva: yksivärinen valkoinen, selkeä */
       var pastSegs='';
       /* Rakennetaan viiva ColorRamp-gradientilla — lineaarigradientti vaakasuunnassa */
@@ -10037,9 +10097,15 @@ function openSheet(spot, hourIdx) {
       var svg='<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" '
         + 'preserveAspectRatio="none" style="display:block;'+(isFluid?'width:calc(100% + '+Y_PAD+'px)':'width:'+W+'px')+';height:'+(CHART_H+LABEL_H)+'px;touch-action:none">'
         + '<defs>'+bgDefs+windLinGrad+'</defs>'
+        /* Valo POHJIMMAISENA: tuuligradientti on läpikuultava (alfa
+           0.05–0.32), joten yön harso näkyy sen läpi mutta tuulen värit
+           pysyvät puhtaina. Toisin päin gradientti vaalentaisi yön. */
+        + valo
         /* Gradientti ensin taustalle, sitten grid-viivat päälle */
         + bgRects
         + ikkunat
+        /* Valokaista tuntimerkintojen ylapuolelle, kuvaajan ULKOPUOLELLE */
+        + valoKaista
         + ylbls
         + pastSegs
         + colorSegs
@@ -10548,8 +10614,11 @@ function openSheet(spot, hourIdx) {
           + '<span class="sh-stat-sub" data-puku-sub>' + ali + '</span>'
           + '</div>';
       })()      + _fmiLinkCard(fmiId)          + '</div>'
-    /* Aurinkokaari — tuuliruusun tilalle */
-    + buildSunBar()
+    /* Auringon LUVUT. Kaari itsessään on siirtynyt tuuliennusteen
+       taustaksi (yksi aika-akseli kahden sijaan), mutta kellonajat ovat
+       silti se mitä illan suunnittelussa luetaan — ne jäävät tähän
+       yhdelle riville. */
+    + buildSunRivi()
     + '<div style="height:8px"></div>'
 
     /* FMI historia-kaavio */
