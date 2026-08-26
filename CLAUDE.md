@@ -3741,3 +3741,183 @@ Helsingin yltä, ilman että mikään kertoo miksi. Nyt `JSON.parse` on
 `fmi.js` ja `kruunuvuori.js` resolvoivat raakaa tekstiä (turvallista) ja
 `uiras.js` parsii `zlib.gunzip`in callbackissa, jonka virheet
 rejektoidaan. Tämä oli ainoa suojaamaton jäsennys.
+
+## Oma säädatavarasto — pois rajapinnan kiintiöstä
+
+Sovellus haki tuulikentän Open-Meteon rajapinnasta joka istunnossa. Se ei
+kaatunut kustannuksiin vaan **kiintiöön**, ja kiintiön yksikkö on se mikä
+tekee tästä ison asian.
+
+### Mitattu ongelma
+
+Open-Meteon ilmainen taso on 10 000 kutsua/vrk, ja **laskutusyksikkö on
+paikka, ei HTTP-pyyntö**: jokainen koordinaatti erässä on oma kutsunsa.
+Mitattuna selaimessa yhdellä todellisella istunnolla:
+
+```
+  käynnistys Helsinki z9    144 paikkaa   ( 3 pyyntöä)
+  zoom sisään z12            31           ( 2)
+  zoom ulos z7              101           ( 3)
+  panorointi                191           ( 5)
+  Porkkala z9                50           ( 2)
+  maailmanäkymä z3          745           (11)   <- 57 % koko istunnosta
+  spottikortti               43           ( 2)
+  ------------------------------------------------
+  yhteensä                 1305 paikkaa   (28 pyyntöä)
+```
+
+18 vuorokauden jakso maksaa vielä ×1,29 (yli kahden viikon pyyntö), joten
+istunto on noin **1 678 kutsua — kuusi istuntoa vuorokaudessa**. Kehittäjä
+polttaa sen aamupäivässä.
+
+Toinen mitattu luku ratkaisi suunnan: **koko datajoukko jonka sovellus voi
+ikinä näyttää on muutama megatavu.** Kiintiöllä maksettiin siitä että sama
+taulukko koottiin uudelleen joka istunnossa.
+
+### Mistä data nyt tulee
+
+Open-Meteo julkaisee koko käsitellyn tietokantansa AWS Open Datassa:
+`s3://openmeteo`, avoin, ilman tunnistautumista, CC BY 4.0, 68 mallia.
+Sama data kuin rajapinnasta, ilman kiintiötä.
+
+Valittu malli on **`ecmwf_ifs025`** yhdestä syystä: se on ainoa jonka
+hetkittäisessä tiedostossa on kaikki kolme tarvittavaa suuretta —
+`wind_u_component_10m`, `wind_v_component_10m` ja `wind_gusts_10m`.
+GFS:llä on puuskat mutta ei 10 metrin tuulta, joten se vaatisi kaksi
+mallia, ja kaksi mallia tarkoittaa kahta eri fysiikkaa samassa kuvassa.
+
+Asioita jotka piti selvittää mittaamalla, koska metatiedoista niitä ei
+saanut (kirjaston skalaarilukija heittää `crs_wkt`:lle):
+
+- **Rivi 0 on ETELÄSSÄ.** Luin lämpötilakentän 9×12 ruudukkona: y=0 antoi
+  −58 °C tasaisesti (Etelämanner elokuussa), y=720 noin −1 °C. Pituuspiiri
+  ratkesi samasta kuvasta: x=785 oli 37 °C ja x=916 oli 46 °C, mikä osuu
+  Saharaan ja Arabiaan vain jos x=0 on −180°. Siis
+  `lat = -90 + y*0.25`, `lng = -180 + x*0.25`.
+- **Aika-akseli ei ole tasavälinen.** ECMWF antaa kolmen tunnin askeleen
+  kuuden vuorokauden ajan ja sitten kuuden tunnin askeleen
+  viidenteentoista: mitattuna 48 kolmen tunnin väliä ja 36 kuuden tunnin
+  väliä. Ensimmäinen versio tallensi vain `t0` ja `dt` — jolloin viimeiset
+  yhdeksän vuorokautta olisivat olleet väärässä kohdassa aikajanaa ilman
+  että mikään olisi näyttänyt rikkinäiseltä. Nyt luettelossa on koko
+  aikalista. Interpolointi itse osaa epätasaisen välin, koska se hakee
+  hetkeä *ympäröivän parin* eikä kiinteää askelta.
+- **Puuskaa ei ole analyysihetkellä.** Se on jakson yli laskettu maksimi,
+  eikä nollan mittaiselle jaksolle ole maksimia. Ensimmäinen versio hylkäsi
+  koko hetken jos puuska puuttui — eli juuri sen hetken jonka kartta
+  oletuksena näyttää.
+
+Suunnan konventio tarkistettiin FMI:n HARMONIEa vasten kolmessa paikassa:
+ero 1–5°, nopeusero 0,6–1,2 m/s (normaali mallien välinen erimielisyys
+25 km vs 2,5 km hilalla) ja puuskat 4,6 vs 4,8 / 5,4 vs 4,3. Kaava on
+`(270 - atan2(v,u)*180/pi) mod 360`.
+
+### Laattojen muoto
+
+Laatta on **21 × 21 pistettä ja 20 × askel astetta**. Viimeinen rivi on
+naapurin ensimmäinen, joten reunalla ei ole saumaa jota interpolointi
+joutuisi arvaamaan. Sisältö on kolme tavutasoa järjestyksessä
+`[aika][y][x]`: nopeus (0,2 m/s), suunta (2°) ja puuska (0,2 m/s), 255 =
+puuttuva. Molemmat kvantisoinnit ovat selvästi hienompia kuin ennusteen
+oma tarkkuus.
+
+Viisi tasoa, tiheät vain sinne missä spotit ovat:
+
+| taso | askel | alue | laattoja |
+|---|---|---|---|
+| l0 | 0,25° | Itämeri + Suomi | 25 |
+| l1 | 0,5° | Pohjois-Eurooppa | 24 |
+| l2 | 1° | Eurooppa + Atlantti | 21 |
+| l3 | 2,5° | koko maailma | 32 |
+| l4 | 5° | koko maailma | 8 |
+
+Koko maailman 0,25° olisi 2 592 laattaa eli 290 MB; sitä ei tarvitse
+kukaan. **l4 on olemassa vaikka l3 kattaa saman alueen**, koska
+sovelluksen hilaväli on zoomissa 3 ja sitä ulompana 5°: l3:lla
+maailmanäkymä oli mitattuna 32 laattaa ja 2,65 MB, l4:llä 8 laattaa ja
+0,68 MB. Data on samaa, ero on vain siinä ettei ladata neljä kertaa
+enempää kuin näytetään.
+
+Yhteensä 110 laattaa, **9,4 MB gzipattuna**, 98 aika-askelta, jakso 16,6
+vuorokautta (2 vrk taakse, 15 eteen). Rakennus kestää noin kolme
+minuuttia.
+
+Pakkaus jää 66 prosenttiin eikä siitä kannata yrittää enempää:
+kokeiltuna `[y][x][t]` + aikadelta oli **101 %** ja `[t][y][x]` +
+aikadelta **93 %** nykyisestä. Kvantisoitu tuuli on tavutasolla lähes
+kohinaa.
+
+### Menneisyys tulee vanhemmista ajoista
+
+`data_spatial` sisältää vain ennusteen ajohetkestä eteenpäin, mutta
+aikajana ulottuu kaksi vuorokautta taaksepäin. Menneisyys saadaan
+vanhempien ajojen alkupäästä: kaksitoista tuntia sitten tehdyn ajon
+ensimmäiset askeleet ovat nyt menneisyyttä. Jokaiselle hetkelle valitaan
+**tuorein ajo joka sen kattaa**, joten menneisyys on parasta saatavilla
+olevaa analyysiä eikä vanhaa ennustetta. Mitattuna yksi akseli koostuu
+neljästä eri ajosta.
+
+### Mitä sovelluksessa muuttui
+
+`Saalaatat`-moduuli ja yksi lohko `loadViewport()`:ssa. Laattapisteet
+menevät `_points`-karttaan **samassa muodossa kuin rajapinnasta tulevat**,
+joten interpolointi, lämpökartta, partikkelit ja aikajana eivät tiedä
+erosta. Ainoa näkyvä ero on lähdemerkintä.
+
+Kaksi asiaa jotka piti korjata mittaamalla:
+
+- **Bilineaarinen näyte, ei lähin solmu.** Kun sovellus pyytää 0,5° hilaa
+  mutta tarjolla on vain 2,5° taso (Australiassa), lähin solmu antaisi
+  viidelle pisteelle saman arvon — kenttä olisi 2,5° palikoita ja
+  interpolointi sekoittaisi vain identtisiä naapureita. Suunta
+  interpoloidaan yksikkövektoreina samasta syystä kuin
+  `_havSuuntaKeskiarvo()`:ssa: 350° ja 10° ovat 20° päässä toisistaan,
+  mutta lukujen keskiarvo on vastakkainen suunta.
+- **`varmista()` tarvitsee saman pehmusteen kuin `getViewportPoints()`**
+  (`step * 2`). Ilman sitä reunapisteet putoavat naapurilaatalle jota ei
+  ole ladattu, ja ne menevät rajapintaan vaikka data on olemassa.
+  Mitattuna Sydneyn z8-näkymässä 26 pistettä 117:stä jäi näin katveeseen.
+
+Tulos samalla kierroksella kuin alussa mitattu, mutta vaikeampana (mukana
+Sydney ja maailmanäkymä):
+
+```
+                    ennen        jälkeen
+  Open-Meteo        1305 paikkaa    0 paikkaa
+  laattoja             —           21 pyyntöä, 1,67 MB
+```
+
+### Varatie ei ole valinnainen
+
+Laatat kattavat rajatut alueet, ja ajastettu työ voi olla rikki. Kolme
+tilaa testattiin selaimessa ja kaikissa sovellus toimii kuten ennenkin
+(375 tunnin aikajana rajapinnasta, ei sivuvirheitä):
+
+- **luettelo puuttuu (404)** → varasto pois käytöstä
+- **luettelo on roskaa** → sama
+- **luettelo on vanhentunut** → sama. Raja on: jos viimeinen hetki ei
+  yllä puolta vuorokautta eteenpäin, ajastettu työ on jäänyt jumiin.
+  Vanhentunut varasto on pahempi kuin ei varastoa lainkaan, koska se
+  näyttäisi eiliseltä ennusteelta ilman että mikään kertoo siitä.
+
+### Julkaisu
+
+GitHub Actions (`.github/workflows/saadata.yml`) neljä kertaa
+vuorokaudessa. Julkisessa reposessa minuutit ovat rajattomat.
+
+Laatat menevät **orpoon `saadata`-haaraan pakkopäivityksellä**, eli
+haarassa on aina täsmälleen yksi committi. Jos ne kasautuisivat
+historiaan, repo kasvaisi 38 MB vuorokaudessa ja täyttäisi GitHubin
+gigatavun rajan neljässä viikossa.
+
+Sovellus lataa ne `raw.githubusercontent.com`:sta: siellä on
+`access-control-allow-origin: *` ja `cache-control: max-age=300`, mikä
+sopii kolmen tunnin välein päivittyvälle datalle. jsDelivr olisi
+nopeampi CDN mutta sen `max-age` on seitsemän vuorokautta `@main`-tagilla,
+eli väärä tälle.
+
+**Cloudflare R2 olisi tähän myös hyvä** (10 GB ilmaista, egress
+maksuton), ja jos sovellus joskus saa oikeaa liikennetta, se on se
+minne siirtyä — GitHubin kaistalla on pehmeä 100 GB/kk raja ja
+välimuistiotsakkeisiin ei pääse käsiksi. Tällä mittakaavalla ero ei
+näy.

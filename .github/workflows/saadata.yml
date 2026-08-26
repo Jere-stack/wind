@@ -1,0 +1,90 @@
+# Säälaattojen päivitys.
+#
+# Lukee Open-Meteon avoimen datan AWS Open Datasta ja julkaisee siitä
+# laatat haaraan `saadata`, josta sovellus lataa ne suoraan
+# raw.githubusercontent.comin kautta (CORS on siellä auki ja välimuisti
+# 5 minuuttia — juuri sopiva kolmen tunnin välein päivittyvälle datalle).
+#
+# MIKSI ORVOKSI JA PAKOLLA. Laatat ovat noin 9 MB kierrokselta. Jos ne
+# kasautuisivat historiaan, repo kasvaisi 72 MB vuorokaudessa ja täyttäisi
+# GitHubin gigatavun rajan kahdessa viikossa. `git checkout --orphan` +
+# `push --force` tarkoittaa että haarassa on aina täsmälleen yksi
+# committi: nykyinen tilanne, ei mitään muuta.
+#
+# Julkisessa reposessa Actions-minuutit ovat rajattomat, joten tämä on
+# ilmaista. Ajo kestää noin kolme minuuttia.
+
+name: Säädata
+
+on:
+  schedule:
+    # Neljä kertaa vuorokaudessa, noin tunti ECMWF:n ajojen jälkeen.
+    # ECMWF ajaa 00/06/12/18 UTC ja data ilmestyy S3:een muutaman tunnin
+    # viiveellä; työ etsii itse uusimman valmiin ajon, joten tarkka
+    # kellonaika ei ole kriittinen.
+    - cron: '20 4,10,16,22 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: saadata
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  laatat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Rakenna laatat
+        env:
+          RINNAKKAIN: '8'
+          MENNEISYYS_H: '48'
+        run: node tools/tiilet.mjs ulos
+
+      - name: Julkaise haaraan saadata
+        run: |
+          set -e
+          test -f ulos/luettelo.json
+          cd ulos
+          git init -q
+          git checkout -q --orphan saadata
+          git add -A
+          git -c user.name='FoilSpot data' \
+              -c user.email='data@foilspot.invalid' \
+              commit -q -m "Säälaatat $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -q --force \
+            "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" \
+            saadata
+
+      - name: Yhteenveto
+        run: |
+          {
+            echo '### Säälaatat päivitetty'
+            echo ''
+            node -e '
+              const l = require("./ulos/luettelo.json");
+              const mb = require("fs").readdirSync("ulos", {recursive:true})
+                .filter(f => f.endsWith(".gz"))
+                .reduce((s,f) => s + require("fs").statSync("ulos/"+f).size, 0) / 1e6;
+              console.log("| | |");
+              console.log("|---|---|");
+              console.log("| Malli | " + l.malli + " |");
+              console.log("| Ajo | " + l.ajoAika + " |");
+              console.log("| Aika-askelia | " + l.nt + " |");
+              console.log("| Jakso | " + new Date(l.ajat[0]).toISOString() + " … " + new Date(l.ajat[l.ajat.length-1]).toISOString() + " |");
+              console.log("| Laattoja | " + l.tasot.reduce((s,t)=>s+t.laatat.length,0) + " |");
+              console.log("| Koko | " + mb.toFixed(1) + " MB |");
+              console.log("| Puuttuvia hetkiä | " + l.puuttuvia + " |");
+            '
+          } >> "$GITHUB_STEP_SUMMARY"

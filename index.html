@@ -3126,6 +3126,256 @@ const SPOTS = [
   { name: 'Emäsalo',           lat: 60.20220, lng: 25.62546, desc: 'Emäsalon kärki – avomeri',       bestDirs: ['SE','S','SW']          }
 ];
 
+/* -- SÄÄLAATAT ---------------------------------------------------
+ *
+ * Esilaskettu tuulikenttä omasta varastosta rajapintakutsujen sijaan.
+ *
+ * MIKSI. Open-Meteon ilmainen API laskuttaa PAIKOITTAIN: jokainen
+ * koordinaatti erässä on oma kutsunsa. Mitattuna yksi todellinen istunto
+ * (käynnistys, zoomit, panorointi, maailmanäkymä, spottikortti) kuluttaa
+ * 1 305 paikkaa eli noin 1 678 painotettua kutsua — 10 000/vrk riittää
+ * kuuteen istuntoon. Koko se data jonka sovellus voi ikinä näyttää on
+ * kuitenkin vain muutama megatavu, joten sama taulukko koottiin uudelleen
+ * joka istunnossa.
+ *
+ * Nyt tuulikenttä rakennetaan kerran kolmessa tunnissa (tools/tiilet.mjs,
+ * GitHub Actions) Open-Meteon avoimesta datasta AWS Open Datassa ja
+ * julkaistaan laattoina. Sovellus lataa laatan, ei pistelistaa.
+ *
+ * Laatta = 21 x 21 pistettä, 20 x askel astetta. Viimeinen rivi on
+ * naapurin ensimmäinen, joten reunalla ei ole saumaa. Kolme tavutasoa
+ * järjestyksessä [aika][y][x]: nopeus, suunta, puuska.
+ *
+ * VARATIE ON PAKOLLINEN. Laatat kattavat neljä tasoa ja rajatut alueet;
+ * niiden ulkopuolella — ja jos varasto on vanhentunut tai poissa —
+ * palataan rajapintaan. Sovellus ei saa olla riippuvainen siitä että
+ * ajastettu työ on onnistunut.                                        */
+
+const SAALAATAT_KANTA = 'https://raw.githubusercontent.com/Jere-stack/wind/saadata/';
+
+const Saalaatat = {
+  _luettelo: null,
+  _tila: 'alustamaton',      /* alustamaton | ok | pois */
+  _laatat: new Map(),        /* avain -> purettu laatta */
+  _kesken: new Map(),        /* avain -> Promise */
+  _ajat: null,               /* jaettu aikataulukko, sama joka pisteelle */
+  _MAX_LAATTAA: 40,          /* muistikatto; laatta on ~112 kt purettuna */
+
+  kaytossa() { return this._tila === 'ok'; },
+  pois() { this._tila = 'pois'; this._laatat.clear(); },
+
+  async alusta() {
+    if (this._tila !== 'alustamaton') return this._tila === 'ok';
+    this._tila = 'lataa';
+    try {
+      if (typeof DecompressionStream !== 'function') throw new Error('ei DecompressionStreamia');
+      const r = await fetch(SAALAATAT_KANTA + 'luettelo.json', { cache: 'no-cache' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const l = await r.json();
+      if (!l || l.versio !== 1 || !Array.isArray(l.tasot)) throw new Error('tuntematon luettelo');
+      /* Vanhentunut varasto on pahempi kuin ei varastoa lainkaan: se
+         näyttäisi eiliseltä ennusteelta ilman että mikään kertoo siitä.
+         Jos viimeinen hetki ei yllä puolta vuorokautta eteenpäin, ajastettu
+         työ on jäänyt jumiin ja rajapinta on oikea lähde. */
+      const loppu = Array.isArray(l.ajat) && l.ajat.length
+        ? l.ajat[l.ajat.length - 1]
+        : l.t0 + (l.nt - 1) * l.dtSek * 1000;
+      if (loppu < Date.now() + 12 * 3600e3) throw new Error('varasto vanhentunut');
+      this._luettelo = l;
+      /* Akseli luetaan luettelosta sellaisenaan: se ei ole tasavälinen
+         (ECMWF vaihtaa kolmen tunnin askeleesta kuuteen kuuden
+         vuorokauden kohdalla), joten t0 + i*dt olisi väärä. */
+      const ms = Array.isArray(l.ajat) && l.ajat.length === l.nt
+        ? l.ajat
+        : Array.from({ length: l.nt }, (_, i) => l.t0 + i * l.dtSek * 1000);
+      this._ajat = ms.map(t => new Date(t).toISOString());
+      this._tila = 'ok';
+      return true;
+    } catch (e) {
+      console.warn('[saalaatat] ei käytössä:', e.message);
+      this._tila = 'pois';
+      return false;
+    }
+  },
+
+  /* Hienoin taso jonka askel riittää pyydettyyn hilaväliin. Sovelluksen
+     hilaväli on gridStep(zoom); jos sitä hienompaa tasoa ei ole tälle
+     alueelle, karkeampi kelpaa — se on yhä oikeaa dataa, vain harvempaa. */
+  taso(lat, lng, step) {
+    if (!this._luettelo) return null;
+    let paras = null;
+    for (const t of this._luettelo.tasot) {
+      if (lat < t.lat[0] || lat > t.lat[1]) continue;
+      const lo = ((lng + 180) % 360 + 360) % 360 - 180;
+      if (t.lng[0] > -180 || t.lng[1] < 180) {
+        if (lo < t.lng[0] || lo > t.lng[1]) continue;
+      }
+      /* Halutaan askel <= step, ja niistä suurin (vähiten laattoja).
+         Jos mikään ei ole tarpeeksi hieno, otetaan hienoin mitä on. */
+      if (!paras) { paras = t; continue; }
+      const kelpaa = (x) => x.askel <= step + 1e-9;
+      if (kelpaa(t) && (!kelpaa(paras) || t.askel > paras.askel)) paras = t;
+      else if (!kelpaa(t) && !kelpaa(paras) && t.askel < paras.askel) paras = t;
+    }
+    return paras;
+  },
+
+  _ruutu(taso, lat, lng) {
+    const lo = ((lng + 180) % 360 + 360) % 360 - 180;
+    const la0 = Math.floor(lat / taso.span) * taso.span;
+    const lo0 = Math.floor(lo / taso.span) * taso.span;
+    return { la0: +la0.toFixed(4), lo0: +lo0.toFixed(4) };
+  },
+
+  _avain(taso, la0, lo0) { return taso.id + '/' + la0 + '_' + lo0; },
+
+  async _lataa(taso, la0, lo0) {
+    const avain = this._avain(taso, la0, lo0);
+    if (this._laatat.has(avain)) return this._laatat.get(avain);
+    if (this._kesken.has(avain)) return this._kesken.get(avain);
+    const p = (async () => {
+      const url = SAALAATAT_KANTA + avain + '.bin.gz';
+      const r = await fetch(url);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      /* Palvelin ei aseta content-encodingia binääritiedostolle, joten
+         gzip puretaan itse. DecompressionStream on Safari 16.4+, sama
+         raja kuin lämpökartan plus-lighter-sekoituksella. */
+      const purettu = r.body.pipeThrough(new DecompressionStream('gzip'));
+      const puskuri = await new Response(purettu).arrayBuffer();
+      const tavut = new Uint8Array(puskuri);
+      const dv = new DataView(puskuri);
+      if (dv.getUint8(0) !== 70 || dv.getUint8(1) !== 83) throw new Error('väärä tunniste');
+      const ny = dv.getUint16(20, true), nx = dv.getUint16(22, true), nt = dv.getUint16(24, true);
+      const ot = this._luettelo.otsake, koko = nt * ny * nx;
+      const laatta = {
+        askel: dv.getFloat32(8, true),
+        la0: dv.getFloat32(12, true), lo0: dv.getFloat32(16, true),
+        ny, nx, nt,
+        nop: tavut.subarray(ot, ot + koko),
+        suunta: tavut.subarray(ot + koko, ot + 2 * koko),
+        puuska: tavut.subarray(ot + 2 * koko, ot + 3 * koko),
+      };
+      /* Muistikatto: pudotetaan vanhimmat kun raja ylittyy. Map säilyttää
+         lisäysjärjestyksen, joten ensimmäinen avain on vanhin. */
+      while (this._laatat.size >= this._MAX_LAATTAA) {
+        this._laatat.delete(this._laatat.keys().next().value);
+      }
+      this._laatat.set(avain, laatta);
+      return laatta;
+    })().finally(() => this._kesken.delete(avain));
+    this._kesken.set(avain, p);
+    return p;
+  },
+
+  /* Lataa kaikki näkymän kattavat laatat rinnakkain. Palauttaa montako
+     onnistui — nolla tarkoittaa että tälle näkymälle mennään rajapintaan. */
+  async varmista(bounds, step) {
+    if (!this.kaytossa()) return 0;
+    /* Sama pehmuste kuin getViewportPoints():lla (step * 2). Ilman sitä
+       reunapisteet putoavat naapurilaatalle jota ei ole ladattu, ja ne
+       menevät rajapintaan vaikka data on olemassa. Mitattuna Sydneyn
+       z8-näkymässä 26 pistettä 117:stä jäi näin katveeseen. */
+    const pad = step * 2;
+    const s = bounds.getSouth() - pad, n = bounds.getNorth() + pad;
+    const w = bounds.getWest() - pad, e = bounds.getEast() + pad;
+    const tarvitaan = new Map();
+    /* Näytteistetään rajauksen kulmat ja keskiviivat: laatta on vähintään
+       5° leveä, joten tiheämpää haravointia ei tarvita kuin isoilla
+       näkymillä, missä askel on jo iso. */
+    const askel = Math.max(1, (n - s) / 12);
+    const lAskel = Math.max(1, (e - w) / 12);
+    for (let lat = s; lat <= n + askel; lat += askel) {
+      for (let lng = w; lng <= e + lAskel; lng += lAskel) {
+        const la = Math.min(89.9, Math.max(-89.9, lat));
+        const taso = this.taso(la, lng, step);
+        if (!taso) continue;
+        const { la0, lo0 } = this._ruutu(taso, la, lng);
+        const avain = this._avain(taso, la0, lo0);
+        if (!tarvitaan.has(avain)) tarvitaan.set(avain, { taso, la0, lo0 });
+      }
+    }
+    if (!tarvitaan.size) return 0;
+    const tulokset = await Promise.allSettled(
+      [...tarvitaan.values()].map(t => this._lataa(t.taso, t.la0, t.lo0)));
+    return tulokset.filter(t => t.status === 'fulfilled').length;
+  },
+
+  /* Yhden pisteen aikasarja samassa muodossa kuin rajapinta antaa, jotta
+     kaikki muu sovelluksessa toimii muuttumatta. Palauttaa null jos
+     laattaa ei ole ladattu tai piste on tyhjä. */
+  wx(lat, lng, step) {
+    if (!this.kaytossa()) return null;
+    const taso = this.taso(lat, lng, step);
+    if (!taso) return null;
+    const { la0, lo0 } = this._ruutu(taso, lat, lng);
+    const laatta = this._laatat.get(this._avain(taso, la0, lo0));
+    if (!laatta) return null;
+    const lo = ((lng + 180) % 360 + 360) % 360 - 180;
+    /* Bilineaarinen näyte, ei lähin solmu.
+     *
+     * Kun sovellus pyytää 0,5° hilaa mutta tarjolla on vain 2,5° taso
+     * (esim. Australiassa), lähin solmu antaisi kaikille viidelle
+     * pisteelle SAMAN arvon — kenttä olisi 2,5° palikoita ja
+     * interpolointi sekoittaisi vain identtisiä naapureita. Neljän
+     * solmun painotus antaa sujuvan kentän samasta datasta.
+     *
+     * Suunta interpoloidaan yksikkövektoreina: 350° ja 10° ovat 20°
+     * päässä toisistaan, mutta lukujen keskiarvo on 180° eli vastakkainen
+     * suunta. Sama syy kuin _havSuuntaKeskiarvo():ssa. */
+    const fy = (lat - laatta.la0) / laatta.askel;
+    const fx = (lo - laatta.lo0) / laatta.askel;
+    const iy = Math.floor(fy), ix = Math.floor(fx);
+    if (iy < 0 || iy > laatta.ny - 1 || ix < 0 || ix > laatta.nx - 1) return null;
+    const iy1 = Math.min(iy + 1, laatta.ny - 1), ix1 = Math.min(ix + 1, laatta.nx - 1);
+    const wy = fy - iy, wx2 = fx - ix;
+    const kulmat = [
+      [iy,  ix,  (1 - wy) * (1 - wx2)],
+      [iy,  ix1, (1 - wy) * wx2],
+      [iy1, ix,  wy * (1 - wx2)],
+      [iy1, ix1, wy * wx2],
+    ].filter(k => k[2] > 1e-6);
+
+    const L = this._luettelo, tyhja = L.tyhja;
+    const nt = laatta.nt, taso2 = laatta.ny * laatta.nx;
+    const nop = new Array(nt), suu = new Array(nt), puu = new Array(nt);
+    let kelpoja = 0;
+    for (let t = 0; t < nt; t++) {
+      const pohja = t * taso2;
+      let sN = 0, sG = 0, sSin = 0, sCos = 0, wN = 0, wG = 0, wD = 0;
+      for (let c = 0; c < kulmat.length; c++) {
+        const k = pohja + kulmat[c][0] * laatta.nx + kulmat[c][1], w = kulmat[c][2];
+        const v = laatta.nop[k];
+        if (v === tyhja) continue;
+        sN += v * w; wN += w;
+        const d = laatta.suunta[k];
+        if (d !== tyhja) {
+          const r = d * L.suuntaAskel * Math.PI / 180;
+          sSin += Math.sin(r) * w; sCos += Math.cos(r) * w; wD += w;
+        }
+        const g = laatta.puuska[k];
+        if (g !== tyhja) { sG += g * w; wG += w; }
+      }
+      if (!wN) { nop[t] = null; suu[t] = null; puu[t] = null; continue; }
+      kelpoja++;
+      nop[t] = (sN / wN) * L.nopAskel;
+      suu[t] = wD ? ((Math.atan2(sSin / wD, sCos / wD) * 180 / Math.PI) + 360) % 360 : null;
+      /* Puuskaa ei ole analyysihetkellä (se on jakson yli laskettu
+         maksimi). Tuuli itse on silloin paras arvio. */
+      puu[t] = wG ? (sG / wG) * L.nopAskel : nop[t];
+    }
+    if (!kelpoja) return null;
+    return {
+      hourly: {
+        time: this._ajat,
+        windspeed_10m: nop,
+        winddirection_10m: suu,
+        windgusts_10m: puu,
+      },
+      lahde: 'laatta',
+    };
+  },
+};
+
 /* -- VIEWPORT GRID ---------------------------------------------- */
 const ViewportGrid = {
   _points: new Map(),
@@ -3163,6 +3413,29 @@ const ViewportGrid = {
       }
     }
     if (!pts.length) { if (onProgress) onProgress(1, 1); return; }
+
+    /* Laatoista jos suinkin. Globaali 2,5° taso (l3) kattaa koko maapallon,
+       joten 15 asteen tukihila saadaan siitä ilman yhtäkään rajapintakutsua
+       — ja se oli mitattuna 276 paikkaa eli lähes koko maailmanäkymän hinta.
+       Nämä pisteet eivät myöskään vanhene localStorageen, koska laatat
+       päivittyvät itsestään kolmen tunnin välein. */
+    if (Saalaatat.kaytossa()) {
+      try {
+        const maailma = L.latLngBounds([[-60, -180], [75, 175]]);
+        await Saalaatat.varmista(maailma, step);
+        let saatu = 0;
+        for (const p of pts) {
+          const wx = Saalaatat.wx(p.lat, p.lng, step);
+          if (wx) { p.wx = wx; this._globalBase.set(this._ptKey(p.lat, p.lng), p); saatu++; }
+        }
+        if (saatu > pts.length * 0.8) {
+          this.invalidateCache();
+          if (onProgress) onProgress(saatu, saatu);
+          return;
+        }
+      } catch (e) { /* varatie hoitaa */ }
+    }
+
     const cacheKey = 'fg_global_' + State.activeModel;
     try {
       const raw = localStorage.getItem(cacheKey);
@@ -3379,6 +3652,30 @@ const ViewportGrid = {
         const kopio = kaarto.get(this._ptKey(p.lat, kaarraLng(p.lng)));
         if (kopio && kopio.wx) { p.wx = kopio.wx; this._points.set(k, p); }
       }
+    }
+    /* Säälaatat ennen rajapintaa.
+     *
+     * Laatat kattavat neljä tasoa ja rajatut alueet; se mitä ne kattavat
+     * ei maksa yhtään rajapintakutsua. Loput putoavat entiseen polkuun
+     * sellaisenaan, joten tämä on lisäys eikä korvaus — jos varasto on
+     * poissa tai vanhentunut, sovellus toimii kuten ennenkin.
+     *
+     * Laattapisteet menevät _points-karttaan samassa muodossa kuin
+     * rajapinnasta tulevat, joten interpolointi, lämpökartta, partikkelit
+     * ja aikajana eivät tiedä erosta. Ainoa ero näkyy lähdemerkinnässä. */
+    const laattaAskel = this._viimeStep || this.gridStep(zoom);
+    if (Saalaatat.kaytossa()) {
+      try {
+        await Saalaatat.varmista(bounds, laattaAskel);
+        if (myGen !== this._loadGeneration) return null;
+        for (const p of gridPoints) {
+          const k = this._ptKey(p.lat, p.lng);
+          if (this._points.has(k)) continue;
+          const wx = Saalaatat.wx(p.lat, p.lng, laattaAskel);
+          if (wx) { p.wx = wx; this._points.set(k, p); }
+        }
+        this.invalidateCache();
+      } catch (e) { /* varatie hoitaa */ }
     }
     /* Hilaväli ratkaisee kannattaako HARMONIEa yrittää — ks.
        HARMONIE_MAX_STEP. Luettava tässä, koska se ohjaa sekä sitä mitä
@@ -12315,6 +12612,11 @@ const Lahde = {
   NIMET: {
     fmi: 'Ilmatieteen laitos · HARMONIE 2,5 km',
     om:  'Open-Meteo · paras saatavilla',
+    /* Oma varasto. Sama data kuin Open-Meteon rajapinnasta mutta
+       AWS Open Datasta esilaskettuna — malli sanotaan silti, koska
+       lukija ei välitä siitä mistä putkesta se tuli vaan siitä minkä
+       mallin ennustetta hän katsoo. */
+    laatta: 'ECMWF IFS 0,25° · esilaskettu',
     ecmwf_ifs025: 'ECMWF IFS 9 km',
     icon_eu: 'ICON EU 7 km',
     gfs_seamless: 'GFS 13 km'
@@ -13449,7 +13751,10 @@ function _avaaLinkista(linkki) {
 }
 
 /* -- MAIN ------------------------------------------------------- */
-function main() {
+/* async: Saalaatat.alusta() odotetaan ennen ensimmäistä näkymän latausta.
+   Kaikki muu main():n sisällä on synkronista tai käynnistää oman
+   promisensa, joten odotus ei viivytä kartan piirtoa. */
+async function main() {
   buildLegend(); initMap(); initCanvases();
   Crosshair.init(); WeatherWidget.init(); Units.init(); Suunta.init();
   /* Kartan asetukset vasta initCanvasesin jälkeen: partikkelikanvas on
@@ -13481,6 +13786,13 @@ function main() {
   } else if (Suosikit.spotit().length) {
     _keskitaSuosikkeihin();
   }
+
+  /* Luettelo ensin: se on yksi pieni tiedosto, ja sen perusteella
+     ratkeaa haetaanko näkymä laatoista vai rajapinnasta. Odottaminen on
+     halvempaa kuin ensin hakea rajapinnasta ja sitten huomata että
+     laatat olisivat riittäneet. Epäonnistuminen ei ole virhe — alusta()
+     nielee sen ja jättää varaston pois käytöstä. */
+  await Saalaatat.alusta();
 
   const spotsP    = ViewportGrid.loadSpots().catch(e => console.warn('[loadSpots]', e));
   const viewportP = ViewportGrid.loadViewport(State.map).catch(e => console.warn('[loadViewport]', e));
