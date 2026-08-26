@@ -3483,7 +3483,39 @@ const ViewportGrid = {
     }
   },
 
-  KATTO: 600,   /* enintään näin monta pistettä yhdellä näkymällä */
+  /* Näkymän pistekatto.
+   *
+   * Katto on olemassa siksi, että ENNEN jokainen piste oli oma
+   * rajapintakutsunsa: 600 pistettä oli 600 paikkaa Open-Meteon
+   * kiintiöstä. Laattavarastosta pisteet ovat ILMAISIA — yksi laatta
+   * sisältää 21x21 = 441 pistettä joka tapauksessa, ja karkea katto
+   * heitti valtaosan niistä pois heti lukemisen jälkeen.
+   *
+   * Siksi katto riippuu nyt siitä mistä data tulee. Rajapinnalla se on
+   * ennallaan; laatoilla se on niin suuri kuin laskenta kestää (ks.
+   * mittaus CLAUDE.md:ssä). Kattoa nostamalla hilaväli pysyy sinä mitä
+   * gridStep lupaa myös maailmannäkymässä — ennen katto kasvatti sen
+   * viidestä asteesta kymmeneen juuri siellä missä kenttää katsotaan
+   * kokonaisuutena.
+   *
+   * Mitattu: katto 600 pakotti maailmannäkymän hilan viidestä asteesta
+   * KYMMENEEN, koska 5° antaa siellä 1260 pistettä. Tiheämmät laattatasot
+   * eivät ole tässä avuksi — `taso()` valitsee samat 5°:n laatat
+   * kummallakin askeleella, joten ero on pelkkää interpolointia eikä
+   * yhtään lisätavua verkosta.
+   *
+   * Kattoa EI kannata nostaa tästä ylös: pyyhkäisynä 5° -> 2.5° maailmalla
+   * paransi RMS:ää 1.30 -> 1.29 mutta nosti pistemäärän 1260:stä 4554:ään
+   * ja rakennusajan 53 ms:stä 127 ms:iin. Uloimman näkymän tarkkuutta ei
+   * rajoita data vaan Mercator itse: napojen kohdalla yksi tekstuuririvi
+   * kattaa valtavan leveysastevälin. Sama raja koskee jokaista
+   * tasavälistä Mercator-rasteria. */
+  KATTO: 600,
+  KATTO_LAATTA: 1600,
+  katto() {
+    return (typeof Saalaatat !== 'undefined' && Saalaatat.kaytossa())
+      ? this.KATTO_LAATTA : this.KATTO;
+  },
   _viimeStep: 0,
 
   /* Se hilaväli jolla dataa OIKEASTI on. gridStep(zoom) kertoo mitä
@@ -3529,7 +3561,7 @@ const ViewportGrid = {
           pts.push({ lat: Math.round(lat * 100) / 100, lng: Math.round(lng * 100) / 100 });
         }
       }
-      if (pts.length <= this.KATTO) break;
+      if (pts.length <= this.katto()) break;
       step *= 2;
     }
     /* Käytetty väli talteen, jotta interpoloinnin tukisäde osaa mitoittaa
@@ -4900,8 +4932,65 @@ function initMap() {
    * silloin yhta tasoa syvemmalta ja piirtaa puolikkaana. Laatat ovat
    * pienia (noin 5 kt), joten nelinkertainen maara on yha kevyempi kuin
    * CARTOn @2x-laatat. */
+  /* ── Taustalaatta: kartta ei saa koskaan olla musta ────────────────
+   *
+   * Nopeassa ulos zoomauksessa ruutu meni lahes kokonaan mustaksi.
+   * Syy on Leafletin normaali toiminta eika asetus: animaation ajaksi
+   * olemassa olevat laatat vain SKAALATAAN, ja uuden tason laatat
+   * luodaan vasta zoomendissa. Kolme tasoa ulos kutistaa vanhat laatat
+   * kahdeksasosaan leveydesta eli 1/64 pinta-alasta — loppu on paljasta
+   * `--bg`:ta, joka on tummalla teemalla lahes musta (#060912).
+   *
+   * Mitattuna laattapeitto eleen aikana (100 % = ei paljasta taustaa):
+   *
+   *     z11 -> z8    min  2 %    14 ruutua alle 50 %
+   *     z11 -> z5    min  0 %     3 ruutua
+   *     z9  -> z2    min  0 %     2 ruutua
+   *
+   * `updateWhenZooming: true` EI korjaa tata — mitattuna tismalleen
+   * samat luvut. Se koskee vain nipistysta (`_setView`in noUpdate-lippua),
+   * ei animoitua zoomia.
+   *
+   * Korjaus on sama minka Apple Maps ja Google Maps tekevat: pysyvasti
+   * ladattu matalan zoomin tausta pohjakartan ALLA. `maxNativeZoom: 2`
+   * eli sama kuin kartan minZoom tarkoittaa, etta taman tason laatat
+   * ovat AINA samat riippumatta siita mihin zoomataan — ne eivat vaihdu
+   * eleen aikana, joten ne eivat voi myoskaan puuttua. Yksi z2-laatta
+   * kattaa 90 astetta, eli z11:ssa se peittaa ruudun satoja kertoja yli.
+   *
+   * Sama luokka `basemap`, jotta savynsaadin osuu molempiin ja tausta on
+   * samanvarinen kuin varsinainen kartta. Ei `detectRetina`ta: tausta
+   * nakyy vain aukoissa venytettyna, joten tarkkuus on siella hukkaan
+   * heitettya — ilman sita pyyntoja on nelasosa. */
+  var taustaTiles = L.tileLayer(Asetukset.pohja().url, {
+    maxZoom: 19, maxNativeZoom: 2, className: 'basemap',
+    updateWhenIdle: false, keepBuffer: 4, zIndex: 0,
+  }).addTo(map);
+  State.taustaTiles = taustaTiles;
+
+  /* Yli neljan tason hyppy jaa osittain kattamatta, ja se on tietoinen
+   * raja eika unohdus.
+   *
+   * Leafletin `zoomAnimationThreshold` on 4: sita isompaa zoom-muutosta ei
+   * animoida lainkaan vaan kartta tekee kovan leikkauksen. Silloin myos
+   * taustalaatta tarvitsee uuden laatan (z5:ssa kaksi z2-laattaa yhden
+   * sijaan), ja uusi `img` ei ole dekoodattu ensimmaisina ruutuina.
+   * Mitattuna se on 2-3 ruutua eli alle 50 ms.
+   *
+   * Talle EI kannata tehda mitaan: yli nelja tasoa kerralla tapahtuu vain
+   * koodin `setView`ista (suosikkeihin keskitys, jaettu linkki), ja niissa
+   * ruutua peittaa joka tapauksessa latausruutu. Kayttajan omat eleet —
+   * nipistys, rulla, tuplanapautus — pysyvat aina animaatiorajan sisalla
+   * ja ovat mitattuna 100 % kaikilla nopeuksilla.
+   *
+   * Kokeiltu ja poistettu: `_invalidateAll`in ohitus taustalaatalla.
+   * Mitattuna sita ei kutsuta taustalaatalle KERTAAKAAN (inval 0), eli
+   * paikkaus oli kuollutta koodia — laatat eivat katoa invalidoinnissa
+   * vaan odottavat dekoodausta. */
+
   var baseTiles = L.tileLayer(Asetukset.pohja().url, {
     maxZoom: 19, maxNativeZoom: 16, detectRetina: true, className: 'basemap',
+    zIndex: 1,
     /* updateWhenIdle: Leafletin oletus on mobiililaitteella TOSI, eli
        laattoja ei haeta lainkaan liikkeen aikana vaan vasta kun kartta
        pysahtyy. Sivulle vieritettaessa se nakyy suoraan: mitattuna
@@ -5513,10 +5602,34 @@ function isMarine(lat, lng) {
  * eps ja R skaalataan hilavälillä, jotta sama koodi toimii globaalista
  * näkymästä (5°) paikalliseen (0.25°). Rannikkopainotus (surfaceW)
  * säilyy ennallaan — se erottaa meri- ja maatuulen toisistaan. */
+/* Viritys omana oliona eikä kirjaimina kaavassa: arvot on VALITTU
+   mittaamalla (ks. CLAUDE.md, "Kuinka tarkka kenttä oikeasti on"), ja
+   pyyhkäisy on toistettava jos niihin koskee. Oliona ne saa vaihdettua
+   ajossa, jolloin koko pyyhkäisyn voi ajaa yhdellä sivunlatauksella. */
+/* Mitattu pyyhkäisynä tunnettua kenttää vasten (RMS m/s, pienempi parempi):
+ *
+ *      R (x hilaväli)    z7     z5     z3     z2
+ *          3.0          0.13   0.61   1.20   1.89     <- vanha
+ *          2.0          0.07   0.43   0.99   1.29
+ *          1.7          0.06   0.36   0.90   1.22
+ *          1.4          0.05   0.29   0.80   1.60     <- z2 kääntyy huonommaksi
+ *
+ * 1.4 alittaa sen rajan jolla säännöllisestä hilasta löytyy aina tukea,
+ * jolloin idw() putoaa varatielle ja tulos huononee juuri siellä missä
+ * hila on harvin. 1.7 on pienin joka ei tee sitä.
+ *
+ * eps 0.45 -> 0.30 parantaa lisää (z5 0.36 -> 0.31, z3 0.90 -> 0.81).
+ * Pilkkukuvion riski tarkistettiin erikseen, koska RMS EI näe sitä:
+ * yksittäinen poikkeava piste (+6 m/s) hilan solmujen välissä levisi
+ * kaikilla arvoilla noin YHDEN hilavälin levyiseksi (puoliarvonleveys
+ * 0.90–1.23 hilaväliä), eli se ei kutistu teräväksi nastaksi. Mitä
+ * pienempi eps, sitä suurempi osa oikeasta paikallisesta poikkeamasta
+ * jää näkyviin: 0.45 säilytti 12 %, 0.30 noin 30 %. */
+const IdwViritys = { R: 1.7, eps: 0.30 };
 function idw(lat, lng) {
   const step = SpatialIndex.spacing || 0.25;
-  const R    = 3.0 * step;
-  const eps2 = (0.45 * step) * (0.45 * step);
+  const R    = IdwViritys.R * step;
+  const eps2 = (IdwViritys.eps * step) * (IdwViritys.eps * step);
   const R2   = R * R;
   /* Solusäde niin että KOKO tukisäde R mahtuu hakuikkunaan — lng-suunnassa
      leveämpi, koska etäisyysmitassa lng skaalataan cos(lat):lla. */
@@ -5609,7 +5722,10 @@ const IdwPainot = {
       + '|' + SpatialIndex.spacing;
   },
 
-  taytaHila(wf, tex, STEP, gc, gr, latStep, lngStep, gu, gv) {
+  /* myStep = yhden tekstuuririvin korkeus MERCATOR-yksikköinä, ei asteina.
+     Ks. WindTexture.build: rivit ovat tasavälein ruudulla, eivät
+     leveysasteessa. */
+  taytaHila(wf, tex, STEP, gc, gr, myStep, lngStep, gu, gv) {
     const solmuja = gc * gr;
     /* Indeksit osoittavat siihen taulukkoon josta SpatialIndex on
        rakennettu. Jos se on eri, ei voi tallettaa eikä lukea. */
@@ -5656,7 +5772,7 @@ const IdwPainot = {
       this.valmis = '';
       for (let j = 0; j < gr; j++) {
         const rr = Math.min(tex.rows - 1, j * STEP);
-        const lat = tex.latMax - rr * latStep;
+        const lat = ymercInv(tex.myMax - rr * myStep);
         for (let i = 0; i < gc; i++) {
           const cc = Math.min(tex.cols - 1, i * STEP);
           const w = idw(lat, tex.lngMin + cc * lngStep);
@@ -5672,7 +5788,7 @@ const IdwPainot = {
     const idxL = [], paiL = [];
     for (let j = 0; j < gr; j++) {
       const rr = Math.min(tex.rows - 1, j * STEP);
-      const lat = tex.latMax - rr * latStep;
+      const lat = ymercInv(tex.myMax - rr * myStep);
       for (let i = 0; i < gc; i++) {
         const n = j * gc + i;
         alku[n] = idxL.length;
@@ -5698,7 +5814,8 @@ const IdwPainot = {
    Pidetään erillään, jottei idw():n kuumaan silmukkaan tule haaraa. */
 function idwPainoin(lat, lng, wf, idxUlos, paiUlos) {
   const step = SpatialIndex.spacing || 0.25;
-  const R = 3.0 * step, eps2 = (0.45 * step) * (0.45 * step), R2 = R * R;
+  const R = IdwViritys.R * step;
+  const eps2 = (IdwViritys.eps * step) * (IdwViritys.eps * step), R2 = R * R;
   const cosLat = Math.max(0.15, Math.cos(lat * Math.PI / 180));
   const rLat = Math.max(1, Math.ceil(R / SpatialIndex.cellSize));
   const rLng = Math.max(1, Math.ceil(R / (SpatialIndex.cellSize * cosLat)));
@@ -5754,9 +5871,35 @@ const WindTexture = {
   uData: null, vData: null, msData: null,
   cols: 0, rows: 0,
   latMin: 0, latMax: 0, lngMin: 0, lngMax: 0,
+  /* latMin/latMax Mercator-yksikköinä. Rivit ovat tasavälein NÄISSÄ, ks.
+     build(). Kaikki rivi <-> leveysaste -muunnokset kulkevat näiden
+     kautta, muuten kerrokset erkanevat toisistaan. */
+  myMin: 0, myMax: 0,
   COARSE_STEP: 3,        /* vakiotarkkuus */
   SCRUB_STEP: 6,         /* aikajanaa raahatessa — päivitys ehtii joka ruutuun */
   askel: 0,              /* millä askeleella ruudulla oleva tekstuuri on laskettu */
+
+  /* Tekstuurin sivun enimmäismitta. Omana metodinaan eikä buildin sisällä,
+     jotta arvon voi pyyhkäistä mittauksessa.
+   *
+   * Uloimmat zoomit olivat 120, ja se OLI pullonkaula: pyyhkäisynä
+   * (4x kuristus, hila 5°, RMS tunnettuun kenttään, |lat| < 55)
+   *
+   *      maxDim   120    160    200    260    340
+   *      z2      1.40   1.31   1.30   1.23   1.20     59/39/53/79/117 ms
+   *      z3      0.75   0.70   0.67   0.66   0.66     14/18/24/37/47 ms
+   *
+   * 200 on polvi: siihen asti tarkkuus paranee käytännössä ilmaiseksi,
+   * sen jälkeen aika kasvaa nopeammin kuin tarkkuus.
+   *
+   * z5:llä maxDim ei vaikuta MITÄÄN (0.31 kaikilla arvoilla 120–340),
+   * koska siellä rajoite on datahila eikä tekstuuri — siksi keskimmäistä
+   * porrasta ei kannata nostaa. */
+  maxDim(zoom, mobiili) {
+    if (zoom <= 4) return mobiili ? 200 : 300;
+    if (zoom <= 6) return mobiili ? 200 : 300;
+    return mobiili ? 300 : 500;
+  },
 
   /* Väri ja alfa yhtenä pakattuna hakutauluna.
    *
@@ -5872,10 +6015,7 @@ const WindTexture = {
       this.lngMin = loMin; this.lngMax = loMax;
       const latSpan = this.latMax - this.latMin, lngSpan = this.lngMax - this.lngMin;
       const isMobileDevice = (window.devicePixelRatio || 1) > 1.5;
-      let maxDim;
-      if (zoom <= 4) maxDim = isMobileDevice ? 120 : 180;
-      else if (zoom <= 6) maxDim = isMobileDevice ? 200 : 300;
-      else maxDim = isMobileDevice ? 300 : 500;
+      const maxDim = this.maxDim(zoom, isMobileDevice);
       const baseRES = zoom <= 5
         ? Math.min(40, Math.max(15, Math.round(Math.sqrt(windField.length) * 1.5)))
         : Math.min(200, Math.max(60, Math.round(80 + (zoom - 5) * 25)));
@@ -5890,7 +6030,31 @@ const WindTexture = {
       const img = this.ctx.createImageData(this.cols, this.rows);
       const d32 = new Uint32Array(img.data.buffer);
       const lut = this.pikseliLUT();
-      const latStep = latSpan / this.rows, lngStep = lngSpan / this.cols;
+      /* Rivit ovat lineaarisia MERCATOR-Y:SSÄ, eivät leveysasteessa.
+       *
+       * L.ImageOverlay sijoittaa kuvan projisoimalla nurkat ruudulle ja
+       * venyttämällä kuvan niiden väliin LINEAARISESTI RUUDULLA. Ruudun y
+       * taas on Mercatorissa ln(tan(π/4 + φ/2)), ei φ. Kun rivit ladottiin
+       * tasavälein leveysasteessa, jokainen rivi piirtyi eri kohtaan kuin
+       * mihin sen data kuuluu — nurkat osuivat oikein, sisältö ei.
+       *
+       * Virhe kasvaa näkymän korkeuden mukana ja räjähtää navoilla, koska
+       * Mercator venyttää siellä eniten. Mitattuna sovelluksesta terävällä
+       * harjalla (synteettinen kenttä, harja tunnetulla leveysasteella):
+       *
+       *     z7 Suomi        -168 px
+       *     z3 puolimaailma -204 px
+       *     z2 maailma      +151 px
+       *     z3 Antarktis    +273 px   (12,8 astetta väärässä paikassa)
+       *
+       * Sama virhe korjattiin aikanaan GeoProjectista partikkeleille; tämä
+       * kerros jäi silloin väliin, koska mittari vertasi overlayn RAJOJA
+       * pohjakarttaan eikä sen SISÄLTÖÄ. Rajat olivat koko ajan 0,1–0,5 px
+       * kohdallaan. */
+      this.myMax = ymerc(this.latMax);
+      this.myMin = ymerc(this.latMin);
+      const myStep = (this.myMax - this.myMin) / this.rows;
+      const lngStep = lngSpan / this.cols;
       const self = this;
 
       /* Harvennusaskel: pikselit joiden väliin arvot interpoloidaan.
@@ -5906,7 +6070,7 @@ const WindTexture = {
         const gc = Math.floor((self.cols - 1) / STEP) + 2;  /* +1 solmu reunan yli */
         const gr = Math.floor((self.rows - 1) / STEP) + 2;
         const gu = new Float32Array(gc * gr), gv = new Float32Array(gc * gr);
-        IdwPainot.taytaHila(windField, self, STEP, gc, gr, latStep, lngStep, gu, gv);
+        IdwPainot.taytaHila(windField, self, STEP, gc, gr, myStep, lngStep, gu, gv);
 
         /* 2) Bilineaarinen täyttö. Interpoloidaan u ja v, ei nopeutta ja
            suuntaa erikseen — suunnan interpolointi asteina menisi rikki
@@ -5944,7 +6108,11 @@ const WindTexture = {
   sampleWind(lat, lng) {
     if (!this.msData) return { u: 0, v: 0, ms: 0 };
     const fc = (lng - this.lngMin) / (this.lngMax - this.lngMin) * this.cols;
-    const fr = (this.latMax - lat) / (this.latMax - this.latMin) * this.rows;
+    /* Sama Mercator-kuvaus kuin buildissa. Jos vain toinen korjattaisiin,
+       partikkeli näytteistäisi tuulen eri kohdasta kuin mihin lämpökartta
+       sen piirtää — kaksi kerrosta erkanisi toisistaan juuri siellä missä
+       projektiovirhe on suurin. */
+    const fr = (this.myMax - ymerc(lat)) / (this.myMax - this.myMin) * this.rows;
     const c0 = Math.floor(fc), r0 = Math.floor(fr);
     if (r0 < 0 || r0 >= this.rows - 1 || c0 < 0 || c0 >= this.cols - 1) {
       const cc = Math.max(0, Math.min(this.cols - 1, Math.round(fc)));
@@ -6026,7 +6194,11 @@ function drawColorField(skipBlur) {
        Piirtojärjestys ei muutu: paneelissa on ennestään vain pohjakartta,
        ja lämpökartta tulee sen päälle. Merkit ovat markerPanessa (z 600). */
     State.heatmapOverlay = new KanvasYlitys(WindTexture.canvas, bounds, {
-      opacity: 1, interactive: false, className: 'heatmap-overlay', pane: 'tilePane'
+      /* zIndex 2 = taustalaatan (0) ja pohjakartan (1) PAALLA. Ilman
+         nimenomaista arvoa jarjestys jaisi DOM-jarjestyksen varaan, ja
+         taustalaatta lisataan kartalle ennen lampokarttaa. */
+      opacity: 1, interactive: false, className: 'heatmap-overlay',
+      pane: 'tilePane', zIndex: 2
     }).addTo(State.map);
   }
   if (!skipBlur) updateHeatmapBlur();
@@ -13604,6 +13776,13 @@ const KarttaAsetukset = {
            initMapissa). Käyttäjän oma valinta on syy yrittää uudelleen. */
         if (!State.map.hasLayer(t)) t.addTo(State.map);
         t.setUrl(Asetukset.pohja().url);
+      }
+      /* Taustalaatta on sama kartta matalalla zoomilla, joten senkin on
+         vaihduttava — muuten aukoissa vilahtaisi edellinen pohjakartta. */
+      const tb = State.taustaTiles;
+      if (tb && State.map) {
+        if (!State.map.hasLayer(tb)) tb.addTo(State.map);
+        tb.setUrl(Asetukset.pohja().url);
       }
       this._lahteet();
       this._ramppiVihje();

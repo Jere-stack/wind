@@ -3983,3 +3983,204 @@ viimeksi katsottua paikkaa, koska yksi paikka on ~4 kt (5 vrk tunnin
 välein) ja mitattuna kaksitoista paikkaa oli 57 kt. Vanhentuneet
 pudotetaan jo luettaessa, jottei tallennus kasva niistä joita ei enää
 käytetä.
+
+## Lämpökartta oli väärässä projektiossa
+
+Käyttäjä pyysi tarkentamaan kenttää uloimmassa näkymässä ja mainitsi
+erikseen Antarktiksen. Kysymys osui suoraan vikaan, joka oli ollut
+koodissa alusta asti.
+
+**`WindTexture`n rivit ladottiin tasavälein LEVEYSASTEESSA**
+(`lat = latMax - rr * latStep`), mutta `L.ImageOverlay` projisoi vain
+nurkat ja venyttää kuvan niiden väliin **lineaarisesti ruudulla**. Ruudun
+y taas on Mercatorissa `ln(tan(π/4 + φ/2))`, ei φ. Jokainen rivi piirtyi
+siis eri kohtaan kuin mihin sen data kuuluu.
+
+Virhe kasvaa näkymän korkeuden mukana ja on suurimmillaan navoilla, missä
+Mercator venyttää eniten. Mitattuna sovelluksesta terävällä harjalla
+(synteettinen kenttä, harja tunnetulla leveysasteella, katsotaan mille
+ruudun riville se piirtyy):
+
+| näkymä | ennen | jälkeen |
+|---|---|---|
+| z11 Helsinki | 0 px | 0 px |
+| z9 Suomenlahti | −44 px | +1 px |
+| z7 Suomi | **−168 px** | +3 px |
+| z5 Itämeri | −97 px | +1 px |
+| z3 puolimaailma | **−204 px** | +2 px |
+| z2 maailma | +151 px | +1 px |
+| z3 Antarktis | **+273 px** | +2 px |
+| z4 Antarktis | +191 px | +1 px |
+
+273 px on yli neljäsosa puhelimen ruudun korkeudesta, ja leveysasteina
+**12,8°**. Analyyttinen ennuste samalle asetelmalle antoi 259 px, eli
+mittaus ja teoria täsmäävät.
+
+Asiat jotka eivät ole ilmeisiä:
+
+- **Sama virhe korjattiin aikanaan `GeoProject`ista partikkeleille** (ks.
+  *Kerrokset samassa paikassa, samaan aikaan*), mutta lämpökartta jäi
+  silloin väliin. Syy on mittarissa: se vertasi overlayn **RAJOJA**
+  pohjakarttaan, ja ne olivat koko ajan 0,1–0,5 px kohdallaan. Rajat
+  olivat oikein; **sisältö** ei. Kerroksen kohdistuksen mittaaminen ei
+  siis todista sen sisällöstä mitään.
+- **`sampleWind` on korjattava samalla.** Se on käänteiskuvaus samaan
+  tekstuuriin, ja partikkelit näytteistävät tuulen sen kautta. Jos vain
+  `build` korjattaisiin, partikkeli lukisi tuulen eri kohdasta kuin mihin
+  lämpökartta sen piirtää — kerrokset erkanisivat juuri siellä missä
+  virhe on suurin. Tarkistettu jälkeenpäin: ero `sampleWind`in ja sen
+  tekstuuripikselin välillä joka oikeasti piirtyy samaan ruutupisteeseen
+  on mediaanina 0,001–0,084 m/s kaikissa näkymissä.
+- **`ymerc`/`ymercInv` ovat jo tiedostossa** `GeoProject`ia varten, ja ne
+  rajaavat navat ±85,0511:een kuten Leafletin oma projektio.
+
+### Kuinka tarkka kenttä oikeasti on
+
+Projektion korjauksen jälkeen mitattiin mikä kentän tarkkuutta oikeasti
+rajoittaa. Mittari on RMS-virhe **tunnettuun kenttään**: totuus on
+analyyttinen ja siinä on rakennetta kolmella mittakaavalla, se
+näytteistetään siihen hilaan jota sovellus oikeasti käyttää, kenttä
+rakennetaan ja tulos verrataan totuuteen näkymän pikseleissä.
+
+**Älä vertaa zoomia toiseen** — se sekoittaa aliotannan ja virheen eikä
+kerro kumpi on väärässä.
+
+**1. Interpoloinnin tukisäde oli kaksi kertaa liian suuri.** `R = 3 ×
+hilaväli` sekoitti yhdeksän hilaruudun alueelta. Pyyhkäisy:
+
+| R | z7 | z5 | z3 | z2 |
+|---|---|---|---|---|
+| 3,0 | 0.13 | 0.61 | 1.20 | 1.89 |
+| 2,0 | 0.07 | 0.43 | 0.99 | 1.29 |
+| **1,7** | **0.06** | **0.36** | **0.90** | **1.22** |
+| 1,4 | 0.05 | 0.29 | 0.80 | **1.60** |
+
+1,4 kääntyy z2:ssa huonommaksi: se alittaa rajan jolla säännöllisestä
+hilasta löytyy aina tukea, jolloin `idw()` putoaa varatielle. 1,7 on
+pienin joka ei tee sitä.
+
+**2. `eps` 0,45 → 0,30.** Parantaa lisää (z5 0.36 → 0.31, z3 0.90 → 0.81).
+**RMS ei kuitenkaan näe pilkkukuviota**, ja se on juuri se vika jota
+vastaan `eps` alun perin lisättiin — totuus näytteistetään hilan
+solmuissa, joten solmuun snappaava interpolantti saa *paremman* RMS:n
+vaikka välit olisivat rumia. Siksi tehtiin oma mittaus: yksittäinen
+poikkeava piste (+6 m/s) hilan solmujen väliin, ja katsottiin kuinka
+leveäksi se leviää.
+
+| R / eps | jäljelle jäänyt poikkeama | puoliarvonleveys |
+|---|---|---|
+| 3,0 / 0,45 | 0,7 m/s (12 %) | 1,2 hilaväliä |
+| 1,7 / 0,45 | 1,1 m/s | 1,2 |
+| **1,7 / 0,30** | **~1,9 m/s (~30 %)** | **1,1** |
+| 1,7 / 0,08 | 4,1 m/s (69 %) | 0,9 |
+
+Leveys pysyy noin yhdessä hilavälissä **kaikilla** arvoilla — poikkeama
+ei kutistu teräväksi nastaksi, eli pilkkukuviota ei synny. Mitä pienempi
+`eps`, sitä suurempi osa *oikeasta* paikallisesta poikkeamasta jää
+näkyviin. 0,30 on kompromissi: havaintoasema tai spotti näkyy, mutta ei
+hallitse naapurustoaan.
+
+**3. Pistekatto kasvatti hilaa juuri siellä missä sitä katsotaan.**
+`KATTO: 600` on ajalta jolloin jokainen piste oli oma rajapintakutsunsa.
+Maailmannäkymässä 5°:n hila antaa 1260 pistettä, joten katto kaksinkertaisti
+välin **kymmeneen asteeseen**. Laattavarastosta pisteet ovat ilmaisia, ja
+`taso()` valitsee molemmilla askelilla samat 5°:n laatat — ero on pelkkää
+interpolointia eikä yhtään lisätavua verkosta. `KATTO_LAATTA = 1600`.
+
+**4. Tekstuurin koko oli pullonkaula uloimmilla zoomeilla.** `maxDim` oli
+120. Pyyhkäisy (RMS, |lat| < 55):
+
+| maxDim | 120 | 160 | 200 | 260 | 340 |
+|---|---|---|---|---|---|
+| z2 | 1.40 | 1.31 | **1.30** | 1.23 | 1.20 |
+| z3 | 0.75 | 0.70 | **0.67** | 0.66 | 0.66 |
+| aika | 59/14 | 39/18 | 53/24 | 79/37 | 117/47 ms |
+
+200 on polvi. z5:llä `maxDim` ei vaikuta **mitään** (0.31 kaikilla arvoilla
+120–340), koska siellä rajoite on datahila — siksi keskimmäistä porrasta ei
+nostettu.
+
+### Mitä EI kannattanut tehdä
+
+- **Tiheämpi datahila.** Tämä oli koko työn lähtöoletus ja se osoittautui
+  vääräksi. z2: 10° → 1,25° paransi RMS:ää 1.64 → 1.57 mutta nosti
+  pistemäärän 340:stä 17 262:een ja rakennusajan 73 ms:stä 378 ms:iin.
+  z3: 5° → 2,5° antoi 0.82 → 0.76. z7:llä tiheämpi hila teki tuloksesta
+  **huonomman** (0.06 → 0.09). `gridStep` jätettiin siis ennalleen.
+- **Uloimman näkymän tarkkuutta ei rajoita data vaan Mercator itse.**
+  Koko ruudun RMS on z2:ssa 1.56 mutta pelkän |lat| < 55 vyöhykkeen 1.23 —
+  ero on napa-alueiden aliotantaa, jossa yksi tekstuuririvi kattaa
+  valtavan leveysastevälin. Sama raja koskee jokaista tasavälistä
+  Mercator-rasteria, myös Windyn omaa.
+- **`COARSE_STEP`in tihentäminen.** 3 → 1 antoi z3:lla 0.85 → 0.83 ja
+  kolminkertaisti työn. Jätettiin kolmeen.
+
+Mitattu A/B oikealla datalla (4× kuristus, DPR 3, ensimmäinen ajo
+kummallakin — ks. sudenkuoppa alla): lepotilan ruutunopeus
+z2 32 → 36, z3 23 → 25, z5 22 → 23, z7 18 → 19 fps. Uudet arvot ovat siis
+myös hitusen nopeammat.
+
+**Sudenkuoppa jonka mittaus itse paljasti:** kahta asetusta ei voi ajaa
+peräkkäin samassa sivussa ja tulkita jälkimmäisen lukuja. Kumpi tahansa
+ajettiin toisena, sai 8–9 fps — järjestys, ei asetus. Kontrolli on ajaa
+sama vertailu toisin päin; jos luvut seuraavat järjestystä eivätkä
+asetusta, mittari mittaa itseään.
+
+## Nopea zoom ei saa näyttää mustaa
+
+Nopeasti ulos zoomatessa ruutu meni lähes kokonaan mustaksi. Syy ei ole
+asetus vaan Leafletin normaali toiminta: **animaation ajaksi olemassa
+olevat laatat vain skaalataan**, ja uuden tason laatat luodaan vasta
+`zoomend`issä. Kolme tasoa ulos kutistaa vanhat laatat kahdeksasosaan
+leveydestä eli 1/64 pinta-alasta — loppu on paljasta `--bg`:tä, joka on
+tummalla teemalla lähes musta (#060912).
+
+Mitattuna laattapeitto eleen aikana (100 % = ei paljasta taustaa):
+
+```
+                       ennen              jälkeen
+z11 -> z8   (3 tasoa)  min  2 %, 14 ruutua alle 50 %    100 %, 0 ruutua
+nipistys ulos, nopea   min  0 %                         100 %, 0 ruutua
+nipistys ulos, hidas   min  0 %                         100 %, 0 ruutua
+nipistys sisään        min  0 %                         100 %, 0 ruutua
+```
+
+**`updateWhenZooming: true` EI korjaa tätä** — mitattuna tismalleen samat
+luvut. Se koskee vain nipistystä (`_setView`in `noUpdate`-lippua), ei
+animoitua zoomia. Tämän tiedostoon aiemmin kirjoitettu selitys siitä mitä
+lippu tekee oli siis oikea, mutta se ei ollut tämän vian syy.
+
+Korjaus on sama minkä Apple Maps ja Google Maps tekevät: **pysyvästi
+ladattu matalan zoomin taustalaatta pohjakartan alla.**
+
+- **`maxNativeZoom: 2` eli sama kuin kartan `minZoom`.** Silloin tämän
+  tason laatat ovat **aina samat** riippumatta siitä mihin zoomataan — ne
+  eivät vaihdu eleen aikana, joten ne eivät voi myöskään puuttua. Yksi
+  z2-laatta kattaa 90 astetta, eli z11:ssä se peittää ruudun satoja
+  kertoja yli.
+- **Hinta on mitattuna 4 laattapyyntöä** koko käynnistyksen ja selailun
+  yli (202 → 206). Ei `detectRetina`a: tausta näkyy vain aukoissa
+  venytettynä, joten tarkkuus olisi siellä hukkaan heitettyä.
+- **Sama luokka `basemap`**, jotta sävynsäädin osuu molempiin ja tausta on
+  samanvärinen kuin varsinainen kartta. Ja **sama URL vaihdetaan**
+  `KarttaAsetukset.kayta()`ssa, muuten aukoissa vilahtaisi edellinen
+  pohjakartta.
+- **Lämpökartalle on annettava `zIndex: 2` nimenomaisesti.** Taustalaatta
+  on 0 ja pohjakartta 1; ilman arvoa järjestys jäisi DOM-järjestyksen
+  varaan ja taustalaatta lisätään kartalle ennen lämpökarttaa.
+  Tarkistettu: `plus-lighter` ja suodin ovat tallella, `tilePane`n
+  järjestys on 0:basemap 1:basemap 2:heatmap.
+
+**Yli neljän tason hyppy jää osittain kattamatta, ja se on tietoinen
+raja.** Leafletin `zoomAnimationThreshold` on 4: sitä isompaa muutosta ei
+animoida lainkaan vaan kartta tekee kovan leikkauksen, jolloin
+taustalaattakin tarvitsee uuden laatan eikä uusi `img` ole dekoodattu
+ensimmäisinä ruutuina. Mitattuna 2–3 ruutua eli alle 50 ms, ja se
+tapahtuu vain koodin `setView`istä (suosikkeihin keskitys, jaettu linkki)
+jolloin ruutua peittää latausruutu. Käyttäjän omat eleet — nipistys,
+rulla, tuplanapautus — pysyvät aina animaatiorajan sisällä.
+
+**Kokeiltu ja poistettu:** `_invalidateAll`in ohitus taustalaatalla.
+Mitattuna sitä ei kutsuta taustalaatalle **kertaakaan** (inval 0), eli
+paikkaus oli kuollutta koodia — laatat eivät katoa invalidoinnissa vaan
+odottavat dekoodausta.
