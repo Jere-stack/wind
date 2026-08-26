@@ -1356,13 +1356,17 @@ body {
 .fmi-dropdown-menu {
   display: none;
   position: absolute; top: calc(100% + 4px); left: 0; right: 0;
-  background: rgba(12,18,36,.98);
+  /* Paperia, ei tummaa lasia. Rivien teksti on var(--ink) eli lähes
+     mustaa, joten tumma pohja teki valikosta luettavan vain siltä
+     riviltä joka sattui olemaan .selected — sen alla on --surface-lo,
+     joka maalasi tumman pois. Muut rivit olivat mustaa mustalla. */
+  background: var(--surface-hi);
   border: 1px solid var(--hairline);
   border-radius: 12px;
   overflow-y: auto;
   max-height: 220px;
   z-index: 400;
-  box-shadow: 0 8px 32px rgba(0,0,0,.8);
+  box-shadow: var(--shadow-2);
   -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
 }
 .fmi-dropdown-menu.open { display: block; }
@@ -1384,7 +1388,9 @@ body {
   background: var(--surface-lo); border-radius: 4px;
   padding: 1px 5px; align-self: flex-start;
 }
-.fmi-dropdown-item-dist { color: var(--ink-3); font-size: 9px; }
+/* --ink-2 eikä --ink-3: valitulla rivillä pohja on --surface-lo, jolla
+   --ink-3 on 3.96:1 eli alle AA:n. --ink-2 on siellä 5.10:1. */
+.fmi-dropdown-item-dist { color: var(--ink-2); font-size: 9px; }
 .fmi-dropdown-item-check { color: var(--accent); font-size: 12px; }
 .sh-stat-water {
   cursor: pointer;
@@ -1980,7 +1986,7 @@ body {
   display: flex; justify-content: space-between;
   padding: 0 20px;
   font-variant-numeric: tabular-nums; font-size: 8px;
-  color: rgba(255,200,80,.45);
+  color: var(--ink-3);
   margin-top: -2px;
 }
 .sh-sun-center {
@@ -2300,7 +2306,7 @@ body {
               <div class="sp-toggle-dot"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><line x1="12" y1="4" x2="12" y2="20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".55"/><path d="M12 7 L19 9 L12 11 Z" fill="currentColor"/><circle cx="12" cy="20" r="1.5" fill="currentColor" opacity=".7"/></svg></div>
               <div>
                 <div class="sp-toggle-name">FMI · Meri</div>
-                <div class="sp-toggle-sub">Harmaja, Itätoukki, Vuosaari</div>
+                <div class="sp-toggle-sub">Harmaja, Itätoukki, Kruunuvuorenselkä</div>
               </div>
             </div>
             <div class="sp-toggle on" id="toggle-fmi-sea"></div>
@@ -2325,7 +2331,7 @@ body {
                 <div class="sp-toggle-sub">Kaisaniemi, Kumpula, Malmi…</div>
               </div>
             </div>
-            <div class="sp-toggle" id="toggle-fmi-land"></div>
+            <div class="sp-toggle on" id="toggle-fmi-land"></div>
           </div>
 
           <div class="sp-toggle-row" data-layer-toggle="uiras-sec">
@@ -7680,7 +7686,7 @@ function _isPKS(spot){return spot.lat>=59.9&&spot.lat<=60.5&&spot.lng>=24.3&&spo
         cEl.dataset.ok = '1';
         _uirasChart(cEl, pts, 'all', 1);
       } catch(e) {
-        cEl.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.7);text-align:center;padding:12px">Historiadataa ei saatavilla</div>';
+        cEl.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:12px">Historiadataa ei saatavilla</div>';
       }
       return;
     }
@@ -7715,7 +7721,7 @@ function _isPKS(spot){return spot.lat>=59.9&&spot.lat<=60.5&&spot.lng>=24.3&&spo
         panel.dataset.ok = '1';
         _renderLiveHistory(panel, data, wx);
       }).catch(function(){
-        panel.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.7);text-align:center;padding:12px">Historiadataa ei saatavilla</div>';
+        panel.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:12px">Historiadataa ei saatavilla</div>';
       });
       return;
     }
@@ -7750,7 +7756,7 @@ function _isPKS(spot){return spot.lat>=59.9&&spot.lat<=60.5&&spot.lng>=24.3&&spo
         panel.dataset.ok = '1';
         _uirasChart(panel, pts, '30d', 1);
       } catch(err) {
-        panel.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.7);text-align:center;padding:12px">Ei dataa</div>';
+        panel.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:12px">Ei dataa</div>';
       }
     }
   }, { passive: true });
@@ -8306,9 +8312,15 @@ function _addObsMarkers(map) {
    *
    * Yksikkö pidetään mukana, koska se on käyttäjän vaihdettavissa
    * (m/s ↔ solmut) eikä pelkkä luku kertoisi kumpi on kyseessä. */
-  function mkWindIcon(zoom, ws, stName, isPrim, hiljainen) {
+  /* pilleriZ = zoom jolla lukema-pilleri ilmestyy; sen alla merkki on
+     piste. Meriasemilla 8, maa-asemilla 10 ja Kruunuvuorella 8.
+     Aiemmin tama oli boolean isPrim, jolloin maa-asemat eivat nayttaneet
+     lukemaansa MILLAAN zoomilla — Helsingin ylla ei siis ollut yhtaan
+     luettavaa FMI-havaintoa, koska kaupungin asemat ovat maa-asemia ja
+     lahin meriasema Harmaja on 10 km ulkona. */
+  function mkWindIcon(zoom, ws, stName, pilleriZ, hiljainen) {
     var z = zoom || 5;
-    if (isPrim && z >= 8) {
+    if (pilleriZ && z >= pilleriZ) {
       /* Käytä appin yksikkömuunnosta — Units.fmt() + Units.label() */
       var wsStr = ws != null ? Units.fmt(ws) : '—';
       var unitLbl = Units.label();
@@ -8383,10 +8395,10 @@ function _addObsMarkers(map) {
    * HUOM: nämä on pidettävä samassa haarautumislogiikassa kuin itse ikonin
    * rakentajat yllä — jos rakentajan ehto tai sisältö muuttuu, muuta myös
    * tämä, muutoin ikoni voi jäädä vanhaan asuun. */
-  function _windIconSig(zoom, ws, isPrim, hiljainen) {
+  function _windIconSig(zoom, ws, pilleriZ, hiljainen) {
     var z = zoom || 5;
     var hlj = hiljainen ? '|hlj' : '';
-    if (isPrim && z >= 8) {
+    if (pilleriZ && z >= pilleriZ) {
       return 'p|' + (ws != null ? Units.fmt(ws) : '—') + '|' + Units.label() + hlj;
     }
     /* Piste: koko ja läpinäkyvyys tulevat samoista zoom-kynnyksistä */
@@ -8495,10 +8507,10 @@ function _addObsMarkers(map) {
           if (hv !== null) { ws = hv.ws; wg = hv.wg; }
           /* hv === null → historia ei ulotu tähän hetkeen → pysytään latest:ssa */
         }
-        var sig = _windIconSig(z, ws, m.type === 'wind-prim', m.hiljainen);
+        var sig = _windIconSig(z, ws, m.pilleriZ, m.hiljainen);
         if (sig !== m._iconSig) {
           m._iconSig = sig;
-          m.marker.setIcon(mkWindIcon(z, ws, m.stName, m.type === 'wind-prim', m.hiljainen));
+          m.marker.setIcon(mkWindIcon(z, ws, m.stName, m.pilleriZ, m.hiljainen));
         }
       } else {
         var wsig = _waterIconSig(z, m.temp, m.prim);
@@ -8530,15 +8542,23 @@ function _addObsMarkers(map) {
   (function() {
     var PRIM_FMI    = { harmaja:true, sipoo:true, vuosaari:true, emasalo:true, porkkala:true, hanko:true };
     var FMI_SEA_PLACES = { harmaja:true, sipoo:true, vuosaari:true, emasalo:true, porkkala:true, hanko:true };
-    /* Käytä _fmiLoadWithFallback prim-asemille — sama kuin spottikortti käyttää */
+    /* Meriasema nayttaa lukemansa z8:sta, maa-asema vasta z10:sta.
+       Porrastus on tarkoituksellinen: meri on se mita foilaaja katsoo,
+       joten se saa tulla nakyviin aiemmin. Mutta maa-asemankin lukema
+       ON luettavissa kun kaupunkiin zoomataan — aiemmin se ei ollut
+       millaan zoomilla, ja Helsingin ylla ei siksi nakynyt yhtaan
+       FMI-lukemaa. */
+    var PILLERI_Z_MERI = 8, PILLERI_Z_MAA = 10;
     /* 1. Lisää ensin kaikki markerit ilman dataa */
     FMI_MAP_STATIONS.forEach(function(st) {
       var isPrim = !!PRIM_FMI[st.place];
-      var icon = mkWindIcon(map.getZoom(), null, st.name, isPrim);
+      var pilleriZ = isPrim ? PILLERI_Z_MERI : PILLERI_Z_MAA;
+      var icon = mkWindIcon(map.getZoom(), null, st.name, pilleriZ);
       var m = L.marker([st.lat,st.lng],{icon:icon,zIndexOffset:isPrim?-50:-100})
         .on('click',function(){ _openObsSheet('fmi',st); }).addTo(map);
       var _lg = FMI_SEA_PLACES[st.place] ? 'fmi-sea' : 'fmi-land';
       _obsMarkers.push({marker:m, type:isPrim?'wind-prim':'wind-dot',
+        pilleriZ: pilleriZ,
         ws:null, wg:null, wsLatest:null, wgLatest:null,
         stName:st.name, layerGroup:_lg, place:st.place,
         history:null, _markerRef: _obsMarkers.length });
@@ -8554,7 +8574,7 @@ function _addObsMarkers(map) {
 
     /* 2. Lataa data jokaiselle asemalle _fmiLoadWithFallback:lla */
     FMI_MAP_STATIONS.forEach(function(st, stIdx) {
-      var isPrim = !!PRIM_FMI[st.place];
+      var pilleriZ = PRIM_FMI[st.place] ? PILLERI_Z_MERI : PILLERI_Z_MAA;
       var stationList = [st];
       function loyda() {
         for (var k = 0; k < _obsMarkers.length; k++) {
@@ -8576,16 +8596,16 @@ function _addObsMarkers(map) {
         entry.hiljainen = ws == null && !_havTuore(histData);
         /* Päivitä ikoni — pidä allekirjoitus mukana, jotta seuraava
            updateIcons() ei luo elementtiä uudelleen turhaan */
-        entry._iconSig = _windIconSig(map.getZoom(), ws, isPrim, entry.hiljainen);
-        entry.marker.setIcon(mkWindIcon(map.getZoom(), ws, st.name, isPrim, entry.hiljainen));
+        entry._iconSig = _windIconSig(map.getZoom(), ws, pilleriZ, entry.hiljainen);
+        entry.marker.setIcon(mkWindIcon(map.getZoom(), ws, st.name, pilleriZ, entry.hiljainen));
       }, function() {
         /* Ei havaintoja eikä historiaa — asema on hiljaa. Merkki jää
            kartalle (se on oikeasti olemassa) mutta kertoo tilansa. */
         var entry = loyda();
         if (!entry) return;
         entry.hiljainen = true;
-        entry._iconSig = _windIconSig(map.getZoom(), null, isPrim, true);
-        entry.marker.setIcon(mkWindIcon(map.getZoom(), null, st.name, isPrim, true));
+        entry._iconSig = _windIconSig(map.getZoom(), null, pilleriZ, true);
+        entry.marker.setIcon(mkWindIcon(map.getZoom(), null, st.name, pilleriZ, true));
       });
     });
   })();
@@ -8597,11 +8617,11 @@ function _addObsMarkers(map) {
   (function() {
     var KV_STATION = { name: 'Kruunuvuorenselkä', place: 'kruunuvuorenselka', lat: 60.163, lng: 24.997 };
 
-    var icon = mkWindIcon(map.getZoom(), null, KV_STATION.name, true);
+    var icon = mkWindIcon(map.getZoom(), null, KV_STATION.name, 8);
     var m = L.marker([KV_STATION.lat, KV_STATION.lng], { icon: icon, zIndexOffset: -50 })
       .on('click', function(){ _openObsSheet('kruunuvuori', KV_STATION); }).addTo(map);
     var kvEntry = { marker: m, type: 'wind-prim', ws: null, wg: null,
-      wsLatest: null, wgLatest: null, stName: KV_STATION.name,
+      wsLatest: null, wgLatest: null, stName: KV_STATION.name, pilleriZ: 8,
       layerGroup: 'fmi-sea', place: KV_STATION.place, history: null };
     _obsMarkers.push(kvEntry);
     if (typeof _applyMapLayers === 'function') _applyMapLayers();
@@ -8627,7 +8647,7 @@ function _addObsMarkers(map) {
          satunnaiselta näyttävästi aina kun mikä tahansa spotti sattuu olemaan
          lähellä. Nollataan transform ja palataan heti jos EI olla korttitilassa. */
       var z = map.getZoom();
-      var isPillNow = (z >= 8); /* sama ehto kuin mkWindIcon:n isPrim&&z>=8 -haarassa */
+      var isPillNow = (z >= 8); /* sama kynnys kuin kvEntry.pilleriZ */
       if (!isPillNow) {
         inner.style.transform = '';
         return;
@@ -8683,8 +8703,8 @@ function _addObsMarkers(map) {
         kvEntry.ws = ws; kvEntry.wg = wg;
         kvEntry.wsLatest = ws; kvEntry.wgLatest = wg;
         kvEntry.history = data.history || null; /* {ws:[{t,v,d}], wg:[{t,v}], tw:[{t,v}]} — HH:MM formaatti */
-        kvEntry._iconSig = _windIconSig(map.getZoom(), ws, true);
-        kvEntry.marker.setIcon(mkWindIcon(map.getZoom(), ws, KV_STATION.name, true));
+        kvEntry._iconSig = _windIconSig(map.getZoom(), ws, 8);
+        kvEntry.marker.setIcon(mkWindIcon(map.getZoom(), ws, KV_STATION.name, 8));
         _avoidSpotOverlap(); /* setIcon loi uuden DOM-elementin — sovella väistö uudelleen */
       })
       .catch(function() { /* Lataus epäonnistui — jätä tyhjäksi */ });
@@ -8914,10 +8934,10 @@ function _openObsSheet(type, station) {
               null,null,null,'Merellinen Helsinki');
           }
         }
-        else if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
+        else if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);padding:16px">Ei dataa</div>';
       })
       .catch(function(){
-        if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
+        if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);padding:16px">Ei dataa</div>';
       });
   } else {
     Promise.allSettled([
@@ -8932,9 +8952,9 @@ function _openObsSheet(type, station) {
         updateHero(t.toFixed(1),'°C'+(timeStr?'  ·  '+timeStr:''),accent);
       }
       if(el&&pts&&pts.length) _uirasChartInteractive(el,pts,station.name,station,station.lat,station.lng);
-      else if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
+      else if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);padding:16px">Ei dataa</div>';
     }).catch(function(){
-      if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
+      if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);padding:16px">Ei dataa</div>';
     });
   }
 }
@@ -8976,7 +8996,7 @@ function openSheet(spot, hourIdx) {
         spot.wx = om;
       }
       if (!spot.wx) {
-        if (sc) sc.innerHTML = '<div style="text-align:center;padding:32px;font-variant-numeric:tabular-nums;font-size:11px;color:rgba(255,100,100,.6)">Ei säädataa tässä paikassa</div>';
+        if (sc) sc.innerHTML = '<div style="text-align:center;padding:32px;font-variant-numeric:tabular-nums;font-size:11px;color:var(--ink-3)">Ei säädataa tässä paikassa</div>';
         return;
       }
       /* Laske nykyinen tuntiindeksi */
@@ -9324,6 +9344,17 @@ function openSheet(spot, hourIdx) {
       return h.hajonta < 1.5 ? 'var(--ink-2)' : (h.hajonta < 4 ? 'var(--ink)' : 'var(--accent)');
     }
 
+    /* Katkoviivakuvio mallia kohden. Identiteetti ei saa olla pelkka vari:
+       sininen ja violetti sekoittuvat dikromaatille (deutan dE 1.6), ja
+       kolmea toisistaan erottuvaa savya ei paneelin beigen pakottamalla
+       kirkkaustasolla ole. Juuri se pari joka varina sekoittuu on
+       kuvioltaan kauimpana toisistaan: ECMWF yhtenainen, GFS pisteita. */
+    const MALLI_VIIVA = { ecmwf: '', icon: '6,3', gfs: '1.5,3' };
+    /* Tyhja merkkijono ON kelvollinen arvo (yhtenainen viiva), joten
+       `|| '5,3'` sotki juuri sen mallin jonka piti erottua kuviollaan. */
+    function getModelDash(key) {
+      return Object.prototype.hasOwnProperty.call(MALLI_VIIVA, key) ? MALLI_VIIVA[key] : '5,3';
+    }
     const COMPARE_MODELS = [
       { id: 'ecmwf_ifs025', label: 'ECMWF', key: 'ecmwf' },
       { id: 'icon_eu',      label: 'ICON',  key: 'icon'  },
@@ -9575,7 +9606,12 @@ function openSheet(spot, hourIdx) {
     var legendHtml='<div id="'+sectionId+'-leg" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:6px;font-variant-numeric:tabular-nums;font-size:8px">'
       +'<span><span id="'+sectionId+'-leg-main-dot" style="color:var(--ink-2)">&#9632;</span> '+activeLabel+'</span>'
       +COMPARE_MODELS.map(function(m){
-        return '<span id="'+sectionId+'-leg-'+m.key+'" style="color:var(--ink-3)"><span style="font-size:10px">&#8212;</span> '+m.label+'</span>';
+        /* Avaimessa sama kuvio kuin viivassa — muuten selite vaittaisi
+            etta mallit erottuvat pelkalla varilla. */
+        var dash=MALLI_VIIVA[m.key];
+        return '<span id="'+sectionId+'-leg-'+m.key+'" style="color:var(--ink-3);display:inline-flex;align-items:center;gap:3px">'
+          +'<svg width="14" height="4" viewBox="0 0 14 4" aria-hidden="true"><line x1="0.5" y1="2" x2="13.5" y2="2" stroke="currentColor" stroke-width="1.8"'
+          +(dash?' stroke-dasharray="'+dash+'"':'')+' stroke-linecap="round"/></svg>'+m.label+'</span>';
       }).join('')
       +'</div>';
 
@@ -9639,7 +9675,8 @@ function openSheet(spot, hourIdx) {
           if(pts.length>1) drawSeg(mg,pts,m);
           /* Legenda aktiiviseksi */
           var legEl=document.getElementById(sectionId+'-leg-'+m.key);
-          if(legEl){ legEl.style.color='var(--ink)'; legEl.querySelector('span').style.color=getModelColor(m.key); }
+          if(legEl){ legEl.style.color='var(--ink)';
+            var kuva=legEl.querySelector('svg'); if(kuva) kuva.style.color=getModelColor(m.key); }
         });
         /* Hajonnan tulkinta valittuun hetkeen. Ei uutta pyyntoa: sama data
            joka juuri piirrettiin viivoiksi. */
@@ -9650,8 +9687,17 @@ function openSheet(spot, hourIdx) {
         if (heroEl) { heroEl.textContent = hajontaTeksti(haj); heroEl.style.color = hajontaVari(haj); }
       }
 
+      /* Sarjavarit mitattiin paneelin beigea (#F0E7CE) vasten: vanhat
+          neonsavyt olivat 1.83 / 1.25 / 2.53 : 1 eli kaytannossa
+          nakymattomia. Nama ovat 5.82 / 4.27 / 6.51 : 1.
+
+          Sininen ja violetti sekoittuvat dikromaatille (protan dE 6.4,
+          deutan 1.6) — kolmea toisistaan erottuvaa savya ei beigen
+          pakottamalla kirkkaustasolla yksinkertaisesti ole. Siksi
+          identiteetti ei ole vain varissa: jokaisella mallilla on myos oma
+          katkoviivakuvionsa (ks. MALLI_VIIVA). */
       function getModelColor(key){
-        var cols={ecmwf:'rgba(80,180,255,.9)',icon:'rgba(255,200,80,.9)',gfs:'rgba(200,100,255,.8)'};
+        var cols={ecmwf:'#1C5C86',icon:'#A15A0E',gfs:'#7A2E8F'};
         return cols[key]||'var(--ink-2)';
       }
 
@@ -9669,7 +9715,8 @@ function openSheet(spot, hourIdx) {
           line.setAttribute('x2',pts[i+1].x); line.setAttribute('y2',pts[i+1].y);
           line.setAttribute('stroke',col);
           line.setAttribute('stroke-width','1.8');
-          line.setAttribute('stroke-dasharray',m.key==='gfs'?'3,4':'5,3');
+          var dash=getModelDash(m.key);
+          if(dash) line.setAttribute('stroke-dasharray',dash);
           line.setAttribute('stroke-linecap','round');
           line.setAttribute('pointer-events','none');
           mg.appendChild(line);
@@ -10384,7 +10431,7 @@ function openSheet(spot, hourIdx) {
       if (chartLbl) chartLbl.textContent = 'Uimaveden lämpötila · ' + bestSt.name;
       _uirasChartInteractive(uirasHistEl, pts, bestSt.name, bestSt, spot.lat, spot.lng);
     }).catch(function() {
-      if (uirasHistEl) uirasHistEl.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:rgba(255,100,100,.5);text-align:center;padding:10px">Vedenlämpödata ei saatavilla</div>';
+      if (uirasHistEl) uirasHistEl.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:10px">Vedenlämpödata ei saatavilla</div>';
     });
   }
 }
@@ -10508,8 +10555,10 @@ function _scrollToSection(id) {
 /* Trendi-stat-kortti */
 function _trendStatCard(trend) {
   /* windTrend palauttaa cls: 'gi-gusty' (nouseva) tai 'gi-steady' (laskeva) tai '' */
-  const col = trend.arrow === '↑' ? 'rgba(255,160,80,.9)'
-             : trend.arrow === '↓' ? 'rgba(80,180,255,.9)'
+  /* Paneelin beigella mitattuna vanhat savyt olivat 1.64:1 ja 1.83:1;
+     nama ovat 4.78:1 ja 5.82:1. */
+  const col = trend.arrow === '↑' ? '#9A5116'
+             : trend.arrow === '↓' ? '#1C5C86'
              : 'var(--ink-2)';
   return '<div class="sh-stat">'
     + '<span class="sh-stat-label">Trendi</span>'
@@ -10521,9 +10570,10 @@ function _trendStatCard(trend) {
 /* Puuskaisuus-stat-kortti */
 function _gustStatCard(gi) {
   /* gustIndex palauttaa cls: 'gi-steady' / 'gi-gusty' / 'gi-extreme' */
+  /* 1.25:1 ja 2.37:1 -> 4.81:1 ja 5.94:1. */
   const col = gi.cls === 'gi-steady'  ? '#2A702D'
-             : gi.cls === 'gi-gusty'  ? 'rgba(255,200,80,.9)'
-             : gi.cls === 'gi-extreme'? 'rgba(255,100,80,.9)'
+             : gi.cls === 'gi-gusty'  ? '#8A5A00'
+             : gi.cls === 'gi-extreme'? '#A3271C'
              : 'var(--ink-2)';
   return '<div class="sh-stat">'
     + '<span class="sh-stat-label">Puuskaisuus</span>'
@@ -12437,10 +12487,39 @@ document.getElementById('settings-overlay').addEventListener('click', _closeSett
 })();
 
 /* ── Karttatasot-togglet ─────────────────────────────────── */
+/* FMI Maa on PAALLA oletuksena. Se oli pois, ja siksi Helsingin ylla ei
+   nakynyt yhtaan FMI-havaintoa: kaupungin asemat (Kaisaniemi, Kumpula,
+   Malmi, Tapiola, Vantaa) ovat kaikki maa-asemia, ja lahin meriasema
+   Harmaja on 10 km ulkomerella. Kartta nayttti tyhjalta juuri siella
+   missa kayttajia on eniten. */
+const KARTTATASOT_AVAIN = 'fs_tasot';
 window._mapLayerState = {
-  'fmi-sea': true, 'fmi-land': false,
+  'fmi-sea': true, 'fmi-land': true,
   'uiras-prim': false, 'uiras-sec': false
 };
+/* Valinta jai ennen muistamatta: se palautui oletukseen joka latauksella,
+   joten tason kaantaminen paalle ei pysynyt yli istunnon. */
+(function _lueKarttatasot() {
+  let raw = null;
+  try { raw = JSON.parse(localStorage.getItem(KARTTATASOT_AVAIN) || 'null'); } catch (e) { raw = null; }
+  if (!raw || typeof raw !== 'object') return;
+  for (const k of Object.keys(window._mapLayerState)) {
+    if (typeof raw[k] === 'boolean') window._mapLayerState[k] = raw[k];
+  }
+})();
+function _tallennaKarttatasot() {
+  try { localStorage.setItem(KARTTATASOT_AVAIN, JSON.stringify(window._mapLayerState)); } catch (e) {}
+}
+
+/* Kytkimien ulkoasu tulee tilasta, ei HTML:aan kirjoitetusta oletuksesta.
+   Muuten muistettu valinta ja nakyva kytkin voivat olla eri mielta. */
+function _merkitseKarttatasot() {
+  for (const id of Object.keys(window._mapLayerState)) {
+    const tog = document.getElementById('toggle-' + id);
+    if (tog) tog.classList.toggle('on', !!window._mapLayerState[id]);
+  }
+}
+_merkitseKarttatasot();
 
 function _applyMapLayers() {
   if (!window._obsMarkersGlobal) return;
@@ -12469,6 +12548,7 @@ document.querySelectorAll('.sp-toggle-row').forEach(function(row) {
     var isOn = !tog.classList.contains('on');
     tog.classList.toggle('on', isOn);
     window._mapLayerState[id] = isOn;
+    _tallennaKarttatasot();
     _applyMapLayers();
   });
 });

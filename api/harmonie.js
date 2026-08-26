@@ -55,7 +55,18 @@ function fetchOM(lat, lng, tz) {
       var body = '';
       res.on('data', function(c) { body += c; });
       res.on('error', reject);
-      res.on('end', function() { resolve(JSON.parse(body)); });
+      res.on('end', function() {
+        /* JSON.parse OLI ilman suojaa, ja se ajetaan stream-callbackin
+           sisalla — siella heitetty poikkeus ei paady kutsujan
+           try/catchiin vaan kaataa koko prosessin. Ylavirta ei aina
+           vastaa JSONia: valityspalvelimen aikakatkaisu palauttaa
+           tekstin "upstream connect error or disconnect/reset before
+           headers", ja siita alkava vastaus kaatoi /api/harmonien
+           kokonaan. Silloin HARMONIE-lahde katosi kaikkialta, myos
+           Helsingin ylta, eika mikaan kertonut miksi. */
+        try { resolve(JSON.parse(body)); }
+        catch (e) { reject(new Error('Open-Meteo: ' + String(body).slice(0, 120))); }
+      });
     }).on('error', reject);
   });
 }

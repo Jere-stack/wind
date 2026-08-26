@@ -3609,3 +3609,135 @@ tuulikaaviossa.
 **`--accent` on edelleen ainoa toimintoväri.** Aseman nimi ei ole toiminto,
 joten se on mustetta; valintamerkki ja valitsimen otsikko saavat pitää
 aksentin.
+
+## Tummat jäänteet paperipaneeleissa — ja miksi Helsinki näytti tyhjältä
+
+Kaksi käyttäjän havaintoa, kolme eri vikaa. Kaikki mitattiin renderöidystä
+sivusta: skripti kävelee jokaisen tekstisolmun, etsii sen *todellisen*
+taustan (ylöspäin kunnes löytyy läpinäkymätön) ja laskee WCAG-suhteen.
+Arvaamalla näitä ei löydä, koska tausta on usein eri elementissä kuin
+teksti.
+
+### Valikot avautuivat mustalla
+
+`.fmi-dropdown-menu` oli `background: rgba(12,18,36,.98)` — lähes musta —
+ja rivien teksti `var(--ink)` eli lähes mustaa. **Valikko oli luettava
+vain siltä riviltä joka sattui olemaan `.selected`**, koska sen alla on
+`--surface-lo`, joka maalasi tumman pois. Muut rivit olivat mustaa
+mustalla. Se selittää myös "ekalla kerralla" -oireen: kun rivin valitsee,
+se saa taustan ja alkaa näkyä.
+
+Sama vika oli uimaveden asemavalikossa (`rgba(10,14,28,.98)`) ja se
+korjattiin jo *Havaintoasemien kortit* -muutoksessa; tämä oli sen pari
+jota ei silloin huomattu.
+
+### Mitä mittari löysi lisää
+
+Spottikortista löytyi kolme sarjaväriä ja neljä tilaväriä, jotka olivat
+jääneet vanhasta tummasta teemasta:
+
+```
+                              beigellä (#F0E7CE)
+mallivertailu ECMWF  #50B4FF        1.83 : 1
+mallivertailu ICON   #FFC850        1.25 : 1
+mallivertailu GFS    #C864FF        2.53 : 1
+trendi ↑             #FFA050        1.64 : 1
+trendi ↓             #50B4FF        1.83 : 1
+puuskaisuus gusty    #FFC850        1.25 : 1
+puuskaisuus extreme  #FF6450        2.37 : 1
+"ei dataa" -viestit  rgba(255,100,100,.5–.7)  2.35–2.66 : 1
+```
+
+Yhdeksän eri kohtaa käytti punaista `rgba(255,100,100,…)` sanomaan "dataa
+ei ole". Se ei ole virhe vaan tila, joten ne ovat nyt `--ink-3`.
+
+### Kolmea erottuvaa sarjaväriä ei beigellä ole
+
+Mallivertailun uudet sävyt ovat `#1C5C86` / `#A15A0E` / `#7A2E8F`
+(5.82 / 4.27 / 6.51 : 1). Mutta mitattuna:
+
+```
+pari                normaali  protan  deutan  tritan
+#1C5C86 / #A15A0E     23.1     19.0    23.6    20.3
+#1C5C86 / #7A2E8F     16.7      6.4     1.6    13.8
+#A15A0E / #7A2E8F     23.8     24.4    23.5    11.2
+```
+
+Sininen ja violetti ovat deuteranoopille **dE 1.6** eli sama väri. Tämä ei
+korjaannu sävyä vaihtamalla: pinta on vaalea, joten kontrastivaatimus
+pakottaa kaikki sarjat samaan kirkkausluokkaan, ja siinä luokassa
+dikromaattinen erottelu romahtaa. Kokeiltiin viittä eri kolmikkoa —
+jokaisessa vähintään yksi pari jäi alle rajan.
+
+Ratkaisu on toinen kanava: **jokaisella mallilla on oma
+katkoviivakuvionsa**, ja juuri se pari joka värinä sekoittuu on
+kuvioltaan kauimpana toisistaan — ECMWF yhtenäinen, GFS pisteitä.
+Selitteen avain piirtää saman kuvion, joten selite ei väitä että
+mallit erottuisivat pelkällä värillä.
+
+Yksi ansa: `MALLI_VIIVA.ecmwf` on `''` (yhtenäinen viiva), ja
+`MALLI_VIIVA[key] || '5,3'` teki siitä katkoviivan — tyhjä merkkijono on
+falsy. Sotki täsmälleen sen mallin jonka piti erottua kuviollaan.
+
+### Helsingissä ei näkynyt FMI-havaintoja
+
+Kaksi syytä, molemmat todellisia.
+
+**1. Maa-asemat olivat piilossa, eikä valinta säilynyt.** Karttatasoissa
+`'fmi-land': false`. Helsingin asemat — Kaisaniemi, Kumpula, Malmi,
+Tapiola, Vantaa — ovat kaikki maa-asemia, ja lähin meriasema Harmaja on
+10 km ulkomerellä. Kartta näytti tyhjältä juuri siellä missä käyttäjiä on
+eniten. Lisäksi `_mapLayerState` ei tallentunut mihinkään, joten tason
+kääntäminen päälle unohtui joka latauksella.
+
+Nyt `fmi-land` on päällä oletuksena, tila muistetaan `fs_tasot`-avaimeen,
+ja kytkinten ulkoasu luetaan tilasta eikä HTML:ään kirjoitetusta
+oletuksesta.
+
+**2. Maa-aseman lukemaa ei näytetty millään zoomilla.** `mkWindIcon`in
+`isPrim` oli boolean: joko pilleri z8:sta ylöspäin tai pelkkä piste
+ikuisesti. Maa-asemat olivat jälkimmäisiä, eli niiden lukeman sai näkyviin
+vain napauttamalla.
+
+`isPrim` korvattiin `pilleriZ`:llä — se zoom jolla lukema ilmestyy.
+Meri 8, maa 10. Porrastus on tarkoituksellinen: meri on se mitä foilaaja
+katsoo, mutta kaupunkiin zoomatessa myös maa-aseman lukema on luettavissa.
+Mitattuna Helsingin keskustan yllä:
+
+```
+       ennen        jälkeen
+ z12     0          4   (Kaisaniemi, Kumpula, Harmaja, Kruunuvuorenselkä)
+ z11     0          6   (+ Tapiola, Malmi)
+ z10     0          9   (+ Vuosaari «ei signaalia», Itätoukki, Vantaa)
+  z9     2 meri     4 meri + 5 pistettä
+```
+
+Maa-asemille **ei** lisätty ruksi-sijaintimerkkiä: `_stationDots` ei kuulu
+`_obsMarkersGlobal`iin, joten `_applyMapLayers` ei piilottaisi niitä, ja
+ruksit jäisivät kartalle vaikka taso käännettäisiin pois.
+
+### Kolmas vika: HARMONIE kaatui koko funktion
+
+Tämä löytyi vahingossa — dev-serverin loki kaatui kesken testin:
+
+```
+SyntaxError: Unexpected token 'u', "upstream c"... is not valid JSON
+    at IncomingMessage.<anonymous> (api/harmonie.js:58:47)
+```
+
+`fetchOM`in `res.on('end', … JSON.parse(body))` oli ilman suojaa. Ylävirta
+ei aina vastaa JSONia: välityspalvelimen aikakatkaisu palauttaa tekstin
+`upstream connect error or disconnect/reset before headers`. Ja koska
+heitto tapahtuu **stream-callbackin sisällä**, se ei päädy kutsujan
+`try/catch`iin eikä `Promise.allSettled`iin vaan kaataa koko prosessin.
+
+Serverittömässä ajossa se tarkoittaa 500:aa, eli `/api/harmonie` lakkaa
+vastaamasta kokonaan — ja HARMONIE-lähde katoaa **kaikkialta**, myös
+Helsingin yltä, ilman että mikään kertoo miksi. Nyt `JSON.parse` on
+`try/catch`issa ja rejektoi selkeällä viestillä, jolloin
+`_omVastaus`-varatie pääsee toimimaan niin kuin oli tarkoitus.
+
+**Jos tähän palaa:** koko `api/`-hakemisto käytiin läpi samalla haulla.
+`fmi.js` ja `kruunuvuori.js` resolvoivat raakaa tekstiä (turvallista) ja
+`uiras.js` parsii `zlib.gunzip`in callbackissa, jonka virheet
+rejektoidaan. Tämä oli ainoa suojaamaton jäsennys.
