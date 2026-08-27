@@ -2509,7 +2509,43 @@ palkilla. Ei datansäästöä eikä taustapäivitystä.
 / (index.html)         verkko edellä, 3 s aikakatkaisu, varalla välimuisti
 Leaflet 1.9.4 CDN      välimuisti edellä (versioitu osoite, ei voi muuttua)
 karttalaatat           vanhene-ja-virkistä, katto 600, EI versioitu
+säälaatat (.bin.gz)    välimuisti edellä, avain ?v=<ajoAika> (ks. alla)
+säälaattojen luettelo  verkko edellä, varalla välimuisti
 /api/*                 ei mitään — menee koskemattomana verkkoon
+```
+
+**Säälaatat lisättiin jälkikäteen, ja ne ovat eri asia kuin `/api`.**
+`/api` on elävä kysely jonka tuoreudesta sovellus pitää itse kirjaa;
+säälaatta on muuttumaton binääri. Ne olivat silti pitkään kokonaan
+välimuistin ulkopuolella, koska `onLaatta()` tunnisti vain ArcGISin ja
+CARTOn — kaikki muu putosi haaraan "menee koskemattomana verkkoon".
+Seuraus: **kartta aukesi rannalla ilman tuulta.** Pohjakartta oli
+levyllä, tuulikenttä ei.
+
+- **Avaimessa on ajon tunnus** (`?v=<ajoAika>`), ja se on pakollinen.
+  Sama osoite palauttaa eri sisällön kuuden tunnin välein, joten ilman
+  versiota välimuistista voisi tulla eri ajon laatta tuoreen
+  aika-akselin kanssa — eli hiljaa väärä aika. Versioidulla osoitteella
+  sisältö ei voi muuttua ja välimuisti edellä on turvallista.
+- **Vain yksi sukupolvi kerrallaan.** Uusi versio luo uuden
+  välimuistin (`saa-<ajoAika>`) ja vanhat poistetaan. Ilman sitä varasto
+  kasvaisi noin 30 MB:n kerroksella joka ajolla.
+- **GitHubin oma `cache-control` on `max-age=300`** — viisi minuuttia
+  datalle joka vaihtuu kuuden tunnin välein. Selaimen välimuisti ei siis
+  auta käytännössä lainkaan; service worker on ainoa joka pitää laatat.
+- **Luettelo on verkko edellä.** Se on ainoa joka kertoo onko varasto
+  tuore, joten sitä ei saa tarjoilla vanhana silloin kun verkko toimii —
+  mutta ilman varakopiota koko varasto putoaa pois heti kun yhteyttä ei
+  ole, ja juuri silloin siitä on eniten hyötyä.
+
+Mitattu preview-buildilla, api estettynä:
+
+```
+1. lataus   4 laattaa verkosta (sw ei vielä hallitse sivua)
+2. lataus   4 laattaa verkosta, välimuistit syntyvät
+3. lataus   0 laattaa verkosta
+offline     kartta latautuu, lämpökartta 224x491, 0 % läpinäkyviä
+            pikseleitä, aikajana 99 tikkiä, lähdemerkintä oikein
 ```
 
 **`/api` on tarkoituksella ulkopuolella.** Sovelluksella on jo oma
@@ -4649,3 +4685,200 @@ lähettää numerokentän ja interpoloi selaimessa — se on se mikä tekee
 tähtäimen lukemasta, aikajanasta ja spottikorteista mahdollisia, mutta se
 maksaa latauskokona. Ero ei siis ole tallennustilassa eikä koodin
 laadussa vaan siinä kumpaa puolta laskenta tehdään.
+
+## Hilalähtöinen kenttä — säännöllistä hilaa ei pureta pisteiksi
+
+Kun säädatavarasto tuli, **data lakkasi olemasta sironneita pisteitä**:
+laatta on täydellisen säännöllinen lat/lng-hila tyyppitaulukoissa.
+Sovellus purki sen silti piste kerrallaan `hourly`-olioiksi, työnsi ne
+`_points`-karttaan, rakensi niistä hajautetun `SpatialIndex`in ja
+interpoloi ne takaisin hilaksi `idw()`:llä. Kolme kierrosta työtä
+palataksemme siihen mistä lähdettiin.
+
+Mitattuna yhden näkymän vaihto uloimmassa näkymässä (3 108 hilapistettä,
+Node, ei kuristusta):
+
+| | ennen | jälkeen |
+|---|---|---|
+| `Saalaatat.wx()` + `buildWindField` | 134,0 ms | — |
+| `onLaatta()` merkintä | — | 0,2 ms |
+| `buildWindField` (`naytteista`) | — | 1,9 ms |
+| `WindTexture.build` | 9,4 ms | 4,4 ms |
+| **yhteensä** | **143,4 ms** | **6,5 ms** |
+
+### Sarjaa ei rakenneta — hetki luetaan suoraan tavuista
+
+`wx()` palauttaa koko 99-alkioisen aikasarjan kolmena taulukkona. Kenttä
+ja lämpökartta lukevat siitä **yhden hetken**, mutta lukevat sen
+tuhansista paikoista: uloimmassa näkymässä se on 10 200 taulukkoa ja
+miljoona laatikoitua lukua.
+
+- **Kustannus on varauksessa, ei trigonometriassa.** Tämä kokeiltiin:
+  suunta on kvantisoitu 2 asteen välein eli vain 180 arvoa, joten
+  sin/cos voi korvata hakutaululla. Mitattuna 53,5 → 57,9 ms, eli
+  **hakutaulu oli hitaampi**. Se sulki mikro-optimoinnin ja pakotti
+  arkkitehtuurimuutokseen.
+- `Saalaatat.naytteista()` ei varaa mitään: tulos jää kenttiin
+  `_nU`/`_nV`, ja hetki asetetaan kerran `asetaHetki()`:llä koska se on
+  koko kentällä sama. **0,4 ms samalle 3 400 pisteelle — 138× halvempi.**
+- Piste vain **merkitään** laattapisteeksi (`p.laatta` = hilaväli).
+  Sarja materialisoidaan vasta sille yhdelle pisteelle joka on tähtäimen
+  alla. Selaimessa mitattuna: 2 451 laattapistettä, **3 materialisoitua
+  sarjaa**.
+
+**Interpolointijärjestys on kopioitava tarkalleen, ei keksittävä.**
+Ensimmäinen versio interpoloi ajassa u/v-vektoreina, mikä on
+yksinkertaisempaa ja väärin. Vertailu `wx()`:ään paljasti sen heti:
+suurin nopeusero **1,51 m/s** ja suuntaero **54,5°**. Sääntö on:
+
+- **paikassa** nopeus painotettuna keskiarvona, suunta yksikkövektorien
+  kautta (350° ja 10° keskiarvo on muuten 180°)
+- **ajassa** nopeus ja suunta erikseen, suunta lyhintä kulmatietä —
+  vektorien interpolointi ajassa tekisi vastakkaisiin suuntiin
+  osoittavien tuntien väliin keinotekoisen tyvenen (ks. `_lerpWind`)
+
+Korjattuna ero `wx()`:ään on **0,0000 m/s ja 0,000°** 400 näytteellä,
+myös puuskatasolla. Jos hilapolku poikkeaisi sironneesta polusta, sama
+kartta näyttäisi eri asiaa sen mukaan kumpi lähde sattuu olemaan
+käytössä.
+
+### Bikuubinen, ei bilineaarinen — ja se on mitattu
+
+Tekstuuri luetaan hilasta `kokoaHila()` + Catmull-Rom -ylösnäytteistys.
+Sileään kenttään verrattuna, 1° hila, näytteet hilavälien sisältä:
+
+| | RMS totuuteen | 2. erotus, huippu |
+|---|---|---|
+| `idw()` R=1,7 eps=0,30 | 0,279 m/s | 0,0166 |
+| bilineaarinen | 0,169 | **0,0907** |
+| **bikuubinen (Catmull-Rom)** | **0,068** | **0,0231** |
+
+Bilineaarinen on tarkempi kuin idw mutta sen toinen erotus on
+**viisinkertainen**: hilasolmuihin jää taite, joka lukee kartalla juuri
+sinä rakeisuutena joka edellisessä muutoksessa poistettiin. Bikuubinen on
+yhtä sileä kuin idw ja neljä kertaa tarkempi.
+
+- **Hila kootaan erikseen, ei näytteistetä suoraan texeliin.** Kuubinen
+  ydin lukee neljä solmua akselia kohti; laatan reunalla kaksi niistä
+  olisi naapurilaatassa, ja reunaan leikkaaminen jättäisi näkyvän
+  taitteen **joka laattarajalle**. Koottuna hilana rajaa ei ole.
+- **Painot ovat separoituvia** ja x-painot riippuvat vain sarakkeesta.
+  Ne lasketaan kerran sarakkeelle eikä kerran texelille: 170 000 texeliä,
+  283 saraketta. Ilman tätä hilapolku oli z7:llä *hitaampi* kuin idw.
+- **Reiät paikataan neljällä pyyhkäisyllä**, ei lähimmän haulla. Reikiä
+  syntyy vain marginaalissa (tekstuuri ulottuu näkymää laajemmalle kuin
+  laatat haetaan), ja haku olisi O(reiät × solmut).
+
+### Kartta näyttää nyt hieman tuulisemmalta, ja se on data
+
+Oikealla ECMWF-datalla vanhan ja uuden polun ero:
+
+| näkymä | RMS-ero | suurin | keskiarvo |
+|---|---|---|---|
+| z12 spotti | 0,202 m/s | 0,33 | 2,40 → 2,58 |
+| z9 Suomenlahti | 0,295 | 1,07 | 1,65 → 1,77 |
+| z7 Suomi | 0,443 | 2,40 | 2,21 → 2,41 |
+| uloin z3,7 | 0,498 | 5,21 | 4,25 → 4,47 |
+
+Keskituuli nousee johdonmukaisesti **5–8 %**. Se on idw:n ylipehmennyksen
+poistuminen, ei virhe: tunnettua kenttää vasten uusi polku on neljä
+kertaa lähempänä totuutta. Mutta se on **näkyvä muutos**, ja huiput
+joita idw litisti näkyvät nyt sellaisinaan.
+
+**`isMarine()`-pintapainotus ei ole hilapolussa.** `idw()` painottaa
+naapuripisteitä sen mukaan ovatko ne samaa pintatyyppiä. Laattahilalla
+väli on 0,25–1,25° eli 28–140 km, jolloin painotus ei käytännössä pure —
+mutta tämä on **päätös eikä sivuvaikutus**. Jos rantaviivan kontrasti
+näyttää muuttuneen, syy on tässä.
+
+### Neljä paikkaa jotka hiljaa rikkoutuivat
+
+Kaikki neljä löytyivät vain ajamalla, eivät lukemalla. Kaikissa oire
+olisi ollut sama: kartta näyttää oikealta mutta on tyhjä tai väärä.
+
+- **`getAllPoints()` suodatti `p.wx && p.wx.hourly`.** Laattapisteillä ei
+  ole `wx`:ää, joten koko laattadatan polku olisi kadonnut — kenttä olisi
+  jäänyt tyhjäksi eikä mikään olisi kertonut miksi.
+- **`nearestPointToCenter()`** vaati saman. Aikajana olisi pudonnut
+  lähimpään **spottiin** — Sydneyssä se olisi Suomessa.
+- **`bestTimelineRef()`** vaati saman, ja se on se joka rakentaa
+  `_tlTimes`in. Ilman aikajanaa `_tlTimeAt()` palauttaa nullin eikä
+  `buildWindField` osaa poimia hetkeä: **kartta jää tyhjäksi jos
+  säälaatat toimivat mutta rajapinta ei** — juuri se tilanne jota varten
+  varasto on olemassa. Käynnistyksen `allSettled`-haara rakentaa nyt
+  aikajanan jos `spotsP`-haara ei ehtinyt.
+- **`WindTexture.hetki`** on pakko välittää erikseen. `buildWindField`
+  saa `hourIdx`in joka voi olla eri kuin `State.currentHourIdx` — play ja
+  aikajanan raahaus kulkevat murtoluvulla jota ei ole vahvistettu
+  valinnaksi. Ilman tätä hilapolku näytteistäisi väärän tunnin juuri
+  niissä kahdessa tilanteessa.
+
+**Sivuvaikutus joka on korjaus:** laattapisteitä ei enää kirjoiteta
+localStorageen (`_saveCache` ohittaa pisteet joilla ei ole `wx`:ää).
+3 400 pisteen sarjat JSONina ylittivät kiintiön, jolloin
+`_pruneOldCache()` pyyhki puolet rajapinnasta haetusta välimuistista.
+
+### `_ts()` muisti väärässä paikassa — 80 ms
+
+Muisti asui `hourly`-oliossa, ja rajapintadatalla se oli oikein: jokainen
+piste saa oman `time`-taulukkonsa. Säälaatoilla ne eivät ole yksi
+yhteen — `wx()` palauttaa uuden `hourly`-olion joka pisteelle, mutta
+`time` osoittaa kaikilla samaan jaettuun `_ajat`-taulukkoon. Muisti ei
+osunut kertaakaan.
+
+Uloimmassa näkymässä se oli **337 000 `new Date()` -kutsua** ja
+`buildWindField` 84 ms; lämpimänä sama työ on 3,9 ms. Korjaus on WeakMap
+**taulukon** päällä, jolloin molemmat tapaukset menevät samalla
+säännöllä.
+
+### `State.dpr` oli 3, vaikka kommentti sanoi 2
+
+`initCanvases()`:n yläpuolella on kymmenen rivin perustelu sille miksi
+partikkelicanvas piirretään enintään 2× tarkkuudella, mittaus mukaan
+lukien (19 → 24 fps). Rivi sanoi `Math.min(3, ...)`. iPhonella canvas oli
+siis 3,01 Mpx dokumentoidun 1,34 Mpx:n sijaan.
+
+Sama luokka virhettä kuin Syne-fontti aikanaan: **dokumentaatio kuvasi
+päätöksen jota koodi ei toteuttanut.** Kun tähän tiedostoon kirjoittaa
+mittauksen, tarkista että rivi vastaa sitä.
+
+### `window.FS` mittausta varten (`?perf=1`)
+
+Kaikki moduulit ovat saman skriptilohkon `const`-sidoksia, eli konsolista
+tai automaattisesta testistä niihin ei pääse käsiksi lainkaan. Se tekee
+juuri sen tarkistuksen mahdottomaksi jota tämä tiedosto vaatii — sivu voi
+näyttää oikealta samalla kun kenttä on tyhjä tai tekstuuri väärässä
+tarkkuudessa.
+
+Mittauspaneelin portin takana (`?perf=1`) viedään nyt
+`window.FS = { State, WindTexture, Saalaatat, ViewportGrid, ColorRamp,
+PerfTracker, buildWindField, idw }`. Tuotantopolussa globaaliin
+nimiavaruuteen ei viedä mitään — tarkistettu: ilman kytkintä
+`typeof window.FS === 'undefined'`.
+
+Selaintarkistus jonka tämä mahdollistaa (preview-build, api estetty,
+laatat tarjoiltuna `context.route`n kautta):
+
+```
+ensilataus     kenttä 506 pistettä, askel 1, tekstuuri 224x491,
+               NaN 0, läpinäkyviä pikseleitä 0,0 %, dpr 2,
+               canvas 786x1704, lähde "ECMWF IFS 0,25° · esilaskettu"
+zoom ulos 3    kenttä 2 416, tekstuuri 182x411
+zoom z11       kenttä 2 451, tekstuuri 280x607
+aikajana +30h  hetki siirtyy oikein, kenttä ennallaan
+virheitä       0
+```
+
+### Mitä tästä EI kannata päätellä
+
+- **Ajanmittaus tässä kontissa on epäluotettavaa.** Ensimmäinen vertailu
+  antoi hilapolulle 2,9–6,7× nopeutuksen; kun sama ajettiin toisin päin,
+  uusi polku näytti *hitaammalta*. Luvut seurasivat järjestystä eivätkä
+  polkua. Yllä olevat luvut on mitattu lämmityksellä (10 kierrosta),
+  **vuorotellen A/B/A/B** ja mediaanina, ja kontrolli toisin päin täsmää.
+  Jos mittaat uudelleen, tee sama.
+- **Tekstuurin rakennus yksin ei ole se iso voitto** (9,4 → 4,4 ms).
+  Voitto tulee siitä että pistekohtainen purku ja `_ts`-vika katosivat.
+  Jos joku optimoi vain `WindTexture.build`ia, hän optimoi väärää asiaa.
+- **Ruutunopeutta ei ole mitattu laitteella.** Kaikki yllä on CPU-työtä
+  pöytäkoneella. Kuinka paljon tämä tuntuu iPhonella, on vielä auki.

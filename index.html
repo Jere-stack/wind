@@ -3166,6 +3166,8 @@ const Saalaatat = {
   _laatat: new Map(),        /* avain -> purettu laatta */
   _kesken: new Map(),        /* avain -> Promise */
   _ajat: null,               /* jaettu aikataulukko, sama joka pisteelle */
+  _tsMs: null,               /* sama akseli millisekunteina — naytteista() */
+  _versio: '',               /* ajon tunnus, menee laattojen osoitteeseen */
   _MAX_LAATTAA: 40,          /* muistikatto; laatta on ~112 kt purettuna */
 
   kaytossa() { return this._tila === 'ok'; },
@@ -3196,6 +3198,15 @@ const Saalaatat = {
         ? l.ajat
         : Array.from({ length: l.nt }, (_, i) => l.t0 + i * l.dtSek * 1000);
       this._ajat = ms.map(t => new Date(t).toISOString());
+      /* Sama akseli lukuina. naytteista() hakee hetkea taalta eika
+         jasenna merkkijonoja lainkaan, ja `_ts()` saa taman jaetun
+         `_ajat`-taulukon kautta yhden ainoan kerran. */
+      this._tsMs = Float64Array.from(ms);
+      /* Laattojen osoitteisiin menee ajon tunnus, jolloin service worker
+         voi pitaa niita muuttumattomina. Ilman sita sama osoite
+         palauttaisi eri sisallon kuuden tunnin valein ja valimuistista
+         voisi tulla eri ajon laatta tuoreen aika-akselin kanssa. */
+      this._versio = String(l.ajoAika || l.luotu || l.t0 || '');
       this._tila = 'ok';
       return true;
     } catch (e) {
@@ -3241,7 +3252,8 @@ const Saalaatat = {
     if (this._laatat.has(avain)) return this._laatat.get(avain);
     if (this._kesken.has(avain)) return this._kesken.get(avain);
     const p = (async () => {
-      const url = SAALAATAT_KANTA + avain + '.bin.gz';
+      const url = SAALAATAT_KANTA + avain + '.bin.gz'
+        + (this._versio ? '?v=' + encodeURIComponent(this._versio) : '');
       const r = await fetch(url);
       if (!r.ok) throw new Error('HTTP ' + r.status);
       /* Palvelin ei aseta content-encodingia binääritiedostolle, joten
@@ -3266,6 +3278,10 @@ const Saalaatat = {
          lisäysjärjestyksen, joten ensimmäinen avain on vanhin. */
       while (this._laatat.size >= this._MAX_LAATTAA) {
         this._laatat.delete(this._laatat.keys().next().value);
+        /* Hakumuisti pitää viittausta laattaan. Ilman nollausta häädetty
+           laatta jäisi siihen kiinni: data olisi yhä kelvollista, mutta
+           muisti ei vapautuisi vaikka LRU luulee vapauttaneensa sen. */
+        this._mLaatta = null; this._mStep = -1;
       }
       this._laatat.set(avain, laatta);
       return laatta;
@@ -3305,6 +3321,254 @@ const Saalaatat = {
     const tulokset = await Promise.allSettled(
       [...tarvitaan.values()].map(t => this._lataa(t.taso, t.la0, t.lo0)));
     return tulokset.filter(t => t.status === 'fulfilled').length;
+  },
+
+  /* -- YHDEN HETKEN NÄYTE ----------------------------------------
+   *
+   * `wx()` palauttaa koko aikasarjan, ja se on oikea muoto silloin kun
+   * joku oikeasti lukee sarjan: spottikortti, tuntinauha, puuska.
+   *
+   * Lämpökartta ja tuulikenttä eivät lue sarjaa. Ne lukevat YHDEN hetken
+   * — mutta ne lukevat sen tuhansista paikoista. Mitattuna uloimmassa
+   * näkymässä (3 400 hilapistettä, 99 aika-askelta):
+   *
+   *     wx() joka pisteelle                53,5 ms
+   *     naytteista() joka pisteelle         0,4 ms
+   *
+   * Ero ei ole trigonometriassa vaan varauksessa: `wx()` varaa kolme
+   * 99-alkioista taulukkoa pistettä kohti, eli uloimmassa näkymässä
+   * 10 200 taulukkoa ja miljoona laatikoitua lukua. Se kokeiltiin myös
+   * halventaa suunnan hakutaululla (suunta on kvantisoitu 2 asteen
+   * välein, eli vain 180 arvoa) — se ei auttanut lainkaan, mikä
+   * vahvistaa että kustannus on muistiliikenteessä.
+   *
+   * naytteista() ei varaa mitään: tulos jää kenttiin `_nU` ja `_nV`.
+   * Hetki asetetaan erikseen `asetaHetki()`:llä, koska koko kentällä ja
+   * koko tekstuurilla se on sama — sitä ei kannata hakea uudelleen
+   * jokaiselle näytteelle. */
+  _nU: 0, _nV: 0,
+  _ti: 0, _tf: 0, _tiValmis: false,
+
+  /* Valitsee aikaindeksin ja murto-osan. Akseli EI ole tasavälinen
+     (ECMWF vaihtaa kolmen tunnin askeleesta kuuteen kuuden vuorokauden
+     kohdalla), joten tämä on puolitushaku eikä jakolasku. Palauttaa
+     epätoden jos hetki on sarjan ulkopuolella — silloin varasto ei voi
+     palvella tätä hetkeä lainkaan ja kutsujan on käytettävä varatietä. */
+  asetaHetki(tMs) {
+    this._tiValmis = false;
+    const ts = this._tsMs;
+    if (!ts || !ts.length) return false;
+    const viim = ts.length - 1;
+    /* Tunnin toleranssi kummassakin päässä, kuten buildWindFieldissä:
+       sarjat ovat tasatunneittain ja hetki on tuntien välissä. */
+    if (tMs < ts[0] - 3600000 || tMs > ts[viim] + 3600000) return false;
+    if (tMs <= ts[0])    { this._ti = 0;        this._tf = 0; this._tiValmis = true; return true; }
+    if (tMs >= ts[viim]) { this._ti = viim;     this._tf = 0; this._tiValmis = true; return true; }
+    let lo = 0, hi = viim;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (ts[m] < tMs) lo = m + 1; else hi = m; }
+    const b = lo, a = lo - 1;
+    this._ti = a;
+    this._tf = (tMs - ts[a]) / (ts[b] - ts[a]);
+    this._tiValmis = true;
+    return true;
+  },
+
+  /* Yhden alkion muisti laattahaulle.
+   *
+   * Sama kuvio kuin `SpatialIndex.nearby()`:ssä ja samasta syystä:
+   * peräkkäiset näytteet osuvat lähes aina samaan laattaan (laatta on
+   * 5–100 astetta leveä), ja täysi haku rakentaisi merkkijonoavaimen
+   * joka näytteelle. Tekstuurissa niitä on satoja tuhansia. */
+  _mLaatta: null, _mLa0: 0, _mLo0: 0, _mSpan: 0, _mStep: -1,
+  _hae(lat, lng, step) {
+    const lo = ((lng + 180) % 360 + 360) % 360 - 180;
+    if (this._mLaatta && step === this._mStep
+        && lat >= this._mLa0 && lat < this._mLa0 + this._mSpan
+        && lo  >= this._mLo0 && lo  < this._mLo0 + this._mSpan) return this._mLaatta;
+    const taso = this.taso(lat, lo, step);
+    if (!taso) return null;
+    const r = this._ruutu(taso, lat, lo);
+    const laatta = this._laatat.get(this._avain(taso, r.la0, r.lo0));
+    if (!laatta) return null;
+    /* Vanhentunut laatta: eri ajon aika-akseli kuin luettelossa. Osoitteet
+       on versioitu, joten tätä ei pitäisi tapahtua — mutta jos tapahtuu,
+       hiljainen väärä aika on pahin mahdollinen lopputulos. */
+    if (laatta.nt !== this._tsMs.length) return null;
+    this._mLaatta = laatta; this._mLa0 = r.la0; this._mLo0 = r.lo0;
+    this._mSpan = taso.span; this._mStep = step;
+    return laatta;
+  },
+
+  /* Bilineaarinen paikassa, lineaarinen ajassa, suoraan tavuista.
+     Tulos u/v-komponentteina kenttiin _nU/_nV — suuntaa ei koota
+     asteiksi eikä pureta takaisin, koska kutsuja tarvitsee vektorin.
+     Palauttaa epätoden jos näytettä ei ole. */
+  /* Puuskataso ("Puuska"-siru asetuksissa) lukee saman suunnan mutta
+     eri magnitudin. Lippu erikseen eikä parametrina, koska se on koko
+     kentän ominaisuus eikä näytteen — ja näytteitä on satoja tuhansia. */
+  _puuskaTila: false,
+  asetaKentta(layer) { this._puuskaTila = (layer === 'gust'); },
+
+  /* Onko tälle pisteelle laatoissa dataa? Kevyt tarkistus jota
+     `loadViewport` käyttää päättäessään tarvitseeko piste rajapintaa.
+     Katsoo ensimmäisen aika-askeleen, joten se ei tarvitse aikajanaa —
+     käynnistyksessä sitä ei vielä ole. */
+  onLaatta(lat, lng, step) {
+    if (!this.kaytossa()) return false;
+    const l = this._hae(lat, lng, step);
+    if (!l) return false;
+    const lo = ((lng + 180) % 360 + 360) % 360 - 180;
+    let iy = Math.floor((lat - l.la0) / l.askel), ix = Math.floor((lo - l.lo0) / l.askel);
+    if (iy < 0) iy = 0; else if (iy > l.ny - 1) iy = l.ny - 1;
+    if (ix < 0) ix = 0; else if (ix > l.nx - 1) ix = l.nx - 1;
+    return l.nop[iy * l.nx + ix] !== this._luettelo.tyhja;
+  },
+
+  /* Yhden hetken näyte. Interpolointijärjestys on TÄSMÄLLEEN sama kuin
+   * `wx()` + `buildWindField` -polulla, eikä se ole makuasia:
+   *
+   *   PAIKASSA  nopeus painotettuna keskiarvona, suunta yksikkövektorien
+   *             kautta. Suuntien aritmeettinen keskiarvo hyppäisi
+   *             väärään suuntaan 0/360 rajalla (350 ja 10 -> 180).
+   *   AJASSA    nopeus ja suunta ERIKSEEN, suunta lyhintä kulmatietä.
+   *             Vektorien interpolointi ajassa tuottaisi vastakkaisiin
+   *             suuntiin osoittavien tuntien väliin keinotekoisen
+   *             tyvenen — ks. `_lerpWind`.
+   *
+   * Ensimmäinen versio interpoloi ajassa u/v-vektoreina, mikä on
+   * yksinkertaisempaa ja väärin. Vertailu `wx()`:ään paljasti sen heti:
+   * suurin nopeusero 1,51 m/s ja suuntaero 54,5 astetta. Jos hilapolku
+   * poikkeaisi sironneesta polusta, sama kartta näyttäisi eri asiaa sen
+   * mukaan kumpi lähde sattuu olemaan käytössä.
+   *
+   * Tulos jää kenttiin `_nU`/`_nV`; mitään ei varata. */
+  _sMs: 0, _sDir: 0,
+  /* Yhden aikatason paikkainterpolointi neljästä kulmasta. Sama sääntö
+     kuin `wx()`:n sisäsilmukassa, mukaan lukien tyhjien käsittely. */
+  _paikassa(l, pohja, k0, k1, k2, k3, w0, w1, w2, w3) {
+    const tyhja = this._luettelo.tyhja;
+    const nAskel = this._luettelo.nopAskel, dAskel = this._luettelo.suuntaAskel;
+    const NOP = l.nop, SUU = l.suunta, PUU = this._puuskaTila ? l.puuska : null;
+    let sN = 0, wN = 0, sG = 0, wG = 0, sSin = 0, sCos = 0, wD = 0;
+    for (let c = 0; c < 4; c++) {
+      const k = pohja + (c === 0 ? k0 : c === 1 ? k1 : c === 2 ? k2 : k3);
+      const w = c === 0 ? w0 : c === 1 ? w1 : c === 2 ? w2 : w3;
+      if (w <= 1e-6) continue;
+      const v = NOP[k];
+      if (v === tyhja) continue;
+      sN += v * w; wN += w;
+      const d = SUU[k];
+      if (d !== tyhja) {
+        const r = d * dAskel * Math.PI / 180;
+        sSin += Math.sin(r) * w; sCos += Math.cos(r) * w; wD += w;
+      }
+      if (PUU) { const g = PUU[k]; if (g !== tyhja) { sG += g * w; wG += w; } }
+    }
+    if (!wN) return false;
+    const nopeus = (sN / wN) * nAskel;
+    /* Puuska puuttuu analyysihetkellä (se on jakson yli laskettu
+       maksimi), ja silloin tuuli itse on paras arvio — sama sääntö
+       kuin `wx()`:ssä. */
+    this._sMs = PUU ? (wG ? (sG / wG) * nAskel : nopeus) : nopeus;
+    this._sDir = wD ? ((Math.atan2(sSin / wD, sCos / wD) * 180 / Math.PI) + 360) % 360 : 0;
+    return true;
+  },
+
+  naytteista(lat, lng, step) {
+    if (!this._tiValmis) return false;
+    const l = this._hae(lat, lng, step);
+    if (!l) return false;
+    const lo = ((lng + 180) % 360 + 360) % 360 - 180;
+    const fy = (lat - l.la0) / l.askel, fx = (lo - l.lo0) / l.askel;
+    let iy = Math.floor(fy), ix = Math.floor(fx);
+    if (iy < 0) iy = 0; else if (iy > l.ny - 2) iy = l.ny - 2;
+    if (ix < 0) ix = 0; else if (ix > l.nx - 2) ix = l.nx - 2;
+    let wy = fy - iy; wy = wy < 0 ? 0 : (wy > 1 ? 1 : wy);
+    let wx = fx - ix; wx = wx < 0 ? 0 : (wx > 1 ? 1 : wx);
+    const k0 = iy * l.nx + ix, k1 = k0 + 1, k2 = k0 + l.nx, k3 = k2 + 1;
+    const w0 = (1 - wy) * (1 - wx), w1 = (1 - wy) * wx, w2 = wy * (1 - wx), w3 = wy * wx;
+    const taso2 = l.ny * l.nx;
+    const ia = this._ti, ib = Math.min(this._ti + 1, l.nt - 1);
+
+    if (!this._paikassa(l, ia * taso2, k0, k1, k2, k3, w0, w1, w2, w3)) return false;
+    const msA = this._sMs, dirA = this._sDir;
+    let ms, dir;
+    if (ib === ia || this._tf === 0) { ms = msA; dir = dirA; }
+    else {
+      if (!this._paikassa(l, ib * taso2, k0, k1, k2, k3, w0, w1, w2, w3)) return false;
+      const msB = this._sMs, dirB = this._sDir, f = this._tf;
+      ms = msA + (msB - msA) * f;
+      const dd = ((dirB - dirA) % 360 + 540) % 360 - 180;   /* -180..180 */
+      dir = ((dirA + dd * f) % 360 + 360) % 360;
+    }
+    const rad = dir * Math.PI / 180;
+    this._nU = -ms * Math.sin(rad);
+    this._nV = -ms * Math.cos(rad);
+    return true;
+  },
+
+  /* Kokoaa säännöllisen solmuhilan laatoista YHDEKSI yhtenäiseksi
+     taulukoksi laattarajojen yli.
+   *
+   * Miksi hila kootaan erikseen eikä näytteistetä suoraan texeliin:
+   * tekstuuri halutaan interpoloida BIKUUBISESTI (ks. WindTexture.build),
+   * ja kuubinen ydin lukee neljä solmua akselia kohti. Laatan reunalla
+   * kaksi niistä olisi naapurilaatassa, ja reunaan leikkaaminen jättäisi
+   * näkyvän taitteen joka laattarajalle. Koottuna hilana rajaa ei ole.
+   *
+   * Palauttaa montako solmua jäi ilman dataa. */
+  kokoaHila(laMin, loMin, latAskel, lngAskel, gc, gr, gu, gv, step) {
+    let puuttuu = 0;
+    for (let j = 0; j < gr; j++) {
+      const la = laMin + j * latAskel;
+      for (let i = 0; i < gc; i++) {
+        const idx = j * gc + i;
+        if (this.naytteista(la, loMin + i * lngAskel, step)) {
+          gu[idx] = this._nU; gv[idx] = this._nV;
+        } else { gu[idx] = NaN; gv[idx] = NaN; puuttuu++; }
+      }
+    }
+    /* Reikien paikkaus reunimmaisesta kelvollisesta arvosta.
+     *
+     * Reikiä syntyy vain hilan MARGINAALISSA: tekstuuri ulottuu näkymää
+     * laajemmalle (0,6 näkymää), mutta laatat haetaan kapeammalla
+     * pehmusteella. Näkyvä alue on siis aina katettu — reiät ovat
+     * ruudun ulkopuolella, ja niiden oikea arvo on reunan jatke.
+     * Sama minkä idw() teki varatiellään.
+     *
+     * Neljä pyyhkäisyä eikä lähimmän haku: haku olisi O(reiät × solmut),
+     * ja marginaalissa reikiä on satoja. Pyyhkäisy on O(solmut) ja
+     * antaa marginaaliin saman jatkeen. Ilman paikkausta NaN leviäisi
+     * kuubisen ytimen kautta neljän solmun päähän ja tekstuuriin tulisi
+     * musta laikku näkyvän alueen reunaan. */
+    if (!puuttuu) return 0;
+    if (puuttuu === gc * gr) { gu.fill(0); gv.fill(0); return puuttuu; }
+    for (let j = 0; j < gr; j++) {
+      const rivi = j * gc;
+      for (let i = 1; i < gc; i++) {
+        const k = rivi + i;
+        if (Number.isNaN(gu[k])) { gu[k] = gu[k-1]; gv[k] = gv[k-1]; }
+      }
+      for (let i = gc - 2; i >= 0; i--) {
+        const k = rivi + i;
+        if (Number.isNaN(gu[k])) { gu[k] = gu[k+1]; gv[k] = gv[k+1]; }
+      }
+    }
+    for (let j = 1; j < gr; j++) for (let i = 0; i < gc; i++) {
+      const k = j * gc + i;
+      if (Number.isNaN(gu[k])) { gu[k] = gu[k-gc]; gv[k] = gv[k-gc]; }
+    }
+    for (let j = gr - 2; j >= 0; j--) for (let i = 0; i < gc; i++) {
+      const k = j * gc + i;
+      if (Number.isNaN(gu[k])) { gu[k] = gu[k+gc]; gv[k] = gv[k+gc]; }
+    }
+    /* Kokonaan tyhjä rivi hilan reunassa jää yhä NaNiksi jos koko
+       ensimmäinen ja viimeinen rivi puuttuvat — nollataan varmuuden
+       vuoksi, jottei NaN pääse kuubiseen ytimeen. */
+    for (let k = 0; k < gu.length; k++) {
+      if (Number.isNaN(gu[k])) { gu[k] = 0; gv[k] = 0; }
+    }
+    return puuttuu;
   },
 
   /* Yhden pisteen aikasarja samassa muodossa kuin rajapinta antaa, jotta
@@ -3741,8 +4005,28 @@ const ViewportGrid = {
         for (const p of gridPoints) {
           const k = this._ptKey(p.lat, p.lng);
           if (this._points.has(k)) continue;
-          const wx = Saalaatat.wx(p.lat, p.lng, laattaAskel);
-          if (wx) { p.wx = wx; this._points.set(k, p); }
+          /* Piste MERKITÄÄN laattapisteeksi, sarjaa ei pureta.
+           *
+           * Ennen tässä kutsuttiin `Saalaatat.wx()`, joka rakentaa koko
+           * 99-alkioisen aikasarjan kolmena taulukkona. Kenttä ja
+           * lämpökartta lukevat siitä yhden hetken, joten 98 hetkeä
+           * sadasta varattiin turhaan: mitattuna 3 400 pisteen näkymässä
+           * 53,5 ms ja 10 200 taulukkoa. `naytteista()` lukee saman
+           * hetken suoraan tavuista 0,4 ms:ssä.
+           *
+           * Sarjaa tarvitsee vain se yksi piste joka on tähtäimen alla
+           * (lähdemerkintä ja puuska), ja se materialisoidaan vasta kun
+           * se on valittu — ks. `lahinEnnustepiste()`.
+           *
+           * Sivuvaikutus joka on korjaus: laattapisteitä ei enää
+           * kirjoiteta localStorageen. `_saveCache` ohittaa pisteet
+           * joilla ei ole `wx`:ää, ja 3 400 pisteen sarjat JSONina
+           * ylittivät kiintiön niin että `_pruneOldCache()` pyyhki
+           * puolet rajapinnasta haetusta välimuistista joka kerta. */
+          if (Saalaatat.onLaatta(p.lat, p.lng, laattaAskel)) {
+            p.laatta = laattaAskel;
+            this._points.set(k, p);
+          }
         }
         this.invalidateCache();
       } catch (e) { /* varatie hoitaa */ }
@@ -3839,7 +4123,12 @@ const ViewportGrid = {
     if (this._allPtsCache) return this._allPtsCache;
     const merged = new Map(this._globalBase);
     this._points.forEach((p, pk) => merged.set(pk, p));
-    this._allPtsCache = Array.from(merged.values()).concat(SPOTS).filter(p => p.wx && p.wx.hourly);
+    /* Laattapiste kelpaa ilman `wx`:ää: sen sarjaa ei ole materialisoitu,
+       koska kenttä tarvitsee vain yhden hetken (ks. loadViewport ja
+       Saalaatat.naytteista). Ilman tätä ehtoa koko laattadatan polku
+       katoaisi HILJAA — kenttä jäisi tyhjäksi eikä mikään kertoisi miksi. */
+    this._allPtsCache = Array.from(merged.values()).concat(SPOTS)
+      .filter(p => p.laatta || (p.wx && p.wx.hourly));
     return this._allPtsCache;
   },
 
@@ -5544,7 +5833,11 @@ function initCanvases() {
      Partikkelit ovat pehmeitä 2-4 px viivoja pyöreillä päillä, joten 2x on
      yhä kaksinkertainen ylinäytteistys — ero ei näy. Muut pinnat (kartta,
      merkit, teksti) piirtyvät edelleen laitteen omalla tarkkuudella. */
-  State.dpr = Math.min(3, window.devicePixelRatio || 1);
+  /* Katto on 2 eikä 3, ja yllä oleva kommentti kuvaa juuri tätä päätöstä.
+     Rivi sanoi silti `Math.min(3, ...)`, eli mitattua rajoitusta ei
+     koskaan sovellettu: iPhonen 3x tarkkuudella canvas oli 3,01 Mpx
+     dokumentoidun 1,34 Mpx:n sijaan. */
+  State.dpr = Math.min(2, window.devicePixelRatio || 1);
   resizeCanvases();
   window.addEventListener('resize', () => { resizeCanvases(); resetParticles(true); }, { passive: true });
   window.addEventListener('orientationchange', () => { setTimeout(() => { resizeCanvases(); resetParticles(true); }, 250); }, { passive: true });
@@ -5998,6 +6291,13 @@ const WindTexture = {
   COARSE_STEP: 3,        /* vakiotarkkuus */
   SCRUB_STEP: 6,         /* aikajanaa raahatessa — päivitys ehtii joka ruutuun */
   askel: 0,              /* millä askeleella ruudulla oleva tekstuuri on laskettu */
+  /* Se hetki jolle ruudulla oleva tekstuuri on laskettu.
+     `buildWindField` asettaa tämän ennen `build()`-kutsua, koska sille
+     annettu `hourIdx` voi olla eri kuin `State.currentHourIdx` — play ja
+     aikajanan raahaus kulkevat murtoluvulla joka ei ole vielä
+     vahvistettu valinnaksi. Ilman tätä hilapolku näytteistäisi väärän
+     tunnin juuri niissä kahdessa tilanteessa. */
+  hetki: null,
 
   /* Tekstuurin sivun enimmäismitta. Omana metodinaan eikä buildin sisällä,
      jotta arvon voi pyyhkäistä mittauksessa.
@@ -6258,6 +6558,128 @@ const WindTexture = {
          voitava nähdä jälkikäteen että tarkka versio on vielä velkaa. */
       this.askel = STEP;
 
+      /* -- HILAPOLKU ------------------------------------------------
+       *
+       * Kun data tulee säälaatoista, se ON jo säännöllinen lat/lng-hila.
+       * Sironneiden pisteiden interpolointi (`idw()` + `SpatialIndex`) on
+       * silloin kolme kierrosta työtä palataksemme siihen mistä
+       * lähdettiin: hila puretaan pisteiksi, pisteet hajautetaan soluihin
+       * ja summataan takaisin hilaksi.
+       *
+       * Tässä tekstuuri luetaan suoraan laattojen tavuista. Mitattuna
+       * (Node, ei kuristusta, sama texelmäärä):
+       *
+       *     näkymä        sironnut   hila
+       *     uloin z3,7      13,3 ms   2,0 ms
+       *     z7 Suomi        11,6 ms   4,1 ms
+       *     z12 spotti       7,6 ms   3,6 ms
+       *
+       * Ja lopputulos on TARKEMPI, ei vain halvempi: harva hila
+       * (`STEP` 3–6) on olemassa vain siksi että `idw()` olisi
+       * kohtuuhintainen. Kun kutsuja katoaa, katoaa myös syy harventaa.
+       *
+       * INTERPOLOINTITAPA ON MITATTU. Sileään kenttään verrattuna,
+       * 1 asteen hila, näytteet hilavälien sisältä:
+       *
+       *     idw() R=1,7 eps=0,30    RMS 0,279 m/s   2. erotus 0,0166
+       *     bilineaarinen           RMS 0,169       2. erotus 0,0907
+       *     bikuubinen (C-R)        RMS 0,068       2. erotus 0,0231
+       *
+       * Bilineaarinen on tarkempi kuin idw mutta sen toinen erotus on
+       * viisinkertainen: hilasolmuihin jää taite, joka lukee kartalla
+       * juuri sinä rakeisuutena joka äsken poistettiin. Bikuubinen on
+       * yhtä sileä kuin idw JA neljä kertaa tarkempi, ja maksaa noin
+       * puolitoistakertaisesti bilineaarisen. Siksi kuubinen. */
+      const hilaPolku = (function () {
+        if (typeof Saalaatat === 'undefined' || !Saalaatat.kaytossa()) return null;
+        const hetki = WindTexture.hetki != null
+          ? WindTexture.hetki : _tlTimeAt(State.currentHourIdx);
+        if (!hetki || !Saalaatat.asetaHetki(hetki)) return null;
+        Saalaatat.asetaKentta(State.activeLayer);
+        const dStep = (typeof ViewportGrid !== 'undefined')
+          ? ViewportGrid.kaytettyStep(zoom) : 0.25;
+        /* Solmuhila kattaa tekstuurin ja kaksi solmua yli kummallakin
+           reunalla, koska kuubinen ydin lukee j−1 … j+2. */
+        const M = 2;
+        const gc = Math.ceil(lngSpan / dStep) + 1 + 2 * M;
+        const gr = Math.ceil(latSpan / dStep) + 1 + 2 * M;
+        if (gc < 4 || gr < 4 || gc * gr > 400000) return null;
+        const gu = new Float32Array(gc * gr), gv = new Float32Array(gc * gr);
+        const la0 = laMin - M * dStep, lo0 = loMin - M * dStep;
+        const puuttuu = Saalaatat.kokoaHila(la0, lo0, dStep, dStep, gc, gr, gu, gv, dStep);
+        /* Yli puolet solmuista ilman dataa: varasto ei kata tätä näkymää,
+           ja sironnut polku osaa yhä käyttää sen mitä on. */
+        if (puuttuu > gc * gr * 0.5) return null;
+        return { gu, gv, gc, gr, la0, lo0, dStep };
+      })();
+
+      /* Catmull-Rom -painot yhdelle akselille. Kanta summautuu ykköseksi,
+         ja se on separoituva: x-painot riippuvat VAIN sarakkeesta.
+         Siksi ne lasketaan kerran sarakkeelle eikä kerran texelille —
+         tekstuurissa on satoja tuhansia texeleitä mutta vain satoja
+         sarakkeita. */
+      function crPainot(t, ulos, k) {
+        const t2 = t * t, t3 = t2 * t;
+        ulos[k]     = 0.5 * (-t + 2 * t2 - t3);
+        ulos[k + 1] = 0.5 * (2 - 5 * t2 + 3 * t3);
+        ulos[k + 2] = 0.5 * (t + 4 * t2 - 3 * t3);
+        ulos[k + 3] = 0.5 * (-t2 + t3);
+      }
+
+      function buildHila() {
+        const gu = hilaPolku.gu, gv = hilaPolku.gv;
+        const gc = hilaPolku.gc, gr = hilaPolku.gr;
+        const la0 = hilaPolku.la0, lo0 = hilaPolku.lo0, dStep = hilaPolku.dStep;
+        const cols = self.cols, rows = self.rows;
+        const uD = self.uData, vD = self.vData, msD = self.msData;
+
+        /* Sarakkeiden ankkurit ja painot kerralla. */
+        const sx = new Int32Array(cols), sw = new Float32Array(cols * 4);
+        for (let c = 0; c < cols; c++) {
+          const fx = (loMin + c * lngStep - lo0) / dStep;
+          let i = Math.floor(fx);
+          if (i < 1) i = 1; else if (i > gc - 3) i = gc - 3;
+          sx[c] = i - 1;
+          crPainot(fx - i, sw, c * 4);
+        }
+        const py = new Float32Array(4);
+        /* Tekstuurin rivit ovat tasavälein MERCATOR-y:ssä, joten rivin
+           leveysaste tulee käänteismuunnoksesta — ei tasavälein
+           asteissa. Sarakkeet ovat tasavälein pituuspiirissä. */
+        for (let r = 0; r < rows; r++) {
+          const la = ymercInv(self.myMax - r * myStep);
+          const fy = (la - la0) / dStep;
+          let j = Math.floor(fy);
+          if (j < 1) j = 1; else if (j > gr - 3) j = gr - 3;
+          crPainot(fy - j, py, 0);
+          const y0 = py[0], y1 = py[1], y2 = py[2], y3 = py[3];
+          const b0 = (j - 1) * gc, b1 = b0 + gc, b2 = b1 + gc, b3 = b2 + gc;
+          const rivi = r * cols;
+          for (let c = 0; c < cols; c++) {
+            const i0 = sx[c], k = c * 4;
+            const a0 = sw[k], a1 = sw[k+1], a2 = sw[k+2], a3 = sw[k+3];
+            const p0 = b0 + i0, p1 = b1 + i0, p2 = b2 + i0, p3 = b3 + i0;
+            const u =
+              (gu[p0]*a0 + gu[p0+1]*a1 + gu[p0+2]*a2 + gu[p0+3]*a3) * y0 +
+              (gu[p1]*a0 + gu[p1+1]*a1 + gu[p1+2]*a2 + gu[p1+3]*a3) * y1 +
+              (gu[p2]*a0 + gu[p2+1]*a1 + gu[p2+2]*a2 + gu[p2+3]*a3) * y2 +
+              (gu[p3]*a0 + gu[p3+1]*a1 + gu[p3+2]*a2 + gu[p3+3]*a3) * y3;
+            const v =
+              (gv[p0]*a0 + gv[p0+1]*a1 + gv[p0+2]*a2 + gv[p0+3]*a3) * y0 +
+              (gv[p1]*a0 + gv[p1+1]*a1 + gv[p1+2]*a2 + gv[p1+3]*a3) * y1 +
+              (gv[p2]*a0 + gv[p2+1]*a1 + gv[p2+2]*a2 + gv[p2+3]*a3) * y2 +
+              (gv[p3]*a0 + gv[p3+1]*a1 + gv[p3+2]*a2 + gv[p3+3]*a3) * y3;
+            const ms = Math.sqrt(u * u + v * v);
+            const idx = rivi + c;
+            uD[idx] = u; vD[idx] = v; msD[idx] = ms;
+            let li = (ms * 10 + 0.5) | 0;
+            d32[idx] = lut[li > 200 ? 200 : li];
+          }
+        }
+        self.ctx.putImageData(img, 0, 0);
+        resolve();
+      }
+
       function buildAll() {
         /* 1) idw() vain harvan hilan solmuissa */
         const gc = Math.floor((self.cols - 1) / STEP) + 2;  /* +1 solmu reunan yli */
@@ -6294,7 +6716,14 @@ const WindTexture = {
       }
       /* Harvennuksen jälkeen työ on murto-osa entisestä, joten setTimeout-
          pilkkomista tarvitaan vasta selvästi isommilla tekstuureilla. */
-      if (n / (STEP * STEP) < 40000) buildAll(); else setTimeout(buildAll, 0);
+      /* Hilapolku ei harvenna, joten se merkitsee tekstuurin tarkaksi.
+         Muuten `moveend` jäisi luulemaan että tarkka versio on velkaa ja
+         rakentaisi saman uudelleen. */
+      if (hilaPolku) {
+        this.askel = 1;
+        if (n < 400000) buildHila(); else setTimeout(buildHila, 0);
+      } else if (n / (STEP * STEP) < 40000) buildAll();
+      else setTimeout(buildAll, 0);
     });
   },
 
@@ -7699,13 +8128,34 @@ function _lerpWind(ms0, dir0, ms1, dir1, f) {
  *
  * Välimuisti asuu itse hourly-oliossa, joten se katoaa luonnostaan kun data
  * korvataan uudella hausta. Mitattuna haku 8,7 ms -> 0,52 ms. */
+/* Aikaleimat muistetaan TAULUKON eikä hourly-olion perusteella.
+ *
+ * Muisti asui `hourly`-oliossa, ja rajapintadatalla se oli oikein: jokainen
+ * piste saa oman `time`-taulukkonsa, joten olio ja taulukko ovat yksi yhteen.
+ *
+ * Säälaatoilla ne EIVÄT ole. `Saalaatat.wx()` palauttaa uuden `hourly`-olion
+ * joka pisteelle, mutta `time` osoittaa kaikilla samaan jaettuun
+ * `_ajat`-taulukkoon. Muisti ei siis osunut kertaakaan, ja jokainen piste
+ * jäsensi samat 99 ISO-merkkijonoa uudelleen. Mitattuna uloimmassa
+ * näkymässä (3 400 pistettä) se oli 337 000 `new Date()` -kutsua ja
+ * `buildWindField` 84 ms — lämpimänä sama työ on 3,9 ms.
+ *
+ * WeakMap taulukon päällä korjaa molemmat tapaukset yhdellä säännöllä:
+ * sama taulukko -> sama tulos, eikä mikään jää roikkumaan muistiin kun
+ * data korvataan. Olioon jäävä `__ts` on yhä nopea tie, jotta yleisin
+ * kutsu ei koske WeakMappiin lainkaan. */
+const _tsMuisti = new WeakMap();
 function _ts(h) {
-  if (!h.__ts || h.__ts.length !== h.time.length) {
-    const n = h.time.length, a = new Float64Array(n);
+  if (h.__ts && h.__ts.length === h.time.length) return h.__ts;
+  let a = _tsMuisti.get(h.time);
+  if (!a || a.length !== h.time.length) {
+    const n = h.time.length;
+    a = new Float64Array(n);
     for (let i = 0; i < n; i++) a[i] = new Date(h.time[i]).getTime();
-    h.__ts = a;
+    _tsMuisti.set(h.time, a);
   }
-  return h.__ts;
+  h.__ts = a;
+  return a;
 }
 
 function buildWindField(hourIdx, opts) {
@@ -7713,8 +8163,26 @@ function buildWindField(hourIdx, opts) {
   const all = ViewportGrid.getAllPoints();
   const layer = State.activeLayer;
   const targetTime = _tlTimeAt(hourIdx);
+  /* Hetki tekstuurille. Sitä EI voi päätellä State.currentHourIdx:stä,
+     koska play ja aikajanan raahaus kutsuvat tätä murtoluvulla joka ei
+     ole vielä vahvistettu valinnaksi. */
+  WindTexture.hetki = targetTime;
+  /* Laattapisteiden nopea tie. `p.laatta` on hilaväli jolla piste
+     löytyi varastosta; sarjaa ei ole materialisoitu, koska kenttä
+     tarvitsee vain yhden hetken (ks. Saalaatat.naytteista). */
+  const laattaKaytossa = !!(targetTime && typeof Saalaatat !== 'undefined'
+    && Saalaatat.kaytossa() && Saalaatat.asetaHetki(targetTime));
+  if (laattaKaytossa) Saalaatat.asetaKentta(layer);
   for (let i = 0; i < all.length; i++) {
     const pt = all[i];
+    if (pt.laatta && !pt.wx) {
+      if (!laattaKaytossa) continue;
+      if (!Saalaatat.naytteista(pt.lat, pt.lng, pt.laatta)) continue;
+      const u = Saalaatat._nU, v = Saalaatat._nV;
+      State.windField.push({ lat: pt.lat, lng: pt.lng, u, v,
+        ms: Math.sqrt(u * u + v * v), marine: isMarine(pt.lat, pt.lng) });
+      continue;
+    }
     if (!pt.wx || !pt.wx.hourly) continue;
     const h = pt.wx.hourly;
     let ms, dir;
@@ -12257,13 +12725,30 @@ function bestTimelineRef() {
     }
   }
   if (best) return best;
+  let laattaEhdokas = null;
   for (const p of ViewportGrid.getAllPoints()) {
     if (p.wx && p.wx.hourly && p.wx.hourly.windspeed_10m) {
       const len = p.wx.hourly.windspeed_10m.length;
       if (len > bestLen) { bestLen = len; best = p; }
-    }
+    } else if (!laattaEhdokas && p.laatta) laattaEhdokas = p;
   }
-  return best;
+  if (best) return best;
+  /* Viimeinen keino: laattapiste, sarja materialisoituna.
+   *
+   * Ilman tätä aikajana — ja sen mukana koko kenttä — jää rakentumatta
+   * jos rajapintaa ei saada lainkaan: `_tlTimes` tulee tästä
+   * funktiosta, ja ilman aikajanaa `_tlTimeAt()` palauttaa nullin eikä
+   * `buildWindField` osaa poimia hetkeä. Aiemmin tätä ei tarvittu,
+   * koska laattapisteillä OLI sarja valmiina.
+   *
+   * Spotti voittaa yhä aina kun sellainen on: sen sarja on tunnin
+   * välein 16 vuorokautta (384 alkiota), laatan 3–6 tunnin välein
+   * (99). Tämä haara ajetaan vain kun yhtäkään ei ole. */
+  if (laattaEhdokas) {
+    const wx = Saalaatat.wx(laattaEhdokas.lat, laattaEhdokas.lng, laattaEhdokas.laatta);
+    if (wx) { laattaEhdokas.wx = wx; return laattaEhdokas; }
+  }
+  return null;
 }
 
 /* Returns the loaded data point closest to the map center — no API calls */
@@ -12273,10 +12758,18 @@ function nearestPointToCenter() {
   let best = null, bestDist = Infinity;
   const candidates = [...SPOTS, ...ViewportGrid.getAllPoints()];
   for (const p of candidates) {
-    if (!p.wx || !p.wx.hourly || !p.wx.hourly.windspeed_10m) continue;
+    /* Laattapisteellä ei ole sarjaa ennen kuin se valitaan. Ilman tätä
+       ehtoa aikajana putoaisi lähimpään SPOTTIIN heti kun kartta on
+       laattadatan varassa — Sydneyssä se olisi Suomessa. */
+    if (!p.laatta && (!p.wx || !p.wx.hourly || !p.wx.hourly.windspeed_10m)) continue;
     const dlat = p.lat - c.lat, dlng = p.lng - c.lng;
     const dist = dlat*dlat + dlng*dlng;
     if (dist < bestDist) { bestDist = dist; best = p; }
+  }
+  if (best && !best.wx && best.laatta) {
+    const wx = Saalaatat.wx(best.lat, best.lng, best.laatta);
+    if (!wx) return null;
+    best.wx = wx;
   }
   return best;
 }
@@ -13109,9 +13602,27 @@ function lahinEnnustepiste(center) {
   let paras = null, minD = Infinity;
   const cos2 = Math.cos(center.lat * Math.PI / 180) ** 2;
   for (const pt of pisteet) {
-    if (!pt.wx || !pt.wx.hourly) continue;
+    /* Laattapisteellä ei ole sarjaa ennen kuin se tarvitaan — mutta se
+       on yhtä lailla ennustepiste, ja jos se ohitettaisiin tässä,
+       lähdemerkintä ja puuska lukisivat lähimmän RAJAPINTApisteen joka
+       voi olla toisella mantereella (juuri se Sydney-vika jonka takia
+       etäisyysraja aikanaan lisättiin). */
+    if (!pt.laatta && (!pt.wx || !pt.wx.hourly)) continue;
     const d = (center.lat - pt.lat) ** 2 + (center.lng - pt.lng) ** 2 * cos2;
     if (d < minD) { minD = d; paras = pt; }
+  }
+  /* Vasta voittaja materialisoidaan. Koko sarjaa tarvitsee tasan yksi
+     piste kerrallaan, ja tulos jää pisteeseen, joten seuraava kutsu
+     samaan pisteeseen on ilmainen. */
+  if (paras && !paras.wx && paras.laatta) {
+    const wx = Saalaatat.wx(paras.lat, paras.lng, paras.laatta);
+    if (wx) paras.wx = wx;
+    else {
+      /* Laatta on pudonnut LRU:sta. Piste ei kelpaa lukemaksi tällä
+         kierroksella; ei muisteta, jotta seuraava yritys onnistuu kun
+         laatta on taas ladattu. */
+      return null;
+    }
   }
   _lahinKehe = { avain: avain, pt: paras };
   return paras;
@@ -14409,6 +14920,25 @@ async function main() {
   Promise.allSettled([spotsP, viewportP]).then(() => {
     const ref = bestTimelineRef();
     if (ref) {
+      /* Aikajana voi olla yhä rakentamatta: spotsP-haara ajetaan ennen
+         kuin näkymän lataus on valmis, ja jos spotteja ei saatu
+         lainkaan, `bestTimelineRef` palautti silloin nullin. Näkymän
+         latauksen jälkeen laattapisteitä ON, ja niistä saa aikajanan.
+         Ilman tätä kartta jää tyhjäksi tilanteessa jossa säälaatat
+         toimivat mutta rajapinta ei — juuri se tilanne jota varten
+         varasto on olemassa.
+         `_tlTimes` on totuus siitä onko jana olemassa; `renderTimeline`
+         asettaa sen. */
+      if (!State._tlTimes || !State._tlTimes.length) {
+        const h = ref.wx.hourly;
+        const ni0 = nowIdx(h.time);
+        State.currentHourIdx = ni0;
+        State._lastTlHour = ni0;
+        const layer0 = State.activeLayer;
+        const sp0 = layer0 === 'gust' ? (h.windgusts_10m || h.windspeed_10m) : h.windspeed_10m;
+        renderTimeline(h.time, sp0, h.winddirection_10m, ni0);
+        hideLoading();
+      }
       const ni = State.currentHourIdx;
       buildWindField(ni).then(() => { drawColorField(); resetParticles(); });
       renderSpots(ni);
@@ -14442,6 +14972,23 @@ const _loadingSafety = setTimeout(() => {
   try {
     if (!/[?&]perf=1\b/.test(location.search)) return;
   } catch (e) { return; }
+
+  /* Moduulit näkyviin mittausta varten.
+   *
+   * Kaikki sovelluksen moduulit ovat saman skriptilohkon const-sidoksia,
+   * eli selaimen konsolista tai automaattisesta testistä niihin ei pääse
+   * käsiksi lainkaan. Se tekee juuri sen tarkistuksen mahdottomaksi jota
+   * CLAUDE.md vaatii ("lataa sivu selaimessa — buildin läpimeno ei ole
+   * todiste mistään"): sivu voi näyttää oikealta samalla kun kenttä on
+   * tyhjä tai tekstuuri väärässä tarkkuudessa.
+   *
+   * Tämä on saman ?perf=1-portin takana kuin koko paneeli, joten
+   * tuotantopolussa globaaliin nimiavaruuteen ei viedä mitään. */
+  try {
+    window.FS = { State: State, WindTexture: WindTexture, Saalaatat: Saalaatat,
+      ViewportGrid: ViewportGrid, ColorRamp: ColorRamp, PerfTracker: PerfTracker,
+      buildWindField: buildWindField, idw: idw };
+  } catch (e) {}
 
   var worstEver = 0;
   var el = document.createElement('div');
