@@ -4473,3 +4473,74 @@ joka palauttaa tavoitteen `nParticlesBase()`:iin. Määrää ei siis voi
 pyyhkäistä asettamalla `_targetParticles` ja kutsumalla `resetParticles`
 — jälkimmäinen kumoaa edellisen. Pyyhkäisyssä on ylikirjoitettava
 `PerfTracker.getTarget`.
+
+## Kolme jatkokorjausta: heitto, lähizoomin terävyys, tiheys
+
+### Heitto lensi rajattomasti
+
+Leafletin `inertiaMaxSpeed` on oletuksena **ääretön**. Heiton pituus on
+`v² / (2 · inertiaDeceleration · easeLinearity)`, näillä arvoilla
+`v²/1360`:
+
+```
+1000 px/s ->   735 px    (1,7 ruutua)
+2000 px/s ->  2941 px    (6,9 ruutua)
+3000 px/s ->  6618 px   (15,5 ruutua)
+```
+
+Uloimmassa näkymässä yksi ruutu on noin 47 astetta, joten kolmen ruudun
+heitto vie kartan toiselle mantereelle. Katto on nyt **900 px/s ulkona ja
+1500 px/s lähellä** (596 px / 1654 px heitto) — ruutuina eikä asteina,
+koska tunne on ruudun mittainen.
+
+**Pystysuunnassa kartan sai vedettyä kokonaan pois ruudulta.** Mitattuna
+`panBy(0, -3000)` vei keskipisteen 89,8 asteeseen ja jätti ruudun yläosaan
+tyhjää. `maxBounds` ±85° pysäyttää sen; pituuspiirin raja on
+tarkoituksella löysä (±720°), koska `worldCopyJump` kelaa vaakasuunnassa
+maailman ympäri eikä sitä saa estää.
+
+### Lähizoomissa 90 % tekstuurista oli ruudun ulkopuolella
+
+Pehmuste oli `Math.max(vLat, vLng)` **molemmille akseleille**. Pystysuoralla
+puhelimella vLat on noin kaksi kertaa vLng, joten pituuspiirin pehmuste oli
+kaksinkertainen tarpeeseen nähden — ja pehmuste oli kokonaisen näkymän
+mittainen kumpaankin suuntaan, jolloin tekstuuri kattoi **9,5-kertaisen
+pinta-alan**. Ruudulla näkyi siis noin kymmenesosa texeleistä.
+
+Pehmuste on nyt akseleittain ja 0,6 näkymää. Raja tulee peittotarkistuksesta:
+se laukaisee uuden rakennuksen 0,35 näkymän marginaalilla, joten pelivaraa
+jää 0,25 näkymää ennen kuin reuna tulee vastaan. Pienempi pehmuste alkaisi
+rakentaa uudestaan kesken tavallisen vierityksen.
+
+Samalla lähizoomin texelbudjetti nostettiin, koska se on siellä
+mitattuna halvin: datapisteitä on vähän (z9 56 kpl, z12 36 kpl), joten
+idw-solmu on nopea.
+
+```
+             texel ennen   texel nyt   rakennus (4x)
+uloin          2,49 px      2,49 px      238 ms
+z5             2,56         2,31          63 ms
+z7             5,83         3,39          89 ms
+z9             5,88         3,38          41 ms
+z12            5,90         3,38          29 ms
+```
+
+Lähizoomin texel pieneni **42 %**, ja sumennus sen mukana 12 px → 7 px.
+
+### Tiheys zoomin mukaan — tietoinen poikkeus sääntöön
+
+`nParticlesBase` sanoo että partikkelimäärä on **ruudun pinta-alasta, ei
+zoomista**. Sääntö on yhä oikea siinä mitä varten se tehtiin: tiheys ei saa
+vaihdella sen mukaan kuinka ison maa-alueen ruutu kattaa.
+
+Mutta lähellä kenttä on lähes tasainen — koko ruudulla on käytännössä yksi
+tuulen suunta ja nopeus — ja silloin sama tiheys ei lue virtauksena vaan
+sotkuna kartan päällä. Kaukana taas jokainen jälki kertoo eri asiaa.
+
+```
+uloin  401    z7 341 (×0,85)    z9 281 (×0,70)    z11+ 221 (×0,55)
+```
+
+**Kerroin on luettavuudesta, ei suorituskyvystä.** Sivuvaikutuksena
+lähizoomi on halvempi, mutta se ei ole syy — jos sen kirjaa
+suorituskykysäädöksi, seuraava lukija optimoi sen pois väärästä syystä.

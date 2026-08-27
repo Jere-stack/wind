@@ -4944,7 +4944,32 @@ function initMap() {
     /* minZoom on VAIN VARA-ARVO. Todellinen uloin raja lasketaan
        ikkunan korkeudesta heti kartan luonnin jälkeen, ks. uloinZoom(). */
     minZoom: 2, maxZoom: 16, preferCanvas: true, zoomSnap: 0, zoomDelta: 0.5,
-    worldCopyJump: true, doubleClickZoom: false, tap: false, tapTolerance: 15
+    worldCopyJump: true, doubleClickZoom: false, tap: false, tapTolerance: 15,
+    /* ── HEITON RAJAT ────────────────────────────────────────────
+     *
+     * Leafletin oletus `inertiaMaxSpeed` on ÄÄRETÖN. Heiton pituus on
+     * `v² / (2 · hidastuvuus · easeLinearity)` eli näillä arvoilla
+     * `v²/1360`, joten nopea sormi lentää:
+     *
+     *     1000 px/s ->   735 px       (1,7 ruutua)
+     *     2000 px/s ->  2941 px       (6,9 ruutua)
+     *     3000 px/s ->  6618 px      (15,5 ruutua)
+     *
+     * Uloimmassa näkymässä yksi ruutu on noin 47 astetta, joten
+     * kolmen ruudun heitto vie kartan toiselle mantereelle — juuri se
+     * "villi liike" jonka pari nopeaa vetoa aiheuttaa. Katto on
+     * ruutuina eikä asteina, koska tunne on ruudun mittainen; arvo
+     * päivitetään zoomin mukana (ks. paivitaHeittoRaja).
+     *
+     * maxBounds pysäyttää pystysuunnan napoihin. Ilman sitä kartan sai
+     * vedettyä kokonaan pois ruudulta: mitattuna `panBy(0,-3000)` vei
+     * keskipisteen 89,8 asteeseen ja ruudun yläosaan jäi tyhjää.
+     * Pituuspiirin raja on tarkoituksella löysä (±720°), koska
+     * `worldCopyJump` kelaa vaakasuunnassa maailman ympäri eikä sitä saa
+     * estää. */
+    inertiaMaxSpeed: 900,
+    maxBounds: [[-85, -720], [85, 720]],
+    maxBoundsViscosity: 1.0
   });
 
   /* Pohjakartta: Esri Dark Gray Canvas.
@@ -5175,6 +5200,17 @@ function initMap() {
   }
   paivitaUloinZoom();
   map.on('resize', paivitaUloinZoom);
+
+  /* Heiton katto zoomin mukaan. Ulompana sama pikselimäärä on
+     moninkertainen matka maastossa, ja siellä myös eleet ovat
+     karkeampia — siksi katto on tiukempi. Lähellä hieman löysempi,
+     jotta kartan selaaminen tuntuu yhä vapaalta. */
+  function paivitaHeittoRaja() {
+    const z = map.getZoom();
+    map.options.inertiaMaxSpeed = z <= 5 ? 900 : 1500;
+  }
+  paivitaHeittoRaja();
+  map.on('zoomend', paivitaHeittoRaja);
 
   State.map = map;
   _addObsMarkers(map);
@@ -6005,8 +6041,12 @@ const WindTexture = {
        Texel on 75 000:lla 2,5 CSS px eli yha selvasti sumennuksen
        (4 px) alle, joten kuva ei muutu — vain aika. */
     if (zoom <= 4) return mobiili ?  75000 : 110000;
-    if (zoom <= 6) return mobiili ?  90000 : 130000;
-    return mobiili ? 110000 : 200000;
+    if (zoom <= 6) return mobiili ? 110000 : 150000;
+    /* Lähellä budjetti on suurin, koska siellä se on mitattuna halvin:
+       datapisteitä on vähän (z9 56 kpl, z12 36 kpl), joten idw-solmu on
+       nopea. Yhdessä pienemmän pehmusteen kanssa tämä vie texelin
+       5,88 pikselistä noin kolmeen. */
+    return mobiili ? 170000 : 260000;
   },
   /* Tavoite: yksi texel noin kaksi CSS-pikseliä. Sen alle ei kannata
      mennä, koska päälle ajetaan vielä sumennus. */
@@ -6114,11 +6154,29 @@ const WindTexture = {
            tekstuuri kasvaa kohtuuttomaksi. */
         const vLat = viewportBounds.getNorth() - viewportBounds.getSouth();
         const vLng = viewportBounds.getEast() - viewportBounds.getWest();
-        const vPad = zoom <= 5 ? 2 : Math.max(vLat, vLng);
-        laMin = Math.max(-85, viewportBounds.getSouth() - vPad);
-        laMax = Math.min(85, viewportBounds.getNorth() + vPad);
-        loMin = viewportBounds.getWest() - vPad;
-        loMax = viewportBounds.getEast() + vPad;
+        /* Pehmuste AKSELEITTAIN ja osuutena näkymästä.
+         *
+         * Ennen molemmat akselit saivat saman `Math.max(vLat, vLng)`
+         * -pehmusteen. Pystysuoralla puhelimella vLat on noin kaksi
+         * kertaa vLng, joten pituuspiirin pehmuste oli kaksinkertainen
+         * siihen nähden mitä vieritys tarvitsee — ja koko pehmuste oli
+         * yhden näkymän mittainen kumpaankin suuntaan, eli tekstuuri
+         * kattoi 9,5-kertaisen pinta-alan. Mitattuna z9:llä ruudulla
+         * näkyi siis vain noin kymmenesosa texeleistä, ja yksi texel oli
+         * 5,88 CSS px. Juuri se on lähizoomin pehmeys.
+         *
+         * 0,6 näkymää on valittu peittotarkistuksen mukaan: se laukaisee
+         * uuden rakennuksen 0,35 näkymän marginaalilla, joten pelivaraa
+         * jää 0,25 näkymää ennen kuin reuna tulee vastaan. Pienempi
+         * pehmuste alkaisi rakentaa uudestaan kesken tavallisen
+         * vierityksen. */
+        const PEHMUSTE = 0.6;
+        const pLat = zoom <= 5 ? 2 : vLat * PEHMUSTE;
+        const pLng = zoom <= 5 ? 2 : vLng * PEHMUSTE;
+        laMin = Math.max(-85, viewportBounds.getSouth() - pLat);
+        laMax = Math.min(85, viewportBounds.getNorth() + pLat);
+        loMin = viewportBounds.getWest() - pLng;
+        loMax = viewportBounds.getEast() + pLng;
       } else {
         laMin = -60; laMax = 70; loMin = -180; loMax = 180;
       }
@@ -6467,7 +6525,26 @@ function nParticlesBase() {
   /* Asetuspaneelin kerroin (1 / 0.45 / 0) tulee VASTA alarajan jälkeen.
      Toisin päin 60:n alaraja söisi "vähän"-asetuksen kokonaan pienellä
      ruudulla, ja "pois" palauttaisi 60 partikkelia. */
-  return Math.round(perus * Asetukset.partikkeliKerroin());
+  return Math.round(perus * Asetukset.partikkeliKerroin() * partikkeliZoomKerroin());
+}
+/* Tiheys ZOOMIN mukaan — ja tämä on tietoinen poikkeus siihen sääntöön
+   että partikkelimäärä on ruudun pinta-alasta eikä zoomista.
+ *
+ * Sääntö on yhä oikea siinä mitä varten se tehtiin: tiheys ei saa
+ * vaihdella sen mukaan kuinka ison MAA-ALUEEN ruutu kattaa. Mutta
+ * lähellä kenttä on lähes tasainen — koko ruudulla on käytännössä yksi
+ * tuulen suunta ja nopeus — ja silloin sama tiheys ei lue virtauksena
+ * vaan sotkuna kartan päällä. Kaukana taas jokainen jälki kertoo eri
+ * asiaa ja tiheys on se mikä tekee kentästä luettavan.
+ *
+ * Kerroin on siis luettavuudesta, ei suorituskyvystä. Sivuvaikutuksena
+ * lähizoomi on halvempi, mutta se ei ole syy. */
+function partikkeliZoomKerroin() {
+  const z = State.map ? State.map.getZoom() : 6;
+  if (z >= 11) return 0.55;
+  if (z >= 9)  return 0.70;
+  if (z >= 7)  return 0.85;
+  return 1;
 }
 function nParticles() { return PerfTracker.getTarget(); }
 /* Yksi kysymys kahdelle kytkimelle: mittauskytkin (?perf=1) ja
