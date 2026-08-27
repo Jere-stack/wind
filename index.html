@@ -3378,12 +3378,36 @@ const ViewportGrid = {
   _loadAbort: null,      /* nykyisen viewport-latauksen AbortController */
   _loadGeneration: 0,    /* kasvava tunniste — vanhentuneet lataukset hylätään tällä */
 
+  /* Hilaväli zoomin mukaan.
+   *
+   * Nämä TIHENIVÄT kun uloin zoom rajattiin mannerten mittakaavaan: kun
+   * koko palloa ei enää näytetä, leveä näkymä kattaa niin pienen alueen
+   * että tiheämpi hila kannattaa. Mitattuna tunnettua kenttää vasten
+   * (RMS m/s, 4x kuristus, uloin näkymä z3,67):
+   *
+   *      hila      uloin        z5
+   *      2,5°   0.27 / 158ms  0.32 / 21ms    <- vanha
+   *      1,25°  0.11 /  39ms  0.10 / 50ms
+   *      1,0°   0.08 /  56ms  0.07 / 35ms
+   *      0,5°   0.05 / 127ms  0.03 / 42ms
+   *
+   * 1,25° ja 1,0° osuvat molemmat laattatasoon l2 (1°), joten ne
+   * hakevat TÄSMÄLLEEN samat laatat — ero on pelkkää interpolointia
+   * eikä yhtään lisätavua verkosta. 0,5° vaatisi l1:n, joka kattaa vain
+   * Pohjois-Euroopan, eikä sen tuoma 0.06 m/s ole kolminkertaisen
+   * rakennusajan arvoinen.
+   *
+   * VAROITUS mittaamiseen: `WindTexture.build` rakentaa SpatialIndexin
+   * uudestaan arvolla `kaytettyStep(zoom)`, joten pelkkä
+   * `SpatialIndex.build(kentta, hila)` testissä EI riitä — se
+   * ylikirjoitetaan ja idw:n tukisäde jää vanhaan. Silloin pyyhkäisy
+   * näyttää tasaiselta ja johtopäätös on "tiheämpi ei auta", mikä on
+   * väärin. Testin on korvattava `ViewportGrid.gridStep`. */
   gridStep(zoom) {
-    if (zoom <= 3) return 5;    /* globaali */
-    if (zoom <= 5) return 2.5;  /* Itämeri-taso */
-    if (zoom <= 7) return 1.0;  /* Suomi-taso */
-    if (zoom <= 9) return 0.5;  /* alue-taso */
-    return 0.25;                /* paikallinen */
+    if (zoom <= 4) return 1.25;  /* uloin näkymä — l2-laatat */
+    if (zoom <= 7) return 1.0;   /* Itämeri / Suomi — l2 */
+    if (zoom <= 9) return 0.5;   /* alue-taso — l1 */
+    return 0.25;                 /* paikallinen — l0, ECMWF:n oma hila */
   },
   _tileKey(lat, lng) {
     const d = this.TILE_DEG;
@@ -3504,7 +3528,7 @@ const ViewportGrid = {
    * kattaa valtavan leveysastevälin. Sama raja koskee jokaista
    * tasavälistä Mercator-rasteria. */
   KATTO: 600,
-  KATTO_LAATTA: 1600,
+  KATTO_LAATTA: 3400,
   katto() {
     return (typeof Saalaatat !== 'undefined' && Saalaatat.kaytossa())
       ? this.KATTO_LAATTA : this.KATTO;
@@ -4903,6 +4927,8 @@ function initMap() {
      * siisteinä askelina. Kaikki zoomista riippuva logiikka haarukoi
      * välejä (ViewportGrid.gridStep, ikonikoot, _windIconSig), joten
      * murtolukuzoom ei riko välimuisteja. */
+    /* minZoom on VAIN VARA-ARVO. Todellinen uloin raja lasketaan
+       ikkunan korkeudesta heti kartan luonnin jälkeen, ks. uloinZoom(). */
     minZoom: 2, maxZoom: 16, preferCanvas: true, zoomSnap: 0, zoomDelta: 0.5,
     worldCopyJump: true, doubleClickZoom: false, tap: false, tapTolerance: 15
   });
@@ -5090,6 +5116,52 @@ function initMap() {
     };
   })();
 
+  /* ── ULOIN NÄKYMÄ ────────────────────────────────────────────────
+   *
+   * Koko maailman näyttäminen ei ole tälle sovellukselle hyödyllinen
+   * tila. z2:ssa yksi tekstuuririvi kattaa navoilla kymmeniä asteita,
+   * datahila on 5°, ja kenttä on väistämättä epätarkka juuri siellä
+   * missä sitä katsotaan kokonaisuutena (ks. "Kuinka tarkka kenttä
+   * oikeasti on"). Windy tekee saman ratkaisun: sielläkään ei pääse
+   * koko palloon vaan zoom pysähtyy mannerten mittakaavaan.
+   *
+   * Raja on LEVEYSASTEVÄLISSÄ eikä kiinteässä zoom-luvussa, koska sama
+   * zoom näyttää eri määrän eri kokoisilla ruuduilla. Uloimmillaan
+   * näkyy Suomen pohjoisin piste ja päiväntasaajan eteläpuoli — sama
+   * rajaus kuin esikuvassa.
+   *
+   * Lasketaan Mercator-osuutena: koko maailman korkeus zoomilla z on
+   * 256·2^z pikseliä, joten näkymän on katettava vähintään haluttu
+   * osuus siitä. Uudelleen jokaisella koon muutoksella, koska
+   * kääntäminen vaakatasoon puolittaa korkeuden. */
+  const ULOIN_POHJOINEN = 70.1;   /* Nuorgam, Suomen pohjoisin piste */
+  const ULOIN_ETELA     = -3;     /* päiväntasaajan eteläpuoli */
+  function uloinZoom() {
+    const h = map.getSize().y;
+    if (!(h > 0)) return 3;
+    const osuus = Math.abs(ymerc(ULOIN_POHJOINEN) - ymerc(ULOIN_ETELA)) / (2 * Math.PI);
+    let z = Math.log2(h / (256 * osuus));
+    /* Vaaka-asennossa korkeus puolittuu, jolloin sama leveysasteväli
+       vaatisi niin paljon ulos zoomausta että vaakasuunnassa näkyisi koko
+       maailma. Toinen ehto rajaa pituuspiirin puoleen palloon: kumpi
+       tahansa ehdoista sitoo, tiukempi voittaa. */
+    const w = map.getSize().x;
+    if (w > 0) z = Math.max(z, Math.log2(w / 128));
+    /* Katto siltä varalta että ikkuna on hyvin korkea — muuten kartta
+       lukittuisi tarpeettoman lähelle. */
+    return Math.max(2.5, Math.min(5.5, z));
+  }
+  function paivitaUloinZoom() {
+    const z = uloinZoom();
+    if (Math.abs((map.getMinZoom() || 0) - z) < 0.01) return;
+    map.setMinZoom(z);
+    /* setMinZoom ei itse siirrä karttaa jos ollaan jo rajan alapuolella
+       — esimerkiksi kun ikkuna kavennetaan pystyyn. */
+    if (map.getZoom() < z) map.setZoom(z);
+  }
+  paivitaUloinZoom();
+  map.on('resize', paivitaUloinZoom);
+
   State.map = map;
   _addObsMarkers(map);
 
@@ -5260,7 +5332,12 @@ function initMap() {
        * Ennen tätä loadGlobalCoarse oli kuollutta koodia — sen ainoa
        * kutsupaikka oli mallivalitsimessa, joka on nyt poistettu, eikä
        * käynnistys ole koskaan kutsunut sitä. */
-      if (map.getZoom() <= 5) {
+      /* Vain varatienä. Laattavaraston kanssa tämä on turhaa työtä:
+         näkymän oma haku lukee samat laatat ja on yhtä nopea, ja uloin
+         zoom on nyt mannerten mittakaavassa eikä koko pallossa — 15
+         asteen tukihilalle ei ole enää käyttöä. Se myös sekoittaisi
+         2,5 asteen hilan sekaan yksittäisiä hyvin kaukaisia pisteitä. */
+      if (map.getZoom() <= 5 && !Saalaatat.kaytossa()) {
         ViewportGrid.loadGlobalCoarse()
           .then(() => { ViewportGrid.invalidateCache(); _rakennaKentta(); })
           .catch(() => {});
@@ -5889,7 +5966,13 @@ const WindTexture = {
    * koska siellä rajoite on datahila eikä tekstuuri — siksi keskimmäistä
    * porrasta ei kannata nostaa. */
   maxDim(zoom, mobiili) {
-    if (zoom <= 4) return mobiili ? 200 : 300;
+    /* Uloimmalla kaistalla 260: tiheamman hilan (1,25°) kanssa
+       tekstuurista tuli taas rajoite. Mitattuna uloimmassa nakymassa
+       hilalla 1,25°: maxDim 200 -> RMS 0.11 (39 ms), 260 -> 0.09
+       (60 ms), 340 -> 0.08 (93 ms). 260 on polvi.
+       z5-6 pysyy 200:ssa: siella sama pyyhkaisy antoi 0.07 kaikilla
+       arvoilla 200-340, eli rajoite on datahila eika tekstuuri. */
+    if (zoom <= 4) return mobiili ? 260 : 340;
     if (zoom <= 6) return mobiili ? 200 : 300;
     return mobiili ? 300 : 500;
   },
@@ -6282,7 +6365,14 @@ const PerfTracker = {
     this._lastAdj = ts;
     const fps = this.fps(), base = nParticlesBase();
     if (fps < 24 && this._targetParticles > 80) {
-      this._targetParticles = Math.max(80, Math.round(this._targetParticles * 0.7));
+      /* Leikkaus on SUHTEELLINEN siihen kuinka kaukana ruutunopeus on.
+         Kiintea 0,7 tarvitsi viidet kierrokset eli noin 15 sekuntia
+         ennen kuin maara asettui hitaalla laitteella — ja koko sen ajan
+         kuva nyki. Tavoitetta nostettiin, joten matka alas on nyt
+         pidempi ja askeleen on mukauduttava. 8 fps antaa kertoimen
+         0,35 ja maara puolittuu kahdesti yhdessa kierroksessa. */
+      const k = Math.max(0.35, Math.min(0.9, fps / 30));
+      this._targetParticles = Math.max(80, Math.round(this._targetParticles * k));
     } else if (fps > 50 && this._targetParticles < base) {
       this._targetParticles = Math.min(base, Math.round(this._targetParticles * 1.15));
     }
@@ -6309,7 +6399,12 @@ const PerfTracker = {
  * laitteilla tämä on yläraja eikä lupaus. */
 function nParticlesBase() {
   const ala = (State.vw || 390) * (State.vh || 844);
-  const perus = Math.max(60, Math.min(520, Math.round(ala / 1500)));
+  /* Tiheys nostettiin pyynnosta: jakaja 1500 -> 1000 ja katto 520 -> 800.
+     Puhelimen ruudulla (430x932) se on 267 -> 401 partikkelia. Yhdessa
+     ohuemman jaljen kanssa (ks. particleLineWidth) kuva on lahempana
+     sita tiheaa virtausta jota esikuvassa on. PerfTracker laskee maaraa
+     jos ruutunopeus ei kesta, joten katto on tavoite eika lupaus. */
+  const perus = Math.max(60, Math.min(800, Math.round(ala / 1000)));
   /* Asetuspaneelin kerroin (1 / 0.45 / 0) tulee VASTA alarajan jälkeen.
      Toisin päin 60:n alaraja söisi "vähän"-asetuksen kokonaan pienellä
      ruudulla, ja "pois" palauttaisi 60 partikkelia. */
@@ -6342,7 +6437,13 @@ function partikkelitPois() {
  * näyttää kartalla raskaalta. Tämä on tietoinen poikkeama mittauksesta
  * ulkoasun hyväksi eikä mittauksen unohtaminen. Määrä pysyy PerfTrackerin
  * lukemassa, joten ohennus ei mene liian harvan puolelle. */
-function particleLineWidth(ms) { return 2.15 + (ms / Config.MAX_MS) * 2.3; }
+/* Ohennettu toistamiseen pyynnosta: 2.15+2.3t -> 1.30+1.45t, eli
+   1,30-2,75 px entisen 2,15-4,45 px sijaan. Tama on TIETOINEN poikkeama
+   ylla mitatusta optimista: mittari maksimoi luettavuuden yhta
+   partikkelia kohti, mutta tiheassa kentassa paksu jalki peittaa
+   lampokartan alleen. Tiheys nostettiin samalla 1,8-kertaiseksi, joten
+   kokonaismuste pysyy samassa suuruusluokassa. */
+function particleLineWidth(ms) { return 1.30 + (ms / Config.MAX_MS) * 1.45; }
 
 const NIPUT = 10;   /* nopeusluokkia piirtoa varten */
 /* Ruutuprojektio: näkymän kulmat kerran, sitten kerto- ja yhteenlasku.
