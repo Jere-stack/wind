@@ -43,22 +43,56 @@ const SRC = { lat0: -90, lng0: -180, step: 0.25, ny: 721, nx: 1440 };
    joten laatan viimeinen rivi on naapurin ensimmäinen — reunalla ei ole
    saumaa jota interpolointi joutuisi arvaamaan.
 
-   Tiheät tasot vain sinne missä spotit ovat. Koko maailman 0,25° olisi
-   2 592 laattaa eli 290 MB; sitä ei tarvitse kukaan. Sovelluksen oma
-   hilaväli on 0,25° vain zoomista 10 ylöspäin.                        */
+   MIKÄ RAJOITTAA — EI TALLENNUSTILA VAAN LATAUS.
+   ----------------------------------------------
+   Tässä luki aiemmin että koko maailman 0,25° olisi "2 592 laattaa eli
+   290 MB; sitä ei tarvitse kukaan". Luku oli väärä ja perustelu vinossa.
+   Mitattuna oikeasti:
+
+     nykyinen varasto            110 laattaa      5,6 MB
+     koko maailma 0,25°        2 592 laattaa    123 MB
+
+   123 MB mahtuu GitHubiin vaivatta — repon pehmeä raja on gigatavuja, ja
+   orpo haara pakkopäivityksellä pitää koon vakiona. **Tallennustila ei
+   siis ole este.** Este on LATAUS: uloin näkymä tarvitsisi 0,25 asteella
+   209 laattaa eli 9,9 MB yhden ruudullisen avaamiseen. Nyt sama näkymä on
+   24 laattaa ja 1,3 MB.
+
+   Ja koska latauskoko riippuu NÄKYMÄN koosta eikä tason tarkkuudesta,
+   tiheä taso on halpa käyttää lähellä (z11:ssä näkymä on 0,1 astetta eli
+   yksi laatta) ja kallis kaukana. Siksi oikea kysymys ei ole "paljonko
+   tilaa on" vaan "mitä tarkkuutta mikin zoom oikeasti käyttää".
+
+   Sovellus käyttää 0,25 astetta vasta zoomista 10 ylöspäin, ja siellä
+   katsotaan aina jotain tiettyä spottia. Kaikki spotit ovat Suomessa,
+   jonka l0 jo kattaa. Koko maailman 0,25° palvelisi siis vain sitä että
+   joku zoomaa z10:een keskelle Tyyntämerta — ei ketään.
+
+   Sen sijaan ULOIN näkymä näyttää aina ison siivun maailmaa, ja siellä
+   hilaväli on 1,25° eli taso l2. Siksi **l2 on nyt globaali**: se on se
+   yksi taso jonka kattavuus näkyy joka kerta kun kartta vedetään ulos.
+   Mitattuna se maksaa 21 laatan sijaan 162 eli noin 9 MB lisää tilaa, ja
+   latauskoko pysyy ENNALLAAN — sama näkymä, sama määrä laattoja, vain
+   parempi data siellä missä ennen putosi 2,5 asteeseen.
+
+   Pakkauksesta ei ole apua: mitattuna paikkadelta ennen gzipiä säästää
+   13 %, aikadelta 6 % ja molemmat yhdessä 13 %. Data on jo lähellä
+   entropiaansa, koska arvot on kvantisoitu tavuun.                     */
 const N = 21;                       /* pistettä laatan sivulla */
 const TASOT = [
-  { id: 'l0', askel: 0.25, lat: [54, 71],  lng: [14, 33]   },  /* Itämeri + Suomi   */
-  { id: 'l1', askel: 0.5,  lat: [48, 75],  lng: [-2, 42]   },  /* Pohjois-Eurooppa  */
-  { id: 'l2', askel: 1.0,  lat: [28, 80],  lng: [-45, 65]  },  /* Eurooppa + Atlantti */
-  { id: 'l3', askel: 2.5,  lat: [-90, 90], lng: [-180, 180]},  /* koko maailma      */
-  { id: 'l4', askel: 5.0,  lat: [-90, 90], lng: [-180, 180]},  /* maailma, uloin    */
+  { id: 'l0', askel: 0.25, lat: [54, 71],  lng: [14, 33]   },  /* Itämeri + Suomi     */
+  { id: 'l1', askel: 0.5,  lat: [28, 80],  lng: [-45, 65]  },  /* Eurooppa + Atlantti */
+  { id: 'l2', askel: 1.0,  lat: [-90, 90], lng: [-180, 180]},  /* koko maailma        */
+  { id: 'l3', askel: 2.5,  lat: [-90, 90], lng: [-180, 180]},  /* koko maailma        */
+  { id: 'l4', askel: 5.0,  lat: [-90, 90], lng: [-180, 180]},  /* maailma, uloin      */
 ];
-/* MIKSI l4 on olemassa vaikka l3 kattaa saman alueen. Sovelluksen hilaväli
-   on zoomissa 3 ja sitä ulompana 5°, ja l3:n 2,5° tarkoittaisi 32 laattaa
-   eli 2,65 MB pelkän maailmanäkymän avaamiseen — mitattuna. Viiden asteen
-   tasolla sama näkymä on 8 laattaa ja noin 0,7 MB. Data on samaa; ero on
-   vain siinä ettei ladata neljä kertaa enempää kuin näytetään. */
+/* MIKSI l3 ja l4 ovat yhä olemassa vaikka l2 kattaa saman alueen
+   tarkempana. Ne ovat VARATIE pistekatolle: `getViewportPoints`
+   kasvattaa hilaväliä kunnes pistemäärä mahtuu kattoon, ja hyvin leveällä
+   ikkunalla väli voi nousta yli kahden asteen. Silloin `taso()` valitsee
+   karkeamman tason, ja ilman niitä sama näkymä ladattaisiin l2:sta —
+   162 laattaa yhden ruudullisen avaamiseen. Data on samaa; ero on vain
+   siinä ettei ladata monikertaa enempää kuin näytetään. */
 
 /* Kvantisointi. Tuuli 0,2 m/s askelin 0..50,8 m/s ja suunta 2° askelin:
    molemmat selvästi hienompia kuin ennusteen oma tarkkuus, ja mahtuvat
