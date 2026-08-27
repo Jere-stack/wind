@@ -4544,3 +4544,108 @@ uloin  401    z7 341 (×0,85)    z9 281 (×0,70)    z11+ 221 (×0,55)
 **Kerroin on luettavuudesta, ei suorituskyvystä.** Sivuvaikutuksena
 lähizoomi on halvempi, mutta se ei ole syy — jos sen kirjaa
 suorituskykysäädöksi, seuraava lukija optimoi sen pois väärästä syystä.
+
+## Tallennustila ei ollutkaan este — lataus oli
+
+Tässä tiedostossa ja `tools/tiilet.mjs`:ssä luki että koko maailman
+0,25° olisi *"2 592 laattaa eli 290 MB; sitä ei tarvitse kukaan"*, ja
+että se on syy miksi uloin näkymä ei yllä Windyn tarkkuuteen. **Luku oli
+väärä ja perustelu vinossa.** Mitattuna oikeasti:
+
+```
+nykyinen varasto (ennen)     110 laattaa     5,6 MB
+koko maailma 0,25°         2 592 laattaa   209 MB
+```
+
+209 MB mahtuu GitHubiin vaivatta: repon pehmeä raja on gigatavuja, ja
+orpo haara pakkopäivityksellä pitää koon vakiona (haarassa on aina tasan
+yksi committi). **Tallennustila oli siis koko ajan saatavilla ja
+ilmainen.**
+
+### Este on latauskoko, ja se riippuu näkymästä eikä tasosta
+
+```
+uloin näkymä 0,25 asteella   209 laattaa   16,9 MB
+uloin näkymä 1   asteella     24 laattaa    2,0 MB
+```
+
+Laattojen määrä latauksessa riippuu **näkymän koosta**, ei tason
+tarkkuudesta — laatta kattaa aina 20 × askel astetta. Siitä seuraa
+kaksi asiaa jotka kääntävät koko kysymyksen ympäri:
+
+1. **Tiheä taso on halpa käyttää lähellä ja kallis kaukana.** z11:ssä
+   näkymä on 0,1 astetta eli yksi laatta; uloimmassa se on 47 × 83
+   astetta eli satoja.
+2. **Sovellus käyttää 0,25 astetta vasta z10:stä ylöspäin**, ja siellä
+   katsotaan aina jotain tiettyä spottia. Kaikki spotit ovat Suomessa,
+   jonka `l0` jo kattaa. Koko maailman 0,25° palvelisi siis vain sitä
+   että joku zoomaa z10:een keskelle Tyyntämerta.
+
+Oikea kysymys ei siis ollut *"paljonko tilaa on"* vaan *"mitä tarkkuutta
+mikin zoom oikeasti käyttää"*.
+
+### Mitä tilalla tehtiin
+
+**Uloin näkymä näyttää aina ison siivun maailmaa**, ja siellä hilaväli on
+1,25° eli taso `l2`. Se on se yksi taso jonka kattavuus näkyy joka kerta
+kun kartta vedetään ulos — ja se kattoi vain Euroopan ja Atlantin, joten
+kaikki lat 28° eteläpuolella putosi 2,5 asteeseen. Käyttäjän omassa
+kuvakaappauksessa se oli koko Afrikka.
+
+```
+        ennen                       nyt
+l0  0,25  Itämeri + Suomi     25    Itämeri + Suomi          25
+l1  0,5   Pohjois-Eurooppa    24    Eurooppa + Atlantti      72
+l2  1     Eurooppa + Atlantti 21    KOKO MAAILMA            180
+l3  2,5   koko maailma        32    koko maailma             32
+l4  5     koko maailma         8    koko maailma              8
+                             110                            317
+                            5,6 MB                        27,1 MB
+```
+
+**Latauskoko pysyi ennallaan: 24 laattaa ennen ja jälkeen.** Sama näkymä,
+sama määrä laattoja, vain parempi data siellä missä ennen putosi 2,5
+asteeseen. Tarkistettu koko maailmalta: Sahara, Nigeria, Kongo,
+Kapkaupunki, Sydney ja Tyynimeri saavat kaikki nyt tason `l2` (1°).
+
+(Varaston koko kasvoi 5,6 → 27,1 MB myös siksi että tuo ajo sai
+lähteestä 99 aika-askelta aiemman 62:n sijaan. Laattojen MÄÄRÄ selittää
+osan ja aika-akselin pituus osan — laattakohtainen koko nousi 56 → 87 kt
+ilman että mikään tässä muutoksessa vaikutti siihen.)
+
+### l3 ja l4 jäivät, eivätkä ne ole turhia
+
+Ne näyttävät nyt turhilta, koska `l2` kattaa saman alueen tarkempana.
+Ne ovat kuitenkin **varatie pistekatolle**: `getViewportPoints` kasvattaa
+hilaväliä kunnes pistemäärä mahtuu kattoon, ja hyvin leveällä ikkunalla
+väli voi nousta yli kahden asteen. Silloin `taso()` valitsee karkeamman
+tason. Ilman niitä sama näkymä ladattaisiin `l2`:sta — 180 laattaa yhden
+ruudullisen avaamiseen.
+
+### Pakkauksesta ei ole apua
+
+Selain purkaa `DecompressionStream`illa, joka osaa vain gzipin ja
+deflaten — brotli ei ole vaihtoehto. Voitto olisi siis haettava
+esikäsittelystä ennen gzipiä. Mitattuna 15 oikealla laatalla:
+
+```
+nykyinen        100 %
+aikadelta        94 %
+paikkadelta      87 %
+aika + paikka    87 %
+ilman puuskaa    77 %
+```
+
+Data on jo lähellä entropiaansa, koska arvot on kvantisoitu tavuun.
+13 % ei muuta mitään siinä laskussa joka ratkaisee — ja puuskan
+pudottaminen maksaisi toiminnallisuutta.
+
+### Mikä jää yhä saavuttamatta
+
+Windy renderöi kentän **palvelimella valmiiksi rasterilaatoiksi**, jolloin
+asiakas lataa kuvia (muutama kilotavu) eikä numeroita. Siksi he voivat
+näyttää natiivin 0,25° hilan koko maailmalle. Meidän arkkitehtuurimme
+lähettää numerokentän ja interpoloi selaimessa — se on se mikä tekee
+tähtäimen lukemasta, aikajanasta ja spottikorteista mahdollisia, mutta se
+maksaa latauskokona. Ero ei siis ole tallennustilassa eikä koodin
+laadussa vaan siinä kumpaa puolta laskenta tehdään.
