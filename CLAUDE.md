@@ -4102,16 +4102,24 @@ nostettu.
 
 ### Mitä EI kannattanut tehdä
 
-- **Tiheämpi datahila.** Tämä oli koko työn lähtöoletus ja se osoittautui
-  vääräksi. z2: 10° → 1,25° paransi RMS:ää 1.64 → 1.57 mutta nosti
-  pistemäärän 340:stä 17 262:een ja rakennusajan 73 ms:stä 378 ms:iin.
-  z3: 5° → 2,5° antoi 0.82 → 0.76. z7:llä tiheämpi hila teki tuloksesta
-  **huonomman** (0.06 → 0.09). `gridStep` jätettiin siis ennalleen.
-- **Uloimman näkymän tarkkuutta ei rajoita data vaan Mercator itse.**
-  Koko ruudun RMS on z2:ssa 1.56 mutta pelkän |lat| < 55 vyöhykkeen 1.23 —
-  ero on napa-alueiden aliotantaa, jossa yksi tekstuuririvi kattaa
-  valtavan leveysastevälin. Sama raja koskee jokaista tasavälistä
-  Mercator-rasteria, myös Windyn omaa.
+- ~~**Tiheämpi datahila.**~~ **TÄMÄ PÄÄTELMÄ OLI VÄÄRÄ** — mittari oli
+  rikki, ks. *Uloin näkymä rajattiin* alempana. `WindTexture.build`
+  rakentaa `SpatialIndex`in uudestaan arvolla `kaytettyStep(zoom)`,
+  joten testin oma `SpatialIndex.build(kenttä, hila)` ylikirjoitettiin
+  ja IDW:n tukisäde jäi vanhaan riippumatta siitä mitä dataa syötettiin.
+  Pyyhkäisy näytti siksi tasaiselta. Oikein mitattuna tiheämpi hila
+  **auttaa paljon**: uloimmassa näkymässä 2,5° → 1,25° antaa
+  RMS 0.27 → 0.11 ja z5:llä 0.32 → 0.10.
+
+  Testin on korvattava `ViewportGrid.gridStep`, ei pelkkä
+  `SpatialIndex.spacing`.
+- **z2:n tarkkuutta ei rajoita data vaan Mercator itse.** Koko ruudun
+  RMS on z2:ssa 1.56 mutta pelkän |lat| < 55 vyöhykkeen 1.23 — ero on
+  napa-alueiden aliotantaa, jossa yksi tekstuuririvi kattaa valtavan
+  leveysastevälin. Sama raja koskee jokaista tasavälistä
+  Mercator-rasteria, myös Windyn omaa. **Tämä havainto on yhä voimassa,
+  ja siitä tuli syy rajata uloin zoom kokonaan pois z2:sta** — se on
+  näkymä jota ei kannata näyttää.
 - **`COARSE_STEP`in tihentäminen.** 3 → 1 antoi z3:lla 0.85 → 0.83 ja
   kolminkertaisti työn. Jätettiin kolmeen.
 
@@ -4281,3 +4289,106 @@ menee selaimen mukaan — silloin nousu ja lasku voivat osua eri
 vuorokausille eikä päivän pituutta näytetä lainkaan. Se on oikea
 degradaatio: mieluummin ei lukua kuin negatiivinen luku. Suomen
 rannikon spoteilla tilanne ei tule vastaan.
+
+## Uloin näkymä rajattiin — ja se muutti kaiken muun
+
+Koko pallon näyttäminen ei ole tälle sovellukselle hyödyllinen tila.
+Edellinen luku päätyi siihen että z2:n tarkkuutta rajoittaa Mercator
+itse: napojen kohdalla yksi tekstuuririvi kattaa kymmeniä asteita, eikä
+sille voi tehdä mitään. Johtopäätös ei ollut "hyväksytään se" vaan
+**"ei näytetä sitä näkymää"** — sama minkä Windy tekee.
+
+Uloimmillaan näkyy Suomen pohjoisin piste (Nuorgam, 70,1°N) ja
+päiväntasaajan eteläpuoli.
+
+### Raja on leveysastevälissä, ei zoom-luvussa
+
+Sama zoom näyttää eri määrän eri kokoisilla ruuduilla, joten kiinteä
+`minZoom` olisi väärin joka toisella laitteella. Näkymän on katettava
+tietty osuus maailman korkeudesta: maailman korkeus zoomilla z on
+256·2^z pikseliä, ja vaadittu Mercator-väli on 28,5 % siitä.
+
+```
+                minZoom   näkyy pituutta
+iPhone 15 Pro     3,54         47°
+iPhone Pro Max    3,67         47°
+iPhone SE         3,19         58°
+iPad              4,01         71°
+vaaka 932×430     2,86        180°
+```
+
+Asiat jotka eivät ole ilmeisiä:
+
+- **Toinen ehto rajaa pituuspiirin puoleen palloon.** Vaaka-asennossa
+  korkeus puolittuu, jolloin sama leveysastesääntö vaatisi niin paljon
+  ulos zoomausta että vaakasuunnassa näkyisi koko maailma. Kumpi tahansa
+  ehdoista sitoo, tiukempi voittaa — vaaka-asennossa leveysasteväli jää
+  81 %:iin vaaditusta, ja se on tietoinen valinta: molempia ei voi saada
+  näyttämättä koko palloa.
+- **Uudelleenlaskenta `resize`-tapahtumassa.** Kääntäminen vaakatasoon
+  puolittaa korkeuden, eikä `setMinZoom` itse siirrä karttaa jos ollaan
+  jo rajan alapuolella.
+- **Raja pitää kaikilla reiteillä**: `setZoom`, `setView`, `zoomOut` ja
+  nipistys päätyvät kaikki samaan lukuun (testattu).
+
+### Sitten data kannatti tihentää
+
+Kun koko palloa ei enää näytetä, leveä näkymä kattaa niin pienen alueen
+että tiheämpi hila alkaa kannattaa. Mitattuna tunnettua kenttää vasten
+(RMS m/s, 4× kuristus):
+
+```
+   hila      uloin (z3,67)      z5
+   2,5°    0.27 / 158 ms   0.32 /  21 ms    <- vanha
+   1,25°   0.11 /  39 ms   0.10 /  50 ms    <- z<=4
+   1,0°    0.08 /  56 ms   0.07 /  35 ms    <- z5-7
+   0,5°    0.05 / 127 ms   0.03 /  42 ms
+```
+
+- **1,25° ja 1,0° osuvat SAMAAN laattatasoon (l2, 1°)**, joten ne
+  hakevat täsmälleen samat laatat — ero on pelkkää interpolointia eikä
+  yhtään lisätavua verkosta. 0,5° vaatisi l1:n, joka kattaa vain
+  Pohjois-Euroopan.
+- **Pistekatto oli nostettava 1600 → 3400**, muuten katto kasvattaisi
+  hilavälin takaisin 2,5 asteeseen juuri siellä missä tihennys tehtiin.
+- **`maxDim` uloimmalla kaistalla 200 → 260** (RMS 0.11 → 0.09).
+  z5–6 pysyy 200:ssa: siellä sama pyyhkäisy antoi 0.07 kaikilla arvoilla
+  200–340, eli rajoite on datahila eikä tekstuuri.
+- **Sumennus ei ollut ongelma.** Se mitoitetaan kahteen texeliin, ja
+  tiheämmällä tekstuurilla se on uloimmassa näkymässä 3 px eli
+  alarajallaan.
+
+### Mikä jää saavuttamatta
+
+**Laattojen oma tarkkuus on katto.** Globaalilla tasolla l2 on 1°, eli
+ECMWF:n 0,25° hilasta on heitetty pois 16 pistettä kuudestatoista.
+Windy renderöi natiivin 0,25° hilan koko maailmalle, mutta se vaatisi
+2592 laattaa ja 290 MB — ei tällä hostingilla. Uloin näkymä on siis
+tarkempi kuin ennen mutta ei Windyn veroinen, ja syy on tallennustila
+eikä koodi.
+
+### Partikkelit
+
+Tiheys 267 → 401 puhelimen ruudulla (jakaja 1500 → 1000) ja jälki
+ohennettiin 2,15–4,45 px → 1,30–2,75 px. Tämä on **toinen tietoinen
+poikkeama** mitatusta luettavuusoptimista (ks. `particleLineWidth`):
+mittari maksimoi luettavuuden yhtä partikkelia kohti, mutta tiheässä
+kentässä paksu jälki peittää lämpökartan alleen.
+
+`PerfTracker`in leikkaus tehtiin **suhteelliseksi ruutunopeuteen**.
+Kiinteä 0,7 tarvitsi viisi kierrosta eli noin 15 sekuntia ennen kuin
+määrä asettui hitaalla laitteella, ja koko sen ajan kuva nyki. Tavoitetta
+nostettiin, joten matka alas on pidempi ja askeleen on mukauduttava:
+8 fps antaa kertoimen 0,35.
+
+**Ruutunopeutta EI voitu mitata tässä ympäristössä.** Kontti pysyi
+8–18 ruudussa sekunnissa riippumatta partikkelimäärästä (0 ja 700
+antoivat saman luvun) ja riippumatta CPU-kuristuksesta — mikä kertoo
+että pullonkaula on kontin kompositorissa eikä sovelluksessa. Tiheyden
+nosto nojaa siis `PerfTracker`iin eikä mittaukseen, ja se on syytä
+tarkistaa oikealla laitteella.
+
+**Sudenkuoppa:** `resetParticles(kova)` kutsuu `PerfTracker.reset()`in,
+joka palauttaa tavoitteen `nParticlesBase()`:iin. Partikkelimäärää ei
+siis voi pyyhkäistä asettamalla `_targetParticles` ja kutsumalla
+`resetParticles` — jälkimmäinen kumoaa edellisen.
