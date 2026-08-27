@@ -4392,3 +4392,84 @@ tarkistaa oikealla laitteella.
 joka palauttaa tavoitteen `nParticlesBase()`:iin. Partikkelimäärää ei
 siis voi pyyhkäistä asettamalla `_targetParticles` ja kutsumalla
 `resetParticles` — jälkimmäinen kumoaa edellisen.
+
+## Rakeisuus oli kahta eri vikaa
+
+Kartta näytti rakeiselta sekä lämpökartan että partikkelien osalta.
+Kerrokset erotettiin toisistaan piilottamalla toinen kerrallaan, ja
+lähikuvat kertoivat että **ne olivat kaksi täysin eri vikaa** — sama oire,
+eri syy. Ilman erottelua kumpi tahansa korjaus olisi näyttänyt
+riittämättömältä.
+
+### 1. Tekstuurin texelit olivat venyneitä, eivät liian harvoja
+
+`maxDim` rajasi molempia sivuja **samalla luvulla**, ja koska näkymä on
+pystysuora mutta katettu alue leveä, tekstuuri oli **neliö venytettynä
+suorakulmioon**. Mitattuna uloimmassa näkymässä:
+
+```
+tekstuuri 260×260  ->  elementti 466×997 CSS px
+yksi texel = 1,79 px leveä ja 3,83 px korkea  = 2,1x venynyt pystyyn
+```
+
+Ja sumennus mitoitetaan **pituuspiirin** texelistä, joten venyneellä
+texelillä se kattoi vaakasuunnassa kaksi texeliä mutta pystysuunnassa
+alle yhden — vaakaraidat jäivät näkyviin. Vika ruokki itseään.
+
+Korjaus: **budjetti on texeleissä, muoto tulee näkymästä.** Sivut
+lasketaan katetun alueen RUUTUKOOSTA (`latLngToLayerPoint`) tavoitteella
+noin 2 CSS px / texel, ja jos tulo ylittää budjetin, molempia kutistetaan
+samalla neliöjuurella — jolloin muotosuhde säilyy.
+
+```
+             ennen              jälkeen
+uloin   1,79 × 3,83 px      2,49 × 2,49 px
+z5      2,61 × 5,62         2,56 × 2,55
+z8      4,51 × 9,41         5,88 × 5,88
+```
+
+Texel on nyt neliö joka zoomilla, ja sumennus osuu molempiin suuntiin
+samalla tavalla.
+
+**Uloin kaista on kalliimpi kuin texelmäärä antaa ymmärtää**, koska siellä
+datapisteitä on eniten (1,25° hila laajalla alueella) ja jokainen
+IDW-solmu maksaa enemmän. Mitattuna kylmällä polulla 4× kuristuksella
+110 000 texeliä → 327 ms, 75 000 → 233 ms. Budjetti on siksi siellä
+pienempi kuin lähempänä; texel 2,5 px on yhä selvästi sumennuksen (4 px)
+alle, joten kuva ei muutu — vain aika.
+
+### 2. Partikkelit olivat pilkkuja, koska jälki oli lyhyt
+
+Lähikuva partikkelikerroksesta yksin näytti sen suoraan: lyhyitä pilkkuja
+eikä virtaviivoja. Syy **ei** ollut pituusraja `JALKI_MAX_PX`, vaikka niin
+olisi luullut. Pyyhkäisy:
+
+```
+maxPx    32    48    64    80
+pituus  18,9  19,7  20,2  19,3 px      <- raja ei pure lainkaan
+```
+
+Heikossa tuulessa pituuden ratkaisee **aikapituus** (`JALKI × ASKEL`
+ruutua) kerrottuna ruutunopeudella, ja ruutunopeus oli niin pieni ettei
+raja tullut koskaan vastaan. Oikea vipu oli `GEO_SPEED`:
+
+```
+GEO_SPEED   0,0030  0,0045  0,0060
+pituus px     19,9    28,4    34,3
+peitto  %     2,33    3,25    3,73
+```
+
+Alle 20 px jälki lukee pilkkuna. 0,005 antaa noin 30 px ja peiton 3,4 %,
+joka osuu talon omaan mitattuun optimiin (3,55 %, ks.
+`particleLineWidth`). Samalla `JALKI` 20 → 30, jotta aikapituus riittää
+myös heikkoon tuuleen.
+
+**Peitto oli koko ajan ALLE mitatun optimin**, sekä vanhoilla että uusilla
+arvoilla (2,3 % vs 3,55 %). Tiheyttä ei siis tarvinnut nostaa enempää —
+partikkeleita on 401 ja se riittää, kun jälki on oikean mittainen.
+
+**Mittausansa:** `resetParticles(kova)` kutsuu `PerfTracker.reset()`in,
+joka palauttaa tavoitteen `nParticlesBase()`:iin. Määrää ei siis voi
+pyyhkäistä asettamalla `_targetParticles` ja kutsumalla `resetParticles`
+— jälkimmäinen kumoaa edellisen. Pyyhkäisyssä on ylikirjoitettava
+`PerfTracker.getTarget`.

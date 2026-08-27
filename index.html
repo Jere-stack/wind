@@ -2512,7 +2512,21 @@ body {
 const Config = {
   MAX_MS: 20,
   INERTIA: 0.78,
-  GEO_SPEED: 0.003,
+  /* Partikkelin ruutunopeus. Nostettu 0.003 -> 0.005, ja se on se yksi
+     muutos joka poistaa "rakeisuuden": jaljen pituus heikossa tuulessa
+     ei riipu pituusrajasta vaan AIKAPITUUDESTA (JALKI x ASKEL ruutua)
+     kerrottuna ruutunopeudella. Mitattuna uloimmassa nakymassa
+     keskimaarainen jalki:
+
+         GEO_SPEED   0.0030  0.0045  0.0060
+         pituus px     19.9    28.4    34.3
+         peitto  %     2.33    3.25    3.73
+
+     Alle 20 px jalki lukee pilkkuna eika virtaviivana. 0.005 antaa noin
+     30 px ja peiton 3,4 %, mika osuu talon omaan mitattuun optimiin
+     (3,55 %, ks. particleLineWidth). Pituusraja JalkiViritys.maxPx
+     leikkaa kovan tuulen kuten ennenkin. */
+  GEO_SPEED: 0.005,
   WIND_SAMPLE_INTERVAL: 2,
   MAX_AGE: 300,
   DROP_RATE: 0.003,
@@ -5965,17 +5979,38 @@ const WindTexture = {
    * z5:llä maxDim ei vaikuta MITÄÄN (0.31 kaikilla arvoilla 120–340),
    * koska siellä rajoite on datahila eikä tekstuuri — siksi keskimmäistä
    * porrasta ei kannata nostaa. */
-  maxDim(zoom, mobiili) {
-    /* Uloimmalla kaistalla 260: tiheamman hilan (1,25°) kanssa
-       tekstuurista tuli taas rajoite. Mitattuna uloimmassa nakymassa
-       hilalla 1,25°: maxDim 200 -> RMS 0.11 (39 ms), 260 -> 0.09
-       (60 ms), 340 -> 0.08 (93 ms). 260 on polvi.
-       z5-6 pysyy 200:ssa: siella sama pyyhkaisy antoi 0.07 kaikilla
-       arvoilla 200-340, eli rajoite on datahila eika tekstuuri. */
-    if (zoom <= 4) return mobiili ? 260 : 340;
-    if (zoom <= 6) return mobiili ? 200 : 300;
-    return mobiili ? 300 : 500;
+  /* Tekstuurin budjetti TEXELEINÄ, ei sivun pituutena.
+   *
+   * `maxDim` rajasi molempia sivuja samalla luvulla, ja koska näkymä on
+   * pystysuora mutta katettu alue leveä, tekstuuri oli NELIÖ venytettynä
+   * suorakulmioon. Mitattuna uloimmassa näkymässä: tekstuuri 260×260,
+   * elementti 466×997 CSS px — yksi texel oli 1,79 px leveä ja 3,83 px
+   * korkea, eli **2,1-kertaa venynyt pystysuunnassa**. Juuri se näkyy
+   * rakeisuutena, ja se on pahin siellä missä näkymä on kapein.
+   *
+   * Sumennus mitoitetaan pituuspiirin texelistä, joten venyneellä
+   * texelillä se kattoi vaakasuunnassa kaksi texeliä mutta pystysuunnassa
+   * alle yhden — vaakaraidat jäivät näkyviin.
+   *
+   * Nyt sivut jaetaan NÄKYMÄN MUODON mukaan ja katto on niiden tulossa.
+   * Silloin texel on neliö joka zoomilla ja sumennus osuu molempiin
+   * suuntiin samalla tavalla. */
+  texelBudjetti(zoom, mobiili) {
+    /* Uloin kaista on halvempi kuin muut sen NAKOINEN texelmaara antaa
+       ymmartaa: siella datapisteita on eniten (1,25 asteen hila laajalla
+       alueella), joten jokainen idw-solmu maksaa enemman. Mitattuna
+       kylmalla polulla 4x kuristuksella:
+           110 000 texelia -> 327 ms
+            75 000         -> noin 220 ms
+       Texel on 75 000:lla 2,5 CSS px eli yha selvasti sumennuksen
+       (4 px) alle, joten kuva ei muutu — vain aika. */
+    if (zoom <= 4) return mobiili ?  75000 : 110000;
+    if (zoom <= 6) return mobiili ?  90000 : 130000;
+    return mobiili ? 110000 : 200000;
   },
+  /* Tavoite: yksi texel noin kaksi CSS-pikseliä. Sen alle ei kannata
+     mennä, koska päälle ajetaan vielä sumennus. */
+  TEXEL_PX: 2,
 
   /* Väri ja alfa yhtenä pakattuna hakutauluna.
    *
@@ -6091,12 +6126,36 @@ const WindTexture = {
       this.lngMin = loMin; this.lngMax = loMax;
       const latSpan = this.latMax - this.latMin, lngSpan = this.lngMax - this.lngMin;
       const isMobileDevice = (window.devicePixelRatio || 1) > 1.5;
-      const maxDim = this.maxDim(zoom, isMobileDevice);
-      const baseRES = zoom <= 5
-        ? Math.min(40, Math.max(15, Math.round(Math.sqrt(windField.length) * 1.5)))
-        : Math.min(200, Math.max(60, Math.round(80 + (zoom - 5) * 25)));
-      this.cols = Math.min(maxDim, Math.ceil(lngSpan * baseRES));
-      this.rows = Math.min(maxDim, Math.ceil(latSpan * baseRES));
+      /* Sivut näkymän muodon mukaan: mitataan katettu alue RUUDULLA ja
+         jaetaan tavoitetiheydellä. Näin texel on neliö. */
+      let cols = 0, rows = 0;
+      if (State.map) {
+        const p0 = State.map.latLngToLayerPoint(L.latLng(this.latMax, this.lngMin));
+        const p1 = State.map.latLngToLayerPoint(L.latLng(this.latMin, this.lngMax));
+        const lev = Math.abs(p1.x - p0.x), kor = Math.abs(p1.y - p0.y);
+        if (lev > 1 && kor > 1) {
+          cols = Math.round(lev / this.TEXEL_PX);
+          rows = Math.round(kor / this.TEXEL_PX);
+        }
+      }
+      if (!cols || !rows) {
+        /* Varatie ilman karttaa: vanha astepohjainen mitoitus. */
+        const baseRES = zoom <= 5
+          ? Math.min(40, Math.max(15, Math.round(Math.sqrt(windField.length) * 1.5)))
+          : Math.min(200, Math.max(60, Math.round(80 + (zoom - 5) * 25)));
+        cols = Math.ceil(lngSpan * baseRES);
+        rows = Math.ceil(latSpan * baseRES);
+      }
+      /* Katto on sivujen TULOSSA, ja ylitys kutistetaan neliöjuurella
+         jolloin muotosuhde säilyy. */
+      const budjetti = this.texelBudjetti(zoom, isMobileDevice);
+      const yli = (cols * rows) / budjetti;
+      if (yli > 1) {
+        const k = Math.sqrt(yli);
+        cols = Math.round(cols / k); rows = Math.round(rows / k);
+      }
+      this.cols = Math.max(8, cols);
+      this.rows = Math.max(8, rows);
       if (!this.canvas) { this.canvas = document.createElement('canvas'); this.ctx = this.canvas.getContext('2d'); }
       this.canvas.width = this.cols; this.canvas.height = this.rows;
       const n = this.cols * this.rows;
@@ -6726,7 +6785,12 @@ const AlueVahti = {
    talletetun pisteen väli piirretään aina erikseen, jottei kärki nyki. */
 /* Sama siirtymä kuin Leafletin karttatasoilla. */
 const SIIRTYMA = 'transform .25s cubic-bezier(0,0,.25,1)';
-const JALKI = 20;          /* talletettuja pisteitä */
+/* Talletettuja pisteitä. Nostettu 20 -> 30, koska jäljen AIKAPITUUS
+   (JALKI × ASKEL ruutua) on se mikä sitoo heikossa tuulessa: 4 m/s
+   liikkuu noin 0,33 px ruudussa, joten 60 ruutua antoi vain 20 px
+   jälkeä. 90 ruutua antaa 30 px, ja kovassa tuulessa raja tulee yhä
+   JalkiViritys.maxPx:stä. Muistia tämä maksaa 401 × 2 × 4 × 30 ≈ 96 kt. */
+const JALKI = 30;
 /* Ruutua pisteiden välissä — jälki on enintään JALKI × ASKEL = 60 ruutua.
  *
  * Askel oli 4 ja pisteitä 20 (80 ruutua). Jäljen lyhentäminen tehtiin
@@ -6766,7 +6830,10 @@ const ASKEL = 3;
  * ratkaisee `JALKI × ASKEL` ruutua eikä tämä raja pure lainkaan, kovassa
  * tuulessa taas päinvastoin. Vain toista säätämällä toinen pää jäisi
  * ennalleen. Aikapituus 80 → 60 ruutua, tämä raja 62 → 46 px. */
-const JALKI_MAX_PX = 32;
+/* Oliona eikä vakiona, jotta pituuden voi pyyhkäistä mittauksessa
+   ilman uudelleenkäännöstä — arvo on VALITTU mittaamalla, ks. CLAUDE.md
+   "Partikkelit lukivat pilkkuina". */
+const JalkiViritys = { maxPx: 64 };
 
 /* Häivytys tehdään SISÄKKÄISILLÄ VEDOILLA, ei segmentti kerrallaan.
  *
@@ -6884,7 +6951,9 @@ rakennaNippuVarit();
  * hoituu samalla puolivälikäyrällä kuin ennenkin. Sileys ei siis enää
  * riipu siitä montako pistettä rajaan sattuu mahtumaan. */
 const NAUHA_MIN = 14;          /* vähintään näin monta näytettä nauhaan */
-const _NAUHA_MAX = 48;
+/* Nostettu 48 -> 72: pidempään jälkeen mahtuu enemmän raakapisteitä,
+   ja tihennyksen on mahduttava niiden päälle. */
+const _NAUHA_MAX = 72;
 const _nauhaX = new Float32Array(_NAUHA_MAX);
 const _nauhaY = new Float32Array(_NAUHA_MAX);
 const _nauhaNx = new Float32Array(_NAUHA_MAX);
@@ -7151,7 +7220,7 @@ function renderLoop(ts) {
        eikä polun mittausta — ja hitausvaimennuksen takia nopeus muuttuu
        jäljen matkalla niin vähän, ettei tarkempi laskenta näkyisi. */
     const vpx = Math.sqrt(p.vx * p.vx + p.vy * p.vy) * ASKEL;
-    p.piirra = vpx > 0.05 ? Math.max(2, Math.min(JALKI, Math.ceil(JALKI_MAX_PX / vpx))) : JALKI;
+    p.piirra = vpx > 0.05 ? Math.max(2, Math.min(JALKI, Math.ceil(JalkiViritys.maxPx / vpx))) : JALKI;
   }
 
   /* --- 2. piirto ------------------------------------------------ */
