@@ -3357,7 +3357,7 @@ const Saalaatat = {
   asetaHetki(tMs) {
     this._tiValmis = false;
     const ts = this._tsMs;
-    if (!ts || !ts.length) return false;
+    if (!ts || !ts.length || tMs == null || !isFinite(tMs)) return false;
     const viim = ts.length - 1;
     /* Tunnin toleranssi kummassakin päässä, kuten buildWindFieldissä:
        sarjat ovat tasatunneittain ja hetki on tuntien välissä. */
@@ -3517,15 +3517,27 @@ const Saalaatat = {
    * näkyvän taitteen joka laattarajalle. Koottuna hilana rajaa ei ole.
    *
    * Palauttaa montako solmua jäi ilman dataa. */
-  kokoaHila(laMin, loMin, latAskel, lngAskel, gc, gr, gu, gv, step) {
+  kokoaHila(laMin, loMin, latAskel, lngAskel, gc, gr, gu, gv, step, kattoPuuttuu) {
     let puuttuu = 0;
+    /* Keskeytys kun on selvää ettei tästä tule mitään.
+     *
+     * Ilman tätä kesken eleen tehty rakennus maksoi MOLEMMAT polut: jos
+     * uuden zoom-tason laattoja ei ole vielä ladattu, koko hila käytiin
+     * läpi (uloimmassa näkymässä 3 300 solmua, jokainen laattahaku
+     * merkkijonoavaimella koska muisti ei osu kun mitään ei löydy) ja
+     * vasta sitten luovutettiin sironneelle polulle. Juuri se osuu
+     * sormen alle nopeassa zoomissa ulos. */
+    const katto = kattoPuuttuu === undefined ? Infinity : kattoPuuttuu;
     for (let j = 0; j < gr; j++) {
       const la = laMin + j * latAskel;
       for (let i = 0; i < gc; i++) {
         const idx = j * gc + i;
         if (this.naytteista(la, loMin + i * lngAskel, step)) {
           gu[idx] = this._nU; gv[idx] = this._nV;
-        } else { gu[idx] = NaN; gv[idx] = NaN; puuttuu++; }
+        } else {
+          gu[idx] = NaN; gv[idx] = NaN;
+          if (++puuttuu > katto) return puuttuu;
+        }
       }
     }
     /* Reikien paikkaus reunimmaisesta kelvollisesta arvosta.
@@ -6298,6 +6310,8 @@ const WindTexture = {
      vahvistettu valinnaksi. Ilman tätä hilapolku näytteistäisi väärän
      tunnin juuri niissä kahdessa tilanteessa. */
   hetki: null,
+  _puskuriN: -1, _img: null, _d32: null,
+  _vaN: -1, _vaU: null, _vaV: null, _sxN: -1, _sx: null, _sw: null, _py: null,
 
   /* Tekstuurin sivun enimmäismitta. Omana metodinaan eikä buildin sisällä,
      jotta arvon voi pyyhkäistä mittauksessa.
@@ -6445,6 +6459,27 @@ const WindTexture = {
           SpatialIndex.build(windField, vali);
         }
       }
+      /* Harvennusaskel luetaan TÄSSÄ eikä mitoituksen jälkeen, koska se
+         ohjaa hilapolussa myös tekstuurin kokoa (ks. alempaa). */
+      const STEP = Math.max(1, Math.round(coarseStep || WindTexture.COARSE_STEP));
+
+      /* Voiko hilapolku ylipaataan ajaa? Tama on halpa ennakkotarkistus
+         (ei kosketa laattoihin), ja se tarvitaan ENNEN mitoitusta, koska
+         hilapolun ja sironneen polun kustannusrakenne on eri:
+
+           sironnut  STEP harventaa idw():n, taytto on aina taysi
+           hila      taytto ON se kallis osa, joten STEP:n on
+                     harvennettava TEXELEITA eika solmuja
+
+         Ilman tata eleen aikainen kiinniottorakennus tehtiin
+         hilapolussa taydella tarkkuudella. Mitattuna nipistyksessa
+         4x kuristuksella: karkea rakennus 83 ms -> 138 ms, eli juuri se
+         rakennus joka osuu sormen alle kallistui. */
+      const hilaMahdollinen = (typeof Saalaatat !== 'undefined')
+        && Saalaatat.kaytossa()
+        && Saalaatat.asetaHetki(WindTexture.hetki != null
+             ? WindTexture.hetki : _tlTimeAt(State.currentHourIdx));
+
       let laMin, laMax, loMin, loMax;
       if (viewportBounds) {
         /* Pehmuste mitoitetaan NÄKYMÄN mukaan eikä vakiona: puolikas aste
@@ -6512,16 +6547,51 @@ const WindTexture = {
         const k = Math.sqrt(yli);
         cols = Math.round(cols / k); rows = Math.round(rows / k);
       }
+      /* Hilapolun harvennus: pienempi TEKSTUURI, ei harvempi näytteistys.
+       *
+       * Sironneessa polussa STEP harventaa `idw()`-kutsut ja täyttö tehdään
+       * silti joka texelille — siellä kallis osa on solmut. Hilapolussa
+       * solmu on lähes ilmainen (`naytteista` lukee tavuja) ja kallis osa
+       * on täyttö: bikuubinen ydin on 16 näytettä ja 40 kertolaskua
+       * texeliä kohti, ja sen päälle tulee kolmen Float32Arrayn ja
+       * ImageDatan varaus — 170 000 texelillä 2,7 MB per rakennus.
+       *
+       * Siksi sama lippu vaikuttaa eri asiaan: texelimäärä jaetaan
+       * (STEP/COARSE_STEP)²:lla. Eleen aikana texel on kaksi kertaa
+       * leveämpi, mikä on sama vaikutus kuvaan kuin vanhan polun
+       * karkealla interpoloinnilla — ja `zoomend`/`moveend` rakentaa
+       * tarkan version heti kun ele päättyy (`askel`-velka alla). */
+      if (hilaMahdollinen && STEP > this.COARSE_STEP) {
+        const j = STEP / this.COARSE_STEP;
+        cols = Math.max(8, Math.round(cols / j));
+        rows = Math.max(8, Math.round(rows / j));
+      }
       this.cols = Math.max(8, cols);
       this.rows = Math.max(8, rows);
       if (!this.canvas) { this.canvas = document.createElement('canvas'); this.ctx = this.canvas.getContext('2d'); }
       this.canvas.width = this.cols; this.canvas.height = this.rows;
       const n = this.cols * this.rows;
-      this.uData = new Float32Array(n);
-      this.vData = new Float32Array(n);
-      this.msData = new Float32Array(n);
-      const img = this.ctx.createImageData(this.cols, this.rows);
-      const d32 = new Uint32Array(img.data.buffer);
+      /* Puskurit kierrätetään kun koko ei muutu.
+       *
+       * Kolme Float32Arraya ja yksi ImageData on 170 000 texelillä
+       * 2,7 MB — ja se varattiin JOKAISESSA rakennuksessa, myös eleen
+       * aikaisissa kiinniottorakennuksissa joita tulee useita sekunnissa.
+       * Molemmat polut kirjoittavat joka texelin, joten vanha sisältö ei
+       * voi vuotaa läpi; kesken rakennuksen luettu puskuri on korkeintaan
+       * edellisen ruudun arvo, mikä on parempi kuin tuoreen taulukon
+       * nolla. */
+      if (this._puskuriN !== n) {
+        this.uData = new Float32Array(n);
+        this.vData = new Float32Array(n);
+        this.msData = new Float32Array(n);
+        this._puskuriN = n;
+      }
+      if (!this._img || this._img.width !== this.cols || this._img.height !== this.rows) {
+        this._img = this.ctx.createImageData(this.cols, this.rows);
+        this._d32 = new Uint32Array(this._img.data.buffer);
+      }
+      const img = this._img;
+      const d32 = this._d32;
       const lut = this.pikseliLUT();
       /* Rivit ovat lineaarisia MERCATOR-Y:SSÄ, eivät leveysasteessa.
        *
@@ -6550,12 +6620,11 @@ const WindTexture = {
       const lngStep = lngSpan / this.cols;
       const self = this;
 
-      /* Harvennusaskel: pikselit joiden väliin arvot interpoloidaan.
-         1 = laske joka pikseli (vanha käytös). */
-      const STEP = Math.max(1, Math.round(coarseStep || WindTexture.COARSE_STEP));
       /* Millä tarkkuudella ruudulla oleva tekstuuri on laskettu. Eleen
          aikaiset kiinniottorakennukset ovat karkeita, ja kutsujan on
-         voitava nähdä jälkikäteen että tarkka versio on vielä velkaa. */
+         voitava nähdä jälkikäteen että tarkka versio on vielä velkaa.
+         Molemmat polut merkitsevät saman luvun, joten `moveend`in
+         velkatarkistus toimii kummallakin. */
       this.askel = STEP;
 
       /* -- HILAPOLKU ------------------------------------------------
@@ -6591,10 +6660,7 @@ const WindTexture = {
        * yhtä sileä kuin idw JA neljä kertaa tarkempi, ja maksaa noin
        * puolitoistakertaisesti bilineaarisen. Siksi kuubinen. */
       const hilaPolku = (function () {
-        if (typeof Saalaatat === 'undefined' || !Saalaatat.kaytossa()) return null;
-        const hetki = WindTexture.hetki != null
-          ? WindTexture.hetki : _tlTimeAt(State.currentHourIdx);
-        if (!hetki || !Saalaatat.asetaHetki(hetki)) return null;
+        if (!hilaMahdollinen) return null;
         Saalaatat.asetaKentta(State.activeLayer);
         const dStep = (typeof ViewportGrid !== 'undefined')
           ? ViewportGrid.kaytettyStep(zoom) : 0.25;
@@ -6606,10 +6672,12 @@ const WindTexture = {
         if (gc < 4 || gr < 4 || gc * gr > 400000) return null;
         const gu = new Float32Array(gc * gr), gv = new Float32Array(gc * gr);
         const la0 = laMin - M * dStep, lo0 = loMin - M * dStep;
-        const puuttuu = Saalaatat.kokoaHila(la0, lo0, dStep, dStep, gc, gr, gu, gv, dStep);
         /* Yli puolet solmuista ilman dataa: varasto ei kata tätä näkymää,
-           ja sironnut polku osaa yhä käyttää sen mitä on. */
-        if (puuttuu > gc * gr * 0.5) return null;
+           ja sironnut polku osaa yhä käyttää sen mitä on. Raja annetaan
+           kokoaHilalle, joka keskeyttää heti sen ylityttyä. */
+        const raja = Math.floor(gc * gr * 0.5);
+        const puuttuu = Saalaatat.kokoaHila(la0, lo0, dStep, dStep, gc, gr, gu, gv, dStep, raja);
+        if (puuttuu > raja) return null;
         return { gu, gv, gc, gr, la0, lo0, dStep };
       })();
 
@@ -6633,8 +6701,33 @@ const WindTexture = {
         const cols = self.cols, rows = self.rows;
         const uD = self.uData, vD = self.vData, msD = self.msData;
 
-        /* Sarakkeiden ankkurit ja painot kerralla. */
-        const sx = new Int32Array(cols), sw = new Float32Array(cols * 4);
+        /* Kuubinen ydin on SEPAROITUVA, ja se tehdään kahtena
+         * pyyhkäisynä eikä yhtenä 4x4-summana.
+         *
+         * Suoraan laskettuna jokainen texel lukee 16 solmua kummastakin
+         * kentästä — 170 000 texelillä 2,7 miljoonaa näytettä. Mutta
+         * x-interpolointi riippuu vain sarakkeesta ja hilarivistä, ja
+         * hilarivejä on kymmeniä siinä missä texelirivejä on satoja:
+         *
+         *     yhtenä summana   rows x cols x 16   = 2 720 000 näytettä
+         *     kahtena          gr x cols x 4
+         *                    + rows x cols x 4    =   694 000
+         *
+         * Tulos on bitilleen sama (tensoritulo hajoaa eksaktisti), ja
+         * välitaulukko on gr x cols eli muutama kymmenen kilotavua. */
+        const tn = gr * cols;
+        if (self._vaN !== tn) {
+          self._vaU = new Float32Array(tn); self._vaV = new Float32Array(tn);
+          self._vaN = tn;
+        }
+        const tu = self._vaU, tv = self._vaV;
+
+        /* Sarakkeiden ankkurit ja painot kerran. */
+        if (self._sxN !== cols) {
+          self._sx = new Int32Array(cols); self._sw = new Float32Array(cols * 4);
+          self._sxN = cols;
+        }
+        const sx = self._sx, sw = self._sw;
         for (let c = 0; c < cols; c++) {
           const fx = (loMin + c * lngStep - lo0) / dStep;
           let i = Math.floor(fx);
@@ -6642,10 +6735,22 @@ const WindTexture = {
           sx[c] = i - 1;
           crPainot(fx - i, sw, c * 4);
         }
-        const py = new Float32Array(4);
-        /* Tekstuurin rivit ovat tasavälein MERCATOR-y:ssä, joten rivin
-           leveysaste tulee käänteismuunnoksesta — ei tasavälein
-           asteissa. Sarakkeet ovat tasavälein pituuspiirissä. */
+
+        /* 1) x-interpolointi joka hilariville. */
+        for (let j = 0; j < gr; j++) {
+          const pohja = j * gc, ulos = j * cols;
+          for (let c = 0; c < cols; c++) {
+            const k = c * 4, p = pohja + sx[c];
+            const a0 = sw[k], a1 = sw[k+1], a2 = sw[k+2], a3 = sw[k+3];
+            tu[ulos + c] = gu[p]*a0 + gu[p+1]*a1 + gu[p+2]*a2 + gu[p+3]*a3;
+            tv[ulos + c] = gv[p]*a0 + gv[p+1]*a1 + gv[p+2]*a2 + gv[p+3]*a3;
+          }
+        }
+
+        /* 2) y-interpolointi texeliriveille. Tekstuurin rivit ovat
+           tasavälein MERCATOR-y:ssä, joten rivin leveysaste tulee
+           käänteismuunnoksesta — ei tasavälein asteissa. */
+        const py = self._py || (self._py = new Float32Array(4));
         for (let r = 0; r < rows; r++) {
           const la = ymercInv(self.myMax - r * myStep);
           const fy = (la - la0) / dStep;
@@ -6653,22 +6758,11 @@ const WindTexture = {
           if (j < 1) j = 1; else if (j > gr - 3) j = gr - 3;
           crPainot(fy - j, py, 0);
           const y0 = py[0], y1 = py[1], y2 = py[2], y3 = py[3];
-          const b0 = (j - 1) * gc, b1 = b0 + gc, b2 = b1 + gc, b3 = b2 + gc;
+          const b0 = (j - 1) * cols, b1 = b0 + cols, b2 = b1 + cols, b3 = b2 + cols;
           const rivi = r * cols;
           for (let c = 0; c < cols; c++) {
-            const i0 = sx[c], k = c * 4;
-            const a0 = sw[k], a1 = sw[k+1], a2 = sw[k+2], a3 = sw[k+3];
-            const p0 = b0 + i0, p1 = b1 + i0, p2 = b2 + i0, p3 = b3 + i0;
-            const u =
-              (gu[p0]*a0 + gu[p0+1]*a1 + gu[p0+2]*a2 + gu[p0+3]*a3) * y0 +
-              (gu[p1]*a0 + gu[p1+1]*a1 + gu[p1+2]*a2 + gu[p1+3]*a3) * y1 +
-              (gu[p2]*a0 + gu[p2+1]*a1 + gu[p2+2]*a2 + gu[p2+3]*a3) * y2 +
-              (gu[p3]*a0 + gu[p3+1]*a1 + gu[p3+2]*a2 + gu[p3+3]*a3) * y3;
-            const v =
-              (gv[p0]*a0 + gv[p0+1]*a1 + gv[p0+2]*a2 + gv[p0+3]*a3) * y0 +
-              (gv[p1]*a0 + gv[p1+1]*a1 + gv[p1+2]*a2 + gv[p1+3]*a3) * y1 +
-              (gv[p2]*a0 + gv[p2+1]*a1 + gv[p2+2]*a2 + gv[p2+3]*a3) * y2 +
-              (gv[p3]*a0 + gv[p3+1]*a1 + gv[p3+2]*a2 + gv[p3+3]*a3) * y3;
+            const u = tu[b0+c]*y0 + tu[b1+c]*y1 + tu[b2+c]*y2 + tu[b3+c]*y3;
+            const v = tv[b0+c]*y0 + tv[b1+c]*y1 + tv[b2+c]*y2 + tv[b3+c]*y3;
             const ms = Math.sqrt(u * u + v * v);
             const idx = rivi + c;
             uD[idx] = u; vD[idx] = v; msD[idx] = ms;
@@ -6720,7 +6814,6 @@ const WindTexture = {
          Muuten `moveend` jäisi luulemaan että tarkka versio on velkaa ja
          rakentaisi saman uudelleen. */
       if (hilaPolku) {
-        this.askel = 1;
         if (n < 400000) buildHila(); else setTimeout(buildHila, 0);
       } else if (n / (STEP * STEP) < 40000) buildAll();
       else setTimeout(buildAll, 0);

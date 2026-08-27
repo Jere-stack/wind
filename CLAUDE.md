@@ -4762,9 +4762,9 @@ yhtä sileä kuin idw ja neljä kertaa tarkempi.
   ydin lukee neljä solmua akselia kohti; laatan reunalla kaksi niistä
   olisi naapurilaatassa, ja reunaan leikkaaminen jättäisi näkyvän
   taitteen **joka laattarajalle**. Koottuna hilana rajaa ei ole.
-- **Painot ovat separoituvia** ja x-painot riippuvat vain sarakkeesta.
-  Ne lasketaan kerran sarakkeelle eikä kerran texelille: 170 000 texeliä,
-  283 saraketta. Ilman tätä hilapolku oli z7:llä *hitaampi* kuin idw.
+- **Ydin lasketaan KAHTENA PYYHKÄISYNÄ, ei yhtenä 4×4-summana.**
+  Ks. seuraava luku — tämä oli se yksityiskohta joka teki zoomista
+  raskaamman kuin ennen.
 - **Reiät paikataan neljällä pyyhkäisyllä**, ei lähimmän haulla. Reikiä
   syntyy vain marginaalissa (tekstuuri ulottuu näkymää laajemmalle kuin
   laatat haetaan), ja haku olisi O(reiät × solmut).
@@ -4882,3 +4882,108 @@ virheitä       0
   Jos joku optimoi vain `WindTexture.build`ia, hän optimoi väärää asiaa.
 - **Ruutunopeutta ei ole mitattu laitteella.** Kaikki yllä on CPU-työtä
   pöytäkoneella. Kuinka paljon tämä tuntuu iPhonella, on vielä auki.
+
+## Zoom raskaampi kuin ennen — kaksi vikaa hilapolussa
+
+Hilalähtöinen kenttä oli levossa nopeampi mutta **eleen aikana
+raskaampi**, ja käyttäjä huomasi sen ennen kuin mikään mittari huomasi.
+Vikoja oli kaksi, ja molemmat syntyivät samasta väärinkäsityksestä:
+sironneen ja hilapolun kustannus on eri paikassa.
+
+```
+sironnut   kallis osa on SOLMUT (idw), täyttö on aina täysi
+hila       solmu on lähes ilmainen (tavujen luku), kallis osa on TÄYTTÖ
+```
+
+### 1. `coarseStep` ei tehnyt mitään
+
+`_heatmapCatchUp` pyytää eleen aikana karkeaa rakennusta
+(`SCRUB_STEP` 6). Sironneessa polussa se harventaa `idw()`-kutsut
+36:nteen osaan. Hilapolku otti parametrin vastaan ja **jätti sen
+huomiotta**: jokainen eleen aikainen kiinniottorakennus tehtiin täydellä
+tarkkuudella.
+
+Mitattuna nipistyksessä (4× kuristus, DPR 3, vuorotteleva A/B):
+
+```
+                        eleen aikainen rakennus
+vanha (idw), STEP 6              79,5 ms
+hilapolku, STEP jätetty huomiotta 137,7 ms
+```
+
+Korjaus: hilapolussa sama lippu harventaa **texeleitä**, ei solmuja —
+sivut jaetaan `STEP / COARSE_STEP`:llä. Eleen aikana texel on kaksi
+kertaa leveämpi.
+
+**Se on vähemmän karkeaa kuin vanha polku oli**, ei enemmän: vanha
+interpoloi eleen aikana 12 CSS px:n ruuduissa lineaarisesti, tämä
+4 px:n texeleissä kuubisesti. `zoomend` ja `moveend` rakentavat tarkan
+version heti eleen jälkeen, ja `askel`-velka ohjaa sen kuten ennenkin —
+siksi `this.askel = STEP` molemmissa polissa, ei `1`.
+
+### 2. Kuubinen ydin laskettiin yhtenä 4×4-summana
+
+Tämä oli isompi ja se koskee myös lepotilaa. Suoraan laskettuna jokainen
+texel lukee 16 solmua kummastakin kentästä. Ydin on kuitenkin
+**separoituva**, ja x-interpolointi riippuu vain sarakkeesta ja
+hilarivistä — hilarivejä on kymmeniä, texelirivejä satoja:
+
+| | näytteitä | aika |
+|---|---|---|
+| yhtenä 4×4-summana | 2 721 328 | 7,73 ms |
+| kahtena pyyhkäisynä | 709 764 | **1,98 ms** |
+
+**3,9× halvempi.** Ero tulokseen on 9,5·10⁻⁷ m/s (välitaulukko on
+Float32, eli yksi pyöristys lisää) — seitsemän kertaluokkaa rampin
+kvantisoinnin alle, eikä yksikään LUT-lokero voi vaihtua sen takia.
+
+### 3. Turhat varaukset ja keskeytymätön hilan kokoaminen
+
+Kaksi pienempää, molemmat eleen aikana:
+
+- **Kolme Float32Arraya ja ImageData varattiin joka rakennuksessa** —
+  170 000 texelillä 2,7 MB, ja eleen aikana rakennuksia on useita
+  sekunnissa. Nyt ne kierrätetään kun koko ei muutu. Molemmat polut
+  kirjoittavat joka texelin, joten vanha sisältö ei voi vuotaa läpi.
+- **`kokoaHila` kävi koko hilan läpi vaikka mikään ei löytynyt.** Kun
+  uuden zoom-tason laattoja ei ole vielä ladattu, ele maksoi molemmat
+  polut: 3 300 solmun haku (jokainen merkkijonoavaimella, koska muisti ei
+  osu kun mitään ei löydy) ja sitten sironnut polku päälle. Nyt raja
+  annetaan `kokoaHila`lle ja se keskeyttää heti sen ylityttyä.
+
+### Mitattu lopputulos
+
+Nipistys ulos, 4× kuristus, DPR 3, **neljä vuorottelevaa kierrosta**,
+mediaani:
+
+| | eleen rakennus | texeleitä | nipistys yht | pahin ruutuväli |
+|---|---|---|---|---|
+| vanha (idw) | 79,5 ms | 170 240 | 522 ms | 533 ms |
+| vain separoituva | 45,8 ms | 170 240 | 396 ms | 433 ms |
+| **separoituva + harvennus** | **36,1 ms** | 42 560 | **194 ms** | **383 ms** |
+
+Separoituva yksin riittäisi jo kumoamaan regression samalla
+texelimäärällä ja täsmälleen samalla kuvalla. Harvennus pidettiin, koska
+se on eleen aikaista laatua koskeva päätös jonka sovellus on jo tehnyt
+(`SCRUB_STEP` on olemassa juuri tätä varten) ja koska se on mitattuna
+vähemmän karkeaa kuin se mitä se korvaa.
+
+### Mittaustapa — ja miksi kolme ensimmäistä ajoa oli roskaa
+
+Yksittäinen ajo tässä kontissa **ei kelpaa**. Sama koodi antoi eleen
+aikaiselle rakennukselle 137,7 ms ja 280,9 ms peräkkäisillä ajoilla, ja
+lepotilan ruutunopeus heilui 2,2 ja 6,8 fps välillä ilman että mitään
+muuttui. Kolme ensimmäistä johtopäätöstä olisivat olleet vääriä.
+
+Toimiva asetelma:
+
+- **Kolme buildia rinnakkain omissa porteissaan**, ja sama harness ajaa
+  ne **vuorotellen** — järjestys ei saa selittää eroa.
+- **Neljä kierrosta, mediaani.** Raakaluvut tulostetaan, jotta hajonnan
+  näkee: `[72,4  98,3  79,5  52,4]` on vielä kelvollinen, mutta yhdestä
+  luvusta ei voi päätellä mitään.
+- **`WindTexture.build` kääritään** ja mitataan sen oma kesto sekä
+  `cols × rows`. Texelimäärä on se joka kertoo kumpi polku ajoi — pelkkä
+  `askel` ei enää erota niitä, koska molemmat merkitsevät saman luvun.
+- Vanhan version buildiin on lisättävä `window.FS` käsin (`?perf=1`
+  -paneelin kohdalle), muuten sitä ei voi mitata samalla mittarilla.
