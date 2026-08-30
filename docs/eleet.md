@@ -927,3 +927,89 @@ maalille jo eleen aikana, ei animaation aikana.
 se palautti toden koko ajan. Vika oli yksinomaan siinä mihin elementti
 piirtyi. **Jos mittaat tätä aluetta, mittaa elementin `getBoundingClientRect`
 suhteessa karttasäiliöön** — älä `_heatmapCovers`ia, joka on tässä sokea.
+
+## Uloin raja: vastusta, ei mustaa
+
+`minZoom` rajaa `setZoom`in, rullan ja napit — mutta **ei nipistystä**.
+Leafletin `bounceAtZoomLimits` on oletuksena tosi, jolloin ele saa mennä
+rajan ali ja Leaflet palauttaa vasta sormen noustessa. Nimestään
+huolimatta se ei ole pieni jousto vaan käytännössä rajaton.
+
+Mitattuna iPhone 15 Prolla, minZoom 3,544, nipistys ulos rajalla:
+
+```
+                        ennen            jälkeen
+zoom syvimmillään       0,088            3,268
+rajan ali               3,455 tasoa      0,276 tasoa
+maailman korkeus        272 px           2466 px      (ruutu 852 px)
+paljasta taustaa        72–92 %          0,0 %
+ruutuja yli 1 % paljas  28               0
+```
+
+Kartta kutistui postimerkiksi mustalle pohjalle — ja **jäi siihen niin
+kauaksi aikaa kuin sormet olivat näytöllä**, koska palautus tulee vasta
+`touchend`issä. Ruudulla näkyi Afrikka ja Etelä-Amerikka mustan palkin
+alla; sovellus on Suomen rannikon sääkartta.
+
+### Miksi ei pelkkä kova raja
+
+`bounceAtZoomLimits: false` poistaisi mustan yhdellä rivillä, mutta se
+tuntuisi kuolleelta: sormet liikkuvat eikä mitään tapahdu. Sen sijaan
+tässä on sama minkä iOS tekee vieritykselle — **jousto jonka pohja on
+läpinäkymätön**:
+
+```
+ulos(y) = jousto · (1 − 1 / (1 + y/jousto))
+```
+
+Derivaatta on 1 rajalla, eli siirtymä rajan yli on jatkuva eikä nykäise,
+ja arvo lähestyy `jousto`a, joten ele ei pääse sitä kauemmas. `JOUSTO`
+on 0,30 zoomtasoa eli 19 % skaalassa: selvästi tunnettava, mutta kaukana
+siitä missä tausta paljastuisi.
+
+**Pohja lasketaan, ei arvata.** `taysi` on se zoom jolla maailma
+(256·2^z px) juuri täyttää ruudun, ja jousto rajataan aina sen
+yläpuolelle. iPhonella pelivaraa on 1,8 tasoa, joten 0,30 ei voi
+paljastaa mitään — mutta poikkeavalla ruudulla (hyvin korkea ikkuna)
+raja sitoo ja jousto kutistuu itsestään nollaan.
+
+### Paikkaus osuu `getScaleZoom`iin, ei `_move`en
+
+Tämä ei ole makuasia. `TouchZoom._onTouchMove` laskee **ensin** zoomin ja
+**vasta sitten** keskipisteen samasta luvusta:
+
+```js
+this._zoom   = map.getScaleZoom(scale, this._startZoom);
+this._center = map.unproject(map.project(pinchStart, this._zoom)...);
+```
+
+Jos zoom puristettaisiin vasta `_move`ssa, keskipiste olisi laskettu
+puristamattomalla luvulla ja **ankkuri sormien alla valuisi**.
+`getScaleZoom`issa molemmat tulevat samasta luvusta.
+
+Paikkaus on voimassa vain `_nipistysKesken`in aikana. Ohjelmalliset
+polut rajaavat jo `_limitZoom`illa ennen tänne tuloa, eikä niihin kuulu
+joustoa.
+
+### Palautus tulee ilmaiseksi
+
+Molemmat zoom-eleet päättyvät `_limitZoom`iin — TouchZoomin oma
+`_onTouchEnd` ja tuplanapautuksen `paataEle` — joten kartta liukuu
+takaisin rajalle Leafletin omalla 250 ms siirtymällä. Mitään omaa
+jousiaimaatiota ei tarvittu.
+
+Tuplanapauta-ja-vedä leikkasi ennen alarajan itse (`Math.max(getMinZoom(),
+…)`), eli se pysähtyi kovaan seinään samalla kun nipistys lensi läpi.
+Leikkaus poistettiin, joten **molemmat eleet tuntuvat rajalla
+samalta** — mitattuna 0,276 ja 0,268 tasoa joustoa, molemmilla 0 %
+paljasta.
+
+### Mitä tämä mittari EI kerro
+
+`setZoom`, `zoomOut` ja rulla näyttävät mittarissa 45–100 % "paljasta
+taustaa" **sekä ennen että jälkeen** korjauksen. Se ei ole zoom-raja
+vaan laattojen häivytys: mittari laskee paljaaksi laatan jonka
+`opacity < 0,05`, ja ohjelmallisen zoomin jälkeen uudet laatat ovat
+hetken juuri siinä tilassa. Zoom ei näillä reiteillä mene rajan ali
+kertaakaan (`ali 0,000`). Jos tätä mitataan uudelleen, erottele
+laattojen häivytys zoom-rajasta — muuten korjaus näyttää tehottomalta.

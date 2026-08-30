@@ -4414,9 +4414,13 @@ function _installDoubleTapZoom(map) {
     /* Ks. moduulin alun kohta 4. */
     var ySuod = dtz.suodin(p.y, performance.now());
     var dy = dtz.startPt.y - ySuod;
-    dtz.currentZoom = Math.max(map.getMinZoom(),
-                      Math.min(map.getMaxZoom(),
-                        map.getScaleZoom(Math.pow(2, dy / PX_PER_ZOOM), dtz.startZoom)));
+    /* Alarajaa EI leikata tässä: `getScaleZoom` on paikattu antamaan
+       uloimman rajan ali joustava arvo (ks. nipistyksen paikkauslohko),
+       ja `paataEle` palauttaa rajalle `_limitZoom`illa. Näin molemmat
+       zoom-eleet tuntuvat samalta rajalla. Yläraja leikataan yhä, koska
+       siellä ei ole joustoa eikä mitään paljastettavaa. */
+    dtz.currentZoom = Math.min(map.getMaxZoom(),
+                        map.getScaleZoom(Math.pow(2, dy / PX_PER_ZOOM), dtz.startZoom));
     if (dtz.animReq) cancelAnimationFrame(dtz.animReq);
     dtz.animReq = requestAnimationFrame(function () {
       dtz.animReq = null;
@@ -5041,6 +5045,71 @@ function nipistysPaattyy(map) {
    * kuuntelijoina rekisteröidyissä. */
   {
     const kesken = (m) => !!(m && m._nipistysKesken);
+
+    /* -- ULOIN RAJA: VASTUSTA, EI MUSTAA ------------------------------
+     *
+     * `minZoom` rajaa `setZoom`in ja rullan, mutta EI nipistystä:
+     * Leafletin `bounceAtZoomLimits` on oletuksena tosi, jolloin ele saa
+     * mennä rajan ali ja Leaflet palauttaa vasta sormen noustessa.
+     * Mitattuna se ei ole pieni jousto vaan käytännössä rajaton —
+     * iPhone 15 Pro, minZoom 3,544:
+     *
+     *     nipistys ulos rajalla   ->  z0,088   (3,46 tasoa rajan ali)
+     *     maailman korkeus        ->  2986 px  ->  272 px  (ruutu 852 px)
+     *     paljasta taustaa        ->  91,7 %,  28 ruutua yli 1 %
+     *
+     * Kartta kutistui postimerkiksi mustalle pohjalle ja jäi siihen niin
+     * kauaksi aikaa kuin sormet olivat näytöllä.
+     *
+     * Pelkkä kova raja (`bounceAtZoomLimits: false`) poistaisi mustan
+     * mutta tuntuisi kuolleelta: sormet liikkuvat eikä mitään tapahdu.
+     * Tässä on sen sijaan sama mitä iOS tekee vieritykselle — **jousto
+     * jonka pohja on läpinäkymätön**. Ylitys puristetaan asymptoottisesti
+     * niin että kartta antaa periksi mutta pysähtyy pehmeästi:
+     *
+     *     ulos(y) = jousto · (1 − 1 / (1 + y/jousto))
+     *
+     * Derivaatta on 1 rajalla (ei nykäystä siirtymässä) ja lähestyy
+     * nollaa, joten ele ei koskaan pääse `jousto`a kauemmas. Palautus
+     * tulee ilmaiseksi: molemmat eleet päättyvät `_limitZoom`iin
+     * (TouchZoomin oma `_onTouchEnd` ja `paataEle`), eli kartta liukuu
+     * takaisin rajalle Leafletin omalla 250 ms siirtymällä.
+     *
+     * JOUSTO on 0,30 zoomtasoa eli 19 % skaalassa. Se on selvästi
+     * tunnettava mutta jää kauas siitä missä tausta paljastuisi: `taysi`
+     * on se zoom jolla maailma juuri täyttää ruudun, ja jousto rajataan
+     * aina sen yläpuolelle. iPhonella pelivaraa on 1,8 tasoa, joten
+     * 0,30 ei voi paljastaa mitään — mutta poikkeavalla ruudulla
+     * (hyvin korkea ikkuna) raja sitoo ja jousto kutistuu itsestään.
+     *
+     * Korjaus osuu `getScaleZoom`iin eikä `_move`en, ja se on olennaista:
+     * `_onTouchMove` laskee ENSIN zoomin ja VASTA SITTEN keskipisteen
+     * samasta luvusta. Jos zoom puristettaisiin vasta `_move`ssa,
+     * keskipiste olisi laskettu puristamattomalla luvulla ja ankkuri
+     * sormien alla valuisi. */
+    const JOUSTO = 0.30;
+    function joustaZoom(map, z) {
+      const min = map.getMinZoom();
+      if (!(z < min)) return z;
+      const koko = map.getSize();
+      /* Zoom jolla maailma (256·2^z px) juuri täyttää ruudun. Sen alle ei
+         mennä missään oloissa — siitä alkaa paljas tausta. */
+      const taysi = Math.log(Math.max(koko.y, koko.x, 1) / 256) / Math.LN2;
+      const jousto = Math.max(0, Math.min(JOUSTO, min - taysi));
+      if (!(jousto > 0)) return min;
+      const yli = min - z;
+      return min - jousto * (1 - 1 / (1 + yli / jousto));
+    }
+    if (L.Map.prototype.getScaleZoom) {
+      const origScaleZoom = L.Map.prototype.getScaleZoom;
+      L.Map.prototype.getScaleZoom = function (skaala, mista) {
+        const z = origScaleZoom.call(this, skaala, mista);
+        /* Vain eleen aikana. Ohjelmalliset polut (`setView`, rulla,
+           napit) rajaavat jo `_limitZoom`illa ennen tänne tuloa, eikä
+           niihin kuulu joustoa. */
+        return kesken(this) ? joustaZoom(this, z) : z;
+      };
+    }
 
     const origOrigin = L.Map.prototype._getNewPixelOrigin;
     L.Map.prototype._getNewPixelOrigin = function (keskus, zoom) {

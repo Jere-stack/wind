@@ -200,6 +200,11 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   Leafletin omalla animaatiolla, ja `_animateZoom` olettaa että elementin
   koko vastaa sen rajoja — jäädytetty koko ei vastaa, ja kerros lensi
   ruudun ulkopuolelle (musta välähdys).
+- **`minZoom` ei rajaa nipistystä.** Leafletin `bounceAtZoomLimits` on
+  oletuksena tosi ja päästää eleen käytännössä rajattomasti ali (mitattu
+  3,46 tasoa, 92 % ruudusta paljasta taustaa). Raja tehdään joustona
+  `getScaleZoom`issa — ei `_move`ssa, koska keskipiste lasketaan zoomista
+  ja ankkuri valuisi.
 - **Jäädytys on kiinnitettävä VOIMASSA OLEVIIN rajoihin.** Lämpökartta
   rakennetaan uudelleen kesken eleen, ja vanhalla ankkurilla uusi laaja
   tekstuuri piirtyi vanhan pienen alueen kokoisena. `_heatmapCovers` on
