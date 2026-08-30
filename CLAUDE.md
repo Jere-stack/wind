@@ -106,6 +106,13 @@ olevaan riviin; loppuosa jäi irrallisiksi lauseiksi ja sivu kaatui.
 `buildFmiCard` oli määritelty muttei kutsuttu koskaan — siihen kirjoitettu
 ominaisuus olisi ollut hiljaa kuollut.
 
+**Mittari ei saa sitoa `this`:iä eikä pudottaa argumentteja.** `?perf=1`
+-paneelin `WindTexture.build`-kääre oli `bind(WindTexture)` + kolmen
+parametrin funktio. Se ajoi `PohjaTekstuuri.build()`:n WindTexturelle ja
+söi neljännen argumentin — mittaus näytti siltä että koko ominaisuutta ei
+ole olemassa, vaikka koodi oli oikein. Kun mittaus väittää ettei jotain
+tapahdu lainkaan, epäile ensin mittaria.
+
 **Kosketuskohde on napautettava testissä.** `getBoundingClientRect` ja
 `elementFromPoint` eivät kerro mihin napautus oikeasti menee; Chromiumin
 kosketussäätö siirtää sen lähimpään maalattuun kohteeseen.
@@ -205,7 +212,22 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   3,46 tasoa, 92 % ruudusta paljasta taustaa). Raja tehdään joustona
   `getScaleZoom`issa — ei `_move`ssa, koska keskipiste lasketaan zoomista
   ja ankkuri valuisi.
-- **Jäädytys on kiinnitettävä VOIMASSA OLEVIIN rajoihin.** Lämpökartta
+- - **Lämpökartta on KAKSI kerrosta: tarkka ja karkea pohja.** Ne eivät
+  ole koskaan yhtä aikaa näkyvissä levossa — kaksi lisäävää kerrosta
+  päällekkäin laskettaisiin yhteen. Vuoro vaihtuu peittotarkistuksella
+  ja summa pysyy ykkösessä, koska `plus-lighter` on lineaarinen. Reiän
+  puhkaisu pohjan kankaaseen kokeiltiin ja mitattiin rikki: pohjan texel
+  on lähizoomissa satoja pikseleitä eikä reikä mahdu sen hilaan.
+- **`_heatmapCovers` ei kelpaa zoom-liu'un aikana.** Sen rajat ovat
+  lopputilan arvoja, elementti ei ole. Liu'un ajaksi peitto luetaan
+  ruudulta (`getBoundingClientRect`).
+- **Kerrosta ei piiloteta liu'un aikana.** Korvaava kerros on silloin
+  itsekin kesken siirtymää, ja mitattuna peitto putosi nollaan.
+- **Tekstuuria ei rakenneta liu'un aikana.** Rakennuksen päättävä
+  `setBounds` on `_reset`, joka kirjoittaa koon kohdezoomille kesken
+  transform-siirtymän; kerros kutistuu kahdesti.
+
+**Jäädytys on kiinnitettävä VOIMASSA OLEVIIN rajoihin.** Lämpökartta
   rakennetaan uudelleen kesken eleen, ja vanhalla ankkurilla uusi laaja
   tekstuuri piirtyi vanhan pienen alueen kokoisena. `_heatmapCovers` on
   tälle sokea: mittaa elementin `getBoundingClientRect` suhteessa

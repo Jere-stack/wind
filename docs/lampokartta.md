@@ -949,3 +949,121 @@ jälkeen  (41,60  88,98  48,40)               196,9
 Kontrasti on identtinen ja keskiväri eroaa alle yhden yksikön 255:stä
 eli ajojen välisen datan verran. `plus-lighter` ja rantaviivan kontrasti
 säilyivät.
+
+## Karkea pohjakerros — se mikä ei koskaan lopu kesken
+
+Tarkka tekstuuri kattaa näkymän ja pehmusteen, ja se on oikea ratkaisu
+levossa. Ulos zoomatessa se ei riitä millään pehmusteella: näkymä kasvaa
+nopeammin kuin tekstuuri, ja jokainen kiinniottorakennus on
+valmistuessaan jo liian pieni. Paljas kohta ei ole tyhjä vaan MUSTA,
+koska alla on tumma pohjakartta ja lämpökartta on lisäävä.
+
+Mitattuna edellisestä versiosta (iPhone-kokoinen näkymä, 4x kuristus,
+300 ms verkkoviive), lämpökartan peitto ruudusta:
+
+| tilanne | peitto min | ruutuja alle 99 % |
+|---|---|---|
+| ULOS + panorointi, sormet kiinni | 30,5 % | 2/73 |
+| ULOS nopea, sormet kiinni | **14,8 %** | 3/59 |
+| `setZoom(uloin)` | 0 % | — |
+| `zoomOut(2)` | 0 % | — |
+
+Yhtä tekstuuria ei ole olemassa joka olisi yhtä aikaa lähizoomin terävä
+ja uloimman zoomin laaja — sama syy jonka takia karttalaatat ovat
+pyramidi eikä yksi kuva. Tehtiin siis pyramidin kaksi alinta askelmaa:
+
+- **tarkka kerros** näkymälle, kuten ennenkin
+- **karkea pohjakerros** joka kattaa koko sen alueen johon uloin zoom
+  yltää (2,7 uloimman näkymän mittaa keskipisteestä), 60 000 texeliä,
+  rakennettu VAIN laattavarastosta ja VAIN levossa
+
+`PohjaTekstuuri` perii `WindTexture`n, joten `build()` ja koko mitoitus
+on yhteinen; erillistä ovat vain kangas, puskurit ja `kelpaa`-lippu.
+`build` sai neljännen parametrin (`asetukset`), jolla pohja mitoitetaan
+uloimmalle zoomille eikä sille jota katsotaan.
+
+### Kaksi lisäävää kerrosta ei saa olla päällekkäin
+
+Ensimmäinen yritys poisti tarkan kerroksen kohdan pohjan kankaasta
+(`destination-out`, häivytysprofiili sama kuin CSS-maskissa). Se hajosi
+mittauksessa: pohjan texel on lähizoomissa satoja ruutupikseleitä, joten
+reikä ei mahdu sen hilaan. Mitattuna z9:llä reikä oli **3,4 x 7,1
+texeliä** ja alfaa jäi keskelle **26/255** — kartalla se näkyi kirkkaana
+laatikkona keskellä ruutua.
+
+Kerrokset vaihtavat siis vuoroa. Peittotarkistus kertoo kattaako tarkka
+kerros ruudun; jos kattaa, pohja on nollassa. Jos ei, pohja nousee
+ykköseen ja tarkka laskee nollaan. Koska sekoitus on LINEAARINEN
+(`plus-lighter`), summa on ristiinhäivytyksen jokaisessa vaiheessa tasan
+yksi: kerrokset esittävät samaa kenttää eri tarkkuudella. Ei tummaa eikä
+kirkasta rengasta missään vaiheessa.
+
+Levon kuva ei muutu lainkaan. Mitattuna pikselivertailuna vanhaan
+buildiin (partikkelit piilotettuna, kartta-alue):
+
+```
+z9  keskiero 0     max 0     kirkkaus 36,7 -> 36,7
+z6  keskiero 0     max 0     kirkkaus 61,1 -> 61,1
+z4  keskiero 1,43  max 21,4  kirkkaus 62,1 -> 62,0
+```
+
+z4:n ero on tarkoitettu: uloimman zoomin levon pehmuste oli KIINTEÄ
+2 astetta, ja se jätti tekstuurin reunan vain **17 pikselin** päähän
+ruudun reunasta. Nyt se on 0,30 näkymää (noin 190 px), ja texelbudjetti
+nostettiin laattapolulla vastaavasti (75 000 -> 170 000), jolloin texelin
+koko pysyi ennallaan.
+
+### Liu'un aikana maantiede valehtelee
+
+`_heatmapCovers` vertaa tekstuurin rajoja kartan rajoihin. Leafletin
+zoom-liu'un aikana molemmat ovat jo LOPPUTILAN arvoja heti kun `_move` on
+ajettu, mutta elementti on kesken transform-siirtymää. Jos siihen väliin
+osuu `_reset`, koko on jo kohdezoomin mutta skaalaa animoidaan yhä —
+mitattuna kerros renderöityi **470 px** levyisenä vaikka sen rajat
+sanoivat **2563 px**, eli 393 px:n ruudusta jäi 70 % paljaaksi samalla
+kun peittotarkistus sanoi "kattaa".
+
+Liu'un ajaksi luetaan siis se mikä ruudulla oikeasti on
+(`getBoundingClientRect` suhteessa karttasäiliöön). Se on asettelunluku,
+mutta vain sen 250 ms ajan.
+
+Samasta syystä tarkkaa kerrosta EI piiloteta liu'un aikana: piilotettu
+kerros ei ole silloin korvattavissa, koska pohjakin on kesken siirtymää.
+Mitattuna peitto putosi tässä ikkunassa nollaan, kun ristiinhäivytys
+ajettiin liu'un aikana loppuun asti. Liu'un ajan molemmat ovat päällä;
+summa on hetken yli yhden eli kuva on aavistuksen kirkkaampi.
+
+Kiinniottorakennus siirrettiin kokonaan pois liu'un ajalta
+(`_heatmapCatchUp` palauttaa työn `_hmPending`iin ja `zoomend` purkaa
+sen), koska rakennuksen päätteeksi tuleva `setBounds` on juuri se
+`_reset` joka aiheuttaa kaksinkertaisen kutistuksen.
+
+### Tulos
+
+Sama mittaus korjatulla buildilla, kaksi ajoa:
+
+| tilanne | peitto min | ruutuja alle 99 % |
+|---|---|---|
+| ULOS + panorointi, sormet kiinni | 30,5 % / 28,1 % | 3/102, 3/95 |
+| ULOS nopea, sormet kiinni | **100 %** | 0/98, 0/96 |
+| SISAAN nopea | 100 % | 0/46, 0/39 |
+| SISAAN + voimakas panorointi | 100 % | 0/46, 0/40 |
+| `setZoom(uloin)` | **100 %** | 0/37, 0/33 |
+| `zoomOut(2)` | **100 %** / 76,6 % | 0/32, 1/32 |
+
+Jäljelle jää 3 ruutua yhdessä skenaariossa (raju ulosnipistys +
+panorointi, sormet kiinni 2 s, sitten irrotus) liu'un aikana. Ruudulta
+mitattuna — kaappaus eleen aikana, liu'un aikana ja levossa — tummaa
+harmaata on 0,1–0,2 % ruudusta kaikissa vaiheissa, eli sitä ei näy.
+
+Pohjan rakennus maksaa 4x kuristuksella mediaanina 43–49 ms (z4, z6, z9,
+z12) ja se ajetaan vain levossa, 350 ms viiveellä liikkeen loputtua.
+
+### Pohjan reikäraja on löysempi kuin tarkan
+
+Pohja kattaa mannerten mittakaavan, ja sen reunoilla on aina meriä joita
+varastossa ei ole. Mitattuna 46 % solmuista jäi ilman dataa — tarkan
+kerroksen 50 %:n raja oli siis juuri ja juuri riittämätön, ja pohja jäi
+satunnaisesti rakentamatta (`pohja EI` mittauksessa). Rajaksi tuli 0,9 ja
+epäonnistunut rakennus yrittää uudelleen 1,8 s kuluttua, koska hilapolku
+hakee puuttuvat laatat matkalla.
