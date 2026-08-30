@@ -195,3 +195,13 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **Eleen tila kulkee `nipistysAlkaa` / `nipistysPaattyy` -parin kautta**, ja
   molemmat zoom-eleet käyttävät sitä. Palautus on tehtävä jokaisella
   poistumistiellä, myös `touchcancel`issa.
+- **Eleen ajaksi jäädytetty kerros on vapautettava `nipistysPaattyy`ssä**, ei
+  vasta seuraavassa `_reset`issä. Sormen noustessa kartta liukuu maaliin
+  Leafletin omalla animaatiolla, ja `_animateZoom` olettaa että elementin
+  koko vastaa sen rajoja — jäädytetty koko ei vastaa, ja kerros lensi
+  ruudun ulkopuolelle (musta välähdys).
+- **Jäädytys on kiinnitettävä VOIMASSA OLEVIIN rajoihin.** Lämpökartta
+  rakennetaan uudelleen kesken eleen, ja vanhalla ankkurilla uusi laaja
+  tekstuuri piirtyi vanhan pienen alueen kokoisena. `_heatmapCovers` on
+  tälle sokea: mittaa elementin `getBoundingClientRect` suhteessa
+  karttasäiliöön.

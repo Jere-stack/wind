@@ -4958,6 +4958,35 @@ function nipistysPaattyy(map) {
   map._nipistysKesken = false;
   const el = map.getContainer();
   if (el) el.classList.remove('nipistys');
+  /* JÄÄDYTYS ON PURETTAVA HETI, EI VASTA SEURAAVASSA _resetissä.
+   *
+   * Eleen ajaksi lämpökartan elementti saa kiinteän koon ja liikkuu
+   * pelkällä transformilla (ks. ImageOverlay._reset -paikkaus). Koko jää
+   * siis siihen mikä se oli eleen ALUSSA.
+   *
+   * Sormen noustessa kartta ei pysähdy vaan liukuu loppuasentoonsa
+   * zoom-animaatiolla, ja Leafletin oma `_animateZoom` laskee siirtymän
+   * olettaen että elementin koko vastaa sen nykyisiä rajoja. Jäädytetty
+   * koko ei vastaa, joten kerros lensi hetkeksi ruudun ulkopuolelle:
+   * mitattuna nopeassa sisäänzoomauksessa 1–2 ruutua joissa lämpökartta
+   * peitti ruudusta **0 %** — käyttäjälle musta välähdys. Vasta
+   * animaation jälkeen tuleva `_reset` korjasi leveyden (3284 px -> 865 px).
+   *
+   * Purku tehdään tässä, kun kartan tila on vielä eleen loppuasento eli
+   * itsensä kanssa yhtäpitävä. Silloin `_animateZoom` saa oikean
+   * lähtögeometrian eikä välähdystä synny.
+   *
+   * Kerrokset haetaan `eachLayer`illa eikä nimetyn viitteen kautta,
+   * jotta sääntö pätee jokaiseen jäädytettyyn kerrokseen — myös
+   * sellaiseen joka lisätään myöhemmin. */
+  if (typeof map.eachLayer === 'function') {
+    map.eachLayer(function (kerros) {
+      if (kerros && kerros._nipZ0 != null && typeof kerros._reset === 'function') {
+        kerros._nipZ0 = null; kerros._nipB0 = null;
+        kerros._reset();
+      }
+    });
+  }
 }
 
 (function nipistysPehmennys() {
@@ -5065,13 +5094,32 @@ function nipistysPaattyy(map) {
       L.ImageOverlay.prototype._reset = function () {
         const m = this._map;
         if (!kesken(m) || !this._image || !L.Browser.any3d) {
-          this._nipZ0 = null;
+          this._nipZ0 = null; this._nipB0 = null;
           return origReset.call(this);
         }
-        if (this._nipZ0 == null) {
+        /* JÄÄDYTYS ON KIINNITETTÄVÄ NIIHIN RAJOIHIN JOTKA OVAT VOIMASSA.
+         *
+         * Ankkuri (`_nipP0`) ja elementin koko otettiin kerran eleen
+         * alussa. Se riittää niin kauan kuin kuva pysyy samana — mutta
+         * lämpökartta rakennetaan uudelleen KESKEN eleen, ja silloin
+         * `setBounds` antaa uudet, laajemmat rajat. Vanhalla ankkurilla
+         * ja vanhalla elementtikoolla uusi laaja tekstuuri piirtyi
+         * vanhan pienen alueen kokoisena: mitattuna ulos nipistettäessä
+         * tekstuuri KATTOI näkymän maantieteellisesti koko ajan
+         * (`_heatmapCovers` tosi joka ruudussa) mutta peitti ruudusta
+         * enää **8,4 %** — väri jäi kapeaksi suorakaiteeksi keskelle ja
+         * ympärille jäi paljas tumma pohjakartta.
+         *
+         * Rajojen vaihtuessa tehdään täysi `origReset` kerran ja
+         * napataan ankkuri uudelleen. Se on layout, mutta vain
+         * rakennusta kohti — ei joka ruudussa, joten optimoinnin
+         * alkuperäinen tarkoitus säilyy. `setBounds` luo aina uuden
+         * `LatLngBounds`-olion, joten viitevertailu riittää. */
+        if (this._nipZ0 == null || this._nipB0 !== this._bounds) {
           this._nipZ0 = m.getZoom();
+          this._nipB0 = this._bounds;
           this._nipP0 = m.project(this._bounds.getNorthWest(), this._nipZ0);
-          origReset.call(this);       /* koko ja paikka kerran lähtöhetkellä */
+          origReset.call(this);       /* koko ja paikka kerran per rajat */
           return;
         }
         const z = m.getZoom();
@@ -5796,7 +5844,14 @@ function initMap() {
     _hmRaf = true;
     requestAnimationFrame(function () {
       _hmRaf = false;
-      if (!_heatmapCovers()) _heatmapCatchUp();
+      /* Marginaali myös zoomissa, ei vain siirrossa.
+       *
+       * Ilman sitä rakennus alkoi vasta kun reuna oli JO tullut ruudulle,
+       * ja koska rakennus kestää oman aikansa, ulos zoomatessa se oli
+       * valmistuessaan jälleen myöhässä. Marginaali aloittaa työn kun
+       * reuna on tulossa — sama peruste kuin siirrossa, mutta zoomissa
+       * kiireellisempi, koska näkymä kasvaa joka suuntaan yhtä aikaa. */
+      if (!_heatmapCovers(0.25)) _heatmapCatchUp();
     });
   });
 
@@ -6310,7 +6365,7 @@ const WindTexture = {
      vahvistettu valinnaksi. Ilman tätä hilapolku näytteistäisi väärän
      tunnin juuri niissä kahdessa tilanteessa. */
   hetki: null,
-  _puskuriN: -1, _img: null, _d32: null,
+  _puskuriN: -1, _img: null, _d32: null, _laattaHakuT: 0,
   _vaN: -1, _vaU: null, _vaV: null, _sxN: -1, _sx: null, _sw: null, _py: null,
 
   /* Tekstuurin sivun enimmäismitta. Omana metodinaan eikä buildin sisällä,
@@ -6345,7 +6400,16 @@ const WindTexture = {
    * Nyt sivut jaetaan NÄKYMÄN MUODON mukaan ja katto on niiden tulossa.
    * Silloin texel on neliö joka zoomilla ja sumennus osuu molempiin
    * suuntiin samalla tavalla. */
-  texelBudjetti(zoom, mobiili) {
+  texelBudjetti(zoom, mobiili, ele) {
+    /* Eleen aikana budjetti on KIINTEÄ eikä zoomista riippuva.
+     *
+     * Aiemmin eleen halpuus tehtiin jakamalla sivut `STEP/COARSE_STEP`:llä.
+     * Se ei enää käy, koska eleen pehmuste on nyt paljon suurempi: sama
+     * jakaja antaisi eri hinnan sen mukaan kuinka laaja alue sattuu
+     * olemaan. Kiinteä budjetti rajaa työn suoraan riippumatta siitä
+     * kuinka paljon maailmaa tekstuuri kattaa — juuri niin kuin
+     * laattapyramidissa yksi laatta on aina yhtä kallis. */
+    if (ele) return mobiili ? 90000 : 130000;
     /* Uloin kaista on halvempi kuin muut sen NAKOINEN texelmaara antaa
        ymmartaa: siella datapisteita on eniten (1,25 asteen hila laajalla
        alueella), joten jokainen idw-solmu maksaa enemman. Mitattuna
@@ -6365,6 +6429,13 @@ const WindTexture = {
   /* Tavoite: yksi texel noin kaksi CSS-pikseliä. Sen alle ei kannata
      mennä, koska päälle ajetaan vielä sumennus. */
   TEXEL_PX: 2,
+
+  /* Pehmuste osuutena näkymästä, akseleittain. Levossa 0,6 on valittu
+     peittotarkistuksen mukaan (`_heatmapCovers(0,35)` laukaisee uuden
+     rakennuksen 0,25 näkymän pelivaralla). Eleen aikana pehmuste on
+     paljon suurempi ja tarkkuus vastaavasti pienempi — ks. build(). */
+  PEHMUSTE: 0.6,
+  PEHMUSTE_ELE: 1.2,
 
   /* Väri ja alfa yhtenä pakattuna hakutauluna.
    *
@@ -6505,9 +6576,30 @@ const WindTexture = {
          * jää 0,25 näkymää ennen kuin reuna tulee vastaan. Pienempi
          * pehmuste alkaisi rakentaa uudestaan kesken tavallisen
          * vierityksen. */
-        const PEHMUSTE = 0.6;
-        const pLat = zoom <= 5 ? 2 : vLat * PEHMUSTE;
-        const pLng = zoom <= 5 ? 2 : vLng * PEHMUSTE;
+        /* ELEEN AIKANA TEKSTUURI ON LAAJA JA KARKEA, LEVOSSA TIUKKA JA TERÄVÄ.
+         *
+         * Tämä on sama ratkaisu jonka pohjakartta jo käyttää (pysyvä matalan
+         * zoomin taustalaatta, ks. `docs/lampokartta.md`) ja sama jonka
+         * laattapyramidi antaisi ilmaiseksi: kun zoomataan ulos, näkyviin
+         * tulee KARKEAMPI mutta LAAJEMPI taso — ei paljasta pohjaa.
+         *
+         * Ilman tätä ulos nipistäminen jätti ruudulle suorakaiteen ja sen
+         * ympärille pelkän tumman pohjakartan. Mitattuna (nipistys z8 -> z5,
+         * sormet näytöllä, 4x kuristus): lämpökartan peitto ruudusta putosi
+         * **8,2 %:iin** ja 33 ruutua oli alle 99 %. Syy ei ole hitaus vaan
+         * geometria: tekstuuri rakennetaan sen hetkiselle näkymälle 0,6
+         * näkymän pehmusteella, ja jatkuva ulos zoomaus kasvattaa näkymää
+         * nopeammin kuin pehmuste kattaa — jokainen rakennus on valmistuessaan
+         * jo liian pieni.
+         *
+         * `zoom <= 5` -tapaus jätetään levossa ennalleen (kiinteä 2 astetta),
+         * jottei levon laatu muutu missään. Eleen aikana pehmuste on
+         * suhteellinen myös siellä, koska juuri siellä näkymä kasvaa eniten:
+         * 2 astetta on z5:n 30 asteen näkymässä vain 6 %. */
+        const ele = STEP > this.COARSE_STEP;
+        const P = ele ? this.PEHMUSTE_ELE : this.PEHMUSTE;
+        const pLat = ele ? Math.max(2, vLat * P) : (zoom <= 5 ? 2 : vLat * P);
+        const pLng = ele ? Math.max(2, vLng * P) : (zoom <= 5 ? 2 : vLng * P);
         laMin = Math.max(-85, viewportBounds.getSouth() - pLat);
         laMax = Math.min(85, viewportBounds.getNorth() + pLat);
         loMin = viewportBounds.getWest() - pLng;
@@ -6541,30 +6633,11 @@ const WindTexture = {
       }
       /* Katto on sivujen TULOSSA, ja ylitys kutistetaan neliöjuurella
          jolloin muotosuhde säilyy. */
-      const budjetti = this.texelBudjetti(zoom, isMobileDevice);
+      const budjetti = this.texelBudjetti(zoom, isMobileDevice, STEP > this.COARSE_STEP);
       const yli = (cols * rows) / budjetti;
       if (yli > 1) {
         const k = Math.sqrt(yli);
         cols = Math.round(cols / k); rows = Math.round(rows / k);
-      }
-      /* Hilapolun harvennus: pienempi TEKSTUURI, ei harvempi näytteistys.
-       *
-       * Sironneessa polussa STEP harventaa `idw()`-kutsut ja täyttö tehdään
-       * silti joka texelille — siellä kallis osa on solmut. Hilapolussa
-       * solmu on lähes ilmainen (`naytteista` lukee tavuja) ja kallis osa
-       * on täyttö: bikuubinen ydin on 16 näytettä ja 40 kertolaskua
-       * texeliä kohti, ja sen päälle tulee kolmen Float32Arrayn ja
-       * ImageDatan varaus — 170 000 texelillä 2,7 MB per rakennus.
-       *
-       * Siksi sama lippu vaikuttaa eri asiaan: texelimäärä jaetaan
-       * (STEP/COARSE_STEP)²:lla. Eleen aikana texel on kaksi kertaa
-       * leveämpi, mikä on sama vaikutus kuvaan kuin vanhan polun
-       * karkealla interpoloinnilla — ja `zoomend`/`moveend` rakentaa
-       * tarkan version heti kun ele päättyy (`askel`-velka alla). */
-      if (hilaMahdollinen && STEP > this.COARSE_STEP) {
-        const j = STEP / this.COARSE_STEP;
-        cols = Math.max(8, Math.round(cols / j));
-        rows = Math.max(8, Math.round(rows / j));
       }
       this.cols = Math.max(8, cols);
       this.rows = Math.max(8, rows);
@@ -6677,6 +6750,35 @@ const WindTexture = {
            kokoaHilalle, joka keskeyttää heti sen ylityttyä. */
         const raja = Math.floor(gc * gr * 0.5);
         const puuttuu = Saalaatat.kokoaHila(la0, lo0, dStep, dStep, gc, gr, gu, gv, dStep, raja);
+        /* PUUTTUVAT LAATAT HAETAAN, EI VAIN PAIKATA.
+         *
+         * Reiät täytetään reunan jatkeella, jotta kuvaan ei tule mustaa —
+         * mutta jatke on arvaus, ei dataa. Eleen aikana tekstuuri ulottuu
+         * paljon näkymää laajemmalle (`PEHMUSTE_ELE`), ja juuri se
+         * reuna-alue on se joka tulee ruudulle seuraavaksi kun käyttäjä
+         * jatkaa ulos zoomaamista. Mitattuna reikien osuus nousi
+         * 13 %:sta 50 %:iin kun pehmustetta kasvatettiin — eli puolet
+         * hilasta oli levitettyä reunaa.
+         *
+         * Haku on tulta-ja-unohda: `varmista` yhdistää jo käynnissä olevat
+         * pyynnöt (`_kesken`) ja ohittaa muistissa olevat laatat, joten
+         * tämä ei voi kertautua. Tulos näkyy SEURAAVASSA rakennuksessa,
+         * joita eleen aikana tulee sekunnin välein.
+         *
+         * Kuristus on pakollinen: rakennuksia tulee tiheään, ja jokainen
+         * haravoi laatat uudelleen. */
+        if (puuttuu > 0 && Saalaatat.kaytossa()) {
+          const nyt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+          if (nyt - (WindTexture._laattaHakuT || 0) > 700) {
+            WindTexture._laattaHakuT = nyt;
+            try {
+              Saalaatat.varmista(L.latLngBounds(
+                L.latLng(Math.max(-85, la0), lo0),
+                L.latLng(Math.min(85, la0 + (gr - 1) * dStep), lo0 + (gc - 1) * dStep)
+              ), dStep).catch(function () {});
+            } catch (e) {}
+          }
+        }
         if (puuttuu > raja) return null;
         return { gu, gv, gc, gr, la0, lo0, dStep };
       })();

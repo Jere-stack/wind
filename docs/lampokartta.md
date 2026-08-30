@@ -836,3 +836,61 @@ rulla, tuplanapautus — pysyvät aina animaatiorajan sisällä.
 Mitattuna sitä ei kutsuta taustalaatalle **kertaakaan** (inval 0), eli
 paikkaus oli kuollutta koodia — laatat eivät katoa invalidoinnissa vaan
 odottavat dekoodausta.
+
+## Eleen aikana laaja ja karkea, levossa tiukka ja terävä
+
+Tekstuuri rakennettiin aina sen hetkiselle näkymälle 0,6 näkymän
+pehmusteella. Se riittää vieritykseen mutta ei ulos zoomaamiseen: **jatkuva
+zoom kasvattaa näkymää nopeammin kuin pehmuste kattaa**, joten jokainen
+rakennus on valmistuessaan jo liian pieni. Reunoille jäi paljas
+pohjakartta.
+
+Ratkaisu on sama minkä pohjakartta jo tekee pysyvällä matalan zoomin
+taustalaatallaan (ks. "Nopea zoom ei saa näyttää mustaa") ja sama minkä
+laattapyramidi antaisi ilmaiseksi: **ulos zoomatessa näkyviin tulee
+karkeampi mutta laajempi taso.** Kaksi tasoa riittää, kun toinen seuraa
+näkymää ja toinen kattaa ympäristön.
+
+| | pehmuste / sivu | kate | texelibudjetti |
+|---|---|---|---|
+| levossa | 0,6 näkymää (`PEHMUSTE`) | 2,2× lineaarinen | zoomin mukaan, 75–260 k |
+| eleen aikana | 1,2 näkymää (`PEHMUSTE_ELE`) | 3,4× lineaarinen | kiinteä 90 k (mobiili) |
+
+**Levon laatu ei muutu missään.** `zoom <= 5` -erikoistapaus (kiinteä
+2 astetta) on ennallaan levossa; eleen aikana pehmuste on suhteellinen
+myös siellä, koska juuri siellä näkymä kasvaa eniten — 2 astetta on z5:n
+30 asteen näkymässä vain 6 %.
+
+**Budjetti on eleen aikana KIINTEÄ eikä zoomista riippuva.** Aiemmin eleen
+halpuus tehtiin jakamalla sivut `STEP/COARSE_STEP`:llä, mutta se ei käy
+kun pehmuste on suuri: sama jakaja antaisi eri hinnan sen mukaan kuinka
+laaja alue sattuu olemaan. Kiinteä budjetti rajaa työn suoraan
+riippumatta katetusta alueesta — juuri niin kuin laattapyramidissa yksi
+laatta on aina yhtä kallis.
+
+`_heatmapCovers` saa zoomissa marginaalin (0,25) kuten siirrossakin.
+Ilman sitä rakennus alkoi vasta kun reuna oli jo tullut ruudulle, ja
+ulos zoomatessa se oli valmistuessaan jälleen myöhässä.
+
+### Laaja pehmuste tarvitsee laajemman laattapeiton
+
+Reiät hilassa täytetään reunan jatkeella, jotta kuvaan ei tule mustaa —
+mutta jatke on arvaus, ei dataa. Kun pehmustetta kasvatettiin, tekstuuri
+ulottui alueelle jolle laattoja ei ollut haettu, ja **reikien osuus nousi
+13 %:sta 50 %:iin**: puolet hilasta oli levitettyä reunaa. Juuri se
+reuna-alue on se joka tulee ruudulle seuraavaksi kun käyttäjä jatkaa ulos
+zoomaamista.
+
+Siksi hilapolku hakee puuttuvat laatat itse (`Saalaatat.varmista`
+tulta-ja-unohda -kutsuna, 700 ms kuristuksella). `varmista` yhdistää jo
+käynnissä olevat pyynnöt ja ohittaa muistissa olevat laatat, joten kutsu
+ei voi kertautua. Tulos näkyy seuraavassa rakennuksessa, joita eleen
+aikana tulee noin sekunnin välein. Mitattuna reiät putosivat takaisin
+**50 %:sta 23 %:iin** laajimmassa näkymässä ja **0 %:iin** kaikissa
+muissa, ilman että peitto muuttui.
+
+**Tämä yksin ei riittänyt.** Peitto parani mutta jäi 9 %:iin, koska
+varsinainen vika oli eleen aikaisessa jäädytyksessä eikä geometriassa —
+ks. `docs/eleet.md`, "Lämpökartan jäädytys eleen aikana". Molemmat
+tarvittiin: jäädytyskorjaus tekee näkyväksi sen mitä tekstuuri kattaa,
+ja laaja pehmuste huolehtii että se kattaa tarpeeksi.

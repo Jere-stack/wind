@@ -823,3 +823,107 @@ tarkistaa oikealla laitteella.
 joka palauttaa tavoitteen `nParticlesBase()`:iin. Partikkelimäärää ei
 siis voi pyyhkäistä asettamalla `_targetParticles` ja kutsumalla
 `resetParticles` — jälkimmäinen kumoaa edellisen.
+
+## Lämpökartan jäädytys eleen aikana — kaksi vikaa samassa paikkauksessa
+
+Nipistyksen ajaksi lämpökartan elementti saa kiinteän koon ja liikkuu
+pelkällä `transform`illa, täsmälleen kuten laattataso (ks. edellinen luku:
+`ImageOverlay._reset` -paikkaus). Optimointi on oikea — se poistaa layoutin
+ruudun suurimmalta elementiltä joka ruudussa — mutta se teki kaksi
+oletusta jotka eivät pidä paikkaansa.
+
+Molemmat oireet olivat käyttäjän mukaan olleet pitkään: **väri katoaa ja
+kartta on musta**.
+
+### 1. Ankkuri napattiin kerran, vaikka rajat vaihtuvat kesken eleen
+
+`_nipZ0` ja `_nipP0` otettiin talteen eleen alussa, ja koko jäi eleen
+alun arvoon. Se riittää niin kauan kuin kuva pysyy samana — mutta
+lämpökartta rakennetaan uudelleen KESKEN eleen (`_heatmapCatchUp`), ja
+silloin `setBounds` antaa uudet, laajemmat rajat. Vanhalla ankkurilla ja
+vanhalla elementtikoolla uusi laaja tekstuuri piirtyi vanhan pienen
+alueen kokoisena.
+
+Mitattuna, nipistys ulos z8 → z5 sormet näytöllä, 4× kuristus:
+
+```
+                          maantieteellinen kate    peitto ruudusta
+_heatmapCovers()          tosi JOKA RUUDUSSA       —
+lämpökartan elementti     —                        8,4 %
+```
+
+Tekstuuri siis kattoi näkymän koko ajan; se vain piirtyi väärän kokoisena.
+Ruudulla se näkyi **kapeana suorakaiteena keskellä ja paljaana tummana
+pohjakarttana ympärillä** — juuri se mistä valitettiin.
+
+Korjaus: rajojen vaihtuessa tehdään täysi `origReset` kerran ja ankkuri
+napataan uudelleen. Se on layout, mutta vain **rakennusta kohti** eikä
+joka ruudussa, joten optimoinnin alkuperäinen tarkoitus säilyy.
+`setBounds` luo aina uuden `LatLngBounds`-olion, joten viitevertailu
+(`_nipB0 !== this._bounds`) riittää tunnistamaan muutoksen.
+
+### 2. Jäädytystä ei purettu ennen loppuanimaatiota
+
+Sormen noustessa kartta ei pysähdy vaan liukuu loppuasentoonsa
+zoom-inertialla — ja se toteutettiin tarkoituksella Leafletin omana 250 ms
+siirtymänä (ks. "Zoom-inertia" yllä), jolloin `_animateZoom` hoitaa
+kerrosten synkronoinnin.
+
+`_animateZoom` kuitenkin **olettaa että elementin koko vastaa sen nykyisiä
+rajoja**. Jäädytetty koko ei vastaa. Lippu `_nipistysKesken` nollattiin
+`nipistysPaattyy`ssä mutta elementin geometriaa ei palautettu, joten
+animaatio lähti väärästä lähtökoosta ja heitti kerroksen hetkeksi ruudun
+ulkopuolelle.
+
+Mitattuna nopeassa sisäänzoomauksessa (viive 300 ms, 4× kuristus):
+
+```
+ruutu   peitto   _animatingZoom   _nipistysKesken
+ [10]     0 %          1                 0
+ [11]     0 %          1                 0
+sitten   100 %         0                 0   <- _reset korjasi: w 3284px -> 865px
+```
+
+Yksi–kaksi ruutua joissa lämpökartta oli **kokonaan poissa**. Se on se
+musta välähdys.
+
+Korjaus: jäädytys puretaan `nipistysPaattyy`ssä — siis siinä hetkessä kun
+kartan tila on vielä eleen loppuasento eli itsensä kanssa yhtäpitävä —
+eikä vasta seuraavassa `_reset`issä. Kerrokset haetaan `eachLayer`illa
+eikä nimetyn viitteen kautta, jotta sääntö pätee jokaiseen jäädytettyyn
+kerrokseen.
+
+### Mitattu lopputulos
+
+Lämpökartan peitto ruudusta, laattojen verkkoviive 300 ms, 4× kuristus.
+"huonoja" = ruutuja joissa peitto oli alle 99 %.
+
+| ele | ennen | jälkeen |
+|---|---|---|
+| ulos + panorointi, sormet näytöllä | 37/71, min 5,8 % | **2/73, min 30 %** |
+| ulos nopea, sormet näytöllä | 30/56, min 3,9 % | **3/59, min 14,8 %** |
+| sisään nopea | — | **0/25, min 100 %** |
+| sisään + voimakas panorointi | 1/48, min **0 %** | **0/40, min 100 %** |
+| sisään + panorointi | 0/27, min 100 % | 0/42, min 100 % |
+
+Texelin koko LEVOSSA on molemmissa sama (2,1 / 4,0 / 3,1 px näkymästä
+riippuen), eli lepokuvan tarkkuus ei muuttunut lainkaan.
+
+**Mikä jäi jäljelle.** Ulos zoomatessa jää 2–3 ruutua siinä hetkessä kun
+sormet nousevat. Syy on zoom-inertia: kartta liukuu vielä enintään 0,5
+tasoa ulos, ja sen animaation ajaksi `map.on('zoom')` palaa heti
+(`_animatingZoom`), joten kiinniottoa ei ajeta. Tekstuuri kattaa
+useimmiten yli, mutta ei aina.
+
+Sitä EI korjattu rakentamalla kesken animaation: `setBounds` vaihtaisi
+elementin koon ilman vastaavaa `_animateZoom`-kutsua, mikä nykäisisi
+kerrosta — eli vaihtaisi lyhyen reunavälähdyksen näkyvään hyppyyn. Jos
+tähän palataan, oikea suunta on rakentaa tekstuuri VALMIIKSI inertian
+maalille jo eleen aikana, ei animaation aikana.
+
+### Miksi tätä ei huomattu mittareissa aiemmin
+
+`_heatmapCovers()` vertaa tekstuurin MAANTIETEELLISIÄ rajoja näkymään, ja
+se palautti toden koko ajan. Vika oli yksinomaan siinä mihin elementti
+piirtyi. **Jos mittaat tätä aluetta, mittaa elementin `getBoundingClientRect`
+suhteessa karttasäiliöön** — älä `_heatmapCovers`ia, joka on tässä sokea.
