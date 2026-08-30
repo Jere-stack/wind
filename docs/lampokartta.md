@@ -894,3 +894,58 @@ varsinainen vika oli eleen aikaisessa jäädytyksessä eikä geometriassa —
 ks. `docs/eleet.md`, "Lämpökartan jäädytys eleen aikana". Molemmat
 tarvittiin: jäädytyskorjaus tekee näkyväksi sen mitä tekstuuri kattaa,
 ja laaja pehmuste huolehtii että se kattaa tarpeeksi.
+
+## Tekstuurin reuna häivytetään — raja ei ole viiva
+
+Tekstuuri on suorakaide, ja sen reuna on **datan raja eikä mikään
+kartalla oleva asia**. Kun reuna sattuu ruudulle, terävä katkoviiva
+lukee virheenä: käyttäjän kuvassa väri loppui partaveitsenterävään
+laatikkoon keskellä Atlanttia.
+
+Peitto on korjattu erikseen (`docs/eleet.md`), joten reunan ei pitäisi
+näkyä lainkaan. Häivytys on se varmistus jonka takia se ei näy
+silloinkaan kun jokin menee pieleen — sama minkä Windy tekee datan
+rajalla: häivytys, ei leikkaus.
+
+Toteutus on kaksi CSS-liukua leikattuna toisillaan
+(`mask-composite: intersect`), jolloin kaikki neljä reunaa häipyvät.
+Kanvaasiin ei kosketa, joten molemmat rakennuspolut saavat sen
+ilmaiseksi.
+
+### Leveys on mitattu, ei kiinteä prosentti
+
+Häivytys saa syödä vain sitä osaa tekstuurista joka on ruudun
+**ulkopuolella**, ja pehmusteen osuus vaihtelee: levossa 0,6 näkymää per
+sivu, mutta uloimmalla zoomilla kiinteä 2 astetta. Sama prosentti olisi
+siellä liikaa.
+
+`paivitaHaive()` ottaa leveydeksi puolet siitä marginaalista joka on
+oikeasti ruudun ulkopuolella, katkaistuna 3,5 %:iin. Mitattuna:
+
+| tila | häivytys | marginaali |
+|---|---|---|
+| lepo z3,6 | 4 px | 17 px |
+| lepo z5 | 16 px | 46 px |
+| lepo z7–z12 | 30 px | 236 px |
+| uloin raja | 4 px | 17 px |
+| kesken eleen | 29 px | 211 px |
+| eleen jälkeen | 13 px | 38 px |
+
+Kaikissa piilossa. Jos tekstuuri jostain syystä olisi näkymää pienempi,
+osuus menee nollaan eikä häivytys pehmennä mitään pois.
+
+### Sekoitus ei muuttunut
+
+Maski luo oman kompositointitason, ja tämän tiedoston mukaan juuri
+sellaiset muutokset on mitattava (ks. `will-change`). Vakioidulla
+näkymällä ja hetkellä, keskialue 25–75 % × 35–65 %:
+
+```
+                keski RGB                  kontrasti
+ennen    (40,63  88,09  47,97)               196,9
+jälkeen  (41,60  88,98  48,40)               196,9
+```
+
+Kontrasti on identtinen ja keskiväri eroaa alle yhden yksikön 255:stä
+eli ajojen välisen datan verran. `plus-lighter` ja rantaviivan kontrasti
+säilyivät.

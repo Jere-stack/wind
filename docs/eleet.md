@@ -991,6 +991,37 @@ Paikkaus on voimassa vain `_nipistysKesken`in aikana. Ohjelmalliset
 polut rajaavat jo `_limitZoom`illa ennen tänne tuloa, eikä niihin kuulu
 joustoa.
 
+### Vastus alkaa ENNEN rajaa
+
+Pelkkä jousto rajan alapuolella tarkoittaa että kartta liikkuu sormen
+mukana täydellä nopeudella rajalle asti ja pysähtyy vasta siinä. Se
+tuntuu töksähdykseltä vaikka pysähdys itse olisi pehmeä — **muutos
+nopeudessa on äkillinen, ei sijainnissa.**
+
+Apple Mapsissa ja iOS:n vierityksessä hidastus alkaa jo ennen reunaa:
+viimeinen matka kuljetaan hitaammin, jolloin pysähdys on jo tapahtunut
+kun reuna tulee. Sama tässä, kaksi vaihetta:
+
+```
+PEHMEA = 0,60 zoomtasoa rajan yläpuolella   kuutiollinen jarrutus, 1 -> K
+K      = 0,35                               nopeus rajalla
+YLI_MAX= 0,30 zoomtasoa rajan alapuolella   asymptoottinen jousto
+```
+
+Kuutio on valittu neljästä ehdosta niin että **koko kuvaus on C1-jatkuva**:
+
+| | vaatimus | toteutuu |
+|---|---|---|
+| `g(0)` | 0 | 0,0000 |
+| `g(1)` | 1 | 1,0000 |
+| `g'(1)` | 1 — ei nykäystä kaistan alkaessa | 1,0000 |
+| `g'(0)` | K — sama kuin jouston alkunopeus | 0,3500 |
+
+Derivaatta on koko kaistalla positiivinen (pienin 0,35), eli kuvaus on
+monotoninen eikä kartta voi liikkua väärään suuntaan. Jouston derivaatta
+rajalla on niin ikään K, joten siirtymä kaistalta joustoon on sekin
+sileä. **Kartta pysähtyy tuntumaan ennen kuin se pysähtyy.**
+
 ### Palautus tulee ilmaiseksi
 
 Molemmat zoom-eleet päättyvät `_limitZoom`iin — TouchZoomin oma

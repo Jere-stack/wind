@@ -285,6 +285,35 @@ body {
   mix-blend-mode: var(--sekoitus);
   image-rendering: auto;
   transition: filter 0.3s, -webkit-filter 0.3s;
+  /* REUNA HÄIVYTETÄÄN — tekstuurin raja ei saa olla viiva.
+   *
+   * Tekstuuri on suorakaide, ja sen reuna on datan raja eikä mikään
+   * kartalla oleva asia. Kun reuna sattuu ruudulle, terävä katkoviiva
+   * lukee virheenä: käyttäjän kuvassa väri loppui partaveitsenterävään
+   * laatikkoon keskellä Atlanttia.
+   *
+   * Peitto on korjattu erikseen (ks. docs/eleet.md), joten reunan EI
+   * pitäisi näkyä lainkaan — tämä on se varmistus jonka takia se ei
+   * näy silloinkaan kun jokin menee pieleen. Sama minkä Windy tekee
+   * datan rajalla: häivytys, ei leikkaus.
+   *
+   * Kaksi liukua leikataan toisillaan, jolloin kaikki neljä reunaa
+   * häipyvät. 3,5 % elementin mitasta on levossa noin 35 px eli
+   * selvästi ruudun ulkopuolella (tekstuuri ulottuu 0,6 näkymää yli),
+   * joten normaalitilassa tämä ei syö näkyvää dataa lainkaan. */
+  --hm-haive: 0%;   /* asetetaan JS:sta, ks. paivitaHaive() */
+  -webkit-mask-image:
+    linear-gradient(to right,  transparent 0, #000 var(--hm-haive),
+                    #000 calc(100% - var(--hm-haive)), transparent 100%),
+    linear-gradient(to bottom, transparent 0, #000 var(--hm-haive),
+                    #000 calc(100% - var(--hm-haive)), transparent 100%);
+  -webkit-mask-composite: source-in;
+          mask-image:
+    linear-gradient(to right,  transparent 0, #000 var(--hm-haive),
+                    #000 calc(100% - var(--hm-haive)), transparent 100%),
+    linear-gradient(to bottom, transparent 0, #000 var(--hm-haive),
+                    #000 calc(100% - var(--hm-haive)), transparent 100%);
+          mask-composite: intersect;
 }
 
 /* Nipistyksen ajaksi laattasäiliö ja lämpökartta omalle
@@ -5087,18 +5116,53 @@ function nipistysPaattyy(map) {
      * samasta luvusta. Jos zoom puristettaisiin vasta `_move`ssa,
      * keskipiste olisi laskettu puristamattomalla luvulla ja ankkuri
      * sormien alla valuisi. */
-    const JOUSTO = 0.30;
+    /* Vastus alkaa ENNEN rajaa, ei vasta sillä.
+     *
+     * Pelkkä jousto rajan alapuolella tarkoittaa että kartta liikkuu
+     * sormen mukana täydellä nopeudella rajalle asti ja pysähtyy vasta
+     * siinä. Se tuntuu töksähdykseltä, vaikka pysähdys itse olisi
+     * pehmeä — muutos nopeudessa on äkillinen.
+     *
+     * Apple Mapsissa ja iOS:n vierityksessä hidastus alkaa jo ennen
+     * reunaa: viimeinen matka kuljetaan hitaammin, jolloin pysähdys on
+     * jo tapahtunut kun reuna tulee. Sama tässä:
+     *
+     *   PEHMEA yläpuolella   kuutiollinen jarrutus, nopeus 1 -> K
+     *   rajan alapuolella    asymptoottinen jousto, alkunopeus K
+     *
+     * Kuutio on valittu niin että se on JATKUVA MOLEMMISSA PÄISSÄ:
+     * g(0)=0, g(1)=1, g'(1)=1 (ei nykäystä kaistan alkaessa) ja
+     * g'(0)=K (sama nopeus kuin joustolla, ei nykäystä rajalla).
+     * Kertoimet seuraavat suoraan noista neljästä ehdosta.
+     *
+     * Rajalla nopeus on siis K eli 35 % sormen nopeudesta, ja se
+     * saavutetaan asteittain 0,6 zoomtason matkalla. Kartta *pysähtyy
+     * tuntumaan* ennen kuin se pysähtyy. */
+    const PEHMEA = 0.60;    /* kaista rajan yläpuolella jolla jarrutetaan */
+    const K      = 0.35;    /* nopeus rajalla suhteessa sormeen */
+    const YLI_MAX = 0.30;   /* enimmäisjousto rajan alapuolella */
+
     function joustaZoom(map, z) {
       const min = map.getMinZoom();
-      if (!(z < min)) return z;
+      const d = z - min;
+      if (d >= PEHMEA) return z;
+
+      if (d >= 0) {
+        /* Jarrutuskaista rajan yläpuolella. */
+        const t = d / PEHMEA;
+        return min + PEHMEA * (((K - 1) * t + 2 * (1 - K)) * t + K) * t;
+      }
+
+      /* Rajan alapuolella: jousto, jonka POHJA ON LÄPINÄKYMÄTÖN.
+         `taysi` on se zoom jolla maailma (256·2^z px) juuri täyttää
+         ruudun; sen alle ei mennä missään oloissa, koska siitä alkaa
+         paljas tausta. Poikkeavalla ruudulla jousto kutistuu itsestään. */
       const koko = map.getSize();
-      /* Zoom jolla maailma (256·2^z px) juuri täyttää ruudun. Sen alle ei
-         mennä missään oloissa — siitä alkaa paljas tausta. */
       const taysi = Math.log(Math.max(koko.y, koko.x, 1) / 256) / Math.LN2;
-      const jousto = Math.max(0, Math.min(JOUSTO, min - taysi));
+      const jousto = Math.max(0, Math.min(YLI_MAX, min - taysi));
       if (!(jousto > 0)) return min;
-      const yli = min - z;
-      return min - jousto * (1 - 1 / (1 + yli / jousto));
+      const yli = -d;
+      return min - jousto * (1 - 1 / (1 + K * yli / jousto));
     }
     if (L.Map.prototype.getScaleZoom) {
       const origScaleZoom = L.Map.prototype.getScaleZoom;
@@ -7087,7 +7151,48 @@ function drawColorField(skipBlur) {
       pane: 'tilePane', zIndex: 2
     }).addTo(State.map);
   }
+  paivitaHaive();
   if (!skipBlur) updateHeatmapBlur();
+}
+
+/* Reunahäivytyksen leveys — MITATTUNA, ei kiinteänä prosenttina.
+ *
+ * Häivytys saa syödä vain sitä osaa tekstuurista joka on ruudun
+ * ULKOPUOLELLA. Kiinteä prosentti ei riitä siihen, koska pehmusteen
+ * osuus vaihtelee: levossa se on 0,6 näkymää per sivu (elementti 2,2
+ * näkymää, marginaali 511 px 852 px:n ruudulla), mutta uloimmalla
+ * zoomilla pehmuste on kiinteä 2 astetta eli marginaali kutistuu noin
+ * 28 pikseliin. Sama 3,5 % olisi siellä 32 px eli söisi jo näkyvää
+ * dataa reunasta.
+ *
+ * Leveydeksi otetaan puolet siitä marginaalista joka on oikeasti
+ * ruudun ulkopuolella, katkaistuna 3,5 %:iin. Silloin häivytys on aina
+ * kokonaan piilossa eikä voi missään tilanteessa himmentää sitä mitä
+ * käyttäjä katsoo — ja jos tekstuuri jostain syystä on näkymää
+ * pienempi, häivytys menee nollaan eikä pehmennä mitään pois. */
+function paivitaHaive() {
+  const yl = State.heatmapOverlay;
+  if (!yl || !yl._image || !State.map) return;
+  const m = State.map.getSize();
+  let osuus = 0;
+  try {
+    const nw = State.map.latLngToContainerPoint(
+      L.latLng(WindTexture.latMax, WindTexture.lngMin));
+    const se = State.map.latLngToContainerPoint(
+      L.latLng(WindTexture.latMin, WindTexture.lngMax));
+    const lev = se.x - nw.x, kor = se.y - nw.y;
+    if (lev > 1 && kor > 1) {
+      /* Marginaali = kuinka paljon elementtiä on ruudun ulkopuolella
+         ahtaammalla akselilla, osuutena elementin mitasta. */
+      const mx = Math.min(-nw.x, se.x - m.x) / lev;
+      const my = Math.min(-nw.y, se.y - m.y) / kor;
+      osuus = Math.max(0, Math.min(0.035, Math.min(mx, my) * 0.5));
+    }
+  } catch (e) { return; }
+  const arvo = (osuus * 100).toFixed(2) + '%';
+  if (yl._image.style.getPropertyValue('--hm-haive') !== arvo) {
+    yl._image.style.setProperty('--hm-haive', arvo);
+  }
 }
 
 /* Sama arvo kuin CSS:n @supports-haarassa. Tämä asetetaan inline-tyyliin,
