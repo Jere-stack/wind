@@ -24,6 +24,16 @@ const KUORI  = 'kuori-' + LEIMA.split(' ')[0];
    ei olisi mitään. */
 const LAATAT = 'laatat-v1';
 const LAATTA_KATTO = 600;
+/* Saalaattojen luettelo omassa valimuistissaan: se on ainoa mika kertoo
+   onko varasto tuore, ja offline-kaynnistys tarvitsee sen. */
+const SAA_LUETTELO = 'saa-luettelo-v1';
+/* Laattojen valimuisti on VERSIOITU sisallon mukaan. Sovellus lisaa
+   osoitteeseen ?v=<ajoAika>, joten yhden ajon laatat ovat muuttumattomia
+   ja cache-first on turvallista. Ilman versiota tama olisi rikki: sama
+   osoite palauttaa eri sisallon kuuden tunnin valein, ja vanha laatta
+   tuoreen luettelon kanssa antaisi vaaran aika-akselin. */
+const SAA_ETULIITE = 'saa-';
+let saaViimeVersio = null;
 
 const KUORI_TIEDOSTOT = [
   '/',
@@ -37,6 +47,15 @@ const onLaatta = (u) =>
 
 const onKuori = (u) =>
   u.hostname === 'cdn.jsdelivr.net' && u.pathname.includes('leaflet@1.9.4');
+
+/* Saadatan laatat ja luettelo. Nama EIVAT ole /api: ne ovat
+   muuttumattomia binaareja versioidulla sisallolla, eivat elavia
+   kyselyita, joten niiden valimuistittaminen ei voi naytaa vanhaa
+   dataa tuoreena — luettelon oma tuoreustarkistus paattaa sen. */
+const onSaaLaatta  = (u) =>
+  u.hostname === 'raw.githubusercontent.com' && u.pathname.endsWith('.bin.gz');
+const onSaaLuettelo = (u) =>
+  u.hostname === 'raw.githubusercontent.com' && u.pathname.endsWith('/luettelo.json');
 
 self.addEventListener('install', (e) => {
   if (DEV) return;
@@ -138,5 +157,58 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
+  if (onSaaLuettelo(u)) {
+    /* Verkko edella, valimuisti varalla. Luettelo on se joka kertoo onko
+       varasto tuore, joten sita ei saa tarjoilla vanhana silloin kun
+       verkko toimii — mutta ilman varakopiota koko saalaattavarasto
+       putoaa pois heti kun yhteytta ei ole, ja juuri silloin siita on
+       eniten hyotya. Sovellus tarkistaa tuoreuden itse (Saalaatat.alusta). */
+    e.respondWith((async () => {
+      const c = await caches.open(SAA_LUETTELO);
+      try {
+        const r = await fetch(e.request);
+        if (r.ok) c.put(e.request, r.clone());
+        return r;
+      } catch (err) {
+        const osuma = await c.match(e.request);
+        if (osuma) return osuma;
+        throw err;
+      }
+    })());
+    return;
+  }
+
+  if (onSaaLaatta(u)) {
+    /* Valimuisti edella. Osoite on versioitu (?v=<ajoAika>), joten sen
+       sisalto ei voi muuttua — sama perustelu kuin Leafletin versioidulla
+       osoitteella. Uusi ajo tuo uuden version eli uuden avaimen, ja
+       vanhan sukupolven valimuisti poistetaan kokonaan. */
+    const versio = u.searchParams.get('v') || 'tuntematon';
+    const nimi = SAA_ETULIITE + versio;
+    e.respondWith((async () => {
+      const c = await caches.open(nimi);
+      const osuma = await c.match(e.request);
+      if (osuma) return osuma;
+      const r = await fetch(e.request);
+      if (r.ok) {
+        c.put(e.request, r.clone());
+        if (saaViimeVersio !== versio) { saaViimeVersio = versio; siivoaSaa(nimi); }
+      }
+      return r;
+    })());
+    return;
+  }
+
   /* Kaikki muu — /api mukaan lukien — menee koskemattomana verkkoon. */
 });
+
+/* Vain yksi sukupolvi laattoja kerrallaan. Ilman tata varasto kasvaisi
+   uudella noin 30 MB:n kerroksella kuuden tunnin valein, eika vanhoihin
+   ole enaa paluuta: luettelo osoittaa aina tuoreimpaan. */
+async function siivoaSaa(pida) {
+  for (const n of await caches.keys()) {
+    if (n.startsWith(SAA_ETULIITE) && n !== pida && n !== SAA_LUETTELO) {
+      await caches.delete(n);
+    }
+  }
+}
