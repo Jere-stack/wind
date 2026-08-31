@@ -218,7 +218,12 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   ja summa pysyy ykkösessä, koska `plus-lighter` on lineaarinen. Reiän
   puhkaisu pohjan kankaaseen kokeiltiin ja mitattiin rikki: pohjan texel
   on lähizoomissa satoja pikseleitä eikä reikä mahdu sen hilaan.
-- **`_heatmapCovers` ei kelpaa zoom-liu'un aikana.** Sen rajat ovat
+- **Nipistys ei lähetä `move`- eikä `zoom`-tapahtumia** (Leaflet ajaa
+  `_move`n `supressEvent`-lipulla). Eleen ajan tarvittava tarkistus on
+  ajettava omassa ruutusilmukassa, ei tapahtuman varassa. Samasta
+  syystä `State.liikkeessa` on epätosi nipistyksen aikana —
+  `_nipistysKesken` on oma ehtonsa.
+- **`_heatmapCovers` ei kelpaa zoom-liu'un EIKÄ nipistyksen aikana.** Sen rajat ovat
   lopputilan arvoja, elementti ei ole. Liu'un ajaksi peitto luetaan
   ruudulta (`getBoundingClientRect`).
 - **Kerrosta ei piiloteta liu'un aikana.** Korvaava kerros on silloin

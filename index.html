@@ -4992,6 +4992,24 @@ function nipistysAlkaa(map) {
   map._nipistysKesken = true;
   const el = map.getContainer();
   if (el) el.classList.add('nipistys');
+  /* VUORONVAIHTO TARKISTETAAN ELEEN AJAN JOKA RUUDUSSA.
+   *
+   * Leaflet ajaa nipistyksen `_move`n `supressEvent`-lipulla, joten
+   * `move`- ja `zoom`-tapahtumia EI tule — ja juuri niiden varassa
+   * pohjakerroksen vuoronvaihto oli. Laitteella tämä näkyi täsmälleen
+   * niin kuin käyttäjä sen kuvasi: kaksi sormea näytöllä, kartta
+   * mannerten mittakaavassa, ja ruudulla vain alkuperäinen suorakaide
+   * värillisenä. Mitattuna z11:sta uloimpaan: tarkka kerros peitti
+   * ruudusta 43 %, peittotarkistus tiesi sen (`_peittaa` epätosi),
+   * mutta pohja ei tullut esiin koska mikään ei kutsunut sitä.
+   *
+   * Silmukka on kaksi `getBoundingClientRect`-lukua ruutua kohti eikä
+   * yhtään kirjoitusta, eli se ei riko jäädytyksen tarkoitusta. */
+  (function eleenAikana() {
+    if (!map._nipistysKesken) return;
+    if (typeof pohjaNakyvyys === 'function') pohjaNakyvyys();
+    requestAnimationFrame(eleenAikana);
+  })();
 }
 function nipistysPaattyy(map) {
   if (!map) return;
@@ -5154,7 +5172,18 @@ function nipistysPaattyy(map) {
     const YLI_MAX = 0.30;   /* enimmäisjousto rajan alapuolella */
 
     function joustaZoom(map, z) {
-      const min = map.getMinZoom();
+      /* RAJA LUETAAN MOLEMMISTA, TIUKEMPI VOITTAA.
+       *
+       * `getMinZoom()` on se mitä `setMinZoom` viimeksi asetti, ja se
+       * lasketaan kartan KOOSTA (ks. uloinZoom). Jos koko oli asetuksen
+       * hetkellä väärä — ja mobiilissa se on: osoiterivi, turva-alueet
+       * ja kotivalikon appi muuttavat korkeutta ilman että `resize`
+       * välttämättä tulee — raja jää liian löysäksi ja jousto laskee
+       * väärästä luvusta. Laitteella mitattuna kartta pääsi z2,3:een
+       * vaikka lasketun rajan piti olla 3,54: ruudulla näkyi Grönlanti
+       * ja Sahara, ja lämpökartta oli pieni suorakaide mustalla.
+       * `map._uloinZoom` on tuorein LASKETTU arvo. */
+      const min = Math.max(map.getMinZoom(), map._uloinZoom || -Infinity);
       const d = z - min;
       if (d >= PEHMEA) return z;
 
@@ -5716,14 +5745,28 @@ function initMap() {
   }
   function paivitaUloinZoom() {
     const z = uloinZoom();
+    /* Talteen AINA, myös kun setMinZoom ei muutu: nipistyksen jousto
+       lukee tämän eikä pelkkää getMinZoomia (ks. joustaZoom). */
+    map._uloinZoom = z;
     if (Math.abs((map.getMinZoom() || 0) - z) < 0.01) return;
     map.setMinZoom(z);
     /* setMinZoom ei itse siirrä karttaa jos ollaan jo rajan alapuolella
-       — esimerkiksi kun ikkuna kavennetaan pystyyn. */
-    if (map.getZoom() < z) map.setZoom(z);
+       — esimerkiksi kun ikkuna kavennetaan pystyyn. Kesken eleen tai
+       liu'un ei siirretä: se taistelisi sormea vastaan, ja ele päättyy
+       joka tapauksessa `_limitZoom`iin. */
+    if (map.getZoom() < z && !map._nipistysKesken && !map._animatingZoom) map.setZoom(z);
   }
   paivitaUloinZoom();
-  map.on('resize', paivitaUloinZoom);
+  /* RAJA ON LASKETTAVA UUDELLEEN ENNEN JOKAISTA ELETTÄ.
+   *
+   * Kartan koko ei ole vakio: iOS:n osoiterivi piiloutuu ja palaa,
+   * turva-alueet ja näppäimistö muuttavat korkeutta, ja kotivalikon
+   * appi käynnistyy eri kokoisena kuin selain. `resize` ei tule
+   * kaikista näistä, ja jos ensimmäinen laskenta osui pieneen
+   * korkeuteen, raja jäi pysyvästi liian löysäksi — juuri se päästi
+   * eleen mannerten mittakaavan ohi. Laskenta on kaksi logaritmia,
+   * joten se kelpaa ajettavaksi eleen alussa. */
+  map.on('resize zoomstart movestart', paivitaUloinZoom);
 
   /* Heiton katto zoomin mukaan. Ulompana sama pikselimäärä on
      moninkertainen matka maastossa, ja siellä myös eleet ovat
@@ -7439,7 +7482,13 @@ function pohjaVarmista(viive) {
        mitattuna kerros kutistui kahdeksasosaan ja lensi ruudun
        ulkopuolelle. Rakennus ja sijoitus ovat synkronisia, joten yksi
        tarkistus tässä riittää kattamaan molemmat. */
-    if (State.liikkeessa || State.map._animatingZoom || _pohjaBusy) { pohjaVarmista(400); return; }
+    /* `_nipistysKesken` on OMA ehtonsa: nipistyksessä Leaflet ei lähetä
+       `zoomstart`ia, joten `State.liikkeessa` on epätosi vaikka kaksi
+       sormea on näytöllä. Ilman tätä pohja rakennettiin ja sijoitettiin
+       kesken eleen, jolloin `setBounds` ankkuroi jäädytyksen uudelleen
+       keskellä liikettä. */
+    if (State.liikkeessa || State.map._animatingZoom || State.map._nipistysKesken
+        || _pohjaBusy) { pohjaVarmista(400); return; }
     if (!State.windField || !State.windField.length) return;
     if (typeof Saalaatat === 'undefined' || !Saalaatat.kaytossa()) return;
     if (pohjaRiittaa()) return;
@@ -7542,7 +7591,7 @@ function pohjaNakyvyys() {
   let paalla;
   if (!PohjaTekstuuri.kelpaa || typeof State._peittaa !== 'function') {
     paalla = false;
-  } else if (State.map && State.map._animatingZoom) {
+  } else if (State.map && (State.map._animatingZoom || State.map._nipistysKesken)) {
     /* LIU'UN AIKANA MAANTIEDE VALEHTELEE.
      *
      * `_heatmapCovers` vertaa tekstuurin rajoja kartan rajoihin, ja
@@ -7553,7 +7602,20 @@ function pohjaNakyvyys() {
      * levyisenä vaikka sen rajat sanoivat 2563 px, eli 393 px:n
      * ruudusta jäi 70 % paljaaksi samalla kun peittotarkistus sanoi
      * "kattaa". Liu'un ajaksi luetaan siis se mikä ruudulla oikeasti
-     * on. Se on asettelunluku, mutta vain sen 250 ms ajan. */
+     * on.
+     *
+     * SAMA PÄTEE NIPISTYKSEEN. Eleen ajaksi kerros jäädytetään
+     * (kiinteä koko + transform, ks. ImageOverlay._reset -paikkaus),
+     * ja tekstuuri rakennetaan uudelleen kesken eleen. Rajat kasvavat,
+     * elementti ei. Laitteella tämä näkyi juuri niin kuin käyttäjä sen
+     * kuvasi: kaksi sormea näytöllä, kartta mannerten mittakaavassa ja
+     * ruudulla vain alkuperäinen suorakaide värillisenä. Peittotarkistus
+     * sanoi koko ajan "kattaa", joten pohjakerros ei tullut esiin.
+     *
+     * Asettelunluku eleen aikana on hinta jonka tämä maksaa. Se on
+     * kaksi getBoundingClientRectia ruutua kohti eikä kirjoitus, eli se
+     * ei riko jäädytyksen alkuperäistä tarkoitusta (ei layoutia
+     * kerrokselle). */
     paalla = !_tarkkaPeittaaRuudun(_pohjaPaalla ? 0.05 : 0);
   } else {
     paalla = _pohjaPaalla ? !State._peittaa(0.10) : !State._peittaa(0);
@@ -7563,6 +7625,17 @@ function pohjaNakyvyys() {
       && p._image.style.opacity !== '') return;
   _pohjaLiuku = liukuNyt;
   _pohjaPaalla = paalla;
+  /* Esiin tuleva kerros nousee NOPEASTI ja väistyvä laskee hitaasti.
+   *
+   * Symmetrisellä häivytyksellä summa pysyy ykkösessä vain siellä missä
+   * MOLEMMAT peittävät. Juuri se alue jonka takia vaihto tehdään on
+   * pelkän pohjan varassa, ja siellä symmetrinen ramppi tarkoittaa
+   * 120 ms puolipimeää. Epäsymmetrisenä alue saa värin 60 ms:ssä ja
+   * päällekkäisyys näkyy korkeintaan aavistuksen kirkkaampana. */
+  const nopea = 'opacity 0.06s linear, filter 0.3s, -webkit-filter 0.3s';
+  const hidas = 'opacity 0.2s linear, filter 0.3s, -webkit-filter 0.3s';
+  p._image.style.transition = paalla ? nopea : hidas;
+  y._image.style.transition = paalla ? hidas : nopea;
   p._image.style.opacity = paalla ? '1' : '0';
   /* Tarkkaa kerrosta EI piiloteta kesken liu'un.
    *

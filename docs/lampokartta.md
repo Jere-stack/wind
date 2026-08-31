@@ -1067,3 +1067,80 @@ kerroksen 50 %:n raja oli siis juuri ja juuri riittämätön, ja pohja jäi
 satunnaisesti rakentamatta (`pohja EI` mittauksessa). Rajaksi tuli 0,9 ja
 epäonnistunut rakennus yrittää uudelleen 1,8 s kuluttua, koska hilapolku
 hakee puuttuvat laatat matkalla.
+
+## Vuoronvaihto ei tullut tarkistetuksi kesken nipistyksen
+
+Laitteella jäi yhä tilanne jossa kaksi sormea on näytöllä, kartta on
+mannerten mittakaavassa ja ruudulla näkyy vain alkuperäinen suorakaide
+värillisenä. Syitä oli kaksi ja molemmat olivat *ajastuksessa*, eivät
+geometriassa.
+
+**1. Nipistys ei lähetä tapahtumia.** Leaflet ajaa nipistyksen `_move`n
+`supressEvent`-lipulla. Pohjakerroksen vuoronvaihto oli
+`map.on('move zoom …')`in varassa, eli sitä ei kutsuttu koko eleen
+aikana. Mitattuna z11:sta uloimpaan: tarkka kerros peitti ruudusta
+**43 %**, peittotarkistus TIESI sen (`_peittaa` epätosi), mutta mikään ei
+kysynyt. Nyt `nipistysAlkaa` käynnistää ruutukohtaisen silmukan joka
+elää eleen loppuun.
+
+**2. Peitto luetaan ruudulta myös nipistyksessä.** Eleen ajaksi kerros
+jäädytetään (kiinteä koko + transform), ja tekstuuri rakennetaan
+uudelleen kesken eleen: rajat kasvavat, elementti ei. Maantieteellinen
+tarkistus sanoo silloin "kattaa" vaikka ruudulla on musta reunus. Sama
+sääntö kuin liu'ussa: eleen ajan luetaan `getBoundingClientRect`.
+
+**3. Pohjaa ei rakenneta eikä sijoiteta kesken nipistyksen.**
+`State.liikkeessa` on epätosi nipistyksen aikana, koska `zoomstart` ei
+tule. Ilman omaa ehtoa pohja rakennettiin keskellä elettä, jolloin
+`setBounds` ankkuroi jäädytyksen uudelleen ja kerros lensi ruudun
+ulkopuolelle (mitattuna z13 -> uloin, `x = -16 162 px`).
+
+Mitattuna, ruudun peitto (nipistys lähtözoomista uloimpaan, sormet
+kiinni 2,5 s, sitten irrotus):
+
+| lähtözoom | ennen | jälkeen |
+|---|---|---|
+| z13 | 0 % (2 ruutua) | **100 %** |
+| z11 | 39,1 % | 39,1 % *(1 ruutu, häivytyksen ensimmäinen)* |
+| z9 | 100 % | 100 % |
+
+Ja pääsarja: kaikki nipistysskenaariot **100 %**, 0 ruutua alle 99 %
+(ennen 30,5 % ja 4/108).
+
+### Häivytys on epäsymmetrinen
+
+Symmetrisellä ristiinhäivytyksellä summa pysyy ykkösessä vain siellä
+missä molemmat kerrokset peittävät. Juuri se alue jonka takia vaihto
+tehdään on pelkän pohjan varassa, ja siellä symmetrinen ramppi tarkoittaa
+120 ms puolipimeää. Esiin tuleva kerros nousee siis 60 ms:ssä ja väistyvä
+laskee 200 ms:ssä: päällekkäisyys näkyy korkeintaan aavistuksen
+kirkkaampana, eikä pimeää tule.
+
+## Uloin raja ei saa nojata pelkkään getMinZoomiin
+
+Käyttäjän laitteella kartan sai yhä zoomattua mannerten mittakaavan ohi
+— kuvassa näkyi yhtä aikaa Grönlanti ja Sahara. Kuvasta laskettuna
+näkymä kattoi 67 % maailman korkeudesta eli **z ≈ 2,3**, vaikka lasketun
+rajan piti olla 3,54.
+
+Syy ei ole joustossa vaan siinä mistä se lukee rajan. `uloinZoom()`
+lasketaan kartan KOOSTA, ja `paivitaUloinZoom()` ajettiin vain kerran
+käynnistyksessä ja `resize`ssä. Mobiilissa korkeus ei ole vakio:
+osoiterivi piiloutuu ja palaa, turva-alueet ja näppäimistö muuttavat
+sitä, ja kotivalikon appi käynnistyy eri kokoisena kuin selain. Jos
+ensimmäinen laskenta osui pieneen korkeuteen, `minZoom` jäi pysyvästi
+liian löysäksi — ja koska jousto lasketaan siitä, myös jousto oli
+löysä.
+
+Kaksi korjausta:
+
+- `paivitaUloinZoom()` ajetaan myös `zoomstart`issa ja `movestart`issa.
+  Se on kaksi logaritmia, joten se kelpaa eleen alkuun. Kesken eleen
+  tai liu'un se ei siirrä karttaa, koska ele päättyy joka tapauksessa
+  `_limitZoom`iin.
+- `joustaZoom` lukee rajan MOLEMMISTA ja ottaa tiukemman:
+  `Math.max(map.getMinZoom(), map._uloinZoom)`.
+
+Testattu pakottamalla `setMinZoom(2)` kesken ajon ja ajamalla kolme
+peräkkäistä rajua ulosnipistystä: raja palautui 3,544:ään, ele pysähtyi
+3,295:een (0,25 tasoa ali) ja ruudun peitto oli 100 %.
