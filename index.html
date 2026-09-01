@@ -316,6 +316,108 @@ body {
           mask-composite: intersect;
 }
 
+/* ============================================================
+   TYÖPÖYTÄ — HOVER JA FOKUS
+   ============================================================
+
+   Mitattuna koko sovelluksessa ei ollut YHTÄKÄÄN :hover-sääntöä. Se on
+   johdonmukaista: sovellus on rakennettu kosketukselle, jossa hoveria ei
+   ole olemassa. Hiirellä se tarkoittaa, että mikään ei reagoi ennen kuin
+   käyttäjä sitoutuu klikkaukseen — jokainen spotti on avattava
+   nähdäkseen mitä siinä on.
+
+   KAKSI EHTOA, EI YKSI. `html.tyopoyta` on JS:n päätös (pointer:fine JA
+   maxTouchPoints===0), `@media (hover: hover)` on selaimen. Molemmat,
+   koska kumpikaan ei yksin riitä: CSS ei näe maxTouchPointsia, ja
+   kosketuslaite joka väittää tukevansa hoveria jättäisi tilan jumiin
+   ensimmäisen napautuksen jälkeen.
+
+   Siirtymät ovat lyhyitä (.12-.16 s). Hover on palautetta, ei animaatio:
+   pidempi siirtymä tuntuu siltä että käyttöliittymä laahaa hiirtä. */
+@media (hover: hover) and (pointer: fine) {
+
+  /* Karttanapit */
+  html.tyopoyta .mctl:hover {
+    background: var(--surface-hi);
+    box-shadow: var(--shadow-3);
+    transform: translate3d(0,-1px,0);
+  }
+
+  /* Spottimerkki. Rengas kasvaa ja saa selvemmän varjon — sama esine,
+     nostettuna. Sisemmät divit ovat pointer-events: none, joten osuma
+     tulee Leafletin ikonielementiltä ja koko merkki reagoi yhtenä. */
+  html.tyopoyta .leaflet-marker-icon:hover .spot-ring {
+    transform: scale(1.14) !important;
+    filter: drop-shadow(0 2px 6px rgba(6,9,18,.55));
+  }
+  html.tyopoyta .leaflet-marker-icon .spot-ring {
+    transition: transform .14s cubic-bezier(.2,.7,.3,1), filter .14s;
+  }
+  html.tyopoyta .leaflet-marker-icon:hover { z-index: 700 !important; }
+
+  /* Paneelien napit, sirut ja listarivit */
+  html.tyopoyta .sh-ikoni:hover { color: var(--ink); }
+  html.tyopoyta .sh-stat:hover,
+  html.tyopoyta .sh-hero-tag:hover { background: var(--surface-lo); }
+  html.tyopoyta button:not(.mctl):not(:disabled):hover { filter: brightness(1.12); }
+
+  /* Aikajanan tunnit. Palkki on kapea, joten hover nostaa sen
+     kokonaan eikä vain väriä — muuten osumaa ei huomaa. */
+  html.tyopoyta .sh-tpslot:hover { background: var(--hairline-soft); }
+}
+
+/* FOKUS NÄKYVIIN.
+   Näppäimistökäyttäjä ei nähnyt missään mihin fokus osuu. :focus-visible
+   jättää hiiriklikkauksen rauhaan ja näyttää renkaan vain silloin kun
+   fokus on tullut näppäimistöltä. Ei rajattu työpöytään: fokusrengas on
+   saavutettavuutta, ei työpöytäominaisuus. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+#map:focus-visible { outline-offset: -3px; }
+
+/* ============================================================
+   PIKANÄPPÄINLUETTELO  z:60
+   ============================================================
+   Ainoa paikka jossa laatikkozoom (shift + veto) tulee kerrotuksi —
+   se on ollut käytössä koko ajan mutta täysin piilossa. */
+#pikanappaimet {
+  position: fixed; inset: 0; z-index: 60;
+  display: none; align-items: center; justify-content: center;
+  background: rgba(6,9,18,.55);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+}
+#pikanappaimet.open { display: flex; }
+#pikanappaimet .pn-kortti {
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--hairline); border-radius: 16px;
+  box-shadow: var(--shadow-3);
+  padding: 22px 26px 20px; max-width: 420px; width: calc(100% - 48px);
+}
+#pikanappaimet h2 {
+  font-size: 14px; font-weight: 700; margin: 0 0 14px; letter-spacing: .2px;
+}
+#pikanappaimet dl {
+  display: grid; grid-template-columns: auto 1fr; gap: 9px 16px; margin: 0;
+}
+#pikanappaimet dt { display: flex; gap: 4px; }
+#pikanappaimet kbd {
+  font-variant-numeric: tabular-nums; font-size: 10px; font-weight: 600;
+  background: var(--surface-lo); border: 1px solid var(--hairline);
+  border-bottom-width: 2px; border-radius: 5px;
+  padding: 3px 7px; white-space: nowrap; color: var(--ink);
+}
+#pikanappaimet dd {
+  margin: 0; font-variant-numeric: tabular-nums; font-size: 11px;
+  color: var(--ink-2); align-self: center;
+}
+#pikanappaimet .pn-vihje {
+  margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--hairline-soft);
+  font-variant-numeric: tabular-nums; font-size: 10px; color: var(--ink-3);
+}
+
 /* Nipistyksen ajaksi laattasäiliö ja lämpökartta omalle
    kompositointitasolleen. Kun skaala muuttuu jatkuvasti, selain voi
    rasteroida sisällön uudelleen kesken eleen — se näkyy terävyyden
@@ -2480,6 +2582,24 @@ body {
   </div>
 
   <!-- Bottom Sheet for spot details -->
+  <!-- Pikanappaimet. Nakyy vain tyopoydalla (? tai h), ja se on ainoa
+       paikka jossa shift+veto -laatikkozoom tulee kerrotuksi. -->
+  <div id="pikanappaimet" role="dialog" aria-modal="true" aria-label="Pikanäppäimet">
+    <div class="pn-kortti">
+      <h2>Pikanäppäimet</h2>
+      <dl>
+        <dt><kbd>Rulla</kbd></dt><dd>Zoomaa puoli tasoa kerrallaan</dd>
+        <dt><kbd>Tuplaklikkaus</kbd></dt><dd>Zoomaa sisään · <kbd>Shift</kbd> ulos</dd>
+        <dt><kbd>Shift</kbd><kbd>veto</kbd></dt><dd>Zoomaa vedettyyn alueeseen</dd>
+        <dt><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></dt><dd>Siirrä karttaa</dd>
+        <dt><kbd>+</kbd><kbd>−</kbd></dt><dd>Zoomaa taso kerrallaan</dd>
+        <dt><kbd>Esc</kbd></dt><dd>Sulje kortti tai paneeli</dd>
+        <dt><kbd>?</kbd></dt><dd>Näytä tämä luettelo</dd>
+      </dl>
+      <div class="pn-vihje">Sulje napauttamalla mistä tahansa tai <kbd>Esc</kbd></div>
+    </div>
+  </div>
+
   <div id="sheet-overlay"></div>
   <div id="sheet">
     <div id="sheet-handle" aria-label="Sulje"></div>
@@ -13697,6 +13817,52 @@ document.getElementById('sheet-overlay').addEventListener('click', () => {
   if (typeof WxPanel !== 'undefined') WxPanel.close();
 }, { passive: true });
 document.getElementById('sheet-handle').addEventListener('click', closeSheet, { passive: true });
+
+/* ── NÄPPÄIMISTÖ ──────────────────────────────────────────────────
+ *
+ * Leafletin omat nuolinäppäimet ja +/- toimivat jo, mutta ne vaativat
+ * fokuksen kartassa eikä siitä kerrota missään. Kaksi puutetta jäljellä:
+ * mikään ei sulkeudu Escillä, eikä laatikkozoomista (shift + veto) ole
+ * mitään vihjettä vaikka se on ollut käytössä koko ajan.
+ *
+ * Kuuntelija on dokumentissa eikä kartassa, jotta Esc toimii myös
+ * silloin kun fokus on paneelissa. Kirjoituskentät ohitetaan — muuten
+ * hakukenttään ei voisi kirjoittaa kysymysmerkkiä. */
+(function nappaimisto() {
+  const pn = document.getElementById('pikanappaimet');
+  function pikanappaimetNakyviin(nayta) {
+    if (!pn) return;
+    pn.classList.toggle('open', nayta);
+  }
+  if (pn) pn.addEventListener('click', () => pikanappaimetNakyviin(false), { passive: true });
+
+  document.addEventListener('keydown', function (e) {
+    const k = e.target;
+    const kirjoitetaan = k && (k.tagName === 'INPUT' || k.tagName === 'TEXTAREA'
+      || k.tagName === 'SELECT' || k.isContentEditable);
+
+    if (e.key === 'Escape') {
+      if (pn && pn.classList.contains('open')) { pikanappaimetNakyviin(false); return; }
+      /* Sama järjestys kuin taustan napautuksella, jotta Esc ja klikkaus
+         jättävät sovelluksen samaan tilaan. */
+      closeSheet();
+      if (typeof ForecastPanel !== 'undefined') ForecastPanel.close();
+      if (typeof Valitsin !== 'undefined') Valitsin.suljeKaikki();
+      if (typeof WxPanel !== 'undefined') WxPanel.close();
+      return;
+    }
+
+    if (kirjoitetaan || e.metaKey || e.ctrlKey || e.altKey) return;
+
+    /* `?` vaatii shiftin useimmilla näppäimistöillä; `h` on varakeino
+       jolla sen saa myös suomalaisella asettelulla ilman kikkailua. */
+    if (e.key === '?' || e.key === 'h' || e.key === 'H') {
+      if (!TYOPOYTA) return;
+      pikanappaimetNakyviin(!pn.classList.contains('open'));
+      e.preventDefault();
+    }
+  });
+})();
 
 /* -- TIMELINE --------------------------------------------------- */
 function bestTimelineRef() {
