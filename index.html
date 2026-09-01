@@ -4481,6 +4481,34 @@ function _installDoubleTapZoom(map) {
 
 
 
+/* -- OSOITINLAITE ------------------------------------------------
+ *
+ * YKSI LIPPU, EI KYMMENTÄ TARKISTUSTA. Koko työpöytätila — rullan
+ * pyöristys, tuplaklikkaus, hover, typografia, sivupaneeli — on tämän
+ * takana. Sovellus on rakennettu ja mitattu kosketukselle, ja jokainen
+ * kosketuksen päätös on säilytettävä sellaisenaan; työpöytä saa poiketa
+ * niistä vain siellä missä syöttölaite on oikeasti eri.
+ *
+ * EHDON ON OLTAVA MOLEMMAT. `pointer: fine` yksin ei riitä:
+ * kosketusnäytöllinen kannettava täyttää sen, ja silloin tuplaklikkaus
+ * ja kosketuksen tuplanapauta-ja-vedä taistelisivat samasta eleestä.
+ * `maxTouchPoints === 0` on se mikä erottaa hiiren kosketuksesta.
+ *
+ * Luetaan KERRAN. `matchMedia` voisi vaihtua kesken istunnon (telakoitu
+ * tabletti), mutta kartan kahvat ja CSS-lohkot asennetaan kerran
+ * käynnistyksessä — puolittainen vaihto olisi pahempi kuin väärä arvaus
+ * harvinaisessa tapauksessa. */
+const TYOPOYTA = (function () {
+  try {
+    return window.matchMedia('(pointer: fine)').matches
+        && (navigator.maxTouchPoints || 0) === 0;
+  } catch (e) { return false; }
+})();
+/* Luokka juureen, jotta CSS pääsee samaan päätökseen kuin JS. Pelkkä
+   `@media (pointer: fine)` ei kelpaa: se on tosi myös kosketusnäytöllisellä
+   kannettavalla, eikä CSS näe `maxTouchPoints`ia. */
+try { document.documentElement.classList.toggle('tyopoyta', TYOPOYTA); } catch (e) {}
+
 /* -- STATE ------------------------------------------------------ */
 const State = {
   map: null,
@@ -5464,6 +5492,125 @@ function nipistysPaattyy(map) {
   };
 })();
 
+/* ── RULLAZOOM ────────────────────────────────────────────────────
+ *
+ * Rulla on tyopoydan ensisijainen zoomaustapa, ja Leafletin oletus on
+ * sille aivan liian herkka. Mitattuna (Chromium, hiiritapahtumat,
+ * lahtozoom 9,000):
+ *
+ *     wheel  -53 px   ->  +0,602 tasoa
+ *     wheel -100 px   ->  +1,078
+ *     wheel -120 px   ->  +1,264      <- yksi Windows-napsautus
+ *     wheel -500 px   ->  +3,323
+ *     trackpad 8x16   ->  +1,513
+ *
+ * Yksi napsautus vie siis yli kokonaisen zoomtason, ja kevyt kahden
+ * sormen liu'utus puolitoista. Windy, Google Maps ja Apple Maps
+ * liikkuvat noin puoli tasoa napsautusta kohti.
+ *
+ * KAKSI ERILLISTA VIKAA:
+ *
+ * 1. Vaimennus. `wheelPxPerZoomLevel` 60 -> 120 puolittaa askeleen.
+ *
+ * 2. Murtolukuzoom. `zoomSnap: 0` jattaa kartan aina lukemaan 10,264,
+ *    eika sielta paase takaisin tasalukuun millaan. Kosketuksessa se on
+ *    MITATTU PAATOS (ks. docs/eleet.md: napsautus siirsi kartan 0,133-
+ *    0,239 tasoa siita mihin sormet sen jattivat), mutta rulla on
+ *    DISKREETTI syote — silla ei ole "siihen mihin sormi jatti sen"
+ *    -merkitysta, ja murtoluku on pelkkaa epatarkkuutta.
+ *
+ * Siksi `zoomSnap` EI muutu. Pyoristys tehdaan vain rullapolulle, ja se
+ * kohdistuu TULOKSEEN eika askeleeseen: silloin rulla myos palauttaa
+ * kartan takaisin puolikkaiden hilaan sen jalkeen kun nipistys on
+ * jattanyt sen murtoluvulle.
+ *
+ * Paikkaus koskee kaikkia laitteita eika vain `TYOPOYTA`-tilaa: rulla on
+ * rulla myos kosketusnayttoisessa kannettavassa, eika tassa ole samaa
+ * eleiden ristiriitaa kuin tuplaklikkauksessa. */
+(function rullaZoom() {
+  if (!window.L || !L.Map || !L.Map.ScrollWheelZoom) return;
+  const proto = L.Map.ScrollWheelZoom.prototype;
+  if (typeof proto._performZoom !== 'function') return;
+  const alkup = proto._performZoom;
+  proto._performZoom = function () {
+    const map = this._map;
+    if (!map) return alkup.call(this);
+    const zoom = map.getZoom();
+    map._stop();
+    /* Sama sigmoidi kuin Leafletilla — vaimennus tulee jakajasta, ei
+       kayrasta, jotta tuntuma sailyy samana ja vain mittakaava muuttuu. */
+    const d = this._delta / (map.options.wheelPxPerZoomLevel * 4);
+    const d2 = 4 * Math.log(2 / (1 + Math.exp(-Math.abs(d)))) / Math.LN2;
+    const suunta = this._delta > 0 ? 1 : -1;
+    this._delta = 0;
+    this._startTime = null;
+    if (!(d2 > 0)) return;
+    /* KERTYMA, EI VAHIMMAISASKELTA.
+     *
+     * Ensimmainen versio pakotti jokaisen rullatapahtuman vahintaan
+     * puoleen askeleeseen, jotta kevyt kierraytys ei jaisi tekematta.
+     * Trackpadilla se oli katastrofi: kahdeksan 16 pikselin tapahtumaa
+     * on kevyt kahden sormen liu'utus, ja mitattuna se vei zoomin
+     * 9:sta 13:een — kahdeksan erillista puolikasta askelta.
+     *
+     * Nyt murto-osat KERTYVAT. Tavoitezoomia pidetaan yllä erikseen ja
+     * kartta liikkuu vasta kun kertyma ylittaa puolikkaan. Kahdeksan
+     * pientä tapahtumaa on silloin yksi puolen tason siirto, ja yksi
+     * napsautus on edelleen tasan puoli tasoa.
+     *
+     * NOLLAUSEHTO ON TILA, EI AIKA. Ensimmainen versio nollasi kertyman
+     * 400 ms tauon jalkeen. Se on oikea luku oikealle laitteelle
+     * (trackpad lahettaa tapahtumia 10-16 ms valein) mutta se ei ole
+     * mitattavissa: mittarissa perakkaisten `_performZoom`-kutsujen vali
+     * oli 430-678 ms, joten kertyma nollautui joka kerta eika mitaan
+     * tapahtunut. Aikaikkuna olisi siis viritetty mittarin mukaan eika
+     * laitteen.
+     *
+     * Tila kertoo saman ilman kelloa: jos kartan zoom on jotain muuta
+     * kuin mihin ME sen viimeksi jatimme, joku muu on liikuttanut sita
+     * (nipistys, tuplaklikkaus, setView) ja vanha tavoite on vanhentunut.
+     * Muuten kertyma jatkuu — riippumatta siita kuinka harvaan
+     * tapahtumia tulee. */
+    if (this._fsKohde == null || this._fsViimeZoom == null
+        || Math.abs(zoom - this._fsViimeZoom) > 0.001) {
+      this._fsKohde = zoom;
+    }
+    this._fsKohde += suunta * d2;
+    let kohde = Math.round(this._fsKohde * 2) / 2;
+    kohde = map._limitZoom(kohde);
+    this._fsViimeZoom = kohde;
+    if (kohde === zoom) return;
+    if (map.options.scrollWheelZoom === 'center') map.setZoom(kohde);
+    else map.setZoomAround(this._lastMousePos, kohde);
+  };
+})();
+
+/* ── TUPLAKLIKKAUS ────────────────────────────────────────────────
+ *
+ * `doubleClickZoom: false` on siella KOSKETUKSEN tuplanapauta-ja-veda
+ * -eleen takia (ks. _installDoubleTapZoom), ei tyopoydan. Hiirella
+ * tuplaklikkaus on se mita kayttaja kokeilee ensimmaisena, ja mitattuna
+ * se ei tehnyt yhtaan mitaan.
+ *
+ * Sama pyoristys kuin rullalla, jotta kaikki tyopoydan zoomaustavat
+ * jattavat kartan samaan hilaan. Shift + tuplaklikkaus zoomaa ulos —
+ * se on Leafletin oma kaytos ja sailytetaan. */
+(function tuplaklikkausZoom() {
+  if (!window.L || !L.Map || !L.Map.DoubleClickZoom) return;
+  const proto = L.Map.DoubleClickZoom.prototype;
+  if (typeof proto._onDoubleClick !== 'function') return;
+  proto._onDoubleClick = function (e) {
+    const map = this._map;
+    const vanha = map.getZoom();
+    const suunta = (e.originalEvent && e.originalEvent.shiftKey) ? -1 : 1;
+    let kohde = Math.round((vanha + suunta * (map.options.zoomDelta || 1)) * 2) / 2;
+    kohde = map._limitZoom(kohde);
+    if (kohde === vanha) return;
+    if (map.options.doubleClickZoom === 'center') map.setZoom(kohde);
+    else map.setZoomAround(e.containerPoint, kohde);
+  };
+})();
+
 function initMap() {
   const map = L.map('map', {
     center: [62.5, 25.5], zoom: 5, zoomControl: false, attributionControl: false,
@@ -5496,8 +5643,19 @@ function initMap() {
      * murtolukuzoom ei riko välimuisteja. */
     /* minZoom on VAIN VARA-ARVO. Todellinen uloin raja lasketaan
        ikkunan korkeudesta heti kartan luonnin jälkeen, ks. uloinZoom(). */
-    minZoom: 2, maxZoom: 16, preferCanvas: true, zoomSnap: 0, zoomDelta: 0.5,
-    worldCopyJump: true, doubleClickZoom: false, tap: false, tapTolerance: 15,
+    minZoom: 2, maxZoom: 16, preferCanvas: true, zoomSnap: 0,
+    /* zoomDelta ohjaa tuplaklikkausta ja +/- -nappaimia. Kosketuksella
+       0,5 pitaa askeleet siisteina; tyopoydalla kokonainen taso on se
+       mita jokainen karttasovellus tekee. Kosketuksen oma
+       tuplanapauta-ja-veda ei kayta tata (se on `startZoom + 1`). */
+    zoomDelta: TYOPOYTA ? 1 : 0.5,
+    /* Tuplaklikkaus vain osoitinlaitteella: kosketuksella sama ele on
+       varattu tuplanapauta-ja-vedolle. Ks. TYOPOYTA. */
+    worldCopyJump: true, doubleClickZoom: TYOPOYTA, tap: false, tapTolerance: 15,
+    /* Rullan vaimennus. Oletus 60 antoi mitattuna 1,264 zoomtasoa yhta
+       Windows-napsautusta (120 px) kohti; 120 puolittaa sen. Ks.
+       rullaZoom-paikkaus. */
+    wheelPxPerZoomLevel: 120,
     /* ── HEITON RAJAT ────────────────────────────────────────────
      *
      * Leafletin oletus `inertiaMaxSpeed` on ÄÄRETÖN. Heiton pituus on
