@@ -8271,6 +8271,40 @@ const SaaLaattaKerros = L.GridLayer.extend({
     this._vajaat = {};
   },
 
+  onAdd: function (map) {
+    L.GridLayer.prototype.onAdd.call(this, map);
+    map.on('zoomend', this._esilataa, this);
+    map.on('moveend', this._esilataa, this);
+    this._esilataa();
+  },
+
+  onRemove: function (map) {
+    map.off('zoomend', this._esilataa, this);
+    map.off('moveend', this._esilataa, this);
+    L.GridLayer.prototype.onRemove.call(this, map);
+  },
+
+  /* KOKO NÄKYMÄN SÄÄDATA YHDELLÄ PYYNNÖLLÄ.
+   *
+   * Ilman tätä jokainen laatta pyytää omansa, ja laatat valmistuvat eri
+   * aikaan — uloimmassa näkymässä niitä on 15 ja säälaattoja 12, eli
+   * kuva rakentuu palasina useiden sekuntien ajan. `varmista` yhdistää
+   * päällekkäiset pyynnöt (`_kesken`) ja ohittaa muistissa olevat, joten
+   * tämä ei kertauta mitään: se vain aloittaa kaikki yhtä aikaa ja niin
+   * aikaisin kuin mahdollista.
+   *
+   * Kuristus on pakollinen: `moveend` tulee jokaisen vedon perässä. */
+  _esilataa: function () {
+    if (!this._map || typeof Saalaatat === 'undefined' || !Saalaatat.kaytossa()) return;
+    const nyt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    if (nyt - (this._esiT || 0) < 500) return;
+    this._esiT = nyt;
+    try {
+      const d = ViewportGrid.gridStep(Math.round(this._map.getZoom()));
+      Saalaatat.varmista(this._map.getBounds(), d).catch(function () {});
+    } catch (e) {}
+  },
+
   _kerros: function () {
     if (this._gl && this._gl.kelvollinen()) return this._gl;
     if (this._gl) this._gl = null;
@@ -8285,16 +8319,81 @@ const SaaLaattaKerros = L.GridLayer.extend({
     const koko = this.getTileSize();
     laatta.width = koko.x; laatta.height = koko.y;
     laatta._yritys = 0;
-    const self = this;
-    /* `done` on kutsuttava asynkronisesti: Leaflet lisää laatan
-       `_tiles`iin vasta kun `createTile` on palannut, ja synkroninen
-       `done` osuisi sitä ennen. */
-    setTimeout(function () {
-      let virhe = null;
-      try { self._piirra(laatta, coords); } catch (e) { virhe = e; }
-      done(virhe, laatta);
-    }, 0);
+    this._valmista(laatta, coords, done);
     return laatta;
+  },
+
+  /* LAATTAA EI NÄYTETÄ ENNEN KUIN SEN DATA ON KASASSA.
+   *
+   * Aiemmin laatta piirrettiin heti sillä datalla mitä sattui olemaan,
+   * puuttuvat haettiin taustalla ja laatta maalattiin uudelleen.
+   * Mitattuna uloimmassa näkymässä: 15 laattaa, 65 piirtoa, 29
+   * täydennystä — jokainen laatta vaihtoi sisältöään keskimäärin
+   * neljästi, ja eri aikaan kuin naapurinsa.
+   *
+   * Juuri se lukee ruudulla "laattoina jotka eivät ole integroituneet
+   * karttaan". Mitattuna naapurilaattojen välinen gradientti oli
+   * 2-7-kertainen ympäröivään nähden — eikä se riippunut mittakaavasta
+   * lainkaan (1,00x antoi pahimman lukeman 2,9 ja 0,73x ei mitään),
+   * joten kyse ei ollut pienennyksestä vaan erosta asettuneen ja
+   * asettumattoman laatan välillä.
+   *
+   * Nyt `done` kutsutaan vasta kun data on kasassa. Leaflet pitää
+   * isälaatan näkyvissä siihen asti ja häivyttää uuden sisään valmiina
+   * — sama minkä windy tekee.
+   *
+   * `done` on joka tapauksessa kutsuttava asynkronisesti: Leaflet lisää
+   * laatan `_tiles`iin vasta kun `createTile` on palannut. */
+  _valmista: function (laatta, coords, done) {
+    const self = this;
+    let ohi = false;
+    function valmis(virhe) {
+      let v = virhe || null;
+      try { self._piirra(laatta, coords); } catch (e) { v = v || e; }
+      done(v, laatta);
+    }
+    const r = this._rajat(coords);
+    const d = (typeof ViewportGrid !== 'undefined') ? ViewportGrid.gridStep(coords.z) : 0.25;
+    if (this._dataKasassa(r, d)) { setTimeout(valmis, 0); return; }
+    /* Verkko voi olla poissa tai alue varaston ulkopuolella. Laattaa ei
+       saa jättää ikuisesti näkymättömäksi: silloin piirretään sillä mitä
+       on, ja `_taydenna` jää turvaverkoksi. */
+    const varmuus = setTimeout(function () {
+      if (ohi) return; ohi = true; valmis(null);
+    }, 6000);
+    function loppu() {
+      if (ohi) return;
+      ohi = true; clearTimeout(varmuus); valmis(null);
+    }
+    let p;
+    try {
+      p = Saalaatat.varmista(L.latLngBounds(
+        L.latLng(Math.max(-85, r.laS), r.loW),
+        L.latLng(Math.min(85, r.laN), r.loE)), d);
+    } catch (e) { clearTimeout(varmuus); setTimeout(valmis, 0); return; }
+    p.then(loppu).catch(loppu);
+  },
+
+  /* Ovatko laatan tarvitsemat säälaatat jo muistissa?
+   *
+   * `Saalaatat.onLaatta` EI kelpaa tähän: se palauttaa epätoden myös
+   * silloin kun laatta on muistissa mutta solu on tyhjäarvo (maa-alue).
+   * Silloin odotettaisiin dataa jota ei ole koskaan tulossa. Kysytään
+   * siis laatan olemassaoloa, ei solun arvoa.
+   *
+   * Haravointi on sama kuin `varmista`:lla — säälaatta on vähintään
+   * 5 astetta, joten kulmat ja keskiviivat riittävät. */
+  _dataKasassa: function (r, d) {
+    if (typeof Saalaatat === 'undefined' || !Saalaatat.kaytossa()) return true;
+    const askel = Math.max(1, (r.laN - r.laS) / 6);
+    const lAskel = Math.max(1, (r.loE - r.loW) / 6);
+    for (let la = r.laS; la <= r.laN + askel; la += askel) {
+      const lat = Math.min(85, Math.max(-85, la));
+      for (let lo = r.loW; lo <= r.loE + lAskel; lo += lAskel) {
+        if (!Saalaatat._hae(lat, lo, d)) return false;
+      }
+    }
+    return true;
   },
 
   /* Laatan maantieteelliset rajat. `unproject` antaa ne suoraan sillä
@@ -8328,6 +8427,24 @@ const SaaLaattaKerros = L.GridLayer.extend({
   _piirra: function (laatta, coords) {
     if (!this._map) return;
     const r = this._rajat(coords);
+    /* VAJAATA DATAA EI MAALATA JO HYVÄN PÄÄLLE.
+     *
+     * `_valmista` odottaa datan ensimmäistä piirtoa varten, mutta
+     * `paivitaSisalto` maalaa kaikki laatat uudelleen joka kerta kun
+     * kenttä muuttuu — ja se ohitti koko odotuksen. Mitattuna
+     * uloszoomauksessa 1,5 s verkkoviiveellä: 33 piirtoa vajaalla
+     * hilalla, joista osa täysin tyhjällä. Naapurilaatat päätyivät eri
+     * tiloihin eri aikaan, ja juuri se lukee ruudulla laattoina jotka
+     * eivät ole integroituneet karttaan.
+     *
+     * Jos laatalla on jo sisältöä eikä data ole kasassa, se jätetään
+     * rauhaan ja haetaan puuttuva. */
+    const dStep = (typeof ViewportGrid !== 'undefined')
+      ? ViewportGrid.gridStep(coords.z) : 0.25;
+    if (laatta._maalattu && !this._dataKasassa(r, dStep)) {
+      this._taydenna(laatta, coords, r, dStep);
+      return;
+    }
     const hila = this._hila(r, coords.z);
     if (!hila) { this._tyhjenna(laatta); return; }
     /* Kokonaan tyhjä hila on paikattu nolliksi, eikä nolla ole dataa
@@ -8348,11 +8465,13 @@ const SaaLaattaKerros = L.GridLayer.extend({
         ctx.globalCompositeOperation = 'copy';
         ctx.drawImage(kerros.canvas, 0, 0);
         ctx.globalCompositeOperation = 'source-over';
+        laatta._maalattu = true;
         if (hila.puuttuu > 0) this._taydenna(laatta, coords, r, hila.dStep);
         return;
       }
     }
     this._piirraCPU(laatta, r, hila);
+    laatta._maalattu = true;
     if (hila.puuttuu > 0) this._taydenna(laatta, coords, r, hila.dStep);
   },
 
@@ -8451,6 +8570,13 @@ const SaaLaattaKerros = L.GridLayer.extend({
     for (const avain in this._tiles) {
       const t = this._tiles[avain];
       if (!t || !t.el || !t.coords) continue;
+      /* Kesken oleva laatta on jo `_valmista`n hoidossa, ja se odottaa
+         dataa. Leaflet lisää laatan `_tiles`iin heti `_addTile`ssa mutta
+         merkitsee `loaded` vasta `done`:ssa — ilman tätä ehtoa
+         `paivitaSisalto` ehti maalata sen vajaalla datalla ennen kuin
+         odotus oli ohi, ja laatan sisältö vaihtui kahdesti. Mitattuna
+         jokainen laatta sai kaksi eri sisältöä; tämän jälkeen yhden. */
+      if (!t.loaded) continue;
       t.el._yritys = 0;
       try { this._piirra(t.el, t.coords); } catch (e) {}
     }

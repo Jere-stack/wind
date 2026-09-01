@@ -1418,3 +1418,74 @@ Sironnut `idw`-polku on yhä olemassa vanhalla polulla, mutta
 laattakerros ei käytä sitä: alue jolle säälaattoja ei ole jää
 läpinäkyväksi ja täydentyy kun laatat saapuvat. Se on windyn
 käyttäytyminen — arvausta ei piirretä.
+
+## Laatta ilmestyy valmiina — uloimman näkymän korjaus
+
+Oire: uloimmassa näkymässä "näkyy laattoja jotka eivät ole integroitu
+karttaan", ja kartta "etsii aika kauan paikkaansa kun dataa on paljon".
+
+### Kolme hypoteesia jotka kaatuivat mittaukseen
+
+**Väärä paikka.** Mitattiin piirretty kenttä varaston omaa arvoa vasten
+(pikseli → LUT takaperin → nopeus), 14 leveyskaistaa × 10 pistettä.
+Laattapolun virhe on sama tai pienempi kuin tekstuuripolun kaikkialla —
+uloimmassa näkymässä pohjoisessa selvästi pienempi (71,8° 0,26 vs
+0,89 m/s). Kerros on oikeassa paikassa.
+
+**Sumennus.** Laattapolulla 4 px, tekstuuripolulla 5 px uloimmassa
+näkymässä; hilaruutuina 0,38 vs 0,48. Ero on olematon.
+
+**Pienennys.** Uloimmassa näkymässä laatta piirretään 256 texelistä
+187 pikseliin, ja itsenäisesti pienennetyt laatat voisivat jättää
+sauman. Mitattiin gradientti laatan rajan yli murtozoomeilla molempiin
+suuntiin: 1,00× antoi pahimman lukeman (2,9 vs 0,43) ja 0,73× ei
+mitään. Mittakaavalla ei ollut osuutta asiaan.
+
+Ja sumennus pois päältä, lämpökartta yksin mustaa vasten: saumaa ei näy.
+
+### Mikä se oli
+
+**Laatta ilmestyi keskeneräisenä ja korjaantui jälkikäteen.** Mitattuna
+1,5 s verkkoviiveellä: **jokainen laatta sai kaksi eri sisältöä** —
+ensin sillä datalla mitä sattui olemaan, sitten oikea. Naapurit
+vaihtoivat eri aikaan, ja juuri se lukee ruudulla laattoina jotka eivät
+kuulu karttaan.
+
+Vuotokohtia oli kolme, ja ne piti tukkia kaikki:
+
+1. **`createTile` piirsi heti.** Nyt `_valmista` odottaa
+   `Saalaatat.varmista`n, ja `done` kutsutaan vasta datan ollessa
+   kasassa. Leaflet pitää isälaatan näkyvissä siihen asti ja häivyttää
+   uuden sisään valmiina — sama minkä windy tekee. Varmuusajastin 6 s
+   estää ikuisen näkymättömyyden jos verkko on poissa.
+2. **`paivitaSisalto` maalasi vajaan hyvän päälle.** Jos laatalla on jo
+   sisältöä eikä data ole kasassa, se jätetään rauhaan (`_maalattu`) ja
+   puuttuva haetaan.
+3. **`paivitaSisalto` maalasi myös kesken olevat laatat.** Leaflet lisää
+   laatan `_tiles`iin heti `_addTile`ssa mutta merkitsee `loaded` vasta
+   `done`:ssa, joten `paivitaSisalto` ehti ohittaa koko odotuksen. Vasta
+   `if (!t.loaded) continue;` sulki tämän — ja vasta silloin luku
+   putosi.
+
+Mitattuna, sisältöjä per laatta uloszoomauksessa (1,5 s verkkoviive,
+säälaattavarasto tyhjennetty joka kierroksella):
+
+| siirtymä | ennen | jälkeen |
+|---|---|---|
+| z11 → uloin | 15 laattaa, kaikilla **2** sisältöä | kaikilla **1** |
+| z11 → z6 | 15 laattaa, kaikilla **2** | kaikilla **1** |
+| z11 → z8 | 12 laattaa, kaikilla **2** | kaikilla **1** |
+
+Päälle **esilataus**: koko näkymän säädata pyydetään yhdellä kutsulla
+`zoomend`/`moveend`issä (kuristettuna 500 ms:iin). `varmista` yhdistää
+päällekkäiset pyynnöt, joten tämä ei kertauta mitään — se vain
+aloittaa kaikki yhtä aikaa eikä laatta kerrallaan. Uloimmassa näkymässä
+piirtoja 65 → 46 ja täydennyksiä 29 → 9.
+
+### Mitä tässä ympäristössä ei voinut mitata
+
+Kontin verkko on liian nopea toistamaan käyttäjän havaitsemaa viivettä:
+säälaatat tulevat Noden välimuistista, ja kuvan ero lopputilaan oli
+nolla jo ensimmäisessä näytteessä myös 1,5 s viiveellä. Korjaus on siis
+todennettu **käyttäytymisestä** (montako sisältöä laatta saa), ei
+kellosta. Oikean laitteen kellonaika on yhä hankittava laitteelta.
