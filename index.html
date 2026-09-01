@@ -7187,6 +7187,22 @@ const WindTexture = {
     return lut;
   },
 
+  /* Kerroksen oma GL-konteksti, laiskasti. Palauttaa null jos GL ei ole
+   * käytettävissä tai konteksti on menetetty — kutsuja jää CPU-polulle.
+   *
+   * Luonti yritetään korkeintaan kahdesti. Kontekstin menetys on usein
+   * ohimenevä (välilehti taustalle), joten yksi uusintayritys kannattaa;
+   * loputon yrittäminen taas kiertäisi ikuisesti jos laite on lopussa. */
+  _gl: null, _glYrityksia: 0,
+  _glKerros() {
+    if (this._gl && this._gl.kelvollinen()) return this._gl;
+    if (this._gl) this._gl = null;
+    if (this._glYrityksia >= 2) return null;
+    this._glYrityksia++;
+    this._gl = GLKentta.luo();
+    return this._gl;
+  },
+
   /* build(windField, viewportBounds, coarseStep)
    *
    * idw() ajettiin ennen jokaiselle pikselille. 300x300 tekstuurissa se on
@@ -7520,6 +7536,40 @@ const WindTexture = {
       }
 
       function buildHila() {
+        /* GPU-POLKU — sama laskenta, eri suoritin.
+         *
+         * Varjostin tekee täsmälleen sen mitä alla oleva silmukka:
+         * kuubinen interpolointi solmuista ja LUT-haku. Erot on mitattu
+         * (ks. `GLKentta`) ja ne ovat yksittäisiä ämpärin rajatapauksia.
+         *
+         * Tulos kopioidaan 2D-kankaalle sen sijaan että GL-kangas
+         * vietäisiin suoraan `KanvasYlitys`:een. Se maksaa yhden
+         * kopion, mutta pitää KAIKEN kerroksen ympärillä olevan
+         * ennallaan: rajat, sumennus, sekoitustila, jäädytyksen
+         * ankkurointi ja vuoronvaihto pohjakerroksen kanssa. Yksikään
+         * niistä ei tiedä mistä kankaan sisältö tuli, ja juuri se on
+         * tarkoitus — varatie kontekstin menetykseen on silloin
+         * pelkkä `return false` eikä kerroksen uudelleenluonti.
+         *
+         * `copy` eikä oletus: lähde on läpinäkyvä reunoilta, ja
+         * `source-over` jättäisi edellisen rakennuksen näkyviin niiden
+         * kohdalle. */
+        if (GL_LAMPOKARTTA) {
+          const kerros = self._glKerros();
+          if (kerros && kerros.piirra(self, hilaPolku)) {
+            const co = self.ctx.globalCompositeOperation;
+            self.ctx.globalCompositeOperation = 'copy';
+            self.ctx.drawImage(kerros.canvas, 0, 0);
+            self.ctx.globalCompositeOperation = co;
+            /* uData/vData/msData jäävät tässä koskematta. Ne luetaan vain
+               `sampleWind`in texelihaarasta, joka on saavuttamaton kun
+               `hila` on asetettu (ks. erä 2) — hilapolku asettaa sen
+               aina. Sironnut polku täyttää ne kuten ennenkin. */
+            self.kelpaa = true;
+            resolve();
+            return;
+          }
+        }
         const gu = hilaPolku.gu, gv = hilaPolku.gv;
         const gc = hilaPolku.gc, gr = hilaPolku.gr;
         const la0 = hilaPolku.la0, lo0 = hilaPolku.lo0, dStep = hilaPolku.dStep;
@@ -7763,6 +7813,12 @@ const WindTexture = {
  * `premultipliedAlpha: false` on pakollinen: `putImageData` kirjoittaa
  * suoran RGBA:n, ja kerros sekoitetaan `plus-lighter`illä. Esikerrottuna
  * sama alfa antaisi eri lopputuloksen. */
+/* Kytkin. Oletus on toistaiseksi CPU-polku: GL otetaan käyttöön
+   `?gl=1`:llä kunnes se on mitattu oikealla laitteella. */
+const GL_LAMPOKARTTA = (function () {
+  try { return /[?&]gl=1\b/.test(location.search); } catch (e) { return false; }
+})();
+
 const GLKentta = {
   _tuettu: null,
 
