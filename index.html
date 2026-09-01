@@ -485,7 +485,23 @@ body {
    zoom yltää, ja että sen alta on leikattu tarkan kerroksen kohta
    (ks. pohjaLeikkaa). Opacity vaihtuu vain kelpaa-lipun mukana, ei
    ruudusta toiseen, joten siirtymä on turvallinen. */
-.heatmap-overlay, .heatmap-pohja { transition: opacity 0.12s linear, filter 0.3s, -webkit-filter 0.3s; }
+/* LAATTAPYRAMIDI ON `heatmap-overlay` ILMAN MASKIA.
+ *
+ * Reunahäivytys on siellä siksi että näkymätekstuurilla on datan raja:
+ * suorakaide jonka reuna lukee kartalla virheenä. Pyramidilla sitä rajaa
+ * ei ole — jokainen laatta on kiinni naapurissaan.
+ *
+ * Ja maski EI VAIN OLE TARPEETON VAAN RIKKOO KERROKSEN. Se mitoitetaan
+ * ELEMENTIN kokoon, ja `L.GridLayer`in säiliö on 0x0: laatat ovat sen
+ * sisällä absoluuttisesti sijoitettuina. Nollan kokoinen maski leikkaa
+ * kaiken pois. Mitattuna kerros oli täysin näkymätön vaikka laatoissa
+ * oli sisältöä, ne olivat oikeilla paikoillaan ja opacity oli 1. */
+.saa-laatat {
+  opacity: 1.0;
+  mix-blend-mode: var(--sekoitus);
+  image-rendering: auto;
+}
+.heatmap-overlay, .heatmap-pohja, .saa-laatat { transition: opacity 0.12s linear, filter 0.3s, -webkit-filter 0.3s; }
 
 .nipistys .leaflet-tile-container,
 .nipistys .heatmap-overlay { will-change: transform; }
@@ -4759,6 +4775,10 @@ const State = {
   map: null,
   liikkeessa: false,   /* kartta on kesken eleen tai animaation */
   heatmapOverlay: null,
+  /* Laattapyramidina toteutettu lämpökartta, tai null kun käytössä on
+     näkymäkokoinen tekstuuri. Tämä on samalla se lippu jolla vanha
+     rakennus- ja ankkurointikoneisto kytkeytyy pois. */
+  saaKerros: null,
   windCvs: null, windCtx: null,
   particles: [],
   markers: [],
@@ -6206,6 +6226,7 @@ function initMap() {
 
   State.map = map;
   _addObsMarkers(map);
+  if (LAATTAKERROS) _aktivoiLaattakerros(map);
 
   map.on('moveend', () => {
     /* Partikkeleita EI nollata eikä canvasia tyhjennetä: liike on jatkunut
@@ -6459,6 +6480,10 @@ function initMap() {
   State._peittaa = _heatmapCovers;
 
   function _heatmapCatchUp(askel) {
+    /* Laattakerroksella ei ole kiinniottoa: laatta ei jää jälkeen, koska
+       se ei liiku. Juuri tämän funktion poistuminen liikkeen tieltä on
+       koko muutoksen tarkoitus — ks. SaaLaattaKerros. */
+    if (State.saaKerros) return;
     askel = askel || WindTexture.SCRUB_STEP;
     /* EI RAKENNUSTA KESKEN ZOOM-ANIMAATION.
      *
@@ -7698,6 +7723,14 @@ const WindTexture = {
        * edellisen näkymän hila jäisi voimaan väärälle alueelle. */
       this.hila = hilaPolku;
 
+      /* Laattakerros piirtää kartan, joten tekstuuria ei tarvita —
+         mutta solmuhila tarvitaan yhä, koska partikkelit näytteistävät
+         siitä (erä 2). Tämä yksi ehto poistaa koko texelikohtaisen työn
+         sovelluksesta silloin kun laattakerros on käytössä.
+         Sironneella polulla (ei laattoja) mennään läpi kuten ennenkin:
+         silloin laattakerroskaan ei osaa piirtää mitään. */
+      if (hilaPolku && State.saaKerros) { this.kelpaa = true; resolve(true); return; }
+
       /* Harvennuksen jälkeen työ on murto-osa entisestä, joten setTimeout-
          pilkkomista tarvitaan vasta selvästi isommilla tekstuureilla. */
       /* Hilapolku ei harvenna, joten se merkitsee tekstuurin tarkaksi.
@@ -8161,6 +8194,289 @@ const KanvasYlitys = L.ImageOverlay.extend({
   setUrl: function () { return this; }
 });
 
+/* ── SÄÄKERROS LAATTAPYRAMIDINA — SE MITÄ WINDY OIKEASTI TEKEE ─────
+ *
+ * MIKSI TÄMÄ KORVAA NÄKYMÄNKOKOISEN TEKSTUURIN.
+ *
+ * Tekstuuri on sidottu maantieteellisiin rajoihin, ja rajat lasketaan
+ * SEN HETKISESTÄ näkymästä. Kun karttaa siirretään, näkymä karkaa
+ * rajojen yli ja tekstuuri on rakennettava uudelleen — uusille
+ * rajoille, eli kerros myös ankkuroidaan uudelleen. Mitattuna YKSI
+ * sormenveto (4x kuristus, verkkoviive 200 ms):
+ *
+ *     tilanne          rakennuksia  rajanvaihtoja  pitkät tehtävät
+ *     z13 hidas veto        5             2         888 ms / 9
+ *     z13 nopea veto        5             3         564 ms / 6
+ *     z9  hidas veto        5             3        1228 ms / 17
+ *     z5  hidas veto        6             4        1444 ms / 15
+ *
+ * Rakennuksen HINTA ei ole se mikä tuntuu — se siirrettiin GPU:lle
+ * eikä mikään muuttunut. Se mikä tuntuu on että kerros lakkaa olemasta
+ * paikallaan viisi kertaa yhden vedon aikana.
+ *
+ * Laatta ei liiku koskaan. Se on kiinteä maantieteellinen neliö
+ * kiinteällä zoom-tasolla, ja siirto vain paljastaa uusia laattoja
+ * reunalta; jo näkyvät pysyvät pikselilleen paikallaan. Zoomatessa
+ * `L.GridLayer` pitää isälaatat näkyvissä kunnes lapset ovat valmiit —
+ * juuri se mitä karkea pohjakerros teki käsin, mutta koko pyramidin
+ * syvyydeltä eikä yhdellä askelmalla.
+ *
+ * Peritään `L.GridLayer`:stä eikä kirjoiteta omaa pyramidia: laattojen
+ * valinta, sijoittelu, säilytys zoomin yli, karsinta ja häivytys ovat
+ * siellä valmiina ja koeteltuina. Meidän osuutemme on yhden laatan
+ * piirto.
+ *
+ * SAUMATTOMUUS ON SE ASIA JOKA VOI MENNÄ RIKKI. Naapurilaatat piirtävät
+ * saman jatkuvan funktion eri kohdista, joten sauma syntyy vain jos ne
+ * näytteistävät ERI solmuhilasta. Siksi hilan origo kohdistetaan
+ * globaaliin ristikkoon (`floor(x/d)*d`) eikä laatan omaan reunaan.
+ *
+ * Laatan rivit ovat tasavälein Mercator-y:ssä ja sarakkeet
+ * pituusasteessa — laatta ON Mercator-neliö, joten sama varjostin ja
+ * sama kaava kelpaa sellaisenaan (ks. `GLKerros.piirra`). */
+const LAATTAKERROS = (function () {
+  try { return /[?&]laatat=1\b/.test(location.search); } catch (e) { return false; }
+})();
+
+const SaaLaattaKerros = L.GridLayer.extend({
+  options: {
+    tileSize: 256,
+    /* Laatat ladataan myös liikkeen aikana — se on koko pointti.
+       Zoomin aikana ei: silloin `GridLayer` pitää isälaatat näkyvissä
+       ja uusi taso rakennetaan kun ele on ohi. */
+    updateWhenIdle: false,
+    updateWhenZooming: false,
+    keepBuffer: 2,
+    className: 'saa-laatat',
+    pane: 'tilePane',
+    zIndex: 2
+  },
+
+  /* Piirtotarkkuus laattaa kohti. GL:llä 256 (yksi texel per CSS-pikseli,
+     eli tarkempi kuin entinen näkymätekstuuri); CPU-varatiellä 128, jolloin
+     täyttöä on neljäsosa ja selain venyttää lopun. Sumennus on 3-22 px,
+     joten ero ei näy — mutta CPU-varatie ei saa maksaa enempää kuin se
+     tekstuuri jonka se korvaa. */
+  GL_TEXELIT: 256,
+  CPU_TEXELIT: 128,
+
+  initialize: function (options) {
+    L.GridLayer.prototype.initialize.call(this, options);
+    this._gl = null;
+    this._glYrityksia = 0;
+    this._vajaat = {};
+  },
+
+  _kerros: function () {
+    if (this._gl && this._gl.kelvollinen()) return this._gl;
+    if (this._gl) this._gl = null;
+    if (this._glYrityksia >= 2) return null;
+    this._glYrityksia++;
+    this._gl = GLKentta.luo();
+    return this._gl;
+  },
+
+  createTile: function (coords, done) {
+    const laatta = document.createElement('canvas');
+    const koko = this.getTileSize();
+    laatta.width = koko.x; laatta.height = koko.y;
+    laatta._yritys = 0;
+    const self = this;
+    /* `done` on kutsuttava asynkronisesti: Leaflet lisää laatan
+       `_tiles`iin vasta kun `createTile` on palannut, ja synkroninen
+       `done` osuisi sitä ennen. */
+    setTimeout(function () {
+      let virhe = null;
+      try { self._piirra(laatta, coords); } catch (e) { virhe = e; }
+      done(virhe, laatta);
+    }, 0);
+    return laatta;
+  },
+
+  /* Laatan maantieteelliset rajat. `unproject` antaa ne suoraan sillä
+     zoom-tasolla jolla laatta on, riippumatta kartan nykyisestä. */
+  _rajat: function (coords) {
+    const koko = this.getTileSize();
+    const nw = this._map.unproject(L.point(coords.x * koko.x, coords.y * koko.y), coords.z);
+    const se = this._map.unproject(L.point((coords.x + 1) * koko.x, (coords.y + 1) * koko.y), coords.z);
+    return { laS: se.lat, laN: nw.lat, loW: nw.lng, loE: se.lng };
+  },
+
+  /* Solmuhila laatalle, GLOBAALISTI KOHDISTETTUNA. Ks. saumattomuus
+     ylempänä: origo on `floor(x/d)*d`, ei laatan oma reuna. */
+  _hila: function (r, z) {
+    if (typeof Saalaatat === 'undefined' || !Saalaatat.kaytossa()) return null;
+    Saalaatat.asetaKentta(State.activeLayer);
+    if (!Saalaatat.asetaHetki(_tlTimeAt(State.currentHourIdx))) return null;
+    const d = ViewportGrid.gridStep(z);
+    const M = 2;                     /* kuubinen ydin lukee j-1 .. j+2 */
+    const la0 = (Math.floor(r.laS / d) - M) * d;
+    const lo0 = (Math.floor(r.loW / d) - M) * d;
+    const gc = Math.max(4, Math.ceil((r.loE - lo0) / d) + 1 + M);
+    const gr = Math.max(4, Math.ceil((r.laN - la0) / d) + 1 + M);
+    if (gc * gr > 200000) return null;
+    const gu = new Float32Array(gc * gr), gv = new Float32Array(gc * gr);
+    const puuttuu = Saalaatat.kokoaHila(la0, lo0, d, d, gc, gr, gu, gv, d);
+    return { gu: gu, gv: gv, gc: gc, gr: gr, la0: la0, lo0: lo0, dStep: d,
+             puuttuu: puuttuu, kaikkiaan: gc * gr };
+  },
+
+  _piirra: function (laatta, coords) {
+    if (!this._map) return;
+    const r = this._rajat(coords);
+    const hila = this._hila(r, coords.z);
+    if (!hila) { this._tyhjenna(laatta); return; }
+    /* Kokonaan tyhjä hila on paikattu nolliksi, eikä nolla ole dataa
+       vaan tyven — se piirtyisi tasaisena laikkuna. Jätetään laatta
+       läpinäkyväksi ja haetaan puuttuvat. */
+    if (hila.puuttuu >= hila.kaikkiaan) {
+      this._tyhjenna(laatta);
+      this._taydenna(laatta, coords, r, hila.dStep);
+      return;
+    }
+    const kerros = this._kerros();
+    if (kerros) {
+      if (laatta.width !== this.GL_TEXELIT) laatta.width = laatta.height = this.GL_TEXELIT;
+      const tex = { cols: laatta.width, rows: laatta.height,
+        lngMin: r.loW, lngMax: r.loE, myMin: ymerc(r.laS), myMax: ymerc(r.laN) };
+      if (kerros.piirra(tex, hila)) {
+        const ctx = laatta.getContext('2d');
+        ctx.globalCompositeOperation = 'copy';
+        ctx.drawImage(kerros.canvas, 0, 0);
+        ctx.globalCompositeOperation = 'source-over';
+        if (hila.puuttuu > 0) this._taydenna(laatta, coords, r, hila.dStep);
+        return;
+      }
+    }
+    this._piirraCPU(laatta, r, hila);
+    if (hila.puuttuu > 0) this._taydenna(laatta, coords, r, hila.dStep);
+  },
+
+  _tyhjenna: function (laatta) {
+    const ctx = laatta.getContext('2d');
+    ctx.clearRect(0, 0, laatta.width, laatta.height);
+  },
+
+  /* CPU-varatie: sama separoituva kuubinen ydin ja sama LUT kuin
+     varjostimessa ja kuin `buildHila`:ssa. Kaksi pyyhkäisyä eikä yhtä
+     4x4-summaa, samasta syystä: x-interpolointi riippuu vain
+     sarakkeesta. */
+  _piirraCPU: function (laatta, r, h) {
+    if (laatta.width !== this.CPU_TEXELIT) laatta.width = laatta.height = this.CPU_TEXELIT;
+    const cols = laatta.width, rows = laatta.height;
+    const ctx = laatta.getContext('2d');
+    const img = ctx.createImageData(cols, rows);
+    const d32 = new Uint32Array(img.data.buffer);
+    const lut = WindTexture.pikseliLUT();
+    const myMax = ymerc(r.laN), myMin = ymerc(r.laS);
+    const myStep = (myMax - myMin) / rows, lngStep = (r.loE - r.loW) / cols;
+    const sx = new Int32Array(cols), sw = new Float32Array(cols * 4);
+    const cr = function (t, ulos, k) {
+      const t2 = t * t, t3 = t2 * t;
+      ulos[k]     = 0.5 * (-t + 2 * t2 - t3);
+      ulos[k + 1] = 0.5 * (2 - 5 * t2 + 3 * t3);
+      ulos[k + 2] = 0.5 * (t + 4 * t2 - 3 * t3);
+      ulos[k + 3] = 0.5 * (-t2 + t3);
+    };
+    for (let c = 0; c < cols; c++) {
+      const fx = (r.loW + c * lngStep - h.lo0) / h.dStep;
+      let i = Math.floor(fx);
+      if (i < 1) i = 1; else if (i > h.gc - 3) i = h.gc - 3;
+      sx[c] = i - 1;
+      cr(fx - i, sw, c * 4);
+    }
+    const tu = new Float32Array(h.gr * cols), tv = new Float32Array(h.gr * cols);
+    for (let j = 0; j < h.gr; j++) {
+      const pohja = j * h.gc, ulos = j * cols;
+      for (let c = 0; c < cols; c++) {
+        const k = c * 4, p = pohja + sx[c];
+        const a0 = sw[k], a1 = sw[k+1], a2 = sw[k+2], a3 = sw[k+3];
+        tu[ulos + c] = h.gu[p]*a0 + h.gu[p+1]*a1 + h.gu[p+2]*a2 + h.gu[p+3]*a3;
+        tv[ulos + c] = h.gv[p]*a0 + h.gv[p+1]*a1 + h.gv[p+2]*a2 + h.gv[p+3]*a3;
+      }
+    }
+    const py = new Float32Array(4);
+    for (let q = 0; q < rows; q++) {
+      const la = ymercInv(myMax - q * myStep);
+      const fy = (la - h.la0) / h.dStep;
+      let j = Math.floor(fy);
+      if (j < 1) j = 1; else if (j > h.gr - 3) j = h.gr - 3;
+      cr(fy - j, py, 0);
+      const y0 = py[0], y1 = py[1], y2 = py[2], y3 = py[3];
+      const b0 = (j - 1) * cols, b1 = b0 + cols, b2 = b1 + cols, b3 = b2 + cols;
+      const rivi = q * cols;
+      for (let c = 0; c < cols; c++) {
+        const u = tu[b0+c]*y0 + tu[b1+c]*y1 + tu[b2+c]*y2 + tu[b3+c]*y3;
+        const v = tv[b0+c]*y0 + tv[b1+c]*y1 + tv[b2+c]*y2 + tv[b3+c]*y3;
+        let li = (Math.sqrt(u*u + v*v) * 10 + 0.5) | 0;
+        d32[rivi + c] = lut[li > 200 ? 200 : li];
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  },
+
+  /* Puuttuvat säälaatat haetaan ja laatta piirretään uudelleen kun ne
+     ovat perillä. Enintään kaksi yritystä: jos varastossa ei ole tätä
+     aluetta lainkaan, kolmas ei tuo sitä sinne. */
+  _taydenna: function (laatta, coords, r, d) {
+    if (laatta._yritys >= 2) return;
+    const avain = this._tileCoordsToKey(coords);
+    if (this._vajaat[avain]) return;
+    laatta._yritys++;
+    this._vajaat[avain] = true;
+    const self = this;
+    let p;
+    try {
+      p = Saalaatat.varmista(L.latLngBounds(
+        L.latLng(Math.max(-85, r.laS), r.loW),
+        L.latLng(Math.min(85, r.laN), r.loE)), d);
+    } catch (e) { delete this._vajaat[avain]; return; }
+    p.then(function () {
+      delete self._vajaat[avain];
+      const t = self._tiles[avain];
+      if (t && t.el === laatta) { try { self._piirra(laatta, coords); } catch (e) {} }
+    }).catch(function () { delete self._vajaat[avain]; });
+  },
+
+  /* Sisältö uusiksi ilman DOM-pyöritystä: hetki, kenttä tai rampin
+     voimakkuus vaihtui, mutta laatat ovat samat. `redraw()` tuhoaisi ja
+     loisi ne uudelleen, ja aikajanaa raahatessa se on satoja solmuja
+     sekunnissa. */
+  paivitaSisalto: function () {
+    if (!this._map) return;
+    for (const avain in this._tiles) {
+      const t = this._tiles[avain];
+      if (!t || !t.el || !t.coords) continue;
+      t.el._yritys = 0;
+      try { this._piirra(t.el, t.coords); } catch (e) {}
+    }
+  }
+});
+
+/* Laattakerros kytketään VASTA kun säälaattavarasto on käytettävissä.
+ *
+ * Se on ainoa lähde jota kerros osaa lukea: ilman varastoa se piirtäisi
+ * pelkkiä tyhjiä laattoja samalla kun vanha polku olisi jo kytketty
+ * pois — eli kartta jäisi ilman lämpökarttaa kokonaan. Varasto alustuu
+ * asynkronisesti, joten yritetään uudelleen; jos se ei kymmenessä
+ * sekunnissa ole valmis, jäädään vanhaan polkuun. */
+let _laattaYritys = 0;
+function _aktivoiLaattakerros(map) {
+  if (State.saaKerros) return;
+  if (typeof Saalaatat === 'undefined' || !Saalaatat.kaytossa()) {
+    if (++_laattaYritys <= 20) setTimeout(function () { _aktivoiLaattakerros(map); }, 500);
+    return;
+  }
+  State.saaKerros = new SaaLaattaKerros();
+  State.saaKerros.addTo(map);
+  /* Vanhat kerrokset pois jos ne ehtivät syntyä: kaksi lisäävää
+     kerrosta päällekkäin laskettaisiin yhteen. */
+  try {
+    if (State.heatmapOverlay) { map.removeLayer(State.heatmapOverlay); State.heatmapOverlay = null; }
+    if (State.pohjaOverlay) { map.removeLayer(State.pohjaOverlay); State.pohjaOverlay = null; }
+  } catch (e) {}
+}
+
 /* SIIRTYMÄTÖN KIRJOITUS.
  *
  * `setBounds` on `_reset`, joka kirjoittaa elementin koon ja transformin.
@@ -8191,6 +8507,12 @@ function ilmanSiirtymaa(el, fn) {
    käynnistäisi .heatmap-overlay:n 0.3 s filter-siirtymän joka päivityksellä.
    Oikea arvo asetetaan kerran kun ele päättyy. */
 function drawColorField(skipBlur) {
+  /* Laattakerros piirtää kartan itse, ja sillä ei ole rajoja joita
+     siirtää — laatat ovat paikallaan. Tämä on silti oikea paikka
+     kytkeä: kaikki kolmetoista kutsupaikkaa tarkoittavat "kenttä
+     muuttui, piirrä uudelleen", ja se on täsmälleen se mitä
+     `paivitaSisalto` tekee. */
+  if (State.saaKerros) { State.saaKerros.paivitaSisalto(); return; }
   if (!WindTexture.canvas || !State.map || !WindTexture.msData) return;
   const bounds = L.latLngBounds(
     L.latLng(WindTexture.latMin, WindTexture.lngMin),
@@ -8313,6 +8635,10 @@ function pohjaRiittaa() {
 }
 
 function pohjaVarmista(viive) {
+  /* Karkea pohjakerros on käsin tehty pyramidin toinen askelma. Kun
+     koko pyramidi on olemassa, se on turha — ja kaksi lisäävää kerrosta
+     päällekkäin laskettaisiin yhteen. */
+  if (State.saaKerros) return;
   clearTimeout(_pohjaTimer);
   _pohjaTimer = setTimeout(function () {
     if (!State.map) return;
@@ -8377,6 +8703,11 @@ function pohjaRakenna() {
 
 function pohjaSijoita() {
   const P = PohjaTekstuuri;
+  /* `pohjaVarmista` on jo kytketty pois laattakerroksella, mutta se
+     ajastaa työn eteenpäin — ennen aktivointia lähtenyt rakennus
+     valmistuu vasta sen jälkeen ja loisi kerroksen tässä. Portti on siis
+     oltava myös luontikohdassa. */
+  if (State.saaKerros) return;
   if (!P.canvas || !State.map) return;
   const b = L.latLngBounds(L.latLng(P.latMin, P.lngMin), L.latLng(P.latMax, P.lngMax));
   if (State.pohjaOverlay) {
@@ -8527,7 +8858,21 @@ function updateHeatmapBlur(zoom) {
    * peittämään interpolointihilan portaat mutta ei syö kentän rakennetta.
    * Rajat 3..22 px pitävät sen järkevänä myös poikkeustilanteissa. */
   let blur = Math.max(3, Math.round(22 - (z - 2) * 2.2));
-  if (WindTexture.cols > 0 && WindTexture.lngMax > WindTexture.lngMin) {
+  /* LAATTAPYRAMIDILLA SUMENNUS ON VAKIO, eikä se ole sattuma: laatan
+   * texelitiheys RUUDULLA on sama joka zoomilla (laatta on aina
+   * 256 CSS px ja siinä on aina yhtä monta texeliä), kun taas
+   * näkymätekstuurin tiheys riippuu zoomista ja budjetista. Sama
+   * tavoite — noin 2 texeliä — antaa siis yhden luvun.
+   *
+   *     2 * (360 / (2^z * KOKO)) * (256 * 2^z / 360)  =  512 / KOKO
+   *
+   * eli 2 px GL:n 256 texelillä ja 4 px CPU-varatien 128:lla. Alaraja
+   * 3 px pitää sen samana kuin lähizoomissa ennenkin. */
+  if (State.saaKerros) {
+    const K = State.saaKerros;
+    const kerros = K._gl && K._gl.kelvollinen();
+    blur = Math.max(3, Math.round(512 / (kerros ? K.GL_TEXELIT : K.CPU_TEXELIT)));
+  } else if (WindTexture.cols > 0 && WindTexture.lngMax > WindTexture.lngMin) {
     const astettaTexelia = (WindTexture.lngMax - WindTexture.lngMin) / WindTexture.cols;
     const pxAstetta = 256 * Math.pow(2, z) / 360;
     blur = Math.max(3, Math.min(22, Math.round(2 * astettaTexelia * pxAstetta)));
@@ -8536,7 +8881,7 @@ function updateHeatmapBlur(zoom) {
   /* Saturate vahvistaa vareja sekoituksen kanssa */
   const sat = z <= 5 ? 1.6 : 1.4;
   const fStr = 'blur(' + blur + 'px) saturate(' + sat + ')';
-  document.querySelectorAll('.heatmap-overlay').forEach(el => {
+  document.querySelectorAll('.heatmap-overlay, .saa-laatat').forEach(el => {
     el.style.filter = fStr;
     el.style.webkitFilter = fStr;
     /* Sekoitustila kirjoitetaan uudestaan joka päivityksellä. Alkuperäinen
@@ -16818,7 +17163,7 @@ const _loadingSafety = setTimeout(() => {
          estää uudelleentäytön — ja palauttaa hiukkaset kun kytkin avataan. */
       resetParticles();
     } else if (k === 'heatmap') {
-      document.querySelectorAll('.heatmap-overlay').forEach(function (e) {
+      document.querySelectorAll('.heatmap-overlay, .saa-laatat').forEach(function (e) {
         e.style.display = off.heatmap ? 'none' : '';
       });
     } else if (k === 'markers') {
