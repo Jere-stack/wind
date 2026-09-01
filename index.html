@@ -316,6 +316,54 @@ body {
           mask-composite: intersect;
 }
 
+/* ── SPOTTIKORTTI SIVUPANEELIKSI ──────────────────────────────────
+ *
+ * Kortti on pohjalevy: mitattuna 1440 px:n ruudulla se on 1440 px leveä
+ * ja 272 px korkea, jossa sisältöä 218 px. Otsikko on vasemmassa
+ * reunassa ja yksikkö oikeassa, väliin jää 1 400 pikseliä tyhjää.
+ * Samalla se peittää kartan alaosan — juuri sen alueen jolla spotti on.
+ *
+ * Työpöydällä ja vähintään 1024 px:n leveydellä kortti on oikean reunan
+ * sivupaneeli: koko korkeus, oma vieritys, kaavio ja tuntitaulukko
+ * saavat pystysuuntaa. Alle 1024 px:n nykyinen pohjalevy jää sellaisenaan
+ * — kapea ikkuna työpöydällä on lähempänä puhelinta kuin työpöytää.
+ *
+ * KARTTAA EI KUTISTETA. Se olisi houkuttelevaa (spotti pysyisi
+ * näkyvissä itsestään), mutta kartan koon muutos vetää perässään
+ * `invalidateSize`n, uloimman zoomin uudelleenlaskennan sekä lämpökartan
+ * ja pohjakerroksen rajat. Sen sijaan kartta PANOROIDAAN sen verran että
+ * valittu spotti tulee vapaan alueen keskelle — sama lopputulos ilman
+ * yhtään kokomuutosta.
+ *
+ * Verho ei tummenna karttaa työpöydällä: sivupaneeli ei ole modaali,
+ * ja kartan pitää pysyä luettavana kortin vieressä. Verho jää silti
+ * paikalleen, koska sen kautta kortti suljetaan klikkaamalla ohi. */
+@media (min-width: 1024px) {
+  html.tyopoyta #sheet {
+    top: 0; bottom: 0; left: auto; right: 0;
+    width: 400px; max-height: none;
+    border-radius: 0;
+    border-left: 1px solid var(--hairline);
+    -webkit-transform: translate3d(100%,0,0); transform: translate3d(100%,0,0);
+  }
+  html.tyopoyta #sheet.open {
+    -webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0);
+  }
+  /* Vetokahva on kosketuseleen kahva. Sivupaneelissa ei ole elettä,
+     joten se on sulkunappi — ja sen on näytettävä siltä. */
+  html.tyopoyta #sheet-handle {
+    padding: 12px 0 8px;
+  }
+  html.tyopoyta #sheet-overlay.open { background: rgba(0,0,0,0); }
+  html.tyopoyta #sp-body-inner { padding-bottom: 24px; }
+  /* Aikajana ja alapalkki väistyvät paneelin tieltä. Ilman tätä
+     paneeli peittäisi aikajanan oikean pään — eli juuri ne päivät
+     joita leveä ruutu tuo lisää. Luokka tulee openSheetistä, jotta
+     siirtymä kulkee samaa tahtia paneelin kanssa. */
+  html.tyopoyta.paneeli-auki #bottom { right: 400px; }
+  html.tyopoyta #bottom { transition: right .38s var(--spring); }
+}
+
 /* ============================================================
    TYÖPÖYTÄ — HOVER JA FOKUS
    ============================================================
@@ -6112,6 +6160,28 @@ function initMap() {
     if (map.getZoom() < z && !map._nipistysKesken && !map._animatingZoom) map.setZoom(z);
   }
   paivitaUloinZoom();
+  /* AVAUSNÄKYMÄ SUHTEESSA ULOIMPAAN RAJAAN, EI KIINTEÄNÄ.
+   *
+   * Avaus oli kiinteä z5 riippumatta ruudusta. Uloin raja lasketaan
+   * ikkunan korkeudesta, joten mitattuna 2560x1440:llä se on 4,32 —
+   * sovellus aukesi käytännössä uloimpaan mahdolliseen näkymään, jossa
+   * ei näy yhtään spottia. Pienellä ruudulla raja on 3,42 ja z5 on
+   * puolitoista tasoa sen sisällä; sama luku tarkoittaa siis eri asiaa
+   * eri ruuduilla.
+   *
+   * `minZoom + 1,6` antaa saman näkymän kuin ennen puhelimella ja
+   * kiristää sitä isolla ruudulla. Ei koske tilanteisiin joissa näkymä
+   * tulee muualta: jaettu linkki ja suosikkeihin keskitys ajavat oman
+   * setView'nsä tämän jälkeen. */
+  (function avausNakyma() {
+    /* Vain työpöydällä. Puhelimella z5 on mitattu ja hyväksi todettu,
+       eikä sitä muuteta 0,14 zoomtason takia. */
+    if (!TYOPOYTA) return;
+    const uloin = map.getMinZoom();
+    if (!(uloin > 0)) return;
+    const kohde = Math.min(map.getMaxZoom(), uloin + 1.6);
+    if (Math.abs(map.getZoom() - kohde) > 0.05) map.setZoom(kohde, { animate: false });
+  })();
   /* RAJA ON LASKETTAVA UUDELLEEN ENNEN JOKAISTA ELETTÄ.
    *
    * Kartan koko ei ole vakio: iOS:n osoiterivi piiloutuu ja palaa,
@@ -12551,6 +12621,13 @@ function openSheet(spot, hourIdx) {
   document.getElementById('sheet').classList.add('open');
   document.getElementById('sheet-overlay').classList.add('open');
   Haptics.medium();
+  /* Sivupaneeli peittää oikean reunan. Jos valittu spotti jää sen alle,
+     kartta panoroidaan niin että spotti tulee vapaan alueen keskelle.
+     Panorointi eikä kartan kutistus: ks. CSS-lohko "SPOTTIKORTTI
+     SIVUPANEELIKSI". Vain jos spotti oikeasti jäisi piiloon — muuten
+     kortin avaaminen liikuttaisi karttaa turhaan. */
+  if (TYOPOYTA) document.documentElement.classList.add('paneeli-auki');
+  _sivupaneeliPanorointi(spot);
 
   /* Osoite kertoo mitä katsotaan, jotta näkymän voi jakaa sellaisenaan. */
   Linkkitila.kirjoita(spot.name, (h.time && h.time[idx]) || null);
@@ -13880,8 +13957,27 @@ function _cardinalFi(deg) {
   return ['P','PPK','PK','IPK','I','IKI','KI','EKI','E','EKA','KA','IKA','I','IPA','PA','PPA'][idx] || '';
 }
 
+/* Sivupaneelin leveys on CSS:ssä; luetaan se elementiltä eikä
+   toisteta lukua kahdessa paikassa. */
+function _sivupaneeliPanorointi(spot) {
+  try {
+    if (!TYOPOYTA || !State.map || !spot) return;
+    const sheet = document.getElementById('sheet');
+    if (!sheet) return;
+    const lev = sheet.getBoundingClientRect().width;
+    const koko = State.map.getSize();
+    /* Pohjalevytilassa paneeli on ruudun levyinen — silloin ei panoroida. */
+    if (!(lev > 0) || lev >= koko.x * 0.9) return;
+    const p = State.map.latLngToContainerPoint(L.latLng(spot.lat, spot.lng));
+    const vapaa = koko.x - lev;
+    if (p.x < vapaa - 24) return;              /* nakyy jo vapaalla alueella */
+    State.map.panBy([p.x - vapaa / 2, 0], { animate: true, duration: 0.35 });
+  } catch (e) {}
+}
+
 function closeSheet() {
   State.sheetSpot = null;
+  document.documentElement.classList.remove('paneeli-auki');
   document.getElementById('sheet').classList.remove('open');
   document.getElementById('sheet-overlay').classList.remove('open');
   document.getElementById('sheet-overlay').style.background = '';

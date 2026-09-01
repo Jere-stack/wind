@@ -977,3 +977,92 @@ menee selaimen mukaan — silloin nousu ja lasku voivat osua eri
 vuorokausille eikä päivän pituutta näytetä lainkaan. Se on oikea
 degradaatio: mieluummin ei lukua kuin negatiivinen luku. Suomen
 rannikon spoteilla tilanne ei tule vastaan.
+
+## Työpöytäselain — mitattu, ei arvattu
+
+Sovellus on rakennettu ja mitattu kosketukselle. Windows-selaimessa se
+toimi, mutta se oli puhelinsovellus venytettynä. Mittaus tehtiin
+oikealla työpöytäkontekstilla — Chromium, `deviceScaleFactor 1`,
+`hasTouch: false`, oikeat hiiri- ja näppäimistötapahtumat — ja lisäksi
+ruutukoilla 1366×768, 1920×1080 ja 2560×1440.
+
+### Lähtötaso
+
+| syöte | vaikutus | havainto |
+|---|---|---|
+| wheel −53 px | +0,602 tasoa | kevyt kierräytys ylitti puoli tasoa |
+| wheel −100 px | +1,078 | yksi Windows-napsautus yli koko tason |
+| wheel −120 px | +1,264 | päätyi zoomiin 10,264 — ei koskaan tasalukuun |
+| wheel −500 px | +3,323 | yksi pyöräytys ohitti kolme tasoa |
+| trackpad 8 × 16 px | +1,513 | kevyt liu'utus hyppäsi 1,5 tasoa |
+| tuplaklikkaus | 0,000 | ei tehnyt mitään |
+| shift + veto | 9 → 11,32 | laatikkozoom toimi, mutta piilossa |
+| `:hover`-sääntöjä | **0** | mikään ei reagoinut hiireen |
+| pienin näkyvä teksti | 10 px | dpr 1:llä ei pikselivaraa |
+| spottikortti | 1440 × 272 px | sisältöä 218 px, loput tyhjää |
+| kapseli 2560 px:llä | 179 px | 7,0 % leveydestä |
+| avausnäkymä | kiinteä z5 | uloin raja 2560:llä on 4,32 |
+
+### TYOPOYTA — yksi lippu
+
+`pointer: fine` **ja** `maxTouchPoints === 0`. Ehdon on oltava molemmat:
+kosketusnäytöllinen kannettava täyttää `pointer: fine`, ja silloin
+tuplaklikkaus ja kosketuksen tuplanapauta-ja-vetä taistelisivat samasta
+eleestä. Sama päätös menee juuriluokkana CSS:ään, koska CSS ei näe
+`maxTouchPoints`ia — pelkkä `@media (pointer: fine)` olisi väärä ehto.
+
+### Rullazoom: kertymä, ei vähimmäisaskelta
+
+Ensimmäinen versio pakotti jokaisen rullatapahtuman vähintään puoleen
+askeleeseen, jottei kevyt kierräytys jäisi tekemättä. Trackpadilla se
+vei zoomin 9:stä **13:een** — kahdeksan erillistä puolikasta askelta.
+Nyt murto-osat kertyvät ja kartta liikkuu vasta kun kertymä ylittää
+puolikkaan.
+
+Nollausehto on **tila, ei aika**. Aikaikkuna (400 ms) olisi oikea luku
+oikealle laitteelle mutta se ei ole mitattavissa: harnessissa
+peräkkäisten `_performZoom`-kutsujen väli oli 430–678 ms, kun oikea
+trackpad lähettää 10–16 ms välein. Kertymä nollataan siis silloin kun
+kartan zoom on jotain muuta kuin mihin me sen viimeksi jätimme.
+
+`zoomSnap` pysyy nollassa. Se on mitattu päätös kosketukselle (ks.
+`docs/eleet.md`); rulla on diskreetti syöte, jolla murtoluku on pelkkää
+epätarkkuutta, joten pyöristys tehdään vain rullapolulle ja se
+kohdistuu tulokseen — jolloin rulla myös palauttaa kartan puolikkaiden
+hilaan nipistyksen jäljiltä.
+
+### Tyyppikoko: muuttujat, ei uudelleenkirjoitus
+
+162 `font-size`-määritystä välillä 6,5–13 px. Puhelimessa dpr 3 antaa
+8 px:n glyfille 24 laitepikseliä; työpöydällä dpr 1 antaa kahdeksan, ja
+ohuet varret jäävät alle yhden pikselin. Koot muutettiin muuttujiksi
+(169 korvausta) ja työpöydällä ne ovat noin 1,25-kertaisia. Järjestys
+säilyy — yksikään kasvatettu koko ei ohita seuraavaa kiinteää — ja 14 px
+ja isommat jäävät ennalleen. SVG:n esitysattribuutteihin ei kosketa,
+koska `var()` ei toimi niissä.
+
+Mitattu pienin ruudulla näkyvä koko: työpöytä 10 → 12,5 px, mobiili
+10 → 10 px.
+
+### Spottikortti: panorointi, ei kutistus
+
+Leveydestä 1024 px alkaen kortti on oikean reunan sivupaneeli (400 px,
+koko korkeus, ei verhoa kartan päällä) ja aikajana väistyy sen tieltä.
+Karttaa **ei** kutisteta: kartan koon muutos vetäisi perässään
+`invalidateSize`n, uloimman zoomin uudelleenlaskennan sekä lämpökartan
+ja pohjakerroksen rajat. Sen sijaan kartta panoroidaan sen verran että
+valittu spotti tulee vapaan alueen keskelle — sama lopputulos ilman
+yhtään kokomuutosta. Panorointi tehdään vain jos spotti oikeasti jäisi
+paneelin alle.
+
+### Mittarivirhe joka olisi kaatanut koko erän
+
+Mobiiliharness ei asettanut `hasTouch`ia. Ilman sitä
+`navigator.maxTouchPoints` on 0 ja `(pointer: fine)` tosi, joten
+`TYOPOYTA` meni siellä päälle: mobiilin pikselivertailu mittasi
+työpöytäpolkua. Se näkyi tyyppikokoerässä 0,14 keskierona, joka
+paikantui "ei signaalia" -kylttiin — se renderöityi 7,5 px:n sijaan
+10 px:llä. Oikealla kosketuskontekstilla ero on 0,00.
+
+Kaikki laitekohtainen mittaus vaatii `hasTouch`in **molempiin
+suuntiin**. Ilman sitä harness ei kerro kummasta polusta on kyse.
