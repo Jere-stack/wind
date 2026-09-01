@@ -7669,6 +7669,273 @@ const WindTexture = {
   }
 };
 
+/* ── LÄMPÖKARTTA GPU:LLA ───────────────────────────────────────────
+ *
+ * `buildHila` tekee kaksi asiaa jokaiselle texelille: kuubisen
+ * interpoloinnin solmuhilasta ja väriramppihaun. 170 000 texelillä se on
+ * mitattuna 10–43 ms, ja se maksetaan JOKA kerta kun näkymä muuttuu.
+ * Windy ei maksa sitä lainkaan: siellä data on GPU-tekstuuri ja sekä
+ * interpolointi että ramppi ajetaan fragmenttivarjostimessa, jolloin
+ * zoomaus on pelkkä uusi matriisi.
+ *
+ * Tämä on sama rakenne. Solmuhila (`gu`/`gv`, muutama kymmenentuhatta
+ * lukua) viedään RG32F-tekstuuriksi, ramppi 201×1 RGBA8-tekstuuriksi, ja
+ * varjostin laskee texelin värin. CPU:lle jää hilan kokoaminen, joka on
+ * kaksi kertaluokkaa pienempi työ.
+ *
+ * KOLME ASIAA JOTKA ON PIDETTÄVÄ BITILLEEN SAMANA, muuten kerros siirtyy
+ * suhteessa partikkeleihin ja pohjakarttaan:
+ *
+ *   1. Rivi r vastaa leveysastetta `ymercInv(myMax - r*myStep)` — ei
+ *      tasavälein asteissa. Ks. `build`in projektiokommentti.
+ *   2. Sarake c vastaa pituusastetta `lngMin + c*lngStep`, EI texelin
+ *      keskipistettä. CPU tekee niin, joten varjostinkin tekee.
+ *   3. Ankkurin rajaus on `clamp(floor(f), 1, g-3)` ja painot ovat
+ *      Catmull-Rom samassa järjestyksessä kuin `crPainot`.
+ *
+ * Ramppi luetaan `WindTexture.pikseliLUT()`:sta eikä lasketa uudelleen.
+ * Taulu on pakattu niin että sen tavut OVAT RGBA muistijärjestyksessä
+ * (siksi se endian-tarkistus), joten `new Uint8Array(lut.buffer)` on
+ * suoraan tekstuurin sisältö. Yksi kaava, ei ajautumisen varaa.
+ *
+ * Jokaisella kerroksella on OMA konteksti: WebGL-ohjelmia ei voi jakaa
+ * kontekstien yli, ja kerroksen canvas menee sellaisenaan
+ * `KanvasYlitys`:een. Siksi tämä on tehdas eikä yksittäiskappale.
+ *
+ * `premultipliedAlpha: false` on pakollinen: `putImageData` kirjoittaa
+ * suoran RGBA:n, ja kerros sekoitetaan `plus-lighter`illä. Esikerrottuna
+ * sama alfa antaisi eri lopputuloksen. */
+const GLKentta = {
+  _tuettu: null,
+
+  /* Halpa kyvykkyystarkistus. Erillinen konteksti, joka suljetaan heti —
+     tätä kutsutaan ennen kuin yhtään kerrosta on luotu. */
+  tuettu() {
+    if (this._tuettu !== null) return this._tuettu;
+    this._tuettu = false;
+    try {
+      const c = document.createElement('canvas');
+      c.width = c.height = 2;
+      const g = c.getContext('webgl2', { failIfMajorPerformanceCaveat: false });
+      if (g) {
+        /* RG32F + texelFetch riittää: suodatusta ei tarvita lainkaan,
+           koska kuubinen ydin lukee kokonaislukukoordinaateilla. Siksi
+           tässä ei kysytä OES_texture_float_lineariä. */
+        this._tuettu = !!g.getExtension('EXT_color_buffer_float') || true;
+        const h = g.getExtension('WEBGL_lose_context');
+        if (h) h.loseContext();
+      }
+    } catch (e) { this._tuettu = false; }
+    return this._tuettu;
+  },
+
+  VS: '#version 300 es\n'
+    + 'in vec2 a_pos;\n'
+    + 'void main(){ gl_Position = vec4(a_pos * 2.0 - 1.0, 0.0, 1.0); }\n',
+
+  FS: '#version 300 es\n'
+    + 'precision highp float;\n'
+    + 'precision highp sampler2D;\n'
+    + 'uniform sampler2D u_hila;\n'      /* RG32F: u ja v solmuittain */
+    + 'uniform sampler2D u_lut;\n'       /* RGBA8 201x1: väriramppi */
+    + 'uniform vec2 u_koko;\n'           /* cols, rows */
+    + 'uniform vec2 u_hilaKoko;\n'       /* gc, gr */
+    + 'uniform vec4 u_x;\n'              /* lngMin, lngStep, lo0, dStep */
+    + 'uniform vec4 u_y;\n'              /* myMax, myStep, la0, dStep */
+    + 'out vec4 ulos;\n'
+    /* Catmull-Rom samassa järjestyksessä kuin crPainot(). */
+    + 'vec4 cr(float t){\n'
+    + '  float t2 = t*t, t3 = t2*t;\n'
+    + '  return 0.5 * vec4(-t + 2.0*t2 - t3, 2.0 - 5.0*t2 + 3.0*t3,\n'
+    + '                     t + 4.0*t2 - 3.0*t3, -t2 + t3);\n'
+    + '}\n'
+    + 'void main(){\n'
+    + '  float c = floor(gl_FragCoord.x);\n'
+    /* Kanvasin rivi 0 on ylhäällä, framebufferin y kasvaa alhaalta. */
+    + '  float r = u_koko.y - 1.0 - floor(gl_FragCoord.y);\n'
+    + '  float fx = (u_x.x + c * u_x.y - u_x.z) / u_x.w;\n'
+    + '  float i = clamp(floor(fx), 1.0, u_hilaKoko.x - 3.0);\n'
+    + '  vec4 wx = cr(fx - i);\n'
+    /* ymercInv: (2*atan(exp(y)) - PI/2) / (PI/180) = degrees(...) */
+    + '  float la = degrees(2.0 * atan(exp(u_y.x - r * u_y.y)) - 1.5707963267948966);\n'
+    + '  float fy = (la - u_y.z) / u_y.w;\n'
+    + '  float j = clamp(floor(fy), 1.0, u_hilaKoko.y - 3.0);\n'
+    + '  vec4 wy = cr(fy - j);\n'
+    + '  int i0 = int(i) - 1, j0 = int(j) - 1;\n'
+    + '  vec2 acc = vec2(0.0);\n'
+    + '  for (int b = 0; b < 4; b++){\n'
+    + '    vec2 rw = vec2(0.0);\n'
+    + '    for (int a = 0; a < 4; a++) rw += texelFetch(u_hila, ivec2(i0 + a, j0 + b), 0).rg * wx[a];\n'
+    + '    acc += rw * wy[b];\n'
+    + '  }\n'
+    /* Sama kvantisointi kuin CPU:lla: (ms*10 + 0.5) katkaistuna. */
+    + '  int li = int(length(acc) * 10.0 + 0.5);\n'
+    + '  ulos = texelFetch(u_lut, ivec2(min(li, 200), 0), 0);\n'
+    + '}\n',
+
+  _kaanna(gl, tyyppi, lahde) {
+    const s = gl.createShader(tyyppi);
+    gl.shaderSource(s, lahde);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+      const loki = gl.getShaderInfoLog(s);
+      gl.deleteShader(s);
+      throw new Error('varjostin: ' + loki);
+    }
+    return s;
+  },
+
+  /* Luo kerroksen oman kontekstin. Palauttaa null jos mikä tahansa
+     vaihe kaatuu — kutsuja jää silloin CPU-polulle. */
+  luo() {
+    if (!this.tuettu()) return null;
+    let gl = null, canvas = null;
+    try {
+      canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 1;
+      gl = canvas.getContext('webgl2', {
+        alpha: true, premultipliedAlpha: false, antialias: false,
+        depth: false, stencil: false, preserveDrawingBuffer: false,
+        desynchronized: false, powerPreference: 'low-power'
+      });
+      if (!gl) return null;
+      const ohj = gl.createProgram();
+      const vs = this._kaanna(gl, gl.VERTEX_SHADER, this.VS);
+      const fs = this._kaanna(gl, gl.FRAGMENT_SHADER, this.FS);
+      gl.attachShader(ohj, vs); gl.attachShader(ohj, fs);
+      gl.linkProgram(ohj);
+      if (!gl.getProgramParameter(ohj, gl.LINK_STATUS)) {
+        throw new Error('linkitys: ' + gl.getProgramInfoLog(ohj));
+      }
+      gl.deleteShader(vs); gl.deleteShader(fs);
+      gl.useProgram(ohj);
+
+      /* Koko ruudun kolmioliuska yksikköneliönä. */
+      const vao = gl.createVertexArray();
+      gl.bindVertexArray(vao);
+      const puskuri = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, puskuri);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0,0, 1,0, 0,1, 1,1]), gl.STATIC_DRAW);
+      const aPos = gl.getAttribLocation(ohj, 'a_pos');
+      gl.enableVertexAttribArray(aPos);
+      gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+      const hilaTex = gl.createTexture();
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, hilaTex);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+      const lutTex = gl.createTexture();
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, lutTex);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+      gl.uniform1i(gl.getUniformLocation(ohj, 'u_hila'), 0);
+      gl.uniform1i(gl.getUniformLocation(ohj, 'u_lut'), 1);
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+      gl.disable(gl.BLEND);
+      gl.disable(gl.DEPTH_TEST);
+
+      const u = {
+        koko: gl.getUniformLocation(ohj, 'u_koko'),
+        hilaKoko: gl.getUniformLocation(ohj, 'u_hilaKoko'),
+        x: gl.getUniformLocation(ohj, 'u_x'),
+        y: gl.getUniformLocation(ohj, 'u_y')
+      };
+      return new GLKerros(canvas, gl, ohj, vao, u, hilaTex, lutTex);
+    } catch (e) {
+      try {
+        if (gl) { const h = gl.getExtension('WEBGL_lose_context'); if (h) h.loseContext(); }
+      } catch (e2) {}
+      return null;
+    }
+  }
+};
+
+/* Yhden lämpökarttakerroksen GL-konteksti. `canvas` menee sellaisenaan
+   `KanvasYlitys`:een, kuten 2D-canvas menee nyt. */
+function GLKerros(canvas, gl, ohjelma, vao, u, hilaTex, lutTex) {
+  this.canvas = canvas;
+  this.gl = gl;
+  this._ohj = ohjelma;
+  this._vao = vao;
+  this._u = u;
+  this._hilaTex = hilaTex;
+  this._lutTex = lutTex;
+  this._lutLahde = null;        /* mistä taulusta nykyinen tekstuuri on */
+  this._rg = null;              /* lomitettu RG-puskuri, kierrätetään */
+  this._rgN = -1;
+  this._hukattu = false;
+  const self = this;
+  /* Kontekstin menetys on todellinen tapaus mobiilissa (välilehti taustalle,
+     muistipaine). Merkitään kerros kelvottomaksi, jolloin kutsuja putoaa
+     CPU-polulle seuraavassa rakennuksessa. */
+  canvas.addEventListener('webglcontextlost', function (e) {
+    e.preventDefault(); self._hukattu = true;
+  }, false);
+}
+
+GLKerros.prototype.kelvollinen = function () {
+  return !this._hukattu && this.gl && !this.gl.isContextLost();
+};
+
+/* piirra(tex, hila)
+ *
+ *   tex   kohteen mitoitus: cols, rows, lngMin, lngMax, myMin, myMax
+ *   hila  { gu, gv, gc, gr, la0, lo0, dStep }
+ *
+ * Palauttaa true jos canvasilla on nyt kelvollinen kuva. */
+GLKerros.prototype.piirra = function (tex, hila) {
+  if (!this.kelvollinen()) return false;
+  const gl = this.gl;
+  try {
+    const cols = tex.cols, rows = tex.rows;
+    if (!(cols > 0 && rows > 0)) return false;
+    if (this.canvas.width !== cols || this.canvas.height !== rows) {
+      this.canvas.width = cols; this.canvas.height = rows;
+    }
+    /* Ramppi vain jos taulu on vaihtunut. `pikseliLUT` palauttaa saman
+       olion kunnes asetus muuttuu, joten viitevertailu riittää. */
+    const lut = WindTexture.pikseliLUT();
+    if (this._lutLahde !== lut) {
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, this._lutTex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, lut.length, 1, 0,
+        gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(lut.buffer));
+      this._lutLahde = lut;
+    }
+    /* gu ja gv ovat erilliset taulukot; tekstuuri tarvitsee lomitetun. */
+    const n = hila.gc * hila.gr;
+    if (this._rgN !== n) { this._rg = new Float32Array(n * 2); this._rgN = n; }
+    const rg = this._rg, gu = hila.gu, gv = hila.gv;
+    for (let k = 0, p = 0; k < n; k++) { rg[p++] = gu[k]; rg[p++] = gv[k]; }
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this._hilaTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG32F, hila.gc, hila.gr, 0, gl.RG, gl.FLOAT, rg);
+
+    gl.useProgram(this._ohj);
+    gl.bindVertexArray(this._vao);
+    gl.viewport(0, 0, cols, rows);
+    const lngStep = (tex.lngMax - tex.lngMin) / cols;
+    const myStep = (tex.myMax - tex.myMin) / rows;
+    gl.uniform2f(this._u.koko, cols, rows);
+    gl.uniform2f(this._u.hilaKoko, hila.gc, hila.gr);
+    gl.uniform4f(this._u.x, tex.lngMin, lngStep, hila.lo0, hila.dStep);
+    gl.uniform4f(this._u.y, tex.myMax, myStep, hila.la0, hila.dStep);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    return true;
+  } catch (e) {
+    this._hukattu = true;
+    return false;
+  }
+};
+
 /* ── POHJAKERROS — SE MIKÄ EI KOSKAAN LOPU KESKEN ──────────────────
  *
  * Tarkka tekstuuri kattaa näkymän ja pehmusteen. Se on oikea ratkaisu
@@ -16315,7 +16582,8 @@ const _loadingSafety = setTimeout(() => {
     window.FS = { State: State, WindTexture: WindTexture, Saalaatat: Saalaatat,
       ViewportGrid: ViewportGrid, ColorRamp: ColorRamp, PerfTracker: PerfTracker,
       buildWindField: buildWindField, idw: idw,
-      PohjaTekstuuri: PohjaTekstuuri, pohjaVarmista: pohjaVarmista };
+      PohjaTekstuuri: PohjaTekstuuri, pohjaVarmista: pohjaVarmista,
+      GLKentta: GLKentta };
   } catch (e) {}
 
   var worstEver = 0;
