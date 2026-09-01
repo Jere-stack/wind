@@ -222,6 +222,22 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   3,46 tasoa, 92 % ruudusta paljasta taustaa). Raja tehdään joustona
   `getScaleZoom`issa — ei `_move`ssa, koska keskipiste lasketaan zoomista
   ja ankkuri valuisi.
+- **Lämpökartta piirtyy GPU:lla kun laite kiihdyttää** (`GLKentta`,
+  WebGL2). Varjostimen ja CPU-silmukan on annettava sama tulos: rivin
+  leveysaste `ymercInv(myMax - r*myStep)`, sarake `lngMin + c*lngStep`
+  (ei texelin keskipiste), ankkuri `clamp(floor(f), 1, g-3)`. Jos
+  muutat toista polkua, muuta molemmat — pikselivertailu on
+  `glruudulla.mjs`. Ramppi luetaan `pikseliLUT()`:n tavuista, ei
+  lasketa uudelleen.
+- **`failIfMajorPerformanceCaveat` ei estä ohjelmistorasterointia.**
+  Mitattu: Chromium loi kontekstin SwiftShaderille sen kanssa yhtä
+  lailla. Portti on renderöijän nimi (`swiftshader`, `llvmpipe`,
+  `softpipe`, `basic render`, `software`). Nimen puuttuminen ei ole
+  todiste — silloin päästetään läpi.
+- **Kontissa ei ole GPU:ta.** WebGL ajetaan SwiftShaderilla, eli
+  varjostin suoritetaan samalla kuristetulla suorittimella. GL-polun
+  nopeuslukuja ei voi mitata täällä; oikeaa laitetta vastaan on
+  mitattava. Pikselivastaavuus sen sijaan mitataan täällä hyvin.
 - - **Lämpökartta on KAKSI kerrosta: tarkka ja karkea pohja.** Ne eivät
   ole koskaan yhtä aikaa näkyvissä levossa — kaksi lisäävää kerrosta
   päällekkäin laskettaisiin yhteen. Vuoro vaihtuu peittotarkistuksella

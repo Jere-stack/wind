@@ -1144,3 +1144,135 @@ Kaksi korjausta:
 Testattu pakottamalla `setMinZoom(2)` kesken ajon ja ajamalla kolme
 peräkkäistä rajua ulosnipistystä: raja palautui 3,544:ään, ele pysähtyi
 3,295:een (0,25 tasoa ali) ja ruudun peitto oli 100 %.
+
+## Lämpökartta GPU:lla — mitä windy.com tekee toisin
+
+Lähtökohta oli windy.comin oma koodi (`leaflet-gl.js` + `index.js`,
+760 kt). Kaksi asiaa erottaa sen meistä rakenteellisesti:
+
+**Pohjakartta ja sääkerros ovat samassa WebGL-framessa.** `leaflet-gl.js`
+on MapLibre GL — vektorilaattoja GL:ssä (varjostimissa `projectTile`,
+`u_matrix`, 8192-laattayksikkö) — ja sääkerros piirretään samaan
+piirtokutsuun samalla matriisilla. Kerrokset eivät voi olla epätahdissa,
+koska niitä ei ole kahta. Ei ristihäivytystä, ei peittotarkistusta.
+
+**Säädata on GPU-tekstuuri, ei CPU:lla laskettu kuva.** Laatta on 257×257
+PNG jossa arvo on R-kanavassa (log-pakattuna, `pow(2.0, x) - 0.001`) ja
+väri-indeksi G-kanavassa; kahdeksan ensimmäistä pikseliriviä on otsake.
+Bilineaarinen interpolointi ja väriramppi (`uColors[11]`) ajetaan
+fragmenttivarjostimessa, ja värjätty laatta leivotaan kerran FBO:n läpi
+tekstuuriksi (`preRenderToTexture`). Zoomaus ei maksa CPU:ta lainkaan.
+
+Kolmas asia joka kannattaa tietää mutta jota emme kopioineet:
+partikkelit häivytetään zoomin ajaksi (`_opacity += dt/0.1 *
+(zooming ? -1 : 1)`), ja panoroinnissa jälkipuskuria siirretään
+`_lastTranslation`illa sen sijaan että se piirrettäisiin uusiksi.
+
+### Mitä siitä otettiin
+
+Vain toinen: **interpolointi ja ramppi varjostimeen.** Vektoripohjakartta
+jätettiin, koska Esri Dark Gray on mitattu valinta (maa/vesi-ero 42 → 57
+`contrast(1.4)`:llä) ja vaihto tarkoittaisi koko värityön uusimista.
+
+`GLKentta` on tehdas, joka luo kerrokselle oman WebGL2-kontekstin —
+ohjelmia ei voi jakaa kontekstien yli, ja kerroksia on kaksi (tarkka ja
+karkea pohja). `GLKerros.piirra(tex, hila)` vie solmuhilan
+RG32F-tekstuuriksi, rampin 201×1 RGBA8-tekstuuriksi ja laskee kankaan.
+
+**Kuubinen ydin lukee `texelFetch`illä**, ei suodattimella. Siksi
+`OES_texture_float_linear`ia ei tarvita lainkaan, mikä poistaa yhden
+laiteriippuvuuden.
+
+**Ramppi luetaan `pikseliLUT()`:n tavuista sellaisenaan.** Taulu on jo
+pakattu niin että sen tavut OVAT RGBA muistijärjestyksessä (se on koko
+syy sille endian-tarkistukselle), joten `new Uint8Array(lut.buffer)` on
+suoraan tekstuurin sisältö. Yksi kaava, ei ajautumisen varaa —
+lämpökartan voimakkuussäädin toimii GL-polulla ilman omaa koodia.
+
+**Kolme kohtaa on bitilleen sama kuin CPU-polussa**, muuten kerros
+siirtyy suhteessa partikkeleihin ja pohjakarttaan: rivin leveysaste on
+`ymercInv(myMax - r*myStep)`, sarake on `lngMin + c*lngStep` (EI texelin
+keskipiste), ja ankkuri on `clamp(floor(f), 1, g-3)` Catmull-Rom-painoin.
+
+**Tulos kopioidaan 2D-kankaalle** eikä GL-kangasta viedä suoraan
+`KanvasYlitys`:een. Se maksaa yhden kopion, mutta pitää kaiken kerroksen
+ympärillä olevan ennallaan — rajat, sumennus, sekoitustila, jäädytyksen
+ankkurointi ja vuoronvaihto pohjakerroksen kanssa eivät tiedä mistä
+kankaan sisältö tuli. Varatie kontekstin menetykseen on silloin pelkkä
+`return false` eikä kerroksen uudelleenluonti. `globalCompositeOperation
+= 'copy'`, koska lähde on reunoilta läpinäkyvä ja `source-over` jättäisi
+edellisen rakennuksen näkyviin niiden kohdalle.
+
+### Partikkelit näytteistävät nyt solmuhilasta
+
+Texelihila oli johdannainen solmuhilasta, ja `sampleWind` interpoloi
+siitä vielä kerran eteenpäin. GL-polulla texelihilaa ei lasketa CPU:lla
+lainkaan, joten näytteistyksellä on oltava oma lähde: `WindTexture.hila`.
+Sironneella polulla se on null ja `sampleWind` putoaa entiseen
+texelipolkuun sellaisenaan.
+
+Mitattu 4000 satunnaisella pisteellä näkymän sisältä, kuristamaton:
+
+| zoom | hila | dStep | ero keski | p99 | max | µs/näyte solmu/texel |
+|---|---|---|---|---|---|---|
+| 4 | 50×54 | 1,25 | 0,0095 | 0,0579 | 0,115 | 0,32 / 1,23 |
+| 7 | 15×16 | 1 | 0,0002 | 0,0006 | 0,001 | 0,28 / 0,75 |
+| 10 | 10×11 | 0,25 | 0 | 0,0001 | 0 | 0,53 / 0,70 |
+| 13 | 6×6 | 0,25 | 0 | 0 | 0 | 0,35 / 0,72 |
+
+Kenttä on sama (max 0,115 m/s uloimmalla zoomilla, nolla z10:stä
+ylöspäin) ja solmupolku on 1,3–3,8 kertaa nopeampi: solmuhila on muutama
+sata lukua ja mahtuu välimuistiin, texelihila on 170 000 lukua kolmessa
+taulukossa. Toinen erotus — texelihilan porras näkyisi siellä — ei kasva.
+
+### Pikselivastaavuus
+
+Sovelluksen omat polut, sama sivu ja sama solmuhila molemmille
+(CPU-polku pakotetaan tekemällä GL-kerroksesta saavuttamaton, jolloin
+vertailu ei nojaa kahteen ajoon):
+
+| zoom | kangas | hila | eroavia pikseleitä | maxD | maxA |
+|---|---|---|---|---|---|
+| 6 | 222×496 | 24×26 | 0,003 % | 3 | 2 |
+| 8 | 280×607 | 15×16 | 0,007 % | 4 | 2 |
+| 11 | 280×607 | 8×8 | 0,031 % | 3 | 2 |
+| 13 | 280×607 | 6×6 | 0,051 % | 3 | 2 |
+
+Erot ovat yksittäisiä LUT-ämpärin rajatapauksia kohdassa
+`(ms*10+0.5)|0` — float32 varjostimessa, float64 JS:ssä.
+
+### Kytkin, ja miksi portti on renderöijän nimi
+
+`?gl=0` pois, `?gl=1` päälle myös ohjelmistorasteroinnilla, oletus
+päälle vain laitekiihdytettynä.
+
+Ohjelmistorasteroinnista on osattava kieltäytyä: silloin varjostin
+ajetaan samalla suorittimella jolta työ oli tarkoitus siirtää pois, ja
+GL-polku on mitattuna HITAAMPI kuin CPU-polku (z13, 4× kuristus: 32 ms
+vs 13 ms).
+
+**`failIfMajorPerformanceCaveat: true` mitattiin tehottomaksi.** Se on
+juuri tähän tarkoitettu lippu, mutta Chromium loi kontekstin
+SwiftShaderille sen kanssa aivan yhtä lailla — ympäristössä jossa
+laitekiihdytystä ei ole lainkaan, oletus antoi `glKerros: true`. Lippu
+jätettiin paikalleen niiden selainten varalta jotka sitä kunnioittavat,
+mutta varsinainen portti on renderöijän nimi: `swiftshader`, `llvmpipe`,
+`softpipe`, `basic render`, `software`. Jos nimeä ei saa (Firefox
+piilottaa `WEBGL_debug_renderer_info`n, Safari palauttaa geneerisen
+"Apple GPU"), päästetään läpi — nimen puuttuminen ei ole todiste
+ohjelmistorasteroinnista.
+
+### Mitä tässä ympäristössä EI voi mitata
+
+Kontissa ei ole GPU:ta. Nopeuslukuja ei siis ole, ja sellainen on
+hankittava oikealta laitteelta. Se mitä mittaus voi kertoa on työn jako
+(z13, kuristamaton):
+
+    lomitus 0 ms · texImage2D 0 ms · drawArrays 0 ms · blitti 25,4 ms
+
+Kaikki aika on siinä kutsussa joka pakottaa huuhtelun, eli varjostimen
+ajossa. Pääsäikeen oma osuus on mittaamattoman pieni — ja juuri se on se
+osa joka säilyy oikealla laitteella.
+
+Peittoregressio ajettiin molemmilla poluilla: kaikki nipistykset 100 %,
+`zoomOut x2` 2/22–24 ruutua tunnetussa ristihäivytysikkunassa.

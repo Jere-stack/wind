@@ -7813,34 +7813,43 @@ const WindTexture = {
  * `premultipliedAlpha: false` on pakollinen: `putImageData` kirjoittaa
  * suoran RGBA:n, ja kerros sekoitetaan `plus-lighter`illä. Esikerrottuna
  * sama alfa antaisi eri lopputuloksen. */
-/* Kytkin. Oletus on toistaiseksi CPU-polku: GL otetaan käyttöön
-   `?gl=1`:llä kunnes se on mitattu oikealla laitteella. */
+/* Kytkin, kolme tilaa.
+ *
+ *   `?gl=0`   pois — varatie jos jokin laite yllättää
+ *   `?gl=1`   päälle myös ohjelmistorasteroinnilla (mittaus)
+ *   oletus    päälle, mutta VAIN laitekiihdytettynä
+ *
+ * Oletustilan on osattava kieltäytyä OHJELMISTORASTEROINNISTA: silloin
+ * varjostin ajetaan samalla suorittimella jolta työ oli tarkoitus
+ * siirtää pois, ja GL-polku on mitattuna hitaampi kuin CPU-polku
+ * (z13, 4x kuristus: 32 ms vs 13 ms).
+ *
+ * `failIfMajorPerformanceCaveat: true` on tähän tarkoitettu lippu, ja se
+ * MITATTIIN TEHOTTOMAKSI: Chromium loi kontekstin SwiftShaderille sen
+ * kanssa aivan yhtä lailla (`glKerros: true` ilman kytkintä
+ * ympäristössä jossa laitekiihdytystä ei ole lainkaan). Lippu jätetään
+ * paikalleen niiden selainten varalta jotka sitä kunnioittavat, mutta
+ * varsinainen portti on renderöijän nimi — se on ainoa asia joka tässä
+ * ympäristössä erotti tapaukset toisistaan.
+ *
+ * Väärä vastaus ei riko mitään: lopputulos on mitattu samaksi
+ * pikselilleen kummallakin polulla, ja `?gl=0` on olemassa. */
 const GL_LAMPOKARTTA = (function () {
-  try { return /[?&]gl=1\b/.test(location.search); } catch (e) { return false; }
+  try {
+    if (/[?&]gl=0\b/.test(location.search)) return false;
+    if (/[?&]gl=1\b/.test(location.search)) return 'pakota';
+  } catch (e) {}
+  return true;
 })();
 
 const GLKentta = {
-  _tuettu: null,
-
-  /* Halpa kyvykkyystarkistus. Erillinen konteksti, joka suljetaan heti —
-     tätä kutsutaan ennen kuin yhtään kerrosta on luotu. */
+  /* Halpa esitarkistus. Varsinainen portti on `luo()`, joka palauttaa
+     null jos konteksti, käännös tai linkitys ei onnistu — erillistä
+     koekontekstia ei siis kannata luoda vain kysyäkseen. */
   tuettu() {
-    if (this._tuettu !== null) return this._tuettu;
-    this._tuettu = false;
     try {
-      const c = document.createElement('canvas');
-      c.width = c.height = 2;
-      const g = c.getContext('webgl2', { failIfMajorPerformanceCaveat: false });
-      if (g) {
-        /* RG32F + texelFetch riittää: suodatusta ei tarvita lainkaan,
-           koska kuubinen ydin lukee kokonaislukukoordinaateilla. Siksi
-           tässä ei kysytä OES_texture_float_lineariä. */
-        this._tuettu = !!g.getExtension('EXT_color_buffer_float') || true;
-        const h = g.getExtension('WEBGL_lose_context');
-        if (h) h.loseContext();
-      }
-    } catch (e) { this._tuettu = false; }
-    return this._tuettu;
+      return GL_LAMPOKARTTA !== false && typeof WebGL2RenderingContext !== 'undefined';
+    } catch (e) { return false; }
   },
 
   VS: '#version 300 es\n'
@@ -7887,6 +7896,29 @@ const GLKentta = {
     + '  ulos = texelFetch(u_lut, ivec2(min(li, 200), 0), 0);\n'
     + '}\n',
 
+  /* Onko konteksti oikealla näytönohjaimella?
+   *
+   * Tunnetut ohjelmistorasteroijat nimeltä: SwiftShader (Chrome, myös
+   * ANGLEn kautta), llvmpipe ja softpipe (Mesa), sekä Windowsin
+   * "Microsoft Basic Render Driver" kun ajuria ei ole. Kaikki neljä
+   * kertovat itsestään renderöijämerkkijonossa.
+   *
+   * Jos merkkijonoa ei saa (Firefox piilottaa `WEBGL_debug_renderer_info`
+   * oletuksena, Safari palauttaa geneerisen "Apple GPU"), PÄÄSTETÄÄN
+   * läpi: nimen puuttuminen ei ole todiste ohjelmistorasteroinnista, ja
+   * niillä selaimilla laitekiihdytys on käytännössä aina päällä.
+   * `?gl=1` ohittaa koko tarkistuksen mittausta varten. */
+  _laitekiihdytetty(gl) {
+    if (GL_LAMPOKARTTA === 'pakota') return true;
+    let nimi = '';
+    try {
+      const d = gl.getExtension('WEBGL_debug_renderer_info');
+      nimi = String((d && gl.getParameter(d.UNMASKED_RENDERER_WEBGL))
+        || gl.getParameter(gl.RENDERER) || '');
+    } catch (e) { return true; }
+    return !/swiftshader|llvmpipe|softpipe|basic render|software/i.test(nimi);
+  },
+
   _kaanna(gl, tyyppi, lahde) {
     const s = gl.createShader(tyyppi);
     gl.shaderSource(s, lahde);
@@ -7910,9 +7942,13 @@ const GLKentta = {
       gl = canvas.getContext('webgl2', {
         alpha: true, premultipliedAlpha: false, antialias: false,
         depth: false, stencil: false, preserveDrawingBuffer: false,
-        desynchronized: false, powerPreference: 'low-power'
+        desynchronized: false, powerPreference: 'low-power',
+        /* Ohjelmistorasterointi olisi hitaampi kuin CPU-polku, ks.
+           GL_LAMPOKARTTA. `?gl=1` ohittaa tämän mittausta varten. */
+        failIfMajorPerformanceCaveat: GL_LAMPOKARTTA !== 'pakota'
       });
       if (!gl) return null;
+      if (!this._laitekiihdytetty(gl)) throw new Error('ohjelmistorasterointi');
       const ohj = gl.createProgram();
       const vs = this._kaanna(gl, gl.VERTEX_SHADER, this.VS);
       const fs = this._kaanna(gl, gl.FRAGMENT_SHADER, this.FS);
