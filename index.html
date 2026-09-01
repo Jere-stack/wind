@@ -16877,6 +16877,14 @@ const _loadingSafety = setTimeout(() => {
     }
   })(performance.now());
 
+  /* 'GPU' = varjostin piirtää, 'CPU' = silmukka, 'CPU (gl=0)' = kytketty
+     pois. Kerros luodaan vasta ensimmäisessä hilapolun rakennuksessa,
+     joten alkuun tässä lukee CPU vaikka laite kiihdyttäisi. */
+  function glTila() {
+    if (!GL_LAMPOKARTTA) return 'CPU (gl=0)';
+    return (WindTexture._gl && WindTexture._gl.kelvollinen()) ? 'GPU' : 'CPU';
+  }
+
   var stats = el.querySelector('#pp-stats');
   setInterval(function () {
     if (typeof PerfTracker === 'undefined') return;
@@ -16898,8 +16906,14 @@ const _loadingSafety = setTimeout(() => {
       + '<span style="color:rgba(255,255,255,.5)">kenttä </span>'
       + '<span style="color:' + c(lastFieldMs, 30, 80) + ';font-weight:700">' + lastFieldMs + '</span>'
       + '<span style="color:rgba(255,255,255,.35)"> ms</span>'
+      /* Kumpi lämpökartan polku on oikeasti voimassa. Ilman tätä
+         GL-polkua ei voi vahvistaa laitteella ollenkaan: lopputulos on
+         mitattu pikselilleen samaksi, joten ruudulta ei näe eroa —
+         ja juuri se on tarkoitus. */
       + '<br><span style="color:rgba(255,255,255,.4)">zoom ' + (Math.round(z * 100) / 100)
-      + '  ·  hiukkasia ' + (State.particles ? State.particles.length : 0) + '</span>';
+      + '  ·  hiukkasia ' + (State.particles ? State.particles.length : 0)
+      + '  ·  </span><span style="color:' + (glTila() === 'GPU' ? '#29e8a8' : 'rgba(255,255,255,.4)')
+      + '">' + glTila() + '</span>';
   }, 250);
 
   paintButtons();
