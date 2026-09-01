@@ -222,6 +222,25 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   3,46 tasoa, 92 % ruudusta paljasta taustaa). Raja tehdään joustona
   `getScaleZoom`issa — ei `_move`ssa, koska keskipiste lasketaan zoomista
   ja ankkuri valuisi.
+- **Lämpökartta on LAATTAPYRAMIDI** (`SaaLaattaKerros`, `L.GridLayer`).
+  Laatta ei liiku koskaan: siirto vain paljastaa uusia. Älä palauta
+  näkymänkokoista tekstuuria uudelleenrakennuksineen — se ankkuroitui
+  uudelleen kaksi kertaa yhtä sormenvetoa kohti (mitattu luisto z13:lla
+  26 288 px), ja juuri se tuntui. Vanha polku on yhä olemassa
+  varatienä (`?laatat=0`) mutta ei ole oletus.
+- **Laattojen solmuhilan origo on GLOBAALISTI KOHDISTETTU**
+  (`floor(x/d)*d`), ei laatan reuna. Muuten naapurit näytteistävät eri
+  hilasta ja sauma näkyy. Mittari on `saumat.mjs`: ero sauman yli pitää
+  olla enintään sama kuin vierekkäisten sarakkeiden ero laatan sisällä.
+- **Laattakerros EI saa käyttää `.heatmap-overlay`-luokkaa.** Se kantaa
+  reunahäivytyksen maskin, joka mitoitetaan elementin kokoon — ja
+  `GridLayer`in säiliö on 0×0, joten maski leikkaa koko kerroksen pois
+  (mitattu: täysin näkymätön vaikka laatat olivat kunnossa). Luokka on
+  `.saa-laatat`, ilman maskia: pyramidilla ei ole datan reunaa.
+- **Peitto mitataan PIKSELEISTÄ, ei elementin rajoista.** Pyramidilla
+  rajapohjainen mittari antaisi triviaalisti 100 %. Piilota pohjakartta
+  ja partikkelit, jolloin kaikki ei-läpinäkyvä on lämpökarttaa — ja
+  muista säästää `.saa-laatat`, ei `.heatmap-overlay`.
 - **Lämpökartta piirtyy GPU:lla kun laite kiihdyttää** (`GLKentta`,
   WebGL2). Varjostimen ja CPU-silmukan on annettava sama tulos: rivin
   leveysaste `ymercInv(myMax - r*myStep)`, sarake `lngMin + c*lngStep`

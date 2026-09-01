@@ -8234,8 +8234,12 @@ const KanvasYlitys = L.ImageOverlay.extend({
  * Laatan rivit ovat tasavälein Mercator-y:ssä ja sarakkeet
  * pituusasteessa — laatta ON Mercator-neliö, joten sama varjostin ja
  * sama kaava kelpaa sellaisenaan (ks. `GLKerros.piirra`). */
+/* `?laatat=0` palauttaa näkymätekstuurin. Se on varatie eikä
+   makuasia: laattapolku nojaa säälaattavarastoon, ja jos jokin laite
+   yllättää, tämä palauttaa entisen ilman deployta. */
 const LAATTAKERROS = (function () {
-  try { return /[?&]laatat=1\b/.test(location.search); } catch (e) { return false; }
+  try { if (/[?&]laatat=0\b/.test(location.search)) return false; } catch (e) {}
+  return true;
 })();
 
 const SaaLaattaKerros = L.GridLayer.extend({
@@ -17226,8 +17230,10 @@ const _loadingSafety = setTimeout(() => {
      pois. Kerros luodaan vasta ensimmäisessä hilapolun rakennuksessa,
      joten alkuun tässä lukee CPU vaikka laite kiihdyttäisi. */
   function glTila() {
-    if (!GL_LAMPOKARTTA) return 'CPU (gl=0)';
-    return (WindTexture._gl && WindTexture._gl.kelvollinen()) ? 'GPU' : 'CPU';
+    const K = State.saaKerros;
+    const g = K ? (K._gl && K._gl.kelvollinen()) : (WindTexture._gl && WindTexture._gl.kelvollinen());
+    const suoritin = !GL_LAMPOKARTTA ? 'CPU (gl=0)' : (g ? 'GPU' : 'CPU');
+    return (K ? 'laatat' : 'tekstuuri') + ' · ' + suoritin;
   }
 
   var stats = el.querySelector('#pp-stats');

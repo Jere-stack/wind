@@ -1276,3 +1276,145 @@ osa joka säilyy oikealla laitteella.
 
 Peittoregressio ajettiin molemmilla poluilla: kaikki nipistykset 100 %,
 `zoomOut x2` 2/22–24 ruutua tunnetussa ristihäivytysikkunassa.
+
+## Laattapyramidi — se mikä lopulta korjasi tuntuman
+
+GL-lämpökartta puolitti rakennuksen hinnan eikä **mikään** muuttunut
+käytössä. Se on itsessään tulos: vika ei ollut hinnassa.
+
+Käyttäjän havainto osoitti oikeaan paikkaan — `?perf=1`-paneelin
+"Kenttä"-kytkin pois päältä ja tuntuma oli oikea. Se sulkee pois
+partikkelit, merkit ja pohjakartan ja jättää jäljelle yhden asian:
+kentän uudelleenrakennuksen.
+
+### Mitä siirrossa oikeasti tapahtui
+
+Näkymänkokoinen tekstuuri on sidottu maantieteellisiin rajoihin, ja
+rajat lasketaan **sen hetkisestä** näkymästä. Kun näkymä karkaa rajojen
+yli, tekstuuri rakennetaan uusille rajoille — eli kerros myös
+**ankkuroidaan uudelleen**. Mitattuna yksi sormenveto (4× kuristus,
+verkkoviive 200 ms):
+
+| tilanne | rakennuksia | rajanvaihtoja | pitkät tehtävät |
+|---|---|---|---|
+| z13 hidas veto | 5 | 2 | 888 ms / 9 |
+| z13 nopea veto | 5 | 3 | 564 ms / 6 |
+| z9 hidas veto | 5 | 3 | 1228 ms / 17 |
+| z5 hidas veto | 6 | 4 | 1444 ms / 15 |
+
+Mutta pitkien tehtävien summa ei ole se mikä tuntuu. Tämä on:
+**kerroksen liike ruudulla miinus kartan liike**, ruutu ruudulta,
+mitattuna oikeasta laattaelementistä (ei säiliöstä — ks. mittarivirhe
+alla).
+
+| zoom | tekstuuri | laatat |
+|---|---|---|
+| z13 | max **26 288 px**, 2 nykäisyä | **0 px, 0 nykäisyä** |
+| z9 | max **1 217 px**, 2 nykäisyä | **0 px, 0 nykäisyä** |
+| z5 | max **1 580 px**, 3 nykäisyä | **0 px, 0 nykäisyä** |
+
+Kaksi kertaa yhden vedon aikana lämpökartta hyppäsi suhteessa
+pohjakarttaan. Sitä ei voi korjata nopeuttamalla.
+
+### Ratkaisu on sama kuin windyllä: laatta ei liiku koskaan
+
+`SaaLaattaKerros` perii `L.GridLayer`:n. Laatta on kiinteä
+maantieteellinen neliö kiinteällä zoom-tasolla. Siirto vain paljastaa
+uusia laattoja reunalta; jo näkyvät pysyvät pikselilleen paikallaan.
+Zoomatessa Leaflet pitää isälaatat näkyvissä kunnes lapset ovat valmiit
+— sama minkä karkea pohjakerros teki käsin, mutta koko pyramidin
+syvyydeltä eikä yhdellä askelmalla.
+
+Pyramidia ei kirjoitettu itse. Laattojen valinta, sijoittelu, säilytys
+zoomin yli, karsinta ja häivytys ovat GridLayerissä valmiina ja
+koeteltuina; meidän osuutemme on yhden laatan piirto. Se on
+`GLKerros.piirra` sellaisenaan — laatta ON Mercator-neliö, joten sama
+varjostin ja sama kaava kelpaavat. CPU-varatie tekee saman separoituvan
+kuubisen ytimen 128 texelillä.
+
+Siirron hinta CPU:lla mitattuna (sama veto, vuorotellen):
+
+| tilanne | tekstuuri | laatat |
+|---|---|---|
+| z13 veto | 5 rakennusta, 834 ms | 2 rakennusta, 4 laattaa, 686 ms |
+| z9 veto | 5 rakennusta, 997 ms | 2 rakennusta, 5 laattaa, 834 ms |
+| z5 veto | 6 rakennusta, 1393 ms | 2 rakennusta, 8 laattaa, 1184 ms |
+
+Jäljellä olevat kaksi rakennusta ovat pelkkä solmuhila partikkeleille —
+texelikohtainen työ ei kuulu niihin lainkaan.
+
+### Saumattomuus on se mikä voi mennä rikki
+
+Naapurilaatat piirtävät saman jatkuvan funktion eri kohdista, joten
+sauma syntyy vain jos ne näytteistävät **eri** solmuhilasta. Siksi hilan
+origo kohdistetaan globaaliin ristikkoon (`floor(x/d)*d`) eikä laatan
+omaan reunaan. Mitattuna ero sauman yli vs vierekkäisten sarakkeiden ero
+laatan sisällä:
+
+| zoom | sauman yli | sisällä |
+|---|---|---|
+| z5 | 4,30 | 4,69 |
+| z8 | 0,41 | 0,62 |
+| z11 | 0,04 | 0 |
+| z13 | 0,04 | 0 |
+
+Sauman yli ero on **pienempi** kuin laatan sisällä. Saumaa ei ole.
+
+### `.heatmap-overlay` ei kelvannut luokaksi — ja se maksoi kierroksen
+
+Luokka kantaa reunahäivytyksen maskin, joka mitoitetaan **elementin**
+kokoon. `L.GridLayer`in säiliö on 0×0, koska laatat ovat sen sisällä
+absoluuttisesti sijoitettuina — nollan kokoinen maski leikkasi koko
+kerroksen pois. Laatoissa oli sisältöä, ne olivat oikeilla paikoillaan,
+`opacity` oli 1, eikä ruudulla näkynyt yhtään mitään.
+
+Laattakerros on `.saa-laatat`, ja maskia ei ole: pyramidilla ei ole
+datan reunaa jota häivyttää. Jokainen laatta on kiinni naapurissaan, ja
+pyramidin reuna on maailman reuna.
+
+Portteja tarvittiin kaksi eikä yksi: `pohjaVarmista` **ajastaa** työn
+eteenpäin, joten ennen aktivointia lähtenyt rakennus valmistui vasta
+sen jälkeen ja loi pohjakerroksen `pohjaSijoita`ssa. Kaksi lisäävää
+kerrosta päällekkäin olisi laskettu yhteen.
+
+### Sumennus on laattapolulla vakio
+
+Ja se on rakenteellista: laatan texelitiheys **ruudulla** on sama joka
+zoomilla (laatta on aina 256 CSS px ja siinä on aina yhtä monta
+texeliä), kun taas näkymätekstuurin tiheys riippuu zoomista ja
+budjetista. Sama 2 texelin tavoite antaa siis yhden luvun:
+
+    2 · (360 / (2^z · KOKO)) · (256 · 2^z / 360) = 512 / KOKO
+
+eli 2 px GL:n 256 texelillä ja 4 px CPU-varatien 128:lla, alaraja 3.
+
+### Peitto — nyt pikseleistä, ei elementin rajoista
+
+Vanha mittari luki kerrosten `getBoundingClientRect`ejä. Pyramidilla se
+olisi triviaalisti 100 %, joten peitto mitataan ruudulta: pohjakartta ja
+partikkelit pois, jolloin kaikki ei-läpinäkyvä on lämpökarttaa.
+Molemmilla poluilla **100 % joka ruudussa** kaikissa
+nipistysskenaarioissa.
+
+### Kaksi mittarivirhettä matkan varrella
+
+**Peittomittari antoi vakion 2,2 % joka ruudussa.** Se piilotti
+pohjakartan säästäen `.heatmap-overlay`-luokan — mutta laattakerros oli
+juuri vaihdettu `.saa-laatat`:iin, joten mittari piilotti lämpökartan
+itsensä.
+
+**Luistomittari luki GridLayerin säiliötä, joka on 0×0.** Tulos "0 px
+luistoa" oli oikea mutta triviaali; se korjattiin lukemaan oikeaa
+laattaelementtiä, ja luku pysyi nollassa.
+
+### Rajaukset
+
+Laattapolku nojaa säälaattavarastoon eikä osaa lukea mitään muuta.
+Kerros kytketään siksi vasta kun `Saalaatat.kaytossa()` on tosi
+(yritetään 20 × 500 ms); jos varasto ei koskaan valmistu, jäädään
+näkymätekstuuriin. `?laatat=0` palauttaa vanhan polun ilman deployta.
+
+Sironnut `idw`-polku on yhä olemassa vanhalla polulla, mutta
+laattakerros ei käytä sitä: alue jolle säälaattoja ei ole jää
+läpinäkyväksi ja täydentyy kun laatat saapuvat. Se on windyn
+käyttäytyminen — arvausta ei piirretä.
