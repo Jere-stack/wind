@@ -1044,3 +1044,111 @@ vaan laattojen häivytys: mittari laskee paljaaksi laatan jonka
 hetken juuri siinä tilassa. Zoom ei näillä reiteillä mene rajan ali
 kertaakaan (`ali 0,000`). Jos tätä mitataan uudelleen, erottele
 laattojen häivytys zoom-rajasta — muuten korjaus näyttää tehottomalta.
+
+## Kerrosten tahti eleen jälkeen — mitattu, ja lopputulos yllätti
+
+Käyttäjän havainto oli että kartan kerrokset päivittyvät zoomissa ja
+siirrossa eri aikaan, ja jokainen askel lukee erillisenä välähdyksenä.
+Tästä oli tarkoitus rakentaa atominen vaihto: uusi tila valmistellaan
+taustalla ja otetaan käyttöön kaikille kerroksille samassa ruudussa,
+enintään 150 ms viiveellä.
+
+Mittari rakennettiin ensin, ja se muutti tehtävän.
+
+### Mittari
+
+Jokaisesta kerroksesta luetaan ruutukohtainen **allekirjoitus** —
+merkkijono joka muuttuu tasan silloin kun kerros muuttuu näkyvästi.
+Kerroksen valmis-hetki on VIIMEINEN ruutu jolla allekirjoitus vielä
+muuttui, mitattuna **eleen lopusta** (ei alusta: kylmällä polulla
+ensimmäinen ele kesti 26 s ja peitti alleen kaiken muun). Lisäksi
+lasketaan montako kertaa kukin kerros vaihtui ja **montako eri ruutua**
+sisälsi jonkin oman kerroksen vaihdon.
+
+Allekirjoitukset: laattojen näkyvä määrä, `WindTexture.askel` +
+mitat + rajat, `PohjaTekstuuri` + sen läpinäkyvyys, `State.windField`
+pituus + näytearvot, markkeripaneelin lapsimäärä + ensimmäisen sijainti,
+kapselin tekstisisältö.
+
+Mittari ei koske sovelluskoodiin, joten lähtötaso mitattiin tuotannon
+koodilla sellaisenaan.
+
+### Tulos
+
+CPU 4×, verkkoviive 300 ms, mediaani kolmesta ajosta, aika sormen
+noususta. Solu = *milloin valmis ms / montako kertaa vaihtui*.
+
+```
+  tapaus            laatat    lampo    pohja   kentta   merkit  lukemat   HAJONTA  vaihtoja
+  nipistys sisaan   3568/1   3249/1      0/0      0/0   3249/1   3249/1      3568         1
+  nipistys ulos     2043/2    999/1      0/0    999/1    999/1    999/1      2043         1
+  heitto sivulle       0/0    695/1    695/1    695/1      0/0    695/1       695         1
+  setZoom -2        1562/2    607/1      0/0   1180/1    607/1   1180/2      1562         2
+```
+
+**Sovelluksen omat kerrokset vaihtuvat jo nyt yhdessä ruudussa.**
+Lämpökartta, tuulikenttä, spottimerkit ja kapselin lukemat osuvat
+samaan millisekuntiin (3249, 999, 695) kolmessa tapauksessa neljästä,
+koska ne roikkuvat samassa ketjussa: `_rakennaKentta` → `buildWindField`
+→ `drawColorField` + `resetParticles` + `Crosshair.refresh` ajetaan
+yhtenä synkronisena jaksona haun ratkettua. Atomista vaihtoporttia ei
+siis tarvita — se olisi ollut satojen rivien refaktorointi ongelmaan
+jota ei ole.
+
+Jäljelle jää kaksi asiaa, ja kumpikaan ei ole korjattavissa 150 ms
+budjetilla:
+
+1. **Pohjakartan laatat saapuvat 300–1400 ms muita myöhemmin.** Se on
+   verkko ja dekoodaus. Laattojen odottaminen tarkoittaisi koko kuvan
+   pidättämistä sekunniksi tai yli.
+2. **`setZoom` on kaksivaiheinen** (`vaihtoja 2`): lämpökartta terävöityy
+   607 ms:ssä paikallisesti, ja uusi säädata saapuu 1180 ms:ssä. Väli on
+   570 ms eli reilusti yli budjetin, joten säännön mukaan kerros ei
+   odota vaan vaihtaa yksin. Kapselin lukemat vaihtuvat samasta syystä
+   kahdesti (`1180/2`): ensin välimuistin esikatselu, sitten tuore arvo.
+
+### Kokeilu joka ei jäänyt: laattatason paljastus yhdessä ruudussa
+
+Leaflet häivyttää jokaisen laatan sisään erikseen sitä mukaa kun se
+valmistuu, joten uusi taso ei ilmesty kerralla vaan kasvaa palasina.
+Kokeiltiin pitää uusi taso `opacity: 0`:ssa kunnes `load` kertoo sen
+olevan kokonaan ladattu, ja paljastaa se yhdessä ruudussa (vartija
+2 s:ssa sen varalta ettei `load` tule lainkaan).
+
+Vuorotellen ajettu A/B, kolme kierrosta kumpaankin suuntaan:
+
+```
+  tapaus            versio   laattojen vaihtoja / ajo
+  nipistys sisaan   vanha    1, 2, 2
+                    uusi     2, 1, 2
+  nipistys ulos     vanha    1, 1, 1
+                    uusi     1, 1, 1
+  setZoom -2        vanha    2, 1, 1
+                    uusi     1, 1, 1
+```
+
+**Ei mitattavaa eroa.** Syy on mittarissa, ei välttämättä muutoksessa:
+allekirjoitus laskee DOM-laattoja, ja piilotetun tason laatat latautuvat
+silti — sen lisäksi `_pruneTiles` poistaa vanhoja laattoja 250 ms
+`load`in jälkeen vaikka ne ovat jo peittyneet. Kumpikaan ei ole se mitä
+käyttäjä näkee.
+
+Oikea mittari olisi ruutukaappausten pikseliero. Se rakennettiin, mutta
+4× kuristuksella `page.screenshot` aikakatkaisee kesken sarjan eikä
+näytteenottoväli (~300 ms) riitä erottamaan 200 ms:n päässä toisistaan
+olevia välähdyksiä. Muutos **peruttiin**: Leafletin sisuskalujen
+paikkaus kartan kuumimmalla polulla ei mene tuotantoon ilman todistetta.
+
+Jos joku palaa tähän: mittari ennen muutosta, ja mittarin on oltava
+pikselipohjainen. Kevyempi tie on ottaa kaappaukset ilman
+CPU-kuristusta ja kuristaa vain verkko — laattojen saapumisjärjestys
+säilyy, ja kaappaus ehtii mukaan.
+
+### Mitä tästä seuraa
+
+Kerrosten yhtäaikaisuus on jo kunnossa siltä osin kuin sovellus sen
+omistaa. Ainoa jäljellä oleva vipu on **budjetti**: jos vaihtoa saisi
+pidättää sekunnin sijaan 150 ms:n, laattojen odottaminen tulisi
+mahdolliseksi ja kuva vaihtuisi kirjaimellisesti kerran. Se on
+käyttökokemuspäätös eikä tekninen — ja se on tehtävä laitteella, ei
+mittarilla.

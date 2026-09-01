@@ -57,7 +57,7 @@ kokeiltu ja kaadettu mittauksella.
 |---|---|
 | `docs/lampokartta.md` | pohjakarttaa, lämpökarttaa, väriramppia, tekstuurin mitoitusta tai projektiota, kartan asetuksia |
 | `docs/partikkelit.md` | tuulipartikkeleita, jäljen muotoa, tiheyttä tai ruutuaikabudjettia |
-| `docs/eleet.md` | nipistystä, zoomia, zoom-aluetta, inertiaa tai kosketuskohteita |
+| `docs/eleet.md` | nipistystä, zoomia, zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen |
 | `docs/data.md` | säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä |
 | `docs/ui.md` | paletteja, paneeleita, spottikorttia, aikajanaa, kapselia, havaintoasemia |
 | `docs/pwa.md` | service workeria, offline-käynnistystä tai kotivalikon appia |
@@ -76,7 +76,8 @@ kokeiltu ja kaadettu mittauksella.
 - **eleet**: Kosketuskohteet ja pseudoelementtien osumapinta · Zoom-alue ·
   Nipistyszoomin pehmennys · Eleen loppu ja tuntuma — kolme asiaa Apple Mapsista ·
   Kaksi kokeilua jotka eivät jääneet · Yhden sormen zoom oli rikki — neljä eri
-  vikaa · Uloin näkymä rajattiin — ja se muutti kaiken muun
+  vikaa · Uloin näkymä rajattiin — ja se muutti kaiken muun · Kerrosten tahti
+  eleen jälkeen
 - **data**: Verkkotila · Ensilataus — mihin aika menee · Käynnistys: välimuisti
   ruudulle ennen verkkoa · Käynnistyksen pyyntömäärä · Säädata koko maailmalle ·
   Lähdemerkintä ja aina automaattinen malli · Uloin näkymä — 44 % roskaa ·
