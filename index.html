@@ -404,18 +404,18 @@ body {
 }
 #pikanappaimet dt { display: flex; gap: 4px; }
 #pikanappaimet kbd {
-  font-variant-numeric: tabular-nums; font-size: 10px; font-weight: 600;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-10); font-weight: 600;
   background: var(--surface-lo); border: 1px solid var(--hairline);
   border-bottom-width: 2px; border-radius: 5px;
   padding: 3px 7px; white-space: nowrap; color: var(--ink);
 }
 #pikanappaimet dd {
-  margin: 0; font-variant-numeric: tabular-nums; font-size: 11px;
+  margin: 0; font-variant-numeric: tabular-nums; font-size: var(--fs-11);
   color: var(--ink-2); align-self: center;
 }
 #pikanappaimet .pn-vihje {
   margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--hairline-soft);
-  font-variant-numeric: tabular-nums; font-size: 10px; color: var(--ink-3);
+  font-variant-numeric: tabular-nums; font-size: var(--fs-10); color: var(--ink-3);
 }
 
 /* Nipistyksen ajaksi laattasäiliö ja lämpökartta omalle
@@ -506,7 +506,7 @@ body {
   width: 14px; height: 14px; display: block; flex-shrink: 0;
   transition: transform .35s cubic-bezier(.32,.72,.24,1);
 }
-.kap-suunta { font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.kap-suunta { font-size: var(--fs-13); color: var(--ink-2); font-variant-numeric: tabular-nums; }
 
 /* Tuuli. Keskiosa on kaksirivinen: lukema ylhäällä, puuska sen alla
    pienempänä ja harmaana. Puuska EI ole rampin väreissä vaikka se on
@@ -523,11 +523,11 @@ body {
   display: inline-flex; align-items: baseline; gap: 3px;
   white-space: nowrap;
 }
-.cr-speed-unit { font-size: 11px; font-weight: 500; color: var(--ink-3); letter-spacing: 0; }
+.cr-speed-unit { font-size: var(--fs-11); font-weight: 500; color: var(--ink-3); letter-spacing: 0; }
 /* Sana kulkee luvun mukana: nimeämätön pikkuluku voisi olla mitä tahansa,
    ja "puuska" on lyhyempi kuin sen selittäminen jälkikäteen. */
 .kap-puuska {
-  font-size: 10.5px; line-height: 1;
+  font-size: var(--fs-105); line-height: 1;
   color: var(--ink-3); font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -551,6 +551,33 @@ body {
   .kap-lampo { font-size: 19px; }
 }
 
+/* ── KAPSELI TYÖPÖYDÄLLÄ ──────────────────────────────────────────
+ *
+ * Kapseli on sovelluksen tärkein lukema. Puhelimessa se on keskitetty ja
+ * täyttää 53 % leveydestä. Mitattuna työpöydällä se on 179 px eli
+ * 2560 px:n ruudulla 7,0 % leveydestä — se kelluu tyhjän yläreunan
+ * keskellä eikä lue enää yhteenvetona vaan irrallisena sirpaleena.
+ *
+ * Ankkuroidaan vasempaan ylänurkkaan. Se on sama ratkaisu kuin Windyn ja
+ * Apple Mapsin työpöytäversioissa: lukema nurkkaan, hallintanapit
+ * vastakkaiseen nurkkaan, aikajana alalaitaan. Nappeja EI siirretä —
+ * ne ovat jo vastakkaisessa nurkassa, ja niiden irrottaminen
+ * alapalkin asettelusta olisi oma muutoksensa omine riskeineen.
+ *
+ * `left: 50% + translateX(-50%)` on korvattava molemmat: pelkkä left
+ * jättäisi siirtymän voimaan ja kapseli valuisi puolet leveydestään
+ * ulos. Sama koskee `.vaistyy`-tilaa, jossa siirtymä on kirjoitettu
+ * uudelleen. */
+html.tyopoyta #kapseli {
+  left: 18px;
+  transform: none;
+  height: 60px;
+  border-radius: 30px;
+}
+html.tyopoyta #kapseli.vaistyy {
+  transform: translateY(-10px) scale(.96);
+}
+
 /* ============================================================
    TUNTISÄÄ — laaja tila  z:23
    ============================================================ */
@@ -569,7 +596,7 @@ body {
 }
 #hourly-sheet.auki { transform: translateY(0); pointer-events: all; }
 .ws-tick {
-  font-variant-numeric: tabular-nums; font-size: 10px; font-weight: 600;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-10); font-weight: 600;
   line-height: 1; color: var(--ink-3);
 }
 /* Lukemat sijoitetaan PROSENTTEIHIN eikä space-betweenillä. Palkki on eri
@@ -591,7 +618,7 @@ body {
   -webkit-transform: translateX(-100%); transform: translateX(-100%);
 }
 .hs-title {
-  font-size: 11px; font-weight: 600; letter-spacing: .06em;
+  font-size: var(--fs-11); font-weight: 600; letter-spacing: .06em;
   text-transform: uppercase; color: var(--ink-3); margin-bottom: 9px;
 }
 #wx-panel-scroll {
@@ -715,7 +742,7 @@ body {
 /* Ryhmäotsikko. Versaali on iOS:n oma tapa, mutta luettavassa koossa:
    11 px, paino 600, kevyt harvennus — ei 9 px kolmanneksen opasiteetilla. */
 .sp-label {
-  font-size: 11px; font-weight: 600;
+  font-size: var(--fs-11); font-weight: 600;
   color: var(--ink-3); letter-spacing: .06em; text-transform: uppercase;
   margin-bottom: 9px;
 }
@@ -723,7 +750,7 @@ body {
 /* Sirurivin alle tuleva selitys. Pienempi ja kevyempi kuin ryhmäotsikko:
    se kertoo mitä valinta tekee, eikä sitä lueta joka kerta. */
 .sp-vihje {
-  font-size: 11px; line-height: 1.45; color: var(--ink-3);
+  font-size: var(--fs-11); line-height: 1.45; color: var(--ink-3);
   margin-top: 7px;
 }
 
@@ -741,7 +768,7 @@ body {
   height: 34px; border-radius: 9px; padding: 0 14px;
   background: var(--surface-lo);
   color: var(--ink-2);
-  font-size: 13px; font-weight: 500;
+  font-size: var(--fs-13); font-weight: 500;
   display: flex; align-items: center; cursor: pointer;
   transition: background .15s ease, color .15s ease, transform .12s ease;
   -webkit-user-select: none; user-select: none;
@@ -790,7 +817,7 @@ body {
 .sp-toggle-dot svg { display: block; }
 .sp-toggle-name { font-size: 14px; color: var(--ink); }
 .sp-toggle-sub {
-  font-size: 12px; color: var(--ink-3); margin-top: 1px;
+  font-size: var(--fs-12); color: var(--ink-3); margin-top: 1px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
@@ -817,7 +844,7 @@ body {
 .sp-credit {
   margin-top: 20px; padding-top: 12px;
   border-top: 1px solid var(--hairline);
-  font-size: 11px; line-height: 1.5; color: var(--ink-3);
+  font-size: var(--fs-11); line-height: 1.5; color: var(--ink-3);
 }
 .sp-credit a { color: var(--ink-2); text-underline-offset: 2px; }
 
@@ -956,7 +983,7 @@ body {
 .htick:active .htick-bar { opacity: 0.7; }
 .htick-lbl {
   position: absolute; bottom: 1px; font-variant-numeric: tabular-nums;
-  font-size: 9px; color: var(--ink-3); white-space: nowrap;
+  font-size: var(--fs-9); color: var(--ink-3); white-space: nowrap;
   pointer-events: none; opacity: 0;
 }
 /* Vain joka kolmas tunti saa lukeman. Kaikki 120 lukemaa vierekkäin olisi
@@ -978,7 +1005,7 @@ body {
   background: var(--ink);
   color: var(--surface);
   font-variant-numeric: tabular-nums;
-  font-size: 13px; font-weight: 600;
+  font-size: var(--fs-13); font-weight: 600;
   padding: 4px 12px; border-radius: 9px; white-space: nowrap;
   box-shadow: var(--shadow-2);
   text-align: center; line-height: 1.3;
@@ -995,14 +1022,14 @@ body {
    palkkien yläpuolelle. Tuntirivillä se törmäsi lukemaan ("NYT15"). */
 .tl-now-label {
   position: absolute; top: 1px; left: 50%; transform: translateX(-50%);
-  font-variant-numeric: tabular-nums; font-size: 8px; font-weight: 700;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-8); font-weight: 700;
   color: var(--ink-3); white-space: nowrap; letter-spacing: .06em;
 }
 
 .day-sep {
   flex: 0 0 34px; display: flex; align-items: flex-end; justify-content: center;
   height: 100%; padding-bottom: 15px;
-  font-variant-numeric: tabular-nums; font-size: 10px; font-weight: 600;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-10); font-weight: 600;
   color: var(--ink-3); letter-spacing: .02em; white-space: nowrap;
   border-left: 1px solid var(--hairline);
 }
@@ -1019,7 +1046,7 @@ body {
 .gi-steady  { color: #2A702D; }
 .gi-gusty   { color: #7A5D07; }
 .gi-extreme { color: #992018; }
-.spot-trend { font-size: 8px; color: var(--ink-3); margin-top: 1px; text-align: center; }
+.spot-trend { font-size: var(--fs-8); color: var(--ink-3); margin-top: 1px; text-align: center; }
 
 /* ============================================================
    LOCATION DOT — Apple Maps style
@@ -1084,7 +1111,7 @@ body {
   padding: 4px 20px 14px; display: flex; justify-content: space-between; align-items: center;
 }
 .sl-title { font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
-.sl-count { font-variant-numeric: tabular-nums; font-size: 10px; color: var(--ink-3); }
+.sl-count { font-variant-numeric: tabular-nums; font-size: var(--fs-10); color: var(--ink-3); }
 .sl-item {
   display: flex; align-items: center; gap: 12px;
   padding: 12px 20px; border-bottom: 1px solid var(--border);
@@ -1093,7 +1120,7 @@ body {
 }
 .sl-item:active { background: var(--surface-lo); }
 .sl-rank {
-  font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 700;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-11); font-weight: 700;
   color: var(--ink-3); width: 20px; text-align: center; flex-shrink: 0;
 }
 .sl-dot {
@@ -1101,19 +1128,69 @@ body {
   border: 1.5px solid var(--hairline);
 }
 .sl-info { flex: 1; min-width: 0; }
-.sl-name { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sl-desc { font-variant-numeric: tabular-nums; font-size: 9px; color: var(--ink-3); margin-top: 1px; }
+.sl-name { font-size: var(--fs-13); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sl-desc { font-variant-numeric: tabular-nums; font-size: var(--fs-9); color: var(--ink-3); margin-top: 1px; }
 .sl-wind { text-align: right; flex-shrink: 0; }
 .sl-wind-val {
   font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 500;
   line-height: 1;
 }
-.sl-wind-sub { font-variant-numeric: tabular-nums; font-size: 9px; color: var(--ink-3); margin-top: 2px; }
+.sl-wind-sub { font-variant-numeric: tabular-nums; font-size: var(--fs-9); color: var(--ink-3); margin-top: 2px; }
 .sl-badge-foilable {
-  display: inline-block; font-variant-numeric: tabular-nums; font-size: 8px;
+  display: inline-block; font-variant-numeric: tabular-nums; font-size: var(--fs-8);
   background: var(--surface-lo); color: var(--ink-2);
   border: 1px solid var(--hairline); border-radius: 4px;
   padding: 1px 5px; margin-left: 6px; vertical-align: middle;
+}
+
+/* ── TYYPPIKOKO ───────────────────────────────────────────────────
+ *
+ * Sovellus on rakennettu 6,5-13 pikselin tekstille: mitattuna 162
+ * font-size-maaritysta talla valilla, joista 49 on 10 px:ia ja 33
+ * yhdeksan. Puhelimessa se on oikein — dpr 3:lla 8 px:n glyfi
+ * renderoityy 24 laitepikselin korkeudelle, ja hienot viivat osuvat
+ * omille pikseleilleen.
+ *
+ * Tyopoydalla dpr on 1. Sama glyfi saa kahdeksan laitepikselia, ja
+ * ohuet varret jaavat alle yhden pikselin — ne eivat katoa vaan
+ * muuttuvat harmaaksi sumuksi. Se ei ole makuasia vaan renderoinnin
+ * fakta, ja se koskee nimenomaan pienimpia kokoja.
+ *
+ * Koot ovat siksi muuttujia, ja tyopoydalla ne kasvavat noin 1,25-
+ * kertaisiksi. JARJESTYS SAILYY: yksikaan kasvatettu koko ei ohita
+ * seuraavaa kiinteaa (14 px ja isommat jaavat ennalleen, koska ne ovat
+ * otsikoita ja lukemia joilla on jo pikselivaraa).
+ *
+ * Vain kokoja, ei valistysta. Paneelien sisennykset ovat omia
+ * paatoksiaan eivatka seuraa tekstia — jos ne kaipaavat ilmaa, se on
+ * eri muutos ja mitataan erikseen. */
+:root {
+  --fs-65: 6.5px;
+  --fs-7: 7px;
+  --fs-75: 7.5px;
+  --fs-8: 8px;
+  --fs-85: 8.5px;
+  --fs-9: 9px;
+  --fs-95: 9.5px;
+  --fs-10: 10px;
+  --fs-105: 10.5px;
+  --fs-11: 11px;
+  --fs-12: 12px;
+  --fs-13: 13px;
+}
+html.tyopoyta {
+  --fs-65: 9px;
+  --fs-7: 9.5px;
+  --fs-75: 10px;
+  --fs-8: 10.5px;
+  --fs-85: 11px;
+  --fs-9: 11.5px;
+  --fs-95: 12px;
+  --fs-10: 12.5px;
+  --fs-105: 12.5px;
+  --fs-11: 13px;
+  --fs-12: 13.5px;
+  --fs-13: 14px;
 }
 
 /* ============================================================
@@ -1313,7 +1390,7 @@ body {
   position: absolute; top: 0; left: 50%;
   -webkit-transform: translateX(-50%); transform: translateX(-50%);
   font-variant-numeric: tabular-nums;
-  font-size: 8px; letter-spacing: .3px;
+  font-size: var(--fs-8); letter-spacing: .3px;
   color: var(--ink-3);
   height: 11px; line-height: 11px; white-space: nowrap;
   pointer-events: none;
@@ -1323,7 +1400,7 @@ body {
 /* Kellonaika */
 .sh-tpslot-time {
   font-variant-numeric: tabular-nums;
-  font-size: 11px; font-weight: 400;
+  font-size: var(--fs-11); font-weight: 400;
   color: var(--ink-2);
   white-space: nowrap; line-height: 1;
   transition: color .15s, transform .15s;
@@ -1347,7 +1424,7 @@ body {
 /* NYT */
 .sh-tpslot-now {
   font-variant-numeric: tabular-nums;
-  font-size: 7px; font-weight: 700; letter-spacing: .8px;
+  font-size: var(--fs-7); font-weight: 700; letter-spacing: .8px;
   color: var(--accent); line-height: 1;
 }
 .sh-name {
@@ -1370,7 +1447,7 @@ body {
 .sh-ikoni[aria-pressed="true"] { color: var(--accent); }
 .sh-ikoni:active { opacity: .5; }
 .sh-desc {
-  font-variant-numeric: tabular-nums; font-size: 10px; color: var(--ink-3);
+  font-variant-numeric: tabular-nums; font-size: var(--fs-10); color: var(--ink-3);
 }
 .sh-hero-right { text-align: right; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 /* Raakalukema oli 52 px ja kortin dominoivin elementti, mutta se on vain
@@ -1383,40 +1460,40 @@ body {
   line-height: 0.92; letter-spacing: -1.6px;
 }
 .sh-big-unit {
-  font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 400;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-12); font-weight: 400;
   color: var(--ink-3); letter-spacing: 1px;
   display: inline; margin-left: 3px; vertical-align: 6px;
 }
 .sh-big-gust {
-  font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 500;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-11); font-weight: 500;
   color: var(--ink-3); margin-top: 4px; letter-spacing: 0.5px;
 }
 .sh-hero-tags {
   display: flex; flex-direction: column; align-items: flex-end; gap: 5px;
 }
 .sh-hero-tag {
-  font-variant-numeric: tabular-nums; font-size: 9px;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-9);
   padding: 3px 8px; border-radius: 7px;
   border: 1px solid var(--hairline);
   background: var(--hairline-soft);
   white-space: nowrap;
 }
 .sh-hero-live {
-  font-variant-numeric: tabular-nums; font-size: 10px;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-10);
   padding: 5px 10px; border-radius: 8px;
   border: 1px solid var(--hairline);
   background: var(--surface-lo);
   display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
 }
-.sh-hero-live-val { font-size: 13px; font-weight: 700; }
-.sh-hero-live-lbl { font-size: 8px; color: var(--accent); }
+.sh-hero-live-val { font-size: var(--fs-13); font-weight: 700; }
+.sh-hero-live-lbl { font-size: var(--fs-8); color: var(--accent); }
 
 /* Foilability badge — pill, compact, integrated */
 .sh-foil-badge {
   display: inline-flex; align-items: center; gap: 7px;
   padding: 5px 12px 5px 8px; border-radius: 99px;
   font-variant-numeric: tabular-nums;
-  font-size: 11px; font-weight: 600; letter-spacing: .3px;
+  font-size: var(--fs-11); font-weight: 600; letter-spacing: .3px;
   margin-bottom: 16px;
   border-width: 1px; border-style: solid;
 }
@@ -1433,7 +1510,7 @@ body {
   display: flex; flex-direction: column; align-items: center; gap: 3px;
 }
 .sh-stat-label {
-  font-variant-numeric: tabular-nums; font-size: 8px;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-8);
   color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.8px;
 }
 .sh-stat-value {
@@ -1441,7 +1518,7 @@ body {
   line-height: 1; letter-spacing: -0.5px;
 }
 .sh-stat-sub {
-  font-variant-numeric: tabular-nums; font-size: 8px;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-8);
   color: var(--ink-3); letter-spacing: 0.3px;
 }
 .sh-stat-live {
@@ -1471,7 +1548,7 @@ body {
 /* Asemavalitsin dropdown */
 .fmi-station-trigger {
   display: inline-flex; align-items: center; gap: 7px;
-  font-variant-numeric: tabular-nums; font-size: 9px;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-9);
   color: var(--accent); cursor: pointer;
   background: var(--surface-lo); border: 1px solid var(--hairline);
   border-radius: 8px; padding: 4px 10px;
@@ -1481,10 +1558,10 @@ body {
 .fmi-station-trigger-name {
   font-weight: 700; color: var(--accent);
 }
-.fmi-station-trigger-dist { color: var(--ink-2); font-size: 8px; }
+.fmi-station-trigger-dist { color: var(--ink-2); font-size: var(--fs-8); }
 .fmi-station-trigger-arrow {
   margin-left: 2px; color: var(--accent);
-  transition: transform .2s; font-size: 11px;
+  transition: transform .2s; font-size: var(--fs-11);
 }
 .fmi-station-trigger.open .fmi-station-trigger-arrow { transform: rotate(180deg); }
 
@@ -1511,7 +1588,7 @@ body {
 .fmi-dropdown-item {
   display: flex; align-items: center; justify-content: space-between;
   padding: 7px 12px; cursor: pointer;
-  font-variant-numeric: tabular-nums; font-size: 10px;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-10);
   border-bottom: 1px solid var(--hairline-soft);
   transition: background .12s;
   -webkit-user-select: none; user-select: none;
@@ -1522,14 +1599,14 @@ body {
 .fmi-dropdown-item-left { display: flex; flex-direction: column; gap: 2px; }
 .fmi-dropdown-item-name { color: var(--ink); font-weight: 700; }
 .fmi-dropdown-item-tag {
-  font-size: 8px; color: var(--accent);
+  font-size: var(--fs-8); color: var(--accent);
   background: var(--surface-lo); border-radius: 4px;
   padding: 1px 5px; align-self: flex-start;
 }
 /* --ink-2 eikä --ink-3: valitulla rivillä pohja on --surface-lo, jolla
    --ink-3 on 3.96:1 eli alle AA:n. --ink-2 on siellä 5.10:1. */
-.fmi-dropdown-item-dist { color: var(--ink-2); font-size: 9px; }
-.fmi-dropdown-item-check { color: var(--accent); font-size: 12px; }
+.fmi-dropdown-item-dist { color: var(--ink-2); font-size: var(--fs-9); }
+.fmi-dropdown-item-check { color: var(--accent); font-size: var(--fs-12); }
 .sh-stat-water {
   cursor: pointer;
   border-color: var(--hairline);
@@ -1542,13 +1619,13 @@ body {
   background: var(--surface-lo);
 }
 .sh-stat-water-name {
-  font-variant-numeric: tabular-nums; font-size: 7px;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-7);
   color: var(--accent); text-align: center;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   max-width: 100%; line-height: 1;
 }
 .sh-stat-water-toggle {
-  font-variant-numeric: tabular-nums; font-size: 7px;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-7);
   color: var(--accent); letter-spacing: 0.2px;
   margin-top: 1px;
 }
@@ -1581,12 +1658,12 @@ body {
 .sh-cond-icon { font-size: 18px; flex-shrink: 0; }
 .sh-cond-info {}
 .sh-cond-label {
-  font-variant-numeric: tabular-nums; font-size: 8px;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-8);
   color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.8px;
   margin-bottom: 2px;
 }
 .sh-cond-val {
-  font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 500;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-13); font-weight: 500;
   line-height: 1;
 }
 
@@ -1597,11 +1674,11 @@ body {
   margin-bottom: 8px;
 }
 .sh-chart-title {
-  font-variant-numeric: tabular-nums; font-size: 9px; color: var(--ink-3);
+  font-variant-numeric: tabular-nums; font-size: var(--fs-9); color: var(--ink-3);
   text-transform: uppercase; letter-spacing: 1.5px;
 }
 .sh-chart-peak {
-  font-variant-numeric: tabular-nums; font-size: 9px;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-9);
   color: var(--accent);
 }
 .sh-chart {
@@ -1619,7 +1696,7 @@ body {
   padding: 0 8px;
 }
 .sh-chart-labels span {
-  font-variant-numeric: tabular-nums; font-size: 8px; color: var(--ink-3);
+  font-variant-numeric: tabular-nums; font-size: var(--fs-8); color: var(--ink-3);
 }
 
 /* Wind rose */
@@ -1680,7 +1757,7 @@ body {
   padding-bottom: max(0px, calc(var(--sab-tl) - 6px));
   max-width: calc(100vw - var(--sal) - var(--sar) - 36px);
   pointer-events: none;
-  font-size: 8px; font-weight: 500; letter-spacing: .02em;
+  font-size: var(--fs-8); font-weight: 500; letter-spacing: .02em;
   line-height: 1;
   color: var(--kartta-teksti);
   text-shadow: var(--kartta-teksti-varjo);
@@ -1700,7 +1777,7 @@ body {
   border-radius: 12px; padding: 10px 14px; display: none; align-items: center; gap: 10px;
 }
 #rl-banner.show { display: flex; }
-#rl-banner-text { flex: 1; font-size: 11px; color: var(--ink); line-height: 1.4; }
+#rl-banner-text { flex: 1; font-size: var(--fs-11); color: var(--ink); line-height: 1.4; }
 #rl-banner-close { font-size: 16px; color: var(--ink-3); cursor: pointer; padding: 2px 6px; flex-shrink: 0; }
 
 /* Verkkotila. Sama paperisiru kuin muut kartan päällä kelluvat esineet.
@@ -1718,7 +1795,7 @@ body {
   border-left: 3px solid var(--accent);
   box-shadow: var(--shadow-2);
   border-radius: 12px; padding: 8px 12px 8px 11px;
-  font-size: 12px; color: var(--ink); white-space: nowrap;
+  font-size: var(--fs-12); color: var(--ink); white-space: nowrap;
   transition: opacity .25s, transform .25s;
 }
 #nettitila.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: all; }
@@ -1737,7 +1814,7 @@ body {
 }
 #nettitila-nappi {
   border: none; background: var(--surface-lo); color: var(--ink);
-  font: inherit; font-weight: 600; font-size: 11px;
+  font: inherit; font-weight: 600; font-size: var(--fs-11);
   border-radius: 8px; padding: 7px 10px; cursor: pointer;
   touch-action: manipulation;
   /* Napautus menee sirulle: sisäkkäinen kohde vain kaventaisi aluetta. */
@@ -1752,7 +1829,7 @@ body {
   border-left: 3px solid #992018;
   box-shadow: var(--shadow-2);
   border-radius: 12px; padding: 10px 18px;
-  font-size: 12px; color: var(--ink);
+  font-size: var(--fs-12); color: var(--ink);
   letter-spacing: .1px; white-space: nowrap;
   transition: opacity .3s, transform .3s;
 }
@@ -1835,7 +1912,7 @@ body {
 /* Statusviesti */
 #load-txt {
   position: relative; z-index: 3;
-  font-size: 11px; font-weight: 600; letter-spacing: .12em;
+  font-size: var(--fs-11); font-weight: 600; letter-spacing: .12em;
   text-transform: uppercase;
   color: var(--ink-3);
   text-align: center;
@@ -1889,7 +1966,7 @@ body {
   text-indent: .34em;
 }
 #load-logo-tag {
-  font-size: 10px; font-weight: 600; letter-spacing: .18em;
+  font-size: var(--fs-10); font-weight: 600; letter-spacing: .18em;
   text-transform: uppercase;
   color: var(--accent);
   margin-top: -4px;
@@ -1954,12 +2031,12 @@ body {
   background: var(--surface-lo); }
 #fc-header { padding: 4px 20px 14px; }
 #fc-title { font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
-#fc-subtitle { font-variant-numeric: tabular-nums; font-size: 10px; color: var(--ink-3); margin-top: 2px; }
+#fc-subtitle { font-variant-numeric: tabular-nums; font-size: var(--fs-10); color: var(--ink-3); margin-top: 2px; }
 /* Toggle switches */
 #fc-toggles { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
 .fc-toggle {
   display: flex; align-items: center; gap: 8px;
-  font-variant-numeric: tabular-nums; font-size: 10px; font-weight: 500;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-10); font-weight: 500;
   color: var(--ink-3); cursor: pointer; user-select: none;
 }
 .fc-toggle input { display: none; }
@@ -1985,7 +2062,7 @@ body {
 /* Day groups */
 .fc-day { padding: 0 20px 4px; margin-bottom: 4px; }
 .fc-day-label {
-  font-variant-numeric: tabular-nums; font-size: 9px; font-weight: 700;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-9); font-weight: 700;
   color: var(--ink-3); letter-spacing: .08em; text-transform: uppercase;
   padding: 12px 0 8px; border-top: 1px solid var(--hairline);
 }
@@ -2007,19 +2084,19 @@ body {
   color: var(--ink); line-height: 1.1;
 }
 .fc-window-spot {
-  font-size: 12px; font-weight: 700; margin-top: 1px;
+  font-size: var(--fs-12); font-weight: 700; margin-top: 1px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .fc-window-detail {
-  font-variant-numeric: tabular-nums; font-size: 9px; color: var(--ink-3); margin-top: 2px;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-9); color: var(--ink-3); margin-top: 2px;
 }
 .fc-window-wind { text-align: right; flex-shrink: 0; }
 .fc-window-ms {
   font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 600; line-height: 1;
 }
-.fc-window-unit { font-variant-numeric: tabular-nums; font-size: 9px; color: var(--ink-3); }
+.fc-window-unit { font-variant-numeric: tabular-nums; font-size: var(--fs-9); color: var(--ink-3); }
 .fc-empty { padding: 24px 20px; text-align: center;
-  font-variant-numeric: tabular-nums; font-size: 11px; color: var(--ink-3); }
+  font-variant-numeric: tabular-nums; font-size: var(--fs-11); color: var(--ink-3); }
 
 /* -- VALINTAKORTIT — paperikortti kapselin osan alla -------------- */
 /* Yksikkövalitsin oli viimeinen tumman teeman jäänne: pohjaton
@@ -2063,9 +2140,9 @@ body {
   -webkit-user-select: none; user-select: none;
 }
 .up-option:active { background: var(--surface-lo); }
-.up-label { font-size: 13px; color: var(--ink-2); }
+.up-label { font-size: var(--fs-13); color: var(--ink-2); }
 .up-value {
-  font-size: 12px; font-weight: 600; color: var(--ink-3);
+  font-size: var(--fs-12); font-weight: 600; color: var(--ink-3);
   font-variant-numeric: tabular-nums;
 }
 /* Valittu on mustetäyttö kuten asetusten sirut — ei aksenttia. */
@@ -2087,11 +2164,11 @@ body {
   background: var(--surface-hi);
 }
 .wx-hour.now { background: var(--surface-lo); }
-.wx-hour-time { font-variant-numeric: tabular-nums; font-size: 10px; color: var(--ink-3); font-weight: 600; }
+.wx-hour-time { font-variant-numeric: tabular-nums; font-size: var(--fs-10); color: var(--ink-3); font-weight: 600; }
 .wx-hour-icon { line-height: 1; color: var(--ink-2); }
 .wx-hour-temp { font-variant-numeric: tabular-nums; font-size: 15px; font-weight: 600; color: var(--ink); letter-spacing: -.02em; }
-.wx-hour-wind { font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 600; }
-.wx-hour-cloud { font-variant-numeric: tabular-nums; font-size: 10px; color: var(--ink-3); }
+.wx-hour-wind { font-variant-numeric: tabular-nums; font-size: var(--fs-11); font-weight: 600; }
+.wx-hour-cloud { font-variant-numeric: tabular-nums; font-size: var(--fs-10); color: var(--ink-3); }
 
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
@@ -2121,7 +2198,7 @@ body {
    sinne osunut kellonaika oli lukukelvoton. */
 .sh-sun-rivi {
   font-variant-numeric: tabular-nums;
-  font-size: 10px;
+  font-size: var(--fs-10);
   color: var(--ink-3);
   margin: -10px 0 16px;
   letter-spacing: .1px;
@@ -2133,10 +2210,10 @@ body {
   display: flex; justify-content: space-between; align-items: baseline;
   margin-bottom: 8px;
 }
-.sh-24h-title { font-variant-numeric: tabular-nums; font-size: 10px; font-weight: 600; color: var(--ink-2); margin-bottom: 2px;
+.sh-24h-title { font-variant-numeric: tabular-nums; font-size: var(--fs-10); font-weight: 600; color: var(--ink-2); margin-bottom: 2px;
   color: var(--ink-2); letter-spacing: .5px; }
 /* Huippulukema on datalappu, ei toiminto — ks. accent-saanto. */
-.sh-24h-peak { font-variant-numeric: tabular-nums; font-size: 9px; color: var(--ink-2); }
+.sh-24h-peak { font-variant-numeric: tabular-nums; font-size: var(--fs-9); color: var(--ink-2); }
 .sh-24h-svg { width: 100%; display: block; }
 
 /* FMI station card */
@@ -2146,9 +2223,9 @@ body {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
 }
 .sh-fmi-left { flex: 1; min-width: 0; }
-.sh-fmi-name { font-size: 11px; font-weight: 700; color: var(--ink);
+.sh-fmi-name { font-size: var(--fs-11); font-weight: 700; color: var(--ink);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sh-fmi-meta { font-variant-numeric: tabular-nums; font-size: 9px; color: var(--ink-3); margin-top: 2px; }
+.sh-fmi-meta { font-variant-numeric: tabular-nums; font-size: var(--fs-9); color: var(--ink-3); margin-top: 2px; }
 .sh-fmi-wind { text-align: right; flex-shrink: 0; }
 .sh-fmi-ms { font-variant-numeric: tabular-nums; font-size: 20px; font-weight: 700; line-height: 1; }
 /* Osuvuusrivi havaintolohkon alle: siinä kohtaa ennuste ja havainto ovat
@@ -2157,24 +2234,24 @@ body {
 /* Kun havaintoa ei ole, tilalle tulee lause eikä tyhjä laatikko —
    käyttäjän on tiedettävä ETTEI dataa ole, ei arvattava sitä. */
 .sh-ei-havaintoa {
-  font-size: 11px; color: var(--ink-3);
+  font-size: var(--fs-11); color: var(--ink-3);
   text-align: center; padding: 22px 14px;
 }
 .sh-osuvuus {
   flex-basis: 100%;
   margin-top: 6px;
-  font-size: 10px; color: var(--ink-3);
+  font-size: var(--fs-10); color: var(--ink-3);
   font-variant-numeric: tabular-nums;
 }
-.sh-fmi-unit { font-variant-numeric: tabular-nums; font-size: 9px; color: var(--ink-3); }
-.sh-fmi-loading { font-variant-numeric: tabular-nums; font-size: 10px; color: var(--ink-3); }
+.sh-fmi-unit { font-variant-numeric: tabular-nums; font-size: var(--fs-9); color: var(--ink-3); }
+.sh-fmi-loading { font-variant-numeric: tabular-nums; font-size: var(--fs-10); color: var(--ink-3); }
 
 /* Navigate button */
 .sh-nav-btn {
   display: flex; align-items: center; justify-content: center; gap: 8px;
   width: 100%; padding: 12px; border-radius: 14px; margin-bottom: 8px;
   background: var(--surface-lo); border: 1px solid var(--hairline);
-  font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 600;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-11); font-weight: 600;
   color: var(--accent); cursor: pointer; transition: background .12s;
   -webkit-user-select: none; user-select: none;
 }
@@ -2192,17 +2269,17 @@ body {
 }
 .sh-uiras-left { flex: 1; min-width: 0; }
 .sh-uiras-name {
-  font-size: 11px; font-weight: 700; color: var(--ink);
+  font-size: var(--fs-11); font-weight: 700; color: var(--ink);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.sh-uiras-meta { font-variant-numeric: tabular-nums; font-size: 9px; color: var(--ink-3); margin-top: 2px; }
+.sh-uiras-meta { font-variant-numeric: tabular-nums; font-size: var(--fs-9); color: var(--ink-3); margin-top: 2px; }
 .sh-uiras-temp { text-align: right; flex-shrink: 0; }
 .sh-uiras-val { font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 700; color: #2de; line-height: 1; }
-.sh-uiras-unit { font-variant-numeric: tabular-nums; font-size: 9px; color: var(--ink-3); }
+.sh-uiras-unit { font-variant-numeric: tabular-nums; font-size: var(--fs-9); color: var(--ink-3); }
 .sh-uiras-toggle {
   width: 100%; margin-top: 10px; padding: 8px 0 0;
   border: none; background: none; border-top: 1px solid var(--accent-soft);
-  font-variant-numeric: tabular-nums; font-size: 10px; color: var(--accent);
+  font-variant-numeric: tabular-nums; font-size: var(--fs-10); color: var(--accent);
   cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
   -webkit-user-select: none; user-select: none;
 }
@@ -2212,7 +2289,7 @@ body {
   display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap;
 }
 .sh-uiras-chip {
-  font-variant-numeric: tabular-nums; font-size: 9px; padding: 3px 8px;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-9); padding: 3px 8px;
   border-radius: 8px; border: 1px solid var(--hairline);
   color: var(--accent); cursor: pointer; background: none;
   -webkit-user-select: none; user-select: none; transition: background .12s;
@@ -9642,7 +9719,7 @@ function spotMarkerSVG(score, name, size) {
    luettavana lämpökartan jokaisella värillä. */
 function spotNameLabel(name, col, visible) {
   return (
-    `<div class="spot-lbl" style="font-variant-numeric:tabular-nums;font-size:8.5px;font-weight:600;color:rgba(240,231,206,.95);`
+    `<div class="spot-lbl" style="font-variant-numeric:tabular-nums;font-size:var(--fs-85);font-weight:600;color:rgba(240,231,206,.95);`
     + `text-align:center;line-height:1.2;margin-top:3px;`
     + `text-shadow:0 1px 3px rgba(6,9,18,0.95),0 0 2px rgba(6,9,18,0.8);white-space:nowrap;max-width:64px;`
     + `overflow:hidden;text-overflow:ellipsis;`
@@ -9965,7 +10042,7 @@ function _isPKS(spot){return spot.lat>=59.9&&spot.lat<=60.5&&spot.lng>=24.3&&spo
       cEl.style.display = 'block';
       if (aEl) aEl.textContent = '▲';
       if (cEl.dataset.ok) return;
-      cEl.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:16px">Ladataan historiaa...</div>';
+      cEl.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);text-align:center;padding:16px">Ladataan historiaa...</div>';
       if (typeof Haptics !== 'undefined') Haptics.light();
       try {
         const pts = await UiRas.history(stationId);
@@ -9973,7 +10050,7 @@ function _isPKS(spot){return spot.lat>=59.9&&spot.lat<=60.5&&spot.lng>=24.3&&spo
         cEl.dataset.ok = '1';
         _uirasChart(cEl, pts, 'all', 1);
       } catch(e) {
-        cEl.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:12px">Historiadataa ei saatavilla</div>';
+        cEl.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);text-align:center;padding:12px">Historiadataa ei saatavilla</div>';
       }
       return;
     }
@@ -9997,7 +10074,7 @@ function _isPKS(spot){return spot.lat>=59.9&&spot.lat<=60.5&&spot.lng>=24.3&&spo
       liveBtn.classList.add('expanded');
       if (toggleEl) toggleEl.textContent = '▲ Sulje';
       if (panel.dataset.ok) return;
-      panel.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:16px">Ladataan...</div>';
+      panel.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);text-align:center;padding:16px">Ladataan...</div>';
       /* Hae 24h historia FMI proxylta */
       const spotRef = State.sheetSpot;
       if (!spotRef) return;
@@ -10008,7 +10085,7 @@ function _isPKS(spot){return spot.lat>=59.9&&spot.lat<=60.5&&spot.lng>=24.3&&spo
         panel.dataset.ok = '1';
         _renderLiveHistory(panel, data, wx);
       }).catch(function(){
-        panel.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:12px">Historiadataa ei saatavilla</div>';
+        panel.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);text-align:center;padding:12px">Historiadataa ei saatavilla</div>';
       });
       return;
     }
@@ -10036,14 +10113,14 @@ function _isPKS(spot){return spot.lat>=59.9&&spot.lat<=60.5&&spot.lng>=24.3&&spo
       if (toggleEl) toggleEl.textContent = '▲ Sulje';
       if (panel.dataset.ok) return;
 
-      panel.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:14px">Ladataan...</div>';
+      panel.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);text-align:center;padding:14px">Ladataan...</div>';
       try {
         const pts = await UiRas.history(stationId);
         if (!pts || !pts.length) throw new Error('tyhjä');
         panel.dataset.ok = '1';
         _uirasChart(panel, pts, '30d', 1);
       } catch(err) {
-        panel.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:12px">Ei dataa</div>';
+        panel.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);text-align:center;padding:12px">Ei dataa</div>';
       }
     }
   }, { passive: true });
@@ -10085,15 +10162,15 @@ function buildUirasPlaceholder(spot) {
   return '<div id="' + cardId + '" style="background:var(--accent-soft);border:1px solid var(--hairline);border-radius:14px;padding:12px 14px;margin-bottom:14px">'
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
       + '<div style="flex:1;min-width:0">'
-        + '<div style="font-size:11px;font-weight:700;color:var(--ink)">' + station.name + '</div>'
-        + '<div data-uiras-meta style="font-variant-numeric:tabular-nums;font-size:9px;color:var(--ink-3);margin-top:2px">' + dist + ' · ladataan...</div>'
+        + '<div style="font-size:var(--fs-11);font-weight:700;color:var(--ink)">' + station.name + '</div>'
+        + '<div data-uiras-meta style="font-variant-numeric:tabular-nums;font-size:var(--fs-9);color:var(--ink-3);margin-top:2px">' + dist + ' · ladataan...</div>'
       + '</div>'
       + '<div style="text-align:right;flex-shrink:0;margin-left:12px">'
         + '<div data-uiras-temp style="font-variant-numeric:tabular-nums;font-size:24px;font-weight:700;color:var(--info);line-height:1">—</div>'
-        + '<div style="font-variant-numeric:tabular-nums;font-size:9px;color:var(--ink-3)">°C</div>'
+        + '<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-9);color:var(--ink-3)">°C</div>'
       + '</div>'
     + '</div>'
-    + '<button id="' + btnId + '" data-uiras-btn data-uiras-btn-id="' + station.id + '" data-uiras-btn-chart="' + chartId + '" style="width:100%;border:none;background:none;border-top:1px solid var(--surface-lo);padding:8px 0 0;font-variant-numeric:tabular-nums;font-size:10px;color:var(--accent);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;-webkit-user-select:none;user-select:none">'
+    + '<button id="' + btnId + '" data-uiras-btn data-uiras-btn-id="' + station.id + '" data-uiras-btn-chart="' + chartId + '" style="width:100%;border:none;background:none;border-top:1px solid var(--surface-lo);padding:8px 0 0;font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--accent);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;-webkit-user-select:none;user-select:none">'
       + '<span data-uiras-arr>▼</span> Näytä lämpötilahistoria'
     + '</button>'
     + '<div id="' + chartId + '" style="display:none;margin-top:10px"></div>'
@@ -10125,7 +10202,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
   var now = Date.now();
   var pts = period==='all' ? allPts : allPts.filter(function(p){ return new Date(p.t).getTime()>=now-pMs[period]; });
   if (pts.length<5) pts=allPts;
-  if (!pts.length){ el.innerHTML='<div style="text-align:center;font-size:10px;color:var(--ink-3);padding:20px">Ei dataa</div>'; return; }
+  if (!pts.length){ el.innerHTML='<div style="text-align:center;font-size:var(--fs-10);color:var(--ink-3);padding:20px">Ei dataa</div>'; return; }
 
   function ds(data,max){ if(data.length<=max)return data; var step=data.length/max,out=[]; for(var i=0;i<max;i++)out.push(data[Math.round(i*step)]); return out; }
   var draw=ds(pts,300), n=draw.length;
@@ -10215,7 +10292,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     /* Sama valitsin kuin tuulikaaviossa: valittu on mustetta korotetulla
        pinnalla. Aiemmin valittu oli var(--surface) eli beige lähes
        valkoisella — 1.1:1, käytännössä näkymätön. */
-    return '<button data-up="'+pv[0]+'" aria-pressed="'+(a?'true':'false')+'" style="flex:1;font-variant-numeric:tabular-nums;font-size:9px;padding:4px 6px;border:none;white-space:nowrap;'
+    return '<button data-up="'+pv[0]+'" aria-pressed="'+(a?'true':'false')+'" style="flex:1;font-variant-numeric:tabular-nums;font-size:var(--fs-9);padding:4px 6px;border:none;white-space:nowrap;'
       +'background:'+(a?'var(--surface-hi)':'transparent')+';'
       +'color:'+(a?'var(--ink)':'var(--ink-3)')+';font-weight:'+(a?'600':'400')+';'
       +'border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:background .15s,color .15s">'+pv[1]+'</button>';
@@ -10267,8 +10344,8 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
 
     /* Footer */
     +'<div style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;padding:0 2px">'
-      +'<div style="font-variant-numeric:tabular-nums;font-size:8px;color:var(--ink-3)">'+(sourceLabel||'UiRas')+' · '+(stationName||'')+'</div>'
-      +'<div style="font-variant-numeric:tabular-nums;font-size:13px;color:#1C5C86;font-weight:700;letter-spacing:-.3px">'+lastVal.toFixed(1)+'<span style="font-size:9px;font-weight:400;color:var(--ink-3)"> °C</span></div>'
+      +'<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-8);color:var(--ink-3)">'+(sourceLabel||'UiRas')+' · '+(stationName||'')+'</div>'
+      +'<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-13);color:#1C5C86;font-weight:700;letter-spacing:-.3px">'+lastVal.toFixed(1)+'<span style="font-size:var(--fs-9);font-weight:400;color:var(--ink-3)"> °C</span></div>'
     +'</div>';
 
   /* Tooltip interaktio */
@@ -10284,8 +10361,8 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     var d=new Date(draw[idx].t);
     var dstr=d.getDate()+'.'+(d.getMonth()+1)+'. '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
     var val=draw[idx].v.toFixed(1);
-    tip.innerHTML='<div style="font-size:18px;font-weight:700;color:var(--ink);letter-spacing:-.5px;line-height:1">'+val+'<span style="font-size:11px;font-weight:400;color:var(--ink-3)"> °C</span></div>'
-      +'<div style="color:var(--ink-3);font-size:9px;margin-top:4px">'+dstr+'</div>';
+    tip.innerHTML='<div style="font-size:18px;font-weight:700;color:var(--ink);letter-spacing:-.5px;line-height:1">'+val+'<span style="font-size:var(--fs-11);font-weight:400;color:var(--ink-3)"> °C</span></div>'
+      +'<div style="color:var(--ink-3);font-size:var(--fs-9);margin-top:4px">'+dstr+'</div>';
     var r=svg.getBoundingClientRect();
     var tipTop=Math.max(2,(y/TH)*r.height-58);
     tip.style.left=_tipLeftPx(tip,r,x,W)+'px';tip.style.top=tipTop+'px';tip.style.display='block';
@@ -10330,11 +10407,11 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     function makeTriggerHtml(st){
       return '<button id="'+trId+'" style="display:flex;align-items:center;gap:6px;'
         +'background:var(--accent-soft);border:1px solid var(--hairline);'
-        +'border-radius:8px;font-variant-numeric:tabular-nums;font-size:9px;'
+        +'border-radius:8px;font-variant-numeric:tabular-nums;font-size:var(--fs-9);'
         +'color:var(--accent);cursor:pointer;padding:4px 10px;'
         +'-webkit-user-select:none;user-select:none;">'
         +'<span style="font-weight:700;color:var(--ink)">'+st.name+'</span>'
-        +'<span style="color:var(--ink-3);font-size:8px;margin-left:2px">'+st.km.toFixed(1)+'km</span>'
+        +'<span style="color:var(--ink-3);font-size:var(--fs-8);margin-left:2px">'+st.km.toFixed(1)+'km</span>'
         +'<svg width="12" height="12" viewBox="0 0 12 12" style="flex-shrink:0;margin-left:2px">'
           +'<polyline points="2,4 6,8 10,4" fill="none" stroke="#1C5C86" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
         +'</svg></button>';
@@ -10345,14 +10422,14 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
       var items=sorted.map(function(st){
         var active=st.id===curSt.id;
         return '<div data-uiras-pick="'+st.id+'" style="display:flex;justify-content:space-between;align-items:center;'
-          +'padding:11px 16px;cursor:pointer;font-variant-numeric:tabular-nums;font-size:11px;'
+          +'padding:11px 16px;cursor:pointer;font-variant-numeric:tabular-nums;font-size:var(--fs-11);'
           +'border-bottom:1px solid var(--hairline-soft);-webkit-user-select:none;user-select:none;'
           +(active?'background:var(--accent-soft)':'')+';">'
           +'<span style="color:'+(active?'var(--ink)':'var(--ink-2)')+';font-weight:'+(active?600:400)+'">'
             +st.name+'</span>'
           +'<div style="display:flex;align-items:center;gap:8px;">'
-            +'<span style="color:var(--ink-3);font-size:10px">'+st.km.toFixed(1)+' km</span>'
-            +(active?'<span style="color:var(--accent);font-size:12px">✓</span>':'')
+            +'<span style="color:var(--ink-3);font-size:var(--fs-10)">'+st.km.toFixed(1)+' km</span>'
+            +(active?'<span style="color:var(--accent);font-size:var(--fs-12)">✓</span>':'')
           +'</div></div>';
       }).join('');
       return '<div id="'+menuId+'" style="display:none;position:absolute;top:calc(100% + 6px);left:0;'
@@ -10401,7 +10478,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
           if(uiLbl) uiLbl.textContent='Uimaveden lämpötila · '+st.name;
         }
         /* Lataa uusi data */
-        el.innerHTML='<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:16px">Ladataan '+st.name+'...</div>';
+        el.innerHTML='<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);text-align:center;padding:16px">Ladataan '+st.name+'...</div>';
         Promise.allSettled([UiRas.history(st.id),UiRas.loadLatest()]).then(function(results){
           var pts2=results[0].status==='fulfilled'?results[0].value:null;
           var latest=results[1].status==='fulfilled'?results[1].value:null;
@@ -10409,9 +10486,9 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
             _updateUirasCard(wsIdRef,latest[st.id].temp,st.name);
           el._period=period;
           if(pts2&&pts2.length) _uirasChartInteractive(el,pts2,st.name,st,spotLat,spotLng);
-          else el.innerHTML='<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:16px">Ei dataa</div>';
+          else el.innerHTML='<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);text-align:center;padding:16px">Ei dataa</div>';
         }).catch(function(){
-          el.innerHTML='<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:16px">Ei dataa</div>';
+          el.innerHTML='<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);text-align:center;padding:16px">Ei dataa</div>';
         });
         return;
       }
@@ -10426,7 +10503,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
         if(m) m.style.display='none';
       });
     }
-  } else if(ddEl){    ddEl.innerHTML='<span style="font-variant-numeric:tabular-nums;font-size:9px;color:var(--ink-2)">'+(stationName||'Vedenlämpö')+'</span>';
+  } else if(ddEl){    ddEl.innerHTML='<span style="font-variant-numeric:tabular-nums;font-size:var(--fs-9);color:var(--ink-2)">'+(stationName||'Vedenlämpö')+'</span>';
   }
 
 }
@@ -10499,11 +10576,11 @@ function _addObsMarkers(map) {
       +'">'
         +'<span style="align-self:center;display:flex">'+glyfi+'</span>'
         +(hiljainen
-          ? '<span style="font-variant-numeric:tabular-nums;font-size:7.5px;'
+          ? '<span style="font-variant-numeric:tabular-nums;font-size:var(--fs-75);'
             +'color:'+INK_2+';line-height:1;letter-spacing:.3px">ei signaalia</span>'
-          : '<span style="font-variant-numeric:tabular-nums;font-weight:500;font-size:11px;'
+          : '<span style="font-variant-numeric:tabular-nums;font-weight:500;font-size:var(--fs-11);'
             +'color:'+INK_1+';line-height:1;letter-spacing:-0.2px">'+arvo+'</span>'
-            +'<span style="font-variant-numeric:tabular-nums;font-size:6.5px;'
+            +'<span style="font-variant-numeric:tabular-nums;font-size:var(--fs-65);'
             +'color:'+INK_2+';line-height:1">'+yksikko+'</span>')
       +'</div>';
   }
@@ -11049,18 +11126,18 @@ function _openObsSheet(type, station) {
       +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">'
         +'<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;background:'+accentFaint+';border:1px solid '+accentBorder+'">'
           +'<span style="display:inline-flex;color:'+accent+'">'+icon+'</span>'
-          +'<span style="font-variant-numeric:tabular-nums;font-size:9px;color:'+accent+';letter-spacing:.5px;text-transform:uppercase">'+typeLabel+'</span>'
+          +'<span style="font-variant-numeric:tabular-nums;font-size:var(--fs-9);color:'+accent+';letter-spacing:.5px;text-transform:uppercase">'+typeLabel+'</span>'
         +'</div>'
       +'</div>'
       /* Nimi + arvo rinnakkain */
       +'<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px">'
         +'<div style="flex:1;min-width:0">'
           +'<div style="font-size:22px;font-weight:800;color:var(--ink);letter-spacing:-.5px;line-height:1.1;margin-bottom:4px;word-break:break-word">'+station.name+'</div>'
-          +'<div id="'+chipId+'" style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3)">'+srcLabel+'</div>'
+          +'<div id="'+chipId+'" style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3)">'+srcLabel+'</div>'
         +'</div>'
         +'<div style="text-align:right;flex-shrink:0">'
           +'<div id="'+valId+'" style="font-variant-numeric:tabular-nums;font-size:46px;font-weight:600;line-height:1;color:'+accent+';opacity:.2;letter-spacing:-.035em;transition:opacity .4s,color .4s">—</div>'
-          +'<div id="'+subId+'" style="font-variant-numeric:tabular-nums;font-size:11px;color:var(--ink-3);margin-top:2px">'+unit+'</div>'
+          +'<div id="'+subId+'" style="font-variant-numeric:tabular-nums;font-size:var(--fs-11);color:var(--ink-3);margin-top:2px">'+unit+'</div>'
         +'</div>'
       +'</div>'
     +'</div>'
@@ -11070,14 +11147,14 @@ function _openObsSheet(type, station) {
 
     /* -- Graafi -- */
     +'<div id="'+cid+'" style="min-height:40px">'
-      +'<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:20px;color:var(--ink-3);font-variant-numeric:tabular-nums;font-size:10px">'
+      +'<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:20px;color:var(--ink-3);font-variant-numeric:tabular-nums;font-size:var(--fs-10)">'
         +'<svg width="14" height="14" viewBox="0 0 14 14" style="animation:spin 1.2s linear infinite"><circle cx="7" cy="7" r="5" fill="none" stroke="#CDBE9A" stroke-width="1.5"/><path d="M7 2 A5 5 0 0 1 12 7" fill="none" stroke="'+accent+'" stroke-width="1.5" stroke-linecap="round"/></svg>'
         +'Ladataan...'
       +'</div>'
     +'</div>'
 
     /* -- Footer -- */
-    +'<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--hairline-soft);font-variant-numeric:tabular-nums;font-size:8px;color:var(--ink-3);text-align:center">'
+    +'<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--hairline-soft);font-variant-numeric:tabular-nums;font-size:var(--fs-8);color:var(--ink-3);text-align:center">'
       +(isWater?'UiRas avoin data · Forum Virium Helsinki':(type==='kruunuvuori'?'Merellinen Helsinki · swell.fmi.fi':'Ilmatieteenlaitos · avoin data'))
     +'</div>';
 
@@ -11129,11 +11206,11 @@ function _openObsSheet(type, station) {
       naapuriEl.innerHTML =
         '<button type="button" style="width:100%;display:flex;align-items:center;gap:9px;margin-bottom:14px;padding:9px 11px;'
         + 'border-radius:12px;background:var(--surface-hi);border:1px solid var(--hairline);cursor:pointer;text-align:left">'
-        + '<span style="font-size:7.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--ink-3);flex-shrink:0">Nyt lähistöllä</span>'
-        + '<span style="font-size:11px;color:var(--ink);font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+d.station+'</span>'
-        + '<span style="font-size:9px;color:var(--ink-3);flex-shrink:0">'+d.km.toFixed(0)+' km</span>'
+        + '<span style="font-size:var(--fs-75);letter-spacing:.6px;text-transform:uppercase;color:var(--ink-3);flex-shrink:0">Nyt lähistöllä</span>'
+        + '<span style="font-size:var(--fs-11);color:var(--ink);font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+d.station+'</span>'
+        + '<span style="font-size:var(--fs-9);color:var(--ink-3);flex-shrink:0">'+d.km.toFixed(0)+' km</span>'
         + '<span style="margin-left:auto;flex-shrink:0;font-size:15px;font-weight:600;color:'+_havInkCss(d.ws)+'">'+Units.fmt(d.ws)
-        + '<span style="font-size:8.5px;font-weight:400;color:var(--ink-3)"> '+Units.label()+'</span></span>'
+        + '<span style="font-size:var(--fs-85);font-weight:400;color:var(--ink-3)"> '+Units.label()+'</span></span>'
         + '<svg width="7" height="11" viewBox="0 0 7 11" style="flex-shrink:0"><polyline points="1,1 6,5.5 1,10" fill="none" stroke="#5F696F" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
         + '</button>';
       naapuriEl.firstChild.addEventListener('click', function(){
@@ -11182,7 +11259,7 @@ function _openObsSheet(type, station) {
             if(el&&hist) _renderLiveHistory(el,Object.assign({},hist,{place:okSt.place}),latData);
           },
           function() {
-            if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);padding:16px">Ei dataa</div>';
+            if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);padding:16px">Ei dataa</div>';
           }
         );
       }
@@ -11221,10 +11298,10 @@ function _openObsSheet(type, station) {
               null,null,null,'Merellinen Helsinki');
           }
         }
-        else if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);padding:16px">Ei dataa</div>';
+        else if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);padding:16px">Ei dataa</div>';
       })
       .catch(function(){
-        if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);padding:16px">Ei dataa</div>';
+        if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);padding:16px">Ei dataa</div>';
       });
   } else {
     Promise.allSettled([
@@ -11239,9 +11316,9 @@ function _openObsSheet(type, station) {
         updateHero(t.toFixed(1),'°C'+(timeStr?'  ·  '+timeStr:''),accent);
       }
       if(el&&pts&&pts.length) _uirasChartInteractive(el,pts,station.name,station,station.lat,station.lng);
-      else if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);padding:16px">Ei dataa</div>';
+      else if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);padding:16px">Ei dataa</div>';
     }).catch(function(){
-      if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);padding:16px">Ei dataa</div>';
+      if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);padding:16px">Ei dataa</div>';
     });
   }
 }
@@ -11370,7 +11447,7 @@ function openSheet(spot, hourIdx) {
     const sheet = document.getElementById('sheet');
     const sc    = document.getElementById('sheet-content');
     if (sheet && sc) {
-      sc.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:32px;font-variant-numeric:tabular-nums;font-size:11px;color:var(--ink-3)">'
+      sc.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:32px;font-variant-numeric:tabular-nums;font-size:var(--fs-11);color:var(--ink-3)">'
         + '<svg width="18" height="18" viewBox="0 0 18 18" style="animation:spin 1s linear infinite"><circle cx="9" cy="9" r="7" fill="none" stroke="#CDBE9A" stroke-width="1.5"/><path d="M9 2 A7 7 0 0 1 16 9" fill="none" stroke="#E4D8B8" stroke-width="1.5" stroke-linecap="round"/></svg>'
         + spot.name + '</div>';
       sheet.classList.add('open');
@@ -11397,7 +11474,7 @@ function openSheet(spot, hourIdx) {
         spot.wx = om;
       }
       if (!spot.wx) {
-        if (sc) sc.innerHTML = '<div style="text-align:center;padding:32px;font-variant-numeric:tabular-nums;font-size:11px;color:var(--ink-3)">Ei säädataa tässä paikassa</div>';
+        if (sc) sc.innerHTML = '<div style="text-align:center;padding:32px;font-variant-numeric:tabular-nums;font-size:var(--fs-11);color:var(--ink-3)">Ei säädataa tässä paikassa</div>';
         return;
       }
       /* Laske nykyinen tuntiindeksi */
@@ -11959,11 +12036,11 @@ function openSheet(spot, hourIdx) {
     var periodBtns='<div style="display:flex;flex-shrink:0;background:var(--surface-lo);border-radius:10px;padding:2px;gap:1px">'
       +PERIODS.map(function(p){
         var a=p.key===activePeriod;
-        return '<button data-cp="'+p.key+'" style="flex:1;font-variant-numeric:tabular-nums;font-size:9px;padding:4px 6px;border:none;white-space:nowrap;background:'+(a?'var(--ink)':'transparent')+';color:'+(a?'var(--surface)':'var(--ink-2)')+';border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:all .15s">'+p.label+'</button>';
+        return '<button data-cp="'+p.key+'" style="flex:1;font-variant-numeric:tabular-nums;font-size:var(--fs-9);padding:4px 6px;border:none;white-space:nowrap;background:'+(a?'var(--ink)':'transparent')+';color:'+(a?'var(--surface)':'var(--ink-2)')+';border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:all .15s">'+p.label+'</button>';
       }).join('')+'</div>';
 
     /* Legenda -- paivitetaan kun mallit latautuu */
-    var legendHtml='<div id="'+sectionId+'-leg" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:6px;font-variant-numeric:tabular-nums;font-size:8px">'
+    var legendHtml='<div id="'+sectionId+'-leg" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:6px;font-variant-numeric:tabular-nums;font-size:var(--fs-8)">'
       +'<span><span id="'+sectionId+'-leg-main-dot" style="color:var(--ink-2)">&#9632;</span> '+activeLabel+'</span>'
       +COMPARE_MODELS.map(function(m){
         /* Avaimessa sama kuvio kuin viivassa — muuten selite vaittaisi
@@ -11977,9 +12054,9 @@ function openSheet(spot, hourIdx) {
 
     /* Hajonnan tulkinta legendan alle: siina kohtaa kayttaja katsoo
        mallien viivoja, ja tama kertoo mita ne yhdessa tarkoittavat. */
-    legendHtml += '<div id="'+sectionId+'-hajonta" style="font-size:10px;color:var(--ink-3);margin:-2px 0 6px"></div>';
+    legendHtml += '<div id="'+sectionId+'-hajonta" style="font-size:var(--fs-10);color:var(--ink-3);margin:-2px 0 6px"></div>';
 
-    var tipHtml='<div id="'+sectionId+'-tip" style="display:none;position:absolute;background:var(--surface-hi);color:var(--ink);border:1px solid var(--hairline);border-radius:12px;padding:8px 14px;font-variant-numeric:tabular-nums;font-size:9px;pointer-events:none;white-space:nowrap;box-shadow:var(--shadow-2);z-index:100;min-width:110px;transform:translateX(-50%)"></div>';
+    var tipHtml='<div id="'+sectionId+'-tip" style="display:none;position:absolute;background:var(--surface-hi);color:var(--ink);border:1px solid var(--hairline);border-radius:12px;padding:8px 14px;font-variant-numeric:tabular-nums;font-size:var(--fs-9);pointer-events:none;white-space:nowrap;box-shadow:var(--shadow-2);z-index:100;min-width:110px;transform:translateX(-50%)"></div>';
 
     var firstDraw=buildSvg(activePeriod);
 
@@ -12166,7 +12243,7 @@ function openSheet(spot, hourIdx) {
           var timeStr=t?(('0'+t.getDate()).slice(-2)+'.'+(t.getMonth()+1)+'. '+('0'+t.getHours()).slice(-2)+':00'):'';
           var isPast=i<d.nowSlot;
 
-          var html='<div style="color:var(--ink-3);margin-bottom:5px;font-size:8px">'+timeStr+(isPast?' &#183; mennyt':'')+'</div>';
+          var html='<div style="color:var(--ink-3);margin-bottom:5px;font-size:var(--fs-8)">'+timeStr+(isPast?' &#183; mennyt':'')+'</div>';
           entries.forEach(function(e){
             html+='<div style="display:flex;justify-content:space-between;gap:14px;margin-bottom:2px;'+(e.isMain?'font-weight:700':'')+'">'
               +'<span style="color:'+e.col+'">'+e.label+'</span>'
@@ -12330,7 +12407,7 @@ function openSheet(spot, hourIdx) {
               const osat = spotIndexOsat(ms, dir, spot.bestDirs, gst);
               const sc2 = spotIndexInk(osat.score);
               const svg2 = spotMarkerSVG(osat.score, '', 64);
-              const osaTyyli = 'font-size:10px;color:var(--ink-2)';
+              const osaTyyli = 'font-size:var(--fs-10);color:var(--ink-2)';
               const erittely =
                 '<span style="' + osaTyyli + '">'
                 + osat.nopeus + '/' + osat.nopeusMax + ' nopeus'
@@ -12340,14 +12417,14 @@ function openSheet(spot, hourIdx) {
               return '<div style="display:inline-flex;align-items:center;gap:10px;margin-top:8px">'
                 + svg2
                 + '<div style="font-variant-numeric:tabular-nums;line-height:1.45">'
-                + '<div style="font-size:9px;color:var(--ink-2);text-transform:uppercase;letter-spacing:1px">Spottiindeksi</div>'
-                + '<div style="font-size:11px;color:'+sc2+';font-weight:600">'
+                + '<div style="font-size:var(--fs-9);color:var(--ink-2);text-transform:uppercase;letter-spacing:1px">Spottiindeksi</div>'
+                + '<div style="font-size:var(--fs-11);color:'+sc2+';font-weight:600">'
                 +   spotIndexSelite(osat, ms, spot.bestDirs) + '</div>'
                 + '<div>' + erittely + '</div>'
                 /* Mallien yksimielisyys taytetaan kun vertailudata saapuu
                    (drawAllModels). Tyhja kunnes se on haettu, jotta hero ei
                    hypi — rivi ei varaa tilaa ennen kuin silla on sisaltoa. */
-                + '<div id="sh-hajonta" style="font-size:10px"></div>'
+                + '<div id="sh-hajonta" style="font-size:var(--fs-10)"></div>'
                 + '</div></div>';
             })()
         + '</div>'
@@ -12409,7 +12486,7 @@ function openSheet(spot, hourIdx) {
        kaikesta mihin se liittyy. */
     + buildSunRivi()
     /* Havainnot-rivi */
-    + '<div style="font-variant-numeric:tabular-nums;font-size:8px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:5px">Havainnot</div>'    + '<div class="sh-stats" id="sh-stats-live">'      + _tempDewComboCard(fmiId + '-tmp', fmiId + '-dew')      + (_uirasStation ? _uirasLinkCard(_waterStatId, _uirasStation) : _statCard('Vesi', waterTemp, _waterTempSource || '°C', null))    + (function () {
+    + '<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-8);font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:5px">Havainnot</div>'    + '<div class="sh-stats" id="sh-stats-live">'      + _tempDewComboCard(fmiId + '-tmp', fmiId + '-dew')      + (_uirasStation ? _uirasLinkCard(_waterStatId, _uirasStation) : _statCard('Vesi', waterTemp, _waterTempSource || '°C', null))    + (function () {
         /* Puku veden viereen: siinä kohtaa katsotaan vedenlämpöä, ja tämä
            on se mitä siitä seuraa. Lämpötila otetaan SAMASTA lähteestä kuin
            viereinen VESI-kortti.
@@ -12441,11 +12518,11 @@ function openSheet(spot, hourIdx) {
 
     /* FMI historia-kaavio */
     + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">'
-      + '<span style="font-variant-numeric:tabular-nums;font-size:10px;font-weight:600;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase" id="' + fmiId + '-chart-lbl">Tuulihavainto · ladataan...</span>'
+      + '<span style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);font-weight:600;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase" id="' + fmiId + '-chart-lbl">Tuulihavainto · ladataan...</span>'
       + '<div style="flex:1;height:1px;background:var(--hairline)"></div>'
     + '</div>'
     + '<div id="' + fmiId + '-hist" class="sh-stat-live-panel open" style="margin-bottom:6px">'
-      + '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:14px">Ladataan...</div>'
+      + '<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);text-align:center;padding:14px">Ladataan...</div>'
     + '</div>'
     /* Osuvuus havaintokaavion alle: siinä ennuste ja havainto ovat samassa
        kuvassa, ja tämä kertoo mitä niiden erosta on ajan myötä opittu.
@@ -12455,11 +12532,11 @@ function openSheet(spot, hourIdx) {
     /* UiRas vedenlämpö */
     + (_uirasStation
         ? '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">'
-            + '<span style="font-variant-numeric:tabular-nums;font-size:9px;color:var(--ink-3);letter-spacing:.3px" id="uiras-chart-lbl-' + _waterStatId + '">Uimaveden lämpötila · ' + _uirasStation.name + '</span>'
+            + '<span style="font-variant-numeric:tabular-nums;font-size:var(--fs-9);color:var(--ink-3);letter-spacing:.3px" id="uiras-chart-lbl-' + _waterStatId + '">Uimaveden lämpötila · ' + _uirasStation.name + '</span>'
             + '<div style="flex:1;height:1px;background:var(--hairline)"></div>'
           + '</div>'
           + '<div id="uiras-always-' + _waterStatId + '" class="sh-stat-live-panel open" style="margin-bottom:6px">'
-            + '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:14px">Ladataan...</div>'
+            + '<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);text-align:center;padding:14px">Ladataan...</div>'
           + '</div>'
         : '')
 
@@ -12794,7 +12871,7 @@ function openSheet(spot, hourIdx) {
       if (chartLbl) chartLbl.textContent = 'Uimaveden lämpötila · ' + bestSt.name;
       _uirasChartInteractive(uirasHistEl, pts, bestSt.name, bestSt, spot.lat, spot.lng);
     }).catch(function() {
-      if (uirasHistEl) uirasHistEl.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:10px">Vedenlämpödata ei saatavilla</div>';
+      if (uirasHistEl) uirasHistEl.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);text-align:center;padding:10px">Vedenlämpödata ei saatavilla</div>';
     });
   }
 }
@@ -12840,7 +12917,7 @@ function _tempDewComboCard(tmpId, dewId) {
     + '<span class="sh-stat-label">Lämpö</span>'
     + '<div style="display:flex;flex-direction:column;align-items:flex-start;gap:1px">'
       + '<span id="'+tmpId+'" class="sh-stat-value" style="color:var(--ink)">—</span>'
-      + '<span id="'+dewId+'" style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);margin-top:1px">—°<span style="font-size:8px"> kaste</span></span>'
+      + '<span id="'+dewId+'" style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);margin-top:1px">—°<span style="font-size:var(--fs-8)"> kaste</span></span>'
     + '</div>'
     + '<span class="sh-stat-sub">°C</span>'
   + '</div>';
@@ -12854,8 +12931,8 @@ function _fmiLinkCard(fmiId) {
     + '<span id="'+fmiId+'-lnk-val" class="sh-stat-value" style="color:var(--ink-3)">—</span>'
     + '<span id="'+fmiId+'-gust-lnk-val" class="sh-stat-sub" style="color:var(--ink-2)">puuska —</span>'
     + '<div style="display:flex;flex-direction:column;gap:0">'
-      + '<span id="'+fmiId+'-lnk-name" style="font-variant-numeric:tabular-nums;font-size:8px;color:var(--ink-2);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62px">—</span>'
-      + '<span id="'+fmiId+'-lnk-sub" style="font-variant-numeric:tabular-nums;font-size:8px;color:var(--ink-3);line-height:1.3">—</span>'
+      + '<span id="'+fmiId+'-lnk-name" style="font-variant-numeric:tabular-nums;font-size:var(--fs-8);color:var(--ink-2);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62px">—</span>'
+      + '<span id="'+fmiId+'-lnk-sub" style="font-variant-numeric:tabular-nums;font-size:var(--fs-8);color:var(--ink-3);line-height:1.3">—</span>'
     + '</div>'
   + '</div>';
 }
@@ -12940,7 +13017,7 @@ function _gustStatCard(gi) {
              : 'var(--ink-2)';
   return '<div class="sh-stat">'
     + '<span class="sh-stat-label">Puuskaisuus</span>'
-    + '<span class="sh-stat-value" style="color:' + col + ';font-size:13px">' + gi.label + '</span>'
+    + '<span class="sh-stat-value" style="color:' + col + ';font-size:var(--fs-13)">' + gi.label + '</span>'
     + '<span class="sh-stat-sub">〜</span>'
   + '</div>';
 }
@@ -13358,7 +13435,7 @@ function _havInkCss(ms) { return ColorRamp.inkCss(ms); }
 function _renderLiveHistory(el, data, wx) {
   var wsKaikki = data.ws || [], wgKaikki = data.wg || [], taKaikki = data.ta || [];
   if (!wsKaikki.length) {
-    el.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:20px">Ei historiadataa</div>';
+    el.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);text-align:center;padding:20px">Ei historiadataa</div>';
     return;
   }
 
@@ -13558,9 +13635,9 @@ function _renderLiveHistory(el, data, wx) {
 
   function tilasto(label, arvo, ala, vari) {
     return '<div style="min-width:0">'
-      + '<div style="font-size:7.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--ink-3);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + label + '</div>'
+      + '<div style="font-size:var(--fs-75);letter-spacing:.6px;text-transform:uppercase;color:var(--ink-3);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + label + '</div>'
       + '<div style="font-size:15px;font-weight:600;line-height:1.05;color:' + (vari || 'var(--ink)') + '">' + arvo
-      + (ala ? '<span style="font-size:8.5px;font-weight:400;color:var(--ink-3)"> ' + ala + '</span>' : '') + '</div>'
+      + (ala ? '<span style="font-size:var(--fs-85);font-weight:400;color:var(--ink-3)"> ' + ala + '</span>' : '') + '</div>'
       + '</div>';
   }
 
@@ -13596,7 +13673,7 @@ function _renderLiveHistory(el, data, wx) {
   /* ── Jaksovalitsin ──────────────────────────────────────────────── */
   var segBtns = tarjolla.map(function (j) {
     var a = j[0] === tunnit;
-    return '<button data-fmi-period="' + j[0] + '" aria-pressed="' + (a ? 'true' : 'false') + '" style="flex:1;font-variant-numeric:tabular-nums;font-size:9px;padding:4px 7px;border:none;white-space:nowrap;'
+    return '<button data-fmi-period="' + j[0] + '" aria-pressed="' + (a ? 'true' : 'false') + '" style="flex:1;font-variant-numeric:tabular-nums;font-size:var(--fs-9);padding:4px 7px;border:none;white-space:nowrap;'
       + 'background:' + (a ? 'var(--surface-hi)' : 'transparent') + ';'
       + 'color:' + (a ? 'var(--ink)' : 'var(--ink-3)') + ';font-weight:' + (a ? '600' : '400') + ';'
       + 'border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:background .15s,color .15s">' + j[1] + '</button>';
@@ -13630,8 +13707,8 @@ function _renderLiveHistory(el, data, wx) {
 
     + (vanha
       ? '<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:10px;padding:7px 9px;border-radius:9px;background:var(--surface-lo);border:1px solid var(--hairline)">'
-        + '<span style="font-size:11px;line-height:1.3">⚠︎</span>'
-        + '<span style="font-size:9.5px;color:var(--ink-2);line-height:1.35">Asema ei lähetä juuri nyt. Viimeisin havainto '
+        + '<span style="font-size:var(--fs-11);line-height:1.3">⚠︎</span>'
+        + '<span style="font-size:var(--fs-95);color:var(--ink-2);line-height:1.35">Asema ei lähetä juuri nyt. Viimeisin havainto '
           + viimeHetki + ' — ' + ikaTeksti + '.</span>'
         + '</div>'
       : '')
@@ -13666,7 +13743,7 @@ function _renderLiveHistory(el, data, wx) {
 
     /* Selite: tuuliviivan avain on sama gradientti kuin viiva, koska
        viivalla ei ole yhtä väriä. Vyöhykkeelle oma laatta. */
-    + '<div style="display:flex;align-items:center;gap:12px;margin-top:5px;padding:0 2px;font-size:8.5px;color:var(--ink-2);flex-wrap:wrap">'
+    + '<div style="display:flex;align-items:center;gap:12px;margin-top:5px;padding:0 2px;font-size:var(--fs-85);color:var(--ink-2);flex-wrap:wrap">'
       + '<span style="display:inline-flex;align-items:center;gap:4px">'
         /* gradientUnits="userSpaceOnUse": vaakasuoran viivan rajauslaatikon
            korkeus on nolla, joten oletusarvoinen objectBoundingBox rappeutuu
@@ -13712,14 +13789,14 @@ function _renderLiveHistory(el, data, wx) {
     tip.innerHTML =
       '<div style="display:flex;align-items:baseline;gap:5px">'
         + '<span style="font-size:17px;font-weight:600;line-height:1;color:' + _havInkCss(b.ws) + '">' + Units.fmt(b.ws) + '</span>'
-        + '<span style="font-size:9px;color:var(--ink-3)">' + Units.label() + '</span>'
-        + (b.d != null ? '<span style="margin-left:3px;font-size:9.5px;color:var(--ink-2)">'
+        + '<span style="font-size:var(--fs-9);color:var(--ink-3)">' + Units.label() + '</span>'
+        + (b.d != null ? '<span style="margin-left:3px;font-size:var(--fs-95);color:var(--ink-2)">'
             + '<span style="display:inline-block;transform:rotate(' + (b.d + 180).toFixed(0) + 'deg)">↑</span> '
             + _havIlmansuuntaLyhyt(b.d) + ' ' + Math.round(b.d) + '°</span>' : '')
       + '</div>'
-      + '<div style="font-size:9.5px;color:var(--ink-2);margin-top:3px">Puuska ' + Units.fmt(b.wg)
+      + '<div style="font-size:var(--fs-95);color:var(--ink-2);margin-top:3px">Puuska ' + Units.fmt(b.wg)
         + (b.ta != null ? ' · ' + b.ta.toFixed(1) + '°C' : '') + '</div>'
-      + '<div style="font-size:8.5px;color:var(--ink-3);margin-top:2px;font-variant-numeric:tabular-nums">' + pvm + ' ' + kello + '</div>';
+      + '<div style="font-size:var(--fs-85);color:var(--ink-3);margin-top:2px;font-variant-numeric:tabular-nums">' + pvm + ' ' + kello + '</div>';
     tip.style.display = 'block';
     /* Sijoitus vasta kun sisältö on paikallaan — offsetWidth/Height on
        muuten edellisen lukeman mitta. */
@@ -13770,7 +13847,7 @@ function _renderLiveHistory(el, data, wx) {
     var dropdown = _fmiDropdown(el, stations, selected, function (st) {
       var lbl = document.getElementById(fmiIdRef + '-chart-lbl');
       if (lbl) lbl.textContent = 'Tuulihavainto · ' + st.name;
-      el.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:10px;color:var(--ink-3);text-align:center;padding:10px">Ladataan ' + st.name + '...</div>';
+      el.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);text-align:center;padding:10px">Ladataan ' + st.name + '...</div>';
       var fallbackList = [st].concat(stations.filter(function (s) { return s.place !== st.place; }));
       _fmiLoadWithFallback(fallbackList, 168,
         function (okSt, lat2, nd) {
@@ -13781,7 +13858,7 @@ function _renderLiveHistory(el, data, wx) {
           _renderLiveHistory(el, Object.assign({}, nd, { place: okSt.place }), lat2 || wx);
         },
         function () {
-          el.innerHTML = '<div style="text-align:center;padding:10px;color:var(--ink-3);font-variant-numeric:tabular-nums;font-size:10px">Ei dataa saatavilla</div>';
+          el.innerHTML = '<div style="text-align:center;padding:10px;color:var(--ink-3);font-variant-numeric:tabular-nums;font-size:var(--fs-10)">Ei dataa saatavilla</div>';
         }
       );
     });
@@ -15530,7 +15607,7 @@ const WxPanel = {
     const cached = WeatherWidget._cache[key];
     const scroll = document.getElementById('wx-panel-scroll');
     if (!cached || !cached.data || !cached.data.hourly) {
-      scroll.innerHTML = '<div style="padding:20px;color:var(--ink-3);font-variant-numeric:tabular-nums;font-size:11px;text-align:center">Ladataan säätietoja...</div>';
+      scroll.innerHTML = '<div style="padding:20px;color:var(--ink-3);font-variant-numeric:tabular-nums;font-size:var(--fs-11);text-align:center">Ladataan säätietoja...</div>';
       WeatherWidget.scheduleUpdate();
       return;
     }
@@ -15559,7 +15636,7 @@ const WxPanel = {
         const ms = sh.windspeed_10m[sIdx] || 0;
         const cRamp = ColorRamp.ink(ms);
         windStr = '<div class="wx-hour-wind" style="color:rgb('+cRamp.r+','+cRamp.g+','+cRamp.b+')">'
-          + Units.fmt(ms) + '<span style="opacity:.6;font-size:8px"> '+Units.label()+'</span></div>';
+          + Units.fmt(ms) + '<span style="opacity:.6;font-size:var(--fs-8)"> '+Units.label()+'</span></div>';
       }
       const cc = h.cloudcover ? h.cloudcover[i] : null;
       const ccStr = cc != null
@@ -16151,7 +16228,7 @@ const _loadingSafety = setTimeout(() => {
   el.style.cssText =
     'position:fixed;top:calc(var(--sat) + 92px);left:50%;transform:translateX(-50%);'
     + 'z-index:9999;background:rgba(4,8,18,.92);border:1px solid rgba(255,255,255,.14);'
-    + 'border-radius:10px;padding:7px 10px;font-variant-numeric:tabular-nums;font-size:10px;'
+    + 'border-radius:10px;padding:7px 10px;font-variant-numeric:tabular-nums;font-size:var(--fs-10);'
     + 'color:#fff;text-align:center;backdrop-filter:none;-webkit-backdrop-filter:none;'
     + 'box-shadow:0 2px 12px rgba(0,0,0,.6);white-space:nowrap;-webkit-user-select:none;user-select:none';
   el.innerHTML =
@@ -16168,7 +16245,7 @@ const _loadingSafety = setTimeout(() => {
     +   '<button data-pp="tiles"     style="flex:1"></button>'
     +   '<button data-pp="snap"      style="flex:1"></button>'
     + '</div>'
-    + '<div style="font-size:8px;color:rgba(255,255,255,.35);margin-top:5px">napauta lukemia = nollaa huiput</div>';
+    + '<div style="font-size:var(--fs-8);color:rgba(255,255,255,.35);margin-top:5px">napauta lukemia = nollaa huiput</div>';
   document.body.appendChild(el);
 
   var off = { particles: false, heatmap: false, markers: false, field: false, tiles: false, snap: false };
@@ -16210,7 +16287,7 @@ const _loadingSafety = setTimeout(() => {
       var k = b.dataset.pp, isOff = off[k];
       /* snap ei ole pois/päällä vaan arvonvalinta — näytetään käytössä oleva */
       b.textContent = k === 'snap' ? ('Snap ' + (isOff ? '0' : '0.5')) : (LBL[k] + (isOff ? ' ✕' : ' ✓'));
-      b.style.cssText = 'flex:1;font-variant-numeric:tabular-nums;font-size:9px;padding:5px 4px;'
+      b.style.cssText = 'flex:1;font-variant-numeric:tabular-nums;font-size:var(--fs-9);padding:5px 4px;'
         + 'border:1px solid ' + (isOff ? 'rgba(255,90,90,.5)' : 'rgba(41,232,168,.4)') + ';'
         + 'background:' + (isOff ? 'rgba(255,90,90,.16)' : 'rgba(41,232,168,.14)') + ';'
         + 'color:' + (isOff ? 'rgba(255,150,150,.95)' : 'rgba(41,232,168,.95)') + ';'

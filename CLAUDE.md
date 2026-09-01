@@ -114,6 +114,15 @@ söi neljännen argumentin — mittaus näytti siltä että koko ominaisuutta ei
 ole olemassa, vaikka koodi oli oikein. Kun mittaus väittää ettei jotain
 tapahdu lainkaan, epäile ensin mittaria.
 
+**Mobiiliharness ei ole mobiili ilman `hasTouch`ia.** Pelkkä kapea
+`viewport` ja `deviceScaleFactor: 3` eivät riitä: ilman
+`hasTouch: true` selain kertoo `maxTouchPoints === 0` ja
+`(pointer: fine)`, jolloin sovelluksen `TYOPOYTA`-lippu menee päälle ja
+työpöydän CSS on voimassa. Mobiilin pikselivertailu mittasi silloin
+työpöytäpolkua — ja väitti muutosta regressioksi vaikka se oli juuri se
+mitä työpöydällä pitikin tapahtua. Kaikki laitekohtainen mittaus vaatii
+`hasTouch`in molempiin suuntiin.
+
 **Kosketuskohde on napautettava testissä.** `getBoundingClientRect` ja
 `elementFromPoint` eivät kerro mihin napautus oikeasti menee; Chromiumin
 kosketussäätö siirtää sen lähimpään maalattuun kohteeseen.
