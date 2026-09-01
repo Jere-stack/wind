@@ -7043,6 +7043,9 @@ const WindTexture = {
      vahvistettu valinnaksi. Ilman tätä hilapolku näytteistäisi väärän
      tunnin juuri niissä kahdessa tilanteessa. */
   hetki: null,
+  /* Solmuhila josta tekstuuri on interpoloitu, tai null jos tekstuuri
+     tuli sironneesta polusta. Ks. `sampleWind`. */
+  hila: null,
   _puskuriN: -1, _img: null, _d32: null, _laattaHakuT: 0,
   _vaN: -1, _vaU: null, _vaV: null, _sxN: -1, _sx: null, _sw: null, _py: null,
 
@@ -7632,6 +7635,19 @@ const WindTexture = {
         self.kelpaa = true;
         resolve();
       }
+      /* Solmuhila talteen näytteistystä varten.
+       *
+       * Tekstuurin texelihila on JOHDANNAINEN tästä: `buildHila`
+       * interpoloi solmuista texeleihin, ja `sampleWind` on tähän asti
+       * interpoloinut texeleistä eteenpäin. Kaksi interpolointia
+       * peräkkäin on tarkempi tehdä yhtenä — ja ennen kaikkea: kun
+       * väripiirto siirtyy GPU:lle, texelihilaa ei enää lasketa CPU:lla
+       * lainkaan, joten näytteistyksellä on oltava oma lähde.
+       *
+       * Sironnut polku ei tuota solmuhilaa, joten se nollataan — muuten
+       * edellisen näkymän hila jäisi voimaan väärälle alueelle. */
+      this.hila = hilaPolku;
+
       /* Harvennuksen jälkeen työ on murto-osa entisestä, joten setTimeout-
          pilkkomista tarvitaan vasta selvästi isommilla tekstuureilla. */
       /* Hilapolku ei harvenna, joten se merkitsee tekstuurin tarkaksi.
@@ -7644,7 +7660,49 @@ const WindTexture = {
     });
   },
 
+  /* Näytteistys SOLMUHILASTA, samalla kuubisella ytimellä jolla
+   * tekstuuri rakennetaan.
+   *
+   * Tähän asti partikkelit lukivat texelihilaa bilineaarisesti, eli
+   * kuubinen interpolointi solmuista texeleihin ja bilineaarinen siitä
+   * eteenpäin. Suoraan solmuista luettuna välivaihe jää pois: tulos on
+   * sama kenttä ilman texelihilan portaita, ja ennen kaikkea se ei
+   * tarvitse texelihilaa olemassa olevaksi.
+   *
+   * `fx` ja `fy` rajataan hilan sisään ENNEN ankkurin valintaa. Ilman
+   * sitä kaukana hilan ulkopuolella oleva piste antaisi ankkurin
+   * reunalta mutta parametrin |t| >> 1, ja kuubinen ydin karkaa
+   * kolmannessa potenssissa. Rajattuna reuna pitää arvonsa, kuten
+   * texelipolussakin. */
+  _crP: null,
+  sampleWindHilasta(lat, lng) {
+    const h = this.hila;
+    const w = this._crP || (this._crP = new Float64Array(8));
+    let fx = (lng - h.lo0) / h.dStep;
+    let fy = (lat - h.la0) / h.dStep;
+    if (fx < 0) fx = 0; else if (fx > h.gc - 1) fx = h.gc - 1;
+    if (fy < 0) fy = 0; else if (fy > h.gr - 1) fy = h.gr - 1;
+    let i = Math.floor(fx); if (i < 1) i = 1; else if (i > h.gc - 3) i = h.gc - 3;
+    let j = Math.floor(fy); if (j < 1) j = 1; else if (j > h.gr - 3) j = h.gr - 3;
+    let t = fx - i, t2 = t * t, t3 = t2 * t;
+    w[0] = 0.5 * (-t + 2*t2 - t3);   w[1] = 0.5 * (2 - 5*t2 + 3*t3);
+    w[2] = 0.5 * (t + 4*t2 - 3*t3);  w[3] = 0.5 * (-t2 + t3);
+    t = fy - j; t2 = t * t; t3 = t2 * t;
+    w[4] = 0.5 * (-t + 2*t2 - t3);   w[5] = 0.5 * (2 - 5*t2 + 3*t3);
+    w[6] = 0.5 * (t + 4*t2 - 3*t3);  w[7] = 0.5 * (-t2 + t3);
+    const gu = h.gu, gv = h.gv, gc = h.gc;
+    let u = 0, v = 0;
+    for (let b = 0; b < 4; b++) {
+      const p = (j - 1 + b) * gc + (i - 1), yb = w[4 + b];
+      const ru = gu[p]*w[0] + gu[p+1]*w[1] + gu[p+2]*w[2] + gu[p+3]*w[3];
+      const rv = gv[p]*w[0] + gv[p+1]*w[1] + gv[p+2]*w[2] + gv[p+3]*w[3];
+      u += ru * yb; v += rv * yb;
+    }
+    return { u, v, ms: Math.sqrt(u*u + v*v) };
+  },
+
   sampleWind(lat, lng) {
+    if (this.hila) return this.sampleWindHilasta(lat, lng);
     if (!this.msData) return { u: 0, v: 0, ms: 0 };
     const fc = (lng - this.lngMin) / (this.lngMax - this.lngMin) * this.cols;
     /* Sama Mercator-kuvaus kuin buildissa. Jos vain toinen korjattaisiin,
@@ -7964,6 +8022,7 @@ const PohjaTekstuuri = Object.create(WindTexture);
 PohjaTekstuuri.canvas = null;
 PohjaTekstuuri.ctx = null;
 PohjaTekstuuri.msData = null;
+PohjaTekstuuri.hila = null;
 PohjaTekstuuri.kelpaa = false;
 PohjaTekstuuri._puskuriN = -1;
 PohjaTekstuuri._vaN = -1;
