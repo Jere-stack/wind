@@ -57,6 +57,19 @@ jobs:
         run: |
           set -e
           test -f ulos/luettelo.json
+          # ÄLÄ ANNA VERCELIN DEPLOYATA TÄTÄ HAARAA.
+          #
+          # Vercel lukee `vercel.json`:n SIITÄ haarasta jota se on
+          # deployaamassa. Tämä on orpo haara jossa on vain laattoja,
+          # joten juuren `vercel.json` — jossa tämä sama asetus jo on —
+          # ei päde tänne lainkaan.
+          #
+          # Ilman tätä riviä Vercel kloonaa haaran, ei löydä
+          # `package.json`:ia, ajaa projektin oletusbuildin (`vite build`)
+          # ja kaatuu koodiin 127. Neljästi vuorokaudessa, joka
+          # laattapäivityksellä. Tuotanto ei kärsi — se tulee
+          # oletushaarasta — mutta ilmoitus tulee.
+          printf '%s\n' '{ "git": { "deploymentEnabled": { "saadata": false } } }' > ulos/vercel.json
           cd ulos
           git init -q
           git checkout -q --orphan saadata
