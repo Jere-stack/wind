@@ -180,6 +180,20 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **`var()` ei toimi SVG:n esitysattribuuteissa.** Kaavioiden `fill=` tarvitsee
   literaalin; inline-tyyleissä tokenit toimivat.
 
+**Aikajana**
+
+- **`currentHourIdx` on INDEKSI, ja aika-akseli vaihtuu kartan mukana.**
+  Akseli tulee siltä ennustepisteeltä joka on kartan keskellä, ja
+  zoomaus vaihtaa pisteen. Älä koskaan siirrä indeksiä sellaisenaan
+  akselilta toiselle — hae uusi indeksi AJASTA (`_tlSailytaHetki`).
+  Mitattu ilman sitä: −15 h, −55 h, +75 h, ja jopa kahden tuntiakselin
+  välillä 5 h, koska ne eivät ala samasta hetkestä.
+- **Laattavaraston akseli on 3 h (ja 6 h yli 7,5 vrk).**
+  `wxTunneittain()` interpoloi siitä tuntiakselin — se ei ole uutta
+  dataa vaan täsmälleen se mitä `asetaHetki`+`naytteista` jo antaa
+  kartalle (mitattu ero 0 m/s). Akseli rakennetaan KERRAN ja jaetaan;
+  pistekohtainen mitätöisi `_ts()`:n muistin.
+
 **Kenttä ja data**
 
 - **Interpolointijärjestys: paikassa vektorit, ajassa nopeus ja suunta

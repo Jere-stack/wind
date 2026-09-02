@@ -3499,6 +3499,8 @@ const Saalaatat = {
          jasenna merkkijonoja lainkaan, ja `_ts()` saa taman jaetun
          `_ajat`-taulukon kautta yhden ainoan kerran. */
       this._tsMs = Float64Array.from(ms);
+      /* Tuntiakseli johdetaan tästä, joten se mitätöityy samalla. */
+      this._ajatH = null; this._tsMsH = null; this._kartta = null;
       /* Laattojen osoitteisiin menee ajon tunnus, jolloin service worker
          voi pitaa niita muuttumattomina. Ilman sita sama osoite
          palauttaisi eri sisallon kuuden tunnin valein ja valimuistista
@@ -3947,6 +3949,106 @@ const Saalaatat = {
     return {
       hourly: {
         time: this._ajat,
+        windspeed_10m: nop,
+        winddirection_10m: suu,
+        windgusts_10m: puu,
+      },
+      lahde: 'laatta',
+    };
+  },
+
+  /* ── TUNTIAKSELI AIKAJANALLE ──────────────────────────────────────
+   *
+   * Varaston oma askel on ECMWF:n `temporal_resolution_seconds`: kolme
+   * tuntia ensimmäiset 7,5 vuorokautta ja kuusi sen jälkeen (mitattu
+   * julkaistusta luettelosta: 60 kertaa 3 h, 36 kertaa 6 h). Spotin
+   * sarja tulee Open-Meteolta tunneittain. Aikajanan tarkkuus riippui
+   * siis siitä kumpi piste sattui olemaan kartan keskellä — ja zoomaus
+   * vaihtaa sen.
+   *
+   * TÄMÄ EI KEKSI DATAA. Kartta on jo koko ajan lukenut näiden askelten
+   * VÄLISTÄ: `asetaHetki` ottaa minkä tahansa hetken ja `naytteista`
+   * interpoloi nopeuden ja suunnan erikseen. Kun aikajana on ollut
+   * tunneittain — eli aina kun keskellä on spotti — juuri sitä
+   * interpolaatiota on katsottu. Tämä antaa saman tarkkuuden myös
+   * laattapisteelle: sama kaava, sama tulos, vain valittavissa.
+   *
+   * Interpolointi ajassa on NOPEUS JA SUUNTA ERIKSEEN (`_lerpWind`).
+   * Vektorien interpolointi tekisi vastakkaisten tuntien väliin
+   * keinotekoisen tyvenen — ks. CLAUDE.md.
+   *
+   * AKSELI RAKENNETAAN KERRAN JA JAETAAN. `_ts()`:n muisti on
+   * avaimitettu taulukon identiteetillä, ja pistekohtainen akseli
+   * mitätöisi sen: mitattuna uloimmassa näkymässä se oli 337 000
+   * `new Date()` -kutsua ja 84 ms `buildWindField`issä. */
+  _ajatH: null, _tsMsH: null, _kartta: null,
+
+  _tunnit() {
+    if (this._ajatH) return true;
+    const ts = this._tsMs;
+    if (!ts || ts.length < 2) return false;
+    const H = 3600000;
+    const alku = Math.ceil(ts[0] / H) * H;
+    const loppu = Math.floor(ts[ts.length - 1] / H) * H;
+    const n = Math.floor((loppu - alku) / H) + 1;
+    /* Katto on turvaraja eikä mitoitus: 16,5 vrk tunneittain on 397. */
+    if (!(n > 1) || n > 1200) return false;
+    const ms = new Float64Array(n);
+    const idx = new Int32Array(n);
+    const fr = new Float64Array(n);
+    let j = 0;
+    for (let i = 0; i < n; i++) {
+      const t = alku + i * H;
+      ms[i] = t;
+      while (j < ts.length - 2 && ts[j + 1] <= t) j++;
+      idx[i] = j;
+      const v = ts[j + 1] - ts[j];
+      fr[i] = v > 0 ? Math.min(1, Math.max(0, (t - ts[j]) / v)) : 0;
+    }
+    this._tsMsH = ms;
+    this._ajatH = Array.from(ms, t => new Date(t).toISOString());
+    this._kartta = { idx: idx, fr: fr };
+    return true;
+  },
+
+  /* Sama kuin `wx()`, mutta tuntiakselilla. Käytetään VAIN niissä
+     kohdissa joissa sarja materialisoidaan yhdelle pisteelle näyttöä
+     varten (aikajana, säälukema). Tukipisteiden joukkohaku
+     (`loadGlobalCoarse`, 276 pistettä) käyttää yhä `wx()`:ää: siellä
+     sarjaa ei katsota vaan siitä poimitaan yksi hetki, ja nelinkertainen
+     taulukko olisi pelkkää muistia. */
+  wxTunneittain(lat, lng, step) {
+    const w = this.wx(lat, lng, step);
+    if (!w || !this._tunnit()) return w;
+    const h = w.hourly, k = this._kartta;
+    const A = h.windspeed_10m, D = h.winddirection_10m, G = h.windgusts_10m;
+    const n = this._ajatH.length;
+    const nop = new Array(n), suu = new Array(n), puu = new Array(n);
+    for (let i = 0; i < n; i++) {
+      const a = k.idx[i], b = a + 1, f = k.fr[i];
+      const a0 = A[a], a1 = A[b];
+      if (a0 == null && a1 == null) { nop[i] = null; suu[i] = null; puu[i] = null; continue; }
+      /* Toinen pää puuttuu: käytetään sitä joka on, ei puolikasta. */
+      if (a0 == null || a1 == null || f <= 0 || f >= 1) {
+        const p = (a0 == null || f >= 1) ? b : a;
+        nop[i] = A[p]; suu[i] = D[p]; puu[i] = G ? G[p] : A[p];
+        continue;
+      }
+      const d0 = D[a], d1 = D[b];
+      if (d0 == null || d1 == null) {
+        nop[i] = a0 + (a1 - a0) * f;
+        suu[i] = d0 == null ? d1 : d0;
+      } else {
+        const w2 = _lerpWind(a0, d0, a1, d1, f);
+        nop[i] = w2.ms; suu[i] = w2.dir;
+      }
+      const g0 = G ? G[a] : null, g1 = G ? G[b] : null;
+      puu[i] = (g0 == null || g1 == null) ? (g0 == null ? g1 : g0) : g0 + (g1 - g0) * f;
+      if (puu[i] == null) puu[i] = nop[i];
+    }
+    return {
+      hourly: {
+        time: this._ajatH,
         windspeed_10m: nop,
         winddirection_10m: suu,
         windgusts_10m: puu,
@@ -14956,11 +15058,14 @@ function bestTimelineRef() {
    * `buildWindField` osaa poimia hetkeä. Aiemmin tätä ei tarvittu,
    * koska laattapisteillä OLI sarja valmiina.
    *
-   * Spotti voittaa yhä aina kun sellainen on: sen sarja on tunnin
-   * välein 16 vuorokautta (384 alkiota), laatan 3–6 tunnin välein
-   * (99). Tämä haara ajetaan vain kun yhtäkään ei ole. */
+   * Spotti voittaa yhä aina kun sellainen on: sen sarja tulee
+   * rajapinnasta mallin omalla tuntiaskeleella. Laattapisteen sarja on
+   * nyt myös tunneittain (`wxTunneittain` interpoloi varaston 3/6 h
+   * askelten välistä, samalla kaavalla jolla kartta jo lukee niiden
+   * välistä), joten aikajanan tarkkuus ei enää riipu siitä kumpi piste
+   * osuu keskelle. Tämä haara ajetaan vain kun yhtäkään ei ole. */
   if (laattaEhdokas) {
-    const wx = Saalaatat.wx(laattaEhdokas.lat, laattaEhdokas.lng, laattaEhdokas.laatta);
+    const wx = Saalaatat.wxTunneittain(laattaEhdokas.lat, laattaEhdokas.lng, laattaEhdokas.laatta);
     if (wx) { laattaEhdokas.wx = wx; return laattaEhdokas; }
   }
   return null;
@@ -14982,7 +15087,7 @@ function nearestPointToCenter() {
     if (dist < bestDist) { bestDist = dist; best = p; }
   }
   if (best && !best.wx && best.laatta) {
-    const wx = Saalaatat.wx(best.lat, best.lng, best.laatta);
+    const wx = Saalaatat.wxTunneittain(best.lat, best.lng, best.laatta);
     if (!wx) return null;
     best.wx = wx;
   }
@@ -15007,10 +15112,44 @@ function updateTimelineToCenter() {
      kokonaan, joten uusi data näkyy aina uutena viitteenä. Muistio
      päivitetään renderTimelinessä, jotta myös sen suorat kutsijat
      pitävät sen ajan tasalla. */
+  /* Akseli voi vaihtua kun keskellä oleva piste vaihtuu — pidetään
+     hetki, ei indeksiä. Ks. _tlSailytaHetki. */
+  const idx = _tlSailytaHetki(h);
+  if (idx !== State.currentHourIdx) State.currentHourIdx = idx;
   const m = State._tlMuisti;
   if (m && m.times === h.time && m.speeds === sp && m.dirs === h.winddirection_10m
-      && m.activeIdx === State.currentHourIdx) return;
-  renderTimeline(h.time, sp, h.winddirection_10m, State.currentHourIdx);
+      && m.activeIdx === idx) return;
+  renderTimeline(h.time, sp, h.winddirection_10m, idx);
+}
+
+/* VALITTU HETKI SÄILYY VAIKKA AIKA-AKSELI VAIHTUU.
+ *
+ * `currentHourIdx` on INDEKSI, ja indeksin merkitys riippuu akselista.
+ * Kartan keskellä oleva ennustepiste vaihtuu zoomatessa ja siirtäessä,
+ * ja sen mukana vaihtui akseli — spotin tuntiaskel, laattapisteen 3 tai
+ * 6 tuntia. Indeksi 12 tarkoitti yhtäkkiä eri hetkeä, kartan sää vaihtui
+ * ilman että käyttäjä koski aikajanaan, eikä mikään kertonut miksi.
+ *
+ * Uusi indeksi haetaan AJASTA. Palautetaan kokonaisluku: `_tlTicks`
+ * indeksoidaan tällä, eikä murtoluku osuisi mihinkään. Molemmat akselit
+ * ovat tasatunneilla, joten pyöristys on käytännössä eksakti.
+ *
+ * `_ts` on muistava (avaimena taulukon identiteetti), joten tämä ei
+ * jäsennä aikaleimoja uudelleen. */
+function _tlSailytaHetki(uusiHourly) {
+  const vanha = _tlTimeAt(State.currentHourIdx);
+  if (vanha == null || !uusiHourly || !uusiHourly.time || !uusiHourly.time.length) {
+    return State.currentHourIdx;
+  }
+  const ts = _ts(uusiHourly);
+  const n = ts.length;
+  if (!n) return State.currentHourIdx;
+  if (vanha <= ts[0]) return 0;
+  if (vanha >= ts[n - 1]) return n - 1;
+  let lo = 0, hi = n - 1;
+  while (lo < hi) { const m = (lo + hi) >> 1; if (ts[m] < vanha) lo = m + 1; else hi = m; }
+  const b = lo, a = lo - 1;
+  return (vanha - ts[a]) <= (ts[b] - vanha) ? a : b;
 }
 
 function nowIdx(times) {
@@ -15830,7 +15969,7 @@ function lahinEnnustepiste(center) {
      piste kerrallaan, ja tulos jää pisteeseen, joten seuraava kutsu
      samaan pisteeseen on ilmainen. */
   if (paras && !paras.wx && paras.laatta) {
-    const wx = Saalaatat.wx(paras.lat, paras.lng, paras.laatta);
+    const wx = Saalaatat.wxTunneittain(paras.lat, paras.lng, paras.laatta);
     if (wx) paras.wx = wx;
     else {
       /* Laatta on pudonnut LRU:sta. Piste ei kelpaa lukemaksi tällä
@@ -16880,7 +17019,10 @@ document.getElementById('layers').addEventListener('click', e => {
   if (ref) {
     const t = ref.wx.hourly.time;
     const sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m;
-    renderTimeline(t, sp, ref.wx.hourly.winddirection_10m, State.currentHourIdx);
+    /* Kenttä vaihtuu, aika ei: sama hetki myös jos viitepiste on eri. */
+    const idx = _tlSailytaHetki(ref.wx.hourly);
+    if (idx !== State.currentHourIdx) State.currentHourIdx = idx;
+    renderTimeline(t, sp, ref.wx.hourly.winddirection_10m, idx);
   }
 }, { passive: true });
 
@@ -17209,7 +17351,8 @@ const _loadingSafety = setTimeout(() => {
       ViewportGrid: ViewportGrid, ColorRamp: ColorRamp, PerfTracker: PerfTracker,
       buildWindField: buildWindField, idw: idw,
       PohjaTekstuuri: PohjaTekstuuri, pohjaVarmista: pohjaVarmista,
-      GLKentta: GLKentta };
+      GLKentta: GLKentta,
+      _tlTimeAt: _tlTimeAt, _tlSailytaHetki: _tlSailytaHetki };
   } catch (e) {}
 
   var worstEver = 0;

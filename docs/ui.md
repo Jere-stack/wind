@@ -1066,3 +1066,91 @@ paikantui "ei signaalia" -kylttiin — se renderöityi 7,5 px:n sijaan
 
 Kaikki laitekohtainen mittaus vaatii `hasTouch`in **molempiin
 suuntiin**. Ilman sitä harness ei kerro kummasta polusta on kyse.
+
+## Aikajanan tarkkuus ja se että hetki pysyy
+
+Kaksi vikaa, sama juuri: **aikajanan aika-akseli tulee siltä
+ennustepisteeltä joka sattuu olemaan kartan keskellä**, ja se piste
+vaihtuu zoomatessa.
+
+### 1. Tarkkuus riippui zoomista
+
+`nearestPointToCenter()` valitsee lähimmän ladatun pisteen. Lähellä
+spottia se on spotti, ja spotin sarja tulee rajapinnasta tunneittain.
+Kauempana se on laattapiste, ja sen sarja oli säälaattavaraston oma
+akseli — mitattuna julkaistusta luettelosta **60 kertaa 3 h ja sen
+jälkeen 36 kertaa 6 h** (ECMWF:n `temporal_resolution_seconds`,
+97 hetkeä, 16,5 vrk). Uloszoomattuna aikajana siis harveni, ja
+seitsemän vuorokauden jälkeen kuuteen tuntiin.
+
+**Korjaus ei keksi dataa.** Kartta on koko ajan lukenut näiden askelten
+välistä: `Saalaatat.asetaHetki` ottaa minkä tahansa hetken ja
+`naytteista` interpoloi nopeuden ja suunnan erikseen. Aina kun aikajana
+on ollut tunneittain — eli aina kun keskellä on ollut spotti — juuri
+sitä interpolaatiota on katsottu. `Saalaatat.wxTunneittain()` antaa
+saman myös laattapisteelle.
+
+Mitattu sovelluksesta:
+
+| | |
+|---|---|
+| varaston akseli | 97 hetkeä → tuntiakseli 397 |
+| varaston omilla hetkillä | 97 pistettä, suurin ero **0 m/s** |
+| välihetkillä vs kartan oma `naytteista()` | 300 pistettä, keski **0**, max **0 m/s** |
+
+Aikajana näyttää siis täsmälleen sen mitä kartta piirtää — ei enempää
+eikä vähempää. Askel on nyt 1 h joka zoomilla (z12, z9, z6, z4, uloin:
+397 pistettä, 16,5 vrk, ei yhtään 3 h tai 6 h väliä).
+
+Kaksi mitoitusasiaa jotka on pidettävä mielessä:
+
+- **Akseli rakennetaan kerran ja jaetaan.** `_ts()`:n muisti on
+  avaimitettu taulukon identiteetillä; pistekohtainen akseli mitätöisi
+  sen, ja se maksoi aikanaan 337 000 `new Date()` -kutsua uloimmassa
+  näkymässä.
+- **Tukipisteiden joukkohaku käyttää yhä `wx()`:ää.** `loadGlobalCoarse`
+  materialisoi 276 pistettä, eikä niistä katsota sarjaa vaan poimitaan
+  yksi hetki. Nelinkertainen taulukko olisi siellä pelkkää muistia.
+
+### 2. Hetki hyppäsi kun akseli vaihtui
+
+`currentHourIdx` on **indeksi**, ja indeksin merkitys riippuu
+akselista. Kun zoomaus vaihtoi keskellä olevan pisteen, indeksi 12
+tarkoitti yhtäkkiä eri hetkeä: sää muuttui ilman että käyttäjä koski
+aikajanaan, eikä mikään kertonut miksi.
+
+`_tlSailytaHetki()` hakee uuden indeksin **ajasta**. Mitattuna
+synteettisillä akseleilla (laatta 3 h alkaen t0, spotti 1 h alkaen
+t0 + 5 h — rajapinta alkaa eri hetkestä kuin varasto):
+
+| siirtymä | ero korjattuna | ero ilman korjausta |
+|---|---|---|
+| laatta 3 h → spotti 1 h (idx 10) | 0 h | **−15 h** |
+| laatta 3 h → spotti 1 h (idx 30) | 0 h | **−55 h** |
+| spotti 1 h → laatta 3 h (idx 40) | 0 h | **+75 h** |
+| laatta 1 h → spotti 1 h (idx 40) | 0 h | **+5 h** |
+| spotti 1 h → laatta 1 h (idx 40) | 0 h | **−5 h** |
+
+Kaksi viimeistä riviä ovat se syy miksi molempia korjauksia tarvittiin:
+**vaikka molemmat akselit olisivat tunneittain, ne eivät ala samasta
+hetkestä.** Pelkkä tarkkuuden korjaaminen olisi jättänyt viiden tunnin
+hypyn jäljelle.
+
+Sovelluksessa mitattuna neljä reittiä (uloin↔z12, z9→z13, z13→z5):
+valittu hetki **09-02 23:00 → 09-02 23:00, ero 0 h** kaikilla.
+
+### Mitä tämä maksoi
+
+Aikajanan DOM on uloszoomattuna 397 tikkiä entisen 97 sijaan. Pitkät
+tehtävät zoomissa (4× kuristus, 5 ajoa, mediaani):
+
+| siirtymä | 397 tikkiä | 97 tikkiä |
+|---|---|---|
+| z11 → uloin | 2285 ms / 34 | 2148 ms / 31 |
+| uloin → z11 | 622 ms / 11 | 495 ms / 8 |
+| z9 → z6 | 2291 ms / 34 | 2262 ms / 34 |
+
+Ero on mittausmelun sisällä — raakalukujen alueet menevät joka
+tapauksessa päällekkäin. Eikä 397 ole uusi suuruusluokka: spotin sarja
+on ollut 384 tikkiä koko ajan aina kun keskellä on ollut spotti, eli
+lähizoomissa aina.
