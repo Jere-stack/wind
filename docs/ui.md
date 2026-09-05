@@ -1585,3 +1585,51 @@ että jälkeen muutoksen. Näytteet on otettava ympyrän sisältä (0,15 ja
 0,85 akselia pitkin ovat säteellä 0,35). Neljä pistettä neljästä osuu
 kaikkiin viiteen nappiin, ja luvut ovat identtiset ennen ja jälkeen —
 eli tagin vaihto ei vienyt yhtään napautusta.
+
+## Vähennä liikettä — aiemmin kaksi valitsinta, nyt koko sovellus
+
+iOS:n Reduce Motion on asetus jota vestibulaarihäiriöiset tarvitsevat, ja
+tämä sovellus animoi jatkuvasti liikkuvaa partikkelikenttää. Sääntö
+kattoi ennen kaksi valitsinta (`.spot-ring`, `.spot-lbl`) eli käytännössä
+ei mitään.
+
+Nyt kolmella tasolla:
+
+**CSS** nollaa siirtymät ja animaatiot koko sivulta. Kesto on 0,001 ms
+eikä `none`, koska nollakestoinen siirtymä lähettää yhä
+`transitionend`-tapahtuman jota jotkin polut odottavat. `transition-delay:
+0s` on tässä **pakollinen**: suljetut paneelit piilotetaan
+`visibility`-siirtymällä jonka viive odottaa liu'un ohi, ja ilman liukua
+paneeli jäisi sarkainkierrokseen 0,38 s:ksi jokaisen sulkemisen jälkeen.
+
+**JS** hoitaa ne kolme asiaa joita CSS ei näe: partikkelikenttä,
+ohjelmalliset pehmeät vieritykset (`Liike.vieritys()`) ja Leafletin
+`flyTo` (→ `setView`). `Liike.vahenna()` kysyy `matchMedia`lta joka
+kerta eikä kerran käynnistyksessä — asetus voi vaihtua sovelluksen
+ollessa auki.
+
+**Käyttäjän valinta voittaa.** Asetuksen oletus on 'normaali', eikä
+oletusta voi erottaa valinnasta pelkästä arvosta — siksi valinta
+merkitään omaan avaimeensa (`fs_partikkelit_valittu`) kun käyttäjä koskee
+siruun. Jos hän valitsee partikkelit päälle Reduce Motionin ollessa
+voimassa, hän tarkoittaa sitä. Vihje kertoo miksi kenttä on tyhjä; ilman
+sitä käyttäjä näkisi "Normaali" valittuna ja tyhjän kartan.
+
+Mitattuna molempiin suuntiin (`liike.mjs`, `liike2.mjs`):
+
+| | normaali | Reduce Motion |
+|---|---|---|
+| partikkeleita | 234 | **0** |
+| partikkelikanvas | `visible` | `hidden` |
+| kentän mustemäärä 0,7 s välein | 128 473 → 135 057 (**liikkuu**) | 0 → 0 |
+| paneelin siirtymä / viive | 0,34 s / 0,34 s | 1e-06 s / **0 s** |
+| lämpökartta | 15 laattaa | 15 laattaa |
+
+Ja ketju loppuun asti: Reduce Motion päällä → 0 partikkelia ja vihje
+näkyy → käyttäjä napauttaa "Normaali" → 234 partikkelia ja vihje palaa
+akkutekstiin → "Pois" → 0.
+
+**Partikkelit sammuvat, eivät jähmety.** Jäädytetty kenttä olisi yksi
+ruutu satunnaisia pisteitä, ei virtauskuva — se ei kertoisi suunnasta
+mitään. Suunta on saatavilla kolmesta muusta paikasta jotka eivät liiku:
+kapselin lukema, spottikortti ja aikajanan suuntanuolet.

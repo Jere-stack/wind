@@ -2403,8 +2403,29 @@ html.tyopoyta {
 .spot-lbl {
   transition: opacity .28s ease, transform .32s cubic-bezier(.32, .72, 0, 1);
 }
+/* ── VÄHENNÄ LIIKETTÄ ──────────────────────────────────────────────
+ *
+ * iOS:n Reduce Motion on asetus jota vestibulaarihäiriöiset tarvitsevat,
+ * ja tämä sovellus animoi jatkuvasti liikkuvaa partikkelikenttää.
+ * Aiemmin sääntö kattoi kaksi valitsinta (`.spot-ring`, `.spot-lbl`) —
+ * eli käytännössä ei mitään.
+ *
+ * Kesto on 0,001 ms eikä `none`: nollakestoinen siirtymä lähettää yhä
+ * `transitionend`-tapahtuman, jota jotkin polut odottavat. `none`
+ * jättäisi ne odottamaan ikuisesti.
+ *
+ * `transition-delay: 0s` on tässä pakollinen: suljetut paneelit
+ * piilotetaan `visibility`-siirtymällä jonka viive odottaa liu'un ohi.
+ * Kun liukua ei ole, viivettäkään ei saa olla — muuten paneeli jäisi
+ * sarkainkierrokseen 0,38 s:ksi jokaisen sulkemisen jälkeen. */
 @media (prefers-reduced-motion: reduce) {
-  .spot-ring, .spot-lbl { transition: none; }
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
 }
 /* -- SPOT CARD ENHANCEMENTS ------------------------------------- */
 
@@ -2704,7 +2725,7 @@ html.tyopoyta {
             <div class="sp-chip" data-arvo="vahan">Vähän</div>
             <div class="sp-chip" data-arvo="pois">Pois</div>
           </div>
-          <div class="sp-vihje">Vähentää akun kulutusta vanhemmilla puhelimilla.</div>
+          <div class="sp-vihje" id="partikkeli-vihje">Vähentää akun kulutusta vanhemmilla puhelimilla.</div>
 
           <div class="sp-label" style="margin-top:18px">Väriasteikko</div>
           <div class="sp-chips" id="asetus-ramppi">
@@ -3273,6 +3294,32 @@ const POHJAT = {
     nimi: 'Satelliitti',
     url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     attr: 'Esri, Maxar, Earthstar Geographics ja GIS-käyttäjäyhteisö.'
+  }
+};
+
+/* -- LIIKE -------------------------------------------------------
+ *
+ * Käyttöjärjestelmän "Vähennä liikettä". Luetaan JOKA KYSYMYKSELLÄ
+ * eikä kerran käynnistyksessä: asetus voi vaihtua sovelluksen ollessa
+ * auki, ja `matchMedia` on halpa.
+ *
+ * Tämä on JS-puolen pari CSS:n `prefers-reduced-motion`-lohkolle.
+ * CSS hoitaa siirtymät ja animaatiot; tästä kysytään ne kolme asiaa
+ * joita CSS ei näe: partikkelikenttä, ohjelmalliset pehmeät vieritykset
+ * ja Leafletin omat kartta-animaatiot. */
+const Liike = {
+  vahenna() {
+    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+    catch (e) { return false; }
+  },
+  /* Pehmeä vieritys vain jos liikettä saa olla. */
+  vieritys() { return this.vahenna() ? 'auto' : 'smooth'; },
+  AVAIN: 'fs_partikkelit_valittu',
+  partikkelitValittu() {
+    try { return localStorage.getItem(this.AVAIN) === '1'; } catch (e) { return false; }
+  },
+  merkitsePartikkelivalinta() {
+    try { localStorage.setItem(this.AVAIN, '1'); } catch (e) {}
   }
 };
 
@@ -9494,10 +9541,20 @@ function partikkeliZoomKerroin() {
   return 1;
 }
 function nParticles() { return PerfTracker.getTarget(); }
-/* Yksi kysymys kahdelle kytkimelle: mittauskytkin (?perf=1) ja
-   asetuspaneelin "Pois". Kumpi tahansa riittää. */
+/* Yksi kysymys kolmelle kytkimelle: mittauskytkin (?perf=1),
+   asetuspaneelin "Pois" ja käyttöjärjestelmän Vähennä liikettä.
+   Mikä tahansa riittää.
+
+   VÄHENNÄ LIIKETTÄ VOITTAA VAIN JOS KÄYTTÄJÄ EI OLE ITSE VALINNUT.
+   Asetuksen oletus on 'normaali', eikä oletusta voi erottaa
+   valinnasta pelkästä arvosta — siksi valinta merkitään omaan
+   avaimeensa silloin kun käyttäjä koskee siruun. Jos hän valitsee
+   partikkelit päälle Reduce Motionin ollessa voimassa, hän tarkoittaa
+   sitä ja saa ne. */
 function partikkelitPois() {
-  return !!State._perfNoParticles || Asetukset.arvot.partikkelit === 'pois';
+  if (State._perfNoParticles) return true;
+  if (Asetukset.arvot.partikkelit === 'pois') return true;
+  return Liike.vahenna() && !Liike.partikkelitValittu();
 }
 /* Leveys ja määrä on valittu yhdessä, mitattuna.
  *
@@ -11229,10 +11286,15 @@ function renderSpots(hourIdx) {
           Haptics.medium();
           const map = State.map;
           const targetZoom = Math.max(map.getZoom(), 10);
-          map.flyTo([spot.lat, spot.lng], targetZoom, {
-            animate: true, duration: 0.5, easeLinearity: 0.15,
-          });
-          setTimeout(() => openSheet(spot, hourIdx), 350);
+          if (Liike.vahenna()) {
+            map.setView([spot.lat, spot.lng], targetZoom, { animate: false });
+            openSheet(spot, hourIdx);
+          } else {
+            map.flyTo([spot.lat, spot.lng], targetZoom, {
+              animate: true, duration: 0.5, easeLinearity: 0.15,
+            });
+            setTimeout(() => openSheet(spot, hourIdx), 350);
+          }
         })
         .addTo(State.map)
     );
@@ -13952,7 +14014,7 @@ function openSheet(spot, hourIdx) {
       var tl = document.getElementById('tl-scroll');
       if (tl && State._tlTicks && State._tlTicks[newIdx]) {
         var tick = State._tlTicks[newIdx];
-        tl.scrollTo({ left: tick.offsetLeft - tl.offsetWidth/2 + 12, behavior: 'smooth' });
+        tl.scrollTo({ left: tick.offsetLeft - tl.offsetWidth/2 + 12, behavior: Liike.vieritys() });
       }
       if (typeof _tlUpdateNow === 'function') _tlUpdateNow(newIdx);
       if (typeof buildWindField === 'function')
@@ -14340,7 +14402,7 @@ function _scrollToSection(id) {
   if (!el || !sheet) return;
   var top = el.offsetTop - 16;
   const _scrollEl = document.getElementById('sheet-scroll') || sheet;
-  _scrollEl.scrollTo({ top: top, behavior: 'smooth' });
+  _scrollEl.scrollTo({ top: top, behavior: Liike.vieritys() });
 }
 
 /* Trendi-stat-kortti */
@@ -15871,7 +15933,7 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
     const idx = parseInt(tick.dataset.idx);
     if (isNaN(idx)) return;
     Haptics.selection();
-    tl.scrollTo({ left: tick.offsetLeft - tl.offsetWidth / 2 + TICK_W / 2, behavior: 'smooth' });
+    tl.scrollTo({ left: tick.offsetLeft - tl.offsetWidth / 2 + TICK_W / 2, behavior: Liike.vieritys() });
     if (idx !== State.currentHourIdx) {
       State.currentHourIdx = idx;
       _tlUpdateNow(idx);
@@ -16065,7 +16127,7 @@ function _tlKorostaPaiva(d) {
   const nakyyV = kisko.scrollLeft + 16, nakyyO = kisko.scrollLeft + kisko.clientWidth - 16;
   if (vasen < nakyyV || oikea > nakyyO) {
     try {
-      kisko.scrollTo({ left: vasen - kisko.clientWidth / 2 + osuma.offsetWidth / 2, behavior: 'smooth' });
+      kisko.scrollTo({ left: vasen - kisko.clientWidth / 2 + osuma.offsetWidth / 2, behavior: Liike.vieritys() });
     } catch (e) { kisko.scrollLeft = vasen - kisko.clientWidth / 2; }
   }
 }
@@ -16133,7 +16195,7 @@ function scrollTimelineTo(idx) {
      pelkkää työtä, joka tehdään uudelleen heti kun vieritys pysähtyy. */
   State._tlOhjelmallinen = true;
   const target = State._tlTicks[idx];
-  tl.scrollTo({ left: target.offsetLeft - tl.offsetWidth / 2 + 10, behavior: 'smooth' });
+  tl.scrollTo({ left: target.offsetLeft - tl.offsetWidth / 2 + 10, behavior: Liike.vieritys() });
 }
 
 /* Vie jana ja kenttä murtolukusijaintiin. Sama funktio ajetaan joka
@@ -16957,7 +17019,8 @@ document.getElementById('btn-loc').addEventListener('click', () => {
   if (!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(p => {
     const lat = p.coords.latitude, lng = p.coords.longitude;
-    State.map.flyTo([lat, lng], 9, { duration: 1.2 });
+    if (Liike.vahenna()) State.map.setView([lat, lng], 9);
+    else State.map.flyTo([lat, lng], 9, { duration: 1.2 });
     if (State._locMarker) State._locMarker.remove();
     const icon = L.divIcon({
       className: '',
@@ -17179,7 +17242,8 @@ const ForecastPanel = {
         if (!spot) return;
         Haptics.medium();
         this.close();
-        State.map.flyTo([spot.lat, spot.lng], 10, { duration: 1 });
+        if (Liike.vahenna()) State.map.setView([spot.lat, spot.lng], 10);
+        else State.map.flyTo([spot.lat, spot.lng], 10, { duration: 1 });
         /* Jump timeline to the window's hour */
         if (State._tlTimes && time) {
           const target = new Date(time).getTime();
@@ -17466,7 +17530,7 @@ const WxPanel = {
     /* Scroll to now */
     setTimeout(() => {
       const nowEl = scroll.querySelector('.now');
-      if (nowEl) nowEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      if (nowEl) nowEl.scrollIntoView({ behavior: Liike.vieritys(), inline: 'center', block: 'nearest' });
     }, 50);
   }
 };
@@ -17576,6 +17640,18 @@ const KarttaAsetukset = {
         const chip = e.target.closest('.sp-chip');
         if (!chip || !el.contains(chip)) return;
         const avain = this.RYHMAT[id];
+        /* Merkintä ennen `aseta`n paluuarvon tarkistusta: jos käyttäjä
+           napauttaa "Normaali" Vähennä liikettä -tilassa, arvo ei
+           muutu (se on jo 'normaali') mutta VALINTA on tehty — ja juuri
+           se on se tieto jolla partikkelit palaavat. */
+        if (avain === 'partikkelit') {
+          Liike.merkitsePartikkelivalinta();
+          this._partikkeliVihje();
+          if (Asetukset.arvot.partikkelit === chip.dataset.arvo) {
+            this._partikkeliNakyvyys();
+            resetParticles(true);
+          }
+        }
         if (!Asetukset.aseta(avain, chip.dataset.arvo)) return;
         Haptics.light();
         this._merkitse(id);
@@ -17588,6 +17664,7 @@ const KarttaAsetukset = {
        karttaa uusiksi — vain kirjoitetaan se mikä on vielä oletuksessa. */
     this._lahteet();
     this._ramppiVihje();
+    this._partikkeliVihje();
     this._partikkeliNakyvyys();
     document.documentElement.setAttribute('data-pohja', Asetukset.arvot.pohja);
   },
@@ -17603,6 +17680,17 @@ const KarttaAsetukset = {
   _lahteet() {
     const el = document.getElementById('pohja-lahteet');
     if (el) el.innerHTML = Asetukset.pohja().attr;
+  },
+
+  /* Vihje kertoo miksi partikkelit ovat poissa. Ilman tätä käyttäjä
+     näkisi "Normaali" valittuna ja tyhjän kartan eikä tietäisi syytä. */
+  _partikkeliVihje() {
+    const el = document.getElementById('partikkeli-vihje');
+    if (!el) return;
+    el.textContent = (Liike.vahenna() && !Liike.partikkelitValittu())
+      ? 'Vähennä liikettä on päällä, joten partikkelit ovat pois. '
+        + 'Napauta valintaa yllä jos haluat ne silti.'
+      : 'Vähentää akun kulutusta vanhemmilla puhelimilla.';
   },
 
   _ramppiVihje() {
