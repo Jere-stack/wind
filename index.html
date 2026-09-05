@@ -1322,75 +1322,6 @@ html.tyopoyta #kapseli.vaistyy {
   100% { transform: scale(2.2); opacity: 0; }
 }
 
-/* ============================================================
-   SPOT LIST — Ranked spots panel
-   ============================================================ */
-#spot-list {
-  color: var(--ink);
-  position: absolute; bottom: 0; left: 0; right: 0; z-index: 30;
-  background: var(--surface);
-  border-top: 1px solid var(--hairline);
-  border-radius: var(--sheet-radius) var(--sheet-radius) 0 0;
-  -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px);
-  box-shadow: 0 -8px 40px rgba(0,0,0,.6);
-  -webkit-transform: translate3d(0,100%,0); transform: translate3d(0,100%,0);
-  transition: transform .38s var(--spring);
-  max-height: 65vh;
-  overflow-y: auto; -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  padding-bottom: calc(var(--sab) + 16px);
-  will-change: transform;
-  touch-action: pan-y;
-}
-#spot-list.open { -webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0); }
-#spot-list.dragging { transition: none; }
-#spot-list-handle {
-  display: flex; justify-content: center; padding: 14px 0 8px;
-  position: sticky; top: 0; background: var(--surface); z-index: 1;
-  cursor: grab;
-}
-#spot-list-handle:active { cursor: grabbing; }
-#spot-list-handle::after {
-  content: ''; width: 40px; height: 4px; border-radius: 2px;
-  background: var(--surface-lo);
-  transition: background .15s;
-}
-#spot-list-handle:active::after { background: var(--surface-lo); }
-.sl-header {
-  padding: 4px 20px 14px; display: flex; justify-content: space-between; align-items: center;
-}
-.sl-title { font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
-.sl-count { font-variant-numeric: tabular-nums; font-size: var(--fs-10); color: var(--ink-3); }
-.sl-item {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 20px; border-bottom: 1px solid var(--border);
-  cursor: pointer; transition: background .12s;
-  touch-action: manipulation;
-}
-.sl-item:active { background: var(--surface-lo); }
-.sl-rank {
-  font-variant-numeric: tabular-nums; font-size: var(--fs-11); font-weight: 700;
-  color: var(--ink-3); width: 20px; text-align: center; flex-shrink: 0;
-}
-.sl-dot {
-  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
-  border: 1.5px solid var(--hairline);
-}
-.sl-info { flex: 1; min-width: 0; }
-.sl-name { font-size: var(--fs-13); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sl-desc { font-variant-numeric: tabular-nums; font-size: var(--fs-9); color: var(--ink-3); margin-top: 1px; }
-.sl-wind { text-align: right; flex-shrink: 0; }
-.sl-wind-val {
-  font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 500;
-  line-height: 1;
-}
-.sl-wind-sub { font-variant-numeric: tabular-nums; font-size: var(--fs-9); color: var(--ink-3); margin-top: 2px; }
-.sl-badge-foilable {
-  display: inline-block; font-variant-numeric: tabular-nums; font-size: var(--fs-8);
-  background: var(--surface-lo); color: var(--ink-2);
-  border: 1px solid var(--hairline); border-radius: 4px;
-  padding: 1px 5px; margin-left: 6px; vertical-align: middle;
-}
 
 /* ── TYYPPIKOKO ───────────────────────────────────────────────────
  *
@@ -2952,12 +2883,6 @@ html.tyopoyta {
     </div>
   </div>
 
-    <div class="sl-header">
-      <span class="sl-title">Spotit</span>
-      <span class="sl-count" id="sl-count"></span>
-    </div>
-    <div id="sl-items"></div>
-  </div>
 
   <div id="toast"></div>
   <!-- Verkkotilan siru. Pysyy näkyvissä niin kauan kuin tila on voimassa,
@@ -3086,7 +3011,7 @@ function makeSwipeable(sheetEl, onDismiss, opts) {
 
   function onTouchStart(e) {
     /* Only start drag from handle OR if sheet is scrolled to top */
-    const isHandle = e.target.closest('#sheet-handle, #spot-list-handle');
+    const isHandle = e.target.closest('#sheet-handle');
     const scrollEl = document.getElementById('sheet-scroll') || sheetEl;
     const scrolledToTop = scrollEl.scrollTop <= 0;
     if (!isHandle && !scrolledToTop) return;
@@ -16970,15 +16895,15 @@ function _tlKeliNappiTila() {
   b.setAttribute('aria-disabled', on ? 'false' : 'true');
 }
 
-/* -- SPOT LIST -------------------------------------------------- */
-const SpotList = {
-  _open: false,
-  toggle() {},
-  close() {},
-  render() {}
-};
-
-/* btn-spots removed — fc-btn handles ForecastPanel */
+/* Spottilista poistettiin aikanaan, ja `fc-btn` (Parhaat ajankohdat)
+   hoitaa saman tehtävän. Tähän jäi tynkämoduuli `SpotList` jonka kaikki
+   metodit olivat tyhjiä, 69 riviä sen CSS:ää ja — pahimpana — orpo
+   markup-lohko jonka avaava `<div id="spot-list">` oli jo poistettu.
+   Jäljelle jäänyt pariton `</div>` nosti `.sl-headerin` BODYN lapseksi:
+   mitattuna elävä, näkyvä 393×38 px elementti sivun vasemmassa
+   yläkulmassa tekstinä "Spotit", jonka vain kartta peitti — ja
+   ruudunlukijalle sivun ensimmäinen sisältö. Kaikki kolme on nyt
+   poistettu. */
 
 /* -- FORECAST PANEL — Best 3h windows over 5 days -----------------
    Uses already-loaded spot hourly data — zero extra API calls.
@@ -16994,7 +16919,6 @@ const ForecastPanel = {
 
   open() {
     this._open = true;
-    SpotList.close();
     closeSheet();
     document.getElementById('sheet-overlay').classList.add('open');
     document.getElementById('fc-btn').classList.add('active');
