@@ -1379,3 +1379,90 @@ paikassa olevaa laattapistettä. Muistiossa on nyt myös lat/lng.
 Valovaiheet ovat muistissa avaimella (aikataulukon identiteetti, sijainti
 puolen asteen tarkkuudella). Puoli astetta on noin 55 km eikä se siirrä
 auringonnousua yhtä tuntitikkiä.
+
+## Aikajana: suunta, näppäimistö ja kelihyppy
+
+### Suunta oli datassa muttei ruudulla
+
+`dirs` vietiin `renderTimeline`en ja talletettiin `_tlDirs`:iin — eikä
+piirretty mihinkään. Mitattuna ennen: *suunnat tallessa true, piirretty
+janaan false*. Se on kuitenkin se mikä ratkaisee toimiiko spotti
+ylipäätään: 10 m/s väärästä suunnasta ei ole keli.
+
+Nuoli on **joka kolmannella tunnilla**, samassa rytmissä kuin tuntilukema
+— jokaisen tunnin nuoli olisi 22 px:n välein harmaa juova eikä asteikko.
+Kääntö on `dir + 180` niin kuin kaikkialla muuallakin (kapseli, tähtäin,
+havaintokaavio): `dir` kertoo mistä tuuli tulee, nuoli näyttää minne se
+menee. Mitattuna 63 nuolta 187 tikistä, kaikki tasan joka kolmannella
+tunnilla, ja 242° → `rotate(62deg)`.
+
+**NYT-lappu törmäsi nuoleen.** Lappu on 17,5 px leveä 2 px:n merkin
+päällä, eli se levittäytyy naapuritikkien päälle: mitattuna päällekkäisyys
+oli 3,9 px. Sama törmäys kuin aikanaan tuntilukeman kanssa ("NYT15").
+Nuoli jätetään pois merkin viereisiltä tikeiltä; niitä on korkeintaan
+yksi, koska nuoli on vain joka kolmannessa. Mitattuna jälkeen: 0 osumaa.
+
+### Näppäimistö — ja miksi ei nuolinäppäimillä
+
+**Leaflet omistaa nuolinäppäimet.** Sen `Keyboard`-käsittelijä panoroi
+karttaa nuolilla eikä tarkista shiftiä — se ohittaa vain alt/ctrl/metan,
+joten Shift+nuoli panoroisi myös. Aikajanan askellus on siksi pilkulla ja
+pisteellä, samassa hengessä kuin videosoittimissa. PageUp/PageDown, Home
+ja välilyönti ovat vapaita: Leaflet sitoo vain nuolet, plussan, miinuksen
+ja Escin.
+
+| näppäin | teko |
+|---|---|
+| `,` `.` | tunti taakse/eteen, `Shift` kolme |
+| `PgUp` `PgDn` | vuorokausi taakse/eteen |
+| `Home` | nykyhetkeen |
+| `K` | seuraava kelivikkuna |
+| `Väli` | toista aika |
+
+**Shiftattu merkki on eri `e.key`.** Suomalaisella asettelulla Shift+`.`
+on `:` ja Shift+`,` on `;` (yhdysvaltalaisella `>` ja `<`), joten
+`e.key === '.'` ei osunut shiftin kanssa koskaan — mitattuna Shift+`.`
+ei liikuttanut valintaa lainkaan (52 → 52). `e.code` kertoo fyysisen
+näppäimen ja on riippumaton asettelusta. Mitattuna korjattuna 52 → 55.
+
+Mitattuna kaikki askeleet osuvat (+1, −1, +24, −24, Shift +3, Home =
+NYT-indeksi) **eikä kartta panoroi**: keskipiste 60,0500 / 24,9500
+ennen ja jälkeen.
+
+### Kelihyppy
+
+Päiväkisko vie päivään, mutta ei tuntiin: koko jana on 9 905 px eli
+25 ruudullista. `#btn-keli` vie seuraavaan tuntiin jossa tuulta on
+foilattavaksi asti **ja** aurinko on ylhäällä.
+
+Määritelmä on sovelluksen oma eikä uusi: `foilable` on jana- ja
+karttakoodissa jo `ms >= 8`, ja valokaista tietää milloin aurinko on
+ylhäällä (valovaihe ≥ 2). Yläraja jätettiin pois tarkoituksella: 18 m/s
+on kelivalinta, ei kelin puute, ja rajan keksiminen olisi arvaus siitä
+kuka appia käyttää.
+
+**Kohde on seuraavan JAKSON alku, ei seuraava kelvollinen tunti.**
+Ensimmäinen versio palautti jälkimmäisen, ja mitattuna neljä painallusta
+hyvän jakson päällä antoi `2 → 3 → 4 → 5`: nappi oli "tunti eteenpäin"
+juuri silloin kun sitä painetaan, eli kun halutaan tietää milloin
+seuraava on. Nyt käynnissä olevan jakson yli hypätään ensin — mitattuna
+`74 → 112 → 123 → 141`.
+
+Nappi **himmenee** kun jaksoja ei ole jäljellä, mutta ei katoa: katoava
+kontrolli siirtäisi kaiken muun ja jättäisi käyttäjän ihmettelemään mihin
+se meni. Mitattuna akselin lopussa himmeä = true.
+
+**Napautus mitattiin napauttamalla.** Play-napissa oli aikanaan juuri
+tämä vika: läpinäkyvä kehä hävisi viereiselle `#tl-scroll`:lle. Kelinappi
+on siksi sama 44 px:n laatikko jonka ympyrä täyttää 40 px, ja
+`#tl-scroll` sai saman verran täytettä oikeaan reunaan kuin vasempaan.
+Mitattuna viisi kohtaa viidestä osuu nappiin.
+
+### Yksi valintapolku kolmelle ohjaimelle
+
+Päiväkisko, näppäimistö ja kelihyppy kulkevat kaikki `_tlValitseIdx`:n
+kautta. Se sisältää sen mitä päivänapautuksen korjaus opetti: hyppy
+asetetaan suoraan `_tlSetScrollLeft`illä eikä pehmeällä vierityksellä,
+koska janan kuuntelijat päivittävät kuplan ja päiväkorostuksen
+vierityksen mukaan. Ilman yhtä polkua sama vika olisi kirjoitettu
+uudelleen kolmesti.

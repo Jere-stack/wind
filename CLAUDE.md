@@ -210,6 +210,12 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   Ne eivät ole `_tlTicks`issä, ja ilman erillistä päivitystä ne jäivät
   edellisen sijainnin sävyyn (mitattu 0/18 oikein). `_tlMuisti`-vertailu
   sisältää lat/lng, koska laattapisteet jakavat aikataulukon.
+- **Nuolinäppäimet kuuluvat Leafletille.** Sen `Keyboard` panoroi karttaa
+  nuolilla eikä tarkista shiftiä (vain alt/ctrl/meta), joten Shift+nuoli
+  panoroi myös. Aikajanan askellus on `,` ja `.`, ja shiftattu merkki on
+  eri `e.key` (suomalaisella `:` ja `;`) — lue `e.code`.
+- **Aikajanan valinta kulkee `_tlValitseIdx`:n kautta** (päiväkisko,
+  näppäimistö, kelihyppy). Älä kirjoita neljättä polkua.
 - **Päiväkiskon napautus ei saa käyttää `scrollTimelineTo`a.** Kupla ja
   päiväkorostus päivittyvät VIERITYKSEN mukaan, joten pehmeä animaatio
   kävelee jokaisen välipäivän läpi (mitattu 15 välitilaa ja 1001 ms

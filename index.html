@@ -1020,6 +1020,46 @@ html.tyopoyta #kapseli.vaistyy {
 .tl-play-btn svg { width: 17px; height: 17px; position: relative; }
 .tl-play-btn:active { background: none; }
 
+/* KELIHYPPY — 25 ruudullista raahausta yhdeksi napautukseksi.
+ *
+ * Päiväkisko vie päivään, mutta ei tuntiin: koko jana on 9 905 px eli
+ * 25 ruudullista, ja se tunti jota etsitään voi olla missä tahansa.
+ * Tämä nappi vie seuraavaan tuntiin jossa tuulta on foilattavaksi asti
+ * JA aurinko on ylhäällä (ks. `_tlSeuraavaKeli`).
+ *
+ * Mitoitus on kopio play-napista ja samasta syystä: 44 px:n laatikko,
+ * jonka ympyrä täyttää siitä 40 px. Läpinäkyvä kehä ei kelpaa —
+ * Chromiumin kosketussäätö siirtää napautuksen lähimpään MAALATTUUN
+ * kohteeseen, ja play-napin kehä hävisi aikanaan viereiselle
+ * `#tl-scroll`:lle (ks. docs/eleet.md).
+ *
+ * `#tl-scroll` saa saman verran täytettä oikeaan reunaan kuin
+ * vasempaankin, jottei nappi peitä tikkejä. Keskitys ei muutu: se
+ * tulee reunavälikkeistä, eivät täytteestä. */
+.tl-keli-btn {
+  position: absolute;
+  right: calc(var(--sar) + 9px);
+  bottom: calc(var(--sab-tl) + 19px);
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: none;
+  color: var(--ink);
+  box-shadow: none;
+  z-index: 6;
+  transition: color .2s ease, opacity .2s ease;
+}
+.tl-keli-btn::before {
+  content: ''; position: absolute; inset: 2px;
+  border-radius: 50%;
+  background: var(--surface-lo);
+}
+.tl-keli-btn svg { position: relative; }
+.tl-keli-btn:active { background: none; }
+/* Kun kelivikkunaa ei ole jäljellä, nappi himmenee mutta EI katoa:
+   katoava kontrolli siirtäisi kaiken muun ja jättäisi käyttäjän
+   ihmettelemään mihin se meni. */
+.tl-keli-btn.tyhja { opacity: .35; }
+
 /* PÄIVÄKISKO — pitkä hyppy yhdellä napautuksella.
  *
  * Mitattuna nyt-hetkestä viikon päähän on tuntinauhassa 3 934 px eli
@@ -1094,9 +1134,9 @@ html.tyopoyta #kapseli.vaistyy {
 #tl-scroll {
   display: flex; gap: 0; overflow-x: auto; overflow-y: hidden;
   -webkit-overflow-scrolling: touch; scrollbar-width: none;
-  padding-left: calc(var(--sal) + 54px); padding-right: 0;
-  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 15%, black 96%, transparent 100%);
-  mask-image: linear-gradient(to right, transparent 0%, black 15%, black 96%, transparent 100%);
+  padding-left: calc(var(--sal) + 54px); padding-right: calc(var(--sar) + 54px);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%);
   overscroll-behavior-x: contain; height: 100%;
   touch-action: pan-x; align-items: flex-end;
   /* Natiivi snäppäys: iOS päättää pysähtymiskohdan jo heiton aikana.
@@ -1144,6 +1184,30 @@ html.tyopoyta #kapseli.vaistyy {
   pointer-events: none;
 }
 .htick.past .htick-gust { opacity: 0.4; }
+
+/* SUUNTANUOLI JOKA KOLMANNELLE TUNNILLE.
+ *
+ * Suunta oli koko ajan viety `renderTimeline`en ja talletettu
+ * `_tlDirs`:iin, mutta sitä ei piirretty mihinkään. Se on kuitenkin se
+ * mikä ratkaisee toimiiko spotti ylipäätään — 10 m/s väärästä suunnasta
+ * ei ole keli.
+ *
+ * Nuoli on samassa rytmissä kuin tuntilukema (joka kolmas), koska
+ * jokaisen tunnin nuoli olisi 22 px:n välein harmaa juova eikä asteikko
+ * — sama syy kuin lukemien harventamisessa.
+ *
+ * Kääntö on `dir + 180` niin kuin kaikkialla muuallakin sovelluksessa
+ * (kapseli, tähtäin, havaintokaavio): `dir` kertoo mistä tuuli tulee,
+ * nuoli näyttää minne se menee. */
+.htick-dir {
+  position: absolute; top: 1px; left: 50%;
+  width: 11px; height: 11px; margin-left: -5.5px;
+  font-size: 10px; line-height: 11px; text-align: center;
+  color: var(--ink-3); opacity: .65;
+  pointer-events: none;
+  -webkit-user-select: none; user-select: none;
+}
+.htick.past .htick-dir { opacity: .3; }
 
 /* VALOKAISTA — mitkä tunnit ovat pimeitä.
  *
@@ -2841,6 +2905,15 @@ html.tyopoyta {
           <path d="M7 4.5v15l12-7.5z"/>
         </svg>
       </div>
+      <!-- Kelihyppy oikeassa reunassa: eteenpäin ajassa on oikealle, ja
+           play on vasemmassa reunassa vastapainona. -->
+      <div class="mctl tl-keli-btn" id="btn-keli" role="button" tabindex="0"
+           aria-label="Seuraava kelivikkuna" title="Seuraava kelivikkuna (K)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 5l6 7-6 7M14 5l6 7-6 7"/>
+        </svg>
+      </div>
       <div id="tl-paivat"></div>
       <div id="tl-indicator"><div id="tl-time-bubble">--:--</div></div>
       <div id="tl-scroll"></div>
@@ -2859,6 +2932,11 @@ html.tyopoyta {
         <dt><kbd>Shift</kbd><kbd>veto</kbd></dt><dd>Zoomaa vedettyyn alueeseen</dd>
         <dt><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></dt><dd>Siirrä karttaa</dd>
         <dt><kbd>+</kbd><kbd>−</kbd></dt><dd>Zoomaa taso kerrallaan</dd>
+        <dt><kbd>,</kbd><kbd>.</kbd></dt><dd>Tunti taakse tai eteen · <kbd>Shift</kbd> kolme tuntia</dd>
+        <dt><kbd>PgUp</kbd><kbd>PgDn</kbd></dt><dd>Vuorokausi taakse tai eteen</dd>
+        <dt><kbd>Home</kbd></dt><dd>Takaisin nykyhetkeen</dd>
+        <dt><kbd>K</kbd></dt><dd>Seuraava kelivikkuna</dd>
+        <dt><kbd>Väli</kbd></dt><dd>Toista aika</dd>
         <dt><kbd>Esc</kbd></dt><dd>Sulje kortti tai paneeli</dd>
         <dt><kbd>?</kbd></dt><dd>Näytä tämä luettelo</dd>
       </dl>
@@ -15236,6 +15314,47 @@ document.getElementById('sheet-handle').addEventListener('click', closeSheet, { 
       pikanappaimetNakyviin(!pn.classList.contains('open'));
       e.preventDefault();
     }
+
+    /* AIKAJANA NÄPPÄIMISTÖLTÄ.
+     *
+     * NUOLINÄPPÄIMET EIVÄT KELPAA. Leafletin oma `Keyboard`-käsittelijä
+     * panoroi karttaa nuolilla, eikä se tarkista shiftiä — se ohittaa
+     * vain alt/ctrl/metan. Shift+nuoli panoroisi siis myös. Siksi
+     * askellus on pilkulla ja pisteellä, samassa hengessä kuin
+     * videosoittimissa: ne ovat vierekkäin myös suomalaisella
+     * näppäimistöllä.
+     *
+     * PageUp/PageDown ja Home ovat vapaita — Leaflet sitoo vain nuolet,
+     * plussan, miinuksen ja Escin. */
+    /* SHIFTATTU MERKKI ON ERI `key`. Suomalaisella asettelulla Shift+.
+       on `:` ja Shift+, on `;` (yhdysvaltalaisella `>` ja `<`), joten
+       pelkkä `e.key === '.'` ei osunut shiftin kanssa koskaan —
+       mitattuna Shift+. ei liikuttanut valintaa lainkaan. `e.code`
+       kertoo FYYSISEN näppäimen ja on riippumaton asettelusta;
+       `e.key` jää rinnalle, jotta myös numeronäppäimistön piste käy. */
+    const koodi = e.code === 'Comma' ? ','
+      : (e.code === 'Period' || e.code === 'NumpadDecimal') ? '.'
+      : e.key;
+    let hoidettu = true;
+    switch (koodi) {
+      case ',': _tlSiirra(e.shiftKey ? -3 : -1); break;
+      case '.': _tlSiirra(e.shiftKey ? 3 : 1); break;
+      case 'PageUp':   _tlSiirra(-24); break;
+      case 'PageDown': _tlSiirra(24); break;
+      case 'Home':
+        if (State._tlTimes && State._tlTimes.length) _tlValitseIdx(nowIdx(State._tlTimes));
+        break;
+      case ' ': case 'Spacebar':
+        if (State._tlTicks && State._tlTicks.length) togglePlay();
+        break;
+      case 'k': case 'K': {
+        const kohde = _tlSeuraavaKeli(State.currentHourIdx);
+        if (kohde >= 0) _tlValitseIdx(kohde);
+        break;
+      }
+      default: hoidettu = false;
+    }
+    if (hoidettu) e.preventDefault();
   });
 })();
 
@@ -15439,7 +15558,7 @@ function _tlValovaiheet(times, lat, lng) {
   return arvot;
 }
 
-function _tlPaivitaPalkit(speeds, puuskat, valo) {
+function _tlPaivitaPalkit(speeds, puuskat, valo, dirs) {
   const tikit = State._tlTicks;
   for (let i = 0; i < tikit.length; i++) {
     const ms = speeds[i] || 0, bc = ColorRamp.ink(ms);
@@ -15458,6 +15577,14 @@ function _tlPaivitaPalkit(speeds, puuskat, valo) {
       g.style.cssText = tyyli;
     } else if (g) { g.remove(); }
     if (valo) _tlValoLuokka(tikki, valo[i]);
+    /* Nuoli on vain joka kolmannessa tikissä; muissa ei ole elementtiä
+       eikä sellaista luoda tässä — rytmi on rakennuksen päätös. */
+    if (dirs) {
+      const nuoli = tikki.querySelector('.htick-dir');
+      if (nuoli && dirs[i] != null) {
+        nuoli.style.transform = 'rotate(' + ((dirs[i] + 180) % 360).toFixed(0) + 'deg)';
+      }
+    }
   }
   /* PAIVAEROTTIMET PAIVITETAAN MYOS.
      Ne eivat ole tikkejä eivätkä siis `_tlTicks`issä, joten ilman tätä
@@ -15502,7 +15629,7 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
       && vanhat && vanhat.length === times.length
       && vanhat[0] === times[0] && vanhat[times.length - 1] === times[times.length - 1]
       && State._tlNytIdx === nowIdx(times)) {
-    _tlPaivitaPalkit(speeds, puuskat, valo);
+    _tlPaivitaPalkit(speeds, puuskat, valo, dirs);
     State._tlTimes = times; State._tlSpeeds = speeds; State._tlDirs = dirs;
     _tlBeginSelfScroll();
     requestAnimationFrame(() => {
@@ -15571,8 +15698,16 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
        pohjaan: 10 m/s palkki oli ylhäältä kulta ja alhaalta vihreä, mitattuna
        97 yksikön väriero palkin sisällä. Merkintä oli myös turha, koska palkin
        oma ramppiväri kertoo nopeuden jo — 8 m/s on siinä vihreä. */
+    /* NYT-lappu on 17,5 px leveä 2 px:n merkin päällä, eli se levittäytyy
+       naapuritikkien päälle: mitattuna se osui suuntanuoleen 3,9 px:n
+       verran. Sama törmäys kuin aikanaan tuntilukeman kanssa ("NYT15").
+       Nuoli jätetään pois merkin viereisiltä tikeiltä — niitä on
+       korkeintaan yksi, koska nuoli on vain joka kolmannessa. */
+    const dd = (dirs && dirs[i] != null && Math.abs(i - realNowIdx) > 1) ? dirs[i] : null;
     tick.innerHTML = '<div class="htick-bar' + (foilable ? ' foilable' : '') + '" style="height:' + barH + 'px;background:rgb(' + bc.r + ',' + bc.g + ',' + bc.b + ')"></div>'
       + (puuskaTyyli ? '<div class="htick-gust" style="' + puuskaTyyli + '"></div>' : '')
+      + (hour % 3 === 0 && dd != null
+          ? '<span class="htick-dir" style="transform:rotate(' + ((dd + 180) % 360).toFixed(0) + 'deg)">\u2191</span>' : '')
       + '<span class="htick-lbl">' + ('0'+hour).slice(-2) + '</span>';
     tl.appendChild(tick);
     State._tlTicks.push(tick);
@@ -15604,32 +15739,7 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
     kisko.addEventListener('click', function (e) {
       const el = e.target.closest && e.target.closest('.tl-paiva');
       if (!el || !el.dataset.pv) return;
-      const idx = _tlPaivanIdx(Number(el.dataset.pv));
-      if (idx < 0 || idx === State.currentHourIdx) return;
-      Haptics.selection();
-      State.currentHourIdx = idx;
-      State._lastTlHour = idx;
-      /* HYPPY ON HYPPY, EI VIERITYSANIMAATIO.
-       *
-       * `scrollTimelineTo` vierittää pehmeästi, ja janan omat
-       * kuuntelijat päivittävät kuplan ja päiväkorostuksen VIERITYKSEN
-       * mukaan. Kuuden vuorokauden hyppy on 3 168 px, joten animaatio
-       * kulki jokaisen välipäivän läpi: mitattuna korostus meni ensin
-       * oikeaan päivään (+174 ms), hyppäsi takaisin lähtöpäivään
-       * (+350 ms) ja käveli Su-Ma-Ti-Ke-To läpi ennen kuin asettui
-       * (+1001 ms). Valinta oli koko ajan oikea — vain näyttö laahasi.
-       *
-       * Suora asetus vie janan kerralla perille eikä tuota yhtään
-       * välitilaa. `_tlSetScrollLeft` merkitsee sen omaksi
-       * vieritykseksi, joten janan kuuntelijat eivät luule sitä
-       * sormeksi. */
-      const tl0 = document.getElementById('tl-scroll');
-      const kohde = State._tlTicks && State._tlTicks[idx];
-      if (tl0 && kohde) _tlSetScrollLeft(tl0, kohde.offsetLeft - tl0.offsetWidth / 2 + TL_TIKKI_LEV / 2);
-      _tlUpdateNow(idx);
-      buildWindField(idx).then(function () { drawColorField(); resetParticles(); });
-      renderSpots(idx);
-      if (State.sheetSpot) openSheet(State.sheetSpot, idx);
+      _tlValitseIdx(_tlPaivanIdx(Number(el.dataset.pv)));
     });
   }
 
@@ -15766,6 +15876,81 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
   });
 }
 
+/* VALITSE TUNTI SUORAAN — päiväkisko, näppäimistö ja kelihyppy.
+ *
+ * HYPPY ON HYPPY, EI VIERITYSANIMAATIO. `scrollTimelineTo` vierittää
+ * pehmeästi, ja janan omat kuuntelijat päivittävät kuplan ja
+ * päiväkorostuksen VIERITYKSEN mukaan. Kuuden vuorokauden hyppy on
+ * 3 168 px, joten animaatio kulki jokaisen välipäivän läpi: mitattuna
+ * korostus meni ensin oikeaan päivään (+174 ms), hyppäsi takaisin
+ * lähtöpäivään (+350 ms) ja käveli Su-Ma-Ti-Ke-To läpi ennen kuin
+ * asettui (+1001 ms). Valinta oli koko ajan oikea — vain näyttö laahasi.
+ *
+ * Suora asetus vie janan kerralla perille eikä tuota yhtään välitilaa.
+ * `_tlSetScrollLeft` merkitsee sen omaksi vieritykseksi, joten janan
+ * kuuntelijat eivät luule sitä sormeksi.
+ *
+ * Palauttaa true jos valinta muuttui. */
+function _tlValitseIdx(idx) {
+  if (!State._tlTicks || !State._tlTicks.length) return false;
+  if (idx < 0 || idx >= State._tlTicks.length) return false;
+  if (idx === State.currentHourIdx) return false;
+  if (State.isPlaying) stopPlay();
+  Haptics.selection();
+  State.currentHourIdx = idx;
+  State._lastTlHour = idx;
+  State._tlLastTick = idx;
+  const tl = document.getElementById('tl-scroll');
+  const kohde = State._tlTicks[idx];
+  if (tl && kohde) _tlSetScrollLeft(tl, kohde.offsetLeft - tl.offsetWidth / 2 + TL_TIKKI_LEV / 2);
+  _tlUpdateNow(idx);
+  buildWindField(idx).then(function () { drawColorField(); resetParticles(); });
+  renderSpots(idx);
+  if (State.sheetSpot) openSheet(State.sheetSpot, idx);
+  return true;
+}
+
+/* Siirrä valintaa suhteessa nykyiseen. Reunat leikkaavat eivätkä kierrä:
+   akselin pää on akselin pää, ja kiertäminen veisi käyttäjän 16 vrk
+   taaksepäin yhdellä painalluksella. */
+function _tlSiirra(askelia) {
+  const n = State._tlTicks ? State._tlTicks.length : 0;
+  if (!n) return false;
+  const nyt = Math.round(State.currentHourIdx || 0);
+  return _tlValitseIdx(Math.max(0, Math.min(n - 1, nyt + askelia)));
+}
+
+/* SEURAAVA KELIVIKKUNA.
+ *
+ * Määritelmä on sovelluksen oma eikä uusi: `foilable` on jana- ja
+ * karttakoodissa jo `ms >= 8`, ja valokaista tietää milloin aurinko on
+ * ylhäällä. Ikkuna on siis ensimmäinen tunti valitusta hetkestä
+ * ETEENPÄIN jossa molemmat pätevät. Yläraja jätetään pois
+ * tarkoituksella: 18 m/s on kelivalinta, ei kelin puute, ja rajan
+ * keksiminen olisi arvaus siitä kuka appia käyttää.
+ *
+ * KOHDE ON SEURAAVAN JAKSON ALKU, ei seuraava kelvollinen tunti.
+ * Ensimmäinen versio palautti jälkimmäisen, ja mitattuna neljä
+ * painallusta hyvän jakson päällä antoi 2 -> 3 -> 4 -> 5: nappi oli
+ * "tunti eteenpäin" juuri silloin kun sitä painetaan, eli kun halutaan
+ * tietää MILLOIN SEURAAVA on. Nyt käynnissä olevan jakson yli
+ * hypätään ensin.
+ *
+ * Palauttaa indeksin tai -1. */
+const TL_KELI_MS = 8;
+function _tlSeuraavaKeli(nykyIdx) {
+  const sp = State._tlSpeeds, n = State._tlTicks ? State._tlTicks.length : 0;
+  if (!sp || !n) return -1;
+  const valo = State._tlMuisti && State._tlMuisti.valo;
+  /* Ilman valotietoa ei hylätä mitään — pimeys on lisäehto, ei
+     edellytys sille että nappi toimii lainkaan. */
+  const hyva = i => (sp[i] || 0) >= TL_KELI_MS && !(valo && valo[i] < 2);
+  let i = Math.max(0, Math.round(nykyIdx || 0));
+  while (i < n && hyva(i)) i++;      /* ulos käynnissä olevasta jaksosta */
+  while (i < n && !hyva(i)) i++;     /* seuraavan jakson alkuun */
+  return i < n ? i : -1;
+}
+
 /* Asettaa aikajanan vierityksen OHJELMALLISESTI.
  *
  * renderTimeline() ajetaan uudelleen joka kartansiirrolla, ja se asettaa
@@ -15894,6 +16079,7 @@ function _tlUpdateNow(idx) {
   const bubble = document.getElementById('tl-time-bubble');
   if (bubble) bubble.textContent = DAY[d.getDay()] + ' ' + hh + ':00';
   _tlKorostaPaiva(d);
+  if (typeof _tlKeliNappiTila === 'function') _tlKeliNappiTila();
 }
 
 /* Vahvistaa valinnan kun scroll on pysähtynyt. Natiivi snäppäys on jo
@@ -16741,6 +16927,26 @@ document.getElementById('btn-loc').addEventListener('click', () => {
 }, { passive: true });
 
 document.getElementById('btn-play').addEventListener('click', togglePlay, { passive: true });
+
+/* Kelihyppy — ks. `_tlSeuraavaKeli`: kohde on seuraavan JAKSON alku. */
+document.getElementById('btn-keli').addEventListener('click', function () {
+  const kohde = _tlSeuraavaKeli(State.currentHourIdx);
+  if (kohde >= 0) { _tlValitseIdx(kohde); return; }
+  /* Ei löytynyt: kerrotaan se napista eikä jätetä käyttäjää
+     arvailemaan onko nappi rikki. */
+  Haptics.light();
+  _tlKeliNappiTila();
+}, { passive: true });
+
+/* Napin himmennys kertoo onko jäljellä yhtään kelivikkunaa. Ajetaan
+   `_tlUpdateNow`sta, eli aina kun valinta liikkuu. */
+function _tlKeliNappiTila() {
+  const b = document.getElementById('btn-keli');
+  if (!b) return;
+  const on = _tlSeuraavaKeli(State.currentHourIdx) >= 0;
+  b.classList.toggle('tyhja', !on);
+  b.setAttribute('aria-disabled', on ? 'false' : 'true');
+}
 
 /* -- SPOT LIST -------------------------------------------------- */
 const SpotList = {
