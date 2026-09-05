@@ -244,6 +244,22 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kartalle (mitattu ero 0 m/s). Akseli rakennetaan KERRAN ja jaetaan;
   pistekohtainen mitätöisi `_ts()`:n muistin.
 
+**Aallot**
+
+- **Aaltodata on kytkimen takana** (`Asetukset.arvot.aallot`), koska se on
+  ainoa uusi rajapintakiintiö sen jälkeen kun tuuli siirrettiin omaan
+  varastoon. Pois päältä ei tehdä yhtäkään kutsua.
+- **Vain `wave_height`, ei tuuli/maininki-jakoa.** Mitattuna malli lukee
+  Itämerellä lähes kaiken maininiksi (`wind_wave` 0,00–0,02 m vs
+  `swell_wave` 0,08 m) — kokonaiskorkeus on ainoa luku joka pitää
+  paikkansa.
+- **`isMarine` EI ole maa/vesi-testi.** Se palauttaa 0,500 sekä
+  Tampereelle että avomerelle. Aaltojen maaportti on rajapinnan oma
+  `elevation > 20 m` (spottien solut 0–12 m, sisämaa 86–97 m).
+- **Välimuistin avain on 0,05° hilalla**, koska mallin solu on ~0,04° ja
+  naapurispotit jakavat sen. Kiintiötä säästetään siellä missä se ei
+  maksa mitään.
+
 **Kenttä ja data**
 
 - **Interpolointijärjestys: paikassa vektorit, ajassa nopeus ja suunta

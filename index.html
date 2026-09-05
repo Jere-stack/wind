@@ -2551,6 +2551,24 @@ html.tyopoyta {
   letter-spacing: .1px;
 }
 
+/* Aaltorivi. Sama muoto kuin aurinkorivillä: yksi rivi pieniä faktoja,
+   ei omaa korttia. Havaintoruudukko on `repeat(4, 1fr)` ja viides kortti
+   jättäisi orvon rivin (ks. Spottikortin auditointi) — eikä aalto ole
+   havainto vaan ennuste, joten se kuuluu ennusteen viereen. */
+.sh-aalto-rivi {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-10);
+  color: var(--ink-3);
+  margin: -10px 0 16px;
+  letter-spacing: .1px;
+  display: flex; align-items: baseline; gap: 6px;
+}
+.sh-aalto-rivi .sh-aalto-nimi {
+  font-size: var(--fs-8); font-weight: 700; letter-spacing: 1.2px;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.sh-aalto-rivi b { color: var(--ink); font-weight: 600; }
+
 /* 24h line chart */
 .sh-24h-section { margin-bottom: 16px; }
 .sh-24h-header {
@@ -2848,6 +2866,15 @@ html.tyopoyta {
                Ilman tätä käyttäjä valitsisi vaihtoehdon eikä näkisi mitään
                eikä tietäisi miksi. Ks. ColorRamp.karttaRamppi(). -->
           <div class="sp-vihje" id="ramppi-vihje"></div>
+
+          <div class="sp-label" style="margin-top:18px">Aallot</div>
+          <div class="sp-chips" id="asetus-aallot">
+            <div class="sp-chip active" data-arvo="pois">Pois</div>
+            <div class="sp-chip" data-arvo="paalla">Päällä</div>
+          </div>
+          <div class="sp-vihje">Aaltoennuste spottikortissa. Haetaan erillisestä
+            aaltopalvelusta (Open-Meteo Marine) vain kortin avatessa — pois
+            päältä sovellus ei ota siihen yhteyttä lainkaan.</div>
 
           <div class="sp-label" style="margin-top:18px">Käynnistys</div>
           <div class="sp-chips" id="asetus-kaynnistys">
@@ -3422,6 +3449,151 @@ const POHJAT = {
   }
 };
 
+/* -- AALLOT ------------------------------------------------------
+ *
+ * Aaltoennuste Open-Meteon Marine-rajapinnasta. Tämä on sovelluksen
+ * AINOA uusi rajapintariippuvuus sen jälkeen kun tuulidata siirrettiin
+ * omaan laattavarastoon, ja siksi se on kytkin eikä oletus: pois päältä
+ * se ei tee yhtäkään kutsua.
+ *
+ * MITATTU ENNEN RAKENTAMISTA. Itämeren kattavuus oli se kysymys joka
+ * ratkaisi onko tässä ominaisuutta lainkaan — globaalit aaltomallit
+ * jättävät usein rannikkomeret tyhjiksi. Kaikilla kahdellatoista
+ * spotilla saatiin 48/48 tuntia arvoja:
+ *
+ *     Helsingin spotit   0,30-0,48 m,  jakso 3,6-4,3 s
+ *     Hanko              0,58-0,84 m,  jakso 6,3-6,5 s
+ *     avomeri 59,5/23,5  1,26 m
+ *
+ * VAIN KOKONAISKORKEUS, ei tuuli/maininki-jakoa. Mitattuna mallin oma
+ * jako on Itämerellä harhaanjohtava: Helsingin edustalla se antoi
+ * `wind_wave_height` 0,00-0,02 m ja `swell_wave_height` 0,08 m, eli
+ * luki lähes kaiken maininiksi meressä jossa maininkia ei käytännössä
+ * ole. Kokonaiskorkeus on se luku joka pitää paikkansa.
+ *
+ * VÄLIMUISTI ON KARKEALLA HILALLA. Mallin solu on noin 0,04 astetta —
+ * mitattuna Otaniemi, Munkkiniemi ja Hietaniemi osuvat samaan soluun
+ * (60,208 / 24,875). Avain pyöristetään 0,05 asteeseen, jolloin
+ * vierekkäiset spotit jakavat yhden haun. Kiintiö on tässä oikea
+ * kustannus, joten sitä säästetään siellä missä se ei maksa mitään. */
+const Aallot = {
+  BASE: 'https://marine-api.open-meteo.com/v1/marine',
+  AVAIN: 'fs_aallot',
+  TUORE_MS: 3 * 3600 * 1000,
+  _muisti: null,
+  _lennossa: {},
+
+  kaytossa() { return Asetukset.arvot.aallot === 'paalla'; },
+
+  /* Solun tunniste. 0,05 astetta on suunnilleen mallin oma solu. */
+  avain(lat, lng) {
+    return (Math.round(lat / 0.05) * 0.05).toFixed(2) + ','
+         + (Math.round(lng / 0.05) * 0.05).toFixed(2);
+  },
+
+  _lue() {
+    if (this._muisti) return this._muisti;
+    try { this._muisti = JSON.parse(localStorage.getItem(this.AVAIN) || '{}'); }
+    catch (e) { this._muisti = {}; }
+    if (!this._muisti || typeof this._muisti !== 'object') this._muisti = {};
+    return this._muisti;
+  },
+
+  _kirjoita() {
+    try { localStorage.setItem(this.AVAIN, JSON.stringify(this._muisti)); } catch (e) {}
+  },
+
+  /* Välimuistista heti, ilman verkkoa. Palauttaa null jos ei ole tai on
+     vanhentunut — kutsuja päättää haetaanko. */
+  valimuistista(lat, lng) {
+    const m = this._lue()[this.avain(lat, lng)];
+    if (!m || !m.hourly || !m.ts) return null;
+    if (Date.now() - m.ts > this.TUORE_MS) return null;
+    return m.maalla ? 'maalla' : m.hourly;
+  },
+
+  maalla(lat, lng) {
+    const m = this._lue()[this.avain(lat, lng)];
+    return !!(m && m.maalla);
+  },
+
+  async hae(lat, lng) {
+    if (!this.kaytossa()) return null;
+    const k = this.avain(lat, lng);
+    const valmis = this.valimuistista(lat, lng);
+    if (valmis) return valmis;                    /* voi olla myös 'maalla' */
+    /* Sama solu voi olla kysymässä monta korttia peräkkäin — yksi haku. */
+    if (this._lennossa[k]) return this._lennossa[k];
+    const [la, lo] = k.split(',');
+    const url = this.BASE + '?latitude=' + la + '&longitude=' + lo
+      + '&hourly=wave_height,wave_period,wave_direction'
+      + '&forecast_days=8' + TZ_PARAM;
+    this._lennossa[k] = fetch(url)
+      .then(r => r.ok ? r.json() : null)
+      .then(j => {
+        if (!j || !j.hourly || !j.hourly.time || !j.hourly.time.length) return null;
+        const m = this._lue();
+        /* MALLI VUOTAA MAALLE, ja rajapinnan oma `elevation` paljastaa sen.
+           Mitattuna Nuuksio (20 km sisämaassa, solun korkeus 97 m) palautti
+           0,08 m koko vuorokaudelle, kun taas oikeasti kuivat pisteet
+           (Tampere 93 m, Jyväskylä 86 m, Saimaa 81 m) palauttivat pelkkiä
+           nullia. Spottien solut ovat 0-12 m. Raja 20 m erottaa nämä
+           kahdeksankertaisella varalla alaspäin ja nelinkertaisella
+           ylöspäin — ja se on rajapinnan omaa metadataa, ei arvaus. */
+        m[k] = { ts: Date.now(), hourly: j.hourly,
+                 maalla: (typeof j.elevation === 'number' && j.elevation > 20) };
+        /* Muisti ei saa kasvaa rajatta: kaksitoista solua riittää
+           kaikille spoteille ja vapaille pisteille yhden istunnon
+           ajan. */
+        const avaimet = Object.keys(m);
+        if (avaimet.length > 12) {
+          avaimet.sort((a, b) => m[a].ts - m[b].ts).slice(0, avaimet.length - 12)
+            .forEach(x => { delete m[x]; });
+        }
+        this._kirjoita();
+        return m[k].maalla ? 'maalla' : j.hourly;
+      })
+      .catch(() => null)
+      .finally(() => { delete this._lennossa[k]; });
+    return this._lennossa[k];
+  },
+
+  /* Yhden hetken lukemat. Indeksi haetaan AJASTA eikä numerosta: aaltojen
+     sarja on oma taulukkonsa eikä ala samasta hetkestä kuin tuulisarja. */
+  hetki(hourly, iso) {
+    if (!hourly || !hourly.time || !iso) return null;
+    const i = Linkkitila.indeksiAjalle(hourly.time, iso);
+    if (i < 0) return null;
+    const h = hourly.wave_height ? hourly.wave_height[i] : null;
+    if (h == null) return null;
+    return { m: h,
+      s: hourly.wave_period ? hourly.wave_period[i] : null,
+      dir: hourly.wave_direction ? hourly.wave_direction[i] : null };
+  }
+};
+
+/* Aaltolukemat tekstiksi. Korkeus on senttimetrin tarkkuudella, koska
+   Itämerellä ero 0,3 ja 0,5 metrin välillä on se mikä merkitsee — 0,1 m
+   tarkkuus näyttäisi saman luvun koko päivän. Suunta kulkee `Suunta.fmt`in
+   läpi, jotta se puhuu samaa muotoa kuin tuuli, ja se on MISTÄ aallot
+   tulevat samoin kuin tuulella. */
+/* Kolme tilaa, eikä niitä saa sotkea:
+     'maalla'  — solu on kuivalla maalla, aaltoa ei ole olemassa
+     null      — haettiin, ei saatu (tai hetki on sarjan ulkopuolella)
+     arvot     — lukema */
+function _aaltoSisalto(tulos, iso) {
+  if (tulos === 'maalla') return '<span style="opacity:.7">ei merta tässä kohdassa</span>';
+  return _aaltoTeksti(tulos ? Aallot.hetki(tulos, iso) : null);
+}
+
+function _aaltoTeksti(a) {
+  if (!a) return '<span style="opacity:.7">ei tietoa tälle hetkelle</span>';
+  const osat = ['<b>' + a.m.toFixed(2).replace('.', ',') + ' m</b>'];
+  if (a.s != null) osat.push(a.s.toFixed(1).replace('.', ',') + ' s');
+  if (a.dir != null) osat.push(Suunta.fmt(a.dir));
+  return osat.join(' \u00b7 ');
+}
+
 /* -- NÄKYMÄMUISTI ------------------------------------------------
  *
  * Sovellus avautui aina koko Suomeen (`[62.5, 25.5]` z5) ellei ollut
@@ -3576,10 +3748,11 @@ const Asetukset = {
     partikkelit: ['normaali', 'vahan', 'pois'],
     ramppi:      ['nykyinen', 'cvd'],
     lampo:       ['hillitty', 'normaali', 'voimakas'],
-    kaynnistys:  ['viimeisin', 'sijainti']
+    kaynnistys:  ['viimeisin', 'sijainti'],
+    aallot:      ['pois', 'paalla']
   },
   arvot: { pohja: 'tumma', partikkelit: 'normaali', ramppi: 'nykyinen', lampo: 'normaali',
-           kaynnistys: 'viimeisin' },
+           kaynnistys: 'viimeisin', aallot: 'pois' },
 
   lue() {
     let raw = null;
@@ -13212,6 +13385,39 @@ function openSheet(spot, hourIdx) {
     return '<div class="sh-sun-rivi">' + osat.join(' \u00b7 ') + '</div>';
   }
 
+  /* AALTORIVI.
+   *
+   * Rivi on ennusteen puolella (aurinkorivin alla) eikä havaintoruudukossa:
+   * ruudukko on `repeat(4, 1fr)` ja viides kortti jättäisi orvon rivin, ja
+   * aalto on ennuste eikä havainto.
+   *
+   * Kaksi tilaa joita EI saa sotkea: "pois päältä" (asetus, ei riviä
+   * lainkaan) ja "ei dataa" (haettiin, ei saatu — rivi kertoo sen).
+   * Tyhjä on rehellisempi kuin väärä, sama sääntö kuin puvulla ja
+   * havainnoilla.
+   *
+   * Sarja täytetään ASYNKRONISESTI elementin id:n kautta eikä korttia
+   * rakenneta uudelleen: kortti rakentuu joka tuntiaskeleella, ja
+   * uudelleenrakennus vastauksen saapuessa nykisi vieritystä. */
+  function buildAaltoRivi() {
+    if (!Aallot.kaytossa()) return '';
+    const rid = 'aalto-' + Math.random().toString(36).slice(2, 8);
+    const iso = h.time && h.time[idx] ? h.time[idx] : null;
+    const valmis = Aallot.valimuistista(spot.lat, spot.lng);
+    const sisalto = valmis ? _aaltoSisalto(valmis, iso) : 'ladataan…';
+    if (!valmis) {
+      Aallot.hae(spot.lat, spot.lng).then(function (tulos) {
+        const el = document.getElementById(rid);
+        if (!el) return;                     /* kortti ehti sulkeutua */
+        el.querySelector('[data-aalto]').innerHTML = _aaltoSisalto(tulos, iso);
+      });
+    }
+    return '<div class="sh-aalto-rivi" id="' + rid + '">'
+      + '<span class="sh-aalto-nimi">Aallot</span>'
+      + '<span data-aalto>' + sisalto + '</span>'
+      + '</div>';
+  }
+
   /* -- 24H SVG LINE CHART — menneet harmaat, nykyhetki-viiva, tiheät labels -- */
   function build24hChart() {
     const allVals  = h.windspeed_10m || [];
@@ -14136,6 +14342,7 @@ function openSheet(spot, hourIdx) {
        rivi oli havaintoruutujen jalkeen — siella se oli irrallaan
        kaikesta mihin se liittyy. */
     + buildSunRivi()
+    + buildAaltoRivi()
     /* Havainnot-rivi */
     + '<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-8);font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:5px">Havainnot</div>'    + '<div class="sh-stats" id="sh-stats-live">'      + _tempDewComboCard(fmiId + '-tmp', fmiId + '-dew')      + (_uirasStation ? _uirasLinkCard(_waterStatId, _uirasStation) : _statCard('Vesi', waterTemp, _waterTempSource || '°C', null))    + (function () {
         /* Puku veden viereen: siinä kohtaa katsotaan vedenlämpöä, ja tämä
@@ -18059,7 +18266,8 @@ const KarttaAsetukset = {
     'asetus-partikkelit': 'partikkelit',
     'asetus-ramppi':      'ramppi',
     'asetus-lampo':       'lampo',
-    'asetus-kaynnistys':  'kaynnistys'
+    'asetus-kaynnistys':  'kaynnistys',
+    'asetus-aallot':      'aallot'
   },
 
   alusta() {
@@ -18183,6 +18391,10 @@ const KarttaAsetukset = {
       updateHeatmapBlur();
       this._piirraLampokartta();
 
+    } else if (avain === 'aallot') {
+      /* Avoin kortti uusiksi, jotta rivi ilmestyy tai katoaa heti eikä
+         vasta seuraavalla avauksella. */
+      if (State.sheetSpot) openSheet(State.sheetSpot, State.currentHourIdx || 0);
     } else if (avain === 'kaynnistys') {
       /* Vaikuttaa vasta seuraavaan käynnistykseen — ei tehdä mitään nyt. */
     } else if (avain === 'ramppi') {

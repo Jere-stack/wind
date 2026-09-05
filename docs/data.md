@@ -1096,3 +1096,101 @@ Toimiva asetelma:
   `askel` ei enää erota niitä, koska molemmat merkitsevät saman luvun.
 - Vanhan version buildiin on lisättävä `window.FS` käsin (`?perf=1`
   -paneelin kohdalle), muuten sitä ei voi mitata samalla mittarilla.
+
+## Aallot — mitattu ennen kuin rakennettiin
+
+Aaltoennuste on sovelluksen **ainoa uusi rajapintariippuvuus** sen jälkeen
+kun tuulidata siirrettiin omaan laattavarastoon nimenomaan kiintiöstä
+eroon. Siksi se on kytkin eikä oletus: pois päältä sovellus ei tee
+yhtäkään kutsua aaltopalveluun.
+
+### Kysymys joka ratkaisi onko tässä ominaisuutta
+
+Globaalit aaltomallit jättävät usein rannikkomeret tyhjiksi, ja Itämeri
+on niistä pahin tapaus. Se mitattiin ensin — jos vastaus olisi ollut
+nullia, ominaisuutta ei olisi tehty.
+
+Open-Meteo Marine, kaikki kaksitoista spottia, 48 h:
+
+| | arvoja | max | jakso |
+|---|---|---|---|
+| Hanko Tulliniemi | 48/48 | 0,84 m | 6,5 s |
+| Helsingin spotit | 48/48 | 0,30–0,48 m | 3,6–4,3 s |
+| Porkkala | 48/48 | 0,58 m | 5,2 s |
+| avomeri 59,5/23,5 | 48/48 | 1,26 m | 5,9 s |
+
+Sarja on **8 vrk** ja aikavyöhykeparametri toimii (`TZ_PARAM`, sama
+sääntö kuin kaikilla muillakin sarjoilla).
+
+### Vain kokonaiskorkeus, ei tuuli/maininki-jakoa
+
+Mallin oma jako on Itämerellä harhaanjohtava. Mitattuna Helsingin
+edustalla `wind_wave_height` oli 0,00–0,02 m ja `swell_wave_height`
+0,08 m — eli malli luki lähes kaiken maininiksi meressä jossa maininkia
+ei käytännössä ole. Kokonaiskorkeus `wave_height` on se luku joka pitää
+paikkansa, ja kortissa näytetään se, jakso ja suunta.
+
+### Kaksi porttia, molemmat mitattuja
+
+**1. Välimuisti karkealla hilalla.** Mallin solu on noin 0,04°:
+mitattuna Otaniemi, Munkkiniemi ja Hietaniemi osuvat samaan soluun
+(60,208 / 24,875). Avain pyöristetään 0,05 asteeseen, jolloin
+vierekkäiset spotit jakavat yhden haun. Mitattuna kahden naapurispotin
+avaaminen maksoi **yhden** kutsun, ja saman spotin uudelleenavaus
+**nolla**.
+
+**2. Malli vuotaa maalle — `elevation` paljastaa sen.** Mitattuna
+Nuuksio (20 km sisämaassa) palautti 0,08 m koko vuorokaudelle, vaikka
+oikeasti kuivat pisteet palauttivat pelkkiä nullia:
+
+| piste | solun korkeus | tulos |
+|---|---|---|
+| Nuuksio | 97 m | **0,08 m** (väärin) |
+| Tampere | 93 m | pelkkiä nullia |
+| Jyväskylä | 86 m | pelkkiä nullia |
+| spottien solut | 0–12 m | oikeat arvot |
+
+Raja on **20 m** rajapinnan omasta `elevation`-kentästä: kahdeksankertainen
+vara alaspäin, nelinkertainen ylöspäin. Sen yli kortti sanoo "ei merta
+tässä kohdassa".
+
+**`isMarine` EI kelpaa tähän portiksi.** Mitattuna se palauttaa 0,500
+sekä Tampereelle että avomerelle — ankkurialueensa ulkopuolella se antaa
+neutraalin arvon, ja sisämaan Tampere sai korkeamman lukeman (0,500) kuin
+rannikon Emäsalo (0,289). Se on tuulikentän karheutta varten, ei
+maa/vesi-testi.
+
+### Missä aallot näkyvät
+
+**Spottikortissa, aurinkorivin alla** — ja siksi juuri siinä:
+havaintoruudukko on `repeat(4, 1fr)` eikä viidettä korttia mahdu
+(ks. *Spottikortin auditointi*), ja aalto on **ennuste eikä havainto**,
+joten se kuuluu ennusteen viereen eikä havaintojen sekaan. Sama rivi
+näkyy myös vapaan pisteen kortissa, koska se on sama polku.
+
+**Ei aikajanaan** (puuskavyöhyke on jo siellä eikä toista kanavaa ole),
+**ei kapseliin** (neljä lukemaa on jo), **eikä ennustepaneeliin** —
+viimeinen hakisi jokaiselle näkymän spotille oman sarjansa ja räjäyttäisi
+juuri sen kiintiön jonka takia koko rajapinta on kytkimen takana.
+
+### Kolme tilaa joita ei saa sotkea
+
+    kytkin pois   ei riviä lainkaan, ei kutsuja
+    'maalla'      "ei merta tässä kohdassa"
+    null          "ei tietoa tälle hetkelle" (haettiin, ei saatu,
+                  tai hetki on 8 vrk sarjan ulkopuolella)
+
+Rivi täytetään **asynkronisesti elementin id:n kautta** eikä korttia
+rakenneta uudelleen: kortti rakentuu joka tuntiaskeleella, ja
+uudelleenrakennus vastauksen saapuessa nykisi vieritystä.
+
+Indeksi haetaan **ajasta** (`Linkkitila.indeksiAjalle`), ei numerosta:
+aaltosarja on oma taulukkonsa eikä ala samasta hetkestä kuin tuulisarja.
+Sama sääntö kuin aikajanalla.
+
+### Mittausympäristö
+
+Harnessin selaimella ei ole suoraa ulkoyhteyttä (sama syy kuin
+pohjakartalla), joten `marine-api.open-meteo.com` reititetään Noden
+kautta `yhteinen.mjs`:ssä. Vastaus on **oikea** — juuri se on mitattava
+asia.
