@@ -1633,3 +1633,55 @@ akkutekstiin → "Pois" → 0.
 ruutu satunnaisia pisteitä, ei virtauskuva — se ei kertoisi suunnasta
 mitään. Suunta on saatavilla kolmesta muusta paikasta jotka eivät liiku:
 kapselin lukema, spottikortti ja aikajanan suuntanuolet.
+
+## Kosketuskohteet ja tekstikoot loppuun
+
+### Kahvat ja valitsinrivit
+
+Auditointi napautuskohteista löysi kolme jotka jäivät aiempien
+kierrosten ulkopuolelle:
+
+| kohde | ennen | jälkeen |
+|---|---|---|
+| `#sheet-handle` | 393×**26** | 393×**44** |
+| `#fc-handle` | 393×**20** | 393×**44** |
+| `.up-option` (yksikkö- ja suuntavalitsin) | 138×**28** | 138×**44** |
+
+Kahvat ovat kortin ja ennustepaneelin ainoa sulkuele. Näkyvä viiva ei
+muuttunut — se on `::after` ja pysyy 36×4 px:nä; lisätila on elementin
+**omaa täytettä**, koska pseudoelementti ei kasvata osumapintaa
+(docs/eleet.md). Ennustepaneelin kokonaiskorkeus ei kasvanut: `#fc-header`
+luovutti saman 4 px:n ylätäytteestään.
+
+Asetusten kytkimet (40×24) EIVÄT tarvinneet kokomuutosta: rivi on ollut
+koko ajan kosketuskohde ja se on 46 px korkea.
+
+**Mittarihuomio:** valitsinrivi näytti mittarissa 42,2 px:ltä. Popover on
+kiinni ollessaan `scale(.96)`, ja `getBoundingClientRect` palauttaa
+skaalatun koon. Avattuna mitattuna **44,0 px**. Kiinni olevan paneelin
+mittaaminen antaa aina liian pienen luvun.
+
+Listalle jäävät tarkoituksella: päivälaput (40 px, dokumentoitu päätös —
+se on koko kontrollin korkeus), verkkotilan nappi (siru on kohde, nappi
+on `pointer-events: none`) ja `?perf=1`-paneelin napit.
+
+**Ilman saavutettavaa nimeä: 8 lajia → 0.**
+
+### Aikajanan asteikko oli sovelluksen pienintä tekstiä
+
+Tuntilukemat olivat 9 px ja päivälaput 10 px — ja juuri niitä luetaan
+eniten. Applen pienin oma koko on 11 pt.
+
+| | ennen | jälkeen |
+|---|---|---|
+| tuntilukema | 9 px | **11 px** |
+| päivälappu | 10 px | **11 px** |
+| päiväerotin | 10 px | **11 px** |
+| NYT | 8 px | 9,5 px |
+
+**Leveys ei kasvanut lainkaan.** Kaksinumeroinen luku tabular-numsilla on
+11 px:llä 12,3 px leveä ja tikki on 22 px, joten se mahtuu 9,7 px:n
+varalla: mitattuna 0 päällekkäisyyttä, pienin väli naapurilukemien
+välillä 53,8 px (lukema on joka kolmannessa tikissä). Janan
+kokonaisleveys 4 901 px ennen ja jälkeen, päiväerotin 34 px, ei
+ylivuotoa.
