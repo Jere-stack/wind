@@ -194,6 +194,11 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   0,5 m/s rajan, ja 94 % minuuteista renderöityisi identtisesti.
   10 min veisi +7 vrk raahauksen 10 ruudullisesta 60:een.
   Aikajanan vika oli navigointi, ja se on `#tl-paivat`.
+- **Päiväkiskon napautus ei saa käyttää `scrollTimelineTo`a.** Kupla ja
+  päiväkorostus päivittyvät VIERITYKSEN mukaan, joten pehmeä animaatio
+  kävelee jokaisen välipäivän läpi (mitattu 15 välitilaa ja 1001 ms
+  ennen kuin oikea päivä jäi voimaan). Pitkä hyppy asetetaan suoraan
+  `_tlSetScrollLeft`illä.
 - **Laattavaraston akseli on 3 h (ja 6 h yli 7,5 vrk).**
   `wxTunneittain()` interpoloi siitä tuntiakselin — se ei ole uutta
   dataa vaan täsmälleen se mitä `asetaHetki`+`naytteista` jo antaa

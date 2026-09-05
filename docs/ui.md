@@ -1256,3 +1256,43 @@ tekstien väliin jää 20 px.
 vierittää kiskoa vain kun valittu päivä on jäänyt näkymän ulkopuolelle.
 Ilman tuota rajausta kaksi vierityskonetta ajaisivat toisiaan takaa — sama
 ansa jonka takia tuntinauhassa on `_tlBeginSelfScroll`.
+
+## Päivänapautus vilkutti vanhaa päivää
+
+Käyttäjän havainto: kun päivämäärää vaihtaa kiskosta, jana ei valitse
+valittua päivää suoraan vaan vilkuttaa myös vanhaa ja asettuu vasta
+lopulta oikeaan.
+
+Kisko asetti valinnan oikein heti — vika oli **näytössä**. Napautus
+kutsui `scrollTimelineTo`a, joka vierittää pehmeästi. Kuuden vuorokauden
+hyppy on 3 168 px, ja janan omat vierityskuuntelijat päivittävät kuplan ja
+päiväkorostuksen sen mukaan **missä jana kulloinkin on**. Animaatio siis
+käveli jokaisen välipäivän läpi ja korostus seurasi.
+
+Mitattuna ruututahtiin (`paallekkain.mjs`, osa B) — napautus "Pe 11.",
+lähtöpäivä "Tänään":
+
+    +   0 ms  "Tänään"
+    + 174 ms  "Pe 11."      <- oikea päivä jo tässä
+    + 350 ms  "Tänään"      <- takaisin lähtöpäivään
+    + 4xx ms  "Su 6." "Ma 7." "Ti 8." "Ke 9." "To 10."
+    +1001 ms  "Pe 11."      <- asettui
+
+15 kirjattua välitilaa. `currentHourIdx` oli koko ajan oikea (199).
+
+**Korjaus: hyppy on hyppy, ei vierityanimaatio.** Napautus asettaa
+vierityksen suoraan `_tlSetScrollLeft`illä, joka merkitsee sen omaksi
+vieritykseksi — janan kuuntelijat eivät luule sitä sormeksi — ja kutsuu
+`_tlUpdateNow`ta kerran. Jälkeen kirjattuna tasan kaksi tilaa:
+
+    +   0 ms  "Tänään"
+    + 179 ms  "Pe 11."
+
+Pehmeä vieritys on oikea silloin kun matka on lyhyt ja liike kertoo
+suunnan. Kuuden vuorokauden yli se kertoo vain sen, että ohitetaan
+päiviä joita ei valittu — ja koska korostus on sidottu vieritykseen,
+se myös *näyttää* valitsevan niitä.
+
+Napautuskohteet mitattiin uudelleen muutoksen jälkeen (`kiskotap.mjs`):
+sama tulos kuin ennen, kuusi kohtaa seitsemästä osuu ja alaoikea kulma
+on se sama 2 px:n kuollut kaista naapurikontrollia vasten.

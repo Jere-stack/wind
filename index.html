@@ -15457,7 +15457,23 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
       Haptics.selection();
       State.currentHourIdx = idx;
       State._lastTlHour = idx;
-      scrollTimelineTo(idx);
+      /* HYPPY ON HYPPY, EI VIERITYSANIMAATIO.
+       *
+       * `scrollTimelineTo` vierittää pehmeästi, ja janan omat
+       * kuuntelijat päivittävät kuplan ja päiväkorostuksen VIERITYKSEN
+       * mukaan. Kuuden vuorokauden hyppy on 3 168 px, joten animaatio
+       * kulki jokaisen välipäivän läpi: mitattuna korostus meni ensin
+       * oikeaan päivään (+174 ms), hyppäsi takaisin lähtöpäivään
+       * (+350 ms) ja käveli Su-Ma-Ti-Ke-To läpi ennen kuin asettui
+       * (+1001 ms). Valinta oli koko ajan oikea — vain näyttö laahasi.
+       *
+       * Suora asetus vie janan kerralla perille eikä tuota yhtään
+       * välitilaa. `_tlSetScrollLeft` merkitsee sen omaksi
+       * vieritykseksi, joten janan kuuntelijat eivät luule sitä
+       * sormeksi. */
+      const tl0 = document.getElementById('tl-scroll');
+      const kohde = State._tlTicks && State._tlTicks[idx];
+      if (tl0 && kohde) _tlSetScrollLeft(tl0, kohde.offsetLeft - tl0.offsetWidth / 2 + TL_TIKKI_LEV / 2);
       _tlUpdateNow(idx);
       buildWindField(idx).then(function () { drawColorField(); resetParticles(); });
       renderSpots(idx);
