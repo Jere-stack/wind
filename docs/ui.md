@@ -1296,3 +1296,86 @@ se myös *näyttää* valitsevan niitä.
 Napautuskohteet mitattiin uudelleen muutoksen jälkeen (`kiskotap.mjs`):
 sama tulos kuin ennen, kuusi kohtaa seitsemästä osuu ja alaoikea kulma
 on se sama 2 px:n kuollut kaista naapurikontrollia vasten.
+
+## Aikajana: kiinteä asteikko, puuskavyöhyke, valokaista
+
+Kolme muutosta samaan nauhaan. Yksikään ei kasvata janaa pikselilläkään
+eikä hae tavuakaan verkosta — kaikki kolme käyttävät dataa joka oli jo
+paikalla.
+
+### Palkin korkeus valehteli
+
+Korkeus skaalattiin **sarjan omaan maksimiin**, ja sarja vaihtuu joka
+kerta kun karttaa siirretään: aika-akseli tulee kartan keskellä olevasta
+ennustepisteestä. Mitattuna sama hetki kolmessa paikassa, ennen:
+
+| paikka | tuuli | palkki | sarjan max |
+|---|---|---|---|
+| Helsinki | 7,67 m/s | 14,1 px | 12,0 |
+| Pohjanlahti | 8,40 m/s | **13,4 px** | 13,8 |
+
+Enemmän tuulta, lyhyempi palkki. Muoto oli luettavissa vain sarjan
+sisällä, eikä käyttäjä tiedä milloin sarja vaihtui.
+
+Nyt asteikko on kiinteä ja täysi korkeus on **16 m/s**. Mitattuna
+jälkeen: 1,38 / 1,38 / 1,37 px per m/s kolmessa eri paikassa — sama
+luku, eli sama tuuli on aina saman korkuinen.
+
+Miksi 16 eikä rampin 20: yli kuudentoista ei foilata, joten se pää saa
+kyllästyä. Sen sijaan 4–12 m/s säilyttää tarkkuutensa. Väri jatkaa siitä
+mihin korkeus loppuu — ramppi kulkee punaisen kautta magentaan vielä
+senkin jälkeen kun palkki on täydessä mitassaan.
+
+### Puuska on vyöhyke, ei toinen palkki
+
+Sama päätös ja samat sävyt kuin havaintokaaviossa (ks. *Kaavio: neljä
+suuretta, yksi akseli*): kaksi kilpailevaa muotoa samalla akselilla
+luetaan kahdeksi sarjaksi, vyöhyke yhdeksi asiaksi jonka **paksuus on
+puuskaisuus**.
+
+Puuskasarja on saatavilla **molemmilla poluilla** — rajapinnan
+spottisarjassa ja säälaattavaraston `wxTunneittain`issa — joten vyöhyke
+ei katoa uloszoomatessa. Mitattuna Helsingissä z9: vyöhyke 339 tikissä
+403:sta; esimerkki tuuli 7,7 m/s → palkki 10,5 px, puuska 10,1 m/s →
+vyöhyke 3,4 px sen päällä, rako palkin ja vyöhykkeen välissä 0,03 px.
+
+Vyöhyke on neutraali liuska eikä ramppiväri: ramppiväri tarkoittaa
+nopeutta, ja puuskan oma ramppiväri tekisi palkin yläosasta toisen
+nopeuslukeman jota verrattaisiin alaosaan.
+
+### Valokaista
+
+Janassa ei ollut mitään joka kertoisi mitkä tunnit ovat pimeitä — ja
+12 m/s klo 03 lokakuussa ei ole keli. `Aurinko`-moduuli oli jo olemassa
+(spottikortin valokaista), toimii ilman verkkoa, ja `korkeus()` on
+suljettu kaava joka ei iteroi. Sävyt ovat samat kuin havaintokaavion
+yöharsossa, eli käyttäjä on nähnyt saman kielen jo spottikortissa.
+
+Mitattuna 403 tunnin akselilla: yö 92, hämärä 65, siviilihämärä 21,
+päivä 225 — ja **16 yhtenäistä yöjaksoa**, eli tasan yksi per vuorokausi.
+
+**Tausta on tikissä itsessään**, ei erillisessä kerroksessa: vierekkäiset
+yötunnit muodostavat yhtenäisen palkin ilman saumoja ja kaista vierii
+janan mukana ilmaiseksi.
+
+**Päiväerotin tarvitsi oman sävynsä.** Se on aina keskiyöllä eli keskellä
+yötä, ja ilman sitä kaistaan jäi 34 px:n aukko juuri pimeimpään kohtaan.
+Mitattuna 17 erotinta 18:sta saa nyt sävyn (18. on akselin alussa keskellä
+päivää, oikein ilman).
+
+**Nopea polku päivittää myös erottimet.** Ne eivät ole `_tlTicks`issä,
+joten ensimmäisessä versiossa tikit vaihtoivat yön paikkaa uuden
+sijainnin mukaan ja erottimet jäivät edellisen päälle — mitattuna
+0/18 sävytettyä siellä missä piti olla 17. Nyt erottimet ovat omassa
+taulukossaan (`_tlErottimet`) indekseineen.
+
+### Sijainti kuuluu muistioon
+
+`_tlMuisti`-vertailu ohittaa uudelleenrakennuksen kun lähdedata on sama.
+Valokaista lasketaan **sijainnista**, ja laattapisteet jakavat
+aikataulukon (`_ajatH`) — pelkkä `times`-viite ei siis erota kahta eri
+paikassa olevaa laattapistettä. Muistiossa on nyt myös lat/lng.
+
+Valovaiheet ovat muistissa avaimella (aikataulukon identiteetti, sijainti
+puolen asteen tarkkuudella). Puoli astetta on noin 55 km eikä se siirrä
+auringonnousua yhtä tuntitikkiä.

@@ -1123,6 +1123,44 @@ html.tyopoyta #kapseli.vaistyy {
 }
 .htick.past .htick-bar { opacity: 0.4; }
 .htick:active .htick-bar { opacity: 0.7; }
+
+/* PUUSKA ON VYÖHYKE TUULIPALKIN PÄÄLLÄ, EI OMA PALKKINSA.
+ *
+ * Sama päätös ja samat sävyt kuin havaintokaaviossa (ks. docs/ui.md,
+ * "Kaavio: neljä suuretta, yksi akseli"): kaksi kilpailevaa muotoa
+ * samalla akselilla luetaan kahdeksi sarjaksi, mutta vyöhyke luetaan
+ * yhdeksi asiaksi jonka PAKSUUS on puuskaisuus — juuri se mitä foilaaja
+ * lukee. Yläreunan viiva kertoo puuskan huipun ilman että se irtoaa
+ * omaksi käyräkseen.
+ *
+ * Vyöhyke on neutraali liuska eikä ramppiväri: ramppiväri tarkoittaa
+ * nopeutta, ja puuskan oma ramppiväri tekisi palkin yläosasta toisen
+ * nopeuslukeman jota verrattaisiin alaosaan. */
+.htick-gust {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  width: 12px; border-radius: 3px 3px 0 0;
+  background: rgba(76, 89, 96, .20);
+  box-shadow: inset 0 1.5px 0 rgba(76, 89, 96, .45);
+  pointer-events: none;
+}
+.htick.past .htick-gust { opacity: 0.4; }
+
+/* VALOKAISTA — mitkä tunnit ovat pimeitä.
+ *
+ * 12 m/s klo 03 lokakuussa ei ole keli, eikä janassa ollut mitään joka
+ * kertoisi sen. Sävyt ovat samat kuin havaintokaavion yöharsossa, eli
+ * käyttäjä on nähnyt saman kielen jo spottikortissa. Harso on tarkoituk-
+ * sella kevyt: sen tehtävä on kertoa "tämä osa on pimeää", ei kilpailla
+ * palkkien kanssa.
+ *
+ * Tausta on TIKISSÄ itsessään eikä erillisessä kerroksessa, jolloin
+ * vierekkäiset yötunnit muodostavat yhtenäisen palkin ilman saumoja ja
+ * kaista vierii janan mukana ilmaiseksi. Päiväerotin saa saman sävyn,
+ * koska se on aina keskiyöllä eli keskellä yötä — ilman sitä kaistaan
+ * jäisi 34 px:n aukko juuri pimeimpään kohtaan. */
+.htick.yo,        .day-sep.yo        { background: rgba(76, 89, 96, .13); }
+.htick.yo-hamara, .day-sep.yo-hamara { background: rgba(76, 89, 96, .09); }
+.htick.yo-siviili, .day-sep.yo-siviili { background: rgba(76, 89, 96, .05); }
 .htick-lbl {
   position: absolute; bottom: 1px; font-variant-numeric: tabular-nums;
   font-size: var(--fs-9); color: var(--ink-3); white-space: nowrap;
@@ -5000,6 +5038,10 @@ const State = {
      partikkelit kuuluvat sinne missä ne näkyvät. */
   alue: { x0: 0, y0: 0, x1: 0, y1: 0 },
   _tlTimes: null, _tlSpeeds: null, _tlDirs: null, _tlTicks: [],
+  /* Valovaiheiden muisti: { times, lat, lng, arvot } — ks. _tlValovaiheet. */
+  _tlValo: null,
+  /* Päiväerottimet { el, i } — nopea polku päivittää näidenkin sävyn. */
+  _tlErottimet: [],
   _spotTaydetAvain: '',   /* mitkä spotit saivat täyden merkin viime piirrossa */
   _lastTlHour: -1,
   /* Aikajanan oma, ohjelmallinen vieritys — katso _tlSetScrollLeft() */
@@ -15282,9 +15324,13 @@ function updateTimelineToCenter() {
   const idx = _tlSailytaHetki(h);
   if (idx !== State.currentHourIdx) State.currentHourIdx = idx;
   const m = State._tlMuisti;
+  /* Sijainti kuuluu vertailuun: valokaista lasketaan siitä, ja
+     laattapisteet JAKAVAT aikataulukon (`_ajatH`) — pelkkä `times`
+     ei siis erottaisi kahta eri paikassa olevaa laattapistettä. */
   if (m && m.times === h.time && m.speeds === sp && m.dirs === h.winddirection_10m
-      && m.activeIdx === idx) return;
-  renderTimeline(h.time, sp, h.winddirection_10m, idx);
+      && m.activeIdx === idx && m.lat === p.lat && m.lng === p.lng) return;
+  renderTimeline(h.time, sp, h.winddirection_10m, idx,
+    { puuskat: h.windgusts_10m, lat: p.lat, lng: p.lng });
 }
 
 /* VALITTU HETKI SÄILYY VAIKKA AIKA-AKSELI VAIHTUU.
@@ -15335,23 +15381,118 @@ function nowIdx(times) {
  * mallista samalla tuntiruudukolla — ja vain palkin korkeus ja väri
  * muuttuvat. Silloin 370 elementin uudelleenluonti on turhaa työtä. */
 const TL_TIKKI_LEV = 22;   /* sama kuin .htick flex-basis */
-function _tlPaivitaPalkit(speeds) {
+/* PALKIN ASTEIKKO ON KIINTEÄ, EI SARJAKOHTAINEN.
+ *
+ * Ennen korkeus skaalattiin sarjan omaan maksimiin. Se teki palkeista
+ * vertailukelpoisia vain sarjan sisällä — ja sarja vaihtuu joka kerta kun
+ * karttaa siirretään, koska akseli tulee kartan keskellä olevasta
+ * pisteestä. Mitattuna sama hetki kahdessa paikassa:
+ *
+ *     Helsinki      7,67 m/s -> 14,1 px   (sarjan max 12,0)
+ *     Pohjanlahti   8,40 m/s -> 13,4 px   (sarjan max 13,8)
+ *
+ * Eli enemmän tuulta, lyhyempi palkki. Muoto valehteli aina kun karttaa
+ * liikutti.
+ *
+ * Täysi korkeus on 16 m/s eikä rampin 20: yli kuudentoista ei foilata,
+ * joten se väli saa kyllästyä. Sen sijaan 4–12 m/s — se väli jota
+ * katsotaan — säilyttää tarkkuutensa. Väri jatkaa siitä mihin korkeus
+ * loppuu: ramppi kulkee punaisen kautta magentaan vielä senkin jälkeen
+ * kun palkki on täydessä mitassaan. */
+const TL_PALKKI_TAYSI_MS = 16;
+const TL_PALKKI_H = 22;
+function _tlPalkkiPx(ms) {
+  return Math.max(3, Math.min(1, (ms || 0) / TL_PALKKI_TAYSI_MS) * TL_PALKKI_H);
+}
+
+/* Puuskavyöhykkeen mitat, tai null jos vyöhykettä ei piirretä.
+ *
+ * Kynnys on 0,3 m/s: sitä pienempi ero olisi alle pikselin (0,4 px) ja
+ * piirtäisi janaan rivin hiusviivoja jotka lukisivat kohinana. */
+function _tlPuuskaTyyli(ms, puuska) {
+  if (puuska == null || !(puuska > ms + 0.3)) return null;
+  const alaPx = _tlPalkkiPx(ms), ylaPx = _tlPalkkiPx(puuska);
+  if (!(ylaPx > alaPx + 0.5)) return null;
+  return 'bottom:' + (15 + alaPx).toFixed(1) + 'px;height:' + (ylaPx - alaPx).toFixed(1) + 'px';
+}
+
+/* VALOVAIHE JOKA TUNNILLE.
+ *
+ * `Aurinko.korkeus` on suljettu kaava eikä iteroi, joten 403 kutsua on
+ * mitättömän halpa. Tulos on silti muistissa, koska nopea polku ajetaan
+ * joka kartansiirrolla: taulukon identiteetti ja puolen asteen tarkkuu-
+ * teen pyöristetty sijainti riittävät avaimeksi. Puoli astetta on noin
+ * 55 km, ja tuntiakselilla se ei siirrä auringonnousua yhtä tikkiä.
+ *
+ * Palautettu vaihe on `Aurinko.vaihe()`:n oma asteikko (0 yö … 3 täysi
+ * päivä), eli sama luokittelu jota havaintokaavio käyttää. */
+const TL_VALO_LUOKKA = { 0: 'yo', 0.5: 'yo-hamara', 1: 'yo-siviili' };
+function _tlValovaiheet(times, lat, lng) {
+  if (!times || !times.length || lat == null || lng == null) return null;
+  const la = Math.round(lat * 2) / 2, lo = Math.round(lng * 2) / 2;
+  const m = State._tlValo;
+  if (m && m.times === times && m.lat === la && m.lng === lo) return m.arvot;
+  const ms = _ts({ time: times });
+  const n = times.length, arvot = new Array(n);
+  for (let i = 0; i < n; i++) arvot[i] = Aurinko.vaihe(Aurinko.korkeus(ms[i], la, lo));
+  State._tlValo = { times: times, lat: la, lng: lo, arvot: arvot };
+  return arvot;
+}
+
+function _tlPaivitaPalkit(speeds, puuskat, valo) {
   const tikit = State._tlTicks;
-  let maxMs = 1;
-  for (let i = 0; i < speeds.length; i++) { if ((speeds[i] || 0) > maxMs) maxMs = speeds[i]; }
   for (let i = 0; i < tikit.length; i++) {
     const ms = speeds[i] || 0, bc = ColorRamp.ink(ms);
-    const bar = tikit[i].firstElementChild;
+    const tikki = tikit[i];
+    const bar = tikki.querySelector('.htick-bar');
     if (!bar) continue;
-    bar.style.height = Math.max(3, (ms / maxMs) * 22) + 'px';
+    bar.style.height = _tlPalkkiPx(ms) + 'px';
     bar.style.background = 'rgb(' + bc.r + ',' + bc.g + ',' + bc.b + ')';
     bar.classList.toggle('foilable', ms >= 8);
+    /* Vyöhyke luodaan ja poistetaan tarpeen mukaan: tyhjä elementti
+       jokaisessa tikissä olisi 403 turhaa solmua. */
+    const tyyli = puuskat ? _tlPuuskaTyyli(ms, puuskat[i]) : null;
+    let g = tikki.querySelector('.htick-gust');
+    if (tyyli) {
+      if (!g) { g = document.createElement('div'); g.className = 'htick-gust'; tikki.appendChild(g); }
+      g.style.cssText = tyyli;
+    } else if (g) { g.remove(); }
+    if (valo) _tlValoLuokka(tikki, valo[i]);
+  }
+  /* PAIVAEROTTIMET PAIVITETAAN MYOS.
+     Ne eivat ole tikkejä eivätkä siis `_tlTicks`issä, joten ilman tätä
+     nopea polku jätti niiden sävyn vanhaksi: tikit vaihtoivat yön
+     paikkaa uuden sijainnin mukaan ja erottimet jäivät edellisen päälle.
+     Mitattuna juuri niin kävi — 18 erotinta 18:sta väärällä sävyllä. */
+  const erot = State._tlErottimet;
+  if (valo && erot) {
+    for (let j = 0; j < erot.length; j++) _tlValoLuokka(erot[j].el, valo[erot[j].i]);
   }
 }
 
-function renderTimeline(times, speeds, dirs, activeIdx) {
+function _tlValoLuokka(el, vaihe) {
+  const lk = TL_VALO_LUOKKA[vaihe];
+  el.classList.toggle('yo', lk === 'yo');
+  el.classList.toggle('yo-hamara', lk === 'yo-hamara');
+  el.classList.toggle('yo-siviili', lk === 'yo-siviili');
+}
+
+/* `lisa` on valinnainen: { puuskat, lat, lng }.
+ *
+ * Puuskasarja on saatavilla MOLEMMILLA poluilla — rajapinnan spotti-
+ * sarjassa ja säälaattavaraston `wxTunneittain`issa — joten vyöhyke
+ * toimii joka zoomilla eikä katoa kun keskellä on laattapiste. Sijainti
+ * tarvitaan valokaistaan; ilman sitä kaista jätetään piirtämättä eikä
+ * arvata. */
+function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
+  /* Puuskakenttä-taso näyttää palkissa JO puuskan. Silloin vyöhykettä ei
+     piirretä: se olisi puuskan yläpuolella oleva puuska. */
+  const puuskat = (lisa && lisa.puuskat && lisa.puuskat !== speeds) ? lisa.puuskat : null;
+  const valo = _tlValovaiheet(times, lisa ? lisa.lat : null, lisa ? lisa.lng : null);
   /* Mitä ruudulla nyt on — ks. updateTimelineToCenter. */
-  State._tlMuisti = { times: times, speeds: speeds, dirs: dirs, activeIdx: activeIdx };
+  State._tlMuisti = { times: times, speeds: speeds, dirs: dirs, activeIdx: activeIdx,
+    puuskat: puuskat, valo: valo,
+    lat: lisa ? lisa.lat : null, lng: lisa ? lisa.lng : null };
   const tl = document.getElementById('tl-scroll');
   /* Nopea tie: sama rakenne kuin ruudulla jo on. Ehtoihin kuuluu myös
      NYT-indeksi, koska "mennyt"-tila on sidottu siihen ja se siirtyy
@@ -15361,7 +15502,7 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
       && vanhat && vanhat.length === times.length
       && vanhat[0] === times[0] && vanhat[times.length - 1] === times[times.length - 1]
       && State._tlNytIdx === nowIdx(times)) {
-    _tlPaivitaPalkit(speeds);
+    _tlPaivitaPalkit(speeds, puuskat, valo);
     State._tlTimes = times; State._tlSpeeds = speeds; State._tlDirs = dirs;
     _tlBeginSelfScroll();
     requestAnimationFrame(() => {
@@ -15380,15 +15521,13 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
   if (!times || !times.length) { _tlRakennaPaivat(null); return; }
   State._tlTimes = times; State._tlSpeeds = speeds; State._tlDirs = dirs;
   State._tlTicks = [];
+  State._tlErottimet = [];
   /* Kisko rakennetaan vain täällä, hitaassa polussa: se riippuu VAIN
      aikaleimoista, ja nopea polku ajetaan nimenomaan silloin kun ne ovat
      samat. Korostuksen hoitaa `_tlUpdateNow` molemmissa. */
   _tlRakennaPaivat(times);
   const TICK_W = TL_TIKKI_LEV;
   const DAY = ['Su','Ma','Ti','Ke','To','Pe','La']; let lastDay = -1;
-
-  let maxMs = 1;
-  for (let i = 0; i < speeds.length; i++) { if ((speeds[i]||0) > maxMs) maxMs = speeds[i]; }
 
   const spacerL = document.createElement('div');
   spacerL.style.cssText = 'flex:0 0 ' + (window.innerWidth / 2 - TICK_W / 2) + 'px';
@@ -15403,8 +15542,12 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
     if (day !== lastDay) {
       lastDay = day;
       const sep = document.createElement('div'); sep.className = 'day-sep';
+      /* Erotin saa saman valovaiheen kuin sen jälkeen tuleva tunti —
+         muuten yökaistaan jäisi 34 px:n aukko keskiyön kohdalle. */
+      if (valo) _tlValoLuokka(sep, valo[i]);
       sep.textContent = DAY[day] + ' ' + d.getDate() + '.';
       tl.appendChild(sep);
+      State._tlErottimet.push({ el: sep, i: i });
     }
     if (!nowMarkerInserted && i >= realNowIdx) {
       const nowLine = document.createElement('div');
@@ -15416,10 +15559,12 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
     const ms = speeds[i]||0, bc = ColorRamp.ink(ms);
     const tick = document.createElement('div');
     const isPast = i < realNowIdx;
-    tick.className = 'htick' + (hour % 3 === 0 ? ' show-lbl' : '') + (isPast ? ' past' : '');
+    tick.className = 'htick' + (hour % 3 === 0 ? ' show-lbl' : '') + (isPast ? ' past' : '')
+      + (valo && TL_VALO_LUOKKA[valo[i]] ? ' ' + TL_VALO_LUOKKA[valo[i]] : '');
     tick.dataset.idx = i;
-    const barH = Math.max(3, (ms / maxMs) * 22);
+    const barH = _tlPalkkiPx(ms);
     const foilable = ms >= 8;
+    const puuskaTyyli = puuskat ? _tlPuuskaTyyli(ms, puuskat[i]) : null;
     /* Palkki on YHTÄ väriä ylhäältä alas. Tässä oli aiemmin foilable-tunneille
        oma alleviivaus (alun perin kirkas vihreä tumman teeman merkintä), joka
        mustemigraation jälkeen piirsi vihreän reunan kullanvärisen palkin
@@ -15427,6 +15572,7 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
        97 yksikön väriero palkin sisällä. Merkintä oli myös turha, koska palkin
        oma ramppiväri kertoo nopeuden jo — 8 m/s on siinä vihreä. */
     tick.innerHTML = '<div class="htick-bar' + (foilable ? ' foilable' : '') + '" style="height:' + barH + 'px;background:rgb(' + bc.r + ',' + bc.g + ',' + bc.b + ')"></div>'
+      + (puuskaTyyli ? '<div class="htick-gust" style="' + puuskaTyyli + '"></div>' : '')
       + '<span class="htick-lbl">' + ('0'+hour).slice(-2) + '</span>';
     tl.appendChild(tick);
     State._tlTicks.push(tick);
@@ -17309,7 +17455,8 @@ document.getElementById('layers').addEventListener('click', e => {
     /* Kenttä vaihtuu, aika ei: sama hetki myös jos viitepiste on eri. */
     const idx = _tlSailytaHetki(ref.wx.hourly);
     if (idx !== State.currentHourIdx) State.currentHourIdx = idx;
-    renderTimeline(t, sp, ref.wx.hourly.winddirection_10m, idx);
+    renderTimeline(t, sp, ref.wx.hourly.winddirection_10m, idx,
+      { puuskat: ref.wx.hourly.windgusts_10m, lat: ref.lat, lng: ref.lng });
   }
 }, { passive: true });
 
@@ -17451,7 +17598,8 @@ function _naytaValimuististaHeti() {
   State._vanhaAsetettuIdx = ni;
   const sp = State.activeLayer === 'gust'
     ? (h.windgusts_10m || h.windspeed_10m) : h.windspeed_10m;
-  renderTimeline(h.time, sp, h.winddirection_10m, ni);
+  renderTimeline(h.time, sp, h.winddirection_10m, ni,
+    { puuskat: h.windgusts_10m, lat: ref.lat, lng: ref.lng });
   renderSpots(ni);
   buildWindField(ni).then(() => { drawColorField(); resetParticles(); hideLoading(); });
   return ts;
@@ -17558,7 +17706,8 @@ async function main() {
         State._lastTlHour = ni;
         const layer = State.activeLayer;
         const sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m;
-        renderTimeline(ref.wx.hourly.time, sp, ref.wx.hourly.winddirection_10m, ni);
+        renderTimeline(ref.wx.hourly.time, sp, ref.wx.hourly.winddirection_10m, ni,
+          { puuskat: ref.wx.hourly.windgusts_10m, lat: ref.lat, lng: ref.lng });
         renderSpots(ni);
         buildWindField(ni).then(() => { drawColorField(); resetParticles(); hideLoading(); });
       } else {
@@ -17585,7 +17734,8 @@ async function main() {
         State._lastTlHour = ni0;
         const layer0 = State.activeLayer;
         const sp0 = layer0 === 'gust' ? (h.windgusts_10m || h.windspeed_10m) : h.windspeed_10m;
-        renderTimeline(h.time, sp0, h.winddirection_10m, ni0);
+        renderTimeline(h.time, sp0, h.winddirection_10m, ni0,
+          { puuskat: h.windgusts_10m, lat: ref.lat, lng: ref.lng });
         hideLoading();
       }
       const ni = State.currentHourIdx;

@@ -201,6 +201,15 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   0,5 m/s rajan, ja 94 % minuuteista renderöityisi identtisesti.
   10 min veisi +7 vrk raahauksen 10 ruudullisesta 60:een.
   Aikajanan vika oli navigointi, ja se on `#tl-paivat`.
+- **Palkin korkeus on KIINTEÄLLÄ asteikolla (16 m/s = täysi).**
+  Sarjakohtainen maksimi teki palkeista vertailukelpoisia vain sarjan
+  sisällä, ja sarja vaihtuu joka kartansiirrolla: mitattuna 7,67 m/s oli
+  14,1 px ja 8,40 m/s 13,4 px. Älä palauta `maxMs`-skaalausta.
+- **Aikajanan valokaista ja puuskavyöhyke päivitetään MYÖS nopeassa
+  polussa**, ja päiväerottimet ovat oma taulukkonsa (`_tlErottimet`).
+  Ne eivät ole `_tlTicks`issä, ja ilman erillistä päivitystä ne jäivät
+  edellisen sijainnin sävyyn (mitattu 0/18 oikein). `_tlMuisti`-vertailu
+  sisältää lat/lng, koska laattapisteet jakavat aikataulukon.
 - **Päiväkiskon napautus ei saa käyttää `scrollTimelineTo`a.** Kupla ja
   päiväkorostus päivittyvät VIERITYKSEN mukaan, joten pehmeä animaatio
   kävelee jokaisen välipäivän läpi (mitattu 15 välitilaa ja 1001 ms
