@@ -934,11 +934,18 @@ html.tyopoyta #kapseli.vaistyy {
    palkit ovat kolmasosan entisestä. Muoto kertoo yhä milloin tuulee —
    sen lukemiseen ei tarvita korkeutta, koska palkkia verrataan naapuriin
    eikä asteikkoon. */
+/* PÄIVÄKISKON KORKEUS on yksi luku kolmessa paikassa: se kasvattaa
+   kääreen ja sen ylätäytteen yhtä paljon (jolloin tuntinauhan oma
+   sisältölaatikko ei muutu lainkaan), ja se siirtää indikaattoria ja
+   aikakuplaa saman verran alas. Erillisinä lukuina ne ajautuisivat
+   erilleen ensimmäisessä säädössä. */
+:root { --tl-paivat-h: 40px; }
+
 #tl-wrap {
   position: relative; pointer-events: all;
-  height: calc(88px + var(--sab-tl));
+  height: calc(88px + var(--tl-paivat-h) + var(--sab-tl));
   overflow: visible;
-  padding: 14px 0 calc(var(--sab-tl) + 22px);
+  padding: calc(14px + var(--tl-paivat-h)) 0 calc(var(--sab-tl) + 22px);
   background: none;
 }
 /* Kotivalikon appissa aikajana alemmas.
@@ -1013,6 +1020,77 @@ html.tyopoyta #kapseli.vaistyy {
 .tl-play-btn svg { width: 17px; height: 17px; position: relative; }
 .tl-play-btn:active { background: none; }
 
+/* PÄIVÄKISKO — pitkä hyppy yhdellä napautuksella.
+ *
+ * Mitattuna nyt-hetkestä viikon päähän on tuntinauhassa 3 934 px eli
+ * KYMMENEN ruudullista raahausta (+1 vrk 1,4 · +3 vrk 4,3). Se on
+ * aikajanan oikea vika, ei tuntitikin pituus — tiheämpi askel olisi
+ * kertonut saman matkan kuudella.
+ *
+ * Kisko rullaa itsekin, mutta 16,5 vrk on siinä noin kaksi ruudullista
+ * eikä kymmenen, ja tavallinen tapaus (lähipäivät) mahtuu kerralla
+ * näkyviin.
+ *
+ * Kisko ei ole snäppäävä eikä sillä ole kuuntelijoita tuntinauhaan päin:
+ * napautus vie janan, mutta janan vieritys ei koskaan vieritä kiskoa
+ * muuten kuin kun valittu päivä on jäänyt näkymän ulkopuolelle. Ilman
+ * tuota rajausta kaksi vierityskonetta ajaisivat toisiaan takaa — sama
+ * ansa jonka takia tuntinauhassa on `_tlBeginSelfScroll`. */
+#tl-paivat {
+  position: absolute;
+  top: 11px;
+  left: calc(var(--sal) + 8px); right: calc(var(--sar) + 8px);
+  height: var(--tl-paivat-h);
+  /* EI RAKOA LAPPUJEN VÄLIIN. Mitattuna 3 px:n raolla napautus lapun
+     alaoikeaan kulmaan katosi rakoon eikä tehnyt mitään (6/7 kulmasta
+     osui, yksi ei). Ilman rakoa kisko on yhtenäinen osumapinta: napautus
+     osuu aina JOHONKIN päivään. Erottelun hoitaa lapun oma vaakatäyte,
+     jolloin tekstien väliin jää 20 px. */
+  display: flex; gap: 0; align-items: center;
+  overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain; touch-action: pan-x;
+  padding: 0 10px;
+  pointer-events: all; z-index: 3;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+          mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+}
+#tl-paivat::-webkit-scrollbar { display: none; }
+
+/* LAPPU TÄYTTÄÄ KISKON KORKEUDELTAAN, eikä se ole makuasia.
+ *
+ * Ensimmäinen versio oli 42x19 px pystytäytteellä, jolloin kiskoon jäi
+ * 13 px läpinäkyvää. Projektin oma mitattu sääntö sanoo mitä siitä
+ * seuraa (docs/eleet.md): Chromiumin kosketussäätö siirtää napautuksen
+ * lähimpään MAALATTUUN kohteeseen, ja play-napin läpinäkyvä kehä hävisi
+ * aikanaan viereiselle `#tl-scroll`:lle. Täyskorkea lappu ei jätä
+ * kehää johon napautus voisi karata.
+ *
+ * Kisko on 40 px eikä Applen 44: se on tässä koko kontrollin korkeus, ja
+ * 44 veisi aikavalitsimelta neljä pikseliä lisää pystytilaa jonka se
+ * aikanaan tarkoituksella luovutti kartalle. Napautukset on mitattu
+ * reunoja myöten. */
+.tl-paiva {
+  flex: 0 0 auto;
+  height: 100%;
+  display: flex; align-items: center;
+  padding: 0 10px;
+  border-radius: 11px;
+  font-size: var(--fs-10);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-user-select: none; user-select: none;
+  transition: background .15s ease, color .15s ease;
+}
+/* Valittu päivä on TUMMA PILLERI, ei magenta. `--accent` on toiminto- ja
+   varoitusväri; päivävalinta ei ole kumpaakaan. Sama kieli kuin
+   aikakuplalla, joka on saman valinnan toinen puoli. */
+.tl-paiva.valittu { background: var(--ink); color: var(--surface); }
+.tl-paiva:active { background: var(--hairline); }
+
 #tl-scroll {
   display: flex; gap: 0; overflow-x: auto; overflow-y: hidden;
   -webkit-overflow-scrolling: touch; scrollbar-width: none;
@@ -1056,7 +1134,9 @@ html.tyopoyta #kapseli.vaistyy {
 
 #tl-indicator {
   position: absolute;
-  top: 10px;
+  /* Alkaa päiväkiskon ALTA: kisko rullaa omaa tahtiaan, eikä tuntinauhan
+     osoitin saa piirtyä sen yli. */
+  top: calc(10px + var(--tl-paivat-h));
   bottom: calc(var(--sab-tl) + 12px);
   left: 50%; width: 2px;
   transform: translateX(-50%); pointer-events: none; z-index: 2;
@@ -1065,7 +1145,10 @@ html.tyopoyta #kapseli.vaistyy {
 }
 #tl-time-bubble {
   position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
-  margin-bottom: 8px;
+  /* Kupla pysyy siellä missä se on aina ollut: kortin yläpuolella.
+     Indikaattori siirtyi kiskon verran alas, joten marginaali kasvaa
+     saman verran — muuten kupla laskeutuisi kiskon päälle. */
+  margin-bottom: calc(8px + var(--tl-paivat-h));
   background: var(--ink);
   color: var(--surface);
   font-variant-numeric: tabular-nums;
@@ -2717,6 +2800,7 @@ html.tyopoyta {
           <path d="M7 4.5v15l12-7.5z"/>
         </svg>
       </div>
+      <div id="tl-paivat"></div>
       <div id="tl-indicator"><div id="tl-time-bubble">--:--</div></div>
       <div id="tl-scroll"></div>
     </div>
@@ -15212,9 +15296,13 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
      rAF:n _tlSetScrollLeft():iin asti. */
   _tlBeginSelfScroll();
   tl.innerHTML = '';
-  if (!times || !times.length) return;
+  if (!times || !times.length) { _tlRakennaPaivat(null); return; }
   State._tlTimes = times; State._tlSpeeds = speeds; State._tlDirs = dirs;
   State._tlTicks = [];
+  /* Kisko rakennetaan vain täällä, hitaassa polussa: se riippuu VAIN
+     aikaleimoista, ja nopea polku ajetaan nimenomaan silloin kun ne ovat
+     samat. Korostuksen hoitaa `_tlUpdateNow` molemmissa. */
+  _tlRakennaPaivat(times);
   const TICK_W = TL_TIKKI_LEV;
   const DAY = ['Su','Ma','Ti','Ke','To','Pe','La']; let lastDay = -1;
 
@@ -15280,6 +15368,28 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
      Kuuntelijat lukevat tilansa State:sta, joten ne toimivat myös uudelleen
      rakennetulle sisällölle. */
   State._tlLastTick = activeIdx;
+
+  /* Päiväkiskon napautus. Sama kerran-kiinnitys-sääntö kuin janalla:
+     kisko itse säilyy, vain sen sisältö rakennetaan uudelleen. */
+  const kisko = document.getElementById('tl-paivat');
+  if (kisko && !kisko._tlBound) {
+    kisko._tlBound = true;
+    kisko.addEventListener('click', function (e) {
+      const el = e.target.closest && e.target.closest('.tl-paiva');
+      if (!el || !el.dataset.pv) return;
+      const idx = _tlPaivanIdx(Number(el.dataset.pv));
+      if (idx < 0 || idx === State.currentHourIdx) return;
+      Haptics.selection();
+      State.currentHourIdx = idx;
+      State._lastTlHour = idx;
+      scrollTimelineTo(idx);
+      _tlUpdateNow(idx);
+      buildWindField(idx).then(function () { drawColorField(); resetParticles(); });
+      renderSpots(idx);
+      if (State.sheetSpot) openSheet(State.sheetSpot, idx);
+    });
+  }
+
   if (tl._tlBound) return;
   tl._tlBound = true;
 
@@ -15447,6 +15557,85 @@ function _tlSetScrollLeft(tl, x) {
   tl.scrollLeft = x;
 }
 
+/* ── PÄIVÄKISKO ────────────────────────────────────────────────────
+ *
+ * Ks. #tl-paivat CSS:ssä siitä miksi tämä on olemassa: viikon päähän on
+ * tuntinauhassa kymmenen ruudullista raahausta.
+ *
+ * Päivän tunniste on VUOSI-KUUKAUSI-PÄIVÄ -luku eikä viikonpäivä:
+ * aikajana on 16,5 vrk, joten sama viikonpäivä esiintyy kahdesti ja
+ * pelkkä `getDay()` osuisi väärään. */
+function _tlPvNro(d) { return d.getFullYear() * 10000 + d.getMonth() * 100 + d.getDate(); }
+
+function _tlRakennaPaivat(times) {
+  const kisko = document.getElementById('tl-paivat');
+  if (!kisko) return;
+  kisko.innerHTML = '';
+  State._tlPaivat = [];
+  if (!times || !times.length) return;
+  const DAY = ['Su', 'Ma', 'Ti', 'Ke', 'To', 'Pe', 'La'];
+  const tanaan = _tlPvNro(new Date());
+  let edellinen = -1;
+  for (let i = 0; i < times.length; i++) {
+    const d = new Date(times[i]);
+    const pv = _tlPvNro(d);
+    if (pv === edellinen) continue;
+    edellinen = pv;
+    const el = document.createElement('div');
+    el.className = 'tl-paiva';
+    el.textContent = pv === tanaan ? 'Tänään' : (DAY[d.getDay()] + ' ' + d.getDate() + '.');
+    el.dataset.pv = String(pv);
+    kisko.appendChild(el);
+    State._tlPaivat.push(el);
+  }
+}
+
+/* SAMA KELLONAIKA, ERI PÄIVÄ.
+ *
+ * Napautus vie sen päivän siihen tuntiin jossa ollaan nyt — juuri se mitä
+ * päivien vertailu tarkoittaa ("onko lauantaina yhtä kova kuin tänään
+ * viideltä"). Vaihtoehdot olisivat olleet vuorokauden alku (klo 00, yön
+ * lukema jota kukaan ei katso) tai keskipäivä (mielivaltainen). Jos
+ * täsmälleen samaa tuntia ei ole akselilla, otetaan lähin. */
+function _tlPaivanIdx(pvNro) {
+  const T = State._tlTimes;
+  if (!T || !T.length) return -1;
+  const nyk = new Date(T[Math.max(0, Math.min(T.length - 1, Math.round(State.currentHourIdx || 0)))]);
+  const tunti = nyk.getHours();
+  let paras = -1, parasEro = Infinity;
+  for (let i = 0; i < T.length; i++) {
+    const d = new Date(T[i]);
+    if (_tlPvNro(d) !== pvNro) continue;
+    const ero = Math.abs(d.getHours() - tunti);
+    if (ero < parasEro) { parasEro = ero; paras = i; }
+  }
+  return paras;
+}
+
+/* Korostus seuraa valintaa. Kiskoa vieritetään VAIN jos valittu päivä on
+   jäänyt näkyvistä — muuten janan jokainen tuntiaskel nykisi kiskoa. */
+function _tlKorostaPaiva(d) {
+  const lista = State._tlPaivat;
+  if (!lista || !lista.length) return;
+  const pv = String(_tlPvNro(d));
+  let osuma = null;
+  for (let i = 0; i < lista.length; i++) {
+    const on = lista[i].dataset.pv === pv;
+    if (on) osuma = lista[i];
+    if (lista[i].classList.contains('valittu') !== on) lista[i].classList.toggle('valittu', on);
+  }
+  if (!osuma) return;
+  const kisko = osuma.parentElement;
+  if (!kisko) return;
+  const vasen = osuma.offsetLeft, oikea = vasen + osuma.offsetWidth;
+  const nakyyV = kisko.scrollLeft + 16, nakyyO = kisko.scrollLeft + kisko.clientWidth - 16;
+  if (vasen < nakyyV || oikea > nakyyO) {
+    try {
+      kisko.scrollTo({ left: vasen - kisko.clientWidth / 2 + osuma.offsetWidth / 2, behavior: 'smooth' });
+    } catch (e) { kisko.scrollLeft = vasen - kisko.clientWidth / 2; }
+  }
+}
+
 function _tlUpdateNow(idx) {
   if (!State._tlTimes || !State._tlTimes[idx]) return;
   const d = new Date(State._tlTimes[idx]);
@@ -15461,6 +15650,7 @@ function _tlUpdateNow(idx) {
      päiväys oli aikavalitsimen äänekkäin elementti. */
   const bubble = document.getElementById('tl-time-bubble');
   if (bubble) bubble.textContent = DAY[d.getDay()] + ' ' + hh + ':00';
+  _tlKorostaPaiva(d);
 }
 
 /* Vahvistaa valinnan kun scroll on pysähtynyt. Natiivi snäppäys on jo

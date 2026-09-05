@@ -188,6 +188,12 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   akselilta toiselle — hae uusi indeksi AJASTA (`_tlSailytaHetki`).
   Mitattu ilman sitä: −15 h, −55 h, +75 h, ja jopa kahden tuntiakselin
   välillä 5 h, koska ne eivät ala samasta hetkestä.
+- **Älä tihennä aikajanaa tuntia pienemmäksi.** Mitattu: varastoaskelen
+  sisällä tuntipisteet ovat SUORALLA (poikkeama 0 m/s, 10 640 kolmikkoa),
+  muutos minuutissa on 0,0033 m/s eli 150× alle sovelluksen oman
+  0,5 m/s rajan, ja 94 % minuuteista renderöityisi identtisesti.
+  10 min veisi +7 vrk raahauksen 10 ruudullisesta 60:een.
+  Aikajanan vika oli navigointi, ja se on `#tl-paivat`.
 - **Laattavaraston akseli on 3 h (ja 6 h yli 7,5 vrk).**
   `wxTunneittain()` interpoloi siitä tuntiakselin — se ei ole uutta
   dataa vaan täsmälleen se mitä `asetaHetki`+`naytteista` jo antaa

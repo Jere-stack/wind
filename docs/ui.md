@@ -1154,3 +1154,105 @@ Ero on mittausmelun sisällä — raakalukujen alueet menevät joka
 tapauksessa päällekkäin. Eikä 397 ole uusi suuruusluokka: spotin sarja
 on ollut 384 tikkiä koko ajan aina kun keskellä on ollut spotti, eli
 lähizoomissa aina.
+
+## Minuuttitarkkuus kaatui mittaukseen — vika oli navigoinnissa
+
+Kysymys oli pitäisikö aikajana interpoloida minuuteiksi. Vastaus on ei, ja
+se selvisi mittaamalla kolme asiaa.
+
+**1. Tuntipisteiden välissä ei ole mitään.** Tuntisarja johdetaan varaston
+3 h askelista `_lerpWind`illä, joka interpoloi nopeuden lineaarisesti.
+Kolmen peräkkäisen tuntipisteen keskimmäisen poikkeama naapuriensa
+keskiarvosta:
+
+| kolmikko | keskiarvo | max | n |
+|---|---|---|---|
+| kokonaan varastoaskelen sisällä | **0 m/s** | **0 m/s** | 10 640 |
+| askelrajan yli | 0,172 m/s | 1,767 m/s | 3 395 |
+
+Nolla ei ole "pieni" vaan eksakti: tuntipisteet ovat suoralla, ja minuutit
+olisivat saman suoran pisteitä. Kolme neljäsosaa akselista ei saisi yhtään
+uutta muotoa.
+
+**2. Muutos on alle sen mikä merkitsee.** Tuulen muutos tunnissa: mediaani
+0,2 m/s, p90 0,53, p99 1,07, max 2,4. Minuutissa siis 0,0033 m/s.
+Sovelluksen oma kirjattu raja sille mikä merkitsee on **0,5 m/s** ("ei
+muuta kalustovalintaa", ks. *Ennusteen osuvuus havaintoja vasten*) — 150×
+suurempi.
+
+**3. Näyttö ei erota niitä.** Väriramppi kvantisoi 0,1 m/s ämpäreihin.
+Tunnin sisällä eri ämpäreitä on **3,5 / 60 minuuttia**, ja **94,1 %**
+minuuteista renderöityisi täsmälleen kuten edellinen.
+
+Ja hinta olisi maksettu siitä mikä aikajanassa oikeasti on vialla:
+
+| askel | tikkejä | jana | +7 vrk raahausta |
+|---|---|---|---|
+| tunti | 403 | 8 866 px | **10 ruudullista** |
+| 30 min | 805 | 17 710 px | 20 |
+| 10 min | 2 413 | 53 086 px | **60** |
+
+## Päiväkisko — 10 ruudullista raahausta yhdeksi napautukseksi
+
+Mitattu navigointikitka tuntinauhassa: +1 vrk 562 px (1,4 ruudullista),
++3 vrk 1 686 px (4,3), **+7 vrk 3 934 px (10)**. Päiväerottimet ("Ke 2.")
+olivat janassa mutta eivät napautettavia, ja ainoa nopea reitti eteenpäin
+oli ennustepaneeli — joka vastaa kysymykseen "milloin on hyvä keli", ei
+kysymykseen "vie minut lauantai-iltapäivään".
+
+`#tl-paivat` on ohut aina näkyvä rivi päivälappuja tuntinauhan yläpuolella.
+Mobiilissa 18 päivää on 883 px eli **2,3 ruudullista** (kymmenen sijaan) ja
+lähipäivät näkyvät kerralla; työpöydällä (1440 px) koko kisko mahtuu
+yhdelle riville, eli mihin tahansa päivään pääsee yhdellä klikkauksella.
+
+**Napautus vie samaan kellonaikaan, ei vuorokauden alkuun.** Se on se mitä
+päivien vertailu tarkoittaa: "onko lauantaina yhtä kova kuin tänään
+viideltä". Vuorokauden alku olisi yön lukema jota kukaan ei katso ja
+keskipäivä olisi mielivaltainen. Mitattu: 09-05 10:00 → 09-08 10:00 →
+09-12 10:00, tunti säilyy joka hypyllä.
+
+**Päivän tunniste on vuosi-kuukausi-päivä -luku eikä viikonpäivä.** Akseli
+on 16,8 vrk, joten sama viikonpäivä esiintyy kahdesti ja `getDay()` osuisi
+väärään.
+
+### Mitoitus: kolme lukua yhdestä muuttujasta
+
+`--tl-paivat-h` kasvattaa kääreen ja sen ylätäytteen yhtä paljon (jolloin
+tuntinauhan oma sisältölaatikko ei muutu lainkaan) ja siirtää
+indikaattoria ja aikakuplaa saman verran alas. Erillisinä lukuina ne
+ajautuisivat erilleen ensimmäisessä säädössä. Kortti (`#tl-wrap::before`)
+kasvaa ylöspäin ja kattaa kiskon; kupla jää sen yläpuolelle kuten ennen.
+
+### Kosketuskohde mitattiin napauttamalla
+
+Ensimmäinen versio oli 42×19 px pystytäytteellä, eli kiskoon jäi 13 px
+läpinäkyvää. Projektin oma sääntö kertoo mitä siitä seuraa (ks.
+*Kosketuskohteet ja pseudoelementtien osumapinta*): Chromiumin
+kosketussäätö siirtää napautuksen lähimpään **maalattuun** kohteeseen.
+Lappu täyttää nyt kiskon korkeuden.
+
+Napautukset lapun omista suhteellisista kohdista, oikea kosketuskonteksti:
+keskeltä, ylä- ja alareunasta, vasemmalta ja oikealta sekä ylävasemmalta
+**osuvat**; alaoikea kulma ei. Pystypyyhkäisy 3 px lapun oikeasta
+reunasta, 3 px välein:
+
+    y+2  HUTI · y+5…y+35 osuu · y+38 HUTI
+
+Eli kuollut kaista on **2 px kummassakin reunassa** ja käyttökelpoista on
+30 px 40:stä. Se on kahden vierekkäisen kontrollin raja, ei vika: ylhäällä
+on kartta ja alhaalla tuntinauha. Huti ei tee mitään tuhoisaa — napautus
+menee tuntinauhaan, eli valitsee tunnin päivän sijaan.
+
+Kisko on 40 px eikä Applen 44: se on koko kontrollin korkeus, ja 44 veisi
+aikavalitsimelta neljä pikseliä lisää pystytilaa jonka se aikanaan
+tarkoituksella luovutti kartalle.
+
+**Lappujen välissä ei ole rakoa.** 3 px:n raolla napautus katosi siihen
+eikä tehnyt mitään. Ilman rakoa kisko on yhtenäinen osumapinta ja napautus
+osuu aina johonkin päivään; erottelun hoitaa lapun oma vaakatäyte, jolloin
+tekstien väliin jää 20 px.
+
+**Kisko ei kuuntele tuntinauhaa.** Napautus vie janan, mutta janan vieritys
+vierittää kiskoa vain kun valittu päivä on jäänyt näkymän ulkopuolelle.
+Ilman tuota rajausta kaksi vierityskonetta ajaisivat toisiaan takaa — sama
+ansa jonka takia tuntinauhassa on `_tlBeginSelfScroll`.
