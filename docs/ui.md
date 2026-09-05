@@ -1521,3 +1521,67 @@ Poisto säästäisi 0,6 ruudullista kymmenestä. Se ei ole parannus jonka
 takia kannattaa menettää ainoa janan sisällä näkyvä päiväys — ja
 valokaistan myötä erottimet ovat nyt osa yhtenäistä yöpalkkia, joten
 poisto puhkaisisi siihen takaisin 34 px:n aukon. **Jätetään.**
+
+## Kontrollit olivat divejä — näppäimistö ei tavoittanut niistä yhtäkään
+
+Mitattuna ennen: sovelluksen viisi pääkontrollia (`btn-loc`,
+`btn-freespot`, `fc-btn`, `btn-settings`, `btn-play`) olivat
+`<div class="mctl">`, eli **0 fokusoitavaa**. Sarkain kulki kartan
+jälkeen kymmenien havaintoasemamerkkien läpi eikä tavoittanut
+sovelluksen omia toimintoja lainkaan. Työpöytätuki oli jo olemassa,
+joten tämä koski myös hiiretöntä käyttäjää.
+
+### Neljä muutosta, kaikki mitattuja
+
+**1. Napit ovat `<button>`.** `.mctl` asetti jo `border: none` ja oman
+taustansa, joten tagin vaihto vaati vain selaimen omien oletusten
+nollauksen (`margin`, `padding`, `font-family`, `appearance`). Ulkoasu
+ei muuttunut pikselilläkään.
+
+**2. Havaintoasemat pois sarkainkierrosta** (`keyboard: false`).
+Spottimerkit jäävät: spottimerkki avaa kortin eli on oikeaa sisältöä,
+asemamerkki on lukema jonka saa muualtakin.
+
+**3. Suljettu paneeli ei ole sarkainkierrossa.** Kaikki paneelit
+piilotetaan siirtämällä ne ruudun ulkopuolelle (`translate`), ja ruudun
+ulkopuolella oleva elementti on yhä fokusoitava ja yhä ruudunlukijan
+puussa. Mitattuna sarkain kulki suljetun asetuspaneelin läpi (Valmis,
+neljä kytkinriviä) ennen kuin pääsi kartan kontrolleihin. `visibility:
+hidden` poistaa sen molemmista, ja siirtymä on ajoitettu niin että
+näkyvyys vaihtuu vasta kun liuku on ohi — muuten paneeli katoaisi kesken
+sulkeutumisanimaation.
+
+**4. Kytkinrivi on `role="switch"`.** Rivi on ollut koko ajan se
+kosketuskohde (kytkin itse on 40×24 eli alle minimin, mutta rivi on
+46 px korkea), joten kokoa ei tarvinnut muuttaa — semantiikka puuttui.
+`aria-checked` asetetaan myös alussa, koska tila tulee localStoragesta.
+
+### Sarkainkierto ennen → jälkeen
+
+    ennen   1. kartta  2.-14. havaintoasemamerkkejä …  (kontrolleja ei tavoiteta)
+    nyt     1. kartta  2.-4. kapselin valitsimet  5. sijainti  6. tämän paikan tiedot
+            7. parhaat ajankohdat  8. asetukset  9. play  10. kelihyppy
+            11. aikajana  12. verkkotila
+
+Näkyviä kontrolleja 24, fokusoitavia **24** (ennen: 5 pääkontrollista 0).
+
+### Kaksi vikaa jotka löytyivät vasta mittaamalla
+
+**Esc ei sulkenut asetuspaneelia.** Esc sulki kortin, ennusteen ja
+valitsimet mutta jätti asetusladan auki — puuttui listasta. Löytyi vasta
+kun paneelit tulivat sarkainkierrokseen ja mittari yritti sulkea niitä
+Escillä.
+
+**Kartan saavutettava nimi oli sen merkkien tekstiä.** Ruudunlukija luki
+`#map`in nimeksi merkeistä kootun merkkijonon
+("ei signaaliaei signaalia…"). Nyt `role="application"` ja
+`aria-label="Tuulikartta"`.
+
+### Mittarihuomio: pyöreän napin kulma ei ole nappi
+
+`.mctl` on `border-radius: 50%`. Napautus laatikon kulmaan (0,12 / 0,12)
+osuu ympyrän ulkopuolelle, ja mittari raportoi sen huteina — sekä ennen
+että jälkeen muutoksen. Näytteet on otettava ympyrän sisältä (0,15 ja
+0,85 akselia pitkin ovat säteellä 0,35). Neljä pistettä neljästä osuu
+kaikkiin viiteen nappiin, ja luvut ovat identtiset ennen ja jälkeen —
+eli tagin vaihto ei vienyt yhtään napautusta.

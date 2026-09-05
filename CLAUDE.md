@@ -187,6 +187,23 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **`var()` ei toimi SVG:n esitysattribuuteissa.** Kaavioiden `fill=` tarvitsee
   literaalin; inline-tyyleissä tokenit toimivat.
 
+**Saavutettavuus**
+
+- **Kontrolli on `<button>`, ei `<div class="mctl">`.** Divinä ne eivät ole
+  fokusoitavia eivätkä ruudunlukijalle painikkeita — mitattuna viidestä
+  pääkontrollista 0 tavoitettavissa sarkaimella.
+- **Suljettu paneeli piilotetaan `visibility: hidden`illä.** Pelkkä
+  `translate` ruudun ulkopuolelle jättää sen sarkainkierrokseen ja
+  ruudunlukijan puuhun. Näkyvyys vaihtuu vasta liu'un jälkeen
+  (`transition-delay`), muuten paneeli katoaa kesken sulkeutumisen.
+- **Esc sulkee KAIKKI päällekkäiset pinnat**, myös asetukset. Jos lisäät
+  paneelin, lisää se Esc-listaan.
+- **Havaintoasemien merkit ovat `keyboard: false`.** Muuten sarkain kulkee
+  kymmenien merkkien läpi ennen kuin tavoittaa sovelluksen kontrollit.
+- **Pyöreän napin kulma ei ole nappi.** `.mctl` on ympyrä, joten
+  napautusmittauksen näytteet otetaan ympyrän sisältä — laatikon kulma
+  antaa hudin joka on geometriaa, ei vikaa.
+
 **Aikajana**
 
 - **`currentHourIdx` on INDEKSI, ja aika-akseli vaihtuu kartan mukana.**

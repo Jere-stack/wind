@@ -722,6 +722,12 @@ html.tyopoyta #kapseli.vaistyy {
   transition: opacity .15s, transform .12s;
   -webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0);
   pointer-events: all; /* each button captures its own touches */
+  /* NAPIT OVAT <button>, EIVAT <div>. Ilman tata ne eivat olleet
+     fokusoitavia eivatka ruudunlukijalle painikkeita: mitattuna viisi
+     paakontrollia, joista 0 tavoitettavissa sarkaimella. Selaimen omat
+     oletukset nollataan tassa, jotta ulkoasu pysyy tasmalleen samana. */
+  margin: 0; padding: 0; font-family: inherit;
+  -webkit-appearance: none; appearance: none;
 }
 .mctl:active { opacity: 1; transform: scale(0.9); background: var(--surface-lo); }
 .mctl.playing { color: var(--accent); }
@@ -1372,6 +1378,38 @@ html.tyopoyta {
   --fs-12: 13.5px;
   --fs-13: 14px;
 }
+
+/* ── SULJETTU PANEELI EI OLE SARKAINKIERROSSA ─────────────────────
+ *
+ * Kaikki paneelit piilotetaan siirtämällä ne ruudun ulkopuolelle
+ * (`translate`). Ruudun ulkopuolella oleva elementti on yhä
+ * FOKUSOITAVA ja yhä ruudunlukijan puussa: mitattuna sarkain kulki
+ * suljetun asetuspaneelin läpi (Valmis, neljä kytkinriviä) ennen kuin
+ * pääsi kartan omiin kontrolleihin, eikä mikään näkynyt ruudulla.
+ *
+ * `visibility: hidden` poistaa elementin molemmista. Siirtymä on
+ * ajoitettu niin että näkyvyys vaihtuu VASTA kun liuku on ohi —
+ * muuten paneeli katoaisi kesken sulkeutumisanimaation:
+ *
+ *   kiinni:  visibility 0s linear .38s   (odota liuku, sitten piiloon)
+ *   auki:    visibility 0s               (näkyviin heti)
+ *
+ * `inert` tekisi saman yhdellä attribuutilla, mutta se vaatisi
+ * jokaisen avaus- ja sulkupolun muuttamista JS:ssä; tässä sama tulos
+ * saadaan luokista jotka ovat jo olemassa. */
+#settings-popup, #sheet, #forecast-panel, #hourly-sheet {
+  visibility: hidden;
+  transition-property: transform, visibility;
+  transition-duration: .38s, 0s;
+  transition-delay: 0s, .38s;
+}
+#settings-popup { transition-duration: .34s, 0s; transition-delay: 0s, .34s; }
+#settings-popup.open, #sheet.open, #forecast-panel.open, #hourly-sheet.auki {
+  visibility: visible;
+  transition-delay: 0s, 0s;
+}
+/* Vetäessä siirtymä on pois päältä, joten näkyvyyskin on suora. */
+#sheet.dragging, #forecast-panel.dragging { transition: none; visibility: visible; }
 
 /* ============================================================
    CROSSHAIR
@@ -2519,7 +2557,10 @@ html.tyopoyta {
       </div>
     </div>
   </div>
-    <div id="map"></div>
+    <!-- Kartan oma nimi. Ilman tätä ruudunlukija luki sen sisällöstä
+         kootun merkkijonon ("ei signaaliaei signaalia…"), koska nimi
+         periytyy merkkien tekstistä. -->
+    <div id="map" role="application" aria-label="Tuulikartta"></div>
 </div>
   <canvas id="c-wind"></canvas>
   <div id="c-wind-kello"></div>
@@ -2692,7 +2733,7 @@ html.tyopoyta {
           <div class="sp-label">Karttatasot</div>
 
           <div class="sp-rows">
-          <div class="sp-toggle-row" data-layer-toggle="fmi-sea">
+          <div class="sp-toggle-row" role="switch" tabindex="0" data-layer-toggle="fmi-sea">
             <div class="sp-toggle-left">
               <div class="sp-toggle-dot"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><line x1="12" y1="4" x2="12" y2="20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".55"/><path d="M12 7 L19 9 L12 11 Z" fill="currentColor"/><circle cx="12" cy="20" r="1.5" fill="currentColor" opacity=".7"/></svg></div>
               <div>
@@ -2703,7 +2744,7 @@ html.tyopoyta {
             <div class="sp-toggle on" id="toggle-fmi-sea"></div>
           </div>
 
-          <div class="sp-toggle-row" data-layer-toggle="uiras-prim">
+          <div class="sp-toggle-row" role="switch" tabindex="0" data-layer-toggle="uiras-prim">
             <div class="sp-toggle-left">
               <div class="sp-toggle-dot"><svg width="16" height="10" viewBox="0 0 14 8" fill="none"><path d="M0 5 Q2 2 4 5 Q6 8 8 5 Q10 2 12 5 Q13 6.5 14 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg></div>
               <div>
@@ -2714,7 +2755,7 @@ html.tyopoyta {
             <div class="sp-toggle" id="toggle-uiras-prim"></div>
           </div>
 
-          <div class="sp-toggle-row" data-layer-toggle="fmi-land">
+          <div class="sp-toggle-row" role="switch" tabindex="0" data-layer-toggle="fmi-land">
             <div class="sp-toggle-left">
               <div class="sp-toggle-dot toissijainen"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><line x1="12" y1="4" x2="12" y2="20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".55"/><path d="M12 7 L19 9 L12 11 Z" fill="currentColor"/><circle cx="12" cy="20" r="1.5" fill="currentColor" opacity=".7"/></svg></div>
               <div>
@@ -2725,7 +2766,7 @@ html.tyopoyta {
             <div class="sp-toggle on" id="toggle-fmi-land"></div>
           </div>
 
-          <div class="sp-toggle-row" data-layer-toggle="uiras-sec">
+          <div class="sp-toggle-row" role="switch" tabindex="0" data-layer-toggle="uiras-sec">
             <div class="sp-toggle-left">
               <div class="sp-toggle-dot toissijainen"><svg width="16" height="10" viewBox="0 0 14 8" fill="none"><path d="M0 5 Q2 2 4 5 Q6 8 8 5 Q10 2 12 5 Q13 6.5 14 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg></div>
               <div>
@@ -2786,7 +2827,7 @@ html.tyopoyta {
              oli vielä tumman teeman jäänne stroke="white" — paperisirulla
              valkoinen viiva on käytännössä näkymätön. Koot olivat myös
              20/34/34/22, joten ikonit lukivat eri painoisina. -->
-        <div class="mctl" id="btn-loc" title="Oma sijainti">
+        <button type="button" class="mctl" id="btn-loc" title="Oma sijainti" aria-label="Keskitä kartta omaan sijaintiin">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
             <circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/>
             <circle cx="12" cy="12" r="7.6"/>
@@ -2795,16 +2836,16 @@ html.tyopoyta {
             <line x1="1.8" y1="12" x2="4.4" y2="12" stroke-linecap="round"/>
             <line x1="19.6" y1="12" x2="22.2" y2="12" stroke-linecap="round"/>
           </svg>
-        </div>
-        <div class="mctl" id="btn-freespot" title="Avaa tämän paikan tiedot">
+        </button>
+        <button type="button" class="mctl" id="btn-freespot" title="Avaa tämän paikan tiedot" aria-label="Avaa tämän paikan tiedot">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <!-- Karttanuppineula: erottuu sijaintinapin renkaasta muodoltaan
                  eikä vain kooltaan. -->
             <path d="M12 21.5c0 0-6.6-7-6.6-11.4a6.6 6.6 0 1 1 13.2 0c0 4.4-6.6 11.4-6.6 11.4z"/>
             <circle cx="12" cy="10" r="2.4"/>
           </svg>
-        </div>
-        <div class="mctl" id="fc-btn" title="Parhaat ajankohdat">
+        </button>
+        <button type="button" class="mctl" id="fc-btn" title="Parhaat ajankohdat" aria-label="Parhaat ajankohdat" aria-expanded="false">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3.2" y="4.6" width="17.6" height="16.6" rx="3"/>
             <line x1="3.2" y1="9.6" x2="20.8" y2="9.6"/>
@@ -2816,8 +2857,8 @@ html.tyopoyta {
             <circle cx="8.4" cy="17.8" r="1.3" fill="currentColor" stroke="none"/>
             <circle cx="12" cy="17.8" r="1.3" fill="currentColor" stroke="none"/>
           </svg>
-        </div>
-        <div class="mctl mctl-settings" id="btn-settings">
+        </button>
+        <button type="button" class="mctl mctl-settings" id="btn-settings" title="Kartan asetukset" aria-label="Kartan asetukset" aria-expanded="false">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
             <line x1="4" y1="6" x2="20" y2="6"/>
             <line x1="4" y1="12" x2="20" y2="12"/>
@@ -2826,28 +2867,28 @@ html.tyopoyta {
             <circle cx="16" cy="12" r="2" fill="currentColor" stroke="none"/>
             <circle cx="10" cy="18" r="2" fill="currentColor" stroke="none"/>
           </svg>
-        </div>
+        </button>
       </div>
     </div>
     <div id="tl-wrap">
       <!-- Play-nappi kelluu timelinen vasemmassa reunassa (Windy-tyyli) -->
-      <div class="mctl tl-play-btn" id="btn-play">
+      <button type="button" class="mctl tl-play-btn" id="btn-play" aria-label="Toista aika" aria-pressed="false">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" id="play-icon">
           <path d="M7 4.5v15l12-7.5z"/>
         </svg>
-      </div>
+      </button>
       <!-- Kelihyppy oikeassa reunassa: eteenpäin ajassa on oikealle, ja
            play on vasemmassa reunassa vastapainona. -->
-      <div class="mctl tl-keli-btn" id="btn-keli" role="button" tabindex="0"
+      <button type="button" class="mctl tl-keli-btn" id="btn-keli"
            aria-label="Seuraava kelivikkuna" title="Seuraava kelivikkuna (K)">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M6 5l6 7-6 7M14 5l6 7-6 7"/>
         </svg>
-      </div>
+      </button>
       <div id="tl-paivat"></div>
       <div id="tl-indicator"><div id="tl-time-bubble">--:--</div></div>
-      <div id="tl-scroll"></div>
+      <div id="tl-scroll" role="group" aria-label="Aikajana, tunnit"></div>
     </div>
   </div>
 
@@ -2900,7 +2941,7 @@ html.tyopoyta {
   <div id="refresh-dot"></div>
   <!-- Forecast panel — best windows -->
   <div id="forecast-panel">
-    <div id="fc-handle"></div>
+    <div id="fc-handle" role="button" tabindex="0" aria-label="Sulje"></div>
     <div id="fc-header">
       <div id="fc-title">Parhaat ajankohdat</div>
       <div id="fc-subtitle">5 vrk ennuste · parhaat 2h ikkunat spoteille</div>
@@ -11177,7 +11218,13 @@ function renderSpots(hourIdx) {
          se jäisi puolittain renkaan päälle ja näyttäisi virheeltä — nyt
          rengas peittää sen siististi ja piste näkyy vain siltä osin kuin
          se on renkaan ulkopuolella. */
-      L.marker([spot.lat, spot.lng], { icon, zIndexOffset: pisteena ? -1000 : 0 })
+      /* HAVAINTOASEMAT POIS SARKAINKIERROSTA, SPOTIT EIVÄT.
+         Mitattuna sarkain kulki kartan jälkeen kymmenien asemamerkkien
+         läpi eikä tavoittanut sovelluksen omia kontrolleja lainkaan.
+         Spottimerkki avaa kortin eli on oikeaa sisältöä; asemamerkki on
+         lukema jonka saa muualtakin. */
+      L.marker([spot.lat, spot.lng], { icon, zIndexOffset: pisteena ? -1000 : 0,
+        alt: spot.name, title: spot.name })
         .on('click', () => {
           Haptics.medium();
           const map = State.map;
@@ -11937,7 +11984,7 @@ function _addObsMarkers(map) {
     /* zIndexOffset korkeampi kuin tuulikortin (-50) — sama koordinaatti
        tarkoittaa samaa Leafletin laskemaa perus-z-indeksiä, joten tämä
        offset yksin ratkaisee kumpi piirtyy päällimmäisenä. */
-    var dot = L.marker([lat, lng], { icon: _makeStationIcon(map.getZoom()), zIndexOffset: 50 })
+    var dot = L.marker([lat, lng], { icon: _makeStationIcon(map.getZoom()), zIndexOffset: 50, keyboard: false })
       .on('click', onClick).addTo(map);
     _stationDots.push(dot);
     return dot;
@@ -12215,7 +12262,7 @@ function _addObsMarkers(map) {
       var isPrim = !!PRIM_FMI[st.place];
       var pilleriZ = isPrim ? PILLERI_Z_MERI : PILLERI_Z_MAA;
       var icon = mkWindIcon(map.getZoom(), null, st.name, pilleriZ);
-      var m = L.marker([st.lat,st.lng],{icon:icon,zIndexOffset:isPrim?-50:-100})
+      var m = L.marker([st.lat,st.lng],{icon:icon,zIndexOffset:isPrim?-50:-100,keyboard:false})
         .on('click',function(){ _openObsSheet('fmi',st); }).addTo(map);
       var _lg = FMI_SEA_PLACES[st.place] ? 'fmi-sea' : 'fmi-land';
       _obsMarkers.push({marker:m, type:isPrim?'wind-prim':'wind-dot',
@@ -12279,7 +12326,7 @@ function _addObsMarkers(map) {
     var KV_STATION = { name: 'Kruunuvuorenselkä', place: 'kruunuvuorenselka', lat: 60.163, lng: 24.997 };
 
     var icon = mkWindIcon(map.getZoom(), null, KV_STATION.name, 8);
-    var m = L.marker([KV_STATION.lat, KV_STATION.lng], { icon: icon, zIndexOffset: -50 })
+    var m = L.marker([KV_STATION.lat, KV_STATION.lng], { icon: icon, zIndexOffset: -50, keyboard: false })
       .on('click', function(){ _openObsSheet('kruunuvuori', KV_STATION); }).addTo(map);
     var kvEntry = { marker: m, type: 'wind-prim', ws: null, wg: null,
       wsLatest: null, wgLatest: null, stName: KV_STATION.name, pilleriZ: 8,
@@ -12376,14 +12423,14 @@ function _addObsMarkers(map) {
     UIRAS_STATIONS.forEach(function(st) {
       var entry=tempMap[st.id.toUpperCase()];
       var temp=entry&&entry.temp!=null&&entry.temp>-5&&entry.temp<40?entry.temp:null;
-      var m=L.marker([st.lat,st.lng],{icon:mkWaterIcon(map.getZoom(),temp,!!st.prim),zIndexOffset:-200})
+      var m=L.marker([st.lat,st.lng],{icon:mkWaterIcon(map.getZoom(),temp,!!st.prim),zIndexOffset:-200,keyboard:false})
         .on('click',function(){ _openObsSheet('uiras',st); }).addTo(map);
       _obsMarkers.push({marker:m,type:'water',temp:temp,prim:!!st.prim,layerGroup:'uiras'});
     });
     if (typeof _applyMapLayers === 'function') _applyMapLayers();
   }).catch(function() {
     UIRAS_STATIONS.forEach(function(st) {
-      var m=L.marker([st.lat,st.lng],{icon:mkWaterIcon(map.getZoom(),null,!!st.prim),zIndexOffset:-200})
+      var m=L.marker([st.lat,st.lng],{icon:mkWaterIcon(map.getZoom(),null,!!st.prim),zIndexOffset:-200,keyboard:false})
         .on('click',function(){ _openObsSheet('uiras',st); }).addTo(map);
       _obsMarkers.push({marker:m,type:'water',temp:null,prim:!!st.prim,layerGroup:'uiras'});
     });
@@ -15249,6 +15296,11 @@ document.getElementById('sheet-handle').addEventListener('click', closeSheet, { 
       if (typeof ForecastPanel !== 'undefined') ForecastPanel.close();
       if (typeof Valitsin !== 'undefined') Valitsin.suljeKaikki();
       if (typeof WxPanel !== 'undefined') WxPanel.close();
+      /* Asetuspaneeli puuttui tästä listasta: Esc sulki kortin, ennusteen
+         ja valitsimet mutta jätti asetusladan auki. Löytyi vasta kun
+         paneelit tulivat sarkainkierrokseen ja mittari yritti sulkea
+         niitä Escillä. */
+      if (typeof _closeSettings === 'function') _closeSettings();
       return;
     }
 
@@ -15291,9 +15343,16 @@ document.getElementById('sheet-handle').addEventListener('click', closeSheet, { 
       case 'Home':
         if (State._tlTimes && State._tlTimes.length) _tlValitseIdx(nowIdx(State._tlTimes));
         break;
-      case ' ': case 'Spacebar':
+      case ' ': case 'Spacebar': {
+        /* Fokus painikkeessa: selain aktivoi sen jo itse välilyönnillä.
+           Ilman tätä sekä painike että play laukeaisivat samasta
+           painalluksesta. */
+        const f = document.activeElement;
+        if (f && (f.tagName === 'BUTTON' || f.getAttribute('role') === 'button'
+              || f.getAttribute('role') === 'switch')) { hoidettu = false; break; }
         if (State._tlTicks && State._tlTicks.length) togglePlay();
         break;
+      }
       case 'k': case 'K': {
         const kohde = _tlSeuraavaKeli(State.currentHourIdx);
         if (kohde >= 0) _tlValitseIdx(kohde);
@@ -16843,19 +16902,55 @@ function _applyMapLayers() {
   });
 }
 
+/* KYTKINRIVI ON ROLE="SWITCH".
+ *
+ * Rivi on ollut koko ajan se kosketuskohde (kytkin itse on 40x24 eli
+ * alle minimin, mutta rivi on 46 px korkea), joten kokoa ei tarvinnut
+ * muuttaa. Semantiikka puuttui: ruudunlukija ei kertonut roolia eikä
+ * tilaa, eikä riviin päässyt sarkaimella lainkaan.
+ *
+ * `aria-checked` asetetaan myös alussa, koska tila tulee
+ * localStoragesta — ilman sitä ensimmäinen lukema olisi väärä. */
 document.querySelectorAll('.sp-toggle-row').forEach(function(row) {
-  row.addEventListener('click', function() {
+  var id = row.dataset.layerToggle;
+  var tog = document.getElementById('toggle-' + id);
+  var nimi = row.querySelector('.sp-toggle-name');
+  if (nimi) row.setAttribute('aria-label', nimi.textContent.trim());
+  if (tog) row.setAttribute('aria-checked', tog.classList.contains('on') ? 'true' : 'false');
+
+  function vaihda() {
     Haptics.light();
-    var id = row.dataset.layerToggle;
-    var tog = document.getElementById('toggle-' + id);
     if (!tog) return;
     var isOn = !tog.classList.contains('on');
     tog.classList.toggle('on', isOn);
+    row.setAttribute('aria-checked', isOn ? 'true' : 'false');
     window._mapLayerState[id] = isOn;
     _tallennaKarttatasot();
     _applyMapLayers();
+  }
+  row.addEventListener('click', vaihda);
+  /* Enter ja väli kuuluvat switchille. `<div role="switch">` ei saa niitä
+     ilmaiseksi niin kuin `<button>` — siksi ne kytketään käsin. */
+  row.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+      e.preventDefault();
+      vaihda();
+    }
   });
 });
+
+/* fc-handle on vetokahva, mutta myös sulkupainike — sama kuin
+   #sheet-handle. Näppäimistölle se tarvitsee oman kuuntelijansa. */
+(function () {
+  var kahva = document.getElementById('fc-handle');
+  if (!kahva) return;
+  kahva.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+      e.preventDefault();
+      ForecastPanel.close();
+    }
+  });
+})();
 
 document.getElementById('btn-loc').addEventListener('click', () => {
   Haptics.light();
@@ -16922,6 +17017,7 @@ const ForecastPanel = {
     closeSheet();
     document.getElementById('sheet-overlay').classList.add('open');
     document.getElementById('fc-btn').classList.add('active');
+    document.getElementById('fc-btn').setAttribute('aria-expanded', 'true');
     this.render();
     document.getElementById('forecast-panel').classList.add('open');
     Haptics.medium();
@@ -16932,6 +17028,7 @@ const ForecastPanel = {
     document.getElementById('forecast-panel').classList.remove('open');
     document.getElementById('sheet-overlay').classList.remove('open');
     document.getElementById('fc-btn').classList.remove('active');
+    document.getElementById('fc-btn').setAttribute('aria-expanded', 'false');
   },
 
   /* Time filter: returns true if this ISO time should be included */
