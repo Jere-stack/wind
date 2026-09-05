@@ -1354,33 +1354,46 @@ html.tyopoyta #kapseli.vaistyy {
  * Vain kokoja, ei valistysta. Paneelien sisennykset ovat omia
  * paatoksiaan eivatka seuraa tekstia — jos ne kaipaavat ilmaa, se on
  * eri muutos ja mitataan erikseen. */
+/* KOOT SEURAAVAT KAYTTAJAN TEKSTIKOKOA (--fs-kerroin).
+ *
+ * Ennen koko asteikko oli kiinteita pikseleita, eli iOS:n Dynamic Type
+ * ja selaimen oma tekstikokoasetus eivat tehneet mitaan. Kerroin
+ * lasketaan kerran kaynnistyksessa (`Tyyppikoko`), ja koska koot ovat
+ * jo valmiiksi muuttujia, muutos osuu joka kokoon kerralla.
+ *
+ * Kerroin on RAJATTU 0,9-1,4:aan. Dynamic Typen isoimmat
+ * saavutettavuuskoot ovat yli kolminkertaisia, ja kartan kromi on
+ * tilaltaan sidottu: 22 px:n tuntitikki ei veny. Panelien teksti
+ * hyotyy kertoimesta, ja sen yli menevan tarpeen hoitaa selaimen oma
+ * zoom joka skaalaa myos asettelun. */
 :root {
-  --fs-65: 6.5px;
-  --fs-7: 7px;
-  --fs-75: 7.5px;
-  --fs-8: 8px;
-  --fs-85: 8.5px;
-  --fs-9: 9px;
-  --fs-95: 9.5px;
-  --fs-10: 10px;
-  --fs-105: 10.5px;
-  --fs-11: 11px;
-  --fs-12: 12px;
-  --fs-13: 13px;
+  --fs-kerroin: 1;
+  --fs-65: calc(6.5px * var(--fs-kerroin));
+  --fs-7:  calc(7px   * var(--fs-kerroin));
+  --fs-75: calc(7.5px * var(--fs-kerroin));
+  --fs-8:  calc(8px   * var(--fs-kerroin));
+  --fs-85: calc(8.5px * var(--fs-kerroin));
+  --fs-9:  calc(9px   * var(--fs-kerroin));
+  --fs-95: calc(9.5px * var(--fs-kerroin));
+  --fs-10: calc(10px  * var(--fs-kerroin));
+  --fs-105:calc(10.5px* var(--fs-kerroin));
+  --fs-11: calc(11px  * var(--fs-kerroin));
+  --fs-12: calc(12px  * var(--fs-kerroin));
+  --fs-13: calc(13px  * var(--fs-kerroin));
 }
 html.tyopoyta {
-  --fs-65: 9px;
-  --fs-7: 9.5px;
-  --fs-75: 10px;
-  --fs-8: 10.5px;
-  --fs-85: 11px;
-  --fs-9: 11.5px;
-  --fs-95: 12px;
-  --fs-10: 12.5px;
-  --fs-105: 12.5px;
-  --fs-11: 13px;
-  --fs-12: 13.5px;
-  --fs-13: 14px;
+  --fs-65: calc(9px    * var(--fs-kerroin));
+  --fs-7:  calc(9.5px  * var(--fs-kerroin));
+  --fs-75: calc(10px   * var(--fs-kerroin));
+  --fs-8:  calc(10.5px * var(--fs-kerroin));
+  --fs-85: calc(11px   * var(--fs-kerroin));
+  --fs-9:  calc(11.5px * var(--fs-kerroin));
+  --fs-95: calc(12px   * var(--fs-kerroin));
+  --fs-10: calc(12.5px * var(--fs-kerroin));
+  --fs-105:calc(12.5px * var(--fs-kerroin));
+  --fs-11: calc(13px   * var(--fs-kerroin));
+  --fs-12: calc(13.5px * var(--fs-kerroin));
+  --fs-13: calc(14px   * var(--fs-kerroin));
 }
 
 /* ── SULJETTU PANEELI EI OLE SARKAINKIERROSSA ─────────────────────
@@ -3315,6 +3328,63 @@ const POHJAT = {
     nimi: 'Satelliitti',
     url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     attr: 'Esri, Maxar, Earthstar Geographics ja GIS-käyttäjäyhteisö.'
+  }
+};
+
+/* -- TYYPPIKOKO --------------------------------------------------
+ *
+ * Käyttäjän oma tekstikoko kahdelta eri lähteeltä, YHTENÄ kertoimena:
+ *
+ *   Apple:  `font: -apple-system-body` on ainoa tapa saada Dynamic
+ *           Type verkkosivulle. Mitataan piilotetusta elementistä ja
+ *           suhteutetaan oletukseen 17 px.
+ *   muut:   juurielementin laskettu `font-size`, joka heijastaa
+ *           selaimen omaa tekstikokoasetusta. Oletus on 16 px.
+ *
+ * Tuen tunnistus on `CSS.supports`: ilman sitä ei-Apple-selain lukisi
+ * shorthandin oletuskooksi 16 px ja jakaisi seitsemällätoista, eli
+ * kutistaisi tekstin 6 % ilman että kukaan on pyytänyt.
+ *
+ * Rajaus 0,9-1,4 on tietoinen: Dynamic Typen saavutettavuuskoot ovat
+ * yli kolminkertaisia, eikä 22 px:n tuntitikki veny. Sen yli menevän
+ * tarpeen hoitaa selaimen zoom, joka skaalaa myös asettelun.
+ *
+ * Päivitetään myös `resize`- ja `visibilitychange`-tapahtumista:
+ * järjestelmän tekstikoko voi vaihtua sovelluksen ollessa auki, eikä
+ * siitä tule omaa tapahtumaansa. */
+const Tyyppikoko = {
+  _viimeisin: null,
+  paivita() {
+    let perus = 16, jakaja = 16;
+    try {
+      if (window.CSS && CSS.supports && CSS.supports('font', '-apple-system-body')) {
+        const koe = document.createElement('div');
+        koe.setAttribute('aria-hidden', 'true');
+        koe.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;font:-apple-system-body';
+        document.body.appendChild(koe);
+        perus = parseFloat(getComputedStyle(koe).fontSize) || 17;
+        koe.remove();
+        jakaja = 17;
+      } else {
+        perus = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      }
+    } catch (e) { return; }
+    const k = Math.max(0.9, Math.min(1.4, perus / jakaja));
+    const arvo = k.toFixed(3);
+    if (arvo === this._viimeisin) return;
+    this._viimeisin = arvo;
+    document.documentElement.style.setProperty('--fs-kerroin', arvo);
+    /* Aikajanan tikit on mitoitettu JS:ssä (`TL_TIKKI_LEV`), ja lukemat
+       ovat CSS:ssä — koon muuttuessa jana rakennetaan uudelleen jotta
+       keskitys osuu. */
+    try {
+      if (State._tlMuisti && typeof renderTimeline === 'function') {
+        const m = State._tlMuisti;
+        State._tlTicks = [];
+        renderTimeline(m.times, m.speeds, m.dirs, m.activeIdx,
+          { puuskat: m.puuskat, lat: m.lat, lng: m.lng });
+      }
+    } catch (e) {}
   }
 };
 
@@ -6977,7 +7047,15 @@ function initCanvases() {
      dokumentoidun 1,34 Mpx:n sijaan. */
   State.dpr = Math.min(2, window.devicePixelRatio || 1);
   resizeCanvases();
-  window.addEventListener('resize', () => { resizeCanvases(); resetParticles(true); }, { passive: true });
+  window.addEventListener('resize', () => {
+    Tyyppikoko.paivita();
+    resizeCanvases(); resetParticles(true);
+  }, { passive: true });
+  /* Järjestelmän tekstikoko voi vaihtua sovelluksen ollessa taustalla,
+     eikä siitä tule omaa tapahtumaansa. */
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) Tyyppikoko.paivita();
+  }, { passive: true });
   window.addEventListener('orientationchange', () => { setTimeout(() => { resizeCanvases(); resetParticles(true); }, 250); }, { passive: true });
 }
 
@@ -17999,6 +18077,11 @@ function _avaaLinkista(linkki) {
    Kaikki muu main():n sisällä on synkronista tai käynnistää oman
    promisensa, joten odotus ei viivytä kartan piirtoa. */
 async function main() {
+  /* Tyyppikoko ENNEN mitään mittausta tai piirtoa: kerroin vaikuttaa
+     kaikkiin `--fs-*`-arvoihin, ja jos se asetettaisiin vasta janan
+     rakentamisen jälkeen, tikkien keskitys laskettaisiin vanhalla
+     koolla. */
+  Tyyppikoko.paivita();
   buildLegend(); initMap(); initCanvases();
   Crosshair.init(); WeatherWidget.init(); Units.init(); Suunta.init();
   /* Kartan asetukset vasta initCanvasesin jälkeen: partikkelikanvas on

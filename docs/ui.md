@@ -1685,3 +1685,51 @@ varalla: mitattuna 0 päällekkäisyyttä, pienin väli naapurilukemien
 välillä 53,8 px (lukema on joka kolmannessa tikissä). Janan
 kokonaisleveys 4 901 px ennen ja jälkeen, päiväerotin 34 px, ei
 ylivuotoa.
+
+## Tekstikoko seuraa nyt käyttäjän asetusta
+
+Koko tyyppiasteikko oli kiinteitä pikseleitä (6,5–13 px), eli iOS:n
+Dynamic Type ja selaimen oma tekstikokoasetus eivät tehneet mitään.
+
+Koot olivat kuitenkin jo valmiiksi muuttujia (ks. *Tyyppikoko:
+muuttujat, ei uudelleenkirjoitus*), joten muutos oli yksi kerroin:
+`--fs-kerroin` kertoo jokaisen tokenin.
+
+**Kerroin kahdelta lähteeltä, yhtenä lukuna:**
+
+- **Apple:** `font: -apple-system-body` on ainoa tapa saada Dynamic Type
+  verkkosivulle. Mitataan piilotetusta elementistä ja suhteutetaan
+  oletukseen 17 px.
+- **muut:** juurielementin laskettu `font-size`, joka heijastaa selaimen
+  omaa tekstikokoasetusta. Oletus 16 px.
+
+Tuen tunnistus on `CSS.supports('font', '-apple-system-body')`. **Ilman
+sitä ei-Apple-selain lukisi shorthandin oletuskooksi 16 px ja jakaisi
+seitsemällätoista, eli kutistaisi tekstin 6 % ilman että kukaan on
+pyytänyt.**
+
+**Rajaus 0,9–1,4 on tietoinen.** Dynamic Typen saavutettavuuskoot ovat
+yli kolminkertaisia, eikä 22 px:n tuntitikki veny. Sen yli menevän
+tarpeen hoitaa selaimen zoom, joka skaalaa myös asettelun.
+
+Mitattuna (juurifonttia kasvattamalla, eli sitä polkua jota ei-Apple-
+selain käyttää):
+
+| juurifontti | kerroin | tuntilukema | lukeman leveys (tikki 22 px) |
+|---|---|---|---|
+| 16 px | 1,000 | 11 px | 12,3 px |
+| 20 px | 1,250 | 13,75 px | 15,3 px |
+| 24 px | **1,400** (raja) | 15,4 px | **17,1 px** |
+
+Suurimmallakin kertoimella lukema mahtuu tikkiin 4,9 px:n varalla, eikä
+yksikään mitattu elementti vuoda yli (kupla, päivälappu, tuntilukema,
+kapselin osat, ennusteen otsikko, asetussirut). Päiväkisko kasvaa
+1,2 → 1,5 ruudulliseen, eli se vierii kuten ennenkin.
+
+**Aikajana rakennetaan uudelleen kertoimen muuttuessa.** Tikin leveys on
+JS-vakio (`TL_TIKKI_LEV`) ja lukemat ovat CSS:ssä, joten ilman
+uudelleenrakennusta keskitys osuisi vanhalla koolla laskettuun kohtaan.
+
+Kerroin päivitetään myös `resize`- ja `visibilitychange`-tapahtumista:
+järjestelmän tekstikoko voi vaihtua sovelluksen ollessa taustalla, eikä
+siitä tule omaa tapahtumaansa.
