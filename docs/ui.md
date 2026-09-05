@@ -1762,3 +1762,48 @@ asteikossa korjattiin.
 Sivutuotteena vaakanäkymä on nyt se paras tapa katsoa viikkoa: koko
 päiväkisko mahtuu yhdelle riville ja tuntinauhassa näkyy 39 tuntia
 kerralla.
+
+## Käynnistys vie sinne missä olit
+
+Sovellus avautui aina koko Suomeen (`[62.5, 25.5]` z5) ellei ollut
+suosikkeja tai jaettua linkkiä. Foilaaja avaa appia samalla rannalla
+kerta toisensa jälkeen, joten joka avaus alkoi navigoinnilla.
+
+### Järjestys säilyttää aiemmat päätökset
+
+    1. jaettu linkki   — joku tarkoitti juuri sitä spottia
+    2. tuore näkymä    — olit siellä äsken, jatka siitä
+    3. suosikit        — pitkän aikavälin koti (dokumentoitu päätös)
+    4. oletusnäkymä
+
+**"Tuore" on 24 h.** Sitä vanhempi näkymä ei ole enää se mitä olit
+tekemässä vaan viime viikon reissu, ja silloin suosikit ovat parempi
+arvaus. Ilman aikarajaa muisti ohittaisi suosikit **pysyvästi**
+ensimmäisen panoroinnin jälkeen — eli rikkoisi suosikkien dokumentoidun
+tehtävän.
+
+**Muisti päivittyy vasta ensimmäisen käyttäjän siirron jälkeen.** Ilman
+sitä käynnistyksen oma `setView` kirjoittaisi saman arvon takaisin ja
+nollaisi aikaleiman joka avauksella — jolloin 24 h ei kuluisi koskaan
+umpeen ja suosikit eivät saisi vuoroaan ikinä.
+
+Mitattuna neljä vaihetta:
+
+| | tulos |
+|---|---|
+| tyhjä tila | `62.5, 25.5` z5 (oletus) |
+| siirron jälkeen | `{"lat":59.99,"lng":24.4,"z":11,"ts":…}` |
+| uusi avaus | `59.99, 24.4` z11 — **palautui** |
+| 25 h vanha muisti | hylätään |
+
+### Oma sijainti on asetus, ei oletus
+
+Paikannuslupaa ei kysytä omin päin: kysely on keskeytys, ja jos käyttäjä
+kieltää sen kerran, sitä ei enää kysytä. Asetuksessa on kaksi sirua
+(*Viimeisin näkymä* / *Oma sijainti*), oletuksena ensimmäinen.
+
+**Kartta ei jää odottamaan lupavastausta.** Näkymä asetetaan heti
+parhaaseen arvaukseen (muistettu näkymä tai suosikit), ja sijainti korvaa
+sen kun se saapuu — mutta vain jos käyttäjä ei ole sillä välin itse
+siirtänyt karttaa. Jos vastausta ei tule lainkaan, ruudulla on silti
+jotain järkevää.

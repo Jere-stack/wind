@@ -2804,6 +2804,15 @@ html.tyopoyta {
                eikä tietäisi miksi. Ks. ColorRamp.karttaRamppi(). -->
           <div class="sp-vihje" id="ramppi-vihje"></div>
 
+          <div class="sp-label" style="margin-top:18px">Käynnistys</div>
+          <div class="sp-chips" id="asetus-kaynnistys">
+            <div class="sp-chip active" data-arvo="viimeisin">Viimeisin näkymä</div>
+            <div class="sp-chip" data-arvo="sijainti">Oma sijainti</div>
+          </div>
+          <div class="sp-vihje">Oma sijainti kysyy paikannuslupaa. Kartta ei jää
+            odottamaan vastausta — se avautuu heti viimeisimpään näkymään ja
+            siirtyy sijaintiin kun se saapuu.</div>
+
           <div class="sp-label" style="margin-top:18px">Lämpökartan voimakkuus</div>
           <div class="sp-chips" id="asetus-lampo">
             <div class="sp-chip" data-arvo="hillitty">Hillitty</div>
@@ -3360,6 +3369,58 @@ const POHJAT = {
   }
 };
 
+/* -- NÄKYMÄMUISTI ------------------------------------------------
+ *
+ * Sovellus avautui aina koko Suomeen (`[62.5, 25.5]` z5) ellei ollut
+ * suosikkeja tai jaettua linkkiä. Foilaaja avaa appia samalla rannalla
+ * kerta toisensa jälkeen, joten joka avaus alkoi navigoinnilla.
+ *
+ * JÄRJESTYS ON TARKOITUKSELLINEN, ja se säilyttää aiemmat päätökset:
+ *
+ *   1. jaettu linkki   — joku tarkoitti juuri sitä spottia
+ *   2. tuore näkymä    — olit siellä äsken, jatka siitä
+ *   3. suosikit        — pitkän aikavälin koti (dokumentoitu päätös)
+ *   4. oletusnäkymä
+ *
+ * "Tuore" on 24 h. Sitä vanhempi näkymä ei ole enää se mitä olit
+ * tekemässä vaan viime viikon reissu, ja silloin suosikit ovat parempi
+ * arvaus. Ilman aikarajaa muisti ohittaisi suosikit pysyvästi
+ * ensimmäisen panoroinnin jälkeen.
+ *
+ * Tallennus on `moveend`istä ja kuristettu: kartta lähettää sen myös
+ * jokaisen animaation lopusta, ja localStorage-kirjoitus on
+ * synkroninen. */
+const Nakymamuisti = {
+  AVAIN: 'fs_nakyma',
+  TUORE_MS: 24 * 3600 * 1000,
+  _t: null,
+
+  tallenna(map) {
+    if (!map) return;
+    clearTimeout(this._t);
+    this._t = setTimeout(function () {
+      try {
+        const c = map.getCenter();
+        localStorage.setItem(Nakymamuisti.AVAIN, JSON.stringify({
+          lat: +c.lat.toFixed(4), lng: +c.lng.toFixed(4),
+          z: +map.getZoom().toFixed(2), ts: Date.now()
+        }));
+      } catch (e) {}
+    }, 700);
+  },
+
+  lue() {
+    try {
+      const r = JSON.parse(localStorage.getItem(this.AVAIN) || 'null');
+      if (!r || typeof r.lat !== 'number' || typeof r.lng !== 'number') return null;
+      if (!(Math.abs(r.lat) <= 90 && Math.abs(r.lng) <= 180)) return null;
+      if (!(r.z > 0 && r.z <= 20)) return null;
+      if (!(Date.now() - (r.ts || 0) < this.TUORE_MS)) return null;
+      return r;
+    } catch (e) { return null; }
+  }
+};
+
 /* -- TYYPPIKOKO --------------------------------------------------
  *
  * Käyttäjän oma tekstikoko kahdelta eri lähteeltä, YHTENÄ kertoimena:
@@ -3461,9 +3522,11 @@ const Asetukset = {
     pohja:       ['tumma', 'vaalea', 'satelliitti'],
     partikkelit: ['normaali', 'vahan', 'pois'],
     ramppi:      ['nykyinen', 'cvd'],
-    lampo:       ['hillitty', 'normaali', 'voimakas']
+    lampo:       ['hillitty', 'normaali', 'voimakas'],
+    kaynnistys:  ['viimeisin', 'sijainti']
   },
-  arvot: { pohja: 'tumma', partikkelit: 'normaali', ramppi: 'nykyinen', lampo: 'normaali' },
+  arvot: { pohja: 'tumma', partikkelit: 'normaali', ramppi: 'nykyinen', lampo: 'normaali',
+           kaynnistys: 'viimeisin' },
 
   lue() {
     let raw = null;
@@ -17756,7 +17819,8 @@ const KarttaAsetukset = {
     'asetus-pohja':       'pohja',
     'asetus-partikkelit': 'partikkelit',
     'asetus-ramppi':      'ramppi',
-    'asetus-lampo':       'lampo'
+    'asetus-lampo':       'lampo',
+    'asetus-kaynnistys':  'kaynnistys'
   },
 
   alusta() {
@@ -17880,6 +17944,8 @@ const KarttaAsetukset = {
       updateHeatmapBlur();
       this._piirraLampokartta();
 
+    } else if (avain === 'kaynnistys') {
+      /* Vaikuttaa vasta seuraavaan käynnistykseen — ei tehdä mitään nyt. */
     } else if (avain === 'ramppi') {
       /* Vain kartan taulut. Paneelien musteramppi (ColorRamp.ink) ei
          muutu, joten spottimerkkejä, tähtäintä tai aikajanaa ei tarvitse
@@ -18070,6 +18136,30 @@ function _naytaValimuististaHeti() {
   return ts;
 }
 
+/* KÄYNNISTYS OMASTA SIJAINNISTA — vain jos käyttäjä on valinnut sen.
+ *
+ * Paikannuslupaa ei kysytä omin päin: kysely on keskeytys, ja jos
+ * käyttäjä kieltää sen kerran, sitä ei enää kysytä. Siksi tämä on
+ * asetus, oletuksena pois.
+ *
+ * Kartta EI jää odottamaan lupavastausta: näkymä asetetaan heti
+ * parhaaseen arvaukseen (muistettu näkymä tai suosikit), ja sijainti
+ * korvaa sen kun se saapuu. Jos vastausta ei tule, käyttäjä katsoo
+ * silti jotain järkevää. */
+function _kaynnistaSijainnista(muistettu) {
+  try {
+    if (muistettu) State.map.setView([muistettu.lat, muistettu.lng], muistettu.z, { animate: false });
+    else if (Suosikit.spotit().length) _keskitaSuosikkeihin();
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(function (p) {
+      /* Käyttäjä on voinut ehtiä siirtää karttaa itse — silloin hänen
+         siirtonsa voittaa hitaan paikannuksen. */
+      if (State._kayttajaSiirsiKarttaa) return;
+      State.map.setView([p.coords.latitude, p.coords.longitude], 10, { animate: false });
+    }, function () {}, { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 });
+  } catch (e) {}
+}
+
 /* Keskitä kartta suosikkeihin. Yksi suosikki -> setView, useampi ->
    fitBounds, jotta kaikki näkyvät. Zoom rajataan 11:een: sitä lähempää
    yksi spotti täyttää ruudun eikä kentästä näy mitään. */
@@ -18139,15 +18229,28 @@ async function main() {
     Verkkotila.naytettiinVanha(vanhaTs);
   }
 
-  /* Jaettu linkki voittaa suosikit, ja suosikit voittavat oletusnäkymän.
-     Järjestys on tarkoituksellinen: jos joku lähetti linkin, hän tarkoitti
-     juuri sitä spottia — omat suosikit eivät saa ohittaa sitä. */
+  /* Ks. Nakymamuisti: linkki > tuore näkymä > suosikit > oletus.
+     Jos joku lähetti linkin, hän tarkoitti juuri sitä spottia — omat
+     suosikit tai eilinen näkymä eivät saa ohittaa sitä. */
   const _linkki = Linkkitila.lue();
+  const _muistettu = _linkki && _linkki.spot ? null : Nakymamuisti.lue();
   if (_linkki && _linkki.spot) {
     _avaaLinkista(_linkki);
+  } else if (Asetukset.arvot.kaynnistys === 'sijainti') {
+    _kaynnistaSijainnista(_muistettu);
+  } else if (_muistettu) {
+    State.map.setView([_muistettu.lat, _muistettu.lng], _muistettu.z, { animate: false });
   } else if (Suosikit.spotit().length) {
     _keskitaSuosikkeihin();
   }
+  /* Muisti päivittyy vasta ensimmäisen käyttäjän siirron jälkeen: ilman
+     tätä yllä oleva `setView` kirjoittaisi saman arvon takaisin ja
+     nollaisi aikaleiman joka avauksella — jolloin 24 h ei kuluisi
+     koskaan umpeen. */
+  State.map.once('dragstart zoomstart', function () { State._kayttajaSiirsiKarttaa = true; });
+  State.map.once('movestart', function () {
+    State.map.on('moveend', function () { Nakymamuisti.tallenna(State.map); });
+  });
 
   /* Luettelo ensin: se on yksi pieni tiedosto, ja sen perusteella
      ratkeaa haetaanko näkymä laatoista vai rajapinnasta. Odottaminen on
