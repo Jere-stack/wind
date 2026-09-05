@@ -1807,3 +1807,36 @@ parhaaseen arvaukseen (muistettu näkymä tai suosikit), ja sijainti korvaa
 sen kun se saapuu — mutta vain jos käyttäjä ei ole sillä välin itse
 siirtänyt karttaa. Jos vastausta ei tule lainkaan, ruudulla on silti
 jotain järkevää.
+
+## Aikajana kertoo nyt myös toimiiko TÄMÄ spotti
+
+Jana näyttää nopeuden, puuskan ja valon — muttei sitä toimiiko avattu
+spotti. Suunta ratkaisee sen: 10 m/s väärästä suunnasta ei ole keli.
+
+Kun spottikortti on auki, ne tunnit joina spotti toimii saavat viivan
+tikin alareunaan. Vierekkäiset tunnit sulautuvat yhdeksi viivaksi, eli
+jakso lukee yhtenä ikkunana.
+
+**Määritelmä on sovelluksen oma kolmesta kohdasta, ei uusi:**
+
+| ehto | mistä |
+|---|---|
+| 6 ≤ ms < 18 | samat rajat kuin spottikortin sessioikkunassa ja `foilBadge`ssa |
+| suuntaero ≤ 80° | sama raja jolla `spotIndexOsat` lakkaa antamasta suuntapisteitä |
+| kesto ≥ 2 h | "alle tunnin jakso ei ole sessio vaan piikki" — kortin kaavion sääntö |
+
+Yksi määritelmä kahdessa paikassa olisi kahden totuuden alku. Jos rajoja
+muuttaa, ne muuttuvat kortissa ja janassa yhdessä.
+
+**Merkintä on oma kanavansa**: viiva, ei väri eikä korkeus — ne ovat
+varattuja nopeudelle. Sävy on sama kuin havaintokaavion sessioikkunassa
+(`rgba(42,112,45,…)`), jotta sama asia näyttää samalta kortissa ja
+janassa. `box-shadow: inset` eikä reunaa, jotta asettelu ja tuntilukeman
+paikka eivät muutu.
+
+Mitattuna Hanko Tulliniemellä (`bestDirs` E/S/NW): kortti auki → 94
+tuntia 187:stä merkitty, **5 yhtenäistä jaksoa**, ei yhtään yhden tunnin
+jaksoa (kesto­sääntö pitää); kortti kiinni → 0.
+
+Merkintä ajetaan myös `renderTimeline`n jälkeen: tikit rakennetaan
+uudelleen kartansiirroilla ja luokat katoaisivat niiden mukana.

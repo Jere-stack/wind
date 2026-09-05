@@ -1244,6 +1244,23 @@ html.tyopoyta #kapseli.vaistyy {
 }
 .htick.past .htick-dir { opacity: .3; }
 
+/* SESSIOKAISTA — mitkä tunnit sopivat AVATULLE spotille.
+ *
+ * Jana kertoo nopeuden, puuskan ja valon, muttei sitä toimiiko tämä
+ * spotti. Suunta ratkaisee sen: 10 m/s väärästä suunnasta ei ole keli.
+ *
+ * Merkintä on oma kanavansa (viiva tikin alareunassa), ei väri eikä
+ * korkeus — ne ovat varattuja nopeudelle. Vierekkäiset tunnit sulautuvat
+ * yhdeksi viivaksi, eli jakso lukee yhtenä ikkunana.
+ *
+ * Sävy on sama kuin havaintokaavion sessioikkunassa (`rgba(42,112,45,…)`),
+ * jotta sama asia näyttää samalta kortissa ja janassa.
+ *
+ * `box-shadow: inset` eikä reunaa: se ei muuta asettelua eikä siirrä
+ * tuntilukemaa, joka on tikin alareunassa. */
+.htick.sopii { box-shadow: inset 0 -2px 0 rgba(42, 112, 45, .55); }
+.htick.past.sopii { box-shadow: inset 0 -2px 0 rgba(42, 112, 45, .22); }
+
 /* VALOKAISTA — mitkä tunnit ovat pimeitä.
  *
  * 12 m/s klo 03 lokakuussa ei ole keli, eikä janassa ollut mitään joka
@@ -13086,6 +13103,7 @@ function openSheet(spot, hourIdx) {
     return;
   }
   State.sheetSpot = spot;
+  if (typeof _tlPaivitaSopivuus === 'function') _tlPaivitaSopivuus();
   const h = spot.wx.hourly, idx = Math.min(hourIdx, h.windspeed_10m.length - 1);
   const ms  = h.windspeed_10m[idx] || 0;
   const dir = h.winddirection_10m[idx] || 0;
@@ -15504,6 +15522,7 @@ function _sivupaneeliPanorointi(spot) {
 
 function closeSheet() {
   State.sheetSpot = null;
+  if (typeof _tlPaivitaSopivuus === 'function') _tlPaivitaSopivuus();
   document.documentElement.classList.remove('paneeli-auki');
   document.getElementById('sheet').classList.remove('open');
   document.getElementById('sheet-overlay').classList.remove('open');
@@ -15895,6 +15914,7 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
       const target = State._tlTicks[activeIdx];
       if (target) _tlSetScrollLeft(tl, target.offsetLeft - tl.offsetWidth / 2 + TL_TIKKI_LEV / 2);
       _tlUpdateNow(activeIdx);
+      _tlPaivitaSopivuus();
     });
     return;
   }
@@ -15980,6 +16000,7 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
     const target = State._tlTicks[activeIdx];
     if (target) _tlSetScrollLeft(tl, target.offsetLeft - tl.offsetWidth / 2 + TICK_W / 2);
     _tlUpdateNow(activeIdx);
+    _tlPaivitaSopivuus();
   });
 
   /* Kuuntelijat kiinnitetään VAIN KERRAN. renderTimeline() ajetaan uudelleen
@@ -16320,6 +16341,64 @@ function _tlKorostaPaiva(d) {
     try {
       kisko.scrollTo({ left: vasen - kisko.clientWidth / 2 + osuma.offsetWidth / 2, behavior: Liike.vieritys() });
     } catch (e) { kisko.scrollLeft = vasen - kisko.clientWidth / 2; }
+  }
+}
+
+/* SPOTIN SESSIOIKKUNAT AIKAJANAAN.
+ *
+ * Määritelmä on sovelluksen oma kolmesta kohdasta, ei uusi:
+ *
+ *   nopeus   6 <= ms < 18   — samat rajat kuin spottikortin
+ *                             sessioikkunassa ja `foilBadge`ssa
+ *   suunta   ero spotin `bestDirs`iin enintään 80 astetta — sama
+ *            raja jolla `spotIndexOsat` lakkaa antamasta suuntapisteitä
+ *   kesto    vähintään kaksi tuntia — "alle tunnin jakso ei ole sessio
+ *            vaan piikki", sama sääntö kuin kortin kaaviossa
+ *
+ * Yksi määritelmä kahdessa paikassa olisi kahden totuuden alku, joten
+ * jos rajoja muuttaa, ne muuttuvat kortissa ja täällä yhdessä. */
+function _tlSopivatTunnit(spot) {
+  const T = State._tlTimes, sp = State._tlSpeeds, dirs = State._tlDirs;
+  if (!spot || !T || !sp) return null;
+  const n = State._tlTicks ? State._tlTicks.length : 0;
+  if (!n) return null;
+  const bd = spot.bestDirs;
+  const ulos = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const ms = sp[i] || 0;
+    let ok = ms >= 6 && ms < 18;
+    if (ok && bd && bd.length && dirs && dirs[i] != null) {
+      let paras = 180;
+      for (const d of bd) {
+        const opt = DIR_DEG[d];
+        if (opt === undefined) continue;
+        let ero = Math.abs(dirs[i] - opt) % 360;
+        if (ero > 180) ero = 360 - ero;
+        if (ero < paras) paras = ero;
+      }
+      ok = paras <= 80;
+    }
+    ulos[i] = ok;
+  }
+  /* Yksinäinen tunti ei ole sessio. */
+  for (let i = 0; i < n; i++) {
+    if (!ulos[i]) continue;
+    const edell = i > 0 && ulos[i - 1], seur = i < n - 1 && ulos[i + 1];
+    if (!edell && !seur) ulos[i] = false;
+  }
+  return ulos;
+}
+
+/* Merkinnän piirto ja poisto. Ajetaan myös `renderTimeline`n jälkeen,
+   koska tikit rakennetaan uudelleen joka kartansiirrolla ja luokat
+   katoavat niiden mukana. */
+function _tlPaivitaSopivuus() {
+  const tikit = State._tlTicks;
+  if (!tikit || !tikit.length) return;
+  const lista = State.sheetSpot ? _tlSopivatTunnit(State.sheetSpot) : null;
+  for (let i = 0; i < tikit.length; i++) {
+    const on = !!(lista && lista[i]);
+    if (tikit[i].classList.contains('sopii') !== on) tikit[i].classList.toggle('sopii', on);
   }
 }
 
