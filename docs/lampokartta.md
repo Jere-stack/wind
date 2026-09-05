@@ -1550,3 +1550,91 @@ vuoronvaihdossa.
 `saumat.mjs` mittasi peiton pikseleistä nipistyksen aikana ja se on
 100 % joka näytteessä kaikilla kolmella reitillä (ulos, ulos +
 panorointi, sisään).
+
+## Kartan värit takaisin kylläisiksi
+
+Käyttäjän pyyntö: lämpökartan värit näkyvämmiksi, Windyn tapaan, eikä
+värisokeutta tarvitse tässä miettiä.
+
+### Ramppi ei ole se mitä näkee
+
+Tämä on koko asian ydin, ja se oli kirjaamatta. Kartalle ei piirretä
+ramppia vaan **ramppi kerrottuna alfakäyrällä ja summattuna pohjakarttaan**.
+Alfa on 0,22 kahdessa ja 0,71 kahdessakymmenessä metrissä sekunnissa, joten
+lopputuloksen kylläisyys on suunnilleen värin kroma kertaa alfa. Vaimea
+ramppi on hiljaisessa päässä käytännössä harmaa riippumatta siitä miltä
+taulukon luvut näyttävät.
+
+Uusi mittari `varit.mjs` lukee sivun oman `pikseliLUT()`:n — eli sen värin
+ja alfan jotka kanvasille oikeasti kirjoitetaan — ja sekoittaa ne mitattuun
+tumman pohjakartan luminanssiin (vesi 39, maa 71). Vanhasta rampista:
+
+    keskikroma 24.9 (max 39.0), ja 4–8 m/s alue C* 17–28
+
+Eli juuri se väli jota tässä sovelluksessa katsotaan, oli vaimein.
+Syy on kirjattu: ramppi tehtiin aikanaan värisokeusturvalliseksi, ja se
+maksoi kylläisyyden (keskikroma 40 → 26 pelkkänä ramppina). Se oli oikea
+päätös silloin — mutta se tehtiin oletukseksi, ei valinnaksi.
+
+### Mikä muuttui
+
+Sävypolku kulkee nyt sRGB:n kirkkaimman reunan kautta: syvä sininen →
+kirkas sininen → syaani → turkoosi → vihreä → limetti → keltainen →
+oranssi → punainen → magenta. Sama järjestys kuin Windyllä ja muilla
+sääkartoilla, mutta kylläisempänä, koska meidän kerroksemme on
+puoliläpinäkyvä ja menettää kromaa sekoituksessa.
+
+Windyn oma tuuliramppi (heidän omasta lähdekoodistaan) on itse asiassa
+**vaimeampi** kuin tämä — `rgb(83,165,83)` seitsemässä metrissä
+sekunnissa, `rgb(159,127,58)` kolmessatoista. Se toimii heillä siksi että
+heidän kerroksensa on käytännössä läpinäkymätön: pohjakarttaa ei näy
+läpi. Meillä pohjakartan pitää näkyä (rantaviiva on se mistä spotti
+tunnistetaan), joten sama vaikutelma on haettava kromasta eikä alfasta.
+Rampin kopiointi sellaisenaan olisi antanut vaimeamman kartan kuin ennen.
+
+Mitattuna (varit.mjs, vesipohja, ruudulle asti):
+
+| | ennen | jälkeen |
+|---|---|---|
+| keskikroma | 24.9 | **45.1** |
+| max kroma | 39.0 | **70.4** |
+| pienin dE2000, ≥ 4 m/s ero | 13.2 | **21.3** |
+| pienin dE2000, ≥ 2 m/s ero | 6.3 | **10.8** |
+| rantaviiva (maa vs vesi) | 8.1–12.1 | 9.1–11.8 |
+
+Rantaviiva on olennaisin ei-muutos: lämpökartta ei syönyt pohjakarttaa.
+
+### Hinta, joka on tiedostettu
+
+**L\* ei enää nouse monotonisesti.** Vanhassa rampissa kirkkaus kantoi
+nopeuden yksin (0 laskua 40 askeleesta), koska se on ainoa signaali jonka
+dikromaatti näkee varmasti. Uudessa keltainen 10–11,5 m/s kohdalla on
+kirkkain piste ja punainen 16 m/s on sitä tummempi: 9 laskua 40:stä.
+Sävy kantaa nyt sen eron.
+
+Tämä ei poista värisokeustukea vaan siirtää sen asetukseksi. `RAMP_CVD`
+on ennallaan ja se on yhä mitattu (dE 10.9 / 10.5 / 10.3 / 11.2 neljälle
+näkötyypille). Asetuspaneelin lappu on nimeltään nyt **Kirkas** eikä
+"Nykyinen" — tallennettu arvo on yhä `nykyinen`, koska avaimen vaihto
+pudottaisi jokaisen käyttäjän localStoragen oletukseen.
+
+Vaalea pohjakartta ei muuttunut: se käyttää `RAMP_INK`iä, joka tummuu
+tuulen mukana multiply-sekoituksen takia ja jonka kontrastivaatimukset
+tulevat paneeleista (≥ 4.5:1). Sama ramppi elää paneelien musteena, joten
+sen kylläisyyttä ei voi nostaa kartan takia.
+
+### Mitä varmistettiin
+
+- **GL- ja CPU-polku antavat saman kuvan.** Uusi `laattagl.mjs` maalaa
+  saman laatan molemmilla ja vertaa pikselit. Ennen 0,006–0,098 % eroavia
+  pikseleitä, max 4/255; jälkeen sama pikselimäärä, max 8/255 — ero
+  kasvoi koska rampin peräkkäisten LUT-alkioiden askel on isompi.
+  **Ensimmäinen ajo väitti 22–25 % eroa ja max 255.** Se oli mittari:
+  GL maalaa 256 texeliä ja CPU 128, joten vertailussa oli kaksi eri
+  kokoista puskuria. `GL_TEXELIT` asetetaan mittauksen ajaksi samaksi.
+- **Ruutuaika ei muuttunut.** Aikajanan raahauksen pitkät tehtävät
+  vuorottelevilla ajoilla: korj 0 / 103 / 210 ms, vari 102 / 125 / 542 ms.
+  Luvut seuraavat ajojärjestystä eivätkä buildia — mittari mittaa
+  itseään, kuten tässä ympäristössä on tapana. Mekanismia ei myöskään
+  ole: LUT on esilaskettu, samankokoinen, ja molemmat polut lukevat sen
+  samalla tavalla.

@@ -2634,7 +2634,10 @@ html.tyopoyta {
 
           <div class="sp-label" style="margin-top:18px">Väriasteikko</div>
           <div class="sp-chips" id="asetus-ramppi">
-            <div class="sp-chip active" data-arvo="nykyinen">Nykyinen</div>
+            <!-- Tallennettu arvo on yhä 'nykyinen': nimi vaihtui, mutta
+                 avainta ei saa vaihtaa tai jokaisen localStorage putoaisi
+                 oletukseen. -->
+            <div class="sp-chip active" data-arvo="nykyinen">Kirkas</div>
             <div class="sp-chip" data-arvo="cvd">Värisokeusystävällinen</div>
           </div>
           <!-- Teksti vaihtuu pohjakartan mukana: vaalealla asteikko on jo
@@ -3258,56 +3261,59 @@ Asetukset.lue();
 
 /* -- COLOUR RAMP ------------------------------------------------ */
 const ColorRamp = (() => {
-  /* Ramppi on suunniteltu niin että KIRKKAUS kantaa nopeuden ja sävy vain
-     vahvistaa sitä. Syy on värisokeus: vanhassa rampissa vihreä–keltainen–
-     punainen-perhe romahti deuteranoopille yhdeksi ruskeanharmaaksi
-     alueeksi. Mitattuna renderöidyistä väreistä 1 m/s askelin, pienin dE
-     kahden vähintään 4 m/s päässä olevan nopeuden välillä oli 0.8 —
-     eli 8 m/s ja 16 m/s olivat käytännössä sama väri. Se on juuri se ero
-     jonka takia sovellusta katsotaan.
+  /* Kartan oletusramppi on tehty NORMAALINÄKÖISELLE ja se on kylläinen.
+     Värisokeusturvallinen versio on yhä olemassa, mutta se on asetus
+     (RAMP_CVD, "Väriasteikko") eikä oletus — se on käyttäjän päätös.
+     Perustelu on mitattu ja se on koko rampin lähtökohta.
 
-     Nyt L* nousee monotonisesti koko rampin yli (renderöitynä 1 -> 58,
-     ei yhtään laskua; ennen kuusi laskua). Sävypolku kulkee sinisestä
-     turkoosin ja vihreän kautta kultaan ja kiertyy kärjessä lohen kautta
-     pinkkiin. Kierto ylöspäin on b*-akselilla, jonka dikromaatti näkee —
-     siksi kärki erottuu myös värisokealle.
+     RAMPPI EI OLE SE MITÄ NÄKEE. Kartalle piirretään ramppi kerrottuna
+     alfakäyrällä ja summattuna pohjakarttaan (plus-lighter). Alfa on
+     0,22 kahdessa ja 0,71 kahdessakymmenessä metrissä sekunnissa, joten
+     lopputuloksen kylläisyys on suunnilleen värin kroma KERTAA alfa.
+     Siksi vaimea ramppi on hiljaisessa päässä käytännössä harmaa. Mitattu
+     vanhasta rampista ruudulle asti (varit.mjs, vesipohja):
 
-     Mitattu ennen -> jälkeen, pienin dE (>=4 m/s ero / 2 m/s askel):
-       normaali       16.9/8.6 -> 11.7/5.2
-       deuteranooppi   0.8/1.5 ->  7.1/4.0
-       protanooppi     2.6/1.9 ->  7.2/3.8
-       tritanooppi     1.6/0.4 ->  7.7/3.9
-     Hinta on kylläisyys: keskikroma 40 -> 26. Ramppi on vaimeampi kuin
-     ennen, koska vaaleaa ja kylläistä punaista ei ole sRGB:ssä — ja
-     vaaleus on se mitä kaikki näkevät. Normaalinäköiselle 11.7 dE on yhä
-     moninkertaisesti yli erottumisrajan.
+       keskikroma 24.9, ja 4–8 m/s alue C* 17–28 — eli juuri se väli
+       jota tässä sovelluksessa katsotaan, oli kaikkein vaimein.
+
+     Nyt sävypolku kulkee sRGB:n kirkkaimman reunan kautta: syvä sininen →
+     kirkas sininen → syaani → turkoosi → vihreä → limetti → keltainen →
+     oranssi → punainen → magenta. Se on sama järjestys jonka Windy ja
+     muut sääkartat käyttävät, mutta kylläisempänä, koska meidän
+     kerroksemme on puoliläpinäkyvä ja menettää kromaa sekoituksessa.
+
+     HINTA, joka on tiedostettu: L* ei enää nouse monotonisesti. Keltainen
+     10–11,5 m/s kohdalla on kirkkain piste, ja punainen 16 m/s on sitä
+     tummempi. Vanha ramppi vältti tämän tarkoituksella, koska pelkkä
+     kirkkaus on ainoa signaali jonka dikromaatti näkee varmasti. Sävy
+     kantaa nyt sen eron — normaalinäköiselle se on vahvempi signaali kuin
+     kirkkaus, dikromaatille heikompi. Kumpi ramppi, on asetus.
 
      Kirkkausaikataulu on verrannollinen NOPEUTEEN eikä ankkurin
      järjestyslukuun. Ankkurit ovat epätasavälein (0,2,4,6,8,10,13,16,20),
      joten järjestysluku antaisi kirkkautta liikaa alapäähän ja liian
      vähän ylä­päähän — juuri sinne missä 2 m/s ero pitää nähdä.
 
-     Väliankkurit ovat segmentin päätepisteiden Lab-keskiarvoja. Ilman
-     niitä sRGB-interpolointi etenee epätasaisesti: sama nopeusero näytti
-     eri kohdissa jopa viisi kertaa erisuuruiselta. */
+     Nollapää pidetään tummana tarkoituksella: tyyni ei ole tietoa jota
+     katsotaan, ja kirkas nolla peittäisi pohjakartan rannikolta. */
   const RAMP_KARTTA = [
-    { t: 0.000, r:   7, g:  42, b: 161 },  /*  0 m/s   tyyni sininen */
-    { t: 0.050, r:  18, g:  66, b: 182 },  /*  1 m/s */
-    { t: 0.100, r:  22, g:  90, b: 203 },  /*  2 m/s   sininen */
-    { t: 0.160, r:  25, g: 100, b: 185 },  /*  3 m/s */
-    { t: 0.220, r:  16, g: 109, b: 167 },  /*  4 m/s   terässininen */
-    { t: 0.290, r:  23, g: 118, b: 149 },  /*  5 m/s */
-    { t: 0.360, r:  14, g: 127, b: 130 },  /*  6 m/s   turkoosi */
-    { t: 0.430, r:  28, g: 136, b: 104 },  /*  7 m/s */
-    { t: 0.500, r:  20, g: 145, b:  76 },  /*  8 m/s   vihreä */
-    { t: 0.575, r:  92, g: 146, b:  53 },  /*  9 m/s */
-    { t: 0.650, r: 130, g: 146, b:  20 },  /* 10 m/s   lehtivihreä */
-    { t: 0.715, r: 164, g: 150, b:  22 },  /* 11.5 m/s */
-    { t: 0.780, r: 196, g: 152, b:  24 },  /* 13 m/s   kulta */
-    { t: 0.840, r: 225, g: 151, b:  75 },  /* 14.5 m/s */
-    { t: 0.900, r: 253, g: 149, b: 113 },  /* 16 m/s   lohi */
-    { t: 0.950, r: 255, g: 163, b: 156 },  /* 18 m/s */
-    { t: 1.000, r: 254, g: 177, b: 199 },  /* 20 m/s   pinkki */
+    { t: 0.000, r:  12, g:  30, b: 120 },  /*  0 m/s   syvä yösininen */
+    { t: 0.050, r:  12, g:  62, b: 190 },  /*  1 m/s */
+    { t: 0.100, r:   0, g: 100, b: 245 },  /*  2 m/s   kirkas sininen */
+    { t: 0.160, r:   0, g: 140, b: 255 },  /*  3 m/s */
+    { t: 0.220, r:   0, g: 175, b: 250 },  /*  4 m/s   taivaansininen */
+    { t: 0.290, r:   0, g: 205, b: 220 },  /*  5 m/s   syaani */
+    { t: 0.360, r:   0, g: 220, b: 165 },  /*  6 m/s   turkoosi */
+    { t: 0.430, r:   0, g: 230, b: 105 },  /*  7 m/s */
+    { t: 0.500, r:  60, g: 235, b:  45 },  /*  8 m/s   vihreä */
+    { t: 0.575, r: 140, g: 240, b:  20 },  /*  9 m/s */
+    { t: 0.650, r: 205, g: 240, b:   0 },  /* 10 m/s   limetti */
+    { t: 0.715, r: 250, g: 215, b:   0 },  /* 11.5 m/s keltainen */
+    { t: 0.780, r: 255, g: 165, b:   0 },  /* 13 m/s   oranssi */
+    { t: 0.840, r: 255, g: 110, b:  10 },  /* 14.5 m/s */
+    { t: 0.900, r: 255, g:  50, b:  50 },  /* 16 m/s   punainen */
+    { t: 0.950, r: 255, g:  45, b: 145 },  /* 18 m/s */
+    { t: 1.000, r: 255, g:  85, b: 235 },  /* 20 m/s   magenta */
   ];
   function msToT(ms) {
     const m = Math.min(Config.MAX_MS, Math.max(0, ms));

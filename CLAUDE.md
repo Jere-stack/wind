@@ -172,9 +172,16 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **Kartalla sävy tarkoittaa tuulennopeutta ja vain sitä.** Kaikki muu kartalla
   on joko tummaa pilleriä (mitattu data) tai paperia (kaikki muu).
 - **`ColorRamp.rgb()` on kartalle, `ink()` paneeleihin.** Ne kulkevat
-  vastakkaisiin suuntiin kirkkaudessa. Kartan ramppi on tehty
-  värisokeusturvalliseksi, muste ei ole eikä sen tarvitse olla — paneelissa väri
-  on aina luvun vieressä.
+  vastakkaisiin suuntiin kirkkaudessa. Muste ei ole värisokeusturvallinen eikä
+  sen tarvitse olla — paneelissa väri on aina luvun vieressä.
+- **Kartan oletusramppi on kylläinen ja tehty normaalinäköiselle**
+  (sininen–syaani–vihreä–keltainen–oranssi–punainen–magenta).
+  Värisokeusturvallinen `RAMP_CVD` on asetus, ei oletus — se on käyttäjän
+  päätös. Älä palauta vaimeaa ramppia oletukseksi vetoamalla värisokeuteen.
+- **Rampin kylläisyys ruudulla on suunnilleen kroma KERTAA alfa.**
+  Lämpökartta piirtyy alfalla 0,08–0,71, joten taulukon luvut eivät kerro
+  mitä nähdään. Mittari on `varit.mjs`, joka lukee `pikseliLUT()`:n ja
+  sekoittaa pohjaan — mittaa siitä, älä rampista.
 - **`--accent` (magenta) on toiminto- ja varoitusväri, ei korostusväri.**
   Nimilappu tai datapiste ei ole kumpaakaan; ne ovat mustetta.
 - **`var()` ei toimi SVG:n esitysattribuuteissa.** Kaavioiden `fill=` tarvitsee
