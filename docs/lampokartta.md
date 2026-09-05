@@ -1489,3 +1489,64 @@ säälaatat tulevat Noden välimuistista, ja kuvan ero lopputilaan oli
 nolla jo ensimmäisessä näytteessä myös 1,5 s viiveellä. Korjaus on siis
 todennettu **käyttäytymisestä** (montako sisältöä laatta saa), ei
 kellosta. Oikean laitteen kellonaika on yhä hankittava laitteelta.
+
+## Zoomatessa lämpökartta välähti kirkkaampana
+
+Käyttäjän havainto: karttaa zoomatessa lämpökartta vilkahtaa
+kirkkaampana ja palautuu sitten oikeaan väriin.
+
+`L.GridLayer` on suunniteltu **läpinäkymättömille** karttalaatoille. Se
+pitää isälaatat näkyvissä kunnes lapset ovat valmiit ja häivyttää lapset
+sisään 200 ms:ssä (`_updateOpacity`: `fade = (now - loaded) / 200`,
+karsinta vasta kun `fade >= 1`). Läpinäkymättömällä laatalla lapsi
+peittää isänsä täysin, joten päällekkäisyys ei näy.
+
+Meidän laattamme ovat **puoliläpinäkyviä** ja kerros sekoitetaan
+lisäävästi. Silloin kaksi päällekkäistä laattaa ei ole ristihäivytys vaan
+summa: yhteisalfa on `a + a(1−a) > a`. Ruutu kirkastuu koko
+päällekkäisyyden ajan ja palautuu vasta kun isälaatta karsitaan. Se on
+täsmälleen se mitä käyttäjä näki.
+
+### Mittari
+
+Ruutukaappauksia yritettiin ensin, ja se oli väärä mittari: yksi kaappaus
+kesti noin sekunnin eikä 200 ms:n tapahtumaa voi nähdä sellaisella
+otannalla. `paallekkain.mjs` mittaa **syytä eikä seurausta**, ja
+ruututahtiin sivun sisällä: montako painettua (`opacity > 0,01`) laattaa
+mistä tahansa tasosta peittää saman ruutupisteen.
+
+### Korjaus
+
+Sama sääntö kuin vanhalla kaksikerroksisella lämpökartalla: kerrokset
+eivät ole koskaan yhtä aikaa näkyvissä. `_tasoVuoro` pitää näkyvissä
+**tasan yhden tason** — nykyisen jos kaikki sen laatat ovat valmiita,
+muuten lähimmän jolla on maalattuja laattoja. Vaihto tehdään tasojen
+`opacity`-arvoilla, eli atomisesti: reikää ei synny eikä kirkastumaa.
+`_updateOpacity` korvataan: laatta tulee näkyviin täydellä alfalla
+kerralla. Häivytys jää pois samasta syystä kuin päällekkäisyys — matkalla
+oleva alfa on yhtä lailla väärä lukema tuulennopeudesta.
+
+Vuoronvaihto ajetaan myös `load`/`loading`/`tileload`/`tileunload`
+-tapahtumista, koska `_updateOpacity` ei aja kaikissa tilanteissa.
+
+Mitattuna, kaksi painettua laattaa samassa ruutupisteessä (CPU 1×,
+ruututahti):
+
+| siirtymä | ennen | jälkeen |
+|---|---|---|
+| z9 → z10 | 436 ms | 119 ms (4 ruutua) |
+| z11 → z10 | 302 ms | 91 ms (2 ruutua) |
+| z8 → z9 | 3418 ms (62/64 ruudusta) | 86 ms (2 ruutua) |
+| z10 → z8 | 524 ms | 174 ms (4 ruutua) |
+
+**Jäännös ei ole nolla.** 2–4 ruutua per zoom jää, koska Leaflet luo uuden
+tason elementin ja liittää siihen laattoja ennen kuin vuoronvaihto ehtii
+ajaa. Kolmesta sekunnista kahteen ruutuun on 40-kertainen parannus, mutta
+jos välähdys yhä näkyy oikealla laitteella, seuraava askel on asettaa uusi
+taso läpinäkyväksi jo `_updateLevels`issä eikä vasta ensimmäisessä
+vuoronvaihdossa.
+
+**Peitto ei kärsinyt.** Riski oli että tason piilottaminen jättää reiän:
+`saumat.mjs` mittasi peiton pikseleistä nipistyksen aikana ja se on
+100 % joka näytteessä kaikilla kolmella reitillä (ulos, ulos +
+panorointi, sisään).

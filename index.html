@@ -8461,12 +8461,17 @@ const SaaLaattaKerros = L.GridLayer.extend({
     L.GridLayer.prototype.onAdd.call(this, map);
     map.on('zoomend', this._esilataa, this);
     map.on('moveend', this._esilataa, this);
+    /* Vuoronvaihto myös näistä: `_updateOpacity` ei aja kaikissa
+       tilanteissa (esim. kun laatta poistetaan tai taso vaihtuu ilman
+       uutta latausta). */
+    this.on('load loading tileload tileunload', this._tasoVuoro, this);
     this._esilataa();
   },
 
   onRemove: function (map) {
     map.off('zoomend', this._esilataa, this);
     map.off('moveend', this._esilataa, this);
+    this.off('load loading tileload tileunload', this._tasoVuoro, this);
     L.GridLayer.prototype.onRemove.call(this, map);
   },
 
@@ -8489,6 +8494,76 @@ const SaaLaattaKerros = L.GridLayer.extend({
       const d = ViewportGrid.gridStep(Math.round(this._map.getZoom()));
       Saalaatat.varmista(this._map.getBounds(), d).catch(function () {});
     } catch (e) {}
+  },
+
+  /* ── YKSI TASO KERRALLAAN ─────────────────────────────────────────
+   *
+   * `L.GridLayer` pitää isälaatat näkyvissä kunnes lapset ovat valmiit
+   * ja häivyttää lapset sisään 200 ms:ssä (`_updateOpacity`:
+   * `fade = (now - loaded) / 200`, karsinta vasta kun fade >= 1).
+   * Läpinäkymättömillä karttalaatoilla se on oikein.
+   *
+   * MEIDÄN LAATTAMME OVAT PUOLILÄPINÄKYVIÄ ja kerros sekoitetaan
+   * lisäävästi. Kaksi päällekkäistä laattaa ei ole ristihäivytys vaan
+   * summa: yhteisalfa on a + a(1-a) > a, eli ruutu KIRKASTUU koko
+   * päällekkäisyyden ajan ja palautuu vasta kun isälaatta karsitaan.
+   *
+   * Mitattu ennen korjausta, kaksi painettua laattaa samassa
+   * ruutupisteessä:
+   *
+   *     z9 -> z10    436 ms      z11 -> z10   302 ms
+   *     z8 -> z9    3418 ms      z10 -> z8    524 ms
+   *
+   * Sama sääntö kuin vanhalla kaksikerroksisella lämpökartalla: ne eivät
+   * ole koskaan yhtä aikaa näkyvissä. Näkyvissä on TASAN YKSI taso —
+   * nykyinen jos se on valmis, muuten lähin olemassa oleva. Vaihto on
+   * atominen, joten reikää ei synny eikä kirkastumaa.
+   *
+   * Häivytys jää pois samasta syystä: puolivälissä oleva alfa on yhtä
+   * lailla väärä lukema. Laatta tulee näkyviin kerralla. */
+  _tasoVuoro: function () {
+    if (!this._map || !this._levels) return;
+    const nyt = this._tileZoom;
+    let nykyisia = 0, kesken = 0;
+    for (const k in this._tiles) {
+      const t = this._tiles[k];
+      if (!t || !t.current) continue;
+      nykyisia++;
+      if (!t.loaded) kesken++;
+    }
+    const valmis = nykyisia > 0 && kesken === 0;
+    /* Varataso: lähin zoom jolla on oikeasti maalattuja laattoja. */
+    let vara = null;
+    for (const z in this._levels) {
+      const zn = Number(z);
+      if (zn === nyt) continue;
+      const el = this._levels[z].el;
+      if (!el || !el.firstChild) continue;
+      if (vara === null || Math.abs(zn - nyt) < Math.abs(vara - nyt)) vara = zn;
+    }
+    const nakyva = (valmis || vara === null) ? nyt : vara;
+    for (const z in this._levels) {
+      const el = this._levels[z].el;
+      if (!el) continue;
+      const arvo = Number(z) === nakyva ? '' : '0';
+      if (el.style.opacity !== arvo) el.style.opacity = arvo;
+    }
+  },
+
+  /* Leafletin oma häivytys korvataan: laatta täyteen alfaan heti ja
+     vuoronvaihto samassa. Karsinta jää kantaluokan hoidettavaksi. */
+  _updateOpacity: function () {
+    if (!this._map) return;
+    let karsi = false;
+    for (const k in this._tiles) {
+      const t = this._tiles[k];
+      if (!t || !t.current || !t.loaded) continue;
+      if (t.el && t.el.style.opacity !== '1') t.el.style.opacity = 1;
+      if (t.active) karsi = true; else this._onOpaqueTile(t);
+      t.active = true;
+    }
+    this._tasoVuoro();
+    if (karsi && !this._noPrune) this._pruneTiles();
   },
 
   _kerros: function () {

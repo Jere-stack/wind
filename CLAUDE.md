@@ -257,6 +257,14 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   `GridLayer`in säiliö on 0×0, joten maski leikkaa koko kerroksen pois
   (mitattu: täysin näkymätön vaikka laatat olivat kunnossa). Luokka on
   `.saa-laatat`, ilman maskia: pyramidilla ei ole datan reunaa.
+- **Pyramidista on näkyvissä TASAN YKSI taso, eikä laattoja häivytetä.**
+  `L.GridLayer` on tehty läpinäkymättömille laatoille: se pitää isän
+  näkyvissä kunnes lapset ovat valmiit ja häivyttää lapset sisään
+  200 ms:ssä. Puoliläpinäkyvillä laatoilla ja lisäävällä sekoituksella se
+  ei ole ristihäivytys vaan summa (`a + a(1−a) > a`) — kartta kirkastuu
+  koko päällekkäisyyden ajan (mitattu 302–3418 ms zoomia kohti).
+  `_tasoVuoro` valitsee näkyvän tason, `_updateOpacity` on korvattu.
+  Älä palauta Leafletin häivytystä äläkä salli kahta painettua tasoa.
 - **Peitto mitataan PIKSELEISTÄ, ei elementin rajoista.** Pyramidilla
   rajapohjainen mittari antaisi triviaalisti 100 %. Piilota pohjakartta
   ja partikkelit, jolloin kaikki ei-läpinäkyvä on lämpökarttaa — ja
