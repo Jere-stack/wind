@@ -1466,3 +1466,58 @@ asetetaan suoraan `_tlSetScrollLeft`illä eikä pehmeällä vierityksellä,
 koska janan kuuntelijat päivittävät kuplan ja päiväkorostuksen
 vierityksen mukaan. Ilman yhtä polkua sama vika olisi kirjoitettu
 uudelleen kolmesti.
+
+## Muste seuraa nyt kartan sävypolkua
+
+Kun kartan ramppi vaihtui kylläiseksi, muste jäi vanhalle sävypolulle.
+Mitattuna (`muste.mjs`) sävyero kartan ja janan välillä samalla
+nopeudella:
+
+| m/s | kartta | muste | ero |
+|---|---|---|---|
+| 5 | 208° | 237° | **29°** |
+| 6 | 166° | 200° | **35°** |
+| 18 | 358° | 24° | 26° |
+| 20 | 332° | 1° | **29°** |
+
+Kärki oli pahin: kartta päätyi magentaan, muste jäi punaiseen. Sama
+nopeus oli siis kartalla ja janassa eri väri — ja juuri janan palkki on
+se paikka jossa käyttäjä vertaa niitä.
+
+**Muunnos on mekaaninen eikä makuasia.** Jokainen ankkuri laskettiin
+uudelleen niin että sen **L\* ja C\* pysyvät** ja vain sävykulma otetaan
+karttarampilta samalla `t`:llä. Kontrasti on kiinni L\*:ssa, joten
+kontrastilupaukset säilyvät sellaisinaan:
+
+|  | ennen | jälkeen |
+|---|---|---|
+| pienin kontrasti `--surface` | 4.52:1 | **4.52:1** |
+| pienin kontrasti `--surface-hi` | 5.12:1 | **5.12:1** |
+| L\* monotonisesti laskeva | kyllä | kyllä (44 → 13) |
+| suurin sävyero karttaan | 35° | **2°** |
+
+Yksikään ankkuri ei tarvinnut kroman laskua sRGB:n takia, eli mitään ei
+menetetty muunnoksessa.
+
+Kirkkaus kulkee edelleen **vastakkain** kartan kanssa, eikä se ole vika:
+kartalla lämpökartta lisää valoa mustaan mereen, paneelissa muste lisää
+tummuutta paperiin. Merkitys on sama — kovempi tuuli, enemmän kontrastia
+pohjaan. Vain sävy on nyt yhteinen.
+
+## Päiväerottimet mitattiin ja jätettiin paikalleen
+
+Kysymys oli pitäisikö janan sisäiset päiväerottimet ("Ma 7.") poistaa nyt
+kun päiväkisko kertoo päivän jo. Ne vievät leveyttä jokaisesta
+vuorokaudesta. Mitattuna:
+
+| | |
+|---|---|
+| erottimen leveys | 34 px |
+| osuus koko janasta | **6,2 %** |
+| +7 vrk raahaus nyt | 3 152 px = 8,0 ruudullista |
+| sama ilman erottimia | 2 914 px = **7,4 ruudullista** |
+
+Poisto säästäisi 0,6 ruudullista kymmenestä. Se ei ole parannus jonka
+takia kannattaa menettää ainoa janan sisällä näkyvä päiväys — ja
+valokaistan myötä erottimet ovat nyt osa yhtenäistä yöpalkkia, joten
+poisto puhkaisisi siihen takaisin 34 px:n aukon. **Jätetään.**

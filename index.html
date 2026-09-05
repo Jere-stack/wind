@@ -3523,24 +3523,46 @@ const ColorRamp = (() => {
      LUVUN vieressä — data on numerossa ja väri vain vahvistaa sen. Kartalla
      väri on ainoa koodaus, ja siksi juuri se ramppi tehtiin turvalliseksi.
      Väliankkurit ovat Lab-keskiarvoja samasta syystä kuin kartan rampissa. */
+  /* SÄVY OTETAAN KARTTARAMPILTA, KIRKKAUS JA KROMA OVAT MUSTEEN OMAT.
+   *
+   * Kun kartan ramppi vaihtui kylläiseksi, muste jäi vanhalle
+   * sävypolulle. Mitattuna (varit.mjs-parina `muste.mjs`) sävyero oli
+   * pahimmillaan 35° kuudessa metrissä sekunnissa, ja kärjessä 29°:
+   * kartta päätyi magentaan 332°, muste jäi punaiseen 1°. Sama nopeus
+   * oli siis kartalla ja janassa eri väri.
+   *
+   * Jokainen ankkuri on laskettu uudelleen niin että sen L* ja C*
+   * PYSYVÄT ja vain sävykulma otetaan karttarampilta samalla t:llä.
+   * Se on tässä ainoa turvallinen muunnos: kontrasti on kiinni
+   * L*:ssa, joten kontrastilupaukset (≥ 4.52:1 pinnalla, ≥ 5.12:1
+   * korotetulla) säilyvät sellaisinaan — mitattuna 4.52 ja 5.12 yhä
+   * tasan. Yksikään ankkuri ei tarvinnut kroman laskua sRGB:n takia.
+   *
+   * Mitattuna jälkeen: sävyero enintään 2° koko rampin yli, ja L*
+   * laskee yhä monotonisesti (44 → 13).
+   *
+   * Kirkkaus kulkee edelleen VASTAKKAIN kartan kanssa, eikä se ole
+   * vika: kartalla lämpökartta lisää valoa mustaan mereen, paneelissa
+   * muste lisää tummuutta paperiin. Merkitys on sama — kovempi tuuli,
+   * enemmän kontrastia pohjaan. Vain sävy on nyt yhteinen. */
   const RAMP_INK = [
     { t: 0.000, r: 106, g: 100, b: 131 },  /*    0 m/s  tyyni */
-    { t: 0.050, r:  99, g:  98, b: 138 },  /*    1 m/s */
-    { t: 0.100, r:  91, g:  97, b: 145 },  /*    2 m/s  sininen */
-    { t: 0.160, r:  82, g:  96, b: 132 },  /*    3 m/s */
-    { t: 0.220, r:  72, g:  94, b: 120 },  /*    4 m/s  terässininen */
-    { t: 0.290, r:  63, g:  92, b: 105 },  /*    5 m/s */
-    { t: 0.360, r:  54, g:  90, b:  91 },  /*    6 m/s  turkoosi */
-    { t: 0.430, r:  49, g:  88, b:  73 },  /*    7 m/s */
-    { t: 0.500, r:  43, g:  85, b:  55 },  /*    8 m/s  vihreä */
-    { t: 0.575, r:  58, g:  79, b:  41 },  /*    9 m/s */
-    { t: 0.650, r:  67, g:  72, b:  26 },  /*   10 m/s  lehtivihreä */
-    { t: 0.715, r:  69, g:  64, b:  20 },  /* 11.5 m/s */
-    { t: 0.780, r:  71, g:  55, b:  14 },  /*   13 m/s  kulta */
-    { t: 0.840, r:  79, g:  42, b:   9 },  /* 14.5 m/s */
-    { t: 0.900, r:  86, g:  25, b:   3 },  /*   16 m/s  lohi */
-    { t: 0.950, r:  79, g:  13, b:  21 },  /*   18 m/s */
-    { t: 1.000, r:  72, g:   0, b:  33 },  /*   20 m/s  pinkki */
+    { t: 0.050, r: 102, g:  97, b: 137 },  /*    1 m/s */
+    { t: 0.100, r:  94, g:  96, b: 144 },  /*    2 m/s  sininen */
+    { t: 0.160, r:  81, g:  96, b: 132 },  /*    3 m/s */
+    { t: 0.220, r:  66, g:  95, b: 119 },  /*    4 m/s  taivaansininen */
+    { t: 0.290, r:  59, g:  94, b:  97 },  /*    5 m/s  syaani */
+    { t: 0.360, r:  62, g:  90, b:  78 },  /*    6 m/s  turkoosi */
+    { t: 0.430, r:  60, g:  87, b:  64 },  /*    7 m/s */
+    { t: 0.500, r:  55, g:  84, b:  47 },  /*    8 m/s  vihreä */
+    { t: 0.575, r:  60, g:  79, b:  40 },  /*    9 m/s */
+    { t: 0.650, r:  66, g:  72, b:  27 },  /*   10 m/s  limetti */
+    { t: 0.715, r:  73, g:  63, b:  20 },  /* 11.5 m/s  keltainen */
+    { t: 0.780, r:  78, g:  52, b:  17 },  /*   13 m/s  oranssi */
+    { t: 0.840, r:  83, g:  39, b:  14 },  /* 14.5 m/s */
+    { t: 0.900, r:  90, g:  20, b:  15 },  /*   16 m/s  punainen */
+    { t: 0.950, r:  79, g:   9, b:  41 },  /*   18 m/s */
+    { t: 1.000, r:  61, g:  10, b:  55 },  /*   20 m/s  magenta */
   ];
   /* Kumpi ramppi kartalle.
    *
