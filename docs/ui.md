@@ -1840,3 +1840,48 @@ jaksoa (kesto­sääntö pitää); kortti kiinni → 0.
 
 Merkintä ajetaan myös `renderTimeline`n jälkeen: tikit rakennetaan
 uudelleen kartansiirroilla ja luokat katoaisivat niiden mukana.
+
+## Kelivahti — se puolikas joka toimii ilman palvelinta
+
+Foilaajan oikea kysymys on "milloin seuraavan kerran", ja siihen
+vastattiin vain avaamalla ennustepaneeli. Vahti kertoo sen itse: jos
+suosikissa on sessioikkuna seuraavan **48 tunnin** sisällä, siitä tulee
+siru aikajanan yläpuolelle.
+
+**Ei push-ilmoituksia.** Tämä on se puolikas joka toimii ilman
+palvelinta, ilman lupakyselyä ja ilman taustaheräämistä — ja se on juuri
+se puolikas jota katsotaan, koska appi avataan tätä varten. Push on oma
+vaiheensa jos se joskus tehdään.
+
+Ikkunan määritelmä on **sama `_sessioIkkunat`** kuin janan merkinnässä
+(6–18 m/s, suuntaero ≤ 80°, kesto ≥ 2 h), mutta valoehdon kanssa: yön
+ikkunaa ei ehdoteta kenellekään. Yksi funktio, kaksi käyttäjää — sama
+sääntö kuin kynnysten kanssa.
+
+**Kuittaus on ikkunakohtainen** (`spotin nimi @ ISO-alku`). Jos siru
+kuitataan, sama ikkuna ei palaa — mutta seuraava tulee. Yleinen "älä
+näytä enää" tekisi ominaisuudesta kertakäyttöisen.
+
+**Kiintiövaroitus voittaa.** `#rl-banner` ja `#kelivahti` ovat samassa
+kohdassa (`--sab-tl + 148px`); jos data ei päivity lainkaan, se on
+tärkeämpi tieto kuin hyvä keli.
+
+Siru puhuu käyttäjän omalla yksiköllä ja suuntamuodolla
+(`Units.fmtUnit`, `Suunta.fmt`) — se ei saa puhua eri kieltä kuin kapseli
+sen yläpuolella.
+
+Mitattu ketju päästä päähän:
+
+| | tulos |
+|---|---|
+| löytö | `Hanko Tulliniemi su 04–18 · 8.8 m/s 309°` |
+| napautus | valittu hetki `09-06 04:00`, **ero 0 h**; kortti auki; siru piiloon |
+| kuittaus | tallennettu `Hanko Tulliniemi@2026-09-06T04:00…`, sama ikkuna ei palaa |
+| ei suosikkeja | siru ei näy |
+| kosketuskohteet | napautusalue 321×44, sulku 44×44 |
+
+**Mittarihuomio:** testidatassa lähimmällä suosikilla (Lauttasaari, S/SW)
+ei ollut ikkunaa 48 h sisällä lainkaan — 39 tuntia 48:sta jäi alle
+kuuden metrin ja loput yhdeksän tulivat luoteesta. Se ei ollut vika vaan
+oikea vastaus, ja ketju mitattiin levittämällä rajaa niin että jokin
+ikkuna osui haarukkaan.

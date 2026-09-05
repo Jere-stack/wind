@@ -2067,6 +2067,34 @@ html.tyopoyta {
 #rl-banner-text { flex: 1; font-size: var(--fs-11); color: var(--ink); line-height: 1.4; }
 #rl-banner-close { font-size: 16px; color: var(--ink-3); cursor: pointer; padding: 2px 6px; flex-shrink: 0; }
 
+/* KELIVAHTI — suosikin seuraava sessioikkuna.
+ *
+ * Sama paperisiru ja sama korkeus kuin rate-limit-bannerilla, mutta
+ * vasen reuna on sessiovihreä eikä varoitusoranssi: tämä on hyvä uutinen.
+ * Molemmat eivät ole koskaan yhtä aikaa näkyvissä — kiintiövaroitus on
+ * tärkeämpi ja voittaa. */
+#kelivahti {
+  position: fixed; bottom: calc(var(--sab-tl) + 148px); left: 12px; right: 12px; z-index: 50;
+  background: var(--surface-hi);
+  border: 1px solid var(--hairline);
+  border-left: 3px solid #2A702D;
+  box-shadow: var(--shadow-2);
+  border-radius: 12px; padding: 0; display: none; align-items: stretch; gap: 0;
+}
+#kelivahti.show { display: flex; }
+#kelivahti-nappi {
+  flex: 1; min-height: 44px; display: flex; align-items: center; gap: 8px;
+  padding: 8px 4px 8px 14px; text-align: left;
+  background: none; border: none; font: inherit; color: var(--ink); cursor: pointer;
+}
+#kelivahti-teksti { font-size: var(--fs-11); line-height: 1.4; }
+#kelivahti-teksti b { font-weight: 700; }
+#kelivahti-teksti span { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+#kelivahti-sulje {
+  min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center;
+  background: none; border: none; font-size: 16px; color: var(--ink-3); cursor: pointer;
+}
+
 /* Verkkotila. Sama paperisiru kuin muut kartan päällä kelluvat esineet.
    Sijoitettu kapselin alle keskelle: se on tila jonka pitää näkyä heti,
    mutta se ei peitä karttaa eikä osu aikajanaan tai nappipinoon.
@@ -3047,6 +3075,14 @@ html.tyopoyta {
   <div id="rl-banner">
     <div id="rl-banner-text">API-raja täynnä — tuulidata ei päivity. Nollautuu klo 02:00 UTC.</div>
     <div id="rl-banner-close" onclick="document.getElementById('rl-banner').classList.remove('show')">&#x2715;</div>
+  </div>
+  <!-- Kelivahti: suosikin seuraava sessioikkuna. Näkyy vain kun sellainen
+       on tulossa eikä sitä ole kuitattu. -->
+  <div id="kelivahti">
+    <button type="button" id="kelivahti-nappi">
+      <span id="kelivahti-teksti"></span>
+    </button>
+    <button type="button" id="kelivahti-sulje" aria-label="Piilota">&#x2715;</button>
   </div>
   <div id="refresh-dot"></div>
   <!-- Forecast panel — best windows -->
@@ -14191,6 +14227,10 @@ function openSheet(spot, hourIdx) {
       /* Merkit uusiksi: suosikki piirtyy aina täytenä. */
       State._spotTaydetAvain = null;
       renderSpots(State.currentHourIdx);
+      /* Vahti seuraa suosikkeja, joten se tarkistetaan heti — muuten
+         juuri lisätyn spotin ikkuna näkyisi vasta seuraavalla
+         avauksella. */
+      if (typeof Kelivahti !== 'undefined') Kelivahti.nayta();
     }, { passive: true });
 
     const jaa = document.getElementById('sh-jaa');
@@ -16357,19 +16397,19 @@ function _tlKorostaPaiva(d) {
  *
  * Yksi määritelmä kahdessa paikassa olisi kahden totuuden alku, joten
  * jos rajoja muuttaa, ne muuttuvat kortissa ja täällä yhdessä. */
-function _tlSopivatTunnit(spot) {
-  const T = State._tlTimes, sp = State._tlSpeeds, dirs = State._tlDirs;
-  if (!spot || !T || !sp) return null;
-  const n = State._tlTicks ? State._tlTicks.length : 0;
-  if (!n) return null;
-  const bd = spot.bestDirs;
+function _sessioIkkunat(speeds, dirs, bestDirs, valo, n) {
+  if (!speeds || !n) return null;
   const ulos = new Array(n);
   for (let i = 0; i < n; i++) {
-    const ms = sp[i] || 0;
+    const ms = speeds[i] || 0;
     let ok = ms >= 6 && ms < 18;
-    if (ok && bd && bd.length && dirs && dirs[i] != null) {
+    /* Valotieto on valinnainen: janan merkintä ei sitä käytä (yökin on
+       tietoa jonka käyttäjä näkee kaistasta), mutta kelivahti käyttää —
+       yön ikkunaa ei kannata ehdottaa kenellekään. */
+    if (ok && valo && valo[i] < 2) ok = false;
+    if (ok && bestDirs && bestDirs.length && dirs && dirs[i] != null) {
       let paras = 180;
-      for (const d of bd) {
+      for (const d of bestDirs) {
         const opt = DIR_DEG[d];
         if (opt === undefined) continue;
         let ero = Math.abs(dirs[i] - opt) % 360;
@@ -16387,6 +16427,12 @@ function _tlSopivatTunnit(spot) {
     if (!edell && !seur) ulos[i] = false;
   }
   return ulos;
+}
+
+function _tlSopivatTunnit(spot) {
+  const n = State._tlTicks ? State._tlTicks.length : 0;
+  if (!spot || !State._tlTimes || !State._tlSpeeds || !n) return null;
+  return _sessioIkkunat(State._tlSpeeds, State._tlDirs, spot.bestDirs, null, n);
 }
 
 /* Merkinnän piirto ja poisto. Ajetaan myös `renderTimeline`n jälkeen,
@@ -16500,6 +16546,112 @@ function _playSijainti(tl, frac) {
   }
   if (State._esikatsele) State._esikatsele(frac);
 }
+
+/* -- KELIVAHTI ---------------------------------------------------
+ *
+ * Foilaajan oikea kysymys on "milloin seuraavan kerran", ja siihen
+ * vastattiin vain avaamalla ennustepaneeli. Vahti kertoo sen itse:
+ * jos suosikissa on sessioikkuna seuraavan 48 tunnin sisällä, siitä
+ * tulee siru aikajanan yläpuolelle.
+ *
+ * EI PUSH-ILMOITUKSIA. Tämä on se puolikas joka toimii ilman
+ * palvelinta, ilman lupakyselyä ja ilman taustaheräämistä — ja se on
+ * juuri se puolikas jota katsotaan, koska appi avataan tätä varten.
+ *
+ * Ikkunan määritelmä on sama `_sessioIkkunat` kuin janan merkinnässä,
+ * mutta valoehdon kanssa: yön ikkunaa ei ehdoteta kenellekään.
+ *
+ * KUITTAUS ON IKKUNAKOHTAINEN. Jos siru kuitataan, sama ikkuna ei palaa
+ * — mutta seuraava tulee. Yleinen "älä näytä enää" tekisi ominaisuudesta
+ * kertakäyttöisen. */
+const Kelivahti = {
+  AVAIN: 'fs_vahti_kuitattu',
+  RAJA_MS: 48 * 3600 * 1000,
+
+  etsi() {
+    const nyt = Date.now(), raja = nyt + this.RAJA_MS;
+    let paras = null;
+    for (const spot of Suosikit.spotit()) {
+      const h = spot.wx && spot.wx.hourly;
+      if (!h || !h.time || !h.time.length || !h.windspeed_10m) continue;
+      const valo = _tlValovaiheet(h.time, spot.lat, spot.lng);
+      const ok = _sessioIkkunat(h.windspeed_10m, h.winddirection_10m,
+        spot.bestDirs, valo, h.time.length);
+      if (!ok) continue;
+      const ts = _ts({ time: h.time });
+      for (let i = 0; i < ok.length; i++) {
+        if (!ok[i] || (i > 0 && ok[i - 1])) continue;   /* vain jakson alku */
+        if (ts[i] < nyt || ts[i] > raja) continue;
+        let j = i; while (j + 1 < ok.length && ok[j + 1]) j++;
+        /* Jakson kovin tunti kertoo mitä odottaa. */
+        let huippu = 0, hDir = null;
+        for (let k = i; k <= j; k++) {
+          const v = h.windspeed_10m[k] || 0;
+          if (v > huippu) { huippu = v; hDir = h.winddirection_10m[k]; }
+        }
+        const ehdokas = { spot: spot, iso: h.time[i], ms: ts[i],
+          loppuIso: h.time[j], huippu: huippu, dir: hDir };
+        if (!paras || ehdokas.ms < paras.ms) paras = ehdokas;
+        break;
+      }
+    }
+    return paras;
+  },
+
+  _kuitattu(avain) {
+    try { return localStorage.getItem(this.AVAIN) === avain; } catch (e) { return false; }
+  },
+
+  nayta() {
+    const el = document.getElementById('kelivahti');
+    if (!el) return;
+    /* Kiintiövaroitus voittaa: kaksi sirua samassa kohdassa menisivät
+       päällekkäin, ja se toinen kertoo että data ei päivity lainkaan. */
+    const rl = document.getElementById('rl-banner');
+    if (rl && rl.classList.contains('show')) { el.classList.remove('show'); return; }
+    const o = this.etsi();
+    if (!o) { el.classList.remove('show'); return; }
+    const avain = o.spot.name + '@' + o.iso;
+    if (this._kuitattu(avain)) { el.classList.remove('show'); return; }
+    const a = new Date(o.iso), b = new Date(o.loppuIso);
+    const PV = ['su', 'ma', 'ti', 'ke', 'to', 'pe', 'la'];
+    const tanaan = new Date();
+    const pv = (a.getDate() === tanaan.getDate() && a.getMonth() === tanaan.getMonth())
+      ? 'tänään' : PV[a.getDay()];
+    const kello = ('0' + a.getHours()).slice(-2) + '–' + ('0' + (b.getHours() + 1)).slice(-2);
+    /* Käyttäjän oma yksikkö ja suuntamuoto — siru ei saa puhua eri
+       kieltä kuin kapseli sen yläpuolella. */
+    const nopeus = Units.fmtUnit(o.huippu);
+    const suunta = (o.dir != null) ? ' ' + Suunta.fmt(o.dir) : '';
+    document.getElementById('kelivahti-teksti').innerHTML =
+      '<b>' + o.spot.name + '</b> ' + pv + ' <span>' + kello + '</span> · '
+      + nopeus + suunta;
+    el.classList.add('show');
+    el._avain = avain;
+    el._kohde = o;
+  },
+
+  /* Siru vie ikkunan alkuun ja avaa spotin. Aikajanan akseli voi olla eri
+     kuin spotin oma sarja, joten indeksi haetaan AJASTA. */
+  avaa() {
+    const el = document.getElementById('kelivahti');
+    const o = el && el._kohde;
+    if (!o) return;
+    el.classList.remove('show');
+    const i = Linkkitila.indeksiAjalle(State._tlTimes, o.iso);
+    if (i >= 0) _tlValitseIdx(i);
+    if (State.map) State.map.setView([o.spot.lat, o.spot.lng],
+      Math.max(State.map.getZoom(), 10), { animate: !Liike.vahenna() });
+    openSheet(o.spot, i >= 0 ? i : (State.currentHourIdx || 0));
+  },
+
+  kuittaa() {
+    const el = document.getElementById('kelivahti');
+    if (!el) return;
+    try { if (el._avain) localStorage.setItem(this.AVAIN, el._avain); } catch (e) {}
+    el.classList.remove('show');
+  }
+};
 
 /* -- PLAY ------------------------------------------------------- */
 /* Play eteni ennen tunti kerrallaan: ajastin vieritti janan pehmeästi
@@ -17302,6 +17454,14 @@ document.getElementById('btn-loc').addEventListener('click', () => {
 }, { passive: true });
 
 document.getElementById('btn-play').addEventListener('click', togglePlay, { passive: true });
+
+document.getElementById('kelivahti-nappi').addEventListener('click', function () {
+  Haptics.light();
+  Kelivahti.avaa();
+}, { passive: true });
+document.getElementById('kelivahti-sulje').addEventListener('click', function () {
+  Kelivahti.kuittaa();
+}, { passive: true });
 
 /* Kelihyppy — ks. `_tlSeuraavaKeli`: kohde on seuraavan JAKSON alku. */
 document.getElementById('btn-keli').addEventListener('click', function () {
@@ -18361,6 +18521,9 @@ async function main() {
         renderTimeline(ref.wx.hourly.time, sp, ref.wx.hourly.winddirection_10m, ni,
           { puuskat: ref.wx.hourly.windgusts_10m, lat: ref.lat, lng: ref.lng });
         renderSpots(ni);
+        /* Vahti tarvitsee suosikkien sarjat, jotka tulevat samasta
+           latauksesta — siksi tässä eikä mainissa. */
+        Kelivahti.nayta();
         buildWindField(ni).then(() => { drawColorField(); resetParticles(); hideLoading(); });
       } else {
         hideLoading();
