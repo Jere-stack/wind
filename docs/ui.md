@@ -1733,3 +1733,32 @@ uudelleenrakennusta keskitys osuisi vanhalla koolla laskettuun kohtaan.
 Kerroin päivitetään myös `resize`- ja `visibilitychange`-tapahtumista:
 järjestelmän tekstikoko voi vaihtua sovelluksen ollessa taustalla, eikä
 siitä tule omaa tapahtumaansa.
+
+## Vaakataso — 33 % kromia oli liikaa
+
+Mitattuna 393 px korkealla vaakaruudulla aikajanan kromi oli **128 px eli
+33 % ruudusta** — ja rannalla puhelin on usein juuri kyljellään.
+
+Trimmaus osui kahteen lukuun, ei kymmeneen: `--tl-paivat-h` vetää jo
+valmiiksi kolmea mittaa (kääreen korkeus, ylätäyte, indikaattorin ja
+kuplan sijainti), joten sen ja kääreen kiinteän osan muutos riitti.
+Juuri tätä varten se token aikanaan tehtiin.
+
+| | pysty | vaaka ennen | vaaka nyt |
+|---|---|---|---|
+| kromi | 128 px (15 %) | 128 px (**33 %**) | **104 px (26 %)** |
+| tunteja kerralla | 18 | 39 | 39 |
+| päiväkisko | 40 px | 40 px | 30 px |
+| play pohjasta | 19 px | 19 px | 19 px |
+
+Pystynäkymä ei muutu lainkaan (raja on `max-height: 520px`, joten
+tabletin vaakanäkymä jää myös ennalleen).
+
+**Palkit pysyvät 22 px:nä.** Korkeus on kiinteällä asteikolla (16 m/s =
+täysi), ja sen muuttaminen vain vaakatasossa tekisi samasta tuulesta eri
+korkuisen laitetta käännettäessä — juuri se vika joka sarjakohtaisessa
+asteikossa korjattiin.
+
+Sivutuotteena vaakanäkymä on nyt se paras tapa katsoa viikkoa: koko
+päiväkisko mahtuu yhdelle riville ja tuntinauhassa näkyy 39 tuntia
+kerralla.

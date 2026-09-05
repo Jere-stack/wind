@@ -971,6 +971,35 @@ html.tyopoyta #kapseli.vaistyy {
 @media (display-mode: standalone) { :root { --sab-tl: 14px; } }
 :root.standalone { --sab-tl: 14px; }
 
+/* ── VAAKATASO ────────────────────────────────────────────────────
+ *
+ * Mitattuna 393 px korkealla vaakaruudulla aikajanan kromi oli 128 px
+ * eli 33 % ruudusta — ja rannalla puhelin on usein juuri kyljellään.
+ *
+ * Trimmaus osuu KAHTEEN lukuun, ei kymmeneen: `--tl-paivat-h` vetää jo
+ * valmiiksi kolmea mittaa (kääreen korkeus, ylätäyte, indikaattorin ja
+ * kuplan sijainti), joten sen ja kääreen kiinteän osan muutos riittää.
+ * Juuri tätä varten se token aikanaan tehtiin.
+ *
+ * Palkit pysyvät 22 px:nä: korkeus on kiinteällä asteikolla (16 m/s =
+ * täysi), ja sen muuttaminen vain vaakatasossa tekisi samasta tuulesta
+ * eri korkuisen laitetta käännettäessä.
+ *
+ * Raja on `max-height`, ei pelkkä `orientation`: tabletin vaakanäkymä
+ * on 800+ px korkea eikä kaipaa trimmiä. */
+@media (orientation: landscape) and (max-height: 520px) {
+  :root { --tl-paivat-h: 30px; }
+  #tl-wrap {
+    height: calc(74px + var(--tl-paivat-h) + var(--sab-tl));
+    padding: calc(10px + var(--tl-paivat-h)) 0 calc(var(--sab-tl) + 16px);
+  }
+  .tl-play-btn, .tl-keli-btn { bottom: calc(var(--sab-tl) + 15px); }
+  .htick, .day-sep { padding-bottom: 12px; }
+  .tl-paiva { border-radius: 9px; }
+  /* Napit pinoutuvat oikealle; vaakatasossa väli riittää pienempänä. */
+  #btn-spots-wrap { gap: 4px; }
+}
+
 /* Kelluva alusta. Erillinen kerros scrollin takana, jotta laatikko voi olla
    sisennetty reunoista samalla kun scroll ulottuu reunasta reunaan. */
 #tl-wrap::before {
