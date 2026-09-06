@@ -438,6 +438,10 @@ body {
   border-radius: 4px;
 }
 #map:focus-visible { outline-offset: -3px; }
+/* Rengas seuraa kohteen muotoa. Yllä oleva 4 px on tehty suorakulmaisille
+   kohteille, ja se litisti jokaisen pyöreän kontrollin renkaan
+   pyöristetyksi neliöksi ympyrän ympärille. `.mctl` on ympyrä. */
+.mctl:focus-visible { border-radius: 50%; }
 
 /* ============================================================
    PIKANÄPPÄINLUETTELO  z:60
@@ -1037,28 +1041,34 @@ html.tyopoyta #kapseli.vaistyy {
    2 px, jolla ei ole enää mihin siirtyä. Säädin kasvaa 32 px:stä 40 px:ään,
    mutta nappi jota ei voi luotettavasti osua on huonompi kuin nappi joka
    näkyy. Ympyrä on yhä samassa keskipisteessä kuin ennen. */
-/* KONTROLLIT OVAT KISKORIVILLÄ, EIVÄT DATAN PÄÄLLÄ.
+/* KONTROLLIT KELLUVAT URAN PÄÄLLÄ — ja erottuvat KOHOTUKSELLA.
  *
- * Napit kelluivat uran päällä sen vasemmassa ja oikeassa reunassa.
- * Mitattuna ne peittivät mobiilissa 6 näkyvää tuntia 17:stä eli 35 %
- * datasta (työpöydällä 6 %, joten tämä oli mobiilin vika). Samalla ne
- * olivat itse lähes näkymättömiä: paperikiekko paperilla on 1,07:1, eli
- * ne erottuivat vain varjostaan.
+ * Napit kokeiltiin kerran päiväkiskon rivillä, koska ne peittävät uralla
+ * mobiilissa 6 näkyvää tuntia 17:stä (35 %; työpöydällä 6 %). Se on
+ * mitattu ja se on totta, mutta se on myös tämän kontrollin hinta:
+ * transportti kuuluu sen raidan päälle jota se ajaa, kuten Windyssä.
+ * Kiskorivi maksoi puolestaan kaksi näkyvää päivälappua ja irrotti napin
+ * siitä mitä se ohjaa. Napit ovat uralla.
  *
- * Nyt molemmat ovat päiväkiskon rivillä oikeassa päässä, paperilla ja
- * datan ulkopuolella. Kisko lyhenee saman verran (377 -> 281 px, näkyviä
- * lappuja 8 -> 6) ja se on halvempi hinta kuin uran peittäminen: kisko
- * rullaa, ura ei.
+ * Jäljelle jää se toinen mitattu vika: hiekkauralla paperikiekko on
+ * 1,07:1 alustaansa vasten. Sitä EI korjata tummentamalla nappia — se
+ * tekisi kontrollista kortin äänekkäimmän elementin datan päällä.
+ * Korjaus on kohotus: kiekko on kortin pintaa VAALEAMPI (`--surface-hi`),
+ * sillä on ohut lämmin kehä ja pehmeä varjo. Silmä lukee sen kelluvana
+ * esineenä uran yllä, ei väriläikkänä urassa — sama keino kuin uran
+ * omassa upotuksessa, toiseen suuntaan.
+ *
+ * Kiekko on myös PYSTYSUUNNASSA uran keskellä (ennen 3 px sen alareunan
+ * ali). Kelluva esine keskittyy siihen mitä se peittää.
  *
  * Ympyrä täyttää 44 px:n laatikon 2 px:ää vaille. Se ei ole tyylivalinta
  * vaan mittaustulos: Chromiumin kosketussäätö siirtää napautuksen
- * lähimpään MAALATTUUN kohteeseen, ja läpinäkyvä kehä hävisi aikanaan
- * viereiselle vierittimelle (ks. docs/eleet.md). Nyt naapuri on kisko,
- * joka vierittyy vaakaan — sama ansa. */
+ * lähimpään MAALATTUUN kohteeseen, ja napin läpinäkyvä kehä hävisi
+ * aikanaan viereiselle `#tl-scroll`:lle (ks. docs/eleet.md). */
 .tl-play-btn {
   position: absolute;
-  top: 8px;
-  right: calc(var(--sar) + 56px);
+  left: calc(var(--sal) + 9px);
+  bottom: calc(var(--sab-tl) + 26px);
   width: 44px; height: 44px;
   border-radius: 50%;
   background: none;
@@ -1070,12 +1080,17 @@ html.tyopoyta #kapseli.vaistyy {
 .tl-play-btn::before {
   content: ''; position: absolute; inset: 2px;
   border-radius: 50%;
-  background: var(--surface-lo);
-  /* Kehä paperille. Uran päällä kiekko erottui alustastaan itsestään;
-     paperilla se on samaa materiaalia kuin kortti (1,07:1), joten se
-     tarvitsee viivan ollakseen kontrolli eikä tahra. */
-  box-shadow: inset 0 0 0 1px var(--hairline);
-  transition: background .2s ease;
+  background: var(--surface-hi);
+  box-shadow: 0 1px 3px rgba(60, 48, 20, .30),
+              0 0 0 1px rgba(120, 105, 70, .22);
+  transition: background .2s ease, transform .12s ease;
+}
+/* Painallus tuntuu myös silmässä. Kiekko painuu, ei koko laatikko:
+   laatikko on osumapinta eikä saa liikkua sormen alta. */
+.tl-play-btn:active::before,
+.tl-keli-btn:not(.tyhja):active::before { transform: scale(.92); }
+@media (prefers-reduced-motion: reduce) {
+  .tl-play-btn::before, .tl-keli-btn::before { transition: background .2s ease; }
 }
 .tl-play-btn.playing::before { background: var(--accent); }
 .tl-play-btn.playing { color: #FFF3F8; }
@@ -1091,13 +1106,17 @@ html.tyopoyta #kapseli.vaistyy {
  * Tämä nappi vie seuraavaan tuntiin jossa tuulta on foilattavaksi asti
  * JA aurinko on ylhäällä (ks. `_tlSeuraavaKeli`).
  *
- * Mitoitus ja sijainti ovat kopio play-napista ja samasta syystä; ks.
- * `.tl-play-btn`. Pari on vierekkäin kiskorivin oikeassa päässä:
- * molemmat siirtävät aikaa eteenpäin, joten ne kuuluvat yhteen. */
+ * Mitoitus, materiaali ja pystykeskitys ovat kopio play-napista ja
+ * samasta syystä; ks. `.tl-play-btn`. Sijainti on uran oikea reuna:
+ * eteenpäin ajassa on oikealle, ja play on vastapainona vasemmalla.
+ *
+ * `#tl-scroll` saa saman verran täytettä oikeaan reunaan kuin
+ * vasempaankin, jottei akselin viimeinen tunti jää napin alle janan
+ * päässä. Keskitys ei muutu: se tulee reunavälikkeistä, ei täytteestä. */
 .tl-keli-btn {
   position: absolute;
-  top: 8px;
-  right: calc(var(--sar) + 10px);
+  right: calc(var(--sar) + 9px);
+  bottom: calc(var(--sab-tl) + 26px);
   width: 44px; height: 44px;
   border-radius: 50%;
   background: none;
@@ -1109,15 +1128,27 @@ html.tyopoyta #kapseli.vaistyy {
 .tl-keli-btn::before {
   content: ''; position: absolute; inset: 2px;
   border-radius: 50%;
-  background: var(--surface-lo);
-  box-shadow: inset 0 0 0 1px var(--hairline);
+  background: var(--surface-hi);
+  box-shadow: 0 1px 3px rgba(60, 48, 20, .30),
+              0 0 0 1px rgba(120, 105, 70, .22);
+  transition: background .2s ease, transform .12s ease;
 }
 .tl-keli-btn svg { position: relative; }
 .tl-keli-btn:active { background: none; }
 /* Kun kelivikkunaa ei ole jäljellä, nappi himmenee mutta EI katoa:
    katoava kontrolli siirtäisi kaiken muun ja jättäisi käyttäjän
-   ihmettelemään mihin se meni. */
-.tl-keli-btn.tyhja { opacity: .35; }
+   ihmettelemään mihin se meni.
+
+   Himmennys on nyt KOHOTUKSEN poisto eikä koko napin läpinäkyvyys.
+   `opacity: .35` haalisti myös varjon ja kehän, jolloin kelluva kiekko
+   näytti puoliksi piirretyltä. Käytöstä poissa oleva kontrolli ei kellu:
+   kiekko laskeutuu uran tasoon ja kuvake vaalenee. Sama esine, ei
+   nostetta. */
+.tl-keli-btn.tyhja { color: rgba(16, 26, 32, .32); }
+.tl-keli-btn.tyhja::before {
+  background: var(--surface-lo);
+  box-shadow: 0 0 0 1px rgba(120, 105, 70, .16);
+}
 
 /* PÄIVÄKISKO — pitkä hyppy yhdellä napautuksella.
  *
@@ -1138,10 +1169,7 @@ html.tyopoyta #kapseli.vaistyy {
 #tl-paivat {
   position: absolute;
   top: 11px;
-  left: calc(var(--sal) + 8px);
-  /* Oikeaan päähän mahtuu kaksi 44 px:n nappia (ks. .tl-play-btn):
-     10 + 44 + 2 + 44 = 100, ja 4 px rakoa kiskon maskin verran. */
-  right: calc(var(--sar) + 104px);
+  left: calc(var(--sal) + 8px); right: calc(var(--sar) + 8px);
   height: var(--tl-paivat-h);
   /* EI RAKOA LAPPUJEN VÄLIIN. Mitattuna 3 px:n raolla napautus lapun
      alaoikeaan kulmaan katosi rakoon eikä tehnyt mitään (6/7 kulmasta
@@ -1254,14 +1282,12 @@ html.tyopoyta #kapseli.vaistyy {
   position: relative; z-index: 1;
   display: flex; gap: 0; overflow-x: auto; overflow-y: hidden;
   -webkit-overflow-scrolling: touch; scrollbar-width: none;
-  /* Täyte oli 54 px molemmin puolin, jotta akselin ensimmäiset ja
-     viimeiset tunnit eivät jäisi nappien alle janan päissä. Napit ovat
-     nyt kiskorivillä, joten täyte ei suojaa miltään ja se vain kasvatti
-     vieritysaluetta 108 px:llä. Näkyvien tuntien määrä ei muutu
-     kumpaankaan suuntaan (17 mahtuu 393 px:ään joka tapauksessa) — se
-     mikä muuttui on ettei yksikään niistä ole enää minkään alla.
-     Keskitys ei ole koskaan tullut täytteestä vaan reunavälikkeistä. */
-  padding-left: var(--sal); padding-right: var(--sar);
+  /* Täyte on napin verran molemmin puolin, jottei akselin ensimmäinen ja
+     viimeinen tunti jää napin alle janan päissä. Se ei poista peittoa
+     akselin keskeltä — sen hinnan kelluva kontrolli maksaa — mutta
+     päissä, joissa jana ei enää liiku, se on ainoa suoja.
+     Keskitys ei tule täytteestä vaan reunavälikkeistä. */
+  padding-left: calc(var(--sal) + 54px); padding-right: calc(var(--sar) + 54px);
   -webkit-mask-image: linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%);
   mask-image: linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%);
   overscroll-behavior-x: contain; height: 100%;
@@ -1414,6 +1440,15 @@ html.tyopoyta #kapseli.vaistyy {
   box-shadow: var(--shadow-2);
   text-align: center; line-height: 1.3;
 }
+/* KAKSI ASIAA, KAKSI PAINOA.
+ *
+ * Kupla luki "Su 20:00" yhdellä painolla, eli viikonpäivä ja kellonaika
+ * olivat samanarvoisia. Ne eivät ole: päivän kertoo jo päiväkisko sen
+ * korostetulla pillerillä, ja kupla on olemassa TUNTIA varten — se on
+ * ainoa paikka jossa valittu tunti lukee numeroina. Viikonpäivä jää
+ * kuplaan siksi, että viisi vuorokautta erottuisivat toisistaan, mutta
+ * se on konteksti eikä lukema. Sama korkeus, sama rivi, eri paino. */
+.tl-kupla-pv { font-weight: 500; opacity: .62; margin-right: 1px; }
 #tl-time-bubble::after {
   content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
   border: 5px solid transparent; border-top-color: var(--ink);
@@ -16378,7 +16413,20 @@ function _tlUpdateNow(idx) {
      toisistaan. Kaksirivinen kupla oli 39 px korkea ja sen magenta
      päiväys oli aikavalitsimen äänekkäin elementti. */
   const bubble = document.getElementById('tl-time-bubble');
-  if (bubble) bubble.textContent = DAY[d.getDay()] + ' ' + hh + ':00';
+  /* Viikonpäivä on kontekstia, tunti on lukema — ks. .tl-kupla-pv.
+     Kirjoitetaan solmut kerran ja päivitetään niiden teksti, jotta
+     valinnan siirto ei jäsennä HTML:ää joka tunnilla. */
+  if (bubble) {
+    let pv = bubble.firstElementChild, ai = bubble.lastElementChild;
+    if (!pv || pv === ai) {
+      bubble.textContent = '';
+      pv = document.createElement('span'); pv.className = 'tl-kupla-pv';
+      ai = document.createElement('span');
+      bubble.appendChild(pv); bubble.appendChild(ai);
+    }
+    pv.textContent = DAY[d.getDay()] + ' ';
+    ai.textContent = hh + ':00';
+  }
   _tlKorostaPaiva(d);
   if (typeof _tlKeliNappiTila === 'function') _tlKeliNappiTila();
 }

@@ -2175,6 +2175,10 @@ Kaksi vikaa jotka näkyivät vasta kun ura oli korjattu.
 
 ### Napit olivat siellä missä data on
 
+> **Tämä siirto peruttiin.** Napit ovat takaisin uran päällä Windyn
+> tapaan; mittaukset alla pätevät yhä, mutta johtopäätös vaihtui. Ks.
+> *Napit takaisin uran päälle — kohotus kontrastin tilalle*.
+
 Play ja kelihyppy kelluivat uran vasemmassa ja oikeassa reunassa. Mitattuna
 ne peittivät **mobiilissa 6 näkyvää tuntia 17:stä eli 35 %** datasta.
 Työpöydällä sama luku on 6 %, joten tämä oli mobiilin vika eikä designin.
@@ -2258,3 +2262,58 @@ Lapun aria-nimi kertoo luvun, koska kaista on väriä eikä ruudunlukija näe
 sitä: *"Pe 4., kovin tuuli 1,2 m/s"*.
 
 Kortin korkeus ei muuttunut: 128 px ennen ja jälkeen.
+
+---
+
+## Napit takaisin uran päälle — kohotus kontrastin tilalle
+
+Siirto kiskoriville ratkaisi mitatun ongelman mutta rikkoi sen mitä
+kontrolli tarkoittaa: transportti kuuluu sen raidan päälle jota se ajaa.
+Napit palautettiin uralle Windyn tapaan, ja niiden mukana palasi
+`#tl-scroll`:n 54 px:n reunatäyte, joka suojaa akselin ensimmäisen ja
+viimeisen tunnin napin alta janan päissä.
+
+**Peiton hinta maksetaan tietoisesti.** Mobiilissa napit peittävät jälleen
+6 näkyvää tuntia 17:stä eli 35 % (työpöydällä 8 %). Se on kelluvan
+kontrollin hinta, ei vika jota ei olisi huomattu.
+
+**Näkyvyys ratkaistiin toisin kuin ensin.** Hiekkauralla paperikiekko oli
+1,07:1 alustaansa vasten. Sitä ei korjattu tummentamalla nappia — se
+tekisi kontrollista kortin äänekkäimmän elementin datan päällä. Korjaus
+on kohotus:
+
+| | ennen | nyt |
+|---|---|---|
+| kiekko alustaansa vasten, play | 1,07:1 | **1,56:1** |
+| kiekko alustaansa vasten, kelihyppy | 1,19:1 | **1,39:1** |
+| kuvake kiekkoa vasten | 12,4 / 10,7 | **16,4 / 13,6** |
+
+Kiekko on kortin pintaa vaaleampi (`--surface-hi`), sillä on lämmin
+kehä ja pehmeä varjo. Silmä lukee sen kelluvana esineenä uran yllä eikä
+väriläikkänä urassa — sama keino kuin uran omassa upotuksessa, toiseen
+suuntaan. Napautukset mitattiin uudelleen uudessa paikassa: **8/8
+molemmilla**.
+
+### Neljä viimeistelyä samalla
+
+1. **Kiekko keskitettiin uraan pystysuunnassa.** Se roikkui 3 px uran
+   alareunan ali. Kelluva esine keskittyy siihen mitä se peittää.
+2. **Painallus näkyy.** Kiekko painuu `scale(.92)`, ei koko laatikko:
+   laatikko on osumapinta eikä saa liikkua sormen alta.
+   `prefers-reduced-motion` poistaa siirtymän, ei tilaa.
+3. **"Ei kelivikkunaa" on kohotuksen poisto, ei läpinäkyvyyttä.**
+   `opacity: .35` haalisti myös varjon ja kehän, jolloin kiekko näytti
+   puoliksi piirretyltä. Nyt kiekko laskeutuu uran tasoon ja kuvake
+   vaalenee: sama esine, ei nostetta.
+4. **Fokusrengas seuraa muotoa.** Globaali `:focus-visible` asetti
+   `border-radius: 4px`, mikä piirsi jokaisen pyöreän `.mctl`-napin
+   ympärille pyöristetyn neliön. Nyt rengas on ympyrä.
+
+### Kupla: kaksi asiaa, kaksi painoa
+
+Kupla luki *"Su 20:00"* yhdellä painolla, eli viikonpäivä ja kellonaika
+olivat samanarvoisia. Ne eivät ole: päivän kertoo jo päiväkisko
+korostetulla pillerillään, ja kupla on olemassa TUNTIA varten — se on
+ainoa paikka jossa valittu tunti lukee numeroina. Viikonpäivä jää
+kuplaan erottamaan viisi vuorokautta toisistaan, mutta se on kontekstia
+eikä lukema: sama rivi, sama korkeus, kevyempi paino ja 0,62 alfa.

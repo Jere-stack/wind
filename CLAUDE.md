@@ -88,7 +88,8 @@ kokeiltu ja kaadettu mittauksella.
   Spottikortin auditointi · Play ja kapseli · Aikajana kotivalikon appissa ·
   Havaintoasemien kortit · Tummat jäänteet paperipaneeleissa · Aurinkokaari ·
   Aikajanan ura vaihtui hiekkaan · Kontrollit pois datan päältä, kisko
-  kertomaan säästä
+  kertomaan säästä · Napit takaisin uran päälle — kohotus kontrastin
+  tilalle
 
 </details>
 
@@ -256,11 +257,15 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   nuolilla eikä tarkista shiftiä (vain alt/ctrl/meta), joten Shift+nuoli
   panoroi myös. Aikajanan askellus on `,` ja `.`, ja shiftattu merkki on
   eri `e.key` (suomalaisella `:` ja `;`) — lue `e.code`.
-- **Play ja kelihyppy ovat PÄIVÄKISKON rivillä, eivät uran päällä.**
-  Uran reunoilla ne peittivät mobiilissa 6 näkyvää tuntia 17:stä (35 %;
-  työpöydällä 6 %) ja olivat itse 1,07:1 paperia vasten. Älä palauta
-  niitä uralle tilan säästämiseksi — kisko rullaa, ura ei. Kontrasti
-  tulee kuvakkeesta (12,4:1) ja kehästä, ei kiekosta.
+- **Play ja kelihyppy KELLUVAT URAN PÄÄLLÄ, ja erottuvat kohotuksella.**
+  Ne peittävät mobiilissa 6 näkyvää tuntia 17:stä (35 %; työpöydällä
+  8 %) — se on kelluvan kontrollin tietoinen hinta, ei huomaamatta jäänyt
+  vika, ja siirto kiskoriville on kokeiltu ja peruttu (transportti kuuluu
+  sen raidan päälle jota se ajaa). Näkyvyyttä EI korjata tummentamalla
+  nappia: se tekisi kontrollista kortin äänekkäimmän elementin datan
+  päällä. Kiekko on uraa VAALEAMPI (`--surface-hi`) + kehä + varjo:
+  1,56:1 alustaan, kuvake 16,4:1 kiekkoon. Käytöstä poissa oleva nappi
+  menettää kohotuksen — ei `opacity`, joka haalistaa myös varjon.
 - **Nappien peitto mitataan MOLEMMISSA suunnissa.** Pelkkä vaakavertailu
   väitti siirron jälkeen yhä 29 %:n peittoa vaikka napit olivat eri
   rivillä. Napautus on lisäksi mitattava oikeasti — ja niin että mittari
