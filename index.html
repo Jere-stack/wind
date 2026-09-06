@@ -1037,12 +1037,28 @@ html.tyopoyta #kapseli.vaistyy {
    2 px, jolla ei ole enää mihin siirtyä. Säädin kasvaa 32 px:stä 40 px:ään,
    mutta nappi jota ei voi luotettavasti osua on huonompi kuin nappi joka
    näkyy. Ympyrä on yhä samassa keskipisteessä kuin ennen. */
+/* KONTROLLIT OVAT KISKORIVILLÄ, EIVÄT DATAN PÄÄLLÄ.
+ *
+ * Napit kelluivat uran päällä sen vasemmassa ja oikeassa reunassa.
+ * Mitattuna ne peittivät mobiilissa 6 näkyvää tuntia 17:stä eli 35 %
+ * datasta (työpöydällä 6 %, joten tämä oli mobiilin vika). Samalla ne
+ * olivat itse lähes näkymättömiä: paperikiekko paperilla on 1,07:1, eli
+ * ne erottuivat vain varjostaan.
+ *
+ * Nyt molemmat ovat päiväkiskon rivillä oikeassa päässä, paperilla ja
+ * datan ulkopuolella. Kisko lyhenee saman verran (377 -> 281 px, näkyviä
+ * lappuja 8 -> 6) ja se on halvempi hinta kuin uran peittäminen: kisko
+ * rullaa, ura ei.
+ *
+ * Ympyrä täyttää 44 px:n laatikon 2 px:ää vaille. Se ei ole tyylivalinta
+ * vaan mittaustulos: Chromiumin kosketussäätö siirtää napautuksen
+ * lähimpään MAALATTUUN kohteeseen, ja läpinäkyvä kehä hävisi aikanaan
+ * viereiselle vierittimelle (ks. docs/eleet.md). Nyt naapuri on kisko,
+ * joka vierittyy vaakaan — sama ansa. */
 .tl-play-btn {
   position: absolute;
-  /* 6 px pienempi kuin ennen kummassakin suunnassa, jotta 44 px:n laatikon
-     sisällä oleva 32 px:n ympyrä jää samaan paikkaan kuin vanha nappi. */
-  left: calc(var(--sal) + 9px);
-  bottom: calc(var(--sab-tl) + 19px);
+  top: 8px;
+  right: calc(var(--sar) + 56px);
   width: 44px; height: 44px;
   border-radius: 50%;
   background: none;
@@ -1055,6 +1071,10 @@ html.tyopoyta #kapseli.vaistyy {
   content: ''; position: absolute; inset: 2px;
   border-radius: 50%;
   background: var(--surface-lo);
+  /* Kehä paperille. Uran päällä kiekko erottui alustastaan itsestään;
+     paperilla se on samaa materiaalia kuin kortti (1,07:1), joten se
+     tarvitsee viivan ollakseen kontrolli eikä tahra. */
+  box-shadow: inset 0 0 0 1px var(--hairline);
   transition: background .2s ease;
 }
 .tl-play-btn.playing::before { background: var(--accent); }
@@ -1071,19 +1091,13 @@ html.tyopoyta #kapseli.vaistyy {
  * Tämä nappi vie seuraavaan tuntiin jossa tuulta on foilattavaksi asti
  * JA aurinko on ylhäällä (ks. `_tlSeuraavaKeli`).
  *
- * Mitoitus on kopio play-napista ja samasta syystä: 44 px:n laatikko,
- * jonka ympyrä täyttää siitä 40 px. Läpinäkyvä kehä ei kelpaa —
- * Chromiumin kosketussäätö siirtää napautuksen lähimpään MAALATTUUN
- * kohteeseen, ja play-napin kehä hävisi aikanaan viereiselle
- * `#tl-scroll`:lle (ks. docs/eleet.md).
- *
- * `#tl-scroll` saa saman verran täytettä oikeaan reunaan kuin
- * vasempaankin, jottei nappi peitä tikkejä. Keskitys ei muutu: se
- * tulee reunavälikkeistä, eivät täytteestä. */
+ * Mitoitus ja sijainti ovat kopio play-napista ja samasta syystä; ks.
+ * `.tl-play-btn`. Pari on vierekkäin kiskorivin oikeassa päässä:
+ * molemmat siirtävät aikaa eteenpäin, joten ne kuuluvat yhteen. */
 .tl-keli-btn {
   position: absolute;
-  right: calc(var(--sar) + 9px);
-  bottom: calc(var(--sab-tl) + 19px);
+  top: 8px;
+  right: calc(var(--sar) + 10px);
   width: 44px; height: 44px;
   border-radius: 50%;
   background: none;
@@ -1096,6 +1110,7 @@ html.tyopoyta #kapseli.vaistyy {
   content: ''; position: absolute; inset: 2px;
   border-radius: 50%;
   background: var(--surface-lo);
+  box-shadow: inset 0 0 0 1px var(--hairline);
 }
 .tl-keli-btn svg { position: relative; }
 .tl-keli-btn:active { background: none; }
@@ -1123,7 +1138,10 @@ html.tyopoyta #kapseli.vaistyy {
 #tl-paivat {
   position: absolute;
   top: 11px;
-  left: calc(var(--sal) + 8px); right: calc(var(--sar) + 8px);
+  left: calc(var(--sal) + 8px);
+  /* Oikeaan päähän mahtuu kaksi 44 px:n nappia (ks. .tl-play-btn):
+     10 + 44 + 2 + 44 = 100, ja 4 px rakoa kiskon maskin verran. */
+  right: calc(var(--sar) + 104px);
   height: var(--tl-paivat-h);
   /* EI RAKOA LAPPUJEN VÄLIIN. Mitattuna 3 px:n raolla napautus lapun
      alaoikeaan kulmaan katosi rakoon eikä tehnyt mitään (6/7 kulmasta
@@ -1155,11 +1173,14 @@ html.tyopoyta #kapseli.vaistyy {
  * aikanaan tarkoituksella luovutti kartalle. Napautukset on mitattu
  * reunoja myöten. */
 .tl-paiva {
+  position: relative;
   flex: 0 0 auto;
   height: 100%;
-  display: flex; align-items: center;
-  padding: 0 10px;
-  border-radius: 11px;
+  display: flex; align-items: center; justify-content: center;
+  /* Alalaita on varattu tuulikaistalle, joten teksti keskittyy pillerin
+     eikä koko lapun mukaan. Lappu itse on yhä täyskorkea — napautus-
+     pinta ei muutu, vain maali. */
+  padding: 0 10px 7px;
   font-size: var(--fs-10);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -1167,13 +1188,47 @@ html.tyopoyta #kapseli.vaistyy {
   white-space: nowrap;
   cursor: pointer;
   -webkit-user-select: none; user-select: none;
-  transition: background .15s ease, color .15s ease;
+  transition: color .15s ease;
+}
+/* Pilleri on omana kerroksenaan eikä lapun taustana: taustana se peittäisi
+   tuulikaistan, ja juuri sen kaistan takia lappu on olemassa. */
+.tl-paiva::before {
+  content: ''; position: absolute;
+  left: 0; right: 0; top: 0; bottom: 7px;
+  border-radius: 11px;
+  transition: background .15s ease;
 }
 /* Valittu päivä on TUMMA PILLERI, ei magenta. `--accent` on toiminto- ja
    varoitusväri; päivävalinta ei ole kumpaakaan. Sama kieli kuin
    aikakuplalla, joka on saman valinnan toinen puoli. */
-.tl-paiva.valittu { background: var(--ink); color: var(--surface); }
-.tl-paiva:active { background: var(--hairline); }
+.tl-paiva.valittu::before { background: var(--ink); }
+.tl-paiva:active::before  { background: var(--hairline); }
+.tl-paiva.valittu { color: var(--surface); }
+.tl-paiva-txt { position: relative; }
+
+/* PÄIVÄN TUULIKAISTA — kisko kertoo säästä, ei vain päivämäärästä.
+ *
+ * Kisko vei kortin korkeudesta 31 % eikä sanonut tuulesta mitään, ja
+ * kysymys "mikä päivä kannattaa" vaati 12 ruudullista raahausta
+ * tuntinauhassa. Kaista vastaa siihen yhdellä silmäyksellä.
+ *
+ * LEVEYS ON MUOTO, VÄRI ON ARVO — sama kielioppi kuin tuntipalkilla, ja
+ * samasta syystä. Pelkkä väri ei kelpaa: rampin hiljainen pää on
+ * paperilla TUMMIN (0 m/s on 6,14,58), joten tyyni päivä näyttäisi
+ * kolmen pikselin kaistana raskaimmalta. Leveys kääntää sen oikein
+ * päin — tyyni saa tyngän, kova täyden mitan.
+ *
+ * Kaista on pillerin ULKOPUOLELLA eikä sisällä. Sisällä se olisi valitun
+ * päivän kohdalla mustan päällä, jossa ramppi ei toimi (0 m/s musteella
+ * on 1,3:1). Ulkopuolella alusta on aina samaa hiekkaa. */
+.tl-paiva::after {
+  content: ''; position: absolute; bottom: 0; left: 50%;
+  transform: translateX(-50%);
+  width: calc(5px + var(--pv-osuus, 0) * (100% - 21px));
+  height: 3px; border-radius: 2px;
+  background: var(--pv-vari, transparent);
+  transition: width .2s ease, background .2s ease;
+}
 
 /* HIEKKAURA — kortti on yhtä materiaalia, palkki kantaa kontrastin.
  *
@@ -1199,7 +1254,14 @@ html.tyopoyta #kapseli.vaistyy {
   position: relative; z-index: 1;
   display: flex; gap: 0; overflow-x: auto; overflow-y: hidden;
   -webkit-overflow-scrolling: touch; scrollbar-width: none;
-  padding-left: calc(var(--sal) + 54px); padding-right: calc(var(--sar) + 54px);
+  /* Täyte oli 54 px molemmin puolin, jotta akselin ensimmäiset ja
+     viimeiset tunnit eivät jäisi nappien alle janan päissä. Napit ovat
+     nyt kiskorivillä, joten täyte ei suojaa miltään ja se vain kasvatti
+     vieritysaluetta 108 px:llä. Näkyvien tuntien määrä ei muutu
+     kumpaankaan suuntaan (17 mahtuu 393 px:ään joka tapauksessa) — se
+     mikä muuttui on ettei yksikään niistä ole enää minkään alla.
+     Keskitys ei ole koskaan tullut täytteestä vaan reunavälikkeistä. */
+  padding-left: var(--sal); padding-right: var(--sar);
   -webkit-mask-image: linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%);
   mask-image: linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%);
   overscroll-behavior-x: contain; height: 100%;
@@ -2992,14 +3054,17 @@ html.tyopoyta {
       </div>
     </div>
     <div id="tl-wrap">
-      <!-- Play-nappi kelluu timelinen vasemmassa reunassa (Windy-tyyli) -->
-      <div class="mctl tl-play-btn" id="btn-play">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" id="play-icon">
+      <!-- Play ja kelihyppy ovat päiväkiskon rivillä oikeassa päässä,
+           eivät uran päällä: ks. .tl-play-btn CSS:ssä. Molemmat siirtävät
+           aikaa eteenpäin, joten ne ovat pari.
+           Sarkain ja aria kuten kelihypyssä; Välilyönti hoitaa toiminnon
+           (ks. globaali keydown), joten fokuspysäkki on myös käytettävä. -->
+      <div class="mctl tl-play-btn" id="btn-play" role="button" tabindex="0"
+           aria-label="Toista ennuste" title="Toista ennuste (välilyönti)">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" id="play-icon" aria-hidden="true">
           <path d="M7 4.5v15l12-7.5z"/>
         </svg>
       </div>
-      <!-- Kelihyppy oikeassa reunassa: eteenpäin ajassa on oikealle, ja
-           play on vasemmassa reunassa vastapainona. -->
       <div class="mctl tl-keli-btn" id="btn-keli" role="button" tabindex="0"
            aria-label="Seuraava kelivikkuna" title="Seuraava kelivikkuna (K)">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -15778,6 +15843,8 @@ function _tlPaivitaPalkit(speeds, puuskat, valo) {
   if (valo && erot) {
     for (let j = 0; j < erot.length; j++) _tlValoLuokka(erot[j].el, valo[erot[j].i]);
   }
+  /* Päiväkiskon kaistat samasta syystä: aika on sama, paikka ei. */
+  _tlPaivaKaistat(speeds, valo);
 }
 
 function _tlValoLuokka(el, vaihe) {
@@ -15836,6 +15903,7 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
      aikaleimoista, ja nopea polku ajetaan nimenomaan silloin kun ne ovat
      samat. Korostuksen hoitaa `_tlUpdateNow` molemmissa. */
   _tlRakennaPaivat(times);
+  _tlPaivaKaistat(speeds, valo);
   const TICK_W = TL_TIKKI_LEV;
   const DAY = ['Su','Ma','Ti','Ke','To','Pe','La']; let lastDay = -1;
 
@@ -16182,6 +16250,9 @@ function _tlRakennaPaivat(times) {
   if (!kisko) return;
   kisko.innerHTML = '';
   State._tlPaivat = [];
+  /* Kunkin lapun tuntiväli akselilla. Tuulikaista lasketaan tästä, eikä
+     päivää etsitä uudelleen aikaleimoista joka päivityksellä. */
+  State._tlPaivaAlue = [];
   if (!times || !times.length) return;
   const DAY = ['Su', 'Ma', 'Ti', 'Ke', 'To', 'Pe', 'La'];
   const tanaan = _tlPvNro(new Date());
@@ -16189,14 +16260,62 @@ function _tlRakennaPaivat(times) {
   for (let i = 0; i < times.length; i++) {
     const d = new Date(times[i]);
     const pv = _tlPvNro(d);
-    if (pv === edellinen) continue;
+    if (pv === edellinen) {
+      State._tlPaivaAlue[State._tlPaivaAlue.length - 1].loppu = i;
+      continue;
+    }
     edellinen = pv;
     const el = document.createElement('div');
     el.className = 'tl-paiva';
-    el.textContent = pv === tanaan ? 'Tänään' : (DAY[d.getDay()] + ' ' + d.getDate() + '.');
+    /* Teksti omassa elementissään: pilleri ja tuulikaista ovat lapun
+       pseudoelementtejä, ja tekstisolmu jäisi niiden väliin ilman omaa
+       kerrostaan. */
+    const txt = document.createElement('span');
+    txt.className = 'tl-paiva-txt';
+    txt.textContent = pv === tanaan ? 'Tänään' : (DAY[d.getDay()] + ' ' + d.getDate() + '.');
+    el.appendChild(txt);
     el.dataset.pv = String(pv);
     kisko.appendChild(el);
     State._tlPaivat.push(el);
+    State._tlPaivaAlue.push({ alku: i, loppu: i });
+  }
+}
+
+/* PÄIVÄN TUULI KISKOON.
+ *
+ * Väri ja leveys tulevat sen päivän kovimmasta tuulesta VALOISAAN
+ * AIKAAN. Mitattuna koko vuorokauden huippu eroaa siitä viitenä
+ * päivänä yhdeksästä, keskimäärin 0,44-1,33 m/s ja vähintään 1,5 m/s
+ * yhtenä-kahtena päivänä yhdeksästä — eli ero on pieni mutta juuri se
+ * tapaus jonka se korjaa on väärä lupaus: yöllä puhaltava huippu ei ole
+ * keli. Akselin ensimmäisellä ja viimeisellä päivällä valoisia tunteja
+ * voi olla nolla (mitattu), ja silloin käytetään koko välin huippua —
+ * muuten vajaa päivä näyttäisi tyyneltä.
+ *
+ * Tämä ajetaan MYÖS nopeassa polussa. Kisko rakennetaan vain hitaassa,
+ * koska se riippuu aikaleimoista, mutta kaista riippuu nopeuksista —
+ * ja nopea polku on juuri se joka ajetaan kun aika pysyy ja paikka
+ * vaihtuu. Sama ansa kuin päiväerottimien valovaiheessa. */
+function _tlPaivaKaistat(speeds, valo) {
+  const laput = State._tlPaivat, alueet = State._tlPaivaAlue;
+  if (!laput || !alueet || !speeds) return;
+  for (let d = 0; d < laput.length; d++) {
+    const a = alueet[d], el = laput[d];
+    if (!a || !el) continue;
+    let koko = 0, valoisa = 0, valoTunteja = 0;
+    for (let i = a.alku; i <= a.loppu; i++) {
+      const v = speeds[i] || 0;
+      if (v > koko) koko = v;
+      /* Aurinko.vaihe: 0 yö, 0.5 hämärä, 1 siviili, 2 nousu, 3 päivä. */
+      if (valo && valo[i] >= 2) { valoTunteja++; if (v > valoisa) valoisa = v; }
+    }
+    const ms = valoTunteja ? valoisa : koko;
+    const c = ColorRamp.paperi(ms);
+    el.style.setProperty('--pv-vari', 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')');
+    el.style.setProperty('--pv-osuus', _tlPalkkiOsuus(ms).toFixed(3));
+    /* Kaista on väri; luku kuuluu myös ruudunlukijalle. */
+    el.setAttribute('aria-label',
+      (el.textContent || '').trim() + ', kovin tuuli ' + ms.toFixed(1).replace('.', ',') + ' m/s');
   }
 }
 

@@ -87,7 +87,8 @@ kokeiltu ja kaadettu mittauksella.
   jaettava linkki · Puvun paksuus · Ennusteen osuvuus havaintoja vasten ·
   Spottikortin auditointi · Play ja kapseli · Aikajana kotivalikon appissa ·
   Havaintoasemien kortit · Tummat jäänteet paperipaneeleissa · Aurinkokaari ·
-  Aikajanan ura vaihtui hiekkaan
+  Aikajanan ura vaihtui hiekkaan · Kontrollit pois datan päältä, kisko
+  kertomaan säästä
 
 </details>
 
@@ -255,6 +256,26 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   nuolilla eikä tarkista shiftiä (vain alt/ctrl/meta), joten Shift+nuoli
   panoroi myös. Aikajanan askellus on `,` ja `.`, ja shiftattu merkki on
   eri `e.key` (suomalaisella `:` ja `;`) — lue `e.code`.
+- **Play ja kelihyppy ovat PÄIVÄKISKON rivillä, eivät uran päällä.**
+  Uran reunoilla ne peittivät mobiilissa 6 näkyvää tuntia 17:stä (35 %;
+  työpöydällä 6 %) ja olivat itse 1,07:1 paperia vasten. Älä palauta
+  niitä uralle tilan säästämiseksi — kisko rullaa, ura ei. Kontrasti
+  tulee kuvakkeesta (12,4:1) ja kehästä, ei kiekosta.
+- **Nappien peitto mitataan MOLEMMISSA suunnissa.** Pelkkä vaakavertailu
+  väitti siirron jälkeen yhä 29 %:n peittoa vaikka napit olivat eri
+  rivillä. Napautus on lisäksi mitattava oikeasti — ja niin että mittari
+  palauttaa lähtötilan joka näytteen väliin: kelihyppy kuluttaa akselia,
+  ja lopussa se ei liiku vaikka napautus osuu.
+- **Päivälapun tuulikaista: LEVEYS on muoto, VÄRI on arvo.** Pelkkä väri
+  ei kelpaa, koska rampin hiljainen pää on paperilla tummin (0 m/s on
+  `6,14,58`) eli tyyni päivä näyttäisi raskaimmalta. Kaista on pillerin
+  ULKOPUOLELLA: sisällä se osuisi valitun päivän mustaan, jossa ramppi on
+  1,3:1. Luku on VALOISAN ajan huippu (varatie: koko väli, kun valoisia
+  tunteja on nolla) — yöllä puhaltava huippu ei ole keli.
+- **Kaistat päivitetään MYÖS nopeassa polussa.** Kisko rakennetaan vain
+  hitaassa (se riippuu aikaleimoista), mutta kaista riippuu nopeuksista
+  ja nopea polku on juuri se joka ajetaan kun aika pysyy ja paikka
+  vaihtuu. Sama ansa kuin päiväerottimien valovaiheessa.
 - **Aikajanan valinta kulkee `_tlValitseIdx`:n kautta** (päiväkisko,
   näppäimistö, kelihyppy). Älä kirjoita neljättä polkua.
 - **Päiväkiskon napautus ei saa käyttää `scrollTimelineTo`a.** Kupla ja

@@ -2166,3 +2166,95 @@ perustelu jäi voimaan vaikka ehto oli kadonnut, ja palkit jäivät vanhaan
 ramppiin seuraavaan kartansiirtoon asti. Nyt `kayta` päivittää palkit
 `_tlMuisti`sta. Mitattu: `29,113,22` → `40,87,94` → `29,113,22` ilman
 kartansiirtoa.
+
+---
+
+## Kontrollit pois datan päältä, kisko kertomaan säästä
+
+Kaksi vikaa jotka näkyivät vasta kun ura oli korjattu.
+
+### Napit olivat siellä missä data on
+
+Play ja kelihyppy kelluivat uran vasemmassa ja oikeassa reunassa. Mitattuna
+ne peittivät **mobiilissa 6 näkyvää tuntia 17:stä eli 35 %** datasta.
+Työpöydällä sama luku on 6 %, joten tämä oli mobiilin vika eikä designin.
+Samalla ne olivat itse lähes näkymättömiä: paperikiekko paperilla on
+**1,07:1**, eli ne erottuivat vain varjostaan.
+
+Molemmat siirtyivät päiväkiskon riville oikeaan päähän. Uran peitto on nyt
+**0 %** molemmilla laitteilla, ja hinta on kiskon leveys: 377 → 281 px,
+näkyviä lappuja 8 → 6. Se on halpa hinta, koska kisko rullaa ja ura ei.
+
+> **Mittari valehteli tässäkin.** Peittomittari vertasi vain vaakasuuntaa,
+> ja siirron jälkeen se väitti yhä 29 %:n peittoa vaikka napit eivät ole
+> enää samalla rivillä lainkaan. Pystysuunta oli lisättävä ehtoon. Vanha
+> 35 %:n luku pitää silti paikkansa: silloin napit OLIVAT samalla rivillä,
+> jolloin vaakapeitto oli koko totuus.
+
+Kiekko sai kehän (`--hairline`), koska paperilla se on samaa materiaalia
+kuin kortti. Kontrolli lukee kuvakkeestaan: **12,4:1** play ja **10,7:1**
+kelihyppy kiekkoa vasten, kun kiekko itse on kortista 1,11–1,19:1.
+Soidessa kiekko on `--accent`, ja se on nyt vahva merkintä eikä hukkuva.
+
+Napautukset mitattiin uudelleen, koska naapuriksi tuli vaakaan vierittyvä
+kisko — juuri se tilanne jossa Chromiumin kosketussäätö vei aikanaan
+napautuksen vierittimelle. **8/8 molemmilla**, näytteet ympyrän sisältä.
+
+> Kelihypyn ensimmäinen ajo antoi 5/8. Kolme "hutia" olivat akselin
+> lopussa (178/181): nappi oli tyhjä eikä sillä ollut minne hypätä.
+> Mittari kulutti akselin itse. Lähtötilan palautus jokaisen näytteen
+> väliin antoi 8/8.
+
+`#tl-scroll`:n 54 px:n reunatäyte poistui samalla. Se oli olemassa vain
+suojaamassa akselin päitä napeilta. Näkyvien tuntien määrä ei muutu
+kumpaankaan suuntaan — 17 mahtuu 393 px:ään joka tapauksessa — mutta
+yksikään niistä ei ole enää minkään alla.
+
+Play sai `role="button"` ja `tabindex`in kelihypyn tapaan; Välilyönti hoiti
+toiminnon jo ennestään, joten fokuspysäkki on myös käytettävä. Sarkaimen
+ulkopuolelle jäävät yhä `btn-loc`, `btn-freespot`, `fc-btn` ja
+`btn-settings` — sama vanha puute, ei tämän muutoksen.
+
+### Kisko vei 31 % kortista eikä sanonut säästä mitään
+
+Kysymys "mikä päivä kannattaa" vaati 12 ruudullista raahausta
+tuntinauhassa. Nyt jokaisella päivälapulla on **tuulikaista**: sen päivän
+kovin tuuli.
+
+**Leveys on muoto, väri on arvo** — sama kielioppi kuin tuntipalkilla, ja
+samasta syystä. Pelkkä väri ei kelpaa: rampin hiljainen pää on paperilla
+TUMMIN (0 m/s on `6,14,58`), joten tyyni päivä näyttäisi kolmen pikselin
+kaistana kaikkein raskaimmalta. Leveys kääntää sen oikein päin.
+
+Kaista on pillerin **ulkopuolella**, ei sisällä. Sisällä se osuisi valitun
+päivän kohdalla mustan päälle, jossa ramppi ei toimi (0 m/s musteella on
+1,3:1). Ulkopuolella alusta on aina samaa hiekkaa. Siksi pilleri on nyt
+`::before` eikä lapun oma tausta, ja lappu itse on yhä täyskorkea —
+napautuspinta ei muuttunut, vain maali. Mitattu napautuksin: **7/7**
+kohtaa osuu, myös kaistan kohdalta.
+
+**Luku on valoisan ajan huippu, ei vuorokauden.** Mitattuna ne eroavat
+viitenä päivänä yhdeksästä, keskimäärin 0,44–1,33 m/s ja vähintään
+1,5 m/s yhtenä–kahtena päivänä yhdeksästä. Ero on pieni, mutta se tapaus
+jonka se korjaa on väärä lupaus: yöllä puhaltava huippu ei ole keli.
+Akselin ensimmäisellä ja viimeisellä päivällä valoisia tunteja voi olla
+nolla (mitattu), ja silloin käytetään koko välin huippua — muuten vajaa
+päivä näyttäisi tyyneltä.
+
+| päivä | tunteja | valoisia | vrk-huippu | kaistalla |
+|---|---|---|---|---|
+| Pe 4. | 6 | 0 | 1,2 | 1,2 *(varatie)* |
+| La 5. | 24 | 14 | 3,8 | 3,1 |
+| To 10. | 24 | 13 | 3,6 | **2,0** |
+
+**Kaista päivitetään MYÖS nopeassa polussa.** Kisko rakennetaan vain
+hitaassa, koska se riippuu aikaleimoista — mutta kaista riippuu
+nopeuksista, ja nopea polku on juuri se joka ajetaan kun aika pysyy ja
+paikka vaihtuu. Sama ansa kuin päiväerottimien valovaiheessa aikanaan.
+Mitattu: kartansiirron jälkeen kaistat vaihtuivat ja vastasivat uutta
+dataa 9/9.
+
+Lapun aria-nimi kertoo luvun, koska kaista on väriä eikä ruudunlukija näe
+sitä: *"Pe 4., kovin tuuli 1,2 m/s"*.
+
+Kortin korkeus ei muuttunut: 128 px ennen ja jälkeen.
