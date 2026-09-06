@@ -171,6 +171,16 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 
 - **Kartalla sävy tarkoittaa tuulennopeutta ja vain sitä.** Kaikki muu kartalla
   on joko tummaa pilleriä (mitattu data) tai paperia (kaikki muu).
+- **Aikajanan palkit ovat `ColorRamp.tumma()`, eivät `rgb()` eivätkä
+  `ink()`.** Ne ovat aina tummalla uralla (`--tl-ura`), joten
+  `karttaRamppi()` olisi väärä: vaalealla pohjakartalla se palauttaa
+  musteen, jonka kontrasti uraan on mitattuna 1,00–2,90 eli koko
+  asteikko näkymätön. Älä myöskään laita karttaramppia paperille —
+  10 m/s on siellä 1,06:1.
+- **Palkin korkeusasteikko on EPÄLINEAARINEN** (4–14 m/s levennetty) ja
+  täysi mitta on 35 px. Korkeus on muoto, väri on arvo. Älä palauta
+  lineaarista: se antaa 1,38 px/(m/s) ja peräkkäisten tuntien tyypillinen
+  ero on 0,2 m/s eli alle puoli pikseliä.
 - **`ColorRamp.rgb()` on kartalle, `ink()` paneeleihin.** Ne kulkevat
   vastakkaisiin suuntiin kirkkaudessa. Muste ei ole värisokeusturvallinen eikä
   sen tarvitse olla — paneelissa väri on aina luvun vieressä.

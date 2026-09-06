@@ -1885,3 +1885,109 @@ ei ollut ikkunaa 48 h sisällä lainkaan — 39 tuntia 48:sta jäi alle
 kuuden metrin ja loput yhdeksän tulivat luoteesta. Se ei ollut vika vaan
 oikea vastaus, ja ketju mitattiin levittämällä rajaa niin että jokin
 ikkuna osui haarukkaan.
+
+## Aikajana: suunta pois, kartan värit, ja korkeus näkyviin
+
+Kolme muutosta samaan nauhaan, ja janan ulkomitat ovat **täsmälleen
+samat kuin ennen** (128 px).
+
+### 1. Suuntanuolet pois
+
+Ne veivät oman rivinsä nauhan yläreunasta eikä niitä tarvittu. Se rivi
+on nyt tuntilukemien, ja juuri se vapautti korkeuden palkeille.
+
+### 2. Palkit ovat kartan värisiä — ja siksi tarvittiin tumma ura
+
+Karttaramppi on suunniteltu tummalle merelle, eikä se toimi paperilla.
+Mitattuna kontrasti kortin pintaan:
+
+| m/s | karttaväri | kontrasti paperiin |
+|---|---|---|
+| 4 | `0,175,250` | 2,00 |
+| 8 | `60,235,45` | 1,30 |
+| **10** | `205,240,0` | **1,06** |
+| 16 | `255,50,50` | 2,96 |
+
+Yhdeksän yhdestätoista jää alle 3:1 ja 10 m/s on käytännössä näkymätön.
+**Väriä ei siis voi matchata karttaan vaihtamalla funktiota — alustan on
+vaihduttava.**
+
+Tuntinauha sai oman uran (`--tl-ura`, `#16222A`), samaa mustetta kuin
+aikakupla ja päivälappu eli sovelluksen oma *tumma pilleri = mitattu
+data* -pinta. Samalla uralla karttavärit saavat kontrastin **3,2–12,4**
+kahdesta metristä ylöspäin.
+
+Ura on omana kerroksenaan (`#tl-wrap::after`) scrollin takana eikä
+scrollin taustana: taustana se olisi täysleveä musta palkki paperin
+poikki, upotettuna se on ura kortin sisällä.
+
+**Nollapää tarvitsi kehyksen.** 0 m/s on syvä yösininen ja sen kontrasti
+uraan on 1,14 — lyhyt palkki katoaisi. Palkilla on siksi ohut vaalea
+sisäkehys, joka ei näy kirkkailla väreillä.
+
+**Palkki EI seuraa `karttaRamppi()`:a.** Vaalealla pohjakartalla se
+palauttaa musteen, ja muste on tehty paperille: mitattuna sen kontrasti
+uraan on **1,00–2,90**, eli koko asteikko olisi näkymätön. Palkit
+käyttävät `ColorRamp.tumma()`:a, joka on aina kylläinen ramppi — tai
+värisokeusramppi jos käyttäjä on sen valinnut, koska se valinta koskee
+näköä eikä alustaa.
+
+| pohjakartta | palkin 8 m/s | kartan 8 m/s | kontrasti uraan |
+|---|---|---|---|
+| tumma | `60,235,45` | `60,235,45` | 10,12 |
+| satelliitti | `60,235,45` | `60,235,45` | 10,12 |
+| vaalea | `60,235,45` | `55,84,47` (muste) | 10,12 |
+
+Eli vaalealla pohjalla jana ja kartta eroavat tarkoituksella — se on
+ainoa tapa jolla molemmat pysyvät luettavina.
+
+### 3. Korkeus näkyviin ilman että jana kasvaa
+
+Viisi vaihtoehtoa punnittiin:
+
+| | vaihtoehto | tulos |
+|---|---|---|
+| 1 | kasvata janaa pystysuunnassa | hylätty — nauha luovutti pystytilan kartalle tarkoituksella |
+| 2 | **lukema palkkien yläpuolelle** | vapauttaa 15 px, palkki 22 → **35 px** |
+| 3 | **epälineaarinen asteikko** | 4–14 m/s levennetty |
+| 4 | nollan siirto (asteikko alkaa 2 m/s) | +14 % ja valehtelee nollasta |
+| 5 | meteogrammikäyrä palkkien tilalle | **kaadettu jo mittauksella** — litistyy nauhan korkeudella |
+
+Tehtiin 2 ja 3 yhdessä. Ne eivät kilpaile: ensimmäinen antaa pikseleitä,
+toinen jakaa ne sinne missä niitä tarvitaan.
+
+Käyrä ja mitattu tarkkuus:
+
+```
+     0- 4 m/s -> 0,00-0,15    1,13 px / (m/s)   tyven, harvoin luettu
+     4- 8     -> 0,15-0,50    3,06 px           sessioraja
+     8-12     -> 0,50-0,80    2,63 px           paras keli
+    12-16     -> 0,80-1,00    1,75 px
+       > 16   -> 1,00         kyllästyy, väri jatkaa
+```
+
+Ennen koko asteikko oli **1,38 px / (m/s)**. Sessiovälillä tarkkuus on
+nyt **2,2-kertainen** ja parhaan kelin välillä **1,9-kertainen** — ja
+jana on yhtä korkea kuin ennen.
+
+**Korkeus on MUOTO ja väri on ARVO.** Se on työnjako eikä puute: ramppi
+on kvantisoitu 0,1 m/s välein ja yhteinen kartan kanssa, joten tarkka
+lukema luetaan sävystä ja kuplasta — korkeus kertoo nousun ja laskun.
+Ilman tätä jakoa toinen niistä olisi aina huono.
+
+### Uralle sopeutettu, ja mitä se maksoi
+
+Kaikki nauhan sisällä oleva kääntyi: yökaista on nyt mustaa valon sijaan
+(`rgba(0,0,0,.34/.22/.11)`), puuskavyöhyke on valoa musteen sijaan,
+päiväerottimet ja NYT-merkki ovat vaaleita. Tuntilukema siirtyi
+yläreunaan ja on siellä samalla rivillä NYT-lapun kanssa — sama törmäys
+kuin aikanaan ("NYT15"), sama ratkaisu: lukema jätetään pois merkin
+viereisiltä tikeiltä. Mitattuna 0 osumaa.
+
+### Virhe joka jäi kiinni vasta selaimessa
+
+`nytVieressa` esiteltiin `const`illa vasta sen käytön jälkeen —
+temporaalinen kuollut vyöhyke, eli `ReferenceError` heti ensimmäisellä
+tikillä ja koko sovellus jäi käynnistymättä. **Syntaksitarkistus meni
+läpi**, koska virhe on ajonaikainen. Juuri tätä varten sääntö sanoo että
+sivu on ladattava selaimessa.
