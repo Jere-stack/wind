@@ -87,14 +87,19 @@ if ('serviceWorker' in navigator) {
 
   /* Kartan päällä kelluvat sirut: sama paperi, oma varjo. */
   --chip:      rgba(240,231,206,0.95);
-  /* Aikajanan palkkiura. Samaa perhettä kuin --ink (#101A20) mutta
-     hitusen vaaleampi, jotta 0 m/s tumma palkki erottuu siitä. */
-  /* Aikajanan palkkiura. LÄMMIN eikä viileä liuske: kortti on lämmintä
-     kermaa, ja viileä sini-harmaa sen vieressä lukee vieraana. Sävy on
-     valittu mittaamalla — reunakontrasti paperiin 8,3:1 (ensimmäinen
-     versio 13,1:1) ja palkkien kontrasti uraan 2,8-11,0. */
-  --tl-ura:     #212B31;
-  --tl-ura-yla: #35434A;
+  /* Aikajanan palkkiura on HIEKKAA, ei mustetta.
+
+     Tumma ura oli kaksi kertaa hiottu (13,1:1 -> 8,3:1 lämpimällä
+     sävyllä ja liu'ulla) ja se oli yhä kortin sisällä oleva raja jonka
+     silmä lukee ensin. Mitattuna paperin ja uran ero oli 8,97:1 — kortin
+     kovin kontrasti oli tyhjä alusta, ei yksikään datapiste.
+
+     Hiekkauralla sama ero on 1,13:1 eli reunaa ei käytännössä ole, ja
+     rata on silti rata: se on paperia joka on hitusen kortin pintaa
+     tummempi, upotusvarjo ylhäällä ja valoviiva alhaalla. Hinta
+     maksetaan palkin värissä, ks. ColorRamp.paperi(). */
+  --tl-ura:     #DCCFA9;   /* uran pohja  */
+  --tl-ura-yla: #E6DCC0;   /* uran suu    */
   --chip-line: rgba(16,26,32,0.10);
 
   --shadow-1: 0 1px 2px rgba(16,26,32,.10);
@@ -998,24 +1003,21 @@ html.tyopoyta #kapseli.vaistyy {
   left: calc(var(--sal) + 14px); right: calc(var(--sar) + 14px);
   top: calc(14px + var(--tl-paivat-h));
   bottom: calc(var(--sab-tl) + 22px);
-  /* LIUKU, EI TASAINEN MUSTA.
+  /* LIUKU SAMAAN SUUNTAAN KUIN ENNEN: suu vaaleampi, pohja tummempi.
    *
-   * Tasaisen uran ja paperin kontrasti oli mitattuna 13,1:1 — kova raja
-   * kahden pinnan välillä. Liuku vaalentaa sitä reunaa jota vasten
-   * paperi on (ylhäällä 10,0:1) ja syvenee alaspäin, jolloin silmä saa
-   * rampin eikä askelmaa. Samalla se lukee upotetulta uralta eikä
-   * päälle liimatulta palkilta.
+   * Materiaali vaihtui musteesta hiekkaan, mutta syvyyden kielioppi ei:
+   * ura on kortin pintaa hitusen tummempi ja tummenee alaspäin, jolloin
+   * se lukee kouruna eikä päälle liimattuna suorakaiteena.
    *
-   * Ohut paperinvärinen sisäreuna ylhäällä sitoo uran korttiin: se on
-   * samaa väriä kuin kortti, joten raja on kortin oma eikä musta. */
+   * Varjo on nyt SISÄLLÄ eikä ulkona. Ulkovarjo oli tumman uran
+   * tarve — se sitoi mustan laatan paperiin. Kahden lähes samanvärisen
+   * paperin välissä ulkovarjo olisi ainoa jäljelle jäävä kova reuna,
+   * eli juuri se mikä poistettiin. Upotusvarjo ylhäällä ja valoviiva
+   * alhaalla tekevät saman työn kortin omalla materiaalilla. */
   background: linear-gradient(to bottom, var(--tl-ura-yla), var(--tl-ura));
   border-radius: 14px;
-  /* Pehmeä varjo paperin puolelle: ura lukee UPOTETTUNA eikä päälle
-     liimattuna suorakaiteena, ja juuri se tekee rajasta fyysisen sen
-     sijaan että se olisi piirretty viiva. */
-  box-shadow: 0 0 10px rgba(33, 43, 49, .16),
-              inset 0 1px 0 rgba(240, 231, 206, .13),
-              inset 0 -1px 0 rgba(240, 231, 206, .06);
+  box-shadow: inset 0 2px 3px rgba(120, 100, 60, .20),
+              inset 0 -1px 0 rgba(255, 252, 240, .55);
   pointer-events: none;
   z-index: 0;
 }
@@ -1173,17 +1175,23 @@ html.tyopoyta #kapseli.vaistyy {
 .tl-paiva.valittu { background: var(--ink); color: var(--surface); }
 .tl-paiva:active { background: var(--hairline); }
 
-/* TUMMA URA — jotta palkit voivat olla KARTAN värejä.
+/* HIEKKAURA — kortti on yhtä materiaalia, palkki kantaa kontrastin.
  *
- * Karttaramppi on suunniteltu tummalle merelle, ja paperilla se ei
- * yksinkertaisesti toimi: mitattuna kontrasti kortin pintaan on alle
- * 3:1 yhdeksällä nopeudella yhdestätoista, ja 10 m/s (limetti
- * 205,240,0) on 1,06:1 eli käytännössä näkymätön. Väriä ei siis voi
- * matchata karttaan vaihtamalla funktiota — ALUSTAN on vaihduttava.
+ * Tässä oli tumma ura, ja sen perustelu oli oikea niin kauan kuin palkki
+ * oli kartan väri sellaisenaan: karttaramppi on tehty tummalle merelle,
+ * ja paperilla se ei toimi (10 m/s limetti 205,240,0 on paperia vasten
+ * 1,06:1 eli näkymätön). Silloin ALUSTAN oli vaihduttava.
  *
- * Ura on samaa mustetta kuin aikakupla ja päivälappu, eli sovelluksen
- * oma "tumma pilleri = mitattu data" -pinta. Samalla uralla karttavärit
- * saavat kontrastin 3,2-12,4 kahdesta metristä ylöspäin.
+ * Vaihtoehto jota ei aiemmin kokeiltu on vaihtaa PALKIN kirkkautta ja
+ * pitää sen sävy: `ColorRamp.paperi()` on sama karttaramppi kerrottuna
+ * 0,48:lla, jolloin sävy — se mikä palkin ja kartan yhdistää — säilyy
+ * täsmälleen ja kirkkaus kääntyy paperille sopivaksi. Mitattuna jokainen
+ * nopeus saa uraa vasten 3,4-12,0 ja peräkkäisten nopeuksien pienin
+ * dE2000 on 10,7.
+ *
+ * Sillä hinnalla kortti on yhtä materiaalia: paperin ja uran kontrasti
+ * on 8,97:1 -> 1,13:1. Ura on yhä ura — upotusvarjo ja valoviiva
+ * antavat syvyyden ilman rajaa.
  *
  * Reunahäivytys tulee ilmaiseksi: `#tl-scroll`illa on jo maski, ja se
  * sulattaa uran päät paperiin. */
@@ -1224,18 +1232,20 @@ html.tyopoyta #kapseli.vaistyy {
      ohitetaan, koska niillä ei ole scroll-snap-alignia. */
   scroll-snap-align: center;
 }
-/* PALKKI ON KARTAN VÄRINEN.
+/* PALKKI ON KARTAN SÄVYINEN, PAPERIN KIRKKAUDELLA.
  *
- * Sama `ColorRamp.rgb()` kuin lämpökartalla, ei paneelien mustetta:
- * kun kartalla 8 m/s on kirkkaan vihreä, myös janassa se on. Se on
- * mahdollista vain tumman uran päällä (ks. #tl-scroll).
+ * `ColorRamp.paperi()` on sama karttaramppi kerrottuna 0,48:lla: sävy
+ * on täsmälleen kartan (8 m/s on vihreä molemmissa), kirkkaus on
+ * hiekkauralle sopiva. Ei paneelien `ink()`, joka on oma sävypolkunsa
+ * eikä siis matchaa karttaan.
  *
- * Ohut vaalea kehys on nollapäätä varten: 0 m/s on syvä yösininen jonka
- * kontrasti uraan on mitattuna 1,14:1, eli ilman kehystä lyhyt palkki
- * katoaisi uraan. Kehys ei näy kirkkailla väreillä. */
+ * Kehys on nyt TUMMA eikä vaalea, ja sen tehtävä on kääntynyt: aiemmin
+ * se erotti tumman nollapään tummasta urasta, nyt se antaa vaalean
+ * keskikaistan (10 m/s, 98,115,0) palkeille terävän reunan hiekkaa
+ * vasten. Kirkkailla ja tummilla väreillä se ei näy. */
 .htick-bar {
   width: 12px; border-radius: 3px 3px 0 0; min-height: 3px;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.16);
+  box-shadow: inset 0 0 0 1px rgba(16,26,32,.16);
   transition: opacity 0.15s;
 }
 .htick.past .htick-bar { opacity: 0.4; }
@@ -1265,11 +1275,20 @@ html.tyopoyta #kapseli.vaistyy {
  *
  * Nyt se on ylöspäin häviävä huntu ilman reunaviivaa, ja sen korkeus on
  * katkaistu (ks. TL_PUUSKA_KATTO). Tasainen tunti saa terävän palkin,
- * puuskainen pehmeän — ja kumpikaan ei vie tilaa palkilta. */
+ * puuskainen pehmeän — ja kumpikaan ei vie tilaa palkilta.
+ *
+ * Huntu piirtyy palkin YLÄPUOLELLE eli uran pintaan, ei palkin päälle.
+ * Siksi sen sävy seuraa uraa eikä palkkia: tummalla uralla se oli
+ * valkoinen, hiekkauralla sen on oltava mustetta. Sama tieto,
+ * käänteinen keino — kuten yökaistalla. */
 .htick-gust {
   position: absolute; left: 50%; transform: translateX(-50%);
   width: 12px;
-  background: linear-gradient(to top, rgba(255,255,255,.22), rgba(255,255,255,0));
+  /* Alfa ei ole sama luku kuin tummalla uralla vaan sama VAIKUTUS.
+     Valkoinen .22 tumman uran (45,57,63) päällä antoi hunnun ja uran
+     eroksi 2,0:1; muste .26 hiekan päällä olisi 1,4:1 eli huntu olisi
+     hiljaa kadonnut mukana. .34 palauttaa saman 2,0:1. */
+  background: linear-gradient(to top, rgba(16,26,32,.34), rgba(16,26,32,0));
   pointer-events: none;
 }
 .htick.past .htick-gust { opacity: 0.4; }
@@ -1287,19 +1306,26 @@ html.tyopoyta #kapseli.vaistyy {
  * kaista vierii janan mukana ilmaiseksi. Päiväerotin saa saman sävyn,
  * koska se on aina keskiyöllä eli keskellä yötä — ilman sitä kaistaan
  * jäisi 34 px:n aukko juuri pimeimpään kohtaan. */
-/* Uralla yö on TUMMEMPI eikä harmaa harso: paperilla harso lisäsi
-   mustetta, uralla se poistaa valoa. Sama tieto, käänteinen keino. */
-.htick.yo,        .day-sep.yo        { background: rgba(0, 0, 0, .34); }
-.htick.yo-hamara, .day-sep.yo-hamara { background: rgba(0, 0, 0, .22); }
-.htick.yo-siviili, .day-sep.yo-siviili { background: rgba(0, 0, 0, .11); }
+/* Hiekkauralla yö on jälleen HARSO eikä valon poisto: se lisää mustetta
+   samalla sävyllä (76,89,96) kuin havaintokaavion yöharso, jolloin
+   käyttäjä on nähnyt saman kielen jo spottikortissa. Kaistan harso on
+   kaaviota vahvempi, koska se on itse merkintä eikä kuvaajan päälle
+   jäävä kalvo.
+
+   Alfat on valittu vaikutuksen mukaan, ei luvun: musta .34 tumman uran
+   päällä antoi kaistan ja uran eroksi 1,35:1, ja sama ero hiekalla
+   syntyy alfalla .24. */
+.htick.yo,        .day-sep.yo        { background: rgba(76, 89, 96, .24); }
+.htick.yo-hamara, .day-sep.yo-hamara { background: rgba(76, 89, 96, .155); }
+.htick.yo-siviili, .day-sep.yo-siviili { background: rgba(76, 89, 96, .072); }
 .htick-lbl {
   position: absolute; top: 0; font-variant-numeric: tabular-nums;
-  font-size: var(--fs-9); color: rgba(255,255,255,.45); white-space: nowrap;
+  font-size: var(--fs-9); color: rgba(16,26,32,.38); white-space: nowrap;
   pointer-events: none; opacity: 0;
 }
 /* Vain joka kolmas tunti saa lukeman. Kaikki 120 lukemaa vierekkäin olisi
    harmaa juova, ei asteikko. */
-.htick.show-lbl .htick-lbl { color: rgba(255,255,255,.78); font-weight: 600; opacity: 1; }
+.htick.show-lbl .htick-lbl { color: var(--ink-2); font-weight: 600; opacity: 1; }
 
 #tl-indicator {
   position: absolute;
@@ -1331,7 +1357,7 @@ html.tyopoyta #kapseli.vaistyy {
   border: 5px solid transparent; border-top-color: var(--ink);
 }
 .tl-now-marker {
-  flex: 0 0 2px; height: 100%; background: rgba(255,255,255,.42);
+  flex: 0 0 2px; height: 100%; background: rgba(120,105,70,.45);
   position: relative; z-index: 1;
 }
 /* NYT ei ole tunti vaan eri lajin merkki, joten se menee omalle rivilleen
@@ -1339,15 +1365,15 @@ html.tyopoyta #kapseli.vaistyy {
 .tl-now-label {
   position: absolute; top: 0; left: 50%; transform: translateX(-50%);
   font-variant-numeric: tabular-nums; font-size: var(--fs-8); font-weight: 700;
-  color: rgba(255,255,255,.62); white-space: nowrap; letter-spacing: .06em;
+  color: var(--ink-3); white-space: nowrap; letter-spacing: .06em;
 }
 
 .day-sep {
   flex: 0 0 34px; display: flex; align-items: flex-start; justify-content: center;
   height: 100%; padding-top: 0;
   font-variant-numeric: tabular-nums; font-size: var(--fs-10); font-weight: 600;
-  color: rgba(255,255,255,.62); letter-spacing: .02em; white-space: nowrap;
-  border-left: 1px solid rgba(255,255,255,.18);
+  color: var(--ink-3); letter-spacing: .02em; white-space: nowrap;
+  border-left: 1px solid var(--hairline);
 }
 
 /* Foilable-palkilla EI ole omaa koristetta. Aiemmin tassa oli ensin vihrea
@@ -3662,17 +3688,27 @@ const ColorRamp = (() => {
   const _cssLUT = new Array(LUT_SIZE);
   const _cssAlphaLUT = new Array(ALPHA_STEPS);
   const _inkLUT = new Array(LUT_SIZE);
-  /* KYLLÄINEN RAMPPI RIIPPUMATTA POHJAKARTASTA.
+  /* KARTAN SÄVY, PAPERIN KIRKKAUS — aikajanan palkeille.
    *
-   * `rgb()` seuraa `karttaRamppi()`:a, joka vaalealla pohjakartalla
-   * palauttaa musteen — ja muste on tehty PAPERILLE. Aikajanan palkit
-   * ovat aina tummalla uralla, joten niille se olisi väärä ramppi:
-   * mitattuna musteen kontrasti uraan on 1,00-2,90 eli koko asteikko
-   * käytännössä näkymätön.
+   * Kaksi vaatimusta jotka ovat näennäisesti ristiriidassa: palkin pitää
+   * olla saman värinen kuin kartta (8 m/s vihreä molemmissa) JA näkyä
+   * kortin hiekkauralla. Kartan ramppi itsessään ei näy — 10 m/s
+   * (205,240,0) on hiekkaa vasten 1,02:1. Paneelien `ink()` taas näkyy
+   * mutta on eri sävypolku, eli se ei matchaa karttaan.
    *
-   * Tämä taulu on aina se kylläinen (tai värisokeusramppi, jos käyttäjä
-   * on sen valinnut — se valinta koskee näköä eikä alustaa). */
-  const _tummaLUT = new Array(LUT_SIZE);
+   * Ratkaisu on kolmas taulu: karttaramppi kerrottuna PAPERI_K:lla.
+   * Kertominen sRGB-avaruudessa säilyttää sävyn ja laskee kirkkautta,
+   * eli juuri se ominaisuus joka palkin ja kartan yhdistää jää
+   * koskematta. Mitattuna 0,48:lla jokainen nopeus saa uraa vasten
+   * 3,41-11,97 (0,52 jätti limetin 2,97:ään) ja peräkkäisten nopeuksien
+   * pienin dE2000 on 10,7 eli asteikko on yhä luettava.
+   *
+   * Taulu ei seuraa pohjakarttaa vaan on aina kylläinen ramppi (tai
+   * värisokeusramppi, jos käyttäjä on sen valinnut — se valinta koskee
+   * näköä eikä alustaa). Muuten aikajanan värit vaihtuisivat
+   * pohjakartta-asetuksen mukana vaikka ura pysyy samana. */
+  const PAPERI_K = 0.48;
+  const _paperiLUT = new Array(LUT_SIZE);
   const _inkCssLUT = new Array(LUT_SIZE);
 
   /* Taulut täytetään PAIKALLEEN eikä korvata uusilla. Syy on että ne ovat
@@ -3689,8 +3725,11 @@ const ColorRamp = (() => {
       _cssLUT[i] = 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')';
       const ci = interpolate(RAMP_INK, t);
       _inkLUT[i] = ci;
-      _tummaLUT[i] = interpolate(
+      const cp = interpolate(
         Asetukset.arvot.ramppi === 'cvd' ? RAMP_CVD : RAMP_KARTTA, t);
+      _paperiLUT[i] = { r: Math.round(cp.r * PAPERI_K),
+                        g: Math.round(cp.g * PAPERI_K),
+                        b: Math.round(cp.b * PAPERI_K) };
       _inkCssLUT[i] = 'rgb(' + ci.r + ',' + ci.g + ',' + ci.b + ')';
     }
     for (let a = 0; a < ALPHA_STEPS; a++) {
@@ -3714,8 +3753,8 @@ const ColorRamp = (() => {
     const ai = Math.min(ALPHA_STEPS - 1, Math.max(0, Math.round(alpha * ALPHA_STEPS) - 1));
     return _cssAlphaLUT[ai][idx];
   }
-  function tumma(ms) { return _tummaLUT[_lutIdx(ms)]; }
-  return { rgb, css, msToT, ink, inkCss, tumma, paivita: rakennaLUTit };
+  function paperi(ms) { return _paperiLUT[_lutIdx(ms)]; }
+  return { rgb, css, msToT, ink, inkCss, paperi, paivita: rakennaLUTit };
 })();
 
 /* -- SPOTS ----------------------------------------------------- */
@@ -15713,7 +15752,7 @@ function _tlValovaiheet(times, lat, lng) {
 function _tlPaivitaPalkit(speeds, puuskat, valo) {
   const tikit = State._tlTicks;
   for (let i = 0; i < tikit.length; i++) {
-    const ms = speeds[i] || 0, bc = ColorRamp.tumma(ms);
+    const ms = speeds[i] || 0, bc = ColorRamp.paperi(ms);
     const tikki = tikit[i];
     const bar = tikki.querySelector('.htick-bar');
     if (!bar) continue;
@@ -15827,7 +15866,7 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
       tl.appendChild(nowLine);
       nowMarkerInserted = true;
     }
-    const ms = speeds[i]||0, bc = ColorRamp.tumma(ms);
+    const ms = speeds[i]||0, bc = ColorRamp.paperi(ms);
     const tick = document.createElement('div');
     const isPast = i < realNowIdx;
     /* NYT-lappu on 17,5 px leveä 2 px:n merkin päällä, eli se levittäytyy
@@ -17765,12 +17804,19 @@ const KarttaAsetukset = {
       this._piirraLampokartta();
 
     } else if (avain === 'ramppi') {
-      /* Vain kartan taulut. Paneelien musteramppi (ColorRamp.ink) ei
-         muutu, joten spottimerkkejä, tähtäintä tai aikajanaa ei tarvitse
-         piirtää uusiksi. */
+      /* Paneelien musteramppi (ColorRamp.ink) ei muutu, joten
+         spottimerkkejä tai tähtäintä ei tarvitse piirtää uusiksi.
+         AIKAJANA SEN SIJAAN TARVITSEE: sen palkit ovat
+         ColorRamp.paperi(), joka on karttaramppi eikä muste, ja
+         värisokeusvalinta koskee sitäkin. Tässä luki aiemmin että
+         aikajana ei tarvitse päivitystä — se piti paikkansa vain niin
+         kauan kuin palkit olivat ink():iä. Ilman tätä palkit jäivät
+         vanhaan ramppiin seuraavaan kartansiirtoon asti. */
       ColorRamp.paivita();
       rakennaNippuVarit();
       buildLegend();
+      const m = State._tlMuisti;
+      if (m) _tlPaivitaPalkit(m.speeds, m.puuskat, m.valo);
       this._piirraLampokartta();
 
     } else if (avain === 'lampo') {

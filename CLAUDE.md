@@ -86,7 +86,8 @@ kokeiltu ja kaadettu mittauksella.
 - **ui**: Valikoiden ulkoasu — Merikartta · Mallien erimielisyys · Suosikit ja
   jaettava linkki · Puvun paksuus · Ennusteen osuvuus havaintoja vasten ·
   Spottikortin auditointi · Play ja kapseli · Aikajana kotivalikon appissa ·
-  Havaintoasemien kortit · Tummat jäänteet paperipaneeleissa · Aurinkokaari
+  Havaintoasemien kortit · Tummat jäänteet paperipaneeleissa · Aurinkokaari ·
+  Aikajanan ura vaihtui hiekkaan
 
 </details>
 
@@ -171,12 +172,25 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 
 - **Kartalla sävy tarkoittaa tuulennopeutta ja vain sitä.** Kaikki muu kartalla
   on joko tummaa pilleriä (mitattu data) tai paperia (kaikki muu).
-- **Aikajanan palkit ovat `ColorRamp.tumma()`, eivät `rgb()` eivätkä
-  `ink()`.** Ne ovat aina tummalla uralla (`--tl-ura`), joten
-  `karttaRamppi()` olisi väärä: vaalealla pohjakartalla se palauttaa
-  musteen, jonka kontrasti uraan on mitattuna 1,00–2,90 eli koko
-  asteikko näkymätön. Älä myöskään laita karttaramppia paperille —
-  10 m/s on siellä 1,06:1.
+- **Aikajanan palkit ovat `ColorRamp.paperi()`, eivät `rgb()` eivätkä
+  `ink()`.** Se on karttaramppi kerrottuna 0,48:lla: sävy on kartan,
+  kirkkaus hiekkauran. Kerroin ei ole makuasia — 0,52 jätti limetin
+  (10 m/s) 2,97:ään uraa vasten, 0,48 nostaa koko asteikon välille
+  3,41–11,97 ja peräkkäisten nopeuksien pienin dE2000 on 10,7.
+  `rgb()` on väärä koska paljas karttaramppi on hiekalla 1,02:1;
+  `ink()` on väärä koska se on oma sävypolkunsa eikä matchaa karttaan.
+  Taulu ei seuraa pohjakarttaa (mitattu: sama palkki tummalla,
+  vaalealla ja satelliitilla) mutta seuraa värisokeusasetusta.
+- **Aikajanan ura on HIEKKAA (`--tl-ura`), ei mustetta.** Tumma ura
+  ehdittiin hioa kahdesti (13,1:1 → 8,3:1) ja se oli yhä kortin kovin
+  kontrasti — tyhjä alusta, ei yksikään datapiste. Hiekalla paperin ja
+  uran ero on 1,05:1. Älä palauta tummaa uraa "jotta palkit näkyisivät":
+  se kysymys ratkaistiin palkin kirkkaudessa, ei alustassa.
+- **Uran päällä olevien merkintöjen alfat on valittu VAIKUTUKSEN mukaan.**
+  Puuskahuntu ja yökaista käännettiin valkoisesta mustaan, ja suora
+  luvun kopiointi olisi haalistanut molemmat: huntu .26 antoi 1,4:1 kun
+  valkoinen .22 tummalla uralla antoi 2,0:1. Nyt huntu on .34 ja
+  yökaista .24/.155/.072. Jos vaihdat uran sävyä, laske alfat uudelleen.
 - **Palkin korkeusasteikko on EPÄLINEAARINEN** (4–14 m/s levennetty) ja
   täysi mitta on 35 px. Korkeus on muoto, väri on arvo. Älä palauta
   lineaarista: se antaa 1,38 px/(m/s) ja peräkkäisten tuntien tyypillinen

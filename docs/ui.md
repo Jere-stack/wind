@@ -1941,6 +1941,11 @@ näköä eikä alustaa.
 Eli vaalealla pohjalla jana ja kartta eroavat tarkoituksella — se on
 ainoa tapa jolla molemmat pysyvät luettavina.
 
+> **Tämä osio kuvaa mennyttä tilaa.** Tumma ura on korvattu hiekkauralla
+> ja `ColorRamp.tumma()` funktiolla `ColorRamp.paperi()`. Päätelmä
+> "alustan on vaihduttava" oli oikea vain yhdellä oletuksella — että
+> palkin kirkkaus on koskematon. Ks. *Aikajanan ura vaihtui hiekkaan*.
+
 ### 3. Korkeus näkyviin ilman että jana kasvaa
 
 Viisi vaihtoehtoa punnittiin:
@@ -2051,3 +2056,113 @@ askelma kahden pinnan välillä. Kolme muutosta, kaikki mitattuja:
 
 **Ruudulta mitattuna** (pikselit, ei tokenit) reunakontrasti on nyt
 **7,9:1** — ensimmäinen versio 13,1:1.
+
+---
+
+## Aikajanan ura vaihtui hiekkaan
+
+Uraa oli hiottu kahdesti (13,1:1 → 8,3:1 lämpimällä sävyllä ja liu'ulla)
+ja käyttäjä sanoi silti saman asian: kortin musta ja beige riitelevät.
+Se ei ollut makuasia vaan mitattava luku — **ruudun pikseleistä paperin
+ja uran ero oli 8,97:1**, eli kortin kovin kontrasti oli sen tyhjä
+alusta, ei yksikään datapiste.
+
+### Viisi strategiaa, kaikki oikeassa sovelluksessa
+
+Vaihtoehdot rakennettiin `?jana=1..5` -kytkimen taakse ja kuvattiin
+samasta datasta ja samasta kohdasta, koska tämä on valinta jota ei voi
+tehdä sanoista.
+
+| | strategia | paperi→alusta | palkki alustaa vasten (himmeä / kirkas) |
+|---|---|---|---|
+| 0 | tumma ura (lähtötila) | 8,97 | 1,79 / 5,84 |
+| 1 | ei uraa lainkaan | 1,07 | 1,81 / 4,57 |
+| **2** | **vaalea hiekkaura** | **1,13** | **1,83 / 4,20** |
+| 3 | koko kortti tumma | 1,07 | 2,06 / 6,93 |
+| 4 | häivytetty ura | 1,68 | 1,31 / 2,61 |
+| 5 | ei alustaa, ääriviiva palkissa | 1,00 | 1,22 / 1,45 |
+
+4 ja 5 kaatuivat mittaukseen: häivytetyllä uralla ylimmät palkit jäävät
+2,61:een eli hiljainen tuuli hukkuu juuri sinne mistä se luetaan, ja
+pelkkä ääriviiva paperilla antaa 1,45 — sama tulos kuin aikanaan
+karttarampilla paperilla (10 m/s 1,06:1). Käyttäjä valitsi 2:n.
+
+**Mittari valehteli kahdesti matkalla.** `#tl-wrap`in yläkulma on
+karttaa eikä paperia, joten ensimmäinen ajo vertasi vihreää merta
+magentaan; ja magentaosoittimen kohdalla molemmat näytteet osuvat
+osoittimeen, mikä antoi tasan saman minimin (1,15) kaikissa kuudessa
+variantissa. Kun luku on identtinen asetuksesta riippumatta, se on
+mittarin oma.
+
+### Ratkaisu oli palkin kirkkaudessa, ei alustassa
+
+Vanha päätelmä *"väriä ei voi matchata karttaan vaihtamalla funktiota —
+alustan on vaihduttava"* piti paikkansa vain yhdellä oletuksella: että
+palkki on kartan väri **sellaisenaan**. Kolmas tie on kertoa kartan
+ramppi vakiolla — sRGB-kertominen säilyttää sävyn ja laskee kirkkautta,
+eli juuri se ominaisuus joka palkin ja kartan yhdistää jää koskematta.
+
+`ColorRamp.paperi()` = karttaramppi × 0,48. Kerroin on mitattu:
+
+| kerroin | kontrasti uraan min / med | pienin dE2000 (2 m/s väli) | C* keski |
+|---|---|---|---|
+| 1,00 | 1,02 / 1,62 | 12,5 | 79,8 |
+| 0,52 | 2,97 / 4,83 | 11,1 | 48,0 |
+| **0,48** | **3,41 / 5,42** | **10,7** | **45,0** |
+| 0,44 | 3,87 / 6,00 | 10,3 | 42,1 |
+
+Prototyypissä kerroin oli 0,52, mutta se jättää limetin (10 m/s) uran
+pohjaa vasten 2,97:ään. 0,48 nostaa koko asteikon yli kolmen ilman että
+ero kuvaan näkyy.
+
+| m/s | kartta | palkki | kontrasti uran suuhun / pohjaan |
+|---|---|---|---|
+| 2 | `0,100,245` | `0,48,118` | 9,12 / 8,04 |
+| 8 | `60,235,45` | `29,113,22` | 4,48 / 3,95 |
+| 10 | `205,240,0` | `98,115,0` | 3,87 / 3,41 |
+| 16 | `255,50,50` | `122,24,24` | 7,79 / 6,87 |
+
+Taulu ei seuraa pohjakarttaa — mitattuna 8 m/s on `29,113,22` tummalla,
+vaalealla ja satelliitilla — mutta seuraa värisokeusasetusta
+(cvd: `40,87,94`, eli kartan `84,182,196` × 0,48).
+
+### Käänteinen keino kaikelle mikä oli uran päällä
+
+Ura vaihtoi materiaalia, joten kaikki sen päällä oleva vaihtoi suuntaa.
+Alfoja ei voinut kopioida sellaisenaan: sama luku antaa hiekalla eri
+vaikutuksen kuin musteella.
+
+| merkintä | tumma ura | hiekkaura | ero uraan molemmissa |
+|---|---|---|---|
+| puuskahuntu | valkoinen .22 | muste **.34** | 2,0:1 |
+| yökaista | musta .34 | `76,89,96` **.24** | 1,35:1 |
+| tuntilukema | valkoinen .78 | `--ink-2` | 4,2 → 5,2:1 |
+| NYT ja päiväerotin | valkoinen .62 | `--ink-3` | 4,2 → 4,1:1 |
+| palkin sisäkehys | valkoinen .16 | muste .16 | — |
+
+Ensimmäinen yritys käytti huntuun alfaa .26 ja yökaistaan .20, ja
+molemmat haalistuivat: huntu jäi 1,4:1 eli se olisi kadonnut hiljaa
+mukana. Kolmas rivi on hunnun kohdalla se joka ei ollut ilmeinen —
+**huntu piirtyy palkin YLÄPUOLELLE eli uran pintaan, ei palkin päälle**,
+joten sen sävy seuraa uraa eikä palkkia.
+
+Uran oma varjo kääntyi myös: ulkovarjo oli tumman uran tarve (se sitoi
+mustan laatan paperiin), ja kahden lähes samanvärisen paperin välissä se
+olisi ollut ainoa jäljelle jäävä kova reuna eli juuri se mikä
+poistettiin. Nyt syvyyden tekee upotusvarjo ylhäällä ja valoviiva
+alhaalla.
+
+**Lopputulos ruudulta mitattuna:** paperi→ura **8,97 → 1,05:1**, palkit
+uraa vasten 4,50 (mediaani) ja 4,69 (kirkkain), menneet tunnit 1,83
+kuten ennenkin.
+
+### Sivulöydös: värisokeusramppi ei päivittänyt aikajanaa
+
+`KarttaAsetukset.kayta('ramppi')` ohitti aikajanan tarkoituksella, ja
+kommentti perusteli sen: *"Paneelien musteramppi (ColorRamp.ink) ei
+muutu."* Se piti paikkansa siihen asti kun palkit olivat mustetta.
+Palkkien vaihduttua karttaramppiin (ensin `tumma()`, nyt `paperi()`)
+perustelu jäi voimaan vaikka ehto oli kadonnut, ja palkit jäivät vanhaan
+ramppiin seuraavaan kartansiirtoon asti. Nyt `kayta` päivittää palkit
+`_tlMuisti`sta. Mitattu: `29,113,22` → `40,87,94` → `29,113,22` ilman
+kartansiirtoa.
