@@ -89,7 +89,12 @@ if ('serviceWorker' in navigator) {
   --chip:      rgba(240,231,206,0.95);
   /* Aikajanan palkkiura. Samaa perhettä kuin --ink (#101A20) mutta
      hitusen vaaleampi, jotta 0 m/s tumma palkki erottuu siitä. */
-  --tl-ura:    #16222A;
+  /* Aikajanan palkkiura. LÄMMIN eikä viileä liuske: kortti on lämmintä
+     kermaa, ja viileä sini-harmaa sen vieressä lukee vieraana. Sävy on
+     valittu mittaamalla — reunakontrasti paperiin 8,3:1 (ensimmäinen
+     versio 13,1:1) ja palkkien kontrasti uraan 2,8-11,0. */
+  --tl-ura:     #212B31;
+  --tl-ura-yla: #35434A;
   --chip-line: rgba(16,26,32,0.10);
 
   --shadow-1: 0 1px 2px rgba(16,26,32,.10);
@@ -993,8 +998,24 @@ html.tyopoyta #kapseli.vaistyy {
   left: calc(var(--sal) + 14px); right: calc(var(--sar) + 14px);
   top: calc(14px + var(--tl-paivat-h));
   bottom: calc(var(--sab-tl) + 22px);
-  background: var(--tl-ura);
-  border-radius: 12px;
+  /* LIUKU, EI TASAINEN MUSTA.
+   *
+   * Tasaisen uran ja paperin kontrasti oli mitattuna 13,1:1 — kova raja
+   * kahden pinnan välillä. Liuku vaalentaa sitä reunaa jota vasten
+   * paperi on (ylhäällä 10,0:1) ja syvenee alaspäin, jolloin silmä saa
+   * rampin eikä askelmaa. Samalla se lukee upotetulta uralta eikä
+   * päälle liimatulta palkilta.
+   *
+   * Ohut paperinvärinen sisäreuna ylhäällä sitoo uran korttiin: se on
+   * samaa väriä kuin kortti, joten raja on kortin oma eikä musta. */
+  background: linear-gradient(to bottom, var(--tl-ura-yla), var(--tl-ura));
+  border-radius: 14px;
+  /* Pehmeä varjo paperin puolelle: ura lukee UPOTETTUNA eikä päälle
+     liimattuna suorakaiteena, ja juuri se tekee rajasta fyysisen sen
+     sijaan että se olisi piirretty viiva. */
+  box-shadow: 0 0 10px rgba(33, 43, 49, .16),
+              inset 0 1px 0 rgba(240, 231, 206, .13),
+              inset 0 -1px 0 rgba(240, 231, 206, .06);
   pointer-events: none;
   z-index: 0;
 }
@@ -1232,12 +1253,23 @@ html.tyopoyta #kapseli.vaistyy {
  * Vyöhyke on neutraali liuska eikä ramppiväri: ramppiväri tarkoittaa
  * nopeutta, ja puuskan oma ramppiväri tekisi palkin yläosasta toisen
  * nopeuslukeman jota verrattaisiin alaosaan. */
+/* PUUSKA ON HUNTU, EI PALKKI.
+ *
+ * Täytetty vyöhyke kasvoi asteikon mukana: mitattuna se näkyi 85 %:ssa
+ * tunneista, mediaani 7,4 px ja MAKSIMI 25,1 px eli 71 % koko
+ * palkkiasteikosta. Se ei ollut enää merkintä vaan toinen palkki.
+ *
+ * Kynnyksen nosto ei auta: puuska/tuuli-suhteen mediaani on 1,41, eli
+ * Itämerellä lähes jokainen tunti on puuskainen. Esitystavan oli
+ * kevennyttävä.
+ *
+ * Nyt se on ylöspäin häviävä huntu ilman reunaviivaa, ja sen korkeus on
+ * katkaistu (ks. TL_PUUSKA_KATTO). Tasainen tunti saa terävän palkin,
+ * puuskainen pehmeän — ja kumpikaan ei vie tilaa palkilta. */
 .htick-gust {
   position: absolute; left: 50%; transform: translateX(-50%);
-  width: 12px; border-radius: 3px 3px 0 0;
-  /* Uralla vyöhyke on VALOA eikä mustetta — paperilla se oli päinvastoin. */
-  background: rgba(255, 255, 255, .10);
-  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, .32);
+  width: 12px;
+  background: linear-gradient(to top, rgba(255,255,255,.22), rgba(255,255,255,0));
   pointer-events: none;
 }
 .htick.past .htick-gust { opacity: 0.4; }
@@ -15624,15 +15656,35 @@ function _tlPalkkiPx(ms) {
   return Math.max(3, _tlPalkkiOsuus(ms) * TL_PALKKI_H);
 }
 
-/* Puuskavyöhykkeen mitat, tai null jos vyöhykettä ei piirretä.
+/* Puuskahunnun mitat, tai null jos huntua ei piirretä.
  *
- * Kynnys on 0,3 m/s: sitä pienempi ero olisi alle pikselin (0,4 px) ja
- * piirtäisi janaan rivin hiusviivoja jotka lukisivat kohinana. */
+ * KATTO 9 px. Mitattuna hunnun korkeus oli mediaani 7,4 px, p90 11,4 px
+ * ja max 25,1 px — ja juuri se häntä teki siitä toisen palkin. Katto
+ * leikkaa ylimmän kymmenyksen, ja ne tunnit lukevat silti "niin
+ * puuskaista kuin tämä menee". Sama periaate kuin palkin omassa
+ * korkeudessa, joka kyllästyy kuudessatoista metrissä.
+ *
+ * Kynnys on 0,6 m/s: sitä pienempi ero on hunnussa näkymätön, ja
+ * elementti joka ei näy on turha solmu. */
+const TL_PUUSKA_KATTO = 9;
 function _tlPuuskaTyyli(ms, puuska) {
-  if (puuska == null || !(puuska > ms + 0.3)) return null;
+  if (puuska == null || !(puuska > ms + 0.6)) return null;
   const alaPx = _tlPalkkiPx(ms), ylaPx = _tlPalkkiPx(puuska);
-  if (!(ylaPx > alaPx + 0.5)) return null;
-  return 'bottom:' + (15 + alaPx).toFixed(1) + 'px;height:' + (ylaPx - alaPx).toFixed(1) + 'px';
+  const kork = Math.min(TL_PUUSKA_KATTO, ylaPx - alaPx);
+  if (!(kork > 1)) return null;
+  /* KATTO SITOO USEIMMAT, joten korkeus yksin ei enää erottele kuinka
+     puuskaista on: mitattuna hunnun mediaani on 8,6 px kun katto on 10.
+     Se tieto siirretään kanavaan joka ei vie tilaa — läpinäkyvyyteen.
+     Suhde 1,15 on tuskin havaittava, 1,8 on mitattu p90; siltä väliltä
+     huntu voimistuu. */
+  const suhde = ms > 0.5 ? puuska / ms : 1;
+  const t = Math.max(0, Math.min(1, (suhde - 1.15) / 0.65));
+  const alfa = (0.40 + 0.60 * t).toFixed(2);
+  /* Huntu alkaa PALKIN SISÄLTÄ pikselin verran: muuten palkin yläreunan
+     ja hunnun väliin jää sauma, ja juuri sauma tekee siitä erillisen
+     esineen sen sijaan että se olisi palkin pehmeä yläpää. */
+  return 'bottom:' + (1 + alaPx).toFixed(1) + 'px;height:' + (kork + 1).toFixed(1)
+    + 'px;opacity:' + alfa;
 }
 
 /* VALOVAIHE JOKA TUNNILLE.

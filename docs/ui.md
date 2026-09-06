@@ -1991,3 +1991,63 @@ temporaalinen kuollut vyöhyke, eli `ReferenceError` heti ensimmäisellä
 tikillä ja koko sovellus jäi käynnistymättä. **Syntaksitarkistus meni
 läpi**, koska virhe on ajonaikainen. Juuri tätä varten sääntö sanoo että
 sivu on ladattava selaimessa.
+
+## Puuskahuntu ja uran reuna — kaksi korjausta mittauksen jälkeen
+
+### Puuska vei liikaa tilaa
+
+Täytetty vyöhyke kasvoi uuden asteikon mukana. Mitattuna:
+
+| | ennen |
+|---|---|
+| näkyi | **85 %** tunneista |
+| korkeus mediaani | 7,4 px |
+| korkeus **max** | **25,1 px = 71 % koko palkkiasteikosta** |
+
+Se ei ollut enää merkintä vaan toinen palkki.
+
+**Kynnyksen nosto ei olisi auttanut.** Puuska/tuuli-suhteen mediaani on
+mitattuna **1,41**, eli Itämerellä lähes jokainen tunti on puuskainen:
+sovelluksen oma raja (suhde > 1,4, `spotIndexOsat`in rangaistuskynnys)
+olisi jättänyt vielä 51 % tunneista. Esitystavan oli kevennyttävä, ei
+otoksen.
+
+Nyt puuska on **ylöspäin häviävä huntu** ilman reunaviivaa, ja se alkaa
+palkin sisältä pikselin verran — muuten väliin jää sauma, ja juuri sauma
+tekee siitä erillisen esineen palkin pehmeän yläpään sijaan.
+
+| | ennen | nyt |
+|---|---|---|
+| korkeus max | 25,1 px | **10,0 px** |
+| osuus palkkiasteikosta | 71 % | **29 %** |
+| reunaviiva | 1,5 px kirkas | ei ole |
+
+**Katto siirsi tiedon toiseen kanavaan.** Kun korkeus katkaistaan
+kymmeneen, se sitoo useimmat hunnut (mediaani 8,6 px) eikä enää erottele
+*kuinka* puuskaista on. Se tieto on nyt läpinäkyvyydessä, joka ei vie
+tilaa lainkaan: suhde 1,15 (tuskin havaittava) → alfa 0,40, suhde 1,8
+(mitattu p90) → alfa 1,00. Mitattuna alfan jakauma on 0,40 / 0,67 / 1,00.
+
+### Uran ja paperin raja oli kova
+
+Mitattuna ensimmäinen ura oli **13,1:1** kortin paperia vasten — kova
+askelma kahden pinnan välillä. Kolme muutosta, kaikki mitattuja:
+
+1. **Liuku tasaisen mustan tilalle.** Ylhäällä vaaleampi, alaspäin
+   syvenevä: silmä saa rampin eikä askelmaa, ja ura lukee upotetulta
+   eikä päälle liimatulta.
+2. **Lämmin sävy viileän liuskeen tilalle** (`#35434A` → `#212B31`).
+   Kortti on lämmintä kermaa, ja viileä sini-harmaa sen vieressä lukee
+   vieraana. Vaihtoehdot mitattiin:
+
+   | ura | reuna paperiin | palkit uraan |
+   |---|---|---|
+   | ensimmäinen `#26363F` | 10,1:1 | 1,2–12,9 |
+   | **valittu `#35434A`** | **8,3:1** | 2,8–11,0 |
+   | kevyempi `#3E525E` | 6,6:1 | 2,4–9,4 |
+
+3. **Pehmeä varjo paperin puolelle** ja paperinvärinen sisäreuna:
+   raja on kortin oma eikä musta viiva.
+
+**Ruudulta mitattuna** (pikselit, ei tokenit) reunakontrasti on nyt
+**7,9:1** — ensimmäinen versio 13,1:1.
