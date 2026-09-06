@@ -722,12 +722,6 @@ html.tyopoyta #kapseli.vaistyy {
   transition: opacity .15s, transform .12s;
   -webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0);
   pointer-events: all; /* each button captures its own touches */
-  /* NAPIT OVAT <button>, EIVAT <div>. Ilman tata ne eivat olleet
-     fokusoitavia eivatka ruudunlukijalle painikkeita: mitattuna viisi
-     paakontrollia, joista 0 tavoitettavissa sarkaimella. Selaimen omat
-     oletukset nollataan tassa, jotta ulkoasu pysyy tasmalleen samana. */
-  margin: 0; padding: 0; font-family: inherit;
-  -webkit-appearance: none; appearance: none;
 }
 .mctl:active { opacity: 1; transform: scale(0.9); background: var(--surface-lo); }
 .mctl.playing { color: var(--accent); }
@@ -971,35 +965,6 @@ html.tyopoyta #kapseli.vaistyy {
 @media (display-mode: standalone) { :root { --sab-tl: 14px; } }
 :root.standalone { --sab-tl: 14px; }
 
-/* ── VAAKATASO ────────────────────────────────────────────────────
- *
- * Mitattuna 393 px korkealla vaakaruudulla aikajanan kromi oli 128 px
- * eli 33 % ruudusta — ja rannalla puhelin on usein juuri kyljellään.
- *
- * Trimmaus osuu KAHTEEN lukuun, ei kymmeneen: `--tl-paivat-h` vetää jo
- * valmiiksi kolmea mittaa (kääreen korkeus, ylätäyte, indikaattorin ja
- * kuplan sijainti), joten sen ja kääreen kiinteän osan muutos riittää.
- * Juuri tätä varten se token aikanaan tehtiin.
- *
- * Palkit pysyvät 22 px:nä: korkeus on kiinteällä asteikolla (16 m/s =
- * täysi), ja sen muuttaminen vain vaakatasossa tekisi samasta tuulesta
- * eri korkuisen laitetta käännettäessä.
- *
- * Raja on `max-height`, ei pelkkä `orientation`: tabletin vaakanäkymä
- * on 800+ px korkea eikä kaipaa trimmiä. */
-@media (orientation: landscape) and (max-height: 520px) {
-  :root { --tl-paivat-h: 30px; }
-  #tl-wrap {
-    height: calc(74px + var(--tl-paivat-h) + var(--sab-tl));
-    padding: calc(10px + var(--tl-paivat-h)) 0 calc(var(--sab-tl) + 16px);
-  }
-  .tl-play-btn, .tl-keli-btn { bottom: calc(var(--sab-tl) + 15px); }
-  .htick, .day-sep { padding-bottom: 12px; }
-  .tl-paiva { border-radius: 9px; }
-  /* Napit pinoutuvat oikealle; vaakatasossa väli riittää pienempänä. */
-  #btn-spots-wrap { gap: 4px; }
-}
-
 /* Kelluva alusta. Erillinen kerros scrollin takana, jotta laatikko voi olla
    sisennetty reunoista samalla kun scroll ulottuu reunasta reunaan. */
 #tl-wrap::before {
@@ -1151,7 +1116,7 @@ html.tyopoyta #kapseli.vaistyy {
   display: flex; align-items: center;
   padding: 0 10px;
   border-radius: 11px;
-  font-size: var(--fs-11);
+  font-size: var(--fs-10);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--ink-3);
@@ -1244,23 +1209,6 @@ html.tyopoyta #kapseli.vaistyy {
 }
 .htick.past .htick-dir { opacity: .3; }
 
-/* SESSIOKAISTA — mitkä tunnit sopivat AVATULLE spotille.
- *
- * Jana kertoo nopeuden, puuskan ja valon, muttei sitä toimiiko tämä
- * spotti. Suunta ratkaisee sen: 10 m/s väärästä suunnasta ei ole keli.
- *
- * Merkintä on oma kanavansa (viiva tikin alareunassa), ei väri eikä
- * korkeus — ne ovat varattuja nopeudelle. Vierekkäiset tunnit sulautuvat
- * yhdeksi viivaksi, eli jakso lukee yhtenä ikkunana.
- *
- * Sävy on sama kuin havaintokaavion sessioikkunassa (`rgba(42,112,45,…)`),
- * jotta sama asia näyttää samalta kortissa ja janassa.
- *
- * `box-shadow: inset` eikä reunaa: se ei muuta asettelua eikä siirrä
- * tuntilukemaa, joka on tikin alareunassa. */
-.htick.sopii { box-shadow: inset 0 -2px 0 rgba(42, 112, 45, .55); }
-.htick.past.sopii { box-shadow: inset 0 -2px 0 rgba(42, 112, 45, .22); }
-
 /* VALOKAISTA — mitkä tunnit ovat pimeitä.
  *
  * 12 m/s klo 03 lokakuussa ei ole keli, eikä janassa ollut mitään joka
@@ -1279,11 +1227,7 @@ html.tyopoyta #kapseli.vaistyy {
 .htick.yo-siviili, .day-sep.yo-siviili { background: rgba(76, 89, 96, .05); }
 .htick-lbl {
   position: absolute; bottom: 1px; font-variant-numeric: tabular-nums;
-  /* 9 px -> 11 px. Tuntilukemat ovat sovelluksen luetuinta tekstiä ja
-     olivat sen pienintä; Applen pienin oma koko on 11 pt. Tikki on
-     22 px leveä ja kaksinumeroinen luku tabular-numsilla mahtuu siihen
-     yhdellätoista — mitattu leveys tarkistetaan janamittarilla. */
-  font-size: var(--fs-11); color: var(--ink-3); white-space: nowrap;
+  font-size: var(--fs-9); color: var(--ink-3); white-space: nowrap;
   pointer-events: none; opacity: 0;
 }
 /* Vain joka kolmas tunti saa lukeman. Kaikki 120 lukemaa vierekkäin olisi
@@ -1327,14 +1271,14 @@ html.tyopoyta #kapseli.vaistyy {
    palkkien yläpuolelle. Tuntirivillä se törmäsi lukemaan ("NYT15"). */
 .tl-now-label {
   position: absolute; top: 1px; left: 50%; transform: translateX(-50%);
-  font-variant-numeric: tabular-nums; font-size: var(--fs-95); font-weight: 700;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-8); font-weight: 700;
   color: var(--ink-3); white-space: nowrap; letter-spacing: .06em;
 }
 
 .day-sep {
   flex: 0 0 34px; display: flex; align-items: flex-end; justify-content: center;
   height: 100%; padding-bottom: 15px;
-  font-variant-numeric: tabular-nums; font-size: var(--fs-11); font-weight: 600;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-10); font-weight: 600;
   color: var(--ink-3); letter-spacing: .02em; white-space: nowrap;
   border-left: 1px solid var(--hairline);
 }
@@ -1378,6 +1322,75 @@ html.tyopoyta #kapseli.vaistyy {
   100% { transform: scale(2.2); opacity: 0; }
 }
 
+/* ============================================================
+   SPOT LIST — Ranked spots panel
+   ============================================================ */
+#spot-list {
+  color: var(--ink);
+  position: absolute; bottom: 0; left: 0; right: 0; z-index: 30;
+  background: var(--surface);
+  border-top: 1px solid var(--hairline);
+  border-radius: var(--sheet-radius) var(--sheet-radius) 0 0;
+  -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px);
+  box-shadow: 0 -8px 40px rgba(0,0,0,.6);
+  -webkit-transform: translate3d(0,100%,0); transform: translate3d(0,100%,0);
+  transition: transform .38s var(--spring);
+  max-height: 65vh;
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-bottom: calc(var(--sab) + 16px);
+  will-change: transform;
+  touch-action: pan-y;
+}
+#spot-list.open { -webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0); }
+#spot-list.dragging { transition: none; }
+#spot-list-handle {
+  display: flex; justify-content: center; padding: 14px 0 8px;
+  position: sticky; top: 0; background: var(--surface); z-index: 1;
+  cursor: grab;
+}
+#spot-list-handle:active { cursor: grabbing; }
+#spot-list-handle::after {
+  content: ''; width: 40px; height: 4px; border-radius: 2px;
+  background: var(--surface-lo);
+  transition: background .15s;
+}
+#spot-list-handle:active::after { background: var(--surface-lo); }
+.sl-header {
+  padding: 4px 20px 14px; display: flex; justify-content: space-between; align-items: center;
+}
+.sl-title { font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
+.sl-count { font-variant-numeric: tabular-nums; font-size: var(--fs-10); color: var(--ink-3); }
+.sl-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 20px; border-bottom: 1px solid var(--border);
+  cursor: pointer; transition: background .12s;
+  touch-action: manipulation;
+}
+.sl-item:active { background: var(--surface-lo); }
+.sl-rank {
+  font-variant-numeric: tabular-nums; font-size: var(--fs-11); font-weight: 700;
+  color: var(--ink-3); width: 20px; text-align: center; flex-shrink: 0;
+}
+.sl-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  border: 1.5px solid var(--hairline);
+}
+.sl-info { flex: 1; min-width: 0; }
+.sl-name { font-size: var(--fs-13); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sl-desc { font-variant-numeric: tabular-nums; font-size: var(--fs-9); color: var(--ink-3); margin-top: 1px; }
+.sl-wind { text-align: right; flex-shrink: 0; }
+.sl-wind-val {
+  font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 500;
+  line-height: 1;
+}
+.sl-wind-sub { font-variant-numeric: tabular-nums; font-size: var(--fs-9); color: var(--ink-3); margin-top: 2px; }
+.sl-badge-foilable {
+  display: inline-block; font-variant-numeric: tabular-nums; font-size: var(--fs-8);
+  background: var(--surface-lo); color: var(--ink-2);
+  border: 1px solid var(--hairline); border-radius: 4px;
+  padding: 1px 5px; margin-left: 6px; vertical-align: middle;
+}
 
 /* ── TYYPPIKOKO ───────────────────────────────────────────────────
  *
@@ -1400,79 +1413,34 @@ html.tyopoyta #kapseli.vaistyy {
  * Vain kokoja, ei valistysta. Paneelien sisennykset ovat omia
  * paatoksiaan eivatka seuraa tekstia — jos ne kaipaavat ilmaa, se on
  * eri muutos ja mitataan erikseen. */
-/* KOOT SEURAAVAT KAYTTAJAN TEKSTIKOKOA (--fs-kerroin).
- *
- * Ennen koko asteikko oli kiinteita pikseleita, eli iOS:n Dynamic Type
- * ja selaimen oma tekstikokoasetus eivat tehneet mitaan. Kerroin
- * lasketaan kerran kaynnistyksessa (`Tyyppikoko`), ja koska koot ovat
- * jo valmiiksi muuttujia, muutos osuu joka kokoon kerralla.
- *
- * Kerroin on RAJATTU 0,9-1,4:aan. Dynamic Typen isoimmat
- * saavutettavuuskoot ovat yli kolminkertaisia, ja kartan kromi on
- * tilaltaan sidottu: 22 px:n tuntitikki ei veny. Panelien teksti
- * hyotyy kertoimesta, ja sen yli menevan tarpeen hoitaa selaimen oma
- * zoom joka skaalaa myos asettelun. */
 :root {
-  --fs-kerroin: 1;
-  --fs-65: calc(6.5px * var(--fs-kerroin));
-  --fs-7:  calc(7px   * var(--fs-kerroin));
-  --fs-75: calc(7.5px * var(--fs-kerroin));
-  --fs-8:  calc(8px   * var(--fs-kerroin));
-  --fs-85: calc(8.5px * var(--fs-kerroin));
-  --fs-9:  calc(9px   * var(--fs-kerroin));
-  --fs-95: calc(9.5px * var(--fs-kerroin));
-  --fs-10: calc(10px  * var(--fs-kerroin));
-  --fs-105:calc(10.5px* var(--fs-kerroin));
-  --fs-11: calc(11px  * var(--fs-kerroin));
-  --fs-12: calc(12px  * var(--fs-kerroin));
-  --fs-13: calc(13px  * var(--fs-kerroin));
+  --fs-65: 6.5px;
+  --fs-7: 7px;
+  --fs-75: 7.5px;
+  --fs-8: 8px;
+  --fs-85: 8.5px;
+  --fs-9: 9px;
+  --fs-95: 9.5px;
+  --fs-10: 10px;
+  --fs-105: 10.5px;
+  --fs-11: 11px;
+  --fs-12: 12px;
+  --fs-13: 13px;
 }
 html.tyopoyta {
-  --fs-65: calc(9px    * var(--fs-kerroin));
-  --fs-7:  calc(9.5px  * var(--fs-kerroin));
-  --fs-75: calc(10px   * var(--fs-kerroin));
-  --fs-8:  calc(10.5px * var(--fs-kerroin));
-  --fs-85: calc(11px   * var(--fs-kerroin));
-  --fs-9:  calc(11.5px * var(--fs-kerroin));
-  --fs-95: calc(12px   * var(--fs-kerroin));
-  --fs-10: calc(12.5px * var(--fs-kerroin));
-  --fs-105:calc(12.5px * var(--fs-kerroin));
-  --fs-11: calc(13px   * var(--fs-kerroin));
-  --fs-12: calc(13.5px * var(--fs-kerroin));
-  --fs-13: calc(14px   * var(--fs-kerroin));
+  --fs-65: 9px;
+  --fs-7: 9.5px;
+  --fs-75: 10px;
+  --fs-8: 10.5px;
+  --fs-85: 11px;
+  --fs-9: 11.5px;
+  --fs-95: 12px;
+  --fs-10: 12.5px;
+  --fs-105: 12.5px;
+  --fs-11: 13px;
+  --fs-12: 13.5px;
+  --fs-13: 14px;
 }
-
-/* ── SULJETTU PANEELI EI OLE SARKAINKIERROSSA ─────────────────────
- *
- * Kaikki paneelit piilotetaan siirtämällä ne ruudun ulkopuolelle
- * (`translate`). Ruudun ulkopuolella oleva elementti on yhä
- * FOKUSOITAVA ja yhä ruudunlukijan puussa: mitattuna sarkain kulki
- * suljetun asetuspaneelin läpi (Valmis, neljä kytkinriviä) ennen kuin
- * pääsi kartan omiin kontrolleihin, eikä mikään näkynyt ruudulla.
- *
- * `visibility: hidden` poistaa elementin molemmista. Siirtymä on
- * ajoitettu niin että näkyvyys vaihtuu VASTA kun liuku on ohi —
- * muuten paneeli katoaisi kesken sulkeutumisanimaation:
- *
- *   kiinni:  visibility 0s linear .38s   (odota liuku, sitten piiloon)
- *   auki:    visibility 0s               (näkyviin heti)
- *
- * `inert` tekisi saman yhdellä attribuutilla, mutta se vaatisi
- * jokaisen avaus- ja sulkupolun muuttamista JS:ssä; tässä sama tulos
- * saadaan luokista jotka ovat jo olemassa. */
-#settings-popup, #sheet, #forecast-panel, #hourly-sheet {
-  visibility: hidden;
-  transition-property: transform, visibility;
-  transition-duration: .38s, 0s;
-  transition-delay: 0s, .38s;
-}
-#settings-popup { transition-duration: .34s, 0s; transition-delay: 0s, .34s; }
-#settings-popup.open, #sheet.open, #forecast-panel.open, #hourly-sheet.auki {
-  visibility: visible;
-  transition-delay: 0s, 0s;
-}
-/* Vetäessä siirtymä on pois päältä, joten näkyvyyskin on suora. */
-#sheet.dragging, #forecast-panel.dragging { transition: none; visibility: visible; }
 
 /* ============================================================
    CROSSHAIR
@@ -1545,15 +1513,9 @@ html.tyopoyta {
 #sheet.open { -webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0); }
 #sheet.dragging { transition: none; }
 
-/* KAHVA ON 44 px KORKEA, VAIKKA VIIVA ON 4 px.
-   Mitattuna kahvat olivat 26 px (#sheet-handle) ja 20 px (#fc-handle),
-   eli alle Applen minimin — ja ne ovat kortin ja ennustepaneelin ainoa
-   sulkuele. Pseudoelementti ei kasvata osumapintaa (docs/eleet.md),
-   joten lisätila on elementin OMAA täytettä. Näkyvä viiva ei muutu:
-   se on `::after` ja pysyy 36x4 px:nä samassa kohdassa. */
 #sheet-handle {
   display: flex; justify-content: center; align-items: center;
-  padding: 20px 0 20px;
+  padding: 12px 0 10px;
   flex-shrink: 0;
   cursor: grab;
   touch-action: none;
@@ -2067,34 +2029,6 @@ html.tyopoyta {
 #rl-banner-text { flex: 1; font-size: var(--fs-11); color: var(--ink); line-height: 1.4; }
 #rl-banner-close { font-size: 16px; color: var(--ink-3); cursor: pointer; padding: 2px 6px; flex-shrink: 0; }
 
-/* KELIVAHTI — suosikin seuraava sessioikkuna.
- *
- * Sama paperisiru ja sama korkeus kuin rate-limit-bannerilla, mutta
- * vasen reuna on sessiovihreä eikä varoitusoranssi: tämä on hyvä uutinen.
- * Molemmat eivät ole koskaan yhtä aikaa näkyvissä — kiintiövaroitus on
- * tärkeämpi ja voittaa. */
-#kelivahti {
-  position: fixed; bottom: calc(var(--sab-tl) + 148px); left: 12px; right: 12px; z-index: 50;
-  background: var(--surface-hi);
-  border: 1px solid var(--hairline);
-  border-left: 3px solid #2A702D;
-  box-shadow: var(--shadow-2);
-  border-radius: 12px; padding: 0; display: none; align-items: stretch; gap: 0;
-}
-#kelivahti.show { display: flex; }
-#kelivahti-nappi {
-  flex: 1; min-height: 44px; display: flex; align-items: center; gap: 8px;
-  padding: 8px 4px 8px 14px; text-align: left;
-  background: none; border: none; font: inherit; color: var(--ink); cursor: pointer;
-}
-#kelivahti-teksti { font-size: var(--fs-11); line-height: 1.4; }
-#kelivahti-teksti b { font-weight: 700; }
-#kelivahti-teksti span { color: var(--ink-3); font-variant-numeric: tabular-nums; }
-#kelivahti-sulje {
-  min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center;
-  background: none; border: none; font-size: 16px; color: var(--ink-3); cursor: pointer;
-}
-
 /* Verkkotila. Sama paperisiru kuin muut kartan päällä kelluvat esineet.
    Sijoitettu kapselin alle keskelle: se on tila jonka pitää näkyä heti,
    mutta se ei peitä karttaa eikä osu aikajanaan tai nappipinoon.
@@ -2340,16 +2274,11 @@ html.tyopoyta {
   padding-bottom: calc(var(--sab) + 20px);
 }
 #forecast-panel.open { -webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0); }
-/* Sama 44 px kuin #sheet-handlessa, samasta syystä. Sisältö siirtyy
-   24 px alaspäin, joten paneelin oma yläreuna hoidetaan #fc-headerin
-   pienemmällä ylätäytteellä — kokonaiskorkeus ei kasva. */
-#fc-handle { display: flex; justify-content: center; align-items: center;
-  padding: 20px 0 20px; cursor: grab;
+#fc-handle { display: flex; justify-content: center; padding: 10px 0 6px;
   position: sticky; top: 0; background: var(--surface); z-index: 1; }
-#fc-handle:active { cursor: grabbing; }
 #fc-handle::after { content: ''; width: 36px; height: 4px; border-radius: 2px;
   background: var(--surface-lo); }
-#fc-header { padding: 0 20px 14px; }
+#fc-header { padding: 4px 20px 14px; }
 #fc-title { font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
 #fc-subtitle { font-variant-numeric: tabular-nums; font-size: var(--fs-10); color: var(--ink-3); margin-top: 2px; }
 /* Toggle switches */
@@ -2453,14 +2382,8 @@ html.tyopoyta {
 /* Suuntakortti on leveämpi, koska ilmansuunta on sana eikä luku:
    pisin ("pohjoisesta") vie 68 px arvosarakkeessa. */
 #suunta-picker { width: 176px; }
-/* Rivi on 44 px korkea, ei 28. Yksikkö- ja suuntavalitsin ovat
-   luetteloita joissa vaihtoehdot ovat vierekkäin pystysuunnassa —
-   juuri se tapaus jossa liian matala rivi osuu naapuriin. Täyte on
-   elementin omaa; `align-items` on `center`, jotta lukema ja nimi
-   pysyvät samalla viivalla vaikka rivi kasvoi. */
 .up-option {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  min-height: 44px;
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
   padding: 7px 10px; border-radius: 10px; cursor: pointer;
   transition: background .12s ease;
   -webkit-user-select: none; user-select: none;
@@ -2511,29 +2434,8 @@ html.tyopoyta {
 .spot-lbl {
   transition: opacity .28s ease, transform .32s cubic-bezier(.32, .72, 0, 1);
 }
-/* ── VÄHENNÄ LIIKETTÄ ──────────────────────────────────────────────
- *
- * iOS:n Reduce Motion on asetus jota vestibulaarihäiriöiset tarvitsevat,
- * ja tämä sovellus animoi jatkuvasti liikkuvaa partikkelikenttää.
- * Aiemmin sääntö kattoi kaksi valitsinta (`.spot-ring`, `.spot-lbl`) —
- * eli käytännössä ei mitään.
- *
- * Kesto on 0,001 ms eikä `none`: nollakestoinen siirtymä lähettää yhä
- * `transitionend`-tapahtuman, jota jotkin polut odottavat. `none`
- * jättäisi ne odottamaan ikuisesti.
- *
- * `transition-delay: 0s` on tässä pakollinen: suljetut paneelit
- * piilotetaan `visibility`-siirtymällä jonka viive odottaa liu'un ohi.
- * Kun liukua ei ole, viivettäkään ei saa olla — muuten paneeli jäisi
- * sarkainkierrokseen 0,38 s:ksi jokaisen sulkemisen jälkeen. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: .001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: .001ms !important;
-    transition-delay: 0s !important;
-    scroll-behavior: auto !important;
-  }
+  .spot-ring, .spot-lbl { transition: none; }
 }
 /* -- SPOT CARD ENHANCEMENTS ------------------------------------- */
 
@@ -2550,24 +2452,6 @@ html.tyopoyta {
   margin: -10px 0 16px;
   letter-spacing: .1px;
 }
-
-/* Aaltorivi. Sama muoto kuin aurinkorivillä: yksi rivi pieniä faktoja,
-   ei omaa korttia. Havaintoruudukko on `repeat(4, 1fr)` ja viides kortti
-   jättäisi orvon rivin (ks. Spottikortin auditointi) — eikä aalto ole
-   havainto vaan ennuste, joten se kuuluu ennusteen viereen. */
-.sh-aalto-rivi {
-  font-variant-numeric: tabular-nums;
-  font-size: var(--fs-10);
-  color: var(--ink-3);
-  margin: -10px 0 16px;
-  letter-spacing: .1px;
-  display: flex; align-items: baseline; gap: 6px;
-}
-.sh-aalto-rivi .sh-aalto-nimi {
-  font-size: var(--fs-8); font-weight: 700; letter-spacing: 1.2px;
-  text-transform: uppercase; color: var(--ink-3);
-}
-.sh-aalto-rivi b { color: var(--ink); font-weight: 600; }
 
 /* 24h line chart */
 .sh-24h-section { margin-bottom: 16px; }
@@ -2704,10 +2588,7 @@ html.tyopoyta {
       </div>
     </div>
   </div>
-    <!-- Kartan oma nimi. Ilman tätä ruudunlukija luki sen sisällöstä
-         kootun merkkijonon ("ei signaaliaei signaalia…"), koska nimi
-         periytyy merkkien tekstistä. -->
-    <div id="map" role="application" aria-label="Tuulikartta"></div>
+    <div id="map"></div>
 </div>
   <canvas id="c-wind"></canvas>
   <div id="c-wind-kello"></div>
@@ -2851,7 +2732,7 @@ html.tyopoyta {
             <div class="sp-chip" data-arvo="vahan">Vähän</div>
             <div class="sp-chip" data-arvo="pois">Pois</div>
           </div>
-          <div class="sp-vihje" id="partikkeli-vihje">Vähentää akun kulutusta vanhemmilla puhelimilla.</div>
+          <div class="sp-vihje">Vähentää akun kulutusta vanhemmilla puhelimilla.</div>
 
           <div class="sp-label" style="margin-top:18px">Väriasteikko</div>
           <div class="sp-chips" id="asetus-ramppi">
@@ -2867,24 +2748,6 @@ html.tyopoyta {
                eikä tietäisi miksi. Ks. ColorRamp.karttaRamppi(). -->
           <div class="sp-vihje" id="ramppi-vihje"></div>
 
-          <div class="sp-label" style="margin-top:18px">Aallot</div>
-          <div class="sp-chips" id="asetus-aallot">
-            <div class="sp-chip active" data-arvo="pois">Pois</div>
-            <div class="sp-chip" data-arvo="paalla">Päällä</div>
-          </div>
-          <div class="sp-vihje">Aaltoennuste spottikortissa. Haetaan erillisestä
-            aaltopalvelusta (Open-Meteo Marine) vain kortin avatessa — pois
-            päältä sovellus ei ota siihen yhteyttä lainkaan.</div>
-
-          <div class="sp-label" style="margin-top:18px">Käynnistys</div>
-          <div class="sp-chips" id="asetus-kaynnistys">
-            <div class="sp-chip active" data-arvo="viimeisin">Viimeisin näkymä</div>
-            <div class="sp-chip" data-arvo="sijainti">Oma sijainti</div>
-          </div>
-          <div class="sp-vihje">Oma sijainti kysyy paikannuslupaa. Kartta ei jää
-            odottamaan vastausta — se avautuu heti viimeisimpään näkymään ja
-            siirtyy sijaintiin kun se saapuu.</div>
-
           <div class="sp-label" style="margin-top:18px">Lämpökartan voimakkuus</div>
           <div class="sp-chips" id="asetus-lampo">
             <div class="sp-chip" data-arvo="hillitty">Hillitty</div>
@@ -2898,7 +2761,7 @@ html.tyopoyta {
           <div class="sp-label">Karttatasot</div>
 
           <div class="sp-rows">
-          <div class="sp-toggle-row" role="switch" tabindex="0" data-layer-toggle="fmi-sea">
+          <div class="sp-toggle-row" data-layer-toggle="fmi-sea">
             <div class="sp-toggle-left">
               <div class="sp-toggle-dot"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><line x1="12" y1="4" x2="12" y2="20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".55"/><path d="M12 7 L19 9 L12 11 Z" fill="currentColor"/><circle cx="12" cy="20" r="1.5" fill="currentColor" opacity=".7"/></svg></div>
               <div>
@@ -2909,7 +2772,7 @@ html.tyopoyta {
             <div class="sp-toggle on" id="toggle-fmi-sea"></div>
           </div>
 
-          <div class="sp-toggle-row" role="switch" tabindex="0" data-layer-toggle="uiras-prim">
+          <div class="sp-toggle-row" data-layer-toggle="uiras-prim">
             <div class="sp-toggle-left">
               <div class="sp-toggle-dot"><svg width="16" height="10" viewBox="0 0 14 8" fill="none"><path d="M0 5 Q2 2 4 5 Q6 8 8 5 Q10 2 12 5 Q13 6.5 14 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg></div>
               <div>
@@ -2920,7 +2783,7 @@ html.tyopoyta {
             <div class="sp-toggle" id="toggle-uiras-prim"></div>
           </div>
 
-          <div class="sp-toggle-row" role="switch" tabindex="0" data-layer-toggle="fmi-land">
+          <div class="sp-toggle-row" data-layer-toggle="fmi-land">
             <div class="sp-toggle-left">
               <div class="sp-toggle-dot toissijainen"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><line x1="12" y1="4" x2="12" y2="20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".55"/><path d="M12 7 L19 9 L12 11 Z" fill="currentColor"/><circle cx="12" cy="20" r="1.5" fill="currentColor" opacity=".7"/></svg></div>
               <div>
@@ -2931,7 +2794,7 @@ html.tyopoyta {
             <div class="sp-toggle on" id="toggle-fmi-land"></div>
           </div>
 
-          <div class="sp-toggle-row" role="switch" tabindex="0" data-layer-toggle="uiras-sec">
+          <div class="sp-toggle-row" data-layer-toggle="uiras-sec">
             <div class="sp-toggle-left">
               <div class="sp-toggle-dot toissijainen"><svg width="16" height="10" viewBox="0 0 14 8" fill="none"><path d="M0 5 Q2 2 4 5 Q6 8 8 5 Q10 2 12 5 Q13 6.5 14 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg></div>
               <div>
@@ -2992,7 +2855,7 @@ html.tyopoyta {
              oli vielä tumman teeman jäänne stroke="white" — paperisirulla
              valkoinen viiva on käytännössä näkymätön. Koot olivat myös
              20/34/34/22, joten ikonit lukivat eri painoisina. -->
-        <button type="button" class="mctl" id="btn-loc" title="Oma sijainti" aria-label="Keskitä kartta omaan sijaintiin">
+        <div class="mctl" id="btn-loc" title="Oma sijainti">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
             <circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/>
             <circle cx="12" cy="12" r="7.6"/>
@@ -3001,16 +2864,16 @@ html.tyopoyta {
             <line x1="1.8" y1="12" x2="4.4" y2="12" stroke-linecap="round"/>
             <line x1="19.6" y1="12" x2="22.2" y2="12" stroke-linecap="round"/>
           </svg>
-        </button>
-        <button type="button" class="mctl" id="btn-freespot" title="Avaa tämän paikan tiedot" aria-label="Avaa tämän paikan tiedot">
+        </div>
+        <div class="mctl" id="btn-freespot" title="Avaa tämän paikan tiedot">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <!-- Karttanuppineula: erottuu sijaintinapin renkaasta muodoltaan
                  eikä vain kooltaan. -->
             <path d="M12 21.5c0 0-6.6-7-6.6-11.4a6.6 6.6 0 1 1 13.2 0c0 4.4-6.6 11.4-6.6 11.4z"/>
             <circle cx="12" cy="10" r="2.4"/>
           </svg>
-        </button>
-        <button type="button" class="mctl" id="fc-btn" title="Parhaat ajankohdat" aria-label="Parhaat ajankohdat" aria-expanded="false">
+        </div>
+        <div class="mctl" id="fc-btn" title="Parhaat ajankohdat">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3.2" y="4.6" width="17.6" height="16.6" rx="3"/>
             <line x1="3.2" y1="9.6" x2="20.8" y2="9.6"/>
@@ -3022,8 +2885,8 @@ html.tyopoyta {
             <circle cx="8.4" cy="17.8" r="1.3" fill="currentColor" stroke="none"/>
             <circle cx="12" cy="17.8" r="1.3" fill="currentColor" stroke="none"/>
           </svg>
-        </button>
-        <button type="button" class="mctl mctl-settings" id="btn-settings" title="Kartan asetukset" aria-label="Kartan asetukset" aria-expanded="false">
+        </div>
+        <div class="mctl mctl-settings" id="btn-settings">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
             <line x1="4" y1="6" x2="20" y2="6"/>
             <line x1="4" y1="12" x2="20" y2="12"/>
@@ -3032,28 +2895,28 @@ html.tyopoyta {
             <circle cx="16" cy="12" r="2" fill="currentColor" stroke="none"/>
             <circle cx="10" cy="18" r="2" fill="currentColor" stroke="none"/>
           </svg>
-        </button>
+        </div>
       </div>
     </div>
     <div id="tl-wrap">
       <!-- Play-nappi kelluu timelinen vasemmassa reunassa (Windy-tyyli) -->
-      <button type="button" class="mctl tl-play-btn" id="btn-play" aria-label="Toista aika" aria-pressed="false">
+      <div class="mctl tl-play-btn" id="btn-play">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" id="play-icon">
           <path d="M7 4.5v15l12-7.5z"/>
         </svg>
-      </button>
+      </div>
       <!-- Kelihyppy oikeassa reunassa: eteenpäin ajassa on oikealle, ja
            play on vasemmassa reunassa vastapainona. -->
-      <button type="button" class="mctl tl-keli-btn" id="btn-keli"
+      <div class="mctl tl-keli-btn" id="btn-keli" role="button" tabindex="0"
            aria-label="Seuraava kelivikkuna" title="Seuraava kelivikkuna (K)">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M6 5l6 7-6 7M14 5l6 7-6 7"/>
         </svg>
-      </button>
+      </div>
       <div id="tl-paivat"></div>
       <div id="tl-indicator"><div id="tl-time-bubble">--:--</div></div>
-      <div id="tl-scroll" role="group" aria-label="Aikajana, tunnit"></div>
+      <div id="tl-scroll"></div>
     </div>
   </div>
 
@@ -3089,6 +2952,12 @@ html.tyopoyta {
     </div>
   </div>
 
+    <div class="sl-header">
+      <span class="sl-title">Spotit</span>
+      <span class="sl-count" id="sl-count"></span>
+    </div>
+    <div id="sl-items"></div>
+  </div>
 
   <div id="toast"></div>
   <!-- Verkkotilan siru. Pysyy näkyvissä niin kauan kuin tila on voimassa,
@@ -3103,18 +2972,10 @@ html.tyopoyta {
     <div id="rl-banner-text">API-raja täynnä — tuulidata ei päivity. Nollautuu klo 02:00 UTC.</div>
     <div id="rl-banner-close" onclick="document.getElementById('rl-banner').classList.remove('show')">&#x2715;</div>
   </div>
-  <!-- Kelivahti: suosikin seuraava sessioikkuna. Näkyy vain kun sellainen
-       on tulossa eikä sitä ole kuitattu. -->
-  <div id="kelivahti">
-    <button type="button" id="kelivahti-nappi">
-      <span id="kelivahti-teksti"></span>
-    </button>
-    <button type="button" id="kelivahti-sulje" aria-label="Piilota">&#x2715;</button>
-  </div>
   <div id="refresh-dot"></div>
   <!-- Forecast panel — best windows -->
   <div id="forecast-panel">
-    <div id="fc-handle" role="button" tabindex="0" aria-label="Sulje"></div>
+    <div id="fc-handle"></div>
     <div id="fc-header">
       <div id="fc-title">Parhaat ajankohdat</div>
       <div id="fc-subtitle">5 vrk ennuste · parhaat 2h ikkunat spoteille</div>
@@ -3225,7 +3086,7 @@ function makeSwipeable(sheetEl, onDismiss, opts) {
 
   function onTouchStart(e) {
     /* Only start drag from handle OR if sheet is scrolled to top */
-    const isHandle = e.target.closest('#sheet-handle');
+    const isHandle = e.target.closest('#sheet-handle, #spot-list-handle');
     const scrollEl = document.getElementById('sheet-scroll') || sheetEl;
     const scrolledToTop = scrollEl.scrollTop <= 0;
     if (!isHandle && !scrolledToTop) return;
@@ -3449,286 +3310,6 @@ const POHJAT = {
   }
 };
 
-/* -- AALLOT ------------------------------------------------------
- *
- * Aaltoennuste Open-Meteon Marine-rajapinnasta. Tämä on sovelluksen
- * AINOA uusi rajapintariippuvuus sen jälkeen kun tuulidata siirrettiin
- * omaan laattavarastoon, ja siksi se on kytkin eikä oletus: pois päältä
- * se ei tee yhtäkään kutsua.
- *
- * MITATTU ENNEN RAKENTAMISTA. Itämeren kattavuus oli se kysymys joka
- * ratkaisi onko tässä ominaisuutta lainkaan — globaalit aaltomallit
- * jättävät usein rannikkomeret tyhjiksi. Kaikilla kahdellatoista
- * spotilla saatiin 48/48 tuntia arvoja:
- *
- *     Helsingin spotit   0,30-0,48 m,  jakso 3,6-4,3 s
- *     Hanko              0,58-0,84 m,  jakso 6,3-6,5 s
- *     avomeri 59,5/23,5  1,26 m
- *
- * VAIN KOKONAISKORKEUS, ei tuuli/maininki-jakoa. Mitattuna mallin oma
- * jako on Itämerellä harhaanjohtava: Helsingin edustalla se antoi
- * `wind_wave_height` 0,00-0,02 m ja `swell_wave_height` 0,08 m, eli
- * luki lähes kaiken maininiksi meressä jossa maininkia ei käytännössä
- * ole. Kokonaiskorkeus on se luku joka pitää paikkansa.
- *
- * VÄLIMUISTI ON KARKEALLA HILALLA. Mallin solu on noin 0,04 astetta —
- * mitattuna Otaniemi, Munkkiniemi ja Hietaniemi osuvat samaan soluun
- * (60,208 / 24,875). Avain pyöristetään 0,05 asteeseen, jolloin
- * vierekkäiset spotit jakavat yhden haun. Kiintiö on tässä oikea
- * kustannus, joten sitä säästetään siellä missä se ei maksa mitään. */
-const Aallot = {
-  BASE: 'https://marine-api.open-meteo.com/v1/marine',
-  AVAIN: 'fs_aallot',
-  TUORE_MS: 3 * 3600 * 1000,
-  _muisti: null,
-  _lennossa: {},
-
-  kaytossa() { return Asetukset.arvot.aallot === 'paalla'; },
-
-  /* Solun tunniste. 0,05 astetta on suunnilleen mallin oma solu. */
-  avain(lat, lng) {
-    return (Math.round(lat / 0.05) * 0.05).toFixed(2) + ','
-         + (Math.round(lng / 0.05) * 0.05).toFixed(2);
-  },
-
-  _lue() {
-    if (this._muisti) return this._muisti;
-    try { this._muisti = JSON.parse(localStorage.getItem(this.AVAIN) || '{}'); }
-    catch (e) { this._muisti = {}; }
-    if (!this._muisti || typeof this._muisti !== 'object') this._muisti = {};
-    return this._muisti;
-  },
-
-  _kirjoita() {
-    try { localStorage.setItem(this.AVAIN, JSON.stringify(this._muisti)); } catch (e) {}
-  },
-
-  /* Välimuistista heti, ilman verkkoa. Palauttaa null jos ei ole tai on
-     vanhentunut — kutsuja päättää haetaanko. */
-  valimuistista(lat, lng) {
-    const m = this._lue()[this.avain(lat, lng)];
-    if (!m || !m.hourly || !m.ts) return null;
-    if (Date.now() - m.ts > this.TUORE_MS) return null;
-    return m.maalla ? 'maalla' : m.hourly;
-  },
-
-  maalla(lat, lng) {
-    const m = this._lue()[this.avain(lat, lng)];
-    return !!(m && m.maalla);
-  },
-
-  async hae(lat, lng) {
-    if (!this.kaytossa()) return null;
-    const k = this.avain(lat, lng);
-    const valmis = this.valimuistista(lat, lng);
-    if (valmis) return valmis;                    /* voi olla myös 'maalla' */
-    /* Sama solu voi olla kysymässä monta korttia peräkkäin — yksi haku. */
-    if (this._lennossa[k]) return this._lennossa[k];
-    const [la, lo] = k.split(',');
-    const url = this.BASE + '?latitude=' + la + '&longitude=' + lo
-      + '&hourly=wave_height,wave_period,wave_direction'
-      + '&forecast_days=8' + TZ_PARAM;
-    this._lennossa[k] = fetch(url)
-      .then(r => r.ok ? r.json() : null)
-      .then(j => {
-        if (!j || !j.hourly || !j.hourly.time || !j.hourly.time.length) return null;
-        const m = this._lue();
-        /* MALLI VUOTAA MAALLE, ja rajapinnan oma `elevation` paljastaa sen.
-           Mitattuna Nuuksio (20 km sisämaassa, solun korkeus 97 m) palautti
-           0,08 m koko vuorokaudelle, kun taas oikeasti kuivat pisteet
-           (Tampere 93 m, Jyväskylä 86 m, Saimaa 81 m) palauttivat pelkkiä
-           nullia. Spottien solut ovat 0-12 m. Raja 20 m erottaa nämä
-           kahdeksankertaisella varalla alaspäin ja nelinkertaisella
-           ylöspäin — ja se on rajapinnan omaa metadataa, ei arvaus. */
-        m[k] = { ts: Date.now(), hourly: j.hourly,
-                 maalla: (typeof j.elevation === 'number' && j.elevation > 20) };
-        /* Muisti ei saa kasvaa rajatta: kaksitoista solua riittää
-           kaikille spoteille ja vapaille pisteille yhden istunnon
-           ajan. */
-        const avaimet = Object.keys(m);
-        if (avaimet.length > 12) {
-          avaimet.sort((a, b) => m[a].ts - m[b].ts).slice(0, avaimet.length - 12)
-            .forEach(x => { delete m[x]; });
-        }
-        this._kirjoita();
-        return m[k].maalla ? 'maalla' : j.hourly;
-      })
-      .catch(() => null)
-      .finally(() => { delete this._lennossa[k]; });
-    return this._lennossa[k];
-  },
-
-  /* Yhden hetken lukemat. Indeksi haetaan AJASTA eikä numerosta: aaltojen
-     sarja on oma taulukkonsa eikä ala samasta hetkestä kuin tuulisarja. */
-  hetki(hourly, iso) {
-    if (!hourly || !hourly.time || !iso) return null;
-    const i = Linkkitila.indeksiAjalle(hourly.time, iso);
-    if (i < 0) return null;
-    const h = hourly.wave_height ? hourly.wave_height[i] : null;
-    if (h == null) return null;
-    return { m: h,
-      s: hourly.wave_period ? hourly.wave_period[i] : null,
-      dir: hourly.wave_direction ? hourly.wave_direction[i] : null };
-  }
-};
-
-/* Aaltolukemat tekstiksi. Korkeus on senttimetrin tarkkuudella, koska
-   Itämerellä ero 0,3 ja 0,5 metrin välillä on se mikä merkitsee — 0,1 m
-   tarkkuus näyttäisi saman luvun koko päivän. Suunta kulkee `Suunta.fmt`in
-   läpi, jotta se puhuu samaa muotoa kuin tuuli, ja se on MISTÄ aallot
-   tulevat samoin kuin tuulella. */
-/* Kolme tilaa, eikä niitä saa sotkea:
-     'maalla'  — solu on kuivalla maalla, aaltoa ei ole olemassa
-     null      — haettiin, ei saatu (tai hetki on sarjan ulkopuolella)
-     arvot     — lukema */
-function _aaltoSisalto(tulos, iso) {
-  if (tulos === 'maalla') return '<span style="opacity:.7">ei merta tässä kohdassa</span>';
-  return _aaltoTeksti(tulos ? Aallot.hetki(tulos, iso) : null);
-}
-
-function _aaltoTeksti(a) {
-  if (!a) return '<span style="opacity:.7">ei tietoa tälle hetkelle</span>';
-  const osat = ['<b>' + a.m.toFixed(2).replace('.', ',') + ' m</b>'];
-  if (a.s != null) osat.push(a.s.toFixed(1).replace('.', ',') + ' s');
-  if (a.dir != null) osat.push(Suunta.fmt(a.dir));
-  return osat.join(' \u00b7 ');
-}
-
-/* -- NÄKYMÄMUISTI ------------------------------------------------
- *
- * Sovellus avautui aina koko Suomeen (`[62.5, 25.5]` z5) ellei ollut
- * suosikkeja tai jaettua linkkiä. Foilaaja avaa appia samalla rannalla
- * kerta toisensa jälkeen, joten joka avaus alkoi navigoinnilla.
- *
- * JÄRJESTYS ON TARKOITUKSELLINEN, ja se säilyttää aiemmat päätökset:
- *
- *   1. jaettu linkki   — joku tarkoitti juuri sitä spottia
- *   2. tuore näkymä    — olit siellä äsken, jatka siitä
- *   3. suosikit        — pitkän aikavälin koti (dokumentoitu päätös)
- *   4. oletusnäkymä
- *
- * "Tuore" on 24 h. Sitä vanhempi näkymä ei ole enää se mitä olit
- * tekemässä vaan viime viikon reissu, ja silloin suosikit ovat parempi
- * arvaus. Ilman aikarajaa muisti ohittaisi suosikit pysyvästi
- * ensimmäisen panoroinnin jälkeen.
- *
- * Tallennus on `moveend`istä ja kuristettu: kartta lähettää sen myös
- * jokaisen animaation lopusta, ja localStorage-kirjoitus on
- * synkroninen. */
-const Nakymamuisti = {
-  AVAIN: 'fs_nakyma',
-  TUORE_MS: 24 * 3600 * 1000,
-  _t: null,
-
-  tallenna(map) {
-    if (!map) return;
-    clearTimeout(this._t);
-    this._t = setTimeout(function () {
-      try {
-        const c = map.getCenter();
-        localStorage.setItem(Nakymamuisti.AVAIN, JSON.stringify({
-          lat: +c.lat.toFixed(4), lng: +c.lng.toFixed(4),
-          z: +map.getZoom().toFixed(2), ts: Date.now()
-        }));
-      } catch (e) {}
-    }, 700);
-  },
-
-  lue() {
-    try {
-      const r = JSON.parse(localStorage.getItem(this.AVAIN) || 'null');
-      if (!r || typeof r.lat !== 'number' || typeof r.lng !== 'number') return null;
-      if (!(Math.abs(r.lat) <= 90 && Math.abs(r.lng) <= 180)) return null;
-      if (!(r.z > 0 && r.z <= 20)) return null;
-      if (!(Date.now() - (r.ts || 0) < this.TUORE_MS)) return null;
-      return r;
-    } catch (e) { return null; }
-  }
-};
-
-/* -- TYYPPIKOKO --------------------------------------------------
- *
- * Käyttäjän oma tekstikoko kahdelta eri lähteeltä, YHTENÄ kertoimena:
- *
- *   Apple:  `font: -apple-system-body` on ainoa tapa saada Dynamic
- *           Type verkkosivulle. Mitataan piilotetusta elementistä ja
- *           suhteutetaan oletukseen 17 px.
- *   muut:   juurielementin laskettu `font-size`, joka heijastaa
- *           selaimen omaa tekstikokoasetusta. Oletus on 16 px.
- *
- * Tuen tunnistus on `CSS.supports`: ilman sitä ei-Apple-selain lukisi
- * shorthandin oletuskooksi 16 px ja jakaisi seitsemällätoista, eli
- * kutistaisi tekstin 6 % ilman että kukaan on pyytänyt.
- *
- * Rajaus 0,9-1,4 on tietoinen: Dynamic Typen saavutettavuuskoot ovat
- * yli kolminkertaisia, eikä 22 px:n tuntitikki veny. Sen yli menevän
- * tarpeen hoitaa selaimen zoom, joka skaalaa myös asettelun.
- *
- * Päivitetään myös `resize`- ja `visibilitychange`-tapahtumista:
- * järjestelmän tekstikoko voi vaihtua sovelluksen ollessa auki, eikä
- * siitä tule omaa tapahtumaansa. */
-const Tyyppikoko = {
-  _viimeisin: null,
-  paivita() {
-    let perus = 16, jakaja = 16;
-    try {
-      if (window.CSS && CSS.supports && CSS.supports('font', '-apple-system-body')) {
-        const koe = document.createElement('div');
-        koe.setAttribute('aria-hidden', 'true');
-        koe.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;font:-apple-system-body';
-        document.body.appendChild(koe);
-        perus = parseFloat(getComputedStyle(koe).fontSize) || 17;
-        koe.remove();
-        jakaja = 17;
-      } else {
-        perus = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-      }
-    } catch (e) { return; }
-    const k = Math.max(0.9, Math.min(1.4, perus / jakaja));
-    const arvo = k.toFixed(3);
-    if (arvo === this._viimeisin) return;
-    this._viimeisin = arvo;
-    document.documentElement.style.setProperty('--fs-kerroin', arvo);
-    /* Aikajanan tikit on mitoitettu JS:ssä (`TL_TIKKI_LEV`), ja lukemat
-       ovat CSS:ssä — koon muuttuessa jana rakennetaan uudelleen jotta
-       keskitys osuu. */
-    try {
-      if (State._tlMuisti && typeof renderTimeline === 'function') {
-        const m = State._tlMuisti;
-        State._tlTicks = [];
-        renderTimeline(m.times, m.speeds, m.dirs, m.activeIdx,
-          { puuskat: m.puuskat, lat: m.lat, lng: m.lng });
-      }
-    } catch (e) {}
-  }
-};
-
-/* -- LIIKE -------------------------------------------------------
- *
- * Käyttöjärjestelmän "Vähennä liikettä". Luetaan JOKA KYSYMYKSELLÄ
- * eikä kerran käynnistyksessä: asetus voi vaihtua sovelluksen ollessa
- * auki, ja `matchMedia` on halpa.
- *
- * Tämä on JS-puolen pari CSS:n `prefers-reduced-motion`-lohkolle.
- * CSS hoitaa siirtymät ja animaatiot; tästä kysytään ne kolme asiaa
- * joita CSS ei näe: partikkelikenttä, ohjelmalliset pehmeät vieritykset
- * ja Leafletin omat kartta-animaatiot. */
-const Liike = {
-  vahenna() {
-    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
-    catch (e) { return false; }
-  },
-  /* Pehmeä vieritys vain jos liikettä saa olla. */
-  vieritys() { return this.vahenna() ? 'auto' : 'smooth'; },
-  AVAIN: 'fs_partikkelit_valittu',
-  partikkelitValittu() {
-    try { return localStorage.getItem(this.AVAIN) === '1'; } catch (e) { return false; }
-  },
-  merkitsePartikkelivalinta() {
-    try { localStorage.setItem(this.AVAIN, '1'); } catch (e) {}
-  }
-};
-
 /* -- ASETUKSET --------------------------------------------------
  *
  * Kartan säädöt yhdessä localStorage-avaimessa (fs_kartta) eikä neljänä
@@ -3747,12 +3328,9 @@ const Asetukset = {
     pohja:       ['tumma', 'vaalea', 'satelliitti'],
     partikkelit: ['normaali', 'vahan', 'pois'],
     ramppi:      ['nykyinen', 'cvd'],
-    lampo:       ['hillitty', 'normaali', 'voimakas'],
-    kaynnistys:  ['viimeisin', 'sijainti'],
-    aallot:      ['pois', 'paalla']
+    lampo:       ['hillitty', 'normaali', 'voimakas']
   },
-  arvot: { pohja: 'tumma', partikkelit: 'normaali', ramppi: 'nykyinen', lampo: 'normaali',
-           kaynnistys: 'viimeisin', aallot: 'pois' },
+  arvot: { pohja: 'tumma', partikkelit: 'normaali', ramppi: 'nykyinen', lampo: 'normaali' },
 
   lue() {
     let raw = null;
@@ -7365,15 +6943,7 @@ function initCanvases() {
      dokumentoidun 1,34 Mpx:n sijaan. */
   State.dpr = Math.min(2, window.devicePixelRatio || 1);
   resizeCanvases();
-  window.addEventListener('resize', () => {
-    Tyyppikoko.paivita();
-    resizeCanvases(); resetParticles(true);
-  }, { passive: true });
-  /* Järjestelmän tekstikoko voi vaihtua sovelluksen ollessa taustalla,
-     eikä siitä tule omaa tapahtumaansa. */
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) Tyyppikoko.paivita();
-  }, { passive: true });
+  window.addEventListener('resize', () => { resizeCanvases(); resetParticles(true); }, { passive: true });
   window.addEventListener('orientationchange', () => { setTimeout(() => { resizeCanvases(); resetParticles(true); }, 250); }, { passive: true });
 }
 
@@ -9958,20 +9528,10 @@ function partikkeliZoomKerroin() {
   return 1;
 }
 function nParticles() { return PerfTracker.getTarget(); }
-/* Yksi kysymys kolmelle kytkimelle: mittauskytkin (?perf=1),
-   asetuspaneelin "Pois" ja käyttöjärjestelmän Vähennä liikettä.
-   Mikä tahansa riittää.
-
-   VÄHENNÄ LIIKETTÄ VOITTAA VAIN JOS KÄYTTÄJÄ EI OLE ITSE VALINNUT.
-   Asetuksen oletus on 'normaali', eikä oletusta voi erottaa
-   valinnasta pelkästä arvosta — siksi valinta merkitään omaan
-   avaimeensa silloin kun käyttäjä koskee siruun. Jos hän valitsee
-   partikkelit päälle Reduce Motionin ollessa voimassa, hän tarkoittaa
-   sitä ja saa ne. */
+/* Yksi kysymys kahdelle kytkimelle: mittauskytkin (?perf=1) ja
+   asetuspaneelin "Pois". Kumpi tahansa riittää. */
 function partikkelitPois() {
-  if (State._perfNoParticles) return true;
-  if (Asetukset.arvot.partikkelit === 'pois') return true;
-  return Liike.vahenna() && !Liike.partikkelitValittu();
+  return !!State._perfNoParticles || Asetukset.arvot.partikkelit === 'pois';
 }
 /* Leveys ja määrä on valittu yhdessä, mitattuna.
  *
@@ -11692,26 +11252,15 @@ function renderSpots(hourIdx) {
          se jäisi puolittain renkaan päälle ja näyttäisi virheeltä — nyt
          rengas peittää sen siististi ja piste näkyy vain siltä osin kuin
          se on renkaan ulkopuolella. */
-      /* HAVAINTOASEMAT POIS SARKAINKIERROSTA, SPOTIT EIVÄT.
-         Mitattuna sarkain kulki kartan jälkeen kymmenien asemamerkkien
-         läpi eikä tavoittanut sovelluksen omia kontrolleja lainkaan.
-         Spottimerkki avaa kortin eli on oikeaa sisältöä; asemamerkki on
-         lukema jonka saa muualtakin. */
-      L.marker([spot.lat, spot.lng], { icon, zIndexOffset: pisteena ? -1000 : 0,
-        alt: spot.name, title: spot.name })
+      L.marker([spot.lat, spot.lng], { icon, zIndexOffset: pisteena ? -1000 : 0 })
         .on('click', () => {
           Haptics.medium();
           const map = State.map;
           const targetZoom = Math.max(map.getZoom(), 10);
-          if (Liike.vahenna()) {
-            map.setView([spot.lat, spot.lng], targetZoom, { animate: false });
-            openSheet(spot, hourIdx);
-          } else {
-            map.flyTo([spot.lat, spot.lng], targetZoom, {
-              animate: true, duration: 0.5, easeLinearity: 0.15,
-            });
-            setTimeout(() => openSheet(spot, hourIdx), 350);
-          }
+          map.flyTo([spot.lat, spot.lng], targetZoom, {
+            animate: true, duration: 0.5, easeLinearity: 0.15,
+          });
+          setTimeout(() => openSheet(spot, hourIdx), 350);
         })
         .addTo(State.map)
     );
@@ -12463,7 +12012,7 @@ function _addObsMarkers(map) {
     /* zIndexOffset korkeampi kuin tuulikortin (-50) — sama koordinaatti
        tarkoittaa samaa Leafletin laskemaa perus-z-indeksiä, joten tämä
        offset yksin ratkaisee kumpi piirtyy päällimmäisenä. */
-    var dot = L.marker([lat, lng], { icon: _makeStationIcon(map.getZoom()), zIndexOffset: 50, keyboard: false })
+    var dot = L.marker([lat, lng], { icon: _makeStationIcon(map.getZoom()), zIndexOffset: 50 })
       .on('click', onClick).addTo(map);
     _stationDots.push(dot);
     return dot;
@@ -12741,7 +12290,7 @@ function _addObsMarkers(map) {
       var isPrim = !!PRIM_FMI[st.place];
       var pilleriZ = isPrim ? PILLERI_Z_MERI : PILLERI_Z_MAA;
       var icon = mkWindIcon(map.getZoom(), null, st.name, pilleriZ);
-      var m = L.marker([st.lat,st.lng],{icon:icon,zIndexOffset:isPrim?-50:-100,keyboard:false})
+      var m = L.marker([st.lat,st.lng],{icon:icon,zIndexOffset:isPrim?-50:-100})
         .on('click',function(){ _openObsSheet('fmi',st); }).addTo(map);
       var _lg = FMI_SEA_PLACES[st.place] ? 'fmi-sea' : 'fmi-land';
       _obsMarkers.push({marker:m, type:isPrim?'wind-prim':'wind-dot',
@@ -12805,7 +12354,7 @@ function _addObsMarkers(map) {
     var KV_STATION = { name: 'Kruunuvuorenselkä', place: 'kruunuvuorenselka', lat: 60.163, lng: 24.997 };
 
     var icon = mkWindIcon(map.getZoom(), null, KV_STATION.name, 8);
-    var m = L.marker([KV_STATION.lat, KV_STATION.lng], { icon: icon, zIndexOffset: -50, keyboard: false })
+    var m = L.marker([KV_STATION.lat, KV_STATION.lng], { icon: icon, zIndexOffset: -50 })
       .on('click', function(){ _openObsSheet('kruunuvuori', KV_STATION); }).addTo(map);
     var kvEntry = { marker: m, type: 'wind-prim', ws: null, wg: null,
       wsLatest: null, wgLatest: null, stName: KV_STATION.name, pilleriZ: 8,
@@ -12902,14 +12451,14 @@ function _addObsMarkers(map) {
     UIRAS_STATIONS.forEach(function(st) {
       var entry=tempMap[st.id.toUpperCase()];
       var temp=entry&&entry.temp!=null&&entry.temp>-5&&entry.temp<40?entry.temp:null;
-      var m=L.marker([st.lat,st.lng],{icon:mkWaterIcon(map.getZoom(),temp,!!st.prim),zIndexOffset:-200,keyboard:false})
+      var m=L.marker([st.lat,st.lng],{icon:mkWaterIcon(map.getZoom(),temp,!!st.prim),zIndexOffset:-200})
         .on('click',function(){ _openObsSheet('uiras',st); }).addTo(map);
       _obsMarkers.push({marker:m,type:'water',temp:temp,prim:!!st.prim,layerGroup:'uiras'});
     });
     if (typeof _applyMapLayers === 'function') _applyMapLayers();
   }).catch(function() {
     UIRAS_STATIONS.forEach(function(st) {
-      var m=L.marker([st.lat,st.lng],{icon:mkWaterIcon(map.getZoom(),null,!!st.prim),zIndexOffset:-200,keyboard:false})
+      var m=L.marker([st.lat,st.lng],{icon:mkWaterIcon(map.getZoom(),null,!!st.prim),zIndexOffset:-200})
         .on('click',function(){ _openObsSheet('uiras',st); }).addTo(map);
       _obsMarkers.push({marker:m,type:'water',temp:null,prim:!!st.prim,layerGroup:'uiras'});
     });
@@ -13312,7 +12861,6 @@ function openSheet(spot, hourIdx) {
     return;
   }
   State.sheetSpot = spot;
-  if (typeof _tlPaivitaSopivuus === 'function') _tlPaivitaSopivuus();
   const h = spot.wx.hourly, idx = Math.min(hourIdx, h.windspeed_10m.length - 1);
   const ms  = h.windspeed_10m[idx] || 0;
   const dir = h.winddirection_10m[idx] || 0;
@@ -13383,39 +12931,6 @@ function openSheet(spot, hourIdx) {
         + (p.keskipaiva > 0 ? 'Aurinko ei laske' : 'Aurinko ei nouse') + '</span>');
     }
     return '<div class="sh-sun-rivi">' + osat.join(' \u00b7 ') + '</div>';
-  }
-
-  /* AALTORIVI.
-   *
-   * Rivi on ennusteen puolella (aurinkorivin alla) eikä havaintoruudukossa:
-   * ruudukko on `repeat(4, 1fr)` ja viides kortti jättäisi orvon rivin, ja
-   * aalto on ennuste eikä havainto.
-   *
-   * Kaksi tilaa joita EI saa sotkea: "pois päältä" (asetus, ei riviä
-   * lainkaan) ja "ei dataa" (haettiin, ei saatu — rivi kertoo sen).
-   * Tyhjä on rehellisempi kuin väärä, sama sääntö kuin puvulla ja
-   * havainnoilla.
-   *
-   * Sarja täytetään ASYNKRONISESTI elementin id:n kautta eikä korttia
-   * rakenneta uudelleen: kortti rakentuu joka tuntiaskeleella, ja
-   * uudelleenrakennus vastauksen saapuessa nykisi vieritystä. */
-  function buildAaltoRivi() {
-    if (!Aallot.kaytossa()) return '';
-    const rid = 'aalto-' + Math.random().toString(36).slice(2, 8);
-    const iso = h.time && h.time[idx] ? h.time[idx] : null;
-    const valmis = Aallot.valimuistista(spot.lat, spot.lng);
-    const sisalto = valmis ? _aaltoSisalto(valmis, iso) : 'ladataan…';
-    if (!valmis) {
-      Aallot.hae(spot.lat, spot.lng).then(function (tulos) {
-        const el = document.getElementById(rid);
-        if (!el) return;                     /* kortti ehti sulkeutua */
-        el.querySelector('[data-aalto]').innerHTML = _aaltoSisalto(tulos, iso);
-      });
-    }
-    return '<div class="sh-aalto-rivi" id="' + rid + '">'
-      + '<span class="sh-aalto-nimi">Aallot</span>'
-      + '<span data-aalto>' + sisalto + '</span>'
-      + '</div>';
   }
 
   /* -- 24H SVG LINE CHART — menneet harmaat, nykyhetki-viiva, tiheät labels -- */
@@ -14342,7 +13857,6 @@ function openSheet(spot, hourIdx) {
        rivi oli havaintoruutujen jalkeen — siella se oli irrallaan
        kaikesta mihin se liittyy. */
     + buildSunRivi()
-    + buildAaltoRivi()
     /* Havainnot-rivi */
     + '<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-8);font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:5px">Havainnot</div>'    + '<div class="sh-stats" id="sh-stats-live">'      + _tempDewComboCard(fmiId + '-tmp', fmiId + '-dew')      + (_uirasStation ? _uirasLinkCard(_waterStatId, _uirasStation) : _statCard('Vesi', waterTemp, _waterTempSource || '°C', null))    + (function () {
         /* Puku veden viereen: siinä kohtaa katsotaan vedenlämpöä, ja tämä
@@ -14434,10 +13948,6 @@ function openSheet(spot, hourIdx) {
       /* Merkit uusiksi: suosikki piirtyy aina täytenä. */
       State._spotTaydetAvain = null;
       renderSpots(State.currentHourIdx);
-      /* Vahti seuraa suosikkeja, joten se tarkistetaan heti — muuten
-         juuri lisätyn spotin ikkuna näkyisi vasta seuraavalla
-         avauksella. */
-      if (typeof Kelivahti !== 'undefined') Kelivahti.nayta();
     }, { passive: true });
 
     const jaa = document.getElementById('sh-jaa');
@@ -14470,7 +13980,7 @@ function openSheet(spot, hourIdx) {
       var tl = document.getElementById('tl-scroll');
       if (tl && State._tlTicks && State._tlTicks[newIdx]) {
         var tick = State._tlTicks[newIdx];
-        tl.scrollTo({ left: tick.offsetLeft - tl.offsetWidth/2 + 12, behavior: Liike.vieritys() });
+        tl.scrollTo({ left: tick.offsetLeft - tl.offsetWidth/2 + 12, behavior: 'smooth' });
       }
       if (typeof _tlUpdateNow === 'function') _tlUpdateNow(newIdx);
       if (typeof buildWindField === 'function')
@@ -14858,7 +14368,7 @@ function _scrollToSection(id) {
   if (!el || !sheet) return;
   var top = el.offsetTop - 16;
   const _scrollEl = document.getElementById('sheet-scroll') || sheet;
-  _scrollEl.scrollTo({ top: top, behavior: Liike.vieritys() });
+  _scrollEl.scrollTo({ top: top, behavior: 'smooth' });
 }
 
 /* Trendi-stat-kortti */
@@ -15769,7 +15279,6 @@ function _sivupaneeliPanorointi(spot) {
 
 function closeSheet() {
   State.sheetSpot = null;
-  if (typeof _tlPaivitaSopivuus === 'function') _tlPaivitaSopivuus();
   document.documentElement.classList.remove('paneeli-auki');
   document.getElementById('sheet').classList.remove('open');
   document.getElementById('sheet-overlay').classList.remove('open');
@@ -15815,11 +15324,6 @@ document.getElementById('sheet-handle').addEventListener('click', closeSheet, { 
       if (typeof ForecastPanel !== 'undefined') ForecastPanel.close();
       if (typeof Valitsin !== 'undefined') Valitsin.suljeKaikki();
       if (typeof WxPanel !== 'undefined') WxPanel.close();
-      /* Asetuspaneeli puuttui tästä listasta: Esc sulki kortin, ennusteen
-         ja valitsimet mutta jätti asetusladan auki. Löytyi vasta kun
-         paneelit tulivat sarkainkierrokseen ja mittari yritti sulkea
-         niitä Escillä. */
-      if (typeof _closeSettings === 'function') _closeSettings();
       return;
     }
 
@@ -15862,16 +15366,9 @@ document.getElementById('sheet-handle').addEventListener('click', closeSheet, { 
       case 'Home':
         if (State._tlTimes && State._tlTimes.length) _tlValitseIdx(nowIdx(State._tlTimes));
         break;
-      case ' ': case 'Spacebar': {
-        /* Fokus painikkeessa: selain aktivoi sen jo itse välilyönnillä.
-           Ilman tätä sekä painike että play laukeaisivat samasta
-           painalluksesta. */
-        const f = document.activeElement;
-        if (f && (f.tagName === 'BUTTON' || f.getAttribute('role') === 'button'
-              || f.getAttribute('role') === 'switch')) { hoidettu = false; break; }
+      case ' ': case 'Spacebar':
         if (State._tlTicks && State._tlTicks.length) togglePlay();
         break;
-      }
       case 'k': case 'K': {
         const kohde = _tlSeuraavaKeli(State.currentHourIdx);
         if (kohde >= 0) _tlValitseIdx(kohde);
@@ -16161,7 +15658,6 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
       const target = State._tlTicks[activeIdx];
       if (target) _tlSetScrollLeft(tl, target.offsetLeft - tl.offsetWidth / 2 + TL_TIKKI_LEV / 2);
       _tlUpdateNow(activeIdx);
-      _tlPaivitaSopivuus();
     });
     return;
   }
@@ -16247,7 +15743,6 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
     const target = State._tlTicks[activeIdx];
     if (target) _tlSetScrollLeft(tl, target.offsetLeft - tl.offsetWidth / 2 + TICK_W / 2);
     _tlUpdateNow(activeIdx);
-    _tlPaivitaSopivuus();
   });
 
   /* Kuuntelijat kiinnitetään VAIN KERRAN. renderTimeline() ajetaan uudelleen
@@ -16392,7 +15887,7 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
     const idx = parseInt(tick.dataset.idx);
     if (isNaN(idx)) return;
     Haptics.selection();
-    tl.scrollTo({ left: tick.offsetLeft - tl.offsetWidth / 2 + TICK_W / 2, behavior: Liike.vieritys() });
+    tl.scrollTo({ left: tick.offsetLeft - tl.offsetWidth / 2 + TICK_W / 2, behavior: 'smooth' });
     if (idx !== State.currentHourIdx) {
       State.currentHourIdx = idx;
       _tlUpdateNow(idx);
@@ -16586,72 +16081,8 @@ function _tlKorostaPaiva(d) {
   const nakyyV = kisko.scrollLeft + 16, nakyyO = kisko.scrollLeft + kisko.clientWidth - 16;
   if (vasen < nakyyV || oikea > nakyyO) {
     try {
-      kisko.scrollTo({ left: vasen - kisko.clientWidth / 2 + osuma.offsetWidth / 2, behavior: Liike.vieritys() });
+      kisko.scrollTo({ left: vasen - kisko.clientWidth / 2 + osuma.offsetWidth / 2, behavior: 'smooth' });
     } catch (e) { kisko.scrollLeft = vasen - kisko.clientWidth / 2; }
-  }
-}
-
-/* SPOTIN SESSIOIKKUNAT AIKAJANAAN.
- *
- * Määritelmä on sovelluksen oma kolmesta kohdasta, ei uusi:
- *
- *   nopeus   6 <= ms < 18   — samat rajat kuin spottikortin
- *                             sessioikkunassa ja `foilBadge`ssa
- *   suunta   ero spotin `bestDirs`iin enintään 80 astetta — sama
- *            raja jolla `spotIndexOsat` lakkaa antamasta suuntapisteitä
- *   kesto    vähintään kaksi tuntia — "alle tunnin jakso ei ole sessio
- *            vaan piikki", sama sääntö kuin kortin kaaviossa
- *
- * Yksi määritelmä kahdessa paikassa olisi kahden totuuden alku, joten
- * jos rajoja muuttaa, ne muuttuvat kortissa ja täällä yhdessä. */
-function _sessioIkkunat(speeds, dirs, bestDirs, valo, n) {
-  if (!speeds || !n) return null;
-  const ulos = new Array(n);
-  for (let i = 0; i < n; i++) {
-    const ms = speeds[i] || 0;
-    let ok = ms >= 6 && ms < 18;
-    /* Valotieto on valinnainen: janan merkintä ei sitä käytä (yökin on
-       tietoa jonka käyttäjä näkee kaistasta), mutta kelivahti käyttää —
-       yön ikkunaa ei kannata ehdottaa kenellekään. */
-    if (ok && valo && valo[i] < 2) ok = false;
-    if (ok && bestDirs && bestDirs.length && dirs && dirs[i] != null) {
-      let paras = 180;
-      for (const d of bestDirs) {
-        const opt = DIR_DEG[d];
-        if (opt === undefined) continue;
-        let ero = Math.abs(dirs[i] - opt) % 360;
-        if (ero > 180) ero = 360 - ero;
-        if (ero < paras) paras = ero;
-      }
-      ok = paras <= 80;
-    }
-    ulos[i] = ok;
-  }
-  /* Yksinäinen tunti ei ole sessio. */
-  for (let i = 0; i < n; i++) {
-    if (!ulos[i]) continue;
-    const edell = i > 0 && ulos[i - 1], seur = i < n - 1 && ulos[i + 1];
-    if (!edell && !seur) ulos[i] = false;
-  }
-  return ulos;
-}
-
-function _tlSopivatTunnit(spot) {
-  const n = State._tlTicks ? State._tlTicks.length : 0;
-  if (!spot || !State._tlTimes || !State._tlSpeeds || !n) return null;
-  return _sessioIkkunat(State._tlSpeeds, State._tlDirs, spot.bestDirs, null, n);
-}
-
-/* Merkinnän piirto ja poisto. Ajetaan myös `renderTimeline`n jälkeen,
-   koska tikit rakennetaan uudelleen joka kartansiirrolla ja luokat
-   katoavat niiden mukana. */
-function _tlPaivitaSopivuus() {
-  const tikit = State._tlTicks;
-  if (!tikit || !tikit.length) return;
-  const lista = State.sheetSpot ? _tlSopivatTunnit(State.sheetSpot) : null;
-  for (let i = 0; i < tikit.length; i++) {
-    const on = !!(lista && lista[i]);
-    if (tikit[i].classList.contains('sopii') !== on) tikit[i].classList.toggle('sopii', on);
   }
 }
 
@@ -16718,7 +16149,7 @@ function scrollTimelineTo(idx) {
      pelkkää työtä, joka tehdään uudelleen heti kun vieritys pysähtyy. */
   State._tlOhjelmallinen = true;
   const target = State._tlTicks[idx];
-  tl.scrollTo({ left: target.offsetLeft - tl.offsetWidth / 2 + 10, behavior: Liike.vieritys() });
+  tl.scrollTo({ left: target.offsetLeft - tl.offsetWidth / 2 + 10, behavior: 'smooth' });
 }
 
 /* Vie jana ja kenttä murtolukusijaintiin. Sama funktio ajetaan joka
@@ -16753,112 +16184,6 @@ function _playSijainti(tl, frac) {
   }
   if (State._esikatsele) State._esikatsele(frac);
 }
-
-/* -- KELIVAHTI ---------------------------------------------------
- *
- * Foilaajan oikea kysymys on "milloin seuraavan kerran", ja siihen
- * vastattiin vain avaamalla ennustepaneeli. Vahti kertoo sen itse:
- * jos suosikissa on sessioikkuna seuraavan 48 tunnin sisällä, siitä
- * tulee siru aikajanan yläpuolelle.
- *
- * EI PUSH-ILMOITUKSIA. Tämä on se puolikas joka toimii ilman
- * palvelinta, ilman lupakyselyä ja ilman taustaheräämistä — ja se on
- * juuri se puolikas jota katsotaan, koska appi avataan tätä varten.
- *
- * Ikkunan määritelmä on sama `_sessioIkkunat` kuin janan merkinnässä,
- * mutta valoehdon kanssa: yön ikkunaa ei ehdoteta kenellekään.
- *
- * KUITTAUS ON IKKUNAKOHTAINEN. Jos siru kuitataan, sama ikkuna ei palaa
- * — mutta seuraava tulee. Yleinen "älä näytä enää" tekisi ominaisuudesta
- * kertakäyttöisen. */
-const Kelivahti = {
-  AVAIN: 'fs_vahti_kuitattu',
-  RAJA_MS: 48 * 3600 * 1000,
-
-  etsi() {
-    const nyt = Date.now(), raja = nyt + this.RAJA_MS;
-    let paras = null;
-    for (const spot of Suosikit.spotit()) {
-      const h = spot.wx && spot.wx.hourly;
-      if (!h || !h.time || !h.time.length || !h.windspeed_10m) continue;
-      const valo = _tlValovaiheet(h.time, spot.lat, spot.lng);
-      const ok = _sessioIkkunat(h.windspeed_10m, h.winddirection_10m,
-        spot.bestDirs, valo, h.time.length);
-      if (!ok) continue;
-      const ts = _ts({ time: h.time });
-      for (let i = 0; i < ok.length; i++) {
-        if (!ok[i] || (i > 0 && ok[i - 1])) continue;   /* vain jakson alku */
-        if (ts[i] < nyt || ts[i] > raja) continue;
-        let j = i; while (j + 1 < ok.length && ok[j + 1]) j++;
-        /* Jakson kovin tunti kertoo mitä odottaa. */
-        let huippu = 0, hDir = null;
-        for (let k = i; k <= j; k++) {
-          const v = h.windspeed_10m[k] || 0;
-          if (v > huippu) { huippu = v; hDir = h.winddirection_10m[k]; }
-        }
-        const ehdokas = { spot: spot, iso: h.time[i], ms: ts[i],
-          loppuIso: h.time[j], huippu: huippu, dir: hDir };
-        if (!paras || ehdokas.ms < paras.ms) paras = ehdokas;
-        break;
-      }
-    }
-    return paras;
-  },
-
-  _kuitattu(avain) {
-    try { return localStorage.getItem(this.AVAIN) === avain; } catch (e) { return false; }
-  },
-
-  nayta() {
-    const el = document.getElementById('kelivahti');
-    if (!el) return;
-    /* Kiintiövaroitus voittaa: kaksi sirua samassa kohdassa menisivät
-       päällekkäin, ja se toinen kertoo että data ei päivity lainkaan. */
-    const rl = document.getElementById('rl-banner');
-    if (rl && rl.classList.contains('show')) { el.classList.remove('show'); return; }
-    const o = this.etsi();
-    if (!o) { el.classList.remove('show'); return; }
-    const avain = o.spot.name + '@' + o.iso;
-    if (this._kuitattu(avain)) { el.classList.remove('show'); return; }
-    const a = new Date(o.iso), b = new Date(o.loppuIso);
-    const PV = ['su', 'ma', 'ti', 'ke', 'to', 'pe', 'la'];
-    const tanaan = new Date();
-    const pv = (a.getDate() === tanaan.getDate() && a.getMonth() === tanaan.getMonth())
-      ? 'tänään' : PV[a.getDay()];
-    const kello = ('0' + a.getHours()).slice(-2) + '–' + ('0' + (b.getHours() + 1)).slice(-2);
-    /* Käyttäjän oma yksikkö ja suuntamuoto — siru ei saa puhua eri
-       kieltä kuin kapseli sen yläpuolella. */
-    const nopeus = Units.fmtUnit(o.huippu);
-    const suunta = (o.dir != null) ? ' ' + Suunta.fmt(o.dir) : '';
-    document.getElementById('kelivahti-teksti').innerHTML =
-      '<b>' + o.spot.name + '</b> ' + pv + ' <span>' + kello + '</span> · '
-      + nopeus + suunta;
-    el.classList.add('show');
-    el._avain = avain;
-    el._kohde = o;
-  },
-
-  /* Siru vie ikkunan alkuun ja avaa spotin. Aikajanan akseli voi olla eri
-     kuin spotin oma sarja, joten indeksi haetaan AJASTA. */
-  avaa() {
-    const el = document.getElementById('kelivahti');
-    const o = el && el._kohde;
-    if (!o) return;
-    el.classList.remove('show');
-    const i = Linkkitila.indeksiAjalle(State._tlTimes, o.iso);
-    if (i >= 0) _tlValitseIdx(i);
-    if (State.map) State.map.setView([o.spot.lat, o.spot.lng],
-      Math.max(State.map.getZoom(), 10), { animate: !Liike.vahenna() });
-    openSheet(o.spot, i >= 0 ? i : (State.currentHourIdx || 0));
-  },
-
-  kuittaa() {
-    const el = document.getElementById('kelivahti');
-    if (!el) return;
-    try { if (el._avain) localStorage.setItem(this.AVAIN, el._avain); } catch (e) {}
-    el.classList.remove('show');
-  }
-};
 
 /* -- PLAY ------------------------------------------------------- */
 /* Play eteni ennen tunti kerrallaan: ajastin vieritti janan pehmeästi
@@ -17593,63 +16918,26 @@ function _applyMapLayers() {
   });
 }
 
-/* KYTKINRIVI ON ROLE="SWITCH".
- *
- * Rivi on ollut koko ajan se kosketuskohde (kytkin itse on 40x24 eli
- * alle minimin, mutta rivi on 46 px korkea), joten kokoa ei tarvinnut
- * muuttaa. Semantiikka puuttui: ruudunlukija ei kertonut roolia eikä
- * tilaa, eikä riviin päässyt sarkaimella lainkaan.
- *
- * `aria-checked` asetetaan myös alussa, koska tila tulee
- * localStoragesta — ilman sitä ensimmäinen lukema olisi väärä. */
 document.querySelectorAll('.sp-toggle-row').forEach(function(row) {
-  var id = row.dataset.layerToggle;
-  var tog = document.getElementById('toggle-' + id);
-  var nimi = row.querySelector('.sp-toggle-name');
-  if (nimi) row.setAttribute('aria-label', nimi.textContent.trim());
-  if (tog) row.setAttribute('aria-checked', tog.classList.contains('on') ? 'true' : 'false');
-
-  function vaihda() {
+  row.addEventListener('click', function() {
     Haptics.light();
+    var id = row.dataset.layerToggle;
+    var tog = document.getElementById('toggle-' + id);
     if (!tog) return;
     var isOn = !tog.classList.contains('on');
     tog.classList.toggle('on', isOn);
-    row.setAttribute('aria-checked', isOn ? 'true' : 'false');
     window._mapLayerState[id] = isOn;
     _tallennaKarttatasot();
     _applyMapLayers();
-  }
-  row.addEventListener('click', vaihda);
-  /* Enter ja väli kuuluvat switchille. `<div role="switch">` ei saa niitä
-     ilmaiseksi niin kuin `<button>` — siksi ne kytketään käsin. */
-  row.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
-      e.preventDefault();
-      vaihda();
-    }
   });
 });
-
-/* fc-handle on vetokahva, mutta myös sulkupainike — sama kuin
-   #sheet-handle. Näppäimistölle se tarvitsee oman kuuntelijansa. */
-(function () {
-  var kahva = document.getElementById('fc-handle');
-  if (!kahva) return;
-  kahva.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
-      e.preventDefault();
-      ForecastPanel.close();
-    }
-  });
-})();
 
 document.getElementById('btn-loc').addEventListener('click', () => {
   Haptics.light();
   if (!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(p => {
     const lat = p.coords.latitude, lng = p.coords.longitude;
-    if (Liike.vahenna()) State.map.setView([lat, lng], 9);
-    else State.map.flyTo([lat, lng], 9, { duration: 1.2 });
+    State.map.flyTo([lat, lng], 9, { duration: 1.2 });
     if (State._locMarker) State._locMarker.remove();
     const icon = L.divIcon({
       className: '',
@@ -17661,14 +16949,6 @@ document.getElementById('btn-loc').addEventListener('click', () => {
 }, { passive: true });
 
 document.getElementById('btn-play').addEventListener('click', togglePlay, { passive: true });
-
-document.getElementById('kelivahti-nappi').addEventListener('click', function () {
-  Haptics.light();
-  Kelivahti.avaa();
-}, { passive: true });
-document.getElementById('kelivahti-sulje').addEventListener('click', function () {
-  Kelivahti.kuittaa();
-}, { passive: true });
 
 /* Kelihyppy — ks. `_tlSeuraavaKeli`: kohde on seuraavan JAKSON alku. */
 document.getElementById('btn-keli').addEventListener('click', function () {
@@ -17690,15 +16970,15 @@ function _tlKeliNappiTila() {
   b.setAttribute('aria-disabled', on ? 'false' : 'true');
 }
 
-/* Spottilista poistettiin aikanaan, ja `fc-btn` (Parhaat ajankohdat)
-   hoitaa saman tehtävän. Tähän jäi tynkämoduuli `SpotList` jonka kaikki
-   metodit olivat tyhjiä, 69 riviä sen CSS:ää ja — pahimpana — orpo
-   markup-lohko jonka avaava `<div id="spot-list">` oli jo poistettu.
-   Jäljelle jäänyt pariton `</div>` nosti `.sl-headerin` BODYN lapseksi:
-   mitattuna elävä, näkyvä 393×38 px elementti sivun vasemmassa
-   yläkulmassa tekstinä "Spotit", jonka vain kartta peitti — ja
-   ruudunlukijalle sivun ensimmäinen sisältö. Kaikki kolme on nyt
-   poistettu. */
+/* -- SPOT LIST -------------------------------------------------- */
+const SpotList = {
+  _open: false,
+  toggle() {},
+  close() {},
+  render() {}
+};
+
+/* btn-spots removed — fc-btn handles ForecastPanel */
 
 /* -- FORECAST PANEL — Best 3h windows over 5 days -----------------
    Uses already-loaded spot hourly data — zero extra API calls.
@@ -17714,10 +16994,10 @@ const ForecastPanel = {
 
   open() {
     this._open = true;
+    SpotList.close();
     closeSheet();
     document.getElementById('sheet-overlay').classList.add('open');
     document.getElementById('fc-btn').classList.add('active');
-    document.getElementById('fc-btn').setAttribute('aria-expanded', 'true');
     this.render();
     document.getElementById('forecast-panel').classList.add('open');
     Haptics.medium();
@@ -17728,7 +17008,6 @@ const ForecastPanel = {
     document.getElementById('forecast-panel').classList.remove('open');
     document.getElementById('sheet-overlay').classList.remove('open');
     document.getElementById('fc-btn').classList.remove('active');
-    document.getElementById('fc-btn').setAttribute('aria-expanded', 'false');
   },
 
   /* Time filter: returns true if this ISO time should be included */
@@ -17879,8 +17158,7 @@ const ForecastPanel = {
         if (!spot) return;
         Haptics.medium();
         this.close();
-        if (Liike.vahenna()) State.map.setView([spot.lat, spot.lng], 10);
-        else State.map.flyTo([spot.lat, spot.lng], 10, { duration: 1 });
+        State.map.flyTo([spot.lat, spot.lng], 10, { duration: 1 });
         /* Jump timeline to the window's hour */
         if (State._tlTimes && time) {
           const target = new Date(time).getTime();
@@ -18167,7 +17445,7 @@ const WxPanel = {
     /* Scroll to now */
     setTimeout(() => {
       const nowEl = scroll.querySelector('.now');
-      if (nowEl) nowEl.scrollIntoView({ behavior: Liike.vieritys(), inline: 'center', block: 'nearest' });
+      if (nowEl) nowEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
     }, 50);
   }
 };
@@ -18265,9 +17543,7 @@ const KarttaAsetukset = {
     'asetus-pohja':       'pohja',
     'asetus-partikkelit': 'partikkelit',
     'asetus-ramppi':      'ramppi',
-    'asetus-lampo':       'lampo',
-    'asetus-kaynnistys':  'kaynnistys',
-    'asetus-aallot':      'aallot'
+    'asetus-lampo':       'lampo'
   },
 
   alusta() {
@@ -18279,18 +17555,6 @@ const KarttaAsetukset = {
         const chip = e.target.closest('.sp-chip');
         if (!chip || !el.contains(chip)) return;
         const avain = this.RYHMAT[id];
-        /* Merkintä ennen `aseta`n paluuarvon tarkistusta: jos käyttäjä
-           napauttaa "Normaali" Vähennä liikettä -tilassa, arvo ei
-           muutu (se on jo 'normaali') mutta VALINTA on tehty — ja juuri
-           se on se tieto jolla partikkelit palaavat. */
-        if (avain === 'partikkelit') {
-          Liike.merkitsePartikkelivalinta();
-          this._partikkeliVihje();
-          if (Asetukset.arvot.partikkelit === chip.dataset.arvo) {
-            this._partikkeliNakyvyys();
-            resetParticles(true);
-          }
-        }
         if (!Asetukset.aseta(avain, chip.dataset.arvo)) return;
         Haptics.light();
         this._merkitse(id);
@@ -18303,7 +17567,6 @@ const KarttaAsetukset = {
        karttaa uusiksi — vain kirjoitetaan se mikä on vielä oletuksessa. */
     this._lahteet();
     this._ramppiVihje();
-    this._partikkeliVihje();
     this._partikkeliNakyvyys();
     document.documentElement.setAttribute('data-pohja', Asetukset.arvot.pohja);
   },
@@ -18319,17 +17582,6 @@ const KarttaAsetukset = {
   _lahteet() {
     const el = document.getElementById('pohja-lahteet');
     if (el) el.innerHTML = Asetukset.pohja().attr;
-  },
-
-  /* Vihje kertoo miksi partikkelit ovat poissa. Ilman tätä käyttäjä
-     näkisi "Normaali" valittuna ja tyhjän kartan eikä tietäisi syytä. */
-  _partikkeliVihje() {
-    const el = document.getElementById('partikkeli-vihje');
-    if (!el) return;
-    el.textContent = (Liike.vahenna() && !Liike.partikkelitValittu())
-      ? 'Vähennä liikettä on päällä, joten partikkelit ovat pois. '
-        + 'Napauta valintaa yllä jos haluat ne silti.'
-      : 'Vähentää akun kulutusta vanhemmilla puhelimilla.';
   },
 
   _ramppiVihje() {
@@ -18391,12 +17643,6 @@ const KarttaAsetukset = {
       updateHeatmapBlur();
       this._piirraLampokartta();
 
-    } else if (avain === 'aallot') {
-      /* Avoin kortti uusiksi, jotta rivi ilmestyy tai katoaa heti eikä
-         vasta seuraavalla avauksella. */
-      if (State.sheetSpot) openSheet(State.sheetSpot, State.currentHourIdx || 0);
-    } else if (avain === 'kaynnistys') {
-      /* Vaikuttaa vasta seuraavaan käynnistykseen — ei tehdä mitään nyt. */
     } else if (avain === 'ramppi') {
       /* Vain kartan taulut. Paneelien musteramppi (ColorRamp.ink) ei
          muutu, joten spottimerkkejä, tähtäintä tai aikajanaa ei tarvitse
@@ -18587,30 +17833,6 @@ function _naytaValimuististaHeti() {
   return ts;
 }
 
-/* KÄYNNISTYS OMASTA SIJAINNISTA — vain jos käyttäjä on valinnut sen.
- *
- * Paikannuslupaa ei kysytä omin päin: kysely on keskeytys, ja jos
- * käyttäjä kieltää sen kerran, sitä ei enää kysytä. Siksi tämä on
- * asetus, oletuksena pois.
- *
- * Kartta EI jää odottamaan lupavastausta: näkymä asetetaan heti
- * parhaaseen arvaukseen (muistettu näkymä tai suosikit), ja sijainti
- * korvaa sen kun se saapuu. Jos vastausta ei tule, käyttäjä katsoo
- * silti jotain järkevää. */
-function _kaynnistaSijainnista(muistettu) {
-  try {
-    if (muistettu) State.map.setView([muistettu.lat, muistettu.lng], muistettu.z, { animate: false });
-    else if (Suosikit.spotit().length) _keskitaSuosikkeihin();
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(function (p) {
-      /* Käyttäjä on voinut ehtiä siirtää karttaa itse — silloin hänen
-         siirtonsa voittaa hitaan paikannuksen. */
-      if (State._kayttajaSiirsiKarttaa) return;
-      State.map.setView([p.coords.latitude, p.coords.longitude], 10, { animate: false });
-    }, function () {}, { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 });
-  } catch (e) {}
-}
-
 /* Keskitä kartta suosikkeihin. Yksi suosikki -> setView, useampi ->
    fitBounds, jotta kaikki näkyvät. Zoom rajataan 11:een: sitä lähempää
    yksi spotti täyttää ruudun eikä kentästä näy mitään. */
@@ -18647,11 +17869,6 @@ function _avaaLinkista(linkki) {
    Kaikki muu main():n sisällä on synkronista tai käynnistää oman
    promisensa, joten odotus ei viivytä kartan piirtoa. */
 async function main() {
-  /* Tyyppikoko ENNEN mitään mittausta tai piirtoa: kerroin vaikuttaa
-     kaikkiin `--fs-*`-arvoihin, ja jos se asetettaisiin vasta janan
-     rakentamisen jälkeen, tikkien keskitys laskettaisiin vanhalla
-     koolla. */
-  Tyyppikoko.paivita();
   buildLegend(); initMap(); initCanvases();
   Crosshair.init(); WeatherWidget.init(); Units.init(); Suunta.init();
   /* Kartan asetukset vasta initCanvasesin jälkeen: partikkelikanvas on
@@ -18680,28 +17897,15 @@ async function main() {
     Verkkotila.naytettiinVanha(vanhaTs);
   }
 
-  /* Ks. Nakymamuisti: linkki > tuore näkymä > suosikit > oletus.
-     Jos joku lähetti linkin, hän tarkoitti juuri sitä spottia — omat
-     suosikit tai eilinen näkymä eivät saa ohittaa sitä. */
+  /* Jaettu linkki voittaa suosikit, ja suosikit voittavat oletusnäkymän.
+     Järjestys on tarkoituksellinen: jos joku lähetti linkin, hän tarkoitti
+     juuri sitä spottia — omat suosikit eivät saa ohittaa sitä. */
   const _linkki = Linkkitila.lue();
-  const _muistettu = _linkki && _linkki.spot ? null : Nakymamuisti.lue();
   if (_linkki && _linkki.spot) {
     _avaaLinkista(_linkki);
-  } else if (Asetukset.arvot.kaynnistys === 'sijainti') {
-    _kaynnistaSijainnista(_muistettu);
-  } else if (_muistettu) {
-    State.map.setView([_muistettu.lat, _muistettu.lng], _muistettu.z, { animate: false });
   } else if (Suosikit.spotit().length) {
     _keskitaSuosikkeihin();
   }
-  /* Muisti päivittyy vasta ensimmäisen käyttäjän siirron jälkeen: ilman
-     tätä yllä oleva `setView` kirjoittaisi saman arvon takaisin ja
-     nollaisi aikaleiman joka avauksella — jolloin 24 h ei kuluisi
-     koskaan umpeen. */
-  State.map.once('dragstart zoomstart', function () { State._kayttajaSiirsiKarttaa = true; });
-  State.map.once('movestart', function () {
-    State.map.on('moveend', function () { Nakymamuisti.tallenna(State.map); });
-  });
 
   /* Luettelo ensin: se on yksi pieni tiedosto, ja sen perusteella
      ratkeaa haetaanko näkymä laatoista vai rajapinnasta. Odottaminen on
@@ -18733,9 +17937,6 @@ async function main() {
         renderTimeline(ref.wx.hourly.time, sp, ref.wx.hourly.winddirection_10m, ni,
           { puuskat: ref.wx.hourly.windgusts_10m, lat: ref.lat, lng: ref.lng });
         renderSpots(ni);
-        /* Vahti tarvitsee suosikkien sarjat, jotka tulevat samasta
-           latauksesta — siksi tässä eikä mainissa. */
-        Kelivahti.nayta();
         buildWindField(ni).then(() => { drawColorField(); resetParticles(); hideLoading(); });
       } else {
         hideLoading();
