@@ -89,7 +89,8 @@ kokeiltu ja kaadettu mittauksella.
   Havaintoasemien kortit · Tummat jäänteet paperipaneeleissa · Aurinkokaari ·
   Aikajanan ura vaihtui hiekkaan · Kontrollit pois datan päältä, kisko
   kertomaan säästä · Napit takaisin uran päälle — kohotus kontrastin
-  tilalle · Päiväkisko sai saman uran kuin tuntinauha
+  tilalle · Päiväkisko sai saman uran kuin tuntinauha · Urat pois — yksi
+  paperi, kaksi riviä
 
 </details>
 
@@ -176,32 +177,34 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   on joko tummaa pilleriä (mitattu data) tai paperia (kaikki muu).
 - **Aikajanan palkit ovat `ColorRamp.paperi()`, eivät `rgb()` eivätkä
   `ink()`.** Se on karttaramppi kerrottuna 0,48:lla: sävy on kartan,
-  kirkkaus hiekkauran. Kerroin ei ole makuasia — 0,52 jätti limetin
-  (10 m/s) 2,97:ään uraa vasten, 0,48 nostaa koko asteikon välille
-  3,41–11,97 ja peräkkäisten nopeuksien pienin dE2000 on 10,7.
-  `rgb()` on väärä koska paljas karttaramppi on hiekalla 1,02:1;
-  `ink()` on väärä koska se on oma sävypolkunsa eikä matchaa karttaan.
-  Taulu ei seuraa pohjakarttaa (mitattu: sama palkki tummalla,
-  vaalealla ja satelliitilla) mutta seuraa värisokeusasetusta.
-- **Aikajanassa on KAKSI RAITAA, samaa materiaalia.** Päiväkisko ja
-  tuntinauha ovat saman akselin kaksi tarkkuutta, joten ne ovat samassa
-  urassa: samat tokenit, sama sisennys (14 px), sama pyöristys, sama
-  upotusvarjo. Mitattu 1,01:1 raidasta raitaan. Kummankin ura on OMA
-  KERROKSENSA sisällön takana — sisällöllä on reunahäivytysmaski, ja
-  taustana ura häipyisi päistään sen mukana.
-- **Uran paljas väri mitataan raidan HÄIVYTETYSTÄ päästä**, pyöristyksen
-  sisäpuolelta. Keskeltä otettu näyte osuu palkkiin, yökaistaan tai
-  napin varjoon ja väittää samat tokenit eri värisiksi.
-- **Aikajanan ura on HIEKKAA (`--tl-ura`), ei mustetta.** Tumma ura
-  ehdittiin hioa kahdesti (13,1:1 → 8,3:1) ja se oli yhä kortin kovin
-  kontrasti — tyhjä alusta, ei yksikään datapiste. Hiekalla paperin ja
-  uran ero on 1,05:1. Älä palauta tummaa uraa "jotta palkit näkyisivät":
-  se kysymys ratkaistiin palkin kirkkaudessa, ei alustassa.
-- **Uran päällä olevien merkintöjen alfat on valittu VAIKUTUKSEN mukaan.**
-  Puuskahuntu ja yökaista käännettiin valkoisesta mustaan, ja suora
-  luvun kopiointi olisi haalistanut molemmat: huntu .26 antoi 1,4:1 kun
-  valkoinen .22 tummalla uralla antoi 2,0:1. Nyt huntu on .34 ja
-  yökaista .24/.155/.072. Jos vaihdat uran sävyä, laske alfat uudelleen.
+  kirkkaus kortin paperin. Kerroin ei ole makuasia — 0,52 jätti limetin
+  (10 m/s) 2,97:ään, 0,48 nostaa koko asteikon välille 3,84–13,46
+  (mitatusta kortin sävystä 228,219,197) ja peräkkäisten nopeuksien
+  pienin dE2000 on 10,7. `rgb()` on väärä koska paljas karttaramppi on
+  paperilla 1,02:1; `ink()` on väärä koska se on oma sävypolkunsa eikä
+  matchaa karttaan. Taulu ei seuraa pohjakarttaa (mitattu: sama palkki
+  tummalla, vaalealla ja satelliitilla) mutta seuraa värisokeusasetusta.
+- **AIKAJANALLA EI OLE URAA.** Kortti on yhtä paperia; päivärivi ja
+  tuntirivi erottaa vain tyhjä tila (9 px). Ura oli kolmessa muodossa —
+  tumma, hiekka, ja lopulta kaksi identtistä uraa (1,01:1 raidasta
+  raitaan) — ja jokainen niistä oli reuna jota kortin oma reuna jo
+  kertoi. Älä palauta uraa "jotta palkit näkyisivät": palkit saavat
+  kortilla ENEMMÄN kontrastia kuin urassa (heikoin 3,41 → 3,84).
+- **Uran päällä olleiden merkintöjen alfat on valittu VAIKUTUKSEN
+  mukaan, ei luvun.** Yökaista on ollut kolmella eri alustalla ja sen
+  voimakkuus on pidetty samana joka kerta: musta .34 tummalla uralla
+  1,35:1, `76,89,96` .24 hiekkauralla 1,35:1, ja kortin paperilla sama
+  .24 olisi 1,40:1 — eli uran poisto olisi vahingossa äänekkäämpi yö.
+  Nyt .20/.129/.060 antaa 1,32:1. Puuskahuntu on samasta syystä muste
+  .34 eikä valkoinen .22. Jos vaihdat alustaa, laske alfat uudelleen.
+- **Päivälapuissa EI ole tuulikaistaa.** Kokeiltiin ja mitattiin
+  toimivaksi (väri ja leveys sen päivän kovimmasta tuulesta valoisaan
+  aikaan), mutta poistettiin: kahdeksantoista väripilkkua yhdellä
+  rivillä on kahdeksantoista asiaa joita silmä lukee, ja sama tieto on
+  tuntirivillä tarkempana. Kisko on navigointia, ei yhteenvetoa.
+- **Kortin paljas paperi mitataan RIVIEN VÄLISTÄ.** Rivin sisältä otettu
+  näyte osuu palkkiin, yökaistaan, NYT-osoittimeen tai napin varjoon —
+  ja väittää sitten että sama paperi on eri väristä eri kohdissa.
 - **Palkin korkeusasteikko on EPÄLINEAARINEN** (4–14 m/s levennetty) ja
   täysi mitta on 35 px. Korkeus on muoto, väri on arvo. Älä palauta
   lineaarista: se antaa 1,38 px/(m/s) ja peräkkäisten tuntien tyypillinen

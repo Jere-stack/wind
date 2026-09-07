@@ -87,19 +87,12 @@ if ('serviceWorker' in navigator) {
 
   /* Kartan päällä kelluvat sirut: sama paperi, oma varjo. */
   --chip:      rgba(240,231,206,0.95);
-  /* Aikajanan palkkiura on HIEKKAA, ei mustetta.
-
-     Tumma ura oli kaksi kertaa hiottu (13,1:1 -> 8,3:1 lämpimällä
-     sävyllä ja liu'ulla) ja se oli yhä kortin sisällä oleva raja jonka
-     silmä lukee ensin. Mitattuna paperin ja uran ero oli 8,97:1 — kortin
-     kovin kontrasti oli tyhjä alusta, ei yksikään datapiste.
-
-     Hiekkauralla sama ero on 1,13:1 eli reunaa ei käytännössä ole, ja
-     rata on silti rata: se on paperia joka on hitusen kortin pintaa
-     tummempi, upotusvarjo ylhäällä ja valoviiva alhaalla. Hinta
-     maksetaan palkin värissä, ks. ColorRamp.paperi(). */
-  --tl-ura:     #DCCFA9;   /* uran pohja  */
-  --tl-ura-yla: #E6DCC0;   /* uran suu    */
+  /* Aikajanalla EI ole uraa. Tumma ura hiottiin kahdesti (13,1:1 ->
+     8,3:1) ennen kuin kävi ilmi että vika oli materiaalissa eikä
+     sävyssä; hiekkaura poisti rajan (8,97:1 -> 1,05:1) ja päiväkisko
+     sai samanlaisen; ja lopulta kaksi identtistä uraa kortin sisällä
+     olivat kolme reunaa liikaa. Kortin oma reuna riittää.
+     Ks. `#tl-wrap::before` ja docs/ui.md. */
   --chip-line: rgba(16,26,32,0.10);
 
   --shadow-1: 0 1px 2px rgba(16,26,32,.10);
@@ -1002,36 +995,22 @@ html.tyopoyta #kapseli.vaistyy {
   pointer-events: none;
 }
 
-/* Ura omana kerroksenaan scrollin TAKANA, ei scrollin taustana.
+/* URIA EI OLE. YKSI PAPERI, KAKSI RIVIÄ.
  *
- * Taustana se olisi täysleveä musta palkki paperin poikki; upotettuna se
- * on ura kortin sisällä, ja kortin oma paperi jää kehykseksi joka
- * suuntaan. Scroll itse ulottuu yhä reunasta reunaan (sen maski
- * häivyttää päät), joten vieritys ei muutu. */
-#tl-wrap::after {
-  content: '';
-  position: absolute;
-  left: calc(var(--sal) + 14px); right: calc(var(--sar) + 14px);
-  top: calc(20px + var(--tl-paivat-h));
-  bottom: calc(var(--sab-tl) + 16px);
-  /* LIUKU SAMAAN SUUNTAAN KUIN ENNEN: suu vaaleampi, pohja tummempi.
-   *
-   * Materiaali vaihtui musteesta hiekkaan, mutta syvyyden kielioppi ei:
-   * ura on kortin pintaa hitusen tummempi ja tummenee alaspäin, jolloin
-   * se lukee kouruna eikä päälle liimattuna suorakaiteena.
-   *
-   * Varjo on nyt SISÄLLÄ eikä ulkona. Ulkovarjo oli tumman uran
-   * tarve — se sitoi mustan laatan paperiin. Kahden lähes samanvärisen
-   * paperin välissä ulkovarjo olisi ainoa jäljelle jäävä kova reuna,
-   * eli juuri se mikä poistettiin. Upotusvarjo ylhäällä ja valoviiva
-   * alhaalla tekevät saman työn kortin omalla materiaalilla. */
-  background: linear-gradient(to bottom, var(--tl-ura-yla), var(--tl-ura));
-  border-radius: 14px;
-  box-shadow: inset 0 2px 3px rgba(120, 100, 60, .20),
-              inset 0 -1px 0 rgba(255, 252, 240, .55);
-  pointer-events: none;
-  z-index: 0;
-}
+ * Aikajanalla oli kaksi upotettua uraa: yksi päiväkiskolle ja yksi
+ * tuntinauhalle. Ne olivat mitattuna identtiset (1,01:1 raidasta
+ * raitaan) eli teemaltaan yhtenäiset — ja juuri siksi turhat. Kaksi
+ * pyöristettyä laatikkoa kortin sisällä on kolme reunaa liikaa: kortin
+ * oma reuna kertoo jo missä aikajana on, ja urat toistivat sen kahdesti.
+ *
+ * Kortti on nyt yhtä paperia reunasta reunaan, ja rakenteen tekee tyhjä
+ * tila: päivärivi, väli, tuntirivi. Sisällölle tämä ei maksa mitään —
+ * kortti on uraa VAALEAMPI, joten palkit, lukemat ja yökaista saavat
+ * enemmän kontrastia kuin urassa, eivät vähemmän (mitattu alla
+ * jokaiselle erikseen).
+ *
+ * `#tl-wrap::before` on kortti; toista pseudoelementtiä ei enää tarvita.
+ * Tokenit `--tl-ura` ja `--tl-ura-yla` poistuivat samalla. */
 
 /* Play-nappi on 44 px eli Applen kosketusminimi, ja ympyrä täyttää siitä
    40 px. Tähän tarvittiin kaksi korjausta, molemmat mitattuja:
@@ -1088,8 +1067,14 @@ html.tyopoyta #kapseli.vaistyy {
   content: ''; position: absolute; inset: 2px;
   border-radius: 50%;
   background: var(--surface-hi);
-  box-shadow: 0 1px 3px rgba(60, 48, 20, .30),
-              0 0 0 1px rgba(120, 105, 70, .22);
+  /* Varjo ja kehä kantavat napin, koska kiekko ei kanna: kortin
+     paperilla `--surface-hi` on 1,27:1 eli lähes sama pinta. Uran
+     päällä alusta oli tummempi ja kiekko sai 1,56:1 ilmaiseksi; nyt
+     kohotus on tehtävä varjolla. Kaksi varjoa: tiukka 1 px irrottaa
+     reunan, pehmeä 5 px antaa korkeuden. */
+  box-shadow: 0 2px 5px rgba(60, 48, 20, .26),
+              0 1px 1px rgba(60, 48, 20, .18),
+              0 0 0 1px rgba(120, 105, 70, .28);
   transition: background .2s ease, transform .12s ease;
 }
 /* Painallus tuntuu myös silmässä. Kiekko painuu, ei koko laatikko:
@@ -1136,8 +1121,14 @@ html.tyopoyta #kapseli.vaistyy {
   content: ''; position: absolute; inset: 2px;
   border-radius: 50%;
   background: var(--surface-hi);
-  box-shadow: 0 1px 3px rgba(60, 48, 20, .30),
-              0 0 0 1px rgba(120, 105, 70, .22);
+  /* Varjo ja kehä kantavat napin, koska kiekko ei kanna: kortin
+     paperilla `--surface-hi` on 1,27:1 eli lähes sama pinta. Uran
+     päällä alusta oli tummempi ja kiekko sai 1,56:1 ilmaiseksi; nyt
+     kohotus on tehtävä varjolla. Kaksi varjoa: tiukka 1 px irrottaa
+     reunan, pehmeä 5 px antaa korkeuden. */
+  box-shadow: 0 2px 5px rgba(60, 48, 20, .26),
+              0 1px 1px rgba(60, 48, 20, .18),
+              0 0 0 1px rgba(120, 105, 70, .28);
   transition: background .2s ease, transform .12s ease;
 }
 .tl-keli-btn svg { position: relative; }
@@ -1173,36 +1164,11 @@ html.tyopoyta #kapseli.vaistyy {
  * muuten kuin kun valittu päivä on jäänyt näkymän ulkopuolelle. Ilman
  * tuota rajausta kaksi vierityskonetta ajaisivat toisiaan takaa — sama
  * ansa jonka takia tuntinauhassa on `_tlBeginSelfScroll`. */
-/* PÄIVÄKISKOLLA ON SAMA URA KUIN TUNTINAUHALLA.
- *
- * Kortin sisällä oli kaksi eri materiaalia: tuntinauha upotetussa
- * hiekkaurassa ja päiväkisko paljaalla paperilla. Ne ovat saman asian
- * kaksi tarkkuutta — sama akseli, eri askel — eivätkä siis kaksi eri
- * lajia. Nyt molemmat ovat samassa urassa samoilla tokeneilla, samalla
- * pyöristyksellä ja samalla upotusvarjolla: kortti on paperia, ja
- * paperiin on uurrettu kaksi rinnakkaista raitaa.
- *
- * Ura on omana kerroksenaan kiskon TAKANA, ei kiskon taustana. Syy on
- * sama kuin tuntinauhalla mutta terävämpi: `#tl-paivat`illa on
- * reunahäivytysmaski, ja taustana ura häipyisi päistään sen mukana —
- * tuntiuran päät eivät häivy, joten raidat eivät enää vastaisi
- * toisiaan. Maski kuuluu sisällölle, ei alustalle. */
-#tl-paivat-ura {
-  position: absolute;
-  top: 11px; height: var(--tl-paivat-h);
-  left: calc(var(--sal) + 14px); right: calc(var(--sar) + 14px);
-  background: linear-gradient(to bottom, var(--tl-ura-yla), var(--tl-ura));
-  border-radius: 14px;
-  box-shadow: inset 0 2px 3px rgba(120, 100, 60, .20),
-              inset 0 -1px 0 rgba(255, 252, 240, .55);
-  pointer-events: none;
-  z-index: 0;
-}
-
 #tl-paivat {
   position: absolute;
   top: 11px;
-  /* Sama sisennys kuin tuntiuralla, jotta raidat ovat samassa linjassa. */
+  /* Sama sisennys kuin tuntinauhan sisällöllä, jotta rivit ovat samassa
+     linjassa nyt kun kummallakaan ei ole omaa laatikkoa. */
   left: calc(var(--sal) + 14px); right: calc(var(--sar) + 14px);
   height: var(--tl-paivat-h);
   /* EI RAKOA LAPPUJEN VÄLIIN. Mitattuna 3 px:n raolla napautus lapun
@@ -1239,33 +1205,26 @@ html.tyopoyta #kapseli.vaistyy {
   flex: 0 0 auto;
   height: 100%;
   display: flex; align-items: center; justify-content: center;
-  /* Alalaita on varattu tuulikaistalle, joten teksti keskittyy pillerin
-     eikä koko lapun mukaan. Lappu itse on yhä täyskorkea — napautus-
-     pinta ei muutu, vain maali. */
-  padding: 0 10px 6px;
+  padding: 0 10px;
   font-size: var(--fs-10);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  /* Muste kuten tuntinauhan lukemissa. Lappu ei ole enää paperilla vaan
-     uralla, ja `--ink-3` on hiekalla 4,05:1 eli alle pienen tekstin
-     rajan; `--ink-2` on 5,24:1 ja se on sama sävy jolla tunnit lukevat
-     omassa urassaan. */
+  /* Sama muste kuin tuntinauhan lukemissa: molemmat ovat nyt samalla
+     paperilla, joten niillä ei ole syytä olla eri sävyä. */
   color: var(--ink-2);
   white-space: nowrap;
   cursor: pointer;
   -webkit-user-select: none; user-select: none;
   transition: color .15s ease;
 }
-/* Pilleri on omana kerroksenaan eikä lapun taustana: taustana se peittäisi
-   tuulikaistan, ja juuri sen kaistan takia lappu on olemassa. */
-/* Pilleri ja kaista ovat URAN SISÄLLÄ, eivät sen reunojen päällä.
-   Ensimmäinen mitoitus venytti pillerin lapun ylälaitaan ja kaistan sen
-   alalaitaan, eli täsmälleen uran reunoihin: pilleri näytti puhkeavan
-   raidasta ja kaista irtosi omaksi rivikseen raidan alle. Neljä
-   pikseliä molempiin päihin sitoo ne uraan. */
+/* Pilleri on omana kerroksenaan eikä lapun taustana. Lappu on 40 px eli
+   koko rivin korkuinen napautuspinta; pilleri on 30 px eli sen kokoinen
+   kuin teksti tarvitsee. Taustana ne olisivat sama asia, ja pilleristä
+   tulisi rivin korkuinen laatikko — juuri se raskaus jota kortilta
+   karsittiin. */
 .tl-paiva::before {
   content: ''; position: absolute;
-  left: 0; right: 0; top: 4px; bottom: 10px;
+  left: 0; right: 0; top: 5px; bottom: 5px;
   border-radius: 9px;
   transition: background .15s ease;
 }
@@ -1277,50 +1236,32 @@ html.tyopoyta #kapseli.vaistyy {
 .tl-paiva.valittu { color: var(--surface); }
 .tl-paiva-txt { position: relative; }
 
-/* PÄIVÄN TUULIKAISTA — kisko kertoo säästä, ei vain päivämäärästä.
+/* PÄIVÄN TUULIKAISTA POISTETTIIN.
  *
- * Kisko vei kortin korkeudesta 31 % eikä sanonut tuulesta mitään, ja
- * kysymys "mikä päivä kannattaa" vaati 12 ruudullista raahausta
- * tuntinauhassa. Kaista vastaa siihen yhdellä silmäyksellä.
+ * Jokaisella lapulla oli 3 px:n väriliuska = sen päivän kovin tuuli.
+ * Se toimi ja se oli mitattu oikeaksi, mutta kahdeksantoista väripilkkua
+ * yhdellä rivillä on kahdeksantoista asiaa joita silmä yrittää lukea —
+ * ja sama tieto on tuntirivillä alla, tarkempana. Kisko on navigointia:
+ * sen tehtävä on viedä päivään, ei kilpailla sen kanssa mitä päivä
+ * sisältää. Rivi on nyt pelkkiä päivämääriä.
  *
- * LEVEYS ON MUOTO, VÄRI ON ARVO — sama kielioppi kuin tuntipalkilla, ja
- * samasta syystä. Pelkkä väri ei kelpaa: rampin hiljainen pää on
- * paperilla TUMMIN (0 m/s on 6,14,58), joten tyyni päivä näyttäisi
- * kolmen pikselin kaistana raskaimmalta. Leveys kääntää sen oikein
- * päin — tyyni saa tyngän, kova täyden mitan.
- *
- * Kaista on pillerin ULKOPUOLELLA eikä sisällä. Sisällä se olisi valitun
- * päivän kohdalla mustan päällä, jossa ramppi ei toimi (0 m/s musteella
- * on 1,3:1). Ulkopuolella alusta on aina samaa hiekkaa. */
-.tl-paiva::after {
-  content: ''; position: absolute; bottom: 4px; left: 50%;
-  transform: translateX(-50%);
-  width: calc(5px + var(--pv-osuus, 0) * (100% - 21px));
-  height: 3px; border-radius: 2px;
-  background: var(--pv-vari, transparent);
-  transition: width .2s ease, background .2s ease;
-}
+ * `_tlPaivaKaistat` ja `State._tlPaivaAlue` poistuivat samalla. */
 
-/* HIEKKAURA — kortti on yhtä materiaalia, palkki kantaa kontrastin.
+/* PALKKI ON KORTIN PAPERILLA, EI OMASSA URASSAAN.
  *
- * Tässä oli tumma ura, ja sen perustelu oli oikea niin kauan kuin palkki
- * oli kartan väri sellaisenaan: karttaramppi on tehty tummalle merelle,
- * ja paperilla se ei toimi (10 m/s limetti 205,240,0 on paperia vasten
- * 1,06:1 eli näkymätön). Silloin ALUSTAN oli vaihduttava.
+ * Tässä oli ensin tumma ura ja sitten hiekkaura. Molempien perustelu oli
+ * sama: karttaramppi on tehty tummalle merelle eikä toimi paperilla
+ * (10 m/s limetti 205,240,0 on paperia vasten 1,06:1). Se perustelu
+ * kaatui kun palkin kirkkaus irrotettiin sen sävystä — `ColorRamp.paperi()`
+ * on karttaramppi kerrottuna 0,48:lla, jolloin sävy säilyy täsmälleen ja
+ * kirkkaus kääntyy paperille sopivaksi.
  *
- * Vaihtoehto jota ei aiemmin kokeiltu on vaihtaa PALKIN kirkkautta ja
- * pitää sen sävy: `ColorRamp.paperi()` on sama karttaramppi kerrottuna
- * 0,48:lla, jolloin sävy — se mikä palkin ja kartan yhdistää — säilyy
- * täsmälleen ja kirkkaus kääntyy paperille sopivaksi. Mitattuna jokainen
- * nopeus saa uraa vasten 3,4-12,0 ja peräkkäisten nopeuksien pienin
- * dE2000 on 10,7.
+ * Sen jälkeen ura oli enää koriste, ja kaksi koristetta kortin sisällä on
+ * kaksi liikaa. Kortti on kortin paperia (`--chip`), joka on uraa
+ * VAALEAMPI: palkit saavat sitä vasten enemmän kontrastia kuin urassa.
  *
- * Sillä hinnalla kortti on yhtä materiaalia: paperin ja uran kontrasti
- * on 8,97:1 -> 1,13:1. Ura on yhä ura — upotusvarjo ja valoviiva
- * antavat syvyyden ilman rajaa.
- *
- * Reunahäivytys tulee ilmaiseksi: `#tl-scroll`illa on jo maski, ja se
- * sulattaa uran päät paperiin. */
+ * Reunahäivytys jää: `#tl-scroll`in maski sulattaa tuntinauhan päät
+ * korttiin, jottei nauha katkea reunaan. */
 #tl-scroll {
   position: relative; z-index: 1;
   display: flex; gap: 0; overflow-x: auto; overflow-y: hidden;
@@ -1443,12 +1384,15 @@ html.tyopoyta #kapseli.vaistyy {
    kaaviota vahvempi, koska se on itse merkintä eikä kuvaajan päälle
    jäävä kalvo.
 
-   Alfat on valittu vaikutuksen mukaan, ei luvun: musta .34 tumman uran
-   päällä antoi kaistan ja uran eroksi 1,35:1, ja sama ero hiekalla
-   syntyy alfalla .24. */
-.htick.yo,        .day-sep.yo        { background: rgba(76, 89, 96, .24); }
-.htick.yo-hamara, .day-sep.yo-hamara { background: rgba(76, 89, 96, .155); }
-.htick.yo-siviili, .day-sep.yo-siviili { background: rgba(76, 89, 96, .072); }
+   Alfat on valittu vaikutuksen mukaan, ei luvun. Kaista on ollut kolmen
+   eri alustan päällä ja sen VOIMAKKUUS on pidetty samana joka kerta:
+   musta .34 tummalla uralla 1,35:1, `76,89,96` .24 hiekkauralla 1,35:1,
+   ja kortin paperilla sama .24 olisi 1,40:1 — eli uran poisto olisi
+   vahingossa äänekkäämpi yö. .20 palauttaa 1,31:1. Kaista on nyt
+   tuntirivin ainoa suuri muoto, joten sen voimakkuus ei ole makuasia. */
+.htick.yo,        .day-sep.yo        { background: rgba(76, 89, 96, .20); }
+.htick.yo-hamara, .day-sep.yo-hamara { background: rgba(76, 89, 96, .129); }
+.htick.yo-siviili, .day-sep.yo-siviili { background: rgba(76, 89, 96, .060); }
 .htick-lbl {
   position: absolute; top: 0; font-variant-numeric: tabular-nums;
   font-size: var(--fs-9); color: rgba(16,26,32,.38); white-space: nowrap;
@@ -3150,7 +3094,6 @@ html.tyopoyta {
           <path d="M6 5l6 7-6 7M14 5l6 7-6 7"/>
         </svg>
       </div>
-      <div id="tl-paivat-ura" aria-hidden="true"></div>
       <div id="tl-paivat"></div>
       <div id="tl-indicator"><div id="tl-time-bubble">--:--</div></div>
       <div id="tl-scroll"></div>
@@ -15922,8 +15865,6 @@ function _tlPaivitaPalkit(speeds, puuskat, valo) {
   if (valo && erot) {
     for (let j = 0; j < erot.length; j++) _tlValoLuokka(erot[j].el, valo[erot[j].i]);
   }
-  /* Päiväkiskon kaistat samasta syystä: aika on sama, paikka ei. */
-  _tlPaivaKaistat(speeds, valo);
 }
 
 function _tlValoLuokka(el, vaihe) {
@@ -15982,7 +15923,6 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
      aikaleimoista, ja nopea polku ajetaan nimenomaan silloin kun ne ovat
      samat. Korostuksen hoitaa `_tlUpdateNow` molemmissa. */
   _tlRakennaPaivat(times);
-  _tlPaivaKaistat(speeds, valo);
   const TICK_W = TL_TIKKI_LEV;
   const DAY = ['Su','Ma','Ti','Ke','To','Pe','La']; let lastDay = -1;
 
@@ -16329,9 +16269,6 @@ function _tlRakennaPaivat(times) {
   if (!kisko) return;
   kisko.innerHTML = '';
   State._tlPaivat = [];
-  /* Kunkin lapun tuntiväli akselilla. Tuulikaista lasketaan tästä, eikä
-     päivää etsitä uudelleen aikaleimoista joka päivityksellä. */
-  State._tlPaivaAlue = [];
   if (!times || !times.length) return;
   const DAY = ['Su', 'Ma', 'Ti', 'Ke', 'To', 'Pe', 'La'];
   const tanaan = _tlPvNro(new Date());
@@ -16339,10 +16276,7 @@ function _tlRakennaPaivat(times) {
   for (let i = 0; i < times.length; i++) {
     const d = new Date(times[i]);
     const pv = _tlPvNro(d);
-    if (pv === edellinen) {
-      State._tlPaivaAlue[State._tlPaivaAlue.length - 1].loppu = i;
-      continue;
-    }
+    if (pv === edellinen) continue;
     edellinen = pv;
     const el = document.createElement('div');
     el.className = 'tl-paiva';
@@ -16356,47 +16290,9 @@ function _tlRakennaPaivat(times) {
     el.dataset.pv = String(pv);
     kisko.appendChild(el);
     State._tlPaivat.push(el);
-    State._tlPaivaAlue.push({ alku: i, loppu: i });
   }
 }
 
-/* PÄIVÄN TUULI KISKOON.
- *
- * Väri ja leveys tulevat sen päivän kovimmasta tuulesta VALOISAAN
- * AIKAAN. Mitattuna koko vuorokauden huippu eroaa siitä viitenä
- * päivänä yhdeksästä, keskimäärin 0,44-1,33 m/s ja vähintään 1,5 m/s
- * yhtenä-kahtena päivänä yhdeksästä — eli ero on pieni mutta juuri se
- * tapaus jonka se korjaa on väärä lupaus: yöllä puhaltava huippu ei ole
- * keli. Akselin ensimmäisellä ja viimeisellä päivällä valoisia tunteja
- * voi olla nolla (mitattu), ja silloin käytetään koko välin huippua —
- * muuten vajaa päivä näyttäisi tyyneltä.
- *
- * Tämä ajetaan MYÖS nopeassa polussa. Kisko rakennetaan vain hitaassa,
- * koska se riippuu aikaleimoista, mutta kaista riippuu nopeuksista —
- * ja nopea polku on juuri se joka ajetaan kun aika pysyy ja paikka
- * vaihtuu. Sama ansa kuin päiväerottimien valovaiheessa. */
-function _tlPaivaKaistat(speeds, valo) {
-  const laput = State._tlPaivat, alueet = State._tlPaivaAlue;
-  if (!laput || !alueet || !speeds) return;
-  for (let d = 0; d < laput.length; d++) {
-    const a = alueet[d], el = laput[d];
-    if (!a || !el) continue;
-    let koko = 0, valoisa = 0, valoTunteja = 0;
-    for (let i = a.alku; i <= a.loppu; i++) {
-      const v = speeds[i] || 0;
-      if (v > koko) koko = v;
-      /* Aurinko.vaihe: 0 yö, 0.5 hämärä, 1 siviili, 2 nousu, 3 päivä. */
-      if (valo && valo[i] >= 2) { valoTunteja++; if (v > valoisa) valoisa = v; }
-    }
-    const ms = valoTunteja ? valoisa : koko;
-    const c = ColorRamp.paperi(ms);
-    el.style.setProperty('--pv-vari', 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')');
-    el.style.setProperty('--pv-osuus', _tlPalkkiOsuus(ms).toFixed(3));
-    /* Kaista on väri; luku kuuluu myös ruudunlukijalle. */
-    el.setAttribute('aria-label',
-      (el.textContent || '').trim() + ', kovin tuuli ' + ms.toFixed(1).replace('.', ',') + ' m/s');
-  }
-}
 
 /* SAMA KELLONAIKA, ERI PÄIVÄ.
  *

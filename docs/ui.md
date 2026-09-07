@@ -2374,3 +2374,74 @@ Maski kuuluu sisällölle, ei alustalle.
 > osuivat palkkiin, yökaistaan ja napin varjoon. Paljas ura löytyy vain
 > sieltä missä sisältö on häivytetty — ja siellä on osattava pysyä
 > pyöristyksen sisäpuolella, tai näyte on kortin ulkopuolelta.
+
+---
+
+## Urat pois — yksi paperi, kaksi riviä
+
+Aikajanalla oli tässä vaiheessa kaksi upotettua uraa, ja ne olivat
+mitattuna identtiset (1,01:1 raidasta raitaan). Juuri se teki niistä
+turhat: kaksi pyöristettyä laatikkoa kortin sisällä on kolme reunaa
+liikaa, kun kortin oma reuna kertoo jo missä aikajana on. Samalla
+poistettiin päivälappujen tuulikaistat.
+
+Kortti on nyt yhtä paperia reunasta reunaan. Rakenteen tekee tyhjä tila:
+päivärivi, 9 px, tuntirivi.
+
+### Sisältö ei hävinnyt urien mukana — se parani
+
+Kortin paperi (mitattu `228,219,197`) on VAALEAMPI kuin ura oli, joten
+tummat palkit saavat sitä vasten enemmän kontrastia:
+
+| m/s | palkki | kortilla | uran suu | uran pohja |
+|---|---|---|---|---|
+| 8 | `29,113,22` | **4,45** | 4,48 | 3,95 |
+| **10** | `98,115,0` | **3,84** | 3,87 | **3,41** |
+| 12 | `121,95,0` | **4,42** | 4,45 | 3,93 |
+
+Heikoin nopeus koko asteikolla nousi **3,41 → 3,84**. Kortin sisäinen
+reuna, joka oli tämän koko sarjan lähtökohta (8,97:1 tummalla uralla,
+1,05:1 hiekalla), on nyt **1,00:1** — sitä ei ole.
+
+### Kaksi asiaa piti virittää uudelleen
+
+1. **Yökaista.** Se on ollut kolmella eri alustalla ja sen VOIMAKKUUS on
+   pidetty samana joka kerta: musta .34 tummalla uralla 1,35:1,
+   `76,89,96` .24 hiekkauralla 1,35:1 — ja kortin paperilla sama .24
+   olisi antanut **1,40:1**, eli uran poisto olisi vahingossa tehnyt
+   yöstä äänekkäämmän. `.20/.129/.060` palauttaa **1,32:1**. Kaista on
+   nyt tuntirivin ainoa suuri muoto, joten sen voimakkuus ei ole
+   makuasia.
+2. **Napit.** Kiekko luki uran päällä 1,56:1, koska ura oli sitä
+   tummempi. Kortin paperilla `--surface-hi` on 1,27:1 eli lähes sama
+   pinta, joten kohotus on tehtävä varjolla: tiukka 1 px irrottaa
+   reunan, pehmeä 5 px antaa korkeuden, ja kehä nousi .22 → .28.
+   Kuvake kantaa tunnistuksen kuten ennenkin (16,4:1 ja 13,7:1).
+
+> Varjon voimakkuutta ei voi mitata tästä napista pikseleinä: nappi
+> kelluu datan päällä, joten sen ympärillä ei ole paljasta korttia vaan
+> palkkeja. Ensimmäinen yritys antoi "varjo/kortti 3,23" — se oli
+> palkki, ei varjo.
+
+### Tuulikaista päivälapuista pois
+
+Kaista toimi ja se oli mitattu oikeaksi (väri ja leveys sen päivän
+kovimmasta tuulesta valoisaan aikaan, 9/9 oikein myös nopeassa polussa).
+Se poistettiin silti: kahdeksantoista väripilkkua yhdellä rivillä on
+kahdeksantoista asiaa joita silmä yrittää lukea, ja sama tieto on
+tuntirivillä alla tarkempana. Kisko on navigointia — sen tehtävä on
+viedä päivään, ei kilpailla sen kanssa mitä päivä sisältää.
+`_tlPaivaKaistat`, `State._tlPaivaAlue` ja lapun aria-lisäys poistuivat
+samalla.
+
+Päivälappu on nyt pelkkä pilleri ja teksti: 40 px korkea napautuspinta,
+30 px korkea pilleri. Taustana ne olisivat sama asia ja pilleristä tulisi
+rivin korkuinen laatikko — juuri se raskaus jota kortilta karsittiin.
+Napautus mitattuna 7/7.
+
+### Mitä jäi
+
+Poistetut tokenit `--tl-ura` ja `--tl-ura-yla`, poistettu elementti
+`#tl-paivat-ura`, poistettu `#tl-wrap::after`. Kortin korkeus on yhä
+128 px ja aikajanan käyttäytyminen ennallaan (valittu hetki säilyy
+neljällä zoomreitillä 0 h).
