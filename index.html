@@ -3080,6 +3080,17 @@ html.tyopoyta {
             <div class="sp-toggle on" id="toggle-fmi-sea"></div>
           </div>
 
+          <div class="sp-toggle-row" data-layer-toggle="aallot">
+            <div class="sp-toggle-left">
+              <div class="sp-toggle-dot"><svg width="16" height="12" viewBox="0 0 16 12" fill="none"><line x1="2.5" y1="1.8" x2="2.5" y2="10.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity=".75"/><path d="M1 3.3 L2.5 1.4 L4 3.3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity=".75"/><path d="M1 8.7 L2.5 10.6 L4 8.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity=".75"/><path d="M6 8.5 Q8.5 1.5 11 8.5 Q12.5 11.5 15 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></div>
+              <div>
+                <div class="sp-toggle-name">FMI &middot; Aaltopoijut</div>
+                <div class="sp-toggle-sub">Suomenlinna, Suomenlahti, Orrengrund&hellip;</div>
+              </div>
+            </div>
+            <div class="sp-toggle on" id="toggle-aallot"></div>
+          </div>
+
           <div class="sp-toggle-row" data-layer-toggle="uiras-prim">
             <div class="sp-toggle-left">
               <div class="sp-toggle-dot"><svg width="16" height="10" viewBox="0 0 14 8" fill="none"><path d="M0 5 Q2 2 4 5 Q6 8 8 5 Q10 2 12 5 Q13 6.5 14 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg></div>
@@ -11797,6 +11808,78 @@ const FMI_MAP_STATIONS = [
   { place:'hanko',      name:'Hanko Tulliniemi',         lat:59.80864, lng:22.91246, tag:'Avomeri' },
 ];
 
+/* ── AALTOPOIJUT ────────────────────────────────────────────────
+ *
+ * FMI:n merihavaintopoijut oman proxyn kautta (`api/aallot.js`).
+ * HAVAINTO, ei ennuste — siksi nämä kulkevat samaa polkua kuin
+ * tuuliasemat eivätkä ennusteen kanssa.
+ *
+ * KOKO KERROS ON YKSI PYYNTÖ. Rajapinnan bbox ei rajaa mitään
+ * (mitattu: sama vastaus bboxin kanssa ja ilman), joten yksi haku tuo
+ * kaikki maan poijut. Asemakohtaiset haut olisivat kymmenen pyyntöä
+ * yhden hinnalla.
+ *
+ * TTL 15 min, koska poiju raportoi 30 min välein ja aineisto tulee
+ * perille 57–117 min myöhässä (mitattu). Tiheämpi kysely toistaisi
+ * samat luvut. */
+const Aaltopoijut = {
+  PROXY: API_BASE + '/aallot',
+  TTL: 15 * 60 * 1000,
+  _cache: null, _ts: 0, _kesken: null,
+
+  _km(a, b, c, d) {
+    const R = 6371, dL = (c - a) * Math.PI / 180, dG = (d - b) * Math.PI / 180;
+    return R * 2 * Math.asin(Math.sqrt(Math.sin(dL / 2) ** 2
+      + Math.cos(a * Math.PI / 180) * Math.cos(c * Math.PI / 180) * Math.sin(dG / 2) ** 2));
+  },
+
+  /* Rinnakkaiset kutsut jakavat yhden pyynnön: kartta ja spottikortti
+     voivat kysyä samaan aikaan käynnistyksessä. */
+  async lataa() {
+    if (this._cache && Date.now() - this._ts < this.TTL) return this._cache;
+    if (this._kesken) return this._kesken;
+    this._kesken = (async () => {
+      try {
+        const r = await fetch(this.PROXY + '?tz=' + encodeURIComponent(AIKAVYOHYKE));
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const j = await r.json();
+        this._cache = Array.isArray(j.stations) ? j.stations : [];
+        this._ts = Date.now();
+        return this._cache;
+      } catch (e) {
+        /* Epäonnistunut haku ei saa jäädä välimuistiin pysyvästi tyhjänä:
+           _ts jätetään koskematta, jolloin seuraava kutsu yrittää uudelleen. */
+        return this._cache || [];
+      } finally { this._kesken = null; }
+    })();
+    return this._kesken;
+  },
+
+  /* Lähin AALTOA mittaava poiju. Lämpöasemat eivät kelpaa tähän: ne
+     ovat samassa vastauksessa mutta eivät kerro aallosta mitään. */
+  lahinAalto(lat, lng, maxKm) {
+    const raja = maxKm || 120;
+    let paras = null, pd = raja;
+    for (const s of (this._cache || [])) {
+      if (s.kind !== 'aalto' || s.hs == null) continue;
+      const d = this._km(lat, lng, s.lat, s.lng);
+      if (d < pd) { pd = d; paras = Object.assign({}, s, { km: d }); }
+    }
+    return paras;
+  },
+
+  hae(fmisid) {
+    return (this._cache || []).find(s => s.fmisid === fmisid) || null;
+  },
+
+  async historia(fmisid, hours) {
+    const r = await fetch(this.PROXY + '?history=1&fmisid=' + encodeURIComponent(fmisid)
+      + '&hours=' + (hours || 30) + '&tz=' + encodeURIComponent(AIKAVYOHYKE));
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  },
+};
+
 const UiRas = {
   BASE_LATEST:  'https://iot.fvh.fi/opendata/uiras/',
   PROXY:        API_BASE + '/uiras',
@@ -12585,6 +12668,68 @@ function _addObsMarkers(map) {
     }
   }
 
+  /* ── Aaltopoiju-ikoni ──────────────────────────────────────── */
+  /* GLYFI ON AINOA ERO. `_pilleri` antaa jokaiselle kartan lukemalle
+     saman pinnan, joten aaltokorkeus EI saa käyttää samaa aaltoviivaa
+     kuin vedenlämpö — silloin kaksi eri suuretta näyttäisi identtiseltä
+     ja vain yksikkö erottaisi ne. Tässä on aaltoviiva JA pystymitta:
+     korkeus on se mitä luku kertoo. */
+  function _aaltoGlyfi(vari) {
+    return '<svg width="13" height="11" viewBox="0 0 16 12" fill="none"'
+      +' xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;display:block">'
+      /* Pystymitta vasemmalla: kaksipäinen nuoli */
+      +'<line x1="2.5" y1="1.8" x2="2.5" y2="10.2" stroke="'+vari+'"'
+        +' stroke-width="1.2" stroke-linecap="round" opacity=".75"/>'
+      +'<path d="M1 3.3 L2.5 1.4 L4 3.3" stroke="'+vari+'" stroke-width="1.2"'
+        +' stroke-linecap="round" stroke-linejoin="round" fill="none" opacity=".75"/>'
+      +'<path d="M1 8.7 L2.5 10.6 L4 8.7" stroke="'+vari+'" stroke-width="1.2"'
+        +' stroke-linecap="round" stroke-linejoin="round" fill="none" opacity=".75"/>'
+      /* Aalto oikealla */
+      +'<path d="M6 8.5 Q8.5 1.5 11 8.5 Q12.5 11.5 15 8.5" stroke="'+vari+'"'
+        +' stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>'
+      +'</svg>';
+  }
+
+  /* KYNNYS ON MITATTU, EI ARVATTU.
+     
+     Ensin poijulle annettiin z7, koska poijuja on koko maassa vain
+     kuusi ja ne ovat kaukana ulkona. Se päättely on nationaalisesti
+     tosi mutta paikallisesti väärä: Suomenlinnan poiju on 2,0 km
+     Harmajasta ja 12 km Itätoukista, eli keskellä sovelluksen tiheintä
+     asemarypästä. Mitattuna pillereiden peitto oli z7:llä 100 % ja
+     z8:lla 65 %, kun perustaso ilman aaltokerrosta oli 12 % ja 33 % —
+     eli yksi pilleri katosi kokonaan toisen alle.
+     
+     Kiinteä siirto pisteen yläpuolelle KOKEILTIIN ja se ei auttanut:
+     peitto vain vaihtoi naapuria (Harmaja -> Malmi, 100 % z7, 93 % z8),
+     koska Helsinki on tiheä joka suuntaan noilla zoomeilla.
+     
+     Jäljelle jäi sovelluksen oma tiheyssääntö: pilleri tulee näkyviin
+     vasta kun sille on tilaa. Meriasemilla se on z8, maa-asemilla z10;
+     poijulla z9, koska se seisoo molempien keskellä. Sen alla merkki on
+     piste — se kertoo että mittauspiste on olemassa, ja kortti on yhden
+     napautuksen päässä. */
+  var PILLERI_Z_POIJU = 9;
+  function mkAaltoIcon(zoom, hs, hiljainen) {
+    var z = zoom || 5;
+    if (z >= PILLERI_Z_POIJU) {
+      var arvo = hs != null ? hs.toFixed(1) : '—';
+      return L.divIcon({ className:'',
+        html: _pilleri(_aaltoGlyfi(INK_2), arvo, 'm', hiljainen),
+        iconAnchor:[0, 9], iconSize:[56, 18] });
+    }
+    var sz = z < 5 ? 5 : 7;
+    return L.divIcon({ className:'',
+      html:'<div style="cursor:pointer;line-height:0;opacity:'+(z < 5 ? '.55' : '.9')+'">'
+        + _aaltoGlyfi(INK_2) + '</div>',
+      iconSize:[13, 11], iconAnchor:[6, 5] });
+  }
+  function _aaltoIconSig(zoom, hs, hiljainen) {
+    var z = zoom || 5;
+    if (z >= PILLERI_Z_POIJU) return 'p|' + (hs != null ? hs.toFixed(1) : '—') + (hiljainen ? '|hlj' : '');
+    return 'd|' + (z < 5 ? 0 : 1);
+  }
+
   /* ── Ikonin allekirjoitus ───────────────────────────────────── */
   /* Palauttaa merkkijonon joka kuvaa TÄSMÄLLEEN sen mitä mkWindIcon /
    * mkWaterIcon tuottaisi näillä argumenteilla. updateIcons() vertaa tätä
@@ -12703,7 +12848,18 @@ function _addObsMarkers(map) {
     var isPastOrNow = targetTs != null && targetTs <= (Date.now() + FUTURE_GRACE);
 
     _obsMarkers.forEach(function(m) {
-      if (m.type === 'wind-prim' || m.type === 'wind-dot') {
+      if (m.type === 'aalto') {
+        /* Poijun lukema EI seuraa aikajanaa. Se on havainto yhdestä
+           hetkestä, ja se hetki on 1–2 h takana (mitattu viive
+           57–117 min) — aikajanan tulevaisuuden tunneille ei ole
+           havaintoa olemassa, eikä sellaista saa keksiä. Kortti kertoo
+           lukeman iän. */
+        var asig = _aaltoIconSig(z, m.hs, m.hiljainen);
+        if (asig !== m._iconSig) {
+          m._iconSig = asig;
+          m.marker.setIcon(mkAaltoIcon(z, m.hs, m.hiljainen));
+        }
+      } else if (m.type === 'wind-prim' || m.type === 'wind-dot') {
         /* Oletuksena uusin havainto */
         var ws = m.wsLatest != null ? m.wsLatest : m.ws;
         var wg = m.wgLatest != null ? m.wgLatest : m.wg;
@@ -12916,6 +13072,143 @@ function _addObsMarkers(map) {
       .catch(function() { /* Lataus epäonnistui — jätä tyhjäksi */ });
   })();
 
+  /* AALTOPOIJUN VÄISTÖ.
+   *
+   * Poiju on merellä, ja merellä ovat myös sovelluksen tiheimmät
+   * tuuliasemat: Suomenlinnan poiju on 2,0 km Harmajasta ja 12 km
+   * Itätoukista. Ilman väistöä pillerit peittivät toisensa z7:llä
+   * 100-prosenttisesti (perustaso ilman aaltokerrosta 12 %), eli
+   * napautus poijun kohdalle avasi Harmajan kortin.
+   *
+   * KIINTEÄ SIIRTO EI KELVANNUT — kokeiltiin ja mitattiin: pisteen
+   * yläpuolelle siirretty pilleri vain vaihtoi naapuria (Harmaja ->
+   * Malmi, 100 % z7, 93 % z8), koska Helsinki on tiheä joka suuntaan
+   * noilla zoomeilla.
+   *
+   * Siksi väistö mitataan RUUDULTA eikä koordinaateista: etsitään se
+   * näkyvä merkki jonka kanssa päällekkäisyys on suurin ja siirrytään
+   * sen ohi PYSTYSUUNNASSA. Pysty on halvempi kuin vaaka — pilleri on
+   * 18 px korkea mutta 56–62 px leveä, joten vaakasiirto joutuisi
+   * ylittämään koko naapurin leveyden. Sama ratkaisu kuin
+   * Kruunuvuorenselän `_avoidSpotOverlap`illa, mutta se vertaa
+   * koordinaattietäisyyksiä; tässä verrataan laatikoita, koska
+   * mitattava asia ON laatikoiden leikkaus. */
+  function _aaltoVaisto(entry) {
+    var el = entry.marker.getElement ? entry.marker.getElement() : null;
+    var inner = el ? el.firstElementChild : null;
+    if (!inner) return;
+    /* Mittaus aloitetaan aina siirtämättömästä asennosta, muuten
+       peräkkäiset ajot kasaisivat siirtoa päällekkäin. */
+    inner.style.transform = '';
+
+    /* VÄISTÖ KOSKEE VAIN PILLERITILAA — sama rajaus kuin
+       Kruunuvuorenselällä, ja samasta syystä mitattuna. Pistetilassa
+       (z<9) Helsingin edustalla on kymmenen merkkiä noin viidentoista
+       pikselin kaistalla, eli poijulle ei ole vapaata paikkaa mistään:
+       mitattuna väistö tarvitsi neljä kierrosta ja yli 30 px, minkä
+       jälkeen katto nollasi sen joka tapauksessa. Siirretty piste
+       valehtelisi silloin sijainnistaan kymmeniä kilometrejä eikä silti
+       olisi vapaa. Pistetilassa napautuksen ratkaisee z-järjestys:
+       poiju on tuuliasemien yllä. */
+    if (map.getZoom() < PILLERI_Z_POIJU) return;
+
+    var oma = inner.getBoundingClientRect();
+    if (!oma.width || !oma.height) return;
+
+    function pahinPaalle(laatikko) {
+      var pahin = null, pahinAla = 0;
+      for (var i = 0; i < _obsMarkers.length; i++) {
+        var o = _obsMarkers[i];
+        if (o === entry || o.layerGroup === 'aallot') continue;
+        var oel = o.marker._icon;
+        if (!oel || oel.style.display === 'none') continue;
+        /* MITATTAVA ON SISEMPI ELEMENTTI, ei Leafletin `_icon`-kuori.
+           Kuori kantaa Leafletin oman `translate3d`-sijainnin eikä liiku
+           väistön mukana (Kruunuvuorenselkä siirtää sisintä samoin), joten
+           kuorista mitattu peitto väittää merkkien olevan yhä päällekkäin
+           vaikka ne eivät ruudulla ole. */
+        var oin = oel.firstElementChild || oel;
+        var r = oin.getBoundingClientRect();
+        if (!r.width) continue;
+        var w = Math.min(laatikko.right, r.right) - Math.max(laatikko.left, r.left);
+        var h = Math.min(laatikko.bottom, r.bottom) - Math.max(laatikko.top, r.top);
+        if (w <= 0 || h <= 0) continue;
+        if (w * h > pahinAla) { pahinAla = w * h; pahin = r; }
+      }
+      return pahin;
+    }
+
+    /* SUUNTA LUKITAAN ENSIMMÄISESTÄ OSUMASTA. Ilman lukitusta väistö
+       heiluu: mitattuna se työnsi poijun ylös Harmajan ohi, törmäsi
+       Kruunuvuorenselkään, ja koska sen keskipiste oli nyt naapurin
+       yläpuolella, seuraava kierros työnsi takaisin alas — nettosiirto
+       oli 3 px eli käytännössä ei mitään, vaikka kumpikin kierros
+       laski oman siirtonsa oikein.
+       
+       Neljä kierrosta: Helsingin edustalla merkkejä on päällekkäin
+       useampi, ja yhden ohittaminen paljastaa seuraavan. */
+    var siirto = 0, suunta = 0;
+    for (var kierros = 0; kierros < 4; kierros++) {
+      var nyt = { left: oma.left, right: oma.right,
+        top: oma.top + siirto, bottom: oma.bottom + siirto };
+      var p = pahinPaalle(nyt);
+      if (!p) break;
+      if (!suunta) suunta = ((nyt.top + nyt.bottom) / 2 <= (p.top + p.bottom) / 2) ? -1 : 1;
+      siirto += suunta < 0 ? -(nyt.bottom - p.top + 4) : (p.bottom - nyt.top + 4);
+    }
+    /* KATTO. Siirretty merkki valehtelee sijainnistaan siirron verran,
+       ja uloimmilla zoomeilla 30 px on kymmeniä kilometrejä. Jos tila ei
+       riitä, merkki jää paikalleen: päällekkäisyys uloimmassa näkymässä
+       on kartografiaa, väärään paikkaan siirretty mittauspiste on
+       virhe. Napautuksen ratkaisee silloin z-järjestys, jossa poiju on
+       tuuliasemien yllä. */
+    if (Math.abs(siirto) > 30) siirto = 0;
+    if (siirto) inner.style.transform = 'translate(0,' + Math.round(siirto) + 'px)';
+  }
+
+  /* ── Aaltopoijut: yksi haku, merkit vastauksesta ───────────── */
+  /* Merkkejä EI luoda etukäteen tyhjänä kuten FMI-asemille. Syy on
+     lähteessä: poijut ovat kausiluontoisia (talveksi nostetaan ylös) ja
+     osa niistä mittaa vain lämpötilaa, joten kovakoodattu asemalista
+     näyttäisi merkkejä paikoissa joissa ei sillä hetkellä ole mitään.
+     Kun merkit tulevat vastauksesta, kartalla on täsmälleen ne poijut
+     jotka juuri nyt raportoivat — ja uusi poiju ilmestyy ilman
+     koodimuutosta. */
+  Aaltopoijut.lataa().then(function(asemat) {
+    if (!asemat || !asemat.length) return;
+    asemat.forEach(function(s) {
+      var onAalto = s.kind === 'aalto';
+      var ikoni = onAalto
+        ? mkAaltoIcon(map.getZoom(), s.hs, false)
+        : mkWaterIcon(map.getZoom(), s.tw, true);
+      /* Kortti lukee `station.name`; rajapinnan kentta on `station`.
+         Normalisoidaan tassa, jotta kortin puolelle ei jaa erikoistapausta. */
+      var kortille = Object.assign({}, s, { name: s.station });
+      /* Jäännöspeitossa poiju voittaa: se on harvinaisempi lukema kuin
+         tuuliasema, jollaisia samalla alueella on kymmenen. */
+      var m = L.marker([s.lat, s.lng], { icon: ikoni, zIndexOffset: -40, keyboard: false })
+        .on('click', function() { _openObsSheet('aalto', kortille); }).addTo(map);
+      _obsMarkers.push({
+        marker: m,
+        /* Lämpöasema kulkee vesi-ikonipolkua: se ON vedenlämpöasema,
+           ja kartan visuaalinen kieli on jo olemassa sille. Aaltoja
+           mittaamattomalle poijulle keksitty oma asu valehtelisi. */
+        type: onAalto ? 'aalto' : 'water',
+        hs: s.hs, temp: s.tw, prim: true, hiljainen: false,
+        stName: s.station, fmisid: s.fmisid, asema: s,
+        layerGroup: 'aallot',
+      });
+      /* `updateIcons` kutsuu tätä jokaisen merkin kohdalla — myös
+         silloin kun setIcon jätettiin väliin, jolloin transform on jo
+         oikea. Ilman kutsua väistö katoaisi joka ikonin vaihdossa. */
+      _obsMarkers[_obsMarkers.length - 1]._avoidOverlap = (function (e) {
+        return function () { _aaltoVaisto(e); };
+      })(_obsMarkers[_obsMarkers.length - 1]);
+    });
+    if (typeof _applyMapLayers === 'function') _applyMapLayers();
+    updateIcons();
+  }).catch(function() { /* Lataus epäonnistui — ei merkkejä */ });
+
   /* ── UiRas: hae vedenlämpö, luo markerit ───────────────────── */
   UiRas.loadLatest().then(function(tempMap) {
     UIRAS_STATIONS.forEach(function(st) {
@@ -12948,13 +13241,22 @@ function _openObsSheet(type, station) {
   State.sheetSpot=null;
 
   var isWater=(type==='uiras');
-  var accent=isWater?'var(--accent)':'#2A702D';
-  var accentFaint=isWater?'var(--hairline)':'var(--hairline)';
-  var accentBorder=isWater?'var(--hairline)':'var(--hairline)';
-  var icon=isWater?vesiIkonSVG(15):asemaIkonSVG(15);
-  var typeLabel=isWater?'Uimaveden lämpötila':'Tuulihavainto';
-  var srcLabel=isWater?'UiRas · Forum Virium Helsinki':(type==='kruunuvuori'?'Merellinen Helsinki · FMI':'Ilmatieteenlaitos · FMI');
-  var unit=isWater?'°C':Units.label();
+  /* Aaltopoiju joka mittaa vain lampotilaa on LAMPOASEMA, ei rikkinainen
+     aaltopoiju — kortti sanoo sen suoraan otsikossa eika jata tyhjaa
+     aaltolukemaa selittamatta. */
+  var onPoiju=(type==='aalto');
+  var poijuLampo=onPoiju && station && station.kind==='lampo';
+  var accent=(isWater||poijuLampo)?'var(--accent)':'#2A702D';
+  var accentFaint='var(--hairline)';
+  var accentBorder='var(--hairline)';
+  var icon=(isWater||poijuLampo)?vesiIkonSVG(15):(onPoiju?aaltoIkonSVG(15):asemaIkonSVG(15));
+  var typeLabel=isWater?'Uimaveden lämpötila'
+    :onPoiju?(poijuLampo?'Meriveden lämpötila':'Aaltohavainto')
+    :'Tuulihavainto';
+  var srcLabel=isWater?'UiRas · Forum Virium Helsinki'
+    :onPoiju?'Aaltopoiju · Ilmatieteen laitos'
+    :(type==='kruunuvuori'?'Merellinen Helsinki · FMI':'Ilmatieteenlaitos · FMI');
+  var unit=isWater?'°C':onPoiju?(poijuLampo?'°C':'m'):Units.label();
 
   var valId='obs-val-'+Math.random().toString(36).slice(2,6);
   var subId='obs-sub-'+Math.random().toString(36).slice(2,6);
@@ -13107,6 +13409,9 @@ function _openObsSheet(type, station) {
         );
       }
     );
+  } else if(type==='aalto'){
+    _aaltoKortti(station, { valId:valId, subId:subId, chipId:chipId, cid:cid,
+      lampo:poijuLampo, accent:accent, updateHero:updateHero });
   } else if(type==='kruunuvuori'){
     /* Kruunuvuorenselkä — oma proxy, ei kuulu viralliseen FMI-havaintoverkkoon.
        168 h kuten FMI-asemillakin: kortin jaksovalitsin on sama. */
@@ -13164,6 +13469,231 @@ function _openObsSheet(type, station) {
       if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);padding:16px">Ei dataa</div>';
     });
   }
+}
+
+/* -- AALTOPOIJUN KORTTI ------------------------------------------
+ *
+ * VÄRIÄ EI KÄYTETÄ LUKEMAAN. Sovelluksessa sävy tarkoittaa
+ * tuulennopeutta, ja `ColorRamp.ink()` on nimenomaan tuuliasteikko —
+ * 0,4 metriä siitä värjättynä sanoisi "0,4 m/s". Aaltokorkeus on eri
+ * suure ilman omaa asteikkoa, joten se on mustetta ja luku puhuu itse.
+ *
+ * LUKEMA EI OLE "NYT". Mitattu viive on 57–117 min, joten kortti sanoo
+ * aina lukeman iän. Aikajanan valittu tunti EI vaikuta tähän korttiin:
+ * havaintoa tulevaisuudesta ei ole olemassa. */
+function _aaltoKortti(asema, o) {
+  var el = document.getElementById(o.cid);
+  var chip = document.getElementById(o.chipId);
+  var lampoVain = !!o.lampo;
+
+  /* --- Hero --- */
+  var arvo = lampoVain
+    ? (asema.tw != null ? asema.tw.toFixed(1) : '—')
+    : (asema.hs != null ? asema.hs.toFixed(1) : '—');
+  var osat = [lampoVain ? '°C' : 'm'];
+  if (!lampoVain && asema.hdir != null) {
+    osat.push(dirArrow(asema.hdir) + ' ' + Math.round(asema.hdir) + '°');
+  }
+  if (!lampoVain && asema.tp != null) osat.push(asema.tp.toFixed(1) + ' s');
+  if (asema.time) osat.push(asema.time);
+  o.updateHero(arvo, osat.join(' '), lampoVain ? o.accent : 'var(--ink)');
+
+  var ika = _havIkaTeksti(asema.ageMin);
+  if (chip) {
+    chip.textContent = 'Aaltopoiju · Ilmatieteen laitos' + (ika ? ' · ' + ika : '');
+    if (asema.ageMin != null && asema.ageMin >= 180) chip.style.color = 'var(--ink-2)';
+  }
+
+  if (!el) return;
+
+  /* --- Lukemarivi. Aallonkorkeuden vieressä jakso ja suunta, koska
+     yksin korkeus ei kerro millainen meri on: 0,4 m / 2,5 s on
+     jyrkkää hakkaavaa, 0,4 m / 6 s on loivaa. --- */
+  function ruutu(otsikko, arvo2, alle) {
+    return '<div style="flex:1;min-width:0;padding:9px 4px;text-align:center">'
+      + '<div style="font-size:var(--fs-75);letter-spacing:.6px;text-transform:uppercase;'
+        + 'color:var(--ink-3);margin-bottom:3px">' + otsikko + '</div>'
+      + '<div style="font-variant-numeric:tabular-nums;font-size:15px;font-weight:600;'
+        + 'color:var(--ink);line-height:1.15">' + arvo2 + '</div>'
+      + (alle ? '<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-9);'
+        + 'color:var(--ink-3);margin-top:2px">' + alle + '</div>' : '')
+      + '</div>';
+  }
+  var ruudut = [];
+  if (!lampoVain) {
+    ruudut.push(ruutu('Korkeus', (asema.hs != null ? asema.hs.toFixed(1) : '—') + ' m'));
+    ruudut.push(ruutu('Jakso', (asema.tp != null ? asema.tp.toFixed(1) : '—') + ' s'));
+    ruudut.push(ruutu('Suunta', asema.hdir != null
+      ? dirArrow(asema.hdir) + ' ' + Math.round(asema.hdir) + '°' : '—', 'mistä'));
+  }
+  ruudut.push(ruutu('Vesi', (asema.tw != null ? asema.tw.toFixed(1) + '°C' : '—'),
+    asema.twAgeMin != null && asema.twAgeMin !== asema.ageMin
+      ? _havIkaTeksti(asema.twAgeMin) : null));
+
+  var kaavioId = o.cid + '-kaavio';
+  el.innerHTML =
+    '<div style="display:flex;background:var(--surface-hi);border-radius:12px;'
+      + 'overflow:hidden;margin-bottom:16px">' + ruudut.join(
+        '<div style="width:1px;background:var(--hairline-soft)"></div>') + '</div>'
+    + '<div id="' + kaavioId + '" style="min-height:150px">'
+      + '<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:24px;'
+        + 'color:var(--ink-3);font-variant-numeric:tabular-nums;font-size:var(--fs-10)">'
+        + '<svg width="14" height="14" viewBox="0 0 14 14" style="animation:spin 1.2s linear infinite">'
+        + '<circle cx="7" cy="7" r="5" fill="none" stroke="#CDBE9A" stroke-width="1.5"/>'
+        + '<path d="M7 2 A5 5 0 0 1 12 7" fill="none" stroke="var(--ink)" stroke-width="1.5" stroke-linecap="round"/>'
+        + '</svg>Ladataan…</div>'
+    + '</div>';
+
+  var kEl = document.getElementById(kaavioId);
+  Aaltopoijut.historia(asema.fmisid, 30).then(function (h) {
+    if (!kEl || !kEl.isConnected) return;
+    kEl._data30 = h;
+    _aaltoKaavio(kEl, h, '30h', asema, lampoVain);
+  }).catch(function () {
+    if (kEl) kEl.innerHTML = '<div style="text-align:center;font-variant-numeric:tabular-nums;'
+      + 'font-size:var(--fs-10);color:var(--ink-3);padding:16px">Ei dataa</div>';
+  });
+}
+
+/* Aaltokaavio: 30 h tai 7 vrk, aaltokorkeus tai meriveden lämpötila.
+ *
+ * Erillinen `_uirasChartInteractive`ista, koska se on rakennettu
+ * VIIKKOJEN mittaiselle lämpösarjalle: sen x-akseli on päiviä, sen
+ * y-labelit ja min/max-kutsut päättyvät asteen merkkiin, ja sen jaksot
+ * ovat 7/30/90 vrk. Aaltosarja on tunteja ja metrejä, eikä rajapinta
+ * anna sitä yli seitsemän vuorokauden. */
+function _aaltoKaavio(el, data, jakso, asema, lampoVain) {
+  var sarja = lampoVain ? (data.tw || []) : (data.hs || []);
+  var yks = lampoVain ? '°C' : 'm';
+  if (!sarja.length) {
+    el.innerHTML = '<div style="text-align:center;font-variant-numeric:tabular-nums;'
+      + 'font-size:var(--fs-10);color:var(--ink-3);padding:16px">Ei mittauksia tältä jaksolta</div>';
+    return;
+  }
+
+  var n0 = sarja.length;
+  var draw = n0 <= 240 ? sarja : (function () {
+    var step = n0 / 240, out = [];
+    for (var i = 0; i < 240; i++) out.push(sarja[Math.round(i * step)]);
+    return out;
+  })();
+  var n = draw.length;
+  var vals = draw.map(function (p) { return p.v; });
+  var minV = Math.min.apply(null, vals), maxV = Math.max.apply(null, vals);
+  /* Aaltokorkeuden akseli alkaa NOLLASTA. Automaattinen alaraja
+     suurentaisi 0,20–0,30 m:n vaihtelun koko kaavion korkuiseksi ja
+     tyyni vuorokausi näyttäisi myrskyltä. Lämpötilalla nolla ei ole
+     merkityksellinen, joten siellä akseli seuraa dataa. */
+  var lo = lampoVain ? minV - (maxV - minV || 1) * 0.2 : 0;
+  var hi = lampoVain ? maxV + (maxV - minV || 1) * 0.2 : Math.max(maxV * 1.15, 0.2);
+
+  var W = 300, H = 108, padX = 30, padY = 10, labH = 20, TH = H + labH;
+  function xOf(i) { return padX + i / (n - 1 || 1) * (W - padX - 8); }
+  function yOf(v) { return padY + (1 - (v - lo) / (hi - lo || 1)) * (H - padY * 2); }
+
+  var d = 'M' + xOf(0).toFixed(1) + ',' + yOf(draw[0].v).toFixed(1);
+  for (var i = 1; i < n; i++) {
+    var x0 = xOf(i - 1), y0 = yOf(draw[i - 1].v), x1 = xOf(i), y1 = yOf(draw[i].v), cx = (x0 + x1) / 2;
+    d += ' C' + cx.toFixed(1) + ',' + y0.toFixed(1) + ' ' + cx.toFixed(1) + ',' + y1.toFixed(1)
+      + ' ' + x1.toFixed(1) + ',' + y1.toFixed(1);
+  }
+  var alue = d + ' L' + xOf(n - 1).toFixed(1) + ',' + (H - padY) + ' L' + xOf(0).toFixed(1) + ',' + (H - padY) + ' Z';
+
+  /* Y-akseli */
+  var yl = '', askel = (function (r) {
+    var kandit = lampoVain ? [0.5, 1, 2, 5] : [0.1, 0.2, 0.5, 1, 2, 5];
+    for (var k = 0; k < kandit.length; k++) if (kandit[k] >= r / 4) return kandit[k];
+    return 5;
+  })(hi - lo);
+  for (var yv = Math.ceil(lo / askel) * askel; yv <= hi + 1e-6; yv += askel) {
+    var gy = yOf(yv);
+    if (gy < padY - 1 || gy > H - padY + 1) continue;
+    yl += '<line x1="' + padX + '" y1="' + gy.toFixed(1) + '" x2="' + (W - 8) + '" y2="' + gy.toFixed(1)
+      + '" stroke="#DFD4B6" stroke-width="1"/>'
+      + '<text x="' + (padX - 6) + '" y="' + gy.toFixed(1) + '" font-size="7.5" fill="#5F696F" '
+      + 'text-anchor="end" dominant-baseline="middle">' + yv.toFixed(askel < 1 ? 1 : 0) + '</text>';
+  }
+
+  /* X-akseli: kellonaika, ei päivämäärä — jakso on tunteja. */
+  var xl = '', ms0 = Date.parse(draw[0].iso), ms1 = Date.parse(draw[n - 1].iso);
+  var tunnit = (ms1 - ms0) / 3600e3;
+  var stpH = tunnit <= 36 ? 6 : 24;
+  var d0 = new Date(ms0); d0.setMinutes(0, 0, 0);
+  d0.setHours(Math.ceil(d0.getHours() / stpH) * stpH);
+  for (var tt = d0.getTime(); tt <= ms1; tt += stpH * 3600e3) {
+    var fr = (tt - ms0) / (ms1 - ms0 || 1);
+    var lx = padX + fr * (W - padX - 8);
+    if (lx < padX + 8 || lx > W - 14) continue;
+    var dd = new Date(tt);
+    var teksti = stpH >= 24 ? (dd.getDate() + '.' + (dd.getMonth() + 1) + '.')
+      : (('0' + dd.getHours()).slice(-2) + ':00');
+    xl += '<text x="' + lx.toFixed(1) + '" y="' + (TH - 4) + '" font-size="7.5" fill="#5F696F" '
+      + 'text-anchor="middle">' + teksti + '</text>';
+  }
+
+  /* Huippu merkitään, pohja ei: aallossa merkityksellinen luku on se
+     kuinka isoa on ollut, ei se kuinka tyyntä. */
+  var maxIdx = vals.indexOf(maxV);
+  var mx = xOf(maxIdx), my = yOf(maxV);
+  var huippu = (maxV - minV > (lampoVain ? 0.4 : 0.15))
+    ? '<circle cx="' + mx.toFixed(1) + '" cy="' + my.toFixed(1) + '" r="2.5" fill="var(--ink)"/>'
+      + '<text x="' + mx.toFixed(1) + '" y="' + (my - 6).toFixed(1) + '" font-size="8" fill="#1C5C86" '
+      + 'text-anchor="' + (mx < padX + 30 ? 'start' : mx > W - 30 ? 'end' : 'middle') + '">'
+      + maxV.toFixed(1) + '</text>'
+    : '';
+
+  var vid = 'ak-' + Math.random().toString(36).slice(2, 7);
+  var jaksot = [['30h', '30 h'], ['7d', '7 vrk']];
+  var napit = jaksot.map(function (j) {
+    var a = j[0] === jakso;
+    return '<button type="button" data-ak="' + j[0] + '" aria-pressed="' + (a ? 'true' : 'false') + '" '
+      + 'style="flex:1;font-variant-numeric:tabular-nums;font-size:var(--fs-9);padding:4px 10px;border:none;'
+      + 'background:' + (a ? 'var(--surface-hi)' : 'transparent') + ';'
+      + 'color:' + (a ? 'var(--ink)' : 'var(--ink-3)') + ';font-weight:' + (a ? '600' : '400') + ';'
+      + 'border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none">' + j[1] + '</button>';
+  }).join('');
+
+  el.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">'
+      + '<div style="font-size:var(--fs-10);color:var(--ink-2);font-weight:600">'
+        + (lampoVain ? 'Meriveden lämpötila' : 'Aallonkorkeus') + ' · ' + yks + '</div>'
+      + '<div style="display:flex;flex-shrink:0;background:var(--surface-lo);border-radius:10px;padding:2px;gap:1px">'
+        + napit + '</div>'
+    + '</div>'
+    + '<svg id="' + vid + '" viewBox="0 0 ' + W + ' ' + TH + '" '
+      + 'style="width:100%;display:block;overflow:visible" role="img" aria-label="'
+      + (lampoVain ? 'Meriveden lämpötila' : 'Aallonkorkeus') + ' viimeisen '
+      + (jakso === '30h' ? '30 tunnin' : 'seitsemän vuorokauden') + ' ajalta, '
+      + 'suurin ' + maxV.toFixed(1) + ' ' + yks + ', viimeisin ' + draw[n - 1].v.toFixed(1) + ' ' + yks + '">'
+      + '<defs><linearGradient id="' + vid + '-g" x1="0" y1="0" x2="0" y2="1">'
+        + '<stop offset="0%" stop-color="#1C5C86" stop-opacity=".22"/>'
+        + '<stop offset="100%" stop-color="#1C5C86" stop-opacity="0"/></linearGradient></defs>'
+      + yl
+      + '<path d="' + alue + '" fill="url(#' + vid + '-g)"/>'
+      + '<path d="' + d + '" fill="none" stroke="var(--ink)" stroke-width="1.6" '
+        + 'stroke-linecap="round" stroke-linejoin="round"/>'
+      + huippu
+      + '<circle cx="' + xOf(n - 1).toFixed(1) + '" cy="' + yOf(draw[n - 1].v).toFixed(1)
+        + '" r="2.8" fill="var(--ink)"/>'
+      + xl
+    + '</svg>';
+
+  el.querySelectorAll('[data-ak]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var j = b.dataset.ak;
+      if (j === jakso) return;
+      Haptics.light();
+      /* 30 h on jo haettu kerran — sitä ei haeta uudelleen edestakaisin
+         vaihtaessa. 7 vrk haetaan kerran ja jää samaan elementtiin. */
+      var valmis = j === '30h' ? el._data30 : el._data7d;
+      if (valmis) { _aaltoKaavio(el, valmis, j, asema, lampoVain); return; }
+      Aaltopoijut.historia(asema.fmisid, j === '30h' ? 30 : 168).then(function (h) {
+        if (!el.isConnected) return;
+        if (j === '30h') el._data30 = h; else el._data7d = h;
+        _aaltoKaavio(el, h, j, asema, lampoVain);
+      }).catch(function () {});
+    }, { passive: true });
+  });
 }
 
 
@@ -16865,6 +17395,18 @@ function vesiIkonSVG(koko) {
     + '<path d="M3 19.5c2.2-2 4.3-2 6.5 0s4.3 2 6.5 0 4.3-2 5 -.6"/></svg>';
 }
 
+/* Aaltopoiju: pystymitta ja aalto. Sama merkitys kuin kartan glyfissä —
+   KORKEUS on se mitä luku kertoo, ei pelkkä "vettä". Vedenlämmön kolme
+   aaltoviivaa (vesiIkonSVG) on eri asia, ja ero on pidettävä näkyvänä
+   myös kortissa. */
+function aaltoIkonSVG(koko) {
+  return '<svg width="' + koko + '" height="' + koko + '" viewBox="0 0 24 24" fill="none" '
+    + 'stroke="currentColor" stroke-width="1.9" stroke-linecap="round" '
+    + 'stroke-linejoin="round" aria-hidden="true">'
+    + '<path d="M4 5v14"/><path d="M1.6 7.2 4 4.6l2.4 2.6"/><path d="M1.6 16.8 4 19.4l2.4-2.6"/>'
+    + '<path d="M9 16.5c2.2-6.5 5-6.5 7.2 0 1.2 3.4 3 3.4 5.3.6"/></svg>';
+}
+
 /* WMO-koodi -> ikonin avain. Sama jako kuin sanallisessa kuvauksessa. */
 function wxIconKey(code) {
   if (code === 0) return 'selkea';
@@ -17440,7 +17982,7 @@ document.getElementById('settings-overlay').addEventListener('click', _closeSett
    missa kayttajia on eniten. */
 const KARTTATASOT_AVAIN = 'fs_tasot';
 window._mapLayerState = {
-  'fmi-sea': true, 'fmi-land': true,
+  'fmi-sea': true, 'fmi-land': true, 'aallot': true,
   'uiras-prim': false, 'uiras-sec': false
 };
 /* Valinta jai ennen muistamatta: se palautui oletukseen joka latauksella,
@@ -17473,6 +18015,7 @@ function _applyMapLayers() {
     var show = true;
     if (m.layerGroup === 'fmi-sea')  show = window._mapLayerState['fmi-sea'];
     if (m.layerGroup === 'fmi-land') show = window._mapLayerState['fmi-land'];
+    if (m.layerGroup === 'aallot')   show = window._mapLayerState['aallot'];
     if (m.layerGroup === 'uiras') {
       /* UiRas: prim ja sec erikseen */
       var isPrim = !!m.prim;
