@@ -962,7 +962,14 @@ html.tyopoyta #kapseli.vaistyy {
   position: relative; pointer-events: all;
   height: calc(88px + var(--tl-paivat-h) + var(--sab-tl));
   overflow: visible;
-  padding: calc(14px + var(--tl-paivat-h)) 0 calc(var(--sab-tl) + 22px);
+  /* KAKSI RAITAA, YKSI VÄLI. Täyte oli 14 + kisko ylhäällä ja 22
+     alhaalla, jolloin tuntiuran ja päiväkiskon väliin jäi 3 px ja uran
+     alle 14 px tyhjää korttia. Kun kiskokin sai oman uransa, se 3 px:n
+     rako luki saumana kahden pinnan välissä. Nyt väli on jaettu
+     uudelleen: 20 ylhäällä ja 16 alhaalla eli raitojen väliin 9 px ja
+     kortin alareunaan 8 px. Summa on sama 36 px, joten uran korkeus
+     (52 px) ja koko kortin korkeus eivät muutu. */
+  padding: calc(20px + var(--tl-paivat-h)) 0 calc(var(--sab-tl) + 16px);
   background: none;
 }
 /* Kotivalikon appissa aikajana alemmas.
@@ -1005,8 +1012,8 @@ html.tyopoyta #kapseli.vaistyy {
   content: '';
   position: absolute;
   left: calc(var(--sal) + 14px); right: calc(var(--sar) + 14px);
-  top: calc(14px + var(--tl-paivat-h));
-  bottom: calc(var(--sab-tl) + 22px);
+  top: calc(20px + var(--tl-paivat-h));
+  bottom: calc(var(--sab-tl) + 16px);
   /* LIUKU SAMAAN SUUNTAAN KUIN ENNEN: suu vaaleampi, pohja tummempi.
    *
    * Materiaali vaihtui musteesta hiekkaan, mutta syvyyden kielioppi ei:
@@ -1068,7 +1075,7 @@ html.tyopoyta #kapseli.vaistyy {
 .tl-play-btn {
   position: absolute;
   left: calc(var(--sal) + 9px);
-  bottom: calc(var(--sab-tl) + 26px);
+  bottom: calc(var(--sab-tl) + 20px);
   width: 44px; height: 44px;
   border-radius: 50%;
   background: none;
@@ -1116,7 +1123,7 @@ html.tyopoyta #kapseli.vaistyy {
 .tl-keli-btn {
   position: absolute;
   right: calc(var(--sar) + 9px);
-  bottom: calc(var(--sab-tl) + 26px);
+  bottom: calc(var(--sab-tl) + 20px);
   width: 44px; height: 44px;
   border-radius: 50%;
   background: none;
@@ -1166,10 +1173,37 @@ html.tyopoyta #kapseli.vaistyy {
  * muuten kuin kun valittu päivä on jäänyt näkymän ulkopuolelle. Ilman
  * tuota rajausta kaksi vierityskonetta ajaisivat toisiaan takaa — sama
  * ansa jonka takia tuntinauhassa on `_tlBeginSelfScroll`. */
+/* PÄIVÄKISKOLLA ON SAMA URA KUIN TUNTINAUHALLA.
+ *
+ * Kortin sisällä oli kaksi eri materiaalia: tuntinauha upotetussa
+ * hiekkaurassa ja päiväkisko paljaalla paperilla. Ne ovat saman asian
+ * kaksi tarkkuutta — sama akseli, eri askel — eivätkä siis kaksi eri
+ * lajia. Nyt molemmat ovat samassa urassa samoilla tokeneilla, samalla
+ * pyöristyksellä ja samalla upotusvarjolla: kortti on paperia, ja
+ * paperiin on uurrettu kaksi rinnakkaista raitaa.
+ *
+ * Ura on omana kerroksenaan kiskon TAKANA, ei kiskon taustana. Syy on
+ * sama kuin tuntinauhalla mutta terävämpi: `#tl-paivat`illa on
+ * reunahäivytysmaski, ja taustana ura häipyisi päistään sen mukana —
+ * tuntiuran päät eivät häivy, joten raidat eivät enää vastaisi
+ * toisiaan. Maski kuuluu sisällölle, ei alustalle. */
+#tl-paivat-ura {
+  position: absolute;
+  top: 11px; height: var(--tl-paivat-h);
+  left: calc(var(--sal) + 14px); right: calc(var(--sar) + 14px);
+  background: linear-gradient(to bottom, var(--tl-ura-yla), var(--tl-ura));
+  border-radius: 14px;
+  box-shadow: inset 0 2px 3px rgba(120, 100, 60, .20),
+              inset 0 -1px 0 rgba(255, 252, 240, .55);
+  pointer-events: none;
+  z-index: 0;
+}
+
 #tl-paivat {
   position: absolute;
   top: 11px;
-  left: calc(var(--sal) + 8px); right: calc(var(--sar) + 8px);
+  /* Sama sisennys kuin tuntiuralla, jotta raidat ovat samassa linjassa. */
+  left: calc(var(--sal) + 14px); right: calc(var(--sar) + 14px);
   height: var(--tl-paivat-h);
   /* EI RAKOA LAPPUJEN VÄLIIN. Mitattuna 3 px:n raolla napautus lapun
      alaoikeaan kulmaan katosi rakoon eikä tehnyt mitään (6/7 kulmasta
@@ -1208,11 +1242,15 @@ html.tyopoyta #kapseli.vaistyy {
   /* Alalaita on varattu tuulikaistalle, joten teksti keskittyy pillerin
      eikä koko lapun mukaan. Lappu itse on yhä täyskorkea — napautus-
      pinta ei muutu, vain maali. */
-  padding: 0 10px 7px;
+  padding: 0 10px 6px;
   font-size: var(--fs-10);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--ink-3);
+  /* Muste kuten tuntinauhan lukemissa. Lappu ei ole enää paperilla vaan
+     uralla, ja `--ink-3` on hiekalla 4,05:1 eli alle pienen tekstin
+     rajan; `--ink-2` on 5,24:1 ja se on sama sävy jolla tunnit lukevat
+     omassa urassaan. */
+  color: var(--ink-2);
   white-space: nowrap;
   cursor: pointer;
   -webkit-user-select: none; user-select: none;
@@ -1220,10 +1258,15 @@ html.tyopoyta #kapseli.vaistyy {
 }
 /* Pilleri on omana kerroksenaan eikä lapun taustana: taustana se peittäisi
    tuulikaistan, ja juuri sen kaistan takia lappu on olemassa. */
+/* Pilleri ja kaista ovat URAN SISÄLLÄ, eivät sen reunojen päällä.
+   Ensimmäinen mitoitus venytti pillerin lapun ylälaitaan ja kaistan sen
+   alalaitaan, eli täsmälleen uran reunoihin: pilleri näytti puhkeavan
+   raidasta ja kaista irtosi omaksi rivikseen raidan alle. Neljä
+   pikseliä molempiin päihin sitoo ne uraan. */
 .tl-paiva::before {
   content: ''; position: absolute;
-  left: 0; right: 0; top: 0; bottom: 7px;
-  border-radius: 11px;
+  left: 0; right: 0; top: 4px; bottom: 10px;
+  border-radius: 9px;
   transition: background .15s ease;
 }
 /* Valittu päivä on TUMMA PILLERI, ei magenta. `--accent` on toiminto- ja
@@ -1250,7 +1293,7 @@ html.tyopoyta #kapseli.vaistyy {
  * päivän kohdalla mustan päällä, jossa ramppi ei toimi (0 m/s musteella
  * on 1,3:1). Ulkopuolella alusta on aina samaa hiekkaa. */
 .tl-paiva::after {
-  content: ''; position: absolute; bottom: 0; left: 50%;
+  content: ''; position: absolute; bottom: 4px; left: 50%;
   transform: translateX(-50%);
   width: calc(5px + var(--pv-osuus, 0) * (100% - 21px));
   height: 3px; border-radius: 2px;
@@ -1419,8 +1462,8 @@ html.tyopoyta #kapseli.vaistyy {
   position: absolute;
   /* Alkaa päiväkiskon ALTA: kisko rullaa omaa tahtiaan, eikä tuntinauhan
      osoitin saa piirtyä sen yli. */
-  top: calc(10px + var(--tl-paivat-h));
-  bottom: calc(var(--sab-tl) + 12px);
+  top: calc(16px + var(--tl-paivat-h));
+  bottom: calc(var(--sab-tl) + 6px);
   left: 50%; width: 2px;
   transform: translateX(-50%); pointer-events: none; z-index: 2;
   background: var(--accent);
@@ -3107,6 +3150,7 @@ html.tyopoyta {
           <path d="M6 5l6 7-6 7M14 5l6 7-6 7"/>
         </svg>
       </div>
+      <div id="tl-paivat-ura" aria-hidden="true"></div>
       <div id="tl-paivat"></div>
       <div id="tl-indicator"><div id="tl-time-bubble">--:--</div></div>
       <div id="tl-scroll"></div>

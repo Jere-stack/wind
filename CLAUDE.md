@@ -89,7 +89,7 @@ kokeiltu ja kaadettu mittauksella.
   Havaintoasemien kortit · Tummat jäänteet paperipaneeleissa · Aurinkokaari ·
   Aikajanan ura vaihtui hiekkaan · Kontrollit pois datan päältä, kisko
   kertomaan säästä · Napit takaisin uran päälle — kohotus kontrastin
-  tilalle
+  tilalle · Päiväkisko sai saman uran kuin tuntinauha
 
 </details>
 
@@ -183,6 +183,15 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   `ink()` on väärä koska se on oma sävypolkunsa eikä matchaa karttaan.
   Taulu ei seuraa pohjakarttaa (mitattu: sama palkki tummalla,
   vaalealla ja satelliitilla) mutta seuraa värisokeusasetusta.
+- **Aikajanassa on KAKSI RAITAA, samaa materiaalia.** Päiväkisko ja
+  tuntinauha ovat saman akselin kaksi tarkkuutta, joten ne ovat samassa
+  urassa: samat tokenit, sama sisennys (14 px), sama pyöristys, sama
+  upotusvarjo. Mitattu 1,01:1 raidasta raitaan. Kummankin ura on OMA
+  KERROKSENSA sisällön takana — sisällöllä on reunahäivytysmaski, ja
+  taustana ura häipyisi päistään sen mukana.
+- **Uran paljas väri mitataan raidan HÄIVYTETYSTÄ päästä**, pyöristyksen
+  sisäpuolelta. Keskeltä otettu näyte osuu palkkiin, yökaistaan tai
+  napin varjoon ja väittää samat tokenit eri värisiksi.
 - **Aikajanan ura on HIEKKAA (`--tl-ura`), ei mustetta.** Tumma ura
   ehdittiin hioa kahdesti (13,1:1 → 8,3:1) ja se oli yhä kortin kovin
   kontrasti — tyhjä alusta, ei yksikään datapiste. Hiekalla paperin ja

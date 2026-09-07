@@ -2317,3 +2317,60 @@ korostetulla pillerillään, ja kupla on olemassa TUNTIA varten — se on
 ainoa paikka jossa valittu tunti lukee numeroina. Viikonpäivä jää
 kuplaan erottamaan viisi vuorokautta toisistaan, mutta se on kontekstia
 eikä lukema: sama rivi, sama korkeus, kevyempi paino ja 0,62 alfa.
+
+---
+
+## Päiväkisko sai saman uran kuin tuntinauha
+
+Kortin sisällä oli kaksi eri materiaalia: tuntinauha upotetussa
+hiekkaurassa ja päiväkisko paljaalla paperilla. Ne ovat saman asian kaksi
+tarkkuutta — sama akseli, eri askel — eivätkä siis kaksi eri lajia. Nyt
+molemmat ovat samassa urassa: samat tokenit, sama pyöristys, sama
+upotusvarjo ja valoviiva. Kortti on paperia, ja paperiin on uurrettu
+kaksi rinnakkaista raitaa.
+
+Mitattuna ruudun pikseleistä:
+
+| | päiväraita | tuntiraita |
+|---|---|---|
+| vaakasijainti | 14–379 px | 14–379 px |
+| kortti → ura | 1,16:1 | 1,15:1 |
+| uran suu | `216,205,177` | `216,206,178` |
+| sisällön teksti uraa vasten | 4,57:1 | 4,61:1 |
+
+Raitojen keskinäinen ero on **1,01:1** eli sama materiaali, ja niiden
+väliin jää 9 px paperia.
+
+### Kolme mitoitusta piti sovittaa uudelleen
+
+1. **Raitojen väli.** `#tl-wrap`in täyte oli 14 px ylhäällä ja 22 px
+   alhaalla, jolloin raitojen väliin jäi 3 px ja uran alle 14 px tyhjää
+   korttia. Kolme pikseliä luki saumana kahden pinnan välissä. Väli
+   jaettiin uudelleen 20 / 16, jolloin raitojen väliin tulee 9 px ja
+   kortin alareunaan 8 px. Summa on sama, joten uran korkeus (52 px) ja
+   koko kortin korkeus (128 px) eivät muutu. Osoitin ja napit siirtyivät
+   saman verran; napin keskipiste on mitattuna täsmälleen uran keskellä.
+2. **Pilleri ja tuulikaista olivat uran reunojen PÄÄLLÄ.** Pilleri alkoi
+   lapun ylälaidasta ja kaista päättyi sen alalaitaan, eli täsmälleen
+   uran reunoihin: pilleri näytti puhkeavan raidasta ja kaista irtosi
+   omaksi rivikseen raidan alle. Neljä pikseliä molempiin päihin sitoo
+   ne uraan. Lappu on yhä 44 × 40 px, eli napautuspinta ei muuttunut —
+   mitattu napautuksin 7/7.
+3. **Lapun muste.** Lappu ei ole enää paperilla vaan uralla, ja
+   `--ink-3` on hiekalla 4,05:1 eli alle pienen tekstin rajan.
+   `--ink-2` on 5,2:1 ja se on sama sävy jolla tunnit lukevat omassa
+   urassaan — sama alusta, sama muste.
+
+### Ura on oma kerroksensa, ei kiskon tausta
+
+Sama syy kuin tuntinauhalla mutta terävämpi: `#tl-paivat`illa on
+reunahäivytysmaski, ja taustana ura häipyisi päistään sen mukana.
+Tuntiuran päät eivät häivy, joten raidat eivät enää vastaisi toisiaan.
+Maski kuuluu sisällölle, ei alustalle.
+
+> **Mittari valehteli kolmannen kerran.** Ensimmäinen ajo väitti, että
+> samoilla tokeneilla piirretyt raidat ovat eri värisiä (`225,214,184`
+> vs `201,194,170`). Näytteet oli otettu raitojen keskeltä, jossa ne
+> osuivat palkkiin, yökaistaan ja napin varjoon. Paljas ura löytyy vain
+> sieltä missä sisältö on häivytetty — ja siellä on osattava pysyä
+> pyöristyksen sisäpuolella, tai näyte on kortin ulkopuolelta.
