@@ -3891,23 +3891,23 @@ const ColorRamp = (() => {
 
 /* -- SPOTS ----------------------------------------------------- */
 const SPOTS = [
-  { name: 'Hanko Tulliniemi',  lat: 59.821,  lng: 22.928,  desc: 'Etelä-Suomen kärki – monipuolinen', bestDirs: ['E','S','NW']          },
-  { name: 'Hanko Silversand',  lat: 59.852,  lng: 22.996,  desc: 'Hiekkaranta – länsi-luode',      bestDirs: ['W','NW']               },
-  { name: 'Haukilahti',        lat: 60.1552, lng: 24.7800, desc: 'Klassikko – etelätuulet',        bestDirs: ['SE','S','SW']         },
-  { name: 'Lauttasaari',       lat: 60.1540, lng: 24.8676, desc: 'Etelä–länsi, helppo pääsy',      bestDirs: ['S','SW']              },
-  { name: 'Otaniemi',          lat: 60.1861, lng: 24.8382, desc: 'Otaniemen edusta – lounas',      bestDirs: ['NE']                  },
-  { name: 'Munkkiniemi',       lat: 60.1993, lng: 24.8600, desc: 'Suojaisa – kevyet tuulet',       bestDirs: ['SW','W']              },
-  { name: 'Hietaniemi',        lat: 60.1734, lng: 24.8991, desc: 'Hietsu – länsi',                 bestDirs: ['W']                   },
-  { name: 'Kruunuvuorenranta', lat: 60.1650, lng: 25.0105, desc: 'Itäväylän kupeessa',             bestDirs: ['N','S','SW']          },
-  { name: 'Puuskaniemi',       lat: 60.1727, lng: 25.0853, desc: 'Jollaksen edusta – avoin',       bestDirs: ['SE']                  },
-  { name: 'Kallahti',          lat: 60.1871, lng: 25.1408, desc: 'Vuosaaren ranta – itätuulet',    bestDirs: ['S','SW','W']          },
-  { name: 'Porkkala',          lat: 59.988,  lng: 24.397,  desc: 'Avomeri – luoteistuulet',        bestDirs: ['NW']                   },
+  { name: 'Hanko Tulliniemi',  lat: 59.821,  lng: 22.928,  desc: 'Etelä-Suomen kärki – monipuolinen', bestDirs: [[90,230]]          },
+  { name: 'Hanko Silversand',  lat: 59.852,  lng: 22.996,  desc: 'Hiekkaranta – länsi-luode',      bestDirs: [[254,60]]               },
+  { name: 'Haukilahti',        lat: 60.1552, lng: 24.7800, desc: 'Klassikko – etelätuulet',        bestDirs: [[95,250]]         },
+  { name: 'Lauttasaari',       lat: 60.1540, lng: 24.8676, desc: 'Etelä–länsi, helppo pääsy',      bestDirs: [[159,251]]              },
+  { name: 'Otaniemi',          lat: 60.1861, lng: 24.8382, desc: 'Otaniemen edusta – lounas',      bestDirs: [[19,69]]                  },
+  { name: 'Munkkiniemi',       lat: 60.1993, lng: 24.8600, desc: 'Suojaisa – kevyet tuulet',       bestDirs: [[190,322]]              },
+  { name: 'Hietaniemi',        lat: 60.1734, lng: 24.8991, desc: 'Hietsu – länsi',                 bestDirs: [[239,282]]                   },
+  { name: 'Kruunuvuorenranta', lat: 60.1650, lng: 25.0105, desc: 'Itäväylän kupeessa',             bestDirs: [[180,23]]          },
+  { name: 'Puuskaniemi',       lat: 60.1727, lng: 25.0853, desc: 'Jollaksen edusta – avoin',       bestDirs: [[94,133]]                  },
+  { name: 'Kallahti',          lat: 60.1871, lng: 25.1408, desc: 'Vuosaaren ranta – itätuulet',    bestDirs: [[143,293]]          },
+  { name: 'Porkkala',          lat: 59.988,  lng: 24.397,  desc: 'Avomeri – luoteistuulet',        bestDirs: [[210,286]]                   },
   /* Emäsalon eteläkärki, FMI:n havaintoaseman (60.20382, 25.62546) kohdalla
      mutta ~180 m etelään eli heti rantaviivan jälkeen vedessä. Sijainti on
      tarkistettu pohjakartalta: aseman kohdalla on niemen viimeinen maapala
      ja sen eteläpuolella avautuu Suomenlahti. Spotti on siis vedessä eikä
      asemamerkin päällä, jolloin kumpikin merkki pysyy luettavana. */
-  { name: 'Emäsalo',           lat: 60.20220, lng: 25.62546, desc: 'Emäsalon kärki – avomeri',       bestDirs: ['SE','S','SW']          }
+  { name: 'Emäsalo',           lat: 60.20220, lng: 25.62546, desc: 'Emäsalon kärki – avomeri',       bestDirs: [[76,250]]          }
 ];
 
 /* -- SÄÄLAATAT ---------------------------------------------------
@@ -11201,8 +11201,18 @@ function spotIndex(ms, windDeg, bestDirs, gustMs) {
  * se yksi asia joka ratkaisee juuri nyt. Järjestys on valittu sen mukaan
  * mikä muuttaa päätöstä eniten: liian heikko tuuli on lopullinen este,
  * väärä suunta ohjaa toiselle spotille, puuskaisuus on varaus. */
+/* Suunnat luettavaksi tekstiksi. Kaari on `[95,250]`, ja `join` olisi
+   tehnyt siitä merkkijonon "95,250" — luku joka näyttää koordinaatilta
+   eikä suunnalta. Nimet menevät läpi sellaisenaan. */
+function suunnatTekstina(bestDirs) {
+  if (!bestDirs || !bestDirs.length) return null;
+  return bestDirs.map(d => Array.isArray(d)
+    ? Math.round(d[0]) + '–' + Math.round(d[1]) + '°'
+    : d).join(' · ');
+}
+
 function spotIndexSelite(osat, ms, bestDirs) {
-  const dirs = bestDirs && bestDirs.length ? bestDirs.join(' · ') : null;
+  const dirs = suunnatTekstina(bestDirs);
   if (ms < 2)  return 'Tyyntä';
   if (ms < 5)  return 'Liian heikko';
   if (ms >= 22) return 'Liian kova';

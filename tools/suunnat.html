@@ -386,9 +386,13 @@ function paivita(kevyt) {
 function vie() {
   const rivit = SPOTIT.map(s => {
     const k = (TILA[s.name] || []).map(x => '[' + Math.round(x[0]) + ',' + Math.round(x[1]) + ']');
-    return '  ' + JSON.stringify(s.name) + ': [' + k.join(', ') + '],';
+    return '  ' + JSON.stringify(s.name) + ': [' + k.join(', ') + ']';
   });
-  document.getElementById('vienti').value = '{\n' + rivit.join('\n') + '\n}';
+  /* Pilkku RIVIEN VÄLIIN, ei jokaisen perään: ensimmäinen versio jätti
+     roikkuvan pilkun viimeiselle riville, jolloin oma tuloste ei ollut
+     kelvollista JSONia — ja "Liitä takaisin" olisi kaatunut juuri siihen
+     tekstiin jonka työkalu itse oli tuottanut. */
+  document.getElementById('vienti').value = '{\n' + rivit.join(',\n') + '\n}';
 }
 
 document.getElementById('kopioi').addEventListener('click', async () => {

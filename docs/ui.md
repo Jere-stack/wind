@@ -2567,3 +2567,57 @@ sisääntulo on `index.html`; tarkistettu `dist/`-hakemistosta).
 > pielessä ylapalkin verran. Molemmat korjaantuivat kääreellä joka
 > sisältää sekä kartan että SVG:n, molemmat `inset:0` + `width/height
 > 100%`.
+
+### Mitatut kaaret (2026-09)
+
+Kaaret asetettiin työkalulla kartalta. Vanhat nimet ovat suluissa:
+
+| spotti | kaari | leveys | ennen |
+|---|---|---|---|
+| Hanko Tulliniemi | 90–230° | 140° | E · S · NW |
+| Hanko Silversand | 254–60° | 166° | W · NW |
+| Haukilahti | 95–250° | 155° | SE · S · SW |
+| Lauttasaari | 159–251° | 92° | S · SW |
+| Otaniemi | 19–69° | 50° | NE |
+| Munkkiniemi | 190–322° | 132° | SW · W |
+| Hietaniemi | 239–282° | 43° | W |
+| Kruunuvuorenranta | 180–23° | 203° | N · S · SW |
+| Puuskaniemi | 94–133° | 39° | SE |
+| Kallahti | 143–293° | 150° | S · SW · W |
+| Porkkala | 210–286° | 76° | NW |
+| Emäsalo | 76–250° | 174° | SE · S · SW |
+
+Tarkistettu koodista: kaaren sisällä `suuntaEro` on 0, reunoilla tasan 0,
+yksi aste ulkona 1, ja 0°:n yli menevät kaaret (254–60, 180–23) toimivat.
+
+**Pisteet nousivat, kuten pitikin.** Kolme pistettä 45° välein jätti
+kuoppia väliin; yhtenäinen kaari antaa täydet suuntapisteet koko
+sektorille. Mitattuna 11 m/s ja 360 suuntaa per spotti, keskimuutos
++3,3…+10,3 pistettä, ja yhdeksällä spotilla kaksitoista ei laske
+yhtään suuntaa.
+
+**Kolme asiaa jotka kavenivat — nämä ovat päätöksiä, eivät vikoja:**
+
+1. **Hanko Tulliniemi menetti luoteen.** Vanha lista oli E · S · NW, ja
+   uusi kaari 90–230° ei sisällä luodetta lainkaan. Mitattuna 109
+   suuntaa 360:stä saa nyt vähemmän pisteitä (pahimmillaan −30), ja
+   "väärä suunta" -sanoma kattaa 59 astetta kun ennen se ei kattanut
+   yhtään.
+2. **Porkkalan kuvaus on nyt ristiriidassa datan kanssa.** `desc` sanoo
+   "Avomeri – luoteistuulet", mutta 210–286° päättyy 29 astetta ennen
+   luodetta (315°). Sama koskee Kallahtia: "itätuulet", mutta 143–293°
+   ei sisällä itää. (Otaniemen "lounas" oli ristiriidassa jo ennen tätä:
+   sen data oli NE.)
+3. **Kruunuvuorenranta ei enää koskaan sano "väärä suunta".** Kaari on
+   203° eli yli puolet kompassista, joten jokainen suunta on alle 80°
+   päässä siitä. Ennen 19 astetta 360:stä sai sen sanoman.
+
+`spotIndexSelite` näytti suunnat käyttäjälle `join(' · ')`:llä, mikä
+olisi tulostanut kaaresta merkkijonon "95,250" — luku joka näyttää
+koordinaatilta. `suunnatTekstina()` muotoilee kaaren muotoon "95–250°"
+ja päästää nimet läpi sellaisenaan.
+
+> **Työkalun oma vienti ei ollut kelvollista JSONia.** Jokaisen rivin
+> perässä oli pilkku, myös viimeisen, joten "Liitä takaisin" olisi
+> kaatunut juuri siihen tekstiin jonka työkalu itse tuotti. Pilkku on
+> nyt rivien VÄLISSÄ.
