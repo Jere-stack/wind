@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FoilSpot — spottien tuulisuunnat</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.css">
+<style>
+/* Tämä on TYÖKALU, ei sovellus. Sen ulkoasu on tarkoituksella karu:
+   ainoa asia jonka pitää olla tarkka on kompassi, ja kaikki muu on
+   sen ympärillä olevaa kalustusta. Silti samat tokenit kuin appissa,
+   jotta rannikko ja kartta näyttävät siltä miltä ne appissa näyttävät. */
+:root {
+  --surface:#F0E7CE; --surface-hi:#FAF5E7; --surface-lo:#E4D8B8;
+  --hairline:#CDBE9A; --ink:#101A20; --ink-2:#4C5960; --ink-3:#5F696F;
+  --accent:#B4005A; --info:#1C5C86;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body {
+  font:14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color:var(--ink); background:var(--surface); height:100vh; overflow:hidden;
+  display:grid; grid-template-columns:300px 1fr; grid-template-rows:100vh;
+}
+/* ---- sivupalkki ---- */
+#sivu { background:var(--surface); border-right:1px solid var(--hairline);
+  display:flex; flex-direction:column; min-height:0; }
+#otsikko { padding:14px 16px 10px; border-bottom:1px solid var(--hairline); }
+#otsikko h1 { font-size:15px; font-weight:700; letter-spacing:.01em; }
+#otsikko p { font-size:12px; color:var(--ink-3); margin-top:3px; }
+#lista { overflow-y:auto; flex:1; min-height:0; }
+.rivi { display:flex; align-items:center; gap:10px; padding:9px 16px;
+  cursor:pointer; border-bottom:1px solid rgba(205,190,154,.45); }
+.rivi:hover { background:var(--surface-lo); }
+.rivi.valittu { background:var(--ink); color:var(--surface); }
+.rivi.valittu .alku { color:rgba(240,231,206,.72); }
+.rivi .nimi { font-weight:600; font-size:13px; }
+.rivi .alku { font-size:11px; color:var(--ink-3); font-variant-numeric:tabular-nums; }
+.rivi .merkki { width:8px; height:8px; border-radius:50%; background:var(--hairline);
+  flex:0 0 8px; }
+.rivi.muokattu .merkki { background:var(--accent); }
+.rivi .teksti { flex:1; min-width:0; }
+/* ---- kartta ---- */
+#oikea { position:relative; min-height:0; display:flex; flex-direction:column; }
+/* KOMPASSI ON KARTAN OMASSA LAATIKOSSA, ei koko oikean palstan päällä.
+   Kaksi syytä, molemmat mitattuja:
+   1. `latLngToContainerPoint` antaa koordinaatit KARTTASÄILIÖN nurkasta.
+      Jos SVG alkaa ylapalkin yläreunasta, kompassi on 52 px pielessä.
+   2. `position:absolute; inset:0` EI venytä <svg>:tä: korvatulla
+      elementillä auto-mitat ovat sen sisäiset 300x150, joten kahvat
+      jäivät laatikon ulkopuolelle eikä niihin voinut tarttua.
+      Mitattuna osoitin osui `#kartta`an eikä kahvaan. */
+#karttalaatikko { position:relative; flex:1; min-height:0; }
+#kartta { position:absolute; inset:0; background:#0b1a24; }
+#yla { padding:10px 16px; border-bottom:1px solid var(--hairline);
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap; background:var(--surface-hi); }
+#lukema { font-size:20px; font-weight:700; font-variant-numeric:tabular-nums;
+  letter-spacing:.01em; min-width:230px; }
+#lukema small { font-size:12px; font-weight:600; color:var(--ink-3); }
+button { font:inherit; font-size:12px; font-weight:600; padding:6px 11px;
+  border:1px solid var(--hairline); border-radius:8px; background:var(--surface-hi);
+  color:var(--ink); cursor:pointer; }
+button:hover { background:var(--surface-lo); }
+button.ensisijainen { background:var(--ink); color:var(--surface); border-color:var(--ink); }
+button:disabled { opacity:.4; cursor:default; }
+#ala { border-top:1px solid var(--hairline); background:var(--surface-hi);
+  padding:10px 16px; display:flex; gap:12px; align-items:flex-start; }
+#vienti { flex:1; height:120px; font:12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+  border:1px solid var(--hairline); border-radius:8px; padding:8px 10px;
+  background:var(--surface); color:var(--ink); resize:vertical; white-space:pre; }
+#ohje { font-size:11px; color:var(--ink-3); max-width:230px; line-height:1.5; }
+kbd { font:inherit; font-size:10px; background:var(--surface-lo); border:1px solid var(--hairline);
+  border-radius:4px; padding:0 4px; }
+/* ---- kompassi ---- */
+#kompassi { position:absolute; inset:0; width:100%; height:100%;
+  pointer-events:none; z-index:600; }
+#kompassi .osuma { pointer-events:auto; cursor:grab; }
+#kompassi .osuma:active { cursor:grabbing; }
+.leaflet-container { background:#0b1a24; }
+</style>
+</head>
+<body>
+
+<div id="sivu">
+  <div id="otsikko">
+    <h1>Spottien tuulisuunnat</h1>
+    <p>Kaari kertoo mistä suunnasta tuulen pitää tulla. Vedä päätepisteitä
+       tai koko kaarta; nuolinäppäimet ±1°, shift ±5°.</p>
+  </div>
+  <div id="lista"></div>
+</div>
+
+<div id="oikea">
+  <div id="yla">
+    <div id="lukema">—</div>
+    <button id="lisaa">+ toinen kaari</button>
+    <button id="poista">− poista kaari</button>
+    <button id="nollaa">Palauta alkuarvo</button>
+    <span style="flex:1"></span>
+    <label style="font-size:12px;color:var(--ink-3)">
+      <input type="checkbox" id="satelliitti"> satelliitti
+    </label>
+  </div>
+  <div id="karttalaatikko">
+    <div id="kartta"></div>
+    <svg id="kompassi"></svg>
+  </div>
+  <div id="ala">
+    <textarea id="vienti" spellcheck="false" aria-label="Vietävä data"></textarea>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <button id="kopioi" class="ensisijainen">Kopioi</button>
+      <button id="tuo">Liitä takaisin</button>
+      <div id="ohje">Muutokset tallentuvat selaimeen automaattisesti.
+        Kun kaikki on valmista, kopioi ja anna teksti Claudelle.</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js"></script>
+<script>
+/* ===================================================================
+   SPOTTIEN TUULISUUNNAT — asteen tarkkuudella
+   ===================================================================
+
+   MIKSI KAARI EIKÄ PISTELISTA?
+   Appissa suunnat ovat 8-suuntaisia nimiä (`bestDirs: ['SE','S','SW']`),
+   jotka muunnetaan asteiksi ja pisteytetään lähimmän osuman mukaan.
+   Kolme pistettä 45° välein on karkea approksimaatio siitä mitä spotti
+   oikeasti on: yhtenäinen sektori, esimerkiksi 115°–240°. Kaari on sekä
+   tarkempi että helpompi asettaa — kaksi kahvaa, ei kolmea valintaa.
+
+   MIKÄ SUUNTA?
+   Meteorologinen: aste kertoo mistä tuuli TULEE. 180° = etelätuuli.
+   Kaari piirtyy siksi spotista ULOSPÄIN siihen suuntaan josta tuulen
+   pitää tulla — onshore-spotilla siis merelle päin. Nuoli kaaren
+   keskellä osoittaa spottiin: se on tuulen kulkusuunta.
+
+   MISTÄ SPOTIT TULEVAT?
+   Luetaan `index.html`:stä ajossa, ei kopioida tänne. Kopio vanhenisi
+   heti kun spotteja lisätään, ja tämä työkalu on nimenomaan se paikka
+   jossa uusi spotti käydään säätämässä.
+   =================================================================== */
+
+const KARTTA_TUMMA = 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}';
+const KARTTA_SAT   = 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+const DIR_DEG = { N:0, NE:45, E:90, SE:135, S:180, SW:225, W:270, NW:315 };
+const TALLENNUS = 'foilspot_suunnat_v1';
+
+let SPOTIT = [];      /* [{name, lat, lng, desc, bestDirs}] */
+let TILA = {};        /* name -> [[alku,loppu], ...] */
+let valittu = 0, raahaus = null, fokus = null;
+
+/* ---- spottien luku index.html:stä -------------------------------- */
+async function lataaSpotit() {
+  const html = await (await fetch('/index.html', { cache:'no-store' })).text();
+  const alku = html.indexOf('const SPOTS = [');
+  if (alku < 0) throw new Error('SPOTS-lohkoa ei löytynyt index.html:stä');
+  /* Suluista sulkuihin: lasketaan hakasulut, jotta sisäkkäiset
+     bestDirs-taulukot eivät katkaise lukua ensimmäiseen `]`:iin. */
+  const auki = html.indexOf('[', alku);
+  let syvyys = 0, loppu = -1;
+  for (let i = auki; i < html.length; i++) {
+    const c = html[i];
+    if (c === '[') syvyys++;
+    else if (c === ']') { syvyys--; if (syvyys === 0) { loppu = i; break; } }
+  }
+  if (loppu < 0) throw new Error('SPOTS-lohko jäi auki');
+  const lohko = html.slice(auki, loppu + 1);
+  /* Data on pelkkiä objektiliteraaleja ja kommentteja. */
+  return Function('"use strict";return (' + lohko + ')')();
+}
+
+/* ---- alkuarvo vanhoista nimistä ---------------------------------- */
+/* Yksi nimi -> ±22,5°. Useampi -> kaari uloimmasta uloimpaan niin että
+   se on lyhin kaikki kattava sektori (suunnat voivat kiertää 0°:n yli,
+   esim. NW+N+NE = 292,5°–67,5°). */
+function alkuKaari(bestDirs) {
+  const asteet = (bestDirs || []).map(d => DIR_DEG[d]).filter(v => v !== undefined);
+  if (!asteet.length) return [[0, 360]];
+  if (asteet.length === 1) return [[normi(asteet[0] - 22.5), normi(asteet[0] + 22.5)]];
+  const s = [...asteet].sort((a, b) => a - b);
+  /* Suurin aukko kahden peräkkäisen suunnan välillä on sektorin
+     ULKOPUOLI; kaari alkaa aukon jälkeisestä ja päättyy sitä edeltävään. */
+  let paras = -1, parasI = 0;
+  for (let i = 0; i < s.length; i++) {
+    const a = s[i], b = s[(i + 1) % s.length];
+    const aukko = normi(b - a);
+    if (aukko > paras) { paras = aukko; parasI = i; }
+  }
+  const loppu = s[parasI], alku = s[(parasI + 1) % s.length];
+  return [[normi(alku - 22.5), normi(loppu + 22.5)]];
+}
+const normi = d => ((d % 360) + 360) % 360;
+const leveys = ([a, b]) => normi(b - a) || 360;
+
+/* ---- kartta ------------------------------------------------------ */
+const map = L.map('kartta', { zoomControl:true, attributionControl:false })
+  .setView([60.15, 24.9], 13);
+let pohja = L.tileLayer(KARTTA_TUMMA, { maxZoom:19 }).addTo(map);
+document.getElementById('satelliitti').addEventListener('change', e => {
+  map.removeLayer(pohja);
+  pohja = L.tileLayer(e.target.checked ? KARTTA_SAT : KARTTA_TUMMA, { maxZoom:19 }).addTo(map);
+});
+map.on('move zoom viewreset', piirraKompassi);
+
+/* ---- sivupalkki -------------------------------------------------- */
+function piirraLista() {
+  const el = document.getElementById('lista');
+  el.innerHTML = '';
+  SPOTIT.forEach((s, i) => {
+    const kaaret = TILA[s.name] || [];
+    const alkup = JSON.stringify(alkuKaari(s.bestDirs));
+    const muokattu = JSON.stringify(kaaret) !== alkup;
+    const rivi = document.createElement('div');
+    rivi.className = 'rivi' + (i === valittu ? ' valittu' : '') + (muokattu ? ' muokattu' : '');
+    rivi.innerHTML = '<span class="merkki"></span><span class="teksti">'
+      + '<span class="nimi">' + s.name + '</span><br>'
+      + '<span class="alku">' + kaaret.map(k =>
+          Math.round(k[0]) + '°–' + Math.round(k[1]) + '°').join('  ·  ') + '</span></span>';
+    rivi.addEventListener('click', () => { valittu = i; keskita(); paivita(); });
+    el.appendChild(rivi);
+  });
+}
+
+function keskita() {
+  const s = SPOTIT[valittu];
+  map.setView([s.lat, s.lng], Math.max(map.getZoom(), 12), { animate:true });
+}
+
+/* ---- kompassi ---------------------------------------------------- */
+const SVG = 'http://www.w3.org/2000/svg';
+function piirraKompassi() {
+  const svg = document.getElementById('kompassi');
+  svg.innerHTML = '';
+  const s = SPOTIT[valittu];
+  if (!s) return;
+  const p = map.latLngToContainerPoint([s.lat, s.lng]);
+  const R = 150, r0 = 42;
+
+  const lisaa = (nimi, attrs, luokka) => {
+    const e = document.createElementNS(SVG, nimi);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+    if (luokka) e.setAttribute('class', luokka);
+    svg.appendChild(e);
+    return e;
+  };
+  /* Asteesta ruutupisteeksi. 0° on POHJOINEN ja kulma kasvaa
+     myötäpäivään — sama kuin kompassissa, ei matematiikan yksikköympyrä. */
+  const piste = (deg, sade) => [
+    p.x + Math.sin(deg * Math.PI / 180) * sade,
+    p.y - Math.cos(deg * Math.PI / 180) * sade,
+  ];
+
+  /* rengas + asteikko */
+  lisaa('circle', { cx:p.x, cy:p.y, r:R, fill:'none',
+    stroke:'rgba(255,255,255,.28)', 'stroke-width':1 });
+  for (let d = 0; d < 360; d += 10) {
+    const iso = d % 90 === 0, keski = d % 30 === 0;
+    const [x1,y1] = piste(d, R - (iso ? 12 : keski ? 8 : 4));
+    const [x2,y2] = piste(d, R);
+    lisaa('line', { x1,y1,x2,y2, stroke:'rgba(255,255,255,' + (iso ? .8 : keski ? .5 : .28) + ')',
+      'stroke-width': iso ? 2 : 1 });
+  }
+  for (const [d, t] of [[0,'N'],[90,'E'],[180,'S'],[270,'W']]) {
+    const [x,y] = piste(d, R + 16);
+    lisaa('text', { x, y, fill:'#fff', 'font-size':13, 'font-weight':700,
+      'text-anchor':'middle', 'dominant-baseline':'middle',
+      'paint-order':'stroke', stroke:'rgba(0,0,0,.55)', 'stroke-width':3 }).textContent = t;
+  }
+
+  /* kaaret */
+  const kaaret = TILA[s.name] || [];
+  kaaret.forEach((k, ki) => {
+    const [a, b] = k, lev = leveys(k);
+    const [x1,y1] = piste(a, r0),  [x2,y2] = piste(a, R);
+    const [x3,y3] = piste(b, R),   [x4,y4] = piste(b, r0);
+    const iso = lev > 180 ? 1 : 0;
+    const d = 'M' + x1 + ',' + y1 + ' L' + x2 + ',' + y2
+      + ' A' + R + ',' + R + ' 0 ' + iso + ' 1 ' + x3 + ',' + y3
+      + ' L' + x4 + ',' + y4
+      + ' A' + r0 + ',' + r0 + ' 0 ' + iso + ' 0 ' + x1 + ',' + y1 + ' Z';
+    lisaa('path', { d, fill:'rgba(180,0,90,.30)', stroke:'#B4005A', 'stroke-width':2,
+      'data-kaari':ki }, 'osuma sektori');
+
+    /* Nuoli kaaren keskeltä spottiin: tuulen KULKUSUUNTA. Ilman tätä
+       on 50 % mahdollisuus asettaa peilikuva. */
+    const kesk = normi(a + lev / 2);
+    const [nx,ny] = piste(kesk, R - 26);
+    const [tx,ty] = piste(kesk, r0 + 14);
+    lisaa('line', { x1:nx, y1:ny, x2:tx, y2:ty, stroke:'#fff',
+      'stroke-width':2, 'stroke-dasharray':'5 4', opacity:.8 });
+    const [hx,hy] = piste(kesk, r0 + 6);
+    const [lx,ly] = piste(normi(kesk + 155), 12);
+    const [rx,ry] = piste(normi(kesk - 155), 12);
+    lisaa('polygon', { points:[hx+','+hy, (hx+lx-p.x)+','+(hy+ly-p.y),
+      (hx+rx-p.x)+','+(hy+ry-p.y)].join(' '), fill:'#fff', opacity:.85 });
+
+    /* kahvat */
+    for (const [deg, mika] of [[a,'alku'],[b,'loppu']]) {
+      const [hx2,hy2] = piste(deg, R);
+      lisaa('circle', { cx:hx2, cy:hy2, r:9, fill:'#fff', stroke:'#B4005A',
+        'stroke-width':3, 'data-kaari':ki, 'data-kahva':mika,
+        opacity: (fokus && fokus.ki === ki && fokus.mika === mika) ? 1 : .92 },
+        'osuma kahva');
+      const [tx2,ty2] = piste(deg, R + 34);
+      lisaa('text', { x:tx2, y:ty2, fill:'#fff', 'font-size':12, 'font-weight':700,
+        'text-anchor':'middle', 'dominant-baseline':'middle',
+        'paint-order':'stroke', stroke:'rgba(0,0,0,.6)', 'stroke-width':3 })
+        .textContent = Math.round(deg) + '°';
+    }
+  });
+
+  /* spotin oma piste */
+  lisaa('circle', { cx:p.x, cy:p.y, r:6, fill:'#fff', stroke:'#B4005A', 'stroke-width':3 });
+  lisaa('text', { x:p.x, y:p.y - 18, fill:'#fff', 'font-size':12, 'font-weight':700,
+    'text-anchor':'middle', 'paint-order':'stroke', stroke:'rgba(0,0,0,.6)',
+    'stroke-width':3 }).textContent = s.name;
+}
+
+/* ---- raahaus ----------------------------------------------------- */
+function kulmaHiirelta(e) {
+  const s = SPOTIT[valittu];
+  const p = map.latLngToContainerPoint([s.lat, s.lng]);
+  const r = document.getElementById('kompassi').getBoundingClientRect();
+  const dx = (e.clientX - r.left) - p.x, dy = (e.clientY - r.top) - p.y;
+  return normi(Math.atan2(dx, -dy) * 180 / Math.PI);
+}
+document.getElementById('kompassi').addEventListener('pointerdown', e => {
+  const t = e.target.closest('.osuma');
+  if (!t) return;
+  e.preventDefault(); e.stopPropagation();
+  const ki = +t.getAttribute('data-kaari');
+  const kahva = t.getAttribute('data-kahva');
+  raahaus = { ki, kahva, alkuKulma: kulmaHiirelta(e),
+    alkuArvot: [...(TILA[SPOTIT[valittu].name][ki])] };
+  if (kahva) fokus = { ki, mika: kahva };
+  t.setPointerCapture(e.pointerId);
+  piirraKompassi();
+});
+document.getElementById('kompassi').addEventListener('pointermove', e => {
+  if (!raahaus) return;
+  const kulma = kulmaHiirelta(e);
+  const k = TILA[SPOTIT[valittu].name][raahaus.ki];
+  if (raahaus.kahva === 'alku')  k[0] = Math.round(kulma);
+  else if (raahaus.kahva === 'loppu') k[1] = Math.round(kulma);
+  else {
+    /* Koko sektorin kierto: siirretään molempia yhtä paljon. */
+    const siirto = normi(kulma - raahaus.alkuKulma);
+    k[0] = Math.round(normi(raahaus.alkuArvot[0] + siirto));
+    k[1] = Math.round(normi(raahaus.alkuArvot[1] + siirto));
+  }
+  paivita(true);
+});
+for (const t of ['pointerup', 'pointercancel'])
+  document.getElementById('kompassi').addEventListener(t, () => {
+    if (!raahaus) return; raahaus = null; paivita();
+  });
+
+/* Nuolinäppäimet: viimeksi kosketettu kahva ±1° (shift ±5°). */
+addEventListener('keydown', e => {
+  if (!fokus || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+  if (e.target.tagName === 'TEXTAREA') return;
+  const askel = (e.key === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 5 : 1);
+  const k = TILA[SPOTIT[valittu].name][fokus.ki];
+  if (!k) return;
+  const i = fokus.mika === 'alku' ? 0 : 1;
+  k[i] = normi(k[i] + askel);
+  e.preventDefault();
+  paivita();
+});
+
+/* ---- päivitys ja vienti ------------------------------------------ */
+function paivita(kevyt) {
+  piirraKompassi();
+  const s = SPOTIT[valittu];
+  const kaaret = TILA[s.name] || [];
+  document.getElementById('lukema').innerHTML = kaaret.map(k =>
+    Math.round(k[0]) + '°–' + Math.round(k[1]) + '° <small>('
+    + Math.round(leveys(k)) + '° leveä)</small>').join('  +  ') || '—';
+  document.getElementById('poista').disabled = kaaret.length < 2;
+  if (kevyt) return;
+  piirraLista();
+  vie();
+  try { localStorage.setItem(TALLENNUS, JSON.stringify(TILA)); } catch (e) {}
+}
+
+function vie() {
+  const rivit = SPOTIT.map(s => {
+    const k = (TILA[s.name] || []).map(x => '[' + Math.round(x[0]) + ',' + Math.round(x[1]) + ']');
+    return '  ' + JSON.stringify(s.name) + ': [' + k.join(', ') + '],';
+  });
+  document.getElementById('vienti').value = '{\n' + rivit.join('\n') + '\n}';
+}
+
+document.getElementById('kopioi').addEventListener('click', async () => {
+  const ta = document.getElementById('vienti');
+  ta.select();
+  try { await navigator.clipboard.writeText(ta.value); } catch (e) { document.execCommand('copy'); }
+  const b = document.getElementById('kopioi');
+  b.textContent = 'Kopioitu'; setTimeout(() => b.textContent = 'Kopioi', 1200);
+});
+document.getElementById('tuo').addEventListener('click', () => {
+  try {
+    const o = JSON.parse(document.getElementById('vienti').value);
+    for (const [nimi, kaaret] of Object.entries(o))
+      if (TILA[nimi]) TILA[nimi] = kaaret.map(k => [normi(k[0]), normi(k[1])]);
+    paivita();
+  } catch (e) { alert('Ei kelvollista JSONia: ' + e.message); }
+});
+document.getElementById('lisaa').addEventListener('click', () => {
+  const k = TILA[SPOTIT[valittu].name];
+  const viim = k[k.length - 1];
+  k.push([normi(viim[1] + 30), normi(viim[1] + 90)]);
+  fokus = { ki: k.length - 1, mika: 'alku' };
+  paivita();
+});
+document.getElementById('poista').addEventListener('click', () => {
+  const k = TILA[SPOTIT[valittu].name];
+  if (k.length > 1) k.pop();
+  fokus = null;
+  paivita();
+});
+document.getElementById('nollaa').addEventListener('click', () => {
+  const s = SPOTIT[valittu];
+  TILA[s.name] = alkuKaari(s.bestDirs);
+  fokus = null;
+  paivita();
+});
+
+/* ---- käynnistys --------------------------------------------------- */
+lataaSpotit().then(spotit => {
+  SPOTIT = spotit;
+  let tallennettu = null;
+  try { tallennettu = JSON.parse(localStorage.getItem(TALLENNUS) || 'null'); } catch (e) {}
+  for (const s of SPOTIT) {
+    TILA[s.name] = (tallennettu && tallennettu[s.name])
+      ? tallennettu[s.name].map(k => [normi(k[0]), normi(k[1])])
+      : alkuKaari(s.bestDirs);
+  }
+  keskita();
+  paivita();
+}).catch(e => {
+  document.getElementById('lukema').textContent = 'Virhe: ' + e.message;
+  console.error(e);
+});
+</script>
+</body>
+</html>

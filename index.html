@@ -11080,18 +11080,47 @@ function buildWindField(hourIdx, opts) {
    -------------------------------------------------------------------- */
 const DIR_DEG = { N:0, NE:45, E:90, SE:135, S:180, SW:225, W:270, NW:315 };
 
-function dirMatchScore(windDeg, bestDirs) {
-  if (!bestDirs || !bestDirs.length) return 0.7;
-  let best = 0;
+/* SPOTIN SUUNNAT: NIMI TAI KAARI.
+ *
+ * `bestDirs` alkio on joko vanha 8-suuntainen nimi ('SE') tai KAARI
+ * asteina, `[alku, loppu]` myötäpäivään — esim. `[113, 248]`. Kaari on
+ * tarkempi malli siitä mitä spotti on: yhtenäinen sektori, ei kolmea
+ * pistettä 45° välein. Nimi vastaa kaarta jonka leveys on 0°, joten
+ * molemmat kulkevat saman mittarin läpi eikä pisteytystä ole kahta.
+ *
+ * Molemmat suunnat ovat METEOROLOGISIA: aste kertoo mistä tuuli tulee.
+ *
+ * Kaaret asetetaan `tools/suunnat.html`-työkalulla (`npm run dev`,
+ * /tools/suunnat.html) — kartalta, ei arvaamalla.
+ *
+ * Palauttaa kulmaeron lähimpään suuntaan asteina; kaaren SISÄLLÄ 0. */
+function suuntaEro(windDeg, bestDirs) {
+  if (!bestDirs || !bestDirs.length) return null;
+  const normi = d => ((d % 360) + 360) % 360;
+  let paras = 180;
   for (const d of bestDirs) {
-    const optimal = DIR_DEG[d];
-    if (optimal === undefined) continue;
-    let diff = Math.abs(windDeg - optimal) % 360;
-    if (diff > 180) diff = 360 - diff;
-    const score = diff <= 90 ? Math.cos(diff * Math.PI / 180) * 0.7 + 0.3 : 0;
-    if (score > best) best = score;
+    if (Array.isArray(d)) {
+      /* Leveys nollasta 360:een; `[0,0]` olisi tyhjä eikä täysi, joten
+         se tulkitaan täydeksi kierrokseksi kuten työkalussakin. */
+      const lev = normi(d[1] - d[0]) || 360;
+      const off = normi(windDeg - d[0]);
+      if (off <= lev) return 0;
+      paras = Math.min(paras, 360 - off, off - lev);
+    } else {
+      const optimal = DIR_DEG[d];
+      if (optimal === undefined) continue;
+      let diff = Math.abs(windDeg - optimal) % 360;
+      if (diff > 180) diff = 360 - diff;
+      if (diff < paras) paras = diff;
+    }
   }
-  return best;
+  return paras;
+}
+
+function dirMatchScore(windDeg, bestDirs) {
+  const diff = suuntaEro(windDeg, bestDirs);
+  if (diff === null) return 0.7;
+  return diff <= 90 ? Math.cos(diff * Math.PI / 180) * 0.7 + 0.3 : 0;
 }
 
 /* -- SPOT INDEX 0–100 ---------------------------------------------
@@ -11126,16 +11155,10 @@ function spotIndexOsat(ms, windDeg, bestDirs, gustMs) {
   /* -- SUUNTA 0–30 pts ------------------------------------------
      cos²-käyrä, cutoff 80°. Painotetaan nopeudella.          */
   const speedWeight = ms <= 8 ? ms / 8 : ms <= 14 ? 1.0 : Math.max(0, 1 - (ms - 14) / 10);
-  let dirPts = 0, bestDiff = null;
-  if (bestDirs && bestDirs.length) {
-    bestDiff = 180;
-    for (const d of bestDirs) {
-      const optimal = DIR_DEG[d];
-      if (optimal === undefined) continue;
-      let diff = Math.abs(windDeg - optimal) % 360;
-      if (diff > 180) diff = 360 - diff;
-      if (diff < bestDiff) bestDiff = diff;
-    }
+  /* Sama mittari kuin dirMatchScoressa: kulmaero lähimpään suuntaan,
+     kaaren sisällä 0. Ks. `suuntaEro`. */
+  let dirPts = 0, bestDiff = suuntaEro(windDeg, bestDirs);
+  if (bestDiff !== null) {
     if (bestDiff <= 80) {
       dirPts = Math.pow(Math.cos(bestDiff * Math.PI / 160), 2) * 30;
     }

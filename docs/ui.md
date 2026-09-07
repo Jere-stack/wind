@@ -2512,3 +2512,58 @@ häivytyksen. Mitattu piilossa: `visibility: hidden`, lappu ei näy.
 > herätä kiskoa — ja sen odotukset ovat yhteensä yli 4 s. Ensimmäinen
 > ajo raportoi siksi 2/7 hutia, jotka olivat mittarin omia: se napautti
 > piilossa olevaa kiskoa. Nimenomaisen herätyksen kanssa 7/7.
+
+---
+
+## Spottien tuulisuunnat asteen tarkkuudella
+
+Suunnat olivat 8-suuntaisia nimiä (`bestDirs: ['SE','S','SW']`), jotka
+muunnettiin asteiksi ja pisteytettiin lähimmän osuman mukaan. Kolme
+pistettä 45° välein on karkea approksimaatio siitä mitä spotti oikeasti
+on: **yhtenäinen sektori**, esimerkiksi 113°–248°.
+
+### Malli: nimi TAI kaari, sama mittari
+
+`bestDirs`-alkio on nyt joko vanha nimi (`'SE'`) tai kaari asteina
+(`[alku, loppu]`, myötäpäivään). Kenttä ei vaihtunut, joten yksikään
+kutsupaikka ei muuttunut — vain alkion tyyppi.
+
+Molemmat kulkevat saman funktion läpi: `suuntaEro(windDeg, bestDirs)`
+palauttaa kulmaeron lähimpään suuntaan, ja **kaaren sisällä sen arvo on
+0**. Nimi on käytännössä kaari jonka leveys on 0°. Pisteytyskäyrät
+(`dirMatchScore`in cos ja `spotIndexOsat`in cos² 80° katkaisulla) eivät
+muuttuneet lainkaan — vain se mitä "kulmaero" tarkoittaa.
+
+Mitattu: nimipolku antaa **0 eroa 1800 vertailussa** (5 spottia × 360°),
+eli tuotannon pisteet ovat bitilleen samat kunnes dataan tulee kaaria.
+Kaaripolku testattu myös 0°:n yli menevällä sektorilla (293°–203°
+kattaa 0°, 90°, 180°).
+
+### Työkalu: `tools/suunnat.html`
+
+Suunnat asetetaan kartalta, ei arvaamalla. `npm run dev`, sitten
+`/tools/suunnat.html`. Sivu ei ole osa tuotantobuildia (buildin ainoa
+sisääntulo on `index.html`; tarkistettu `dist/`-hakemistosta).
+
+- **Spotit luetaan `index.html`:stä ajossa**, ei kopioida työkaluun.
+  Kopio vanhenisi heti kun spotteja lisätään — ja tämä on juuri se
+  paikka jossa uusi spotti käydään säätämässä.
+- Alkuarvo johdetaan vanhoista nimistä: yksi nimi → ±22,5°, useampi →
+  lyhin kaikki kattava sektori (myös 0°:n yli, esim. N+S+SW →
+  158°–23°).
+- Kaari piirtyy spotista **ulospäin siihen suuntaan josta tuulen pitää
+  tulla**, ja katkoviivanuoli osoittaa spottiin eli tuulen
+  kulkusuuntaan. Ilman nuolta on 50 % mahdollisuus asettaa peilikuva.
+- Kaksi kahvaa, koko sektorin kierto raahaamalla, nuolinäppäimet ±1°
+  (shift ±5°), useampi kaari per spotti, automaattitallennus
+  selaimeen, vienti JSONina.
+
+> **Kompassi ei tarttunut.** Ensimmäinen versio piirsi SVG:n koko oikean
+> palstan päälle `position:absolute; inset:0` -tyylillä. Se ei venytä
+> `<svg>`:tä: korvatun elementin auto-mitat ovat sen sisäiset 300×150,
+> joten kahvat jäivät laatikon ulkopuolelle — mitattuna osoitin osui
+> `#kartta`an eikä kahvaan. Samalla `latLngToContainerPoint` antaa
+> koordinaatit karttasäiliön nurkasta, joten kompassi oli 52 px
+> pielessä ylapalkin verran. Molemmat korjaantuivat kääreellä joka
+> sisältää sekä kartan että SVG:n, molemmat `inset:0` + `width/height
+> 100%`.

@@ -23,6 +23,9 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   `package.json`:ssa on `"type": "module"` — `require()` ei toimi näissä.
 - `tools/tiilet.mjs` — säälaattojen rakennus AWS Open Datan ECMWF-datasta.
   Ajetaan GitHub Actionsissa neljästi vuorokaudessa (`.github/workflows/`).
+- `tools/suunnat.html` — spottien tuulisuuntien asetustyökalu. `npm run dev`,
+  sitten `/tools/suunnat.html`. Ei kuulu tuotantobuildiin. Lukee spotit
+  `index.html`:stä ajossa, joten lista ei vanhene.
 - `public/sw.js` — service worker. `__BUILD_ID__` korvataan buildissa.
 - `vite.config.js` — build-asetukset sekä `vercel-api-dev`-plugin, joka ajaa
   `api/*.js`-funktiot myös `npm run dev`- ja `npm run preview` -servereissä.
@@ -90,7 +93,8 @@ kokeiltu ja kaadettu mittauksella.
   Aikajanan ura vaihtui hiekkaan · Kontrollit pois datan päältä, kisko
   kertomaan säästä · Napit takaisin uran päälle — kohotus kontrastin
   tilalle · Päiväkisko sai saman uran kuin tuntinauha · Urat pois — yksi
-  paperi, kaksi riviä · Päiväkisko piiloon levossa
+  paperi, kaksi riviä · Päiväkisko piiloon levossa · Spottien
+  tuulisuunnat asteen tarkkuudella
 
 </details>
 
