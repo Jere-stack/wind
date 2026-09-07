@@ -2621,3 +2621,92 @@ ja päästää nimet läpi sellaisenaan.
 > perässä oli pilkku, myös viimeisen, joten "Liitä takaisin" olisi
 > kaatunut juuri siihen tekstiin jonka työkalu itse tuotti. Pilkku on
 > nyt rivien VÄLISSÄ.
+
+---
+
+## Saavutettavuuserä 1: rakenne, sarkain ja piilotus
+
+Ammattimaisen UI-auditin tarkistuslista ajettiin läpi mitaten. Visuaalinen
+puoli oli jo kunnossa; **kaikki kriittinen puute oli semantiikassa ja
+näppäimistössä.**
+
+| | ennen | jälkeen |
+|---|---|---|
+| otsikot (`h1`–`h6`) | **0** | H1 + H2 |
+| maamerkit (`main` ym.) | **0** | `div[role=main]` |
+| fokusoitavia yhteensä | 36 | 19 |
+| niistä karttamerkkejä | **19** | 0 |
+| merkkejä ilman nimeä | **7** | 0 |
+| ensimmäinen sovelluskontrolli | sarkaimen kohta **20** | kohta 0 |
+| suljetun paneelin kontrollit fokusoituvat | **kyllä** | ei |
+
+### Mitä tehtiin
+
+**Ohituslinkki ja otsikko.** Kartalla on 12 fokusoitavaa spottimerkkiä,
+joten ilman ohituslinkkiä näppäimistökäyttäjä painaa sarkainta 12 kertaa
+ennen yhtäkään kontrollia. `#ohita` on ensimmäinen fokusoitava elementti,
+piilossa kunnes se saa fokuksen, ja vie `#btn-spots-wrap`iin. Sivulla ei
+ollut yhtään otsikkoa; nyt piilotettu `h1` nimeää sovelluksen ja
+asetuspaneelin otsikko on `h2`.
+
+**Karttamerkit.** CLAUDE.md sanoi jo *"Havaintoasemien merkit ovat
+`keyboard: false`"* — mutta koko koodissa ei ollut yhtään
+`keyboard:false`-asetusta. Sääntö oli kirjattu ja toteuttamatta. Nyt
+asemamerkit (19 kpl) ovat poissa sarkainkierrosta ja spottimerkit (12 kpl)
+saivat nimen. Varmistettu testidatalla, koska harness estää sen
+rajapinnan josta spottien ennuste tulee: **12 merkkiä, 12 nimeä, 12
+sarkaimessa.**
+
+**Neljä kontrollia näppäimistölle.** `btn-loc`, `btn-freespot`, `fc-btn`
+ja `btn-settings` olivat `div`ejä ilman roolia ja tabindexiä. Pelkkä
+`role="button"` ei riitä: divillä Enter ja välilyönti eivät laukaise
+clickiä, joten fokuspysäkki olisi ollut pysäkki jolla ei voi tehdä
+mitään. Yksi dokumenttitason käsittelijä hoitaa aktivoinnin kaikille.
+Globaali näppäinkäsittelijä ohittaa nyt tapauksen jossa fokus on
+kontrollissa — muuten välilyönti play-napin päällä olisi laukaissut
+toiston kahdesti eli ei kertaakaan. Mitattu: Enter avaa, välilyönti avaa,
+play menee päälle ja pois.
+
+**Suljetut paneelit pois sarkainkierrosta.** CLAUDE.md sanoi tämänkin jo,
+mutta `visibility: hidden` esiintyi koko koodissa kolmesti eikä yksikään
+niistä ollut paneeli. Mitattuna suljetun asetuspaneelin kolme kontrollia
+fokusoituivat vaikka paneeli oli kokonaan ruudun ulkopuolella. Nyt
+asetuspaneeli, spottikortti ja ennustepaneeli piiloutuvat `visibility`illä
+liu'un jälkeen (`transition-delay`), kuten päiväkisko.
+
+### Kaksi löydöstä joita listalla ei ollut
+
+**Kuollutta markupia bodyssä.** `<div class="sl-header">Spotit</div>` ja
+`#sl-items` roikkuivat suoraan bodyssä ilman vanhempaa — mitattuna
+**elävä, näkyvä 393×38 px elementti kohdassa y=0**, jota mikään JS ei
+käyttänyt. Sen mukana oli ylimääräinen `</div>`, joka sulki `#app`:n
+väärässä paikassa: `#app` päättyi heti kartan jälkeen, ja koko muu
+käyttöliittymä oli sen ulkopuolella. Molemmat poistettu, ja `#app`
+sulkeutuu nyt lopussa — mikä oli myös edellytys sille että
+`role="main"` kattaa oikeasti sisällön. Geometria mitattu ennen ja
+jälkeen: seitsemän avainelementtiä samoissa pikseleissä.
+
+**Ennustepaneelin kytkimet olivat `display: none`.** `.fc-toggle input`
+oli piilotettu niin että kytkin ei ollut fokusoitavissa eikä
+ruudunlukijan tavoitettavissa **edes paneelin ollessa auki**. Piilotus on
+nyt 1×1 px:n leikkaus, jolloin ulkoasu säilyy mutta kytkin on olemassa;
+fokus näkyy `.fc-track`issa.
+
+### Kaksi kohtaa joita EI korjattu — ne olivat mittarin virheitä
+
+Ensimmäinen auditti väitti kahta kosketuskohdetta liian pieneksi.
+Molemmat olivat mittarin omia:
+
+- `#nettitila-nappi` 99×26 px — mutta sirulla on `min-height: 44px` ja
+  napilla `pointer-events: none`, eli napautus menee sirulle
+  tarkoituksella. Kohde on 44 px.
+- `#fc-handle` 393×20 px — koristeellinen tarttumatanko ilman yhtäkään
+  käsittelijää. Se oli mittarin valitsinlistassa, ei käyttöliittymässä.
+
+Aiempi väite *"9 jatkuvaa animaatiota"* oli samaa lajia: ne ovat
+piilotetun latausruudun elementtejä, ja näkyviä oli **0**.
+`getComputedStyle` kertoo animaation myös `display:none` -elementille.
+
+Ja `[role=dialog]`-haku osui pikanäppäinikkunaan eikä asetuspaneeliin:
+`visibility` on `visible` myös `display:none` -elementillä, joten mittari
+luuli ikkunan olevan auki.

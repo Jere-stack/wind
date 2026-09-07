@@ -94,7 +94,8 @@ kokeiltu ja kaadettu mittauksella.
   kertomaan säästä · Napit takaisin uran päälle — kohotus kontrastin
   tilalle · Päiväkisko sai saman uran kuin tuntinauha · Urat pois — yksi
   paperi, kaksi riviä · Päiväkisko piiloon levossa · Spottien
-  tuulisuunnat asteen tarkkuudella
+  tuulisuunnat asteen tarkkuudella · Saavutettavuuserä 1: rakenne,
+  sarkain ja piilotus
 
 </details>
 
@@ -240,6 +241,19 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   (`transition-delay`), muuten paneeli katoaa kesken sulkeutumisen.
 - **Esc sulkee KAIKKI päällekkäiset pinnat**, myös asetukset. Jos lisäät
   paneelin, lisää se Esc-listaan.
+- **Sivulla on `h1` ja `role="main"`, ja ohituslinkki on ensimmäinen
+  fokusoitava elementti.** Kartalla on 12 fokusoitavaa spottimerkkiä,
+  joten ilman ohitusta näppäimistökäyttäjä painaa sarkainta 12 kertaa
+  ennen yhtäkään kontrollia. `#app` sulkeutuu VASTA lopussa — jos suljet
+  sen kartan jälkeen, main ei kata sisältöä (näin oli).
+- **`role="button"` ei riitä divillä.** Enter ja välilyönti eivät laukaise
+  clickiä, joten fokuspysäkki olisi pysäkki jolla ei voi tehdä mitään.
+  Aktivointi tulee yhdestä dokumenttitason käsittelijästä, ja globaali
+  näppäinkäsittelijä OHITTAA tapauksen jossa fokus on kontrollissa —
+  muuten välilyönti play-napin päällä laukaisisi toiston kahdesti.
+- **Piilota valintaruutu leikkauksella, älä `display: none`llä.**
+  Ennustepaneelin kytkimet olivat `display:none` eivätkä siksi
+  fokusoitavissa edes paneelin ollessa auki.
 - **Havaintoasemien merkit ovat `keyboard: false`.** Muuten sarkain kulkee
   kymmenien merkkien läpi ennen kuin tavoittaa sovelluksen kontrollit.
 - **Pyöreän napin kulma ei ole nappi.** `.mctl` on ympyrä, joten
