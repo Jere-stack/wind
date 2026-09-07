@@ -90,7 +90,7 @@ kokeiltu ja kaadettu mittauksella.
   Aikajanan ura vaihtui hiekkaan · Kontrollit pois datan päältä, kisko
   kertomaan säästä · Napit takaisin uran päälle — kohotus kontrastin
   tilalle · Päiväkisko sai saman uran kuin tuntinauha · Urat pois — yksi
-  paperi, kaksi riviä
+  paperi, kaksi riviä · Päiväkisko piiloon levossa
 
 </details>
 
@@ -293,6 +293,18 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   hitaassa (se riippuu aikaleimoista), mutta kaista riippuu nopeuksista
   ja nopea polku on juuri se joka ajetaan kun aika pysyy ja paikka
   vaihtuu. Sama ansa kuin päiväerottimien valovaiheessa.
+- **Päiväkisko on levossa PIILOSSA, ja se palaa MISTÄ TAHANSA
+  kosketuksesta aikajanaan** — ei vain raahauksesta. Kisko on olemassa
+  raahauksen välttämiseksi (12 ruudullista viikon päähän), joten se ei
+  saa vaatia raahausta. Päiväys on siksi kuplassa: piilossa ei saa olla
+  tietoa jota ei näy muualla. Lepoaika alkaa SORMEN NOUSUSTA, ei
+  kosketuksesta — pelkkä ajastin nukuttaisi kiskon kesken pitkää
+  raahausta (mitattu 6,5 s eleellä). Toiston aikana ei herätetä.
+- **Kiskon korkeus on yksi muuttuja (`--tl-paivat-h`)**, joka kasvattaa
+  kääreen korkeutta ja sen ylätäytettä yhtä paljon. Siksi piilotus ei
+  siirrä tuntiriviä eikä nappeja pikseliäkään (mitattu 0 px, kortti
+  128 → 88). Jos erotat luvut, ne ajautuvat erilleen ensimmäisessä
+  säädössä.
 - **Aikajanan valinta kulkee `_tlValitseIdx`:n kautta** (päiväkisko,
   näppäimistö, kelihyppy). Älä kirjoita neljättä polkua.
 - **Päiväkiskon napautus ei saa käyttää `scrollTimelineTo`a.** Kupla ja

@@ -951,6 +951,30 @@ html.tyopoyta #kapseli.vaistyy {
    erilleen ensimmäisessä säädössä. */
 :root { --tl-paivat-h: 40px; }
 
+/* PÄIVÄKISKO ON LEVOSSA POISSA.
+ *
+ * Kisko on navigointia, ei lukemista: sitä tarvitaan silloin kun ollaan
+ * siirtymässä toiseen päivään, ei silloin kun katsotaan tätä. Levossa se
+ * vie 40 px kortin 128:sta eli lähes kolmanneksen, ja se on pysyvää
+ * kromia satunnaisesta toiminnosta.
+ *
+ * Kaksi asiaa tekevät tästä turvallisen sen sijaan että se olisi
+ * katoava kontrolli (jollaisen projekti on kerran jo kieltänyt):
+ *
+ * 1. Kisko palaa MISTÄ TAHANSA kosketuksesta aikajanaan, ei vain
+ *    raahauksesta. Muuten oikotie, joka on olemassa raahauksen
+ *    välttämiseksi, vaatisi raahauksen — mitattuna viikon päähän on
+ *    12 ruudullista.
+ * 2. Päivämäärä siirtyi aikakuplaan, joten piilossa ei ole tietoa jota
+ *    ei näy muualla. Pelkkä viikonpäivä ei riittäisi: akseli on 16,6 vrk
+ *    eli sama "Ma" esiintyy kolmesti.
+ *
+ * Korkeus on YKSI muuttuja, joten piilotus on yksi rivi: kääre ja sen
+ * ylätäyte kutistuvat yhtä paljon, jolloin tuntinauha, napit ja
+ * indikaattori eivät liiku pikseliäkään — vain kortin yläreuna laskee.
+ * Mitattu: kortti 128 -> 88 px, tuntirivi samassa kohdassa molemmissa. */
+html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
+
 #tl-wrap {
   position: relative; pointer-events: all;
   height: calc(88px + var(--tl-paivat-h) + var(--sab-tl));
@@ -964,6 +988,12 @@ html.tyopoyta #kapseli.vaistyy {
      (52 px) ja koko kortin korkeus eivät muutu. */
   padding: calc(20px + var(--tl-paivat-h)) 0 calc(var(--sab-tl) + 16px);
   background: none;
+  /* Kortin yläreuna liukuu kun kisko piiloutuu. Korkeus ja ylätäyte
+     muuttuvat saman verran, joten sisältö ei liiku — vain reuna. */
+  transition: height .26s var(--spring), padding-top .26s var(--spring);
+}
+@media (prefers-reduced-motion: reduce) {
+  #tl-wrap { transition: none; }
 }
 /* Kotivalikon appissa aikajana alemmas.
  *
@@ -1186,6 +1216,21 @@ html.tyopoyta #kapseli.vaistyy {
           mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
 }
 #tl-paivat::-webkit-scrollbar { display: none; }
+/* Piilotus on `visibility`, ei pelkkä läpinäkyvyys: pelkkä opacity
+   jättäisi laput sarkainkierrokseen ja ruudunlukijan puuhun. Näkyvyys
+   vaihtuu vasta liu'un JÄLKEEN, muuten kisko katoaisi kesken
+   häivytyksen. Sama kuvio kuin suljetulla paneelilla. */
+#tl-paivat {
+  opacity: 1; visibility: visible;
+  transition: opacity .20s ease, visibility 0s linear 0s;
+}
+html.tl-kisko-piilossa #tl-paivat {
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity .20s ease, visibility 0s linear .20s;
+}
+@media (prefers-reduced-motion: reduce) {
+  #tl-paivat, html.tl-kisko-piilossa #tl-paivat { transition: none; }
+}
 
 /* LAPPU TÄYTTÄÄ KISKON KORKEUDELTAAN, eikä se ole makuasia.
  *
@@ -15583,6 +15628,9 @@ document.getElementById('sheet-handle').addEventListener('click', closeSheet, { 
       }
       default: hoidettu = false;
     }
+    /* Näppäimistö on samaa käyttäjän toimintaa kuin kosketus: kiskon on
+       oltava näkyvissä myös silloin kun aikaa askelletaan näppäimillä. */
+    if (hoidettu && typeof _tlKiskoHerata === 'function') _tlKiskoHerata();
     if (hoidettu) e.preventDefault();
   });
 })();
@@ -16099,6 +16147,11 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
 
   tl.addEventListener('scroll', () => {
     if (State._tlSelfScroll) return;
+    /* Heiton jälkeinen momentumvieritys on yhä käyttäjän elettä, joten se
+       pitää päiväkiskon hereillä — muuten kisko katoaisi kesken
+       liu'un. Toiston aikana EI herätetä: play ei ole navigointia
+       päivissä, ja jokainen ruutu pitäisi kiskon ikuisesti auki. */
+    if (!State.isPlaying && typeof _tlKiskoHerata === 'function') _tlKiskoHerata();
     if (_rafPending) return;
     _rafPending = true;
     requestAnimationFrame(() => {
@@ -16364,7 +16417,10 @@ function _tlUpdateNow(idx) {
       ai = document.createElement('span');
       bubble.appendChild(pv); bubble.appendChild(ai);
     }
-    pv.textContent = DAY[d.getDay()] + ' ';
+    /* Päiväys kuplaan, koska kisko on levossa piilossa eikä päivä saa
+       jäädä minnekään näkymättömiin. Pelkkä viikonpäivä ei riitä:
+       akseli on 16,6 vrk, joten sama "Ma" esiintyy kolmesti. */
+    pv.textContent = DAY[d.getDay()] + ' ' + d.getDate() + '. ';
     ai.textContent = hh + ':00';
   }
   _tlKorostaPaiva(d);
@@ -17214,6 +17270,55 @@ document.getElementById('btn-loc').addEventListener('click', () => {
     State._locMarker = L.marker([lat, lng], { icon, interactive: false, zIndexOffset: 1000 }).addTo(State.map);
   }, () => { Haptics.error(); Toast.show('📍 Sijainnin haku epäonnistui'); });
 }, { passive: true });
+
+/* PÄIVÄKISKON LEPOTILA — ks. `html.tl-kisko-piilossa` CSS:ssä.
+ *
+ * Herätys on `pointerdown` KÄÄREESSÄ eikä tuntinauhassa: sama ele
+ * herättää kiskon riippumatta siitä osuiko sormi palkkiin, nappiin,
+ * kuplaan vai kiskoon itseensä — ja ennen kaikkea PELKKÄ KOSKETUS
+ * riittää, raahausta ei tarvita. Se on koko ratkaisun ehto: kisko on
+ * olemassa raahauksen välttämiseksi, joten se ei saa vaatia raahausta.
+ *
+ * Kuuntelija on kaappausvaiheessa ja passiivinen, joten se ei häiritse
+ * vierityksen eikä napautuksen omaa käsittelyä.
+ *
+ * Toiston aikana kiskoa EI herätetä vaikka valinta liikkuu: play ei ole
+ * navigointia päivissä, ja herätys joka ruudulla pitäisi kiskon
+ * ikuisesti auki. Sama koskee kartansiirron aiheuttamaa uudelleen-
+ * rakennusta — kisko herää vain käyttäjän omasta eleestä. */
+const TL_KISKO_LEPO_MS = 4000;
+let _tlKiskoAjastin = null, _tlKiskoKosketus = false;
+function _tlKiskoNukuta() {
+  _tlKiskoAjastin = null;
+  /* SORMI KIINNI KORTISSA = ELE ON KESKEN. Pelkkä ajastin nukuttaisi
+     kiskon kesken pitkää raahausta: lepoaika on 4 s ja janan voi
+     raahata paljon kauemmin, jolloin kisko olisi kadonnut sormen alta
+     ja palannut irrotuksessa. Yritetään uudelleen. */
+  if (_tlKiskoKosketus) { _tlKiskoAjastin = setTimeout(_tlKiskoNukuta, TL_KISKO_LEPO_MS); return; }
+  document.documentElement.classList.add('tl-kisko-piilossa');
+}
+function _tlKiskoHerata() {
+  document.documentElement.classList.remove('tl-kisko-piilossa');
+  if (_tlKiskoAjastin) clearTimeout(_tlKiskoAjastin);
+  _tlKiskoAjastin = setTimeout(_tlKiskoNukuta, TL_KISKO_LEPO_MS);
+}
+(function () {
+  const w = document.getElementById('tl-wrap');
+  if (!w) return;
+  w.addEventListener('pointerdown', function () {
+    _tlKiskoKosketus = true; _tlKiskoHerata();
+  }, { capture: true, passive: true });
+  /* Lepoaika alkaa vasta sormen noususta, ei kosketuksesta. */
+  for (const t of ['pointerup', 'pointercancel']) {
+    w.addEventListener(t, function () {
+      _tlKiskoKosketus = false; _tlKiskoHerata();
+    }, { capture: true, passive: true });
+  }
+  /* Käynnistyksessä kisko on NÄKYVISSÄ ja painuu piiloon vasta ensimmäisen
+     lepojakson jälkeen. Suoraan piilossa aloittava kisko olisi
+     ominaisuus jota kukaan ei löydä; kerran nähtynä ele on opittu. */
+  _tlKiskoHerata();
+})();
 
 document.getElementById('btn-play').addEventListener('click', togglePlay, { passive: true });
 

@@ -2445,3 +2445,70 @@ Poistetut tokenit `--tl-ura` ja `--tl-ura-yla`, poistettu elementti
 `#tl-paivat-ura`, poistettu `#tl-wrap::after`. Kortin korkeus on yhä
 128 px ja aikajanan käyttäytyminen ennallaan (valittu hetki säilyy
 neljällä zoomreitillä 0 h).
+
+---
+
+## Päiväkisko piiloon levossa
+
+Pyyntö oli: kisko näkyisi vain aikajanaa raahattaessa ja pomppaisi
+takaisin piiloon. Sellaisenaan siinä on kaksi vikaa, ja molemmat piti
+korjata ennen kuin ideaa kannatti toteuttaa.
+
+**1. Oikotie ei saa vaatia sitä työtä jonka se poistaa.** Kisko on
+olemassa siksi, että nyt-hetkestä viikon päähän on tuntinauhassa 12
+ruudullista raahausta. Jos se paljastuu vain raahaamalla, sen oma
+tarkoitus kumoutuu. Herätys on siksi **`pointerdown` koko kääreessä**:
+pelkkä kosketus riittää, ja se toimii osui sormi sitten palkkiin,
+nappiin, kuplaan tai kiskoon itseensä.
+
+**2. Päivämäärä ei saa kadota.** Kisko oli ainoa paikka jossa päiväys
+luki. Kupla sanoi "Ma 08:00", eikä viikonpäivä yksin riitä: akseli on
+16,6 vrk, joten sama "Ma" esiintyy kolmesti. Päiväys siirtyi kuplaan
+(**"Ma 7. 10:00"**), jolloin piilossa ei ole tietoa jota ei näy muualla.
+
+Projektilla on lisäksi oma mitattu sääntö katoavista kontrolleista
+(kelinapin himmennys): *"katoava kontrolli siirtäisi kaiken muun ja
+jättäisi käyttäjän ihmettelemään mihin se meni."* Se koski kontrollia
+joka katoaa arvaamatta; tämä palaa aina samasta eleestä, ja mikään ei
+siirry:
+
+| | kisko auki | kisko piilossa |
+|---|---|---|
+| kortin korkeus | 128 px | **88 px** |
+| tuntirivi | y = 784 | y = 784 |
+| play-nappi | y = 788 | y = 788 |
+| aikakupla | y = 707 | y = 747 |
+
+**Nolla pikseliä siirtymää** tuntiriville ja napeille. Se ei ole
+sattumaa: kiskon korkeus on yksi muuttuja (`--tl-paivat-h`), ja se
+kasvattaa sekä kääreen korkeutta että sen ylätäytettä yhtä paljon —
+kutistuminen kumoutuu itsensä kanssa ja vain kortin yläreuna laskee.
+Kartta vapautuu 40 px.
+
+### Milloin se nukkuu
+
+Lepoaika on 4 s **sormen noususta**, ei kosketuksesta. Ero on olennainen:
+janan voi raahata paljon kauemmin kuin neljä sekuntia, ja pelkkä ajastin
+olisi kadottanut kiskon kesken eleen. Mitattu 6,5 s kestävällä
+raahauksella: kisko pysyy näkyvissä koko eleen ajan ja painuu piiloon
+4 s noston jälkeen.
+
+Herätykset: kosketus kääreeseen, käyttäjän oma vieritys (myös heiton
+jälkeinen momentum) ja aikajanan näppäimet. **Toiston aikana ei
+herätetä** — play ei ole navigointia päivissä, ja herätys joka ruudulla
+pitäisi kiskon ikuisesti auki.
+
+Käynnistyksessä kisko on näkyvissä ja painuu piiloon vasta ensimmäisen
+lepojakson jälkeen: suoraan piilossa aloittava kisko olisi ominaisuus
+jota kukaan ei löydä.
+
+Piilotus on `visibility`, ei pelkkä läpinäkyvyys — muuten laput jäisivät
+sarkainkierrokseen ja ruudunlukijan puuhun. Näkyvyys vaihtuu vasta
+liu'un jälkeen (`transition-delay`), jottei kisko katoa kesken
+häivytyksen. Mitattu piilossa: `visibility: hidden`, lappu ei näy.
+
+> **Mittari nukutti kiskon itse.** Napautusmittarin palautus on
+> synteettinen `click`, joka ei laukaise `pointerdown`ia eikä siis
+> herätä kiskoa — ja sen odotukset ovat yhteensä yli 4 s. Ensimmäinen
+> ajo raportoi siksi 2/7 hutia, jotka olivat mittarin omia: se napautti
+> piilossa olevaa kiskoa. Nimenomaisen herätyksen kanssa 7/7.
