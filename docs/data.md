@@ -1097,7 +1097,17 @@ Toimiva asetelma:
 - Vanhan version buildiin on lisättävä `window.FS` käsin (`?perf=1`
   -paneelin kohdalle), muuten sitä ei voi mitata samalla mittarilla.
 
-## Aallot — mitattu ennen kuin rakennettiin
+## Aaltoennuste — mitattu ja rakennettu, mutta EI TUOTANNOSSA
+
+> **Tämä luku kuvaa koodia jota sovelluksessa ei ole.** Aaltoennuste
+> kuului yhdentoista commitin erään (`5150fc1`, tagi
+> `auditointiera-ja-aallot`), joka peruttiin tuotantovian takia eikä
+> sitä ole palautettu. `index.html`:ssä ei ole `Asetukset.arvot.aallot`
+> -kytkintä eikä yhtään kutsua `marine-api.open-meteo.com`:iin —
+> tarkistettu `grep`illä. Mittaukset alla pitävät yhä paikkansa ja ovat
+> tallessa siltä varalta että erä palautetaan; ne eivät kerro siitä mitä
+> sovellus tekee nyt. Se mitä se tekee, on seuraavassa luvussa
+> (*Aaltopoijut*) — ja se on havaintoa, ei ennustetta.
 
 Aaltoennuste on sovelluksen **ainoa uusi rajapintariippuvuus** sen jälkeen
 kun tuulidata siirrettiin omaan laattavarastoon nimenomaan kiintiöstä
@@ -1194,3 +1204,216 @@ Harnessin selaimella ei ole suoraa ulkoyhteyttä (sama syy kuin
 pohjakartalla), joten `marine-api.open-meteo.com` reititetään Noden
 kautta `yhteinen.mjs`:ssä. Vastaus on **oikea** — juuri se on mitattava
 asia.
+
+
+## Aaltopoijut — havaintoa, ei ennustetta
+
+Käyttäjä pyysi aaltopoijujen datan sovellukseen. Se on eri asia kuin
+edellinen luku: ennuste tulee mallista ja on olemassa jokaiselle
+pisteelle, poiju on **yksi rautakappale meressä joka mittaa siinä missä
+se on**. Siksi tämä ei mene ennustepolkua vaan samaa polkua kuin
+tuuliasemat.
+
+### Lähde mitattiin ensin — kolme asiaa jotka määräsivät koko rakenteen
+
+Lähde on FMI:n avoin data, tallennettu kysely
+`fmi::observations::wave::multipointcoverage`. Kentät ovat `WaveHs`
+(merkitsevä aallonkorkeus, m), `ModalWDi` (suunta, °), `WTP` (jakso, s)
+ja `TWATER` (veden lämpötila, °C). Viides, `WHDD` (suunnan hajonta),
+jätettiin pois: se ei kerro mitään sellaista jonka perusteella lähtisi
+vesille.
+
+**1. Bbox ei rajaa.** Mitattuna sama vastaus — 10 asemaa, 62 829 tavua
+— bboxilla 24,5–25,5 / 59,9–60,3 ja täysin ilman. Yksi haku kattaa siis
+koko maan, ja asemakohtaiset haut tuoreimmalle lukemalle olisivat
+kymmenen pyyntöä yhden hinnalla. Koko karttakerros maksaa **yhden
+pyynnön**.
+
+**2. Viive on 57–117 min.** Poijut raportoivat 30 min välein mutta
+aineisto tulee perille myöhässä: mitattuna kuusi poijua olivat 57, 87,
+87, 87, 117 ja 57 minuuttia jäljessä. Kaksi seurausta:
+
+- Tuoreimman ikkuna on **kuusi tuntia** eikä kolme. Kolmen tunnin
+  ikkunalla yksi asema kymmenestä putosi vastauksesta kokonaan
+  (mitattu 9 vs 10).
+- Vastaus kertoo aina `ageMin`, ja kortti sanoo sen. Lukema **ei ole
+  "nyt"**, eikä sitä saa esittää nykyhetkenä.
+
+**3. Kaikki poijut eivät mittaa aaltoja.** 30 h aineistosta:
+
+| asema | Hs-riveistä | Tw-riveistä |
+|---|---|---|
+| Helsinki Suomenlinna aaltopoiju | 97 % | 98 % |
+| Suomenlahti aaltopoiju | 98 % | 98 % |
+| Pohjois-Itämeri aaltopoiju | 97 % | 97 % |
+| Perämeri aaltopoiju | 98 % | 98 % |
+| Selkämeri aaltopoiju | 95 % | 95 % |
+| Loviisa Orrengrund aaltopoiju | 78 % | 78 % |
+| Oulu Santapankki | **0 %** | 48 % |
+| Kalajoki Maakalla | **0 %** | 50 % |
+| Pori Kaijakari | **0 %** | 50 % |
+| Hanko Längden | **0 %** | 45 % |
+
+Neljä alinta eivät ole rikki — ne ovat **lämpöasemia samassa
+kyselyssä**. Siksi rajapinta antaa jokaiselle asemalle `kind`-kentän
+(`'aalto' | 'lampo'`), eikä käyttöliittymälle jää arvattavaksi kumpi on
+kyseessä. Lämpöasema kulkee kartalla vesi-ikonipolkua ja sen kortin
+otsikko on "Meriveden lämpötila": tyhjä aaltokenttä olisi kysymys johon
+kortti ei vastaa, ja oma keksitty asu valehtelisi sen mittaavan aaltoja.
+
+Vastaus on **viimeisin ei-NaN rivi kullekin suureelle erikseen**, koska
+sarjan häntä on lähes aina NaN:ia ja aaltokorkeus ja lämpötila katoavat
+eri hetkinä.
+
+### Suunta on MISTÄ, ja se tarkistettiin
+
+Helsinki Suomenlinna -poijun `ModalWDi` verrattiin Harmajan
+`WindDirection`iin (2,0 km päässä), kymmenen yhtaikaista paria:
+201/213, 210/198, 205/209, 194/199, 192/207 … Keskimääräinen ero
+**10,7°**. Sama konventio kuin tuulella, eli nuoli piirretään samalla
+`dirArrow`illa.
+
+### Asemat luetaan vastauksesta, ei kovakoodatusta listasta
+
+Merkkejä ei luoda etukäteen tyhjinä kuten FMI-tuuliasemille. Poijut ovat
+kausiluontoisia (talveksi nostetaan ylös) ja osa mittaa vain lämpötilaa,
+joten kiinteä lista näyttäisi merkkejä paikoissa joissa ei sillä
+hetkellä ole mitään. Nimi ja sijainti tulevat FMISIDin kautta
+(`point-<fmisid>` → `gml:pos`, `obsloc-fmisid-<fmisid>` → nimi) eikä
+esiintymisjärjestyksestä: järjestykseen nojaava jäsennys menee rikki
+juuri silloin kun yksi asema on hiljaa.
+
+### Peitto — kolme kierrosta, kaksi mittarivikaa
+
+Suomenlinnan poiju on **2,0 km Harmajasta** ja 12 km Itätoukista, eli
+keskellä sovelluksen tiheintä asemarypästä. Ensimmäinen kynnysvalinta
+(z7, "poijuja on vain kuusi koko maassa") oli nationaalisesti tosi mutta
+paikallisesti väärä:
+
+| | z7 | z8 | z9 |
+|---|---|---|---|
+| perustaso ilman aaltokerrosta | 12 % | 33 % | 0 % |
+| z7-kynnyksellä | **100 %** | 65 % | 22 % |
+| kiinteä siirto pisteen yläpuolelle | **100 %** | 93 % | – |
+| z9-kynnys + laatikkoväistö | 90 %¹ | 38 %¹ | **0 %** |
+
+¹ pistetilassa, jossa poiju on isompi elementti ja z-järjestyksessä
+päällimmäisenä — napautus mitattiin ja se osuu poijuun.
+
+**Kiinteä siirto kokeiltiin ja se kaatui**: peitto vain vaihtoi
+naapuria (Harmaja → Malmi), koska Helsinki on tiheä joka suuntaan noilla
+zoomeilla.
+
+Jäljelle jäi sovelluksen oma tiheyssääntö — pilleri vasta kun tilaa on.
+Meriasemilla se on z8, maa-asemilla z10, poijulla **z9** koska se seisoo
+molempien keskellä.
+
+Väistössä oli **kaksi vikaa, ja molemmat olivat mittarissa tai
+mittaustavassa**:
+
+1. **Mittari mittasi Leafletin `_icon`-kuorta.** Kuori kantaa Leafletin
+   oman `translate3d`-sijainnin eikä liiku väistön mukana (väistö
+   siirtää sisintä elementtiä, kuten Kruunuvuorenselälläkin). Kuorista
+   mitattu peitto väitti merkkien olevan päällekkäin vaikka ne ruudulla
+   eivät olleet. **Sekä väistö että mittari lukevat nyt sisemmän
+   elementin.**
+2. **Väistö heilui edestakaisin.** Se työnsi poijun ylös Harmajan ohi,
+   törmäsi Kruunuvuorenselkään, ja koska sen keskipiste oli nyt naapurin
+   yläpuolella, seuraava kierros työnsi takaisin alas: nettosiirto 3 px
+   eli käytännössä ei mitään, vaikka kumpikin kierros laski oman
+   siirtonsa oikein. **Suunta lukitaan ensimmäisestä osumasta.**
+
+Pistetilassa (z<9) väistöä ei ajeta lainkaan — sama rajaus kuin
+Kruunuvuorenselällä. Helsingin edustalla on kymmenen merkkiä noin
+viidentoista pikselin kaistalla, eikä poijulle ole vapaata paikkaa
+mistään: mitattuna väistö tarvitsi neljä kierrosta ja yli 30 px, minkä
+jälkeen katto nollasi sen joka tapauksessa. Siirretty piste valehtelisi
+sijainnistaan kymmeniä kilometrejä eikä silti olisi vapaa.
+
+Napautus mitattiin oikeasti (kosketus mobiilissa, hiiri työpöydällä):
+z8, z9 ja z11 avaavat poijun kortin, ja Harmaja on yhä napautettavissa.
+
+### Spottikortin aaltorivi ja sen etäisyysraja
+
+Rivi on aurinkorivin alla ja samaa hiljaista mustetta: molemmat ovat
+yhden rivin lukuja jotka täydentävät yllä olevaa tuulikuvaa.
+
+Rivillä on **aina poijun nimi ja etäisyys**. Ilman niitä se väittäisi
+mittaavansa spottia, mitä se ei tee — lähin poiju on Helsingin spoteilla
+5–12 km päässä.
+
+Raja on **60 km**, ja se tulee mittauksesta. Kahdentoista spotin
+etäisyydet lähimpään aaltopoijuun jakautuvat kahteen ryhmään ilman
+mitään väliin:
+
+    Kruunuvuorenranta   5 km      Hanko Silversand  114 km
+    Hietaniemi          7 km      Hanko Tulliniemi  119 km
+    Lauttasaari         7 km
+    Puuskaniemi         8 km
+    Otaniemi           10 km
+    Haukilahti         11 km
+    Munkkiniemi        11 km
+    Kallahti           12 km
+    Emäsalo            34 km
+    Porkkala           35 km
+
+Raja on aukon keskellä. Hangon lähin poiju on eri merialueella
+(Pohjois-Itämeri, 126 km) eikä sen lukema kerro Tulliniemen aalloista
+mitään — **tyhjä rivi on siellä oikea vastaus**, ja `:empty`-sääntö
+poistaa myös sen marginaalin.
+
+Poijun nimi on nappi joka avaa poijun oman kortin. Kuuntelija on
+delegoitu, koska `openSheet` kirjoittaa `sheet-content`in uusiksi joka
+tuntiaskeleella. Rivi itse täytetään asynkronisesti id:n kautta eikä
+korttia rakenneta uudelleen — sama sääntö kuin kaikella muullakin
+kortin myöhään saapuvalla datalla.
+
+### Kolme asiaa joita kortissa ei tehdä
+
+**Väriä ei käytetä lukemaan.** Sovelluksessa sävy tarkoittaa
+tuulennopeutta, ja `ColorRamp.ink()` on nimenomaan tuuliasteikko: 0,4
+metriä siitä värjättynä sanoisi "0,4 m/s". Aaltokorkeus on eri suure
+ilman omaa asteikkoa, joten se on mustetta ja luku puhuu itse.
+
+**Lukema ei seuraa aikajanaa.** Havaintoa tulevaisuuden tunnista ei ole
+olemassa. Mitattu: kahdeksan tunnin askel ei muuta yhtäkään poijun
+lukemaa kartalla eikä spottikortin riviä.
+
+**Kaavio ei ole `_uirasChartInteractive`.** Se on rakennettu viikkojen
+mittaiselle lämpösarjalle: x-akseli on päiviä, y-labelit ja min/max-
+kutsut päättyvät asteen merkkiin, ja jaksot ovat 7/30/90 vrk.
+Aaltosarja on tunteja ja metrejä, eikä rajapinta anna sitä yli
+seitsemän vuorokauden. Aaltokaavion **y-akseli alkaa nollasta**: ilman
+sitä 0,20–0,30 m:n vaihtelu täyttäisi koko kaavion ja tyyni vuorokausi
+näyttäisi myrskyltä.
+
+Kortissa korkeus, jakso ja suunta ovat rinnakkain, koska korkeus yksin
+ei kerro millaista meri on: 0,4 m / 2,5 s on jyrkkää hakkaavaa, 0,4 m /
+6 s loivaa.
+
+### Glyfi on ainoa ero pillereiden välillä
+
+Kartan `_pilleri` antaa jokaiselle lukemalle saman pinnan, joten
+aaltokorkeus **ei saa käyttää samaa aaltoviivaa kuin vedenlämpö** —
+silloin kaksi eri suuretta näyttäisi identtiseltä ja vain yksikkö
+erottaisi ne. Aaltoglyfissä on pystymitta ja aalto: korkeus on se mitä
+luku kertoo.
+
+### Historian hinta
+
+| pyyntö | tavut | ms |
+|---|---|---|
+| tuorein, 6 h, kaikki asemat | 24 092 | 150 |
+| historia 30 h / 30 min, 1 poiju | 10 976 | 149 |
+| historia 7 vrk / 60 min, 1 poiju | 19 830 | 159 |
+| historia 7 vrk / 30 min, 1 poiju | 33 603 | 161 |
+
+Yli kolmen vuorokauden jaksoilla askel harvennetaan tunniksi: kaavio
+piirtää joka tapauksessa enintään 240 pistettä.
+
+### Mittausympäristö
+
+Harnessin selain ei pääse ulos (`/api/**` on katkaistu `yhteinen.mjs`:ssä),
+joten `api/aallot.js` ajetaan Noden puolella ja reititetään sisään
+`ctx.route('**/api/aallot*')`:lla. Vastaus on **oikea FMI-data** — juuri
+sen muoto on se mikä voi olla väärin, eikä mockilla mitattaisi sitä.

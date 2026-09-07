@@ -2751,6 +2751,25 @@ html.tyopoyta {
   letter-spacing: .1px;
 }
 
+/* AALTORIVI. Samaa hiljaista mustetta kuin aurinkorivi ja samassa
+   roolissa: yksi rivi lukuja jotka selittävät ylläolevaa kuvaa.
+   Aallonkorkeus EI ole ennuste tälle pisteelle vaan HAVAINTO nimetystä
+   poijusta, joten rivillä on aina poijun nimi ja etäisyys — ilman niitä
+   se väittäisi mittaavansa spottia. */
+.sh-aalto-rivi {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-10);
+  color: var(--ink-3);
+  margin: -8px 0 16px;
+  letter-spacing: .1px;
+}
+.sh-aalto-rivi:empty { display: none; margin: 0; }
+.sh-aalto-poiju {
+  font: inherit; color: var(--ink-2); background: none; border: none;
+  padding: 0; cursor: pointer; text-decoration: underline;
+  text-decoration-color: var(--hairline); text-underline-offset: 2px;
+}
+
 /* 24h line chart */
 .sh-24h-section { margin-bottom: 16px; }
 .sh-24h-header {
@@ -11948,6 +11967,15 @@ function _isPKS(spot){return spot.lat>=59.9&&spot.lat<=60.5&&spot.lng>=24.3&&spo
 /* Rekisteröi delegoitu handler kerran */
 (function() {
   document.addEventListener('click', async function(e) {
+    /* Aaltopoijun nimi spottikortissa avaa poijun oman kortin.
+       Delegoituna, koska `openSheet` kirjoittaa `sheet-content`in
+       uusiksi joka tuntiaskeleella ja suora kuuntelija katoaisi. */
+    const poijuBtn = e.target.closest('[data-aalto-poiju]');
+    if (poijuBtn) {
+      const s2 = Aaltopoijut.hae(poijuBtn.dataset.aaltoPoiju);
+      if (s2) _openObsSheet('aalto', Object.assign({}, s2, { name: s2.station }));
+      return;
+    }
     /* UiRas historia-nappi kortissa */
     const btn = e.target.closest('[data-uiras-btn]');
     if (btn) {
@@ -14749,6 +14777,40 @@ function openSheet(spot, hourIdx) {
     + '</div>';
   }
 
+  /* AALTORIVIN ETÄISYYSRAJA ON MITATTU, EI ARVATTU.
+     Kahdentoista spotin etäisyydet lähimpään aaltopoijuun jakautuvat
+     kahteen ryhmään ilman mitään väliin: kymmenen Helsingin ja
+     itärannikon spottia 5-35 km, ja Hangon kaksi 114 ja 119 km.
+     Raja on 60 km eli sen aukon keskellä. Hangon lähin poiju on eri
+     merialueella (Pohjois-Itämeri, 126 km), eikä sen lukema kerro
+     Tulliniemen aalloista mitään — tyhjä rivi on siellä oikea vastaus. */
+  const AALTO_MAX_KM = 60;
+
+  /* Rivi täytetään ASYNKRONISESTI id:n kautta eikä korttia rakenneta
+     uudelleen: kortti rakentuu joka tuntiaskeleella, ja uudelleenrakennus
+     vastauksen saapuessa nykisi vieritystä. Käytännössä välimuisti on jo
+     lämmin, koska karttakerros hakee saman datan käynnistyksessä. */
+  function buildAaltoRivi() {
+    const rid = 'sh-aalto-' + spot.name.replace(/[^a-z0-9]/gi, '_');
+    Aaltopoijut.lataa().then(function () {
+      const el = document.getElementById(rid);
+      if (!el) return;
+      const p = Aaltopoijut.lahinAalto(spot.lat, spot.lng, AALTO_MAX_KM);
+      if (!p) { el.innerHTML = ''; return; }
+      const osat = ['<span style="color:var(--ink)">' + p.hs.toFixed(1) + ' m</span>'];
+      if (p.tp != null) osat.push(p.tp.toFixed(1) + ' s');
+      if (p.hdir != null) osat.push(dirArrow(p.hdir) + ' ' + Math.round(p.hdir) + '°');
+      /* Nimi ilman "aaltopoiju"-päätettä: se lukee jo rivin alussa. */
+      const nimi = p.station.replace(/\s*aaltopoiju\s*$/i, '');
+      osat.push('<button type="button" class="sh-aalto-poiju" data-aalto-poiju="'
+        + p.fmisid + '">' + nimi + '</button> ' + Math.round(p.km) + ' km');
+      const ika = _havIkaTeksti(p.ageMin);
+      if (ika) osat.push(ika);
+      el.innerHTML = 'Aallot ' + osat.join(' \u00b7 ');
+    }).catch(function () {});
+    return '<div class="sh-aalto-rivi" id="' + rid + '"></div>';
+  }
+
   const fmiId = 'fmi-' + spot.name.replace(/\s/g, '_');
   const pukuId = 'puku-' + spot.name.replace(/[^a-z0-9]/gi, '_');
 
@@ -14859,6 +14921,10 @@ function openSheet(spot, hourIdx) {
        rivi oli havaintoruutujen jalkeen — siella se oli irrallaan
        kaikesta mihin se liittyy. */
     + buildSunRivi()
+    /* Aallot heti aurinkorivin alle: molemmat ovat yhden rivin
+       lukuja jotka täydentävät yllä olevaa tuulikuvaa. Rivi jää
+       tyhjäksi (ja `:empty`-säännöllä pois) jos lähellä ei ole poijua. */
+    + buildAaltoRivi()
     /* Havainnot-rivi */
     + '<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-8);font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:5px">Havainnot</div>'    + '<div class="sh-stats" id="sh-stats-live">'      + _tempDewComboCard(fmiId + '-tmp', fmiId + '-dew')      + (_uirasStation ? _uirasLinkCard(_waterStatId, _uirasStation) : _statCard('Vesi', waterTemp, _waterTempSource || '°C', null))    + (function () {
         /* Puku veden viereen: siinä kohtaa katsotaan vedenlämpöä, ja tämä

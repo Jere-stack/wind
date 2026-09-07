@@ -19,7 +19,8 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
 - `index.html` — koko sovellus: CSS, HTML ja JS yhdessä tiedostossa (ei erillistä
   `src/`-hakemistoa). Leaflet ladataan CDN:stä `<script>`-tagilla.
 - `api/*.js` — Vercelin serverless-funktiot (FMI-havainnot, HARMONIE-ennuste,
-  Kruunuvuorenselän ja Uiraan mittausdata -proxyt). ES-moduuleja, koska
+  FMI:n aaltopoijut, Kruunuvuorenselän ja Uiraan mittausdata -proxyt).
+  ES-moduuleja, koska
   `package.json`:ssa on `"type": "module"` — `require()` ei toimi näissä.
 - `tools/tiilet.mjs` — säälaattojen rakennus AWS Open Datan ECMWF-datasta.
   Ajetaan GitHub Actionsissa neljästi vuorokaudessa (`.github/workflows/`).
@@ -61,7 +62,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/lampokartta.md` | pohjakarttaa, lämpökarttaa, väriramppia, tekstuurin mitoitusta tai projektiota, kartan asetuksia |
 | `docs/partikkelit.md` | tuulipartikkeleita, jäljen muotoa, tiheyttä tai ruutuaikabudjettia |
 | `docs/eleet.md` | nipistystä, zoomia, zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen |
-| `docs/data.md` | säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä |
+| `docs/data.md` | säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja |
 | `docs/ui.md` | paletteja, paneeleita, spottikorttia, aikajanaa, kapselia, havaintoasemia |
 | `docs/pwa.md` | service workeria, offline-käynnistystä tai kotivalikon appia |
 
@@ -85,7 +86,8 @@ kokeiltu ja kaadettu mittauksella.
   ruudulle ennen verkkoa · Käynnistyksen pyyntömäärä · Säädata koko maailmalle ·
   Lähdemerkintä ja aina automaattinen malli · Uloin näkymä — 44 % roskaa ·
   Oma säädatavarasto — pois rajapinnan kiintiöstä · Tallennustila ei ollutkaan
-  este · Hilalähtöinen kenttä · Zoom raskaampi kuin ennen
+  este · Hilalähtöinen kenttä · Zoom raskaampi kuin ennen · Aaltopoijut —
+  havaintoa, ei ennustetta
 - **ui**: Valikoiden ulkoasu — Merikartta · Mallien erimielisyys · Suosikit ja
   jaettava linkki · Puvun paksuus · Ennusteen osuvuus havaintoja vasten ·
   Spottikortin auditointi · Play ja kapseli · Aikajana kotivalikon appissa ·
@@ -359,9 +361,47 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kartalle (mitattu ero 0 m/s). Akseli rakennetaan KERRAN ja jaetaan;
   pistekohtainen mitätöisi `_ts()`:n muistin.
 
-**Aallot**
+**Aaltopoijut** (havainto — tämä on tuotannossa)
 
-- **Aaltodata on kytkimen takana** (`Asetukset.arvot.aallot`), koska se on
+- **Yksi haku kattaa koko maan.** Rajapinnan `bbox` EI rajaa mitään
+  (mitattu: sama 10 asemaa ja 62 829 tavua bboxin kanssa ja ilman).
+  Ala tee asemakohtaisia hakuja tuoreimmalle lukemalle — se olisi
+  kymmenen pyyntoa yhden hinnalla.
+- **Lukema ei ole "nyt" eikä se seuraa aikajanaa.** Viive on mitattuna
+  57–117 min, joten tuoreimman ikkuna on 6 h (3 h pudotti yhden aseman
+  kymmenestä pois) ja kortti sanoo aina `ageMin`. Havaintoa
+  tulevaisuuden tunnista ei ole olemassa.
+- **Kaikki poijut eivät mittaa aaltoja.** Neljä kymmenestä antaa
+  aaltokorkeutta 0 %:ssa riveistä mutta lämpötilaa 45–50 %:ssa — ne ovat
+  lämpöasemia samassa kyselyssä. `kind`-kenttä ratkaisee, ja lämpöasema
+  kulkee vesi-ikonipolkua. Älä keksi sille omaa asua.
+- **Asemat luetaan vastauksesta, ei kovakoodatusta listasta.** Poijut
+  ovat kausiluontoisia. Nimi ja sijainti sidotaan FMISIDiin, ei
+  esiintymisjärjestykseen — järjestys menee rikki kun asema on hiljaa.
+- **Aallonkorkeus on MUSTETTA, ei väriä.** `ColorRamp.ink()` on
+  tuuliasteikko; 0,4 m siitä värjättynä sanoisi "0,4 m/s".
+- **Aaltopillerin glyfi ei ole vedenlämmön glyfi.** `_pilleri` antaa saman
+  pinnan kaikille, joten glyfi on ainoa mikä kertoo suureen.
+- **Poijun pilleri tulee z9:llä**, meriasemien z8:n ja maa-asemien z10:n
+  väliin. z7 antoi 100 %:n peiton (perustaso 12 %), ja kiinteä siirto
+  pisteen yläpuolelle vain vaihtoi naapuria (Harmaja -> Malmi).
+- **Peitto mitataan SISEMMÄSTÄ elementistä.** Leafletin `_icon`-kuori
+  kantaa `translate3d`-sijainnin eikä liiku väistön mukana — kuoresta
+  mitattu peitto valehtelee.
+- **Väistön suunta lukitaan ensimmäisestä osumasta.** Ilman lukitusta se
+  työntää ylös yhden ohi, törmää seuraavaan ja työntää takaisin alas:
+  nettosiirto 3 px. Pistetilassa väistöä ei ajeta lainkaan.
+- **Spottikortin aaltorivin raja on 60 km**, ja se on aukko mitatussa
+  jakaumassa (kymmenen spottia 5–35 km, Hangon kaksi 114 ja 119 km).
+  Rivillä on aina poijun nimi ja etäisyys — muuten se väittäisi
+  mittaavansa spottia.
+- **Aaltokaavion y-akseli alkaa NOLLASTA.** Automaattinen alaraja
+  suurentaisi 0,20–0,30 m:n vaihtelun koko kaavion korkuiseksi ja tyyni
+  vuorokausi näyttäisi myrskyltä.
+
+**Aaltoennuste** (EI tuotannossa — peruttu erä `5150fc1`)
+
+- **Aaltoennuste on kytkimen takana** (`Asetukset.arvot.aallot`), koska se on
   ainoa uusi rajapintakiintiö sen jälkeen kun tuuli siirrettiin omaan
   varastoon. Pois päältä ei tehdä yhtäkään kutsua.
 - **Vain `wave_height`, ei tuuli/maininki-jakoa.** Mitattuna malli lukee
