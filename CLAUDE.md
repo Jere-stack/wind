@@ -95,7 +95,7 @@ kokeiltu ja kaadettu mittauksella.
   tilalle · Päiväkisko sai saman uran kuin tuntinauha · Urat pois — yksi
   paperi, kaksi riviä · Päiväkisko piiloon levossa · Spottien
   tuulisuunnat asteen tarkkuudella · Saavutettavuuserä 1: rakenne,
-  sarkain ja piilotus
+  sarkain ja piilotus · Saavutettavuuserä 2: dialogit ja fokus
 
 </details>
 
@@ -254,6 +254,29 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **Piilota valintaruutu leikkauksella, älä `display: none`llä.**
   Ennustepaneelin kytkimet olivat `display:none` eivätkä siksi
   fokusoitavissa edes paneelin ollessa auki.
+- **Päällekkäinen pinta kulkee `Modaali`-moduulin kautta.** Neljä pintaa
+  (asetukset, spottikortti, ennustepaneeli, pikanäppäimet), neljä eri
+  avaus- ja sulkupolkua — paneelikohtaiset kuuntelijat ajautuisivat
+  erilleen. Älä kirjoita viidettä polkua.
+- **`aria-modal` EI pidättele sarkainta.** Se hoitaa vain ruudunlukijan;
+  ansa on tehtävä itse (yksi dokumenttitason kuuntelija, pinon
+  päällimmäinen). `inert` ei kelpaa, koska paneelit ovat `#app`:n sisällä.
+- **`Modaali.avaa` on IDEMPOTENTTI.** `openSheet` kutsutaan uudelleen joka
+  aikajanan askeleella, ja jos avaus siirtäisi fokuksen joka kerta,
+  jokainen tunnin askel veisi fokuksen pois siitä napista jota käyttäjä
+  juuri painoi.
+- **Paluukohde etsitään uudelleen, ei pelkkää viitettä.** Spottikortin
+  avaaja on karttamerkki, ja `renderSpots` korvaa merkin uudella solmulla
+  joka piirrolla — tallennettu viite osoitti irronneeseen solmuun ja
+  fokus jäi bodyyn (mitattu). Viitteen rinnalla talletetaan `id` ja
+  `title`.
+- **Fokus menee dialogin SÄILIÖÖN, ei ensimmäiseen kontrolliin.** Säiliö
+  kantaa roolin ja nimen, joten ruudunlukija lukee "Asetukset,
+  valintaikkuna". Säiliöltä otetaan ääriviiva pois — fokus on siinä
+  mekanismi, ei kontrolli.
+- **Otsikoksi vaihdettu `div` tarvitsee `margin: 0`.** `#sp-title` ja
+  `#fc-title` olisivat siirtäneet ylätunnisteitaan selaimen oman
+  `h2`-marginaalin verran.
 - **Havaintoasemien merkit ovat `keyboard: false`.** Muuten sarkain kulkee
   kymmenien merkkien läpi ennen kuin tavoittaa sovelluksen kontrollit.
 - **Pyöreän napin kulma ei ole nappi.** `.mctl` on ympyrä, joten

@@ -2710,3 +2710,72 @@ piilotetun latausruudun elementtejä, ja näkyviä oli **0**.
 Ja `[role=dialog]`-haku osui pikanäppäinikkunaan eikä asetuspaneeliin:
 `visibility` on `visible` myös `display:none` -elementillä, joten mittari
 luuli ikkunan olevan auki.
+
+## Saavutettavuuserä 2: dialogit ja fokus
+
+Erä 1 sai suljetut paneelit pois sarkainkierrosta. Auki olevat olivat
+yhä koko lailla rikki: ne olivat nimettömiä `div`ejä ilman roolia, ja
+sarkain käveli niiden läpi takaisin kartalle ja kontrolleihin joita ei
+sillä hetkellä nähnyt.
+
+### Yksi polku, ei kolmea kopiota
+
+Pintoja on neljä (asetukset, spottikortti, ennustepaneeli,
+pikanäppäimet) ja niillä on neljä eri avaus- ja sulkupolkua.
+Paneelikohtaiset kuuntelijat olisivat ajautuneet erilleen samalla
+tavalla kuin aikajanan valinta ennen `_tlValitseIdx`:iä, joten kaikki
+menee `Modaali`-moduulin kautta: `avaa(el, avaaja)`, `sulje(el)` ja
+yksi dokumenttitason sarkainansa joka lukee pinon päällimmäisen.
+
+`aria-modal="true"` hoitaa ruudunlukijan mutta **ei sarkainta** — ansa
+on tehtävä itse. `inert`iä ei voi käyttää, koska paneelit ovat `#app`:n
+sisällä.
+
+### Kolme asiaa jotka mittaus paljasti
+
+**Avaus on oltava idempotentti.** `openSheet` kutsutaan uudelleen joka
+aikajanan askeleella (`if (State.sheetSpot) openSheet(...)`). Jos avaus
+siirtäisi fokuksen joka kerta, jokainen tunnin askel veisi fokuksen
+pois siitä napista jota käyttäjä juuri painoi. Mitattu: askel ei siirrä
+fokusta (`sheet-handle → sheet-handle`).
+
+**Paluukohde on ETSITTÄVÄ UUDELLEEN, ei pelkkä viite.** Spottikortin
+avaaja on karttamerkki, ja `renderSpots` korvaa merkin uudella solmulla
+joka piirrolla. Tallennettu elementtiviite osoitti irronneeseen
+solmuun, ja fokus jäi bodyyn (mitattu). Nyt viitteen rinnalla
+talletetaan `id` ja `title`, joilla kohde löytyy uudelleenpiirron
+jälkeenkin — mitattu `div.leaflet-marker-icon → div.leaflet-marker-icon`.
+
+**Fokus menee SÄILIÖÖN, ei ensimmäiseen kontrolliin.** Säiliö kantaa
+roolin ja nimen, joten ruudunlukija lukee "Asetukset, valintaikkuna" —
+ensimmäiseen nappiin siirtyvä fokus jättäisi sen sanomatta. Säiliöltä
+otetaan ääriviiva pois (`[role="dialog"]:focus`), koska fokus on siinä
+mekanismi eikä kontrolli.
+
+### Mitattu ennen ja jälkeen
+
+Jokainen paneeli avataan sillä kontrollilla jolla käyttäjäkin sen avaa,
+ja sarkainta painetaan oikeasti (`page.keyboard.press`) — syntetisoitu
+`KeyboardEvent` ei siirrä fokusta, se vain laukaisee kuuntelijat.
+
+| | ennen | jälkeen |
+|---|---|---|
+| `role="dialog"` neljällä pinnalla | 1/4 | 4/4 |
+| saavutettava nimi | 1/4 | 4/4 |
+| fokus siirtyy sisään avattaessa | 0/4 | 4/4 |
+| sarkain pysyy paneelissa | 0/4 | 4/4 |
+| Esc sulkee | 3/4 | 4/4 |
+| fokus palautuu avaajaan | 0/4 | 4/4 |
+
+Esc ei sulkenut asetuksia, vaikka sääntö sanoi että sen pitää — se on
+nyt Esc-ketjussa.
+
+Spottikortin nimi vaihtuu sisällön mukaan (spotti tai havaintoasema),
+joten se asetetaan avattaessa (`_sheetAuki`) eikä markupissa.
+
+### Sivuvaikutus jonka mittaus otti kiinni
+
+`#sp-title` ja `#fc-title` vaihtuivat `div`istä otsikoiksi, ja selaimen
+oma `h2`-marginaali olisi siirtänyt molempia ylätunnisteita. Geometria
+on nyt mitattu yhdeksällä avainelementillä molemmissa näkymissä
+(mobiili ja työpöytä) commit `75aa388` vasten: **pikselilleen sama**.
