@@ -1535,20 +1535,52 @@ Open-Meteolla — mutta ero ei pienene vaihdoksessa vaan suurenee, joten
 kyse ei ole pelkästä mallinvaihdosta. Yksi ajo ei riitä sen
 selittämiseen.
 
-### Se mitä tämä EI korjaa
+### Ratkaisu: aikajana lukee varastoa
 
-Kaksi lukua on yhä kaksi lukua. Vaihtoehdot ovat toisensa poissulkevia
-ja niillä on hinta:
+Vaihtoehtoja oli kolme — aikajana varastoon, kartta HARMONIElle, tai
+kaksi lukua ja selitys. **Tarkkuus ei ratkaissut valintaa**, koska se
+jäi mittaamatta (ks. edellä), joten valinta tehtiin yhtenäisyyden
+perusteella: kartta HARMONIElle olisi purkanut juuri sen kiintiöstä
+irtautumisen jonka takia varasto rakennettiin, ja kahden luvun
+jättäminen olisi tarkoittanut että 86 % tunneista näyttää edelleen
+kahta eri lukua samasta paikasta.
 
-1. **Aikajana lukemaan varastoa** — täysi yhtenäisyys kartan kanssa.
-   Tarkkuusargumenttia tätä vastaan EI ole: laaja otos ei osoita
-   aikajanan tasoa tarkemmaksi (ks. edellä). Spottikortti eroaisi
-   sitten aikajanasta, koska se on HARMONIE.
-2. **Kartta lukemaan HARMONIEa rannikolla** — purkaisi juuri sen
-   kiintiöstä irtautumisen jonka takia varasto rakennettiin.
-3. **Kaksi lukua jää, mutta ero sanotaan** — halvin; merkintä on nyt
-   oikein, mutta aikajanan oma lähde on yhä nimeämättä. Hinta: 86 %
-   tunneista näyttää kahta eri lukua samasta paikasta ja hetkestä.
+`aikajananLahde()` lukee nyt `Saalaatat.wxTunneittain()`:in kartan
+keskipisteestä. Ennustepistepolku (`nearestPointToCenter`) on yhä
+varatie: ilman sitä aikajana katoaisi varaston kattamattomilta
+alueilta ja `?laatat=0`-tilassa.
 
-Tämä on tuotepäätös. Mittaus kertoo vain sen että ero on vallitseva ja
-kasvaa tuulen mukana — se ei kerro kumpi luku on oikeampi.
+**Mitattu jälkeen: aikajana ON varaston sarja.** 4 764 vertailua
+kahdentoista spotin kohdalla, suurin ero varaston samaan pisteeseen
+**0,000000 m/s**.
+
+Kapselia vasten jäi pieni jäännös, ja se on eri asia kuin lähde-ero:
+
+| | ka | max |
+|---|---|---|
+| ennen (eri lähde) | 1,33 | 2,30 |
+| jälkeen (sama lähde) | **0,24** | **0,73** |
+
+Jäännös on **interpolointi, ei data**: kapseli lukee solmuhilaa
+BIKUUBISESTI (`sampleWindHilasta`), aikajana laattaa BILINEAARISESTI
+(`Saalaatat.wx`). Sama lähde, sama hetki, eri ydin. Dokumentoidun
+mittauksen mukaan bikuubinen on neljä kertaa tarkempi (RMS 0,068 vs
+0,169), joten kapseli on niistä parempi luku — nollaan pääseminen
+vaatisi `wx()`:n muuttamisen kuubiseksi, mikä on oma muutoksensa ja
+oma mittauksensa.
+
+### Kolme paikkaa jotka muutos olisi rikkonut hiljaa
+
+Aikajanan indeksi siirrettiin **sellaisenaan** spotin omaan sarjaan
+kolmessa paikassa: `renderSpots`, `_spotVaistoMuuttuisi` ja
+`openSheet`. Se toimi niin kauan kuin aikajanan akseli OLI spotin
+akseli. Kun aikajana siirtyi varastoon, akselit eivät enää ala samasta
+hetkestä, ja spottikortti olisi näyttänyt väärän tunnin ilman että
+mikään kertoo siitä.
+
+Korjaus on yksi funktio (`_spotIdx`) joka hakee indeksin AJASTA
+`_tlSailytaHetki`in. Mitattu neljällä eri tunnilla: kortin aikaleima
+poikkeaa aikajanan hetkestä **0 minuuttia**.
+
+Valittu hetki säilyy neljällä zoom-reitillä (0 h), ja aikajana vaihtuu
+kartan mukana (3/3).

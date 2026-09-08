@@ -2982,8 +2982,8 @@ html.tyopoyta {
 
   <!-- Yksikkövalitsin. Arvosarake täytetään JS:ssä nykyisestä tuulesta. -->
   <div id="units-picker" class="valintakortti">
-    <div class="up-option" data-unit="ms"><span class="up-label">m/s</span><span class="up-value"></span></div>
     <div class="up-option" data-unit="kts"><span class="up-label">solmua</span><span class="up-value"></span></div>
+    <div class="up-option" data-unit="ms"><span class="up-label">m/s</span><span class="up-value"></span></div>
     <div class="up-option" data-unit="kmh"><span class="up-label">km/h</span><span class="up-value"></span></div>
     <div class="up-option" data-unit="bft"><span class="up-label">bft</span><span class="up-value"></span></div>
   </div>
@@ -3041,10 +3041,12 @@ html.tyopoyta {
         <!-- Yksikkö -->
         <div class="sp-card">
           <div class="sp-label">Yksikkö</div>
+          <!-- Oletus ensimmäisenä: valinta luetaan vasemmalta, ja
+               oletuksen paikka kertoo mikä on lähtötila. -->
           <div class="sp-chips" id="units">
-            <div class="sp-chip active" data-unit="ms">m/s</div>
+            <div class="sp-chip active" data-unit="kts">kts</div>
+            <div class="sp-chip" data-unit="ms">m/s</div>
             <div class="sp-chip" data-unit="kmh">km/h</div>
-            <div class="sp-chip" data-unit="kts">kts</div>
             <div class="sp-chip" data-unit="bft">bft</div>
           </div>
         </div>
@@ -3063,9 +3065,14 @@ html.tyopoyta {
           </div>
 
           <div class="sp-label" style="margin-top:18px">Partikkelit</div>
+          <!-- AVAIMET OVAT ENNALLAAN, NIMET VAIHTUIVAT. 'vahan' on nyt
+               "Normaali" (ja oletus), 'normaali' on "Paljon". Avainta ei
+               saa vaihtaa nimen mukana: jokaisen tallennettu valinta
+               putoaisi oletukseen. Sama sääntö kuin väriasteikon
+               'nykyinen'-avaimella. -->
           <div class="sp-chips" id="asetus-partikkelit">
-            <div class="sp-chip active" data-arvo="normaali">Normaali</div>
-            <div class="sp-chip" data-arvo="vahan">Vähän</div>
+            <div class="sp-chip active" data-arvo="vahan">Normaali</div>
+            <div class="sp-chip" data-arvo="normaali">Paljon</div>
             <div class="sp-chip" data-arvo="pois">Pois</div>
           </div>
           <div class="sp-vihje">Vähentää akun kulutusta vanhemmilla puhelimilla.</div>
@@ -3640,7 +3647,10 @@ const Suunta = {
 };
 
 const Units = {
-  _active: 'ms',
+  /* Oletusyksikkö on solmu: sovellus on wingfoilaajille, ja kalusto
+     (siipi- ja lautakoot) valitaan solmuissa. Vaihto ei koske ketään
+     joka on jo valinnut yksikön — `init()` lukee localStoragen. */
+  _active: 'kts',
   _defs: {
     ms:  { label: 'm/s',  factor: 1,      decimals: 1 },
     kmh: { label: 'km/h', factor: 3.6,    decimals: 0 },
@@ -3772,7 +3782,12 @@ const Asetukset = {
     ramppi:      ['nykyinen', 'cvd'],
     lampo:       ['hillitty', 'normaali', 'voimakas']
   },
-  arvot: { pohja: 'tumma', partikkelit: 'normaali', ramppi: 'nykyinen', lampo: 'normaali' },
+  /* PARTIKKELIEN AVAIMIA EI SAA VAIHTAA, vaikka nimet vaihtuivat.
+     'vahan' on nyt nimeltään "Normaali" ja 'normaali' on "Paljon" —
+     sama sääntö kuin väriasteikon 'nykyinen'-avaimella: jos avain
+     vaihdetaan, jokaisen käyttäjän localStorage putoaa oletukseen.
+     Oletus on 'vahan' eli uusi "Normaali". */
+  arvot: { pohja: 'tumma', partikkelit: 'vahan', ramppi: 'nykyinen', lampo: 'normaali' },
 
   lue() {
     let raw = null;
@@ -11685,13 +11700,27 @@ function _spotVaistoMuuttuisi(hourIdx, zoom) {
   const pisteytetyt = [];
   for (const spot of SPOTS) {
     if (!spot.wx || !spot.wx.hourly) continue;
-    const h = spot.wx.hourly, idx = Math.min(hourIdx, h.windspeed_10m.length - 1);
+    const h = spot.wx.hourly, idx = _spotIdx(h, hourIdx);
     const ms  = h.windspeed_10m[idx] || 0;
     const gst = (h.windgusts_10m && h.windgusts_10m[idx]) || ms;
     const dir = h.winddirection_10m[idx] || 0;
     pisteytetyt.push({ spot, score: spotIndex(ms, dir, spot.bestDirs, gst) });
   }
   return _taysienAvain(_valitseTaydetSpotit(pisteytetyt, zoom)) !== State._spotTaydetAvain;
+}
+
+/* AIKAJANAN INDEKSI EI OLE SPOTIN INDEKSI.
+ *
+ * Aikajana lukee laattavarastoa kartan keskipisteestä (ks.
+ * `aikajananLahde`) ja spotti omaa HARMONIE-sarjaansa. Molemmat ovat
+ * tunneittain, mutta ne EIVÄT ala samasta hetkestä: varaston akseli
+ * rakentuu laattojen ajoista, spotin akseli rajapinnan vastauksesta.
+ * Indeksin siirtäminen sellaisenaan akselilta toiselle on täsmälleen se
+ * vika jota vastaan `_tlSailytaHetki` on olemassa — ja se tehtiin
+ * kolmessa paikassa (`renderSpots`, `_spotVaistoMuuttuisi`,
+ * `openSheet`), joten sille on yksi funktio eikä kolmea kopiota. */
+function _spotIdx(h, hourIdx) {
+  return Math.min(_tlSailytaHetki(h, hourIdx), h.windspeed_10m.length - 1);
 }
 
 function renderSpots(hourIdx) {
@@ -11703,7 +11732,7 @@ function renderSpots(hourIdx) {
   const pisteytetyt = [];
   for (const spot of SPOTS) {
     if (!spot.wx || !spot.wx.hourly) continue;
-    const h = spot.wx.hourly, idx = Math.min(hourIdx, h.windspeed_10m.length - 1);
+    const h = spot.wx.hourly, idx = _spotIdx(h, hourIdx);
     const ms  = h.windspeed_10m[idx] || 0;
     const gst = (h.windgusts_10m && h.windgusts_10m[idx]) || ms;
     const dir = h.winddirection_10m[idx] || 0;
@@ -12521,13 +12550,19 @@ function _addObsMarkers(map) {
      hiljaa kuusi vuorokautta ja kartalla näkyi vain tyhjä pilleri, josta
      ei voinut päätellä oliko vika asemassa, verkossa vai sovelluksessa.
      Katkoviiva ja himmennys sanovat "tunnettu asema, ei signaalia". */
-  function _pilleri(glyfi, arvo, yksikko, hiljainen) {
+  /* `pieni` on kapea muoto samasta pillerista: sama pinta, sama glyfi,
+     pienempi LUKU (yksikko on jo pienin kaytossa oleva koko, --fs-65)
+     ja tiukempi tayte. Se on olemassa jotta lukema voi
+     tulla nakyviin AIEMMALLA zoomilla ilman etta merkit peittavat
+     toisensa — taysikokoinen pilleri z8:lla peitti Helsingin edustalla
+     naapurinsa 65-prosenttisesti (mitattu). */
+  function _pilleri(glyfi, arvo, yksikko, hiljainen, pieni) {
     return '<div style="'
-        +'display:inline-flex;align-items:baseline;gap:3px;'
+        +'display:inline-flex;align-items:baseline;gap:'+(pieni?'2px':'3px')+';'
         +'background:'+PILL_BG+';'
         +'border:1px '+(hiljainen?'dashed':'solid')+' '+PILL_LINE+';'
-        +'border-radius:5px;'
-        +'padding:2px 5px;'
+        +'border-radius:'+(pieni?'4px':'5px')+';'
+        +'padding:'+(pieni?'1px 4px':'2px 5px')+';'
         +'cursor:pointer;'
         +(hiljainen?'opacity:.6;':'')
         +'backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);'
@@ -12538,9 +12573,11 @@ function _addObsMarkers(map) {
         +(hiljainen
           ? '<span style="font-variant-numeric:tabular-nums;font-size:var(--fs-75);'
             +'color:'+INK_2+';line-height:1;letter-spacing:.3px">ei signaalia</span>'
-          : '<span style="font-variant-numeric:tabular-nums;font-weight:500;font-size:var(--fs-11);'
+          : '<span style="font-variant-numeric:tabular-nums;font-weight:500;font-size:'
+            +(pieni?'var(--fs-9)':'var(--fs-11)')+';'
             +'color:'+INK_1+';line-height:1;letter-spacing:-0.2px">'+arvo+'</span>'
-            +'<span style="font-variant-numeric:tabular-nums;font-size:var(--fs-65);'
+            +'<span style="font-variant-numeric:tabular-nums;font-size:'
+            +'var(--fs-65)'+';'
             +'color:'+INK_2+';line-height:1">'+yksikko+'</span>')
       +'</div>';
   }
@@ -12746,16 +12783,30 @@ function _addObsMarkers(map) {
      poijulla z9, koska se seisoo molempien keskellä. Sen alla merkki on
      piste — se kertoo että mittauspiste on olemassa, ja kortti on yhden
      napautuksen päässä. */
-  var PILLERI_Z_POIJU = 9;
+  /* POIJUN LUKEMA TULEE SAMALLA ZOOMILLA KUIN MERIASEMAN, z8.
+   *
+   * Kynnys oli ensin z9 peiton takia (z8:lla pillerit peittivat toisensa
+   * 65-prosenttisesti), mutta se teki poijusta toisen luokan havainnon:
+   * Suomenlahden poiju ilmestyi vasta lahempana kuin Harmajan lukema
+   * vaikka molemmat ovat merihavaintoja samalla alueella. Kayttaja
+   * huomasi sen.
+   *
+   * Ratkaisu ei ole kynnys vaan KOKO: z8:lla pilleri on kapea muoto
+   * (pienempi kirjasin, tiukempi tayte), z9:sta ylospain taysikokoinen.
+   * Merkki siis kasvaa zoomin mukana sen sijaan etta ilmestyisi tyhjasta,
+   * ja laatikkovaisto hoitaa loput. */
+  var PILLERI_Z_POIJU = 8;
+  var PILLERI_Z_POIJU_ISO = 9;
   function mkAaltoIcon(zoom, hs, hiljainen) {
     var z = zoom || 5;
     if (z >= PILLERI_Z_POIJU) {
+      var pieni = z < PILLERI_Z_POIJU_ISO;
       var arvo = hs != null ? hs.toFixed(1) : '—';
       return L.divIcon({ className:'',
-        html: _pilleri(_aaltoGlyfi(INK_2), arvo, 'm', hiljainen),
-        iconAnchor:[0, 9], iconSize:[56, 18] });
+        html: _pilleri(_aaltoGlyfi(INK_2), arvo, 'm', hiljainen, pieni),
+        iconAnchor:[0, pieni ? 7 : 9],
+        iconSize: pieni ? [44, 14] : [56, 18] });
     }
-    var sz = z < 5 ? 5 : 7;
     return L.divIcon({ className:'',
       html:'<div style="cursor:pointer;line-height:0;opacity:'+(z < 5 ? '.55' : '.9')+'">'
         + _aaltoGlyfi(INK_2) + '</div>',
@@ -12763,7 +12814,10 @@ function _addObsMarkers(map) {
   }
   function _aaltoIconSig(zoom, hs, hiljainen) {
     var z = zoom || 5;
-    if (z >= PILLERI_Z_POIJU) return 'p|' + (hs != null ? hs.toFixed(1) : '—') + (hiljainen ? '|hlj' : '');
+    if (z >= PILLERI_Z_POIJU) {
+      return 'p' + (z < PILLERI_Z_POIJU_ISO ? 's' : 'l') + '|'
+        + (hs != null ? hs.toFixed(1) : '—') + (hiljainen ? '|hlj' : '');
+    }
     return 'd|' + (z < 5 ? 0 : 1);
   }
 
@@ -13690,15 +13744,21 @@ function _aaltoKaavio(el, data, jakso, asema, lampoVain) {
       + 'border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none">' + j[1] + '</button>';
   }).join('');
 
+  var otsikko = (lampoVain ? 'Meriveden lämpötila' : 'Aallonkorkeus') + ' · ' + yks;
   el.innerHTML =
     '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">'
-      + '<div style="font-size:var(--fs-10);color:var(--ink-2);font-weight:600">'
-        + (lampoVain ? 'Meriveden lämpötila' : 'Aallonkorkeus') + ' · ' + yks + '</div>'
+      + '<div id="' + vid + '-otsikko" style="font-size:var(--fs-10);color:var(--ink-2);'
+        + 'font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
+        + otsikko + '</div>'
       + '<div style="display:flex;flex-shrink:0;background:var(--surface-lo);border-radius:10px;padding:2px;gap:1px">'
         + napit + '</div>'
     + '</div>'
+    /* `touch-action:none` on pakollinen: ilman sitä pystysuora sormen
+       liike vierittää spottikorttia eikä raahaus koskaan ala. Sama
+       ratkaisu kuin uimavesikaaviossa. */
     + '<svg id="' + vid + '" viewBox="0 0 ' + W + ' ' + TH + '" '
-      + 'style="width:100%;display:block;overflow:visible" role="img" aria-label="'
+      + 'style="width:100%;display:block;overflow:visible;touch-action:none;'
+      + 'cursor:crosshair" role="img" aria-label="'
       + (lampoVain ? 'Meriveden lämpötila' : 'Aallonkorkeus') + ' viimeisen '
       + (jakso === '30h' ? '30 tunnin' : 'seitsemän vuorokauden') + ' ajalta, '
       + 'suurin ' + maxV.toFixed(1) + ' ' + yks + ', viimeisin ' + draw[n - 1].v.toFixed(1) + ' ' + yks + '">'
@@ -13713,7 +13773,109 @@ function _aaltoKaavio(el, data, jakso, asema, lampoVain) {
       + '<circle cx="' + xOf(n - 1).toFixed(1) + '" cy="' + yOf(draw[n - 1].v).toFixed(1)
         + '" r="2.8" fill="var(--ink)"/>'
       + xl
+      /* Raahauksen osoitin. Piilossa kunnes sormi koskee — levossa
+         kaaviossa on jo huippumerkintä ja viimeisin piste, eikä
+         kolmatta merkkiä tarvita. */
+      + '<g id="' + vid + '-raahaus" style="display:none;pointer-events:none">'
+        + '<line y1="' + padY + '" y2="' + (H - padY) + '" stroke="var(--ink)" '
+          + 'stroke-width="1" opacity=".45"/>'
+        + '<circle r="3.4" fill="var(--ink)" stroke="var(--surface-hi)" stroke-width="1.4"/>'
+      + '</g>'
     + '</svg>';
+
+  /* RAAHATTAVA HISTORIA.
+   *
+   * Pointer-tapahtumat eivätkä touch+mouse erikseen: sama koodi kattaa
+   * sormen, hiiren ja kynän, eikä kahta polkua pääse ajautumaan
+   * erilleen. `setPointerCapture` pitää raahauksen kaaviossa vaikka
+   * sormi liukuisi sen ulkopuolelle — ilman sitä lukema jäisi jumiin
+   * siihen kohtaan jossa sormi ylitti reunan.
+   *
+   * Lukema kirjoitetaan OTSIKKORIVILLE eikä kelluvaan kuplaan: kaavio
+   * on 108 px korkea spottikortissa, ja kupla joko peittäisi käyrän tai
+   * valuisi kortin reunan yli. Otsikkorivi on jo olemassa ja sanoo
+   * muutenkin mitä katsotaan. */
+  var svgEl = document.getElementById(vid);
+  var raahausEl = document.getElementById(vid + '-raahaus');
+  var otsikkoEl = document.getElementById(vid + '-otsikko');
+  if (svgEl && raahausEl && otsikkoEl) {
+    var linjaEl = raahausEl.querySelector('line');
+    var palloEl = raahausEl.querySelector('circle');
+    var kello = function (iso) {
+      var dt = new Date(iso);
+      return dt.getDate() + '.' + (dt.getMonth() + 1) + '. '
+        + ('0' + dt.getHours()).slice(-2) + ':' + ('0' + dt.getMinutes()).slice(-2);
+    };
+    var naytaIdx = function (i) {
+      var pt = draw[i];
+      if (!pt) return;
+      var x = xOf(i), y = yOf(pt.v);
+      linjaEl.setAttribute('x1', x.toFixed(1));
+      linjaEl.setAttribute('x2', x.toFixed(1));
+      palloEl.setAttribute('cx', x.toFixed(1));
+      palloEl.setAttribute('cy', y.toFixed(1));
+      raahausEl.style.display = '';
+      var osat = [kello(pt.iso), pt.v.toFixed(1) + ' ' + yks];
+      /* Aaltosarjassa suunta on pisteessä mukana (`d`), ja se on juuri
+         se mitä menneisyydestä halutaan tietää korkeuden lisäksi. */
+      if (!lampoVain && pt.d != null) osat.push(dirArrow(pt.d) + ' ' + Math.round(pt.d) + '°');
+      otsikkoEl.textContent = osat.join(' · ');
+    };
+    /* LUKEMA JÄÄ NÄKYVIIN SORMEN NOUSTUA.
+       Napautus on yhtä laillinen ele kuin raahaus — "mikä tämä kohta
+       oli" — ja jos lukema katoaa sormen mukana, napautus ei tee
+       yhtään mitään. Se jää siis hetkeksi ja palautuu itsestään, jotta
+       kortille ei jää pysyvää merkkiä jota kukaan ei pyytänyt. */
+    var LEPO_MS = 2600;
+    var lepoAjastin = null;
+    var lopeta = function () {
+      raahausEl.style.display = 'none';
+      otsikkoEl.textContent = otsikko;
+    };
+    var lopetaMyohemmin = function () {
+      if (lepoAjastin) clearTimeout(lepoAjastin);
+      lepoAjastin = setTimeout(function () { lepoAjastin = null; lopeta(); }, LEPO_MS);
+    };
+    var idxKohdasta = function (clientX) {
+      var r = svgEl.getBoundingClientRect();
+      if (!r.width) return 0;
+      /* Ruutupikselit viewBoxiin: SVG venytetään leveyteen 100 %. */
+      var vx = (clientX - r.left) / r.width * W;
+      var f = (vx - padX) / (W - padX - 8);
+      return Math.max(0, Math.min(n - 1, Math.round(f * (n - 1))));
+    };
+    var raahaa = false, viimeIdx = -1;
+    svgEl.addEventListener('pointerdown', function (e) {
+      raahaa = true; viimeIdx = -1;
+      if (lepoAjastin) { clearTimeout(lepoAjastin); lepoAjastin = null; }
+      /* Sormi saa liukua kaavion ulkopuolelle raahauksen aikana: ilman
+         kaappausta lukema jäisi jumiin siihen kohtaan jossa reuna
+         ylittyi. */
+      try { svgEl.setPointerCapture(e.pointerId); } catch (er) {}
+      naytaIdx(idxKohdasta(e.clientX));
+      e.preventDefault();
+    });
+    svgEl.addEventListener('pointermove', function (e) {
+      if (!raahaa) return;
+      var i = idxKohdasta(e.clientX);
+      if (i === viimeIdx) return;
+      viimeIdx = i;
+      naytaIdx(i);
+    });
+    for (const tapahtuma of ['pointerup', 'pointercancel']) {
+      svgEl.addEventListener(tapahtuma, function () {
+        if (!raahaa) return;
+        raahaa = false;
+        lopetaMyohemmin();
+      });
+    }
+    /* `pointerleave` vain hiirelle: kosketuksella se tulee vasta
+       noston jälkeen, ja silloin ajastin on jo käynnissä. */
+    svgEl.addEventListener('pointerleave', function (e) {
+      if (raahaa || e.pointerType === 'touch') return;
+      lopetaMyohemmin();
+    });
+  }
 
   el.querySelectorAll('[data-ak]').forEach(function (b) {
     b.addEventListener('click', function () {
@@ -13900,7 +14062,7 @@ function openSheet(spot, hourIdx) {
     return;
   }
   State.sheetSpot = spot;
-  const h = spot.wx.hourly, idx = Math.min(hourIdx, h.windspeed_10m.length - 1);
+  const h = spot.wx.hourly, idx = _spotIdx(h, hourIdx);
   const ms  = h.windspeed_10m[idx] || 0;
   const dir = h.winddirection_10m[idx] || 0;
   const gst = (h.windgusts_10m && h.windgusts_10m[idx]) || ms;
@@ -16483,6 +16645,12 @@ document.getElementById('sheet-handle').addEventListener('click', closeSheet, { 
 
 /* -- TIMELINE --------------------------------------------------- */
 function bestTimelineRef() {
+  /* Sama lähde kuin aikajanalla muutenkin — muuten kerroksen vaihto ja
+     käynnistys rakentaisivat janan eri datasta kuin kartan siirto, ja
+     luku hyppäisi ilman että käyttäjä teki mitään. */
+  const keskelta = aikajananLahde();
+  if (keskelta && keskelta.wx && keskelta.wx.hourly
+      && keskelta.wx.hourly.windspeed_10m) return keskelta;
   let best = null, bestLen = 0;
   for (const s of SPOTS) {
     if (s.wx && s.wx.hourly && s.wx.hourly.windspeed_10m) {
@@ -16543,10 +16711,51 @@ function nearestPointToCenter() {
   return best;
 }
 
-/* Update timeline to nearest loaded point — called on moveend, 0 API calls */
+/* AIKAJANAN LÄHDE ON SAMA KUIN KARTAN.
+ *
+ * Aikajana luki ennen lähimmän ENNUSTEPISTEEN sarjan, ja lähin piste on
+ * Helsingissä käytännössä aina spotti: karttahila on z10+ 0,25° eli noin
+ * 28 km, spotti muutaman kilometrin päässä. Spotin sarja on HARMONIE,
+ * kartta lukee laattavarastoa (ECMWF) — eikä spotti ole varaston
+ * hilassa lainkaan, joten sama paikka ja sama tunti näytti kahta eri
+ * lukua eikä mikään kertonut kummasta on kyse.
+ *
+ * Mitattu 3 893 vertailulla kahdentoista spotin koko ennustejaksolta:
+ * ka 1,38 m/s, med 1,20, max 7,34, ja 86 % tunneista yli sovelluksen
+ * oman 0,5 m/s rajan. Ero KASVAA tuulen mukana — 0,82 m/s välillä
+ * 0–4 m/s ja 2,78 m/s välillä 10–14 m/s — eli juuri siellä missä päätös
+ * tehdään.
+ *
+ * KUMPI LUKU ON OIKEAMPI EI RATKENNUT. Viiden asemaparin otos antoi
+ * aikajanalle paremman osuvuuden, 48 h otos käänsi järjestyksen, eikä
+ * kumpikaan riitä (aikajanan otos jäi 30 pariin, koska spottisarjan
+ * menneisyys kattaa ~6 h). Molemmilla on sama harha −1,79 m/s
+ * havaintoa vasten. Valinta tehtiin siis YHTENÄISYYDEN perusteella,
+ * ei tarkkuuden — älä perustele sen purkamista tarkkuudella ilman
+ * uutta mittausta.
+ *
+ * Spottikortti pysyy HARMONIElla: se on oma näkymänsä yhteen
+ * pisteeseen, jossa 2,5 km hila on koko juju.
+ *
+ * Ennustepistepolku on yhä varatie eikä koriste: ilman sitä aikajana
+ * katoaisi varaston kattamattomilta alueilta ja `?laatat=0`-tilassa. */
+function aikajananLahde() {
+  if (typeof Saalaatat !== 'undefined' && Saalaatat.kaytossa() && State.map) {
+    const c = State.map.getCenter();
+    const step = (typeof ViewportGrid !== 'undefined')
+      ? ViewportGrid.kaytettyStep(State.map.getZoom()) : 0.25;
+    const wx = Saalaatat.wxTunneittain(c.lat, c.lng, step);
+    if (wx && wx.hourly && wx.hourly.time && wx.hourly.time.length) {
+      return { lat: c.lat, lng: c.lng, wx: wx, varastosta: true };
+    }
+  }
+  return nearestPointToCenter();
+}
+
+/* Update timeline to the map centre — called on moveend, 0 API calls */
 function updateTimelineToCenter() {
-  const p = nearestPointToCenter();
-  if (!p) return;
+  const p = aikajananLahde();
+  if (!p || !p.wx || !p.wx.hourly) return;
   const h = p.wx.hourly;
   const layer = State.activeLayer;
   const sp = layer === 'gust' ? (h.windgusts_10m || h.windspeed_10m) : h.windspeed_10m;
@@ -16589,14 +16798,15 @@ function updateTimelineToCenter() {
  *
  * `_ts` on muistava (avaimena taulukon identiteetti), joten tämä ei
  * jäsennä aikaleimoja uudelleen. */
-function _tlSailytaHetki(uusiHourly) {
-  const vanha = _tlTimeAt(State.currentHourIdx);
+function _tlSailytaHetki(uusiHourly, lahtoIdx) {
+  const mista = lahtoIdx === undefined ? State.currentHourIdx : lahtoIdx;
+  const vanha = _tlTimeAt(mista);
   if (vanha == null || !uusiHourly || !uusiHourly.time || !uusiHourly.time.length) {
-    return State.currentHourIdx;
+    return mista;
   }
   const ts = _ts(uusiHourly);
   const n = ts.length;
-  if (!n) return State.currentHourIdx;
+  if (!n) return mista;
   if (vanha <= ts[0]) return 0;
   if (vanha >= ts[n - 1]) return n - 1;
   let lo = 0, hi = n - 1;

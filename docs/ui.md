@@ -2848,3 +2848,91 @@ kerrostason ja `aria-checked` seuraa, Esc sulkee ja fokus palaa
 avaajaan, suljettuna mikään ei ole fokusoitavissa.
 
 Sivun näkyvistä kontrolleista fokusoitavia 26/26 → **48/48**.
+
+## Oletusasetukset ja sirujen järjestys
+
+Oletukset ovat nyt: tuulikerros **Tuuli**, yksikkö **solmua**,
+pohjakartta **Tumma**, partikkelit **Normaali**. Jokaisessa
+siruryhmässä oletus on **ensimmäisenä vasemmalla** — valinta luetaan
+vasemmalta, ja oletuksen paikka kertoo mikä on lähtötila ilman että
+sitä tarvitsee päätellä siitä mikä sattuu olemaan korostettuna.
+
+Yksikkö vaihtui solmuun, koska kalusto valitaan solmuissa. Sama
+järjestys on myös kapselin yksikkövalitsimessa: kaksi eri järjestystä
+samalle listalle olisi kaksi paikkaa jotka ajautuvat erilleen.
+
+### Partikkelien nimet vaihtuivat, AVAIMET EIVÄT
+
+    'vahan'    → "Normaali"   (uusi oletus)
+    'normaali' → "Paljon"
+    'pois'     → "Pois"
+
+Avaimen vaihtaminen nimen mukana olisi pudottanut jokaisen käyttäjän
+tallennetun valinnan oletukseen — sama sääntö kuin väriasteikon
+`'nykyinen'`-avaimella, joka on yhä nimeltään "Kirkas". Mitattu: kun
+localStoragessa on vanha `{pohja:'vaalea', partikkelit:'normaali',
+ramppi:'cvd', lampo:'voimakas'}` ja yksikkö `ms`, kaikki viisi säilyvät
+eivätkä putoa uusiin oletuksiin.
+
+Lämpökartan voimakkuutta ja väriasteikkoa ei siirretty: niiden
+järjestys on asteikko (hillitty → voimakas), ja oletuksen nostaminen
+ensimmäiseksi rikkoisi sen. Ne eivät myöskään olleet pyydettyjen
+oletusten joukossa.
+
+## Aaltopoijun lukema tulee samalla zoomilla kuin meriaseman
+
+Poijun pillerikynnys oli z9 peiton takia — z8:lla pillerit peittivät
+toisensa Helsingin edustalla 65-prosenttisesti. Se ratkaisu oli
+mittauksena oikea mutta käyttöliittymänä väärä: **Suomenlahden poiju
+ilmestyi vasta lähempänä kuin Harmajan lukema**, vaikka molemmat ovat
+merihavaintoja samalla alueella, ja käyttäjä huomasi sen.
+
+Ratkaisu ei ole kynnys vaan **koko**. Merkki kasvaa portaittain sen
+sijaan että ilmestyisi tyhjästä:
+
+    z < 8    glyfi (13 px)
+    z 8      kapea pilleri (44 px) — pienempi luku, tiukempi täyte
+    z ≥ 9    täysi pilleri (51 px)
+
+`_pilleri` sai valinnaisen `pieni`-lipun; yksikkö on jo pienimmässä
+käytössä olevassa koossa (`--fs-65`), joten vain luku pienenee.
+
+Mitattu peitto sisemmistä elementeistä: **z8 pahin pari on Harmaja ×
+Itätoukki 36 %** eli perustason pari johon poiju ei kuulu, ja z9–z12
+on 0 %. z7:llä poijun glyfi on yhä 90-prosenttisesti Harmajan pisteen
+alla — se on pistetilan tungosta, jota väistö ei korjaa (ks.
+*Aaltopoijut*), ja se on ennallaan.
+
+## Aaltopoijun kaavion voi raahata
+
+Kaaviosta näki vain muodon; yksittäisen tunnin lukemaa ei saanut esiin.
+Nyt sormella (tai hiirellä) raahaamalla kaavioon tulee pystyosoitin ja
+otsikkoriville aika, korkeus ja aallon suunta.
+
+**Lukema kirjoitetaan otsikkoriville, ei kelluvaan kuplaan.** Kaavio on
+spottikortissa 108 px korkea, ja kupla joko peittäisi käyrän tai valuisi
+kortin reunan yli. Otsikkorivi on jo olemassa ja sanoo muutenkin mitä
+katsotaan.
+
+Kolme asiaa jotka piti tehdä oikein:
+
+- **`touch-action: none`** kaaviolle. Ilman sitä pystysuora sormen liike
+  vierittää spottikorttia eikä raahaus ala koskaan. Sama ratkaisu kuin
+  uimavesikaaviossa.
+- **`setPointerCapture`.** Ilman sitä lukema jää jumiin siihen kohtaan
+  jossa sormi liukui kaavion reunan yli.
+- **Lukema jää näkyviin sormen noustua** (2,6 s). Ensimmäinen versio
+  piilotti sen heti `pointerup`issa, ja mittaus paljasti mitä se
+  tarkoittaa: **napautus ei tehnyt yhtään mitään**. Napautus on yhtä
+  laillinen ele kuin raahaus — "mikä tämä kohta oli". Ajastin palauttaa
+  otsikon itsestään, jottei kortille jää pysyvää merkkiä jota kukaan ei
+  pyytänyt.
+
+Pointer-tapahtumat eikä touch + mouse erikseen: sama koodi kattaa
+sormen, hiiren ja kynän, eikä kahta polkua pääse ajautumaan erilleen.
+`pointerleave` on rajattu hiireen, koska kosketuksella se tulee vasta
+noston jälkeen.
+
+Mitattu kolmesta kohdasta (15 %, 45 %, 85 %): osoitin näkyy, otsikko
+näyttää päivän, kellonajan, korkeuden ja suunnan, kolme kohtaa antavat
+kolme eri lukemaa, ja otsikko palautuu itsestään.

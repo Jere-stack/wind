@@ -99,7 +99,9 @@ kokeiltu ja kaadettu mittauksella.
   paperi, kaksi riviä · Päiväkisko piiloon levossa · Spottien
   tuulisuunnat asteen tarkkuudella · Saavutettavuuserä 1: rakenne,
   sarkain ja piilotus · Saavutettavuuserä 2: dialogit ja fokus ·
-  Saavutettavuuserä 3: asetuspaneelin kontrollit
+  Saavutettavuuserä 3: asetuspaneelin kontrollit · Oletusasetukset ja
+  sirujen järjestys · Aaltopoijun lukema tulee samalla zoomilla kuin
+  meriaseman · Aaltopoijun kaavion voi raahata
 
 </details>
 
@@ -301,6 +303,19 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   napautusmittauksen näytteet otetaan ympyrän sisältä — laatikon kulma
   antaa hudin joka on geometriaa, ei vikaa.
 
+**Asetukset**
+
+- **Partikkelien ja väriasteikon AVAIMIA ei saa vaihtaa** vaikka nimet
+  vaihtuvat: `'vahan'` on nimeltään "Normaali" ja `'normaali'` on
+  "Paljon". Avaimen vaihto pudottaisi jokaisen tallennetun valinnan
+  oletukseen.
+- **Oletus on siruryhmässä ensimmäisenä vasemmalla** (tuuli, kts,
+  tumma, partikkelit-Normaali). Poikkeus: lämpökartan voimakkuus ja
+  väriasteikko ovat asteikkoja, joissa järjestys on itsessään tieto.
+- **Yksikkölista on samassa järjestyksessä asetuspaneelissa ja
+  kapselin valitsimessa.** Kaksi järjestystä samalle listalle on kaksi
+  paikkaa jotka ajautuvat erilleen.
+
 **Aikajana**
 
 - **`currentHourIdx` on INDEKSI, ja aika-akseli vaihtuu kartan mukana.**
@@ -398,9 +413,16 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   tuuliasteikko; 0,4 m siitä värjättynä sanoisi "0,4 m/s".
 - **Aaltopillerin glyfi ei ole vedenlämmön glyfi.** `_pilleri` antaa saman
   pinnan kaikille, joten glyfi on ainoa mikä kertoo suureen.
-- **Poijun pilleri tulee z9:llä**, meriasemien z8:n ja maa-asemien z10:n
-  väliin. z7 antoi 100 %:n peiton (perustaso 12 %), ja kiinteä siirto
-  pisteen yläpuolelle vain vaihtoi naapuria (Harmaja -> Malmi).
+- **Poijun lukema tulee z8:lla, samalla kuin meriaseman** — mutta
+  KAPEANA pillerinä, ja täysikokoisena vasta z9:stä. Kynnys yksin oli
+  väärä ratkaisu: se teki poijusta toisen luokan havainnon
+  (Suomenlahden poiju ilmestyi vasta Harmajan jälkeen). Kiinteä siirto
+  pisteen yläpuolelle kokeiltiin ja se vain vaihtoi naapuria
+  (Harmaja -> Malmi). Mitattu peitto z8:lla 36 % (perustason pari,
+  ei poiju), z9–z12 0 %.
+- **Aaltokaavion raahaus tarvitsee `touch-action: none`in ja
+  `setPointerCapture`in**, ja lukeman on JÄÄTÄVÄ näkyviin sormen
+  noustua — muuten napautus ei tee mitään. Ajastin palauttaa otsikon.
 - **Peitto mitataan SISEMMÄSTÄ elementistä.** Leafletin `_icon`-kuori
   kantaa `translate3d`-sijainnin eikä liiku väistön mukana — kuoresta
   mitattu peitto valehtelee.
@@ -442,6 +464,18 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   (0,82 → 2,78 m/s välillä 0–4 ja 10–14 m/s). Avomerellä 0,10 m/s,
   koska siellä molemmat tulevat varastosta. Älä oleta että jokin kartan
   luku ja jokin paneelin luku ovat samasta lähteestä.
+- **AIKAJANA LUKEE VARASTOA, ei lähintä ennustepistettä**
+  (`aikajananLahde`). Valinta tehtiin YHTENÄISYYDEN perusteella, ei
+  tarkkuuden — älä purkaa sitä tarkkuudella ilman uutta mittausta.
+  Mitattu jälkeen: aikajana on varaston sarja (4 764 vertailua, max ero
+  0,000000). Kapselia vasten jää 0,24 m/s (max 0,73), ja se on
+  INTERPOLOINTI eikä data: kapseli on bikuubinen solmuhila, aikajana
+  bilineaarinen laattanäyte.
+- **AIKAJANAN INDEKSI EI OLE SPOTIN INDEKSI.** Akselit eivät ala
+  samasta hetkestä. `renderSpots`, `_spotVaistoMuuttuisi` ja
+  `openSheet` hakevat indeksin AJASTA yhden funktion kautta
+  (`_spotIdx`). Älä kirjoita neljättä polkua äläkä siirrä indeksiä
+  sellaisenaan.
 - **Kumpi taso on tarkempi EI OLE RATKAISTU.** Viiden asemaparin
   otoksesta vedettiin kerran johtopäätös "aikajana on tarkempi"; 48 h
   otos käänsi järjestyksen, ja siinäkin aikajanan otos oli vain 30
