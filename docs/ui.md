@@ -2936,3 +2936,162 @@ noston jälkeen.
 Mitattu kolmesta kohdasta (15 %, 45 %, 85 %): osoitin näkyy, otsikko
 näyttää päivän, kellonajan, korkeuden ja suunnan, kolme kohtaa antavat
 kolme eri lukemaa, ja otsikko palautuu itsestään.
+
+## Kapselin puuskarivi katosi — kaksi vikaa, ja yksi ilmeinen korjaus joka oli väärä
+
+Kapselin tuulilukeman alla on pieni harmaa rivi "puuska N". Se oli
+poissa. Elementti oli paikallaan ja sisälsi tekstiä, mutta luokka
+`hidden` piti sen `visibility: hidden` -tilassa.
+
+Ensimmäinen mittaus seitsemästä paikasta kertoi mistä oli kyse:
+
+| paikka | kapseli | puuskarivi | lähin piste | puuska | rivin hetki |
+|---|---|---|---|---|---|
+| Helsinki | 13,3 kts | näkyy | api 3 km | 7,8 | 2026-09-10T10:00 |
+| Lauttasaari | 12,6 kts | näkyy | api 0 km | 7,9 | 2026-09-10T10:00 |
+| Harmaja | 14,7 kts | näkyy | api 7 km | 8,1 | 2026-09-10T10:00 |
+| Vuosaari | 13,2 kts | **PIILOSSA** | api 4 km | 6,3 | 2026-09-10T10:00 |
+| Hanko | 18,9 kts | **PIILOSSA** | api 2 km | 5,5 | 2026-09-10T10:00 |
+| Avomeri | 21,5 kts | näkyy | laatta 0 km | 14,4 | 2026-09-08T10:00 |
+| Uloin | 12,1 kts | näkyy | laatta 0 km | 13,3 | 2026-09-08T10:00 |
+
+Sama indeksi 52 osoitti laattapisteessä hetkeen **2026-09-08T10:00** ja
+rajapintapisteessä hetkeen **2026-09-10T10:00**. Mittaus tehtiin
+8.9.2026, eli rajapintapisteen luku oli **48 tuntia tulevaisuudesta**.
+
+### Vika 1: indeksi siirrettiin akselilta toiselle
+
+`Crosshair._puuska` teki `Math.min(State.currentHourIdx, ...)`.
+`State.currentHourIdx` on AIKAJANAN indeksi, ja aikajana lukee
+laattavarastoa; lähin ennustepiste on Suomessa käytännössä aina spotti
+omalla HARMONIE-akselillaan, joka ei ala samasta hetkestä. Tämä on
+täsmälleen se vika jota vastaan `_tlSailytaHetki` on olemassa ja jonka
+takia `_spotIdx` kirjoitettiin yhdeksi funktioksi kolmen kopion sijaan —
+tämä oli neljäs paikka, ja se jäi huomaamatta koska se ei ollut
+`renderSpots`in naapurissa.
+
+Väärän tunnin puuska ei vain näyttänyt väärää lukua: kahdessa paikassa
+seitsemästä se oli PIENEMPI kuin nykyhetken tuuli, jolloin ehto
+"puuska yli 5 % keskituulesta" hylkäsi sen ja koko rivi katosi. Ne
+viisi joissa rivi näkyi, näyttivät ylihuomisen puuskan.
+
+### Vika 2 — ja korjaus joka oli väärä
+
+Ilmeinen jatkokorjaus: kun kapselin luku tulee varastosta
+(`sampleWindHilasta`, ja juuri sen lähdemerkintä nimeää), lue puuskakin
+varastosta. Se toteutettiin, ja se mitattiin rikki.
+
+Varaston oma sarja Harmajalla, kolmen tunnin raaka-akseli:
+
+```
+09-06T06  7,1 / 7,1   1,00      09-06T18  6,4 / 6,4   1,00
+09-06T09  7,0 / 12,0  1,72      09-06T21  6,0 / 9,2   1,55
+09-06T12  6,4 / 6,4   1,00      09-07T00  5,3 / 5,3   1,00
+09-06T15  7,1 / 11,4  1,59      09-07T03  4,8 / 8,1   1,67
+```
+
+Puuska puuttuu **joka toiselta askeleelta** (26/99), ja laattojen
+rakennus täyttää aukon tuulen omalla arvolla (`puu[t] = nop[t]`).
+Rivi olisi siis vilkkunut päälle ja pois joka toisella aikajanan
+askeleella. Ja ne askeleet joilla puuska on, ovat kuuden tunnin
+maksimeja: suhde 1,55–1,77, kun HARMONIEn tuntipuuska samassa
+pisteessä on 1,25 ja Harmajan mitattu havainto samalla hetkellä 1,16
+(ws 8,0, puuska 9,3). Kapselin puuska on tunnin luku, ei vuorokauden
+pahin hetki.
+
+### Mikä jäi
+
+Puuska luetaan lähimmästä RAJAPINTApisteestä, jolla on aito
+tuntikohtainen puuskasarja (`_puuskaPiste`), ja indeksi haetaan ajasta
+`_spotIdx`:llä. Laattapisteet ohitetaan.
+
+Vertailu tehdään sarjan sisällä — puuskaa verrataan saman sarjan samaan
+tuntiin, ei kapselin bikuubiseen varastonäytteeseen. Muuten "yli 5 %"
+vertaisi kahta mallia toisiinsa, ja ne ovat mitattuna keskimäärin
+1,38 m/s eri mieltä.
+
+Etäisyysraja on `3 × step`, lattiana 0,5° — **tiukempi kuin
+lähdemerkinnällä eikä siinä ole `LAHDE_RAJA_MIN`-lattiaa**. Merkintä
+vastaa kysymykseen "minkä mallin aluetta tämä on", johon kaukainenkin
+piste kelpaa; puuska on paikan lukema. Mitattuna löytynyt piste on
+Suomessa 0–7 km päässä, z8:lla 63 km ja z6:lla 200 km — kaikki hyvin
+rajan sisällä, joten kahdeksan asteen lattia ei auttanut missään
+mitatussa tilanteessa mutta olisi kattamattomalla alueella päästänyt
+läpi lukeman 900 km:n päästä.
+
+Tulos muistetaan keskipisteelle ja tunnille, koska `_update` ajetaan
+60 ms:n välein sormenliikkeen aikana. **Muisti tyhjennetään
+`refresh`issä**, ei vain avaimen vaihtuessa: `refresh` ajetaan juuri
+silloin kun varasto on saanut uutta dataa samaan kohtaan, ja ilman
+tyhjennystä ensilatauksen tyhjä tulos jäisi voimaan.
+
+Mitattu jälkeen: rivi näkyy 7/7 paikassa, näytetty luku vastaa
+rajapintapisteen tuntipuuskaa nykyhetkestä (ero alle 0,15 kts), 0
+konsolivirhettä.
+
+## Vuosaaren asema sanoi "ei signaalia" — koska asemaa ei enää ole
+
+Kartalla oli Vuosaaren sataman kohdalla katkoviivainen pilleri jossa
+luki "ei signaalia", pysyvästi. Ensin selvitettiin miksi, vasta sitten
+korjattiin.
+
+FMI:n avoin data, FMISID 151028 "Helsinki Vuosaari satama":
+
+- 3 h ikkuna nyt: nolla riviä (vastaus 1 991 tavua, tyhjä kokoelma)
+- sama tyhjä vastaus kaikilla parametreilla (`WindSpeedMS`, `t2m`,
+  `WAWA`) ja molemmilla kyselymuodoilla (timevaluepair,
+  multipointcoverage)
+- vuosi sitten (1.9.2025) samasta asemasta tuli dataa
+- puolitushaku: **viimeinen havainto 18.8.2026**, sen jälkeen ei mitään
+
+Asema on yhä FMI:n asemarekisterissä (`fmi::ef::stations`, verkko 121
+"Automaattinen sääasema", toimintajakso "now"), eli rekisteri ei kerro
+sen lakanneen. Vain havainnot kertovat.
+
+Korvaajaa etsittiin viidestä lähteestä, eikä sitä ole:
+
+| lähde | tulos |
+|---|---|
+| FMI, kaikki asemat 12 km säteellä | 151028 (hiljaa), 103943 Käärmeniementie (ei koskaan dataa avoimessa datassa), loput ilmanlaatuasemia |
+| FMI, bbox 0,2° ympärillä | vain Malmi 9,7 km ja Itätoukki 12 km |
+| HSY:n ilmanlaatuasema 104089 "Helsinki Vuosaaren satama" | `airquality`-kysely ei tunne asemaa eikä tuuliparametreja |
+| Marine Helsinki (swell.fmi.fi) | vain Harmaja ja Kruunuvuorenselkä |
+| Digitraffic, tiesääasemat | neljä lähintä `REMOVED_TEMPORARILY`, seuraava 6,1 km sisämaassa |
+| dlarah.org | ei Vuosaaren asemaa (Laru, eira, Bågaskär, Tulliniemi, Russarö, Vänö, Utö, Tahkoluoto, Tankar, Marjaniemi, Vihreäsaari) |
+
+Vuosaaressa ei siis ole tuulihavaintoa. Ennuste siellä toimii kuten
+ennenkin; havaintoa ei vain ole olemassa.
+
+### Katko ja lakkautus ovat eri asia
+
+"Ei signaalia" tehtiin kuuden vuorokauden katkoa varten: asema on
+olemassa, se palaa, ja katkoviiva kertoo ettei vika ole sovelluksessa.
+Kolme viikkoa hiljaa ollut asema ei ole katko, ja silloin sama pilleri
+on lupaus jota ei lunasteta koskaan.
+
+`_fmiLoadWithFallback` antaa nyt `onFail`ille SYYN:
+
+- `'tyhja'` — vastaus tuli ja se oli tyhjä koko ikkunalta (proxyn oma
+  `error: 'no data'` + `ws: []`, HTTP 200). Asema ei ole
+  havaintoverkossa juuri nyt → merkki ja sen ruksi otetaan kartalta
+  kokonaan pois.
+- `'verkko'` — pyyntö kaatui tai palautti poikkeuksen (HTTP 500).
+  Asemasta ei tiedetä mitään → katkoviivainen "ei signaalia" jää.
+
+Ratkaisu paranee itsestään kumpaankin suuntaan: jos FMI jatkaa
+lähettämistä, merkki palaa seuraavassa latauksessa, eikä koodiin jää
+käsin ylläpidettävää poistolistaa.
+
+**Ensimmäinen yritys luokitteli väärin.** Ehto oli
+`!results[1].value.error`, ja proxy palauttaa juuri tässä tapauksessa
+`error: 'no data'` — eli tyhjä vastaus meni haaraan `'verkko'` ja
+mikään ei muuttunut. Merkkijono `'no data'` on proxyn oma merkintä
+tälle tilanteelle; muut virheviestit tulevat poikkeuksesta.
+
+Mitattu jälkeen (z9, Helsinki): 12 asemaa antaa lukeman, Vuosaari on
+poissa `_obsMarkers`ista, "ei signaalia" -merkkejä ruudulla 0.
+
+**Kontrolli toisin päin, ja se on tässä koko turvaverkko:** kun
+`/api/fmi` katkaistaan (`abort`) tai se palauttaa 500:n, kaikki 13
+merkkiä JÄÄVÄT kartalle ja 11 niistä on hiljaisia. Ilman tätä
+tarkistusta yksi verkkokatko olisi pyyhkinyt havaintoasemat kartalta.

@@ -1671,3 +1671,50 @@ Mitattu kokonaisuus molemmissa näkymissä: proxy 25 tarkistusta,
 käyttöliittymä 21 tarkistusta, 0 vikaa. Merkki on samassa muodossa kuin
 Harmaja joka zoomilla (z7 piste, z8 ja z11 pilleri), napautus avaa
 oikean kortin, ja kahdeksan tunnin askel aikajanalla ei muuta lukemaa.
+
+## Varaston puuska on joka toisella askeleella tuuli, ei puuska
+
+Laattavarasto tallettaa kolme kenttää: nopeus, suunta ja puuska.
+Puuska on ECMWF:n `wind_gusts_10m`, ja rakennus täyttää puuttuvan
+arvon tuulella:
+
+```js
+puu[t] = wG ? (sG / wG) * L.nopAskel : nop[t];
+```
+
+Kommentti perustelee tämän analyysihetkellä (T+0), jolloin jakson yli
+laskettua maksimia ei ole. Mitattuna aukko ei ole yksi askel vaan
+**joka toinen**: Harmajan sarjassa 26 askelta 99:stä on puuska == tuuli,
+ja ne ovat säännöllisesti vuorotellen.
+
+Raaka-akseli (3 h), Harmaja, tuuli / puuska / suhde:
+
+```
+09-06T06  7,1 / 7,1   1,00      09-06T18  6,4 / 6,4   1,00
+09-06T09  7,0 / 12,0  1,72      09-06T21  6,0 / 9,2   1,55
+09-06T12  6,4 / 6,4   1,00      09-07T00  5,3 / 5,3   1,00
+09-06T15  7,1 / 11,4  1,59      09-07T03  4,8 / 8,1   1,67
+```
+
+`wxTunneittain` interpoloi tästä tuntiakselin, jolloin aukot ja huiput
+sekoittuvat kolmiaalloksi: suhde kulkee 1,00 → 1,72 → 1,00 kuuden
+tunnin jaksossa. Suhteen mediaani koko sarjassa on Harmajalla 1,63,
+Lauttasaaressa 1,79 ja sisämaassa 62°N 2,17.
+
+Kaksi seurausta:
+
+1. **Varaston puuska ei kelpaa lukemaksi joka näytetään tunnille.**
+   Se on joka toisella askeleella tuuli (eli "ei puuskaa lainkaan") ja
+   muuten kuuden tunnin maksimi. Vertailukohta: HARMONIEn tuntipuuska
+   samassa pisteessä 1,25 ja Harmajan mitattu havainto samalla hetkellä
+   1,16.
+2. **Aikajanan puuskahuntu lukee tätä samaa sarjaa** (`aikajananLahde`
+   → varasto → `_tlPuuskaTyyli`). Huntu on muoto eikä luku, joten aukko
+   ei näytä väärää numeroa — mutta se tarkoittaa että huntu puuttuu
+   niiltä tunneilta jotka osuvat aukon kohdalle. Sitä EI ole mitattu
+   tässä yhteydessä, eikä hunnun omia mittalukuja (mediaani 7,4 px,
+   p90 1,8) ole tarkistettu tätä jakaumaa vasten. Jos hunnun
+   tasaisuutta joskus epäillään, tämä on ensimmäinen paikka katsoa.
+
+Missä puuskan pitää olla tunnin luku, se luetaan rajapintapisteestä.
+Ks. `docs/ui.md`, "Kapselin puuskarivi katosi".

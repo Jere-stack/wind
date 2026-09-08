@@ -13018,7 +13018,8 @@ function _addObsMarkers(map) {
       /* Ruksi-sijaintimerkki vain isoille prim-korteille —
          pieni piste-tila näyttää jo täsmällisen sijainnin sellaisenaan */
       if (isPrim) {
-        _addStationDot(st.lat, st.lng, function(){ _openObsSheet('fmi', st); });
+        _obsMarkers[_obsMarkers.length - 1].dot =
+          _addStationDot(st.lat, st.lng, function(){ _openObsSheet('fmi', st); });
       }
     });
     map.on('zoomend', updateIcons);
@@ -13051,11 +13052,43 @@ function _addObsMarkers(map) {
            updateIcons() ei luo elementtiä uudelleen turhaan */
         entry._iconSig = _windIconSig(map.getZoom(), ws, pilleriZ, entry.hiljainen);
         entry.marker.setIcon(mkWindIcon(map.getZoom(), ws, st.name, pilleriZ, entry.hiljainen));
-      }, function() {
-        /* Ei havaintoja eikä historiaa — asema on hiljaa. Merkki jää
-           kartalle (se on oikeasti olemassa) mutta kertoo tilansa. */
+      }, function(syy) {
+        /* KATKO JA LAKKAUTUS OVAT ERI ASIA, JA NE NÄYTETÄÄN ERI TAVALLA.
+         *
+         * "Ei signaalia" tehtiin kuuden vuorokauden katkoa varten: asema
+         * on olemassa, se palaa, ja katkoviivainen pilleri kertoo ettei
+         * vika ole sovelluksessa. Pysyvästi hiljaisella asemalla se on
+         * lupaus jota ei lunasteta koskaan.
+         *
+         * Vuosaaren satama (FMISID 151028) lähetti viimeksi 18.8.2026 ja
+         * on ollut sen jälkeen kolme viikkoa täysin hiljaa — 24 tunnin
+         * ikkuna palauttaa nollan rivin, ei myöhästynyttä. Lähimmät
+         * lähettävät asemat ovat Malmi 9,7 km ja Itätoukki 12 km, eikä
+         * Vuosaaressa ole muutakaan tuulihavaintoa (mitattu: FMI:n
+         * asemarekisteri, HSY:n ilmanlaatuasemat, Marine Helsinki,
+         * Digitrafficin tiesääasemat, dlarah.org).
+         *
+         * Kun VASTAUS TULI ja se oli tyhjä koko ikkunalta, asema ei ole
+         * havaintoverkossa juuri nyt: merkki otetaan pois kokonaan.
+         * Ratkaisu paranee itsestään kumpaankin suuntaan — jos FMI
+         * jatkaa lähettämistä, merkki palaa seuraavassa latauksessa,
+         * eikä kartalle jää käsin poistettavaa asemalistaa.
+         *
+         * Verkkovika ei saa poistaa mitään: silloin ei tiedetä asemasta
+         * yhtään mitään, ja katkoviivainen pilleri on oikea vastaus. */
         var entry = loyda();
         if (!entry) return;
+        if (syy === 'tyhja') {
+          map.removeLayer(entry.marker);
+          if (entry.dot) {
+            map.removeLayer(entry.dot);
+            var di = _stationDots.indexOf(entry.dot);
+            if (di >= 0) _stationDots.splice(di, 1);
+          }
+          var ei = _obsMarkers.indexOf(entry);
+          if (ei >= 0) _obsMarkers.splice(ei, 1);
+          return;
+        }
         entry.hiljainen = true;
         entry._iconSig = _windIconSig(map.getZoom(), null, pilleriZ, true);
         entry.marker.setIcon(mkWindIcon(map.getZoom(), null, st.name, pilleriZ, true));
@@ -15897,11 +15930,18 @@ function _fmiStationsSorted(spotLat, spotLng) {
  * onSuccess saa aina tiedon SIITÄ asemasta jolta data oikeasti tuli. Kutsuja
  * on vastuussa siitä että käyttöliittymä sanoo saman: hiljainen sijaisuus
  * (kortin otsikossa yksi asema, datassa toinen) oli Vuosaaren vika. */
+/* `onFail` saa SYYN, ei pelkkää epäonnistumista.
+ *
+ * Kaksi eri asiaa päätyi samaan haaraan: pyyntö ei mennyt läpi, ja pyyntö
+ * meni läpi mutta asema ei palauttanut yhtään havaintoa koko ikkunasta.
+ * Ensimmäinen on verkko, toinen on asema — ja vain jälkimmäisestä voi
+ * päätellä ettei asemaa ole. Syy on `'verkko'` tai `'tyhja'`. */
 function _fmiLoadWithFallback(stationList, hours, onSuccess, onFail) {
   var idx = 0;
   var h = hours ? '&hours=' + Math.max(1, Math.min(168, hours)) : '';
+  var viimeSyy = 'verkko';
   function tryNext() {
-    if (idx >= stationList.length) { onFail(); return; }
+    if (idx >= stationList.length) { onFail(viimeSyy); return; }
     var st = stationList[idx++];
     var base = API_BASE + '/fmi?';
     var qp = st.place ? 'place='+st.place+'&' : '';
@@ -15915,10 +15955,21 @@ function _fmiLoadWithFallback(stationList, hours, onSuccess, onFail) {
       if (nd && nd.ws && nd.ws.length) {
         onSuccess(st, lat2, nd);
       } else {
+        /* Vastaus tuli ja se oli tyhjä = asema vaikenee. Kaatunut pyyntö
+           tai muu virhe = verkko, eikä siitä saa päätellä mitään
+           asemasta.
+
+           `error: 'no data'` on proxyn OMA merkintä juuri tälle: se
+           vastaa 200:lla ja tyhjillä sarjoilla kun FMI:n rajapinta ei
+           palauttanut asemalta yhtään riviä. Muut virheviestit tulevat
+           poikkeuksesta (500) ja ovat verkkoa. */
+        var hv = results[1].status === 'fulfilled' ? results[1].value : null;
+        viimeSyy = (hv && (hv.error === 'no data'
+          || (!hv.error && (!hv.ws || !hv.ws.length)))) ? 'tyhja' : 'verkko';
         /* Ei dataa → kokeile seuraavaa */
         tryNext();
       }
-    }).catch(function(){ tryNext(); });
+    }).catch(function(){ viimeSyy = 'verkko'; tryNext(); });
   }
   tryNext();
 }
@@ -18033,17 +18084,105 @@ const Crosshair = {
       this._puuskaEl.classList.add('hidden');
     }
   },
-  /* Lähimmän ennustepisteen puuska nykyiselle tunnille, tai null jos sitä ei
-     ole tai se ei eroa keskituulesta merkittävästi. */
+  /* PUUSKA TULEE SAMASTA LÄHTEESTÄ JA SAMASTA HETKESTÄ KUIN SEN
+   * YLÄPUOLELLA OLEVA LUKU.
+   *
+   * Tässä oli kaksi vikaa, ja ne piilottivat rivin kokonaan.
+   *
+   * 1. **Indeksi siirrettiin akselilta toiselle.** `State.currentHourIdx`
+   *    on aikajanan indeksi, ja aikajana lukee varastoa; lähin
+   *    ennustepiste on Suomessa käytännössä aina spotti, jolla on oma
+   *    akseli eikä se ala samasta hetkestä. Mitattuna sama indeksi 52
+   *    osoitti varastossa hetkeen 2026-09-08T10:00 ja rajapintapisteessä
+   *    hetkeen 2026-09-10T10:00 — **48 tuntia sivussa**. Väärän tunnin
+   *    puuska on usein pienempi kuin nykyhetken tuuli, jolloin alla oleva
+   *    ehto hylkäsi sen ja rivi katosi (mitattu 2/7 paikassa; niissä
+   *    viidessä joissa rivi näkyi, luku oli väärästä tunnista).
+   *    Indeksi haetaan siksi AJASTA, samalla `_spotIdx`:llä kuin
+   *    spottikortti ja spottimerkit.
+   *
+   * 2. **VARASTON PUUSKA EI KELPAA TÄHÄN RIVIIN, vaikka kapselin luku
+   *    tuleekin varastosta.** Se olisi ilmeinen korjaus — sama lähde
+   *    kuin sen yläpuolella olevalla luvulla — ja se mitattiin rikki:
+   *
+   *      09-06T06  7,1 / 7,1   1,00      09-06T18  6,4 / 6,4   1,00
+   *      09-06T09  7,0 / 12,0  1,72      09-06T21  6,0 / 9,2   1,55
+   *      09-06T12  6,4 / 6,4   1,00      09-07T00  5,3 / 5,3   1,00
+   *      09-06T15  7,1 / 11,4  1,59      09-07T03  4,8 / 8,1   1,67
+   *
+   *    Puuska puuttuu JOKA TOISELTA kolmen tunnin askeleelta (26/99),
+   *    ja laattojen rakennus täyttää aukon tuulen omalla arvolla
+   *    (`puu[t] = nop[t]`). Rivi vilkkuisi siis päälle ja pois joka
+   *    toisella aikajanan askeleella. Ne askeleet joilla puuska on,
+   *    ovat kuuden tunnin MAKSIMEJA: suhde 1,55–1,77, kun HARMONIEn
+   *    tuntipuuska samassa pisteessä on 1,25 ja Harmajan mitattu havainto
+   *    1,16. Kapselin puuska on tunnin luku, ei vuorokauden pahin hetki.
+   *
+   * Puuska luetaan siksi lähimmästä RAJAPINTApisteestä, jolla on aito
+   * tuntikohtainen puuskasarja. Jos sellaista ei ole näkyvissä (avomeri,
+   * hyvin ulos zoomattu näkymä), riviä ei ole — tyhjä rivi säilyttää
+   * tilansa, joten kapselin korkeus ei hypi.
+   *
+   * Vertailu tehdään SARJAN SISÄLLÄ: puuskaa verrataan saman sarjan
+   * samaan tuntiin, ei kapselin bikuubiseen varastonäytteeseen. Muuten
+   * "puuska yli 5 % keskituulesta" vertaisi kahta mallia toisiinsa —
+   * mitattuna ne ovat keskimäärin 1,38 m/s eri mieltä.
+   *
+   * Tulos muistetaan yhdelle keskipisteelle ja tunnille: `_update`
+   * ajetaan 60 ms:n välein sormenliikkeen aikana, eikä pistejoukkoa
+   * kannata käydä läpi joka kerta uudestaan. */
+  _puuskaKehe: { avain: '', arvo: null },
   _puuska(center) {
-    const pt = lahinEnnustepiste(center);
-    if (!pt || !pt.wx.hourly.windgusts_10m) return null;
-    const idx2 = Math.min(State.currentHourIdx, pt.wx.hourly.windgusts_10m.length - 1);
-    const gustMs = pt.wx.hourly.windgusts_10m[idx2];
-    if (gustMs == null || !(gustMs > this._ms * 1.05)) return null;
+    const avain = center.lat.toFixed(3) + ',' + center.lng.toFixed(3)
+      + '|' + State.currentHourIdx;
+    if (this._puuskaKehe.avain === avain) return this._puuskaKehe.arvo;
+    const arvo = this._puuskaLaske(center);
+    this._puuskaKehe = { avain: avain, arvo: arvo };
+    return arvo;
+  },
+  /* Lähin piste jolla on tuntikohtainen puuskasarja. Laattapisteet
+     ohitetaan (ks. yllä).
+     ETÄISYYSRAJA ON TIUKEMPI KUIN LÄHDEMERKINNÄLLÄ, eikä siinä ole
+     `LAHDE_RAJA_MIN`-lattiaa. Merkintä vastaa kysymykseen "minkä mallin
+     dataa tämä alue on", johon kaukainenkin piste kelpaa; puuska on
+     paikan lukema. Mitattuna löytynyt piste on Suomessa 0–7 km päässä,
+     z8:lla 63 km ja z6:lla 200 km — kaikki hyvin `3 × step`:n sisällä
+     (0,75° / 1,5° / 3°). Kahdeksan asteen lattia ei siis auta missään
+     mitatussa tilanteessa, mutta päästäisi kattamattomalla alueella
+     läpi lukeman 900 km:n päästä. */
+  _puuskaPiste(center) {
+    if (typeof ViewportGrid === 'undefined' || !State.map) return null;
+    const raja = Math.max(3 * ViewportGrid.kaytettyStep(State.map.getZoom()), 0.5);
+    const cos = Math.cos(center.lat * Math.PI / 180);
+    let paras = null, minD = Infinity;
+    for (const pt of ViewportGrid.getAllPoints()) {
+      if (pt.laatta || !pt.wx || !pt.wx.hourly || !pt.wx.hourly.windgusts_10m) continue;
+      if (Math.abs(pt.lat - center.lat) > raja) continue;
+      if (Math.abs(pt.lng - center.lng) * cos > raja) continue;
+      const d = (center.lat - pt.lat) ** 2 + ((center.lng - pt.lng) * cos) ** 2;
+      if (d < minD) { minD = d; paras = pt; }
+    }
+    return paras;
+  },
+  _puuskaLaske(center) {
+    const pt = this._puuskaPiste(center);
+    if (!pt) return null;
+    const h = pt.wx.hourly;
+    if (!h.windspeed_10m) return null;
+    const idx2 = _spotIdx(h, State.currentHourIdx);
+    const gustMs = h.windgusts_10m[idx2];
+    if (gustMs == null) return null;
+    /* Sarjan oma tuuli samalla tunnilla on oikea vertailukohta; jos sitä
+       ei ole, kapselin luku kelpaa varatieksi. */
+    const pohja = h.windspeed_10m[idx2] != null ? h.windspeed_10m[idx2] : this._ms;
+    if (!(gustMs > pohja * 1.05)) return null;
     return gustMs;
   },
-  refresh() { this._update(); }
+  /* Muisti tyhjennetään tässä, ei vain keskipisteen vaihtuessa: `refresh`
+     ajetaan juuri silloin kun varasto on saanut uutta dataa samaan
+     kohtaan (laatan lataus, kerroksen vaihto, aikajanan askel). Ilman
+     tyhjennystä ensilatauksen tyhjä tulos jäisi voimaan. */
+  refresh() { this._puuskaKehe = { avain: '', arvo: null }; this._update(); }
 };
 
 /* Lähin ennustepiste annetusta kohdasta.

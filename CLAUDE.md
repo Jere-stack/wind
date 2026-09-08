@@ -89,7 +89,8 @@ kokeiltu ja kaadettu mittauksella.
   Oma säädatavarasto — pois rajapinnan kiintiöstä · Tallennustila ei ollutkaan
   este · Hilalähtöinen kenttä · Zoom raskaampi kuin ennen · Aaltopoijut —
   havaintoa, ei ennustetta · Aikajana ja kartta näyttivät eri
-  lukua · Mellsten (Haukilahti) — kolmas oma proxy
+  lukua · Mellsten (Haukilahti) — kolmas oma proxy · Varaston puuska on
+  joka toisella askeleella tuuli
 - **ui**: Valikoiden ulkoasu — Merikartta · Mallien erimielisyys · Suosikit ja
   jaettava linkki · Puvun paksuus · Ennusteen osuvuus havaintoja vasten ·
   Spottikortin auditointi · Play ja kapseli · Aikajana kotivalikon appissa ·
@@ -102,7 +103,8 @@ kokeiltu ja kaadettu mittauksella.
   sarkain ja piilotus · Saavutettavuuserä 2: dialogit ja fokus ·
   Saavutettavuuserä 3: asetuspaneelin kontrollit · Oletusasetukset ja
   sirujen järjestys · Aaltopoijun lukema tulee samalla zoomilla kuin
-  meriaseman · Aaltopoijun kaavion voi raahata
+  meriaseman · Aaltopoijun kaavion voi raahata · Kapselin puuskarivi katosi ·
+  Vuosaaren asema sanoi "ei signaalia"
 
 </details>
 
@@ -393,6 +395,26 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kartalle (mitattu ero 0 m/s). Akseli rakennetaan KERRAN ja jaetaan;
   pistekohtainen mitätöisi `_ts()`:n muistin.
 
+**Havaintoasemat**
+
+- **KATKO JA LAKKAUTUS OVAT ERI ASIA.** `_fmiLoadWithFallback` antaa
+  `onFail`ille syyn: `'tyhja'` = vastaus tuli ja koko ikkuna oli tyhjä
+  (proxyn oma `error: 'no data'`, HTTP 200) → merkki ja sen ruksi pois
+  kartalta; `'verkko'` = pyyntö kaatui tai palautti poikkeuksen →
+  katkoviivainen "ei signaalia" jää. Älä poista mitään verkkovian
+  perusteella: mitattuna `/api/fmi`:n katkaisu jättää kaikki 13
+  merkkiä paikalleen, ja ilman erottelua yksi katko pyyhkisi
+  havaintoasemat kartalta. `error: 'no data'` on proxyn merkintä juuri
+  tälle — ensimmäinen versio testasi `!value.error` ja luokitteli
+  siksi tyhjän vastauksen verkkoviaksi.
+- **Vuosaaren satamassa EI OLE tuulihavaintoa.** FMISID 151028 lähetti
+  viimeksi 18.8.2026 (mitattu puolitushaulla); asema on yhä FMI:n
+  asemarekisterissä, joten rekisteri ei kerro sitä. Korvaajaa
+  etsittiin viidestä lähteestä eikä sitä ole (FMI 12 km säteellä, HSY,
+  Marine Helsinki, Digitraffic, dlarah.org). Älä lisää sitä takaisin
+  kovakoodattuna eikä näytä naapuriaseman lukemaa sen kohdalla —
+  merkki palaa itsestään jos FMI jatkaa lähettämistä.
+
 **Aaltopoijut** (havainto — tämä on tuotannossa)
 
 - **Yksi haku kattaa koko maan.** Rajapinnan `bbox` EI rajaa mitään
@@ -504,6 +526,26 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   siinä.** Kun se on olemassa, kaikki tähtäimen alla oleva luku tulee
   varastosta riippumatta siitä kuinka lähellä spotti on (mitattu 0,2 km
   päässä olevan spotin vaikutus lukemaan: ei mitään).
+- **VARASTON PUUSKA EI OLE TUNNIN PUUSKA.** Se puuttuu joka toiselta
+  kolmen tunnin askeleelta (mitattu 26/99), ja laattojen rakennus
+  täyttää aukon tuulella (`puu[t] = nop[t]`) — eli suhde on siellä
+  tasan 1,00. Ne askeleet joilla puuska on, ovat kuuden tunnin
+  maksimeja: suhde 1,55–1,77, kun HARMONIEn tuntipuuska samassa
+  pisteessä on 1,25 ja mitattu havainto 1,16. Älä näytä varaston
+  puuskaa lukuna jonka pitää tarkoittaa yhtä tuntia — se vilkkuisi
+  päälle ja pois joka toisella aikajanan askeleella. Kapselin puuska
+  luetaan siksi lähimmästä RAJAPINTApisteestä (`_puuskaPiste`), ja sen
+  etäisyysraja on `3 × step` lattialla 0,5° — TIUKEMPI kuin
+  lähdemerkinnällä eikä siinä ole `LAHDE_RAJA_MIN`-lattiaa, koska
+  puuska on paikan lukema eikä alueen mallin nimi.
+- **Kapselin puuska on NELJÄS `_spotIdx`-paikka.** `Crosshair._puuska`
+  siirsi `State.currentHourIdx`:n sellaisenaan aikajanan akselilta
+  rajapintapisteen akselille: mitattuna indeksi 52 oli varastossa
+  2026-09-08T10:00 ja rajapintapisteessä 2026-09-10T10:00 eli **48 h
+  sivussa**, ja kahdessa paikassa seitsemästä väärän tunnin puuska
+  hylättiin liian pieneksi jolloin koko rivi katosi. Vertailu
+  "puuska yli 5 % keskituulesta" tehdään SARJAN SISÄLLÄ, ei kapselin
+  bikuubista varastonäytettä vastaan.
 - **Lähdemerkintä kertoo TÄHTÄIMEN lukeman lähteen.** Se luki ennen
   lähimmän ennustepisteen lähteen ja sanoi siksi Helsingissä HARMONIE
   vaikka luku tuli varastosta. Jos muutat kumpaakaan polkua, tarkista
