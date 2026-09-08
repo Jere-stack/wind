@@ -1453,21 +1453,38 @@ Emäsalon 2,30 m/s on eron verran jolla kalustovalinta vaihtuu.
 interpoloinnissa: siellä molemmat luvut tulevat samasta varastosta.
 Ero syntyy vain siellä missä aikajana putoaa spottiin.
 
-### Kumpi on lähempänä totuutta
+### Kumpi on lähempänä totuutta — EI RATKEA TÄLLÄ DATALLA
 
-Verrattuna FMI:n havaintoon samalla hetkellä:
+Ensimmäinen mittaus oli **yksi hetki ja viisi asemaa**, ja se antoi
+aikajanalle keskipoikkeaman 1,31 m/s ja kartalle 2,05 m/s. Siitä
+kirjattiin tähän johtopäätös "aikajanan HARMONIE on tarkempi".
+**Se johtopäätös ei kestänyt isompaa otosta.** Kun sama vertailu
+ajettiin 48 tunnin ajalta tunneittain:
 
-| asema | havainto | aikajana | kapseli |
-|---|---|---|---|
-| Helsinki Harmaja | 11,0 | 9,3 | 8,5 |
-| Sipoo Itätoukki | 12,1 | 9,2 | 8,7 |
-| Porvoo Emäsalo | 11,0 | 10,6 | 8,3 |
-| Kirkkonummi Mäkiluoto | 8,8 | 8,3 | 9,9 |
-| Hanko Tulliniemi | 9,8 | 8,8 | 9,2 |
+| | n | ka | med | p90 |
+|---|---|---|---|---|
+| aikajana (lähin piste) | **30** | 1,81 | 1,94 | 3,19 |
+| kartta (varasto) | **245** | 1,57 | 1,46 | 3,17 |
 
-Keskimääräinen itseisarvoinen poikkeama: **aikajana 1,31 m/s, kapseli
-2,05 m/s**. Aikajanan HARMONIE on siis se tarkempi luku, ja kartta se
-epätarkempi — juuri päinvastoin kuin lähdemerkintä väitti.
+Järjestys kääntyi. Mutta kumpikaan luku ei ratkaise asiaa, koska
+**aikajanan otos on liian pieni**: spottisarjan menneisyys kattaa vain
+noin kuusi tuntia, joten 49 havaintotunnista osui kuusi asemaa kohti.
+Kartan otos (245) on kelvollinen, aikajanan (30) ei.
+
+Viiden asemaparin otoksesta ei siis olisi pitänyt vetää
+tarkkuusjohtopäätöstä lainkaan. Se on tähän kirjattu, koska se on juuri
+se virhe jota vastaan tämän repon työtavat varoittavat: yksittäinen ajo
+ei kelpaa.
+
+**Se mikä molemmista löytyy, on sama systemaattinen harha:**
+ennuste − havainto on **−1,79 m/s molemmilla tasoilla**. Kumpikin siis
+aliarvioi rannikkoasemien tuulen noin 1,8 m/s. Osa siitä ei ole mallin
+virhe vaan edustavuutta: havainto on avoimen meriaseman 10 min
+keskiarvo, malli on hilasolun keskiarvo.
+
+Tarkkuuskysymyksen ratkaiseminen vaatisi menneiden ENNUSTEIDEN
+arkistointia (mitä malli sanoi 24 h etukäteen), ei menneiden tuntien
+analyysiä. Sitä dataa ei ole.
 
 ### Lähdemerkintä nimesi väärän lähteen — korjattu
 
@@ -1489,18 +1506,49 @@ Reitti Helsinki → Hanko → Emäsalo → Helsinki: sarja vaihtuu joka
 siirrossa (3/3) ja palaa samaksi kun palataan, ja valittu hetki säilyy
 (09-08T05:00 koko reitin).
 
+### Laaja otos: ero on kaikkialla, ja se kasvaa tuulen mukana
+
+Kahdentoista spotin koko ennustejakso, **3 893 vertailua** samasta
+pisteestä ja samasta tunnista:
+
+    ka 1,38 m/s   med 1,20   p90 2,43   max 7,34
+    yli 0,5 m/s:  3 330 / 3 893 = 86 %
+
+Ero ei siis ole satunnainen poikkeama vaan **vallitseva tila**: 86 %
+kaikista tunneista ylittää sovelluksen oman 0,5 m/s rajan.
+
+Tuulennopeuden mukaan eriteltynä ero kasvaa juuri siellä missä päätös
+tehdään:
+
+| tuuli | n | ka ero |
+|---|---|---|
+| 0–4 m/s | 634 | 0,82 |
+| 4–7 m/s | 2 179 | 1,31 |
+| 7–10 m/s | 1 038 | 1,80 |
+| 10–14 m/s | 42 | **2,78** |
+
+Ennusteen viiveen mukaan ero on 0,8–1,7 m/s ensimmäisen kahden
+vuorokauden ajan, piikkaa **3,01 m/s välillä 48–72 h** ja laskee taas
+1,2:een sen jälkeen. Piikki osuu kohtaan jossa HARMONIE loppuu
+(`harmonie_hours` oli tässä ajossa 54 h) ja spottisarja jatkuu
+Open-Meteolla — mutta ero ei pienene vaihdoksessa vaan suurenee, joten
+kyse ei ole pelkästä mallinvaihdosta. Yksi ajo ei riitä sen
+selittämiseen.
+
 ### Se mitä tämä EI korjaa
 
 Kaksi lukua on yhä kaksi lukua. Vaihtoehdot ovat toisensa poissulkevia
 ja niillä on hinta:
 
-1. **Aikajana lukemaan varastoa** — täysi yhtenäisyys, mutta mitattuna
-   huonompi osuvuus (1,31 → 2,05 m/s) ja spottikortti eroaisi sitten
-   aikajanasta.
-2. **Kartta lukemaan HARMONIEa rannikolla** — paras tarkkuus, mutta
-   purkaisi juuri sen kiintiöstä irtautumisen jonka takia varasto
-   rakennettiin.
-3. **Kaksi lukua jää, mutta ero sanotaan** — halvin ja rehellisin;
-   merkintä on nyt oikein, mutta aikajanan oma lähde on yhä nimeämättä.
+1. **Aikajana lukemaan varastoa** — täysi yhtenäisyys kartan kanssa.
+   Tarkkuusargumenttia tätä vastaan EI ole: laaja otos ei osoita
+   aikajanan tasoa tarkemmaksi (ks. edellä). Spottikortti eroaisi
+   sitten aikajanasta, koska se on HARMONIE.
+2. **Kartta lukemaan HARMONIEa rannikolla** — purkaisi juuri sen
+   kiintiöstä irtautumisen jonka takia varasto rakennettiin.
+3. **Kaksi lukua jää, mutta ero sanotaan** — halvin; merkintä on nyt
+   oikein, mutta aikajanan oma lähde on yhä nimeämättä. Hinta: 86 %
+   tunneista näyttää kahta eri lukua samasta paikasta ja hetkestä.
 
-Tämä on tuotepäätös eikä mittauskysymys.
+Tämä on tuotepäätös. Mittaus kertoo vain sen että ero on vallitseva ja
+kasvaa tuulen mukana — se ei kerro kumpi luku on oikeampi.

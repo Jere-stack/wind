@@ -437,10 +437,17 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   (lämpökartta, kapseli, partikkelit) lukee `Saalaatat`-varastoa
   (ECMWF 0,25°); aikajana ja spottikortit lukevat lähintä
   ennustepistettä, joka on Suomessa käytännössä aina spotti ja siis
-  HARMONIE. Mitattu ero samassa paikassa ja hetkessä 0,48–2,30 m/s,
-  viisi seitsemästä yli 0,5 m/s rajan. Avomerellä 0,10 m/s, koska
-  siellä molemmat tulevat varastosta. Älä oleta että jokin kartan luku
-  ja jokin paneelin luku ovat samasta lähteestä.
+  HARMONIE. Mitattu 3 893 vertailulla: ka 1,38 m/s, med 1,20, max 7,34,
+  ja **86 % tunneista yli 0,5 m/s rajan**. Ero KASVAA tuulen mukana
+  (0,82 → 2,78 m/s välillä 0–4 ja 10–14 m/s). Avomerellä 0,10 m/s,
+  koska siellä molemmat tulevat varastosta. Älä oleta että jokin kartan
+  luku ja jokin paneelin luku ovat samasta lähteestä.
+- **Kumpi taso on tarkempi EI OLE RATKAISTU.** Viiden asemaparin
+  otoksesta vedettiin kerran johtopäätös "aikajana on tarkempi"; 48 h
+  otos käänsi järjestyksen, ja siinäkin aikajanan otos oli vain 30
+  paria (spottisarjan menneisyys kattaa ~6 h). Molemmilla on sama
+  systemaattinen harha −1,79 m/s havaintoa vasten. Älä perustele
+  tasojen valintaa tarkkuudella ilman uutta mittausta.
 - **`WindTexture.hila` on kokonaan varastosta, eivätkä spotit ole
   siinä.** Kun se on olemassa, kaikki tähtäimen alla oleva luku tulee
   varastosta riippumatta siitä kuinka lähellä spotti on (mitattu 0,2 km
