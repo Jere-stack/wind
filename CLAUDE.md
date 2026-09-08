@@ -97,7 +97,8 @@ kokeiltu ja kaadettu mittauksella.
   tilalle · Päiväkisko sai saman uran kuin tuntinauha · Urat pois — yksi
   paperi, kaksi riviä · Päiväkisko piiloon levossa · Spottien
   tuulisuunnat asteen tarkkuudella · Saavutettavuuserä 1: rakenne,
-  sarkain ja piilotus · Saavutettavuuserä 2: dialogit ja fokus
+  sarkain ja piilotus · Saavutettavuuserä 2: dialogit ja fokus ·
+  Saavutettavuuserä 3: asetuspaneelin kontrollit
 
 </details>
 
@@ -281,6 +282,20 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   `h2`-marginaalin verran.
 - **Havaintoasemien merkit ovat `keyboard: false`.** Muuten sarkain kulkee
   kymmenien merkkien läpi ennen kuin tavoittaa sovelluksen kontrollit.
+- **Asetuspaneelin roolit luetaan RAKENTEESTA, ei kirjoiteta markupiin.**
+  22 elementtiin käsin kirjoitettu `role`+`tabindex`+`aria-checked` on 22
+  paikkaa jotka ajautuvat erilleen. Uusi siru tai kytkin saa kohtelunsa
+  ilman lisätyötä.
+- **Siruryhmä on `radiogroup`, ei nappirivi**, ja sarkain näkee sen
+  YHTENÄ pysäkkinä (vaeltava tabindex) — 17 sirua olisi muuten 17
+  pysäkkiä. Ryhmän sisällä nuolet, ja VALINTA SEURAA FOKUSTA, koska
+  valinta ajetaan ryhmän delegoidusta klikkauksesta.
+- **Nuolet paneelissa vaativat `stopPropagation`in.** Pelkkä
+  `preventDefault` ei riitä: nuolet kuuluvat muuten Leafletille, joka
+  panoroi niillä karttaa.
+- **Aria-tila synkataan MutationObserverilla.** `.active` ja `.on`
+  asetetaan kuudessa eri paikassa; aria-tilan kirjoittaminen jokaiseen
+  olisi seitsemäs polku samaan asiaan.
 - **Pyöreän napin kulma ei ole nappi.** `.mctl` on ympyrä, joten
   napautusmittauksen näytteet otetaan ympyrän sisältä — laatikon kulma
   antaa hudin joka on geometriaa, ei vikaa.

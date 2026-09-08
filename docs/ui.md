@@ -2779,3 +2779,72 @@ joten se asetetaan avattaessa (`_sheetAuki`) eikä markupissa.
 oma `h2`-marginaali olisi siirtänyt molempia ylätunnisteita. Geometria
 on nyt mitattu yhdeksällä avainelementillä molemmissa näkymissä
 (mobiili ja työpöytä) commit `75aa388` vasten: **pikselilleen sama**.
+
+## Saavutettavuuserä 3: asetuspaneelin kontrollit
+
+Erä 2 teki asetuspaneelista dialogin jossa on fokusansa. Mittaus sen
+jälkeen paljasti mitä ansan sisällä oli:
+
+| | ennen | jälkeen |
+|---|---|---|
+| kontrolleja paneelissa | 22 | 22 |
+| **niistä sarkaimella tavoitettavia** | **0** | **22** |
+| sarkainpysäkkejä paneelissa | 3 | 14 |
+
+Kolme pysäkkiä olivat "Valmis" ja kaksi karttalähteen linkkiä. Kaikki
+viisi kerroskytkintä ja kaikki 17 sirua olivat divejä joilla oli vain
+klikkauskuuntelija. Ansa siis vangitsi fokuksen sisältöön johon ei
+päässyt käsiksi.
+
+### Roolit luetaan rakenteesta, ei kirjoiteta markupiin
+
+22 elementtiin käsin kirjoitettu `role` + `tabindex` + `aria-checked`
+olisi 22 paikkaa jotka ajautuvat erilleen ensimmäisessä muutoksessa.
+Ne johdetaan kerran rakenteesta, jolloin uusi siru saa saman kohtelun
+ilman lisätyötä — kuten uusi aaltopoijukytkin sai.
+
+Ryhmän nimi tulee sitä edeltävästä `.sp-label`-otsikosta
+(`aria-labelledby`), ei toiseen kertaan kirjoitetusta `aria-label`ista:
+kaksi kopiota samasta tekstistä ajautuu erilleen.
+
+### Siruryhmä on radiogroup, ei nappirivi
+
+Ero ei ole kosmeettinen. Ruudunlukija sanoo "2 / 4", ja **sarkain näkee
+ryhmän yhtenä pysäkkinä** vaeltavan tabindexin ansiosta — muuten 17
+sirua olisi 17 pysäkkiä ja paneelin läpikävely maksaisi enemmän kuin se
+säästää. Ryhmän sisällä liikutaan nuolilla, ja **valinta seuraa
+fokusta**: se on radiogroupin standardikuvio, ja se on myös ainoa joka
+toimii tässä sovelluksessa, koska sirun valinta ajetaan ryhmän
+delegoidusta klikkauskäsittelijästä — pelkkä fokuksen siirto ei tekisi
+mitään ja käyttäjä jäisi ihmettelemään miksi mikään ei muutu.
+
+Nuolet vaativat `stopPropagation`in eikä pelkkää `preventDefault`ia:
+nuolet kuuluvat muuten Leafletille, joka panoroi niillä karttaa.
+Mitattu — neljä nuolenpainallusta sirun päällä, kartan keskipiste
+62,500000/25,500000 ennen ja jälkeen.
+
+Kerroskytkin on `role="switch"`, koska se on päällä/pois eikä
+yksivalinta. Nimi tulee `.sp-toggle-name`istä ja selite
+(`aria-describedby`) `.sp-toggle-sub`ista.
+
+### Tila synkataan MutationObserverilla
+
+`.active` ja `.on` asetetaan **kuudessa eri paikassa**
+(`KarttaAsetukset._merkitse`, `applyUnit`, `#layers`, `#units`,
+kerroskytkimet, käynnistyksen `_merkitseKarttatasot`). Aria-tilan
+kirjoittaminen jokaiseen niistä olisi ollut seitsemäs polku samaan
+asiaan — sama vika kuin aikajanan valinnalla ennen `_tlValitseIdx`:iä.
+Havainnointi on yksi polku ja se pysyy oikeassa myös silloin kun luokka
+vaihtuu koodista jota ei ole vielä olemassa. Silmukkaa ei synny, koska
+suodatin on `class` eikä synkka kirjoita luokkia.
+
+### Mitattu
+
+39 tarkistusta, 0 vikaa, molemmissa näkymissä: roolit ja nimet kuudella
+ryhmällä ja viidellä kytkimellä, `aria-checked` vastaa luokkaa
+kaikkialla, tasan yksi sarkainpysäkki ryhmää kohti, nuoli siirtää ja
+valitsee kolmessa ryhmässä ja palaa takaisin, väli ja Enter kytkevät
+kerrostason ja `aria-checked` seuraa, Esc sulkee ja fokus palaa
+avaajaan, suljettuna mikään ei ole fokusoitavissa.
+
+Sivun näkyvistä kontrolleista fokusoitavia 26/26 → **48/48**.

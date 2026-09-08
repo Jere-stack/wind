@@ -892,6 +892,15 @@ html.tyopoyta #kapseli.vaistyy {
   -webkit-user-select: none; user-select: none;
 }
 .sp-chip:active { transform: scale(0.96); }
+/* FOKUSRENGAS. Pysäkki jota ei näe on yhtä huono kuin ei pysäkkiä.
+   `outline-offset` on positiivinen, koska siru on täytetty laatta —
+   sisäpuolelle piirretty rengas katoaisi valitun sirun musteeseen. */
+.sp-chip:focus-visible,
+.sp-toggle-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.sp-toggle-row:focus-visible { outline-offset: -2px; border-radius: 4px; }
 /* Valittu siru on MUSTETTA, ei aksenttia. Kolme siruryhmää näkyy yhtä aikaa,
    joten aksenttitäyttö toisi ruudulle kolme magentaa laattaa ja söisi sen
    tehon siitä missä se merkitsee jotain: kytkimet ja toiminnot. Musteella
@@ -18075,6 +18084,123 @@ function _merkitseKarttatasot() {
 }
 _merkitseKarttatasot();
 
+/* -- ASETUSPANEELIN KONTROLLIT NÄPPÄIMISTÖLLE ---------------------
+ *
+ * Mitattu ennen: paneelissa on 22 kontrollia (5 kerroskytkintä ja 17
+ * sirua) ja niistä **0 oli tavoitettavissa sarkaimella** — kaikki ovat
+ * divejä joilla on vain klikkauskuuntelija. Sarkainkierrossa oli kolme
+ * kohdetta: "Valmis" ja kaksi karttalähteen linkkiä. Paneelissa on
+ * fokusansa (ks. `Modaali`), joten ansa vangitsi fokuksen sisältöön
+ * johon ei päässyt käsiksi.
+ *
+ * ROOLIT LUETAAN DOMista, EI KIRJOITETA MARKUPIIN. Sirut ja
+ * kytkinrivit syntyvät HTML:ssä ilman rooleja, ja jokaiseen käsin
+ * kirjoitettu `role`/`tabindex`/`aria-checked` olisi 22 paikkaa jotka
+ * ajautuvat erilleen ensimmäisessä muutoksessa. Tässä ne johdetaan
+ * rakenteesta kerran, jolloin uusi siru saa saman kohtelun ilman
+ * lisätyötä — kuten uusi aaltopoijukytkin sai.
+ *
+ * SIRURYHMÄ ON RADIOGROUP, EI NAPPIRIVI. Ero ei ole kosmeettinen:
+ * ruudunlukija sanoo "2 / 4" ja nuolinäppäimet siirtyvät ryhmän
+ * sisällä. Sarkain näkee ryhmän YHTENÄ pysäkkinä (vaeltava tabindex),
+ * joten 17 sirua ei tee 17 sarkainpysäkkiä — muuten asetuspaneelin
+ * läpikävely maksaisi enemmän kuin se säästää.
+ *
+ * TILA SYNKATAAN MutationObserverilla. `.active` ja `.on` asetetaan
+ * kuudessa eri paikassa (KarttaAsetukset, applyUnit, #layers, #units,
+ * kerroskytkimet, käynnistyksen merkintä). Aria-tilan kirjoittaminen
+ * jokaiseen niistä olisi seitsemäs polku samaan asiaan; havainnointi on
+ * yksi polku ja se pysyy oikeassa myös silloin kun luokka vaihtuu
+ * koodista jota ei ole vielä olemassa. */
+(function _asetuksetNappaimistolle() {
+  const paneeli = document.getElementById('settings-popup');
+  if (!paneeli) return;
+  let idLaskuri = 0;
+  const varmistaId = (el, etuliite) => {
+    if (!el.id) el.id = etuliite + (++idLaskuri);
+    return el.id;
+  };
+
+  /* --- Siruryhmät --- */
+  const ryhmat = [...paneeli.querySelectorAll('.sp-chips')];
+  for (const ryhma of ryhmat) {
+    ryhma.setAttribute('role', 'radiogroup');
+    /* Nimi tulee ryhmää edeltävästä otsikosta. Se on olemassa jokaisella
+       ryhmällä, joten sitä ei tarvitse kirjoittaa toiseen kertaan
+       `aria-label`iksi — kaksi kopiota samasta tekstistä ajautuu erilleen. */
+    let otsikko = ryhma.previousElementSibling;
+    while (otsikko && !otsikko.classList.contains('sp-label')) {
+      otsikko = otsikko.previousElementSibling;
+    }
+    if (otsikko) ryhma.setAttribute('aria-labelledby', varmistaId(otsikko, 'sp-otsikko-'));
+    for (const siru of ryhma.querySelectorAll('.sp-chip')) {
+      siru.setAttribute('role', 'radio');
+    }
+  }
+
+  /* --- Kerroskytkimet --- */
+  for (const rivi of paneeli.querySelectorAll('.sp-toggle-row')) {
+    rivi.setAttribute('role', 'switch');
+    rivi.setAttribute('tabindex', '0');
+    const nimi = rivi.querySelector('.sp-toggle-name');
+    const alle = rivi.querySelector('.sp-toggle-sub');
+    if (nimi) rivi.setAttribute('aria-labelledby', varmistaId(nimi, 'sp-taso-'));
+    if (alle) rivi.setAttribute('aria-describedby', varmistaId(alle, 'sp-tasosel-'));
+  }
+
+  /* --- Tilan synkka luokista ariaan --- */
+  function synkkaa() {
+    for (const ryhma of ryhmat) {
+      const sirut = [...ryhma.querySelectorAll('.sp-chip')];
+      let valittu = sirut.findIndex(c => c.classList.contains('active'));
+      /* Jos mikään ei ole valittuna, sarkain pääsee silti ryhmään:
+         ensimmäinen on silloin se pysäkki. Ilman tätä ryhmä katoaisi
+         sarkainkierrosta kokonaan. */
+      if (valittu < 0) valittu = 0;
+      sirut.forEach((c, i) => {
+        c.setAttribute('aria-checked', c.classList.contains('active') ? 'true' : 'false');
+        c.setAttribute('tabindex', i === valittu ? '0' : '-1');
+      });
+    }
+    for (const rivi of paneeli.querySelectorAll('.sp-toggle-row')) {
+      const kytkin = rivi.querySelector('.sp-toggle');
+      rivi.setAttribute('aria-checked', kytkin && kytkin.classList.contains('on') ? 'true' : 'false');
+    }
+  }
+  synkkaa();
+  new MutationObserver(synkkaa).observe(paneeli,
+    { subtree: true, attributes: true, attributeFilter: ['class'] });
+
+  /* --- Nuolinäppäimet ryhmän sisällä ---
+     Radiogroupissa VALINTA SEURAA FOKUSTA: nuoli sekä siirtää että
+     valitsee. Se on standardikuvio, ja se on myös ainoa joka toimii
+     tässä sovelluksessa — sirun valinta ajetaan ryhmän delegoidusta
+     klikkauskäsittelijästä, joten pelkkä fokuksen siirto ei tekisi
+     mitään ja käyttäjä jäisi ihmettelemään miksi mikään ei muutu. */
+  const SUUNTA = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+  paneeli.addEventListener('keydown', function (e) {
+    const siru = e.target.closest && e.target.closest('.sp-chip');
+    if (!siru) return;
+    if (e.key === 'Home' || e.key === 'End') {
+      const sirut = [...siru.parentElement.querySelectorAll('.sp-chip')];
+      const kohde = e.key === 'Home' ? sirut[0] : sirut[sirut.length - 1];
+      e.preventDefault(); kohde.focus(); kohde.click();
+      return;
+    }
+    const d = SUUNTA[e.key];
+    if (!d) return;
+    /* Nuolet kuuluvat muuten Leafletille (se panoroi kartalla), joten
+       tapahtuma on pysäytettävä eikä vain estettävä oletusta. */
+    e.preventDefault();
+    e.stopPropagation();
+    const sirut = [...siru.parentElement.querySelectorAll('.sp-chip')];
+    const i = sirut.indexOf(siru);
+    const kohde = sirut[(i + d + sirut.length) % sirut.length];
+    kohde.focus();
+    kohde.click();
+  });
+})();
+
 function _applyMapLayers() {
   if (!window._obsMarkersGlobal) return;
   window._obsMarkersGlobal.forEach(function(m) {
@@ -18135,10 +18261,11 @@ document.getElementById('btn-loc').addEventListener('click', () => {
  *
  * Sidotaan kerran koko dokumenttiin: kontrollit ovat staattisia, mutta
  * yksi kuuntelija on joka tapauksessa halvempi kuin kuusi. */
+const AKTIVOITAVAT_ROOLIT = { button: 1, switch: 1, radio: 1 };
 document.addEventListener('keydown', function (e) {
   if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
   const el = e.target;
-  if (!el || el.getAttribute('role') !== 'button') return;
+  if (!el || !AKTIVOITAVAT_ROOLIT[el.getAttribute('role')]) return;
   if (el.tagName === 'BUTTON' || el.tagName === 'A') return;
   e.preventDefault();
   el.click();
