@@ -1584,3 +1584,90 @@ poikkeaa aikajanan hetkestä **0 minuuttia**.
 
 Valittu hetki säilyy neljällä zoom-reitillä (0 h), ja aikajana vaihtuu
 kartan mukana (3/3).
+
+## Mellsten (Haukilahti) — kolmas oma proxy
+
+Käyttäjä pyysi Haukilahteen samanlaisen tuulihavainnon kuin Harmajalla.
+Lähde on Surfing ry:n oma sääasema `mellsten.surfing.fi`, joka ei kuulu
+FMI:n havaintoverkkoon — sille tehtiin oma proxy kuten
+Kruunuvuorenselälle.
+
+### Lähteessä on kolme tiedostoa, ja kokoero on satakertainen
+
+    lastWeather.txt        uusin rivi                   67 tavua
+    weather.txt            30 tuoreinta minuuttia      1,9 kt
+    archive/Day-YY-MM-DD   koko vuorokausi            ~92 kt
+
+Karttamerkki hakee `lastWeather.txt`:n ja kortti `weather.txt`:n. Koko
+kartan lisäys maksaa siis **67 tavua**.
+
+Arkistossa on 380 päivätiedostoa, mutta ne kirjoitetaan vasta
+vuorokauden päätyttyä (`Day-26-09-07` vastasi 404 kun oli 8.9.).
+**Kuluvalle vuorokaudelle pisin saatavilla oleva historia on 30
+minuuttia.**
+
+### Rivin muoto on lähteen dokumentoima, ei arvattu
+
+     08:45 197°   5.6 <  6.5 <  7.8   14.9°C  1009.1  85.5%   0.0
+     aika  suunta min <  ka  < max    lämpö   paine   kosteus sade
+
+Keskituuli on **kolmas** luku, ei ensimmäinen: rivillä on minuutin
+minimi, keskiarvo ja maksimi. Puuska on maksimi ja viimeinen sarake on
+sade mm/tunnissa. Nämä lukevat lähteen omalla sivulla.
+
+**Minuutin tiheys on tämän aseman koko arvo.** FMI raportoi 10 min
+välein; tämä joka minuutti ja kertoo lisäksi minuutin ääriarvot, joten
+puuskaisuuden näkee suoraan.
+
+### Aikaleimassa on vain kellonaika
+
+Rivillä on `08:45` ilman päiväystä, ja se on **Suomen aikaa** — mutta
+arkistotiedoston otsikkorivin luontiaika on palvelimen omassa
+vyöhykkeessä (`Sun Sep 6 14:00:01 PDT 2026`), joten se ei kelpaa
+ankkuriksi. Päiväys johdetaan nykyhetkestä Helsingin seinäkellon
+mukaan, ja tulevaisuuteen osuva rivi siirretään edelliselle
+vuorokaudelle.
+
+Vyöhykepoikkeama **pyöristetään täysiin minuutteihin**. `Intl`-muotoilu
+katkaisee sekunnilleen, joten erotukseen jäi `Date.now()`:n
+millisekunnit ja ne valuivat suoraan aikaleimoihin
+(`"...T05:50:00.738Z"`).
+
+### Sijaintia ei arvattu
+
+Asema on **60,147 / 24,794**. Koordinaatti on Windyn PWS-tietueesta
+*"Surfing Ry Mellsten"*, ja sama tietue palautti samalla hetkellä
+täsmälleen tämän lähteen lukemat (6,5 m/s, 196°, puuska 8,1, 15,0 °C,
+1009,1 hPa, 85,5 %) — eli kyse on varmasti samasta asemasta.
+
+### `history` jätetään nulliksi tarkoituksella
+
+Merkki näyttää aina tuoreimman lukeman eikä seuraa aikajanaa. Muilla
+FMI-asemilla `m.history` antaa menneiden tuntien lukeman
+(`_histValueAt`), mutta 30 minuutin ikkuna ei kata yhtäkään mennyttä
+tuntia — se palauttaisi joko nullin tai väärän luvun. Kortti sanoo
+lukeman iän.
+
+Asema merkitään **hiljaiseksi** jos tuorein rivi on yli 30 min vanha:
+lähde päivittyy minuutin välein, joten puoli tuntia on jo katko, ja
+katkon on näytettävä katkolta eikä tyveneltä.
+
+### Yksi uusintayritys
+
+Lähde vastasi mittauksen aikana kerran 403:lla ilman että mikään
+muuttui; sama pyyntö onnistui heti perään. Proxy yrittää kerran
+uudelleen 400 ms:n jälkeen. Kahden peräkkäisen epäonnistumisen jälkeen
+virhe menee läpi — uusinta ei saa peittää oikeaa vikaa.
+
+### Kortti sai jaksovalitsimen ilmaiseksi
+
+`_renderLiveHistory` rajaa jaksonapit siihen mitä data kattaa, ja
+**yhden napin riviä se ei piirrä lainkaan** ("yhden napin
+segmenttiraita ei ole valitsin vaan koriste"). 30 minuutin sarjalla
+nappeja on siis nolla eikä kortti väitä näyttävänsä kuutta tuntia.
+Mitattu: `jaksonapit []`.
+
+Mitattu kokonaisuus molemmissa näkymissä: proxy 25 tarkistusta,
+käyttöliittymä 21 tarkistusta, 0 vikaa. Merkki on samassa muodossa kuin
+Harmaja joka zoomilla (z7 piste, z8 ja z11 pilleri), napautus avaa
+oikean kortin, ja kahdeksan tunnin askel aikajanalla ei muuta lukemaa.

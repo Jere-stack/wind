@@ -3109,7 +3109,7 @@ html.tyopoyta {
               <div class="sp-toggle-dot"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><line x1="12" y1="4" x2="12" y2="20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".55"/><path d="M12 7 L19 9 L12 11 Z" fill="currentColor"/><circle cx="12" cy="20" r="1.5" fill="currentColor" opacity=".7"/></svg></div>
               <div>
                 <div class="sp-toggle-name">FMI · Meri</div>
-                <div class="sp-toggle-sub">Harmaja, Itätoukki, Kruunuvuorenselkä</div>
+                <div class="sp-toggle-sub">Harmaja, Itätoukki, Mellsten&hellip;</div>
               </div>
             </div>
             <div class="sp-toggle on" id="toggle-fmi-sea"></div>
@@ -13163,6 +13163,50 @@ function _addObsMarkers(map) {
       .catch(function() { /* Lataus epäonnistui — jätä tyhjäksi */ });
   })();
 
+  /* ── Mellsten (Haukilahti, Espoo): Surfing ry:n oma sääasema ──
+   * Ei FMI:n havaintoverkossa, joten oma proxy `api/mellsten.js`.
+   * Sama pilleri ja sama kortti kuin muilla meriasemilla.
+   *
+   * MINUUTIN TIHEYS ON TÄMÄN ASEMAN KOKO ARVO: FMI raportoi 10 min
+   * välein, tämä joka minuutti ja kertoo lisäksi minuutin minimin ja
+   * maksimin. Puuskaisuuden näkee siitä suoraan. Historiaikkuna on
+   * kuitenkin vain 30 min — lähde ei tarjoa kuluvalle vuorokaudelle
+   * pidempää — joten merkki ei osaa vastata menneisyyden tunneista.
+   * Siksi `history` jätetään nulliksi: `_histValueAt` palauttaisi
+   * aikajanan menneille tunneille väärän luvun tai ei mitään, ja
+   * pilleri näyttää nyt aina TUOREIMMAN lukeman. Kortti sanoo iän. */
+  (function() {
+    var MELL_STATION = { name: 'Espoo Mellsten', place: 'mellsten',
+      lat: 60.147, lng: 24.794 };
+    var icon = mkWindIcon(map.getZoom(), null, MELL_STATION.name, 8);
+    var m = L.marker([MELL_STATION.lat, MELL_STATION.lng],
+      { icon: icon, zIndexOffset: -50, keyboard: false })
+      .on('click', function(){ _openObsSheet('mellsten', MELL_STATION); }).addTo(map);
+    var mEntry = { marker: m, type: 'wind-prim', ws: null, wg: null,
+      wsLatest: null, wgLatest: null, stName: MELL_STATION.name, pilleriZ: 8,
+      layerGroup: 'fmi-sea', place: MELL_STATION.place, history: null };
+    _obsMarkers.push(mEntry);
+    if (typeof _applyMapLayers === 'function') _applyMapLayers();
+    _addStationDot(MELL_STATION.lat, MELL_STATION.lng,
+      function(){ _openObsSheet('mellsten', MELL_STATION); });
+
+    fetch(API_BASE + '/mellsten?tz=' + encodeURIComponent(AIKAVYOHYKE))
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(data) {
+        if (!data || data.error || data.ws == null) return;
+        var ws = +data.ws, wg = data.wg != null ? +data.wg : ws;
+        mEntry.ws = ws; mEntry.wg = wg;
+        mEntry.wsLatest = ws; mEntry.wgLatest = wg;
+        /* Asema on hiljaa jos tuorein rivi on yli puoli tuntia vanha.
+           Lähde päivittyy minuutin välein, joten 30 min on jo katko —
+           ja katkon on näyttävä katkolta eikä tyyneltä. */
+        mEntry.hiljainen = data.ageMin != null && data.ageMin > 30;
+        mEntry._iconSig = _windIconSig(map.getZoom(), ws, 8, mEntry.hiljainen);
+        mEntry.marker.setIcon(mkWindIcon(map.getZoom(), ws, MELL_STATION.name, 8, mEntry.hiljainen));
+      })
+      .catch(function() { /* Lataus epäonnistui — jätä tyhjäksi */ });
+  })();
+
   /* AALTOPOIJUN VÄISTÖ.
    *
    * Poiju on merellä, ja merellä ovat myös sovelluksen tiheimmät
@@ -13346,6 +13390,7 @@ function _openObsSheet(type, station) {
     :'Tuulihavainto';
   var srcLabel=isWater?'UiRas · Forum Virium Helsinki'
     :onPoiju?'Aaltopoiju · Ilmatieteen laitos'
+    :type==='mellsten'?'Surfing ry · Mellsten'
     :(type==='kruunuvuori'?'Merellinen Helsinki · FMI':'Ilmatieteenlaitos · FMI');
   var unit=isWater?'°C':onPoiju?(poijuLampo?'°C':'m'):Units.label();
 
@@ -13390,7 +13435,9 @@ function _openObsSheet(type, station) {
 
     /* -- Footer -- */
     +'<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--hairline-soft);font-variant-numeric:tabular-nums;font-size:var(--fs-8);color:var(--ink-3);text-align:center">'
-      +(isWater?'UiRas avoin data · Forum Virium Helsinki':(type==='kruunuvuori'?'Merellinen Helsinki · swell.fmi.fi':'Ilmatieteenlaitos · avoin data'))
+      +(isWater?'UiRas avoin data · Forum Virium Helsinki'
+        :type==='mellsten'?'Surfing ry · mellsten.surfing.fi'
+        :(type==='kruunuvuori'?'Merellinen Helsinki · swell.fmi.fi':'Ilmatieteenlaitos · avoin data'))
     +'</div>';
 
   sheet.classList.add('open');
@@ -13503,6 +13550,36 @@ function _openObsSheet(type, station) {
   } else if(type==='aalto'){
     _aaltoKortti(station, { valId:valId, subId:subId, chipId:chipId, cid:cid,
       lampo:poijuLampo, accent:accent, updateHero:updateHero });
+  } else if(type==='mellsten'){
+    /* Yksi haku: historia sisältää myös tuoreimman lukeman
+       (`latest`), joten erillistä "nyt"-pyyntöä ei tarvita. */
+    fetch(API_BASE + '/mellsten?history=1&tz=' + encodeURIComponent(AIKAVYOHYKE))
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if(!data || data.error || !data.ws || !data.ws.length){
+          if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);padding:16px">Ei dataa</div>';
+          return;
+        }
+        var uusin = data.latest || {};
+        var cc = ColorRamp.ink(uusin.ws);
+        var sub = Units.label();
+        if(uusin.wd!=null) sub += '\u2002' + dirArrow(uusin.wd) + ' ' + Math.round(uusin.wd) + '°';
+        if(uusin.time)     sub += '\u2002' + uusin.time;
+        updateHero(Units.fmt(uusin.ws), sub, 'rgb('+cc.r+','+cc.g+','+cc.b+')');
+        /* IKKUNA SANOTAAN. Lähde antaa kuluvalle vuorokaudelle vain
+           30 minuuttia, ja kaavio näyttäisi muuten "koko historialta"
+           puolen tunnin pätkän ilman että se kertoo niin. */
+        var chip = document.getElementById(chipId);
+        if(chip){
+          chip.textContent = 'Surfing ry · Mellsten · minuutin välein'
+            + (uusin.ageMin != null ? ' · ' + _havIkaTeksti(uusin.ageMin) : '');
+          if(uusin.ageMin != null && uusin.ageMin > 30) chip.style.color = 'var(--ink-2)';
+        }
+        if(el) _renderLiveHistory(el, Object.assign({}, data, { place: 'mellsten' }), uusin);
+      })
+      .catch(function(){
+        if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);padding:16px">Ei dataa</div>';
+      });
   } else if(type==='kruunuvuori'){
     /* Kruunuvuorenselkä — oma proxy, ei kuulu viralliseen FMI-havaintoverkkoon.
        168 h kuten FMI-asemillakin: kortin jaksovalitsin on sama. */

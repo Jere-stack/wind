@@ -19,7 +19,8 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
 - `index.html` — koko sovellus: CSS, HTML ja JS yhdessä tiedostossa (ei erillistä
   `src/`-hakemistoa). Leaflet ladataan CDN:stä `<script>`-tagilla.
 - `api/*.js` — Vercelin serverless-funktiot (FMI-havainnot, HARMONIE-ennuste,
-  FMI:n aaltopoijut, Kruunuvuorenselän ja Uiraan mittausdata -proxyt).
+  FMI:n aaltopoijut, Kruunuvuorenselän, Mellstenin ja Uiraan mittausdata
+  -proxyt).
   ES-moduuleja, koska
   `package.json`:ssa on `"type": "module"` — `require()` ei toimi näissä.
 - `tools/tiilet.mjs` — säälaattojen rakennus AWS Open Datan ECMWF-datasta.
@@ -88,7 +89,7 @@ kokeiltu ja kaadettu mittauksella.
   Oma säädatavarasto — pois rajapinnan kiintiöstä · Tallennustila ei ollutkaan
   este · Hilalähtöinen kenttä · Zoom raskaampi kuin ennen · Aaltopoijut —
   havaintoa, ei ennustetta · Aikajana ja kartta näyttivät eri
-  lukua
+  lukua · Mellsten (Haukilahti) — kolmas oma proxy
 - **ui**: Valikoiden ulkoasu — Merikartta · Mallien erimielisyys · Suosikit ja
   jaettava linkki · Puvun paksuus · Ennusteen osuvuus havaintoja vasten ·
   Spottikortin auditointi · Play ja kapseli · Aikajana kotivalikon appissa ·
@@ -452,6 +453,23 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **Välimuistin avain on 0,05° hilalla**, koska mallin solu on ~0,04° ja
   naapurispotit jakavat sen. Kiintiötä säästetään siellä missä se ei
   maksa mitään.
+
+**Mellsten (Surfing ry, Haukilahti)**
+
+- **Keskituuli on rivin KOLMAS luku** (`min < ka < max`), puuska on
+  maksimi. Ensimmäinen on minuutin minimi.
+- **Aikaleimassa on vain kellonaika, ja se on Suomen aikaa.** Päiväys
+  johdetaan nykyhetkestä; arkistotiedoston otsikon luontiaika on
+  palvelimen omassa vyöhykkeessä (PDT) eikä kelpaa ankkuriksi.
+  Vyöhykepoikkeama pyöristetään täysiin minuutteihin, muuten
+  millisekunnit valuvat aikaleimoihin.
+- **`history` on nulliksi tarkoituksella.** Ikkuna on 30 min eikä kata
+  yhtäkään mennyttä tuntia, joten `_histValueAt` antaisi väärän luvun.
+  Merkki näyttää aina tuoreimman ja kortti sanoo iän.
+- **Kuluvalle vuorokaudelle ei ole pidempää historiaa.** Arkiston
+  päivätiedosto kirjoitetaan vasta vuorokauden päätyttyä.
+- **Sijainti 60,147 / 24,794 on Windyn PWS-tietueesta**, ei arvattu —
+  sama tietue palautti samat lukemat samalla hetkellä.
 
 **Kenttä ja data**
 

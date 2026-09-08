@@ -36,6 +36,19 @@ const STATION = { name: 'Espoo Mellsten', place: 'mellsten', lat: 60.147, lng: 2
 const TTL_TUOREIN = 60;
 const TTL_HISTORIA = 120;
 
+/* YKSI UUSINTAYRITYS. Lahde on pieni harrastepalvelin ja vastasi
+   kerran mittauksen aikana 403:lla ilman etta mikaan muuttui; toinen
+   pyynto samaan osoitteeseen onnistui. Yksi uusinta poistaa
+   ohimenevan katkon nakymasta ilman etta se peittaa oikean vian:
+   kahden perakkaisen epaonnistumisen jalkeen virhe menee lapi. */
+async function fetchTextRetry(url) {
+  try { return await fetchText(url); }
+  catch (e) {
+    await new Promise(function (r) { setTimeout(r, 400); });
+    return fetchText(url);
+  }
+}
+
 function fetchText(url) {
   return new Promise(function (resolve, reject) {
     https.get(url, function (res) {
@@ -65,7 +78,11 @@ function helsinkiPoikkeamaMs(ms) {
   }
   var s = _hkiFmt.format(new Date(ms));          /* "2026-09-08 08:45:00" */
   var utc = Date.parse(s.replace(' ', 'T') + 'Z');
-  return utc - ms;                                /* +3 h kesalla, +2 h talvella */
+  /* Pyoristys taysiin minuutteihin. Muotoiltu merkkijono on katkaistu
+     sekunnilleen, joten erotukseen jaa `ms`:n millisekunnit — ja ne
+     valuisivat suoraan aikaleimoihin ("...T05:50:00.738Z"). Vyohykkeen
+     poikkeama on aina taysia minuutteja. */
+  return Math.round((utc - ms) / 60000) * 60000;  /* +3 h kesalla, +2 h talvella */
 }
 
 /* "08:45" -> epoch ms. Ankkurina nykyhetki: ikkuna on 30 min tai
@@ -129,7 +146,7 @@ export default async function handler(req, res) {
   var nyt = Date.now();
 
   try {
-    var teksti = await fetchText(BASE + (isHistory ? 'weather.txt' : 'lastWeather.txt'));
+    var teksti = await fetchTextRetry(BASE + (isHistory ? 'weather.txt' : 'lastWeather.txt'));
     var rivit = jasenna(teksti, nyt);
     if (!rivit.length) {
       return res.status(200).json({ error: 'no data', station: STATION.name, place: STATION.place });
