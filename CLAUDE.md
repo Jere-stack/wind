@@ -19,8 +19,8 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
 - `index.html` — koko sovellus: CSS, HTML ja JS yhdessä tiedostossa (ei erillistä
   `src/`-hakemistoa). Leaflet ladataan CDN:stä `<script>`-tagilla.
 - `api/*.js` — Vercelin serverless-funktiot (FMI-havainnot, HARMONIE-ennuste,
-  FMI:n aaltopoijut, Kruunuvuorenselän, Mellstenin ja Uiraan mittausdata
-  -proxyt).
+  FMI:n aaltopoijut, Kruunuvuorenselän, Mellstenin, Larun ja Uiraan
+  mittausdata-proxyt).
   ES-moduuleja, koska
   `package.json`:ssa on `"type": "module"` — `require()` ei toimi näissä.
 - `tools/tiilet.mjs` — säälaattojen rakennus AWS Open Datan ECMWF-datasta.
@@ -90,7 +90,7 @@ kokeiltu ja kaadettu mittauksella.
   este · Hilalähtöinen kenttä · Zoom raskaampi kuin ennen · Aaltopoijut —
   havaintoa, ei ennustetta · Aikajana ja kartta näyttivät eri
   lukua · Mellsten (Haukilahti) — kolmas oma proxy · Varaston puuska on
-  joka toisella askeleella tuuli
+  joka toisella askeleella tuuli · Laru (Lauttasaari) — neljäs oma proxy
 - **ui**: Valikoiden ulkoasu — Merikartta · Mallien erimielisyys · Suosikit ja
   jaettava linkki · Puvun paksuus · Ennusteen osuvuus havaintoja vasten ·
   Spottikortin auditointi · Play ja kapseli · Aikajana kotivalikon appissa ·
@@ -492,6 +492,31 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   päivätiedosto kirjoitetaan vasta vuorokauden päätyttyä.
 - **Sijainti 60,147 / 24,794 on Windyn PWS-tietueesta**, ei arvattu —
   sama tietue palautti samat lukemat samalla hetkellä.
+
+**Laru (dlarah.org, Lauttasaari)**
+
+- **Lähde vaatii User-Agentin.** Ilman sitä 403, sen kanssa 200,
+  toistettavasti — Noden `https.get` ei lähetä sellaista oletuksena.
+  Eri asia kuin Mellstenin kertaluonteinen 403: siellä uusinta auttaa,
+  täällä pyyntö ei onnistu koskaan ilman otsaketta.
+- **Asemalla EI OLE lämpömittaria.** Lämpötilasarake on 0,0 kaikilla
+  474 rivillä ja Windguru antaa samalle asemalle `temperature: null`.
+  Proxy palauttaa `tmp: null, lampomittari: false`, ja kortti jättää
+  lämpötilaruudun pois kun lippu on `false`. Älä muuta sitä viivaksi —
+  viiva tarkoittaa "ei juuri nyt", ja FMI-asemilla se on yhä oikea
+  (lippu on `false` eikä puuttuva juuri siksi).
+- **Lukemat ovat m/s.** Varmistettu Windgurun asematietuetta 47 vasten:
+  suhde 1,94–2,07 (Windguru solmuja) ja suunta 173,9° vs 173,5° kahden
+  minuutin sisällä. Sijainti 60,150824 / 24,87184 tulee samasta
+  tietueesta, ei arvattu.
+- **`history` TÄYTETÄÄN, toisin kuin Mellstenillä.** Lähde antaa koko
+  kuluvan vuorokauden ~2 min välein, joten merkki osaa vastata myös
+  aikajanan menneistä tunneista (mitattu: neljä tuntia, neljä eri
+  lukemaa, ja paluu samaan arvoon). Mellstenin 30 min ikkuna ei riitä
+  siihen, ja siksi sen `history` on nulliksi tarkoituksella.
+- **Sarjan viimeinen piste on RAAKA tuorein havainto**, ei nipun
+  keskiarvo — muuten kaavion pää ja kortin päälukema olisivat eri
+  luvut samasta hetkestä.
 
 **Kenttä ja data**
 

@@ -1718,3 +1718,78 @@ Kaksi seurausta:
 
 Missä puuskan pitää olla tunnin luku, se luetaan rajapintapisteestä.
 Ks. `docs/ui.md`, "Kapselin puuskarivi katosi".
+
+## Laru (Lauttasaari) — neljäs oma proxy, ja ensimmäinen jolla on historiaa
+
+Käyttäjä pyysi Lauttasaareen saman kuin Mellsteniin. Lähde on
+`dlarah.org`, joka ei kuulu FMI:n havaintoverkkoon — oma proxy
+`api/laru.js`, kuten Kruunuvuorenselällä ja Mellstenillä.
+
+Asemia lähteellä on yksitoista (`wind_data/stations.txt`): Laru, eira,
+Bågaskär, Tulliniemi, Russarö, Vänö, Utö, Tahkoluoto, Tankar,
+Marjaniemi, Vihreäsaari. Näistä otettiin vain Laru — loput ovat joko
+FMI:n omia asemia joita sovelluksella jo on, tai kaukana käyttäjän
+spoteista.
+
+### Kolme asiaa jotka mitattiin eikä arvattu
+
+**Lähde vaatii User-Agentin.** Ilman sitä 403, sen kanssa 200 —
+toistettavasti, ei kerran. Noden `https.get` ei lähetä sellaista
+oletuksena, joten pyyntö kaatui aina. Tämä on eri asia kuin Mellstenin
+kertaluonteinen 403, jonka takia sinne lisättiin uusintayritys: siellä
+sama pyyntö onnistui toisella kerralla, tässä ei onnistu koskaan.
+
+**Sijainti ja yksiköt tarkistettiin toista lähdettä vasten.** Asema on
+Windgurun asematietue 47 (`iapi.php?q=station&id_station=47`),
+koordinaatit 60,150824 / 24,87184 eli Nahkahousun luoto Lauttasaaren
+eteläkärjen edustalla. Samalla hetkellä kahden minuutin sisällä:
+suunta 173,9° vs 173,5°, ja nopeuksien suhde 1,94–2,07 eli **lähde on
+m/s ja Windguru solmuja**. Ilman tätä yksikkö olisi ollut arvaus, ja
+väärä arvaus olisi näyttänyt kaksinkertaista tuulta.
+
+**Asemalla ei ole lämpömittaria.** Lämpötilasarake on 0,0 kaikilla 474
+rivillä ja Windguru palauttaa samalle asemalle `"temperature": null`.
+Proxy palauttaa siis `tmp: null, lampomittari: false` eikä keksi
+lukemaa. Havaintokortti jättää lämpötilaruudun kokonaan pois kun lippu
+on `false` — viiva tarkoittaa "ei juuri nyt" ja on oikea vastaus
+katkoon, mutta täällä lukemaa ei ole tulossa koskaan. Lippu on
+nimenomaan `false` eikä puuttuva, joten FMI-asemat säilyttävät viivan
+(mitattu: Harmajan kortissa ruutu on yhä paikallaan).
+
+**Sarakejärjestys luettiin lähteen omasta koodista.** `history_graph.js`
+ja sen `parseData` kertovat kenttien järjestyksen; se varmistettiin
+vielä erikseen datasta — `min <= ka <= max` piti 474/474 rivillä.
+
+### Tällä on historiaa, toisin kuin Mellstenillä
+
+Mellstenin ikkuna on 30 minuuttia, joten sen `history` jätettiin
+tarkoituksella nulliksi: merkki näyttää aina tuoreimman eikä osaa
+vastata aikajanan menneistä tunneista. Laru antaa **koko kuluvan
+vuorokauden noin kahden minuutin välein**, joten sen `history`
+täytetään kuten FMI-asemilla ja `_histValueAt` lukee sen ilman omaa
+haaraa — vastaus on samassa muodossa (`{ws:[{t,v,d,iso}], wg, ta}`).
+
+Mitattu: merkki näytti neljällä peräkkäisellä aikajanan tunnilla neljä
+eri lukemaa (12,7 / 11,6 / 14,5 / 13,4 kts) ja palasi samaan arvoon kun
+aika palautettiin.
+
+Vastauksen koko: 3 h 13 kt / 109 pistettä, 12 h 27 kt / 217 pistettä,
+24 h 30 kt / 249 pistettä. Niputus säilyttää puuskan maksimin
+(mitattu: raakadatan suurin 12,9 m/s = niputetun suurin 12,9 m/s,
+497 riviä → 249 pistettä).
+
+**Sarjan viimeinen piste korvataan raa'alla tuoreimmalla havainnolla.**
+Muuten kaavion pää olisi nipun keskiarvo eikä täsmäisi kortin
+päälukemaan — kaksi lukua samasta hetkestä, eri arvot.
+
+### Ansa mittarissa
+
+Selaintarkistuksen ensimmäinen versio väitti kortin olevan rikki, myös
+Harmajan kohdalla jota ei ollut koskettu. Kaksi vikaa mittarissa:
+kortti on `#sheet` / `#sheet-content` eikä `.sheet.open`, ja
+tilastoruutujen otsikot renderöityvät `text-transform: uppercase`illa
+eli `innerText` antaa ISOT KIRJAIMET. Jälkimmäinen oli vaarallisempi:
+**negatiivinen testi `!/Lämpötila/` meni läpi väärästä syystä**, eli
+juuri se väite jonka piti todistaa lämpötilaruudun poistuminen olisi
+mennyt läpi vaikka ruutu olisi ollut paikallaan. Kaikki tekstihaut ovat
+nyt `/i`.

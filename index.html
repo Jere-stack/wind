@@ -3109,7 +3109,7 @@ html.tyopoyta {
               <div class="sp-toggle-dot"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><line x1="12" y1="4" x2="12" y2="20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".55"/><path d="M12 7 L19 9 L12 11 Z" fill="currentColor"/><circle cx="12" cy="20" r="1.5" fill="currentColor" opacity=".7"/></svg></div>
               <div>
                 <div class="sp-toggle-name">FMI · Meri</div>
-                <div class="sp-toggle-sub">Harmaja, Itätoukki, Mellsten&hellip;</div>
+                <div class="sp-toggle-sub">Harmaja, Itätoukki, Laru&hellip;</div>
               </div>
             </div>
             <div class="sp-toggle on" id="toggle-fmi-sea"></div>
@@ -13240,6 +13240,54 @@ function _addObsMarkers(map) {
       .catch(function() { /* Lataus epäonnistui — jätä tyhjäksi */ });
   })();
 
+  /* ── Laru (Lauttasaari): dlarah.org:n oma sääasema ─────────────
+   * Neljäs oma proxy, `api/laru.js`. Asema on Nahkahousun luodolla
+   * Lauttasaaren eteläkärjen edustalla.
+   *
+   * TÄLLÄ ON HISTORIAA, TOISIN KUIN MELLSTENILLÄ. Lähde antaa koko
+   * kuluvan vuorokauden noin kahden minuutin välein, joten merkki osaa
+   * vastata myös aikajanan menneistä tunneista — `history` täytetään
+   * kuten FMI-asemilla, eikä jätetä nulliksi.
+   *
+   * Yksi haku riittää: `history=1` palauttaa myös tuoreimman lukeman
+   * (`latest`), joten erillistä "nyt"-pyyntöä ei tarvita. Merkki pyytää
+   * 24 h kuten FMI-asemien karttamerkit. */
+  (function() {
+    var LARU_STATION = { name: 'Helsinki Laru', place: 'laru',
+      lat: 60.1508, lng: 24.8718 };
+    var icon = mkWindIcon(map.getZoom(), null, LARU_STATION.name, 8);
+    var m = L.marker([LARU_STATION.lat, LARU_STATION.lng],
+      { icon: icon, zIndexOffset: -50, keyboard: false })
+      .on('click', function(){ _openObsSheet('laru', LARU_STATION); }).addTo(map);
+    var lEntry = { marker: m, type: 'wind-prim', ws: null, wg: null,
+      wsLatest: null, wgLatest: null, stName: LARU_STATION.name, pilleriZ: 8,
+      layerGroup: 'fmi-sea', place: LARU_STATION.place, history: null };
+    _obsMarkers.push(lEntry);
+    if (typeof _applyMapLayers === 'function') _applyMapLayers();
+    _addStationDot(LARU_STATION.lat, LARU_STATION.lng,
+      function(){ _openObsSheet('laru', LARU_STATION); });
+
+    fetch(API_BASE + '/laru?history=1&hours=24&tz=' + encodeURIComponent(AIKAVYOHYKE))
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(data) {
+        if (!data || data.error) return;
+        var uusin = data.latest || data;
+        if (uusin.ws == null) return;
+        var ws = +uusin.ws, wg = uusin.wg != null ? +uusin.wg : ws;
+        lEntry.ws = ws; lEntry.wg = wg;
+        lEntry.wsLatest = ws; lEntry.wgLatest = wg;
+        /* Sama muoto kuin FMI-asemilla ({ws:[{t,v,d,iso}], wg, ta}),
+           joten `_histValueAt` lukee sen ilman omaa haaraa. */
+        if (data.ws && data.ws.length) lEntry.history = data;
+        /* Lähde päivittyy noin kahden minuutin välein, joten 30 min on
+           jo katko. Sama kynnys kuin Mellstenillä. */
+        lEntry.hiljainen = uusin.ageMin != null && uusin.ageMin > 30;
+        lEntry._iconSig = _windIconSig(map.getZoom(), ws, 8, lEntry.hiljainen);
+        lEntry.marker.setIcon(mkWindIcon(map.getZoom(), ws, LARU_STATION.name, 8, lEntry.hiljainen));
+      })
+      .catch(function() { /* Lataus epäonnistui — jätä tyhjäksi */ });
+  })();
+
   /* AALTOPOIJUN VÄISTÖ.
    *
    * Poiju on merellä, ja merellä ovat myös sovelluksen tiheimmät
@@ -13424,6 +13472,7 @@ function _openObsSheet(type, station) {
   var srcLabel=isWater?'UiRas · Forum Virium Helsinki'
     :onPoiju?'Aaltopoiju · Ilmatieteen laitos'
     :type==='mellsten'?'Surfing ry · Mellsten'
+    :type==='laru'?'dlarah.org · Laru'
     :(type==='kruunuvuori'?'Merellinen Helsinki · FMI':'Ilmatieteenlaitos · FMI');
   var unit=isWater?'°C':onPoiju?(poijuLampo?'°C':'m'):Units.label();
 
@@ -13470,6 +13519,7 @@ function _openObsSheet(type, station) {
     +'<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--hairline-soft);font-variant-numeric:tabular-nums;font-size:var(--fs-8);color:var(--ink-3);text-align:center">'
       +(isWater?'UiRas avoin data · Forum Virium Helsinki'
         :type==='mellsten'?'Surfing ry · mellsten.surfing.fi'
+        :type==='laru'?'dlarah.org · Laru'
         :(type==='kruunuvuori'?'Merellinen Helsinki · swell.fmi.fi':'Ilmatieteenlaitos · avoin data'))
     +'</div>';
 
@@ -13609,6 +13659,35 @@ function _openObsSheet(type, station) {
           if(uusin.ageMin != null && uusin.ageMin > 30) chip.style.color = 'var(--ink-2)';
         }
         if(el) _renderLiveHistory(el, Object.assign({}, data, { place: 'mellsten' }), uusin);
+      })
+      .catch(function(){
+        if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);padding:16px">Ei dataa</div>';
+      });
+  } else if(type==='laru'){
+    /* Yksi haku, kuten Mellstenillä. Kortti pyytää koko kuluvan
+       vuorokauden (kartta pyytää 24 h) — jaksovalitsin karsii itse pois
+       ne napit joiden takana ei ole dataa, joten liian pitkää ikkunaa ei
+       tarvitse estää täältä. */
+    fetch(API_BASE + '/laru?history=1&hours=24&tz=' + encodeURIComponent(AIKAVYOHYKE))
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if(!data || data.error || !data.ws || !data.ws.length){
+          if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);padding:16px">Ei dataa</div>';
+          return;
+        }
+        var uusin = data.latest || {};
+        var cc = ColorRamp.ink(uusin.ws);
+        var sub = Units.label();
+        if(uusin.wd!=null) sub += '\u2002' + dirArrow(uusin.wd) + ' ' + Math.round(uusin.wd) + '°';
+        if(uusin.time)     sub += '\u2002' + uusin.time;
+        updateHero(Units.fmt(uusin.ws), sub, 'rgb('+cc.r+','+cc.g+','+cc.b+')');
+        var chip = document.getElementById(chipId);
+        if(chip){
+          chip.textContent = 'dlarah.org · Laru'
+            + (uusin.ageMin != null ? ' · ' + _havIkaTeksti(uusin.ageMin) : '');
+          if(uusin.ageMin != null && uusin.ageMin > 30) chip.style.color = 'var(--ink-2)';
+        }
+        if(el) _renderLiveHistory(el, Object.assign({}, data, { place: 'laru' }), uusin);
       })
       .catch(function(){
         if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);padding:16px">Ei dataa</div>';
@@ -16511,7 +16590,16 @@ function _renderLiveHistory(el, data, wx) {
         + tilasto('Keskituuli', Units.fmt(sKa), Units.label(), _havInkCss(sKa))
         + tilasto('Kovin puuska', Units.fmt(sMax), Units.label(), _havInkCss(sMax))
         + tilasto('Vallitseva', _havIlmansuuntaLyhyt(vallitseva), vallitseva != null ? Math.round(vallitseva) + '°' : '')
-        + tilasto('Lämpötila', lampo != null ? lampo.toFixed(1) : '–', '°C')
+        /* LÄMPÖTILARUUTU JÄTETÄÄN POIS JOS ASEMALLA EI OLE MITTARIA.
+           Viiva tarkoittaa "ei juuri nyt" ja on oikea vastaus katkoon;
+           Larulla lämpötilasaraketta ei ole olemassa lainkaan (lähteen
+           sarake on 0,0 kaikilla riveillä, ks. api/laru.js), joten viiva
+           lupaisi lukemaa joka ei ole tulossa. Lippu on nimenomaan
+           `false` eikä puuttuva: FMI-asemat eivät aseta sitä, ja niillä
+           viiva on yhä oikea. Ruudukko on 2×2, joten poisjäävä ruutu
+           jättää yhden paikan tyhjäksi eikä siirrä muita. */
+        + (data.lampomittari === false ? ''
+           : tilasto('Lämpötila', lampo != null ? lampo.toFixed(1) : '–', '°C'))
       + '</div>'
     + '</div>';
 
