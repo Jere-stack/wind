@@ -1417,3 +1417,90 @@ Harnessin selain ei pääse ulos (`/api/**` on katkaistu `yhteinen.mjs`:ssä),
 joten `api/aallot.js` ajetaan Noden puolella ja reititetään sisään
 `ctx.route('**/api/aallot*')`:lla. Vastaus on **oikea FMI-data** — juuri
 sen muoto on se mikä voi olla väärin, eikä mockilla mitattaisi sitä.
+
+## Aikajana ja kartta näyttivät eri lukua — kaksi datatasoa
+
+Käyttäjä huomasi että aikajanan luku ei vastaa kartan lukua. Se pitää
+paikkansa, ja syy on rakenteellinen: **sovelluksessa on kaksi
+rinnakkaista datatasoa** eikä mikään kertonut kummalla ollaan.
+
+    kartta (lämpökartta, kapseli, partikkelit)   Saalaatat-varasto, ECMWF IFS 0,25°
+    aikajana ja spottikortit                     lähin ennustepiste, Suomessa HARMONIE 2,5 km
+
+`WindTexture.hila` kootaan kokonaan `Saalaatat`ista, ja kun se on
+olemassa jokainen tähtäimen alla oleva luku tulee siitä. **Spotit eivät
+ole siinä hilassa lainkaan.** Aikajana taas lukee
+`nearestPointToCenter()`:n palauttaman pisteen sarjan, ja koska
+karttahila on z10+ 0,25° eli noin 28 km, lähin piste on Helsingissä
+käytännössä aina spotti.
+
+### Mitattu ero — sama paikka, sama hetki
+
+| paikka | z | aikajana | kapseli | ero | aikajanan lähde |
+|---|---|---|---|---|---|
+| Helsinki Lauttasaari | 12 | 9,72 | 7,81 | **1,91** | Lauttasaari (spotti, 0,6 km) |
+| Helsinki keskusta | 12 | 8,85 | 7,75 | **1,10** | Hietaniemi (spotti, 2,2 km) |
+| Harmaja | 12 | 9,31 | 8,52 | **0,79** | Kruunuvuorenranta (spotti, 6,9 km) |
+| Emäsalo | 12 | 10,63 | 8,33 | **2,30** | Emäsalo (spotti, 0,2 km) |
+| Hanko | 12 | 8,76 | 9,24 | 0,48 | Hanko Tulliniemi (spotti, 1,6 km) |
+| Avomeri 59,5/23,5 | 10 | 9,67 | 9,77 | 0,10 | laattapiste |
+| Suomenlahti | 8 | 10,87 | 9,95 | 0,92 | laattapiste 6,2 km |
+
+Viisi seitsemästä ylittää sovelluksen oman **0,5 m/s** rajan, ja
+Emäsalon 2,30 m/s on eron verran jolla kalustovalinta vaihtuu.
+
+**Avomerellä ero on 0,10 m/s.** Se on todiste siitä ettei vika ole
+interpoloinnissa: siellä molemmat luvut tulevat samasta varastosta.
+Ero syntyy vain siellä missä aikajana putoaa spottiin.
+
+### Kumpi on lähempänä totuutta
+
+Verrattuna FMI:n havaintoon samalla hetkellä:
+
+| asema | havainto | aikajana | kapseli |
+|---|---|---|---|
+| Helsinki Harmaja | 11,0 | 9,3 | 8,5 |
+| Sipoo Itätoukki | 12,1 | 9,2 | 8,7 |
+| Porvoo Emäsalo | 11,0 | 10,6 | 8,3 |
+| Kirkkonummi Mäkiluoto | 8,8 | 8,3 | 9,9 |
+| Hanko Tulliniemi | 9,8 | 8,8 | 9,2 |
+
+Keskimääräinen itseisarvoinen poikkeama: **aikajana 1,31 m/s, kapseli
+2,05 m/s**. Aikajanan HARMONIE on siis se tarkempi luku, ja kartta se
+epätarkempi — juuri päinvastoin kuin lähdemerkintä väitti.
+
+### Lähdemerkintä nimesi väärän lähteen — korjattu
+
+`#lahde-merkki` luki lähimmän ENNUSTEPISTEEN `wx.lahde`-kentän, eli
+Helsingissä spotin HARMONIEn. Mitattuna se sanoi Lauttasaaressa,
+Emäsalossa ja Harmajalla "Ilmatieteen laitos · HARMONIE 2,5 km" vaikka
+viereinen kapselin luku (7,8 / 8,3 / 8,5 m/s) tuli varastosta. Sen oma
+sopimus on päinvastainen — *"merkintä kertoo mitä RUUDULLA on"* — ja
+asetuspaneeli lupaa saman: käytössä oleva lähde lukee tähtäimen alla.
+
+Korjaus: kun `WindTexture.hila` on olemassa, merkintä on varaston malli.
+Pistepohjaisella (sironneella) polulla vanha logiikka pätee yhä, koska
+siellä luku oikeasti tulee ennustepisteistä. Mitattu neljässä paikassa:
+merkintä nimeää nyt sen lähteen josta viereinen luku on peräisin.
+
+### Aikajana päivittyy oikein
+
+Reitti Helsinki → Hanko → Emäsalo → Helsinki: sarja vaihtuu joka
+siirrossa (3/3) ja palaa samaksi kun palataan, ja valittu hetki säilyy
+(09-08T05:00 koko reitin).
+
+### Se mitä tämä EI korjaa
+
+Kaksi lukua on yhä kaksi lukua. Vaihtoehdot ovat toisensa poissulkevia
+ja niillä on hinta:
+
+1. **Aikajana lukemaan varastoa** — täysi yhtenäisyys, mutta mitattuna
+   huonompi osuvuus (1,31 → 2,05 m/s) ja spottikortti eroaisi sitten
+   aikajanasta.
+2. **Kartta lukemaan HARMONIEa rannikolla** — paras tarkkuus, mutta
+   purkaisi juuri sen kiintiöstä irtautumisen jonka takia varasto
+   rakennettiin.
+3. **Kaksi lukua jää, mutta ero sanotaan** — halvin ja rehellisin;
+   merkintä on nyt oikein, mutta aikajanan oma lähde on yhä nimeämättä.
+
+Tämä on tuotepäätös eikä mittauskysymys.

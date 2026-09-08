@@ -17853,6 +17853,28 @@ const Lahde = {
   paivita(center) {
     if (!this._el || !State.map) return;
     const c = center || State.map.getCenter();
+
+    /* KUN LUKU TULEE VARASTOSTA, MERKINTÄ EI SAA NIMETÄ HARMONIEA.
+     *
+     * `WindTexture.hila` on kokonaan `Saalaatat`ista koottu solmuhila, ja
+     * kun se on olemassa KAIKKI tähtäimen alla oleva luku tulee siitä:
+     * kapseli (`sampleWindHilasta`), lämpökartta ja partikkelit. Spotit
+     * eivät ole siinä hilassa lainkaan.
+     *
+     * Merkintä luki silti lähimmän ENNUSTEPISTEEN lähteen, ja lähin
+     * ennustepiste on Helsingissä käytännössä aina spotti jolla on
+     * HARMONIE. Mitattuna Lauttasaaressa, Emäsalossa ja Harmajalla
+     * merkintä sanoi "Ilmatieteen laitos · HARMONIE 2,5 km" vaikka
+     * kapselin luku (7,8 / 8,3 / 8,5 m/s) tuli varastosta — eli merkintä
+     * nimesi lähteen josta viereinen luku ei ollut peräisin. Sen oma
+     * sopimus on päinvastainen: se kertoo mitä RUUDULLA on. */
+    if (typeof WindTexture !== 'undefined' && WindTexture.hila) {
+      const varasto = this.NIMET.laatta;
+      if (this._el.textContent !== varasto) this._el.textContent = varasto;
+      this._el.classList.add('nakyy');
+      return;
+    }
+
     const pt = lahinEnnustepiste(c);
     let nimi = null;
     /* Ks. kohta 3 */

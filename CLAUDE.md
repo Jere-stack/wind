@@ -87,7 +87,8 @@ kokeiltu ja kaadettu mittauksella.
   Lähdemerkintä ja aina automaattinen malli · Uloin näkymä — 44 % roskaa ·
   Oma säädatavarasto — pois rajapinnan kiintiöstä · Tallennustila ei ollutkaan
   este · Hilalähtöinen kenttä · Zoom raskaampi kuin ennen · Aaltopoijut —
-  havaintoa, ei ennustetta
+  havaintoa, ei ennustetta · Aikajana ja kartta näyttivät eri
+  lukua
 - **ui**: Valikoiden ulkoasu — Merikartta · Mallien erimielisyys · Suosikit ja
   jaettava linkki · Puvun paksuus · Ennusteen osuvuus havaintoja vasten ·
   Spottikortin auditointi · Play ja kapseli · Aikajana kotivalikon appissa ·
@@ -431,6 +432,23 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   maksa mitään.
 
 **Kenttä ja data**
+
+- **SOVELLUKSESSA ON KAKSI DATATASOA, ja ne antavat eri luvun.** Kartta
+  (lämpökartta, kapseli, partikkelit) lukee `Saalaatat`-varastoa
+  (ECMWF 0,25°); aikajana ja spottikortit lukevat lähintä
+  ennustepistettä, joka on Suomessa käytännössä aina spotti ja siis
+  HARMONIE. Mitattu ero samassa paikassa ja hetkessä 0,48–2,30 m/s,
+  viisi seitsemästä yli 0,5 m/s rajan. Avomerellä 0,10 m/s, koska
+  siellä molemmat tulevat varastosta. Älä oleta että jokin kartan luku
+  ja jokin paneelin luku ovat samasta lähteestä.
+- **`WindTexture.hila` on kokonaan varastosta, eivätkä spotit ole
+  siinä.** Kun se on olemassa, kaikki tähtäimen alla oleva luku tulee
+  varastosta riippumatta siitä kuinka lähellä spotti on (mitattu 0,2 km
+  päässä olevan spotin vaikutus lukemaan: ei mitään).
+- **Lähdemerkintä kertoo TÄHTÄIMEN lukeman lähteen.** Se luki ennen
+  lähimmän ennustepisteen lähteen ja sanoi siksi Helsingissä HARMONIE
+  vaikka luku tuli varastosta. Jos muutat kumpaakaan polkua, tarkista
+  että merkintä seuraa sitä polkua josta luku oikeasti tulee.
 
 - **Interpolointijärjestys: paikassa vektorit, ajassa nopeus ja suunta
   erikseen.** Suuntien aritmeettinen keskiarvo hyppää väärään suuntaan 0/360
