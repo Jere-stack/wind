@@ -1844,12 +1844,42 @@ html.tyopoyta {
   display: flex; flex-direction: column;
   visibility: hidden; opacity: 0;
   transition: opacity .2s ease, visibility 0s linear .2s;
+  /* TURVA-ALUEET KAIKILLA NELJALLA SIVULLA.
+   *
+   * Tama nakyma on `inset: 0`, eli se ulottuu kameapalkin ja
+   * koti-indikaattorin alle. Ilman naita mitattiin iPhone 16:n
+   * mitoilla nelja oiretta yhdesta syysta: pystyssa sulkunappi 7 px
+   * ylhaalta kun palkki vie 59, vaakassa kaavio 10 px vasemmalta
+   * (y-akseli palkin alla), sulkunappi 12 px oikealta ja rako alas
+   * 18 px kun koti-indikaattori vie 21.
+   *
+   * `max(...)` eika pelkka token: selaimessa alainsetti on iPhonella
+   * nolla (Safarin oma palkki vie tilan), ja silloin tarvitaan silti
+   * pieni oma marginaali. Vaakatilassa palkki on toisella sivulla,
+   * mutta kumpi sivu se on riippuu kaannon suunnasta — siksi molemmat. */
+  padding-top: max(var(--sat), 6px);
+  padding-bottom: max(var(--sab), 8px);
+  padding-left: max(var(--sal), 4px);
+  padding-right: max(var(--sar), 4px);
 }
 #hav-laaja.auki { visibility: visible; opacity: 1; transition: opacity .2s ease; }
 #hav-laaja:focus { outline: none; }
+/* Liu'utuksen aikana siirtymaa ei ole: elementti seuraa sormea. */
+#hav-laaja.raahaa { transition: none; }
+/* Kahva: kertoo etta nakyman voi liu'uttaa pois. Sama muoto kuin
+   korttiarkin kahvalla, jotta ele on tunnistettava samaksi. */
+.hl-kahva {
+  flex-shrink: 0; height: 18px; display: flex; align-items: center;
+  justify-content: center; cursor: grab; touch-action: none;
+}
+.hl-kahva::after {
+  content: ''; width: 40px; height: 4px; border-radius: 2px;
+  background: var(--hairline); transition: background .15s, width .15s;
+}
+.hl-kahva:active::after { background: var(--ink-3); width: 52px; }
 .hl-yla {
   display: flex; align-items: center; gap: 10px;
-  padding: 7px 12px 3px; flex-shrink: 0;
+  padding: 2px 12px 3px; flex-shrink: 0; touch-action: none;
 }
 .hl-nimi {
   font-weight: 700; font-size: var(--fs-11); line-height: 1.1;
@@ -1860,7 +1890,24 @@ html.tyopoyta {
   display: flex; background: var(--surface-lo); border-radius: 10px;
   padding: 2px; gap: 1px; margin-left: auto; flex-shrink: 0;
 }
-.hl-kaavio { flex: 1; min-height: 0; padding: 0 10px 6px; display: flex; align-items: center; overflow: hidden; }
+/* LUKEMARIVI. Levossa jakson tilastot, raahatessa osoitetun hetken
+   arvot. Kiinteassa paikassa eika kelluvana kuplana: sormi ei peita
+   sita, ja kokonaytossa juuri sormen alle jaava kupla oli suurin
+   syy siihen ettei lukemaa nahnyt. */
+.hl-lukema {
+  display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+  padding: 3px 12px 5px; flex-shrink: 0; min-height: 26px;
+  font-variant-numeric: tabular-nums;
+}
+.hl-lk { display: inline-flex; align-items: baseline; gap: 4px; }
+.hl-lk-nimi { font-size: var(--fs-8); letter-spacing: .5px; text-transform: uppercase; color: var(--ink-3); }
+.hl-lk-arvo { font-size: var(--fs-11); font-weight: 600; color: var(--ink); }
+.hl-lk-ala { font-size: var(--fs-85); color: var(--ink-3); }
+/* Sivutayte on pieni tarkoituksella: kortin kaavio vuotaa 22 px omaan
+   tayteeseensa (`margin-left:-22px`), joten liian leveä täyte tekisi
+   LAAJENNETUSTA kaaviosta kapeamman kuin se oli kortilla — mitattuna
+   365 px vs 375 px. Laajennus ei saa kaventaa mitaan. */
+.hl-kaavio { flex: 1; min-height: 0; padding: 0 4px 2px; display: flex; align-items: center; overflow: hidden; }
 .hl-kaavio > div { width: 100%; }
 /* Laajennusnappi kortilla ja sulkunappi laajassa: sama pyorea muoto. */
 .hav-nappi {
@@ -16372,15 +16419,39 @@ const HavLaaja = {
   _el: null, _kaavio: null, _otsikko: null, _jaksot: null,
   _lahde: null,          /* { el, data, wx } — kortin kaavio ja sen data */
   _kaannolla: false,     /* avattiinko kaantamalla vai napista */
+  _lukema: null,         /* lukemarivin elementti */
+  _resizeAjastin: null,
 
   /* Asu valitaan LAATIKON MUODOSTA, ei media queryn perusteella:
      tyopoydan kapea ikkuna ja puhelimen vaaka ovat sama tilanne, ja
-     media query vastaisi niihin eri tavalla. */
+     media query vastaisi niihin eri tavalla.
+   *
+   * KORKEUS SOVITETAAN LAATIKKOON. SVG skaalautuu leveyden mukaan ja sen
+   * korkeus tulee viewBoxin kuvasuhteesta, joten kiintea korkeus jattaa
+   * ruudusta osan kayttamatta: mitattuna pystyssa iPhone 16:lla kaavio
+   * oli 532 px kun tilaa oli ~660, eli 128 px tyhjaa. Ratkaistaan
+   * viewBoxin korkeus niin etta piirretty korkeus tayttaa laatikon.
+   *
+   * Takaisinkytkentaa ei synny: `.hl-kaavio` on `flex: 1` ja
+   * `overflow: hidden`, joten sisallon korkeus ei muuta laatikon
+   * korkeutta. */
   _asu() {
     var r = this._kaavio ? this._kaavio.getBoundingClientRect() : null;
     var lev = r && r.width ? r.width : window.innerWidth;
     var kork = r && r.height ? r.height : window.innerHeight;
-    return (lev / Math.max(1, kork)) > 1.3 ? HAV_ASU_LAAJA : HAV_ASU_PYSTY;
+    var pohja = (lev / Math.max(1, kork)) > 1.3 ? HAV_ASU_LAAJA : HAV_ASU_PYSTY;
+    if (!(lev > 0) || !(kork > 0)) return pohja;
+    var asu = Object.assign({}, pohja);
+    /* Piirretty korkeus = (lev / asu.W) * TH, ja
+       TH = H + (suuntaH ? 5 : 0) + suuntaH + (suuntaH ? 11 : 13) + reuna. */
+    var lisa = (asu.suuntaH ? 5 + asu.suuntaH + 11 : 13) + (asu.fs > 9 ? 5 : 3);
+    var haluttuTH = kork / (lev / asu.W);
+    asu.H = Math.round(haluttuTH - lisa);
+    /* Rajat: liian matala puristaa ramppin lukukelvottomaksi, liian
+       korkea venyttaa yhden puuskapiikin koko ruudun mittaiseksi. */
+    if (asu.H < 180) asu.H = 180;
+    if (asu.H > 760) asu.H = 760;
+    return asu;
   },
 
   _rakenna() {
@@ -16391,7 +16462,8 @@ const HavLaaja = {
     d.setAttribute('aria-modal', 'true');
     d.setAttribute('tabindex', '-1');
     d.innerHTML =
-      '<div class="hl-yla">'
+      '<div class="hl-kahva" id="hl-kahva" aria-hidden="true"></div>'
+      + '<div class="hl-yla" id="hl-ylarivi">'
         + '<div style="min-width:0">'
           + '<div class="hl-nimi" id="hl-nimi"></div>'
           + '<div class="hl-sub" id="hl-sub"></div>'
@@ -16402,6 +16474,7 @@ const HavLaaja = {
           + '<path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
         + '</button>'
       + '</div>'
+      + '<div class="hl-lukema" id="hl-lukema" role="status"></div>'
       + '<div class="hl-kaavio" id="hl-kaavio"></div>';
     document.body.appendChild(d);
     this._el = d;
@@ -16409,10 +16482,64 @@ const HavLaaja = {
     this._otsikko = d.querySelector('#hl-nimi');
     this._sub = d.querySelector('#hl-sub');
     this._jaksot = d.querySelector('#hl-jaksot');
+    this._lukema = d.querySelector('#hl-lukema');
     d.querySelector('#hl-sulje').addEventListener('click', () => this.sulje());
+    this._liuku(d.querySelector('#hl-kahva'));
+    this._liuku(d.querySelector('#hl-ylarivi'));
     /* Kaanto vaihtaa laatikon muodon, joten asu on valittava uudelleen.
-       Ilman tata vaakaan kaannetty pystyasu jaisi voimaan. */
-    window.addEventListener('resize', () => { if (this.auki()) this.paivita(); }, { passive: true });
+       Ilman tata vaakaan kaannetty pystyasu jaisi voimaan.
+       Kaannon jalkeen mitat asettuvat vasta seuraavilla ruuduilla, joten
+       piirto viivastetaan — muuten `_asu()` lukisi vanhat mitat ja
+       valitsisi vaaran asun juuri kaannon hetkella. */
+    window.addEventListener('resize', () => {
+      if (!this.auki()) return;
+      clearTimeout(this._resizeAjastin);
+      this._resizeAjastin = setTimeout(() => { if (this.auki()) this.paivita(); }, 120);
+    }, { passive: true });
+  },
+
+  /* LIU'UTUS POIS.
+   *
+   * Ele alkaa VAIN kahvasta tai otsikkoriviltä. Kuvaajan päällä raahaus
+   * on lukeman haku (`touch-action: none` ja oma osumakenttä), joten
+   * sulkuele ei saa alkaa sieltä — muuten arvon lukeminen sulkisi
+   * näkymän. Sama työnjako kuin korttiarkilla: kahva sulkee, sisältö
+   * toimii.
+   *
+   * Pointer-tapahtumat eikä touch + mouse erikseen: yksi polku kattaa
+   * sormen, hiiren ja kynän. */
+  _liuku(kahva) {
+    if (!kahva) return;
+    const d = this._el;
+    let alkuY = 0, siirto = 0, aktiivi = false, alkuAika = 0;
+    const RAJA = 90, NOPEUSRAJA = 0.45;   /* px ja px/ms */
+    const alku = (e) => {
+      if (e.button != null && e.button !== 0) return;
+      /* Napit ja jaksovalitsin toimivat normaalisti. */
+      if (e.target.closest && e.target.closest('button')) return;
+      aktiivi = true; alkuY = e.clientY; siirto = 0; alkuAika = Date.now();
+      d.classList.add('raahaa');
+      try { kahva.setPointerCapture(e.pointerId); } catch (err) {}
+    };
+    const liike = (e) => {
+      if (!aktiivi) return;
+      siirto = Math.max(0, e.clientY - alkuY);   /* vain alaspäin */
+      d.style.transform = 'translate3d(0,' + siirto.toFixed(1) + 'px,0)';
+      d.style.opacity = Math.max(0.35, 1 - siirto / 420).toFixed(3);
+    };
+    const loppu = () => {
+      if (!aktiivi) return;
+      aktiivi = false;
+      d.classList.remove('raahaa');
+      const nopeus = siirto / Math.max(1, Date.now() - alkuAika);
+      d.style.transform = '';
+      d.style.opacity = '';
+      if (siirto > RAJA || nopeus > NOPEUSRAJA) this.sulje();
+    };
+    kahva.addEventListener('pointerdown', alku);
+    kahva.addEventListener('pointermove', liike);
+    kahva.addEventListener('pointerup', loppu);
+    kahva.addEventListener('pointercancel', loppu);
   },
 
   auki() { return !!(this._el && this._el.classList.contains('auki')); },
@@ -16428,6 +16555,13 @@ const HavLaaja = {
     this._el.setAttribute('aria-label', (data.station || 'Tuulihavainto') + ' — laajennettu kaavio');
     this._el.classList.add('auki');
     this.paivita();
+    /* UUSINTAMITTAUS ASETTUMISEN JALKEEN. Kaannolla avattaessa
+       `matchMedia`-tapahtuma ehtii ennen kuin selain on asettanut uudet
+       ikkunamitat, ja `_asu()` mittaa silloin vanhan laatikon: mitattuna
+       kaavio jai vaakaan 714x187 px kun asettuneena se on 714x280.
+       Resize-kuuntelija ei korjaa sita, koska se ehti ajaa nakyman
+       ollessa viela kiinni. */
+    setTimeout(() => { if (this.auki()) this.paivita(); }, 180);
     if (typeof Modaali !== 'undefined') Modaali.avaa(this._el, avaaja);
     if (typeof Haptics !== 'undefined' && Haptics.medium) Haptics.medium();
   },
@@ -16441,12 +16575,62 @@ const HavLaaja = {
     setTimeout(() => { if (!this.auki() && this._kaavio) this._kaavio.innerHTML = ''; }, 220);
   },
 
+  /* Lukemarivi: levossa jakson tilastot, raahatessa osoitetun hetken
+     arvot. `b` on nippu tai null (lepo). */
+  naytaLukema(b) {
+    if (!this._lukema) return;
+    const solu = (nimi, arvo, ala) => '<span class="hl-lk"><span class="hl-lk-nimi">' + nimi
+      + '</span><span class="hl-lk-arvo">' + arvo + '</span>'
+      + (ala ? '<span class="hl-lk-ala">' + ala + '</span>' : '') + '</span>';
+    if (b) {
+      const dt = new Date(b.ms);
+      const PV = ['su', 'ma', 'ti', 'ke', 'to', 'pe', 'la'];
+      const kello = ('0' + dt.getHours()).slice(-2) + ':' + ('0' + dt.getMinutes()).slice(-2);
+      this._lukema.innerHTML =
+        solu(PV[dt.getDay()] + ' ' + dt.getDate() + '.' + (dt.getMonth() + 1) + '.', kello, '')
+        + solu('Tuuli', Units.fmt(b.ws), Units.label())
+        + solu('Puuska', Units.fmt(b.wg), Units.label())
+        + (b.d != null ? solu('Suunta', _havIlmansuuntaLyhyt(b.d), Math.round(b.d) + '°') : '')
+        + (b.ta != null ? solu('Lämpö', b.ta.toFixed(1), '°C') : '');
+      return;
+    }
+    const y = this._kaavio && this._kaavio._havYhteenveto;
+    if (!y) { this._lukema.innerHTML = ''; return; }
+    /* Lämpötila VÄLINÄ eikä käyränä. Oma y-akseli tuulen rinnalla
+       tekisi risteämisistä merkitseviä vaikka ne ovat mittayksikön
+       sattumaa; väli kertoo saman ilman toista asteikkoa. */
+    const lampoTeksti = (y.lampoMin != null && y.lampoMax != null)
+      ? (Math.abs(y.lampoMax - y.lampoMin) < 0.15
+         ? y.lampoMax.toFixed(1)
+         : y.lampoMin.toFixed(1) + '–' + y.lampoMax.toFixed(1))
+      : null;
+    this._lukema.innerHTML =
+      solu('Keskituuli', Units.fmt(y.ka), Units.label())
+      + solu('Kovin puuska', Units.fmt(y.max), Units.label())
+      + (y.puuskaisuus != null ? solu('Puuskaisuus', '×' + y.puuskaisuus.toFixed(2), '') : '')
+      + (y.min != null ? solu('Tyynin', Units.fmt(y.min), Units.label()) : '')
+      + (y.suunta != null ? solu('Vallitseva', _havIlmansuuntaLyhyt(y.suunta), Math.round(y.suunta) + '°') : '')
+      + (lampoTeksti != null ? solu('Lämpö', lampoTeksti, '°C') : '');
+  },
+
   /* Piirtaa laajan kaavion uudelleen kortin nykyisella jaksolla. */
   paivita() {
     if (!this.auki() || !this._lahde) return;
     const l = this._lahde;
     this._kaavio._fmiHours = l.el._fmiHours;
+    /* LUKEMARIVI TAYTETAAN ENNEN MITTAUSTA. Rivin korkeus muuttuu sen
+       mukaan montako riviä teksti vie, ja `_asu()` mittaa juuri sen
+       laatikon jonka kokoon rivi vaikuttaa — jos rivi taytetaan vasta
+       piirron jalkeen, mitta on vanhentunut. Mitattuna sama nakyma
+       antoi peraakkain 645 px ja 625 px. Kortin yhteenveto kelpaa
+       lahteeksi: se on piirretty samasta datasta samalla jaksolla. */
+    if (l.el._havYhteenveto) this._kaavio._havYhteenveto = l.el._havYhteenveto;
+    this.naytaLukema(null);
     _renderLiveHistory(this._kaavio, l.data, l.wx, this._asu());
+    /* Koukku asetetaan piirron JÄLKEEN: `_renderLiveHistory` kirjoittaa
+       elementin sisällön uusiksi mutta ei kosketa sen omiin kenttiin. */
+    this._kaavio._havScrub = (b) => this.naytaLukema(b);
+    this.naytaLukema(null);
     /* Jaksonapit otsikkoriville: kortin omat napit ovat sen sisalla
        eivatka nay taalla. Sama `data-fmi-period`, sama kasittelija. */
     const napit = l.el.querySelectorAll('[data-fmi-period]');
@@ -16878,6 +17062,30 @@ function _renderLiveHistory(el, data, wx, asu) {
   var vallitseva = _havSuuntaKeskiarvo(ws.map(function (p) { return p.d; }));
   var lampo = ta.length ? ta[ta.length - 1].v : null;
   var ruusu = _havRuusu(ws);
+  /* YHTEENVETO ULOS ELEMENTTIIN. Laaja näkymä näyttää sen lukemarivillä
+     levossa: kokonäyttöön siirtyminen ei saa hävittää sitä yhteenvetoa
+     joka kortilla oli näkyvissä ruusun vieressä. */
+  var lampoMin = null, lampoMax = null;
+  if (data.lampomittari !== false) {
+    for (var li = 0; li < ta.length; li++) {
+      var lv = ta[li].v;
+      if (lv == null) continue;
+      if (lampoMin == null || lv < lampoMin) lampoMin = lv;
+      if (lampoMax == null || lv > lampoMax) lampoMax = lv;
+    }
+  }
+  el._havYhteenveto = {
+    ka: sKa, max: sMax, min: isFinite(sMin) ? sMin : null,
+    suunta: vallitseva,
+    lampo: (data.lampomittari === false || !ta.length) ? null : ta[ta.length - 1].v,
+    lampoMin: lampoMin, lampoMax: lampoMax,
+    /* PUUSKAISUUS on jakson kovin puuska jaettuna keskituulella.
+       Se on johdettu luku, ei uusi mittaus — mutta juuri se vastaa
+       kysymykseen jota foilaaja kysyy sarjasta: oliko tasaista vai
+       repivää. Kaaviosta sen näkee täytön paksuutena, mutta lukuna
+       sitä ei ollut missään. */
+    puuskaisuus: (sKa > 0.5 && sMax > 0) ? sMax / sKa : null,
+  };
 
   /* Tilastoruutu on nyt SOLU, ei paljas teksti — lähteen alarivin tapaan.
    *
@@ -17078,6 +17286,11 @@ function _renderLiveHistory(el, data, wx, asu) {
     }
     vl.setAttribute('x1', x.toFixed(1)); vl.setAttribute('x2', x.toFixed(1)); vl.setAttribute('visibility', 'visible');
     dot.setAttribute('cx', x.toFixed(1)); dot.setAttribute('cy', y.toFixed(1)); dot.setAttribute('visibility', 'visible');
+    /* LAAJASSA LUKEMA MENEE KIINTEÄLLE RIVILLE, ei kelluvaan kuplaan.
+       Kokonäytössä kupla jää täsmälleen sormen alle — juuri sen luvun
+       päälle jota ollaan lukemassa. Rivi on otsikon alla, aina samassa
+       paikassa ja aina näkyvissä. */
+    if (el._havScrub) { el._havScrub(b); tip.style.display = 'none'; return; }
     var dt2 = new Date(b.ms);
     var kello = ('0' + dt2.getHours()).slice(-2) + ':' + ('0' + dt2.getMinutes()).slice(-2);
     var pvm = PAIVAT[dt2.getDay()] + ' ' + dt2.getDate() + '.' + (dt2.getMonth() + 1) + '.';
@@ -17111,6 +17324,7 @@ function _renderLiveHistory(el, data, wx, asu) {
   }
   function piilota() {
     viimeIdx = -1;
+    if (el._havScrub) el._havScrub(null);
     tip.style.display = 'none';
     vl.setAttribute('visibility', 'hidden');
     dot.setAttribute('visibility', 'hidden');

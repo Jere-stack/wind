@@ -105,7 +105,8 @@ kokeiltu ja kaadettu mittauksella.
   sirujen järjestys · Aaltopoijun lukema tulee samalla zoomilla kuin
   meriaseman · Aaltopoijun kaavion voi raahata · Kapselin puuskarivi katosi ·
   Vuosaaren asema sanoi "ei signaalia" · Havaintokaavio uusiksi: väri tulee
-  korkeudesta · Havaintokaavion laajennus koko ruudulle
+  korkeudesta · Havaintokaavion laajennus koko ruudulle · Laajennettu
+  kaavio iPhonella: turva-alueet, liuku ja lukemarivi
 
 </details>
 
@@ -440,6 +441,32 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **Kääntö sulkee vain jos näkymä avattiin kääntämällä.** Napista avattu
   jää auki ja vaihtaa asua. Nappi on oikea `<button>`; kääntö yksin
   rikkoisi saavutettavuussäännön.
+- **LAAJA NÄKYMÄ ON `inset: 0`, JOTEN SE TARVITSEE TURVA-ALUEET
+  KAIKILLA NELJÄLLÄ SIVULLA.** Ilman niitä mitattiin iPhone 16:lla neljä
+  oiretta yhdestä syystä: pystyssä sulkunappi 7 px ylhäältä (palkki 59),
+  vaakassa kaavio 10 px vasemmalta, nappi 12 px oikealta ja rako alas
+  18 px (indikaattori 21). Täyte on `max(var(--sat), 6px)` eikä pelkkä
+  token, koska selaimessa alainsetti on iPhonella nolla. Vaakatilassa
+  palkki on toisella sivulla mutta kumpi riippuu kääntösuunnasta —
+  molemmat on käsiteltävä.
+- **Kaavion korkeus ratkaistaan LAATIKOSTA** (`_asu()`), ei vakiona: SVG
+  skaalautuu leveyden mukaan, joten kiinteä viewBox jätti pystyssä
+  128 px käyttämättä. Lukemarivi on täytettävä ENNEN mittausta (sen
+  korkeus muuttaa laatikkoa: 645 vs 625 px), ja avauksen jälkeen on
+  piirrettävä uudestaan 180 ms:n kuluttua (kääntämällä avattaessa mitat
+  eivät ole asettuneet: 714×187 vs 714×280).
+- **`.hl-kaavio`-sivutäyte on 4 px**, koska kortin kaavio vuotaa 22 px
+  omaan täytteeseensä. Leveämpi täyte tekee laajennetusta kaaviosta
+  KAPEAMMAN kuin se oli kortilla (365 vs 375) — laajennus ei saa
+  kaventaa mitään.
+- **Liu'utusele alkaa vain kahvasta tai otsikkoriviltä.** Kuvaajan
+  päällä raahaus on lukeman haku, joten sulkuele siellä sulkisi näkymän
+  aina kun arvoa luetaan. Napit ohitetaan `closest('button')`illa.
+- **Laajassa lukema menee kiinteälle riville, ei kelluvaan kuplaan** —
+  kokonäytössä kupla jää sormen alle. Rivillä on levossa jakson
+  tilastot ja raahatessa hetken arvot.
+- **Lämpötila on VÄLI eikä käyrä.** Oma y-akseli tuulen rinnalla tekisi
+  risteämisistä merkitseviä vaikka ne ovat mittayksikön sattumaa.
 - **`wsMin` EI OLE lähteen tyyni vaan nipun sisäinen minimi.** Kun
   nippuun osuu yksi näyte, se on sama luku kuin keskiarvo — mitattuna
   katkoviiva piirtyi 0,00 yksikön päähän keskituulesta koko laajassa

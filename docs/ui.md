@@ -3345,3 +3345,96 @@ kysymyksenä.
 Mitattu jälkeen kortilla: 6 h ei käyrää eikä avainta, 24 h / 3 vrk /
 7 vrk käyrä erkanee 1,36 / 6,38 / 7,04 yksikköä ja avain on mukana.
 Käyrä ja selite ovat joka jaksolla samaa mieltä.
+
+## Laajennettu kaavio iPhonella: turva-alueet, liuku ja lukemarivi
+
+Käyttäjä raportoi että iPhone 16:lla sulkunappi on kamerapalkin takana
+ja että vaakatila ei toimi kunnolla. Mittasin iPhone 16:n mitoilla ja
+turva-alueilla (pysty t59/b34, vaaka b21/l59/r59), ja vika oli yksi
+mutta oireita neljä:
+
+| | mitattu | turva-alue |
+|---|---|---|
+| pysty: sulkunappi ylhäältä | 7 px | 59 px |
+| vaaka: kaavio vasemmalta | 10 px | 59 px |
+| vaaka: sulkunappi oikealta | 12 px | 59 px |
+| vaaka: rako alas | 18 px | 21 px |
+
+Näkymä on `position: fixed; inset: 0`, eli se ulottuu kamerapalkin ja
+koti-indikaattorin alle, eikä se käyttänyt sovelluksen omia
+`--sat/--sab/--sal/--sar`-tokeneita lainkaan. Vaakatilassa "ei toimi
+kunnolla" oli siis kolme päällekkäistä oiretta samasta syystä.
+
+Täyte on `max(var(--sat), 6px)` eikä pelkkä token: selaimessa alainsetti
+on iPhonella nolla (Safarin oma palkki vie tilan), ja silloin tarvitaan
+silti pieni oma marginaali. Vaakatilassa palkki on toisella sivulla,
+mutta kumpi sivu se on riippuu kääntösuunnasta — siksi molemmat.
+
+Mitattu jälkeen: sulkunappi 79 px ylhäältä, kaavio 63 px vasemmalta,
+nappi 71 px oikealta, rako alas 23 px. Kaikki turva-alueiden ulkopuolella.
+
+### Korkeus sovitetaan laatikkoon
+
+SVG skaalautuu leveyden mukaan ja sen korkeus tulee viewBoxin
+kuvasuhteesta, joten kiinteä korkeus jätti ruudusta osan käyttämättä:
+mitattuna pystyssä 532 px kun tilaa oli ~660, eli **128 px tyhjää**.
+Nyt viewBoxin korkeus ratkaistaan laatikosta, ja kaavio on 646 px.
+
+Takaisinkytkentää ei synny, koska `.hl-kaavio` on `flex: 1` ja
+`overflow: hidden` — sisällön korkeus ei muuta laatikon korkeutta.
+
+Kaksi ansaa löytyi mittaamalla:
+
+- **Lukemarivi on täytettävä ENNEN mittausta.** Rivin korkeus riippuu
+  siitä montako riviä teksti vie, ja `_asu()` mittaa juuri sen laatikon
+  johon rivi vaikuttaa. Kun rivi täytettiin vasta piirron jälkeen, sama
+  näkymä antoi peräkkäin 645 px ja 625 px.
+- **Kääntämällä avattaessa mitat eivät ole vielä asettuneet.**
+  `matchMedia`-tapahtuma ehtii ennen kuin selain on asettanut uudet
+  ikkunamitat, ja resize-kuuntelija ehti ajaa näkymän ollessa vielä
+  kiinni. Kaavio jäi vaakaan 714×187 px kun asettuneena se on 714×280.
+  Ratkaisu on uusintapiirto 180 ms:n kuluttua avauksesta.
+
+**Sivutäyte on 4 px eikä 10 px**, koska kortin kaavio vuotaa 22 px omaan
+täytteeseensä (`margin-left:-22px`): leveämpi täyte teki laajennetusta
+kaaviosta kapeamman kuin se oli kortilla (365 px vs 375 px). Laajennus
+ei saa kaventaa mitään.
+
+### Liu'utus pois
+
+Kahva ylhäällä, ja ele alkaa **vain kahvasta tai otsikkoriviltä**.
+Kuvaajan päällä raahaus on lukeman haku, joten sulkuele ei saa alkaa
+sieltä — muuten arvon lukeminen sulkisi näkymän. Sama työnjako kuin
+korttiarkilla: kahva sulkee, sisältö toimii.
+
+Raja on 90 px tai 0,45 px/ms: nopea heitto sulkee lyhyemmälläkin
+matkalla. Näkymä seuraa sormea ja haalenee (opacity 1 → 0,35), ja
+lyhyt veto palauttaa sen paikalleen.
+
+Mitattu: 40 px:n veto ei sulje, 160 px sulkee, kuvaajan raahaus ei
+sulje, jaksonapin painallus ei sulje (napit ohitetaan `closest('button')`
+-tarkistuksella).
+
+### Lukemarivi — kokonäytön paras datalisä
+
+Kelluva kupla jää kokonäytössä täsmälleen sormen alle, juuri sen luvun
+päälle jota luetaan. Laajassa näkymässä lukema menee siksi kiinteälle
+riville otsikon alle.
+
+Rivillä on kaksi tilaa:
+
+- **Levossa jakson tilastot**: keskituuli, kovin puuska, puuskaisuus,
+  tyynin, vallitseva suunta, lämpötilaväli. Kokonäyttöön siirtyminen ei
+  saa hävittää sitä yhteenvetoa joka kortilla oli ruusun vieressä.
+- **Raahatessa osoitetun hetken arvot**: päivä, kello, tuuli, puuska,
+  suunta, lämpötila.
+
+**Puuskaisuus** (kovin puuska / keskituuli) on johdettu luku, ei uusi
+mittaus — mutta juuri se vastaa kysymykseen jota foilaaja sarjasta
+kysyy: oliko tasaista vai repivää. Kaaviosta sen näkee täytön
+paksuutena, mutta lukuna sitä ei ollut missään.
+
+**Lämpötila on VÄLI eikä käyrä.** Oma y-akseli tuulen rinnalla tekisi
+risteämisistä merkitseviä vaikka ne ovat mittayksikön sattumaa; väli
+(esim. 15,2–16,8 °C) kertoo saman ilman toista asteikkoa. Jos ero on
+alle 0,15 °C, näytetään yksi luku.
