@@ -3095,3 +3095,163 @@ poissa `_obsMarkers`ista, "ei signaalia" -merkkejä ruudulla 0.
 `/api/fmi` katkaistaan (`abort`) tai se palauttaa 500:n, kaikki 13
 merkkiä JÄÄVÄT kartalle ja 11 niistä on hiljaisia. Ilman tätä
 tarkistusta yksi verkkokatko olisi pyyhkinyt havaintoasemat kartalta.
+
+## Havaintokaavio uusiksi: väri tulee korkeudesta
+
+Käyttäjä pyysi havaintoasemille Windgurun tuulikaavion kaltaista näkymää
+mobiilille. Lähdekuvan olennainen keksintö ei ole mikään yksittäinen
+elementti vaan se, että **täytön väri on funktio KORKEUDESTA**: vaakaviipale
+korkeudella y saa sen nopeuden värin jota y edustaa akselilla. Silloin
+"pääseekö vesille" luetaan pinnasta ilman että akselia katsoo.
+
+Vanha kaavio oli sävytetty viiva ja harmaa puuskavyöhyke. Uusi on
+kolme käyrää värillisen täytön päällä.
+
+### Ensimmäinen mittaus kaatoi ilmeisen toteutuksen
+
+Luonteva ensiajatus: täyttö `ink()`-rampilla, sama jolla viiva jo
+piirtyi. Mitattuna se on mahdoton — musteviiva katoaa oman ramppinsa
+päälle:
+
+| m/s | ink/paperi |
+|---|---|
+| 0 | 3,33 |
+| 4 | **1,23** |
+| 6 | **1,14** |
+| 8 | 1,39 |
+| 12 | 1,78 |
+| 20 | 1,84 |
+
+Mediaani 1,6 ja pohja 1,14 juuri sillä 4–8 m/s alueella joka ratkaisee.
+Syy on rakenteellinen: täytön väri ja viivan väri johdetaan samasta
+nopeudesta, joten ne seuraavat toisiaan eivätkä voi erota.
+
+### Ratkaisu: yksi kanava, yksi merkitys
+
+**Täyttö kantaa arvon, viivat kantavat muodon.** Kun täyttö kertoo
+nopeuden, viivan väri olisi sama tieto toiseen kertaan — ja juuri se
+söi kontrastin. Viivat ovat kiinteää mustetta.
+
+Mikä muste? Pienin kontrasti koko alueella 0–26 m/s, täyttöä vasten:
+
+| muste | a=0,28 | a=0,40 | a=0,55 | a=0,70 |
+|---|---|---|---|---|
+| `--ink` (16,26,32) | 8,57 | 6,23 | **3,94** | 2,35 |
+| `--ink-2` (76,89,96) | 3,51 | 2,55 | 1,61 | 1,04 |
+| `--ink-3` (95,105,111) | 2,73 | 1,98 | 1,25 | 1,03 |
+
+`--ink` on ainoa joka kestää. Se on myös eri muste kuin kaavioissa
+siihen asti käytetty `#4C5960` — sama asia kuin `--ink-2`, eli 1,61:1.
+
+Täyttö on `ColorRamp.paperi()` eli karttaramppi × 0,48, sama jolla
+aikajanan palkit piirretään. Alfa nousee korkeuden mukana 0,16 → 0,62:
+matala ja haalea = tyyni, korkea ja kylläinen = kova. Heikoin sävy
+(10 m/s, oliivi) erottuu paperista 2,17:1 alfalla 0,55.
+
+Pahin yhdistelmä — tumma sininen JA korkea alfa — ei voi esiintyä:
+sininen on asteikon pohjassa, jossa alfa on matalin. Alfa ja sävy ovat
+molemmat saman korkeuden funktioita.
+
+### `gradientUnits="userSpaceOnUse"` ei ole valinnainen
+
+Oletusarvoinen `objectBoundingBox` suhteuttaisi gradientin
+**täyttöpolun** rajauslaatikkoon, jonka yläreuna on korkein
+puuskapiikki — ei piirtoalueen ylälaita. Väri ja akseli irtoaisivat
+toisistaan heti kun tuuli ei yllä asteikon huippuun, eli lähes aina.
+
+Gradientin pysäkit otetaan **m/s-asteikolla** ja sijoitetaan sinne
+minne ne y-akselilla osuvat. Käänteistä yksikkömuunnosta ei ole eikä
+tarvita — bofori ei olisi käännettävissä lainkaan.
+
+### Y-akselin väriliuska
+
+Lähteessä väriasteikko on erillinen palkki oikeassa reunassa.
+Mobiilissa sille ei ole leveyttä, ja akselin viereen se kuuluu
+muutenkin: kolmen yksikön liuska samalla gradientilla y-akselin
+vieressä tekee korkeudesta, numerosta ja väristä näkyvästi saman asian.
+
+### Ei vaakavieritystä
+
+Lähde näyttää ~10 h 1900 pikselissä. Mobiilissa on 266 yksikköä, eli
+17× vähemmän. Silti vieritystä ei tarvita: kuvaaja niputtaa 24 h
+noin 110 pisteeseen eli **13 minuuttiin per piste**, mikä on tiheämpi
+kuin lähteen oma 30 minuutin askel. Muoto siis säilyy täysin —
+vain nimikyltit eivät mahtuisi, eikä niitä yritetä mahduttaa.
+
+Vieritys olisi lisäksi maksanut raahauksen: kaaviota luetaan sormella
+vetämällä, ja vaakavieritys söisi sen eleen.
+
+### Yö ja päivä — ja mittaus joka kumosi epäilyni
+
+Harso käyttää samaa `Aurinko.vaihe`-jakoa ja samoja alfoja kuin
+aikajana (.13 / .09 / .05), koska ne on jo kertaalleen kalibroitu
+kuvaajan päälle kortin paperilla.
+
+**Harso piirtyy täytön PÄÄLLE mutta viivojen ALLA.** Ensin se laitettiin
+täytön alle, jotta värisopimus säilyisi koskemattomana. Se mitattiin
+väärin: harso näkyi vain siellä missä täyttöä ei ollut eli kuvaajan
+yläosassa, ja luki harmaana korostuslaatikkona eikä yönä. Päällä se
+himmentää sarakkeen tasaisesti, jolloin sävyjen keskinäinen järjestys
+säilyy ja viivojen mitattu kontrasti ei muutu.
+
+Kuvakaappauksesta näytti siltä että kaista alkaa jo ennen klo 18,
+vaikka aurinko laskee Helsingissä 9.9. vasta 20:00. Mitattuna
+piirretyt rajat olivat:
+
+```
+20:03 - 20:46  .05   (siviilihämärä alkaa auringonlaskusta)
+20:46 - 22:46  .09
+22:46 - 03:50  .13   (yö)
+03:50 - 05:50  .09
+05:50 - 06:33  .05   (päättyy auringonnousuun)
+```
+
+Kaista oli oikein alusta asti. Silmämääräinen pikseliarvio petti,
+koska SVG:llä on `margin-left:-22px` ja `width:calc(100% + 22px)` —
+kuvan x ei ole viewBoxin x. Vika oli arviossa, ei koodissa.
+
+### Puuskahuippujen numerot
+
+Lähteessä jokainen piste on numeroitu; mobiilissa ei mahdu. Numerot
+annetaan paikallisille maksimeille suuruusjärjestyksessä, vähintään 40
+yksikön välein, enintään neljä.
+
+Kaksi sääntöä syntyi mittauksesta:
+
+- **Kynnys 55 % vaihteluvälistä.** Ilman sitä lappu meni myös
+  vaatimattomalle kumpareelle aina kun isommat sattuivat olemaan
+  lähekkäin — 24 h:n jaksossa lapun sai 31,9 ja 27,8, ja kolmanneksi
+  19,6, joka on jakson keskitasoa eikä huippu lainkaan.
+- **Jakson kovin puuska saa lapun AINA.** Muut huiput väistävät oikeaa
+  reunaa, koska siellä on viimeisimmän lukeman piste — ja se sääntö
+  sulki 7 vrk:n jaksossa pois juuri sen luvun jonka "Kovin puuska"
+  -ruutu alla sanoi: ruudussa 31,9 kts, kaaviossa suurin lappu 29,0.
+  Kortti ei saa kertoa kahta eri lukua samasta jaksosta.
+
+Tarkistettu jälkeen yhdeksällä asema/jakso-yhdistelmällä (Harmaja,
+Laru, Kruunuvuorenselkä × 6 h / 24 h / 3 vrk / 7 vrk): kaavion suurin
+lappu on joka kerta sama luku kuin ruudussa, eikä yksikään lappu
+leikkaudu reunan yli.
+
+### Tilastoruudut ovat soluja
+
+Lähteen alarivi on värillisiä soluja. Sama tehtiin ruuduille: tausta on
+`paperi()` alfalla .20 silloin kun luku on tuulennopeus, muuten
+neutraali `--surface-lo`. Väri kuuluu vain nopeudelle, joten suunta ja
+lämpötila jäävät värittömiksi eikä niille keksitä omaa asteikkoa —
+mutta ne ovat samannäköisiä soluja, jolloin rivi lukee ryhmänä.
+
+Numero on `--ink` eikä `ink(ms)`: mitattuna 9,94:1 tätä taustaa vasten,
+kun sävytetty numero olisi omalla taustallaan paikoin alle 2:1.
+
+### Mitattu lopuksi
+
+Neljä jaksoa × kolme asemaa, mobiili 393×852 ja työpöytä 1440×900:
+ei yhtään päällekkäistä huippulappua eikä x-akselin merkintää, yökaistoja
+3 / 5 / 15 / 34 jakson mukaan, työpöydällä ei ylivuotoa oikeasta
+reunasta, 0 konsolivirhettä. Raahaus toimii: kolme kohtaa antoi kolme
+eri lukemaa ja tooltipissa on puuska mukana.
+
+**Ennestään rikki, ei tässä korjattu:** spottikortin sisällä oleva
+asemavalitsin (`-fmidd`-slotti) jää tyhjäksi. Sama HEAD-versiossa
+ennen tätä muutosta, eli se ei ole tämän erän aiheuttama.

@@ -16287,26 +16287,35 @@ function _renderLiveHistory(el, data, wx) {
   if (ws.length < 2) { ws = wsKaikki; wg = wgKaikki; ta = taKaikki; }
 
   /* ── Mitat ──────────────────────────────────────────────────────── */
-  var W = 300, H = 104, padX = 26, padY = 8;
-  var suuntaY = H + 4, suuntaH = 16;          /* suuntanauha kuvan alla */
+  /* Kuvaaja on korkeampi kuin ennen (104 -> 132). Väritetty täyttö on
+     pinta-alaa, ja pinta-ala tarvitsee korkeutta ollakseen luettava:
+     matalassa kuvaajassa koko ramppi puristuisi muutamaan kymmeneen
+     pikseliin eikä sävyero kertoisi mitään. */
+  var W = 300, H = 132, padX = 26, padY = 11;
+  var suuntaY = H + 5, suuntaH = 16;          /* suuntanauha kuvan alla */
   var labY = suuntaY + suuntaH + 11;          /* x-akselin tekstirivi   */
   var TH = labY + 3;
   var plotW = W - padX - 8;
+  var pohjaY = H - padY;                      /* piirtoalueen alareuna  */
 
   var niput = _havNiputa(ws, wg, ta, Math.round(plotW / 2.4));
   var n = niput.length;
 
   /* Yksikkömuunnos vasta piirtoon: ColorRamp haluaa aina m/s. */
   function U(v) { return Units.convert(v); }
-  var ylin = 0, alin = Infinity;
+  var ylin = 0, alin = Infinity, msYlin = 0, msAlin = Infinity;
   for (var i = 0; i < n; i++) {
     if (U(niput[i].wg) > ylin) ylin = U(niput[i].wg);
     if (U(niput[i].wsMin) < alin) alin = U(niput[i].wsMin);
+    if (niput[i].wg > msYlin) msYlin = niput[i].wg;
+    if (niput[i].wsMin < msAlin) msAlin = niput[i].wsMin;
   }
   var minV = Math.max(0, alin - (ylin - alin) * 0.12);
   var maxV = ylin + (ylin - alin) * 0.16 + 0.3;
   if (!isFinite(minV)) minV = 0;
   if (!isFinite(maxV) || maxV <= minV) maxV = minV + 10;
+  if (!isFinite(msAlin)) msAlin = 0;
+  if (!isFinite(msYlin) || msYlin <= msAlin) msYlin = msAlin + 5;
 
   function xOf(i) { return padX + (n <= 1 ? plotW / 2 : i / (n - 1) * plotW); }
   function yOf(v) { return padY + (1 - (v - minV) / (maxV - minV)) * (H - padY * 2); }
@@ -16323,23 +16332,26 @@ function _renderLiveHistory(el, data, wx) {
     }
     return d;
   }
+  /* KOLME KÄYRÄÄ, EI VYÖHYKETTÄ.
+   *
+   * Ennen tässä oli yksi harmaa vyöhyke puuskan ja tyynen välissä. Nyt
+   * puuska on TÄYTÖN yläreuna, keskituuli sen sisällä oleva viiva ja
+   * minimi katkoviiva — sama kolmikko kuin lähteessä. Vyöhykkeen
+   * paksuus on yhä luettavissa (katkoviivan ja täytön reunan väli),
+   * mutta täyttö kantaa nyt myös ARVON värinään. */
   var tuuliPolku = polku(function (b) { return U(b.ws); });
-  /* Vyöhyke: yläreuna puuskan huippu, alareuna tuulen pohja — sama polku
-     takaisin päinvastaisessa järjestyksessä, jolloin täyttö sulkeutuu. */
   var ylaP = polku(function (b) { return U(b.wg); });
-  var alaKaanteinen = '';
-  for (var q = n - 1; q >= 0; q--) {
-    var xq = xOf(q).toFixed(1), yq = yOf(U(niput[q].wsMin)).toFixed(1);
-    if (q === n - 1) alaKaanteinen += ' L' + xq + ',' + yq;
-    else {
-      var xp = xOf(q + 1), yp = yOf(U(niput[q + 1].wsMin)), cxq = (xp + xOf(q)) / 2;
-      alaKaanteinen += ' C' + cxq.toFixed(1) + ',' + yp.toFixed(1) + ' ' + cxq.toFixed(1) + ',' + yq + ' ' + xq + ',' + yq;
-    }
-  }
-  var vyohyke = ylaP ? ylaP + alaKaanteinen + ' Z' : '';
+  var pohjaPolku = polku(function (b) { return U(b.wsMin); });
+  /* Täyttö ulottuu piirtoalueen POHJAAN asti, ei tyynen käyrään.
+     Silloin väri kertoo korkeudesta riippumatta mitä se kertoo, eikä
+     kuvaajaan jää selittämätöntä tyhjää alaosaa. */
+  var tayttoAlue = ylaP
+    ? ylaP + ' L' + xOf(n - 1).toFixed(1) + ',' + pohjaY.toFixed(1)
+      + ' L' + xOf(0).toFixed(1) + ',' + pohjaY.toFixed(1) + ' Z'
+    : '';
 
   var svgId = 'hav-' + Math.random().toString(36).slice(2, 7);
-  var gradId = svgId + '-g', vyoId = svgId + '-v';
+  var tayttoId = svgId + '-t';
 
   /* ── Y-akseli ───────────────────────────────────────────────────── */
   var yLab = '';
@@ -16348,8 +16360,11 @@ function _renderLiveHistory(el, data, wx) {
   for (var yv = Math.ceil(minV / askel) * askel; yv <= maxV; yv += askel) {
     var gy = yOf(yv);
     if (gy < padY + 4 || gy > H - padY - 2) continue;
-    yLab += '<line x1="' + padX + '" y1="' + gy.toFixed(1) + '" x2="' + (W - 8) + '" y2="' + gy.toFixed(1) + '" stroke="#DFD4B6" stroke-width="1"/>'
-      + '<text x="' + (padX - 5) + '" y="' + gy.toFixed(1) + '" font-size="7.5" fill="#5F696F" text-anchor="end" dominant-baseline="middle" style="font-variant-numeric:tabular-nums">' + (askel < 1 ? yv.toFixed(1) : yv.toFixed(0)) + '</text>';
+    /* Viiva on hiljaisempi kuin ennen (#DFD4B6 -> .32 alfa): se piirtyy
+       nyt värillisen täytön PÄÄLLE, jossa umpinainen hiekkaviiva lukisi
+       omana esineenään. Numero siirtyy väriliuskan verran vasemmalle. */
+    yLab += '<line x1="' + padX + '" y1="' + gy.toFixed(1) + '" x2="' + (W - 8) + '" y2="' + gy.toFixed(1) + '" stroke="rgba(120,110,85,.32)" stroke-width="1"/>'
+      + '<text x="' + (padX - 7) + '" y="' + gy.toFixed(1) + '" font-size="7.5" fill="#5F696F" text-anchor="end" dominant-baseline="middle" style="font-variant-numeric:tabular-nums">' + (askel < 1 ? yv.toFixed(1) : yv.toFixed(0)) + '</text>';
   }
 
   /* ── X-akseli ────────────────────────────────────────────────────
@@ -16401,13 +16416,144 @@ function _renderLiveHistory(el, data, wx) {
     xLab += '<text x="' + lx.toFixed(1) + '" y="' + labY + '" font-size="7.5" fill="#5F696F" text-anchor="middle" style="font-variant-numeric:tabular-nums">' + teksti + '</text>';
   }
 
-  /* ── Tuuliviivan gradientti ─────────────────────────────────────── */
-  var stops = '';
-  var otos = Math.min(n, 20);
-  for (var si = 0; si < otos; si++) {
-    var pct = otos < 2 ? 0 : (si / (otos - 1) * 100);
-    var vi = otos < 2 ? 0 : Math.round(si / (otos - 1) * (n - 1));
-    stops += '<stop offset="' + pct.toFixed(1) + '%" stop-color="' + _havInkCss(niput[vi].ws) + '"/>';
+  /* ── VÄRI TULEE KORKEUDESTA, EI SARJASTA ─────────────────────────
+   *
+   * Tämä on koko kuvaajan idea. Vaakaviipale korkeudella y saa sen
+   * nopeuden värin jota y edustaa akselilla — eli väri ja y-akselin
+   * numero sanovat saman asian. Silloin "pääseekö vesille" luetaan
+   * pinnasta ilman että akselia tarvitsee katsoa.
+   *
+   * SÄVY ON `paperi()`, EI `ink()`. Mitattuna `ink()` katoaa oman
+   * ramppinsa päälle: kontrasti ink/paperi on 1,14–3,33 ja mediaani
+   * 1,6 — 4–8 m/s kohdalla 1,14, eli viiva olisi näkymätön juuri sillä
+   * alueella joka ratkaisee. `paperi()` on karttaramppi × 0,48, sama
+   * jolla aikajanan palkit piirretään, ja se on tehty täytöksi.
+   *
+   * VIIVAT OVAT `--ink`, EIVÄT SÄVYTETTYJÄ. Kun täyttö kantaa arvon,
+   * viivan väri olisi sama tieto toiseen kertaan — ja juuri se söi
+   * kontrastin. Mitattu pienin kontrasti koko nopeusalueella täyttöä
+   * vasten: `--ink` 3,94:1, `--ink-2` 1,61:1, `--ink-3` 1,25:1.
+   * Yksi kanava, yksi merkitys.
+   *
+   * `gradientUnits="userSpaceOnUse"` EI OLE valinnainen: oletusarvoinen
+   * objectBoundingBox suhteuttaisi gradientin TÄYTTÖPOLUN rajauslaatikkoon,
+   * jonka yläreuna on korkein puuskapiikki eikä piirtoalueen ylälaita —
+   * väri ja akseli irtoaisivat toisistaan heti kun tuuli ei yllä
+   * asteikon huippuun. */
+  var TAYTTO_ALA = 0.16, TAYTTO_YLA = 0.62;
+  var tayttoStops = '';
+  var GSTOPS = 16;
+  for (var gs = GSTOPS; gs >= 0; gs--) {
+    /* Näytteet otetaan M/S-asteikolla ja sijoitetaan sinne minne ne
+       y-akselilla osuvat. Käänteistä yksikkömuunnosta ei ole eikä
+       tarvita — bofori ei olisi käännettävissä lainkaan. */
+    var msg = msAlin + (msYlin - msAlin) * (gs / GSTOPS);
+    var offg = Math.max(0, Math.min(100, (yOf(U(msg)) - padY) / (pohjaY - padY) * 100));
+    var cg = ColorRamp.paperi(msg);
+    var ag = TAYTTO_ALA + (TAYTTO_YLA - TAYTTO_ALA) * (1 - offg / 100);
+    tayttoStops += '<stop offset="' + offg.toFixed(1) + '%" stop-color="rgba('
+      + cg.r + ',' + cg.g + ',' + cg.b + ',' + ag.toFixed(3) + ')"/>';
+  }
+
+  /* ── Yö ja päivä ─────────────────────────────────────────────────
+   *
+   * Havainto on menneisyyttä, ja menneisyydessä vuorokaudenaika on osa
+   * lukemaa: yön puuskapiikki ei ole sama asia kuin keskipäivän. Sama
+   * `Aurinko.vaihe` kuin aikajanalla, ja samat harson alfat — ne on jo
+   * kertaalleen kalibroitu kuvaajan päälle kortin paperilla.
+   *
+   * HARSO ON TÄYTÖN PÄÄLLÄ MUTTA VIIVOJEN ALLA. Ensin se piirrettiin
+   * täytön alle, jotta värisopimus säilyisi koskemattomana — ja se
+   * mitattiin väärin: harso näkyi vain siellä missä täyttöä EI ollut,
+   * eli kuvaajan yläosassa, ja luki harmaana korostuslaatikkona eikä
+   * yönä. Päällä piirrettynä se himmentää koko sarakkeen tasaisesti,
+   * jolloin sävyjen keskinäinen järjestys säilyy. Viivat jäävät sen
+   * yläpuolelle, joten musteen mitattu kontrasti ei muutu. */
+  var yoKaista = '';
+  if (data.lat != null && data.lng != null && typeof Aurinko !== 'undefined' && t1 > t0) {
+    var HARSO = { 0: 'rgba(76,89,96,.13)', 0.5: 'rgba(76,89,96,.09)', 1: 'rgba(76,89,96,.05)', 2: '', 3: '' };
+    var KULMA = { 0: Aurinko.PIMEA, 0.5: Aurinko.SIVIILI, 1: Aurinko.NOUSU, 2: Aurinko.KULTA };
+    var _la = data.lat, _ln = data.lng;
+    var vaiheessa = function (ms) { return Aurinko.vaihe(Aurinko.korkeus(ms, _la, _ln)); };
+    /* Näytteitä vakiomäärä ikkunan pituudesta riippumatta; tarkka raja
+       haetaan puolituksella, jottei 7 vrk:n ikkunassa auringonnousu
+       heittelehdi 40 minuuttia. */
+    var NAYT = 200, askelMs = (t1 - t0) / NAYT;
+    var rajaMsHae = function (a, b, kulma) {
+      for (var it = 0; it < 12; it++) {
+        var c = (a + b) / 2;
+        if ((Aurinko.korkeus(a, _la, _ln) < kulma) === (Aurinko.korkeus(c, _la, _ln) < kulma)) a = c; else b = c;
+      }
+      return (a + b) / 2;
+    };
+    var palaAlku = t0, palaVaihe = vaiheessa(t0);
+    var lisaaPala = function (ms0, ms1, vaihe) {
+      var f = HARSO[vaihe];
+      if (!f || !(ms1 > ms0)) return;
+      var x0 = xOfTime(ms0), x1 = xOfTime(ms1);
+      yoKaista += '<rect x="' + x0.toFixed(1) + '" y="' + padY + '" width="' + (x1 - x0).toFixed(1)
+        + '" height="' + (pohjaY - padY).toFixed(1) + '" fill="' + f + '"/>';
+    };
+    for (var yk = 1; yk <= NAYT; yk++) {
+      var yms = t0 + yk * askelMs, uusiV = vaiheessa(yms);
+      if (uusiV === palaVaihe) continue;
+      var kk = KULMA[Math.min(palaVaihe, uusiV)];
+      var raja = kk !== undefined ? rajaMsHae(yms - askelMs, yms, kk) : yms;
+      lisaaPala(palaAlku, raja, palaVaihe);
+      palaAlku = raja; palaVaihe = uusiV;
+    }
+    lisaaPala(palaAlku, t1, palaVaihe);
+  }
+
+  /* ── Puuskahuippujen numerot ─────────────────────────────────────
+   *
+   * Lähteessä jokainen piikki on numeroitu. Mobiilissa ei mahdu, joten
+   * numerot annetaan paikallisille maksimeille suuruusjärjestyksessä
+   * ja vain jos ne mahtuvat erilleen (40 yksikköä). Neljä on katto:
+   * viides alkoi mitattaessa osua naapurinsa päälle kapeimmalla
+   * ruudulla. Oikea reuna jätetään tyhjäksi — siellä on viimeisimmän
+   * lukeman oma lappu. */
+  var huippuLaput = '';
+  var huippuKandit = [];
+  for (var pk = 1; pk < n - 1; pk++) {
+    if (niput[pk].wg >= niput[pk - 1].wg && niput[pk].wg > niput[pk + 1].wg) huippuKandit.push(pk);
+  }
+  huippuKandit.sort(function (a, b) { return niput[b].wg - niput[a].wg; });
+  /* KYNNYS, EI PELKKÄ JÄRJESTYS. Ilman tätä lappu meni myös vaatimattomalle
+     kumpareelle aina kun isommat sattuivat olemaan liian lähellä toisiaan —
+     mitattuna 24 h:n ikkunassa 31,9 ja 27,8 saivat lapun ja kolmanneksi
+     lapun sai 19,6, joka on jakson keskitasoa eikä huippu lainkaan. Nyt
+     lappu kertoo "tämä oli kova", ja tyynessä jaksossa lappuja on vähän
+     tai ei yhtään — mikä on oikea vastaus. */
+  var huippuKynnys = msAlin + (msYlin - msAlin) * 0.55;
+  var huippuValitut = [];
+  /* JAKSON KOVIN PUUSKA SAA LAPUN AINA, sijainnista riippumatta.
+     Muut huiput väistävät oikeaa reunaa, koska siellä on viimeisimmän
+     lukeman piste — mutta se sääntö sulki kerran pois juuri sen luvun
+     jonka "Kovin puuska" -ruutu alla sanoo (mitattu 7 vrk:n jaksossa:
+     ruudussa 31,9 kts, kaaviossa suurin lappu 29,0). Kortti ei saa
+     kertoa kahta eri lukua samasta jaksosta. */
+  var maxI = 0;
+  for (var mi = 1; mi < n; mi++) if (niput[mi].wg > niput[maxI].wg) maxI = mi;
+  if (n > 3) huippuValitut.push(maxI);
+  for (var hk = 0; hk < huippuKandit.length && huippuValitut.length < 4; hk++) {
+    var hx = xOf(huippuKandit[hk]);
+    if (huippuKandit[hk] === maxI) continue;
+    if (niput[huippuKandit[hk]].wg < huippuKynnys) break;
+    if (hx > W - 30 || hx < padX + 12) continue;
+    var lahella = false;
+    for (var hv = 0; hv < huippuValitut.length; hv++) {
+      if (Math.abs(xOf(huippuValitut[hv]) - hx) < 40) { lahella = true; break; }
+    }
+    if (!lahella) huippuValitut.push(huippuKandit[hk]);
+  }
+  for (var hl = 0; hl < huippuValitut.length; hl++) {
+    var hi2 = huippuValitut[hl], hx2 = xOf(hi2), hy2 = yOf(U(niput[hi2].wg));
+    /* Ankkuri reunan mukaan, jottei reunimmainen lappu leikkaudu. */
+    var hAnk = hx2 > W - 24 ? 'end' : (hx2 < padX + 16 ? 'start' : 'middle');
+    huippuLaput += '<text x="' + hx2.toFixed(1) + '" y="' + Math.max(6.5, hy2 - 3.5).toFixed(1)
+      + '" font-size="7.5" fill="var(--ink-2)" text-anchor="' + hAnk + '"'
+      + ' style="font-variant-numeric:tabular-nums">' + Units.fmt(niput[hi2].wg) + '</text>';
   }
 
   /* ── Suuntanauha ─────────────────────────────────────────────────
@@ -16437,17 +16583,11 @@ function _renderLiveHistory(el, data, wx) {
       + '<path d="M0,-4.4 L2.9,3.1 L0,1.5 L-2.9,3.1 Z" fill="' + _havInkCss(lohkoWs) + '"/></g>';
   }
 
-  /* ── Huiput: viimeisin arvo ja jakson kovin puuska ──────────────── */
+  /* ── Viimeisin lukema ────────────────────────────────────────────
+     Saa aina oman lappunsa: tuoreinta arvoa ei pidä joutua etsimään
+     raahaamalla. Piste on keskituulen käyrällä. */
   var vika = niput[n - 1];
   var vikaX = xOf(n - 1), vikaY = yOf(U(vika.ws));
-  var huippuI = 0;
-  for (var hi = 1; hi < n; hi++) if (niput[hi].wg > niput[huippuI].wg) huippuI = hi;
-  var hX = xOf(huippuI), hY = yOf(U(niput[huippuI].wg));
-  var hAnkkuri = hX < padX + 30 ? 'start' : (hX > W - 40 ? 'end' : 'middle');
-  var huippuLabel = (huippuI !== n - 1 && n > 4)
-    ? '<circle cx="' + hX.toFixed(1) + '" cy="' + hY.toFixed(1) + '" r="2.2" fill="#5F696F"/>'
-      + '<text x="' + hX.toFixed(1) + '" y="' + Math.max(7, hY - 5).toFixed(1) + '" font-size="7.5" fill="#4C5960" text-anchor="' + hAnkkuri + '" style="font-variant-numeric:tabular-nums">' + Units.fmt(niput[huippuI].wg) + '</text>'
-    : '';
 
   /* ── Tilastorivi ────────────────────────────────────────────────── */
   var sKa = 0, sMax = 0, sMin = Infinity;
@@ -16459,10 +16599,26 @@ function _renderLiveHistory(el, data, wx) {
   var lampo = ta.length ? ta[ta.length - 1].v : null;
   var ruusu = _havRuusu(ws);
 
-  function tilasto(label, arvo, ala, vari) {
-    return '<div style="min-width:0">'
+  /* Tilastoruutu on nyt SOLU, ei paljas teksti — lähteen alarivin tapaan.
+   *
+   * Tausta on `paperi()` alfalla .20 silloin kun luku on tuulennopeus,
+   * muuten neutraali `--surface-lo`. Väri kuuluu vain nopeudelle, joten
+   * suunta ja lämpötila jäävät värittömiksi eikä niille keksitä omaa
+   * asteikkoa — mutta ne ovat samannäköisiä soluja, jolloin rivi lukee
+   * yhtenä ryhmänä.
+   *
+   * Numero on `--ink` eikä `ink(ms)`: mitattuna `--ink` on tätä taustaa
+   * vasten 9,94:1 heikoimmillaan, kun sävytetty numero olisi omalla
+   * taustallaan paikoin alle 2:1. */
+  function _tilastoTausta(ms) {
+    if (ms == null) return 'var(--surface-lo)';
+    var c = ColorRamp.paperi(ms);
+    return 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',.20)';
+  }
+  function tilasto(label, arvo, ala, ms) {
+    return '<div style="min-width:0;background:' + _tilastoTausta(ms) + ';border-radius:9px;padding:6px 8px">'
       + '<div style="font-size:var(--fs-75);letter-spacing:.6px;text-transform:uppercase;color:var(--ink-3);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + label + '</div>'
-      + '<div style="font-size:15px;font-weight:600;line-height:1.05;color:' + (vari || 'var(--ink)') + '">' + arvo
+      + '<div style="font-size:15px;font-weight:600;line-height:1.05;color:var(--ink)">' + arvo
       + (ala ? '<span style="font-size:var(--fs-85);font-weight:400;color:var(--ink-3)"> ' + ala + '</span>' : '') + '</div>'
       + '</div>';
   }
@@ -16543,21 +16699,34 @@ function _renderLiveHistory(el, data, wx) {
       + '<div id="' + svgId + '-tip" role="status" style="display:none;position:absolute;background:var(--surface-hi);border:1px solid var(--hairline);border-radius:12px;padding:7px 11px;pointer-events:none;white-space:nowrap;box-shadow:var(--shadow-1);z-index:100;transform:translateX(-50%)"></div>'
       + '<svg id="' + svgId + '" viewBox="0 0 ' + W + ' ' + TH + '" style="width:calc(100% + 22px);margin-left:-22px;display:block;touch-action:none;overflow:visible" role="img" aria-label="Tuulen historia">'
         + '<defs>'
-          + '<linearGradient id="' + gradId + '" x1="0" y1="0" x2="1" y2="0">' + stops + '</linearGradient>'
-          + '<linearGradient id="' + vyoId + '" x1="0" y1="0" x2="0" y2="1">'
-            + '<stop offset="0%" stop-color="rgba(76,89,96,0.20)"/><stop offset="100%" stop-color="rgba(76,89,96,0.07)"/>'
-          + '</linearGradient>'
+          /* userSpaceOnUse: ks. perustelu gradientin rakennuksessa. */
+          + '<linearGradient id="' + tayttoId + '" gradientUnits="userSpaceOnUse"'
+            + ' x1="0" y1="' + padY + '" x2="0" y2="' + pohjaY + '">' + tayttoStops + '</linearGradient>'
         + '</defs>'
-        + yLab
         + vrkViivat
-        + (vyohyke ? '<path d="' + vyohyke + '" fill="url(#' + vyoId + ')"/>' : '')
-        + (ylaP ? '<path d="' + ylaP + '" fill="none" stroke="#4C5960" stroke-width="1" stroke-opacity=".45" stroke-linecap="round"/>' : '')
-        + (tuuliPolku ? '<path d="' + tuuliPolku + '" fill="none" stroke="url(#' + gradId + ')" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' : '')
-        + huippuLabel
-        /* Viimeisin arvo saa aina suoran nimilapun — arvoa ei tarvitse
-           etsiä tooltipilla. Sammutettu kun data on vanhaa. */
+        + (tayttoAlue ? '<path d="' + tayttoAlue + '" fill="url(#' + tayttoId + ')"/>' : '')
+        + yoKaista
+        /* Ruudukko täytön PÄÄLLE mutta hiljaisena: täytön alla se katoaisi
+           kokonaan korkean tuulen kohdalta, ja y-akselin numerot jäisivät
+           leijumaan ilman viivaa johon ne osoittavat. */
+        + yLab
+        /* Y-AKSELIN VÄRILIUSKA. Sama gradientti kolmen yksikön levyisenä
+           akselin vieressä: korkeus, numero ja väri ovat silloin
+           näkyvästi sama asia. Lähteessä tämä on erillinen asteikko
+           oikeassa reunassa — mobiilissa sille ei ole leveyttä, ja
+           akselin viereen se kuuluu muutenkin. */
+        + '<rect x="' + (padX - 4.5) + '" y="' + padY + '" width="3" height="' + (pohjaY - padY)
+          + '" rx="1.5" fill="url(#' + tayttoId + ')"/>'
+        /* Puuskan yläreuna, tyyni katkoviivana, keskituuli paksuna —
+           kaikki `--ink`, ks. mittaus gradientin perusteluissa. */
+        + (ylaP ? '<path d="' + ylaP + '" fill="none" stroke="var(--ink)" stroke-width="1" stroke-opacity=".5" stroke-linecap="round"/>' : '')
+        + (pohjaPolku ? '<path d="' + pohjaPolku + '" fill="none" stroke="var(--ink)" stroke-width="1" stroke-opacity=".55" stroke-dasharray="3 2.6" stroke-linecap="round"/>' : '')
+        + (tuuliPolku ? '<path d="' + tuuliPolku + '" fill="none" stroke="var(--ink)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>' : '')
+        + huippuLaput
+        /* Viimeisin arvo saa aina oman pisteensä — arvoa ei tarvitse
+           etsiä raahaamalla. */
         + '<circle cx="' + vikaX.toFixed(1) + '" cy="' + vikaY.toFixed(1) + '" r="4" fill="var(--surface-hi)"/>'
-        + '<circle cx="' + vikaX.toFixed(1) + '" cy="' + vikaY.toFixed(1) + '" r="2.6" fill="' + _havInkCss(vika.ws) + '"/>'
+        + '<circle cx="' + vikaX.toFixed(1) + '" cy="' + vikaY.toFixed(1) + '" r="2.6" fill="var(--ink)"/>'
         + '<line x1="-1" y1="' + padY + '" x2="-1" y2="' + (suuntaY + suuntaH) + '" stroke="#5F696F" stroke-width="1" id="' + svgId + '-vl" visibility="hidden" pointer-events="none"/>'
         + '<circle id="' + svgId + '-dot" cx="-9" cy="-9" r="3.4" fill="var(--ink)" stroke="var(--surface-hi)" stroke-width="1.6" visibility="hidden" pointer-events="none"/>'
         + '<rect x="' + padX + '" y="' + suuntaY + '" width="' + plotW + '" height="' + suuntaH + '" fill="var(--surface-lo)" opacity=".5" rx="3"/>'
@@ -16570,14 +16739,17 @@ function _renderLiveHistory(el, data, wx) {
     /* Selite: tuuliviivan avain on sama gradientti kuin viiva, koska
        viivalla ei ole yhtä väriä. Vyöhykkeelle oma laatta. */
     + '<div style="display:flex;align-items:center;gap:12px;margin-top:5px;padding:0 2px;font-size:var(--fs-85);color:var(--ink-2);flex-wrap:wrap">'
+      /* Selite nimeää kolme käyrää. Väriä se ei selitä: y-akselin
+         viereinen väriliuska tekee sen näkyvästi ja numeron kanssa. */
       + '<span style="display:inline-flex;align-items:center;gap:4px">'
-        /* gradientUnits="userSpaceOnUse": vaakasuoran viivan rajauslaatikon
-           korkeus on nolla, joten oletusarvoinen objectBoundingBox rappeutuu
-           eikä gradientti näy lainkaan. */
-        + '<svg width="16" height="4" viewBox="0 0 16 4" aria-hidden="true"><defs><linearGradient id="' + gradId + '-lk" gradientUnits="userSpaceOnUse" x1="1" y1="0" x2="15" y2="0">' + stops + '</linearGradient></defs>'
-        + '<line x1="1" y1="2" x2="15" y2="2" stroke="url(#' + gradId + '-lk)" stroke-width="2.4" stroke-linecap="round"/></svg>Tuuli</span>'
+        + '<svg width="15" height="8" viewBox="0 0 15 8" aria-hidden="true">'
+        + '<line x1="1" y1="2" x2="14" y2="2" stroke="var(--ink)" stroke-opacity=".5" stroke-width="1"/></svg>Puuska</span>'
       + '<span style="display:inline-flex;align-items:center;gap:4px">'
-        + '<svg width="14" height="9" viewBox="0 0 14 9" aria-hidden="true"><rect x="0" y="0" width="14" height="9" rx="2" fill="rgba(76,89,96,0.18)"/><line x1="0" y1="1" x2="14" y2="1" stroke="#4C5960" stroke-opacity=".45" stroke-width="1"/></svg>Puuskaväli</span>'
+        + '<svg width="15" height="8" viewBox="0 0 15 8" aria-hidden="true">'
+        + '<line x1="1" y1="4" x2="14" y2="4" stroke="var(--ink)" stroke-width="1.9" stroke-linecap="round"/></svg>Tuuli</span>'
+      + '<span style="display:inline-flex;align-items:center;gap:4px">'
+        + '<svg width="15" height="8" viewBox="0 0 15 8" aria-hidden="true">'
+        + '<line x1="1" y1="4" x2="14" y2="4" stroke="var(--ink)" stroke-opacity=".55" stroke-width="1" stroke-dasharray="3 2.6"/></svg>Tyyni</span>'
       + '<span style="display:inline-flex;align-items:center;gap:4px">'
         + '<svg width="9" height="9" viewBox="-5 -5 10 10" aria-hidden="true"><path d="M0,-4 L2.7,2.9 L0,1.4 L-2.7,2.9 Z" fill="#4C5960"/></svg>Suunta</span>'
       + '<span style="margin-left:auto;color:var(--ink-3)">' + (data.station || 'FMI') + (ikaTeksti ? ' · ' + ikaTeksti : '') + '</span>'
@@ -16587,8 +16759,8 @@ function _renderLiveHistory(el, data, wx) {
     + '<div style="display:flex;align-items:center;gap:12px;margin-top:12px;padding-top:11px;border-top:1px solid var(--hairline-soft)">'
       + (ruusuSvg || '')
       + '<div style="flex:1;min-width:0;display:grid;grid-template-columns:1fr 1fr;gap:10px 12px">'
-        + tilasto('Keskituuli', Units.fmt(sKa), Units.label(), _havInkCss(sKa))
-        + tilasto('Kovin puuska', Units.fmt(sMax), Units.label(), _havInkCss(sMax))
+        + tilasto('Keskituuli', Units.fmt(sKa), Units.label(), sKa)
+        + tilasto('Kovin puuska', Units.fmt(sMax), Units.label(), sMax)
         + tilasto('Vallitseva', _havIlmansuuntaLyhyt(vallitseva), vallitseva != null ? Math.round(vallitseva) + '°' : '')
         /* LÄMPÖTILARUUTU JÄTETÄÄN POIS JOS ASEMALLA EI OLE MITTARIA.
            Viiva tarkoittaa "ei juuri nyt" ja on oikea vastaus katkoon;

@@ -104,7 +104,8 @@ kokeiltu ja kaadettu mittauksella.
   Saavutettavuuserä 3: asetuspaneelin kontrollit · Oletusasetukset ja
   sirujen järjestys · Aaltopoijun lukema tulee samalla zoomilla kuin
   meriaseman · Aaltopoijun kaavion voi raahata · Kapselin puuskarivi katosi ·
-  Vuosaaren asema sanoi "ei signaalia"
+  Vuosaaren asema sanoi "ei signaalia" · Havaintokaavio uusiksi: väri tulee
+  korkeudesta
 
 </details>
 
@@ -396,6 +397,35 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   pistekohtainen mitätöisi `_ts()`:n muistin.
 
 **Havaintoasemat**
+
+- **HAVAINTOKAAVION TÄYTTÖ ON `paperi()` JA VIIVAT `--ink`.** Väri on
+  funktio KORKEUDESTA, ei sarjasta: vaakaviipale korkeudella y saa sen
+  nopeuden värin jota y edustaa. Älä sävytä viivoja rampilla — mitattuna
+  `ink()` katoaa oman ramppinsa päälle (kontrasti 1,14–3,33, mediaani
+  1,6, pohja 1,14 juuri 4–8 m/s kohdalla). Pienin kontrasti täyttöä
+  vasten: `--ink` 3,94:1, `--ink-2` 1,61:1, `--ink-3` 1,25:1 — `--ink`
+  on ainoa joka kestää. Yksi kanava, yksi merkitys: täyttö kantaa
+  arvon, viivat muodon.
+- **`gradientUnits="userSpaceOnUse"` on pakollinen** täytön
+  gradientissa. Oletusarvoinen objectBoundingBox suhteuttaisi sen
+  täyttöpolun rajauslaatikkoon, jonka yläreuna on korkein puuskapiikki
+  eikä piirtoalueen ylälaita — väri ja akseli irtoaisivat toisistaan
+  aina kun tuuli ei yllä asteikon huippuun. Pysäkit otetaan
+  m/s-asteikolla ja sijoitetaan yOf():n mukaan; käänteistä
+  yksikkömuunnosta ei ole eikä saa keksiä (bofori ei ole käännettävissä).
+- **Yöharso on täytön PÄÄLLÄ mutta viivojen ALLA.** Täytön alla se
+  näkyy vain siellä missä täyttöä ei ole ja lukee korostuslaatikkona.
+  Alfat (.13/.09/.05) ovat aikajanan kalibroinnista, älä säädä niitä
+  erikseen.
+- **Jakson kovin puuska saa aina lapun.** Muut huiput väistävät oikeaa
+  reunaa, mutta se sääntö sulki kerran pois juuri sen luvun jonka
+  "Kovin puuska" -ruutu sanoo (7 vrk: ruutu 31,9, kaavion suurin lappu
+  29,0). Muille lapuille kynnys on 55 % vaihteluvälistä, jottei lappu
+  mene keskitason kumpareelle.
+- **Ei vaakavieritystä.** 24 h niputtuu ~110 pisteeseen eli 13 min per
+  piste, mikä on tiheämpi kuin lähteen 30 min askel — muoto säilyy
+  mahtumalla ruudulle. Vieritys myös söisi raahauksen, jolla kaaviota
+  luetaan.
 
 - **KATKO JA LAKKAUTUS OVAT ERI ASIA.** `_fmiLoadWithFallback` antaa
   `onFail`ille syyn: `'tyhja'` = vastaus tuli ja koko ikkuna oli tyhjä
