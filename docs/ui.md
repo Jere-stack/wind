@@ -3255,3 +3255,93 @@ eri lukemaa ja tooltipissa on puuska mukana.
 **Ennestään rikki, ei tässä korjattu:** spottikortin sisällä oleva
 asemavalitsin (`-fmidd`-slotti) jää tyhjäksi. Sama HEAD-versiossa
 ennen tätä muutosta, eli se ei ole tämän erän aiheuttama.
+
+## Havaintokaavion laajennus koko ruudulle
+
+Käyttäjä kysyi pitäisikö kaavioiden olla eri kokoisia ja voisiko ne
+laajentaa koko näytölle. Mittasin ensin lähtötilanteen, ja kaksi lukua
+ohjasivat koko ratkaisun:
+
+| | pysty 393×852 | vaaka 852×393 |
+|---|---|---|
+| kortin sisältö / näkyvä ala | 541 / 595 px | 797 / 322 px |
+| kaavio | 375×209 px | 834×464 px |
+| piirtoalue | 333×165 px | 739×367 px |
+| tiheys 24 h | 13,9 px/tunti | 30,8 px/tunti |
+
+**Kortti ei vieritä pystyssä — tilaa on 54 px yli.** Kaavio ei siis ole
+ahtaalla kortin takia vaan ruudun leveyden takia. Korkeus ei ole
+pullonkaula.
+
+**Aikasarja tarvitsee leveyttä.** Siksi pystysuora koko ruutu ei ratkaise
+mitään: se antaa lisää korkeutta, jota on jo. Vaaka antaa 2,2×.
+
+**Vaakatila ei ole ilmainen.** Nykyasettelulla vaakaruudulla SVG venyy
+834×**464** px — korkeammaksi kuin koko 393 px:n ruutu, koska viewBoxin
+kuvasuhde skaalautuu leveyden mukana. Laajennettu näkymä ei siis ole
+kortin kaavio venytettynä vaan oma kuvasuhteensa.
+
+### Kaksi kokoa, yksi piirtofunktio
+
+Kaikki mikä eroaa on taulukossa (`HAV_ASU_KORTTI`, `HAV_ASU_PYSTY`,
+`HAV_ASU_LAAJA`), ei koodihaaroissa. Kaksi piirtofunktiota ajautuisi
+erilleen ensimmäisessä säädössä.
+
+Laajassa vaakanäkymässä suuntanuolet siirtyvät tuuliviivan **päälle**
+kuten lähteessä, ja suuntanauha jää pois. Nuoli on siellä `--ink`
+paperinvärisellä ääriviivalla, ei sävytetty: täytön päällä sävyramppi
+katoaa (sama mittaus kuin viivoilla, pohja 1,14:1).
+
+Mitattu vaakaruudulla: 32,3 px/tunti 24 h jaksolla ja **129 px/tunti
+6 h jaksolla** — jälkimmäinen on lähdekuvan luokkaa (190). Laajennus ei
+siis tee 7 vrk:sta Windgurua, se tekee 6 h:sta.
+
+### Pystylaajennus ostaa korkeutta
+
+Ensimmäinen versio käytti vaaka-asua kaikkialla, ja mitattuna se antoi
+pystyssä **373×145 px — pienemmän kuin kortti itse** (375×209).
+Laajennusnappi ei saa tehdä kuvaajasta pienempää kuin se oli.
+
+Pystyssä leveyttä ei voi ostaa, joten laajennus ostaa korkeutta:
+373×543 px, eli piirtoalue kolminkertaistuu pystysuunnassa. Aikatiheys
+pysyy kortin tasolla, mutta puuska, keskituuli ja tyyni erottuvat
+toisistaan silloinkin kun ne ovat lähellä.
+
+**Asu valitaan laatikon MUODOSTA, ei media querystä**: työpöydän kapea
+ikkuna ja puhelimen vaaka ovat sama tilanne, ja media query vastaisi
+niihin eri tavalla.
+
+### Nappi ja kääntö
+
+Nappi on ensisijainen ja ainoa pakollinen tie — se on löydettävissä ja
+näppäimistöllä tavoitettava, ja se on oikea `<button>`. Kääntö on
+oikotie: kortin ollessa auki vaakaan kääntäminen laajentaa.
+
+**Pystyyn palaaminen sulkee vain jos näkymä avattiin kääntämällä.**
+Napista avattu jää auki ja vaihtaa pystyasuun, koska käyttäjä pyysi sen
+nimenomaan. Työpöydällä kääntöä ei ole (ruutu on aina vaaka), joten
+oikotie ei laukea vahingossa.
+
+Näkymä kulkee `Modaali`-moduulin kautta: fokusansa, Esc ja paluufokus
+tulevat sieltä. Esc sulkee laajan näkymän eikä korttia sen alta.
+
+### Sivutuote: selite lupasi käyrän jota ei ollut
+
+Laajaa mitatessa löytyi vanha vika. "Tyyni"-katkoviivan etäisyys
+keskituulesta oli **tasan 0,00 yksikköä** sekä 6 h että 24 h jaksolla —
+se piirtyi täsmälleen keskituulen alle.
+
+Syy on `_havNiputa`ssa: `wsMin` ei ole lähteen mittaama tyyni vaan
+NIPUN sisäinen minimi. Kun nippuun osuu yksi ainoa näyte, minimi on
+sama luku kuin keskiarvo. Laajassa piirtoalue on leveämpi kuin
+näytteitä on, joten niputusta ei tapahdu lainkaan — eikä 6 h jaksolla
+kortillakaan.
+
+Käyrä piirretään nyt vain jos se erkanee keskituulesta, ja selitteen
+avain seuraa samaa ehtoa. Ero tarkistetaan datasta eikä nipun koosta:
+niputussääntö voi muuttua, mutta "erkaneeko käyrä" pysyy oikeana
+kysymyksenä.
+
+Mitattu jälkeen kortilla: 6 h ei käyrää eikä avainta, 24 h / 3 vrk /
+7 vrk käyrä erkanee 1,36 / 6,38 / 7,04 yksikköä ja avain on mukana.
+Käyrä ja selite ovat joka jaksolla samaa mieltä.

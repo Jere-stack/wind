@@ -105,7 +105,7 @@ kokeiltu ja kaadettu mittauksella.
   sirujen järjestys · Aaltopoijun lukema tulee samalla zoomilla kuin
   meriaseman · Aaltopoijun kaavion voi raahata · Kapselin puuskarivi katosi ·
   Vuosaaren asema sanoi "ei signaalia" · Havaintokaavio uusiksi: väri tulee
-  korkeudesta
+  korkeudesta · Havaintokaavion laajennus koko ruudulle
 
 </details>
 
@@ -426,6 +426,25 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   piste, mikä on tiheämpi kuin lähteen 30 min askel — muoto säilyy
   mahtumalla ruudulle. Vieritys myös söisi raahauksen, jolla kaaviota
   luetaan.
+- **KOLME ASUA, YKSI PIIRTOFUNKTIO** (`HAV_ASU_KORTTI` / `_PYSTY` /
+  `_LAAJA`). Kaikki mikä eroaa on taulukossa, ei koodihaaroissa. Älä
+  kirjoita laajalle omaa piirtofunktiota.
+- **Laajennus on VAAKANÄKYMÄ.** Aikasarja tarvitsee leveyttä: mitattuna
+  kortti antaa 13,9 px/tunti, vaakaruutu 30,8 (24 h) ja 129 (6 h).
+  Pystysuora täysi ruutu antaisi vain korkeutta, jota kortilla on jo yli
+  (sisältö 541 px, näkyvä 595 px). Pystyasu on silti olemassa, koska
+  ensimmäinen versio antoi pystyssä 373×145 px eli PIENEMMÄN kuin kortti
+  (375×209) — laajennusnappi ei saa kutistaa kuvaajaa.
+- **Asu valitaan laatikon muodosta, ei media querystä.** Työpöydän kapea
+  ikkuna ja puhelimen vaaka ovat sama tilanne.
+- **Kääntö sulkee vain jos näkymä avattiin kääntämällä.** Napista avattu
+  jää auki ja vaihtaa asua. Nappi on oikea `<button>`; kääntö yksin
+  rikkoisi saavutettavuussäännön.
+- **`wsMin` EI OLE lähteen tyyni vaan nipun sisäinen minimi.** Kun
+  nippuun osuu yksi näyte, se on sama luku kuin keskiarvo — mitattuna
+  katkoviiva piirtyi 0,00 yksikön päähän keskituulesta koko laajassa
+  näkymässä ja kortin 6 h jaksolla. Käyrä ja sen selite piirretään vain
+  jos ne erkanevat, ja ehto luetaan DATASTA eikä nipun koosta.
 
 - **KATKO JA LAKKAUTUS OVAT ERI ASIA.** `_fmiLoadWithFallback` antaa
   `onFail`ille syyn: `'tyhja'` = vastaus tuli ja koko ikkuna oli tyhjä
