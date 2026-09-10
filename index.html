@@ -1004,11 +1004,29 @@ html.tyopoyta #kapseli.vaistyy {
    erilleen ensimmäisessä säädössä. */
 :root { --tl-paivat-h: 40px; }
 
+/* PALKIN KORKEUS ON MYÖS YKSI LUKU KAHDESSA PAIKASSA, ja se on tässä
+ * eikä pelkkänä JS-vakiona siksi että kortin korkeus riippuu siitä.
+ * Tuntilukema on absoluuttisesti tikin YLÄREUNASSA ja palkki kasvaa
+ * pohjasta ylös, joten niiden väliin on varattava tila käsin:
+ *
+ *     kortti = palkki + 2 (palkin alatäyte)
+ *                     + 18 (lukemarivi 10 px + 8 px rako; työpöydän
+ *                           isommalla kirjasimella 12 + 6 — mitattu)
+ *                     + 20 + 16 (kortin omat täytteet)
+ *            = palkki + 56
+ *
+ * Mitattu 103 px:n kortilla ennen tätä: täysimittainen 52 px:n palkki
+ * jätti lukemaan 3 px mobiilissa ja 1 px työpöydällä, eli 16 m/s tunti
+ * olisi törmännyt kellonaikaan. Ruudulla nähty maksimi oli 43,8 px, eli
+ * vika ei olisi näkynyt tavallisessa kelissä — vain myrskyssä, joka on
+ * juuri se hetki jolloin janaa luetaan. */
+:root { --tl-palkki-h: 52px; }
+
 /* PÄIVÄKISKO ON LEVOSSA POISSA.
  *
  * Kisko on navigointia, ei lukemista: sitä tarvitaan silloin kun ollaan
  * siirtymässä toiseen päivään, ei silloin kun katsotaan tätä. Levossa se
- * vie 40 px kortin 128:sta eli lähes kolmanneksen, ja se on pysyvää
+ * vie 40 px kortin 148:sta eli reilun neljänneksen, ja se on pysyvää
  * kromia satunnaisesta toiminnosta.
  *
  * Kaksi asiaa tekevät tästä turvallisen sen sijaan että se olisi
@@ -1025,12 +1043,12 @@ html.tyopoyta #kapseli.vaistyy {
  * Korkeus on YKSI muuttuja, joten piilotus on yksi rivi: kääre ja sen
  * ylätäyte kutistuvat yhtä paljon, jolloin tuntinauha, napit ja
  * indikaattori eivät liiku pikseliäkään — vain kortin yläreuna laskee.
- * Mitattu: kortti 128 -> 88 px, tuntirivi samassa kohdassa molemmissa. */
+ * Mitattu: kortti 148 -> 108 px, tuntirivi samassa kohdassa molemmissa. */
 html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
 
 #tl-wrap {
   position: relative; pointer-events: all;
-  height: calc(88px + var(--tl-paivat-h) + var(--sab-tl));
+  height: calc(var(--tl-palkki-h) + 56px + var(--tl-paivat-h) + var(--sab-tl));
   overflow: visible;
   /* KAKSI RAITAA, YKSI VÄLI. Täyte oli 14 + kisko ylhäällä ja 22
      alhaalla, jolloin tuntiuran ja päiväkiskon väliin jäi 3 px ja uran
@@ -1149,16 +1167,36 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
 .tl-play-btn::before {
   content: ''; position: absolute; inset: 2px;
   border-radius: 50%;
-  background: var(--surface-hi);
-  /* Varjo ja kehä kantavat napin, koska kiekko ei kanna: kortin
-     paperilla `--surface-hi` on 1,27:1 eli lähes sama pinta. Uran
-     päällä alusta oli tummempi ja kiekko sai 1,56:1 ilmaiseksi; nyt
-     kohotus on tehtävä varjolla. Kaksi varjoa: tiukka 1 px irrottaa
-     reunan, pehmeä 5 px antaa korkeuden. */
+  /* KIEKKO ON KUPU, EI LÄTTY.
+   *
+   * `background-color` kantaa värin ja `background-image` muodon. Tämä
+   * työnjako on tahallinen: painettu tila vaihtaa VAIN värin
+   * (`.playing` -> `--accent`), ja sama kupu jää voimaan ilman että
+   * gradienttia tarvitsee kirjoittaa toiseen kertaan. Shorthand
+   * `background` nollaisi kuvan — käytä aina `background-color`.
+   *
+   * Liukuväri on MATERIAALI, ei äänenvoimakkuus. Projektin oma sääntö
+   * kieltää napin tummentamisen: se tekisi kontrollista kortin
+   * äänekkäimmän elementin datan päällä. Ylhäällä valo, alhaalla
+   * varjo, ja keskikohta jää täsmälleen `--surface-hi`:ksi — mitattuna
+   * kiekon keskiarvokirkkaus ei muutu, joten nappi ei ole yhtään
+   * kovempi kuin ennen, se on vain pyöreä. Sama periaate kuin iOS:n
+   * "hierarchy through depth": tärkeys tulee syvyydestä, ei väristä.
+   *
+   * Varjo ja kehä kantavat kohotuksen, koska kiekko ei kanna: kortin
+   * paperilla `--surface-hi` on 1,13:1 eli lähes sama pinta. Kaksi
+   * varjoa: tiukka 1 px irrottaa reunan, pehmeä 5 px antaa korkeuden.
+   * Sisävalo ylhäällä viimeistelee kuvun. */
+  background-color: var(--surface-hi);
+  background-image: linear-gradient(180deg,
+    rgba(255, 255, 255, .58) 0%,
+    rgba(255, 255, 255, 0) 44%,
+    rgba(72, 58, 26, .09) 100%);
   box-shadow: 0 2px 5px rgba(60, 48, 20, .26),
               0 1px 1px rgba(60, 48, 20, .18),
-              0 0 0 1px rgba(120, 105, 70, .28);
-  transition: background .2s ease, transform .12s ease;
+              0 0 0 1px rgba(120, 105, 70, .28),
+              inset 0 1px 0 rgba(255, 255, 255, .72);
+  transition: background-color .2s ease, transform .12s ease;
 }
 /* Painallus tuntuu myös silmässä. Kiekko painuu, ei koko laatikko:
    laatikko on osumapinta eikä saa liikkua sormen alta. */
@@ -1167,7 +1205,8 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
 @media (prefers-reduced-motion: reduce) {
   .tl-play-btn::before, .tl-keli-btn::before { transition: background .2s ease; }
 }
-.tl-play-btn.playing::before { background: var(--accent); }
+/* Vain väri vaihtuu — kupu (background-image) jää voimaan. */
+.tl-play-btn.playing::before { background-color: var(--accent); }
 .tl-play-btn.playing { color: #FFF3F8; }
 /* svg ::beforen päälle, ja .mctl:activen tausta pois — se piirtyisi koko
    44 px:n laatikkoon eli ympyrä kasvaisi painalluksesta. */
@@ -1203,16 +1242,36 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
 .tl-keli-btn::before {
   content: ''; position: absolute; inset: 2px;
   border-radius: 50%;
-  background: var(--surface-hi);
-  /* Varjo ja kehä kantavat napin, koska kiekko ei kanna: kortin
-     paperilla `--surface-hi` on 1,27:1 eli lähes sama pinta. Uran
-     päällä alusta oli tummempi ja kiekko sai 1,56:1 ilmaiseksi; nyt
-     kohotus on tehtävä varjolla. Kaksi varjoa: tiukka 1 px irrottaa
-     reunan, pehmeä 5 px antaa korkeuden. */
+  /* KIEKKO ON KUPU, EI LÄTTY.
+   *
+   * `background-color` kantaa värin ja `background-image` muodon. Tämä
+   * työnjako on tahallinen: painettu tila vaihtaa VAIN värin
+   * (`.playing` -> `--accent`), ja sama kupu jää voimaan ilman että
+   * gradienttia tarvitsee kirjoittaa toiseen kertaan. Shorthand
+   * `background` nollaisi kuvan — käytä aina `background-color`.
+   *
+   * Liukuväri on MATERIAALI, ei äänenvoimakkuus. Projektin oma sääntö
+   * kieltää napin tummentamisen: se tekisi kontrollista kortin
+   * äänekkäimmän elementin datan päällä. Ylhäällä valo, alhaalla
+   * varjo, ja keskikohta jää täsmälleen `--surface-hi`:ksi — mitattuna
+   * kiekon keskiarvokirkkaus ei muutu, joten nappi ei ole yhtään
+   * kovempi kuin ennen, se on vain pyöreä. Sama periaate kuin iOS:n
+   * "hierarchy through depth": tärkeys tulee syvyydestä, ei väristä.
+   *
+   * Varjo ja kehä kantavat kohotuksen, koska kiekko ei kanna: kortin
+   * paperilla `--surface-hi` on 1,13:1 eli lähes sama pinta. Kaksi
+   * varjoa: tiukka 1 px irrottaa reunan, pehmeä 5 px antaa korkeuden.
+   * Sisävalo ylhäällä viimeistelee kuvun. */
+  background-color: var(--surface-hi);
+  background-image: linear-gradient(180deg,
+    rgba(255, 255, 255, .58) 0%,
+    rgba(255, 255, 255, 0) 44%,
+    rgba(72, 58, 26, .09) 100%);
   box-shadow: 0 2px 5px rgba(60, 48, 20, .26),
               0 1px 1px rgba(60, 48, 20, .18),
-              0 0 0 1px rgba(120, 105, 70, .28);
-  transition: background .2s ease, transform .12s ease;
+              0 0 0 1px rgba(120, 105, 70, .28),
+              inset 0 1px 0 rgba(255, 255, 255, .72);
+  transition: background-color .2s ease, transform .12s ease;
 }
 .tl-keli-btn svg { position: relative; }
 .tl-keli-btn:active { background: none; }
@@ -1226,8 +1285,12 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
    kiekko laskeutuu uran tasoon ja kuvake vaalenee. Sama esine, ei
    nostetta. */
 .tl-keli-btn.tyhja { color: rgba(16, 26, 32, .32); }
+/* Käytöstä poissa oleva kontrolli ei kellu eikä kaareudu: kupu
+   sammutetaan `background-image: none`illa, jolloin kiekko on litteä
+   levy uran tasossa. Sama esine, ei nostetta. */
 .tl-keli-btn.tyhja::before {
-  background: var(--surface-lo);
+  background-color: var(--surface-lo);
+  background-image: none;
   box-shadow: 0 0 0 1px rgba(120, 105, 70, .16);
 }
 
@@ -1257,9 +1320,16 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
   /* EI RAKOA LAPPUJEN VÄLIIN. Mitattuna 3 px:n raolla napautus lapun
      alaoikeaan kulmaan katosi rakoon eikä tehnyt mitään (6/7 kulmasta
      osui, yksi ei). Ilman rakoa kisko on yhtenäinen osumapinta: napautus
-     osuu aina JOHONKIN päivään. Erottelun hoitaa lapun oma vaakatäyte,
-     jolloin tekstien väliin jää 20 px. */
-  display: flex; gap: 0; align-items: center;
+     osuu aina JOHONKIN päivään. Erottelun hoitaa lapun oma leveys:
+     sisältö on 20 px ja lappu 38, joten tekstien väliin jää 18 px. */
+  /* `safe center`, ei pelkkä `center`: kisko on vierityssäiliö, ja
+     tavallinen keskitys tekee ylivuotavan sisällön ensimmäisestä
+     lapusta saavuttamattoman (se valuu nollan vasemmalle puolelle).
+     `safe` palaa alkuun heti kun sisältö ei mahdu. Jos selain ei tunne
+     avainsanaa, koko sääntö hylätään ja jäljelle jää `flex-start` —
+     eli entinen käytös. Näkyy vain työpöydällä: mobiilissa yhdeksän
+     lappua täyttää rivin pikselilleen. */
+  display: flex; gap: 0; align-items: center; justify-content: safe center;
   overflow-x: auto; overflow-y: hidden;
   scrollbar-width: none; -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain; touch-action: pan-x;
@@ -1298,12 +1368,28 @@ html.tl-kisko-piilossa #tl-paivat {
  * 44 veisi aikavalitsimelta neljä pikseliä lisää pystytilaa jonka se
  * aikanaan tarkoituksella luovutti kartalle. Napautukset on mitattu
  * reunoja myöten. */
+/* LEVEYS ON KIINTEÄ MINIMI, EI TEKSTIN MITTA.
+ *
+ * Kaksirivisenä lapun sisältö on kapeampi kuin yksirivisenä ("KE"
+ * numeron päällä on 20 px, "Ke 10." rinnakkain 44 px), ja pelkällä
+ * täytteellä lapuista tulisi eri levyisiä: yksinumeroinen päivä 28 px,
+ * kaksinumeroinen 32 px. Kalenterikiskossa epätasaiset sarakkeet
+ * näkyvät heti. `min-width` pitää sarakkeet samanlevyisinä ja täyte
+ * estää leikkautumisen työpöydän isommilla kirjasimilla.
+ *
+ * 38 px on kompromissi kahden mitatun asian välillä: yhdeksän lappua
+ * mahtuu vielä yhteen ruudulliseen (9 x 38 = 342 px, tilaa 345 px),
+ * eli kisko ei vaadi vieritystä lainkaan viikon matkalla — ja lappu on
+ * silti kolmanneksen leveämpi kuin pelkkä sisältö antaisi. Kapeampi
+ * kisko olisi mahduttanut enemmän päiviä mutta tehnyt jokaisesta
+ * lapusta huonomman maalin. */
 .tl-paiva {
   position: relative;
   flex: 0 0 auto;
   height: 100%;
+  min-width: 38px;
   display: flex; align-items: center; justify-content: center;
-  padding: 0 10px;
+  padding: 0 6px;
   font-size: var(--fs-10);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -1329,10 +1415,30 @@ html.tl-kisko-piilossa #tl-paivat {
 /* Valittu päivä on TUMMA PILLERI, ei magenta. `--accent` on toiminto- ja
    varoitusväri; päivävalinta ei ole kumpaakaan. Sama kieli kuin
    aikakuplalla, joka on saman valinnan toinen puoli. */
+.tl-paiva.tanaan::before  { background: var(--hairline); }
 .tl-paiva.valittu::before { background: var(--ink); }
 .tl-paiva:active::before  { background: var(--hairline); }
 .tl-paiva.valittu { color: var(--surface); }
-.tl-paiva-txt { position: relative; }
+/* Kahden rivin lappu. `line-height: 1` kummallakin, ja rako 2 px:
+   pilleri on 30 px korkea, ja työpöydän isommilla kirjasimilla
+   (11 + 13) rivit vievät siitä 26 px. Rivivälin oletus veisi loputkin
+   ja työntäisi numeron pillerin alareunaan. */
+.tl-paiva-txt {
+  position: relative; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 2px; line-height: 1;
+}
+.tl-pv-vk {
+  font-size: var(--fs-85); font-weight: 600; letter-spacing: .6px;
+  text-transform: uppercase; color: var(--ink-3);
+  transition: color .15s ease;
+}
+.tl-pv-nro {
+  font-size: var(--fs-11); font-weight: 600; font-variant-numeric: tabular-nums;
+}
+/* Valitussa lapussa viikonpäivä on vaimennettu paperi, ei täysi:
+   kaksi yhtä kirkasta riviä tummalla pillerillä kilpailisivat, ja
+   numero on se jota luetaan. */
+.tl-paiva.valittu .tl-pv-vk { color: rgba(250, 245, 231, .66); }
 
 /* PÄIVÄN TUULIKAISTA POISTETTIIN.
  *
@@ -17757,22 +17863,46 @@ const TL_TIKKI_LEV = 22;   /* sama kuin .htick flex-basis */
  * loppuu: ramppi kulkee punaisen kautta magentaan vielä senkin jälkeen
  * kun palkki on täydessä mitassaan. */
 const TL_PALKKI_TAYSI_MS = 16;
-const TL_PALKKI_H = 35;
+/* Luku tulee CSS:stä, koska kortin korkeus lasketaan siitä samasta
+   muuttujasta (`--tl-palkki-h`, ks. sen viereinen perustelu). Kahtena
+   vakiona ne ajautuisivat erilleen ensimmäisessä säädössä, ja tulos
+   olisi hiljainen: palkki törmäisi tuntilukemaan vain kovassa tuulessa. */
+const TL_PALKKI_H = parseFloat(
+  getComputedStyle(document.documentElement).getPropertyValue('--tl-palkki-h')) || 52;
 
 /* ASTEIKKO ON EPÄLINEAARINEN, JA SE ON TIETOINEN VALINTA.
  *
- * Lineaarisella asteikolla 35 pikseliä jakautuu tasan nollasta
- * kuuteentoista, eli 2,19 px metriä sekunnissa kohti. Peräkkäisten
- * tuntien tyypillinen ero on mitattuna 0,2 m/s — alle puoli pikseliä.
- * Muoto ei siis erotu siitä välistä jota tässä sovelluksessa
- * katsotaan.
+ * Lineaarisella asteikolla korkeus jakautuisi tasan nollasta
+ * kuuteentoista. Peräkkäisten tuntien tyypillinen ero on mitattuna
+ * 0,27 m/s (n = 1 116, p75 0,47, p90 0,73) — lineaarisella se olisi
+ * alle pikselin, eli muoto ei erottuisi siitä välistä jota tässä
+ * sovelluksessa katsotaan.
  *
- * Käyrä levittää välin 4-14 m/s ja puristaa päät:
+ * PALKKI ON 52 px, EI 35. Mitattuna 35 px:llä mediaaniero oli 0,70 px
+ * eli näkymätön; 52 px:llä se on 1,04 px, p75 2,1 px ja p90 3,3 px.
+ * Korkeus yksin ei voi tehdä mediaanista luettavaa — se vaatisi
+ * 15 px/(m/s) eli 170 px:n palkin — mutta se nostaa ylemmän puoliskon
+ * luettavaksi. Kortti kasvaa 88 -> 108 px eli 2,3 % iPhonen ruudusta.
  *
- *      0- 4 m/s -> 0,00-0,15   1,31 px per m/s   (tyven, harvoin luettu)
- *      4- 8     -> 0,15-0,50   3,06 px           <- sessioraja
- *      8-12     -> 0,50-0,80   2,63 px           <- paras keli
- *     12-16     -> 0,80-1,00   1,75 px
+ * JAKO MITATTIIN UUDELLEEN, ja se oli väärässä paikassa. Varaston
+ * jakauma (8 paikkaa, 1 496 tuntia):
+ *
+ *      0- 4 m/s   41,9 %   <- sai 15 % korkeudesta
+ *      4- 8       42,0 %   <- sai 35 %
+ *      8-12       15,8 %   <- sai 30 %
+ *     12-16        0,3 %   <- sai 20 %
+ *       > 16       0,0 %
+ *
+ * Asteikon YLÄPÄÄ oli lähes käyttämätön: viidennes korkeudesta meni
+ * kolmelle promillelle tunneista, kun 42 % tunneista puristui
+ * viidestätoista prosentista. Yläpäästä siirrettiin siksi alas.
+ * Kyllästyminen 16 m/s:ssä säilyy, ja myrskytunti on yhä pisin palkki
+ * — sen viimeiset neljä metriä vain tiivistyvät, ja väri jatkaa.
+ *
+ *      0- 4 m/s -> 0,00-0,20   2,60 px per m/s   (oli 1,31)
+ *      4- 8     -> 0,20-0,58   4,94 px           <- sessioraja (oli 3,06)
+ *      8-12     -> 0,58-0,86   3,64 px           <- paras keli (oli 2,63)
+ *     12-16     -> 0,86-1,00   1,82 px
  *       > 16    -> 1,00        (kyllästyy, väri jatkaa)
  *
  * Korkeus on siis MUOTO ja väri on ARVO. Se on työnjako eikä puute:
@@ -17782,10 +17912,10 @@ const TL_PALKKI_H = 35;
 function _tlPalkkiOsuus(ms) {
   const m = Math.max(0, ms || 0);
   if (m >= TL_PALKKI_TAYSI_MS) return 1;
-  if (m <= 4)  return (m / 4) * 0.15;
-  if (m <= 8)  return 0.15 + ((m - 4) / 4) * 0.35;
-  if (m <= 12) return 0.50 + ((m - 8) / 4) * 0.30;
-  return              0.80 + ((m - 12) / 4) * 0.20;
+  if (m <= 4)  return (m / 4) * 0.20;
+  if (m <= 8)  return 0.20 + ((m - 4) / 4) * 0.38;
+  if (m <= 12) return 0.58 + ((m - 8) / 4) * 0.28;
+  return              0.86 + ((m - 12) / 4) * 0.14;
 }
 function _tlPalkkiPx(ms) {
   return Math.max(3, _tlPalkkiOsuus(ms) * TL_PALKKI_H);
@@ -17801,7 +17931,10 @@ function _tlPalkkiPx(ms) {
  *
  * Kynnys on 0,6 m/s: sitä pienempi ero on hunnussa näkymätön, ja
  * elementti joka ei näy on turha solmu. */
-const TL_PUUSKA_KATTO = 9;
+/* Katto skaalautuu palkin mukana: 9 px oli mitattu 35 px:n palkille,
+   ja sama suhde 52 px:llä on 13 px. Ilman skaalausta huntu olisi
+   suhteessa kolmanneksen matalampi kuin se oli. */
+const TL_PUUSKA_KATTO = 13;
 function _tlPuuskaTyyli(ms, puuska) {
   if (puuska == null || !(puuska > ms + 0.6)) return null;
   const alaPx = _tlPalkkiPx(ms), ylaPx = _tlPalkkiPx(puuska);
@@ -18297,10 +18430,32 @@ function _tlRakennaPaivat(times) {
     /* Teksti omassa elementissään: pilleri ja tuulikaista ovat lapun
        pseudoelementtejä, ja tekstisolmu jäisi niiden väliin ilman omaa
        kerrostaan. */
+    /* KAKSI RIVIÄ, EI YHTÄ. "Ke 10." on yhtenä rivinä 44 px leveä ja
+       lappu siis 64 px; viikonpäivä numeron päällä on 20 px, jolloin
+       lappu mahtuu 38 px:iin. Mitattu seuraus: yhdeksän päivän kisko
+       oli 576 px eli 1,7 ruudullista ja on nyt 342 px eli mahtuu
+       kokonaan — viikon päähän ei tarvitse enää vierittää lainkaan.
+       Sama jäsennys kuin Applen kalenterissa: viikonpäivä pienenä
+       yläpuolella, päivä numerona sen alla.
+       Aria-nimi säilyttää täyden muodon, koska "KE / 10" luettuna ei ole
+       päivämäärä. */
     const txt = document.createElement('span');
     txt.className = 'tl-paiva-txt';
-    txt.textContent = pv === tanaan ? 'Tänään' : (DAY[d.getDay()] + ' ' + d.getDate() + '.');
+    const vk = document.createElement('span');
+    vk.className = 'tl-pv-vk';
+    vk.textContent = DAY[d.getDay()];
+    const nro = document.createElement('span');
+    nro.className = 'tl-pv-nro';
+    nro.textContent = String(d.getDate());
+    txt.appendChild(vk); txt.appendChild(nro);
     el.appendChild(txt);
+    /* TÄNÄÄN ON PEHMEÄ PILLERI, EI ERI VÄRI. `--accent` on toiminto- ja
+       varoitusväri eikä korostus, ja erillinen piste jäisi 40 px:n
+       kiskossa huomaamatta. Kaksi tasoa, molemmat neutraaleja: tänään
+       on vaimea pinta, valittu on tumma pilleri. */
+    if (pv === tanaan) el.classList.add('tanaan');
+    el.setAttribute('aria-label', DAY[d.getDay()] + ' ' + d.getDate() + '.'
+      + (d.getMonth() + 1) + '.' + (pv === tanaan ? ' (tänään)' : ''));
     el.dataset.pv = String(pv);
     kisko.appendChild(el);
     State._tlPaivat.push(el);
