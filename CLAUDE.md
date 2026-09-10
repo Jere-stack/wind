@@ -106,8 +106,7 @@ kokeiltu ja kaadettu mittauksella.
   meriaseman · Aaltopoijun kaavion voi raahata · Kapselin puuskarivi katosi ·
   Vuosaaren asema sanoi "ei signaalia" · Havaintokaavio uusiksi: väri tulee
   korkeudesta · Havaintokaavion laajennus koko ruudulle · Laajennettu
-  kaavio iPhonella: turva-alueet, liuku ja lukemarivi · Aikajana Applen
-  mitalla: korkeampi palkki, kupu ja kalenterikisko
+  kaavio iPhonella: turva-alueet, liuku ja lukemarivi
 
 </details>
 
@@ -222,24 +221,10 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **Kortin paljas paperi mitataan RIVIEN VÄLISTÄ.** Rivin sisältä otettu
   näyte osuu palkkiin, yökaistaan, NYT-osoittimeen tai napin varjoon —
   ja väittää sitten että sama paperi on eri väristä eri kohdissa.
-- **Palkin korkeusasteikko on EPÄLINEAARINEN** ja täysi mitta on 52 px
-  (`--tl-palkki-h`). Korkeus on muoto, väri on arvo. Älä palauta
-  lineaarista: se antaa 3,25 px/(m/s) ja peräkkäisten tuntien
-  tyypillinen ero on mitattuna 0,27 m/s (n = 1 116) eli alle pikselin.
-  Käyrä `.20/.38/.28/.14` seuraa MITATTUA jakaumaa (0–4 m/s on 41,9 %
-  tunneista, 12–16 m/s 0,3 %); vanha `.15/.35/.30/.20` antoi viidenneksen
-  korkeudesta kolmelle promillelle tunneista. Kyllästyminen 16 m/s:ssä
-  ei ole neuvoteltavissa — väri jatkaa siitä.
-- **`--tl-palkki-h` ON YKSI LUKU KAHDESSA PAIKASSA.** Kortin korkeus on
-  `palkki + 56` (2 alatäyte + 18 lukemarivi + 20 + 16 kortin täytteet),
-  ja JS lukee saman muuttujan `getComputedStyle`lla. Erillisinä ne
-  ajautuvat erilleen, ja tulos on HILJAINEN: 103 px:n kortilla
-  täysimittainen 52 px:n palkki jätti tuntilukemaan 3 px mobiilissa ja
-  1 px työpöydällä, eli törmäys olisi näkynyt vain myrskyssä. Ruudulla
-  nähty maksimi oli 43,8 px.
-- **Puuskahunnun katto skaalautuu palkin mukana** (`TL_PUUSKA_KATTO`
-  9 px 35 px:n palkille, 13 px 52 px:n palkille). Ilman skaalausta
-  huntu jää suhteessa kolmanneksen matalammaksi.
+- **Palkin korkeusasteikko on EPÄLINEAARINEN** (4–14 m/s levennetty) ja
+  täysi mitta on 35 px. Korkeus on muoto, väri on arvo. Älä palauta
+  lineaarista: se antaa 1,38 px/(m/s) ja peräkkäisten tuntien tyypillinen
+  ero on 0,2 m/s eli alle puoli pikseliä.
 - **`ColorRamp.rgb()` on kartalle, `ink()` paneeleihin.** Ne kulkevat
   vastakkaisiin suuntiin kirkkaudessa. Muste ei ole värisokeusturvallinen eikä
   sen tarvitse olla — paneelissa väri on aina luvun vieressä.
@@ -397,35 +382,8 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **Kiskon korkeus on yksi muuttuja (`--tl-paivat-h`)**, joka kasvattaa
   kääreen korkeutta ja sen ylätäytettä yhtä paljon. Siksi piilotus ei
   siirrä tuntiriviä eikä nappeja pikseliäkään (mitattu 0 px, kortti
-  148 → 108). Jos erotat luvut, ne ajautuvat erilleen ensimmäisessä
+  128 → 88). Jos erotat luvut, ne ajautuvat erilleen ensimmäisessä
   säädössä.
-- **Päivälappu on KAKSI RIVIÄ ja kiinteä `min-width: 38px`.**
-  Viikonpäivä numeron päällä (Applen kalenterin jäsennys) vei lapun
-  ~64 px:stä 38:aan, jolloin yhdeksän päivän kisko mahtuu ruudulle
-  kokonaan (576 → 342 px) eikä viikon päähän tarvitse vierittää edes
-  kiskoa. Leveys EI saa tulla tekstistä: yksinumeroinen päivä olisi
-  28 px ja kaksinumeroinen 32, ja kalenterikiskossa epätasaiset
-  sarakkeet näkyvät heti. Kapeampi kuin 38 px mahduttaisi enemmän
-  päiviä mutta tekisi jokaisesta lapusta huonomman maalin.
-  Aria-nimessä on täysi muoto — "KE / 10" luettuna ei ole päivämäärä.
-- **"Tänään" on pehmeä pilleri (`--hairline`), ei sana eikä
-  `--accent`.** Kaksi neutraalia tasoa: tänään vaimea pinta, valittu
-  tumma pilleri. Aksentti on toiminto- ja varoitusväri.
-- **Kisko keskitetään `justify-content: safe center`illä.** Pelkkä
-  `center` tekee vierityssäiliössä ylivuotavan sisällön ensimmäisestä
-  lapusta saavuttamattoman; `safe` palaa alkuun kun sisältö ei mahdu,
-  ja avainsanan tuntematon selain hylkää säännön eli päätyy entiseen
-  `flex-start`iin.
-- **Nappien kiekko on KUPU, ja kupu on materiaalia eikä
-  äänenvoimakkuutta.** `background-color` kantaa värin ja
-  `background-image` muodon, jolloin `.playing` vaihtaa VAIN värin.
-  Shorthand `background` nollaisi kuvan. Keskikohta jää täsmälleen
-  `--surface-hi`:ksi, joten kiekko ei ole kortin paperia äänekkäämpi
-  (mitattu 1,04:1; kuvun ylä/ala-ero 1,093:1). Kuvun mittaus on
-  RENGAS joka ohittaa kuvakkeen — koko kiekon minimi ja maksimi osuvat
-  mustaan play-kolmioon eivätkä liukuväriin. Käytöstä poissa oleva
-  nappi sammuttaa kuvun (`background-image: none`), ei alenna
-  `opacity`ä.
 - **Aikajanan valinta kulkee `_tlValitseIdx`:n kautta** (päiväkisko,
   näppäimistö, kelihyppy). Älä kirjoita neljättä polkua.
 - **Päiväkiskon napautus ei saa käyttää `scrollTimelineTo`a.** Kupla ja
