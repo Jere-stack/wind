@@ -123,3 +123,40 @@ seitsemässä `font-family`-säännössä, eli lataukset eivät ole pelkkää ro
 poisto muuttaisi ulkoasua. Mutta ne ovat kaksi ulkoista pyyntöä joka
 latauksella, ja juuri ne ovat kalleimpia heikolla yhteydellä. Tämä on oma
 päätöksensä, ei osa PWA-vaihetta.
+
+---
+
+## Nimi ja versio — yksi muoto, ei versiota nimessä
+
+Sovelluksen nimi oli kuudessa näkyvässä paikassa **neljänä eri
+muotona**, ja `<title>` sanoi `FoilSpot v7-light` — eli välilehti,
+kirjanmerkki ja jaettu linkki kantoivat sisäistä versiolinjaa jota
+mikään muu ei tuntenut.
+
+| paikka | ennen | nyt |
+|---|---|---|
+| `<title>` | `FoilSpot v7-light` | `FoilSpot — wingfoil-sää` |
+| `<h1>` | `… Suomen rannikolla` | `FoilSpot — wingfoil-sää` |
+| manifestin `name` | `FoilSpot — wingfoil-sää` | sama |
+| splash (kaksi riviä) | `FoilSpot` / `Wingfoil Weather` | `FoilSpot` / `Wingfoil-sää` |
+| `short_name`, iOS-otsikko | `FoilSpot` | sama |
+
+Splashin tunnuslause oli koko sovelluksen ainoa englanninkielinen
+käyttöliittymäteksti. Kuvaus oli kahtena sanamuotona (`<meta
+name="description">` vs. manifestin `description`) — nyt yhtenä.
+
+**Versionumeroita oli kolme eikä yksikään kertonut mitä koodia selain
+ajoi:** `<title>` v7-light, `package.json` 7.0.0 ja `api/laru.js`:n
+User-Agent 1.0. Kaikki pois. Ainoa versio on asetuspaneelin buildleima
+(`__BUILD_ID__`), joka tulee commitista ja on siksi aina tosi.
+`package.json`:n versio on `0.0.0` tarkoituksella: paketti on `private`
+eikä sitä julkaista, joten toinen versionumero olisi vain toinen paikka
+joka ajautuu erilleen.
+
+Samalla erällä `tools/tiilet.mjs` → `tools/laatat.mjs`. Tiili on
+poltettu savitiili; laatta on tile, ja koodi sanoo sen satoja kertoja
+(`Saalaatat`, `LAATTAKERROS`, `.saa-laatat`, `?laatat=0`). Väärä
+käännös vuoti myös käyttöliittymään: `?perf=1`-paneelin nappi luki
+"Tiilet". Laattakerroksen kirjoitusasut yhtenäistettiin samalla:
+`SaaLaattaKerros` → `Laattakerros`, `State.saaKerros` →
+`State.laattakerros`.

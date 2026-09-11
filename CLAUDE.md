@@ -32,6 +32,10 @@ npm run saadata   # rakenna säälaatat (tools/laatat.mjs)
 - `vite.config.js` — build-asetukset sekä `vercel-api-dev`-plugin, joka ajaa
   `api/*.js`-funktiot myös `npm run dev`- ja `npm run preview` -servereissä.
 - `vercel.json` — Vercel-deployn asetukset.
+- `.claude/settings.json` — Claude Coden projektiasetukset. Poistaa
+  istuntokontekstista niiden skillien kuvaukset joita tämä projekti ei käytä
+  (ne pysyvät silti käsin kutsuttavina `/nimi`:llä) ja sallii projektin omat
+  luku- ja buildkomennot ilman lupakyselyä.
 - `docs/*.md` — muistiinpanot tehdyistä päätöksistä ja mittauksista. **Ei ladata
   automaattisesti** — lue se tiedosto jonka aihetta työ koskee (hakemisto alla).
 
@@ -157,6 +161,11 @@ Syne-fontti oli kirjattu poistetuksi mutta `<head>` latasi sen yhä, ja
 `State.dpr`-katoksi oli perusteltu 2 mutta rivi sanoi 3. Kun kirjoitat
 mittauksen muistiin, tarkista että rivi vastaa sitä.
 
+**Rajaa haun tuloste `index.html`:ssä.** Tiedosto on 1,1 MB ja sisältää
+base64-kuvia, joten sitomaton `grep` voi palauttaa satoja kilotavuja yhdellä
+osumalla. Käytä `-c`, `head -20`, `-o` tai kapeaa hakua — koko rivi
+harvoin tarvitaan, ja base64-rivi ei ole koskaan se mitä etsit.
+
 ### Mittaaminen tässä ympäristössä
 
 **Kontti ei kykene mittaamaan ruutunopeutta.** Se antaa 8–18 fps riippumatta
@@ -185,638 +194,181 @@ mitataan analyyttistä kenttää vasten.
 
 ## Säännöt joita ei saa rikkoa
 
-Nämä ovat päätöksiä, eivät makuasioita. Perustelut ovat aiheen omassa
-tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
+Nämä ovat päätöksiä, eivät makuasioita. **Tässä on vain se mitä ei saa
+tehdä vahingossa. Jokaisen säännön perustelu, mittaus ja jo kokeillut
+vaihtoehdot ovat aiheen omassa `docs/`-tiedostossa** — sääntö kertoo
+MITÄ, docs kertoo MIKSI. Lue se tiedosto ennen kuin muutat aluetta jota
+sääntö koskee; älä kumoa sääntöä ilman että olet lukenut sen perustelun.
 
-**Nimi ja versio**
+**Nimi ja versio** — perustelut: `docs/pwa.md`
 
-- **Sovelluksen nimi on `FoilSpot` ja sen kanssa kulkeva tunnuslause
-  `wingfoil-sää`.** Yhdistelmä `FoilSpot — wingfoil-sää` on
-  SANATARKASTI sama neljässä paikassa: `<title>`, `<h1>`, manifestin
-  `name` ja splashin kaksi riviä yhdessä. Lyhyt muoto `FoilSpot` on
-  manifestin `short_name` ja `apple-mobile-web-app-title`. Ennen näitä
-  oli neljä eri muotoa, joista title sanoi `FoilSpot v7-light`.
-- **NIMESSÄ EI OLE VERSIOTA.** Sovelluksen versio on asetuspaneelin
-  buildleima (`__BUILD_ID__`, ks. `vite.config.js`), ja se on ainoa.
-  `package.json`:n versio on `0.0.0` tarkoituksella — paketti on
-  `private` eikä sitä julkaista, joten kaksi versionumeroa olisi kaksi
-  paikkaa jotka ajautuvat erilleen. Niin kävi: title sanoi v7-light,
-  package 7.0.0 ja `api/laru.js`:n User-Agent 1.0, eikä mikään niistä
-  kertonut mitä koodia selain ajoi.
-- **Kuvaus on yksi merkkijono.** `<meta name="description">` ja
-  manifestin `description` ovat sama lause. Kaksi sanamuotoa samalle
-  kuvaukselle on kaksi paikkaa jotka ajautuvat erilleen.
-- **Laatta on `laatta`, ei `tiili`.** Rakentaja on `tools/laatat.mjs`,
-  varasto `Saalaatat`, kerros `Laattakerros`, lippu `LAATTAKERROS`,
-  ilmentymä `State.laattakerros`, CSS-luokka `.saa-laatat`. Sana
-  esiintyy koodissa satoja kertoja; `tiili` on eri asia (poltettu
-  savitiili) ja oli väärä käännös. `?perf=1`-paneelin avain on
-  englantia (`tiles`) kuten sen naapurit, mutta LABEL on suomea
-  (`'Laatat'`) kuten sen naapurit.
+- **Sovelluksen nimi on `FoilSpot` ja sen kanssa kulkeva tunnuslause `wingfoil-sää`.**
+- **NIMESSÄ EI OLE VERSIOTA.**
+- **Kuvaus on yksi merkkijono.**
+- **Laatta on `laatta`, ei `tiili`.**
 
-**Väri**
+**Väri** — perustelut: `docs/ui.md`, `docs/lampokartta.md`
 
-- **Kartalla sävy tarkoittaa tuulennopeutta ja vain sitä.** Kaikki muu kartalla
-  on joko tummaa pilleriä (mitattu data) tai paperia (kaikki muu).
-- **Aikajanan palkit ovat `ColorRamp.paperi()`, eivät `rgb()` eivätkä
-  `ink()`.** Se on karttaramppi kerrottuna 0,48:lla: sävy on kartan,
-  kirkkaus kortin paperin. Kerroin ei ole makuasia — 0,52 jätti limetin
-  (10 m/s) 2,97:ään, 0,48 nostaa koko asteikon välille 3,84–13,46
-  (mitatusta kortin sävystä 228,219,197) ja peräkkäisten nopeuksien
-  pienin dE2000 on 10,7. `rgb()` on väärä koska paljas karttaramppi on
-  paperilla 1,02:1; `ink()` on väärä koska se on oma sävypolkunsa eikä
-  matchaa karttaan. Taulu ei seuraa pohjakarttaa (mitattu: sama palkki
-  tummalla, vaalealla ja satelliitilla) mutta seuraa värisokeusasetusta.
-- **AIKAJANALLA EI OLE URAA.** Kortti on yhtä paperia; päivärivi ja
-  tuntirivi erottaa vain tyhjä tila (9 px). Ura oli kolmessa muodossa —
-  tumma, hiekka, ja lopulta kaksi identtistä uraa (1,01:1 raidasta
-  raitaan) — ja jokainen niistä oli reuna jota kortin oma reuna jo
-  kertoi. Älä palauta uraa "jotta palkit näkyisivät": palkit saavat
-  kortilla ENEMMÄN kontrastia kuin urassa (heikoin 3,41 → 3,84).
-- **Uran päällä olleiden merkintöjen alfat on valittu VAIKUTUKSEN
-  mukaan, ei luvun.** Yökaista on ollut kolmella eri alustalla ja sen
-  voimakkuus on pidetty samana joka kerta: musta .34 tummalla uralla
-  1,35:1, `76,89,96` .24 hiekkauralla 1,35:1, ja kortin paperilla sama
-  .24 olisi 1,40:1 — eli uran poisto olisi vahingossa äänekkäämpi yö.
-  Nyt .20/.129/.060 antaa 1,32:1. Puuskahuntu on samasta syystä muste
-  .34 eikä valkoinen .22. Jos vaihdat alustaa, laske alfat uudelleen.
-- **Päivälapuissa EI ole tuulikaistaa.** Kokeiltiin ja mitattiin
-  toimivaksi (väri ja leveys sen päivän kovimmasta tuulesta valoisaan
-  aikaan), mutta poistettiin: kahdeksantoista väripilkkua yhdellä
-  rivillä on kahdeksantoista asiaa joita silmä lukee, ja sama tieto on
-  tuntirivillä tarkempana. Kisko on navigointia, ei yhteenvetoa.
-- **Kortin paljas paperi mitataan RIVIEN VÄLISTÄ.** Rivin sisältä otettu
-  näyte osuu palkkiin, yökaistaan, NYT-osoittimeen tai napin varjoon —
-  ja väittää sitten että sama paperi on eri väristä eri kohdissa.
-- **Palkin korkeusasteikko on EPÄLINEAARINEN** (4–14 m/s levennetty) ja
-  täysi mitta on 35 px. Korkeus on muoto, väri on arvo. Älä palauta
-  lineaarista: se antaa 1,38 px/(m/s) ja peräkkäisten tuntien tyypillinen
-  ero on 0,2 m/s eli alle puoli pikseliä.
-- **`ColorRamp.rgb()` on kartalle, `ink()` paneeleihin.** Ne kulkevat
-  vastakkaisiin suuntiin kirkkaudessa. Muste ei ole värisokeusturvallinen eikä
-  sen tarvitse olla — paneelissa väri on aina luvun vieressä.
-- **Kartan oletusramppi on kylläinen ja tehty normaalinäköiselle**
-  (sininen–syaani–vihreä–keltainen–oranssi–punainen–magenta).
-  Värisokeusturvallinen `RAMP_CVD` on asetus, ei oletus — se on käyttäjän
-  päätös. Älä palauta vaimeaa ramppia oletukseksi vetoamalla värisokeuteen.
+- **Kartalla sävy tarkoittaa tuulennopeutta ja vain sitä.**
+- **Aikajanan palkit ovat `ColorRamp.paperi()`, eivät `rgb()` eivätkä `ink()`.**
+- **AIKAJANALLA EI OLE URAA.** Älä palauta uraa "jotta palkit näkyisivät": palkit saavat kortilla ENEMMÄN kontrastia kuin urassa (heikoin 3,41 → 3,84).
+- **Uran päällä olleiden merkintöjen alfat on valittu VAIKUTUKSEN mukaan, ei luvun.**
+- **Päivälapuissa EI ole tuulikaistaa.**
+- **Kortin paljas paperi mitataan RIVIEN VÄLISTÄ.**
+- **Palkin korkeusasteikko on EPÄLINEAARINEN (4–14 m/s levennetty).** Älä palauta lineaarista: se antaa 1,38 px/(m/s) ja peräkkäisten tuntien tyypillinen ero on 0,2 m/s eli alle puoli pikseliä.
+- **`ColorRamp.rgb()` on kartalle, `ink()` paneeleihin.**
+- **Kartan oletusramppi on kylläinen ja tehty normaalinäköiselle (sininen–syaani–vihreä–keltainen–oranssi–punainen–magenta).** Älä palauta vaimeaa ramppia oletukseksi vetoamalla värisokeuteen.
 - **Rampin kylläisyys ruudulla on suunnilleen kroma KERTAA alfa.**
-  Lämpökartta piirtyy alfalla 0,08–0,71, joten taulukon luvut eivät kerro
-  mitä nähdään. Mittari on `varit.mjs`, joka lukee `pikseliLUT()`:n ja
-  sekoittaa pohjaan — mittaa siitä, älä rampista.
 - **`--accent` (magenta) on toiminto- ja varoitusväri, ei korostusväri.**
-  Nimilappu tai datapiste ei ole kumpaakaan; ne ovat mustetta.
-- **`var()` ei toimi SVG:n esitysattribuuteissa.** Kaavioiden `fill=` tarvitsee
-  literaalin; inline-tyyleissä tokenit toimivat.
+- **`var()` ei toimi SVG:n esitysattribuuteissa.**
 
-**Saavutettavuus**
+**Saavutettavuus** — perustelut: `docs/ui.md`
 
-- **Kontrolli on `<button>`, ei `<div class="mctl">`.** Divinä ne eivät ole
-  fokusoitavia eivätkä ruudunlukijalle painikkeita — mitattuna viidestä
-  pääkontrollista 0 tavoitettavissa sarkaimella.
-- **Suljettu paneeli piilotetaan `visibility: hidden`illä.** Pelkkä
-  `translate` ruudun ulkopuolelle jättää sen sarkainkierrokseen ja
-  ruudunlukijan puuhun. Näkyvyys vaihtuu vasta liu'un jälkeen
-  (`transition-delay`), muuten paneeli katoaa kesken sulkeutumisen.
-- **Esc sulkee KAIKKI päällekkäiset pinnat**, myös asetukset. Jos lisäät
-  paneelin, lisää se Esc-listaan.
-- **Sivulla on `h1` ja `role="main"`, ja ohituslinkki on ensimmäinen
-  fokusoitava elementti.** Kartalla on 12 fokusoitavaa spottimerkkiä,
-  joten ilman ohitusta näppäimistökäyttäjä painaa sarkainta 12 kertaa
-  ennen yhtäkään kontrollia. `#app` sulkeutuu VASTA lopussa — jos suljet
-  sen kartan jälkeen, main ei kata sisältöä (näin oli).
-- **`role="button"` ei riitä divillä.** Enter ja välilyönti eivät laukaise
-  clickiä, joten fokuspysäkki olisi pysäkki jolla ei voi tehdä mitään.
-  Aktivointi tulee yhdestä dokumenttitason käsittelijästä, ja globaali
-  näppäinkäsittelijä OHITTAA tapauksen jossa fokus on kontrollissa —
-  muuten välilyönti play-napin päällä laukaisisi toiston kahdesti.
+- **Kontrolli on `<button>`, ei `<div class="mctl">`.**
+- **Suljettu paneeli piilotetaan `visibility: hidden`illä.**
+- **Esc sulkee KAIKKI päällekkäiset pinnat.**
+- **Sivulla on `h1` ja `role="main"`, ja ohituslinkki on ensimmäinen fokusoitava elementti.**
+- **`role="button"` ei riitä divillä.**
 - **Piilota valintaruutu leikkauksella, älä `display: none`llä.**
-  Ennustepaneelin kytkimet olivat `display:none` eivätkä siksi
-  fokusoitavissa edes paneelin ollessa auki.
-- **Päällekkäinen pinta kulkee `Modaali`-moduulin kautta.** Neljä pintaa
-  (asetukset, spottikortti, ennustepaneeli, pikanäppäimet), neljä eri
-  avaus- ja sulkupolkua — paneelikohtaiset kuuntelijat ajautuisivat
-  erilleen. Älä kirjoita viidettä polkua.
-- **`aria-modal` EI pidättele sarkainta.** Se hoitaa vain ruudunlukijan;
-  ansa on tehtävä itse (yksi dokumenttitason kuuntelija, pinon
-  päällimmäinen). `inert` ei kelpaa, koska paneelit ovat `#app`:n sisällä.
-- **`Modaali.avaa` on IDEMPOTENTTI.** `openSheet` kutsutaan uudelleen joka
-  aikajanan askeleella, ja jos avaus siirtäisi fokuksen joka kerta,
-  jokainen tunnin askel veisi fokuksen pois siitä napista jota käyttäjä
-  juuri painoi.
-- **Paluukohde etsitään uudelleen, ei pelkkää viitettä.** Spottikortin
-  avaaja on karttamerkki, ja `renderSpots` korvaa merkin uudella solmulla
-  joka piirrolla — tallennettu viite osoitti irronneeseen solmuun ja
-  fokus jäi bodyyn (mitattu). Viitteen rinnalla talletetaan `id` ja
-  `title`.
-- **Fokus menee dialogin SÄILIÖÖN, ei ensimmäiseen kontrolliin.** Säiliö
-  kantaa roolin ja nimen, joten ruudunlukija lukee "Asetukset,
-  valintaikkuna". Säiliöltä otetaan ääriviiva pois — fokus on siinä
-  mekanismi, ei kontrolli.
-- **Otsikoksi vaihdettu `div` tarvitsee `margin: 0`.** `#sp-title` ja
-  `#fc-title` olisivat siirtäneet ylätunnisteitaan selaimen oman
-  `h2`-marginaalin verran.
-- **Havaintoasemien merkit ovat `keyboard: false`.** Muuten sarkain kulkee
-  kymmenien merkkien läpi ennen kuin tavoittaa sovelluksen kontrollit.
+- **Päällekkäinen pinta kulkee `Modaali`-moduulin kautta.** Älä kirjoita viidettä polkua.
+- **`aria-modal` EI pidättele sarkainta.**
+- **`Modaali.avaa` on IDEMPOTENTTI.**
+- **Paluukohde etsitään uudelleen, ei pelkkää viitettä.**
+- **Fokus menee dialogin SÄILIÖÖN, ei ensimmäiseen kontrolliin.**
+- **Otsikoksi vaihdettu `div` tarvitsee `margin: 0`.**
+- **Havaintoasemien merkit ovat `keyboard: false`.**
 - **Asetuspaneelin roolit luetaan RAKENTEESTA, ei kirjoiteta markupiin.**
-  22 elementtiin käsin kirjoitettu `role`+`tabindex`+`aria-checked` on 22
-  paikkaa jotka ajautuvat erilleen. Uusi siru tai kytkin saa kohtelunsa
-  ilman lisätyötä.
-- **Siruryhmä on `radiogroup`, ei nappirivi**, ja sarkain näkee sen
-  YHTENÄ pysäkkinä (vaeltava tabindex) — 17 sirua olisi muuten 17
-  pysäkkiä. Ryhmän sisällä nuolet, ja VALINTA SEURAA FOKUSTA, koska
-  valinta ajetaan ryhmän delegoidusta klikkauksesta.
-- **Nuolet paneelissa vaativat `stopPropagation`in.** Pelkkä
-  `preventDefault` ei riitä: nuolet kuuluvat muuten Leafletille, joka
-  panoroi niillä karttaa.
-- **Aria-tila synkataan MutationObserverilla.** `.active` ja `.on`
-  asetetaan kuudessa eri paikassa; aria-tilan kirjoittaminen jokaiseen
-  olisi seitsemäs polku samaan asiaan.
-- **Pyöreän napin kulma ei ole nappi.** `.mctl` on ympyrä, joten
-  napautusmittauksen näytteet otetaan ympyrän sisältä — laatikon kulma
-  antaa hudin joka on geometriaa, ei vikaa.
+- **Siruryhmä on `radiogroup`, ei nappirivi.**
+- **Nuolet paneelissa vaativat `stopPropagation`in.**
+- **Aria-tila synkataan MutationObserverilla.**
+- **Pyöreän napin kulma ei ole nappi.**
 
-**Asetukset**
+**Asetukset** — perustelut: `docs/ui.md`
 
-- **Partikkelien ja väriasteikon AVAIMIA ei saa vaihtaa** vaikka nimet
-  vaihtuvat: `'vahan'` on nimeltään "Normaali" ja `'normaali'` on
-  "Paljon". Avaimen vaihto pudottaisi jokaisen tallennetun valinnan
-  oletukseen.
-- **Oletus on siruryhmässä ensimmäisenä vasemmalla** (tuuli, kts,
-  tumma, partikkelit-Normaali). Poikkeus: lämpökartan voimakkuus ja
-  väriasteikko ovat asteikkoja, joissa järjestys on itsessään tieto.
-- **Yksikkölista on samassa järjestyksessä asetuspaneelissa ja
-  kapselin valitsimessa.** Kaksi järjestystä samalle listalle on kaksi
-  paikkaa jotka ajautuvat erilleen.
+- **Partikkelien ja väriasteikon AVAIMIA ei saa vaihtaa.**
+- **Oletus on siruryhmässä ensimmäisenä vasemmalla (tuuli, kts, tumma, partikkelit-Normaali).**
+- **Yksikkölista on samassa järjestyksessä asetuspaneelissa ja kapselin valitsimessa.**
 
-**Aikajana**
+**Aikajana** — perustelut: `docs/ui.md`
 
-- **`currentHourIdx` on INDEKSI, ja aika-akseli vaihtuu kartan mukana.**
-  Akseli tulee siltä ennustepisteeltä joka on kartan keskellä, ja
-  zoomaus vaihtaa pisteen. Älä koskaan siirrä indeksiä sellaisenaan
-  akselilta toiselle — hae uusi indeksi AJASTA (`_tlSailytaHetki`).
-  Mitattu ilman sitä: −15 h, −55 h, +75 h, ja jopa kahden tuntiakselin
-  välillä 5 h, koska ne eivät ala samasta hetkestä.
-- **Älä tihennä aikajanaa tuntia pienemmäksi.** Mitattu: varastoaskelen
-  sisällä tuntipisteet ovat SUORALLA (poikkeama 0 m/s, 10 640 kolmikkoa),
-  muutos minuutissa on 0,0033 m/s eli 150× alle sovelluksen oman
-  0,5 m/s rajan, ja 94 % minuuteista renderöityisi identtisesti.
-  10 min veisi +7 vrk raahauksen 10 ruudullisesta 60:een.
-  Aikajanan vika oli navigointi, ja se on `#tl-paivat`.
-- **Palkin korkeus on KIINTEÄLLÄ asteikolla (16 m/s = täysi).**
-  Sarjakohtainen maksimi teki palkeista vertailukelpoisia vain sarjan
-  sisällä, ja sarja vaihtuu joka kartansiirrolla: mitattuna 7,67 m/s oli
-  14,1 px ja 8,40 m/s 13,4 px. Älä palauta `maxMs`-skaalausta.
-- **Aikajanan valokaista ja puuskavyöhyke päivitetään MYÖS nopeassa
-  polussa**, ja päiväerottimet ovat oma taulukkonsa (`_tlErottimet`).
-  Ne eivät ole `_tlTicks`issä, ja ilman erillistä päivitystä ne jäivät
-  edellisen sijainnin sävyyn (mitattu 0/18 oikein). `_tlMuisti`-vertailu
-  sisältää lat/lng, koska laattapisteet jakavat aikataulukon.
-- **Nuolinäppäimet kuuluvat Leafletille.** Sen `Keyboard` panoroi karttaa
-  nuolilla eikä tarkista shiftiä (vain alt/ctrl/meta), joten Shift+nuoli
-  panoroi myös. Aikajanan askellus on `,` ja `.`, ja shiftattu merkki on
-  eri `e.key` (suomalaisella `:` ja `;`) — lue `e.code`.
+- **`currentHourIdx` on INDEKSI, ja aika-akseli vaihtuu kartan mukana.** Älä koskaan siirrä indeksiä sellaisenaan akselilta toiselle — hae uusi indeksi AJASTA (`_tlSailytaHetki`).
+- **Älä tihennä aikajanaa tuntia pienemmäksi.**
+- **Palkin korkeus on KIINTEÄLLÄ asteikolla (16 m/s = täysi).** Älä palauta `maxMs`-skaalausta.
+- **Aikajanan valokaista ja puuskavyöhyke päivitetään MYÖS nopeassa polussa.**
+- **Nuolinäppäimet kuuluvat Leafletille.**
 - **Play ja kelihyppy KELLUVAT URAN PÄÄLLÄ, ja erottuvat kohotuksella.**
-  Ne peittävät mobiilissa 6 näkyvää tuntia 17:stä (35 %; työpöydällä
-  8 %) — se on kelluvan kontrollin tietoinen hinta, ei huomaamatta jäänyt
-  vika, ja siirto kiskoriville on kokeiltu ja peruttu (transportti kuuluu
-  sen raidan päälle jota se ajaa). Näkyvyyttä EI korjata tummentamalla
-  nappia: se tekisi kontrollista kortin äänekkäimmän elementin datan
-  päällä. Kiekko on uraa VAALEAMPI (`--surface-hi`) + kehä + varjo:
-  1,56:1 alustaan, kuvake 16,4:1 kiekkoon. Käytöstä poissa oleva nappi
-  menettää kohotuksen — ei `opacity`, joka haalistaa myös varjon.
-- **Nappien peitto mitataan MOLEMMISSA suunnissa.** Pelkkä vaakavertailu
-  väitti siirron jälkeen yhä 29 %:n peittoa vaikka napit olivat eri
-  rivillä. Napautus on lisäksi mitattava oikeasti — ja niin että mittari
-  palauttaa lähtötilan joka näytteen väliin: kelihyppy kuluttaa akselia,
-  ja lopussa se ei liiku vaikka napautus osuu.
-- **Päivälapun tuulikaista: LEVEYS on muoto, VÄRI on arvo.** Pelkkä väri
-  ei kelpaa, koska rampin hiljainen pää on paperilla tummin (0 m/s on
-  `6,14,58`) eli tyyni päivä näyttäisi raskaimmalta. Kaista on pillerin
-  ULKOPUOLELLA: sisällä se osuisi valitun päivän mustaan, jossa ramppi on
-  1,3:1. Luku on VALOISAN ajan huippu (varatie: koko väli, kun valoisia
-  tunteja on nolla) — yöllä puhaltava huippu ei ole keli.
-- **Kaistat päivitetään MYÖS nopeassa polussa.** Kisko rakennetaan vain
-  hitaassa (se riippuu aikaleimoista), mutta kaista riippuu nopeuksista
-  ja nopea polku on juuri se joka ajetaan kun aika pysyy ja paikka
-  vaihtuu. Sama ansa kuin päiväerottimien valovaiheessa.
-- **Päiväkisko on levossa PIILOSSA, ja se palaa MISTÄ TAHANSA
-  kosketuksesta aikajanaan** — ei vain raahauksesta. Kisko on olemassa
-  raahauksen välttämiseksi (12 ruudullista viikon päähän), joten se ei
-  saa vaatia raahausta. Päiväys on siksi kuplassa: piilossa ei saa olla
-  tietoa jota ei näy muualla. Lepoaika alkaa SORMEN NOUSUSTA, ei
-  kosketuksesta — pelkkä ajastin nukuttaisi kiskon kesken pitkää
-  raahausta (mitattu 6,5 s eleellä). Toiston aikana ei herätetä.
-- **Kiskon korkeus on yksi muuttuja (`--tl-paivat-h`)**, joka kasvattaa
-  kääreen korkeutta ja sen ylätäytettä yhtä paljon. Siksi piilotus ei
-  siirrä tuntiriviä eikä nappeja pikseliäkään (mitattu 0 px, kortti
-  128 → 88). Jos erotat luvut, ne ajautuvat erilleen ensimmäisessä
-  säädössä.
-- **Aikajanan valinta kulkee `_tlValitseIdx`:n kautta** (päiväkisko,
-  näppäimistö, kelihyppy). Älä kirjoita neljättä polkua.
-- **Päiväkiskon napautus ei saa käyttää `scrollTimelineTo`a.** Kupla ja
-  päiväkorostus päivittyvät VIERITYKSEN mukaan, joten pehmeä animaatio
-  kävelee jokaisen välipäivän läpi (mitattu 15 välitilaa ja 1001 ms
-  ennen kuin oikea päivä jäi voimaan). Pitkä hyppy asetetaan suoraan
-  `_tlSetScrollLeft`illä.
+- **Nappien peitto mitataan MOLEMMISSA suunnissa.**
+- **Päivälapun tuulikaista: LEVEYS on muoto, VÄRI on arvo.**
+- **Kaistat päivitetään MYÖS nopeassa polussa.**
+- **Päiväkisko on levossa PIILOSSA, ja se palaa MISTÄ TAHANSA kosketuksesta aikajanaan.**
+- **Kiskon korkeus on yksi muuttuja (`--tl-paivat-h`).**
+- **Aikajanan valinta kulkee `_tlValitseIdx`:n kautta (päiväkisko, näppäimistö, kelihyppy).** Älä kirjoita neljättä polkua.
+- **Päiväkiskon napautus ei saa käyttää `scrollTimelineTo`a.**
 - **Laattavaraston akseli on 3 h (ja 6 h yli 7,5 vrk).**
-  `wxTunneittain()` interpoloi siitä tuntiakselin — se ei ole uutta
-  dataa vaan täsmälleen se mitä `asetaHetki`+`naytteista` jo antaa
-  kartalle (mitattu ero 0 m/s). Akseli rakennetaan KERRAN ja jaetaan;
-  pistekohtainen mitätöisi `_ts()`:n muistin.
 
-**Havaintoasemat**
+**Havaintoasemat** — perustelut: `docs/ui.md`
 
-- **HAVAINTOKAAVION TÄYTTÖ ON `paperi()` JA VIIVAT `--ink`.** Väri on
-  funktio KORKEUDESTA, ei sarjasta: vaakaviipale korkeudella y saa sen
-  nopeuden värin jota y edustaa. Älä sävytä viivoja rampilla — mitattuna
-  `ink()` katoaa oman ramppinsa päälle (kontrasti 1,14–3,33, mediaani
-  1,6, pohja 1,14 juuri 4–8 m/s kohdalla). Pienin kontrasti täyttöä
-  vasten: `--ink` 3,94:1, `--ink-2` 1,61:1, `--ink-3` 1,25:1 — `--ink`
-  on ainoa joka kestää. Yksi kanava, yksi merkitys: täyttö kantaa
-  arvon, viivat muodon.
-- **`gradientUnits="userSpaceOnUse"` on pakollinen** täytön
-  gradientissa. Oletusarvoinen objectBoundingBox suhteuttaisi sen
-  täyttöpolun rajauslaatikkoon, jonka yläreuna on korkein puuskapiikki
-  eikä piirtoalueen ylälaita — väri ja akseli irtoaisivat toisistaan
-  aina kun tuuli ei yllä asteikon huippuun. Pysäkit otetaan
-  m/s-asteikolla ja sijoitetaan yOf():n mukaan; käänteistä
-  yksikkömuunnosta ei ole eikä saa keksiä (bofori ei ole käännettävissä).
-- **KUVAAJASSA EI OLE VÄRILIUSKAA.** Y-akselin vieressä oli gradientti
-  kolmen yksikön pystyliuskana. Se oli turha omasta perustelustaan:
-  kun väri on funktio KORKEUDESTA, y-akselin numerot ovat jo sen
-  selite — liuska oli kolmas kerta samalle tiedolle ja kuvaajan ainoa
-  pystysuora muoto joka ei ollut dataa. Älä palauta sitä; jos värin
-  merkitys joskus pitää sanoa ääneen, se sanotaan selitteessä sanoina.
-- **`padX` on MITATTAVA kortilla, ei laskettava.** Kortin SVG vuotaa
-  22 px omaan täytteeseensä (`margin-left:-22px`), joten viewBox-yksiköt
-  eivät kerro mihin y-akselin lukema ruudulla osuu: 22 jätti lukeman
-  3,2 px otsikkopalstan ulkopuolelle, 24 tuo sen reunaan (−0,7 px).
+- **HAVAINTOKAAVION TÄYTTÖ ON `paperi()` JA VIIVAT `--ink`.** Älä sävytä viivoja rampilla — mitattuna `ink()` katoaa oman ramppinsa päälle (kontrasti 1,14–3,33, mediaani 1,6, pohja 1,14 juuri 4–8 m/s kohdalla).
+- **`gradientUnits="userSpaceOnUse"` on pakollinen.**
+- **KUVAAJASSA EI OLE VÄRILIUSKAA.** Älä palauta sitä; jos värin merkitys joskus pitää sanoa ääneen, se sanotaan selitteessä sanoina.
+- **`padX` on MITATTAVA kortilla, ei laskettava.**
 - **Kaavion työkalurivi on `flex-start`, ei `space-between`.**
-  Asemavalitsimen paikka on tyhjä havaintokortissa, ja `flex: 1`
-  -välikkeenä se työnsi jaksovalitsimen keskelle riviä kun sulkunappi
-  jäi oikealle — kaksi kohdistusta samalla rivillä. Laajennusnappi
-  menee oikealle `margin-left:auto`illa, ja tyhjä paikka poistuu
-  virrasta CSS:llä (`.hav-asemavalitsin:empty`), ei JS-lipulla.
-- **ASEMAN NIMI SANOTAAN KERRAN, IKÄ SANOTAAN KERRAN.** Havainto-
-  kortissa otsikko on aseman nimi, joten selite jättää sen pois;
-  SPOTTIKORTISSA otsikko on spotin nimi ja selite on ainoa maininta
-  käyrän lähteestä, joten siellä nimi JÄÄ. Ero luetaan
-  `data-nimi-otsikossa`-lipusta, ja lippu luetaan ELEMENTILTÄ ITSELTÄÄN
-  (`el.dataset`), EI `closest`illä — molemmat kortit asuvat samassa
-  `#sheet-content`issä, ja esivanhempihaku veisi nimen sieltä missä se
-  on välttämätön. Ikä on kuvaajan alla joka kortissa; hero-rivi
-  mainitsee sen VAIN kun lukema on vanha (silloin se on varoitus eikä
-  aikaleima).
-- **Spottimerkkiä napauttava mittari on tarkistettava
-  `State.sheetSpot`ista.** Lauttasaaressa Larun asemamerkki on spotin
-  vieressä, ja kosketussäätö siirtää napautuksen siihen:
-  `spottikaavio.mjs` avasi pitkään HAVAINTOkortin ja luuli sitä
-  spottikortiksi — ja siitä päätyi kertaalleen raporttiin "spottikortin
-  asemavalitsin on rikki", vaikka havaintokortissa sitä valitsinta ei
-  kuulukaan olla.
-- **Yöharso on täytön PÄÄLLÄ mutta viivojen ALLA.** Täytön alla se
-  näkyy vain siellä missä täyttöä ei ole ja lukee korostuslaatikkona.
-  Alfat (.13/.09/.05) ovat aikajanan kalibroinnista, älä säädä niitä
-  erikseen.
-- **Jakson kovin puuska saa aina lapun.** Muut huiput väistävät oikeaa
-  reunaa, mutta se sääntö sulki kerran pois juuri sen luvun jonka
-  "Kovin puuska" -ruutu sanoo (7 vrk: ruutu 31,9, kaavion suurin lappu
-  29,0). Muille lapuille kynnys on 55 % vaihteluvälistä, jottei lappu
-  mene keskitason kumpareelle.
-- **Ei vaakavieritystä.** 24 h niputtuu ~110 pisteeseen eli 13 min per
-  piste, mikä on tiheämpi kuin lähteen 30 min askel — muoto säilyy
-  mahtumalla ruudulle. Vieritys myös söisi raahauksen, jolla kaaviota
-  luetaan.
-- **KOLME ASUA, YKSI PIIRTOFUNKTIO** (`HAV_ASU_KORTTI` / `_PYSTY` /
-  `_LAAJA`). Kaikki mikä eroaa on taulukossa, ei koodihaaroissa. Älä
-  kirjoita laajalle omaa piirtofunktiota.
-- **Laajennus on VAAKANÄKYMÄ.** Aikasarja tarvitsee leveyttä: mitattuna
-  kortti antaa 13,9 px/tunti, vaakaruutu 30,8 (24 h) ja 129 (6 h).
-  Pystysuora täysi ruutu antaisi vain korkeutta, jota kortilla on jo yli
-  (sisältö 541 px, näkyvä 595 px). Pystyasu on silti olemassa, koska
-  ensimmäinen versio antoi pystyssä 373×145 px eli PIENEMMÄN kuin kortti
-  (375×209) — laajennusnappi ei saa kutistaa kuvaajaa.
-- **Asu valitaan laatikon muodosta, ei media querystä.** Työpöydän kapea
-  ikkuna ja puhelimen vaaka ovat sama tilanne.
-- **Kääntö sulkee vain jos näkymä avattiin kääntämällä.** Napista avattu
-  jää auki ja vaihtaa asua. Nappi on oikea `<button>`; kääntö yksin
-  rikkoisi saavutettavuussäännön.
-- **LAAJA NÄKYMÄ ON `inset: 0`, JOTEN SE TARVITSEE TURVA-ALUEET
-  KAIKILLA NELJÄLLÄ SIVULLA.** Ilman niitä mitattiin iPhone 16:lla neljä
-  oiretta yhdestä syystä: pystyssä sulkunappi 7 px ylhäältä (palkki 59),
-  vaakassa kaavio 10 px vasemmalta, nappi 12 px oikealta ja rako alas
-  18 px (indikaattori 21). Täyte on `max(var(--sat), 6px)` eikä pelkkä
-  token, koska selaimessa alainsetti on iPhonella nolla. Vaakatilassa
-  palkki on toisella sivulla mutta kumpi riippuu kääntösuunnasta —
-  molemmat on käsiteltävä.
-- **Kaavion korkeus ratkaistaan LAATIKOSTA** (`_asu()`), ei vakiona: SVG
-  skaalautuu leveyden mukaan, joten kiinteä viewBox jätti pystyssä
-  128 px käyttämättä. Lukemarivi on täytettävä ENNEN mittausta (sen
-  korkeus muuttaa laatikkoa: 645 vs 625 px), ja avauksen jälkeen on
-  piirrettävä uudestaan 180 ms:n kuluttua (kääntämällä avattaessa mitat
-  eivät ole asettuneet: 714×187 vs 714×280).
-- **`.hl-kaavio`-sivutäyte on 4 px**, koska kortin kaavio vuotaa 22 px
-  omaan täytteeseensä. Leveämpi täyte tekee laajennetusta kaaviosta
-  KAPEAMMAN kuin se oli kortilla (365 vs 375) — laajennus ei saa
-  kaventaa mitään.
-- **Liu'utusele alkaa vain kahvasta tai otsikkoriviltä.** Kuvaajan
-  päällä raahaus on lukeman haku, joten sulkuele siellä sulkisi näkymän
-  aina kun arvoa luetaan. Napit ohitetaan `closest('button')`illa.
-- **Laajassa lukema menee kiinteälle riville, ei kelluvaan kuplaan** —
-  kokonäytössä kupla jää sormen alle. Rivillä on levossa jakson
-  tilastot ja raahatessa hetken arvot.
-- **Lämpötila on VÄLI eikä käyrä.** Oma y-akseli tuulen rinnalla tekisi
-  risteämisistä merkitseviä vaikka ne ovat mittayksikön sattumaa.
-- **`wsMin` EI OLE lähteen tyyni vaan nipun sisäinen minimi.** Kun
-  nippuun osuu yksi näyte, se on sama luku kuin keskiarvo — mitattuna
-  katkoviiva piirtyi 0,00 yksikön päähän keskituulesta koko laajassa
-  näkymässä ja kortin 6 h jaksolla. Käyrä ja sen selite piirretään vain
-  jos ne erkanevat, ja ehto luetaan DATASTA eikä nipun koosta.
+- **ASEMAN NIMI SANOTAAN KERRAN, IKÄ SANOTAAN KERRAN.**
+- **Spottimerkkiä napauttava mittari on tarkistettava `State.sheetSpot`ista.**
+- **Yöharso on täytön PÄÄLLÄ mutta viivojen ALLA.**
+- **Jakson kovin puuska saa aina lapun.**
+- **Ei vaakavieritystä.**
+- **KOLME ASUA, YKSI PIIRTOFUNKTIO (`HAV_ASU_KORTTI` / `_PYSTY` / `_LAAJA`).** Älä kirjoita laajalle omaa piirtofunktiota.
+- **Laajennus on VAAKANÄKYMÄ.**
+- **Asu valitaan laatikon muodosta, ei media querystä.**
+- **Kääntö sulkee vain jos näkymä avattiin kääntämällä.**
+- **LAAJA NÄKYMÄ ON `inset: 0`, JOTEN SE TARVITSEE TURVA-ALUEET KAIKILLA NELJÄLLÄ SIVULLA.**
+- **Kaavion korkeus ratkaistaan LAATIKOSTA.**
+- **`.hl-kaavio`-sivutäyte on 4 px.**
+- **Liu'utusele alkaa vain kahvasta tai otsikkoriviltä.**
+- **Laajassa lukema menee kiinteälle riville, ei kelluvaan kuplaan.**
+- **Lämpötila on VÄLI eikä käyrä.**
+- **`wsMin` EI OLE lähteen tyyni vaan nipun sisäinen minimi.**
+- **KATKO JA LAKKAUTUS OVAT ERI ASIA.** Älä poista mitään verkkovian perusteella: mitattuna `/api/fmi`:n katkaisu jättää kaikki 13 merkkiä paikalleen, ja ilman erottelua yksi katko pyyhkisi havaintoasemat kartalta.
+- **Vuosaaren satamassa EI OLE tuulihavaintoa.** Älä lisää sitä takaisin kovakoodattuna eikä näytä naapuriaseman lukemaa sen kohdalla — merkki palaa itsestään jos FMI jatkaa lähettämistä.
 
-- **KATKO JA LAKKAUTUS OVAT ERI ASIA.** `_fmiLoadWithFallback` antaa
-  `onFail`ille syyn: `'tyhja'` = vastaus tuli ja koko ikkuna oli tyhjä
-  (proxyn oma `error: 'no data'`, HTTP 200) → merkki ja sen ruksi pois
-  kartalta; `'verkko'` = pyyntö kaatui tai palautti poikkeuksen →
-  katkoviivainen "ei signaalia" jää. Älä poista mitään verkkovian
-  perusteella: mitattuna `/api/fmi`:n katkaisu jättää kaikki 13
-  merkkiä paikalleen, ja ilman erottelua yksi katko pyyhkisi
-  havaintoasemat kartalta. `error: 'no data'` on proxyn merkintä juuri
-  tälle — ensimmäinen versio testasi `!value.error` ja luokitteli
-  siksi tyhjän vastauksen verkkoviaksi.
-- **Vuosaaren satamassa EI OLE tuulihavaintoa.** FMISID 151028 lähetti
-  viimeksi 18.8.2026 (mitattu puolitushaulla); asema on yhä FMI:n
-  asemarekisterissä, joten rekisteri ei kerro sitä. Korvaajaa
-  etsittiin viidestä lähteestä eikä sitä ole (FMI 12 km säteellä, HSY,
-  Marine Helsinki, Digitraffic, dlarah.org). Älä lisää sitä takaisin
-  kovakoodattuna eikä näytä naapuriaseman lukemaa sen kohdalla —
-  merkki palaa itsestään jos FMI jatkaa lähettämistä.
+**Aaltopoijut** (havainto — tämä on tuotannossa) — perustelut: `docs/ui.md`
 
-**Aaltopoijut** (havainto — tämä on tuotannossa)
+- **Yksi haku kattaa koko maan.** Ala tee asemakohtaisia hakuja tuoreimmalle lukemalle — se olisi kymmenen pyyntoa yhden hinnalla.
+- **Lukema ei ole "nyt" eikä se seuraa aikajanaa.**
+- **Kaikki poijut eivät mittaa aaltoja.** Älä keksi sille omaa asua.
+- **Asemat luetaan vastauksesta, ei kovakoodatusta listasta.**
+- **Aallonkorkeus on MUSTETTA, ei väriä.**
+- **Aaltopillerin glyfi ei ole vedenlämmön glyfi.**
+- **Poijun lukema tulee z8:lla, samalla kuin meriaseman.**
+- **Aaltokaavion raahaus tarvitsee `touch-action: none`in ja `setPointerCapture`in.**
+- **Peitto mitataan SISEMMÄSTÄ elementistä.**
+- **Väistön suunta lukitaan ensimmäisestä osumasta.**
+- **Spottikortin aaltorivin raja on 60 km.**
+- **Aaltokaavion y-akseli alkaa NOLLASTA.**
 
-- **Yksi haku kattaa koko maan.** Rajapinnan `bbox` EI rajaa mitään
-  (mitattu: sama 10 asemaa ja 62 829 tavua bboxin kanssa ja ilman).
-  Ala tee asemakohtaisia hakuja tuoreimmalle lukemalle — se olisi
-  kymmenen pyyntoa yhden hinnalla.
-- **Lukema ei ole "nyt" eikä se seuraa aikajanaa.** Viive on mitattuna
-  57–117 min, joten tuoreimman ikkuna on 6 h (3 h pudotti yhden aseman
-  kymmenestä pois) ja kortti sanoo aina `ageMin`. Havaintoa
-  tulevaisuuden tunnista ei ole olemassa.
-- **Kaikki poijut eivät mittaa aaltoja.** Neljä kymmenestä antaa
-  aaltokorkeutta 0 %:ssa riveistä mutta lämpötilaa 45–50 %:ssa — ne ovat
-  lämpöasemia samassa kyselyssä. `kind`-kenttä ratkaisee, ja lämpöasema
-  kulkee vesi-ikonipolkua. Älä keksi sille omaa asua.
-- **Asemat luetaan vastauksesta, ei kovakoodatusta listasta.** Poijut
-  ovat kausiluontoisia. Nimi ja sijainti sidotaan FMISIDiin, ei
-  esiintymisjärjestykseen — järjestys menee rikki kun asema on hiljaa.
-- **Aallonkorkeus on MUSTETTA, ei väriä.** `ColorRamp.ink()` on
-  tuuliasteikko; 0,4 m siitä värjättynä sanoisi "0,4 m/s".
-- **Aaltopillerin glyfi ei ole vedenlämmön glyfi.** `_pilleri` antaa saman
-  pinnan kaikille, joten glyfi on ainoa mikä kertoo suureen.
-- **Poijun lukema tulee z8:lla, samalla kuin meriaseman** — mutta
-  KAPEANA pillerinä, ja täysikokoisena vasta z9:stä. Kynnys yksin oli
-  väärä ratkaisu: se teki poijusta toisen luokan havainnon
-  (Suomenlahden poiju ilmestyi vasta Harmajan jälkeen). Kiinteä siirto
-  pisteen yläpuolelle kokeiltiin ja se vain vaihtoi naapuria
-  (Harmaja -> Malmi). Mitattu peitto z8:lla 36 % (perustason pari,
-  ei poiju), z9–z12 0 %.
-- **Aaltokaavion raahaus tarvitsee `touch-action: none`in ja
-  `setPointerCapture`in**, ja lukeman on JÄÄTÄVÄ näkyviin sormen
-  noustua — muuten napautus ei tee mitään. Ajastin palauttaa otsikon.
-- **Peitto mitataan SISEMMÄSTÄ elementistä.** Leafletin `_icon`-kuori
-  kantaa `translate3d`-sijainnin eikä liiku väistön mukana — kuoresta
-  mitattu peitto valehtelee.
-- **Väistön suunta lukitaan ensimmäisestä osumasta.** Ilman lukitusta se
-  työntää ylös yhden ohi, törmää seuraavaan ja työntää takaisin alas:
-  nettosiirto 3 px. Pistetilassa väistöä ei ajeta lainkaan.
-- **Spottikortin aaltorivin raja on 60 km**, ja se on aukko mitatussa
-  jakaumassa (kymmenen spottia 5–35 km, Hangon kaksi 114 ja 119 km).
-  Rivillä on aina poijun nimi ja etäisyys — muuten se väittäisi
-  mittaavansa spottia.
-- **Aaltokaavion y-akseli alkaa NOLLASTA.** Automaattinen alaraja
-  suurentaisi 0,20–0,30 m:n vaihtelun koko kaavion korkuiseksi ja tyyni
-  vuorokausi näyttäisi myrskyltä.
+**Aaltoennuste** (EI tuotannossa — peruttu erä `5150fc1`) — perustelut: `docs/data.md`
 
-**Aaltoennuste** (EI tuotannossa — peruttu erä `5150fc1`)
+- **Aaltoennuste on kytkimen takana (`Asetukset.arvot.aallot`).**
+- **Vain `wave_height`, ei tuuli/maininki-jakoa.**
+- **`isMarine` EI ole maa/vesi-testi.**
+- **Välimuistin avain on 0,05° hilalla.**
 
-- **Aaltoennuste on kytkimen takana** (`Asetukset.arvot.aallot`), koska se on
-  ainoa uusi rajapintakiintiö sen jälkeen kun tuuli siirrettiin omaan
-  varastoon. Pois päältä ei tehdä yhtäkään kutsua.
-- **Vain `wave_height`, ei tuuli/maininki-jakoa.** Mitattuna malli lukee
-  Itämerellä lähes kaiken maininiksi (`wind_wave` 0,00–0,02 m vs
-  `swell_wave` 0,08 m) — kokonaiskorkeus on ainoa luku joka pitää
-  paikkansa.
-- **`isMarine` EI ole maa/vesi-testi.** Se palauttaa 0,500 sekä
-  Tampereelle että avomerelle. Aaltojen maaportti on rajapinnan oma
-  `elevation > 20 m` (spottien solut 0–12 m, sisämaa 86–97 m).
-- **Välimuistin avain on 0,05° hilalla**, koska mallin solu on ~0,04° ja
-  naapurispotit jakavat sen. Kiintiötä säästetään siellä missä se ei
-  maksa mitään.
+**Mellsten (Surfing ry, Haukilahti)** — perustelut: `docs/data.md`
 
-**Mellsten (Surfing ry, Haukilahti)**
+- **Keskituuli on rivin KOLMAS luku (`min < ka < max`).**
+- **Aikaleimassa on vain kellonaika, ja se on Suomen aikaa.**
+- **`history` on nulliksi tarkoituksella.**
+- **Kuluvalle vuorokaudelle ei ole pidempää historiaa.**
+- **Sijainti 60,147 / 24,794 on Windyn PWS-tietueesta.**
 
-- **Keskituuli on rivin KOLMAS luku** (`min < ka < max`), puuska on
-  maksimi. Ensimmäinen on minuutin minimi.
-- **Aikaleimassa on vain kellonaika, ja se on Suomen aikaa.** Päiväys
-  johdetaan nykyhetkestä; arkistotiedoston otsikon luontiaika on
-  palvelimen omassa vyöhykkeessä (PDT) eikä kelpaa ankkuriksi.
-  Vyöhykepoikkeama pyöristetään täysiin minuutteihin, muuten
-  millisekunnit valuvat aikaleimoihin.
-- **`history` on nulliksi tarkoituksella.** Ikkuna on 30 min eikä kata
-  yhtäkään mennyttä tuntia, joten `_histValueAt` antaisi väärän luvun.
-  Merkki näyttää aina tuoreimman ja kortti sanoo iän.
-- **Kuluvalle vuorokaudelle ei ole pidempää historiaa.** Arkiston
-  päivätiedosto kirjoitetaan vasta vuorokauden päätyttyä.
-- **Sijainti 60,147 / 24,794 on Windyn PWS-tietueesta**, ei arvattu —
-  sama tietue palautti samat lukemat samalla hetkellä.
+**Laru (dlarah.org, Lauttasaari)** — perustelut: `docs/data.md`
 
-**Laru (dlarah.org, Lauttasaari)**
+- **Lähde vaatii User-Agentin.**
+- **Asemalla EI OLE lämpömittaria.** Älä muuta sitä viivaksi — viiva tarkoittaa "ei juuri nyt", ja FMI-asemilla se on yhä oikea (lippu on `false` eikä puuttuva juuri siksi).
+- **Lukemat ovat m/s.**
+- **`history` TÄYTETÄÄN, toisin kuin Mellstenillä.**
+- **Sarjan viimeinen piste on RAAKA tuorein havainto.**
 
-- **Lähde vaatii User-Agentin.** Ilman sitä 403, sen kanssa 200,
-  toistettavasti — Noden `https.get` ei lähetä sellaista oletuksena.
-  Eri asia kuin Mellstenin kertaluonteinen 403: siellä uusinta auttaa,
-  täällä pyyntö ei onnistu koskaan ilman otsaketta.
-- **Asemalla EI OLE lämpömittaria.** Lämpötilasarake on 0,0 kaikilla
-  474 rivillä ja Windguru antaa samalle asemalle `temperature: null`.
-  Proxy palauttaa `tmp: null, lampomittari: false`, ja kortti jättää
-  lämpötilaruudun pois kun lippu on `false`. Älä muuta sitä viivaksi —
-  viiva tarkoittaa "ei juuri nyt", ja FMI-asemilla se on yhä oikea
-  (lippu on `false` eikä puuttuva juuri siksi).
-- **Lukemat ovat m/s.** Varmistettu Windgurun asematietuetta 47 vasten:
-  suhde 1,94–2,07 (Windguru solmuja) ja suunta 173,9° vs 173,5° kahden
-  minuutin sisällä. Sijainti 60,150824 / 24,87184 tulee samasta
-  tietueesta, ei arvattu.
-- **`history` TÄYTETÄÄN, toisin kuin Mellstenillä.** Lähde antaa koko
-  kuluvan vuorokauden ~2 min välein, joten merkki osaa vastata myös
-  aikajanan menneistä tunneista (mitattu: neljä tuntia, neljä eri
-  lukemaa, ja paluu samaan arvoon). Mellstenin 30 min ikkuna ei riitä
-  siihen, ja siksi sen `history` on nulliksi tarkoituksella.
-- **Sarjan viimeinen piste on RAAKA tuorein havainto**, ei nipun
-  keskiarvo — muuten kaavion pää ja kortin päälukema olisivat eri
-  luvut samasta hetkestä.
+**Kenttä ja data** — perustelut: `docs/data.md`
 
-**Kenttä ja data**
+- **SOVELLUKSESSA ON KAKSI DATATASOA, ja ne antavat eri luvun.** Älä oleta että jokin kartan luku ja jokin paneelin luku ovat samasta lähteestä.
+- **AIKAJANA LUKEE VARASTOA, ei lähintä ennustepistettä (`aikajananLahde`).**
+- **AIKAJANAN INDEKSI EI OLE SPOTIN INDEKSI.** Älä kirjoita neljättä polkua äläkä siirrä indeksiä sellaisenaan.
+- **Kumpi taso on tarkempi EI OLE RATKAISTU.** Älä perustele tasojen valintaa tarkkuudella ilman uutta mittausta.
+- **`WindTexture.hila` on kokonaan varastosta, eivätkä spotit ole siinä.**
+- **VARASTON PUUSKA EI OLE TUNNIN PUUSKA.** Älä näytä varaston puuskaa lukuna jonka pitää tarkoittaa yhtä tuntia — se vilkkuisi päälle ja pois joka toisella aikajanan askeleella.
+- **Kapselin puuska on NELJÄS `_spotIdx`-paikka.**
+- **Lähdemerkintä kertoo TÄHTÄIMEN lukeman lähteen.**
+- **Interpolointijärjestys: paikassa vektorit, ajassa nopeus ja suunta erikseen.**
+- **Kaikki aikasarjat pyydetään selaimen omassa vyöhykkeessä (`AIKAVYOHYKE`).**
+- **Piste joka ei kata pyydettyä hetkeä jätetään pois kentästä.**
+- **`/api` ei kuulu service workerin välimuistiin.**
 
-- **SOVELLUKSESSA ON KAKSI DATATASOA, ja ne antavat eri luvun.** Kartta
-  (lämpökartta, kapseli, partikkelit) lukee `Saalaatat`-varastoa
-  (ECMWF 0,25°); aikajana ja spottikortit lukevat lähintä
-  ennustepistettä, joka on Suomessa käytännössä aina spotti ja siis
-  HARMONIE. Mitattu 3 893 vertailulla: ka 1,38 m/s, med 1,20, max 7,34,
-  ja **86 % tunneista yli 0,5 m/s rajan**. Ero KASVAA tuulen mukana
-  (0,82 → 2,78 m/s välillä 0–4 ja 10–14 m/s). Avomerellä 0,10 m/s,
-  koska siellä molemmat tulevat varastosta. Älä oleta että jokin kartan
-  luku ja jokin paneelin luku ovat samasta lähteestä.
-- **AIKAJANA LUKEE VARASTOA, ei lähintä ennustepistettä**
-  (`aikajananLahde`). Valinta tehtiin YHTENÄISYYDEN perusteella, ei
-  tarkkuuden — älä purkaa sitä tarkkuudella ilman uutta mittausta.
-  Mitattu jälkeen: aikajana on varaston sarja (4 764 vertailua, max ero
-  0,000000). Kapselia vasten jää 0,24 m/s (max 0,73), ja se on
-  INTERPOLOINTI eikä data: kapseli on bikuubinen solmuhila, aikajana
-  bilineaarinen laattanäyte.
-- **AIKAJANAN INDEKSI EI OLE SPOTIN INDEKSI.** Akselit eivät ala
-  samasta hetkestä. `renderSpots`, `_spotVaistoMuuttuisi` ja
-  `openSheet` hakevat indeksin AJASTA yhden funktion kautta
-  (`_spotIdx`). Älä kirjoita neljättä polkua äläkä siirrä indeksiä
-  sellaisenaan.
-- **Kumpi taso on tarkempi EI OLE RATKAISTU.** Viiden asemaparin
-  otoksesta vedettiin kerran johtopäätös "aikajana on tarkempi"; 48 h
-  otos käänsi järjestyksen, ja siinäkin aikajanan otos oli vain 30
-  paria (spottisarjan menneisyys kattaa ~6 h). Molemmilla on sama
-  systemaattinen harha −1,79 m/s havaintoa vasten. Älä perustele
-  tasojen valintaa tarkkuudella ilman uutta mittausta.
-- **`WindTexture.hila` on kokonaan varastosta, eivätkä spotit ole
-  siinä.** Kun se on olemassa, kaikki tähtäimen alla oleva luku tulee
-  varastosta riippumatta siitä kuinka lähellä spotti on (mitattu 0,2 km
-  päässä olevan spotin vaikutus lukemaan: ei mitään).
-- **VARASTON PUUSKA EI OLE TUNNIN PUUSKA.** Se puuttuu joka toiselta
-  kolmen tunnin askeleelta (mitattu 26/99), ja laattojen rakennus
-  täyttää aukon tuulella (`puu[t] = nop[t]`) — eli suhde on siellä
-  tasan 1,00. Ne askeleet joilla puuska on, ovat kuuden tunnin
-  maksimeja: suhde 1,55–1,77, kun HARMONIEn tuntipuuska samassa
-  pisteessä on 1,25 ja mitattu havainto 1,16. Älä näytä varaston
-  puuskaa lukuna jonka pitää tarkoittaa yhtä tuntia — se vilkkuisi
-  päälle ja pois joka toisella aikajanan askeleella. Kapselin puuska
-  luetaan siksi lähimmästä RAJAPINTApisteestä (`_puuskaPiste`), ja sen
-  etäisyysraja on `3 × step` lattialla 0,5° — TIUKEMPI kuin
-  lähdemerkinnällä eikä siinä ole `LAHDE_RAJA_MIN`-lattiaa, koska
-  puuska on paikan lukema eikä alueen mallin nimi.
-- **Kapselin puuska on NELJÄS `_spotIdx`-paikka.** `Crosshair._puuska`
-  siirsi `State.currentHourIdx`:n sellaisenaan aikajanan akselilta
-  rajapintapisteen akselille: mitattuna indeksi 52 oli varastossa
-  2026-09-08T10:00 ja rajapintapisteessä 2026-09-10T10:00 eli **48 h
-  sivussa**, ja kahdessa paikassa seitsemästä väärän tunnin puuska
-  hylättiin liian pieneksi jolloin koko rivi katosi. Vertailu
-  "puuska yli 5 % keskituulesta" tehdään SARJAN SISÄLLÄ, ei kapselin
-  bikuubista varastonäytettä vastaan.
-- **Lähdemerkintä kertoo TÄHTÄIMEN lukeman lähteen.** Se luki ennen
-  lähimmän ennustepisteen lähteen ja sanoi siksi Helsingissä HARMONIE
-  vaikka luku tuli varastosta. Jos muutat kumpaakaan polkua, tarkista
-  että merkintä seuraa sitä polkua josta luku oikeasti tulee.
+**Partikkelit** — perustelut: `docs/partikkelit.md`
 
-- **Interpolointijärjestys: paikassa vektorit, ajassa nopeus ja suunta
-  erikseen.** Suuntien aritmeettinen keskiarvo hyppää väärään suuntaan 0/360
-  rajalla; vektorien interpolointi ajassa tekee vastakkaisten tuntien väliin
-  keinotekoisen tyvenen. Molemmat on mitattu.
-- **Kaikki aikasarjat pyydetään selaimen omassa vyöhykkeessä** (`AIKAVYOHYKE`).
-  `timezone=auto` antaa jokaiselle pisteelle oman kellon ilman että
-  merkkijonossa on vyöhykettä — kenttä hajoaa leveillä näkymillä.
-- **Piste joka ei kata pyydettyä hetkeä jätetään pois kentästä**, ei kiinnitetä
-  sarjansa päähän.
-- **`/api` ei kuulu service workerin välimuistiin.** Sovelluksella on oma
-  ennustevälimuisti joka osaa merkitä datan vanhaksi. Säälaatat ovat eri asia:
-  ne ovat muuttumattomia ja versioituja (`?v=<ajoAika>`).
+- **Älä lisää maa/vesi-rajausta.**
+- **Leveys ja määrä on viritetty yhdessä.**
+- **Älä jäädytä partikkeleita eleen ajaksi.**
 
-**Partikkelit**
+**Eleet** — perustelut: `docs/eleet.md`, `docs/lampokartta.md`
 
-- **Älä lisää maa/vesi-rajausta.** Kokeiltu, mitattu toimivaksi ja poistettu
-  käyttäjän pyynnöstä — ero luki kartalta häiritsevänä.
-- **Leveys ja määrä on viritetty yhdessä.** Jos muutat toista yksin, mustemäärä
-  muuttuu eikä pyyhkäisyn tulos enää päde.
-- **Älä jäädytä partikkeleita eleen ajaksi.** Toteutettu, mittarit olivat
-  erinomaiset, ja se peruttiin käyttökokemuksen perusteella.
-
-**Eleet**
-
-- **Älä yritä neljättä derivaattapohjaista suodinta.** Lead compensation, Holt ja
-  nollaviiveinen FIR kaatuivat kaikki samaan asiaan: näillä nopeuksilla
-  derivaatta on lähes pelkkää vapinaa.
-- **Eleen tila kulkee `nipistysAlkaa` / `nipistysPaattyy` -parin kautta**, ja
-  molemmat zoom-eleet käyttävät sitä. Palautus on tehtävä jokaisella
-  poistumistiellä, myös `touchcancel`issa.
-- **Eleen ajaksi jäädytetty kerros on vapautettava `nipistysPaattyy`ssä**, ei
-  vasta seuraavassa `_reset`issä. Sormen noustessa kartta liukuu maaliin
-  Leafletin omalla animaatiolla, ja `_animateZoom` olettaa että elementin
-  koko vastaa sen rajoja — jäädytetty koko ei vastaa, ja kerros lensi
-  ruudun ulkopuolelle (musta välähdys).
-- **`minZoom` ei rajaa nipistystä.** Leafletin `bounceAtZoomLimits` on
-  oletuksena tosi ja päästää eleen käytännössä rajattomasti ali (mitattu
-  3,46 tasoa, 92 % ruudusta paljasta taustaa). Raja tehdään joustona
-  `getScaleZoom`issa — ei `_move`ssa, koska keskipiste lasketaan zoomista
-  ja ankkuri valuisi.
-- **Lämpökartta on LAATTAPYRAMIDI** (`Laattakerros`, `L.GridLayer`).
-  Laatta ei liiku koskaan: siirto vain paljastaa uusia. Älä palauta
-  näkymänkokoista tekstuuria uudelleenrakennuksineen — se ankkuroitui
-  uudelleen kaksi kertaa yhtä sormenvetoa kohti (mitattu luisto z13:lla
-  26 288 px), ja juuri se tuntui. Vanha polku on yhä olemassa
-  varatienä (`?laatat=0`) mutta ei ole oletus.
-- **Laattojen solmuhilan origo on GLOBAALISTI KOHDISTETTU**
-  (`floor(x/d)*d`), ei laatan reuna. Muuten naapurit näytteistävät eri
-  hilasta ja sauma näkyy. Mittari on `saumat.mjs`: ero sauman yli pitää
-  olla enintään sama kuin vierekkäisten sarakkeiden ero laatan sisällä.
-- **Laattakerros EI saa käyttää `.heatmap-overlay`-luokkaa.** Se kantaa
-  reunahäivytyksen maskin, joka mitoitetaan elementin kokoon — ja
-  `GridLayer`in säiliö on 0×0, joten maski leikkaa koko kerroksen pois
-  (mitattu: täysin näkymätön vaikka laatat olivat kunnossa). Luokka on
-  `.saa-laatat`, ilman maskia: pyramidilla ei ole datan reunaa.
-- **Pyramidista on näkyvissä TASAN YKSI taso, eikä laattoja häivytetä.**
-  `L.GridLayer` on tehty läpinäkymättömille laatoille: se pitää isän
-  näkyvissä kunnes lapset ovat valmiit ja häivyttää lapset sisään
-  200 ms:ssä. Puoliläpinäkyvillä laatoilla ja lisäävällä sekoituksella se
-  ei ole ristihäivytys vaan summa (`a + a(1−a) > a`) — kartta kirkastuu
-  koko päällekkäisyyden ajan (mitattu 302–3418 ms zoomia kohti).
-  `_tasoVuoro` valitsee näkyvän tason, `_updateOpacity` on korvattu.
-  Älä palauta Leafletin häivytystä äläkä salli kahta painettua tasoa.
-- **Peitto mitataan PIKSELEISTÄ, ei elementin rajoista.** Pyramidilla
-  rajapohjainen mittari antaisi triviaalisti 100 %. Piilota pohjakartta
-  ja partikkelit, jolloin kaikki ei-läpinäkyvä on lämpökarttaa — ja
-  muista säästää `.saa-laatat`, ei `.heatmap-overlay`.
-- **Lämpökartta piirtyy GPU:lla kun laite kiihdyttää** (`GLKentta`,
-  WebGL2). Varjostimen ja CPU-silmukan on annettava sama tulos: rivin
-  leveysaste `ymercInv(myMax - r*myStep)`, sarake `lngMin + c*lngStep`
-  (ei texelin keskipiste), ankkuri `clamp(floor(f), 1, g-3)`. Jos
-  muutat toista polkua, muuta molemmat — pikselivertailu on
-  `glruudulla.mjs`. Ramppi luetaan `pikseliLUT()`:n tavuista, ei
-  lasketa uudelleen.
+- **Älä yritä neljättä derivaattapohjaista suodinta.**
+- **Eleen tila kulkee `nipistysAlkaa` / `nipistysPaattyy` -parin kautta.**
+- **Eleen ajaksi jäädytetty kerros on vapautettava `nipistysPaattyy`ssä.**
+- **`minZoom` ei rajaa nipistystä.**
+- **Lämpökartta on LAATTAPYRAMIDI (`Laattakerros`, `L.GridLayer`).** Älä palauta näkymänkokoista tekstuuria uudelleenrakennuksineen — se ankkuroitui uudelleen kaksi kertaa yhtä sormenvetoa kohti (mitattu luisto z13:lla 26 288 px), ja juuri se tuntui.
+- **Laattojen solmuhilan origo on GLOBAALISTI KOHDISTETTU.**
+- **Laattakerros EI saa käyttää `.heatmap-overlay`-luokkaa.**
+- **Pyramidista on näkyvissä TASAN YKSI taso, eikä laattoja häivytetä.** Älä palauta Leafletin häivytystä äläkä salli kahta painettua tasoa.
+- **Peitto mitataan PIKSELEISTÄ, ei elementin rajoista.**
+- **Lämpökartta piirtyy GPU:lla kun laite kiihdyttää (`GLKentta`, WebGL2).**
 - **`failIfMajorPerformanceCaveat` ei estä ohjelmistorasterointia.**
-  Mitattu: Chromium loi kontekstin SwiftShaderille sen kanssa yhtä
-  lailla. Portti on renderöijän nimi (`swiftshader`, `llvmpipe`,
-  `softpipe`, `basic render`, `software`). Nimen puuttuminen ei ole
-  todiste — silloin päästetään läpi.
-- **Kontissa ei ole GPU:ta.** WebGL ajetaan SwiftShaderilla, eli
-  varjostin suoritetaan samalla kuristetulla suorittimella. GL-polun
-  nopeuslukuja ei voi mitata täällä; oikeaa laitetta vastaan on
-  mitattava. Pikselivastaavuus sen sijaan mitataan täällä hyvin.
-- - **Lämpökartta on KAKSI kerrosta: tarkka ja karkea pohja.** Ne eivät
-  ole koskaan yhtä aikaa näkyvissä levossa — kaksi lisäävää kerrosta
-  päällekkäin laskettaisiin yhteen. Vuoro vaihtuu peittotarkistuksella
-  ja summa pysyy ykkösessä, koska `plus-lighter` on lineaarinen. Reiän
-  puhkaisu pohjan kankaaseen kokeiltiin ja mitattiin rikki: pohjan texel
-  on lähizoomissa satoja pikseleitä eikä reikä mahdu sen hilaan.
-- **Nipistys ei lähetä `move`- eikä `zoom`-tapahtumia** (Leaflet ajaa
-  `_move`n `supressEvent`-lipulla). Eleen ajan tarvittava tarkistus on
-  ajettava omassa ruutusilmukassa, ei tapahtuman varassa. Samasta
-  syystä `State.liikkeessa` on epätosi nipistyksen aikana —
-  `_nipistysKesken` on oma ehtonsa.
-- **`_heatmapCovers` ei kelpaa zoom-liu'un EIKÄ nipistyksen aikana.** Sen rajat ovat
-  lopputilan arvoja, elementti ei ole. Liu'un ajaksi peitto luetaan
-  ruudulta (`getBoundingClientRect`).
-- **Kerrosta ei piiloteta liu'un aikana.** Korvaava kerros on silloin
-  itsekin kesken siirtymää, ja mitattuna peitto putosi nollaan.
-- **Tekstuuria ei rakenneta liu'un aikana.** Rakennuksen päättävä
-  `setBounds` on `_reset`, joka kirjoittaa koon kohdezoomille kesken
-  transform-siirtymän; kerros kutistuu kahdesti.
+- **Kontissa ei ole GPU:ta.**
+- **Lämpökartta on KAKSI kerrosta: tarkka ja karkea pohja.**
+- **Nipistys ei lähetä `move`- eikä `zoom`-tapahtumia (Leaflet ajaa `_move`n `supressEvent`-lipulla).**
+- **`_heatmapCovers` ei kelpaa zoom-liu'un EIKÄ nipistyksen aikana.**
+- **Kerrosta ei piiloteta liu'un aikana.**
+- **Tekstuuria ei rakenneta liu'un aikana.**
 
-**Jäädytys on kiinnitettävä VOIMASSA OLEVIIN rajoihin.** Lämpökartta
-  rakennetaan uudelleen kesken eleen, ja vanhalla ankkurilla uusi laaja
-  tekstuuri piirtyi vanhan pienen alueen kokoisena. `_heatmapCovers` on
-  tälle sokea: mittaa elementin `getBoundingClientRect` suhteessa
-  karttasäiliöön.
+- **Jäädytys on kiinnitettävä VOIMASSA OLEVIIN rajoihin.**

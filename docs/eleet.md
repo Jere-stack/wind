@@ -1152,3 +1152,17 @@ pidättää sekunnin sijaan 150 ms:n, laattojen odottaminen tulisi
 mahdolliseksi ja kuva vaihtuisi kirjaimellisesti kerran. Se on
 käyttökokemuspäätös eikä tekninen — ja se on tehtävä laitteella, ei
 mittarilla.
+
+---
+
+## `minZoom` ei rajaa nipistystä
+
+Leafletin `bounceAtZoomLimits` on oletuksena tosi, ja se päästää
+nipistyseleen käytännössä rajattomasti `minZoom`in ali — se vain
+kimmottaa takaisin sormen noustua. Mitattu: ele vei **3,46 zoom-tasoa**
+rajan ali, jolloin **92 % ruudusta oli paljasta taustaa**. Kimmotus ei
+auta sitä mitä eleen aikana näkyy.
+
+Raja on siis tehtävä joustona `getScaleZoom`issa, EI `_move`ssa:
+`_move` laskee keskipisteen zoomista, joten siellä rajoittaminen
+siirtäisi ankkuria ja kartta valuisi sormen alta.

@@ -3504,3 +3504,21 @@ napauttaa merkkejä järjestyksessä ja hyväksyy vasta kun
 `State.sheetSpot` on tosi, spottikortti aukeaa oikein ja sen
 asemavalitsin on paikallaan. Kortin varsinainen tarkistus meni samalla
 läpi: selitteessä lukee yhä "Helsinki Harmaja · 4 min sitten".
+
+---
+
+## Aikajanan indeksi ei siirry akselilta toiselle
+
+Aika-akseli tulee siltä ennustepisteeltä joka on kartan keskellä, ja
+zoomaus vaihtaa pisteen. `currentHourIdx` on INDEKSI tuohon akseliin,
+ei hetki — joten indeksin siirtäminen sellaisenaan uudelle akselille
+siirtää samalla aikaa.
+
+Mitattu ilman `_tlSailytaHetki`-hakua: **−15 h, −55 h ja +75 h**. Jopa
+kahden tuntiakselin välillä ero oli 5 h, koska ne eivät ala samasta
+hetkestä — tunnin tarkkuus ei siis riitä perusteeksi sille että
+indeksin voisi kopioida.
+
+Korjaus on hakea uusi indeksi AJASTA. `renderSpots`,
+`_spotVaistoMuuttuisi`, `openSheet` ja `Crosshair._puuska` käyttävät
+samaa funktiota (`_spotIdx`); neljättä polkua ei kirjoiteta.
