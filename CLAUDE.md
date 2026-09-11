@@ -66,6 +66,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/data.md` | säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja |
 | `docs/ui.md` | paletteja, paneeleita, spottikorttia, aikajanaa, kapselia, havaintoasemia |
 | `docs/pwa.md` | service workeria, offline-käynnistystä tai kotivalikon appia |
+| `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
 
 <details>
 <summary>Osioiden nimet tiedostoittain (jos et tiedä mistä etsiä)</summary>
@@ -91,6 +92,10 @@ kokeiltu ja kaadettu mittauksella.
   havaintoa, ei ennustetta · Aikajana ja kartta näyttivät eri
   lukua · Mellsten (Haukilahti) — kolmas oma proxy · Varaston puuska on
   joka toisella askeleella tuuli · Laru (Lauttasaari) — neljäs oma proxy
+- **lisadata**: Mistä sovellus lukee nyt · TOP 10 — data · TOP 10 — lähteet ·
+  Mitattu ja hylätty (MEPS on HARMONIE · hydrodyn 2/12 spottia · vuorovesi ·
+  Holfuy · ilmanlaatu) · Toinen kerros — kontekstia, ei päätöstä ·
+  Toteutusjärjestys
 - **ui**: Valikoiden ulkoasu — Merikartta · Mallien erimielisyys · Suosikit ja
   jaettava linkki · Puvun paksuus · Ennusteen osuvuus havaintoja vasten ·
   Spottikortin auditointi · Play ja kapseli · Aikajana kotivalikon appissa ·
@@ -585,6 +590,38 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **Välimuistin avain on 0,05° hilalla**, koska mallin solu on ~0,04° ja
   naapurispotit jakavat sen. Kiintiötä säästetään siellä missä se ei
   maksa mitään.
+
+**Uudet lähteet — mitattu ja hylätty** (perustelut `docs/lisadata.md`)
+
+- **`fmi::forecast::meps` JA `fmi::forecast::harmonie` OVAT SAMA DATA.**
+  Mitattu kahdessa paikassa: ero max 0,000 m/s 48 h ja 36 h yli. MEPS on
+  MetCoOpin malli ja FMI:n harmonie-kysely tarjoillaan siitä. Älä lisää
+  sitä "toiseksi malliksi" mallien erimielisyyteen — erimielisyys näyttäisi
+  pysyvästi nollaa. Sama koskee peilin `metno_nordic_pp`:tä (jälkiprosessoitu
+  MEPS).
+- **AALLOT EIVÄT TULE LAATTAPUTKESTA.** `s3://openmeteo`-peilin
+  `ecmwf_wam025` on houkutteleva (sama 721×1440 hila, sama `.om`-muoto,
+  ei kiintiötä) mutta 0,25° on Suomenlahdella kolme solmua: mitattuna
+  **3/12 spottia**, ja lähin märkä solmu Helsingin spoteille on 17–24 km
+  ulkomerellä. FMI:n WAM-pistekysely antaa 9/12. Ulkomeren lukema spotin
+  kohdalla olisi väärä luku joka ei näytä väärältä.
+- **VEDENKORKEUDEN HAVAINTO ON mm, ENNUSTE ON cm.** Vastaus-XML ei kerro
+  yksikköä lainkaan (`uom` puuttuu), ja molemmat palauttavat
+  kolminumeroisia kelvollisen näköisiä lukuja. Tarkistus: havainto
+  10:00Z = 286, ennuste 11:00Z = 29,0 — sarja on jatkuva vasta kun
+  havainto jaetaan kymmenellä.
+- **Ensemble-tuulta EI ole S3-peilissä.** `ecmwf_ifs025_ensemble` ja
+  `ncep_gefs025` sisältävät peilissä vain `precipitation_probability`.
+  Hajonta vaatii `ensemble-api.open-meteo.com`:n eli uuden kiintiön —
+  siis kytkimen taakse kuten aaltoennuste.
+- **FMI hydrodyn ei kata rannikkoa.** Meriveden lämpötila ja virtaus
+  ennusteena: mitattuna **2/12 spottia**, ja virtaus 0,0–0,1 m/s eli
+  mittaustarkkuuden rajoilla. Vedenlämpö tulee mareografien
+  `TW`-kentästä, joka tulee samassa vastauksessa kuin vedenkorkeus.
+- **Digitraffic vaatii `Accept-Encoding: gzip`in.** Ilman sitä 406 ja
+  runko sanoo sen ääneen. Sama luokka kuin Larun User-Agent.
+- **Vuorovettä ei ole.** Itämeri on vuorovedetön; vedenkorkeus ajaa
+  tuulesta ja paineesta. Vuorovesirivi olisi väärä sana oikealle luvulle.
 
 **Mellsten (Surfing ry, Haukilahti)**
 
