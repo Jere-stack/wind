@@ -9,6 +9,16 @@ säästää enemmän työtä kuin ehdotus.
 Mittausympäristö: kontti, `curl` + `python3` + `@openmeteo/file-reader`.
 Kaikki kutsut tehtiin ilman tunnistautumista.
 
+> **TILANNE 11.9.2026 — kohdat 1, 2, 6 ja 7 on toteutettu.**
+> Aaltoennuste (`api/wam.js`), vedenkorkeus (`api/vesi.js`), sadetutka
+> (`TutkaKerros`) ja puuskaisuus ovat tuotannossa. Toteutuksen omat
+> mittaukset ja niissä löytyneet ansat ovat `docs/data.md`:n lopussa —
+> tämä tiedosto on yhä se kartoitus jonka perusteella ne valittiin, eikä
+> sitä ole kirjoitettu uusiksi jälkikäteen. Kolme asiaa muuttui
+> toteutuksessa ja ne on korjattu myös tähän tekstiin alla: WAMin
+> ennustepituus, aaltojen suuntakonventio ja `starttime`-vaatimus.
+> Kohdat 3, 4, 5, 8, 9 ja 10 ovat yhä tekemättä.
+
 ---
 
 ## Mistä sovellus lukee nyt
@@ -75,6 +85,15 @@ https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature
 ```
 
 Sarjat: `SigWaveHeight` (m), `WavePeriod` (s), `WaveDirection` (°).
+
+Toteutuksessa tarkentui kolme asiaa. **Suunta on MISTÄ**, ja se
+tarkistettiin kuutta aaltopoijua vasten samalta tunnilta: poikkeamat
+1, 2, 16, 21, 35 ja 40 astetta, kun käänteisellä tulkinnalla ne
+olisivat 140–179. **`starttime` on pakollinen**: ilman sitä sarja alkaa
+seuraavasta tunnista eikä kuluvasta, jolloin kortin rivi oli tyhjä
+juuri nykyhetkessä. Ja **"T+0 on NaN" ei ollut sääntö** vaan yhden ajon
+reuna — nimenomaisella `starttime`lla NaN:eja ei ole sarjan alussa
+lainkaan.
 
 ### Hylätty vaihtoehto: ECMWF WAM omaan laattaputkeen
 

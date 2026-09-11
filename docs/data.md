@@ -1793,3 +1793,321 @@ eli `innerText` antaa ISOT KIRJAIMET. Jälkimmäinen oli vaarallisempi:
 juuri se väite jonka piti todistaa lämpötilaruudun poistuminen olisi
 mennyt läpi vaikka ruutu olisi ollut paikallaan. Kaikki tekstihaut ovat
 nyt `/i`.
+
+---
+
+## Aaltoennuste tuotantoon — FMI:n WAM, ei laattaputkea
+
+Aaltoennuste on ollut kahdesti pöydällä. Ensimmäinen erä (`5150fc1`,
+Open-Meteon marine-API) peruttiin kiintiön takia. Tämä on toinen, ja se
+tuli eri lähteestä eri syystä.
+
+### Kaksi ehdokasta, ja toinen kaatui mittaukseen
+
+**ECMWF WAM omaan laattaputkeen** näytti selvästi paremmalta. Sama
+`s3://openmeteo`-peili jota `tools/tiilet.mjs` jo lukee sisältää
+`data_spatial/ecmwf_wam025/`, ja tiedosto avattiin:
+
+```
+wave_peak_period [721x1440]   wave_period    [721x1440]
+wave_direction   [721x1440]   wave_height    [721x1440]
+```
+
+Sama 721×1440 hila kuin tuulella, sama `.om`-muoto, sama
+ajohakemistorakenne, ei kiintiötä. Se olisi ollut ilmainen.
+
+Sitten hila luettiin spottien kohdalta:
+
+```
+Hanko Tulliniemi      59,75/23,00   Hs 0,60 m
+Hanko Silversand      59,75/23,00   Hs 0,60 m   (SAMA solmu)
+Porkkala              60,00/24,50   Hs 0,36 m
+kaikki 9 muuta                      NaN
+```
+
+**3/12 spottia**, ja kahdella niistä sama solmu. Kontrolli 5×5
+naapurustosta — kuinka kaukana on lähin märkä solmu:
+
+```
+Haukilahti          17,3 km    Lauttasaari   18,3 km
+Kruunuvuorenranta   18,3 km    Kallahti      21,6 km
+Emäsalo             23,5 km
+```
+
+Lähin solmu jolla on aalto on **17–24 km ulkomerellä**. 0,25° on
+Suomenlahdella noin 28 × 14 km eli lahti on kolme solmua leveä. Sen
+lukeman esittäminen "Lauttasaaren aaltona" olisi ollut väärä luku
+oikean näköisessä ruudussa — pahin mahdollinen virhe, koska se ei näytä
+virheeltä.
+
+**FMI:n WAM** ajaa Itämeren omalla tiheämmällä hilallaan. Sen
+pistekysely mitattuna samoilla kahdellatoista spotilla:
+
+```
+spotti                  tunteja   Hs (m)        jakso (s)
+Hanko Tulliniemi         61/72    0,33–0,73     3–6
+Hanko Silversand          0/72    EI DATAA
+Haukilahti                0/72    EI DATAA
+Lauttasaari              61/72    0,11–0,64     2–6
+Otaniemi                 61/72    0,04–0,28     1–6
+Munkkiniemi               0/72    EI DATAA
+Hietaniemi               61/72    0,07–0,50     2–6
+Kruunuvuorenranta        61/72    0,13–0,70     3–6
+Puuskaniemi              61/72    0,07–0,42     2–6
+Kallahti                 61/72    0,10–0,60     2–6
+Porkkala                 61/72    0,23–0,79     3–6
+Emäsalo                  61/72    0,23–0,95     4–6
+```
+
+**9/12, 61 h, ei aukkoja sarjan sisällä** (NaN:t ovat kaikki hännässä).
+Erottelukyky on oikea eikä interpolaatiota: Otaniemi 0,04–0,28 m ja
+Emäsalo 0,23–0,95 m samalta tunnilta.
+
+Kolme puuttuvaa ovat mallin maamaskin sisällä, ja ne ovat samalla ne
+kolme suojaisinta spottia joilla aalto ei ratkaise. Aukko on siellä
+missä se haittaa vähiten.
+
+### Suunta on MISTÄ, ja se tarkistettiin
+
+Poijun `ModalWDi` on dokumentoidusti "mistä" (`api/aallot.js`). WAMin
+`WaveDirection` verrattiin siihen kuudessa pisteessä samalta tunnilta:
+
+```
+Suomenlinna  hav 299  WAM 259   ero  40
+Orrengrund   hav 274  WAM 239   ero  35
+P-Itämeri    hav 298  WAM 299   ero   1
+Suomenlahti  hav 259  WAM 280   ero  21
+Selkämeri    hav 340  WAM 324   ero  16
+Perämeri     hav  26  WAM  24   ero   2
+```
+
+Käänteistä tulkintaa vasten samat erot olisivat 140–179 astetta. Suunta
+on siis samaa sukua kuin tuulen ja poijun suunta, ja kortti käyttää
+samaa nuolta ja samaa "mistä"-selitettä.
+
+### Kortilla kaksi riviä, ei yhtä
+
+`Aaltoennuste` on valittu tunti, `Aallot nyt` on poijun havainto joka
+EI seuraa aikajanaa. Yhteen riviin ahdettuna lukija joutuisi
+päättelemään kumpi luku on kumpaa aikaa. Ennusterivillä ei ole aseman
+nimeä, koska WAM interpoloi arvon tähän pisteeseen; poijurivillä nimi
+ja etäisyys ovat pakollisia, koska se mittaa muualla.
+
+---
+
+## Vedenkorkeus — ja yksikkö joka ei lue vastauksessa
+
+Suomessa ei ole vuorovettä, joten tätä lukua ei ole yhdessäkään
+kansainvälisessä sääappissa. Se ei tarkoita ettei se liikkuisi. Helsinki
+Kaivopuisto, 28 vrk, 673 tuntinäytettä:
+
+```
+matalin       −13,1 cm      korkein       +42,8 cm
+vaihteluväli   55,9 cm      keskihajonta   10,7 cm
+suurin muutos 6 h  32,9 cm  suurin muutos 24 h  41,3 cm
+```
+
+Kolmannes metriä kuudessa tunnissa on matalalla hiekkarannalla
+(Haukilahti, Kallahti, Silversand) se ero jolla foili joko irtoaa
+pohjasta tai ei.
+
+### ANSA: havainto on mm, ennuste on cm
+
+Vastaus-XML **ei kerro yksikköä kummassakaan** — `uom`-attribuutti
+puuttuu. Yksikkö on erillisessä metatietopalvelussa:
+
+```
+/meta?observableProperty=observation&param=SeaLevel  ->  uom="mm"
+/meta?observableProperty=forecast&param=SeaLevel     ->  uom="cm"
+```
+
+Sama fysikaalinen suure, kertoimen 10 ero, ja molemmat palauttavat
+kolminumeroisia kelvollisen näköisiä lukuja. Ensimmäinen mittaus tähän
+dokumenttiin laski 28 vrk vaihteluväliksi 559 **cm** — Helsinkiin
+ennätystulvan — eikä mikään huutanut. Ristiintarkistus joka sen
+paljasti:
+
+```
+havainto 2026-09-11T10:00Z   286 mm = 28,6 cm
+ennuste  2026-09-11T11:00Z    29,0 cm
+```
+
+Sarja on jatkuva vasta kun havainto jaetaan kymmenellä. `api/vesi.js`
+palauttaa siksi **aina senttimetrejä**: yksikkö ratkaistaan kerran eikä
+jokaisessa käyttöpaikassa uudelleen.
+
+### Kaksi tilaa, kaksi osoitetta
+
+`?asemat=1` antaa kaikki 14 mareografia yhdellä kutsulla — vastaus on
+sama riippumatta siitä mitä spottia katsotaan, joten jaettuna se on yksi
+välimuistiosuma eikä yksi kutsu spottia kohti. Sama ratkaisu ja sama syy
+kuin aaltopoijuilla. `?lat=&lng=` on pistekysely ja spottikohtainen.
+
+Vastauksen koko on ~19 kB riippumatta ikkunasta: asemien metatiedot
+hallitsevat. 60 min ikkuna 30 min askeleella on 19,9 kB ja antaa kaksi
+näytettä asemaa kohti, eli tuoreimman valintaan jää varaa.
+
+**Sama kysely palauttaa `TW`:n eli vedenlämmön.** Se on ilmainen lisä:
+14 rannikkoasemaa ympärivuotisesti, siellä missä UiRaS-asemaa ei ole
+(Hanko, Emäsalo, Turku, Föglö). Sitä ei vielä lueta kortille.
+
+### Nollataso on teoreettinen keskivesi, ei N2000
+
+Molemmissa on rinnalla myös N2000 (`WLEVN2K` / `SeaLevelN2000`). Se on
+jätetty pois: "vedenkorkeus" tarkoittaa suomalaisessa sääpuheessa
+nollatasona teoreettista keskivettä, ja kaksi nollatasoa samassa
+ruudussa on kaksi merkitystä samalle numerolle.
+
+---
+
+## Ilman `starttime`a ennustesarja alkaa SEURAAVASTA tunnista
+
+Tämä koski molempia uusia proxyjä ja se löytyi vasta selaimesta: kortin
+ennusterivit olivat tyhjiä juuri siinä tilanteessa jossa niitä katsotaan
+useimmin, eli nykyhetkessä.
+
+Kysely laskee tuntiaskeleen "kuluvan tunnin alusta" mutta **aloittaa
+oletuksena nyt-hetkestä**, jolloin ensimmäinen askel osuu seuraavaan
+tasatuntiin ja kuluva tunti puuttuu sarjasta kokonaan. Mitattuna klo
+12:22 UTC, Lauttasaari:
+
+```
+                    vedenkorkeus            aalto
+ilman starttimea    eka 13:00 = 33 cm       eka 13:00 = 0,309 m
+starttime=12:00     eka 12:00 = 31 cm       eka 12:00 = 0,303 m
+                    n=49, NaN=0             n=13, NaN=0
+```
+
+Molemmat proxyt pyytävät nyt `starttime`ksi kuluvan tunnin alun.
+Huomaa että tässä kaatui myös aiempi oletus "T+0 on NaN": se NaN oli
+mallin ajon reuna, ei sääntö — nimenomaisella `starttime`lla NaN:eja ei
+ole sarjan alussa lainkaan.
+
+---
+
+## Sadetutka — miksi se ei ole `L.TileLayer.WMS`
+
+Lähde `openwms.fmi.fi/geoserver/Radar/wms`, kerros
+`suomi_dbz_eureffin`: 5 min askel, 7 vrk historiaa, EPSG:3857 tuettu,
+`Access-Control-Allow-Origin: *`.
+
+Ongelma on väri. FMI:n oma paletti on lähes sama sävyketju kuin
+sovelluksen tuuliramppi:
+
+```
+idx  10  rgb(156,220,224)   syaani
+idx  60  rgb( 66,157, 93)   vihreä
+idx 100  rgb(227,205, 26)   keltainen
+idx 140  rgb(233,105, 23)   oranssi
+idx 160  rgb(215, 31,  9)   punainen
+idx 200  rgb(196, 49,122)   magenta
+```
+
+Kartalla sävy tarkoittaa tuulennopeutta ja vain sitä, joten raakana tämä
+kerros väittäisi magentallaan 20 m/s siellä missä se tarkoittaa
+rankkasadetta.
+
+### Kaksi ilmeistä ratkaisua, molemmat mitattu vääriksi
+
+**`styles=raster`** (harmaa + alfa) näyttää juuri siltä mitä tarvitaan.
+Mitattuna sen alfa on **255 kaikkialla** ja "ei kaikua" on koodattu
+harmaaseen 0 — sellaisenaan se maalaisi koko Suomen mustaksi. Ja mikä
+pahempaa: harmaat 1–109 vastaavat palettityylin indeksiä 0 eli täyttä
+läpinäkyvyyttä (mitattu pikseli pikseliltä samasta bboxista). Raakatyyli
+on siis kohinapohja jonka FMI:n oma tuote karsii pois; siitä tehty alfa
+levittäisi kartalle usvaa jota lähde ei näytä.
+
+**`filter: grayscale(1)`** paletin päällä. Mitattuna paletin kirkkaus
+poukkoilee pitkin asteikkoa: 214 askeleesta **65 ylös ja 139 alas**.
+
+```
+idx   1  L=205    tihku
+idx  60  L=133
+idx 100  L=197    keltainen — takaisin ylös
+idx 180  L= 42    syvä punainen — tummin
+idx 215  L=144    magenta
+```
+
+Harmaaksi muunnettuna rankin sade olisi tummin ja tihku vaalein, ja
+niiden välissä kirkkaus kävisi molemmissa päissä. Sävyn poisto CSS:llä
+ei tuota yksikäsitteistä voimakkuutta.
+
+### Mikä jäi: paletti käännetään takaisin voimakkuudeksi
+
+Paletti on **tavulleen sama pyynnöstä toiseen** (sama SHA kahdella eri
+bboxilla ja eri ajalla), joten sen voi taulukoida sovellukseen: 209
+indeksiä, 627 tavua, base64 836 merkkiä. Laatta on paletoitu PNG, joten
+canvasista luetut RGB-arvot ovat täsmälleen paletin omia arvoja ja
+käännös indeksiksi on tarkka haku eikä arvaus.
+
+Oletustyyli kantaa myös FMI:n oman kynnystyksen: **93,4 % pikseleistä on
+indeksiä 0** eli täysin läpinäkyviä.
+
+Lopputulos on yksi kanava ja yksi merkitys: väri on kiinteä muste ja
+voimakkuus on alfassa — sama periaate kuin havaintokaavion täytössä.
+Muste luetaan samasta `Asetukset.paperi()`-kysymyksestä kuin lämpökartan
+sekoitustila, jotta ne eivät ajaudu erilleen.
+
+### Mitattu selaimessa
+
+```
+WMS-pyyntöjä kerros pois päältä           0
+laattoja kytkennän jälkeen               12
+näkyviä pikseleitä                   11 311 = lähteen sadepikselit tasan
+eri värejä                               18, kaikki ≤ 9 yksikköä musteesta
+                                           (canvasin esikertolasku matalalla alfalla)
+eri alfoja                               52, väli 14–185
+katvemaskia jäljellä                      0
+_varjaa 256x256 laattaa kohti          0,9 ms mediaani (min 0,6, max 2,9)
+                                         kontin kuristetulla suorittimella
+kerros                    leaflet-overlay-pane, z 400
+                          (laattapaneeli 200, merkkipaneeli 600)
+```
+
+Kerros on `overlayPane`ssa eikä `tilePane`ssa: lämpökartta sekoittuu
+pohjakarttaan `plus-lighter`illä, eikä tutka saa osallistua siihen
+summaan. Luokka on `.tutka-laatat` eikä `.heatmap-overlay` — se kantaa
+reunahäivytyksen maskin joka mitoitetaan elementin kokoon, ja
+`GridLayer`in säiliö on 0×0, jolloin maski leikkaisi koko kerroksen pois
+(sama ansa kuin säälaatoilla).
+
+### Kaksi asiaa jotka jätettiin pois
+
+**Katvemaski** (paletin indeksit 230–252, rgb 204,204,204). Se kertoisi
+"täällä ei ole tutkaa" erotuksena "täällä ei sada", mutta se olisi
+toinen merkitys samalla mustekanavalla — ja sovelluksen spotit ovat
+kaikki katvealueen sisäpuolella.
+
+**Animaatio.** Sarja on 5 min välein seitsemältä vuorokaudelta, mutta
+kehyslistan saa vain `GetCapabilities`ista joka on 426 kB, ja
+tuoreinta uudempi aika palauttaa XML-virheen eikä kuvaa (mitattu: 12:25
+ja 12:55 virhe klo 12:27, 12:20 kuva). Kehysten haarukointi olisi oma
+pyyntökierroksensa. Kerros näyttää siis tuoreimman kehyksen (palvelimen
+`default="current"`) ja hakee sen uudelleen viiden minuutin välein.
+Silmukka on oma erillinen työnsä, ei tämän erän puute.
+
+---
+
+## Puuskaisuus oli koodissa mutta ei missään näkyvissä
+
+`gustIndex(ms, gst)` laski suhteen ja luokitteli sen kolmeen
+(`Tasainen` / `Puuskainen` / `Hyvin puuskainen`), ja sille oli oma
+korttinsa `_gustStatCard`. Kortti **ei ollut minkään kutsun päässä**:
+`grep -c '_gustStatCard'` antoi 1, eli pelkän määrittelyn. Koko
+ominaisuus oli hiljaa kuollut — sama ansa kuin `buildFmiCard`illa.
+
+Suhde on nyt hero-rivillä puuskaluvun alla, koska se on tulkinta juuri
+siitä luvusta. Havaintoruutuihin se ei kuulu: se on ennuste samalta
+tunnilta, ja havaintojen joukossa se väittäisi olevansa mitattu.
+`_gustStatCard` poistettiin — samaan asiaan ei jätetä kahta polkua.
+
+**Rivi jää pois kun puuskaa ei ole.** `gst` putoaa silloin `ms`:ään
+(`const gst = (h.windgusts_10m && h.windgusts_10m[idx]) || ms`), ja
+suhde olisi tasan 1,00 — luku joka väittäisi tasaista tuulta siellä
+missä dataa ei yksinkertaisesti ole. Ehto lukee `h.windgusts_10m[idx]`
+suoraan eikä `gst`:tä.
+
+Suhde lasketaan **sarjan sisällä**: `ms` ja `gst` ovat saman sarjan sama
+indeksi. Varaston puuska ei kelpaa tähän — se puuttuu joka toiselta
+kolmen tunnin askeleelta, jolloin laattojen rakennus täyttää aukon
+tuulella ja suhde on tasan 1,00 (ks. yllä).

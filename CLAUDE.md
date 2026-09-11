@@ -91,7 +91,11 @@ kokeiltu ja kaadettu mittauksella.
   este · Hilalähtöinen kenttä · Zoom raskaampi kuin ennen · Aaltopoijut —
   havaintoa, ei ennustetta · Aikajana ja kartta näyttivät eri
   lukua · Mellsten (Haukilahti) — kolmas oma proxy · Varaston puuska on
-  joka toisella askeleella tuuli · Laru (Lauttasaari) — neljäs oma proxy
+  joka toisella askeleella tuuli · Laru (Lauttasaari) — neljäs oma proxy ·
+  Aaltoennuste tuotantoon (FMI WAM, ei laattaputkea) · Vedenkorkeus ja
+  yksikkö joka ei lue vastauksessa · Ilman starttimea sarja alkaa
+  seuraavasta tunnista · Sadetutka — miksi se ei ole L.TileLayer.WMS ·
+  Puuskaisuus oli koodissa mutta ei näkyvissä
 - **lisadata**: Mistä sovellus lukee nyt · TOP 10 — data · TOP 10 — lähteet ·
   Mitattu ja hylätty (MEPS on HARMONIE · hydrodyn 2/12 spottia · vuorovesi ·
   Holfuy · ilmanlaatu) · Toinen kerros — kontekstia, ei päätöstä ·
@@ -575,7 +579,8 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   suurentaisi 0,20–0,30 m:n vaihtelun koko kaavion korkuiseksi ja tyyni
   vuorokausi näyttäisi myrskyltä.
 
-**Aaltoennuste** (EI tuotannossa — peruttu erä `5150fc1`)
+**Open-Meteon aaltoennuste** (EI tuotannossa — peruttu erä `5150fc1`;
+aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
 
 - **Aaltoennuste on kytkimen takana** (`Asetukset.arvot.aallot`), koska se on
   ainoa uusi rajapintakiintiö sen jälkeen kun tuuli siirrettiin omaan
@@ -590,6 +595,64 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **Välimuistin avain on 0,05° hilalla**, koska mallin solu on ~0,04° ja
   naapurispotit jakavat sen. Kiintiötä säästetään siellä missä se ei
   maksa mitään.
+
+**Aaltoennuste, vedenkorkeus, sadetutka ja puuskaisuus**
+(mittaukset `docs/data.md`, kartoitus `docs/lisadata.md`)
+
+- **ENNUSTESARJA EI ALA KULUVASTA TUNNISTA ILMAN `starttime`A.** Kysely
+  laskee tuntiaskeleen kuluvan tunnin alusta mutta aloittaa nyt-hetkestä,
+  jolloin ensimmäinen askel osuu SEURAAVAAN tasatuntiin. Mitattuna klo
+  12:22 UTC sekä `wam`- että `sealevel`-kysely alkoivat 13:00:sta ja
+  12:00 puuttui kokonaan — eli kortin ennusterivit olivat tyhjiä juuri
+  nykyhetkessä, joka on se tilanne jossa niitä katsotaan useimmin.
+  Molemmat proxyt pyytävät `starttime`ksi kuluvan tunnin alun. Samalla
+  kaatui oletus "T+0 on NaN": se oli yhden ajon reuna, ei sääntö.
+- **`api/vesi.js` PALAUTTAA AINA SENTTIMETREJÄ.** Lähteessä havainto on
+  mm ja ennuste cm, eikä vastaus kerro kumpaa (`uom` puuttuu; yksikkö on
+  vain `/meta`-palvelussa). Yksikkö on ratkaistu kerran proxyssä — älä
+  ratkaise sitä uudelleen käyttöpaikassa. Tarkistus jos kosket:
+  havainto 10:00Z = 286 ja ennuste 11:00Z = 29,0 ovat sama sarja vasta
+  kun havainto jaetaan kymmenellä.
+- **Vedenkorkeuden nollataso on TEOREETTINEN KESKIVESI, ei N2000.**
+  Molemmat ovat vastauksessa; kaksi nollatasoa samassa ruudussa olisi
+  kaksi merkitystä samalle numerolle. Etumerkki kirjoitetaan aina
+  näkyviin, myös plussalle — se on koko luvun ydin.
+- **Aaltoennuste ja poijuhavainto ovat ERI RIVIT.** Ennuste on valittu
+  tunti, poiju on "nyt" eikä seuraa aikajanaa. Yhdessä rivissä lukija
+  joutuisi päättelemään kumpi luku on kumpaa aikaa. Ennusterivillä EI
+  ole aseman nimeä (WAM interpoloi tähän pisteeseen), poijurivillä nimi
+  ja etäisyys ovat pakolliset.
+- **WAMin `WaveDirection` on MISTÄ**, sama kuin poijun `ModalWDi` ja
+  tuuli. Tarkistettu kuudessa pisteessä: poikkeamat 1–40°, käänteiseen
+  140–179°.
+- **SADETUTKA EI SAA KÄYTTÄÄ FMI:N OMAA PALETTIA SELLAISENAAN.** Se on
+  lähes sama sävyketju kuin tuuliramppi (syaani–vihreä–keltainen–
+  oranssi–punainen–magenta), eli magenta väittäisi kartalla 20 m/s kun
+  se tarkoittaa rankkasadetta. Kaksi ilmeistä korjausta on mitattu
+  vääriksi: `styles=raster` on alfaltaan 255 kaikkialla ja sen harmaat
+  1–109 ovat palettityylin läpinäkyvää kohinaa, ja `grayscale(1)` antaa
+  kirkkauden joka poukkoilee (214 askeleesta 65 ylös, 139 alas).
+  Ratkaisu on paletin taulukointi ja käännös takaisin voimakkuudeksi:
+  **yksi muste, voimakkuus alfassa.** Paletti on tavulleen sama
+  pyynnöstä toiseen (tarkistettu).
+- **Tutkakerros on `overlayPane`ssa eikä `tilePane`ssa**, koska
+  lämpökartta sekoittuu pohjakarttaan `plus-lighter`illä eikä tutka saa
+  osallistua siihen summaan. Luokka on `.tutka-laatat` — EI
+  `.heatmap-overlay`, joka kantaa elementin kokoon mitoitetun maskin ja
+  leikkaisi 0×0-säiliöisen `GridLayer`in kokonaan pois.
+- **Tutkalle ei pyydetä aikaa.** Tuoreinta uudempi `time` palauttaa
+  XML-virheen eikä kuvaa (mitattu). Palvelimen `default="current"` antaa
+  tuoreimman, ja tuoreutus tehdään noncella joka vaihtuu viiden
+  minuutin välein. Animaatiota EI ole: kehyslista vaatisi 426 kB
+  `GetCapabilities`in, ja se on oma työnsä.
+- **Tutkan muste luetaan `Asetukset.paperi()`:sta**, samasta
+  kysymyksestä kuin lämpökartan sekoitustila. Jos pohjakartta vaihtuu,
+  kerros on piirrettävä uudelleen — mikään ei tee sitä itsestään.
+- **Puuskasuhde jää POIS kun puuskaa ei ole.** `gst` putoaa silloin
+  `ms`:ään ja suhde olisi tasan 1,00 eli väite tasaisesta tuulesta
+  siellä missä dataa ei ole. Ehto lukee `h.windgusts_10m[idx]` suoraan,
+  ei `gst`:tä. Suhde lasketaan SARJAN SISÄLLÄ; varaston puuska ei kelpaa
+  (se on joka toisella askeleella tuuli, jolloin suhde on 1,00).
 
 **Uudet lähteet — mitattu ja hylätty** (perustelut `docs/lisadata.md`)
 
