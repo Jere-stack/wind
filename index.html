@@ -1907,6 +1907,16 @@ html.tyopoyta {
    tayteeseensa (`margin-left:-22px`), joten liian leveä täyte tekisi
    LAAJENNETUSTA kaaviosta kapeamman kuin se oli kortilla — mitattuna
    365 px vs 375 px. Laajennus ei saa kaventaa mitaan. */
+/* TYHJÄ PAIKKA EI SAA VIEDÄ RAKOA.
+ *
+ * Asemavalitsimen paikka on olemassa vain spottikortissa; havainto-
+ * kortissa se jää tyhjäksi. Leveyttä se ei vienyt, mutta se oli yhä
+ * flex-lapsi, joten rivin `gap` maksettiin sen molemmin puolin ja
+ * jaksovalitsin alkoi mitattuna 8 px sisällön reunan oikealta puolelta.
+ * `:empty` poistaa sen flex-virrasta kunnes siihen kirjoitetaan
+ * jotain — eli lippua ei tarvitse ylläpitää kahdessa paikassa. */
+.hav-asemavalitsin:empty { display: none; }
+
 .hl-kaavio { flex: 1; min-height: 0; padding: 0 4px 2px; display: flex; align-items: center; overflow: hidden; }
 .hl-kaavio > div { width: 100%; }
 /* Laajennusnappi kortilla ja sulkunappi laajassa: sama pyorea muoto. */
@@ -13577,8 +13587,12 @@ function _openObsSheet(type, station) {
   sc.innerHTML=
     /* -- Hero -- */
     '<div style="margin-bottom:20px">'
-      /* Tyyppichip */
-      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">'
+      /* Tyyppichip on SILMÄLAPPU, ei oma lohkonsa. Sen alla oli 16 px
+         eli enemmän kuin otsikon ja lähdemerkinnän välissä (4 px) —
+         silloin siru luki irrallisena esineenä eikä sen otsikon
+         määreenä jota se määrittää. 8 px sitoo sen otsikkoon ja jättää
+         lohkojen välin (20 px) ainoaksi isoksi raoksi. */
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
         +'<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;background:'+accentFaint+';border:1px solid '+accentBorder+'">'
           +'<span style="display:inline-flex;color:'+accent+'">'+icon+'</span>'
           +'<span style="font-variant-numeric:tabular-nums;font-size:var(--fs-9);color:'+accent+';letter-spacing:.5px;text-transform:uppercase">'+typeLabel+'</span>'
@@ -13620,6 +13634,11 @@ function _openObsSheet(type, station) {
   document.getElementById('sheet-overlay').classList.add('open');
   _sheetAuki((station && station.name) || typeLabel);
   var el=document.getElementById(cid);
+  /* Tämän kortin otsikko ON aseman nimi, joten kaavion selite jättää
+     sen pois. Lippu on kaavion omalla säiliöllä eikä `#sheet-content`illä:
+     jälkimmäinen on jaettu spottikortin kanssa, ja sinne jäänyt attribuutti
+     veisi nimen sieltä missä se on ainoa maininta. */
+  if(el) el.dataset.nimiOtsikossa='1';
 
   function updateHero(val, sub, color) {
     var ve=document.getElementById(valId);
@@ -13747,9 +13766,14 @@ function _openObsSheet(type, station) {
            puolen tunnin pätkän ilman että se kertoo niin. */
         var chip = document.getElementById(chipId);
         if(chip){
+          /* IKÄ VAIN JOS LUKEMA ON VANHA. Tuoreena se sanotaan kerran,
+             kuvaajan alla, kuten joka kortissa; tässä se olisi sama luku
+             kolmen rivin päässä itsestään. Vanhana se on eri lause —
+             varoitus eikä aikaleima — ja kuuluu lukeman viereen. */
+          var mVanha = uusin.ageMin != null && uusin.ageMin > 30;
           chip.textContent = 'Surfing ry · Mellsten · minuutin välein'
-            + (uusin.ageMin != null ? ' · ' + _havIkaTeksti(uusin.ageMin) : '');
-          if(uusin.ageMin != null && uusin.ageMin > 30) chip.style.color = 'var(--ink-2)';
+            + (mVanha ? ' · viimeisin ' + _havIkaTeksti(uusin.ageMin) : '');
+          if(mVanha) chip.style.color = 'var(--ink-2)';
         }
         if(el) _renderLiveHistory(el, Object.assign({}, data, { place: 'mellsten' }), uusin);
       })
@@ -13776,9 +13800,11 @@ function _openObsSheet(type, station) {
         updateHero(Units.fmt(uusin.ws), sub, 'rgb('+cc.r+','+cc.g+','+cc.b+')');
         var chip = document.getElementById(chipId);
         if(chip){
+          /* Sama sääntö kuin Mellstenillä: ikä tähän vain vanhana. */
+          var lVanha = uusin.ageMin != null && uusin.ageMin > 30;
           chip.textContent = 'dlarah.org · Laru'
-            + (uusin.ageMin != null ? ' · ' + _havIkaTeksti(uusin.ageMin) : '');
-          if(uusin.ageMin != null && uusin.ageMin > 30) chip.style.color = 'var(--ink-2)';
+            + (lVanha ? ' · viimeisin ' + _havIkaTeksti(uusin.ageMin) : '');
+          if(lVanha) chip.style.color = 'var(--ink-2)';
         }
         if(el) _renderLiveHistory(el, Object.assign({}, data, { place: 'laru' }), uusin);
       })
@@ -16370,13 +16396,24 @@ function _havInkCss(ms) { return ColorRamp.inkCss(ms); }
  *
  * Suuntanuolet siirtyvät laajassa tuuliviivan PÄÄLLE, kuten lähteessä.
  * Kortilla siihen ei ole tiheyttä, siksi siellä on oma nauhansa. */
+/* `padX` on y-akselin lukemien kouru. Se oli neljä yksikköä leveämpi
+   niin kauan kuin lukemien ja kuvaajan välissä oli väriliuska; liuskan
+   poistuttua kouru olisi jäänyt tyhjäksi. Lukema on `text-anchor="end"`
+   kohdassa `padX - 7`, joten kahden numeron lukema alkaa kortilla
+   nollasta — se on mitattava jos kirjasinkokoa kasvatetaan.
+
+   KORTILLA luku on 24 eikä 22, ja sekin on mitattu eikä arvattu:
+   kortin SVG vuotaa 22 px omaan täytteeseensä (`margin-left:-22px`),
+   joten viewBox-yksiköt eivät kerro mihin lukema ruudulla osuu.
+   22:lla lukeman oikea reuna jäi 3,2 px otsikkopalstan VASEMMALLE
+   puolelle; 24 tuo sen palstan reunaan. */
 var HAV_ASU_KORTTI = {
-  W: 300, H: 132, padX: 26, padY: 11, suuntaH: 16,
+  W: 300, H: 132, padX: 24, padY: 11, suuntaH: 16,
   huippuja: 4, huippuVali: 40, xVali: 28, nuoliVali: 26,
   nuoletViivalla: false, fs: 7.5, viivaLev: 1.9, laaja: false,
 };
 var HAV_ASU_LAAJA = {
-  W: 820, H: 300, padX: 42, padY: 20, suuntaH: 0,
+  W: 820, H: 300, padX: 38, padY: 20, suuntaH: 0,
   huippuja: 12, huippuVali: 62, xVali: 54, nuoliVali: 54,
   nuoletViivalla: true, fs: 11, viivaLev: 2.4, laaja: true,
 };
@@ -16390,7 +16427,7 @@ var HAV_ASU_LAAJA = {
  * 373x145 px — PIENEMMAN kuin kortti itse (375x209). Laajennusnappi ei
  * saa tehda kuvaajasta pienempaa kuin se oli. */
 var HAV_ASU_PYSTY = {
-  W: 300, H: 400, padX: 28, padY: 13, suuntaH: 18,
+  W: 300, H: 400, padX: 24, padY: 13, suuntaH: 18,
   huippuja: 7, huippuVali: 44, xVali: 30, nuoliVali: 28,
   nuoletViivalla: false, fs: 8.5, viivaLev: 2.1, laaja: true,
 };
@@ -16399,7 +16436,10 @@ var HAV_ASU_PYSTY = {
    se on kontrolli: divina se ei olisi sarkaimella tavoitettavissa
    eika ruudunlukijalle painike. */
 function _havLaajennaNappi(svgId) {
-  return '<button type="button" class="hav-nappi" data-hav-laajenna="' + svgId + '"'
+  /* `margin-left:auto` työntää napin rivin oikeaan reunaan — rivi
+     itse on `flex-start`, jotta jaksovalitsin kohdistuu sisällön
+     vasempaan reunaan silloinkin kun asemavalitsinta ei ole. */
+  return '<button type="button" class="hav-nappi" style="margin-left:auto" data-hav-laajenna="' + svgId + '"'
     + ' aria-label="Laajenna kaavio koko ruudulle" title="Laajenna">'
     + '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">'
     + '<path d="M9 3H4a1 1 0 0 0-1 1v5M15 3h5a1 1 0 0 1 1 1v5M9 21H4a1 1 0 0 1-1-1v-5M15 21h5a1 1 0 0 0 1-1v-5"'
@@ -17155,6 +17195,16 @@ function _renderLiveHistory(el, data, wx, asu) {
   var ika = data.ageMin != null ? data.ageMin : null;
   var vanha = ika != null && ika > HAV_TUORE_MIN;
   var ikaTeksti = _havIkaTeksti(ika);
+  /* Sanooko kortin otsikko jo aseman nimen? Lippu tulee siltä
+     elementiltä johon kaavio piirretään, koska sama piirtofunktio
+     palvelee sekä havaintokorttia (otsikko = asema) että spottikorttia
+     (otsikko = spotti).
+     Lippu luetaan ELEMENTILTÄ ITSELTÄÄN, ei `closest`illä: esivanhempi-
+     haku poimisi lipun miltä tahansa ympäröivältä säiliöltä, ja koska
+     molemmat kortit asuvat samassa `#sheet-content`issä, yksi sinne
+     unohtunut attribuutti veisi nimen myös spottikortista — siis juuri
+     sieltä missä se on ainoa maininta käyrän lähteestä. */
+  var nimiOtsikossa = !!(el.dataset && el.dataset.nimiOtsikossa);
   /* "6 vrk sitten" kertoo kuinka kauan, muttei mitä. Kellonaika kertoo
      mitä dataa kaaviossa on — ilman sitä x-akselin "08 09 10" näyttää
      tältä aamulta. */
@@ -17167,8 +17217,19 @@ function _renderLiveHistory(el, data, wx, asu) {
 
   el.innerHTML =
     (asu.laaja ? '' :
-    '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;min-width:0">'
-      + '<div id="' + svgId + '-fmidd" style="flex:1;min-width:0;overflow:visible"></div>'
+    /* TYÖKALURIVI KOHDISTUU SISÄLLÖN REUNAAN, EI KELLU KESKELLÄ.
+     *
+     * Rivi oli `space-between` ja sen ensimmäinen lapsi `flex: 1` —
+     * asemavalitsimen paikka. Havaintokortissa se paikka on TYHJÄ,
+     * joten se toimi näkymättömänä välikkeenä ja työnsi jaksovalitsimen
+     * keskelle riviä, kun sulkunappi jäi oikeaan reunaan. Kaksi eri
+     * kohdistusta samalla rivillä lukee sattumana.
+     *
+     * Nyt rivi alkaa vasemmalta ja vain laajennusnappi työnnetään
+     * oikeaan reunaan (`margin-left:auto`). Spottikortissa, jossa
+     * valitsin on olemassa, järjestys säilyy: valitsin, jaksot, nappi. */
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;min-width:0">'
+      + '<div id="' + svgId + '-fmidd" class="hav-asemavalitsin" style="min-width:0;overflow:visible"></div>'
       /* Yhden napin segmenttiraita ei ole valitsin vaan koriste — se
          näyttää siltä että vaihtoehtoja on, vaikka niitä ei ole. */
       + (tarjolla.length > 1
@@ -17202,13 +17263,20 @@ function _renderLiveHistory(el, data, wx, asu) {
            kokonaan korkean tuulen kohdalta, ja y-akselin numerot jäisivät
            leijumaan ilman viivaa johon ne osoittavat. */
         + yLab
-        /* Y-AKSELIN VÄRILIUSKA. Sama gradientti kolmen yksikön levyisenä
-           akselin vieressä: korkeus, numero ja väri ovat silloin
-           näkyvästi sama asia. Lähteessä tämä on erillinen asteikko
-           oikeassa reunassa — mobiilissa sille ei ole leveyttä, ja
-           akselin viereen se kuuluu muutenkin. */
-        + '<rect x="' + (padX - 4.5) + '" y="' + padY + '" width="3" height="' + (pohjaY - padY)
-          + '" rx="1.5" fill="url(#' + tayttoId + ')"/>'
+        /* Y-AKSELIN VÄRILIUSKA POISTETTIIN.
+         *
+         * Se oli sama gradientti kolmen yksikön liuskana akselin
+         * vieressä. Perustelu oli "korkeus, numero ja väri ovat sama
+         * asia" — ja juuri siksi se oli turha: kun väri on funktio
+         * KORKEUDESTA, y-akseli on jo se selite. Liuska toisti sen
+         * kolmannen kerran omana pystysuorana esineenään, ja sillä oli
+         * hinta: se vei kuvaajalta 4,5 yksikköä leveyttä ja se oli
+         * ainoa pystysuora muoto kuvaajassa joka ei ollut dataa.
+         *
+         * Vapautunut kouru otettiin kuvaajalle (`padX` -4 joka asussa).
+         * Älä palauta liuskaa — jos värin merkitys joskus pitää sanoa
+         * ääneen, se sanotaan selitteessä sanoina, ei neljäntenä
+         * akselina. */
         /* Puuskan yläreuna, tyyni katkoviivana, keskituuli paksuna —
            kaikki `--ink`, ks. mittaus gradientin perusteluissa. */
         + (ylaP ? '<path d="' + ylaP + '" fill="none" stroke="var(--ink)" stroke-width="1" stroke-opacity=".5" stroke-linecap="round"/>' : '')
@@ -17234,8 +17302,10 @@ function _renderLiveHistory(el, data, wx, asu) {
        täyttää 393 px:n ruudun lähes kokonaan. */
     + (asu.laaja ? '' :
     '<div style="display:flex;align-items:center;gap:12px;margin-top:5px;padding:0 2px;font-size:var(--fs-85);color:var(--ink-2);flex-wrap:wrap">'
-      /* Selite nimeää kolme käyrää. Väriä se ei selitä: y-akselin
-         viereinen väriliuska tekee sen näkyvästi ja numeron kanssa. */
+      /* Selite nimeää kolme käyrää. Väriä se ei selitä, eikä sitä
+         tarvitse: täytön sävy on funktio KORKEUDESTA, joten y-akselin
+         numerot ovat jo sen selite. (Tässä oli aiemmin väriliuska —
+         ks. perustelu sen poistolle kuvaajan kokoamisessa.) */
       + '<span style="display:inline-flex;align-items:center;gap:4px">'
         + '<svg width="15" height="8" viewBox="0 0 15 8" aria-hidden="true">'
         + '<line x1="1" y1="2" x2="14" y2="2" stroke="var(--ink)" stroke-opacity=".5" stroke-width="1"/></svg>Puuska</span>'
@@ -17249,7 +17319,17 @@ function _renderLiveHistory(el, data, wx, asu) {
         : '')
       + '<span style="display:inline-flex;align-items:center;gap:4px">'
         + '<svg width="9" height="9" viewBox="-5 -5 10 10" aria-hidden="true"><path d="M0,-4 L2.7,2.9 L0,1.4 L-2.7,2.9 Z" fill="#4C5960"/></svg>Suunta</span>'
-      + '<span style="margin-left:auto;color:var(--ink-3)">' + (data.station || 'FMI') + (ikaTeksti ? ' · ' + ikaTeksti : '') + '</span>'
+      /* ASEMAN NIMI VAIN KERRAN. Havaintokortissa nimi on jo otsikkona
+         kolmen rivin päässä, joten tässä se oli sama sana kahdesti
+         samassa näkymässä; SPOTTIKORTISSA otsikko on spotin nimi eikä
+         aseman, joten siellä nimi on ainoa maininta siitä mistä käyrä
+         on. Ero luetaan kortilta (`data-nimi-otsikossa`) eikä arvata
+         kutsupaikasta — kutsupaikkoja on seitsemän.
+         IKÄ jää AINA: se ei ole nimen koriste vaan kertoo onko lukema
+         tästä hetkestä, ja se on projektin oma sääntö. */
+      + '<span style="margin-left:auto;color:var(--ink-3)">'
+        + (nimiOtsikossa ? '' : (data.station || 'FMI') + (ikaTeksti ? ' · ' : ''))
+        + (ikaTeksti || '') + '</span>'
     + '</div>'
 
     /* Lukemat ilman tooltipia: tooltip saa täydentää, ei portittaa. */

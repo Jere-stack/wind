@@ -106,7 +106,8 @@ kokeiltu ja kaadettu mittauksella.
   meriaseman · Aaltopoijun kaavion voi raahata · Kapselin puuskarivi katosi ·
   Vuosaaren asema sanoi "ei signaalia" · Havaintokaavio uusiksi: väri tulee
   korkeudesta · Havaintokaavion laajennus koko ruudulle · Laajennettu
-  kaavio iPhonella: turva-alueet, liuku ja lukemarivi
+  kaavio iPhonella: turva-alueet, liuku ja lukemarivi · Havaintokortin
+  siivous: väriliuska pois ja neljä kahdennusta
 
 </details>
 
@@ -414,6 +415,39 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   aina kun tuuli ei yllä asteikon huippuun. Pysäkit otetaan
   m/s-asteikolla ja sijoitetaan yOf():n mukaan; käänteistä
   yksikkömuunnosta ei ole eikä saa keksiä (bofori ei ole käännettävissä).
+- **KUVAAJASSA EI OLE VÄRILIUSKAA.** Y-akselin vieressä oli gradientti
+  kolmen yksikön pystyliuskana. Se oli turha omasta perustelustaan:
+  kun väri on funktio KORKEUDESTA, y-akselin numerot ovat jo sen
+  selite — liuska oli kolmas kerta samalle tiedolle ja kuvaajan ainoa
+  pystysuora muoto joka ei ollut dataa. Älä palauta sitä; jos värin
+  merkitys joskus pitää sanoa ääneen, se sanotaan selitteessä sanoina.
+- **`padX` on MITATTAVA kortilla, ei laskettava.** Kortin SVG vuotaa
+  22 px omaan täytteeseensä (`margin-left:-22px`), joten viewBox-yksiköt
+  eivät kerro mihin y-akselin lukema ruudulla osuu: 22 jätti lukeman
+  3,2 px otsikkopalstan ulkopuolelle, 24 tuo sen reunaan (−0,7 px).
+- **Kaavion työkalurivi on `flex-start`, ei `space-between`.**
+  Asemavalitsimen paikka on tyhjä havaintokortissa, ja `flex: 1`
+  -välikkeenä se työnsi jaksovalitsimen keskelle riviä kun sulkunappi
+  jäi oikealle — kaksi kohdistusta samalla rivillä. Laajennusnappi
+  menee oikealle `margin-left:auto`illa, ja tyhjä paikka poistuu
+  virrasta CSS:llä (`.hav-asemavalitsin:empty`), ei JS-lipulla.
+- **ASEMAN NIMI SANOTAAN KERRAN, IKÄ SANOTAAN KERRAN.** Havainto-
+  kortissa otsikko on aseman nimi, joten selite jättää sen pois;
+  SPOTTIKORTISSA otsikko on spotin nimi ja selite on ainoa maininta
+  käyrän lähteestä, joten siellä nimi JÄÄ. Ero luetaan
+  `data-nimi-otsikossa`-lipusta, ja lippu luetaan ELEMENTILTÄ ITSELTÄÄN
+  (`el.dataset`), EI `closest`illä — molemmat kortit asuvat samassa
+  `#sheet-content`issä, ja esivanhempihaku veisi nimen sieltä missä se
+  on välttämätön. Ikä on kuvaajan alla joka kortissa; hero-rivi
+  mainitsee sen VAIN kun lukema on vanha (silloin se on varoitus eikä
+  aikaleima).
+- **Spottimerkkiä napauttava mittari on tarkistettava
+  `State.sheetSpot`ista.** Lauttasaaressa Larun asemamerkki on spotin
+  vieressä, ja kosketussäätö siirtää napautuksen siihen:
+  `spottikaavio.mjs` avasi pitkään HAVAINTOkortin ja luuli sitä
+  spottikortiksi — ja siitä päätyi kertaalleen raporttiin "spottikortin
+  asemavalitsin on rikki", vaikka havaintokortissa sitä valitsinta ei
+  kuulukaan olla.
 - **Yöharso on täytön PÄÄLLÄ mutta viivojen ALLA.** Täytön alla se
   näkyy vain siellä missä täyttöä ei ole ja lukee korostuslaatikkona.
   Alfat (.13/.09/.05) ovat aikajanan kalibroinnista, älä säädä niitä

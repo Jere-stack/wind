@@ -3438,3 +3438,69 @@ paksuutena, mutta lukuna sitä ei ollut missään.
 risteämisistä merkitseviä vaikka ne ovat mittayksikön sattumaa; väli
 (esim. 15,2–16,8 °C) kertoo saman ilman toista asteikkoa. Jos ero on
 alle 0,15 °C, näytetään yksi luku.
+
+---
+
+## Havaintokortin siivous: väriliuska pois ja neljä kahdennusta
+
+Käyttäjä pyysi poistamaan kuvaajan vasemman reunan väriliuskan. Se oli
+sama gradientti kolmen yksikön pystyliuskana y-akselin vieressä, ja sen
+alkuperäinen perustelu oli "korkeus, numero ja väri ovat näkyvästi sama
+asia". Juuri se perustelu kumoaa sen: kun väri on funktio
+**korkeudesta**, y-akselin numerot *ovat* jo sen selite. Liuska sanoi
+saman kolmannen kerran omana esineenään, ja se oli kuvaajan ainoa
+pystysuora muoto joka ei ollut dataa.
+
+Poisto vapautti kourun, joka annettiin kuvaajalle (`padX` −4 joka
+asussa). Kortilla lukua piti korjata vielä kerran, ja se oli mitattava
+eikä laskettava: kortin SVG vuotaa 22 px omaan täytteeseensä
+(`margin-left:-22px`), joten viewBox-yksiköt eivät kerro mihin lukema
+ruudulla osuu.
+
+| `padX` kortilla | y-lukeman oikea reuna vs. otsikkopalsta |
+|---|---|
+| 22 | **−3,2 px** (lukema roikkui palstan ulkopuolella) |
+| 24 | −0,7 px |
+
+### Kolme muuta asiaa, jotka mittaus paljasti
+
+**Työkalurivi kellui keskellä.** Rivi oli `space-between` ja sen
+ensimmäinen lapsi `flex: 1` — asemavalitsimen paikka. Havaintokortissa
+se paikka on tyhjä, joten se toimi näkymättömänä välikkeenä ja työnsi
+jaksovalitsimen keskelle, kun sulkunappi jäi oikeaan reunaan. Kaksi
+kohdistusta samalla rivillä lukee sattumana. Nyt rivi on `flex-start`,
+laajennusnappi menee oikealle `margin-left:auto`illa, ja tyhjä paikka
+poistuu flex-virrasta CSS:llä (`.hav-asemavalitsin:empty`) — lippua ei
+tarvitse ylläpitää kahdessa paikassa. Mitattu jälkeen: jaksovalitsin
+alkaa **0,0 px** otsikkopalstan reunasta.
+
+**Aseman nimi oli kortissa kahdesti** — otsikkona ja kuvaajan
+selitteessä. Spottikortissa sama selite on kuitenkin *ainoa* maininta
+siitä mistä käyrä on, koska siellä otsikko on spotin nimi. Ero luetaan
+kortilta (`data-nimi-otsikossa`), ja **lippu luetaan elementiltä
+itseltään eikä `closest`illä**: molemmat kortit asuvat samassa
+`#sheet-content`issä, ja esivanhempihaku veisi nimen sieltä missä se on
+välttämätön. Ikä jää aina — se on projektin oma sääntö.
+
+**Ikä oli Larulla ja Mellstenillä kahdesti.** Hero-rivi sanoi
+"dlarah.org · Laru · 3 min sitten" ja selite "3 min sitten". Sääntö on
+nyt sama kaikissa korteissa: **ikä sanotaan kerran, kuvaajan alla; hero
+mainitsee sen vain kun lukema on vanha** — silloin se on eri lause
+(varoitus, ei aikaleima) ja kuuluu lukeman viereen, kuten FMI-korteissa
+jo oli.
+
+### Mittari joka avasi väärää korttia
+
+`spottikaavio.mjs` haki spottimerkkiä tekstillä ja napautti sitä.
+Lauttasaaressa Larun **asemamerkki** on spotin vieressä, ja Chromiumin
+kosketussäätö siirtää napautuksen lähimpään maalattuun kohteeseen —
+projektin oma sääntö, tässä omassa mittarissa. Mittari avasi siis
+havaintokortin ja luuli sitä spottikortiksi.
+
+Siitä johtui myös sen pysyvä "asemavalitsin yhä paikallaan" -vika, joka
+ehti kertaalleen päätyä raporttiin **spottikortin vikana**:
+havaintokortissa sitä valitsinta ei kuulukaan olla. Kun mittari
+napauttaa merkkejä järjestyksessä ja hyväksyy vasta kun
+`State.sheetSpot` on tosi, spottikortti aukeaa oikein ja sen
+asemavalitsin on paikallaan. Kortin varsinainen tarkistus meni samalla
+läpi: selitteessä lukee yhä "Helsinki Harmaja · 4 min sitten".
