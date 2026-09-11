@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="FoilSpot">
 <meta name="theme-color" content="#060912">
-<meta name="description" content="Wingfoil-sääsovellus Suomen parhaille spoteille">
+<meta name="description" content="Wingfoil-sääsovellus Suomen rannikon spoteille. Tuuliennusteet ja havainnot kartalla.">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
@@ -46,7 +46,7 @@ if ('serviceWorker' in navigator) {
   });
 }
 </script>
-<title>FoilSpot v7-light</title>
+<title>FoilSpot — wingfoil-sää</title>
 <!-- Ennuste- ja laattaosoitteet avataan valmiiksi. Mitattuna ensilatauksen
      aika ei mene bundleen vaan ennuste-API:n odottamiseen: FCP oli
      fast-3G:lla 708 ms mutta kartta oli kaytettavissa vasta 5.8 s kohdalla,
@@ -2987,7 +2987,7 @@ html.tyopoyta {
 <!-- Sivulla ei ollut yhtään otsikkoa. Ruudunlukija ilmoittaa nyt mistä
      sovelluksesta on kyse; visuaalisesti otsikko on piilossa, koska
      kartta itse on sovelluksen otsikko. -->
-<h1 class="vain-ruudunlukijalle">FoilSpot — wingfoil-sää Suomen rannikolla</h1>
+<h1 class="vain-ruudunlukijalle">FoilSpot — wingfoil-sää</h1>
 
 <div id="app" role="main">
   <div id="loading">
@@ -3008,7 +3008,7 @@ html.tyopoyta {
           <line x1="28" y1="38" x2="28" y2="52" stroke="#4C5960" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
         <div id="load-logo-name">FoilSpot</div>
-        <div id="load-logo-tag">Wingfoil Weather</div>
+        <div id="load-logo-tag">Wingfoil-sää</div>
       </div>
       <div id="load-waves">
         <div class="load-bar"></div>
@@ -3465,8 +3465,11 @@ html.tyopoyta {
 <script>
 'use strict';
 
-/* FoilSpot v7 - Visual spot cards, Swipe-to-dismiss,
-   Haptic feedback, Spring sheet physics */
+/* FoilSpot — wingfoil-sää.
+
+   Koko sovellus yhdessä skriptilohkossa: tila, kartta, säädata ja
+   käyttöliittymä. Sovelluksen versio on asetuspaneelin buildleima
+   (ks. vite.config.js:n versio-leima) — ei tässä eikä nimessä. */
 
 const Config = {
   MAX_MS: 20,
@@ -4257,7 +4260,7 @@ const SPOTS = [
  * kuitenkin vain muutama megatavu, joten sama taulukko koottiin uudelleen
  * joka istunnossa.
  *
- * Nyt tuulikenttä rakennetaan kerran kolmessa tunnissa (tools/tiilet.mjs,
+ * Nyt tuulikenttä rakennetaan kerran kolmessa tunnissa (tools/laatat.mjs,
  * GitHub Actions) Open-Meteon avoimesta datasta AWS Open Datassa ja
  * julkaistaan laattoina. Sovellus lataa laatan, ei pistelistaa.
  *
@@ -5695,7 +5698,7 @@ const State = {
   /* Laattapyramidina toteutettu lämpökartta, tai null kun käytössä on
      näkymäkokoinen tekstuuri. Tämä on samalla se lippu jolla vanha
      rakennus- ja ankkurointikoneisto kytkeytyy pois. */
-  saaKerros: null,
+  laattakerros: null,
   windCvs: null, windCtx: null,
   particles: [],
   markers: [],
@@ -7403,8 +7406,8 @@ function initMap() {
   function _heatmapCatchUp(askel) {
     /* Laattakerroksella ei ole kiinniottoa: laatta ei jää jälkeen, koska
        se ei liiku. Juuri tämän funktion poistuminen liikkeen tieltä on
-       koko muutoksen tarkoitus — ks. SaaLaattaKerros. */
-    if (State.saaKerros) return;
+       koko muutoksen tarkoitus — ks. Laattakerros. */
+    if (State.laattakerros) return;
     askel = askel || WindTexture.SCRUB_STEP;
     /* EI RAKENNUSTA KESKEN ZOOM-ANIMAATION.
      *
@@ -8650,7 +8653,7 @@ const WindTexture = {
          sovelluksesta silloin kun laattakerros on käytössä.
          Sironneella polulla (ei laattoja) mennään läpi kuten ennenkin:
          silloin laattakerroskaan ei osaa piirtää mitään. */
-      if (hilaPolku && State.saaKerros) { this.kelpaa = true; resolve(true); return; }
+      if (hilaPolku && State.laattakerros) { this.kelpaa = true; resolve(true); return; }
 
       /* Harvennuksen jälkeen työ on murto-osa entisestä, joten setTimeout-
          pilkkomista tarvitaan vasta selvästi isommilla tekstuureilla. */
@@ -9163,7 +9166,7 @@ const LAATTAKERROS = (function () {
   return true;
 })();
 
-const SaaLaattaKerros = L.GridLayer.extend({
+const Laattakerros = L.GridLayer.extend({
   options: {
     tileSize: 256,
     /* Laatat ladataan myös liikkeen aikana — se on koko pointti.
@@ -9588,13 +9591,13 @@ const SaaLaattaKerros = L.GridLayer.extend({
  * sekunnissa ole valmis, jäädään vanhaan polkuun. */
 let _laattaYritys = 0;
 function _aktivoiLaattakerros(map) {
-  if (State.saaKerros) return;
+  if (State.laattakerros) return;
   if (typeof Saalaatat === 'undefined' || !Saalaatat.kaytossa()) {
     if (++_laattaYritys <= 20) setTimeout(function () { _aktivoiLaattakerros(map); }, 500);
     return;
   }
-  State.saaKerros = new SaaLaattaKerros();
-  State.saaKerros.addTo(map);
+  State.laattakerros = new Laattakerros();
+  State.laattakerros.addTo(map);
   /* Vanhat kerrokset pois jos ne ehtivät syntyä: kaksi lisäävää
      kerrosta päällekkäin laskettaisiin yhteen. */
   try {
@@ -9638,7 +9641,7 @@ function drawColorField(skipBlur) {
      kytkeä: kaikki kolmetoista kutsupaikkaa tarkoittavat "kenttä
      muuttui, piirrä uudelleen", ja se on täsmälleen se mitä
      `paivitaSisalto` tekee. */
-  if (State.saaKerros) { State.saaKerros.paivitaSisalto(); return; }
+  if (State.laattakerros) { State.laattakerros.paivitaSisalto(); return; }
   if (!WindTexture.canvas || !State.map || !WindTexture.msData) return;
   const bounds = L.latLngBounds(
     L.latLng(WindTexture.latMin, WindTexture.lngMin),
@@ -9764,7 +9767,7 @@ function pohjaVarmista(viive) {
   /* Karkea pohjakerros on käsin tehty pyramidin toinen askelma. Kun
      koko pyramidi on olemassa, se on turha — ja kaksi lisäävää kerrosta
      päällekkäin laskettaisiin yhteen. */
-  if (State.saaKerros) return;
+  if (State.laattakerros) return;
   clearTimeout(_pohjaTimer);
   _pohjaTimer = setTimeout(function () {
     if (!State.map) return;
@@ -9833,7 +9836,7 @@ function pohjaSijoita() {
      ajastaa työn eteenpäin — ennen aktivointia lähtenyt rakennus
      valmistuu vasta sen jälkeen ja loisi kerroksen tässä. Portti on siis
      oltava myös luontikohdassa. */
-  if (State.saaKerros) return;
+  if (State.laattakerros) return;
   if (!P.canvas || !State.map) return;
   const b = L.latLngBounds(L.latLng(P.latMin, P.lngMin), L.latLng(P.latMax, P.lngMax));
   if (State.pohjaOverlay) {
@@ -9994,8 +9997,8 @@ function updateHeatmapBlur(zoom) {
    *
    * eli 2 px GL:n 256 texelillä ja 4 px CPU-varatien 128:lla. Alaraja
    * 3 px pitää sen samana kuin lähizoomissa ennenkin. */
-  if (State.saaKerros) {
-    const K = State.saaKerros;
+  if (State.laattakerros) {
+    const K = State.laattakerros;
     const kerros = K._gl && K._gl.kelvollinen();
     blur = Math.max(3, Math.round(512 / (kerros ? K.GL_TEXELIT : K.CPU_TEXELIT)));
   } else if (WindTexture.cols > 0 && WindTexture.lngMax > WindTexture.lngMin) {
@@ -20735,7 +20738,7 @@ const _loadingSafety = setTimeout(() => {
 
   var off = { particles: false, heatmap: false, markers: false, field: false, tiles: false, snap: false };
   var LBL = { particles: 'Partikkelit', heatmap: 'Lämpökartta', markers: 'Merkit', field: 'Kenttä',
-              tiles: 'Tiilet', snap: 'Snap 0.5' };
+              tiles: 'Laatat', snap: 'Snap 0.5' };
 
   /* Ele- ja jälkivaihe erikseen. Nykiminen ITSE nipistyksen aikana ja
      nykäisy sen loputtua ovat eri ongelmia ja vaativat eri korjauksen,
@@ -20851,7 +20854,7 @@ const _loadingSafety = setTimeout(() => {
      pois. Kerros luodaan vasta ensimmäisessä hilapolun rakennuksessa,
      joten alkuun tässä lukee CPU vaikka laite kiihdyttäisi. */
   function glTila() {
-    const K = State.saaKerros;
+    const K = State.laattakerros;
     const g = K ? (K._gl && K._gl.kelvollinen()) : (WindTexture._gl && WindTexture._gl.kelvollinen());
     const suoritin = !GL_LAMPOKARTTA ? 'CPU (gl=0)' : (g ? 'GPU' : 'CPU');
     return (K ? 'laatat' : 'tekstuuri') + ' · ' + suoritin;

@@ -1,4 +1,4 @@
-# FoilSpot v7
+# FoilSpot
 
 Wingfoil-sääsovellus Suomen rannikon spoteille. Kartta (Leaflet) + tuuliennusteet
 (oma säälaattavarasto, FMI HARMONIE, Open-Meteo, FMI-havaintoasemat) yhdessä
@@ -11,7 +11,7 @@ npm install       # asenna riippuvuudet
 npm run dev       # käynnistä Vite dev-serveri (http://localhost:5173)
 npm run build     # tuota tuotantobuild hakemistoon dist/
 npm run preview   # esikatsele tuotantobuildia paikallisesti
-npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
+npm run saadata   # rakenna säälaatat (tools/laatat.mjs)
 ```
 
 ## Rakenne
@@ -23,7 +23,7 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   mittausdata-proxyt).
   ES-moduuleja, koska
   `package.json`:ssa on `"type": "module"` — `require()` ei toimi näissä.
-- `tools/tiilet.mjs` — säälaattojen rakennus AWS Open Datan ECMWF-datasta.
+- `tools/laatat.mjs` — säälaattojen rakennus AWS Open Datan ECMWF-datasta.
   Ajetaan GitHub Actionsissa neljästi vuorokaudessa (`.github/workflows/`).
 - `tools/suunnat.html` — spottien tuulisuuntien asetustyökalu. `npm run dev`,
   sitten `/tools/suunnat.html`. Ei kuulu tuotantobuildiin. Lukee spotit
@@ -187,6 +187,32 @@ mitataan analyyttistä kenttää vasten.
 
 Nämä ovat päätöksiä, eivät makuasioita. Perustelut ovat aiheen omassa
 tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
+
+**Nimi ja versio**
+
+- **Sovelluksen nimi on `FoilSpot` ja sen kanssa kulkeva tunnuslause
+  `wingfoil-sää`.** Yhdistelmä `FoilSpot — wingfoil-sää` on
+  SANATARKASTI sama neljässä paikassa: `<title>`, `<h1>`, manifestin
+  `name` ja splashin kaksi riviä yhdessä. Lyhyt muoto `FoilSpot` on
+  manifestin `short_name` ja `apple-mobile-web-app-title`. Ennen näitä
+  oli neljä eri muotoa, joista title sanoi `FoilSpot v7-light`.
+- **NIMESSÄ EI OLE VERSIOTA.** Sovelluksen versio on asetuspaneelin
+  buildleima (`__BUILD_ID__`, ks. `vite.config.js`), ja se on ainoa.
+  `package.json`:n versio on `0.0.0` tarkoituksella — paketti on
+  `private` eikä sitä julkaista, joten kaksi versionumeroa olisi kaksi
+  paikkaa jotka ajautuvat erilleen. Niin kävi: title sanoi v7-light,
+  package 7.0.0 ja `api/laru.js`:n User-Agent 1.0, eikä mikään niistä
+  kertonut mitä koodia selain ajoi.
+- **Kuvaus on yksi merkkijono.** `<meta name="description">` ja
+  manifestin `description` ovat sama lause. Kaksi sanamuotoa samalle
+  kuvaukselle on kaksi paikkaa jotka ajautuvat erilleen.
+- **Laatta on `laatta`, ei `tiili`.** Rakentaja on `tools/laatat.mjs`,
+  varasto `Saalaatat`, kerros `Laattakerros`, lippu `LAATTAKERROS`,
+  ilmentymä `State.laattakerros`, CSS-luokka `.saa-laatat`. Sana
+  esiintyy koodissa satoja kertoja; `tiili` on eri asia (poltettu
+  savitiili) ja oli väärä käännös. `?perf=1`-paneelin avain on
+  englantia (`tiles`) kuten sen naapurit, mutta LABEL on suomea
+  (`'Laatat'`) kuten sen naapurit.
 
 **Väri**
 
@@ -726,7 +752,7 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   3,46 tasoa, 92 % ruudusta paljasta taustaa). Raja tehdään joustona
   `getScaleZoom`issa — ei `_move`ssa, koska keskipiste lasketaan zoomista
   ja ankkuri valuisi.
-- **Lämpökartta on LAATTAPYRAMIDI** (`SaaLaattaKerros`, `L.GridLayer`).
+- **Lämpökartta on LAATTAPYRAMIDI** (`Laattakerros`, `L.GridLayer`).
   Laatta ei liiku koskaan: siirto vain paljastaa uusia. Älä palauta
   näkymänkokoista tekstuuria uudelleenrakennuksineen — se ankkuroitui
   uudelleen kaksi kertaa yhtä sormenvetoa kohti (mitattu luisto z13:lla

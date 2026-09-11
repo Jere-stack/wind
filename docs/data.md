@@ -692,7 +692,7 @@ käytetä.
 
 ## Tallennustila ei ollutkaan este — lataus oli
 
-Tässä tiedostossa ja `tools/tiilet.mjs`:ssä luki että koko maailman
+Tässä tiedostossa ja `tools/laatat.mjs`:ssä luki että koko maailman
 0,25° olisi *"2 592 laattaa eli 290 MB; sitä ei tarvitse kukaan"*, ja
 että se on syy miksi uloin näkymä ei yllä Windyn tarkkuuteen. **Luku oli
 väärä ja perustelu vinossa.** Mitattuna oikeasti:

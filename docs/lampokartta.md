@@ -1318,7 +1318,7 @@ pohjakarttaan. Sitä ei voi korjata nopeuttamalla.
 
 ### Ratkaisu on sama kuin windyllä: laatta ei liiku koskaan
 
-`SaaLaattaKerros` perii `L.GridLayer`:n. Laatta on kiinteä
+`Laattakerros` perii `L.GridLayer`:n. Laatta on kiinteä
 maantieteellinen neliö kiinteällä zoom-tasolla. Siirto vain paljastaa
 uusia laattoja reunalta; jo näkyvät pysyvät pikselilleen paikallaan.
 Zoomatessa Leaflet pitää isälaatat näkyvissä kunnes lapset ovat valmiit

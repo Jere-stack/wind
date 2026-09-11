@@ -65,7 +65,7 @@ const PISTE_KATTO = 400;
    pysyvasti tyhjaksi — eika mikaan kertoisi miksi. (Eri asia kuin
    api/mellsten.js:n ohimeneva 403, joka toistui vain kerran.) */
 const OTSAKKEET = {
-  'user-agent': 'FoilSpot/1.0 (+https://github.com/Jere-stack/wind)',
+  'user-agent': 'FoilSpot (+https://github.com/Jere-stack/wind)',
   'accept': 'text/plain,*/*',
 };
 
