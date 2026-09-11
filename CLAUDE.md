@@ -95,6 +95,7 @@ kokeiltu ja kaadettu mittauksella.
   Aaltoennuste tuotantoon (FMI WAM, ei laattaputkea) · Vedenkorkeus ja
   yksikkö joka ei lue vastauksessa · Ilman starttimea sarja alkaa
   seuraavasta tunnista · Sadetutka — miksi se ei ole L.TileLayer.WMS ·
+  Tutkan silmukka — kehykset löytyvät luotaamalla ·
   Puuskaisuus oli koodissa mutta ei näkyvissä
 - **lisadata**: Mistä sovellus lukee nyt · TOP 10 — data · TOP 10 — lähteet ·
   Mitattu ja hylätty (MEPS on HARMONIE · hydrodyn 2/12 spottia · vuorovesi ·
@@ -640,11 +641,45 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   osallistua siihen summaan. Luokka on `.tutka-laatat` — EI
   `.heatmap-overlay`, joka kantaa elementin kokoon mitoitetun maskin ja
   leikkaisi 0×0-säiliöisen `GridLayer`in kokonaan pois.
-- **Tutkalle ei pyydetä aikaa.** Tuoreinta uudempi `time` palauttaa
-  XML-virheen eikä kuvaa (mitattu). Palvelimen `default="current"` antaa
-  tuoreimman, ja tuoreutus tehdään noncella joka vaihtuu viiden
-  minuutin välein. Animaatiota EI ole: kehyslista vaatisi 426 kB
-  `GetCapabilities`in, ja se on oma työnsä.
+- **TUTKAN KEHYSAIKA ON NIMENOMAINEN, EI `current`.** Se ratkaisee kaksi
+  asiaa kerralla: silmukka tarvitsee tietyt hetket, ja nimetty aika on
+  myös oikea välimuistiavain — lähde sanoo `max-age=86400` ja
+  (laatta, kehys) -pari on muuttumaton, joten sama kehys ladataan kerran
+  (mitattu: 3 latausta, 1 palvelinosuma). Aiempi `current` + 5 min nonce
+  rikkoi välimuistin joka viides minuutti.
+- **Kehyslistaa EI haeta `GetCapabilities`ista** (426 kB koko
+  Radar-työtilalle). Kehykset ovat kiinteällä 5 min hilalla, joten
+  riittää löytää TUOREIN ja laskea loput. Tuorein löytyy luotaamalla
+  taaksepäin 1×1 GetMapilla: virheellinen aika palauttaa XML:ää eikä
+  kuvaa, ja `Image`in `onerror` erottaa ne ilman jäsennystä. Luotain on
+  1 107 B ja viive mitattuna alle 5 – noin 7 min eli 1–2 luotainta.
+- **Silmukka on SEITSEMÄN kehystä (30 min), ja luku tulee
+  latausbudjetista.** Laatta on 1,5 kB kuivana ja 3–11 kB sateessa, eli
+  yksi kehys on 18–88 kB ruudullista kohti. 12 kehystä (60 min) olisi
+  yli megan juuri silloin kun kerros kytketään päälle. Älä kasvata
+  lukua mittaamatta.
+- **YKSI kerros ja alfamaskit, EI seitsemää päällekkäistä kerrosta.**
+  Seitsemän `GridLayer`ia olisi Leafletin omaa koneistoa mutta laukaisisi
+  seitsemät laattapyynnöt joka panoroinnilla. Maskit ovat
+  `Uint8ClampedArray` (1 tavu/pikseli), koska väri on vakio: mitattu
+  8,3 MB puhelimen ruudulla ja 16,5 MB työpöydällä — `ImageData`na
+  nelinkertaiset. Kehyksen vaihto on 1,7 ms koko kerrokselle.
+- **Silmukka käynnistyy vasta kun KAIKKI näkyvät laatat osaavat KAIKKI
+  kehykset.** Muuten osa ruudusta olisi eri hetkestä kuin muu, ja juuri
+  liikkeen suunta on se mitä kerroksesta luetaan — puolivalmis silmukka
+  valehtelisi enemmän kuin pysäytyskuva.
+- **`prefers-reduced-motion` NÄYTTÄÄ TUOREIMMAN, ei vanhinta.** Tässä oli
+  vika: toisto käynnistyi vanhimmasta ja pysähtyi siihen heti, jolloin
+  asetus näytti puoli tuntia vanhaa tutkakuvaa nykyhetkenä. Päätös on
+  yhdessä paikassa (`Sadetutka.silmukassa()`) ja se ratkaisee myös
+  latauksen: ilman silmukkaa kuutta vanhaa kehystä ei haeta lainkaan
+  (12 pyyntöä 84:n sijaan).
+- **Kehyksen aikaleima ei ole valinnainen.** Liikkuva kuva ilman kelloa
+  ei kerro mitä hetkeä katsoo. Se on samalla rivillä lähdemerkinnän
+  kanssa mutta vastakkaisessa reunassa — yksi rivi ylempänä se jäi
+  aikajanan kortin taakse (mitattu: leima y 825–833, kortti alkaa
+  y 756). `aria-live` on POIS: silmukka vaihtaa tekstin neljästi
+  sekunnissa.
 - **Tutkan muste luetaan `Asetukset.paperi()`:sta**, samasta
   kysymyksestä kuin lämpökartan sekoitustila. Jos pohjakartta vaihtuu,
   kerros on piirrettävä uudelleen — mikään ei tee sitä itsestään.

@@ -2071,20 +2071,166 @@ reunahäivytyksen maskin joka mitoitetaan elementin kokoon, ja
 `GridLayer`in säiliö on 0×0, jolloin maski leikkaisi koko kerroksen pois
 (sama ansa kuin säälaatoilla).
 
-### Kaksi asiaa jotka jätettiin pois
+### Katvemaski jätettiin pois
 
-**Katvemaski** (paletin indeksit 230–252, rgb 204,204,204). Se kertoisi
-"täällä ei ole tutkaa" erotuksena "täällä ei sada", mutta se olisi
-toinen merkitys samalla mustekanavalla — ja sovelluksen spotit ovat
-kaikki katvealueen sisäpuolella.
+Paletin indeksit 230–252 (rgb 204,204,204) kertoisivat "täällä ei ole
+tutkaa" erotuksena "täällä ei sada", mutta se olisi toinen merkitys
+samalla mustekanavalla — ja sovelluksen spotit ovat kaikki katvealueen
+sisäpuolella.
 
-**Animaatio.** Sarja on 5 min välein seitsemältä vuorokaudelta, mutta
-kehyslistan saa vain `GetCapabilities`ista joka on 426 kB, ja
-tuoreinta uudempi aika palauttaa XML-virheen eikä kuvaa (mitattu: 12:25
-ja 12:55 virhe klo 12:27, 12:20 kuva). Kehysten haarukointi olisi oma
-pyyntökierroksensa. Kerros näyttää siis tuoreimman kehyksen (palvelimen
-`default="current"`) ja hakee sen uudelleen viiden minuutin välein.
-Silmukka on oma erillinen työnsä, ei tämän erän puute.
+---
+
+## Tutkan silmukka — kehykset löytyvät luotaamalla, ei listaamalla
+
+Ensimmäinen tutkaerä jätti animaation pois kahdesta syystä: kehyslista
+on `GetCapabilities`issa joka on 426 kB, ja tuoreinta uudempi aika
+palauttaa XML-virheen eikä kuvaa. Molemmat kierrettiin, ja kierto oli
+halvempi kuin este.
+
+### Kehykset ovat kiinteällä hilalla, joten riittää löytää tuorein
+
+Aika-askel on `PT5M`. Jos tuorein kehys tiedetään, kaikki muut ovat
+`tuorein − k × 5 min`. Ja tuorein löytyy luotaamalla taaksepäin, koska
+virheellinen aika palauttaa XML:ää eikä kuvaa — `Image`in `onerror`
+erottaa ne ilman että vastausta tarvitsee jäsentää lainkaan.
+
+Luotain on 1×1 GetMap:
+
+```
+1×1 vastaus        1 107 B, 1,2 s
+  josta PLTE+tRNS    1 016 B   -> pienemmäksi ei pääse, paletti tulee mukana
+8×8 vastaus        1 111 B     -> koolla ei ole väliä, paletti hallitsee
+```
+
+Viive mitattuna kahdesti:
+
+```
+klo 13:10:42 UTC   13:10 virhe, 13:05 kuva   -> 1 luotain
+klo 12:27    UTC   12:25 virhe               -> viive noin 7 min
+```
+
+Eli 1–2 luotainta riittää, ja katto on kuusi askelta.
+
+### Seitsemän kehystä, ja se luku tulee latausbudjetista
+
+256×256 laatan koko mitattuna:
+
+```
+sateeton alue   1 541 B      (lähes pelkkää palettia)
+sateinen alue   3 145 – 10 722 B, keskiarvo n. 7,3 kB
+```
+
+Ruudulla on noin 12 laattaa, joten yksi kehys on 18 kB kuivana ja
+pahimmillaan n. 88 kB kun koko ruutu sataa:
+
+```
+ 7 kehystä (30 min)    126 kB – 620 kB
+12 kehystä (60 min)    216 kB – 1,1 MB
+```
+
+Kaksitoista kehystä olisi yli megan juuri silloin kun kerros
+kytketään päälle, eli sateella. 30 min riittää suunnan lukemiseen:
+kuuro liikkuu 30–50 km/h eli 15–25 km puolessa tunnissa, ja Helsingin
+seudun ruutu on z10:llä noin 40 km leveä.
+
+### YKSI kerros ja alfamaskit, ei seitsemää kerrosta
+
+Seitsemän päällekkäistä `GridLayer`ia olisi Leafletin omaa koneistoa ja
+siksi houkutteleva, mutta jokainen panorointi laukaisisi seitsemät
+laattapyynnöt — ja panorointi on se mitä kartalla tehdään eniten.
+
+Sen sijaan yksi kerros, ja jokainen laatta säilyttää kehyksensä
+**alfamaskeina** (`Uint8ClampedArray`, 1 tavu per pikseli). Väri on
+vakio muste, joten muuta ei tarvitse säilyttää. Mitattu muistinkäyttö:
+
+```
+iPhonen kokoinen ruutu (390×844)   12 laattaa,  84 maskia,   8,3 MB
+työpöytä (1440×900)                24 laattaa, 168 maskia,  16,5 MB
+```
+
+Samat kehykset `ImageData`na olisivat nelinkertaiset eli 33 ja 66 MB.
+
+Kehyksen vaihto kirjoittaa vain alfakanavan ja tekee yhden
+`putImageData`n per laatta. Mitattuna **koko kerros 1,7 ms** (min 1,5,
+max 1,9; 16 laattaa). Toiston tahdilla 260 ms se on 0,65 % suorittimesta.
+
+### Nimetty aika korjasi myös välimuistin
+
+Ensimmäinen versio käytti palvelimen `current`-oletusta ja kiersi
+välimuistin viiden minuutin noncella. Nimetyn ajan myötä jokainen
+(laatta, kehys) -pari on muuttumaton osoite, ja lähde sanoo:
+
+```
+Cache-Control: max-age=86400, must-revalidate
+```
+
+Mitattu selaimessa (paikallinen jäljitelmä samoilla otsakkeilla, jotta
+Playwrightin `route` ei ohita välimuistia): sama URL kolmesti ladattuna
+tuottaa **yhden** palvelinosuman, sekä `crossOrigin`in kanssa että
+ilman. Silmukkaversio on siis paremmin välimuistissa kuin
+pysäytyskuvaversio oli.
+
+Panoroinnin hinta on se mitä uudet laatat maksavat: mitattuna puolen
+ruudun panorointi haki 84 laattaa (12 uutta laattaa × 7 kehystä) ja
+takaisin panorointi 56 — loput tulivat välimuistista.
+
+### Toisto kulkee vanhimmasta uusimpaan ja pysähtyy uusimpaan
+
+Se on sadetutkan vakiintunut kielioppi: silmukka kertoo mistä kuuro
+tuli, pysähdys kertoo missä se nyt on. 260 ms kehystä kohti, 1 500 ms
+pysähdys. Mitattu selaimessa oikeilla peräkkäisillä kehyksillä
+(sadepikselit tunnistavat kehyksen):
+
+```
+15:45  10 690    15:50   9 813    15:55  10 302    16:00  10 421
+16:00  10 458    16:05   9 960    16:15   9 796  <- pysähdys
+```
+
+Seitsemän eri kehystä, seitsemän eri aikaleimaa, järjestys oikein.
+
+**Silmukka käynnistyy vasta kun kaikki näkyvät laatat osaavat kaikki
+kehykset.** Muuten osa ruudusta olisi eri hetkestä kuin muu — ja juuri
+liikkeen suunta on se mitä kerroksesta luetaan, joten puolivalmis
+silmukka valehtelisi enemmän kuin pysäytyskuva.
+
+### `prefers-reduced-motion` oli ensin RIKKI
+
+Ensimmäinen toteutus tarkisti liikkeenvähennyksen `_tutkaAskel`in
+sisällä, ja koska toisto käynnistyi vanhimmasta kehyksestä, se pysähtyi
+siihen heti: asetus näytti **puoli tuntia vanhaa tutkakuvaa
+nykyhetkenä**. Liikkeen vähentäminen ei saa vaihtaa sitä mitä kuva
+väittää.
+
+Korjattuna päätös on yhdessä paikassa (`Sadetutka.silmukassa()`) ja se
+ratkaisee kolme asiaa kerralla: montako kehystä ladataan, mitä kehystä
+näytetään, ja käynnistyykö toisto. Mitattu ero:
+
+```
+                       laattapyyntöjä   eri aikoja   näytetty kehys
+normaali                          84            7   silmukka
+reduced-motion                    12            1   tuorein
+```
+
+Eli asetus ei ole pelkkä pysäytys vaan myös seitsemäsosa
+latausbudjetista.
+
+### Aikaleima ei ole valinnainen — ja se oli ensin väärässä paikassa
+
+Liikkuva kuva ilman kelloa ei kerro mitä hetkeä katsoo. Leima sai saman
+asun kuin lähdemerkintä (`#lahde-merkki`), koska se on saman luokan
+esine: hiljainen nimilappu kartan päällä, ei dataa.
+
+Ensimmäinen sijoitus oli yhden rivinkorkeuden lähdemerkintää ylempänä,
+ja se meni aikajanan kortin taakse. Kartan alalaidassa on vain yksi
+kaista joka jää kortin alapuolelle, ja lähdemerkintä on jo siinä:
+mitattuna leima piirtyi y 825–833 ja aikajanan kortti alkaa y 756.
+Sama rivi ja vastakkainen reuna on ainoa paikka jossa molemmat näkyvät
+— leima oikealle, lähdemerkintä vasemmalle, ja lähdemerkinnän
+`max-width` kavennetaan sadan pikselin verran vain kun leima on
+näkyvissä (`html[data-tutka="1"]`).
+
+**`aria-live` on POIS tarkoituksella.** Silmukka vaihtaa tekstin
+neljästi sekunnissa, ja ruudunlukija lukisi kellonajan loputtomasti.
 
 ---
 
