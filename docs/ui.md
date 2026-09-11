@@ -3504,3 +3504,157 @@ napauttaa merkkejä järjestyksessä ja hyväksyy vasta kun
 `State.sheetSpot` on tosi, spottikortti aukeaa oikein ja sen
 asemavalitsin on paikallaan. Kortin varsinainen tarkistus meni samalla
 läpi: selitteessä lukee yhä "Helsinki Harmaja · 4 min sitten".
+
+---
+
+## Sateen värit: strategia ja se mitä siitä on jo tehty
+
+Pyyntö oli *"windymäinen sateen voimakkuus eri väreillä"*. Se on
+suoraan ristiriidassa sovelluksen kovimman väriohjeen kanssa —
+**kartalla sävy tarkoittaa tuulennopeutta ja vain sitä**. Ristiriita
+ratkesi toisen pyynnön kautta: lämpökartta ja partikkelit sammuvat kun
+sadekerros on päällä. Siksi tämä luku alkaa siitä miksi sävy on vapaa,
+eikä siitä miltä sateen pitäisi näyttää.
+
+### 1. Sävy on vapaa vain koska tuuliramppi ei ole ruudulla
+
+Sadekerros ja tuulikerrokset ovat toisensa poissulkevat (mittaus
+`docs/data.md`). Kartan **pinnalla** on siis kerrallaan tasan yksi
+väriasteikko. Tämä on koko luvun perusta: jos joku joskus palauttaa
+lämpökartan näkyviin sadekerroksen alle, sateen värit on poistettava
+samassa muutoksessa.
+
+Tuulen väriä on silti ruudulla: **aikajanan palkit** ovat
+`ColorRamp.paperi()`. Ne eivät ole kartalla vaan kortilla, mutta ne ovat
+näkyvissä samaan aikaan, joten sekoittumisriski on mitattava eikä
+oletettava.
+
+### 2. Ramppi erotetaan AKSELILLA, ei yksittäisillä väreillä
+
+Tuulen ramppi **kiertää koko sävykehän** (sininen–syaani–vihreä–
+keltainen–oranssi–punainen–magenta). Siitä seuraa asia joka on syytä
+sanoa ääneen: **mikä tahansa väri on lähellä jotakin tuulen väriä.**
+Pakoa ei ole, eikä sitä kannata yrittää.
+
+Erotus tehdään siis rampin muodolla:
+
+```
+                   sävyväli        kirkkausväli L*
+tuuli (kartta)     8°–358° (350°)  17–90 (72)
+tuuli (aikajana)   6°–356° (350°)   6–45 (39)
+sade (tumma)     261°–313°  (52°)  25–75 (50)
+sade (paperi)    261°–313°  (51°)  26–88 (61)
+```
+
+Tuuli kulkee **sävyn** yli kirkkaus jokseenkin vakiona; sade kulkee
+**kirkkauden** yli sävy lähes vakiona. Sateen rampissa ei ole yhtään
+sävyä välillä 50°–150°, eli **vihreä ja keltainen puuttuvat kokonaan** —
+juuri se osa tuuliramppia joka kattaa käyttökelpoisen tuulen (6–13 m/s).
+
+(Sävyväli luetaan vain riittävän kylläisistä väreistä, C\* ≥ 8. Lähes
+neutraalin värin sävykulma on kohinaa, ja ilman rajausta paperirampin
+haalein pää levitti välin 139 asteeseen.)
+
+### 3. Mitattu erottuvuus
+
+Sateen väri **renderöitynä** (sekoitettuna pohjaan sen omalla alfalla —
+taulukon luvut eivät kerro mitä ruudulla on, sama sääntö kuin
+lämpökartalla):
+
+```
+mm/h     v      rgb            alfa   ruudulla       dE edelliseen
+ 0,05  0,068   72,104,150  0,28    48, 61, 80      -
+ 0,1   0,147   67,118,173  0,40    50, 74,101     5,3
+ 0,2   0,237   62,132,196  0,49    50, 87,123     5,2
+ 0,5   0,338   59,155,226  0,58    50,109,154     8,3
+ 1     0,414   76,170,242  0,64    62,125,173     6,1
+ 2     0,489  107,177,252  0,69    86,136,190     5,6
+ 5     0,623  149,170,255  0,77   123,141,208     8,3
+10     0,699  178,158,255  0,81   151,136,216     7,6
+20     0,774  203,161,255  0,85   178,143,224     5,8
+50     0,874  233,197,255  0,85   204,174,225    10,2
+```
+
+Pienin dE2000 peräkkäisten dekadiaskelten välillä **5,2** — selvästi yli
+erottumisrajan.
+
+Sekoittuminen aikajanan palkkeihin:
+
+```
+ 0,05 mm/h  lähin palkki  2,5 m/s   dE 10,0
+ 0,1  mm/h                3,5 m/s   dE  6,2
+ 0,2  mm/h                3,5 m/s   dE  5,1   <- pienin
+ 0,5  mm/h                  4 m/s   dE  9,7
+ 1    mm/h                  4 m/s   dE 15,5
+ 2    mm/h                  4 m/s   dE 21,1
+ 5    mm/h                  4 m/s   dE 27,7
+10    mm/h                  4 m/s   dE 31,9
+20    mm/h                 20 m/s   dE 35,3
+50    mm/h                 20 m/s   dE 43,5
+```
+
+Pienin ero on **5,1** rampin haaleimmassa päässä (0,2 mm/h vs.
+aikajanan 3,5 m/s). Se on rehellinen heikko kohta ja se sallitaan
+kolmesta syystä: molempien ramppien hiljainen pää on sininen eikä siitä
+pääse eroon, 1 mm/h:sta ylöspäin ero on **vähintään 15,5**, ja kohteet
+ovat eri pinnoilla (kartan laaja alue vs. kortin 4 px palkki).
+
+### 4. Asteikko on asetuspaneelissa, ei kartalla
+
+Sama sääntö kuin tuulen väriasteikolla, ja samasta syystä: kartan päällä
+se olisi pysyvä palkki jota katsotaan kerran. Asteikko näkyy vain kun
+kerros on päällä — muulloin se selittäisi kerrosta jota ei ole.
+
+Akseli on **logaritminen mm/h:ssa**, koska ramppi on: 0,07 → 63 mm/h on
+kolme dekadia, ja lineaarisella akselilla koko käyttökelpoinen alue
+(alle 4 mm/h) puristuisi vasempaan kuuteen prosenttiin.
+
+**Palkki piirretään kartan pohjan päälle, ei paneelin paperille.**
+Ensimmäinen versio ladottiin paperille, ja tumman pohjakartan ramppi
+näkyi siinä vaaleana haalistumana — eli asteikko selitti värejä joita
+kartalla ei ollut. Pohjat ovat `Sade.POHJA_TUMMA` / `POHJA_PAPERI`, ja
+ne ovat samat joita vasten ramppi on mitattu.
+
+### 5. Mitä EI tehty, ja miksi
+
+**FMI:n omaa palettia ei käytetä sellaisenaan.** Se on lähes sama
+sävyketju kuin tuuliramppi, eli magenta väittäisi kartalla 20 m/s kun se
+tarkoittaa rankkasadetta. Tämä pätee yhä — se on nimenomaan se syy
+miksi paletti käännetään voimakkuudeksi eikä näytetä.
+
+**Windyn oma ramppi olisi sama ongelma.** Windy värittää sateen
+sinisestä vihreän ja keltaisen kautta punaiseen — se on tuuliramppi
+toisella nimellä. "Windymäinen" toteutetaan siis *periaatteessa*
+(voimakkuus luetaan väristä, asteikko on fysikaalinen ja nimetty) eikä
+*jäljittelemällä*.
+
+**Alfa yksin ei riitä.** Edellinen versio oli yksi muste ja voimakkuus
+alfassa. Se on luettava mutta ei kerro määrää: 0,5 mm/h ja 5 mm/h olivat
+molemmat "sinistä, vähän eri vahvuista". Nyt ne ovat eri väriä (dE 8,3 +
+6,1 + 5,6) ja alfa vahvistaa saman viestin.
+
+**Väriliuskaa kartalle ei tule.** Sama päätös kuin havaintokaaviossa.
+
+### 6. Mitä tästä voi vielä tehdä — järjestyksessä
+
+Nämä ovat auki ja niistä ei ole päätöstä. Järjestys on hyöty/hinta.
+
+1. **Kuuron reunan korostus.** Foilaajalle kuuron reuna on
+   puuskarintama, eikä sitä lue tasaisesta liukuvärjäyksestä. Ääriviiva
+   esimerkiksi 0,5 mm/h:n kohdalle olisi yksi lisämerkitys samalla
+   kanavalla — kokeiltava, ei ilmeinen.
+2. **Lumi erikseen.** `suomi_dbz_eureffin`illa on talvityyli
+   (`radar_dbz_winter_-20_40`) ja HARMONIElla erillinen lumiparametri.
+   Talvella sade ja lumi ovat eri asia foilaajalle; nyt ne ovat sama
+   väri.
+3. **Tutka rain rate -tuotteesta suoraan.** `suomi_rr_eureffin` on
+   mm/h:ta jo lähteessä, eli paletin käännös jäisi pois. Paletti on
+   sama, joten muutos on pieni — mutta se pitäisi mitata, koska dBZ ja
+   rain rate eivät ole sama suure vaan toinen on johdettu toisesta.
+4. **Värisokeusvaihtoehto.** Tuulirampilla on `RAMP_CVD`; sateella ei
+   ole. Sateen ramppi on kapea sävyväli + leveä kirkkausväli, eli se on
+   jo lähempänä turvallista kuin tuuliramppi oli — mutta sitä ei ole
+   mitattu dikromaateilla.
+5. **`radar_dbz_summer_8_50_cvdopt`.** FMI:llä on valmis
+   värisokeusoptimoitu tyyli. Jos kohta 4 tehdään, tämän paletin
+   taulukointi on halvin tapa saada vertailukohta.
