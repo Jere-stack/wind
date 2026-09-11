@@ -2104,6 +2104,16 @@ html.tyopoyta {
   font-variant-numeric: tabular-nums; font-size: var(--fs-11); font-weight: 500;
   color: var(--ink-3); margin-top: 4px; letter-spacing: 0.5px;
 }
+
+/* PUUSKASUHDE puuskaluvun alla. Pienempi ja hillitympi kuin puuskaluku:
+   se on tulkinta luvusta joka on rivin yllä, ei kolmas mittaluku.
+   Värit ovat `gustIndex`in luokat, ja ne ovat mitattuja paperia vasten
+   (4,81:1 ja 5,94:1) — ne periytyvät poistetusta `_gustStatCard`ista,
+   joka oli ainoa paikka jossa nämä kontrastit oli laskettu. */
+.sh-big-gustratio {
+  font-variant-numeric: tabular-nums; font-size: var(--fs-9); font-weight: 600;
+  margin-top: 2px; letter-spacing: .3px;
+}
 .sh-hero-tags {
   display: flex; flex-direction: column; align-items: flex-end; gap: 5px;
 }
@@ -2401,6 +2411,43 @@ html.tyopoyta {
   opacity: 0; transition: opacity .3s ease;
 }
 #lahde-merkki.nakyy { opacity: 1; }
+
+/* SADETUTKAN KEHYKSEN AIKALEIMA. Perii lähdemerkinnän asun kokonaan:
+   se on saman luokan esine eli hiljainen nimilappu kartan päällä, ei
+   dataa. Ainoa ero on suunta — SAMA RIVI, oikea reuna.
+
+   Tässä oli vika. Ensin leima oli yhden rivinkorkeuden lähdemerkintää
+   YLEMPÄNÄ, ja se osui aikajanan kortin taakse: kartan alalaidassa on
+   vain yksi kaista joka jää kortin alapuolelle, ja lähdemerkintä on jo
+   siinä. Mitattuna leima piirtyi y 825–833 ja aikajanan kortti alkaa
+   y 756 — eli leima oli kokonaan sen alla. Sama rivi ja vastakkainen
+   reuna on ainoa paikka jossa molemmat näkyvät. */
+#tutka-aika {
+  position: fixed; z-index: 19;
+  right: calc(var(--sar) + 18px);
+  bottom: 0;
+  text-align: right;
+  padding-bottom: max(0px, calc(var(--sab-tl) - 6px));
+  max-width: calc(50vw - var(--sar) - 24px);
+  pointer-events: none;
+  font-size: var(--fs-8); font-weight: 500; letter-spacing: .02em;
+  line-height: 1;
+  color: var(--kartta-teksti);
+  text-shadow: var(--kartta-teksti-varjo);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  opacity: 0; transition: opacity .3s ease;
+}
+#tutka-aika.nakyy { opacity: 1; }
+
+/* Kaksi lappua samalla rivillä: lähdemerkintä lyhenee sen verran kuin
+   leima vie. Lippu on juuressa eikä `:has()`-valitsimessa, koska sama
+   kuvio on jo käytössä pohjakartalla (`data-pohja`) ja koska `:has()`
+   on Safarissa vasta 15.4:stä. Kavennus on voimassa VAIN kun leima on
+   näkyvissä — tutka on oletuksena pois, eikä lähdemerkintä saa lyhentyä
+   turhaan. */
+html[data-tutka="1"] #lahde-merkki {
+  max-width: calc(100vw - var(--sal) - var(--sar) - 36px - 100px);
+}
 
 #rl-banner {
   /* --sab-tl eika --sab: banneri kelluu aikajanan ylapuolella, joten sen
@@ -2876,6 +2923,13 @@ html.tyopoyta {
   letter-spacing: .1px;
 }
 .sh-aalto-rivi:empty { display: none; margin: 0; }
+
+/* TUTKALAATAT. Ei maskia eikä sekoitustilaa: kerros on omaa mustettaan
+   lämpökartan päällä, ja sen voimakkuus on jo alfassa (ks. Sadetutka).
+   `pointer-events: none` koska laatat ovat canvaseja overlayPanessa —
+   ilman sitä ne söisivät kartan vetoeleen. */
+.tutka-laatat { pointer-events: none; }
+.tutka-laatat canvas { image-rendering: auto; }
 .sh-aalto-poiju {
   font: inherit; color: var(--ink-2); background: none; border: none;
   padding: 0; cursor: pointer; text-decoration: underline;
@@ -3067,6 +3121,13 @@ html.tyopoyta {
   </div>
 
   <!-- Mikä ennuste on tähtäimen alla. Sisältö tulee Lahde-moduulista. -->
+  <!-- Sadetutkan kehyksen aikaleima. Oma elementtinsä lähdemerkinnän
+       yläpuolella, ei sen sisällä: ne vaihtuvat eri tahtiin (kehys 260 ms,
+       lähde kartansiirron mukaan) ja yhdessä solmussa toinen pyyhkisi
+       toisen. `aria-live` on POIS tarkoituksella — silmukka vaihtaa
+       tekstin neljästi sekunnissa, ja ruudunlukija lukisi kellonajan
+       loputtomasti. -->
+  <div id="tutka-aika"></div>
   <div id="lahde-merkki" aria-live="polite"></div>
 
   <div id="crosshair">
@@ -3227,6 +3288,20 @@ html.tyopoyta {
               </div>
             </div>
             <div class="sp-toggle on" id="toggle-aallot"></div>
+          </div>
+
+          <!-- Sadetutka. Foilaajalle tutka ei ole "sataako" vaan MISSÄ
+               KUUROT OVAT: kuuron reuna on puuskarintama, ja se näkyy
+               tutkassa ennen kuin se näkyy ennusteessa. -->
+          <div class="sp-toggle-row" data-layer-toggle="tutka">
+            <div class="sp-toggle-left">
+              <div class="sp-toggle-dot"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 6.5 Q4.2 3.6 6.6 3.9 Q7.4 2.2 9.3 2.6 Q11.6 2.9 11.9 5.2 Q13.8 5.5 13.6 7.2 Q13.4 8.8 11.6 8.8 L4.6 8.8 Q2.9 8.7 3 6.5 Z" fill="currentColor" opacity=".55"/><line x1="5.4" y1="10.6" x2="4.4" y2="13.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="8.3" y1="10.6" x2="7.3" y2="14.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="11.2" y1="10.6" x2="10.2" y2="13.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></div>
+              <div>
+                <div class="sp-toggle-name">Sadetutka</div>
+                <div class="sp-toggle-sub">FMI &middot; tuorein kuva, 5 min v&auml;lein</div>
+              </div>
+            </div>
+            <div class="sp-toggle" id="toggle-tutka"></div>
           </div>
 
           <div class="sp-toggle-row" data-layer-toggle="uiras-prim">
@@ -9163,6 +9238,456 @@ const LAATTAKERROS = (function () {
   return true;
 })();
 
+/* -- SADETUTKA — FMI:n tutkakomposiitti yhtenä musteena, 30 min silmukkana
+ *
+ * Lähde: openwms.fmi.fi/geoserver/Radar/wms, kerros
+ * `suomi_dbz_eureffin`. Viiden minuutin askel, seitsemän vuorokautta
+ * historiaa, EPSG:3857 tuettu suoraan, `Access-Control-Allow-Origin: *`.
+ *
+ * Foilaajalle tutka ei ole "sataako" vaan MISSÄ KUUROT OVAT JA MIHIN NE
+ * MENEVÄT: kuuron reuna on puuskarintama, ja yksi pysäytyskuva ei kerro
+ * sen suuntaa. Siksi kerros on silmukka eikä still-kuva.
+ *
+ * ── MIKSI TÄMÄ EI OLE PELKKÄ `L.TileLayer.WMS` ────────────────────
+ *
+ * Koska palvelimen oma väripaletti on lähes sama sävyketju kuin
+ * sovelluksen tuuliramppi: syaani → vihreä → keltainen → oranssi →
+ * punainen → magenta. Kartalla sävy tarkoittaa tuulennopeutta JA VAIN
+ * SITÄ, joten raakana tämä kerros väittäisi magentallaan 20 m/s siellä
+ * missä se tarkoittaa rankkasadetta. Väri on pakko vaihtaa.
+ *
+ * Kaksi ilmeistä korjausta mitattiin vääriksi:
+ *
+ * 1. `styles=raster` (harmaa + alfa) näyttää juuri oikealta vastaukselta.
+ *    Mitattuna sen alfa on 255 KAIKKIALLA ja "ei kaikua" on koodattu
+ *    harmaaseen 0 — sellaisenaan se maalaisi koko Suomen mustaksi. Ja
+ *    mikä pahempaa: harmaat 1–109 vastaavat palettityylin indeksiä 0 eli
+ *    täyttä läpinäkyvyyttä. Raakatyyli on kohinapohja jonka FMI:n oma
+ *    tuote karsii pois; siitä tehty alfa levittäisi kartalle usvaa jota
+ *    lähde ei näytä. Oletustyyli kantaa FMI:n oman kynnystyksen: 93,4 %
+ *    pikseleistä on indeksiä 0 eli täysin läpinäkyviä.
+ *
+ * 2. `filter: grayscale(1)` paletin päällä. Mitattuna paletin kirkkaus
+ *    poukkoilee: 214 askeleesta 65 ylös ja 139 alas. Tihku L=205,
+ *    keskiverto 133, keltainen takaisin 197, syvä punainen 42, magenta
+ *    144 — eli rankin sade olisi tummin ja tihku vaalein. Sävyn poisto
+ *    CSS:llä ei tuota yksikäsitteistä voimakkuutta.
+ *
+ * Paletti on TAVULLEEN SAMA pyynnöstä toiseen (sama SHA kahdella eri
+ * bboxilla ja eri ajalla), joten se on taulukoitu tähän ja väri
+ * käännetään takaisin voimakkuudeksi tarkalla haulla. Laatta on
+ * paletoitu PNG, joten canvasista luetut RGB-arvot ovat täsmälleen
+ * paletin omia arvoja.
+ *
+ * LOPPUTULOS: yksi kanava, yksi merkitys. Väri on kiinteä muste ja
+ * VOIMAKKUUS ON ALFASSA — sama periaate kuin havaintokaavion täytössä.
+ *
+ * ── MITEN KEHYKSET LÖYTYVÄT ───────────────────────────────────────
+ *
+ * Kehyslista on `GetCapabilities`issa, mutta se on koko Radar-työtilalle
+ * ja 426 kB — sitä ei haeta. Kehykset ovat sen sijaan KIINTEÄLLÄ viiden
+ * minuutin hilalla, joten riittää löytää TUOREIN ja laskea loput siitä.
+ *
+ * Tuorein löytyy luotaamalla taaksepäin: aika jolle ei ole kuvaa
+ * palauttaa XML-virheen eikä PNG:tä, ja `Image`in `onerror` erottaa ne
+ * ilman jäsennystä. Luotain on 1×1 GetMap.
+ *
+ * MITATTU 11.9.2026:
+ *   1×1 luotain           1 107 B, 1,2 s   (siitä 1 016 B on PLTE+tRNS,
+ *                                           eli pienemmäksi ei pääse)
+ *   13:10:42 UTC          13:10 virhe, 13:05 kuva  -> 1 luotain riitti
+ *   aiemmin 12:27 UTC     12:25 virhe              -> viive vaihtelee
+ *                                                     alle 5 ja n. 7 min
+ *                                                     välillä
+ *
+ * ── MIKSI KUUSI KEHYSTÄ TAAKSEPÄIN, EI ENEMPÄÄ ────────────────────
+ *
+ * Mitattu 256×256 laatan koko:
+ *   sateeton alue   1 541 B   (lähes pelkkää palettia)
+ *   sateinen alue   3 145 – 10 722 B, keskiarvo n. 7,3 kB
+ *
+ * Ruudulla on noin 12 laattaa, eli yksi kehys on 18 kB kuivana ja
+ * pahimmillaan n. 88 kB kun koko ruutu sataa. Seitsemän kehystä on siis
+ * 126 kB – 620 kB. Kaksitoista kehystä (60 min) olisi jo yli megan
+ * juuri silloin kun kerros kytketään päälle, eli sateella.
+ *
+ * 30 min riittää suunnan lukemiseen: kuuro liikkuu 30–50 km/h eli
+ * 15–25 km puolessa tunnissa, ja Helsingin seudun ruutu on z10:llä noin
+ * 40 km leveä.
+ *
+ * ── MITEN SILMUKKA PIIRRETÄÄN ─────────────────────────────────────
+ *
+ * EI seitsemänä päällekkäisenä kerroksena. Se olisi Leafletin oma
+ * koneisto ja siksi houkutteleva, mutta jokainen panorointi laukaisisi
+ * seitsemän kertaa laattapyynnöt — ja panorointi on juuri se mitä
+ * kartalla tehdään eniten.
+ *
+ * Sen sijaan YKSI kerros, ja jokainen laatta säilyttää kehyksensä
+ * ALFAMASKEINA (Uint8ClampedArray, 1 tavu per pikseli). Väri on vakio,
+ * joten muuta ei tarvitse säilyttää:
+ *
+ *   maskit   7 × 65 536 B = 448 kB / laatta, 12 laatalla 5,4 MB
+ *   (samat kehykset ImageDatana olisivat 4× enemmän eli 22 MB)
+ *
+ * Kehyksen vaihto kirjoittaa vain alfakanavan ja tekee yhden
+ * `putImageData`n. RGB kirjoitetaan uudelleen vain jos muste vaihtui.
+ *
+ * ── KAKSI ASIAA JOTKA JÄTETÄÄN POIS, TIETOISESTI ──────────────────
+ *
+ * Katvemaski (paletin indeksit 230–252, rgb 204,204,204). Se kertoisi
+ * "täällä ei ole tutkaa" erotuksena "täällä ei sada", mutta se olisi
+ * TOINEN merkitys samalla mustekanavalla — ja sovelluksen spotit ovat
+ * kaikki katvealueen sisäpuolella.
+ *
+ * Soitin-kontrollit. Silmukka on kerroksen ominaisuus eikä media, jota
+ * kelataan; yksi kytkin riittää. Kehyksen aikaleima sen sijaan EI ole
+ * valinnainen: liikkuva kuva ilman kelloa ei kerro mitä hetkeä katsoo.
+ */
+const RADAR_PALETTI =
+  'x87Ows/QvtHSudLUtNTWr9XYqtfaptjcodrenNzgl93hkt/jjuDlieLnhOPpf+XreubtdujvcenxbOvzbOvza+nuaufq' +
+  'aeblaOThZ+LcZuDXZd7TZN3OY9vKYtnFYdfAYNW8X9S3XtKzXdCuXM6pW8ylWsugWcmcWMeXWMeXV8WUVsKRVMCNU76K' +
+  'UruHUbmEULeBTrR9TbJ6TLB3S610SqtxSKhtR6ZqRqRnRaFkRJ9hQp1dQZpaQJhXQJhXSZ1XUqFXW6ZXY6pYbK9YdbNY' +
+  'frhYh7xYkMFYmcZZocpZqs9Zs9NZvNhZxdxZzuFZ1uVa3+pa6O5a8fNa8fNa8PFW7+5S7uxO7epK7edG7OVC6+M+6uA6' +
+  '6d426Nwy59ku5tcq5dQm5NIi5NAe480a4ssW4ckS4MYO38QK38QK4MIL4L8M4b0M4bsN4rgO47YP47QQ5LEQ5K8R5a0S' +
+  '5qoT5qgU56UU56MV6KEW6Z4X6ZwY6poY6pcZ65Ua65Ua65Ia648a64wZ6ogZ6oUZ6oIZ6n8Z6nwY6nkY6nYY6XIY6W8Y' +
+  '6WwX6WkX6WYX6WMX6F8X6FwW6FkW6FYW6FYW51IV5U4U5EkT40US4kER4D0Q3zkP3jQO3DAN2ywM2igL2CQK1x8J1hsI' +
+  '1RcH0xMG0g8F0QoEzwYDzgICzgICygIFxwMJwwMMvwQQuwQTuAQWtAUasAUdrAYhqQYkpQYnoQcrnQcumggylgg1kgg4' +
+  'jgk8iwk/hwpDgwpGgwpGiQ5LjxFQlRVUmxhZoRxepx9jrSNnsyZsuSpxvy52xDF6yjV/0DiE1jyJ3D+N4kOS6EaX7kqc' +
+  '9E2g+lGl';
+
+const Sadetutka = {
+  WMS: 'https://openwms.fmi.fi/geoserver/Radar/wms',
+  KERROS: 'suomi_dbz_eureffin',
+  /* Paletin indeksit 1..209 ovat voimakkuusramppi; 210 ylöspäin ovat
+     reunan sekoitus ja katvemaski, eivätkä ne ole dataa. */
+  RAMPPI_N: 209,
+  /* Lähteen aika-askel. Kehykset ovat tällä hilalla, ei mielivaltaisilla
+     hetkillä — koko luotainratkaisu nojaa siihen. */
+  ASKEL_MS: 5 * 60 * 1000,
+  /* Kehyksiä yhteensä, tuorein mukaan lukien. 7 × 5 min = 30 min.
+     Ks. latausbudjetti tiedoston alussa. */
+  KEHYKSIA: 7,
+  /* Kuinka monta askelta taaksepäin luotain yrittää ennen luovuttamista.
+     Mitattu viive on alle 5 – noin 7 min, eli 1–2 askelta; kuusi antaa
+     varaa poikkeukselliselle viiveelle kaatumatta ikuiseen silmukkaan. */
+  LUOTAIN_MAX: 6,
+  _hakemisto: null,
+  _ajat: null, _ajatTs: 0, _ajatKesken: null,
+
+  /* RGB -> voimakkuus 0..1. Rakennetaan kerran; 209 alkiota. */
+  hakemisto() {
+    if (this._hakemisto) return this._hakemisto;
+    const bin = atob(RADAR_PALETTI);
+    const m = new Map();
+    for (let k = 0; k < this.RAMPPI_N; k++) {
+      const r = bin.charCodeAt(k * 3), g = bin.charCodeAt(k * 3 + 1), b = bin.charCodeAt(k * 3 + 2);
+      const avain = (r << 16) | (g << 8) | b;
+      /* Yhdeksän RGB-arvoa esiintyy kahdella peräkkäisellä indeksillä.
+         Ensimmäinen jää voimaan; ero on 1/209 eli merkityksetön. */
+      if (!m.has(avain)) m.set(avain, (k + 1) / this.RAMPPI_N);
+    }
+    this._hakemisto = m;
+    return m;
+  },
+
+  /* Voimakkuus -> alfa. Lähteen OMA alfa kantaa hiljaisen pään (paletin
+     alfa nousee 0->255 indekseillä 1..19, eli FMI häivyttää tihkun itse),
+     ja tämä käyrä kantaa siitä ylöspäin. Katto 0,80: kerros ei saa
+     peittää allaan olevaa lämpökarttaa kokonaan. */
+  _alfa(voimakkuus, lahteenAlfa) {
+    const k = Math.min(0.80, 0.30 + 0.55 * Math.sqrt(voimakkuus));
+    return (lahteenAlfa / 255) * k;
+  },
+
+  /* Muste. Tumma pohjakartta saa vaalean musteen ja paperi tumman —
+     sama kysymys kuin lämpökartan sekoitustilalla, ja se luetaan samasta
+     paikasta (`Asetukset.paperi()`), jotta ne eivät ajaudu erilleen.
+     `avain` on mukana jotta laatta tietää vaihtuiko muste ilman kolmen
+     kanavan vertailua. */
+  muste() {
+    return (typeof Asetukset !== 'undefined' && Asetukset.paperi())
+      ? { r: 38, g: 46, b: 51, avain: 'tumma' }
+      : { r: 232, g: 240, b: 246, avain: 'vaalea' };
+  },
+
+  /* AJETAANKO SILMUKKAA. Yksi paikka, koska vastaus ratkaisee kolme
+     asiaa jotka muuten ajautuisivat erilleen: montako kehystä ladataan,
+     mitä kehystä näytetään, ja käynnistyykö toisto lainkaan.
+
+     `prefers-reduced-motion` ei ole tässä pelkkä animaation pysäytys:
+     jos silmukkaa ei ajeta, kuutta vanhaa kehystä EI HAETA LAINKAAN.
+     Muuten asetus maksaisi täyden latausbudjetin näyttämättä siitä
+     mitään — 84 laattapyyntöä yhden kuvan hinnalla. */
+  silmukassa() {
+    try { return !window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+    catch (e) { return true; }
+  },
+
+  /* WMS-aikaleima. Palvelin ilmoittaa aikaulottuvuuden millisekunneilla
+     (`2026-09-11T13:05:00.000Z`), ja sillä muodolla se myös vastaa. */
+  _leima(ms) {
+    return new Date(ms).toISOString().slice(0, 19) + '.000Z';
+  },
+
+  /* Yhden hetken 1×1 luotain. `Image` eikä `fetch`: virhevastaus on XML
+     eikä kuva, jolloin `onerror` erottaa ne ilman jäsennystä ja ilman
+     että vastausta tarvitsee lukea. */
+  _kokeile(ms) {
+    return new Promise((ok) => {
+      const kuva = new Image();
+      kuva.crossOrigin = 'anonymous';
+      let ratkaistu = false;
+      const paata = (v) => { if (!ratkaistu) { ratkaistu = true; ok(v); } };
+      kuva.onload = () => paata(true);
+      kuva.onerror = () => paata(false);
+      /* Verkko voi jumittua: luotain ei saa jättää kerrosta odottamaan. */
+      setTimeout(() => paata(false), 8000);
+      kuva.src = this.WMS + '?service=WMS&version=1.3.0&request=GetMap'
+        + '&layers=' + this.KERROS + '&styles=&format=image/png&transparent=true'
+        + '&crs=EPSG:3857&bbox=2700000,8300000,2800000,8400000'
+        + '&width=1&height=1&time=' + this._leima(ms);
+    });
+  },
+
+  /* Kehysten ajat, tuorein ensin. Välimuisti viisi minuuttia, koska
+     lähteen askel on sama — tiheämpi tarkistus ei voi löytää mitään
+     uutta. */
+  async kehykset() {
+    if (this._ajat && Date.now() - this._ajatTs < this.ASKEL_MS) return this._ajat;
+    if (this._ajatKesken) return this._ajatKesken;
+    this._ajatKesken = (async () => {
+      try {
+        let t = Math.floor(Date.now() / this.ASKEL_MS) * this.ASKEL_MS;
+        let tuorein = null;
+        for (let k = 0; k <= this.LUOTAIN_MAX; k++) {
+          if (await this._kokeile(t)) { tuorein = t; break; }
+          t -= this.ASKEL_MS;
+        }
+        if (tuorein == null) return this._ajat;   /* vanha lista jää voimaan */
+        const ajat = [];
+        for (let k = 0; k < this.KEHYKSIA; k++) ajat.push(tuorein - k * this.ASKEL_MS);
+        this._ajat = ajat;
+        this._ajatTs = Date.now();
+        return ajat;
+      } finally { this._ajatKesken = null; }
+    })();
+    return this._ajatKesken;
+  }
+};
+
+/* Kerros. `L.GridLayer` eikä `L.TileLayer.WMS`, koska jokainen laatta on
+   piirrettävä canvasille ja värjättävä uudelleen — ja koska laatan on
+   säilytettävä useampi kehys. */
+const TutkaKerros = L.GridLayer.extend({
+  options: {
+    tileSize: 256,
+    /* overlayPane (z 400) eikä tilePane: lämpökartta on tilePanessa ja
+       sekoittuu pohjakarttaan `plus-lighter`illä. Tutka EI saa osallistua
+       siihen summaan — se on oma kuvansa lämpökartan päällä, ja
+       markerPane (z 600) jää yhä ylimmäksi. */
+    pane: 'overlayPane',
+    /* EI `.heatmap-overlay`-luokkaa: se kantaa reunahäivytyksen maskin,
+       joka mitoitetaan elementin kokoon, ja GridLayerin säiliö on 0x0 —
+       maski leikkaisi koko kerroksen pois. Sama ansa kuin säälaatoilla. */
+    className: 'tutka-laatat',
+    updateWhenIdle: true,
+    updateWhenZooming: false,
+    keepBuffer: 1
+  },
+
+  initialize: function (options) {
+    L.GridLayer.prototype.initialize.call(this, options);
+    this._kehysNyt = 0;
+    /* Yksi jaettu raaputuscanvas kaikille laatoille ja kehyksille:
+       maskin poiminta on hetkellinen, joten oma canvas per laatta olisi
+       kaksitoista turhaa puskuria. */
+    this._raap = document.createElement('canvas');
+    this._raap.width = this._raap.height = 256;
+    this._raapCtx = this._raap.getContext('2d', { willReadFrequently: true });
+  },
+
+  /* Laatan bbox EPSG:3857:ssä. WMS 1.3.0 käyttää 3857:llä
+     itä–pohjoinen -järjestystä, eli minx,miny,maxx,maxy. */
+  _bbox: function (coords) {
+    const koko = this.getTileSize();
+    const nwP = coords.scaleBy(koko), seP = nwP.add(koko);
+    const nw = L.CRS.EPSG3857.project(this._map.unproject(nwP, coords.z));
+    const se = L.CRS.EPSG3857.project(this._map.unproject(seP, coords.z));
+    return [
+      Math.min(nw.x, se.x), Math.min(nw.y, se.y),
+      Math.max(nw.x, se.x), Math.max(nw.y, se.y)
+    ].join(',');
+  },
+
+  /* Osoite YHDELLE kehykselle. Aika on nimenomainen eikä palvelimen
+     `current`: silmukka tarvitsee tietyt hetket, ja nimetty aika on myös
+     oikea välimuistiavain (sama kehys samalla laatalla on sama tavujono
+     pysyvästi). */
+  _url: function (coords, ms) {
+    const koko = this.getTileSize();
+    return Sadetutka.WMS
+      + '?service=WMS&version=1.3.0&request=GetMap'
+      + '&layers=' + Sadetutka.KERROS
+      + '&styles=&format=image/png&transparent=true'
+      + '&crs=EPSG:3857&bbox=' + this._bbox(coords)
+      + '&width=' + koko.x + '&height=' + koko.y
+      + '&time=' + Sadetutka._leima(ms);
+  },
+
+  createTile: function (coords, done) {
+    const laatta = document.createElement('canvas');
+    const koko = this.getTileSize();
+    laatta.width = koko.x; laatta.height = koko.y;
+    laatta._ctx = laatta.getContext('2d');
+    laatta._coords = coords;
+    laatta._maskit = new Array(Sadetutka.KEHYKSIA).fill(null);
+    laatta._muste = null;
+    /* Yksi uudelleenkäytettävä ImageData per laatta. Kehyksen vaihto
+       kirjoittaa siihen vain alfakanavan. */
+    laatta._img = laatta._ctx.createImageData(koko.x, koko.y);
+
+    const ajat = Sadetutka._ajat;
+    if (!ajat || !ajat.length) { done(null, laatta); return laatta; }
+
+    /* TUOREIN KEHYS ENSIN ja vasta sitten loput. Silmukka on
+       kaksitoista kertaa kalliimpi kuin yksi kuva, eikä käyttäjän pidä
+       katsoa tyhjää sen ajan — ensimmäinen kehys on ruudulla heti ja
+       silmukka käynnistyy kun se on valmis. */
+    this._lataaMaski(laatta, 0, () => {
+      this._naytaKehys(laatta, this._kehysNyt) || this._naytaKehys(laatta, 0);
+      done(null, laatta);
+      /* Ilman silmukkaa vanhoja kehyksiä ei haeta ollenkaan. */
+      if (!Sadetutka.silmukassa()) return;
+      /* Loput taustalla, uusimmasta vanhimpaan. */
+      const jono = this._kehysjarjestys().slice(1);
+      const seuraava = () => {
+        const k = jono.shift();
+        if (k === undefined) return;
+        this._lataaMaski(laatta, k, seuraava);
+      };
+      seuraava();
+    });
+    return laatta;
+  },
+
+  /* Kehysten latausjärjestys: tuorein (0) ensin, sitten taaksepäin.
+     Erillinen funktio jotta järjestys on yhdessä paikassa. */
+  _kehysjarjestys: function () {
+    const j = [];
+    for (let k = 0; k < Sadetutka.KEHYKSIA; k++) j.push(k);
+    return j;
+  },
+
+  _lataaMaski: function (laatta, k, valmis) {
+    const ajat = Sadetutka._ajat;
+    if (!ajat || ajat[k] == null) { valmis && valmis(); return; }
+    const kuva = new Image();
+    kuva.crossOrigin = 'anonymous';
+    const self = this;
+    let ratkaistu = false;
+    const paata = () => { if (!ratkaistu) { ratkaistu = true; valmis && valmis(); } };
+    kuva.onload = function () {
+      try { laatta._maskit[k] = self._maski(kuva); }
+      catch (e) { laatta._maskit[k] = null; }   /* likainen canvas tms. */
+      paata();
+    };
+    /* Palvelin vastaa virhetilanteessa XML:llä joka ei ole kuva. Kehys
+       jää tyhjäksi eikä kartalle tule rikkinäistä ruutua. */
+    kuva.onerror = paata;
+    kuva.src = this._url(laatta._coords, ajat[k]);
+  },
+
+  /* Kuva -> alfamaski. Väri käännetään voimakkuudeksi paletin kautta ja
+     voimakkuus alfaksi; RGB:tä ei säilytetä, koska se on vakio muste. */
+  _maski: function (kuva) {
+    const w = this._raap.width, h = this._raap.height;
+    const g = this._raapCtx;
+    g.clearRect(0, 0, w, h);
+    g.drawImage(kuva, 0, 0, w, h);
+    const p = g.getImageData(0, 0, w, h).data;
+    const hak = Sadetutka.hakemisto();
+    const ulos = new Uint8ClampedArray(w * h);
+    /* Hiljaisen pään varatie: canvas tallettaa pikselit esikerrottuina,
+       joten matalalla alfalla RGB voi pyöristyä muutaman yksikön ohi
+       paletin arvosta eikä hakemistosta löydy osumaa. Juuri ne pikselit
+       ovat rampin alapäätä (indeksit 1..19), joten alfasta johdettu pieni
+       voimakkuus on niille oikea arvo eikä arvaus. */
+    const HILJAINEN = 20 / Sadetutka.RAMPPI_N;
+    for (let i = 0, j = 0; i < p.length; i += 4, j++) {
+      const a = p[i + 3];
+      if (a === 0) continue;                 /* ulos on jo nollattu */
+      const r = p[i], gg = p[i + 1], b = p[i + 2];
+      /* Katvemaski on neutraali harmaa (204,204,204) eikä rampissa ole
+         yhtään neutraalia arvoa (tarkistettu) — testi on yksikäsitteinen. */
+      if (r > 180 && Math.abs(r - gg) < 6 && Math.abs(gg - b) < 6) continue;
+      let v = hak.get((r << 16) | (gg << 8) | b);
+      if (v === undefined) v = HILJAINEN * (a / 255);
+      ulos[j] = Math.round(255 * Sadetutka._alfa(v, a));
+    }
+    return ulos;
+  },
+
+  /* Kehyksen vaihto yhdelle laatalle. Palauttaa epätoden jos kehystä ei
+     ole vielä ladattu — silloin kutsuja jättää laatan entiseen kuvaansa
+     eikä tyhjennä sitä. Välähtävä tyhjä laatta olisi näkyvämpi vika kuin
+     hetken vanha kehys. */
+  _naytaKehys: function (laatta, k) {
+    const m = laatta._maskit && laatta._maskit[k];
+    if (!m) return false;
+    const img = laatta._img, p = img.data;
+    const muste = Sadetutka.muste();
+    if (laatta._muste !== muste.avain) {
+      for (let i = 0; i < p.length; i += 4) {
+        p[i] = muste.r; p[i + 1] = muste.g; p[i + 2] = muste.b;
+      }
+      laatta._muste = muste.avain;
+    }
+    for (let i = 0, j = 3; i < m.length; i++, j += 4) p[j] = m[i];
+    laatta._ctx.putImageData(img, 0, 0);
+    return true;
+  },
+
+  /* Koko kerros samaan kehykseen. Palauttaa kuinka moni laatta osui —
+     silmukka käynnistetään vasta kun kaikki näkyvät laatat osaavat
+     saman kehyksen, muuten osa kuvasta olisi eri hetkestä kuin muu. */
+  naytaKehys: function (k) {
+    this._kehysNyt = k;
+    let osui = 0, yht = 0;
+    for (const avain in this._tiles) {
+      const t = this._tiles[avain];
+      if (!t || !t.el || !t.current) continue;
+      yht++;
+      if (this._naytaKehys(t.el, k)) osui++;
+    }
+    return { osui: osui, yhteensa: yht };
+  },
+
+  /* Onko koko silmukka ladattu näkyville laatoille? */
+  silmukkaValmis: function () {
+    let laattoja = 0;
+    for (const avain in this._tiles) {
+      const t = this._tiles[avain];
+      if (!t || !t.el || !t.current) continue;
+      laattoja++;
+      const n = Sadetutka.silmukassa() ? Sadetutka.KEHYKSIA : 1;
+      for (let k = 0; k < n; k++) {
+        if (!t.el._maskit || !t.el._maskit[k]) return false;
+      }
+    }
+    return laattoja > 0;
+  },
+
+  /* Muste vaihtui (pohjakartta). Maskit kelpaavat sellaisenaan — vain
+     RGB on kirjoitettava uudelleen, ja se tapahtuu itsestään kun
+     `_naytaKehys` huomaa avaimen vaihtuneen. */
+  paivitaMuste: function () {
+    for (const avain in this._tiles) {
+      const t = this._tiles[avain];
+      if (t && t.el) this._naytaKehys(t.el, this._kehysNyt);
+    }
+  }
+});
+
 const SaaLaattaKerros = L.GridLayer.extend({
   options: {
     tileSize: 256,
@@ -12038,6 +12563,192 @@ const Aaltopoijut = {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return r.json();
   },
+};
+
+/* -- AALTOENNUSTE — FMI:n WAM, pistekysely ------------------------
+ *
+ * TÄMÄ ON ENNUSTE, `Aaltopoijut` ON HAVAINTO. Ne eivät ole sama asia
+ * eivätkä saa näyttää samalta: poiju kertoo mitä juuri nyt on ja sanoo
+ * lukemansa iän, tämä kertoo mitä valittuna tuntina tulee.
+ *
+ * KOLME SPOTTIA KAHDESTATOISTA JÄÄ ILMAN (Hanko Silversand, Haukilahti,
+ * Munkkiniemi — mallin maamaski). Proxy erottaa tyhjän katteen omaksi
+ * tilakseen, ja se on tässä muistettava pysyvästi: ilman `_tyhjat`-
+ * joukkoa jokainen aikajanan askel tekisi uuden turhan kutsun juuri
+ * niille spoteille joilla vastausta ei ole olemassa. Sama erottelu kuin
+ * FMI-havaintoasemilla: tyhjä kate ei ole verkkovika.
+ *
+ * Välimuisti on SPOTTIKOHTAINEN, koska WAM on pistekysely eikä yksi
+ * haku kata koko maata — tässä ei siis voi käyttää aaltopoijujen
+ * "yksi kutsu, kaikki asemat" -kuviota. */
+const Aaltoennuste = {
+  PROXY: API_BASE + '/wam',
+  TTL: 60 * 60 * 1000,          /* WAM ajetaan neljästi vuorokaudessa */
+  _cache: {}, _kesken: {}, _tyhjat: {},
+
+  _avain(lat, lng) { return lat.toFixed(3) + ',' + lng.toFixed(3); },
+
+  /* Palauttaa ennusteen tai null. Null tarkoittaa sekä "ei vielä
+     haettu" että "ei katetta" — kutsuja jättää rivin pois molemmissa,
+     joten niitä ei tarvitse erottaa ulospäin. */
+  valmis(lat, lng) {
+    const k = this._avain(lat, lng), c = this._cache[k];
+    return (c && Date.now() - c.ts < this.TTL) ? c.data : null;
+  },
+
+  async lataa(lat, lng) {
+    const k = this._avain(lat, lng);
+    const valmis = this.valmis(lat, lng);
+    if (valmis) return valmis;
+    /* Maamaskin sisällä oleva piste ei muutu katetuksi odottamalla. */
+    if (this._tyhjat[k]) return null;
+    if (this._kesken[k]) return this._kesken[k];
+    this._kesken[k] = (async () => {
+      try {
+        const r = await fetch(this.PROXY + '?lat=' + lat.toFixed(4)
+          + '&lng=' + lng.toFixed(4) + '&tz=' + encodeURIComponent(AIKAVYOHYKE));
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const j = await r.json();
+        if (j.error === 'no data' || !j.time || !j.time.length) {
+          this._tyhjat[k] = true;
+          return null;
+        }
+        this._cache[k] = { data: j, ts: Date.now() };
+        return j;
+      } catch (e) {
+        /* Verkkovika EI ole tyhjä kate: _tyhjat jätetään koskematta,
+           jolloin seuraava avaus yrittää uudelleen. */
+        return null;
+      } finally { delete this._kesken[k]; }
+    })();
+    return this._kesken[k];
+  },
+
+  /* Arvo AJASTA, ei indeksistä. Spottisarjan ja WAMin akselit eivät ala
+     samasta hetkestä eivätkä ole yhtä pitkiä, joten indeksin siirtäminen
+     akselilta toiselle on sama virhe kuin aikajanalla (ks. CLAUDE.md).
+     `isoLocal` on 'YYYY-MM-DDTHH:MM' samassa vyöhykkeessä kuin proxyn
+     palauttamat leimat. */
+  hetkella(data, isoLocal) {
+    if (!data || !data.time || !isoLocal) return null;
+    const avain = String(isoLocal).slice(0, 13);   /* tunnin tarkkuus */
+    for (let i = 0; i < data.time.length; i++) {
+      if (data.time[i].slice(0, 13) === avain) {
+        return { hs: data.hs[i], tp: data.tp[i], dir: data.dir[i], aika: data.time[i] };
+      }
+    }
+    return null;
+  }
+};
+
+/* -- VEDENKORKEUS — mareografit ja FMI:n 48 h ennuste --------------
+ *
+ * Kaksi lähdettä, kaksi eri kuviota, ja se on mitattu eikä makuasia:
+ * HAVAINTO on yksi kutsu joka kattaa kaikki 14 asemaa (jaettu
+ * välimuisti, kuten aaltopoijuilla), ENNUSTE on pistekysely
+ * (spottikohtainen välimuisti, kuten WAM).
+ *
+ * PROXY PALAUTTAA AINA SENTTIMETREJÄ. Lähteessä havainto on mm ja
+ * ennuste cm, eikä vastaus kerro kumpaa — yksikkö on ratkaistu kerran
+ * proxyssä (ks. api/vesi.js), eikä sitä saa ratkaista uudelleen täällä. */
+const Vedenkorkeus = {
+  PROXY: API_BASE + '/vesi',
+  TTL_ASEMAT: 10 * 60 * 1000,
+  TTL_ENNUSTE: 60 * 60 * 1000,
+  /* Lähimmän mareografin raja. Asemia on 14 koko rannikolla, joten
+     väli on paikoin yli 100 km; 80 km pitää lukeman samassa
+     merialueessa spotin kanssa. Rivillä lukee aina aseman nimi ja
+     etäisyys — muuten se väittäisi mittaavansa spottia. */
+  MAX_KM: 80,
+  _asemat: null, _asemaTs: 0, _asemaKesken: null,
+  _ennuste: {}, _ennusteKesken: {}, _tyhjat: {},
+
+  _km(a, b, c, d) {
+    const R = 6371, dL = (c - a) * Math.PI / 180, dG = (d - b) * Math.PI / 180;
+    return R * 2 * Math.asin(Math.sqrt(Math.sin(dL / 2) ** 2
+      + Math.cos(a * Math.PI / 180) * Math.cos(c * Math.PI / 180) * Math.sin(dG / 2) ** 2));
+  },
+
+  async lataaAsemat() {
+    if (this._asemat && Date.now() - this._asemaTs < this.TTL_ASEMAT) return this._asemat;
+    if (this._asemaKesken) return this._asemaKesken;
+    this._asemaKesken = (async () => {
+      try {
+        const r = await fetch(this.PROXY + '?asemat=1&tz=' + encodeURIComponent(AIKAVYOHYKE));
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const j = await r.json();
+        this._asemat = Array.isArray(j.stations) ? j.stations : [];
+        this._asemaTs = Date.now();
+        return this._asemat;
+      } catch (e) {
+        return this._asemat || [];
+      } finally { this._asemaKesken = null; }
+    })();
+    return this._asemaKesken;
+  },
+
+  lahin(lat, lng) {
+    let paras = null, pd = this.MAX_KM;
+    for (const s of (this._asemat || [])) {
+      if (s.cm == null) continue;
+      const d = this._km(lat, lng, s.lat, s.lng);
+      if (d < pd) { pd = d; paras = Object.assign({}, s, { km: d }); }
+    }
+    return paras;
+  },
+
+  _avain(lat, lng) { return lat.toFixed(3) + ',' + lng.toFixed(3); },
+
+  valmisEnnuste(lat, lng) {
+    const k = this._avain(lat, lng), c = this._ennuste[k];
+    return (c && Date.now() - c.ts < this.TTL_ENNUSTE) ? c.data : null;
+  },
+
+  async lataaEnnuste(lat, lng) {
+    const k = this._avain(lat, lng);
+    const v = this.valmisEnnuste(lat, lng);
+    if (v) return v;
+    if (this._tyhjat[k]) return null;
+    if (this._ennusteKesken[k]) return this._ennusteKesken[k];
+    this._ennusteKesken[k] = (async () => {
+      try {
+        const r = await fetch(this.PROXY + '?lat=' + lat.toFixed(4)
+          + '&lng=' + lng.toFixed(4) + '&tz=' + encodeURIComponent(AIKAVYOHYKE));
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const j = await r.json();
+        if (j.error === 'no data' || !j.time || !j.time.length) {
+          this._tyhjat[k] = true;
+          return null;
+        }
+        this._ennuste[k] = { data: j, ts: Date.now() };
+        return j;
+      } catch (e) {
+        return null;
+      } finally { delete this._ennusteKesken[k]; }
+    })();
+    return this._ennusteKesken[k];
+  },
+
+  /* Arvo AJASTA — sama sääntö kuin aaltoennusteella. */
+  hetkella(data, isoLocal) {
+    if (!data || !data.time || !isoLocal) return null;
+    const avain = String(isoLocal).slice(0, 13);
+    for (let i = 0; i < data.time.length; i++) {
+      if (data.time[i].slice(0, 13) === avain) return { cm: data.cm[i], idx: i };
+    }
+    return null;
+  },
+
+  /* Muutos seuraavan kuuden tunnin aikana. Kuusi tuntia, koska se on
+     session mitta ja koska mitatusti juuri siinä ikkunassa Helsingin
+     vedenkorkeus liikkui pahimmillaan 32,9 cm — se on se luku joka
+     ratkaisee riittääkö vesi lähtöpaikalla vielä illalla. */
+  muutos6h(data, idx) {
+    if (!data || idx == null || idx < 0) return null;
+    const j = Math.min(idx + 6, data.cm.length - 1);
+    if (j <= idx) return null;
+    return { cm: data.cm[j] - data.cm[idx], tunnit: j - idx };
+  }
 };
 
 const UiRas = {
@@ -15285,8 +15996,103 @@ function openSheet(spot, hourIdx) {
         + p.fmisid + '">' + nimi + '</button> ' + Math.round(p.km) + ' km');
       const ika = _havIkaTeksti(p.ageMin);
       if (ika) osat.push(ika);
-      el.innerHTML = 'Aallot ' + osat.join(' \u00b7 ');
+      el.innerHTML = 'Aallot nyt ' + osat.join(' \u00b7 ');
     }).catch(function () {});
+    return '<div class="sh-aalto-rivi" id="' + rid + '"></div>';
+  }
+
+  /* AALTOENNUSTE — FMI:n WAM, oma rivinsä poijurivin YLÄPUOLELLA.
+     Kaksi riviä eikä yksi, koska ne ovat eri aikaa: tämä on valittu
+     tunti, poijurivi on "nyt" eikä seuraa aikajanaa (havaintoa
+     tulevaisuuden tunnista ei ole olemassa). Yhteen riviin ahdettuna
+     lukija joutuisi päättelemään kumpi luku on kumpaa aikaa.
+
+     Rivillä EI ole aseman nimeä toisin kuin poijurivillä: WAM
+     interpoloi arvon TÄHÄN pisteeseen, joten luku on spotin oma.
+     Mitattu erottelukyky samalta tunnilta: Otaniemi 0,04–0,28 m ja
+     Emäsalo 0,23–0,95 m — malli erottaa suojaisan avoimesta.
+
+     Suunta on MISTÄ, sama kuin poijulla ja tuulella. Se tarkistettiin
+     kuutta poijua vasten (ks. api/wam.js): poikkeamat 1–40 astetta,
+     kun käänteisellä tulkinnalla ne olisivat 140–179.
+
+     Kolme spottia kahdestatoista on mallin maamaskin sisällä eikä saa
+     tältä riviltä mitään. Rivi jää silloin tyhjäksi ja katoaa
+     (`:empty`) — viiva olisi lupaus datasta jota ei ole. */
+  function buildAaltoEnnusteRivi() {
+    const rid = 'sh-aaltoenn-' + spot.name.replace(/[^a-z0-9]/gi, '_');
+    const hetki = (h.time && h.time[idx]) ? h.time[idx] : null;
+    const tayta = function (data) {
+      const el = document.getElementById(rid);
+      if (!el) return;
+      const a = Aaltoennuste.hetkella(data, hetki);
+      if (!a || a.hs == null) { el.innerHTML = ''; return; }
+      const osat = ['<span style="color:var(--ink)">' + a.hs.toFixed(1) + ' m</span>'];
+      if (a.tp != null) osat.push(a.tp.toFixed(0) + ' s');
+      if (a.dir != null) osat.push(dirArrow(a.dir) + ' ' + Math.round(a.dir) + '° mistä');
+      el.innerHTML = 'Aaltoennuste ' + osat.join(' · ');
+    };
+    const valmis = Aaltoennuste.valmis(spot.lat, spot.lng);
+    if (valmis) {
+      /* Välimuistista heti. Kortti rakennetaan uudelleen joka aikajanan
+         askeleella, joten lämpimän välimuistin tapauksessa rivi ei saa
+         jäädä tyhjäksi odottamaan mitään — se vilkkuisi joka askeleella. */
+      setTimeout(function () { tayta(valmis); }, 0);
+    } else {
+      Aaltoennuste.lataa(spot.lat, spot.lng).then(tayta).catch(function () {});
+    }
+    return '<div class="sh-aalto-rivi" id="' + rid + '"></div>';
+  }
+
+  /* VEDENKORKEUS — ennuste valitulle tunnille ja lähin mareografi.
+     Nollataso on TEOREETTINEN KESKIVESI, joten etumerkki on koko jutun
+     ydin: −13 cm ja +43 cm ovat matalalla rannalla eri keli. Merkki
+     kirjoitetaan siksi aina näkyviin, myös plussalle.
+
+     Muutos kuudessa tunnissa on mukana, koska se on session mitta:
+     mitattuna Helsingissä vesi liikkui pahimmillaan 32,9 cm kuudessa
+     tunnissa, eli lähtöpaikan vesitilanne voi vaihtua kesken illan.
+
+     Havaintoasema mainitaan nimeltä ja etäisyydellä samasta syystä kuin
+     poijurivillä: se ei mittaa spottia vaan nimettyä paikkaa. */
+  function buildVesiRivi() {
+    const rid = 'sh-vesi-' + spot.name.replace(/[^a-z0-9]/gi, '_');
+    const hetki = (h.time && h.time[idx]) ? h.time[idx] : null;
+    const merkki = function (v) {
+      const n = Math.round(v);
+      return (n > 0 ? '+' : n < 0 ? '−' : '±') + Math.abs(n);
+    };
+    const tayta = function () {
+      const el = document.getElementById(rid);
+      if (!el) return;
+      const data = Vedenkorkeus.valmisEnnuste(spot.lat, spot.lng);
+      const e = Vedenkorkeus.hetkella(data, hetki);
+      const as = Vedenkorkeus.lahin(spot.lat, spot.lng);
+      const osat = [];
+      if (e) {
+        osat.push('<span style="color:var(--ink)">' + merkki(e.cm) + ' cm</span>');
+        const m = Vedenkorkeus.muutos6h(data, e.idx);
+        /* Alle kahden sentin muutos ei ole muutos vaan mallin kohinaa. */
+        if (m && Math.abs(m.cm) >= 2) {
+          osat.push((m.cm > 0 ? 'nousee ' : 'laskee ')
+            + Math.abs(Math.round(m.cm)) + ' cm / ' + m.tunnit + ' h');
+        }
+      }
+      if (as) {
+        osat.push('havainto ' + _mareografiNimi(as.station)
+          + ' ' + Math.round(as.km) + ' km ' + merkki(as.cm) + ' cm');
+      }
+      el.innerHTML = osat.length ? 'Vedenkorkeus ' + osat.join(' · ') : '';
+    };
+    const valmisE = Vedenkorkeus.valmisEnnuste(spot.lat, spot.lng);
+    if (valmisE && Vedenkorkeus._asemat) {
+      setTimeout(tayta, 0);
+    } else {
+      Promise.all([
+        Vedenkorkeus.lataaAsemat(),
+        Vedenkorkeus.lataaEnnuste(spot.lat, spot.lng)
+      ]).then(tayta).catch(function () {});
+    }
     return '<div class="sh-aalto-rivi" id="' + rid + '"></div>';
   }
 
@@ -15347,6 +16153,37 @@ function openSheet(spot, hourIdx) {
           + '<div class="sh-big-wind" style="color:' + colorStr + '">' + Units.fmt(ms) + '</div>'
           + '<span class="sh-big-unit">' + Units.label() + '</span>'
           + '<div class="sh-big-gust">Puuska ' + Units.fmt(gst) + ' ' + Units.label() + '</div>'
+          /* PUUSKAISUUS OMANA LUKUNAAN — suhde puuska/keskituuli.
+             Se laskettiin ennen (`gustIndex`) ja sille oli jopa oma
+             korttinsa (`_gustStatCard`), mutta kortti ei ollut minkään
+             kutsun päässä eikä lukua näkynyt missään: koko ominaisuus
+             oli hiljaa kuollut. Sama ansa kuin `buildFmiCard`illa.
+
+             Luku on tässä eikä havaintoruuduissa, koska se on ENNUSTE
+             samalta tunnilta kuin viereinen puuskaluku — havaintojen
+             joukossa se väittäisi olevansa mitattu.
+
+             SUHDE LASKETAAN SARJAN SISÄLLÄ, ei kahden lähteen väliltä:
+             `ms` ja `gst` ovat saman sarjan sama indeksi. Varaston
+             puuska on eri asia eikä kelpaa tähän — se puuttuu joka
+             toiselta kolmen tunnin askeleelta, jolloin laattojen
+             rakennus täyttää aukon tuulella ja suhde on tasan 1,00.
+
+             Rivi jää POIS jos puuskaa ei ole. `gst` putoaa silloin
+             `ms`:ään (ks. muuttujan määrittely), ja suhde olisi 1,00 —
+             luku joka väittäisi tasaista tuulta siellä missä dataa ei
+             yksinkertaisesti ole. */
+          + (function () {
+              var onPuuska = h.windgusts_10m && h.windgusts_10m[idx] != null;
+              if (!onPuuska || ms < 1) return '';
+              var col = gi.cls === 'gi-steady'  ? '#2A702D'
+                      : gi.cls === 'gi-gusty'   ? '#8A5A00'
+                      : gi.cls === 'gi-extreme' ? '#A3271C'
+                      : 'var(--ink-2)';
+              return '<div class="sh-big-gustratio" style="color:' + col + '">'
+                + '\u00d7' + gi.val.toFixed(1)
+                + ' ' + gi.label.toLowerCase() + '</div>';
+            })()
         + '</div>'
       + '</div>'
       + (()=>{
@@ -15403,7 +16240,12 @@ function openSheet(spot, hourIdx) {
     /* Aallot heti aurinkorivin alle: molemmat ovat yhden rivin
        lukuja jotka täydentävät yllä olevaa tuulikuvaa. Rivi jää
        tyhjäksi (ja `:empty`-säännöllä pois) jos lähellä ei ole poijua. */
+    + buildAaltoEnnusteRivi()
     + buildAaltoRivi()
+    /* Vedenkorkeus aaltojen alle: molemmat kertovat vedestä, ja
+       matalalla rannalla ne luetaan yhdessä — puoli metriä vettä pois
+       muuttaa sen mitä 0,4 m aalto tekee pohjan päällä. */
+    + buildVesiRivi()
     /* Havainnot-rivi */
     + '<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-8);font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:5px">Havainnot</div>'    + '<div class="sh-stats" id="sh-stats-live">'      + _tempDewComboCard(fmiId + '-tmp', fmiId + '-dew')      + (_uirasStation ? _uirasLinkCard(_waterStatId, _uirasStation) : _statCard('Vesi', waterTemp, _waterTempSource || '°C', null))    + (function () {
         /* Puku veden viereen: siinä kohtaa katsotaan vedenlämpöä, ja tämä
@@ -15934,21 +16776,6 @@ function _trendStatCard(trend) {
   + '</div>';
 }
 
-/* Puuskaisuus-stat-kortti */
-function _gustStatCard(gi) {
-  /* gustIndex palauttaa cls: 'gi-steady' / 'gi-gusty' / 'gi-extreme' */
-  /* 1.25:1 ja 2.37:1 -> 4.81:1 ja 5.94:1. */
-  const col = gi.cls === 'gi-steady'  ? '#2A702D'
-             : gi.cls === 'gi-gusty'  ? '#8A5A00'
-             : gi.cls === 'gi-extreme'? '#A3271C'
-             : 'var(--ink-2)';
-  return '<div class="sh-stat">'
-    + '<span class="sh-stat-label">Puuskaisuus</span>'
-    + '<span class="sh-stat-value" style="color:' + col + ';font-size:var(--fs-13)">' + gi.label + '</span>'
-    + '<span class="sh-stat-sub">〜</span>'
-  + '</div>';
-}
-
 function _statCard(label, value, sub, rgb, cls) {
   const color = rgb ? 'color:rgb('+rgb.r+','+rgb.g+','+rgb.b+')' : '';
   return '<div class="sh-stat">'
@@ -16177,6 +17004,18 @@ function _fmiLoadWithFallback(stationList, hours, onSuccess, onFail) {
    selvä katko eikä verkkoviive. */
 var HAV_TUORE_MIN = 90;
 function _havTuore(d) { return !!d && d.ageMin != null && d.ageMin <= HAV_TUORE_MIN; }
+/* Mareografin nimi lyhyeksi. FMI:n asemanimissä on kaupunki JA
+   mittauspaikan nimi ("Helsinki Kaivopuisto", "Porvoo Emäsalo
+   Vaarlahti"), ja rivillä on tilaa yhdelle. Kaupunki jätetään, koska se
+   kertoo etäisyysluvun kanssa mihin suuntaan lukema osuu; tarkennusosa
+   putoaa. Lista on nimenomainen eikä sääntö: "Föglö Degerby" ja "Kemi
+   Ajos" ovat kahden sanan nimiä joissa jälkimmäinen EI ole tarkenne. */
+const _MAREOGRAFI_TARKENTEET =
+  /\s+(Vaarlahti|Saaronniemi|Pitäjänsaari|Pikku Kolalahti|Lapaluoto|Leppäluoto|Vaskiluoto|Petäjäs|Toppila|Ådskär|Mäntyluoto Kallo)$/i;
+function _mareografiNimi(nimi) {
+  return String(nimi || '').replace(_MAREOGRAFI_TARKENTEET, '');
+}
+
 function _havIkaTeksti(min) {
   if (min == null) return '';
   if (min < HAV_TUORE_MIN) return min + ' min sitten';
@@ -19363,7 +20202,12 @@ document.getElementById('settings-overlay').addEventListener('click', _closeSett
 const KARTTATASOT_AVAIN = 'fs_tasot';
 window._mapLayerState = {
   'fmi-sea': true, 'fmi-land': true, 'aallot': true,
-  'uiras-prim': false, 'uiras-sec': false
+  'uiras-prim': false, 'uiras-sec': false,
+  /* Sadetutka on POIS oletuksena: se on ainoa kerros joka hakee laattoja
+     jatkuvasti ja jonka kuva peittää lämpökarttaa. Sateeton päivä on
+     Suomessa tavallisempi kuin sateinen, eikä tyhjää kerrosta kannata
+     ladata kenenkään puolesta. */
+  'tutka': false
 };
 /* Valinta jai ennen muistamatta: se palautui oletukseen joka latauksella,
    joten tason kaantaminen paalle ei pysynyt yli istunnon. */
@@ -19506,7 +20350,170 @@ _merkitseKarttatasot();
   });
 })();
 
+/* SADETUTKAN KERROS JA SEN SILMUKKA.
+ *
+ * Kerros luodaan vasta kun se ensi kerran kytketään päälle: pois
+ * kytkettynä se ei saa maksaa yhtään pyyntöä eikä yhtään canvasia.
+ * Sama periaate kuin aaltoennusteen kytkimellä — uusi verkkoliikenne on
+ * käyttäjän päätös.
+ *
+ * KEHYSAJAT RATKAISTAAN ENNEN KUIN KERROS LISÄTÄÄN KARTALLE. Leaflet
+ * kutsuu `createTile`a heti lisäyksestä, ja ilman aikoja laatat
+ * syntyisivät tyhjinä. Luotain kestää mitattuna noin 1,2 s, ja sen ajan
+ * aikaleima lukee "ladataan".
+ *
+ * SILMUKKA KÄYNNISTYY VASTA KUN KAIKKI NÄKYVÄT LAATAT OSAAVAT KAIKKI
+ * KEHYKSET. Muuten osa ruudusta olisi eri hetkestä kuin muu — ja juuri
+ * liikkeen suunta on se mitä tästä kerroksesta luetaan, joten
+ * puolivalmis silmukka valehtelisi enemmän kuin pysäytyskuva.
+ *
+ * Toisto kulkee VANHIMMASTA UUSIMPAAN ja pysähtyy hetkeksi uusimpaan.
+ * Se on sadetutkan vakiintunut kielioppi: silmukka kertoo mistä kuuro
+ * tuli, ja pysähdys kertoo missä se nyt on. Ilman pysähdystä katsoja ei
+ * tiedä mikä kehyksistä on nykyhetki.
+ *
+ * `prefers-reduced-motion` pysäyttää silmukan tuoreimpaan kehykseen.
+ * Kerros on silloin sama kuin ennen animaatiota — ei mitään puuttuvaa,
+ * vain liikkumaton. */
+window._tutkaKerros = null;
+window._tutkaAjastin = null;      /* 5 min tuoreutus */
+window._tutkaToisto = null;       /* silmukan seuraava askel */
+window._tutkaKesken = false;
+
+/* Toiston tahti. 260 ms kehystä kohti on noin 4 kehystä sekunnissa:
+   hitaampi näyttäisi diaesitykseltä eikä liikkeeltä, nopeampi ei ehdi
+   erottua 5 min askeleilla. Pysähdys uusimpaan on sen verran pitkä että
+   ehtii lukea sekä kuvan että kellon. */
+const TUTKA_KEHYS_MS = 260;
+const TUTKA_PYSAHDYS_MS = 1500;
+
+function _tutkaKello(ms) {
+  const d = new Date(ms);
+  return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+}
+
+/* Aikaleima kartan alalaitaan, lähdemerkinnän yläpuolelle. Se EI ole
+   valinnainen: liikkuva kuva ilman kelloa ei kerro mitä hetkeä katsoo.
+   Sama asu kuin lähdemerkinnällä — se on jo se kieli jolla kartan päällä
+   sanotaan hiljaisia asioita. */
+function _tutkaLeima(teksti) {
+  const el = document.getElementById('tutka-aika');
+  if (!el) return;
+  if (!teksti) {
+    el.classList.remove('nakyy');
+    el.textContent = '';
+    document.documentElement.removeAttribute('data-tutka');
+    return;
+  }
+  el.textContent = teksti;
+  el.classList.add('nakyy');
+  /* Lähdemerkintä kaventuu vain kun leima on rivillä. */
+  document.documentElement.setAttribute('data-tutka', '1');
+}
+
+function _tutkaPysaytaToisto() {
+  if (window._tutkaToisto) { clearTimeout(window._tutkaToisto); window._tutkaToisto = null; }
+}
+
+/* Silmukan askel. Ajastin ketjutetaan `setTimeout`illa eikä
+   `setInterval`illa, koska uusimman kehyksen pysähdys on eri mittainen
+   kuin muut askeleet. */
+function _tutkaAskel(k) {
+  const kerros = window._tutkaKerros;
+  if (!kerros || !State.map || !State.map.hasLayer(kerros)) { _tutkaPysaytaToisto(); return; }
+  const ajat = Sadetutka._ajat;
+  if (!ajat) { _tutkaPysaytaToisto(); return; }
+
+  kerros.naytaKehys(k);
+  _tutkaLeima('Sadetutka ' + _tutkaKello(ajat[k]));
+
+  /* Indeksi 0 on TUOREIN, joten toisto kulkee suurimmasta nollaan. */
+  const seuraava = k === 0 ? Sadetutka.KEHYKSIA - 1 : k - 1;
+  const viive = k === 0 ? TUTKA_PYSAHDYS_MS : TUTKA_KEHYS_MS;
+  window._tutkaToisto = setTimeout(function () { _tutkaAskel(seuraava); }, viive);
+}
+
+/* Käynnistä silmukka kun se on valmis. Tarkistus on ajastimen takana
+   eikä tapahtuman, koska laattojen valmistuminen ei lähetä mitään
+   sellaista josta tämän ehdon voisi päätellä — `load` tulee jo
+   ensimmäisen kehyksen jälkeen. */
+function _tutkaOdotaSilmukkaa() {
+  const kerros = window._tutkaKerros;
+  if (!kerros || !State.map || !State.map.hasLayer(kerros)) return;
+  const ajat = Sadetutka._ajat;
+  /* ILMAN SILMUKKAA NÄYTETÄÄN TUOREIN, EI VANHIN. Tässä oli vika:
+     toisto käynnistyi aina vanhimmasta kehyksestä ja pysähtyi siihen
+     heti, jolloin `prefers-reduced-motion` näytti PUOLI TUNTIA vanhaa
+     tutkakuvaa nykyhetkenä. Liikkeen vähentäminen ei saa vaihtaa sitä
+     mitä kuva väittää. */
+  if (!Sadetutka.silmukassa()) {
+    _tutkaPysaytaToisto();
+    kerros.naytaKehys(0);
+    if (ajat) _tutkaLeima('Sadetutka ' + _tutkaKello(ajat[0]));
+    return;
+  }
+  if (kerros.silmukkaValmis()) {
+    _tutkaPysaytaToisto();
+    _tutkaAskel(Sadetutka.KEHYKSIA - 1);
+    return;
+  }
+  window._tutkaToisto = setTimeout(_tutkaOdotaSilmukkaa, 700);
+}
+
+async function _tutkaPaivita() {
+  const paalla = !!(window._mapLayerState && window._mapLayerState['tutka']);
+  if (!State.map) return;
+
+  if (!paalla) {
+    _tutkaPysaytaToisto();
+    if (window._tutkaKerros && State.map.hasLayer(window._tutkaKerros)) {
+      State.map.removeLayer(window._tutkaKerros);
+    }
+    if (window._tutkaAjastin) { clearInterval(window._tutkaAjastin); window._tutkaAjastin = null; }
+    _tutkaLeima(null);
+    return;
+  }
+
+  if (window._tutkaKerros && State.map.hasLayer(window._tutkaKerros)) return;
+  /* Päällekkäiset kytkennät: luotain on käynnissä, älä aloita toista. */
+  if (window._tutkaKesken) return;
+  window._tutkaKesken = true;
+  _tutkaLeima('Sadetutka · ladataan…');
+  try {
+    const ajat = await Sadetutka.kehykset();
+    /* Kytkin on voinut kääntyä takaisin luotaimen aikana. */
+    if (!window._mapLayerState['tutka'] || !State.map) { _tutkaLeima(null); return; }
+    if (!ajat || !ajat.length) {
+      _tutkaLeima('Sadetutka · ei saatavilla');
+      return;
+    }
+    if (!window._tutkaKerros) window._tutkaKerros = new TutkaKerros();
+    if (!State.map.hasLayer(window._tutkaKerros)) window._tutkaKerros.addTo(State.map);
+    _tutkaLeima('Sadetutka ' + _tutkaKello(ajat[0]));
+    _tutkaOdotaSilmukkaa();
+
+    if (!window._tutkaAjastin) {
+      /* Tuoreutus. Kehysajat mitätöidään ensin, muuten `redraw` lataisi
+         samat kehykset uudelleen eikä uutta löytyisi koskaan. */
+      window._tutkaAjastin = setInterval(function () {
+        if (!window._tutkaKerros || !State.map || !State.map.hasLayer(window._tutkaKerros)) return;
+        Sadetutka._ajat = null; Sadetutka._ajatTs = 0;
+        Sadetutka.kehykset().then(function (uudet) {
+          if (!uudet || !window._tutkaKerros) return;
+          _tutkaPysaytaToisto();
+          window._tutkaKerros.redraw();
+          _tutkaLeima('Sadetutka ' + _tutkaKello(uudet[0]));
+          _tutkaOdotaSilmukkaa();
+        }).catch(function () {});
+      }, 5 * 60 * 1000);
+    }
+  } finally {
+    window._tutkaKesken = false;
+  }
+}
+
 function _applyMapLayers() {
+  _tutkaPaivita();
   if (!window._obsMarkersGlobal) return;
   window._obsMarkersGlobal.forEach(function(m) {
     var show = true;
@@ -20322,6 +21329,17 @@ const KarttaAsetukset = {
       buildLegend();
       updateHeatmapBlur();
       this._piirraLampokartta();
+      /* Tutkan muste luetaan samasta `Asetukset.paperi()`-kysymyksestä
+         kuin lämpökartan sekoitustila, joten se on vaihdettava samassa
+         kohdassa. Laatat on piirretty vanhalla musteella eikä niitä
+         päivitä mikään itsestään — ilman tätä tumma muste jäisi
+         vaalealle pohjalle (ja päinvastoin) seuraavaan kartansiirtoon
+         asti. */
+      if (window._tutkaKerros && State.map && State.map.hasLayer(window._tutkaKerros)) {
+        /* `redraw()` lataisi kaikki kehykset uudelleen verkosta. Maskit
+           kelpaavat sellaisinaan — vain RGB on kirjoitettava uudelleen. */
+        window._tutkaKerros.paivitaMuste();
+      }
 
     } else if (avain === 'ramppi') {
       /* Paneelien musteramppi (ColorRamp.ink) ei muutu, joten

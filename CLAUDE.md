@@ -66,6 +66,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/data.md` | säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja |
 | `docs/ui.md` | paletteja, paneeleita, spottikorttia, aikajanaa, kapselia, havaintoasemia |
 | `docs/pwa.md` | service workeria, offline-käynnistystä tai kotivalikon appia |
+| `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
 
 <details>
 <summary>Osioiden nimet tiedostoittain (jos et tiedä mistä etsiä)</summary>
@@ -90,7 +91,16 @@ kokeiltu ja kaadettu mittauksella.
   este · Hilalähtöinen kenttä · Zoom raskaampi kuin ennen · Aaltopoijut —
   havaintoa, ei ennustetta · Aikajana ja kartta näyttivät eri
   lukua · Mellsten (Haukilahti) — kolmas oma proxy · Varaston puuska on
-  joka toisella askeleella tuuli · Laru (Lauttasaari) — neljäs oma proxy
+  joka toisella askeleella tuuli · Laru (Lauttasaari) — neljäs oma proxy ·
+  Aaltoennuste tuotantoon (FMI WAM, ei laattaputkea) · Vedenkorkeus ja
+  yksikkö joka ei lue vastauksessa · Ilman starttimea sarja alkaa
+  seuraavasta tunnista · Sadetutka — miksi se ei ole L.TileLayer.WMS ·
+  Tutkan silmukka — kehykset löytyvät luotaamalla ·
+  Puuskaisuus oli koodissa mutta ei näkyvissä
+- **lisadata**: Mistä sovellus lukee nyt · TOP 10 — data · TOP 10 — lähteet ·
+  Mitattu ja hylätty (MEPS on HARMONIE · hydrodyn 2/12 spottia · vuorovesi ·
+  Holfuy · ilmanlaatu) · Toinen kerros — kontekstia, ei päätöstä ·
+  Toteutusjärjestys
 - **ui**: Valikoiden ulkoasu — Merikartta · Mallien erimielisyys · Suosikit ja
   jaettava linkki · Puvun paksuus · Ennusteen osuvuus havaintoja vasten ·
   Spottikortin auditointi · Play ja kapseli · Aikajana kotivalikon appissa ·
@@ -570,7 +580,8 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   suurentaisi 0,20–0,30 m:n vaihtelun koko kaavion korkuiseksi ja tyyni
   vuorokausi näyttäisi myrskyltä.
 
-**Aaltoennuste** (EI tuotannossa — peruttu erä `5150fc1`)
+**Open-Meteon aaltoennuste** (EI tuotannossa — peruttu erä `5150fc1`;
+aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
 
 - **Aaltoennuste on kytkimen takana** (`Asetukset.arvot.aallot`), koska se on
   ainoa uusi rajapintakiintiö sen jälkeen kun tuuli siirrettiin omaan
@@ -585,6 +596,130 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **Välimuistin avain on 0,05° hilalla**, koska mallin solu on ~0,04° ja
   naapurispotit jakavat sen. Kiintiötä säästetään siellä missä se ei
   maksa mitään.
+
+**Aaltoennuste, vedenkorkeus, sadetutka ja puuskaisuus**
+(mittaukset `docs/data.md`, kartoitus `docs/lisadata.md`)
+
+- **ENNUSTESARJA EI ALA KULUVASTA TUNNISTA ILMAN `starttime`A.** Kysely
+  laskee tuntiaskeleen kuluvan tunnin alusta mutta aloittaa nyt-hetkestä,
+  jolloin ensimmäinen askel osuu SEURAAVAAN tasatuntiin. Mitattuna klo
+  12:22 UTC sekä `wam`- että `sealevel`-kysely alkoivat 13:00:sta ja
+  12:00 puuttui kokonaan — eli kortin ennusterivit olivat tyhjiä juuri
+  nykyhetkessä, joka on se tilanne jossa niitä katsotaan useimmin.
+  Molemmat proxyt pyytävät `starttime`ksi kuluvan tunnin alun. Samalla
+  kaatui oletus "T+0 on NaN": se oli yhden ajon reuna, ei sääntö.
+- **`api/vesi.js` PALAUTTAA AINA SENTTIMETREJÄ.** Lähteessä havainto on
+  mm ja ennuste cm, eikä vastaus kerro kumpaa (`uom` puuttuu; yksikkö on
+  vain `/meta`-palvelussa). Yksikkö on ratkaistu kerran proxyssä — älä
+  ratkaise sitä uudelleen käyttöpaikassa. Tarkistus jos kosket:
+  havainto 10:00Z = 286 ja ennuste 11:00Z = 29,0 ovat sama sarja vasta
+  kun havainto jaetaan kymmenellä.
+- **Vedenkorkeuden nollataso on TEOREETTINEN KESKIVESI, ei N2000.**
+  Molemmat ovat vastauksessa; kaksi nollatasoa samassa ruudussa olisi
+  kaksi merkitystä samalle numerolle. Etumerkki kirjoitetaan aina
+  näkyviin, myös plussalle — se on koko luvun ydin.
+- **Aaltoennuste ja poijuhavainto ovat ERI RIVIT.** Ennuste on valittu
+  tunti, poiju on "nyt" eikä seuraa aikajanaa. Yhdessä rivissä lukija
+  joutuisi päättelemään kumpi luku on kumpaa aikaa. Ennusterivillä EI
+  ole aseman nimeä (WAM interpoloi tähän pisteeseen), poijurivillä nimi
+  ja etäisyys ovat pakolliset.
+- **WAMin `WaveDirection` on MISTÄ**, sama kuin poijun `ModalWDi` ja
+  tuuli. Tarkistettu kuudessa pisteessä: poikkeamat 1–40°, käänteiseen
+  140–179°.
+- **SADETUTKA EI SAA KÄYTTÄÄ FMI:N OMAA PALETTIA SELLAISENAAN.** Se on
+  lähes sama sävyketju kuin tuuliramppi (syaani–vihreä–keltainen–
+  oranssi–punainen–magenta), eli magenta väittäisi kartalla 20 m/s kun
+  se tarkoittaa rankkasadetta. Kaksi ilmeistä korjausta on mitattu
+  vääriksi: `styles=raster` on alfaltaan 255 kaikkialla ja sen harmaat
+  1–109 ovat palettityylin läpinäkyvää kohinaa, ja `grayscale(1)` antaa
+  kirkkauden joka poukkoilee (214 askeleesta 65 ylös, 139 alas).
+  Ratkaisu on paletin taulukointi ja käännös takaisin voimakkuudeksi:
+  **yksi muste, voimakkuus alfassa.** Paletti on tavulleen sama
+  pyynnöstä toiseen (tarkistettu).
+- **Tutkakerros on `overlayPane`ssa eikä `tilePane`ssa**, koska
+  lämpökartta sekoittuu pohjakarttaan `plus-lighter`illä eikä tutka saa
+  osallistua siihen summaan. Luokka on `.tutka-laatat` — EI
+  `.heatmap-overlay`, joka kantaa elementin kokoon mitoitetun maskin ja
+  leikkaisi 0×0-säiliöisen `GridLayer`in kokonaan pois.
+- **TUTKAN KEHYSAIKA ON NIMENOMAINEN, EI `current`.** Se ratkaisee kaksi
+  asiaa kerralla: silmukka tarvitsee tietyt hetket, ja nimetty aika on
+  myös oikea välimuistiavain — lähde sanoo `max-age=86400` ja
+  (laatta, kehys) -pari on muuttumaton, joten sama kehys ladataan kerran
+  (mitattu: 3 latausta, 1 palvelinosuma). Aiempi `current` + 5 min nonce
+  rikkoi välimuistin joka viides minuutti.
+- **Kehyslistaa EI haeta `GetCapabilities`ista** (426 kB koko
+  Radar-työtilalle). Kehykset ovat kiinteällä 5 min hilalla, joten
+  riittää löytää TUOREIN ja laskea loput. Tuorein löytyy luotaamalla
+  taaksepäin 1×1 GetMapilla: virheellinen aika palauttaa XML:ää eikä
+  kuvaa, ja `Image`in `onerror` erottaa ne ilman jäsennystä. Luotain on
+  1 107 B ja viive mitattuna alle 5 – noin 7 min eli 1–2 luotainta.
+- **Silmukka on SEITSEMÄN kehystä (30 min), ja luku tulee
+  latausbudjetista.** Laatta on 1,5 kB kuivana ja 3–11 kB sateessa, eli
+  yksi kehys on 18–88 kB ruudullista kohti. 12 kehystä (60 min) olisi
+  yli megan juuri silloin kun kerros kytketään päälle. Älä kasvata
+  lukua mittaamatta.
+- **YKSI kerros ja alfamaskit, EI seitsemää päällekkäistä kerrosta.**
+  Seitsemän `GridLayer`ia olisi Leafletin omaa koneistoa mutta laukaisisi
+  seitsemät laattapyynnöt joka panoroinnilla. Maskit ovat
+  `Uint8ClampedArray` (1 tavu/pikseli), koska väri on vakio: mitattu
+  8,3 MB puhelimen ruudulla ja 16,5 MB työpöydällä — `ImageData`na
+  nelinkertaiset. Kehyksen vaihto on 1,7 ms koko kerrokselle.
+- **Silmukka käynnistyy vasta kun KAIKKI näkyvät laatat osaavat KAIKKI
+  kehykset.** Muuten osa ruudusta olisi eri hetkestä kuin muu, ja juuri
+  liikkeen suunta on se mitä kerroksesta luetaan — puolivalmis silmukka
+  valehtelisi enemmän kuin pysäytyskuva.
+- **`prefers-reduced-motion` NÄYTTÄÄ TUOREIMMAN, ei vanhinta.** Tässä oli
+  vika: toisto käynnistyi vanhimmasta ja pysähtyi siihen heti, jolloin
+  asetus näytti puoli tuntia vanhaa tutkakuvaa nykyhetkenä. Päätös on
+  yhdessä paikassa (`Sadetutka.silmukassa()`) ja se ratkaisee myös
+  latauksen: ilman silmukkaa kuutta vanhaa kehystä ei haeta lainkaan
+  (12 pyyntöä 84:n sijaan).
+- **Kehyksen aikaleima ei ole valinnainen.** Liikkuva kuva ilman kelloa
+  ei kerro mitä hetkeä katsoo. Se on samalla rivillä lähdemerkinnän
+  kanssa mutta vastakkaisessa reunassa — yksi rivi ylempänä se jäi
+  aikajanan kortin taakse (mitattu: leima y 825–833, kortti alkaa
+  y 756). `aria-live` on POIS: silmukka vaihtaa tekstin neljästi
+  sekunnissa.
+- **Tutkan muste luetaan `Asetukset.paperi()`:sta**, samasta
+  kysymyksestä kuin lämpökartan sekoitustila. Jos pohjakartta vaihtuu,
+  kerros on piirrettävä uudelleen — mikään ei tee sitä itsestään.
+- **Puuskasuhde jää POIS kun puuskaa ei ole.** `gst` putoaa silloin
+  `ms`:ään ja suhde olisi tasan 1,00 eli väite tasaisesta tuulesta
+  siellä missä dataa ei ole. Ehto lukee `h.windgusts_10m[idx]` suoraan,
+  ei `gst`:tä. Suhde lasketaan SARJAN SISÄLLÄ; varaston puuska ei kelpaa
+  (se on joka toisella askeleella tuuli, jolloin suhde on 1,00).
+
+**Uudet lähteet — mitattu ja hylätty** (perustelut `docs/lisadata.md`)
+
+- **`fmi::forecast::meps` JA `fmi::forecast::harmonie` OVAT SAMA DATA.**
+  Mitattu kahdessa paikassa: ero max 0,000 m/s 48 h ja 36 h yli. MEPS on
+  MetCoOpin malli ja FMI:n harmonie-kysely tarjoillaan siitä. Älä lisää
+  sitä "toiseksi malliksi" mallien erimielisyyteen — erimielisyys näyttäisi
+  pysyvästi nollaa. Sama koskee peilin `metno_nordic_pp`:tä (jälkiprosessoitu
+  MEPS).
+- **AALLOT EIVÄT TULE LAATTAPUTKESTA.** `s3://openmeteo`-peilin
+  `ecmwf_wam025` on houkutteleva (sama 721×1440 hila, sama `.om`-muoto,
+  ei kiintiötä) mutta 0,25° on Suomenlahdella kolme solmua: mitattuna
+  **3/12 spottia**, ja lähin märkä solmu Helsingin spoteille on 17–24 km
+  ulkomerellä. FMI:n WAM-pistekysely antaa 9/12. Ulkomeren lukema spotin
+  kohdalla olisi väärä luku joka ei näytä väärältä.
+- **VEDENKORKEUDEN HAVAINTO ON mm, ENNUSTE ON cm.** Vastaus-XML ei kerro
+  yksikköä lainkaan (`uom` puuttuu), ja molemmat palauttavat
+  kolminumeroisia kelvollisen näköisiä lukuja. Tarkistus: havainto
+  10:00Z = 286, ennuste 11:00Z = 29,0 — sarja on jatkuva vasta kun
+  havainto jaetaan kymmenellä.
+- **Ensemble-tuulta EI ole S3-peilissä.** `ecmwf_ifs025_ensemble` ja
+  `ncep_gefs025` sisältävät peilissä vain `precipitation_probability`.
+  Hajonta vaatii `ensemble-api.open-meteo.com`:n eli uuden kiintiön —
+  siis kytkimen taakse kuten aaltoennuste.
+- **FMI hydrodyn ei kata rannikkoa.** Meriveden lämpötila ja virtaus
+  ennusteena: mitattuna **2/12 spottia**, ja virtaus 0,0–0,1 m/s eli
+  mittaustarkkuuden rajoilla. Vedenlämpö tulee mareografien
+  `TW`-kentästä, joka tulee samassa vastauksessa kuin vedenkorkeus.
+- **Digitraffic vaatii `Accept-Encoding: gzip`in.** Ilman sitä 406 ja
+  runko sanoo sen ääneen. Sama luokka kuin Larun User-Agent.
+- **Vuorovettä ei ole.** Itämeri on vuorovedetön; vedenkorkeus ajaa
+  tuulesta ja paineesta. Vuorovesirivi olisi väärä sana oikealle luvulle.
 
 **Mellsten (Surfing ry, Haukilahti)**
 
