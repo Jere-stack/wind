@@ -15887,7 +15887,7 @@ function openSheet(spot, hourIdx) {
      * mutaa. */
     const ASU_KORTTI = {
       W: 300, H: 120, labelH: 24, yPad: 32, pad: 4,
-      fs: 1, lw: 1, venyta: true, laaja: false,
+      fs: 1, lw: 1, laaja: false,
     };
     /* LAAJA ON 1:1 PIKSELEIHIN.
      *
@@ -15915,7 +15915,7 @@ function openSheet(spot, hourIdx) {
            laajasta kuvaajasta KAPEAMMAN kuin kortilla (319 vs 338 px
            nakyvaa piirtoaluetta). */
         yPad: Math.round(20 * fs), pad: Math.round(3 * fs),
-        fs: fs, lw: Math.max(1, fs * 0.85), venyta: false, laaja: true,
+        fs: fs, lw: Math.max(1, fs * 0.85), laaja: true,
       };
     }
     /* Laaja vuotaa `.hl-kaavio`n sivutayteen (4 px) kuten kortin kaavio
@@ -16342,9 +16342,22 @@ function openSheet(spot, hourIdx) {
         dotEls+='<circle id="'+svgId+'-dot-'+m.key+'" cx="-10" cy="-10" r="'+(3*LW).toFixed(1)+'" fill="none" stroke="#DFD4B6" stroke-width="0" pointer-events="none"/>';
       });
 
+      /* LEVEYS ON 100 %, EI `calc(100% + Y_PAD)`.
+       *
+       * Y-akselin ura vedetään kortin omaan täytteeseen KÄÄREEN
+       * negatiivisella marginaalilla (`margin-left: -yPad`), ja se
+       * riittää yksin. Kun sama kompensaatio oli lisäksi SVG:n
+       * leveydessä, se tehtiin kahdesti: kääre oli 382 px ja SVG 414,
+       * eli oikea laita jäi vierityksen taakse. Mitattuna 24 h
+       * jaksolla piiloon jäi 26,5 px eli 7,3 % piirtoalueesta —
+       * noin 1,8 tuntia vuorokaudesta, ja juuri se jakso on
+       * määritelty vierittämättömäksi (`PERIOD_W['24h'] = null`).
+       *
+       * Kiinteät jaksot (5 pv, Kaikki) vierittyvät tarkoituksella ja
+       * saavat leveytensä `W`:stä. */
       var svg='<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" '
         + 'preserveAspectRatio="none" style="display:block;'
-        + (isFluid ? (asu.venyta ? 'width:calc(100% + '+Y_PAD+'px)' : 'width:100%') : 'width:'+W+'px')
+        + (isFluid ? 'width:100%' : 'width:'+W+'px')
         + ';height:'+TH+'px;touch-action:none">'
         + '<defs>'+bgDefs+windLinGrad+'</defs>'
         /* Valo POHJIMMAISENA: tuuligradientti on läpikuultava (alfa

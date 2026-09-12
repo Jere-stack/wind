@@ -500,14 +500,22 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   sama kerroin olisi 2,7. Laajan viewBox ON laatikon pikselikoko ja
   luettavuus ostetaan kirjasinkoolla (`fs`), ei venytyksellä.
 - **LAAJENNUS EI SAA KAVENTAA MITÄÄN, JA SE MITATAAN NÄKYVÄSTÄ
-  PIIRTOALUEESTA.** Kortin 24 h -kaavio on 414 px leveä 382 px:n
-  kääreessä, joten ulkomitasta mitattuna sen piirtoalue näyttää
-  364 px:ltä kun näkyvää on 338 px — ensimmäinen mittari teki juuri
-  tämän virheen ja vaati mahdotonta. Nykyiset: ennuste 338 → 346 px
-  (6,1× korkeampi), havainto 332 → 334, vesi 314 → 330. Y-akselin ura
-  on `20 × fs` (kaksinumeroinen lappu) ja vedenlämmössä `26 × fs`
-  ("12.5°"); ensimmäinen `30 × fs` jätti 25 px tyhjää ja rikkoi
-  säännön.
+  PIIRTOALUEESTA.** Ulkomitta valehtelee aina kun kaavio vuotaa
+  kääreensä yli — ensimmäinen mittari teki juuri tämän virheen ja
+  vaati mahdotonta. Nykyiset: ennuste 336 → 346 px (6,1× korkeampi),
+  havainto 332 → 334, vesi 314 → 330. Y-akselin ura on `20 × fs`
+  (kaksinumeroinen lappu) ja vedenlämmössä `26 × fs` ("12.5°");
+  ensimmäinen `30 × fs` jätti 25 px tyhjää ja rikkoi säännön.
+- **Y-AKSELIN URA VEDETÄÄN TÄYTTEESEEN KERRAN, EI KAHDESTI.**
+  Ennustekaaviossa kompensaatio oli sekä kääreen
+  `margin-left: -yPad`issa ETTÄ SVG:n `calc(100% + yPad)`-leveydessä:
+  kääre 382 px, SVG 414 px, ja oikea laita jäi `overflow-x: auto`:n
+  taakse. Mitattuna 24 h jaksolla piiloon jäi 26,5 px eli **1,8 tuntia
+  vuorokaudesta** — ja juuri se jakso on määritelty vierittämättömäksi
+  (`PERIOD_W['24h'] = null`). Fluidissa SVG on `width: 100%`. Viisi
+  päivää ja Kaikki vierittyvät tarkoituksella ja saavat leveytensä
+  `W`:stä. Vedenlämpökaaviossa sama kuvio on oikein, koska siellä
+  molemmat termit ovat SAMASSA elementissä ja kumoavat toisensa.
 - **LAAJASSA LUKEMA MENEE KIINTEÄLLE RIVILLE MYÖS UUSISSA
   KAAVIOISSA.** `attachTooltip`in kolmas parametri (`scrub`) ja
   vedenlämmön `el._uwScrub` ovat sama ratkaisu kuin `_havScrub`:
