@@ -3270,3 +3270,30 @@ ennen että jälkeen.
    edellinen. Lisäksi lähdemerkintä luettiin heti keinotekoisen
    `asetaHetki`n jälkeen, jolloin teksti oli yhden askeleen jäljessä ja
    näytti olevan väärin päin molemmissa kohdissa.
+
+### Aikajana lyheni joka toisella varastoajolla
+
+Tämä löytyi HARMONIE-erän yhteydessä ja on siitä riippumaton, vanha vika.
+
+ECMWF:n ajot EIVÄT OLE SAMANMITTAISIA. 00Z ja 12Z ulottuvat
+viiteentoista vuorokauteen (85 askelta), 06Z ja 18Z vain kuuteen (49).
+Mitattuna S3:sta samana päivänä:
+
+| ajo | askelia | loppuu |
+|---|---|---|
+| 12.9. 00Z | 85 | 27.9. |
+| 12.9. 06Z | 49 | 18.9. |
+| 11.9. 18Z | 49 | 17.9. |
+
+`rakennaAikaAkseli` otti akselin loppuhetken TUOREIMMASTA ajosta
+(`ajot[0]`). Koska työ ajetaan neljästi vuorokaudessa, **kahdella
+ajolla neljästä aikajana lyheni 15 vuorokaudesta kuuteen** — ja palasi
+seuraavassa ajossa. Mitattuna saman päivän kahdesta julkaisusta:
+klo 13:36 ajo antoi 99 askelta (→ 27.9.), klo 18:04 ajo 61 (→ 18.9.).
+
+Loppuhetki otetaan nyt KAUIMMAS YLTÄVÄSTÄ ajosta. Se ei maksa mitään,
+koska jokaiselle hetkelle valitaan joka tapauksessa tuorein ajo joka sen
+kattaa: kuuden vuorokauden jälkeiset askeleet tulevat viimeisimmästä
+00Z- tai 12Z-ajosta. Mitattuna korjauksen jälkeen 96 askelta
+(→ 27.9.), ja ajojakauma `1800Z 4, 0000Z 39, 0600Z 51, 1200Z 2` — eli
+tuorein ajo palvelee alkupään ja pitkä ajo hännän, kuten pitääkin.
