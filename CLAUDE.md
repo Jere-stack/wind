@@ -337,13 +337,38 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 
 **Asetukset**
 
-- **KARTAN SÄÄMALLIN OLETUS ON `auto` ELI VARASTO, EIKÄ SITÄ SAA
-  VAIHTAA.** Varasto (ECMWF 0,25°, esilaskettu) ei maksa
-  rajapintakiintiötä, ei tee pyyntöjä panoroinnissa ja antaa 3400
-  pistettä; pakotettu malli pudottaa katon 600:aan ja maksaa pyyntöjä
-  joka näkymästä. Mitattuna kylmä käynnistys pakotetulla mallilla on
-  ~22 s kun varastolla kartta on pystyssä ~3 s:ssa. Pakotus on
-  "tarvittaessa"-valinta.
+- **"AUTOMAATTINEN" TARKOITTAA PARASTA SAATAVILLA, EI AINA VARASTOA.**
+  Pohjois-Euroopassa zoom 6:sta lähemmäs kartta lukee FMI HARMONIE
+  2,5 km:iä, muualla säälaattavarastoa (ECMWF 0,25°). Molemmat ehdot
+  ovat vanhoja vakioita: `harmonieAlueella` ja `HARMONIE_MAX_STEP`.
+  Tämä on käyttäjän päätös eikä suorituskykyoptimointi — hinta on
+  mitattu ja tiedossa: panorointi Suomessa 6,1 s ja 44 pyyntöä, kun
+  varastolla se oli ilmainen, ja 700 pisteen näkymässä FMI-osuus jää
+  47 %:iin koska osa eristä putoaa kuormassa Open-Meteoon. Älä palauta
+  ECMWF-oletusta vedoten nopeuteen; oikea korjaus nopeudelle on viedä
+  HARMONIE laattaputkeen.
+- **ULOIN NÄKYMÄ PYSYY VARASTOSSA.** Se on syy miksi varasto on yhä
+  olemassa, ja maailmankartan nopeus on sen ansiota. `HARMONIE_MAX_STEP`
+  pitää sen siellä.
+- **`kaytossa()` = VARASTO ON KUNNOSSA, `kartallaKaytossa()` = KARTTA
+  LUKEE SITÄ.** Vain jälkimmäinen seuraa mallivalintaa. Varaston omat
+  datafunktiot (`varmista`, `naytteista`, `wxTunneittain`) ja AIKAJANA
+  ovat `kaytossa()`:n takana, ja niiden ON toimittava vaikka kartta
+  lukisi HARMONIEa. Kun nämä olivat hetken sama metodi, `varmista()`
+  lakkasi hakemasta laattoja ja aikajana menetti 51 tuntia
+  menneisyyttään (54,6 h -> 3,5 h, 403 -> 372 tikkiä) — ja sadetutkan
+  mennyt kuva menetti kantamansa samalla. Älä yhdistä niitä takaisin.
+- **AIKAJANA LUKEE VARASTOA MYÖS FMI-TILASSA.** Palkit ovat siis
+  ECMWF:ää ja kartta HARMONIEa, eli ne voivat näyttää eri lukua. Se on
+  tietoinen vaihtokauppa: kadonnut vuorokausi olisi ollut uusi menetys,
+  tasojen ero ei ole (se on ollut olemassa ja dokumentoitu, ka
+  1,38 m/s).
+- **MALLIVALINTA LUKEE `gridStep(zoom)`, EI `kaytettyStep(zoom)`.**
+  Jälkimmäinen on `max(gridStep, _viimeStep)` eli EDELLISEN latauksen
+  väli. Sillä valinta laahasi zoomia latauksen verran jäljessä, ja
+  `moveend`in tarkistus näki vanhan tilan juuri kun vaihto piti tehdä:
+  mitattuna z4 -> z9 Helsinkiin jäi varastoon pysyvästi (1212 pistettä,
+  12 FMI, merkintä ECMWF).
 - **MALLIN PAKOTUS ON `Saalaatat.pois()`, EI `?laatat=0`.** Mitattuna
   `?laatat=0` vaihtaa vain piirtotavan ja data tulee yhä varastosta
   (506 pistettä 518:sta). Varaston sulkeminen on se kytkin joka siirtää

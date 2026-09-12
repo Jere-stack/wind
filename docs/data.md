@@ -2953,3 +2953,118 @@ juuri: **odotusehto jonka vanha tila pystyi täyttämään.**
 
 Sääntö josta nämä muistuttavat on jo CLAUDE.md:ssä: kun mittaus väittää
 ettei jotain tapahdu lainkaan, epäile ensin mittaria.
+
+---
+
+## Automaattinen = paras saatavilla, ei "aina varasto"
+
+Palaute: *"Automaattinen ei silti näytä FMI Harmonie Helsingissä vaikka
+se on mielestäni paras ja pitää pitää oletuksena."*
+
+Se piti paikkansa. Edellinen erä teki mallista **valittavan** mutta jätti
+oletuksen ennalleen: automaattinen oli aina säälaattavarasto (ECMWF
+0,25°). Perustelu oli suorituskyky — ja se on yhä voimassa — mutta se
+vastasi väärään kysymykseen. Sovellus on Suomen rannikon
+wingfoil-sovellus, ja juuri siellä missä sitä käytetään on tarjolla
+kymmenkertaisesti tarkempi malli.
+
+Nyt "Paras saatavilla" tarkoittaa kirjaimellisesti sitä:
+
+| näkymä | malli | miksi |
+|---|---|---|
+| Pohjois-Eurooppa, zoom 6+ | FMI HARMONIE 2,5 km | paras saatavilla |
+| muualla tai kauempana | säälaattavarasto | HARMONIEa ei ole, tai 2,5 km ei näy |
+
+Molemmat ehdot olivat jo koodissa: `harmonieAlueella` (hilan kattavuus)
+ja `HARMONIE_MAX_STEP = 1,0°` (mitattu raja sille milloin 2,5 km:stä on
+enää hyötyä). Uutta on vain se, että kartta tottelee niitä.
+
+### Kaksi vikaa jotka jäljitys paljasti
+
+**1. Aloitusmalli tuli oikeaksi väärästä syystä.** `kartanMalli()`
+palautti `'best_match'` jos varasto ei ollut kunnossa — ja
+`KarttaAsetukset.alusta()` ajetaan ENNEN `Saalaatat.alusta()`:a, joten
+varasto ei ollut vielä kunnossa koskaan. Lopputulos näytti oikealta
+(rajapintapolku, HARMONIE ensin) mutta se oli sattuma, ei suunnittelua.
+Nyt valinta ei riipu varaston kunnosta lainkaan; varaston puuttuminen on
+eri kysymys ja sen hoitaa `Saalaatat.paalle()`.
+
+**2. `kaytettyStep` laahaa zoomia yhden latauksen jäljessä.** Se on
+`max(gridStep(zoom), _viimeStep)` eli se muistaa mitä EDELLINEN lataus
+käytti — oikein interpoloinnin tukisäteelle, väärin mallivalinnalle.
+Ulompaa sisään zoomattaessa se raportoi yhä vanhaa karkeaa väliä, joten
+`moveend`in tarkistus näki "varasto" juuri sillä hetkellä kun vaihto
+olisi pitänyt tehdä — ja koska se vastasi voimassa olevaa tilaa, mitään
+ei tehty. Seuraavaa `moveend`ia ei tullut, joten malli ei vaihtunut
+koskaan.
+
+Mitattuna z4 → z9 Helsinkiin jäi varastoon: 1212 pistettä, 12 FMI,
+merkintä "ECMWF IFS 0,25°". Korjattuna sama siirtymä vaihtaa mallin ja
+merkintä sanoo HARMONIE.
+
+Valinta lukee nyt `gridStep(zoom)` eli sitä mitä TÄMÄ zoom pyytää.
+
+### Mitattu lopputulos ja hinta
+
+```
+käynnistys Helsingissä   292/332 pistettä FMI   merkintä HARMONIE
+panorointi Suomessa      6,1 s, 44 pyyntöä      FMI-osuus 47 %
+zoom ulos (z4)           varasto, laattakerros palaa
+zoom takaisin (z9)       FMI palaa, laattakerros pois
+```
+
+Hinta on todellinen ja se kannattaa tietää: **panorointi Suomessa maksaa
+nyt muutaman sekunnin ja kymmeniä rajapintakutsuja**, kun varastolla se
+oli ilmainen. Ja kun pisteitä on 700, HARMONIE-eristä osa epäonnistuu
+kuormassa ja putoaa Open-Meteoon — mitattu FMI-osuus 47 %. Spottikortit
+eivät tästä kärsi: ne hakevat aina oman pisteensä, ja siellä osuus on
+täysi.
+
+Uloin näkymä pysyy varastossa, joten maailmankartta on yhtä nopea kuin
+ennen ja varaston koko olemassaolon peruste säilyy siellä missä se
+ratkaisee eniten.
+
+**Jos panoroinnin hinta osoittautuu käytössä liian kovaksi**, oikea
+seuraava askel ei ole palata ECMWF-oletukseen vaan viedä HARMONIE
+laattaputkeen (`tools/tiilet.mjs`) Suomen alueelle: silloin se olisi
+sekä tarkin että ilmainen. Se on oma erään sen kokoinen työ.
+
+### Aikajana jäi varastoon — ja se piti korjata erikseen
+
+Ensimmäinen versio vei aikajanan kartan mukana HARMONIElle, ja se
+maksoi enemmän kuin antoi:
+
+| tila | menneisyyttä | tikkejä |
+|---|---|---|
+| varasto | 54,6 h | 403 |
+| HARMONIE (ensimmäinen versio) | **3,5 h** | 372 |
+
+**51 tuntia historiaa katosi.** Eiliseen ei päässyt enää raahaamaan, ja
+koska sadetutkan mennyt kuva seuraa aikajanaa, se menetti kantamansa
+samalla — `sade.mjs`:n "siirto menneisyyteen" ei liikkunut lainkaan.
+Sitä ei pyydetty eikä se ole hyväksyttävä hinta tarkemmasta kartasta.
+
+Korjaus vaati kahden kysymyksen erottamisen, ja `Saalaatat`illa ne
+olivat samassa metodissa:
+
+- `kaytossa()` — onko varasto KUNNOSSA. Sen takana ovat varaston omat
+  datafunktiot (`varmista`, `naytteista`, `wxTunneittain`) ja AIKAJANA.
+- `kartallaKaytossa()` — lukeeko KARTTA sitä juuri nyt. Vain tämä
+  seuraa mallivalintaa.
+
+Välivaihe jossa `kaytossa()` tarkoitti "kartta lukee" oli hiljaa rikki:
+varaston oma `varmista()` lakkasi hakemasta laattoja, joten
+`wxTunneittain` palautti tyhjää eikä aikajana löytänyt varastoa
+vaikka sen piti. Mitattuna `_laatat.size` oli 0. Nyt laatat haetaan
+aina kun varasto on kunnossa — ne ovat muuttumattomia ja versioituja,
+joten ne tulevat välimuistista, ja ne haettiin joka tapauksessa ennen
+tätä muutosta.
+
+Lopputulos: aikajanalla on 403 tikkiä ja 54,6 h menneisyyttä
+molemmissa tiloissa.
+
+**Hinta jonka tämä hyväksyy:** aikajanan palkit ovat varaston ECMWF:ää
+ja kartta HARMONIEa, eli ne voivat näyttää eri lukua. Sama ero on
+sovelluksessa ollut ennenkin kahden datatason välillä (ka 1,38 m/s) ja
+se on dokumentoitu. Kadonnut vuorokausi olisi ollut UUSI menetys;
+tämä ei ole. Asetuksen nimi sanoo saman: "Kartan säämalli".
