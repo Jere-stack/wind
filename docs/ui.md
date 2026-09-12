@@ -3658,3 +3658,150 @@ Nämä ovat auki ja niistä ei ole päätöstä. Järjestys on hyöty/hinta.
 5. **`radar_dbz_summer_8_50_cvdopt`.** FMI:llä on valmis
    värisokeusoptimoitu tyyli. Jos kohta 4 tehdään, tämän paletin
    taulukointi on halvin tapa saada vertailukohta.
+
+---
+
+## Aikajana: korkeammat palkit, matalampi kisko, keskitetty päiväys
+
+Neljä pyyntöä samaan korttiin, ja ne liittyvät toisiinsa: tila on
+vakio, joten palkkien korkeus on pois jostain muualta.
+
+### Palkin asteikko: katto 16 → 14 m/s, korkeus 35 → 44 px
+
+Molemmat palvelevat samaa asiaa — erottelua siellä missä päätös
+tehdään. Mitattu askel metriä sekunnissa kohti:
+
+```
+             ennen (H 35, katto 16)   nyt (H 44, katto 14)
+ 0– 4 m/s            1,31 px                 1,32 px
+ 4– 8               3,06                     4,40      <- sessioraja
+ 8–11               2,63                     4,70      <- paras keli
+11–14               2,63 / 1,75              2,35
+  > 14              1,75 -> 0                0         (kyllästyy)
+```
+
+Renderöitynä: 4 m/s on 5,3 px ja 10 m/s 32,3 px, eli **27 px ero**
+juuri sillä välillä jolla keli ratkeaa. Ennen sama väli oli 17 px.
+
+Yli neljäntoista metrin väli menetti korkeuseron kokonaan. Se on
+tarkoitus: siellä ei enää valita keliä vaan kokoa, ja väri jatkaa
+kyllästymisen jälkeenkin punaisen kautta magentaan.
+
+**Puuskahuntu ei saa kadota kyllästyneellä palkilla.** Kun sekä tuuli
+että puuska ovat yli katon, molempien korkeus on sama ja erotus nolla —
+eli myrskyssä, jossa puuskaisuus on tärkeintä, huntu olisi hävinnyt.
+Korkeus on siellä kiinteä 3 px eikä yritäkään kertoa määrää; tieto on
+alfassa, samalla periaatteella kuin katon sitoessa muutenkin. Hunnun
+katto nousi 9 → 11 px, eli sama osuus palkista kuin ennen.
+
+### Päiväkisko 40 → 30 px, ja vapautunut tila palkeille
+
+Mitattu kortti:
+
+```
+                 ennen        nyt
+kisko             40 px      30 px
+tuntinauha        52 px      61 px   (palkki 35 -> 44)
+kortti hereillä  128 px     127 px
+kortti levossa    88 px      97 px
+```
+
+Hereillä kortti on ennallaan; levossa se kasvaa yhdeksän pikseliä. Se on
+korkeampien palkkien hinta ja se maksetaan kerran — lepotilassa kiskoa
+ei ole, joten palkit eivät voi kasvaa ilman että kortti kasvaa.
+
+Lappu on koko kiskon korkuinen napautuspinta, joten sen pilleri kutistui
+mukana (`::before` 5 → 4 px sisennys, pilleri 30 → 22 px).
+
+### Päiväys sanotaan kerran
+
+Kupla ja kisko ovat päällekkäin: kupla osoittimen päässä, kisko sen
+alla. Kun kisko näkyy, valittu päivä lukee **tummassa pillerissä
+täsmälleen osoittimen kohdalla** — sama päiväys kuplassa oli sama sana
+kahdesti kahden sentin päässä, ja pidempi kupla peittää enemmän
+palkkeja.
+
+Työnjako on nyt:
+
+```
+kisko näkyvissä   kupla = "09:00"
+kisko piilossa    kupla = "Su 20. 09:00"
+```
+
+Piilossa ei saa olla tietoa jota ei näy muualla, joten kupla ottaa
+päiväyksen takaisin samalla hetkellä kun kisko vie sen mennessään.
+Pelkkä viikonpäivä ei riitä: akseli on 16,6 vrk, joten sama "Ma"
+esiintyy kolmesti.
+
+Teksti kirjoitetaan `_tlKuplaTeksti`ssä, ja se ajetaan sekä valinnan
+siirrosta että kiskon heräämisestä ja nukahtamisesta — muuten teksti
+jäisi edellisen tilan mukaiseksi siihen asti kun tunti seuraavan kerran
+vaihtuu.
+
+### Kisko seuraa osoitinta jatkuvasti
+
+Ennen kiskoa vieritettiin vain jos valittu päivä oli kokonaan kadonnut
+näkyvistä, ja silloinkin `behavior:'smooth'`illa. Perustelu oli oikea
+(joka tuntiaskel ei saa nykiä kiskoa) mutta ratkaisu väärä: lappu saattoi
+olla missä tahansa rivillä, eikä siitä näkynyt kumpaan suuntaan päivä
+vaihtuu.
+
+Nyt kisko on sama akseli kuin tuntinauha, vain karkeampi. Valitun hetken
+kohta lasketaan jatkuvana — lappu plus osuus lapun sisällä — ja
+asetetaan osoittimen alle:
+
+```
+x = lappu.offsetLeft + osuus * lappu.offsetWidth
+kisko.scrollLeft = x - kisko.clientWidth / 2
+```
+
+Osuus tulee **tikkiväliltä** (`_i0.._i1`) eikä kellonajasta: akselin
+ensimmäinen ja viimeinen päivä ovat vajaita, ja kellonajasta laskettuna
+vajaan päivän ensimmäinen tunti (esim. klo 14) olisi heti 58 %:n
+kohdalla.
+
+Tämä ajetaan tuntinauhan omasta rAF-silmukasta, eli se on suora
+seuranta eikä animaatio — nykimistä ei voi syntyä. `scrollLeft`
+kirjoitetaan suoraan eikä `scrollTo`lla: pehmeä vieritys ajaisi omaa
+animaatiotaan sormen alla ja kaksi vierityskonetta hakisivat toisiaan.
+
+**Kutsu on `_tlUpdateNow`in JÄLKEEN eikä ennen.** `_tlUpdateNow` kutsuu
+`_tlKorostaPaiva`a, joka keskittää `currentHourIdx`:n mukaan — ja
+raahauksen aikana se luku on vielä edellisessä tikissä, koska valinta
+vahvistetaan vasta sormen noustua. Jatkuva `frac` on oikea sijainti,
+joten se kirjoitetaan viimeisenä. Molemmat osuvat samaan ruutuun, joten
+välitilaa ei piirretä.
+
+**Reunavälikkeet, samasta syystä kuin tuntinauhassa.** Ilman niitä
+akselin ensimmäistä ja viimeistä päivää ei voi keskittää: selain rajaa
+`scrollLeft`in nollaan ja lappu jäisi osoittimen vasemmalle. Mitattuna
+molemmat päät saa nyt osoittimen alle.
+
+**Sormi kiskolla voittaa.** Kisko seuraa osoitinta joka ruudussa, joten
+ilman lippua oma raahaus kilpailisi seurannan kanssa. Lippu nollataan
+ikkunasta samasta syystä kuin tuntinauhalla — kisko rakennetaan
+uudelleen kesken eleen, jolloin alkuperäinen kohde on irronnut DOM:sta.
+
+### Mitä "aina keskellä" tarkoittaa, mitattuna
+
+Lappu on **täsmälleen** keskellä vain päivän puolivälissä. Muulloin se
+on korkeintaan puoli lappua sivussa, ja se on jatkuvuuden matemaattinen
+seuraus: lappu kattaa oman päivänsä, joten päivän ensimmäisellä tunnilla
+osoitin on lapun vasemmassa reunassa ja viimeisellä oikeassa.
+
+```
+siirto     lapun keskikohta osoittimesta
+ +6 h                -7,0 px
++24 h                -6,7
++48 h                -5,7
+-72 h                -7,0
+-12 h               +20,0
++100 h              +10,7
+-300 h              +24,1     <- puoli lappua on 27,5 px
++240 h              +18,6
+```
+
+Osoitin osuu valittuun lappuun jokaisella siirrolla — se on se lupaus.
+Jäykästi keskitetty lappu ei voisi liukua lainkaan: se hyppäisi
+vuorokauden välein, ja juuri sitä nykimistä vanha koodi vältti
+jättämällä kiskon paikalleen.

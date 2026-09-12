@@ -36,17 +36,37 @@ const STATION = { name: 'Espoo Mellsten', place: 'mellsten', lat: 60.147, lng: 2
 const TTL_TUOREIN = 60;
 const TTL_HISTORIA = 120;
 
-/* YKSI UUSINTAYRITYS. Lahde on pieni harrastepalvelin ja vastasi
-   kerran mittauksen aikana 403:lla ilman etta mikaan muuttui; toinen
-   pyynto samaan osoitteeseen onnistui. Yksi uusinta poistaa
-   ohimenevan katkon nakymasta ilman etta se peittaa oikean vian:
-   kahden perakkaisen epaonnistumisen jalkeen virhe menee lapi. */
+/* KOLME YRITYSTA, KASVAVA ODOTUS JA HAJONTA.
+ *
+ * Lahde on pieni harrastepalvelin ja rajoittaa RINNAKKAISIA pyyntoja:
+ * mitattuna perakkain 12/12 onnistui, mutta kuudella rinnakkaisella
+ * pyynnolla puolet vastasi 403:lla. Mikaan ei ollut muuttunut — sama
+ * osoite onnistui heti perastapain.
+ *
+ * Yksi uusinta kiinteassa 400 ms:ssa ei riita siihen: jos kuusi pyyntoa
+ * epaonnistuu yhta aikaa, ne kaikki uusivat samalla hetkella ja
+ * tormaavat samaan rajoitukseen. Siksi odotus kasvaa ja siina on
+ * satunnaishajontaa, joka levittaa uusinnat eri hetkille.
+ *
+ * TAMA ON NYT TARKEAMPAA KUIN ENNEN. Asema on spottikortin lahin
+ * havainto Haukilahdelle (1 km), ja epaonnistuminen ei nay virheena
+ * vaan SEURAAVANA ASEMANA viiden kilometrin paassa — eli vikaa on
+ * vaikea huomata, ja juuri siksi uusinnan pitaa olla riittava.
+ *
+ * Kolme yritysta ei peita oikeaa vikaa: jos lahde on alhaalla, kaikki
+ * kolme kaatuvat ja virhe menee lapi kuten ennenkin. */
+const UUSINNAT = 3;
 async function fetchTextRetry(url) {
-  try { return await fetchText(url); }
-  catch (e) {
-    await new Promise(function (r) { setTimeout(r, 400); });
-    return fetchText(url);
+  var viimeVirhe = null;
+  for (var k = 0; k < UUSINNAT; k++) {
+    if (k > 0) {
+      var odota = 250 * Math.pow(2, k - 1) + Math.floor(Math.random() * 250);
+      await new Promise(function (r) { setTimeout(r, odota); });
+    }
+    try { return await fetchText(url); }
+    catch (e) { viimeVirhe = e; }
   }
+  throw viimeVirhe;
 }
 
 function fetchText(url) {

@@ -2595,3 +2595,151 @@ Sadetutka · ei arkistoa tälle päivälle           132    132      OK   OK   O
 lähdemerkinnälle. Pisin teksti olisi katkennut juuri siihen kohtaan
 jossa se sanoo asiansa (*"…ei dat…"*). Kaikki leimat mahtuvat nyt
 360 px:llä.
+
+---
+
+## Spottikortin havaintoasema tuli väärästä listasta
+
+Käyttäjä huomasi sen yhdestä spotista: *"Hangon spoteille on
+tulliniemessä havainto jota kortti ei näytä?"* Asema on kartalla, 2 km
+spotista, ja kortti näytti Espoo Tapiolaa 112 kilometrin päästä.
+
+### Syy: kaksi listaa samasta asiasta
+
+`_fmiStationsSorted` piti **omaa kopiotaan** asemalistasta. Kopio oli
+jäänyt kahdeksaan asemaan samalla kun kartalle (`FMI_MAP_STATIONS`) oli
+lisätty yksitoista:
+
+```
+kartalla   kaisaniemi kumpula harmaja tapiola malmi vuosaari sipoo
+           vantaa emasalo porkkala hanko
+kortissa   kaisaniemi kumpula harmaja tapiola malmi vuosaari sipoo vantaa
+puuttui    emasalo  porkkala  hanko
+```
+
+Puuttuvat kolme ovat täsmälleen ne jotka ovat pääkaupunkiseudun
+ulkopuolella — eli ainoat lähellä Hangon, Porkkalan ja Emäsalon
+spotteja.
+
+**Seuraus ei ollut pelkkä puuttuva rivi vaan väärä perustelu koodissa.**
+Spottikortin kommenttiin oli kirjattu mittaus: *"mitattuna Hangon
+spoteille lähin on 107–112 km — eri sääjärjestelmä. Tyhjä on silloin
+rehellisempi kuin väärä."* Mittaus oli tehty tästä vajaasta listasta ja
+se oli itsessään oikein; virhe oli siinä että siitä pääteltiin sääntö.
+Kun lista korjattiin, luku oli 2 km.
+
+### Paikallisasemat kuuluvat samaan rekisteriin
+
+Kolme asemaa ei ole FMI:n havaintoverkossa ja niillä on siksi oma proxy:
+Mellsten (Haukilahti), Laru (Lauttasaari) ja Kruunuvuorenselkä. Ne
+olivat kartalla mutta eivät kortin asemalistassa lainkaan — eli spotin
+lähin havainto saattoi olla kilometrin päässä ja kortti näytti
+kahdentoista kilometrin päästä.
+
+"Lähin havainto" ei saa riippua siitä kenen palvelin sattuu vastaamaan,
+joten ne ovat nyt samassa rekisterissä (`PAIKALLISASEMAT`) ja `lahde`
+kertoo mistä sarja haetaan.
+
+### Mitattu: yksitoista spottia kahdestatoista sai lähemmän aseman
+
+```
+spotti              ennen                    jälkeen
+Hanko Tulliniemi    tapiola   112 km   ->    Hanko Tulliniemi      2 km
+Hanko Silversand    tapiola   107 km   ->    Hanko Tulliniemi      7 km
+Haukilahti          harmaja    12 km   ->    Espoo Haukilahti      1 km
+Lauttasaari         harmaja     8 km   ->    Helsinki Laru         0 km
+Otaniemi            harmaja    12 km   ->    Helsinki Laru         4 km
+Munkkiniemi         harmaja    12 km   ->    Helsinki Laru         5 km
+Hietaniemi          harmaja     9 km   ->    Helsinki Laru         3 km
+Kruunuvuorenranta   harmaja     7 km   ->    Kruunuvuorenselkä     1 km
+Puuskaniemi        vuosaari     7 km   ->    Kruunuvuorenselkä     5 km
+Kallahti           vuosaari     4 km   ->    Kruunuvuorenselkä     8 km  (ketju)
+Porkkala            harmaja    35 km   ->    Kirkkonummi Mäkiluoto 8 km
+Emäsalo            vuosaari    24 km   ->    Porvoo Emäsalo        0 km
+```
+
+Kallahti on ainoa jolla lähin asema ei ole ensimmäinen valinta:
+Vuosaaren satama on 3,9 km päässä mutta **ei lähetä tuulta** (ks.
+CLAUDE.md — viimeisin havainto 18.8.2026). `_fmiLoadWithFallback` ohittaa
+sen ja ottaa seuraavan. Asema jää rekisteriin, koska merkki palaa
+itsestään jos FMI jatkaa lähettämistä.
+
+`HAVAINTO_MAX_KM = 30` jäi paikalleen vaikka se ei enää osu yhteenkään
+spottiin: raja ei ole Hangosta vaan etäisyydestä, ja spottilista voi
+kasvaa.
+
+### `pref` johdetaan tagista
+
+Vanhassa kopiossa oli erillinen `pref`-lippu (meriasema ohittaa sisämaan
+aseman alle 40 km:n matkalla). Se olisi ollut kahdestoista paikka joka
+ajautuu erilleen, joten se luetaan nyt tagista: `'Meri'` tai
+`'Avomeri'`.
+
+### Yksi haku neljälle lähteelle
+
+Proxyt oli kirjoitettu valmiiksi samaan muotoon (`api/mellsten.js`:
+*"Sarjat samassa muodossa kuin api/fmi.js:n historia"*), joten
+`_havHaeSarja` on osoite ja yksi purku:
+
+```
+fmi          kaksi pyyntöä: tuorein + historia
+mellsten     yksi pyyntö, `latest` mukana. Ikkuna 30 min — jaksovalitsin
+             karsii itse liian pitkät napit pois
+laru         yksi pyyntö, `latest` mukana, koko kuluva vuorokausi
+kruunuvuori  yksi pyyntö, historia kentässä `history`, tuorein juuressa
+```
+
+### Aseman nimi on paikan nimi, ei maston
+
+Surfing ry:n asema oli `'Espoo Mellsten'`. Spotti jonka kohdalla se on,
+on Haukilahti, ja kortissa lukee nyt *"Tuulihavainto · Espoo
+Haukilahti"* spotin "Haukilahti" alla — se sanoo suoraan että havainto on
+spotilla. Mellsten ei katoa: se on lähdemerkinnässä (*"Surfing ry ·
+Mellsten · minuutin välein"*), joka on oikea paikka kertoa kenen mittari
+se on.
+
+### Mittarin oma ansa
+
+Ensimmäinen mittaus avasi neljä korttia peräkkäin kiinteällä 5 s
+odotuksella ja väitti Haukilahden näyttävän Larua. Kortti ratkeaa
+mitattuna **614 ms**:ssä; syy oli että harness oli juuri ajanut
+kaksitoista hakuketjua rinnakkain ja dev-serveri oli ruuhkassa, jolloin
+Mellsten ehti vastata virheellä ja ketju otti OIKEIN seuraavan aseman.
+Mittari mittasi omaa kuormaansa. Korjattuna: lista tarkistetaan ilman
+verkkoa, ja korttitesti odottaa arvon asettumista eikä kelloa.
+
+### Mellstenin lähde rajoittaa rinnakkaisia pyyntöjä
+
+Kun asemasta tuli Haukilahden spottikortin lähin havainto, sen
+luotettavuudesta tuli tärkeämpää kuin ennen — ja mittaus paljasti
+ongelman jota ei aiemmin näkynyt:
+
+```
+pyyntöjä rinnakkain     onnistui      403
+ 1 (x8)                  8/8          0 %
+ 2 (x8)                 14/16        13 %
+ 3 (x8)                 22/24         8 %
+ 6 (x5)                 15/30        50 %
+```
+
+Peräkkäin ajettuna 12/12 onnistui. Kyse ei siis ole katkosta vaan
+rinnakkaisuuden rajoituksesta pienellä harrastepalvelimella.
+
+Proxyn uusinta oli **yksi yritys kiinteän 400 ms:n jälkeen**. Se ei auta
+tähän: jos kuusi pyyntöä epäonnistuu yhtä aikaa, ne kaikki uusivat
+samalla hetkellä ja törmäävät samaan rajoitukseen. Nyt yrityksiä on
+kolme, odotus kasvaa (250 / 500 ms) ja siinä on satunnaishajontaa, joka
+levittää uusinnat eri hetkille. Mitattu kuudella rinnakkaisella:
+50 % → 40 / 17 / 0 % kolmessa peräkkäisessä ajossa.
+
+**Sovelluksen oma rinnakkaisuus on 1–2**, ei kuusi: karttamerkki hakee
+kerran käynnistyksessä ja spottikortti kerran avattaessa. Tuotannossa
+päälle tulee reunavälimuisti (`s-maxage=120`), joten useimmat pyynnöt
+eivät mene lähteelle asti lainkaan. Kuuden rinnakkaisen mittaus on siis
+pahin tapaus eikä tavallinen.
+
+**Kun se silti epäonnistuu, kortti näyttää seuraavaa asemaa** (Laru,
+5 km) — ei virhettä. Se on ketjun oikea käytös, mutta se tekee viasta
+näkymättömän: kortti näyttää oikealta, vain kauempaa. Siksi mittarin on
+sallittava molemmat eikä vaadittava Mellsteniä; rekisterin järjestys on
+oma, verkoton testinsä.

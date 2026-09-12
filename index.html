@@ -1030,7 +1030,13 @@ html.tyopoyta #kapseli.vaistyy {
    sisältölaatikko ei muutu lainkaan), ja se siirtää indikaattoria ja
    aikakuplaa saman verran alas. Erillisinä lukuina ne ajautuisivat
    erilleen ensimmäisessä säädössä. */
-:root { --tl-paivat-h: 40px; }
+/* KISKO KAVENNETTIIN 40 -> 30 px ja vapautunut tila annettiin
+   tuntipalkeille (kortin sisäkorkeus 52 -> 61, palkki 35 -> 44). Lappu
+   oli koko rivin korkuinen napautuspinta, joten sen pilleri kutistuu
+   mukana 30 -> 22 px. Kortti on hereillä 128 -> 127 px eli ennallaan;
+   levossa se kasvaa 88 -> 97 px, mikä on korkeampien palkkien hinta ja
+   maksetaan kerran. */
+:root { --tl-paivat-h: 30px; }
 
 /* PÄIVÄKISKO ON LEVOSSA POISSA.
  *
@@ -1058,7 +1064,7 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
 
 #tl-wrap {
   position: relative; pointer-events: all;
-  height: calc(88px + var(--tl-paivat-h) + var(--sab-tl));
+  height: calc(97px + var(--tl-paivat-h) + var(--sab-tl));
   overflow: visible;
   /* KAKSI RAITAA, YKSI VÄLI. Täyte oli 14 + kisko ylhäällä ja 22
      alhaalla, jolloin tuntiuran ja päiväkiskon väliin jäi 3 px ja uran
@@ -1350,7 +1356,7 @@ html.tl-kisko-piilossa #tl-paivat {
    karsittiin. */
 .tl-paiva::before {
   content: ''; position: absolute;
-  left: 0; right: 0; top: 5px; bottom: 5px;
+  left: 0; right: 0; top: 4px; bottom: 4px;
   border-radius: 9px;
   transition: background .15s ease;
 }
@@ -13025,6 +13031,30 @@ const FMI_MAP_STATIONS = [
   { place:'hanko',      name:'Hanko Tulliniemi',         lat:59.80864, lng:22.91246, tag:'Avomeri' },
 ];
 
+/* ── PAIKALLISASEMAT ────────────────────────────────────────────
+ *
+ * Kolme asemaa jotka EIVÄT ole FMI:n havaintoverkossa ja joilla on
+ * siksi oma proxy. Ne ovat silti tavallisia tuulihavaintoja ja
+ * kuuluvat samaan rekisteriin kuin FMI:n asemat: spottikortti etsii
+ * lähimmän havainnon, eikä "lähin" saa riippua siitä kenen palvelin
+ * sattuu vastaamaan.
+ *
+ * `lahde` kertoo mistä sarja haetaan (`_havHaeSarja`). `tag` on 'Meri'
+ * samasta syystä kuin FMI:n meriasemilla: se nostaa aseman rannikon
+ * spoteille sisämaan asemien ohi.
+ *
+ * NIMI ON PAIKAN NIMI, EI MASTON. Surfing ry:n asema oli 'Espoo
+ * Mellsten', mutta spotti jonka kohdalla se on, on Haukilahti — ja
+ * kortissa lukee nyt "Tuulihavainto · Espoo Haukilahti" spotin
+ * "Haukilahti" alla, mikä sanoo suoraan että havainto on spotilla.
+ * Mellsten ei katoa: se on lähdemerkinnässä ("Surfing ry · Mellsten"),
+ * joka on oikea paikka kertoa kenen mittari se on. */
+const PAIKALLISASEMAT = [
+  { place:'mellsten',          name:'Espoo Haukilahti',    lat:60.147,   lng:24.794,  tag:'Meri', lahde:'mellsten' },
+  { place:'laru',              name:'Helsinki Laru',       lat:60.1508,  lng:24.8718, tag:'Meri', lahde:'laru' },
+  { place:'kruunuvuorenselka', name:'Kruunuvuorenselkä',   lat:60.163,   lng:24.997,  tag:'Meri', lahde:'kruunuvuori' },
+];
+
 /* ── AALTOPOIJUT ────────────────────────────────────────────────
  *
  * FMI:n merihavaintopoijut oman proxyn kautta (`api/aallot.js`).
@@ -14447,7 +14477,10 @@ function _addObsMarkers(map) {
    * api/kruunuvuori.js hakee CSV-datan swell.fmi.fi:stä. Sama pilli-kortti
    * kuin muilla meriasemilla (Harmaja, Itätoukki, Vuosaari).                */
   (function() {
-    var KV_STATION = { name: 'Kruunuvuorenselkä', place: 'kruunuvuorenselka', lat: 60.163, lng: 24.997 };
+    /* Sijainti ja nimi REKISTERISTÄ, ei tästä. Oma kopio olisi toinen
+       paikka joka ajautuu erilleen — juuri se ansa johon spottikortin
+       asemalista kaatui (ks. `_fmiStationsSorted`). */
+    var KV_STATION = PAIKALLISASEMAT.find(function (s) { return s.lahde === 'kruunuvuori'; });
 
     var icon = mkWindIcon(map.getZoom(), null, KV_STATION.name, 8);
     var m = L.marker([KV_STATION.lat, KV_STATION.lng], { icon: icon, zIndexOffset: -50, keyboard: false })
@@ -14555,8 +14588,7 @@ function _addObsMarkers(map) {
    * aikajanan menneille tunneille väärän luvun tai ei mitään, ja
    * pilleri näyttää nyt aina TUOREIMMAN lukeman. Kortti sanoo iän. */
   (function() {
-    var MELL_STATION = { name: 'Espoo Mellsten', place: 'mellsten',
-      lat: 60.147, lng: 24.794 };
+    var MELL_STATION = PAIKALLISASEMAT.find(function (s) { return s.lahde === 'mellsten'; });
     var icon = mkWindIcon(map.getZoom(), null, MELL_STATION.name, 8);
     var m = L.marker([MELL_STATION.lat, MELL_STATION.lng],
       { icon: icon, zIndexOffset: -50, keyboard: false })
@@ -14599,8 +14631,7 @@ function _addObsMarkers(map) {
    * (`latest`), joten erillistä "nyt"-pyyntöä ei tarvita. Merkki pyytää
    * 24 h kuten FMI-asemien karttamerkit. */
   (function() {
-    var LARU_STATION = { name: 'Helsinki Laru', place: 'laru',
-      lat: 60.1508, lng: 24.8718 };
+    var LARU_STATION = PAIKALLISASEMAT.find(function (s) { return s.lahde === 'laru'; });
     var icon = mkWindIcon(map.getZoom(), null, LARU_STATION.name, 8);
     var m = L.marker([LARU_STATION.lat, LARU_STATION.lng],
       { icon: icon, zIndexOffset: -50, keyboard: false })
@@ -17058,9 +17089,16 @@ function openSheet(spot, hourIdx) {
    * oikeasti saa.
    *
    * ETÄISYYSRAJA: jos lähin toimiva asema on kauempana kuin
-   * HAVAINTO_MAX_KM, havaintoa ei esitetä lainkaan. Asemalista kattaa
-   * pääkaupunkiseudun, ja mitattuna Hangon spoteille lähin on 107-112 km
-   * — eri sääjärjestelmä. Tyhjä on silloin rehellisempi kuin väärä. */
+   * HAVAINTO_MAX_KM, havaintoa ei esitetä lainkaan — silloin se olisi
+   * eri sääjärjestelmästä ja tyhjä on rehellisempi kuin väärä.
+   *
+   * TÄSSÄ LUKI AIEMMIN että Hangon spoteille lähin asema on 107–112 km
+   * ja siksi raja osuu niihin. Se oli mitattu VAJAASTA asemalistasta
+   * (ks. `_fmiStationsSorted`): Hanko Tulliniemen asema on kartalla,
+   * 2 km spotista, mutta puuttui kortin omasta kopiosta. Korjatulla
+   * rekisterillä jokaisen kahdentoista spotin lähin asema on 0–8 km,
+   * eli raja ei enää osu yhteenkään niistä. Se jää silti paikalleen:
+   * spottilista voi kasvaa, eikä raja ole Hangosta vaan etäisyydestä. */
   (function() {
     const histEl = document.getElementById(fmiId + '-hist');
     const CURRENT_TTL = 10 * 60 * 1000;
@@ -17451,24 +17489,55 @@ function _kmValilla(a, b, c, d) {
     + Math.cos(a * Math.PI / 180) * Math.cos(c * Math.PI / 180) * Math.sin(dG / 2) ** 2));
 }
 
+/* HAVAINTOASEMAT ETÄISYYSJÄRJESTYKSESSÄ — YHDESTÄ REKISTERISTÄ.
+ *
+ * TÄSSÄ OLI PITKÄ VIKA, ja se on juuri se ansa josta CLAUDE.md
+ * varoittaa: funktiolla oli OMA KOPIO asemalistasta, ja kopio oli
+ * jäänyt kahdeksaan asemaan samalla kun kartalle oli lisätty
+ * yksitoista. Puuttuvat olivat `emasalo`, `porkkala` ja `hanko` —
+ * eli täsmälleen ne kolme jotka ovat pääkaupunkiseudun ulkopuolella
+ * ja siksi ainoat lähellä Hangon, Porkkalan ja Emäsalon spotteja.
+ *
+ * Seuraus ei ollut pelkkä puuttuva rivi vaan VÄÄRÄ PERUSTELU KOODISSA:
+ * spottikortin kommenttiin oli kirjattu mittaus "Hangon spoteille
+ * lähin asema on 107–112 km — eri sääjärjestelmä, tyhjä on
+ * rehellisempi kuin väärä". Se mitattiin tästä vajaasta listasta.
+ * Oikea etäisyys Hanko Tulliniemen spotilta samannimiselle asemalle on
+ * 2 km.
+ *
+ * Mitattuna koko listalla (ja paikallisasemat mukaan lukien) yhdentoista
+ * spotin kahdestatoista lähin havainto vaihtui lähemmäksi:
+ *
+ *   Hanko Tulliniemi   tapiola 112 km  ->  hanko      2 km
+ *   Hanko Silversand   tapiola 107 km  ->  hanko      7 km
+ *   Emäsalo           vuosaari  24 km  ->  emasalo    0 km
+ *   Porkkala           harmaja  35 km  ->  porkkala   8 km
+ *   Lauttasaari        harmaja   8 km  ->  laru       0 km
+ *   Haukilahti         harmaja  12 km  ->  mellsten   1 km
+ *   Kruunuvuorenranta  harmaja   7 km  ->  kruunuv.   1 km
+ *   Hietaniemi         harmaja   9 km  ->  laru       3 km
+ *   Otaniemi           harmaja  12 km  ->  laru       4 km
+ *   Munkkiniemi        harmaja  12 km  ->  laru       5 km
+ *   Puuskaniemi       vuosaari   7 km  ->  kruunuv.   5 km
+ *
+ * `pref` JOHDETAAN TAGISTA eikä kirjoiteta erikseen: meriasema on se
+ * jolla on tag 'Meri' tai 'Avomeri'. Erillinen lippu olisi ollut
+ * kahdestoista paikka joka ajautuu erilleen. */
 function _fmiStationsSorted(spotLat, spotLng) {
-  const ALL = [
-    { place: 'kaisaniemi', name: 'Helsinki Kaisaniemi',          lat: 60.17523, lng: 24.94459, tag: null,      pref: false },
-    { place: 'kumpula',    name: 'Helsinki Kumpula',             lat: 60.20307, lng: 24.96131, tag: null,      pref: false },
-    { place: 'harmaja',    name: 'Helsinki Harmaja',             lat: 60.10512, lng: 24.97539, tag: 'Avomeri', pref: true  },
-    { place: 'tapiola',    name: 'Espoo Tapiola',                lat: 60.17510, lng: 24.80590, tag: null,      pref: false },
-    { place: 'malmi',      name: 'Helsinki Malmi',               lat: 60.25299, lng: 25.04549, tag: 'Lento',   pref: false },
-    { place: 'vuosaari',   name: 'Helsinki Vuosaari satama',     lat: 60.20900, lng: 25.19660, tag: 'Meri',    pref: true  },
-    { place: 'sipoo',      name: 'Sipoo Itätoukki',              lat: 60.10121, lng: 25.19439, tag: 'Meri',    pref: true  },
-    { place: 'vantaa',     name: 'Vantaa Helsinki-Vantaa',       lat: 60.31700, lng: 24.96300, tag: 'Lento',   pref: false },
-  ];
+  const ALL = FMI_MAP_STATIONS.concat(PAIKALLISASEMAT);
   function km(a,b,c,d){
     const R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;
     return R*2*Math.asin(Math.sqrt(Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2));
   }
-  return ALL.map(function(s){ return Object.assign({}, s, { km: km(spotLat, spotLng, s.lat, s.lng) }); })
+  return ALL.map(function(s){
+      return Object.assign({}, s, {
+        km: km(spotLat, spotLng, s.lat, s.lng),
+        pref: s.tag === 'Meri' || s.tag === 'Avomeri'
+      });
+    })
     .sort(function(a,b){
-      /* Preferoitu meriasema (Harmaja, Vuosaari, Itätoukki) alle 40km → ensin */
+      /* Meriasema alle 40 km → ensin. Rannikon spotille sisämaan
+         asema on väärä vastaus vaikka se olisi kilometrin lähempänä. */
       var aPref = a.pref && a.km < 40;
       var bPref = b.pref && b.km < 40;
       if(aPref && !bPref) return -1;
@@ -17493,22 +17562,70 @@ function _fmiStationsSorted(spotLat, spotLng) {
  * meni läpi mutta asema ei palauttanut yhtään havaintoa koko ikkunasta.
  * Ensimmäinen on verkko, toinen on asema — ja vain jälkimmäisestä voi
  * päätellä ettei asemaa ole. Syy on `'verkko'` tai `'tyhja'`. */
+/* YKSI ASEMA, YKSI HAKU — LÄHTEESTÄ RIIPPUMATTA.
+ *
+ * Neljä lähdettä, neljä osoitetta, yksi palautusmuoto. Kutsuja saa aina
+ * parin `[tuorein, historia]`, jossa historia on `{ws,wg,ta}` samassa
+ * muodossa kuin `/api/fmi` sen antaa. Ilman tätä asemarekisteri olisi
+ * yhtenäinen mutta haku ei, eli paikallisasemat olisivat listalla
+ * kohteina joita ei voi avata.
+ *
+ * Muodot ovat jo valmiiksi lähes samat — proxyt kirjoitettiin niin
+ * (`api/mellsten.js`: "Sarjat samassa muodossa kuin api/fmi.js:n
+ * historia") — joten tässä on vain osoite ja yksi purku:
+ *
+ *   fmi          kaksi pyyntöä: tuorein + historia
+ *   mellsten     yksi pyyntö, `latest` mukana. Ikkuna on 30 min (ks.
+ *                CLAUDE.md) — jaksovalitsin karsii itse liian pitkät.
+ *   laru         yksi pyyntö, `latest` mukana, koko kuluva vuorokausi
+ *   kruunuvuori  yksi pyyntö, historia kentässä `history`, tuorein
+ *                juuressa
+ */
+function _havHaeSarja(st, hours) {
+  var h = Math.max(1, Math.min(168, hours || 24));
+  var tz = '&tz=' + encodeURIComponent(AIKAVYOHYKE);
+  if (st.lahde === 'mellsten' || st.lahde === 'laru') {
+    return fetch(API_BASE + '/' + st.lahde + '?history=1&hours=' + h + tz)
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || d.error) return [null, d || null];
+        return [d.latest || null, d];
+      });
+  }
+  if (st.lahde === 'kruunuvuori') {
+    return fetch(API_BASE + '/kruunuvuori?hours=' + h)
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || d.error) return [null, d || null];
+        /* Tuorein on juuressa eikä omassa kentässään. `station` ja
+           `place` otetaan mukaan, koska `_updateFmiCard` lukee ne. */
+        return [{ ws: d.ws, wg: d.wg, wd: d.wd, tmp: d.ta, time: d.time,
+                  station: d.station, place: d.place }, d.history || null];
+      });
+  }
+  var base = API_BASE + '/fmi?';
+  var qp = (st.place ? 'place=' + st.place + '&' : '') + 'lat=' + st.lat + '&lng=' + st.lng;
+  return Promise.allSettled([
+    fetch(base + qp).then(function (r) { return r.json(); }),
+    fetch(base + 'history=1&' + qp + '&hours=' + h).then(function (r) { return r.json(); })
+  ]).then(function (res) {
+    return [
+      res[0].status === 'fulfilled' && res[0].value && !res[0].value.error ? res[0].value : null,
+      res[1].status === 'fulfilled' && res[1].value ? res[1].value : null
+    ];
+  });
+}
+
 function _fmiLoadWithFallback(stationList, hours, onSuccess, onFail) {
   var idx = 0;
-  var h = hours ? '&hours=' + Math.max(1, Math.min(168, hours)) : '';
   var viimeSyy = 'verkko';
   function tryNext() {
     if (idx >= stationList.length) { onFail(viimeSyy); return; }
     var st = stationList[idx++];
-    var base = API_BASE + '/fmi?';
-    var qp = st.place ? 'place='+st.place+'&' : '';
-    qp += 'lat='+st.lat+'&lng='+st.lng;
-    Promise.allSettled([
-      fetch(base+qp).then(function(r){return r.json();}),
-      fetch(base+'history=1&'+qp+h).then(function(r){return r.json();})
-    ]).then(function(results) {
-      var lat2 = results[0].status==='fulfilled'&&!results[0].value.error ? results[0].value : null;
-      var nd   = results[1].status==='fulfilled'&&results[1].value&&!results[1].value.error ? results[1].value : null;
+    _havHaeSarja(st, hours).then(function (pari) {
+      var hv   = pari[1];
+      var lat2 = pari[0] && !pari[0].error ? pari[0] : null;
+      var nd   = hv && !hv.error ? hv : null;
       if (nd && nd.ws && nd.ws.length) {
         onSuccess(st, lat2, nd);
       } else {
@@ -17520,7 +17637,6 @@ function _fmiLoadWithFallback(stationList, hours, onSuccess, onFail) {
            vastaa 200:lla ja tyhjillä sarjoilla kun FMI:n rajapinta ei
            palauttanut asemalta yhtään riviä. Muut virheviestit tulevat
            poikkeuksesta (500) ja ovat verkkoa. */
-        var hv = results[1].status === 'fulfilled' ? results[1].value : null;
         viimeSyy = (hv && (hv.error === 'no data'
           || (!hv.error && (!hv.ws || !hv.ws.length)))) ? 'tyhja' : 'verkko';
         /* Ei dataa → kokeile seuraavaa */
@@ -19202,13 +19318,19 @@ const TL_TIKKI_LEV = 22;   /* sama kuin .htick flex-basis */
  * Eli enemmän tuulta, lyhyempi palkki. Muoto valehteli aina kun karttaa
  * liikutti.
  *
- * Täysi korkeus on 16 m/s eikä rampin 20: yli kuudentoista ei foilata,
- * joten se väli saa kyllästyä. Sen sijaan 4–12 m/s — se väli jota
- * katsotaan — säilyttää tarkkuutensa. Väri jatkaa siitä mihin korkeus
- * loppuu: ramppi kulkee punaisen kautta magentaan vielä senkin jälkeen
- * kun palkki on täydessä mitassaan. */
-const TL_PALKKI_TAYSI_MS = 16;
-const TL_PALKKI_H = 35;
+ * Täysi korkeus on 14 m/s eikä rampin 20: yli neljäntoista ei enää
+ * valita keliä vaan kokoa, joten se väli saa kyllästyä. Väri jatkaa
+ * siitä mihin korkeus loppuu — ramppi kulkee punaisen kautta magentaan
+ * vielä senkin jälkeen kun palkki on täydessä mitassaan.
+ *
+ * KATTO LASKETTIIN 16:STA 14:ÄÄN JA KORKEUS NOSTETTIIN 35:STÄ 44:ÄÄN,
+ * ja molemmat palvelevat samaa asiaa: erottelua siellä missä päätös
+ * tehdään. Yhdessä ne antavat foilattavalle välille 4–11 m/s
+ * 4,4–4,7 px metriä sekunnissa kohti, kun se ennen oli 2,6–3,1.
+ * Kovan tuulen väli 14–20 m/s menetti korkeuseron kokonaan — se on
+ * juuri se väli jossa ero ei muuta mitään, koska sinne ei mennä. */
+const TL_PALKKI_TAYSI_MS = 14;
+const TL_PALKKI_H = 44;
 
 /* ASTEIKKO ON EPÄLINEAARINEN, JA SE ON TIETOINEN VALINTA.
  *
@@ -19218,13 +19340,13 @@ const TL_PALKKI_H = 35;
  * Muoto ei siis erotu siitä välistä jota tässä sovelluksessa
  * katsotaan.
  *
- * Käyrä levittää välin 4-14 m/s ja puristaa päät:
+ * Käyrä levittää sen välin jolla keli ratkeaa ja puristaa päät:
  *
- *      0- 4 m/s -> 0,00-0,15   1,31 px per m/s   (tyven, harvoin luettu)
- *      4- 8     -> 0,15-0,50   3,06 px           <- sessioraja
- *      8-12     -> 0,50-0,80   2,63 px           <- paras keli
- *     12-16     -> 0,80-1,00   1,75 px
- *       > 16    -> 1,00        (kyllästyy, väri jatkaa)
+ *      0- 4 m/s -> 0,00-0,12   1,32 px per m/s   (tyven, harvoin luettu)
+ *      4- 8     -> 0,12-0,52   4,40 px           <- sessioraja
+ *      8-11     -> 0,52-0,84   4,69 px           <- paras keli
+ *     11-14     -> 0,84-1,00   2,35 px
+ *       > 14    -> 1,00        (kyllästyy, väri jatkaa)
  *
  * Korkeus on siis MUOTO ja väri on ARVO. Se on työnjako eikä puute:
  * ramppi on kvantisoitu 0,1 m/s välein ja kartan kanssa yhteinen, joten
@@ -19233,10 +19355,10 @@ const TL_PALKKI_H = 35;
 function _tlPalkkiOsuus(ms) {
   const m = Math.max(0, ms || 0);
   if (m >= TL_PALKKI_TAYSI_MS) return 1;
-  if (m <= 4)  return (m / 4) * 0.15;
-  if (m <= 8)  return 0.15 + ((m - 4) / 4) * 0.35;
-  if (m <= 12) return 0.50 + ((m - 8) / 4) * 0.30;
-  return              0.80 + ((m - 12) / 4) * 0.20;
+  if (m <= 4)  return (m / 4) * 0.12;
+  if (m <= 8)  return 0.12 + ((m - 4) / 4) * 0.40;
+  if (m <= 11) return 0.52 + ((m - 8) / 3) * 0.32;
+  return              0.84 + ((m - 11) / 3) * 0.16;
 }
 function _tlPalkkiPx(ms) {
   return Math.max(3, _tlPalkkiOsuus(ms) * TL_PALKKI_H);
@@ -19252,11 +19374,19 @@ function _tlPalkkiPx(ms) {
  *
  * Kynnys on 0,6 m/s: sitä pienempi ero on hunnussa näkymätön, ja
  * elementti joka ei näy on turha solmu. */
-const TL_PUUSKA_KATTO = 9;
+const TL_PUUSKA_KATTO = 11;
+/* KYLLÄSTYNEELLÄ PALKILLA HUNTU EI SAA KADOTA. Kun sekä tuuli että
+   puuska ovat yli katon (14 m/s), molempien korkeus on sama ja erotus
+   nolla — eli myrskyssä, jossa puuskaisuus on tärkeintä, huntu olisi
+   hävinnyt kokonaan. Korkeus ei silloin kerro määrää eikä yritäkään:
+   se on kiinteä 3 px ja tieto on alfassa, samalla periaatteella kuin
+   katon sitoessa muutenkin. */
+const TL_PUUSKA_MIN_TAYDESSA = 3;
 function _tlPuuskaTyyli(ms, puuska) {
   if (puuska == null || !(puuska > ms + 0.6)) return null;
   const alaPx = _tlPalkkiPx(ms), ylaPx = _tlPalkkiPx(puuska);
-  const kork = Math.min(TL_PUUSKA_KATTO, ylaPx - alaPx);
+  const kork = Math.min(TL_PUUSKA_KATTO,
+    Math.max(ylaPx - alaPx, ms >= TL_PALKKI_TAYSI_MS ? TL_PUUSKA_MIN_TAYDESSA : 0));
   if (!(kork > 1)) return null;
   /* KATTO SITOO USEIMMAT, joten korkeus yksin ei enää erottele kuinka
      puuskaista on: mitattuna hunnun mediaani on 8,6 px kun katto on 10.
@@ -19470,6 +19600,19 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
       if (!el || !el.dataset.pv) return;
       _tlValitseIdx(_tlPaivanIdx(Number(el.dataset.pv)));
     });
+    /* SORMI KISKOLLA VOITTAA. Kisko seuraa muuten osoitinta joka
+       ruudussa, ja ilman tätä lippua oma raahaus kilpailisi seurannan
+       kanssa: käyttäjä vetäisi vasemmalle ja seuranta vetäisi takaisin.
+       Lippu nollataan ikkunasta samasta syystä kuin tuntinauhalla —
+       kisko rakennetaan uudelleen kesken eleen, jolloin alkuperäinen
+       kohde on irronnut DOM:sta eikä tapahtuma enää kupli tänne. */
+    ['pointerdown', 'touchstart'].forEach(function (n) {
+      kisko.addEventListener(n, function () { _tlKiskoKosketusOma = true; }, { passive: true });
+    });
+    ['pointerup', 'pointercancel', 'touchend', 'touchcancel'].forEach(function (n) {
+      window.addEventListener(n, function () { _tlKiskoKosketusOma = false; },
+        { passive: true, capture: true });
+    });
   }
 
   if (tl._tlBound) return;
@@ -19576,6 +19719,18 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
         State._tlLastTick = nearest;
         _tlUpdateNow(nearest);
       }
+      /* PÄIVÄKISKO SEURAA JATKUVASTI, ei vasta tikin vaihtuessa: se on
+         sama akseli karkeampana, ja rajaus tikkiin tekisi liu'usta
+         nykivän. Tämä on suora `scrollLeft`-kirjoitus eikä animaatio,
+         joten se maksaa saman kuin yksi tyylikirjoitus.
+         TÄMÄ ON `_tlUpdateNow`in JÄLKEEN eikä ennen: se kutsuu
+         `_tlKorostaPaiva`a, joka keskittää `currentHourIdx`:n mukaan —
+         ja raahauksen aikana se luku on vielä edellisessä tikissä,
+         koska valinta vahvistetaan vasta sormen noustua. Jatkuva
+         `frac` on tässä se oikea sijainti, joten se kirjoitetaan
+         viimeisenä. Molemmat osuvat samaan ruutuun, joten välitilaa ei
+         piirretä. */
+      _tlKiskoKeskita(frac);
       if (!State._tlOhjelmallinen) _previewField(frac);
     });
     /* Varmistus vanhoille selaimille joilla ei ole scrollend-tapahtumaa.
@@ -19737,25 +19892,87 @@ function _tlRakennaPaivat(times) {
   if (!times || !times.length) return;
   const DAY = ['Su', 'Ma', 'Ti', 'Ke', 'To', 'Pe', 'La'];
   const tanaan = _tlPvNro(new Date());
-  let edellinen = -1;
+
+  /* REUNAVÄLIKKEET, SAMASTA SYYSTÄ KUIN TUNTINAUHASSA. Ilman niitä
+     akselin ensimmäistä ja viimeistä päivää ei voi keskittää:
+     selain rajaa `scrollLeft`in nollaan, ja lappu jäisi osoittimen
+     vasemmalle puolelle. Leveys on puoli ruutua kuten tuntinauhalla —
+     lapun oma leveys vaihtelee ("Tänään" on leveämpi), joten tarkka
+     puolikas luetaan lapulta vasta keskityksessä. */
+  const valikeL = document.createElement('div');
+  valikeL.className = 'tl-paiva-valike';
+  valikeL.style.cssText = 'flex:0 0 ' + Math.round(window.innerWidth / 2) + 'px';
+  kisko.appendChild(valikeL);
+
+  let edellinen = -1, nyk = null;
   for (let i = 0; i < times.length; i++) {
     const d = new Date(times[i]);
     const pv = _tlPvNro(d);
-    if (pv === edellinen) continue;
-    edellinen = pv;
-    const el = document.createElement('div');
-    el.className = 'tl-paiva';
-    /* Teksti omassa elementissään: pilleri ja tuulikaista ovat lapun
-       pseudoelementtejä, ja tekstisolmu jäisi niiden väliin ilman omaa
-       kerrostaan. */
-    const txt = document.createElement('span');
-    txt.className = 'tl-paiva-txt';
-    txt.textContent = pv === tanaan ? 'Tänään' : (DAY[d.getDay()] + ' ' + d.getDate() + '.');
-    el.appendChild(txt);
-    el.dataset.pv = String(pv);
-    kisko.appendChild(el);
-    State._tlPaivat.push(el);
+    if (pv !== edellinen) {
+      edellinen = pv;
+      const el = document.createElement('div');
+      el.className = 'tl-paiva';
+      /* Teksti omassa elementissään: pilleri ja tuulikaista ovat lapun
+         pseudoelementtejä, ja tekstisolmu jäisi niiden väliin ilman omaa
+         kerrostaan. */
+      const txt = document.createElement('span');
+      txt.className = 'tl-paiva-txt';
+      txt.textContent = pv === tanaan ? 'Tänään' : (DAY[d.getDay()] + ' ' + d.getDate() + '.');
+      el.appendChild(txt);
+      el.dataset.pv = String(pv);
+      kisko.appendChild(el);
+      State._tlPaivat.push(el);
+      /* TIKKIVÄLI, EI VUOROKAUDEN PITUUS. Kisko liukuu päivän sisällä
+         suhteessa siihen, monesko akselin tunti ollaan — ja akselin
+         ensimmäinen ja viimeinen päivä ovat vajaita. Kellonajasta
+         laskettu osuus hyppäisi niissä: vajaan päivän ensimmäinen tunti
+         voi olla klo 14, jolloin lappu olisi heti 58 % kohdalla. */
+      nyk = el; el._i0 = i;
+    }
+    if (nyk) nyk._i1 = i;
   }
+
+  const valikeR = document.createElement('div');
+  valikeR.className = 'tl-paiva-valike';
+  valikeR.style.cssText = 'flex:0 0 ' + Math.round(window.innerWidth / 2) + 'px';
+  kisko.appendChild(valikeR);
+}
+
+/* KISKO SEURAA OSOITINTA — JATKUVASTI, EI PÄIVÄ KERRALLAAN.
+ *
+ * Ennen kiskoa vieritettiin vain jos valittu päivä oli kokonaan
+ * kadonnut näkyvistä, ja silloinkin `behavior:'smooth'`illa. Perustelu
+ * oli oikea (joka tuntiaskel ei saa nykiä kiskoa) mutta ratkaisu
+ * väärä: lappu saattoi olla missä tahansa rivillä, eikä siitä näkynyt
+ * kumpaan suuntaan päivä vaihtuu.
+ *
+ * Nyt kisko on sama akseli kuin tuntinauha, vain karkeampi: valitun
+ * hetken kohta lasketaan JATKUVANA (lappu + osuus lapun sisällä) ja
+ * asetetaan osoittimen alle. Raahatessa kisko liukuu sormen mukana,
+ * koska tämä ajetaan tuntinauhan omasta rAF-silmukasta — ei siis
+ * animaatiota vaan suora seuranta, jolloin nykimistä ei voi syntyä.
+ *
+ * `scrollLeft` kirjoitetaan suoraan eikä `scrollTo`lla: pehmeä vieritys
+ * ajaisi omaa animaatiotaan sormen alla ja kaksi vierityskonetta
+ * hakisivat toisiaan — sama ansa jonka takia pitkä päivähyppy
+ * tuntinauhassa asetetaan suoraan eikä `scrollTimelineTo`lla. */
+let _tlKiskoKosketusOma = false;
+function _tlKiskoKeskita(frac) {
+  const kisko = document.getElementById('tl-paivat');
+  const lista = State._tlPaivat;
+  if (!kisko || !lista || !lista.length) return;
+  /* Sormi kiskolla: käyttäjä selaa päiviä itse, eikä sitä saa ohjata. */
+  if (_tlKiskoKosketusOma) return;
+  const f = Math.max(0, frac || 0);
+  let el = lista[0];
+  for (let i = 0; i < lista.length; i++) {
+    if (lista[i]._i0 <= f) el = lista[i]; else break;
+  }
+  const n = (el._i1 - el._i0) + 1;
+  const osuus = n > 0 ? Math.max(0, Math.min(1, (f - el._i0) / n)) : 0;
+  const x = el.offsetLeft + osuus * el.offsetWidth;
+  const kohde = x - kisko.clientWidth / 2;
+  if (Math.abs(kisko.scrollLeft - kohde) > 0.5) kisko.scrollLeft = kohde;
 }
 
 
@@ -19781,28 +19998,62 @@ function _tlPaivanIdx(pvNro) {
   return paras;
 }
 
-/* Korostus seuraa valintaa. Kiskoa vieritetään VAIN jos valittu päivä on
-   jäänyt näkyvistä — muuten janan jokainen tuntiaskel nykisi kiskoa. */
+/* Korostus seuraa valintaa, ja kisko seuraa korostusta — ks.
+   `_tlKiskoKeskita`. Sijainti otetaan `currentHourIdx`:stä eikä
+   päivästä, jotta lappu liukuu myös päivän sisällä. */
 function _tlKorostaPaiva(d) {
   const lista = State._tlPaivat;
   if (!lista || !lista.length) return;
   const pv = String(_tlPvNro(d));
-  let osuma = null;
   for (let i = 0; i < lista.length; i++) {
     const on = lista[i].dataset.pv === pv;
-    if (on) osuma = lista[i];
     if (lista[i].classList.contains('valittu') !== on) lista[i].classList.toggle('valittu', on);
   }
-  if (!osuma) return;
-  const kisko = osuma.parentElement;
-  if (!kisko) return;
-  const vasen = osuma.offsetLeft, oikea = vasen + osuma.offsetWidth;
-  const nakyyV = kisko.scrollLeft + 16, nakyyO = kisko.scrollLeft + kisko.clientWidth - 16;
-  if (vasen < nakyyV || oikea > nakyyO) {
-    try {
-      kisko.scrollTo({ left: vasen - kisko.clientWidth / 2 + osuma.offsetWidth / 2, behavior: 'smooth' });
-    } catch (e) { kisko.scrollLeft = vasen - kisko.clientWidth / 2; }
+  _tlKiskoKeskita(State.currentHourIdx || 0);
+}
+
+/* AIKAKUPLAN TEKSTI — PÄIVÄYS SANOTAAN KERRAN.
+ *
+ * Kupla ja päiväkisko ovat päällekkäin, kupla osoittimen päässä ja
+ * kisko sen alla: kun kisko on näkyvissä, valittu päivä lukee
+ * TUMMASSA PILLERISSÄ täsmälleen osoittimen kohdalla. Sama päiväys
+ * kuplassa on silloin sama sana kahdesti kahden sentin päässä
+ * toisistaan, ja pidempi kupla peittää enemmän palkkeja.
+ *
+ * Kun kisko painuu lepoon, päiväys katoaisi näkyvistä kokonaan —
+ * ja piilossa ei saa olla tietoa jota ei näy muualla. Silloin kupla
+ * ottaa sen takaisin. Pelkkä viikonpäivä ei riitä: akseli on 16,6 vrk,
+ * joten sama "Ma" esiintyy kolmesti.
+ *
+ * Tämä on siis kuplan ja kiskon työnjako, ei kaksi eri asua: kumpi
+ * tahansa näyttää päiväyksen, mutta ei koskaan molemmat.
+ *
+ * Funktio ajetaan sekä valinnan siirrosta (`_tlUpdateNow`) että kiskon
+ * heräämisestä ja nukahtamisesta — muuten teksti jäisi edellisen tilan
+ * mukaiseksi siihen asti kun tunti seuraavan kerran vaihtuu. */
+const TL_KUPLA_PV = ['Su','Ma','Ti','Ke','To','Pe','La'];
+function _tlKuplaTeksti(d) {
+  const bubble = document.getElementById('tl-time-bubble');
+  if (!bubble) return;
+  if (!d) {
+    const T = State._tlTimes, i = Math.round(State.currentHourIdx || 0);
+    if (!T || !T[i]) return;
+    d = new Date(T[i]);
   }
+  /* Solmut kirjoitetaan kerran ja vain niiden teksti päivittyy, jotta
+     valinnan siirto ei jäsennä HTML:ää joka tunnilla. */
+  let pv = bubble.firstElementChild, ai = bubble.lastElementChild;
+  if (!pv || pv === ai) {
+    bubble.textContent = '';
+    pv = document.createElement('span'); pv.className = 'tl-kupla-pv';
+    ai = document.createElement('span');
+    bubble.appendChild(pv); bubble.appendChild(ai);
+  }
+  const kiskoPiilossa = document.documentElement.classList.contains('tl-kisko-piilossa');
+  pv.textContent = kiskoPiilossa
+    ? TL_KUPLA_PV[d.getDay()] + ' ' + d.getDate() + '. '
+    : '';
+  ai.textContent = ('0' + d.getHours()).slice(-2) + ':00';
 }
 
 function _tlUpdateNow(idx) {
@@ -19811,30 +20062,7 @@ function _tlUpdateNow(idx) {
   /* Päivitä meriasema-ikonit: menneisyydessä oikea historiahavainto,
      tulevaisuudessa (ennuste) aina viimeisin havainto */
   if (window._updateObsIcons) window._updateObsIcons(d.getTime());
-  const DAY = ['Su','Ma','Ti','Ke','To','Pe','La'];
-  const hh = ('0'+d.getHours()).slice(-2);
-  /* Yksi rivi, ei kahta. Päiväys näkyy jo janan päiväerottimessa, joten
-     kupla tarvitsee vain viikonpäivän erottamaan viisi vuorokautta
-     toisistaan. Kaksirivinen kupla oli 39 px korkea ja sen magenta
-     päiväys oli aikavalitsimen äänekkäin elementti. */
-  const bubble = document.getElementById('tl-time-bubble');
-  /* Viikonpäivä on kontekstia, tunti on lukema — ks. .tl-kupla-pv.
-     Kirjoitetaan solmut kerran ja päivitetään niiden teksti, jotta
-     valinnan siirto ei jäsennä HTML:ää joka tunnilla. */
-  if (bubble) {
-    let pv = bubble.firstElementChild, ai = bubble.lastElementChild;
-    if (!pv || pv === ai) {
-      bubble.textContent = '';
-      pv = document.createElement('span'); pv.className = 'tl-kupla-pv';
-      ai = document.createElement('span');
-      bubble.appendChild(pv); bubble.appendChild(ai);
-    }
-    /* Päiväys kuplaan, koska kisko on levossa piilossa eikä päivä saa
-       jäädä minnekään näkymättömiin. Pelkkä viikonpäivä ei riitä:
-       akseli on 16,6 vrk, joten sama "Ma" esiintyy kolmesti. */
-    pv.textContent = DAY[d.getDay()] + ' ' + d.getDate() + '. ';
-    ai.textContent = hh + ':00';
-  }
+  _tlKuplaTeksti(d);
   _tlKorostaPaiva(d);
   if (typeof _tlKeliNappiTila === 'function') _tlKeliNappiTila();
   /* SADEKERROS SEURAA AIKAJANAA. Tämä on ainoa paikka josta valinnan
@@ -21406,9 +21634,14 @@ function _tlKiskoNukuta() {
      ja palannut irrotuksessa. Yritetään uudelleen. */
   if (_tlKiskoKosketus) { _tlKiskoAjastin = setTimeout(_tlKiskoNukuta, TL_KISKO_LEPO_MS); return; }
   document.documentElement.classList.add('tl-kisko-piilossa');
+  /* Kupla ottaa päiväyksen takaisin samalla hetkellä kun kisko vie sen
+     mennessään — ks. `_tlKuplaTeksti`. */
+  if (typeof _tlKuplaTeksti === 'function') _tlKuplaTeksti();
 }
 function _tlKiskoHerata() {
+  const oliPiilossa = document.documentElement.classList.contains('tl-kisko-piilossa');
   document.documentElement.classList.remove('tl-kisko-piilossa');
+  if (oliPiilossa && typeof _tlKuplaTeksti === 'function') _tlKuplaTeksti();
   if (_tlKiskoAjastin) clearTimeout(_tlKiskoAjastin);
   _tlKiskoAjastin = setTimeout(_tlKiskoNukuta, TL_KISKO_LEPO_MS);
 }

@@ -100,7 +100,8 @@ kokeiltu ja kaadettu mittauksella.
   Puuskaisuus oli koodissa mutta ei näkyvissä ·
   Sadetutka seuraa aikajanaa — ja jatkuu ennusteena ·
   Tuulikerrokset ja sadekerros ovat toisensa poissulkevat ·
-  Sateen asteikko: FMI:n omat selitteet siltana dBZ:n ja mm/h:n välillä
+  Sateen asteikko: FMI:n omat selitteet siltana dBZ:n ja mm/h:n välillä ·
+  Spottikortin havaintoasema tuli väärästä listasta
 - **lisadata**: Mistä sovellus lukee nyt · TOP 10 — data · TOP 10 — lähteet ·
   Mitattu ja hylätty (MEPS on HARMONIE · hydrodyn 2/12 spottia · vuorovesi ·
   Holfuy · ilmanlaatu) · Toinen kerros — kontekstia, ei päätöstä ·
@@ -122,7 +123,8 @@ kokeiltu ja kaadettu mittauksella.
   korkeudesta · Havaintokaavion laajennus koko ruudulle · Laajennettu
   kaavio iPhonella: turva-alueet, liuku ja lukemarivi · Havaintokortin
   siivous: väriliuska pois ja neljä kahdennusta · Sateen värit:
-  strategia ja se mitä siitä on jo tehty
+  strategia ja se mitä siitä on jo tehty · Aikajana: korkeammat palkit,
+  matalampi kisko, keskitetty päiväys
 
 </details>
 
@@ -357,10 +359,27 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   0,5 m/s rajan, ja 94 % minuuteista renderöityisi identtisesti.
   10 min veisi +7 vrk raahauksen 10 ruudullisesta 60:een.
   Aikajanan vika oli navigointi, ja se on `#tl-paivat`.
-- **Palkin korkeus on KIINTEÄLLÄ asteikolla (16 m/s = täysi).**
+- **Palkin korkeus on KIINTEÄLLÄ asteikolla (14 m/s = täysi, 44 px).**
   Sarjakohtainen maksimi teki palkeista vertailukelpoisia vain sarjan
   sisällä, ja sarja vaihtuu joka kartansiirrolla: mitattuna 7,67 m/s oli
   14,1 px ja 8,40 m/s 13,4 px. Älä palauta `maxMs`-skaalausta.
+- **KATTO ON 14 m/s, EI 16, ja korkeus 44 px, ei 35.** Molemmat
+  palvelevat erottelua siellä missä päätös tehdään: väli 4–11 m/s sai
+  4,4–4,7 px metriä sekunnissa kohti (ennen 2,6–3,1), ja 4 → 10 m/s on
+  nyt 27 px ero (ennen 17). Yli neljäntoista väli menetti korkeuseron
+  kokonaan — se on tarkoitus, siellä ei valita keliä vaan kokoa, ja väri
+  jatkaa kyllästymisen jälkeen.
+- **PUUSKAHUNTU EI SAA KADOTA KYLLÄSTYNEELLÄ PALKILLA.** Kun sekä tuuli
+  että puuska ovat yli katon, korkeuksien erotus on nolla — eli
+  myrskyssä, jossa puuskaisuus on tärkeintä, huntu häviäisi. Silloin
+  korkeus on kiinteä 3 px eikä yritäkään kertoa määrää; tieto on
+  alfassa, kuten muutenkin katon sitoessa.
+- **KORTIN KORKEUS ON SUMMA, EI YKSI LUKU.** `#tl-wrap` on
+  `97px + var(--tl-paivat-h) + var(--sab-tl)`, ja tuntinauha saa siitä
+  sen mikä jää täytteiden jälkeen (61 px). Palkkia ei voi kasvattaa
+  koskematta siihen 97:ään. Kisko 40 -> 30 ja nauha 52 -> 61 pitivät
+  hereillä olevan kortin ennallaan (128 -> 127); levossa se kasvoi
+  88 -> 97, ja se on korkeampien palkkien väistämätön hinta.
 - **Aikajanan valokaista ja puuskavyöhyke päivitetään MYÖS nopeassa
   polussa**, ja päiväerottimet ovat oma taulukkonsa (`_tlErottimet`).
   Ne eivät ole `_tlTicks`issä, ja ilman erillistä päivitystä ne jäivät
@@ -394,6 +413,32 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   hitaassa (se riippuu aikaleimoista), mutta kaista riippuu nopeuksista
   ja nopea polku on juuri se joka ajetaan kun aika pysyy ja paikka
   vaihtuu. Sama ansa kuin päiväerottimien valovaiheessa.
+- **PÄIVÄYS SANOTAAN KERRAN.** Kupla ja kisko ovat päällekkäin, ja kun
+  kisko näkyy, valittu päivä lukee tummassa pillerissä täsmälleen
+  osoittimen kohdalla. Kuplassa on silloin VAIN kellonaika; päiväys
+  palaa siihen vasta kun kisko painuu lepoon. Teksti kirjoitetaan
+  `_tlKuplaTeksti`ssä ja ajetaan MYÖS kiskon heräämisestä ja
+  nukahtamisesta — pelkkä valinnan siirto jättäisi tekstin edellisen
+  tilan mukaiseksi seuraavaan tuntiin asti.
+- **KISKO SEURAA OSOITINTA JATKUVASTI** (`_tlKiskoKeskita`), ei päivä
+  kerrallaan: se on sama akseli karkeampana. Osuus lapun sisällä tulee
+  TIKKIVÄLILTÄ (`_i0.._i1`) eikä kellonajasta — akselin reunapäivät ovat
+  vajaita, ja kellonajasta laskettuna vajaan päivän ensimmäinen tunti
+  olisi heti 58 %:n kohdalla. Kutsu on `_tlUpdateNow`in JÄLKEEN:
+  `_tlKorostaPaiva` keskittää `currentHourIdx`:n mukaan, ja raahatessa
+  se luku on vielä edellisessä tikissä. `scrollLeft` kirjoitetaan
+  suoraan, EI `scrollTo`lla — pehmeä vieritys hakisi sormea vastaan.
+- **LAPPU EI OLE TÄSMÄLLEEN KESKELLÄ, EIKÄ SEN KUULU OLLA.** Se on
+  keskellä päivän puolivälissä ja korkeintaan puoli lappua sivussa
+  muulloin (mitattu max 24,1 px, puoli lappua 27,5 px). Lupaus on että
+  OSOITIN OSUU VALITTUUN LAPPUUN. Jäykästi keskitetty lappu ei voisi
+  liukua lainkaan vaan hyppäisi vuorokauden välein.
+- **Kiskossa on reunavälikkeet**, kuten tuntinauhassa: ilman niitä
+  selain rajaa `scrollLeft`in nollaan eikä akselin ensimmäistä ja
+  viimeistä päivää saa osoittimen alle.
+- **Sormi kiskolla voittaa** (`_tlKiskoKosketusOma`). Lippu nollataan
+  IKKUNASTA, koska kisko rakennetaan uudelleen kesken eleen ja
+  alkuperäinen kohde irtoaa DOM:sta.
 - **Päiväkisko on levossa PIILOSSA, ja se palaa MISTÄ TAHANSA
   kosketuksesta aikajanaan** — ei vain raahauksesta. Kisko on olemassa
   raahauksen välttämiseksi (12 ruudullista viikon päähän), joten se ei
@@ -421,6 +466,35 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 
 **Havaintoasemat**
 
+- **ASEMAREKISTERI ON YKSI: `FMI_MAP_STATIONS` + `PAIKALLISASEMAT`.**
+  `_fmiStationsSorted` piti omaa kopiotaan, ja kopio oli jäänyt
+  kahdeksaan asemaan kun kartalla oli yksitoista — puuttuivat `emasalo`,
+  `porkkala` ja `hanko`, eli täsmälleen ne jotka ovat pääkaupunkiseudun
+  ulkopuolella. Hangon spotti näytti Espoo Tapiolaa 112 km päästä vaikka
+  samanniminen asema on 2 km päässä. Korjattuna 11/12 spottia sai
+  lähemmän aseman. **Älä lisää asemaa vain toiseen paikkaan.**
+- **KOPIO EI OLLUT VAIN PUUTTUVA RIVI VAAN VÄÄRÄ MITTAUS KOODISSA.**
+  Spottikortin kommenttiin oli kirjattu "Hangon spoteille lähin on
+  107–112 km — eri sääjärjestelmä, tyhjä on rehellisempi kuin väärä".
+  Mittaus oli oikein mutta se oli tehty vajaasta listasta. Kun mittaat
+  etäisyyksiä, tarkista ensin että lista on se jota sovellus käyttää.
+- **`pref` JOHDETAAN TAGISTA** (`'Meri'` tai `'Avomeri'`), ei kirjoiteta
+  erikseen: erillinen lippu olisi toinen paikka joka ajautuu erilleen.
+  Meriasema ohittaa sisämaan aseman alle 40 km:n matkalla.
+- **PAIKALLISASEMAT OVAT TAVALLISIA HAVAINTOJA.** Mellsten (Espoo
+  Haukilahti), Laru ja Kruunuvuorenselkä eivät ole FMI:n verkossa mutta
+  kuuluvat samaan rekisteriin: "lähin havainto" ei saa riippua siitä
+  kenen palvelin vastaa. `lahde` kertoo mistä sarja haetaan
+  (`_havHaeSarja`), ja karttamerkit lukevat sijaintinsa SAMASTA
+  rekisteristä — ei omista kopioistaan.
+- **ASEMAN NIMI ON PAIKAN NIMI, EI MASTON.** 'Espoo Mellsten' ->
+  'Espoo Haukilahti', koska spotti jonka kohdalla se on, on Haukilahti.
+  Mellsten ei katoa: se on lähdemerkinnässä, joka on oikea paikka kertoa
+  kenen mittari se on.
+- **KALLAHTI EI SAA ASEMAANSA ENSIMMÄISESTÄ OSUMASTA.** Vuosaaren satama
+  on 3,9 km päässä mutta ei lähetä tuulta, joten `_fmiLoadWithFallback`
+  ohittaa sen. Jos mittaat asemavalintaa, mittaa KETJU äläkä listan
+  ensimmäistä — muuten Kallahti näyttää rikkinäiseltä vaikka se toimii.
 - **HAVAINTOKAAVION TÄYTTÖ ON `paperi()` JA VIIVAT `--ink`.** Väri on
   funktio KORKEUDESTA, ei sarjasta: vaakaviipale korkeudella y saa sen
   nopeuden värin jota y edustaa. Älä sävytä viivoja rampilla — mitattuna
