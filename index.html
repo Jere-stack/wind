@@ -1298,6 +1298,13 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
   scrollbar-width: none; -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain; touch-action: pan-x;
   padding: 0 10px;
+  /* NATIIVI SNÄPPÄYS, SAMA KUIN TUNTINAUHASSA. Kisko on nyt raahattava
+     valitsin eikä pelkkä nappirivi: raahaus valitsee sen päivän joka on
+     osoittimen alla, ja sormen noustessa selain pysäyttää lapun
+     täsmälleen keskelle. Ilman snäppäystä heitto jäisi kahden lapun
+     väliin, ja `_tlKiskoKeskita` vetäisi sen sieltä erikseen — kaksi
+     liikettä yhdestä eleestä. */
+  scroll-snap-type: x mandatory;
   pointer-events: all; z-index: 3;
   -webkit-mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
           mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
@@ -1338,6 +1345,9 @@ html.tl-kisko-piilossa #tl-paivat {
   height: 100%;
   display: flex; align-items: center; justify-content: center;
   padding: 0 10px;
+  /* Vain laput ovat snäppäyskohtia — reunavälikkeet eivät, muuten
+     akselin päihin syntyisi kohta johon kisko pysähtyy ilman päivää. */
+  scroll-snap-align: center;
   font-size: var(--fs-10);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -1422,13 +1432,22 @@ html.tl-kisko-piilossa #tl-paivat {
  * Tuntilukema oli palkkien ALLA ja vei 15 px viidestakymmenestäkahdesta
  * eli 29 % koko nauhan korkeudesta. Ylhäällä se ei vie palkilta mitään:
  * palkki ei koskaan yllä nauhan yläreunaan asti, koska sen täysi mitta
- * on 16 m/s eikä 20.
+ * on 14 m/s eikä rampin 20.
  *
- * Mitattuna palkin maksimi 22 px -> 35 px, eli 1,38 -> 2,19 pikseliä
- * metriä sekunnissa kohti — ja jana on ulkomitoiltaan täsmälleen yhtä
- * korkea kuin ennen. */
+ * Mitattuna palkin maksimi 22 px -> 35 px -> 44 px -> 52 px; viimeinen
+ * askel on puuskahunnun poistama tila, ks. TL_PALKKI_H.
+ *
+ * TIKKI ON 22 -> 16 px JA PALKKI 12 -> 10 px, jotta sama jakso vaatisi
+ * vähemmän raahausta. Mitattuna viikon päähän: 3 934 px -> 2 926 px eli
+ * kymmenestä ruudullisesta seitsemään ja puoleen. Palkkien väli kapenee
+ * 10 -> 6 px, eli rivi tiivistyy mutta palkit pysyvät erillisinä.
+ * LEVEYS JA VÄLI KUULUVAT YHTEEN: jos muutat toista, tarkista että
+ * vierekkäiset tunnit eivät sula yhdeksi juovaksi. Tikin puolikas
+ * (`TL_TIKKI_PUOLI`) on keskityslaskujen ainoa lähde — se oli ennen
+ * kirjoitettu neljään paikkaan lukuina 12, 12, 11 ja 10, joista kaksi
+ * viimeistä olivat jo valmiiksi eri mieltä kahden ensimmäisen kanssa. */
 .htick {
-  flex: 0 0 22px; display: flex; flex-direction: column; align-items: center;
+  flex: 0 0 16px; display: flex; flex-direction: column; align-items: center;
   justify-content: flex-end; height: 100%;
   -webkit-user-select: none; user-select: none; cursor: pointer;
   position: relative; padding-bottom: 2px;
@@ -1448,54 +1467,31 @@ html.tl-kisko-piilossa #tl-paivat {
  * keskikaistan (10 m/s, 98,115,0) palkeille terävän reunan hiekkaa
  * vasten. Kirkkailla ja tummilla väreillä se ei näy. */
 .htick-bar {
-  width: 12px; border-radius: 3px 3px 0 0; min-height: 3px;
+  width: 10px; border-radius: 3px 3px 0 0; min-height: 3px;
   box-shadow: inset 0 0 0 1px rgba(16,26,32,.16);
   transition: opacity 0.15s;
 }
 .htick.past .htick-bar { opacity: 0.4; }
 .htick:active .htick-bar { opacity: 0.7; }
 
-/* PUUSKA ON VYÖHYKE TUULIPALKIN PÄÄLLÄ, EI OMA PALKKINSA.
+/* PUUSKAHUNTU POISTETTIIN — PALKKI SAI SEN TILAN.
  *
- * Sama päätös ja samat sävyt kuin havaintokaaviossa (ks. docs/ui.md,
- * "Kaavio: neljä suuretta, yksi akseli"): kaksi kilpailevaa muotoa
- * samalla akselilla luetaan kahdeksi sarjaksi, mutta vyöhyke luetaan
- * yhdeksi asiaksi jonka PAKSUUS on puuskaisuus — juuri se mitä foilaaja
- * lukee. Yläreunan viiva kertoo puuskan huipun ilman että se irtoaa
- * omaksi käyräkseen.
+ * Tikissä oli tuulipalkin yläpuolella ylöspäin häviävä muste-huntu, jonka
+ * KORKEUS oli puuskan ja tuulen korkeusero (katto 11 px) ja ALFA
+ * puuska/tuuli-suhde. Esitystapa oli mitattu ja kalibroitu kahdesti —
+ * ensin täytettynä vyöhykkeenä, sitten huntuna — mutta se oli koko ajan
+ * toinen muoto samalla akselilla, ja se näkyi 85 %:ssa tunneista
+ * (Itämerellä puuska/tuuli-suhteen mediaani on 1,41). Rivi luki kahtena
+ * sarjana siitä riippumatta kuinka hiljaiseksi toinen niistä viritettiin.
  *
- * Vyöhyke on neutraali liuska eikä ramppiväri: ramppiväri tarkoittaa
- * nopeutta, ja puuskan oma ramppiväri tekisi palkin yläosasta toisen
- * nopeuslukeman jota verrattaisiin alaosaan. */
-/* PUUSKA ON HUNTU, EI PALKKI.
+ * Huntu vei palkilta myös TILAN: sen katto oli 11 px palkin yläpuolella,
+ * joten palkin täysi mitta ei mahtunut kasvamaan nauhan 61 pikselissä.
+ * Poiston jälkeen täysi mitta on 44 -> 52 px (ks. TL_PALKKI_H).
  *
- * Täytetty vyöhyke kasvoi asteikon mukana: mitattuna se näkyi 85 %:ssa
- * tunneista, mediaani 7,4 px ja MAKSIMI 25,1 px eli 71 % koko
- * palkkiasteikosta. Se ei ollut enää merkintä vaan toinen palkki.
- *
- * Kynnyksen nosto ei auta: puuska/tuuli-suhteen mediaani on 1,41, eli
- * Itämerellä lähes jokainen tunti on puuskainen. Esitystavan oli
- * kevennyttävä.
- *
- * Nyt se on ylöspäin häviävä huntu ilman reunaviivaa, ja sen korkeus on
- * katkaistu (ks. TL_PUUSKA_KATTO). Tasainen tunti saa terävän palkin,
- * puuskainen pehmeän — ja kumpikaan ei vie tilaa palkilta.
- *
- * Huntu piirtyy palkin YLÄPUOLELLE eli uran pintaan, ei palkin päälle.
- * Siksi sen sävy seuraa uraa eikä palkkia: tummalla uralla se oli
- * valkoinen, hiekkauralla sen on oltava mustetta. Sama tieto,
- * käänteinen keino — kuten yökaistalla. */
-.htick-gust {
-  position: absolute; left: 50%; transform: translateX(-50%);
-  width: 12px;
-  /* Alfa ei ole sama luku kuin tummalla uralla vaan sama VAIKUTUS.
-     Valkoinen .22 tumman uran (45,57,63) päällä antoi hunnun ja uran
-     eroksi 2,0:1; muste .26 hiekan päällä olisi 1,4:1 eli huntu olisi
-     hiljaa kadonnut mukana. .34 palauttaa saman 2,0:1. */
-  background: linear-gradient(to top, rgba(16,26,32,.34), rgba(16,26,32,0));
-  pointer-events: none;
-}
-.htick.past .htick-gust { opacity: 0.4; }
+ * Puuska ei kadonnut sovelluksesta: se on kapselin oma rivi
+ * (`#kap-puuska`, tunnin luku lähimmästä rajapintapisteestä) ja
+ * spottikortin kaavion vyöhyke. Älä palauta sitä tuntinauhaan — palkki
+ * kantaa nyt sen tilan. */
 
 /* VALOKAISTA — mitkä tunnit ovat pimeitä.
  *
@@ -20123,7 +20119,7 @@ function updateTimelineToCenter() {
   if (m && m.times === h.time && m.speeds === sp && m.dirs === h.winddirection_10m
       && m.activeIdx === idx && m.lat === p.lat && m.lng === p.lng) return;
   renderTimeline(h.time, sp, h.winddirection_10m, idx,
-    { puuskat: h.windgusts_10m, lat: p.lat, lng: p.lng });
+    { lat: p.lat, lng: p.lng });
 }
 
 /* VALITTU HETKI SÄILYY VAIKKA AIKA-AKSELI VAIHTUU.
@@ -20174,7 +20170,19 @@ function nowIdx(times) {
  * vaihtuessa aikaleimat ovat samat — kaikki ennustepisteet tulevat samasta
  * mallista samalla tuntiruudukolla — ja vain palkin korkeus ja väri
  * muuttuvat. Silloin 370 elementin uudelleenluonti on turhaa työtä. */
-const TL_TIKKI_LEV = 22;   /* sama kuin .htick flex-basis */
+/* TIKIN LEVEYS — SAMA KUIN `.htick`in flex-basis, JA KESKITYKSEN AINOA
+   LÄHDE. Tikki kapeni 22 -> 16 px, koska aikajanan vika on matka: viikon
+   päähän oli 3 934 px eli kymmenen ruudullista raahausta. Kapeampi tikki
+   on suora alennus siihen (2 926 px, 7,5 ruudullista) eikä maksa
+   tarkkuudesta mitään — tuntiaskel on yhä tuntiaskel.
+
+   Puolikas luetaan TÄSTÄ. Se oli ennen kirjoitettu neljään paikkaan
+   lukuina (`_fracFromScroll` 12, `_tlCommitSelection` 12, `_playSijainti`
+   11, `scrollTimelineTo` 10), joista kaksi jälkimmäistä olivat jo
+   valmiiksi eri mieltä kuin kaksi ensimmäistä — eli play ja pehmeä
+   vieritys keskittivät tikin pikselin tai kaksi eri kohtaan kuin sormi. */
+const TL_TIKKI_LEV = 16;
+const TL_TIKKI_PUOLI = TL_TIKKI_LEV / 2;
 /* PALKIN ASTEIKKO ON KIINTEÄ, EI SARJAKOHTAINEN.
  *
  * Ennen korkeus skaalattiin sarjan omaan maksimiin. Se teki palkeista
@@ -20200,7 +20208,31 @@ const TL_TIKKI_LEV = 22;   /* sama kuin .htick flex-basis */
  * Kovan tuulen väli 14–20 m/s menetti korkeuseron kokonaan — se on
  * juuri se väli jossa ero ei muuta mitään, koska sinne ei mennä. */
 const TL_PALKKI_TAYSI_MS = 14;
-const TL_PALKKI_H = 44;
+/* KORKEUS 44 -> 52 px, JA SE ON PUUSKAHUNNUN JÄTTÄMÄ TILA.
+ *
+ * Huntu istui palkin yläpuolella ja sen katto oli 11 px, joten palkin
+ * täysi mitta ei mahtunut kasvamaan: mitattuna (pyyhkäisy tuuli 0-18 m/s
+ * x puuskasuhde 1,0-2,2) korkein maalattu pikseli oli 12 px nauhan
+ * yläreunasta. Palkin oma 44 px jätti sinne 15 px. Kun huntu poistui,
+ * se kaista vapautui palkille.
+ *
+ * MISSÄ RAJA ON. Nauhan 61 pikselistä menee 2 px alalaidan valokaistaan
+ * (`.htick`in padding-bottom), joten palkille jää 59. Yläreunassa on
+ * tuntilukema (`.htick-lbl`), 10 px korkea puhelimessa ja 12 px
+ * työpöydällä, ja se on joka kolmannessa tikissä.
+ *
+ * 52 px vie palkin yläreunan 7 px:n päähän nauhan ylälaidasta, eli
+ * kyllästynyt palkki (yli ~12,9 m/s) menee lukeman laatikon alareunaan
+ * — 5 px korkeammalle kuin huntu koskaan. Se on tietoinen raja eikä
+ * vahinko: lukema piirtyy palkin PÄÄLLE (absoluuttinen sijoitus), sen
+ * numerot istuvat laatikkonsa keskellä, ja mitattuna 9-16 m/s
+ * pyyhkäisyllä yksikään lukema ei jää palkin alle. Parhaan kelin
+ * välillä (<= 11 m/s) väliä on vähintään 15 px kuten ennenkin. Tätä
+ * korkeampi palkki söisi numeron, joten 52 on katto.
+ *
+ * Askel metriä sekunnissa kohti: 4-8 m/s 5,20 px (oli 4,40), 8-11 m/s
+ * 5,55 (4,70). 4 -> 10 m/s on nyt 32 px ero (oli 27). */
+const TL_PALKKI_H = 52;
 
 /* ASTEIKKO ON EPÄLINEAARINEN, JA SE ON TIETOINEN VALINTA.
  *
@@ -20234,45 +20266,6 @@ function _tlPalkkiPx(ms) {
   return Math.max(3, _tlPalkkiOsuus(ms) * TL_PALKKI_H);
 }
 
-/* Puuskahunnun mitat, tai null jos huntua ei piirretä.
- *
- * KATTO 9 px. Mitattuna hunnun korkeus oli mediaani 7,4 px, p90 11,4 px
- * ja max 25,1 px — ja juuri se häntä teki siitä toisen palkin. Katto
- * leikkaa ylimmän kymmenyksen, ja ne tunnit lukevat silti "niin
- * puuskaista kuin tämä menee". Sama periaate kuin palkin omassa
- * korkeudessa, joka kyllästyy kuudessatoista metrissä.
- *
- * Kynnys on 0,6 m/s: sitä pienempi ero on hunnussa näkymätön, ja
- * elementti joka ei näy on turha solmu. */
-const TL_PUUSKA_KATTO = 11;
-/* KYLLÄSTYNEELLÄ PALKILLA HUNTU EI SAA KADOTA. Kun sekä tuuli että
-   puuska ovat yli katon (14 m/s), molempien korkeus on sama ja erotus
-   nolla — eli myrskyssä, jossa puuskaisuus on tärkeintä, huntu olisi
-   hävinnyt kokonaan. Korkeus ei silloin kerro määrää eikä yritäkään:
-   se on kiinteä 3 px ja tieto on alfassa, samalla periaatteella kuin
-   katon sitoessa muutenkin. */
-const TL_PUUSKA_MIN_TAYDESSA = 3;
-function _tlPuuskaTyyli(ms, puuska) {
-  if (puuska == null || !(puuska > ms + 0.6)) return null;
-  const alaPx = _tlPalkkiPx(ms), ylaPx = _tlPalkkiPx(puuska);
-  const kork = Math.min(TL_PUUSKA_KATTO,
-    Math.max(ylaPx - alaPx, ms >= TL_PALKKI_TAYSI_MS ? TL_PUUSKA_MIN_TAYDESSA : 0));
-  if (!(kork > 1)) return null;
-  /* KATTO SITOO USEIMMAT, joten korkeus yksin ei enää erottele kuinka
-     puuskaista on: mitattuna hunnun mediaani on 8,6 px kun katto on 10.
-     Se tieto siirretään kanavaan joka ei vie tilaa — läpinäkyvyyteen.
-     Suhde 1,15 on tuskin havaittava, 1,8 on mitattu p90; siltä väliltä
-     huntu voimistuu. */
-  const suhde = ms > 0.5 ? puuska / ms : 1;
-  const t = Math.max(0, Math.min(1, (suhde - 1.15) / 0.65));
-  const alfa = (0.40 + 0.60 * t).toFixed(2);
-  /* Huntu alkaa PALKIN SISÄLTÄ pikselin verran: muuten palkin yläreunan
-     ja hunnun väliin jää sauma, ja juuri sauma tekee siitä erillisen
-     esineen sen sijaan että se olisi palkin pehmeä yläpää. */
-  return 'bottom:' + (1 + alaPx).toFixed(1) + 'px;height:' + (kork + 1).toFixed(1)
-    + 'px;opacity:' + alfa;
-}
-
 /* VALOVAIHE JOKA TUNNILLE.
  *
  * `Aurinko.korkeus` on suljettu kaava eikä iteroi, joten 403 kutsua on
@@ -20298,7 +20291,7 @@ function _tlValovaiheet(times, lat, lng) {
   return arvot;
 }
 
-function _tlPaivitaPalkit(speeds, puuskat, valo) {
+function _tlPaivitaPalkit(speeds, valo) {
   const tikit = State._tlTicks;
   for (let i = 0; i < tikit.length; i++) {
     const ms = speeds[i] || 0, bc = ColorRamp.paperi(ms);
@@ -20308,14 +20301,6 @@ function _tlPaivitaPalkit(speeds, puuskat, valo) {
     bar.style.height = _tlPalkkiPx(ms) + 'px';
     bar.style.background = 'rgb(' + bc.r + ',' + bc.g + ',' + bc.b + ')';
     bar.classList.toggle('foilable', ms >= 8);
-    /* Vyöhyke luodaan ja poistetaan tarpeen mukaan: tyhjä elementti
-       jokaisessa tikissä olisi 403 turhaa solmua. */
-    const tyyli = puuskat ? _tlPuuskaTyyli(ms, puuskat[i]) : null;
-    let g = tikki.querySelector('.htick-gust');
-    if (tyyli) {
-      if (!g) { g = document.createElement('div'); g.className = 'htick-gust'; tikki.appendChild(g); }
-      g.style.cssText = tyyli;
-    } else if (g) { g.remove(); }
     if (valo) _tlValoLuokka(tikki, valo[i]);
   }
   /* PAIVAEROTTIMET PAIVITETAAN MYOS.
@@ -20337,21 +20322,17 @@ function _tlValoLuokka(el, vaihe) {
   el.classList.toggle('valo-kulta', lk === 'valo-kulta');
 }
 
-/* `lisa` on valinnainen: { puuskat, lat, lng }.
+/* `lisa` on valinnainen: { lat, lng }.
  *
- * Puuskasarja on saatavilla MOLEMMILLA poluilla — rajapinnan spotti-
- * sarjassa ja säälaattavaraston `wxTunneittain`issa — joten vyöhyke
- * toimii joka zoomilla eikä katoa kun keskellä on laattapiste. Sijainti
- * tarvitaan valokaistaan; ilman sitä kaista jätetään piirtämättä eikä
- * arvata. */
+ * Sijainti tarvitaan valokaistaan; ilman sitä kaista jätetään
+ * piirtämättä eikä arvata. Puuskasarja kulki tässä aiemmin mukana
+ * palkin yläpuolista huntua varten — huntu poistettiin, ks.
+ * "PUUSKAHUNTU POISTETTIIN" CSS:ssä. */
 function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
-  /* Puuskakenttä-taso näyttää palkissa JO puuskan. Silloin vyöhykettä ei
-     piirretä: se olisi puuskan yläpuolella oleva puuska. */
-  const puuskat = (lisa && lisa.puuskat && lisa.puuskat !== speeds) ? lisa.puuskat : null;
   const valo = _tlValovaiheet(times, lisa ? lisa.lat : null, lisa ? lisa.lng : null);
   /* Mitä ruudulla nyt on — ks. updateTimelineToCenter. */
   State._tlMuisti = { times: times, speeds: speeds, dirs: dirs, activeIdx: activeIdx,
-    puuskat: puuskat, valo: valo,
+    valo: valo,
     lat: lisa ? lisa.lat : null, lng: lisa ? lisa.lng : null };
   const tl = document.getElementById('tl-scroll');
   /* Nopea tie: sama rakenne kuin ruudulla jo on. Ehtoihin kuuluu myös
@@ -20362,12 +20343,12 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
       && vanhat && vanhat.length === times.length
       && vanhat[0] === times[0] && vanhat[times.length - 1] === times[times.length - 1]
       && State._tlNytIdx === nowIdx(times)) {
-    _tlPaivitaPalkit(speeds, puuskat, valo);
+    _tlPaivitaPalkit(speeds, valo);
     State._tlTimes = times; State._tlSpeeds = speeds; State._tlDirs = dirs;
     _tlBeginSelfScroll();
     requestAnimationFrame(() => {
       const target = State._tlTicks[activeIdx];
-      if (target) _tlSetScrollLeft(tl, target.offsetLeft - tl.offsetWidth / 2 + TL_TIKKI_LEV / 2);
+      if (target) _tlSetScrollLeft(tl, target.offsetLeft - tl.offsetWidth / 2 + TL_TIKKI_PUOLI);
       _tlUpdateNow(activeIdx);
     });
     return;
@@ -20386,11 +20367,10 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
      aikaleimoista, ja nopea polku ajetaan nimenomaan silloin kun ne ovat
      samat. Korostuksen hoitaa `_tlUpdateNow` molemmissa. */
   _tlRakennaPaivat(times);
-  const TICK_W = TL_TIKKI_LEV;
   const DAY = ['Su','Ma','Ti','Ke','To','Pe','La']; let lastDay = -1;
 
   const spacerL = document.createElement('div');
-  spacerL.style.cssText = 'flex:0 0 ' + (window.innerWidth / 2 - TICK_W / 2) + 'px';
+  spacerL.style.cssText = 'flex:0 0 ' + (window.innerWidth / 2 - TL_TIKKI_PUOLI) + 'px';
   tl.appendChild(spacerL);
 
   const realNowIdx = nowIdx(times);
@@ -20431,7 +20411,6 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
     tick.dataset.idx = i;
     const barH = _tlPalkkiPx(ms);
     const foilable = ms >= 8;
-    const puuskaTyyli = puuskat ? _tlPuuskaTyyli(ms, puuskat[i]) : null;
     /* Palkki on YHTÄ väriä ylhäältä alas. Tässä oli aiemmin foilable-tunneille
        oma alleviivaus (alun perin kirkas vihreä tumman teeman merkintä), joka
        mustemigraation jälkeen piirsi vihreän reunan kullanvärisen palkin
@@ -20439,19 +20418,18 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
        97 yksikön väriero palkin sisällä. Merkintä oli myös turha, koska palkin
        oma ramppiväri kertoo nopeuden jo — 8 m/s on siinä vihreä. */
     tick.innerHTML = '<div class="htick-bar' + (foilable ? ' foilable' : '') + '" style="height:' + barH + 'px;background:rgb(' + bc.r + ',' + bc.g + ',' + bc.b + ')"></div>'
-      + (puuskaTyyli ? '<div class="htick-gust" style="' + puuskaTyyli + '"></div>' : '')
       + '<span class="htick-lbl">' + ('0'+hour).slice(-2) + '</span>';
     tl.appendChild(tick);
     State._tlTicks.push(tick);
   }
 
   const spacerR = document.createElement('div');
-  spacerR.style.cssText = 'flex:0 0 ' + (window.innerWidth / 2 - TICK_W / 2) + 'px';
+  spacerR.style.cssText = 'flex:0 0 ' + (window.innerWidth / 2 - TL_TIKKI_PUOLI) + 'px';
   tl.appendChild(spacerR);
 
   requestAnimationFrame(() => {
     const target = State._tlTicks[activeIdx];
-    if (target) _tlSetScrollLeft(tl, target.offsetLeft - tl.offsetWidth / 2 + TICK_W / 2);
+    if (target) _tlSetScrollLeft(tl, target.offsetLeft - tl.offsetWidth / 2 + TL_TIKKI_PUOLI);
     _tlUpdateNow(activeIdx);
   });
 
@@ -20469,6 +20447,12 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
   if (kisko && !kisko._tlBound) {
     kisko._tlBound = true;
     kisko.addEventListener('click', function (e) {
+      /* Raahaus ei ole napautus. Selain lähettää eleen päätteeksi usein
+         myös clickin, ja se osuisi siihen lappuun jonka kohdalla sormi
+         sattui olemaan — ei siihen jonka raahaus jätti osoittimen alle.
+         Kisko hyppäisi siis vielä kerran sen jälkeen kun se oli jo
+         asettunut. */
+      if (_tlKiskoLiikkui) return;
       const el = e.target.closest && e.target.closest('.tl-paiva');
       if (!el || !el.dataset.pv) return;
       _tlValitseIdx(_tlPaivanIdx(Number(el.dataset.pv)));
@@ -20479,13 +20463,94 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
        Lippu nollataan ikkunasta samasta syystä kuin tuntinauhalla —
        kisko rakennetaan uudelleen kesken eleen, jolloin alkuperäinen
        kohde on irronnut DOM:sta eikä tapahtuma enää kupli tänne. */
-    ['pointerdown', 'touchstart'].forEach(function (n) {
-      kisko.addEventListener(n, function () { _tlKiskoKosketusOma = true; }, { passive: true });
+    ['pointerdown', 'touchstart', 'wheel'].forEach(function (n) {
+      kisko.addEventListener(n, function () {
+        /* Käyttäjä voittaa aina, tuntinauhan sanamuodolla: toisto
+           pysähtyy, oman vierityksen merkintä puretaan heti (muuten
+           eleen ensimmäiset ruudut menisivät ohitettuina) ja
+           napautus/raahaus erotellaan. `wheel` on mukana, koska
+           työpöydällä kiskoa vieritetään ilman pointerdownia. */
+        if (State.isPlaying) stopPlay();
+        _tlKiskoOmaScroll = false;
+        if (n === 'wheel') return;
+        _tlKiskoKosketusOma = true;
+        _tlKiskoLiikkui = false;
+      }, { passive: true });
     });
     ['pointerup', 'pointercancel', 'touchend', 'touchcancel'].forEach(function (n) {
       window.addEventListener(n, function () { _tlKiskoKosketusOma = false; },
         { passive: true, capture: true });
     });
+
+    /* ── KISKON RAAHAUS VALITSEE PÄIVÄN, JA SE TAPAHTUU ELEEN AIKANA ──
+     *
+     * Kisko oli nappirivi: valinta tuli vasta napautuksesta, eikä
+     * raahaus tehnyt mitään muuta kuin vieritti lappuja. Tuntinauha
+     * sen sijaan on koko ajan valinnut sen tikin joka on osoittimen
+     * alla — myös kesken eleen. Kaksi eri sopimusta samalla kortilla,
+     * ja päällekkäin: osoitin kulkee molempien läpi.
+     *
+     * Nyt kisko on sama valitsin karkeampana. Keskimmäinen lappu
+     * valitaan jatkuvasti (rAF-kuristettuna, kuten tuntinauhassa), ja
+     * valinta vie tuntinauhan mukanaan — ei päinvastoin, koska sormi
+     * on kiskolla.
+     *
+     * Kellonaika säilyy päivästä toiseen (`_tlPaivanIdx`), paitsi
+     * "Tänään", joka vie nykyhetkeen.
+     *
+     * Kenttä päivitetään eleen aikana KARKEANA (`State._esikatsele`),
+     * kuten tuntinauhan raahauksessa: täysi rakennus jokaisen
+     * päivärajan yli olisi kuusitoista 45 ms:n erää yhdessä heitossa.
+     * Täysi tarkkuus tulee vierityksen pysähtyessä
+     * `_tlCommitSelection`ista — se lukee TUNTINAUHAN sijainnin, joka
+     * on tässä vaiheessa jo viety kohdalleen. */
+    let _kiskoRaf = false, _kiskoAjastin = null;
+    function _kiskoSeuraa() {
+      _kiskoRaf = false;
+      const el = _tlKiskoKeskimmainen(kisko);
+      if (!el || !el.dataset.pv) return;
+      const idx = _tlPaivanIdx(Number(el.dataset.pv));
+      if (idx < 0) return;
+      if (State.isPlaying) stopPlay();
+      if (!_tlSeuraaHetkea(idx)) return;
+      Haptics.selection();
+      const tl2 = document.getElementById('tl-scroll');
+      const kohde = State._tlTicks && State._tlTicks[idx];
+      if (tl2 && kohde) {
+        _tlSetScrollLeft(tl2, kohde.offsetLeft - tl2.offsetWidth / 2 + TL_TIKKI_PUOLI);
+      }
+      if (State._esikatsele) State._esikatsele(idx);
+    }
+    function _kiskoLoppu() {
+      clearTimeout(_kiskoAjastin);
+      _tlKiskoVierii = false;
+      const tl2 = document.getElementById('tl-scroll');
+      if (tl2) _tlCommitSelection(tl2);
+    }
+    kisko.addEventListener('scroll', function () {
+      if (_tlKiskoOmaScroll) return;
+      _tlKiskoVierii = true;
+      _tlKiskoLiikkui = true;
+      /* Heitto on navigointia päivissä, eli juuri se mitä varten kisko
+         on olemassa — se pitää kiskon hereillä samalla tavalla kuin
+         tuntinauhan vieritys. */
+      if (!State.isPlaying && typeof _tlKiskoHerata === 'function') _tlKiskoHerata();
+      if (!_kiskoRaf) { _kiskoRaf = true; requestAnimationFrame(_kiskoSeuraa); }
+      /* Ajastin on varmistus KAHDELLE asialle, ei vain vanhoille
+         selaimille: `_tlKiskoVierii` vaientaa keskityksen koko eleen
+         ajaksi, joten jos `scrollend` jää tulematta, kisko lakkaisi
+         seuraamasta osoitinta pysyvästi. Siksi se ajetaan myös siellä
+         missä `scrollend` on — vain pidemmällä viiveellä, jotta
+         tapahtuma ehtii ensin eikä heitto katkea kesken. */
+      clearTimeout(_kiskoAjastin);
+      _kiskoAjastin = setTimeout(_kiskoLoppu, 'onscrollend' in kisko ? 400 : 140);
+    }, { passive: true });
+    if ('onscrollend' in kisko) {
+      kisko.addEventListener('scrollend', function () {
+        if (_tlKiskoOmaScroll) { _tlKiskoOmaScroll = false; return; }
+        _kiskoLoppu();
+      }, { passive: true });
+    }
   }
 
   if (tl._tlBound) return;
@@ -20526,14 +20591,14 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
     const center = tl.scrollLeft + tl.offsetWidth / 2;
     let best = 0, bestDist = Infinity;
     for (let i = 0; i < ticks.length; i++) {
-      const dist = Math.abs(center - (ticks[i].offsetLeft + 12));
+      const dist = Math.abs(center - (ticks[i].offsetLeft + TL_TIKKI_PUOLI));
       if (dist < bestDist) { bestDist = dist; best = i; }
     }
     /* Suhteellinen sijainti lähimmän tikin ja sen naapurin välillä */
-    const c0 = ticks[best].offsetLeft + 12;
+    const c0 = ticks[best].offsetLeft + TL_TIKKI_PUOLI;
     const nb = center > c0 ? best + 1 : best - 1;
     if (nb < 0 || nb >= ticks.length) return best;
-    const c1 = ticks[nb].offsetLeft + 12;
+    const c1 = ticks[nb].offsetLeft + TL_TIKKI_PUOLI;
     if (c1 === c0) return best;
     const f = (center - c0) / (c1 - c0);
     return best + Math.max(0, Math.min(1, f)) * (nb - best);
@@ -20563,6 +20628,22 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
     _fieldBusy = true; _builtFrac = frac;
     buildWindField(frac, { scrub: true }).then(() => {
       drawColorField();
+      /* KAPSELI SEURAA SORMEA, EI VAHVISTUSHETKEÄ.
+         `buildWindField` jättää tähtäimen ja kapselin päivittämättä kun
+         kutsussa on `scrub`-lippu, ja aiemmin tämä oli koko totuus:
+         raahatessa kartta ja partikkelit liikkuivat mutta kapselin luku
+         jäi siihen hetkeen josta lähdettiin — eli ainoa NUMERO ruudulla
+         oli väärä koko eleen ajan. Sitä varten janaa raahataan.
+         Päivitys tehdään TÄSSÄ eikä tikin vaihtuessa, koska kenttä on
+         juuri valmistunut ja kapseli lukee sitä: tikin kohdalla luku
+         olisi vielä edellisestä kentästä. Kerta per rakennus on myös
+         ainoa kohta jossa on uutta kerrottavaa.
+         Tämä on YKSI paikka kolmen sijaan: play ajaa saman
+         `_previewField`in (`State._esikatsele`), joten sen oma
+         tuntiaskelkohtainen kutsupari poistui — ja samalla kapseli
+         sulaa toistossa kuten kartta eikä hypi tunnin välein. */
+      Crosshair.refresh();
+      WeatherWidget.refresh();
       _fieldBusy = false;
       if (_pendingFrac != null) { const f = _pendingFrac; _pendingFrac = null; _previewField(f); }
     }).catch(() => { _fieldBusy = false; });
@@ -20586,11 +20667,11 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
       _rafPending = false;
       const frac = _fracFromScroll();
       const nearest = Math.round(frac);
-      /* Lukema ja haptiikka tikkiä ylitettäessä — nämä ovat kevyitä */
+      /* Tikin ylitys: haptiikka ja kaikki mikä on sidottu kokonaiseen
+         tuntiin — ks. `_tlSeuraaHetkea`. */
       if (nearest !== State._tlLastTick) {
         Haptics.selection();
-        State._tlLastTick = nearest;
-        _tlUpdateNow(nearest);
+        _tlSeuraaHetkea(nearest);
       }
       /* PÄIVÄKISKO SEURAA JATKUVASTI, ei vasta tikin vaihtuessa: se on
          sama akseli karkeampana, ja rajaus tikkiin tekisi liu'usta
@@ -20627,15 +20708,46 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
     const idx = parseInt(tick.dataset.idx);
     if (isNaN(idx)) return;
     Haptics.selection();
-    tl.scrollTo({ left: tick.offsetLeft - tl.offsetWidth / 2 + TICK_W / 2, behavior: 'smooth' });
-    if (idx !== State.currentHourIdx) {
-      State.currentHourIdx = idx;
-      _tlUpdateNow(idx);
+    tl.scrollTo({ left: tick.offsetLeft - tl.offsetWidth / 2 + TL_TIKKI_PUOLI, behavior: 'smooth' });
+    if (_tlSeuraaHetkea(idx)) {
       buildWindField(idx).then(() => { drawColorField(); resetParticles(); });
-      renderSpots(idx);
-      if (State.sheetSpot) openSheet(State.sheetSpot, idx);
     }
   });
+}
+
+/* SEURAA LIIKKUVAA VALINTAA — sormi janalla, sormi kiskolla, play.
+ *
+ * Kolmella liikkeellä on sama tarve ja EI vahvistushetkeä kesken eleen:
+ * valinta liukuu tikistä toiseen ja kaiken mikä lukee tuntia on
+ * seurattava mukana. Tämä oli ennen kirjoitettu vain `_playSijainti`in,
+ * ja siksi sormella raahatessa päivittyivät vain kartta, partikkelit ja
+ * aikakupla — kapseli, spottimerkit ja spottikortti jäivät siihen
+ * hetkeen josta lähdettiin, kunnes sormi nousi.
+ *
+ * Kenttä EI ole tässä: se on murtoluvun tarkkuudella oma koneistonsa
+ * (`State._esikatsele`), joka päivittää samalla kapselin luvun. Tämä
+ * funktio hoitaa sen mikä on sidottu KOKONAISEEN tuntiin.
+ *
+ * `_tlCommitSelection` ei siis enää löydä muutosta sormen noustua —
+ * `changed` on raahauksen jälkeen epätosi, ja se on oikein: kaikki
+ * tunnin mittainen työ on jo tehty, jäljellä on vain karkean
+ * esikatselun korvaaminen täydellä kentällä.
+ *
+ * Palauttaa true jos tunti vaihtui. */
+function _tlSeuraaHetkea(idx) {
+  /* Vartija lukee MOLEMMAT luvut. `_tlLastTick` yksin ei riitä:
+     `updateTimelineToCenter` siirtää `currentHourIdx`:n akselin
+     vaihtuessa koskematta siihen (`_tlSailytaHetki`), jolloin sama
+     indeksi tarkoittaisi eri hetkeä eikä työtä tehtäisi. */
+  const sama = idx === State.currentHourIdx && idx === State._tlLastTick;
+  State._tlLastTick = idx;
+  if (sama) return false;
+  State.currentHourIdx = idx;
+  State._lastTlHour = idx;
+  _tlUpdateNow(idx);
+  renderSpots(idx);
+  if (State.sheetSpot) openSheet(State.sheetSpot, idx);
+  return true;
 }
 
 /* VALITSE TUNTI SUORAAN — päiväkisko, näppäimistö ja kelihyppy.
@@ -20659,16 +20771,11 @@ function _tlValitseIdx(idx) {
   if (idx === State.currentHourIdx) return false;
   if (State.isPlaying) stopPlay();
   Haptics.selection();
-  State.currentHourIdx = idx;
-  State._lastTlHour = idx;
-  State._tlLastTick = idx;
   const tl = document.getElementById('tl-scroll');
   const kohde = State._tlTicks[idx];
-  if (tl && kohde) _tlSetScrollLeft(tl, kohde.offsetLeft - tl.offsetWidth / 2 + TL_TIKKI_LEV / 2);
-  _tlUpdateNow(idx);
+  if (tl && kohde) _tlSetScrollLeft(tl, kohde.offsetLeft - tl.offsetWidth / 2 + TL_TIKKI_PUOLI);
+  _tlSeuraaHetkea(idx);
   buildWindField(idx).then(function () { drawColorField(); resetParticles(); });
-  renderSpots(idx);
-  if (State.sheetSpot) openSheet(State.sheetSpot, idx);
   return true;
 }
 
@@ -20760,6 +20867,11 @@ function _tlPvNro(d) { return d.getFullYear() * 10000 + d.getMonth() * 100 + d.g
 function _tlRakennaPaivat(times) {
   const kisko = document.getElementById('tl-paivat');
   if (!kisko) return;
+  /* Tyhjennys kutistaa vieritysalueen nollaan ja lähettää
+     scroll-tapahtuman. Merkitään se omaksi, jottei kiskon seuranta
+     valitse akselin ensimmäistä päivää joka kerta kun jana
+     rakennetaan uudelleen. */
+  _tlKiskoOmaAlkaa();
   kisko.innerHTML = '';
   State._tlPaivat = [];
   if (!times || !times.length) return;
@@ -20842,33 +20954,80 @@ function _tlRakennaPaivat(times) {
  *
  * `scrollLeft` kirjoitetaan suoraan eikä `scrollTo`lla samasta syystä
  * kuin ennenkin. */
-let _tlKiskoKosketusOma = false;
+let _tlKiskoKosketusOma = false;   /* sormi kiskolla juuri nyt */
+let _tlKiskoVierii = false;        /* kiskon oma vieritys kesken — myös heitto */
+let _tlKiskoLiikkui = false;       /* tämä ele vieritti kiskoa (ei siis napautus) */
+
+/* KISKON OMA VIERITYS MERKITÄÄN, sama kuvio kuin tuntinauhan
+ * `_tlBeginSelfScroll`illa ja samasta syystä. `_tlKiskoKeskita`
+ * kirjoittaa `scrollLeft`in joka ruudussa ja `_tlRakennaPaivat`
+ * tyhjentää kiskon kokonaan; molemmat lähettävät scroll-tapahtuman, ja
+ * ilman merkintää kiskon oma seuranta luulisi niitä sormeksi ja
+ * valitsisi uudelleen sen minkä juuri asetti — tai akselin ensimmäisen
+ * päivän, koska tyhjennys vie `scrollLeft`in nollaan. */
+let _tlKiskoOmaScroll = false, _tlKiskoOmaScrollT = null;
+function _tlKiskoOmaAlkaa() {
+  _tlKiskoOmaScroll = true;
+  clearTimeout(_tlKiskoOmaScrollT);
+  _tlKiskoOmaScrollT = setTimeout(function () { _tlKiskoOmaScroll = false; }, 300);
+}
+function _tlKiskoAsetaScroll(kisko, x) {
+  if (Math.abs(kisko.scrollLeft - x) < 0.5) return;
+  _tlKiskoOmaAlkaa();
+  kisko.scrollLeft = x;
+}
+
 function _tlKiskoKeskita(frac) {
   const kisko = document.getElementById('tl-paivat');
   const lista = State._tlPaivat;
   if (!kisko || !lista || !lista.length) return;
-  /* Sormi kiskolla: käyttäjä selaa päiviä itse, eikä sitä saa ohjata. */
-  if (_tlKiskoKosketusOma) return;
+  /* Sormi kiskolla: käyttäjä selaa päiviä itse, eikä sitä saa ohjata.
+     Heitto on yhä käyttäjän elettä vaikka sormi on jo noussut, joten
+     seuranta odottaa vierityksen pysähtymistä eikä irrotusta — muuten
+     keskitys kilpailisi momentumin kanssa ja jana nykisi. */
+  if (_tlKiskoKosketusOma || _tlKiskoVierii) return;
   const f = Math.max(0, frac || 0);
   let el = lista[0];
   for (let i = 0; i < lista.length; i++) {
     if (lista[i]._i0 <= f) el = lista[i]; else break;
   }
-  const kohde = el.offsetLeft + el.offsetWidth / 2 - kisko.clientWidth / 2;
-  if (Math.abs(kisko.scrollLeft - kohde) > 0.5) kisko.scrollLeft = kohde;
+  _tlKiskoAsetaScroll(kisko, el.offsetLeft + el.offsetWidth / 2 - kisko.clientWidth / 2);
+}
+
+/* Lappu joka on osoittimen alla juuri nyt — kiskon oma `_fracFromScroll`.
+   Osoitin on kiskon keskellä kuten tuntinauhassakin. */
+function _tlKiskoKeskimmainen(kisko) {
+  const lista = State._tlPaivat;
+  if (!kisko || !lista || !lista.length) return null;
+  const keski = kisko.scrollLeft + kisko.clientWidth / 2;
+  let paras = null, parasEro = Infinity;
+  for (let i = 0; i < lista.length; i++) {
+    const ero = Math.abs(keski - (lista[i].offsetLeft + lista[i].offsetWidth / 2));
+    if (ero < parasEro) { parasEro = ero; paras = lista[i]; }
+  }
+  return paras;
 }
 
 
-/* SAMA KELLONAIKA, ERI PÄIVÄ.
+/* SAMA KELLONAIKA, ERI PÄIVÄ — PAITSI TÄNÄÄN.
  *
  * Napautus vie sen päivän siihen tuntiin jossa ollaan nyt — juuri se mitä
  * päivien vertailu tarkoittaa ("onko lauantaina yhtä kova kuin tänään
  * viideltä"). Vaihtoehdot olisivat olleet vuorokauden alku (klo 00, yön
  * lukema jota kukaan ei katso) tai keskipäivä (mielivaltainen). Jos
- * täsmälleen samaa tuntia ei ole akselilla, otetaan lähin. */
+ * täsmälleen samaa tuntia ei ole akselilla, otetaan lähin.
+ *
+ * TÄNÄÄN ON POIKKEUS, JA SE ON SAMA SÄÄNTÖ TOISESTA PÄÄSTÄ. Lappu lukee
+ * "Tänään" eikä päiväystä, koska se on paluu nykyhetkeen — mutta sama
+ * kellonaika mukanaan se vei vaikkapa kello 03:een kolmen vuorokauden
+ * päästä palattaessa, eli päivään tänään mutta hetkeen jota ei ole
+ * tapahtunut eikä juuri nyt kiinnosta. Nyt se vie NYT-tikkiin, samaan
+ * johon näppäimistön Home vie. Muut päivät säilyttävät kellonajan:
+ * niillä vertailukohta on juuri se tunti josta tultiin. */
 function _tlPaivanIdx(pvNro) {
   const T = State._tlTimes;
   if (!T || !T.length) return -1;
+  if (pvNro === _tlPvNro(new Date())) return nowIdx(T);
   const nyk = new Date(T[Math.max(0, Math.min(T.length - 1, Math.round(State.currentHourIdx || 0)))]);
   const tunti = nyk.getHours();
   let paras = -1, parasEro = Infinity;
@@ -20966,18 +21125,15 @@ function _tlCommitSelection(tl) {
   const center = tl.scrollLeft + tl.offsetWidth / 2;
   let bestIdx = 0, bestDist = Infinity;
   for (let i = 0; i < ticks.length; i++) {
-    const dist = Math.abs(center - (ticks[i].offsetLeft + 12)); /* 12 = TICK_W/2 */
+    const dist = Math.abs(center - (ticks[i].offsetLeft + TL_TIKKI_PUOLI));
     if (dist < bestDist) { bestDist = dist; bestIdx = i; }
   }
   State._tlOhjelmallinen = false;
-  const changed = bestIdx !== State.currentHourIdx;
-  State.currentHourIdx = bestIdx;
-  State._lastTlHour = bestIdx;
-  if (changed) {
-    _tlUpdateNow(bestIdx);
-    renderSpots(bestIdx);
-    if (State.sheetSpot) openSheet(State.sheetSpot, bestIdx);
-  }
+  /* Sama seuranta kuin eleen aikana. Raahauksen jälkeen tämä on
+     epätosi — tunti on jo seurattu sormen alla — ja silloin jäljellä on
+     vain karkean esikatselun korvaaminen täydellä kentällä. Snäppäys voi
+     silti pysähtyä naapuritikkiin, ja se haara kulkee tästä. */
+  const changed = _tlSeuraaHetkea(bestIdx);
   /* Täystarkka kenttä ajetaan kun tunti vaihtui TAI kun raahaus on jättänyt
      karkean esikatselun ruudulle.
 
@@ -21000,7 +21156,7 @@ function scrollTimelineTo(idx) {
      pelkkää työtä, joka tehdään uudelleen heti kun vieritys pysähtyy. */
   State._tlOhjelmallinen = true;
   const target = State._tlTicks[idx];
-  tl.scrollTo({ left: target.offsetLeft - tl.offsetWidth / 2 + 10, behavior: 'smooth' });
+  tl.scrollTo({ left: target.offsetLeft - tl.offsetWidth / 2 + TL_TIKKI_PUOLI, behavior: 'smooth' });
 }
 
 /* Vie jana ja kenttä murtolukusijaintiin. Sama funktio ajetaan joka
@@ -21011,28 +21167,12 @@ function _playSijainti(tl, frac) {
   const i = Math.max(0, Math.min(ticks.length - 2, Math.floor(frac)));
   const t0 = ticks[i], t1 = ticks[i + 1];
   const x = t0.offsetLeft + (t1.offsetLeft - t0.offsetLeft) * (frac - i);
-  _tlSetScrollLeft(tl, x - tl.offsetWidth / 2 + 11);
+  _tlSetScrollLeft(tl, x - tl.offsetWidth / 2 + TL_TIKKI_PUOLI);
 
-  const lahin = Math.round(frac);
-  if (lahin !== State._tlLastTick) {
-    State._tlLastTick = lahin;
-    State.currentHourIdx = lahin;
-    State._lastTlHour = lahin;
-    _tlUpdateNow(lahin);
-    renderSpots(lahin);
-    /* Kapseli ja tähtäin päivittyvät VAIN täältä playn aikana.
-       Muualla ne seuraavat buildWindFieldia, mutta se kutsutaan playssa
-       aina scrub-lipulla — ja scrub jättää ne tarkoituksella päivittämättä,
-       jotta sormea seuratessa ei tehtäisi turhaa työtä joka ruudussa.
-       Playlla ei ole sormea eikä vahvistushetkeä, joten ilman tätä kapselin
-       tuuli, suunta, puuska ja lämpötila jäätyivät koko toiston ajaksi
-       vaikka kartta ja aikakupla etenivät.
-       Kerran tuntiaskelta kohti, ei joka ruudussa: molemmat lukevat valmista
-       tekstuuria eivätkä hae verkosta, mutta turhaa työtä ei silti tehdä. */
-    Crosshair.refresh();
-    WeatherWidget.refresh();
-    if (State.sheetSpot) openSheet(State.sheetSpot, lahin);
-  }
+  /* Sama seuranta kuin sormella raahatessa — ks. `_tlSeuraaHetkea`.
+     Kapseli ja tähtäin eivät ole täällä: ne päivittyvät esikatselun
+     mukana (`_previewField`), eli samasta kentästä jota ne lukevat. */
+  _tlSeuraaHetkea(Math.round(frac));
   if (State._esikatsele) State._esikatsele(frac);
 }
 
@@ -23435,7 +23575,7 @@ const KarttaAsetukset = {
       rakennaNippuVarit();
       buildLegend();
       const m = State._tlMuisti;
-      if (m) _tlPaivitaPalkit(m.speeds, m.puuskat, m.valo);
+      if (m) _tlPaivitaPalkit(m.speeds, m.valo);
       this._piirraLampokartta();
 
     } else if (avain === 'lampo') {
@@ -23473,7 +23613,7 @@ document.getElementById('layers').addEventListener('click', e => {
     const idx = _tlSailytaHetki(ref.wx.hourly);
     if (idx !== State.currentHourIdx) State.currentHourIdx = idx;
     renderTimeline(t, sp, ref.wx.hourly.winddirection_10m, idx,
-      { puuskat: ref.wx.hourly.windgusts_10m, lat: ref.lat, lng: ref.lng });
+      { lat: ref.lat, lng: ref.lng });
   }
 }, { passive: true });
 
@@ -23616,7 +23756,7 @@ function _naytaValimuististaHeti() {
   const sp = State.activeLayer === 'gust'
     ? (h.windgusts_10m || h.windspeed_10m) : h.windspeed_10m;
   renderTimeline(h.time, sp, h.winddirection_10m, ni,
-    { puuskat: h.windgusts_10m, lat: ref.lat, lng: ref.lng });
+    { lat: ref.lat, lng: ref.lng });
   renderSpots(ni);
   buildWindField(ni).then(() => { drawColorField(); resetParticles(); hideLoading(); });
   return ts;
@@ -23728,7 +23868,7 @@ async function main() {
         const layer = State.activeLayer;
         const sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m;
         renderTimeline(ref.wx.hourly.time, sp, ref.wx.hourly.winddirection_10m, ni,
-          { puuskat: ref.wx.hourly.windgusts_10m, lat: ref.lat, lng: ref.lng });
+          { lat: ref.lat, lng: ref.lng });
         renderSpots(ni);
         buildWindField(ni).then(() => { drawColorField(); resetParticles(); hideLoading(); });
       } else {
@@ -23756,7 +23896,7 @@ async function main() {
         const layer0 = State.activeLayer;
         const sp0 = layer0 === 'gust' ? (h.windgusts_10m || h.windspeed_10m) : h.windspeed_10m;
         renderTimeline(h.time, sp0, h.winddirection_10m, ni0,
-          { puuskat: h.windgusts_10m, lat: ref.lat, lng: ref.lng });
+          { lat: ref.lat, lng: ref.lng });
         hideLoading();
       }
       const ni = State.currentHourIdx;

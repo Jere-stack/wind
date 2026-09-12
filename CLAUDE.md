@@ -130,7 +130,8 @@ kokeiltu ja kaadettu mittauksella.
   siivous: väriliuska pois ja neljä kahdennusta · Sateen värit:
   strategia ja se mitä siitä on jo tehty · Aikajana: korkeammat palkit,
   matalampi kisko, keskitetty päiväys · Laaja näkymä: yksi kuori,
-  kolme kaaviota · Aikajana: päiväys paikalleen, yö kaistaksi
+  kolme kaaviota · Aikajana: päiväys paikalleen, yö kaistaksi ·
+  Aikajana: huntu pois, tikki kapeammaksi, kisko valitsimeksi
 
 </details>
 
@@ -241,8 +242,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   voimakkuus on pidetty samana joka kerta: musta .34 tummalla uralla
   1,35:1, `76,89,96` .24 hiekkauralla 1,35:1, ja kortin paperilla sama
   .24 olisi 1,40:1 — eli uran poisto olisi vahingossa äänekkäämpi yö.
-  Nyt .20/.129/.060 antaa 1,32:1. Puuskahuntu on samasta syystä muste
-  .34 eikä valkoinen .22. Jos vaihdat alustaa, laske alfat uudelleen.
+  Nyt .20/.129/.060 antaa 1,32:1. Jos vaihdat alustaa, laske alfat
+  uudelleen. (Puuskahuntu oli samasta syystä muste .34 eikä valkoinen
+  .22; huntu on poistettu, ks. alempaa.)
 - **Päivälapuissa EI ole tuulikaistaa.** Kokeiltiin ja mitattiin
   toimivaksi (väri ja leveys sen päivän kovimmasta tuulesta valoisaan
   aikaan), mutta poistettiin: kahdeksantoista väripilkkua yhdellä
@@ -252,9 +254,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   näyte osuu palkkiin, yökaistaan, NYT-osoittimeen tai napin varjoon —
   ja väittää sitten että sama paperi on eri väristä eri kohdissa.
 - **Palkin korkeusasteikko on EPÄLINEAARINEN** (4–14 m/s levennetty) ja
-  täysi mitta on 35 px. Korkeus on muoto, väri on arvo. Älä palauta
-  lineaarista: se antaa 1,38 px/(m/s) ja peräkkäisten tuntien tyypillinen
-  ero on 0,2 m/s eli alle puoli pikseliä.
+  täysi mitta on 52 px (`TL_PALKKI_H`). Korkeus on muoto, väri on arvo.
+  Älä palauta lineaarista: se antaa 1,38 px/(m/s) ja peräkkäisten
+  tuntien tyypillinen ero on 0,2 m/s eli alle puoli pikseliä.
 - **`ColorRamp.rgb()` on kartalle, `ink()` paneeleihin.** Ne kulkevat
   vastakkaisiin suuntiin kirkkaudessa. Muste ei ole värisokeusturvallinen eikä
   sen tarvitse olla — paneelissa väri on aina luvun vieressä.
@@ -428,27 +430,49 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   0,5 m/s rajan, ja 94 % minuuteista renderöityisi identtisesti.
   10 min veisi +7 vrk raahauksen 10 ruudullisesta 60:een.
   Aikajanan vika oli navigointi, ja se on `#tl-paivat`.
-- **Palkin korkeus on KIINTEÄLLÄ asteikolla (14 m/s = täysi, 44 px).**
+- **Palkin korkeus on KIINTEÄLLÄ asteikolla (14 m/s = täysi, 52 px).**
   Sarjakohtainen maksimi teki palkeista vertailukelpoisia vain sarjan
   sisällä, ja sarja vaihtuu joka kartansiirrolla: mitattuna 7,67 m/s oli
   14,1 px ja 8,40 m/s 13,4 px. Älä palauta `maxMs`-skaalausta.
-- **KATTO ON 14 m/s, EI 16, ja korkeus 44 px, ei 35.** Molemmat
+- **KATTO ON 14 m/s, EI 16, ja korkeus 52 px, ei 35 eikä 44.** Molemmat
   palvelevat erottelua siellä missä päätös tehdään: väli 4–11 m/s sai
-  4,4–4,7 px metriä sekunnissa kohti (ennen 2,6–3,1), ja 4 → 10 m/s on
-  nyt 27 px ero (ennen 17). Yli neljäntoista väli menetti korkeuseron
-  kokonaan — se on tarkoitus, siellä ei valita keliä vaan kokoa, ja väri
-  jatkaa kyllästymisen jälkeen.
-- **PUUSKAHUNTU EI SAA KADOTA KYLLÄSTYNEELLÄ PALKILLA.** Kun sekä tuuli
-  että puuska ovat yli katon, korkeuksien erotus on nolla — eli
-  myrskyssä, jossa puuskaisuus on tärkeintä, huntu häviäisi. Silloin
-  korkeus on kiinteä 3 px eikä yritäkään kertoa määrää; tieto on
-  alfassa, kuten muutenkin katon sitoessa.
+  5,2–5,6 px metriä sekunnissa kohti (35 px:llä 2,6–3,1, 44 px:llä
+  4,4–4,7), ja 4 → 10 m/s on nyt 32 px ero (ennen 27 ja sitä ennen 17).
+  Yli neljäntoista väli menetti korkeuseron kokonaan — se on tarkoitus,
+  siellä ei valita keliä vaan kokoa, ja väri jatkaa kyllästymisen
+  jälkeen.
+- **PUUSKAHUNTU ON POISTETTU, JA PALKKI SAI SEN TILAN.** Palkin päällä
+  oli ylöspäin häviävä muste-huntu (korkeus = puuskan ja tuulen ero,
+  katto 11 px; alfa = puuska/tuuli-suhde). Se oli mitattu ja kalibroitu
+  kahdesti — täytettynä vyöhykkeenä ja sitten huntuna — mutta se oli
+  koko ajan toinen muoto samalla akselilla ja näkyi 85 %:ssa tunneista,
+  koska puuska/tuuli-suhteen mediaani on Itämerellä 1,41. Esitystavan
+  keventäminen ei riittänyt; tieto on nyt kapselin puuskarivillä ja
+  spottikortin kaavion vyöhykkeessä. Poisto vapautti 11 px, ja palkki
+  kasvoi 44 → 52. Älä palauta huntua — sille ei ole enää tilaa, ja
+  palkin korkeus olisi pudotettava takaisin.
+- **TIKKI ON 16 px JA PALKKI 10 px, JA PUOLIKAS LUETAAN
+  `TL_TIKKI_PUOLI`:STA.** Tikki kapeni 22 → 16, koska aikajanan vika on
+  matka: viikon päähän oli mitattuna 3 934 px eli kymmenen ruudullista,
+  nyt 2 926 px eli 7,5 (näkyviä tunteja 17 → 23). Palkkien väli on
+  6 px — leveys ja väli kuuluvat yhteen, ks. `.htick`. Keskityksen
+  puolikas oli ennen kirjoitettu neljään paikkaan lukuina (12, 12, 11,
+  10), joista kaksi oli jo valmiiksi eri mieltä kahden muun kanssa.
 - **KORTIN KORKEUS ON SUMMA, EI YKSI LUKU.** `#tl-wrap` on
   `97px + var(--tl-paivat-h) + var(--sab-tl)`, ja tuntinauha saa siitä
-  sen mikä jää täytteiden jälkeen (61 px). Palkkia ei voi kasvattaa
-  koskematta siihen 97:ään. Kisko 40 -> 30 ja nauha 52 -> 61 pitivät
-  hereillä olevan kortin ennallaan (128 -> 127); levossa se kasvoi
-  88 -> 97, ja se on korkeampien palkkien väistämätön hinta.
+  sen mikä jää täytteiden jälkeen (61 px). Kisko 40 -> 30 ja nauha
+  52 -> 61 pitivät hereillä olevan kortin ennallaan (128 -> 127);
+  levossa se kasvoi 88 -> 97. **Palkin kasvattaminen vaatii joko sen
+  97:n tai tilan josta se on pois.** 44 -> 52 on jälkimmäistä: tila
+  tuli puuskahunnun poistosta eikä kortti muuttunut pikseliäkään
+  (mitattu 97 px levossa ennen ja jälkeen). **52 on katto, ja rajan
+  asettaa tuntilukema.** Yläreunaan jää 7 px, ja `.htick-lbl` on 10 px
+  korkea puhelimessa ja 12 px työpöydällä: kyllästynyt palkki (yli
+  ~12,9 m/s) menee siis lukeman laatikon alareunaan — mitattuna 5 px
+  korkeammalle kuin mikään maalasi ennen (korkein pikseli oli huntu,
+  12 px nauhan yläreunasta). Se on hyväksytty, koska lukema piirtyy
+  palkin PÄÄLLE ja numerot istuvat laatikkonsa keskellä; sitä korkeampi
+  palkki söisi numeron.
 - **YÖ ON 2 px KAISTA TIKIN ALALAIDASSA, EI KOKO KORKEUDEN HARSO.**
   Harso (`rgba(76,89,96,.20)` + kaksi astetta) oli mitattu ja
   kalibroitu, mutta se oli rivin suurin muoto ja häiritsi lukemista.
@@ -540,8 +564,46 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   siirrä tuntiriviä eikä nappeja pikseliäkään (mitattu 0 px, kortti
   128 → 88). Jos erotat luvut, ne ajautuvat erilleen ensimmäisessä
   säädössä.
-- **Aikajanan valinta kulkee `_tlValitseIdx`:n kautta** (päiväkisko,
-  näppäimistö, kelihyppy). Älä kirjoita neljättä polkua.
+- **Aikajanan valinta kulkee `_tlValitseIdx`:n kautta** (päiväkiskon
+  napautus, näppäimistö, kelihyppy). Älä kirjoita neljättä polkua.
+- **LIIKKUVA VALINTA KULKEE `_tlSeuraaHetkea`:N KAUTTA.** Sormi
+  tuntinauhalla, sormi päiväkiskolla ja play liikuttavat valintaa ILMAN
+  vahvistushetkeä, ja kaikki tuntiin sidottu (aikakupla, päiväkorostus,
+  sadekerros, spottimerkit, spottikortti, `currentHourIdx`) on
+  päivitettävä matkan varrella. Tämä oli ennen kirjoitettu vain
+  `_playSijainti`in, ja siksi raahatessa liikkuivat vain kartta,
+  partikkelit ja kupla — mitattuna kapseli ja `currentHourIdx` eivät
+  muuttuneet pikseliäkään ennen kuin sormi nousi. Myös `_tlValitseIdx`
+  ja `_tlCommitSelection` kutsuvat sitä, joten `changed` on raahauksen
+  jälkeen epätosi: silloin jäljellä on VAIN karkean esikatselun
+  korvaaminen täydellä kentällä. Vartija lukee sekä `currentHourIdx`:n
+  että `_tlLastTick`in — `updateTimelineToCenter` siirtää edellistä
+  koskematta jälkimmäiseen.
+- **KAPSELI SEURAA SORMEA `_previewField`istä, EI TIKIN VAIHDOSTA.**
+  `buildWindField` ohittaa `Crosshair`in ja `WeatherWidget`in
+  `scrub`-lipulla, joten päivitys on siinä kohdassa jossa karkea kenttä
+  juuri valmistui — kapseli lukee sitä kenttää. Tikin kohdalla luku
+  olisi vielä edellisestä kentästä. Play käyttää samaa `_previewField`iä
+  (`State._esikatsele`), joten sillä ei ole enää omaa kutsuparia.
+- **PÄIVÄKISKO ON RAAHATTAVA VALITSIN, EI NAPPIRIVI.** Kiskon vieritys
+  valitsee osoittimen alla olevan päivän jatkuvasti, myös sormen ollessa
+  kiinni — sama sopimus kuin tuntinauhalla, jonka kanssa se on
+  päällekkäin. Kolme asiaa pitävät sen erossa itsestään: kiskon oma
+  `scrollLeft`-kirjoitus merkitään (`_tlKiskoAsetaScroll`,
+  `_tlKiskoOmaAlkaa`) eikä `_tlRakennaPaivat`in tyhjennys siis valitse
+  akselin ensimmäistä päivää; `_tlKiskoKeskita` vaikenee koko eleen ajan
+  (`_tlKiskoVierii` kattaa myös heiton, ei vain sormen); ja raahauksen
+  perään tuleva click ohitetaan (`_tlKiskoLiikkui`), muuten kisko
+  hyppäisi vielä kerran sormen alla olleeseen lappuun. Kenttä
+  päivitetään eleen aikana KARKEANA ja täysi tarkkuus tulee
+  `_tlCommitSelection`ista, joka lukee tuntinauhan sijainnin.
+- **"TÄNÄÄN" VIE NYKYHETKEEN, MUUT PÄIVÄT SÄILYTTÄVÄT KELLONAJAN.**
+  `_tlPaivanIdx` palauttaa tämän päivän kohdalla `nowIdx`in. Sama
+  kellonaika olisi vienyt paluussa esimerkiksi kello 03:een, eli
+  päivään tänään mutta hetkeen joka on jo mennyt — ja lappu lukee
+  "Tänään" juuri siksi että se on paluu nykyhetkeen. Muilla päivillä
+  kellonaika on vertailun koko pointti ("onko lauantaina yhtä kova kuin
+  tänään viideltä").
 - **Päiväkiskon napautus ei saa käyttää `scrollTimelineTo`a.** Kupla ja
   päiväkorostus päivittyvät VIERITYKSEN mukaan, joten pehmeä animaatio
   kävelee jokaisen välipäivän läpi (mitattu 15 välitilaa ja 1001 ms

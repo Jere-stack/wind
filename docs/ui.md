@@ -518,12 +518,19 @@ turhaa työtä joka ruudussa; vahvistushetki (`_tlCommitSelection`) hoitaa ne.
 **Play kulkee aina scrub-polkua eikä sillä ole vahvistushetkeä**, joten
 ilman erillistä kutsua kapseli jäätyi koko toiston ajaksi. Mitattuna: play
 eteni kahdeksan tuntia, aikakupla ja kartta seurasivat, mutta kapselin
-kaikki neljä lukemaa pysyivät ennallaan. Nyt `_playSijainti` kutsuu
-molemmat kerran tuntiaskelta kohti — ei joka ruudussa, koska ne lukevat
-valmista tekstuuria eivätkä hae verkosta mutta turhaa työtä ei silti tehdä.
+kaikki neljä lukemaa pysyivät ennallaan.
+
+**Korjaus oli ensin `_playSijainti`issa, kerran tuntiaskelta kohti — ja
+se oli väärässä paikassa.** Sormella raahatessa on täsmälleen sama
+ongelma ilman että kyse on playsta, ja se jäi korjaamatta: mitattuna
+sormi liikkui, kartta ja kupla seurasivat, mutta kapseli näytti 4,6 kts
+koko eleen ajan. Kutsu on nyt siinä kohdassa joka on molemmille yhteinen
+— `_previewField`in `then`-haarassa, heti kun karkea kenttä on
+valmistunut. Se on myös oikea hetki: kapseli lukee juuri sitä kenttää,
+joten tikin vaihdosta kutsuttuna luku olisi vielä edellisestä.
 
 **Jos lisäät kapseliin tai tähtäimeen jotain, tarkista molemmat polut:**
-`buildWindField`in ei-scrub-haara *ja* `_playSijainti`. Pelkkä ensimmäinen
+`buildWindField`in ei-scrub-haara *ja* `_previewField`. Pelkkä ensimmäinen
 näyttää toimivan kaikessa käsin tehdyssä testauksessa.
 
 ### Puku ja vesi samasta lähteestä
@@ -4048,3 +4055,207 @@ mustaa vasten laskettu. Toinen versio luki pikselit mutta osui
 osoittimeen ja antoi hämärälle 127,87,111 eli violetin, jota ei ole
 missään paletissa. Kumpikin virhe näkyi siitä että luku ei vastannut
 mitään olemassa olevaa sävyä.
+
+---
+
+## Aikajana: huntu pois, tikki kapeammaksi, kisko valitsimeksi
+
+Viisi pyyntöä samaan korttiin, ja kolme niistä on sama asia eri
+päistä: **eleen aikana pitää tapahtua se mitä ele lupaa.**
+
+### Puuskahuntu pois, palkki 44 → 52 px
+
+Palkin päällä oli ylöspäin häviävä muste-huntu: korkeus puuskan ja
+tuulen korkeusero (katto 11 px), alfa puuska/tuuli-suhde. Se oli
+mitattu ja kalibroitu **kahdesti** — ensin täytettynä vyöhykkeenä
+(*Aikajana: kiinteä asteikko, puuskavyöhyke, valokaista*), sitten
+huntuna kun vyöhyke mitattiin liian isoksi (*Puuskahuntu ja uran reuna*).
+
+Kumpikaan viritys ei korjannut sitä mikä siinä oli pielessä. Huntu näkyi
+**85 %:ssa tunneista**, koska puuska/tuuli-suhteen mediaani on
+Itämerellä 1,41 — se ei siis ollut merkintä poikkeuksista vaan toinen,
+jatkuva muoto samalla akselilla. Rivi luki kahtena sarjana riippumatta
+siitä kuinka hiljaiseksi toinen niistä viritettiin. Palaute oli:
+*"poistetaan palkeista puuskaisuutta kuvaavat harmaat alueet"*.
+
+Puuska ei kadonnut sovelluksesta: se on kapselin oma rivi (tunnin luku
+lähimmästä rajapintapisteestä, ks. *Kapselin puuskarivi katosi*) ja
+spottikortin kaavion vyöhyke, jossa akselia ei tarvitse jakaa kahdelle
+sarjalle.
+
+**Poisto vapautti 11 px, ja se annettiin palkille.** Kortin mitat eivät
+muuttuneet — nauha on yhä 61 px ja kortti levossa 97 px (mitattu ennen
+ja jälkeen):
+
+```
+                    ennen      nyt
+palkin täysi mitta   44 px     52 px
+4– 8 m/s            4,40 px   5,20 px   per m/s
+8–11                4,70      5,55
+4 -> 10 m/s          27 px     32 px    korkeusero
+```
+
+**Katon asettaa tuntilukema, ja raja mitattiin.** Nauha on 61 px ja
+tikin alatäyte (valokaista) 2 px, joten palkille on 59. Yläreunassa on
+`.htick-lbl`, 10 px korkea puhelimessa ja 12 px työpöydällä, joka
+kolmannessa tikissä.
+
+Korkein maalattu pikseli, mitattuna pyyhkäisyllä (tuuli 0–18 m/s ×
+puuskasuhde 1,0–2,2), nauhan yläreunasta:
+
+| | ennen | nyt |
+|---|---|---|
+| korkein maalattu | 12 px (huntu) | **7 px** (kyllästynyt palkki) |
+| palkin oma yläreuna | 15 px | 7 px |
+
+Eli palkki menee nyt **5 px korkeammalle kuin mikään maalasi ennen**, ja
+yli ~12,9 m/s se yltää lukeman laatikon alareunaan. Se on hyväksytty
+eikä huomaamatta jäänyt: lukema on absoluuttisesti sijoitettu ja
+piirtyy siis palkin PÄÄLLE, sen numerot istuvat laatikkonsa keskellä, ja
+9–16 m/s pyyhkäisyllä yksikään lukema ei jää palkin alle. Tätä
+korkeampi palkki söisi numeron, joten 52 on katto.
+
+### Tikki 22 → 16 px
+
+Aikajanan oma vika on **matka**, ei tuntiaskel — se on kirjattu jo
+kahdesti (*Minuuttitarkkuus kaatui mittaukseen*, *Päiväkisko*). Tikin
+kaventaminen on suora alennus siihen eikä maksa tarkkuudesta mitään:
+
+| | ennen | nyt |
+|---|---|---|
+| tikki | 22 px | 16 px |
+| palkki | 12 px | 10 px |
+| palkkien väli | 10 px | 6 px |
+| näkyviä tunteja (390 px) | 17 | **23** |
+| NYT → +7 vrk | 3 934 px | **2 926 px** |
+| ruudullista raahausta | 10 | **7,5** |
+
+Tuntilukema on 10 px leveä ja tulee joka kolmanteen tikkiin, eli
+lukemien väli on 48 px — tiiviimpi rivi ei tihennä asteikkoa.
+
+**Keskityksen puolikas on nyt yksi vakio** (`TL_TIKKI_PUOLI`). Se oli
+kirjoitettu neljään paikkaan lukuina — `_fracFromScroll` 12,
+`_tlCommitSelection` 12, `_playSijainti` 11, `scrollTimelineTo` 10 —
+eli play ja pehmeä vieritys keskittivät tikin eri kohtaan kuin sormi,
+pikselin tai kahden verran. Yhdestä vakiosta tuo ei voi toistua.
+
+### Sormi kiinni, ja kaikki liikkuu
+
+Raahauksen aikana päivittyivät kartta, partikkelit, aikakupla,
+päiväkorostus ja sadekerros — mutta **ei kapseli eikä
+`currentHourIdx`**. Mitattu ennen (sormi alhaalla koko ajan, jana
+liikkui 153 px):
+
+```
+                 ennen        sormi kiinni
+currentHourIdx    50           50        <- ei muuttunut
+kapselin tuuli   4,6 kts      4,6 kts    <- ei muuttunut
+kapselin suunta  150°         150°       <- ei muuttunut
+aikakupla        La 12. 20:00 01:00      muuttui
+```
+
+Eli ainoa NUMERO ruudulla oli väärä koko eleen ajan — ja sitä varten
+janaa raahataan.
+
+Korjaus on kaksiosainen ja molemmat osat POISTAVAT polun:
+
+1. **`_tlSeuraaHetkea(idx)`** on se mikä oli ennen kirjoitettu vain
+   `_playSijainti`in: tunnin vaihtuessa `currentHourIdx`, aikakupla,
+   päiväkorostus, sadekerros, spottimerkit ja spottikortti. Nyt sitä
+   kutsuvat play, tuntinauhan raahaus, kiskon raahaus, tikin napautus,
+   `_tlValitseIdx` ja `_tlCommitSelection`.
+2. **Kapseli päivittyy `_previewField`in `then`-haarasta**, eli siitä
+   hetkestä jolloin karkea kenttä on valmis. Kapseli lukee juuri sitä
+   kenttää, joten tikin vaihdoksesta kutsuttuna luku olisi vielä
+   edellisestä kentästä. Play käyttää samaa esikatselua, joten sen oma
+   kutsupari poistui — ja samalla kapseli sulaa toistossa kuten kartta
+   sen sijaan että hyppäisi tunnin välein.
+
+Mitattu jälkeen, sama ele:
+
+```
+                 ennen        sormi kiinni
+currentHourIdx    50           57
+kapselin tuuli   4,6 kts      5,6 kts
+kapselin suunta  150°         163°
+```
+
+`_tlCommitSelection` löytää sormen noustua `changed === false`, ja se on
+oikein: kaikki tunnin mittainen työ on tehty jo eleen aikana, ja
+jäljelle jää vain karkean esikatselun korvaaminen täydellä kentällä
+(`State._karkeaRuudulla`).
+
+Spottikortti on `_tlSeuraaHetkea`ssa mukana, mutta puhelimessa se ei
+ehdi maksaa mitään: kortti peittää aikajanan kokonaan (mitattu sheet
+y 152…844, jana y 767…828), eli janaa ei voi raahata kortin ollessa
+auki. Playlla polku on sama kuin ennenkin.
+
+### Päiväkisko on raahattava valitsin
+
+Kisko oli nappirivi: valinta tuli vain napautuksesta. Tuntinauha taas on
+aina valinnut sen tikin joka on osoittimen alla, myös kesken eleen —
+kaksi eri sopimusta samalla kortilla ja päällekkäin, koska osoitin
+kulkee molempien läpi. Palaute oli: *"päivämäärän pitäisi valikoitua
+samalla tapaa kuin tuntipylväät"*.
+
+Mitattu ennen, sormi alhaalla ja kisko vedettynä viisi päivää:
+
+```
+kiskon keskimmäinen lappu   Tänään -> Su 13. -> Ti 15. -> To 17. -> Pe 18.
+valittu päivä               Tänään -> Tänään -> Tänään -> Tänään -> Tänään
+currentHourIdx              50 koko ajan
+```
+
+Jälkeen sama ele:
+
+```
+kiskon keskimmäinen lappu   Tänään -> Su 13. -> Ti 15. -> To 17. -> Pe 18.
+valittu päivä               Tänään -> Su 13. -> Ti 15. -> To 17. -> Pe 18.
+kellonaika                  20:00 koko ajan (säilyy päivästä toiseen)
+kapselin tuuli              4,6 -> 6,0 -> 4,6 -> 7,5 -> 9,1 kts
+```
+
+**Kisko sai natiivin snäppäyksen**, samasta syystä kuin tuntinauha:
+ilman sitä heitto jäisi kahden lapun väliin ja `_tlKiskoKeskita`
+vetäisi sen sieltä erikseen — kaksi liikettä yhdestä eleestä. Mitattu
+lapun poikkeama osoittimesta sormen noustua: 0,1 px.
+
+Kolme asiaa pitävät kiskon erossa itsestään, ja jokainen niistä on
+korjaus mitattuun kierteeseen:
+
+- **Oma `scrollLeft`-kirjoitus merkitään** (`_tlKiskoAsetaScroll`,
+  `_tlKiskoOmaAlkaa`). `_tlKiskoKeskita` kirjoittaa sen joka ruudussa ja
+  `_tlRakennaPaivat` tyhjentää kiskon kokonaan; ilman merkintää
+  kartansiirto olisi valinnut akselin ensimmäisen päivän joka kerta kun
+  jana rakennetaan uudelleen. Mitattu kartansiirron jälkeen: valinta ja
+  kiskon sijainti ennallaan (Ti 15., poikkeama 0,3 px).
+- **`_tlKiskoKeskita` vaikenee koko eleen ajan.** Vanha lippu
+  (`_tlKiskoKosketusOma`) nollautui sormen noustessa, mutta heitto
+  jatkuu sen jälkeen — `_tlKiskoVierii` kattaa myös sen ja nollautuu
+  vasta vierityksen pysähtyessä.
+- **Raahauksen perään tuleva click ohitetaan** (`_tlKiskoLiikkui`). Se
+  osuisi siihen lappuun jonka kohdalla sormi sattui olemaan, ei siihen
+  jonka raahaus jätti osoittimen alle.
+
+Kenttä päivitetään eleen aikana karkeana (`State._esikatsele`) kuten
+tuntinauhassakin: täysi rakennus jokaisen päivärajan yli olisi
+kuusitoista 45 ms:n erää yhdessä heitossa. Täysi tarkkuus tulee
+`_tlCommitSelection`ista, joka lukee TUNTINAUHAN sijainnin — kisko on
+jo vienyt sen kohdalleen.
+
+### "Tänään" vie nykyhetkeen
+
+Päivälappu vie muille päiville saman kellonajan, koska vertailu on koko
+pointti ("onko lauantaina yhtä kova kuin tänään viideltä"). Tänään on
+poikkeus, ja se on sama sääntö toisesta päästä: lappu lukee "Tänään"
+eikä päiväystä, koska se on paluu nykyhetkeen — mutta kellonajan
+mukanaan se vei menneisyyteen. Mitattu ennen, kello 03:sta tiistailta
+napautettuna:
+
+```
+ennen   Ti 15. klo 03  ->  tänään klo 03   (17 h menneisyyteen, idx 33)
+nyt     Ti 15. klo 03  ->  NYT-tikki       (idx 50 = _tlNytIdx)
+```
+
+Sama kohde kuin näppäimistön Home-näppäimellä, eli kaksi tapaa palata
+nykyhetkeen osuvat nyt samaan tikkiin.
