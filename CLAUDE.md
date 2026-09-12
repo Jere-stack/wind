@@ -24,8 +24,11 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   mittausdata-proxyt).
   ES-moduuleja, koska
   `package.json`:ssa on `"type": "module"` — `require()` ei toimi näissä.
-- `tools/tiilet.mjs` — säälaattojen rakennus AWS Open Datan ECMWF-datasta.
-  Ajetaan GitHub Actionsissa neljästi vuorokaudessa (`.github/workflows/`).
+- `tools/tiilet.mjs` — säälaattojen rakennus AWS Open Datan ECMWF-datasta
+  ja FMI:n HARMONIE-hilasta. Ajetaan GitHub Actionsissa neljästi
+  vuorokaudessa (`.github/workflows/`).
+- `tools/harmonie.mjs` — FMI HARMONIE 2,5 km hilana GRIB2:sta
+  (`tiilet.mjs`:n toinen lähde, taso `h0`).
 - `tools/suunnat.html` — spottien tuulisuuntien asetustyökalu. `npm run dev`,
   sitten `/tools/suunnat.html`. Ei kuulu tuotantobuildiin. Lukee spotit
   `index.html`:stä ajossa, joten lista ei vanhene.
@@ -103,7 +106,7 @@ kokeiltu ja kaadettu mittauksella.
   Sateen asteikko: FMI:n omat selitteet siltana dBZ:n ja mm/h:n välillä ·
   Spottikortin havaintoasema tuli väärästä listasta ·
   "Miksi Helsingin yllä ei tule FMI:tä" — se tulee, mutta ei sanonut sitä ·
-  Kartan säämalli valittavaksi
+  Kartan säämalli valittavaksi · HARMONIE varastoon ja zoomin välkky
 - **lisadata**: Mistä sovellus lukee nyt · TOP 10 — data · TOP 10 — lähteet ·
   Mitattu ja hylätty (MEPS on HARMONIE · hydrodyn 2/12 spottia · vuorovesi ·
   Holfuy · ilmanlaatu) · Toinen kerros — kontekstia, ei päätöstä ·
@@ -337,19 +340,36 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 
 **Asetukset**
 
-- **"AUTOMAATTINEN" TARKOITTAA PARASTA SAATAVILLA, EI AINA VARASTOA.**
-  Pohjois-Euroopassa zoom 6:sta lähemmäs kartta lukee FMI HARMONIE
-  2,5 km:iä, muualla säälaattavarastoa (ECMWF 0,25°). Molemmat ehdot
-  ovat vanhoja vakioita: `harmonieAlueella` ja `HARMONIE_MAX_STEP`.
-  Tämä on käyttäjän päätös eikä suorituskykyoptimointi — hinta on
-  mitattu ja tiedossa: panorointi Suomessa 6,1 s ja 44 pyyntöä, kun
-  varastolla se oli ilmainen, ja 700 pisteen näkymässä FMI-osuus jää
-  47 %:iin koska osa eristä putoaa kuormassa Open-Meteoon. Älä palauta
-  ECMWF-oletusta vedoten nopeuteen; oikea korjaus nopeudelle on viedä
-  HARMONIE laattaputkeen.
-- **ULOIN NÄKYMÄ PYSYY VARASTOSSA.** Se on syy miksi varasto on yhä
-  olemassa, ja maailmankartan nopeus on sen ansiota. `HARMONIE_MAX_STEP`
-  pitää sen siellä.
+- **"AUTOMAATTINEN" TARKOITTAA PARASTA SAATAVILLA, JA PARAS TULEE
+  VARASTOSTA.** HARMONIE on nyt varastossa omana tasonaan (`h0`,
+  0,05°, tunneittain, 66 h) — se oli tämän säännön edellisen version
+  oma johtopäätös ("oikea korjaus nopeudelle on viedä HARMONIE
+  laattaputkeen"), ja se on tehty. `kartanMalli()`:n auto-haara
+  palauttaa siis aina varaston eikä valitse mallia lainkaan; valinnan
+  tekee `Saalaatat.taso()`, joka ottaa hienoimman tason joka kattaa
+  sekä PAIKAN että HETKEN. Älä palauta rajapinnan pakotusta
+  automaattiin: se veisi kartalta laattapyramidin, ja sen hinta on
+  mitattu (panorointi Suomessa 6,1 s ja 44 pyyntöä, käynnistys 22 s
+  vastaan 3 s).
+- **`vainKartta`-TASO EI KELPAA SARJALLE.** `h0` kattaa 66 tuntia ja
+  aikajana 16,6 vuorokautta, joten `wx()` ja `wxTunneittain()` kutsuvat
+  `taso(lat, lng, step, /* sarjalle */ true)` joka ohittaa ne. Kartta
+  lukee `h0`:aa `naytteista()`n kautta. Jos lisäät tason jolla on oma
+  akseli, päätä kumpi se on.
+- **TASOKOHTAINEN AIKA-AKSELI EI OLE YLELLISYYTTÄ.** Mitattuna 10
+  pisteessä ja 400 tunnissa: HARMONIE varaston omalle 3 h akselille
+  tallennettuna jättäisi tuntien väliin keskimäärin 0,41 m/s ja
+  enimmillään 3,34 m/s virhettä, suunnassa 172°, ja **29,8 %
+  tunneista ylittäisi sovelluksen oman 0,5 m/s rajan**. Akseli on
+  tason ominaisuus (`taso._ax`), ja laatta kantaa sen viitteen
+  (`laatta._ax`), koska `naytteista` näkee vain laatan. Älä palauta
+  jaettua `_ti`/`_tf`-paria.
+- **HETKI ASETETAAN KAIKILLE AKSELEILLE KERRALLA** ja
+  `asetaHetki` mitätöi laattamuistin: sama piste ja sama askel osuu eri
+  tasoon eri hetkellä, koska `taso()` ohittaa tason jonka akseli ei kata
+  hetkeä.
+- **ULOIN NÄKYMÄ PYSYY VARASTOSSA JA ILMAN REUNUSTA.** Se on syy miksi
+  varasto on yhä olemassa, ja maailmankartan nopeus on sen ansiota.
 - **`kaytossa()` = VARASTO ON KUNNOSSA, `kartallaKaytossa()` = KARTTA
   LUKEE SITÄ.** Vain jälkimmäinen seuraa mallivalintaa. Varaston omat
   datafunktiot (`varmista`, `naytteista`, `wxTunneittain`) ja AIKAJANA
@@ -363,12 +383,14 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   tietoinen vaihtokauppa: kadonnut vuorokausi olisi ollut uusi menetys,
   tasojen ero ei ole (se on ollut olemassa ja dokumentoitu, ka
   1,38 m/s).
-- **MALLIVALINTA LUKEE `gridStep(zoom)`, EI `kaytettyStep(zoom)`.**
-  Jälkimmäinen on `max(gridStep, _viimeStep)` eli EDELLISEN latauksen
-  väli. Sillä valinta laahasi zoomia latauksen verran jäljessä, ja
-  `moveend`in tarkistus näki vanhan tilan juuri kun vaihto piti tehdä:
-  mitattuna z4 -> z9 Helsinkiin jäi varastoon pysyvästi (1212 pistettä,
-  12 FMI, merkintä ECMWF).
+- **`gridStep` ON RAJAPINTAHILAN VÄLI, `laattaStep` PYRAMIDIN.**
+  Ne EIVÄT saa olla sama funktio: `gridStep` synnyttää
+  `getViewportPoints`in pistelistan, ja jokainen piste on Open-Meteon
+  laskutuksessa oma kutsunsa — 0,05 asteen rajapintahila z12:ssa olisi
+  juuri se kiintiö jonka takia koko varasto rakennettiin. `laattaStep`
+  taas vain ohjaa `taso()`:n hienompaan laattaan jos sellainen on
+  olemassa, ja se on ilmaista. Pyramidi ja tähtäin lukevat
+  `laattaStep`iä, hilapisteet `gridStep`iä.
 - **MALLIN PAKOTUS ON `Saalaatat.pois()`, EI `?laatat=0`.** Mitattuna
   `?laatat=0` vaihtaa vain piirtotavan ja data tulee yhä varastosta
   (506 pistettä 518:sta). Varaston sulkeminen on se kytkin joka siirtää
@@ -1041,7 +1063,8 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
 
 - **SOVELLUKSESSA ON KAKSI DATATASOA, ja ne antavat eri luvun.** Kartta
   (lämpökartta, kapseli, partikkelit) lukee `Saalaatat`-varastoa
-  (ECMWF 0,25°); aikajana ja spottikortit lukevat lähintä
+  (Suomen rannikolla ja 66 tunnin sisällä HARMONIE 0,05°, muualla
+  ECMWF 0,25°); aikajana ja spottikortit lukevat lähintä
   ennustepistettä, joka on Suomessa käytännössä aina spotti ja siis
   HARMONIE. Mitattu 3 893 vertailulla: ka 1,38 m/s, med 1,20, max 7,34,
   ja **86 % tunneista yli 0,5 m/s rajan**. Ero KASVAA tuulen mukana
@@ -1190,7 +1213,23 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
 - **Peitto mitataan PIKSELEISTÄ, ei elementin rajoista.** Pyramidilla
   rajapohjainen mittari antaisi triviaalisti 100 %. Piilota pohjakartta
   ja partikkelit, jolloin kaikki ei-läpinäkyvä on lämpökarttaa — ja
-  muista säästää `.saa-laatat`, ei `.heatmap-overlay`.
+  muista säästää `.saa-laatat`, ei `.heatmap-overlay`. Zoomin aikainen
+  peitto vaatii ruutukaappauksen joka kompositointikehyksestä (CDP:n
+  `Page.startScreencast`), ei `getBoundingClientRect`ia.
+- **PYRAMIDI MAALAA NÄKYMÄÄ LAAJEMMALLE (`REUNUS` 0,6), JA LUKU TULEE
+  GEOMETRIASTA.** Ulos zoomatessa Leaflet skaalaa vanhan tason säiliötä
+  kertoimella 0,5, joten maalattua alaa on oltava PUOLI RUUTUA joka
+  laidalla tai reunoille jää tyhjää; 0,6 eikä 0,5 siksi, että
+  kaksoisnapautus zoomaa napautetun pisteen ympäri eikä keskeltä.
+  Mitattu ennen: z12 -> z11 peitto putosi 58 %:iin, z13 -> z10 8 %:iin.
+  Jälkeen 100 % joka kehyksellä molempiin suuntiin. **Reunus kattaa
+  TASAN YHDEN tason** — kahden tason hyppy jää 55 %:iin ja vaatisi
+  reunuksen 1,5 eli yhdeksänkertaisen laattamäärän. Älä kasvata sitä
+  mittaamatta, äläkä ulota sitä uloimpiin näkymiin
+  (`REUNUS_MIN_Z = 6`): siellä se maksaisi varastolaattoja eikä antaisi
+  mitään, koska yksi säälaatta kattaa koko ruudun (mitattu z11 -> z5:
+  99 % peitto ilman reunusta). Lähizoomissa reunus ei maksa yhtään
+  tavua — laajennettu ala mahtuu samojen säälaattojen sisään.
 - **Lämpökartta piirtyy GPU:lla kun laite kiihdyttää** (`GLKentta`,
   WebGL2). Varjostimen ja CPU-silmukan on annettava sama tulos: rivin
   leveysaste `ymercInv(myMax - r*myStep)`, sarake `lngMin + c*lngStep`

@@ -3068,3 +3068,205 @@ ja kartta HARMONIEa, eli ne voivat näyttää eri lukua. Sama ero on
 sovelluksessa ollut ennenkin kahden datatason välillä (ka 1,38 m/s) ja
 se on dokumentoitu. Kadonnut vuorokausi olisi ollut UUSI menetys;
 tämä ei ole. Asetuksen nimi sanoo saman: "Kartan säämalli".
+
+---
+
+## HARMONIE varastoon — ja zoomin välkky
+
+Edellisen erän lopputulos oli oikea malli väärää tietä. Kartta luki
+Helsingissä FMI HARMONIEa, mutta se tuli RAJAPINNASTA, ja rajapintapolulla
+kartalla ei ole laattapyramidia lainkaan. Muistiinpanoon kirjattiin sekä
+hinta että oikea korjaus:
+
+> panorointi Suomessa 6,1 s ja 44 pyyntöä, käynnistys 22 s vastaan 3 s
+> … oikea korjaus nopeudelle on viedä HARMONIE laattaputkeen.
+
+Tämä erä tekee sen.
+
+### Miksi HARMONIE ei mahdu varaston omalle akselille
+
+Varaston aika-askel on ECMWF:n oma: 3 h ensimmäiset 7,5 vrk ja 6 h sen
+jälkeen. Houkutteleva oikotie olisi tallentaa HARMONIE samalle
+akselille — silloin asiakaspäähän ei tarvittaisi mitään.
+
+Mitattu, 10 pistettä Suomen rannikolta ja Tukholmasta, 400 tuntia:
+HARMONIE haettiin tunneittain, siitä poimittiin 3 h alinäyte, ja
+alinäytteestä interpoloitiin takaisin tunnit (nopeus ja suunta erikseen,
+kuten sovellus tekee). Vertailu on TOTUUTTA vasten:
+
+| piste | ka | max | max suunta | yli 0,5 m/s |
+|---|---|---|---|---|
+| Hanko | 0,484 | 2,00 | 31,7° | 35,0 % |
+| Haukilahti | 0,298 | 0,99 | 111,7° | 20,0 % |
+| Hietaniemi | 0,387 | 1,99 | 86,7° | 30,0 % |
+| Porkkala | 0,490 | 2,17 | 79,0° | 40,0 % |
+| Emäsalo | 0,646 | 2,76 | 91,7° | 55,0 % |
+| Kallahti | 0,509 | 3,34 | 86,3° | 30,0 % |
+| Utö | 0,401 | 1,30 | 32,7° | 37,5 % |
+| **yhteensä** | **0,407** | **3,34** | **172,3°** | **29,8 %** |
+
+Mediaani 0,273, p90 0,890, p99 1,990 m/s.
+
+**Lähes joka kolmas tunti ylittäisi sovelluksen oman 0,5 m/s rajan.**
+Kolmen tunnin askel riittää ECMWF:lle koska se ON ECMWF:n oma askel;
+HARMONIElle se olisi datan heittämistä pois. Taso sai siis OMAN
+tuntiakselinsa, ja asiakaspää opetettiin lukemaan tasokohtaista akselia.
+
+### Taso `h0`
+
+| | |
+|---|---|
+| lähde | `opendata.fmi.fi/download`, GRIB2 |
+| kentät | `WindUMS`, `WindVMS`, `WindGust` |
+| alue | lat 58–66, lng 18–31 |
+| askel | 0,05° (mallin oma on 0,0225°) |
+| aika | ajohetkestä +66 h, tunneittain |
+| laattoja | 104, keskimäärin **45 kt** (l0 on 85 kt) |
+| lataus | 24,9 MB / 49 s rakennuksessa |
+
+`projection=EPSG:4326` on PAKKO sanoa. Ilman sitä vastaus tulee mallin
+omassa projektiossa ja GRIB2:n section 3 luetaan roskana: mitattuna
+la1 = 805,55 ja dj = 3785,36. Ensimmäinen vika näytti jäsentimen vialta
+vaikka pyyntö oli väärä.
+
+**Puuskan leima on tunnin edellä tuulta.** Mitattuna samassa pisteessä:
+pistekyselyn `WindGust` klo 13:00 = 8,50 ja hilan puuska leimalla 12:00
+= 8,47, kun hilan puuska leimalla 13:00 = 8,12 — joka on pistekyselyn
+klo 14:00 arvo. Hilassa leima on jakson ALKU, pistekyselyssä sen loppu.
+Ilman siirtoa laatan puuska olisi tunnin myöhässä ja eri luku kuin
+spottikortin puuska samasta mallista.
+
+Kirjoitetut laatat tarkistettiin FMI:n pistekyselyä vasten neljässä
+pisteessä: nopeus ±0,05–0,12 m/s, suunta ±1–3°, puuska ±0,10 m/s. Kaikki
+ovat alle kvantisointiaskelen (0,2 m/s ja 2°).
+
+### Miksi 0,05° eikä mallin oma 0,0225°
+
+Laatta on 21 × 21 pistettä, joten askel määrää myös laatan koon. 0,05°
+antaa yhden asteen laatan, jolloin Helsingin z11-näkymä on yksi laatta.
+0,0225° antaisi 0,45 asteen laatan eli nelinkertaisen määrän laattoja
+samaan näkymään ja viisinkertaisen varaston. 0,05° on Suomen leveyksillä
+2,8 km eli käytännössä mallin oma tarkkuus, ja viisi kertaa hienompi
+kuin l0.
+
+### Taso on `vainKartta`
+
+`h0` palvelee lämpökarttaa, partikkeleita ja tähtäintä, muttei aikajanaa
+eikä spottikorttia: ne tarvitsevat 16,6 vuorokauden sarjan ja tämä kattaa
+66 tuntia. `wx()` ja `wxTunneittain()` ohittavat `vainKartta`-tasot
+(`taso(lat, lng, step, /* sarjalle */ true)`), ja `taso()` ohittaa tason
+kokonaan niinä hetkinä joita sen akseli ei kata. Mitattu selaimessa:
+aikajana säilyttää 87 h sarjansa ja 88 tikkiä, ja 66 tunnin rajan yli
+mentäessä kartta putoaa l0:aan ilman aukkoa.
+
+### Automaattinen ei enää valitse mallia
+
+`kartanMalli()`:n auto-haara palauttaa nyt aina varaston. Valinnan tekee
+`Saalaatat.taso()`, joka ottaa hienoimman tason joka kattaa sekä PAIKAN
+että HETKEN. Lähdemerkintä lukee saman valinnan (`t.malli` →
+`Lahde.NIMET`), joten se sanoo "Ilmatieteen laitos · HARMONIE 2,5 km"
+täsmälleen silloin kun ruudulla on HARMONIEa — ja pyramidi on päällä
+kummassakin tapauksessa.
+
+Mitattu kartan lukema samassa pisteessä samana hetkenä:
+
+| piste | h0 | l0 |
+|---|---|---|
+| Hietaniemi | 3,70 m/s | 4,95 m/s |
+| Porkkala | 5,39 m/s | 7,56 m/s |
+| Emäsalo | 3,58 m/s | 4,15 m/s |
+
+Ero on samaa luokkaa kuin aiemmin mitattu kahden datatason ero
+(ka 1,38 m/s) — kartta lukee siis oikeasti eri mallia eikä samaa
+uudelleennäytteistettynä.
+
+### Zoomin välkky: syy oli geometriaa, ei latausta
+
+Peitto mitattiin PIKSELEISTÄ: CDP:n screencast otti kaappauksen joka
+kompositointiruudulta zoomin ajan, pohjakartta ja partikkelit
+piilotettiin, ja ei-taustapikselit laskettiin selaimessa
+(`createImageBitmap` + canvas). Ruutu 420 × 860, kaksi ajoa.
+
+Ennen korjausta, laattapyramidilla:
+
+| zoom | peitto alussa | pienin |
+|---|---|---|
+| z12 → z11 | 100 % | **58 %** |
+| z11 → z10 | 100 % | 83 % |
+| z10 → z9 | 100 % | 80 % |
+| z9 → z8 | 100 % | **58 %** |
+| z10 → z8 | 100 % | 26 % |
+| z13 → z10 | 100 % | **8 %** |
+
+`L.GridLayer` lataa laatat vain näkymän alalle. Ulos zoomatessa Leaflet
+skaalaa vanhan tason säiliötä kertoimella 0,5 ankkurin ympäri, jolloin
+maalattu ala kutistuu puoleen ja reunoille jää tyhjää — ja uusi,
+karkeampi taso ei ole vielä valmis, joten `_tasoVuoro` näyttää yhä sitä
+kutistuvaa. Mitään muuta ei voi näyttää, koska mitään ei ole maalattu
+sinne.
+
+Ehto on suoraan geometriasta: jotta puoleen skaalattu ala peittäisi
+ruudun, maalattua alaa on oltava PUOLI RUUTUA joka laidalla. Ankkuri ei
+ole aina keskellä (kaksoisnapautus zoomaa napautetun pisteen ympäri),
+joten `REUNUS` on 0,6 eikä 0,5. Korjaus on `_getTiledPixelBounds`in
+laajennus.
+
+Jälkeen, samat ajot:
+
+| zoom | peitto alussa | pienin |
+|---|---|---|
+| z12 → z11 | 100 % | **100 %** |
+| z11 → z10 | 100 % | 100 % |
+| z10 → z9 | 100 % | 100 % |
+| z9 → z8 | 100 % | 100 % |
+| z11 → z12 | 100 % | 100 % |
+| z10 → z11 | 100 % | 100 % |
+
+Jokainen kehys, molempiin suuntiin.
+
+**Reunus kattaa TASAN YHDEN zoom-tason.** Kahden tason hyppy jää yhä
+55 %:iin ja kolmen 8 %:iin. Kaksi tasoa vaatisi reunuksen 1,5 eli
+noin yhdeksänkertaisen laattamäärän, eikä se ole sen arvoista: nipistys
+on jatkuva ele, kaksoisnapautus ja zoom-napit ovat yhden tason siirtoja,
+ja monen tason hyppy on `flyTo`-matka jossa liike on joka tapauksessa
+pitkä. Älä kasvata reunusta mittaamatta.
+
+### Reunuksen hinta
+
+Sama koodi, sama data, vain `REUNUS` vaihtuu; kolme kierrosta
+vuorotellen, mediaani:
+
+| näkymä | reunus | karttalaattoja | varastohakuja | tavut | valmis |
+|---|---|---|---|---|---|
+| Helsinki z11 | 0,0 | 12 | 9 | 0,38 MB | 92 ms |
+| Helsinki z11 | 0,6 | 40 | 9 | **0,38 MB** | 179 ms |
+| Suomi z7 | 0,0 | 8 | 4 | 0,12 MB | 115 ms |
+| Suomi z7 | 0,6 | 32 | 6 | 0,19 MB | 148 ms |
+
+**Lähizoomissa reunus ei maksa yhtään tavua**: laajennettu ala mahtuu
+samojen säälaattojen sisään, koska `h0`-laatta on asteen levyinen.
+Maksu on maalausta, 87 ms kuristetussa kontissa ilman GPU:ta.
+
+Uloimmissa näkymissä reunus on POIS (`REUNUS_MIN_Z = 6`). Siellä se
+maksaisi varastolaattoja — uloin näkymä on 24 laattaa ja 1,3 MB, ja
+2,2-kertainen ala olisi noin kaksinkertainen lataus yhden ruudullisen
+avaamiseen. Vastinetta ei olisi: mitattuna z11 → z5 säilytti 99 %
+peitostaan ilman reunusta, koska siellä yksi säälaatta kattaa koko ruudun
+eikä uusi taso odota mitään. Mitattu z4: 12 laattaa ja 0,85 MB sekä
+ennen että jälkeen.
+
+### Kolme mittausvirhettä tässä erässä
+
+1. **Ensimmäinen välkkymittari luki `getBoundingClientRect`ia** ja
+   palautti triviaalin 100 %:n. Se hylättiin — sama ansa on CLAUDE.md:ssä.
+2. **Vanhan koodin vertailuajo näytti 0 % pudotusta** ja olisi väittänyt
+   tätä erää regressioksi. Syy: vanhassa koodissa Helsinki z10–z12 on
+   FMI-tilassa, jossa kartalla EI OLE pyramidia vaan koko näkymän
+   kokoinen kangas — se skaalautuu saumattomasti eikä paljasta mitään.
+   Mittari mittasi siis eri polkua, ei eri koodia.
+3. **Toimivuustesti luki `Date.parse`a luvusta.** `luettelo.ajat` on
+   lukuja, joten `Date.parse(luku)` on NaN ja `NaN || 0` on 0 — hetkeä ei
+   asetettu lainkaan ja testi palautti täsmälleen samat luvut kuin
+   edellinen. Lisäksi lähdemerkintä luettiin heti keinotekoisen
+   `asetaHetki`n jälkeen, jolloin teksti oli yhden askeleen jäljessä ja
+   näytti olevan väärin päin molemmissa kohdissa.
