@@ -3891,17 +3891,17 @@ mutta ensimmäinen versio rikkoi sen: y-akselin ura oli `30 × fs` eli
 47 px, josta 25 px oli tyhjää. Piirtoalue jäi kortin piirtoaluetta
 kapeammaksi.
 
-Mittaus on tehtävä **näkyvästä** piirtoalueesta, ei SVG:n ulkomitasta.
-Kortin 24 h -kaavio on 414 px leveä 382 px:n kääreessä, eli sen oikea
-laita on vierityksen takana; ulkomitasta mitattuna kortin piirtoalue
-näyttää 364 px:ltä kun näkyvää on 338 px. Ensimmäinen mittari teki juuri
-tämän virheen ja vaati mahdotonta.
+Mittaus on tehtävä **näkyvästä** piirtoalueesta, ei SVG:n ulkomitasta —
+ja juuri se paljasti kortilla oman vikansa (ks. seuraava osio): kortin
+24 h -kaavio oli 414 px leveä 382 px:n kääreessä, joten ulkomitasta
+mitattuna sen piirtoalue näytti 364 px:ltä kun näkyvää oli 338 px.
+Ensimmäinen mittari teki juuri tämän virheen ja vaati mahdotonta.
 
 Lopputulos (iPhone 16 -mitoilla, pysty):
 
 | kaavio | kortti (näkyvä) | laaja pysty | leveys | korkeus |
 |---|---|---|---|---|
-| tuuliennuste | 338 px | 346 px | 1,02× | 6,1× |
+| tuuliennuste | 336 px | 346 px | 1,03× | 6,1× |
 | tuulihavainto | 332 px | 334 px | 1,01× | 3,8× |
 | vedenlämpö | 314 px | 330 px | 1,05× | 5,7× |
 
@@ -3922,3 +3922,44 @@ havaintokaaviossa `_havScrub`.
 Levossa rivillä on jakson tilastot. Ennusteessa ne ovat lähde,
 keskituuli, kovin (ja mihin aikaan) ja tyynin; vedenlämmössä nyt,
 vaihteluväli, jakso ja lähde.
+
+---
+
+## Kortin 24 h -kaaviosta puuttui 1,8 tuntia
+
+Laajennuksen leveysmittaus paljasti kortilla oman vikansa, joka ei
+liittynyt laajennukseen lainkaan.
+
+Y-akselin ura vedetään kortin omaan täytteeseen, jotta piirtoalue alkaa
+sisältöpalstan reunasta. Se tehtiin **kahdesti**: kääreellä oli
+`margin-left: -32px` ja SVG:llä `width: calc(100% + 32px)`. Kääre oli
+siis 382 px ja SVG 414 px — oikea laita jäi `overflow-x: auto`:n taakse.
+
+Mitattuna:
+
+| jakso | SVG / kääre | piilossa | mitä se on |
+|---|---|---|---|
+| 24 h | 414 / 382 px | 26,5 px = 7,3 % | **~1,8 tuntia 25:stä** |
+| 5 pv | 600 / 382 px | 214 px | tarkoitettu vieritys |
+| Kaikki | 1200 / 382 px | 814 px | tarkoitettu vieritys |
+
+Viisi päivää ja kaikki **kuuluvat** vierittyä (`PERIOD_W` 600 ja 1200).
+24 h -jakso ei: se on koodissa määritelty fluidiksi
+(`PERIOD_W['24h'] = null`, kommentti "24h ei scrollaa"). Eli juuri se
+jakso jota kortilla katsotaan eniten piilotti vajaat kaksi tuntia
+vuorokauden lopusta, ilman mitään merkkiä siitä että siellä on lisää.
+
+Korjaus on yksi termi pois: fluidissa SVG on `width: 100%`, ja
+kompensaatio jää kääreen negatiiviselle marginaalille jonne se kuuluu.
+Jälkeen `scrollWidth === clientWidth === 382` eikä mitään jää piiloon.
+
+**Näkyvä piirtoalue ei kaventunut**: 337,8 → 336,2 px, eli 1,6 px
+kapeampi mutta 1,8 tuntia enemmän dataa. Vaakaskaala putosi 1,38:sta
+1,27:ään, joten teksti on hitusen vähemmän venytettyä kuin ennen —
+lappujen välit skaalautuvat samassa suhteessa kuin lappujen leveydet,
+joten päällekkäisyyksiä ei synny (mitattu 0 kaikilla kolmella jaksolla,
+pienin rako 24 h:lla 22,4 px).
+
+Vedenlämpökaaviossa sama kuvio on **oikein**: `width: calc(100% + 18px)`
+ja `margin-left: -18px` samassa elementissä kumoavat toisensa oikealta
+laidalta, eikä sen kääreellä ole omaa negatiivista marginaalia.
