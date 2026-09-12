@@ -2827,3 +2827,129 @@ Aikajana ja kartta lukevat yhä varastoa, ja se on erikseen mitattu ja
 perusteltu päätös (yhtenäisyys, ei tarkkuus). Kumpi taso on tarkempi ei
 ole ratkaistu. Tämä muutos ei siirrä yhtään lukua lähteestä toiseen —
 se vain kertoo mistä näytetty luku tulee.
+
+---
+
+## Kartan säämalli valittavaksi
+
+Pyyntö: *"Lisää valikoon että voi valita tarvittaessa eri ennuste mallin
+kartalle. Nyt esim harmonie ei näy niin sen voisi tarvittaessa pakottaa
+näkymään."*
+
+Lähtötilanne on kahden datatason seuraus. Kartta (lämpökartta, kapseli,
+partikkelit) lukee **säälaattavarastoa** (ECMWF 0,25°, esilaskettu);
+spottikortit lukevat lähintä ennustepistettä, joka on Suomessa
+käytännössä aina HARMONIE. FMI:tä siis on sovelluksessa — se ei vain
+ollut kartalla.
+
+### Mikä kytkin ratkaisee
+
+**`Saalaatat.pois()`, ei `?laatat=0`.** Tämä on se asia joka piti mitata
+ennen kuin mitään kannatti kirjoittaa:
+
+| tila | laattakerros | varasto | laattapisteitä | data |
+|---|---|---|---|---|
+| oletus | päällä | ok | 506/518 | ECMWF-varasto |
+| `?laatat=0` | pois | **ok** | **506/518** | **ECMWF-varasto** |
+| `Saalaatat.pois()` | pois | pois | 0/516 | rajapinta |
+
+`?laatat=0` vaihtaa vain PIIRTOTAVAN (laattapyramidi → näkymätekstuuri).
+Data tulee yhä varastosta, joten se ei olisi kelvannut mallipakotuksen
+pohjaksi lainkaan.
+
+Varaston sulkeminen riittää, koska `ViewportGrid` täyttää hilapisteet
+varastosta vain `Saalaatat.kaytossa()`-ehdon takaa ja `buildWindField`
+lukee `pt.laatta`-pisteet sieltä. Ilman varastoa kaikki pisteet menevät
+`loadBatch`in kautta, joka osaa reitittää mallit jo valmiiksi.
+
+Kaksi asiaa piti lisätä: `Saalaatat.paalle()` (valinta ei saa olla
+yksisuuntainen) ja `_laattakerrosPois()` — mitattuna pelkkä `pois()`
+jätti Leafletin `.saa-laatat`-kerroksen kartalle vanhoine ECMWF-
+laattoineen, eli valittu malli ei näkynyt missään.
+
+### Mitattu lopputulos
+
+Pakotettu FMI HARMONIE, Suomen näkymä:
+
+```
+oletus   varasto ok    3400 pistekatto   506 laattapistettä   ECMWF IFS 0,25°
+pakotettu varasto pois  600 pistekatto   478/516 FMI          HARMONIE 2,5 km
+```
+
+Käynnistys pakotetulla mallilla, edistyminen mitattuna:
+
+```
+ 3 s   0 pistettä
+15 s  92 pistettä   ( 92 FMI)   kenttä  12
+22 s 516 pistettä   (478 FMI)   kenttä 516   ← valmis
+```
+
+Eli **noin 22 s** kylmänä, kun varastolla kartta on pystyssä ~3 s:ssa.
+Se on hinta jonka rajapintapolku maksaa, ja vihje sanoo sen. Vaihto
+asetuksesta ajon aikana on samaa luokkaa — mitattuna 36-38 eräpyyntöä ja
+kaikki paikallaan 13-16 s:n kohdalla:
+
+```
+ 2 s   12 pistettä   laattakerros jo pois, kenttä vielä vanha
+10 s  172 pistettä   (168 FMI)
+16 s  517 pistettä   (478 FMI)   tekstuuri päällä, merkintä HARMONIE
+```
+
+### Kaksi vikaa jotka pakotus toi näkyviin
+
+**1. Lähdemerkintä sekoitti kaksi akselia.** `Lahde.paivita` teki
+`State.currentHourIdx >= pt.wx.harmonie_hours` — mutta aikajanan indeksi
+juoksee varaston akselilla (403 tikkiä, 16,6 vrk) kun `harmonie_hours`
+laskee PISTEEN oman akselin ensimmäisiä tunteja (~52). Tikki 100 on aina
+>= 52, joten merkintä sanoi "Open-Meteo" vaikka 478 pistettä 516:sta oli
+FMI:tä. Sama ansa on CLAUDE.md:ssä ("AIKAJANAN INDEKSI EI OLE SPOTIN
+INDEKSI") ja korjaus on sama funktio kuin muualla (`_spotIdx`). Vika oli
+piilossa niin kauan kuin varasto oikosulki koko haaran.
+
+**2. Pakotetulta FMI:ltä puuttui varatie.** `loadBatch`in
+`fmi_harmonie`-haara vain kirjasi virheen, eli erä jonka yksikään piste
+ei osu HARMONIEn hilaan jäi KOKONAAN ILMAN DATAA. Poistetun
+mallivalitsimen kommentti oli ennustanut tämän sanatarkasti: "FMI-
+vaihtoehto tarvitsee varatien, koska sen hila kattaa vain Pohjois-
+Euroopan". Mitattuna konsoliin tuli neljä `harmonie_empty`-virhettä,
+ja ne olivat eteläisiä eriä joilta puuttui tuuli kokonaan.
+
+"Pakotettu FMI" tarkoittaa nyt FMI:tä siellä missä sitä on ja
+Open-Meteota muualla — sama jako kuin spottikortin sarjassa. Tyhjä
+kartta Keski-Euroopassa ei ole "HARMONIE", se on rikki.
+
+### Mitä tämä ei muuta
+
+Oletus on yhä `auto` eli varasto, ja se on oletus jokaisesta mitatusta
+syystä: ei rajapintakiintiötä, ei pyyntöjä panoroinnissa, laattapyramidi
+piirtää kartan ilman uudelleenankkurointia, ja pistekatto on 3400 eikä
+600. Pakotus on **tarvittaessa**-valinta, kuten pyydettiin.
+
+Aikajana seuraa mukana ilman eri koodia: `aikajananLahde()` palaa
+`nearestPointToCenter()`iin kun varasto on kiinni, joten pakotetussa
+tilassa jana ja kartta lukevat samaa mallia.
+
+### Neljä mittausvirhettä, yksi syy
+
+Tämä erä maksoi neljä väärää johtopäätöstä, ja kolmella niistä oli sama
+juuri: **odotusehto jonka vanha tila pystyi täyttämään.**
+
+1. `pisteet: 0` uudelleenlatauksen jälkeen — 15 s ei riitä, rajapintapolku
+   on valmis 22 s:ssa.
+2. "lämpökartta ei piirry" ja "merkintä ei vaihdu" — ehto
+   `windField.length > 400` täyttyi heti, koska VANHA 518 pisteen kenttä
+   oli yhä muistissa. Mittari luki 4 s:n kohdalta tilan jossa mikään ei
+   ollut vielä valmista. Oikea ehto vaatii asioita joita vanhalla tilalla
+   ei voi olla (FMI-pisteitä ja tekstuurikerroksen).
+3. "pakotetut Open-Meteo-mallit eivät toimi" — selain sai
+   `ERR_CONNECTION_RESET` jokaiseen `api.open-meteo.com`-pyyntöön, vaikka
+   `curl` samasta kontista sai 200. Kontin HTTPS kulkee agenttiproxyn
+   kautta eikä harness reitittänyt tätä osoitetta sen läpi. Sovellus oli
+   oikeassa koko ajan.
+4. Korjausskripti joka lisäsi puuttuvan reitin ohitti tiedostot ehdolla
+   `'api.open-meteo.com' in s` — ja `marine-api.open-meteo.com`
+   **sisältää** sen merkkijonon, joten reitti jäi lisäämättä ja mittaus
+   näytti samalta kuin ennen.
+
+Sääntö josta nämä muistuttavat on jo CLAUDE.md:ssä: kun mittaus väittää
+ettei jotain tapahdu lainkaan, epäile ensin mittaria.

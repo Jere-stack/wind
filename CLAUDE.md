@@ -102,7 +102,8 @@ kokeiltu ja kaadettu mittauksella.
   Tuulikerrokset ja sadekerros ovat toisensa poissulkevat ·
   Sateen asteikko: FMI:n omat selitteet siltana dBZ:n ja mm/h:n välillä ·
   Spottikortin havaintoasema tuli väärästä listasta ·
-  "Miksi Helsingin yllä ei tule FMI:tä" — se tulee, mutta ei sanonut sitä
+  "Miksi Helsingin yllä ei tule FMI:tä" — se tulee, mutta ei sanonut sitä ·
+  Kartan säämalli valittavaksi
 - **lisadata**: Mistä sovellus lukee nyt · TOP 10 — data · TOP 10 — lähteet ·
   Mitattu ja hylätty (MEPS on HARMONIE · hydrodyn 2/12 spottia · vuorovesi ·
   Holfuy · ilmanlaatu) · Toinen kerros — kontekstia, ei päätöstä ·
@@ -126,7 +127,7 @@ kokeiltu ja kaadettu mittauksella.
   siivous: väriliuska pois ja neljä kahdennusta · Sateen värit:
   strategia ja se mitä siitä on jo tehty · Aikajana: korkeammat palkit,
   matalampi kisko, keskitetty päiväys · Laaja näkymä: yksi kuori,
-  kolme kaaviota
+  kolme kaaviota · Aikajana: päiväys paikalleen, yö kaistaksi
 
 </details>
 
@@ -336,6 +337,25 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 
 **Asetukset**
 
+- **KARTAN SÄÄMALLIN OLETUS ON `auto` ELI VARASTO, EIKÄ SITÄ SAA
+  VAIHTAA.** Varasto (ECMWF 0,25°, esilaskettu) ei maksa
+  rajapintakiintiötä, ei tee pyyntöjä panoroinnissa ja antaa 3400
+  pistettä; pakotettu malli pudottaa katon 600:aan ja maksaa pyyntöjä
+  joka näkymästä. Mitattuna kylmä käynnistys pakotetulla mallilla on
+  ~22 s kun varastolla kartta on pystyssä ~3 s:ssa. Pakotus on
+  "tarvittaessa"-valinta.
+- **MALLIN PAKOTUS ON `Saalaatat.pois()`, EI `?laatat=0`.** Mitattuna
+  `?laatat=0` vaihtaa vain piirtotavan ja data tulee yhä varastosta
+  (506 pistettä 518:sta). Varaston sulkeminen on se kytkin joka siirtää
+  koko kentän rajapintapolulle. Leafletin laattakerros on poistettava
+  ERIKSEEN (`_laattakerrosPois`): pelkkä `pois()` jätti `.saa-laatat`in
+  kartalle vanhoine laattoineen, eli valittu malli ei näkynyt missään.
+- **PAKOTETTU FMI EI OLE PELKKÄ FMI.** HARMONIEn hila kattaa vain
+  Pohjois-Euroopan, joten `loadBatch`in `fmi_harmonie`-haarassa on
+  oltava Open-Meteo-varatie. Ilman sitä erä jonka yksikään piste ei osu
+  hilaan jää KOKONAAN ILMAN DATAA (mitattu: neljä `harmonie_empty`-
+  virhettä ja tyhjiä eteläisiä eriä). Tyhjä kartta Keski-Euroopassa ei
+  ole "HARMONIE", se on rikki.
 - **Partikkelien ja väriasteikon AVAIMIA ei saa vaihtaa** vaikka nimet
   vaihtuvat: `'vahan'` on nimeltään "Normaali" ja `'normaali'` on
   "Paljon". Avaimen vaihto pudottaisi jokaisen tallennetun valinnan
@@ -382,6 +402,21 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   koskematta siihen 97:ään. Kisko 40 -> 30 ja nauha 52 -> 61 pitivät
   hereillä olevan kortin ennallaan (128 -> 127); levossa se kasvoi
   88 -> 97, ja se on korkeampien palkkien väistämätön hinta.
+- **YÖ ON 2 px KAISTA TIKIN ALALAIDASSA, EI KOKO KORKEUDEN HARSO.**
+  Harso (`rgba(76,89,96,.20)` + kaksi astetta) oli mitattu ja
+  kalibroitu, mutta se oli rivin suurin muoto ja häiritsi lukemista.
+  Kaista mahtuu `.htick`in olemassa olevaan 2 px alatäytteeseen, joten
+  se ei vie palkilta korkeutta eikä muuta kortin mittoja. Mitattuna se
+  on samalla kertaa PIENEMPI ja SELVEMPI: yö 4,71:1 paperiin, kun
+  vanha koko korkeuden harso oli 1,31:1. Päiväerotin saa saman
+  kaistan, muuten keskiyöhön jää 34 px aukko. Älä palauta harsoa
+  äläkä piirrä auringon korkeutta käyränä — se olisi toinen jatkuva
+  muoto palkkien rinnalle.
+- **VALOKAISTAN VÄRIT OVAT YHDESSÄ REKISTERISSÄ (`VALO_VARIT`).**
+  Spottikortin kaavio ja aikajana kertovat saman asian ja kertoivat sen
+  ennen eri sävyillä. Kaavio lukee literaalit (SVG:n
+  esitysattribuutit eivät tunne `var()`:ia), aikajana CSS-muuttujat
+  jotka `_valoVaritCssiin()` kirjoittaa — kaksi muotoa, yhdet luvut.
 - **Aikajanan valokaista ja puuskavyöhyke päivitetään MYÖS nopeassa
   polussa**, ja päiväerottimet ovat oma taulukkonsa (`_tlErottimet`).
   Ne eivät ole `_tlTicks`issä, ja ilman erillistä päivitystä ne jäivät
@@ -430,11 +465,16 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   `_tlKorostaPaiva` keskittää `currentHourIdx`:n mukaan, ja raahatessa
   se luku on vielä edellisessä tikissä. `scrollLeft` kirjoitetaan
   suoraan, EI `scrollTo`lla — pehmeä vieritys hakisi sormea vastaan.
-- **LAPPU EI OLE TÄSMÄLLEEN KESKELLÄ, EIKÄ SEN KUULU OLLA.** Se on
-  keskellä päivän puolivälissä ja korkeintaan puoli lappua sivussa
-  muulloin (mitattu max 24,1 px, puoli lappua 27,5 px). Lupaus on että
-  OSOITIN OSUU VALITTUUN LAPPUUN. Jäykästi keskitetty lappu ei voisi
-  liukua lainkaan vaan hyppäisi vuorokauden välein.
+- **PÄIVÄYS ON TÄSMÄLLEEN KESKELLÄ EIKÄ LIU'U.** Lapun OMA keskikohta
+  asetetaan osoittimen alle, joten päivän sisällä kisko ei liiku
+  pikseliäkään (mitattu poikkeama −1,0…+0,1 px kahdeksalla siirrolla,
+  tuntiaskel 0 px). Tämä on KÄÄNNÖS aiempaan: kisko liukui ennen
+  jatkuvasti ja lappu oli keskellä vain päivän puolivälissä (max
+  24,1 px sivussa). Vanha perustelu oli oikea mutta ratkaisu väärä —
+  ruudulla liike oli se mitä silmä seurasi. Keskiyön yli kisko siirtyy
+  yhden lapun verran, ja se hyppy on SISÄLTÖÄ: se on ainoa hetki
+  jolloin päiväys vaihtuu. Älä animoi askelta — pehmeä siirtymä
+  laahaisi sormesta jäljessä ja kaksi vierityskonetta hakisi toisiaan.
 - **Kiskossa on reunavälikkeet**, kuten tuntinauhassa: ilman niitä
   selain rajaa `scrollLeft`in nollaan eikä akselin ensimmäistä ja
   viimeistä päivää saa osoittimen alle.
@@ -1017,6 +1057,13 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   etäisyysraja on `3 × step` lattialla 0,5° — TIUKEMPI kuin
   lähdemerkinnällä eikä siinä ole `LAHDE_RAJA_MIN`-lattiaa, koska
   puuska on paikan lukema eikä alueen mallin nimi.
+- **Lähdemerkintä on VIIDES `_spotIdx`-paikka.** `Lahde.paivita` teki
+  `State.currentHourIdx >= pt.wx.harmonie_hours`, eli vertasi aikajanan
+  akselia (403 tikkiä, 16,6 vrk) pisteen oman akselin ensimmäisiin
+  tunteihin (~52). Tikki 100 on aina >= 52, joten merkintä sanoi
+  "Open-Meteo" vaikka 478 pistettä 516:sta oli FMI:tä. Vika oli
+  piilossa niin kauan kuin varasto oikosulki koko haaran — mallin
+  pakotus toi sen näkyviin.
 - **Kapselin puuska on NELJÄS `_spotIdx`-paikka.** `Crosshair._puuska`
   siirsi `State.currentHourIdx`:n sellaisenaan aikajanan akselilta
   rajapintapisteen akselille: mitattuna indeksi 52 oli varastossa

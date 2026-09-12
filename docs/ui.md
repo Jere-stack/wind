@@ -3963,3 +3963,88 @@ pienin rako 24 h:lla 22,4 px).
 Vedenlämpökaaviossa sama kuvio on **oikein**: `width: calc(100% + 18px)`
 ja `margin-left: -18px` samassa elementissä kumoavat toisensa oikealta
 laidalta, eikä sen kääreellä ole omaa negatiivista marginaalia.
+
+---
+
+## Aikajana: päiväys paikalleen, yö kaistaksi
+
+Kaksi muutosta samaan korttiin, molemmat käyttäjän havainnosta.
+
+### Päiväys ei liiku enää
+
+Kisko liukui JATKUVASTI: valitun hetken kohta laskettiin lapun sisäisenä
+osuutena ja asetettiin osoittimen alle, jolloin lappu oli täsmälleen
+keskellä vain päivän puolivälissä ja korkeintaan puoli lappua sivussa
+muulloin. Se oli mitattu ja perusteltu — lupaus oli "osoitin osuu
+valittuun lappuun", ja jäykästi keskitetty lappu ei voisi liukua
+lainkaan.
+
+Ruudulla se luki toisin kuin paperilla. Palaute oli yksiselitteinen:
+*"Aikajanan päivämäärä voisi olla aina keskellä. Nyt se liikkuu kun
+vaihdan aikaa."* Liike oli sitä mitä silmä seurasi, eikä palkkeja.
+
+Nyt lapun **oma keskikohta** asetetaan osoittimen alle. Mitattuna
+poikkeama kahdeksalla eri siirrolla (+6 h … −300 h) on −1,0 … +0,1 px,
+ja tunnin askel siirtää kiskoa 0 px (ennen 2 px per askel).
+
+Hinta on se josta vanha kommentti varoitti: keskiyön yli mentäessä
+kisko siirtyy yhden lapun verran. Mutta hyppy on nyt **sisältöä** — se
+on ainoa hetki jolloin päiväys vaihtuu, ja liike kertoo juuri sen.
+Askelta ei animoida: pehmeä siirtymä laahaisi sormesta jäljessä, ja
+kaksi vierityskonetta hakisi toisiaan (sama ansa kuin tuntinauhan
+`scrollTimelineTo`ssa).
+
+Lupaus on nyt vahvempi kuin ennen: osoitin ei ainoastaan osu valittuun
+lappuun vaan sen keskelle.
+
+### Yö on kaista, ei koko korkeuden harso
+
+Yö oli tuntirivin taustana koko korkeudelta (`rgba(76,89,96,.20)` ja
+kaksi vaaleampaa astetta). Sekin oli mitattu — alfat oli kalibroitu
+kolmella eri alustalla pitämään harson VOIMAKKUUS samana. Mutta se oli
+rivin suurin yksittäinen muoto, ja palaute oli: *"aikajanalla häiritsee
+visuaalisesti yötä ilmaiseva tumma alue"*.
+
+Vaihtoehdot olivat kaista, sinikäyrä auringon korkeudesta, tai ei
+mitään. Käyrä hylättiin: se olisi toinen jatkuva muoto palkkien
+rinnalle, ja kortilla on jo päätös siitä ("kahdeksantoista väripilkkua
+yhdellä rivillä on kahdeksantoista asiaa joita silmä lukee"). Tyhjä taas
+veisi tiedon jota tarvitaan — 12 m/s klo 03 lokakuussa ei ole keli.
+
+**Sama kysymys oli jo ratkaistu kerran spottikortin kaaviossa**: "KAISTA
+EIKA HARSO. Ensimmainen versio varjosti koko kuvaajan yon kohdalta. Se
+ei toiminut." Aikajana sai saman ratkaisun ja **samat värit** —
+`VALO_VARIT` on nyt yksi rekisteri, josta kaavio lukee literaalit ja
+aikajana CSS-muuttujat (`var()` ei toimi SVG:n esitysattribuuteissa,
+joten kahta kuluttajaa ei voi palvella yhdellä muodolla).
+
+Kaista on 2 px tikin alalaidassa, siinä 2 px:n täytteessä joka
+`.htick`illä on jo. Se ei vie palkilta yhtään korkeutta eikä muuta
+kortin mittoja, ja vierekkäiset tunnit muodostavat yhtenäisen juovan.
+Päiväerotin saa saman kaistan, muuten keskiyöhön jäisi 34 px:n aukko.
+
+Mitattuna ruudulta (paperi 224,216,194 — kortin dokumentoitu sävy on
+228,219,197, eli mittari osuu):
+
+| vaihe | kaista ruudulla | kontrasti paperiin | kontrasti päiväuraan |
+|---|---|---|---|
+| yö | 86,93,97 | **4,71:1** | 4,41:1 |
+| hämärä | 110,115,118 | 3,37:1 | 3,15:1 |
+| siviilihämärä | 186,184,172 | 1,40:1 | 1,31:1 |
+| matala aurinko | 183,137,92 | 2,19:1 | 2,05:1 |
+| täysi päivä (ura) | 219,209,182 | 1,07:1 | 1,00 |
+
+Vanha koko korkeuden harso oli **1,31:1**. Uusi merkintä on siis
+samalla kertaa paljon pienempi (2 px vs. koko rivin korkeus) ja
+selvästi luettavampi — juuri se mitä kaistaksi vaihtaminen ostaa.
+
+Matala aurinko tuli mukana, vaikka vanha kolmiportainen harso ei sitä
+tuntenut: se on lämmin sävy eikä tummuusaste, ja se merkitsee sen
+tunnin jota illan sessiossa jahdataan.
+
+**Mittarista:** ensimmäinen versio luki `getComputedStyle`n taustaväriä
+ja sai kortin paperiksi läpinäkyvän (0,0,0) — koko kontrastitaulukko oli
+mustaa vasten laskettu. Toinen versio luki pikselit mutta osui
+osoittimeen ja antoi hämärälle 127,87,111 eli violetin, jota ei ole
+missään paletissa. Kumpikin virhe näkyi siitä että luku ei vastannut
+mitään olemassa olevaa sävyä.
