@@ -2743,3 +2743,87 @@ pahin tapaus eikä tavallinen.
 näkymättömän: kortti näyttää oikealta, vain kauempaa. Siksi mittarin on
 sallittava molemmat eikä vaadittava Mellsteniä; rekisterin järjestys on
 oma, verkoton testinsä.
+
+---
+
+## "Miksi Helsingin yllä ei tule FMI:tä" — se tulee, mutta ei sanonut sitä
+
+Kysymys oli aiheellinen mutta vastaus ei ollut se mitä ruutu näytti.
+Mitattuna Lauttasaaren spottidatassa `/api/harmonie` palauttaa
+`harmonie_hours: 52`, eli sarjan **52 ensimmäistä tuntia ovat FMI:n
+HARMONIE 2,5 km:iä** ja loput Open-Meteoa. Data oli siis oikein koko
+ajan. Sitä ei vain nimetty missään.
+
+Kaksi erillistä syytä:
+
+**1. Tähtäimen lähdemerkintä sanoo ECMWF, ja se on oikein.** Kartan
+luku (kapseli, lämpökartta, partikkelit) tulee `Saalaatat`-varastosta
+eikä spottipisteistä, joten merkintä sanoo `ECMWF IFS 0,25° ·
+esilaskettu` aina kun `WindTexture.hila` on olemassa. Tämä on
+tarkoituksellinen ja dokumentoitu: merkintä kertoo mitä RUUDULLA on,
+ei mitä jossain muualla olisi saatavilla. Sovelluksessa on kaksi
+datatasoa, ja spottikortit ovat se toinen.
+
+**2. Spottikortin kaavio väitti pääviivastaan "Auto".** Kaaviossa oli
+oma nimitaulukko:
+
+```js
+const modelNames = { fmi_harmonie:'FMI 2.5km', best_match:'Auto', ... };
+const activeLabel = modelNames[State.activeModel] || State.activeModel;
+```
+
+`State.activeModel` on pysyvästi `'best_match'` — mallia ei valita enää
+käsin, ja rivi jopa poistaa `fs_model`-avaimen localStoragesta
+käynnistyksessä. Selite luki siis "Auto" vaikka data oli nimenomaan
+FMI:n. Sama kuollut ehto vei mukanaan rajaviivan:
+
+```js
+var harmonieCutMs = (State.activeModel === 'fmi_harmonie') ? ... : null;
+```
+
+joka ei voinut olla tosi kertaakaan.
+
+### Raja luetaan vastauksesta, ei mallivalitsimesta
+
+`harmonie_hours` on **indeksi eikä kesto**, joten raja on `time[hh]` —
+ei "nyt + 48 h". Ero ei ole kosmeettinen: spottidata palautetaan
+levyltä (`_restoreSpots`), jolloin sarja on voinut alkaa tunteja sitten
+ja nyt-hetkeen sidottu raja osuisi väärään kohtaan. Indeksi on sidottu
+akseliin, ei kelloon.
+
+Kun sarja on kokonaan Open-Meteoa (HARMONIEn hilan ulkopuolella tai
+proxy kaatui sen kohdalla) `harmonie_hours` on 0 eikä rajaa piirretä
+lainkaan.
+
+### Yksi nimirekisteri
+
+Lähteen nimi tulee nyt `Lahde`-objektista, jossa on sekä pitkä muoto
+(`NIMET`, tähtäimen merkintä) että lyhyt (`LYHYET`, kaavion selite ja
+työkaluvihje). Kaavion oma `modelNames` oli juuri sellainen toinen
+taulukko joka ajautui erilleen — ja se ajautui erilleen niin pitkälle,
+että se väitti väärää lähdettä.
+
+Mitattuna Lauttasaaren kortilla:
+
+| jakso | selite |
+|---|---|
+| 24 h | `FMI HARMONIE 2,5 km` |
+| 5 pv / Kaikki | `FMI HARMONIE 2,5 km → Open-Meteo` |
+
+Selite päivitetään jaksoa vaihdettaessa, koska se kuvaa **näkyvää**
+jaksoa: 24 h jaksolla Suomessa ei ole Open-Meteota lainkaan ja
+rajaviivaa ei piirretä; koko jaksolla molemmat ovat mukana ja raja
+näkyy. Työkaluvihje ja laajan näkymän lukemarivi nimeävät **sen tunnin**
+lähteen jota osoitetaan, koska sarja vaihtaa lähdettä kesken matkaa.
+
+**Rajaviivan lappu on rajan vasemmalla puolella ja lukee "FMI
+päättyy".** Pelkkä "FMI" keskellä viivaa ei kerro kummalla puolella FMI
+on, ja juuri se on koko rivin asia. Ankkuri kääntyy reunoilla, koska
+raja voi osua lähelle kuvaajan laitaa.
+
+### Mitä tässä EI muutettu
+
+Aikajana ja kartta lukevat yhä varastoa, ja se on erikseen mitattu ja
+perusteltu päätös (yhtenäisyys, ei tarkkuus). Kumpi taso on tarkempi ei
+ole ratkaistu. Tämä muutos ei siirrä yhtään lukua lähteestä toiseen —
+se vain kertoo mistä näytetty luku tulee.
