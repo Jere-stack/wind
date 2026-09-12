@@ -101,7 +101,8 @@ kokeiltu ja kaadettu mittauksella.
   Sadetutka seuraa aikajanaa — ja jatkuu ennusteena ·
   Tuulikerrokset ja sadekerros ovat toisensa poissulkevat ·
   Sateen asteikko: FMI:n omat selitteet siltana dBZ:n ja mm/h:n välillä ·
-  Spottikortin havaintoasema tuli väärästä listasta
+  Spottikortin havaintoasema tuli väärästä listasta ·
+  "Miksi Helsingin yllä ei tule FMI:tä" — se tulee, mutta ei sanonut sitä
 - **lisadata**: Mistä sovellus lukee nyt · TOP 10 — data · TOP 10 — lähteet ·
   Mitattu ja hylätty (MEPS on HARMONIE · hydrodyn 2/12 spottia · vuorovesi ·
   Holfuy · ilmanlaatu) · Toinen kerros — kontekstia, ei päätöstä ·
@@ -124,7 +125,8 @@ kokeiltu ja kaadettu mittauksella.
   kaavio iPhonella: turva-alueet, liuku ja lukemarivi · Havaintokortin
   siivous: väriliuska pois ja neljä kahdennusta · Sateen värit:
   strategia ja se mitä siitä on jo tehty · Aikajana: korkeammat palkit,
-  matalampi kisko, keskitetty päiväys
+  matalampi kisko, keskitetty päiväys · Laaja näkymä: yksi kuori,
+  kolme kaaviota
 
 </details>
 
@@ -463,6 +465,56 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   dataa vaan täsmälleen se mitä `asetaHetki`+`naytteista` jo antaa
   kartalle (mitattu ero 0 m/s). Akseli rakennetaan KERRAN ja jaetaan;
   pistekohtainen mitätöisi `_ts()`:n muistin.
+
+**Kaaviot ja laaja näkymä**
+
+- **LAAJA NÄKYMÄ ON KUORI, EI KAAVIO.** `HavLaaja` omistaa otsikon,
+  lukemarivin, jaksonapit, liu'utuksen, käännön, turva-alueet ja
+  `Modaali`-kytkennän; piirtäminen tulee LÄHTEELTÄ
+  (`{ el, otsikko, sub, jaksot, piirra(kaavioEl, laatikko, laaja) }`).
+  Kolme kaaviota käyttää sitä — tuuliennuste, tuulihavainto ja
+  vedenlämpö. Älä kirjoita neljättä kokoruudun polkua.
+- **LÄHDE RIPUSTETAAN LAAJENNUSNAPPIIN** (`nappi._havLaajaLahde`), ei
+  päätellä napin sijainnista. Sekä napautus että kääntö lukevat sen
+  samasta paikasta; päättely (`closest('.hav-kaavio')._havData`) olisi
+  yksi haara kaaviotyyppiä kohti.
+- **KÄÄNTÖ OTTAA ENSIMMÄISEN KYTKETYN NAPIN, EI ENSIMMÄISTÄ NAPPIA.**
+  Kaavio kytkee itsensä korttinsa omassa `setTimeout`issa ja kääntö
+  rakentaa kortin uudelleen juuri ennen tapahtumaa: mitattuna käännön
+  hetkellä ensimmäisellä napilla oli `_havLaajaLahde === undefined` ja
+  koko oikotie jäi laukeamatta, vaikka 1,2 s myöhemmin kaikki oli
+  paikallaan. Yritys uusitaan 120 ms välein neljä kertaa.
+- **SULKUNAPIN OIKEA REUNA TULEE NIMILOHKOSTA, EI JAKSOVALITSIMESTA.**
+  `.hl-jaksot`in `margin-left: auto` teki napin paikasta riippuvan
+  siitä ONKO jaksovalitsinta — ja kaaviolla jolla sitä ei ole (kortin
+  tuulihavainto) X liukui kiinni nimeen. Työntö on
+  `.hl-nimiryhma { flex: 1 1 auto; min-width: 0 }`, ja `min-width: 0`
+  on pakollinen: ilman sitä pitkä asemanimi työntäisi napin ulos
+  rivistä sen sijaan että katkeaisi kolmeen pisteeseen.
+- **PIILOTETTU JAKSORIVI TYHJENNETÄÄN.** Sama näkymä avataan peräkkäin
+  eri kaavioille, ja `display:none`-haarasta palaaminen ilman
+  tyhjennystä jätti piiloon edellisen kaavion napit (mitattu kolme).
+- **LAAJA ON 1:1 PIKSELEIHIN, KORTTI VENYTTÄÄ.** Kortin ennustekaavio
+  on `preserveAspectRatio="none"` ja sen 300 yksikön viewBox venyy
+  ~407 px:iin, eli teksti on jo 36 % leveämpää kuin korkeaa; vaakassa
+  sama kerroin olisi 2,7. Laajan viewBox ON laatikon pikselikoko ja
+  luettavuus ostetaan kirjasinkoolla (`fs`), ei venytyksellä.
+- **LAAJENNUS EI SAA KAVENTAA MITÄÄN, JA SE MITATAAN NÄKYVÄSTÄ
+  PIIRTOALUEESTA.** Kortin 24 h -kaavio on 414 px leveä 382 px:n
+  kääreessä, joten ulkomitasta mitattuna sen piirtoalue näyttää
+  364 px:ltä kun näkyvää on 338 px — ensimmäinen mittari teki juuri
+  tämän virheen ja vaati mahdotonta. Nykyiset: ennuste 338 → 346 px
+  (6,1× korkeampi), havainto 332 → 334, vesi 314 → 330. Y-akselin ura
+  on `20 × fs` (kaksinumeroinen lappu) ja vedenlämmössä `26 × fs`
+  ("12.5°"); ensimmäinen `30 × fs` jätti 25 px tyhjää ja rikkoi
+  säännön.
+- **LAAJASSA LUKEMA MENEE KIINTEÄLLE RIVILLE MYÖS UUSISSA
+  KAAVIOISSA.** `attachTooltip`in kolmas parametri (`scrub`) ja
+  vedenlämmön `el._uwScrub` ovat sama ratkaisu kuin `_havScrub`:
+  kun koukku on annettu, kuplaa ei edes lasketa.
+- **JAKSOVALINTA SÄILYTETÄÄN KORTISSA.** Laajan jaksonapit ovat kortin
+  nappien peili (`b.click()`), ja valittu luetaan `aria-pressed`ista —
+  toinen lippu samasta asiasta ajautuisi erilleen.
 
 **Havaintoasemat**
 
@@ -969,6 +1021,28 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   lähimmän ennustepisteen lähteen ja sanoi siksi Helsingissä HARMONIE
   vaikka luku tuli varastosta. Jos muutat kumpaakaan polkua, tarkista
   että merkintä seuraa sitä polkua josta luku oikeasti tulee.
+- **LÄHTEEN NIMI ON YHDESSÄ REKISTERISSÄ: `Lahde.NIMET` (pitkä, kartan
+  merkintä) ja `Lahde.LYHYET` (kaavion selite ja työkaluvihje).**
+  Spottikortin kaaviolla oli oma `modelNames`-taulukko, ja se ajautui
+  niin kauas erilleen että selite väitti pääviivasta "Auto" vaikka data
+  oli FMI:n HARMONIEa — `State.activeModel` on pysyvästi
+  `'best_match'`, koska mallia ei valita enää käsin.
+- **FMI:N JA OPEN-METEON RAJA LUETAAN `harmonie_hours`ISTA, JA SE ON
+  INDEKSI EIKÄ KESTO.** Raja on `time[hh]`, ei "nyt + 48 h": spottidata
+  palautetaan levyltä (`_restoreSpots`), jolloin sarja on voinut alkaa
+  tunteja sitten ja kelloon sidottu raja osuisi väärään kohtaan.
+  `harmonie_hours === 0` tarkoittaa ettei FMI:tä ole eikä rajaa
+  piirretä. Ehto `State.activeModel === 'fmi_harmonie'` oli kuollutta
+  koodia eikä voinut olla tosi kertaakaan.
+- **KAAVION SELITE KUVAA NÄKYVÄÄ JAKSOA, TYÖKALUVIHJE OSOITETTUA
+  TUNTIA.** Sarja vaihtaa lähdettä kesken matkaa, joten yksi nimi
+  koko kaaviolle olisi väärin toisessa päässä: 24 h jaksolla selite on
+  `FMI HARMONIE 2,5 km`, 5 vrk ja kaikki -jaksoilla
+  `FMI HARMONIE 2,5 km → Open-Meteo`. Selite päivitetään jaksoa
+  vaihdettaessa.
+- **Rajaviivan lappu on rajan VASEMMALLA ja lukee "FMI päättyy".**
+  Pelkkä "FMI" keskellä viivaa ei kerro kummalla puolella FMI on, ja
+  juuri se on rivin koko asia.
 
 - **Interpolointijärjestys: paikassa vektorit, ajassa nopeus ja suunta
   erikseen.** Suuntien aritmeettinen keskiarvo hyppää väärään suuntaan 0/360

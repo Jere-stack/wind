@@ -1915,14 +1915,30 @@ html.tyopoyta {
   display: flex; align-items: center; gap: 10px;
   padding: 2px 12px 3px; flex-shrink: 0; touch-action: none;
 }
+/* SULKUNAPPI ON AINA RIVIN OIKEASSA REUNASSA, EI NIMEN PERÄSSÄ.
+ *
+ * Oikea reuna tuli ennen `.hl-jaksot`in `margin-left: auto`ista, eli
+ * napin paikka riippui SIITÄ ONKO JAKSOVALITSINTA. Kaaviolla jolla on
+ * yksi jakso (Mellstenin 30 min ikkuna, vedenlämpö havaintokortissa)
+ * valitsin piilotetaan `display: none`lla, jolloin automarginaalia ei
+ * ole olemassa ja X liukui kiinni nimeen — eri paikka eri kortilla.
+ *
+ * Nyt työntö tulee NIMILOHKOSTA (`flex: 1`), joka on olemassa aina.
+ * `min-width: 0` on pakollinen: ilman sitä flex-lapsen vähimmäiskoko
+ * on sen sisällön koko, eikä pitkä asemanimi katkeaisi kolmeen
+ * pisteeseen vaan työntäisi napin ulos rivistä. */
+.hl-nimiryhma { flex: 1 1 auto; min-width: 0; }
 .hl-nimi {
   font-weight: 700; font-size: var(--fs-11); line-height: 1.1;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
 }
-.hl-sub { font-variant-numeric: tabular-nums; font-size: var(--fs-85); color: var(--ink-3); }
+.hl-sub {
+  font-variant-numeric: tabular-nums; font-size: var(--fs-85); color: var(--ink-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .hl-jaksot {
   display: flex; background: var(--surface-lo); border-radius: 10px;
-  padding: 2px; gap: 1px; margin-left: auto; flex-shrink: 0;
+  padding: 2px; gap: 1px; flex-shrink: 0;
 }
 /* LUKEMARIVI. Levossa jakson tilastot, raahatessa osoitetun hetken
    arvot. Kiinteassa paikassa eika kelluvana kuplana: sormi ei peita
@@ -13561,7 +13577,31 @@ function _tipLeftPx(tip, svgRect, xInViewBox, viewBoxW) {
    muille vesipisteille (esim. Kruunuvuorenselkä), joten lähdenimi on
    parametri — uirasStation/spotLat saavat olla null, jolloin asemavalitsin
    jää pois ja tilalle tulee pelkkä nimi. */
-function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, spotLng, sourceLabel) {
+/* KAKSI ASUA, YKSI PIIRTOFUNKTIO — sama tyonjako kuin tuulikaavioilla.
+   Luvut ovat viewBox-yksikkoja.
+ *
+ * Tama SVG EI ole `preserveAspectRatio="none"`, joten se skaalautuu
+ * tasaisesti: mittakaava on piirretty leveys jaettuna W:lla. Kortilla
+ * se on noin 1,3 ja kirjasin 7,5 renderoityy ~9,8 pikselina. Laajassa
+ * sama kerroin olisi puhelimen vaakaruudulla 2,7 eli kirjasin 20 px,
+ * joten laajan W ON laatikon pikselileveys: mittakaava 1:1 ja
+ * luettavuus ostetaan kirjasinkoolla (`fs`). */
+var UW_ASU_KORTTI = { W:300, H:108, padX:36, padY:10, labH:20, fs:1, lw:1, venyta:true, laaja:false };
+var UW_LAAJA_VUOTO = 4;   /* ks. tuuliennusteen LAAJA_VUOTO */
+function _uirasAsuLaaja(bw, bh) {
+  var fs = bw > 620 ? 1.9 : 1.55;
+  var labH = Math.round(20 * fs);
+  /* Y-lappu on "12.5°" eli enintaan viisi merkkia: leveampi kuin
+     tuulikaavion kaksinumeroinen, siksi 26*fs eika 20*fs. */
+  return {
+    W: Math.max(280, Math.round(bw)), H: Math.max(150, Math.round(bh) - labH),
+    padX: Math.round(26 * fs), padY: Math.round(10 * fs), labH: labH,
+    fs: fs, lw: Math.max(1, fs * 0.85), venyta: false, laaja: true,
+  };
+}
+
+function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, spotLng, sourceLabel, asu) {
+  asu = asu || UW_ASU_KORTTI;
   var period = el._period || '7d';
   var pMs = {'7d':7*864e5,'30d':30*864e5,'90d':90*864e5};
   var now = Date.now();
@@ -13576,10 +13616,11 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
   var range=maxV-minV||1, padV=range*0.2;
   var lo=minV-padV, hi=maxV+padV;
 
-  var W=300, H=108, padX=36, padY=10, labH=20, TH=H+labH;
-  function xOf(i){ return padX+i/(n-1||1)*(W-padX-8); }
+  var W=asu.W, H=asu.H, padX=asu.padX, padY=asu.padY, labH=asu.labH, TH=H+labH;
+  var FS=asu.fs, LW=asu.lw, REUNA=8*FS;
+  function xOf(i){ return padX+i/(n-1||1)*(W-padX-REUNA); }
   function yOf(v){ return padY+(1-(v-lo)/(hi-lo))*(H-padY*2); }
-  function iOf(xPx){ return Math.max(0,Math.min(n-1,Math.round((xPx-padX)/(W-padX-8)*(n-1)))); }
+  function iOf(xPx){ return Math.max(0,Math.min(n-1,Math.round((xPx-padX)/(W-padX-REUNA)*(n-1)))); }
 
   /* Bezier */
   function smoothPath(pts2){
@@ -13608,16 +13649,16 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
   for(var yv=yStart; yv<=maxV+0.01; yv+=yStep){
     if(yv<lo+padV*0.5||yv>hi-padV*0.5) continue;
     var gy=yOf(yv);
-    yLabels+='<text x="'+(padX-6)+'" y="'+gy.toFixed(1)+'" font-size="7.5" fill="#5F696F" text-anchor="end" dominant-baseline="middle">'+yv.toFixed(yStep<1?1:0)+'°</text>';
-    yLabels+='<line x1="'+padX+'" y1="'+gy.toFixed(1)+'" x2="'+(W-8)+'" y2="'+gy.toFixed(1)+'" stroke="#DFD4B6" stroke-width="1"/>';
+    yLabels+='<text x="'+(padX-6*FS).toFixed(1)+'" y="'+gy.toFixed(1)+'" font-size="'+(7.5*FS).toFixed(1)+'" fill="#5F696F" text-anchor="end" dominant-baseline="middle">'+yv.toFixed(yStep<1?1:0)+'°</text>';
+    yLabels+='<line x1="'+padX+'" y1="'+gy.toFixed(1)+'" x2="'+(W-REUNA)+'" y2="'+gy.toFixed(1)+'" stroke="#DFD4B6" stroke-width="'+LW.toFixed(2)+'"/>';
   }
 
   /* X-akseli — pikselileveys-perusteinen tiheys, ei päällekkäisyyttä */
   var xl='';
   var ms0=new Date(draw[0].t).getTime(), ms1=new Date(draw[n-1].t).getTime();
   var totalDays=(ms1-ms0)/864e5;
-  var chartPx=W-padX-8; /* käytettävissä oleva pikselileveys viewBox-koordinaateissa */
-  var minPxBetween=44;  /* minimietäisyys labelien välillä (px viewBox) */
+  var chartPx=W-padX-REUNA; /* käytettävissä oleva pikselileveys viewBox-koordinaateissa */
+  var minPxBetween=44*FS;  /* minimietäisyys labelien välillä (px viewBox) */
   var maxLabels=Math.max(1,Math.floor(chartPx/minPxBetween));
   /* Siistit askelvälit päivissä */
   var niceStepsDays=[1,2,3,7,14,30,60,90,180,365];
@@ -13629,21 +13670,21 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
   for(var tt=t0.getTime(); tt<=ms1; tt+=stp){
     if(tt<ms0) continue;
     var fd=new Date(tt);
-    var xi=iOf(padX+(tt-ms0)/(ms1-ms0||1)*(W-padX-8));
+    var xi=iOf(padX+(tt-ms0)/(ms1-ms0||1)*(W-padX-REUNA));
     var lx=xOf(xi);
-    if(lx<padX+8||lx>W-16) continue;
+    if(lx<padX+REUNA||lx>W-2*REUNA) continue;
     if(lx-lastLx<minPxBetween) continue; /* varmuustarkistus päällekkäisyydelle */
     lastLx=lx;
-    xl+='<text x="'+lx.toFixed(1)+'" y="'+(TH-4)+'" font-size="7.5" fill="#5F696F" text-anchor="middle">'+fd.getDate()+'.'+( fd.getMonth()+1)+'.</text>';
+    xl+='<text x="'+lx.toFixed(1)+'" y="'+(TH-4*FS).toFixed(1)+'" font-size="'+(7.5*FS).toFixed(1)+'" fill="#5F696F" text-anchor="middle">'+fd.getDate()+'.'+( fd.getMonth()+1)+'.</text>';
   }
 
   /* Min/max callout */
   function mkCallout(idx,isMax){
     var lx=xOf(idx), ly=yOf(draw[idx].v);
-    var anchor=lx<padX+30?'start':lx>W-30?'end':'middle';
-    var oy=isMax?-13:13;
-    return '<circle cx="'+lx.toFixed(1)+'" cy="'+ly.toFixed(1)+'" r="2.5" fill="'+(isMax?'var(--ink)':'#4C5960')+'" pointer-events="none"/>'
-      +'<text x="'+lx.toFixed(1)+'" y="'+(ly+oy).toFixed(1)+'" font-size="8" fill="'+(isMax?'#1C5C86':'#4C5960')+'" text-anchor="'+anchor+'" pointer-events="none">'+draw[idx].v.toFixed(1)+'°</text>';
+    var anchor=lx<padX+30*FS?'start':lx>W-30*FS?'end':'middle';
+    var oy=(isMax?-13:13)*FS;
+    return '<circle cx="'+lx.toFixed(1)+'" cy="'+ly.toFixed(1)+'" r="'+(2.5*LW).toFixed(1)+'" fill="'+(isMax?'var(--ink)':'#4C5960')+'" pointer-events="none"/>'
+      +'<text x="'+lx.toFixed(1)+'" y="'+(ly+oy).toFixed(1)+'" font-size="'+(8*FS).toFixed(1)+'" fill="'+(isMax?'#1C5C86':'#4C5960')+'" text-anchor="'+anchor+'" pointer-events="none">'+draw[idx].v.toFixed(1)+'°</text>';
   }
   var minMaxLabels=(maxV-minV>0.5)?(mkCallout(maxIdx,true)+mkCallout(minIdx,false)):'';
 
@@ -13663,14 +13704,21 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
       +'border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:background .15s,color .15s">'+pv[1]+'</button>';
   }).join('');
 
+  /* OTSIKKORIVI JA ALARIVI OVAT KORTIN OSIA, EIVAT KAAVION.
+     Laajassa nakymassa asemanimi on kuoren otsikossa, jakso sen
+     jaksovalitsimessa ja lukema kiinteassa lukemarivissa — sama
+     tyonjako kuin havaintokaaviolla. Kaksoiskappaleet lukisivat
+     ruudulla saman asian kahdesti. */
   el.innerHTML=
     /* Header */
-    '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;min-width:0">'
-      +'<div id="'+svgId+'-dd" style="min-width:0;overflow:visible;position:relative"></div>'
-      +'<div style="display:flex;flex-shrink:0;background:var(--surface-lo);border-radius:10px;padding:2px;gap:1px">'
+    (asu.laaja ? '' :
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;min-width:0">'
+      +'<div id="'+svgId+'-dd" style="flex:1 1 auto;min-width:0;overflow:visible;position:relative"></div>'
+      +'<div role="group" aria-label="Jakso" style="display:flex;flex-shrink:0;background:var(--surface-lo);border-radius:10px;padding:2px;gap:1px">'
         +segBtns
       +'</div>'
-    +'</div>'
+      +_havLaajennaNappi(svgId)
+    +'</div>')
 
     /* SVG */
     +'<div style="position:relative">'
@@ -13678,7 +13726,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
       /* Ylitys 18px eikä 36px: 36:lla y-akselin labelit (esim. "19.0°")
          alkoivat kohdasta x = -5.4 eli ensimmäinen merkki jäi ruudun
          ulkopuolelle ja akselissa luki "9.0°". */
-      +'<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" style="width:calc(100% + 18px);margin-left:-18px;display:block;touch-action:none;overflow:visible">'
+      +'<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" style="'+(asu.venyta?'width:calc(100% + 18px);margin-left:-18px':'width:calc(100% + '+(2*UW_LAAJA_VUOTO)+'px);margin:0 -'+UW_LAAJA_VUOTO+'px')+';display:block;touch-action:none;overflow:visible">'
         +'<defs>'
           +'<linearGradient id="'+gradId+'" x1="0" y1="0" x2="0" y2="1">'
             +'<stop offset="0%" stop-color="rgba(28,92,134,.22)"/>'
@@ -13691,27 +13739,36 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
         /* Aluegradietti */
         +'<path d="'+areaPath+'" fill="url(#'+gradId+')" />'
         /* Viiva */
-        +'<path d="'+linePath+'" fill="none" stroke="#1C5C86" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
+        +'<path d="'+linePath+'" fill="none" stroke="#1C5C86" stroke-width="'+(1.8*LW).toFixed(2)+'" stroke-linecap="round" stroke-linejoin="round"/>'
         /* Min/max */
         +minMaxLabels
         /* Viimeisin piste */
-        +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastY.toFixed(1)+'" r="5" fill="rgba(28,92,134,.20)" pointer-events="none"><animate attributeName="r" values="4;8;4" dur="3s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.6;0;0.6" dur="3s" repeatCount="indefinite"/></circle>'
-        +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastY.toFixed(1)+'" r="3.5" fill="#1C5C86" stroke="var(--surface-hi)" stroke-width="1.5" pointer-events="none"/>'
+        +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastY.toFixed(1)+'" r="'+(5*LW).toFixed(1)+'" fill="rgba(28,92,134,.20)" pointer-events="none"><animate attributeName="r" values="'+(4*LW).toFixed(1)+';'+(8*LW).toFixed(1)+';'+(4*LW).toFixed(1)+'" dur="3s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.6;0;0.6" dur="3s" repeatCount="indefinite"/></circle>'
+        +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastY.toFixed(1)+'" r="'+(3.5*LW).toFixed(1)+'" fill="#1C5C86" stroke="var(--surface-hi)" stroke-width="'+(1.5*LW).toFixed(2)+'" pointer-events="none"/>'
         /* Crosshair */
-        +'<line id="'+svgId+'-vl" x1="-1" y1="'+padY+'" x2="-1" y2="'+H+'" stroke="#CDBE9A" stroke-width="1" stroke-dasharray="3,3" pointer-events="none"/>'
-        +'<circle id="'+svgId+'-dot" cx="-1" cy="-1" r="4.5" fill="#1C5C86" stroke="var(--surface-hi)" stroke-width="1.5" pointer-events="none" visibility="hidden"/>'
+        +'<line id="'+svgId+'-vl" x1="-1" y1="'+padY+'" x2="-1" y2="'+H+'" stroke="#CDBE9A" stroke-width="'+LW.toFixed(2)+'" stroke-dasharray="3,3" pointer-events="none"/>'
+        +'<circle id="'+svgId+'-dot" cx="-1" cy="-1" r="'+(4.5*LW).toFixed(1)+'" fill="#1C5C86" stroke="var(--surface-hi)" stroke-width="'+(1.5*LW).toFixed(2)+'" pointer-events="none" visibility="hidden"/>'
         /* Hit */
-        +'<rect id="'+svgId+'-hit" x="'+padX+'" y="'+padY+'" width="'+(W-padX-8)+'" height="'+(H-padY)+'" fill="transparent" style="cursor:crosshair"/>'
+        +'<rect id="'+svgId+'-hit" x="'+padX+'" y="'+padY+'" width="'+(W-padX-REUNA)+'" height="'+(H-padY)+'" fill="transparent" style="cursor:crosshair"/>'
         /* X-akseli */
         +xl
       +'</svg>'
     +'</div>'
 
     /* Footer */
-    +'<div style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;padding:0 2px">'
+    +(asu.laaja ? '' :
+    '<div style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;padding:0 2px">'
       +'<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-8);color:var(--ink-3)">'+(sourceLabel||'UiRas')+' · '+(stationName||'')+'</div>'
       +'<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-13);color:#1C5C86;font-weight:700;letter-spacing:-.3px">'+lastVal.toFixed(1)+'<span style="font-size:var(--fs-9);font-weight:400;color:var(--ink-3)"> °C</span></div>'
-    +'</div>';
+    +'</div>');
+
+  /* Jakson yhteenveto elementtiin: laajan lukemarivi lukee sen
+     levossa, eika kumpikaan laske samoja lukuja uudelleen. */
+  el._uwYhteenveto={
+    nyt:lastVal, min:minV, max:maxV,
+    alkuMs:new Date(draw[0].t).getTime(), loppuMs:new Date(draw[n-1].t).getTime(),
+    asema:stationName||'', lahde:sourceLabel||'UiRas',
+  };
 
   /* Tooltip interaktio */
   var svg=document.getElementById(svgId),hit=document.getElementById(svgId+'-hit');
@@ -13726,6 +13783,10 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     var d=new Date(draw[idx].t);
     var dstr=d.getDate()+'.'+(d.getMonth()+1)+'. '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
     var val=draw[idx].v.toFixed(1);
+    /* LAAJASSA LUKEMA MENEE KIINTEALLE RIVILLE, EI KELLUVAAN KUPLAAN:
+       kokonaytossa kupla jaa sormen alle. Koukku on elementissa kuten
+       havaintokaaviossa (`_havScrub`), eika kuplaa edes lasketa. */
+    if(el._uwScrub){ el._uwScrub({v:draw[idx].v,ms:new Date(draw[idx].t).getTime()}); tip.style.display='none'; return; }
     tip.innerHTML='<div style="font-size:18px;font-weight:700;color:var(--ink);letter-spacing:-.5px;line-height:1">'+val+'<span style="font-size:var(--fs-11);font-weight:400;color:var(--ink-3)"> °C</span></div>'
       +'<div style="color:var(--ink-3);font-size:var(--fs-9);margin-top:4px">'+dstr+'</div>';
     var r=svg.getBoundingClientRect();
@@ -13733,6 +13794,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     tip.style.left=_tipLeftPx(tip,r,x,W)+'px';tip.style.top=tipTop+'px';tip.style.display='block';
   }
   function hideTip(){
+    if(el._uwScrub) el._uwScrub(null);
     tip.style.display='none';
     vl.setAttribute('visibility','hidden');vl.setAttribute('x1','-1');vl.setAttribute('x2','-1');
     dot.setAttribute('visibility','hidden');dot.setAttribute('cx','-1');dot.setAttribute('cy','-1');
@@ -13747,9 +13809,54 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
   el.querySelectorAll('[data-up]').forEach(function(btn){
     btn.addEventListener('click',function(){
       el._period=btn.dataset.up;
-      _uirasChartInteractive(el,allPts,stationName,uirasStation,spotLat,spotLng,sourceLabel);
+      _uirasChartInteractive(el,allPts,stationName,uirasStation,spotLat,spotLng,sourceLabel,asu);
+      /* Laaja nakyma lukee samaa `el._period`-arvoa. */
+      if(typeof HavLaaja!=='undefined') HavLaaja.paivita();
     },{passive:true});
   });
+
+  /* ── Laajennusnappi ─────────────────────────────────────────────
+     Lahde ripustetaan nappiin, josta seka napautus etta kaanto sen
+     lukevat — sama polku kuin tuulikaavioilla. */
+  var uwLaaj=el.querySelector('[data-hav-laajenna]');
+  if(uwLaaj){
+    uwLaaj._havLaajaLahde=function(){
+      return {
+        el: el, jaksot: '[data-up]',
+        otsikko: stationName||'Vedenlämpö',
+        sub: sourceLabel||'UiRas',
+        piirra: function(kaavio,laatikko,laaja){
+          kaavio._period=el._period||period;
+          var lepo=function(){
+            var y=kaavio._uwYhteenveto; if(!y) return [];
+            var pv=function(ms){var d2=new Date(ms);return d2.getDate()+'.'+(d2.getMonth()+1)+'.';};
+            return [
+              {nimi:'Nyt',arvo:y.nyt.toFixed(1),ala:'°C'},
+              {nimi:'Vaihtelu',arvo:y.min.toFixed(1)+'–'+y.max.toFixed(1),ala:'°C'},
+              {nimi:'Jakso',arvo:pv(y.alkuMs)+'–'+pv(y.loppuMs),ala:''},
+              {nimi:'Lähde',arvo:y.lahde,ala:y.asema},
+            ];
+          };
+          kaavio._uwScrub=null;
+          _uirasChartInteractive(kaavio,allPts,stationName,uirasStation,null,null,sourceLabel,
+            _uirasAsuLaaja(laatikko.w+2*UW_LAAJA_VUOTO,laatikko.h));
+          kaavio._uwScrub=function(b){
+            if(!b){ laaja.rivi(lepo()); return; }
+            var d3=new Date(b.ms);
+            laaja.rivi([
+              {nimi:d3.getDate()+'.'+(d3.getMonth()+1)+'.',
+               arvo:('0'+d3.getHours()).slice(-2)+':'+('0'+d3.getMinutes()).slice(-2),ala:''},
+              {nimi:'Vedenlämpö',arvo:b.v.toFixed(1),ala:'°C'},
+            ]);
+          };
+          laaja.rivi(lepo());
+        },
+      };
+    };
+    uwLaaj.addEventListener('click',function(){
+      HavLaaja.avaa(uwLaaj._havLaajaLahde(),uwLaaj);
+    },{passive:true});
+  }
 
   /* Asemavalitsin dropdown
      RATKAISU: ei document-listenereita jotka kertyisivät.
@@ -15725,7 +15832,38 @@ function openSheet(spot, hourIdx) {
     const nowMs = Date.now();
     /* Kaytetaan valittua aikaa graafin lahtöpisteena */
     var selectedTime = h.time && h.time[idx] ? new Date(h.time[idx]).getTime() : nowMs;
-    var harmonieCutMs = (State.activeModel === 'fmi_harmonie') ? selectedTime + 48*3600000 : null;
+
+    /* FMI:N JA OPEN-METEON RAJA LUETAAN VASTAUKSESTA, EI MALLIVALITSIMESTA.
+     *
+     * Tässä oli ehto `State.activeModel === 'fmi_harmonie'`, ja se ei voi
+     * olla tosi: mallia ei valita enää käsin, `activeModel` on pysyvästi
+     * `'best_match'` (rivi jossa `fs_model` poistetaan localStoragesta).
+     * Rajaviiva oli siis kuollutta koodia ja kaavion pääviiva luki
+     * selitteessä "Auto" — vaikka sarjan ensimmäiset ~52 tuntia ovat
+     * Suomessa nimenomaan FMI:n HARMONIE 2,5 km:iä.
+     *
+     * Oikea luku on proxyn oma `harmonie_hours`: montako AKSELIN
+     * ensimmäistä alkiota on FMI:tä. Se on INDEKSI eikä kesto, joten
+     * raja on `time[hh]` — ei "nyt + 48 h". Ero ei ole kosmeettinen:
+     * spottidata palautetaan levyltä (`_restoreSpots`), jolloin sarja on
+     * voinut alkaa tunteja sitten ja nyt-hetkeen sidottu raja osuisi
+     * väärään kohtaan. Indeksi on sidottu akseliin, ei kelloon.
+     *
+     * Kun sarja on kokonaan Open-Meteoa (HARMONIEn hilan ulkopuolella,
+     * tai proxy kaatui sen kohdalla), `harmonie_hours` on 0 eikä rajaa
+     * piirretä lainkaan. */
+    var harmonieHours = (spot.wx && spot.wx.harmonie_hours) || 0;
+    var harmonieCutMs = (harmonieHours > 0 && harmonieHours < allTimes.length
+                         && allTimes[harmonieHours])
+      ? new Date(allTimes[harmonieHours]).getTime() : null;
+    /* Lähteen nimi on YHDESTÄ rekisteristä (`Lahde.NIMET` / `LYHYET`).
+       Toinen taulukko samoille nimille olisi toinen paikka joka ajautuu
+       erilleen — juuri niin kävi `modelNames`ille, joka väitti
+       "Auto". */
+    function lahdeAvain(tMs) {
+      return (harmonieCutMs && tMs < harmonieCutMs) ? 'fmi' : 'om';
+    }
+    function lahdeNimi(tMs) { return Lahde.LYHYET[lahdeAvain(tMs)]; }
 
     const PERIODS = [
       { key: '24h', label: '24h', hours: 24 },
@@ -15735,17 +15873,56 @@ function openSheet(spot, hourIdx) {
     const sectionId  = 'mc-sec-' + Math.random().toString(36).slice(2,6);
     var activePeriod = spot._chartPeriod || '24h';
 
-    /* SVG-dimensiot */
-    const CHART_H    = 120;  /* SVG viewBox korkeus */
-    /* LABEL_H kasvoi 16 -> 24: kuvaajan ja tuntimerkintojen valiin
-       mahtuu VALOKAISTA (valon vaihe + pilvisyys) ja sen alle
-       sadekaista. Ne ovat omalla kaistallaan eivatka kuvaajan paalla,
-       koska paallekkaisia harsoja oli jo kaksi — tuuligradientti ja
-       vihrea sessioikkuna — ja kolmas teki kaikista mutaa. */
-    const PAD = 4, LABEL_H = 24, TH = CHART_H + LABEL_H;
-    const VALO_Y = CHART_H + 2, VALO_H = 6;   /* valo + pilvet */
-    const SADE_Y = CHART_H + 9, SADE_H = 2;   /* sade / lumi */
-    const Y_PAD = 32; /* Y-akselin leveys vasemmalla */
+    /* KAKSI ASUA, YKSI PIIRTOFUNKTIO.
+     *
+     * Sama työnjako kuin havaintokaaviossa (`HAV_ASU_*`): kaikki mikä
+     * eroaa kortin ja laajennetun näkymän välillä on TAULUKOSSA, ei
+     * `buildSvg`in haaroissa. Luvut ovat viewBox-yksikköjä.
+     *
+     * `labelH` kasvoi aikoinaan 16 -> 24, koska kuvaajan ja
+     * tuntimerkintojen väliin mahtuu VALOKAISTA (valon vaihe +
+     * pilvisyys) ja sen alle sadekaista. Ne ovat omalla kaistallaan
+     * eivätkä kuvaajan päällä: päällekkäisiä harsoja oli jo kaksi —
+     * tuuligradientti ja vihreä sessioikkuna — ja kolmas teki kaikista
+     * mutaa. */
+    const ASU_KORTTI = {
+      W: 300, H: 120, labelH: 24, yPad: 32, pad: 4,
+      fs: 1, lw: 1, venyta: true, laaja: false,
+    };
+    /* LAAJA ON 1:1 PIKSELEIHIN.
+     *
+     * Kortin SVG on `preserveAspectRatio="none"`, eli 300 yksikön
+     * viewBox venytetään noin 407 pikseliin: teksti on jo siellä 36 %
+     * leveämpää kuin korkeaa. Puhelimen vaakaruudulla sama kerroin
+     * olisi 2,7 ja kirjaimista tulisi lattioita. Siksi laajan viewBox
+     * ON laatikon pikselikoko — mittakaava 1:1 molempiin suuntiin — ja
+     * luettavuus ostetaan kirjasinkoolla (`fs`) eikä venytyksellä.
+     *
+     * Laajennus EI SAA KUTISTAA MITÄÄN: `H` ottaa koko laatikon
+     * korkeuden merkintärivin jälkeen, joten pystyssäkin kuvaaja on
+     * korkeampi kuin kortilla (kortti 120 yksikköä ~ 120 px). */
+    function asuLaaja(boxW, boxH) {
+      var fs = boxW > 620 ? 1.9 : 1.55;
+      var labelH = Math.round(26 * fs);
+      return {
+        W: Math.max(280, Math.round(boxW)),
+        H: Math.max(170, Math.round(boxH) - labelH),
+        labelH: labelH,
+        /* Y-AKSELIN URA ON MITATTU, EI ARVATTU. Lappu on enintaan
+           kaksinumeroinen ("20"), leveys noin 1,1 x kirjasinkoko, ja
+           se ankkuroidaan 6*fs pikselia akselista. 20*fs riittaa
+           juuri siihen; ensimmainen 30*fs jatti 25 px tyhjaa ja teki
+           laajasta kuvaajasta KAPEAMMAN kuin kortilla (319 vs 338 px
+           nakyvaa piirtoaluetta). */
+        yPad: Math.round(20 * fs), pad: Math.round(3 * fs),
+        fs: fs, lw: Math.max(1, fs * 0.85), venyta: false, laaja: true,
+      };
+    }
+    /* Laaja vuotaa `.hl-kaavio`n sivutayteen (4 px) kuten kortin kaavio
+       vuotaa kortin omaan tayteeseensa. Ilman sita piirtoalue jaisi
+       kortin nakyvaa aluetta kapeammaksi, ja laajennus ei saa kaventaa
+       mitaan. */
+    const LAAJA_VUOTO = 4;
     /* 24h: fluid (100% leveys), muut: kiintea px + vaakascroll */
     const PERIOD_W = { '24h': null, '5d': 600, 'all': 1200 };
 
@@ -15806,8 +15983,6 @@ function openSheet(spot, hourIdx) {
       { id: 'icon_eu',      label: 'ICON',  key: 'icon'  },
       { id: 'gfs_seamless', label: 'GFS',   key: 'gfs'   },
     ];
-    const modelNames = { fmi_harmonie:'FMI 2.5km', best_match:'Auto', ecmwf_ifs025:'ECMWF', icon_eu:'ICON', gfs_seamless:'GFS' };
-    const activeLabel = modelNames[State.activeModel] || State.activeModel;
 
     function getSlice(periodKey) {
       var hours  = PERIODS.find(function(p){ return p.key===periodKey; }).hours;
@@ -15834,11 +16009,21 @@ function openSheet(spot, hourIdx) {
       });
     }
 
-    function buildSvg(periodKey) {
+    function buildSvg(periodKey, asu) {
+      asu = asu || ASU_KORTTI;
+      /* Geometria tulee asusta. Nimet ovat samat kuin ennen, jotta
+         piirtokoodi on rivilleen sama kummallakin asulla. */
+      var CHART_H = asu.H, PAD = asu.pad, LABEL_H = asu.labelH;
+      var TH = CHART_H + LABEL_H, Y_PAD = asu.yPad, FS = asu.fs, LW = asu.lw;
+      var VALO_Y = CHART_H + 2 * FS, VALO_H = 6 * FS;   /* valo + pilvet */
+      var SADE_Y = CHART_H + 9 * FS, SADE_H = 2 * FS;   /* sade / lumi */
       var sl = getSlice(periodKey);
       var vals=sl.vals, times=sl.times, n=vals.length;
       var isFluid = !PERIOD_W[periodKey];
-      var W = isFluid ? 300 : PERIOD_W[periodKey]; /* viewBox width, paivitetaan JS:ssa */
+      /* Kiinteät jaksoleveydet skaalataan samassa suhteessa kuin fluid,
+         jotta vaakavieritys antaa laajassa saman tuntitiheyden kuin
+         kortilla. Kortilla suhde on 1 ja luvut ovat entiset. */
+      var W = isFluid ? asu.W : Math.round(asu.W / 300 * PERIOD_W[periodKey]);
       /* maxV: kaikki mallit huomioon -- paivitetaan jalkikateen JS:ssa */
       /* Kiintea asteikko min 8 m/s, skaalautuu ylospain tarvittaessa */
       var dataMax = Math.max.apply(null, vals.concat([1]));
@@ -16047,12 +16232,12 @@ function openSheet(spot, hourIdx) {
       var allPts=vals.map(function(v,i){ return xOf(i).toFixed(1)+','+yOf(v).toFixed(1); }).join(' ');
       var pastPts=vals.slice(0,nowSlot+1).map(function(v,i){ return xOf(i).toFixed(1)+','+yOf(v).toFixed(1); }).join(' ');
       /* Mennyt: sama gradient mutta läpinäkyvämpi clip-pathilla simuloituna */
-      if(pastPts) pastSegs='<polyline points="'+pastPts+'" fill="none" stroke="url(#'+windLinGradId+')" stroke-width="1.8" stroke-opacity="0.35" stroke-linejoin="round" stroke-linecap="round"/>';
+      if(pastPts) pastSegs='<polyline points="'+pastPts+'" fill="none" stroke="url(#'+windLinGradId+')" stroke-width="'+(1.8*LW).toFixed(2)+'" stroke-opacity="0.35" stroke-linejoin="round" stroke-linecap="round"/>';
 
       var futurePts=vals.slice(nowSlot).map(function(v,i){
         return xOf(nowSlot+i).toFixed(1)+','+yOf(v).toFixed(1);
       }).join(' ');
-      var colorSegs=futurePts?'<polyline points="'+futurePts+'" fill="none" stroke="url(#'+windLinGradId+')" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>':'';
+      var colorSegs=futurePts?'<polyline points="'+futurePts+'" fill="none" stroke="url(#'+windLinGradId+')" stroke-width="'+(2.5*LW).toFixed(2)+'" stroke-linejoin="round" stroke-linecap="round"/>':'';
       var areaFill='';
 
       /* X-akseli */
@@ -16061,7 +16246,7 @@ function openSheet(spot, hourIdx) {
          kolmen tunnin merkinta (15) piirtyi sen paalle. Sama suoja kuin
          toisessa kaaviossa: pidetaan kirjaa viimeisesta x:sta. */
       var labels='', lastDay=-1, lastLx=-999;
-      var MIN_LBL_X = 26;
+      var MIN_LBL_X = 26 * FS;
       var hourStep = periodKey==='24h'?3:periodKey==='5d'?12:24;
       for(var k=0;k<times.length;k++){
         if(!times[k]) continue;
@@ -16076,14 +16261,14 @@ function openSheet(spot, hourIdx) {
           var lbl = periodKey==='24h'
             ? (('0'+hr).slice(-2)+':00')
             : (dayNames[d.getDay()]+' '+day+'.');
-          labels+='<text x="'+x+'" y="'+(TH-1)+'" font-size="7.5" fill="#4C5960" text-anchor="middle">'+lbl+'</text>';
+          labels+='<text x="'+x+'" y="'+(TH-1)+'" font-size="'+(7.5*FS).toFixed(1)+'" fill="#4C5960" text-anchor="middle">'+lbl+'</text>';
         } else if(hr%hourStep===0&&hr!==0){
           if(parseFloat(x)-lastLx<MIN_LBL_X) continue;
           lastLx=parseFloat(x);
           if(periodKey==='24h'||periodKey==='5d'){
             /* Paperilla riittää yksi mustetaso: aiemmin tässä oli valkoisen
                alfa .35/.2, joka oli vaalealla käytännössä näkymätön. */
-            labels+='<text x="'+x+'" y="'+(TH-1)+'" font-size="8" fill="#5F696F" text-anchor="middle">'+('0'+hr).slice(-2)+'</text>';
+            labels+='<text x="'+x+'" y="'+(TH-1)+'" font-size="'+(8*FS).toFixed(1)+'" fill="#5F696F" text-anchor="middle">'+('0'+hr).slice(-2)+'</text>';
           }
         }
       }
@@ -16093,21 +16278,34 @@ function openSheet(spot, hourIdx) {
       var yStep = maxV>15?4:maxV>8?2:1;
       for(var yv=yStep;yv<=Math.ceil(maxV);yv+=yStep){
         var yy=yOf(yv).toFixed(1);
-        ylbls+='<text x="'+(Y_PAD-6)+'" y="'+yy+'" font-size="7.5" fill="#5F696F" text-anchor="end" dominant-baseline="middle">'+yv+'</text>';
-        ylbls+='<line x1="'+Y_PAD+'" y1="'+yy+'" x2="'+(W-PAD)+'" y2="'+yy+'" stroke="#DFD4B6" stroke-width="0.5"/>';
+        ylbls+='<text x="'+(Y_PAD-6*FS).toFixed(1)+'" y="'+yy+'" font-size="'+(7.5*FS).toFixed(1)+'" fill="#5F696F" text-anchor="end" dominant-baseline="middle">'+yv+'</text>';
+        ylbls+='<line x1="'+Y_PAD+'" y1="'+yy+'" x2="'+(W-PAD)+'" y2="'+yy+'" stroke="#DFD4B6" stroke-width="'+(0.5*LW).toFixed(2)+'"/>';
       }
       /* 6 m/s foilausalue-viiva */
       if(6 < maxV) {
         var fyBot6 = yOf(6).toFixed(1);
-        ylbls+='<line x1="'+Y_PAD+'" y1="'+fyBot6+'" x2="'+(W-PAD)+'" y2="'+fyBot6+'" stroke="#CDBE9A" stroke-width="1" stroke-dasharray="4,3"/>';
-        ylbls+='<text x="'+(W-PAD-2)+'" y="'+fyBot6+'" font-size="7" fill="#5F696F" text-anchor="end" dominant-baseline="auto" dy="-2">6</text>';
+        ylbls+='<line x1="'+Y_PAD+'" y1="'+fyBot6+'" x2="'+(W-PAD)+'" y2="'+fyBot6+'" stroke="#CDBE9A" stroke-width="'+LW.toFixed(2)+'" stroke-dasharray="4,3"/>';
+        ylbls+='<text x="'+(W-PAD-2*FS).toFixed(1)+'" y="'+fyBot6+'" font-size="'+(7*FS).toFixed(1)+'" fill="#5F696F" text-anchor="end" dominant-baseline="auto" dy="'+(-2*FS).toFixed(1)+'">6</text>';
       }
 
-      /* HARMONIE raja */
+      /* FMI:N JA OPEN-METEON RAJA.
+       *
+       * Lappu on rajan VASEMMALLA puolella ja lukee "FMI päättyy":
+       * pelkkä "FMI" keskellä viivaa ei kerro kummalla puolella FMI on,
+       * ja juuri se on rivin koko asia. Ankkuri kääntyy reunoilla,
+       * koska raja voi osua lähelle kuvaajan laitaa (24 h jaksolla se
+       * on kuvan ulkopuolella, 5 vrk jaksolla noin puolivälissä ja
+       * kaikki-jaksolla heti alussa).
+       *
+       * Väri on sama vaalea hiekka kuin 6 m/s viivassa: raja on
+       * kontekstia, ei dataa. Vanha `#E4D8B8` oli paperilla 1,3:1. */
       var harmMarker='';
       if(harmCutX){
-        harmMarker='<line x1="'+harmCutX+'" y1="'+PAD+'" x2="'+harmCutX+'" y2="'+(CHART_H-PAD)+'" stroke="#CDBE9A" stroke-width="1" stroke-dasharray="3,3"/>'
-          +'<text x="'+harmCutX+'" y="'+(PAD+8)+'" font-size="6.5" fill="#E4D8B8" text-anchor="middle">FMI</text>';
+        var hx=parseFloat(harmCutX);
+        var hAnchor = hx > W*0.78 ? 'end' : (hx < Y_PAD+34*FS ? 'start' : 'middle');
+        var hDx = (hAnchor==='end' ? -3 : (hAnchor==='start' ? 3 : 0)) * FS;
+        harmMarker='<line x1="'+harmCutX+'" y1="'+PAD+'" x2="'+harmCutX+'" y2="'+(CHART_H-PAD)+'" stroke="#CDBE9A" stroke-width="'+LW.toFixed(2)+'" stroke-dasharray="3,3"/>'
+          +'<text x="'+harmCutX+'" dx="'+hDx+'" y="'+(PAD+8*FS).toFixed(1)+'" font-size="'+(6.5*FS).toFixed(1)+'" fill="#5F696F" text-anchor="'+hAnchor+'">FMI päättyy</text>';
       }
 
       /* SESSIOIKKUNA: jakso jossa tuuli on ajettavaa.
@@ -16139,13 +16337,15 @@ function openSheet(spot, hourIdx) {
       var modelsG='<g id="'+svgId+'-mg"></g>';
 
       /* Tooltip-pisteet per malli (paivitetaan JS:ssa) */
-      var dotEls='<circle id="'+svgId+'-dot-main" cx="-10" cy="-10" r="4" fill="#FAF5E7" stroke="rgba(16,26,32,.45)" stroke-width="1" pointer-events="none"/>';
+      var dotEls='<circle id="'+svgId+'-dot-main" cx="-10" cy="-10" r="'+(4*LW).toFixed(1)+'" fill="#FAF5E7" stroke="rgba(16,26,32,.45)" stroke-width="'+LW.toFixed(2)+'" pointer-events="none"/>';
       COMPARE_MODELS.forEach(function(m){
-        dotEls+='<circle id="'+svgId+'-dot-'+m.key+'" cx="-10" cy="-10" r="3" fill="none" stroke="#DFD4B6" stroke-width="0" pointer-events="none"/>';
+        dotEls+='<circle id="'+svgId+'-dot-'+m.key+'" cx="-10" cy="-10" r="'+(3*LW).toFixed(1)+'" fill="none" stroke="#DFD4B6" stroke-width="0" pointer-events="none"/>';
       });
 
       var svg='<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" '
-        + 'preserveAspectRatio="none" style="display:block;'+(isFluid?'width:calc(100% + '+Y_PAD+'px)':'width:'+W+'px')+';height:'+(CHART_H+LABEL_H)+'px;touch-action:none">'
+        + 'preserveAspectRatio="none" style="display:block;'
+        + (isFluid ? (asu.venyta ? 'width:calc(100% + '+Y_PAD+'px)' : 'width:100%') : 'width:'+W+'px')
+        + ';height:'+TH+'px;touch-action:none">'
         + '<defs>'+bgDefs+windLinGrad+'</defs>'
         /* Valo POHJIMMAISENA: tuuligradientti on läpikuultava (alfa
            0.05–0.32), joten yön harso näkyy sen läpi mutta tuulen värit
@@ -16162,17 +16362,22 @@ function openSheet(spot, hourIdx) {
         + modelsG
         + harmMarker
         /* NYT-viiva (vain jos ei ole valittu nykyhetki) */
-        + (nowSlot!==selectedSlot ? '<line x1="'+nowX+'" y1="'+PAD+'" x2="'+nowX+'" y2="'+(CHART_H-PAD)+'" stroke="#5F696F" stroke-width="1" stroke-dasharray="2,2"/><text x="'+nowX+'" y="'+(PAD+8)+'" font-size="6.5" fill="#5F696F" text-anchor="middle">NYT</text>' : '')
+        + (nowSlot!==selectedSlot ? '<line x1="'+nowX+'" y1="'+PAD+'" x2="'+nowX+'" y2="'+(CHART_H-PAD)+'" stroke="#5F696F" stroke-width="'+LW.toFixed(2)+'" stroke-dasharray="2,2"/><text x="'+nowX+'" y="'+(PAD+8*FS).toFixed(1)+'" font-size="'+(6.5*FS).toFixed(1)+'" fill="#5F696F" text-anchor="middle">NYT</text>' : '')
         /* Valittu hetki -- korostettu */
-        + '<line x1="'+selX+'" y1="'+PAD+'" x2="'+selX+'" y2="'+(CHART_H-PAD)+'" stroke="#101A20" stroke-width="1.5" stroke-dasharray="3,2"/>'
+        + '<line x1="'+selX+'" y1="'+PAD+'" x2="'+selX+'" y2="'+(CHART_H-PAD)+'" stroke="#101A20" stroke-width="'+(1.5*LW).toFixed(2)+'" stroke-dasharray="3,2"/>'
         + labels
         /* Tooltip pystyviiva + pisteet */
-        + '<line id="'+svgId+'-vl" x1="-10" y1="'+PAD+'" x2="-10" y2="'+(CHART_H-PAD)+'" stroke="#4C5960" stroke-width="1" stroke-dasharray="3,2" pointer-events="none" visibility="hidden"/>'
+        + '<line id="'+svgId+'-vl" x1="-10" y1="'+PAD+'" x2="-10" y2="'+(CHART_H-PAD)+'" stroke="#4C5960" stroke-width="'+LW.toFixed(2)+'" stroke-dasharray="3,2" pointer-events="none" visibility="hidden"/>'
         + dotEls
         + '<rect id="'+svgId+'-hit" x="'+Y_PAD+'" y="'+PAD+'" width="'+(W-Y_PAD-PAD)+'" height="'+(CHART_H-PAD*2)+'" fill="transparent" style="cursor:crosshair"/>'
         + '</svg>';
 
-      return {svg:svg,svgId:svgId,vals:vals,times:times,n:n,maxV:maxV,xOf:xOf,yOf:yOf,nowSlot:nowSlot,W:W,harmCutX:harmCutX};
+      /* Geometria kulkee mukana: `attachTooltip` ja mallien piirto
+         tarvitsevat samat luvut, ja asu voi olla eri kummallakin
+         näkymällä yhtä aikaa (kortti auki laajan takana). */
+      return {svg:svg,svgId:svgId,vals:vals,times:times,n:n,maxV:maxV,xOf:xOf,yOf:yOf,
+              nowSlot:nowSlot,W:W,harmCutX:harmCutX,
+              asu:asu,PAD:PAD,Y_PAD:Y_PAD,CHART_H:CHART_H,TH:TH};
     }
 
     /* Peek-info */
@@ -16187,16 +16392,35 @@ function openSheet(spot, hourIdx) {
       if(peakSl.vals[jj]>peakMs2){peakMs2=peakSl.vals[jj];peakH2=fmtHour(peakSl.times[jj]);}
     }
 
-    /* Period-napit — segmented control */
-    var periodBtns='<div style="display:flex;flex-shrink:0;background:var(--surface-lo);border-radius:10px;padding:2px;gap:1px">'
+    /* Period-napit — segmented control. `aria-pressed` ei ole koristetta:
+       ruudunlukija tarvitsee valinnan, ja laaja nakyma peilaa napit
+       otsikkoriviinsa lukemalla juuri sen. */
+    var periodBtns='<div role="group" aria-label="Jakso" style="display:flex;flex-shrink:0;background:var(--surface-lo);border-radius:10px;padding:2px;gap:1px">'
       +PERIODS.map(function(p){
         var a=p.key===activePeriod;
-        return '<button data-cp="'+p.key+'" style="flex:1;font-variant-numeric:tabular-nums;font-size:var(--fs-9);padding:4px 6px;border:none;white-space:nowrap;background:'+(a?'var(--ink)':'transparent')+';color:'+(a?'var(--surface)':'var(--ink-2)')+';border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:all .15s">'+p.label+'</button>';
+        return '<button type="button" data-cp="'+p.key+'" aria-pressed="'+(a?'true':'false')+'" style="flex:1;font-variant-numeric:tabular-nums;font-size:var(--fs-9);padding:4px 6px;border:none;white-space:nowrap;background:'+(a?'var(--ink)':'transparent')+';color:'+(a?'var(--surface)':'var(--ink-2)')+';border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:all .15s">'+p.label+'</button>';
       }).join('')+'</div>';
+
+    /* PÄÄVIIVAN SELITE KERTOO MITÄ LÄHTEITÄ NÄKYVÄLLÄ JAKSOLLA ON.
+     *
+     * Yksi nimi ei riitä, koska sarja on kaksi lähdettä peräkkäin:
+     * 24 h jaksolla Suomessa pelkkää FMI:tä, 5 vrk ja kaikki -jaksoilla
+     * molempia. Selite päivitetään jaksoa vaihdettaessa — muuten se
+     * väittäisi "FMI HARMONIE" viikon ennusteesta, jonka loppupää on
+     * Open-Meteoa. */
+    function paaselite(times2) {
+      if (!harmonieCutMs || !times2 || !times2.length) return Lahde.LYHYET.om;
+      var eka = new Date(times2[0]).getTime();
+      var vika = new Date(times2[times2.length - 1]).getTime();
+      if (vika < harmonieCutMs) return Lahde.LYHYET.fmi;
+      if (eka >= harmonieCutMs) return Lahde.LYHYET.om;
+      return Lahde.LYHYET.fmi + ' → ' + Lahde.LYHYET.om;
+    }
 
     /* Legenda -- paivitetaan kun mallit latautuu */
     var legendHtml='<div id="'+sectionId+'-leg" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:6px;font-variant-numeric:tabular-nums;font-size:var(--fs-8)">'
-      +'<span><span id="'+sectionId+'-leg-main-dot" style="color:var(--ink-2)">&#9632;</span> '+activeLabel+'</span>'
+      +'<span><span id="'+sectionId+'-leg-main-dot" style="color:var(--ink-2)">&#9632;</span> '
+      +'<span id="'+sectionId+'-leg-main-txt">'+paaselite(getSlice(activePeriod).times)+'</span></span>'
       +COMPARE_MODELS.map(function(m){
         /* Avaimessa sama kuvio kuin viivassa — muuten selite vaittaisi
             etta mallit erottuvat pelkalla varilla. */
@@ -16213,19 +16437,25 @@ function openSheet(spot, hourIdx) {
 
     var tipHtml='<div id="'+sectionId+'-tip" style="display:none;position:absolute;background:var(--surface-hi);color:var(--ink);border:1px solid var(--hairline);border-radius:12px;padding:8px 14px;font-variant-numeric:tabular-nums;font-size:var(--fs-9);pointer-events:none;white-space:nowrap;box-shadow:var(--shadow-2);z-index:100;min-width:110px;transform:translateX(-50%)"></div>';
 
-    var firstDraw=buildSvg(activePeriod);
+    var firstDraw=buildSvg(activePeriod, ASU_KORTTI);
 
     var section='<div class="sh-24h-section" id="'+sectionId+'">'
-      +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;min-width:0">'
-        +'<div>'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;min-width:0">'
+        +'<div style="flex:1 1 auto;min-width:0">'
           +'<div class="sh-24h-title">Tuuliennuste</div>'
           +(peakMs2>0?'<div class="sh-24h-peak">&#8593; '+Units.fmt(peakMs2)+' '+Units.label()+' klo '+peakH2+'</div>':'')
         +'</div>'
         +periodBtns
+        /* Laajennusnappi samalla rivilla ja samalla muodolla kuin
+           havaintokaaviossa. Rivi on `flex-start` + otsikko `flex: 1`,
+           jolloin nappi on aina viimeisena riippumatta siita mita
+           valiin tulee — sama saanto kuin laajan nakyman
+           sulkunapilla. */
+        +_havLaajennaNappi(sectionId)
       +'</div>'
       +legendHtml
       /* Scroll-wrapper: 24h ei scrollaa, pidemmissa vaakaScroll */
-      +'<div id="'+sectionId+'-wrap" style="position:relative;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin-left:-'+Y_PAD+'px;margin-right:0">'
+      +'<div id="'+sectionId+'-wrap" style="position:relative;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin-left:-'+ASU_KORTTI.yPad+'px;margin-right:0">'
         +tipHtml
         +firstDraw.svg
       +'</div>'
@@ -16261,7 +16491,7 @@ function openSheet(spot, hourIdx) {
             /* FMI-modessa nayta kaikki mallit -- ei katkaista HARMONIE-rajasta */
             if(v==null){ if(pts.length>1){drawSeg(mg,pts,m);} pts=[];inSeg=false; continue; }
             var cc=ColorRamp.ink(v);
-            var yy=(CHART_H-PAD-(v/(globalMax||1))*(CHART_H-PAD*2)).toFixed(1);
+            var yy=(d.CHART_H-d.PAD-(v/(globalMax||1))*(d.CHART_H-d.PAD*2)).toFixed(1);
             pts.push({x:d.xOf(i).toFixed(1),y:yy,v:v,cc:cc});
           }
           if(pts.length>1) drawSeg(mg,pts,m);
@@ -16321,6 +16551,7 @@ function openSheet(spot, hourIdx) {
         /* Napit */
         secEl.querySelectorAll('[data-cp]').forEach(function(btn){
           var a=btn.dataset.cp===periodKey;
+          btn.setAttribute('aria-pressed',a?'true':'false');
           btn.style.background=a?'var(--ink)':'transparent';
           btn.style.color=a?'var(--surface)':'var(--ink-2)';
         });
@@ -16328,15 +16559,30 @@ function openSheet(spot, hourIdx) {
         if(!wrap) return;
         wrap.innerHTML=tipHtml+currentDraw.svg;
         drawAllModels(currentDraw);
-        attachTooltip(currentDraw);
+        attachTooltip(currentDraw,document.getElementById(sectionId+'-tip'),null);
+        paivitaPaaselite(currentDraw);
+        /* Laaja nakyma lukee samaa jaksoa: sen on piirryttava uudelleen
+           samalla valinnalla. Sama tyonjako kuin havaintokaaviossa. */
+        if(typeof HavLaaja!=='undefined') HavLaaja.paivita();
       }
 
-      function attachTooltip(d){
+      /* Selite kertoo mita lahteita juuri piirretylla jaksolla on. */
+      function paivitaPaaselite(d){
+        var el=document.getElementById(sectionId+'-leg-main-txt');
+        if(el) el.textContent=paaselite(d.times);
+      }
+
+      /* KUKA LUKEE OSOITETUN HETKEN, ON PARAMETRI.
+       *
+       * Kortilla se on kelluva kupla (`tipEl`). Laajassa nakymassa
+       * kupla jaa sormen alle — CLAUDE.md:n saanto — joten siella
+       * lukema menee kiinteelle riville, ja se hoidetaan `scrub`illa.
+       * Kaksi piirtofunktiota samalle kaaviolle olisi kaksi totuutta. */
+      function attachTooltip(d,tipEl,scrub){
         var svgEl=document.getElementById(d.svgId);
         var hitEl=document.getElementById(d.svgId+'-hit');
         var vlEl =document.getElementById(d.svgId+'-vl');
-        var tipEl=document.getElementById(sectionId+'-tip');
-        if(!hitEl||!vlEl||!tipEl) return;
+        if(!hitEl||!vlEl||(!tipEl&&!scrub)) return;
 
         /* Piste-elementit per malli */
         var dotMain=document.getElementById(d.svgId+'-dot-main');
@@ -16348,7 +16594,7 @@ function openSheet(spot, hourIdx) {
         function px2i(cx){
           var r=svgEl.getBoundingClientRect();
           var sx=(cx-r.left)/r.width*d.W;
-          return Math.max(0,Math.min(d.n-1,Math.round((sx-Y_PAD)/(d.W-Y_PAD-PAD)*(d.n-1))));
+          return Math.max(0,Math.min(d.n-1,Math.round((sx-d.Y_PAD)/(d.W-d.Y_PAD-d.PAD)*(d.n-1))));
         }
 
         function showTip(cx){
@@ -16367,7 +16613,10 @@ function openSheet(spot, hourIdx) {
           }
 
           /* Keraa kaikki arvot jarjestamista varten */
-          var entries=[{label:activeLabel,v:mainV,col:mainCol,isMain:true}];
+          /* Pääviiva nimetään SEN TUNNIN lähteellä jota osoitetaan, ei
+             sarjan nimellä: sarja vaihtaa lähdettä kesken matkaa. */
+          var mainMs=d.times[i]?new Date(d.times[i]).getTime():selectedTime;
+          var entries=[{label:lahdeNimi(mainMs),v:mainV,col:mainCol,isMain:true}];
           COMPARE_MODELS.forEach(function(m){
             var md=modelDataStore[m.id];
             if(!md) return;
@@ -16384,9 +16633,9 @@ function openSheet(spot, hourIdx) {
               dot.setAttribute('cx',x.toFixed(1));
               dot.setAttribute('cy',d.yOf(v).toFixed(1));
               dot.setAttribute('fill',col);
-              dot.setAttribute('r','3.5');
+              dot.setAttribute('r',(3.5*d.asu.lw).toFixed(1));
               dot.setAttribute('stroke','rgba(0,0,0,.3)');
-              dot.setAttribute('stroke-width','1');
+              dot.setAttribute('stroke-width',d.asu.lw.toFixed(2));
             }
             entries.push({label:m.label,v:v,col:col,isMain:false});
           });
@@ -16398,6 +16647,7 @@ function openSheet(spot, hourIdx) {
           var timeStr=t?(('0'+t.getDate()).slice(-2)+'.'+(t.getMonth()+1)+'. '+('0'+t.getHours()).slice(-2)+':00'):'';
           var isPast=i<d.nowSlot;
 
+          if(scrub){ scrub({timeStr:timeStr,isPast:isPast,entries:entries}); return; }
           var html='<div style="color:var(--ink-3);margin-bottom:5px;font-size:var(--fs-8)">'+timeStr+(isPast?' &#183; mennyt':'')+'</div>';
           entries.forEach(function(e){
             html+='<div style="display:flex;justify-content:space-between;gap:14px;margin-bottom:2px;'+(e.isMain?'font-weight:700':'')+'">'
@@ -16413,7 +16663,8 @@ function openSheet(spot, hourIdx) {
         }
 
         function hideTip(){
-          tipEl.style.display='none';
+          if(scrub) scrub(null);
+          if(tipEl) tipEl.style.display='none';
           vlEl.setAttribute('visibility','hidden');vlEl.setAttribute('x1','-10');vlEl.setAttribute('x2','-10');
           if(dotMain){dotMain.setAttribute('cx','-10');dotMain.setAttribute('cy','-10');}
           COMPARE_MODELS.forEach(function(m){
@@ -16433,14 +16684,82 @@ function openSheet(spot, hourIdx) {
         btn.addEventListener('click',function(){redraw(btn.dataset.cp);if(typeof Haptics!=='undefined')Haptics.light();},{passive:true});
       });
 
-      attachTooltip(firstDraw);
+      attachTooltip(firstDraw,document.getElementById(sectionId+'-tip'),null);
+
+      /* ── LAAJA NAKYMA ────────────────────────────────────────────
+       *
+       * Sama `buildSvg`, eri asu — ei toista piirtofunktiota. Lahde
+       * ripustetaan laajennusnappiin, josta seka napautus etta kaanto
+       * lukevat sen.
+       *
+       * Kolme asiaa jotka eivat ole ilmeisia:
+       *
+       * 1. **Lukema menee kiinteelle riville.** Kokonaytossa kelluva
+       *    kupla jaa sormen alle; sama saanto kuin havaintokaaviolla.
+       * 2. **Jakso on YKSI.** Laajan jaksonapit ovat kortin nappien
+       *    peili (`b.click()`), joten valinta ei haarraudu ja
+       *    `redraw` piirtaa molemmat.
+       * 3. **Malliviivat piirretaan myos laajaan.** `drawAllModels`
+       *    lukee saman `modelDataStore`n eika hae mitaan uudestaan. */
+      function laajaJakso(){ return spot._chartPeriod || activePeriod; }
+      function laajaLepoSolut(d){
+        var ulos=[{nimi:'Lähde',arvo:paaselite(d.times),ala:''}];
+        if(!d.vals.length) return ulos;
+        var summa=0,max=-Infinity,min=Infinity,maxI=0;
+        for(var i=0;i<d.vals.length;i++){
+          var v=d.vals[i]||0; summa+=v;
+          if(v>max){max=v;maxI=i;}
+          if(v<min)min=v;
+        }
+        var t=d.times[maxI]?new Date(d.times[maxI]):null;
+        ulos.push({nimi:'Keskituuli',arvo:Units.fmt(summa/d.vals.length),ala:Units.label()});
+        ulos.push({nimi:'Kovin',arvo:Units.fmt(max),
+          ala:Units.label()+(t?' klo '+('0'+t.getHours()).slice(-2):'')});
+        ulos.push({nimi:'Tyynin',arvo:Units.fmt(min),ala:Units.label()});
+        return ulos;
+      }
+      var laajaPiirra=function(kaavio,laatikko,laaja){
+        var asu=asuLaaja(laatikko.w+2*LAAJA_VUOTO,laatikko.h);
+        var d=buildSvg(laajaJakso(),asu);
+        /* Kaare on oma eika kortin: kortin kaareessa on negatiivinen
+           vasen marginaali joka vetaa y-akselin kortin tayteeseen —
+           laajassa se leikkaisi akselin ruudun ulkopuolelle. Tassa
+           vuoto on symmetrinen ja menee vain `.hl-kaavio`n omaan
+           tayteeseen, joka on `overflow: hidden`in sisapuolella. */
+        kaavio.innerHTML='<div style="position:relative;margin:0 -'+LAAJA_VUOTO+'px;'
+          +'width:calc(100% + '+(2*LAAJA_VUOTO)+'px);overflow-x:auto;'
+          +'overflow-y:visible;-webkit-overflow-scrolling:touch;scrollbar-width:none">'+d.svg+'</div>';
+        laaja.rivi(laajaLepoSolut(d));
+        drawAllModels(d);
+        attachTooltip(d,null,function(info){
+          if(!info){ laaja.rivi(laajaLepoSolut(d)); return; }
+          var solut=[{nimi:info.isPast?'Mennyt':'Hetki',arvo:info.timeStr,ala:''}];
+          info.entries.forEach(function(e){
+            solut.push({nimi:e.label,arvo:Units.fmt(e.v),ala:Units.label()});
+          });
+          laaja.rivi(solut);
+        });
+      };
+      var laajNappi=secEl.querySelector('[data-hav-laajenna]');
+      if(laajNappi){
+        laajNappi._havLaajaLahde=function(){
+          return {
+            el: secEl, jaksot: '[data-cp]',
+            otsikko: spot.name, sub: 'Tuuliennuste',
+            piirra: laajaPiirra,
+          };
+        };
+        laajNappi.addEventListener('click',function(){
+          HavLaaja.avaa(laajNappi._havLaajaLahde(),laajNappi);
+        },{passive:true});
+      }
 
       /* Lataa malli-data */
       var cacheKey='_mc_'+spot.name+'_'+Math.floor(Date.now()/3600000);
       var cached=spot._modelCache&&spot._modelCache.key===cacheKey?spot._modelCache.data:null;
       if(cached){
         COMPARE_MODELS.forEach(function(m){ if(cached[m.id]) modelDataStore[m.id]=cached[m.id]; });
-        drawAllModels(firstDraw);
+        drawAllModels(currentDraw);
       } else {
         var modIds=COMPARE_MODELS.map(function(m){return m.id;}).join(',');
         var omUrl=OM_BASE+'?latitude='+spot.lat.toFixed(4)+'&longitude='+spot.lng.toFixed(4)
@@ -16457,7 +16776,11 @@ function openSheet(spot, hourIdx) {
             newCache[m.id]={vals:mVals,times:mTimes};
           });
           spot._modelCache={key:cacheKey,data:newCache};
-          drawAllModels(firstDraw);
+          drawAllModels(currentDraw);
+          /* Mallit saapuvat verkosta, joten laaja nakyma voi olla jo
+             auki kun ne tulevat — silloin sen viivat piirretaan siella
+             vasta nyt. */
+          if(typeof HavLaaja!=='undefined'&&HavLaaja.auki()) HavLaaja.paivita();
         }).catch(function(){});
       }
     },50);
@@ -17939,46 +18262,46 @@ function _havLaajennaNappi(svgId) {
  * fokusansa, Esc ja paluufokus tulevat sielta. Oma polku olisi viides
  * kopio samasta logiikasta.
  *
- * Kaavio piirretaan SAMALLA funktiolla kuin kortilla, vain eri asulla.
- * `_fmiHours` sailytetaan KORTIN elementissa, jotta jakso on sama
- * kummassakin eika laajennus nollaa valintaa. */
+ * YKSI KUORI, MONTA KAAVIOTA. Nakyma ei tieda mitaan tuulihavainnosta:
+ * se omistaa kuoren (otsikko, lukemarivi, jaksonapit, liu'utusele,
+ * kaanto, turva-alueet) ja kutsuu LAHTEEN omaa piirtofunktiota. Kolme
+ * kaaviota kayttaa sita — tuulihavainto, spottikortin tuuliennuste ja
+ * vedenlampo — eika yksikaan niista tarvitse omaa kokoruudun polkuaan.
+ *
+ * Lahde on tavallinen olio:
+ *
+ *   { el, otsikko, sub, jaksot, piirra(kaavioEl, laatikko, laaja) }
+ *
+ * `el` on KORTIN kaavioelementti: jaksovalinta sailytetaan siella,
+ * jotta jakso on sama kummassakin eika laajennus nollaa valintaa.
+ * `jaksot` on CSS-valitsin kortin jaksonapeille. `piirra` saa laatikon
+ * mitat pikseleina ja valitsee niista oman asunsa — kaavio tietaa itse
+ * mika sen muodossa on olennaista, kuori ei. */
 const HavLaaja = {
   _el: null, _kaavio: null, _otsikko: null, _jaksot: null,
-  _lahde: null,          /* { el, data, wx } — kortin kaavio ja sen data */
+  _lahde: null,          /* ks. yllä — kortin kaavio ja sen piirtäjä */
   _kaannolla: false,     /* avattiinko kaantamalla vai napista */
   _lukema: null,         /* lukemarivin elementti */
   _resizeAjastin: null,
 
-  /* Asu valitaan LAATIKON MUODOSTA, ei media queryn perusteella:
-     tyopoydan kapea ikkuna ja puhelimen vaaka ovat sama tilanne, ja
-     media query vastaisi niihin eri tavalla.
-   *
-   * KORKEUS SOVITETAAN LAATIKKOON. SVG skaalautuu leveyden mukaan ja sen
-   * korkeus tulee viewBoxin kuvasuhteesta, joten kiintea korkeus jattaa
-   * ruudusta osan kayttamatta: mitattuna pystyssa iPhone 16:lla kaavio
-   * oli 532 px kun tilaa oli ~660, eli 128 px tyhjaa. Ratkaistaan
-   * viewBoxin korkeus niin etta piirretty korkeus tayttaa laatikon.
+  /* Piirtoalueen mitat pikseleina. Sama mittaus kaikille kaavioille;
+     asun valinta on kunkin kaavion oma asia.
    *
    * Takaisinkytkentaa ei synny: `.hl-kaavio` on `flex: 1` ja
    * `overflow: hidden`, joten sisallon korkeus ei muuta laatikon
    * korkeutta. */
-  _asu() {
-    var r = this._kaavio ? this._kaavio.getBoundingClientRect() : null;
-    var lev = r && r.width ? r.width : window.innerWidth;
-    var kork = r && r.height ? r.height : window.innerHeight;
-    var pohja = (lev / Math.max(1, kork)) > 1.3 ? HAV_ASU_LAAJA : HAV_ASU_PYSTY;
-    if (!(lev > 0) || !(kork > 0)) return pohja;
-    var asu = Object.assign({}, pohja);
-    /* Piirretty korkeus = (lev / asu.W) * TH, ja
-       TH = H + (suuntaH ? 5 : 0) + suuntaH + (suuntaH ? 11 : 13) + reuna. */
-    var lisa = (asu.suuntaH ? 5 + asu.suuntaH + 11 : 13) + (asu.fs > 9 ? 5 : 3);
-    var haluttuTH = kork / (lev / asu.W);
-    asu.H = Math.round(haluttuTH - lisa);
-    /* Rajat: liian matala puristaa ramppin lukukelvottomaksi, liian
-       korkea venyttaa yhden puuskapiikin koko ruudun mittaiseksi. */
-    if (asu.H < 180) asu.H = 180;
-    if (asu.H > 760) asu.H = 760;
-    return asu;
+  _laatikko() {
+    const el = this._kaavio;
+    if (!el) return { w: window.innerWidth, h: window.innerHeight };
+    /* SISÄLTÖLAATIKKO, ei reunuslaatikko. `.hl-kaavio`lla on sivutäyte
+       (4 px) ja alatäyte (2 px), ja juuri siihen leveyteen SVG
+       venytetään `width:100%`illa. Reunuslaatikosta mitattuna 1:1
+       skaalaus olisi 1 % pielessä joka suuntaan — pieni mutta turha
+       virhe, kun oikea luku on yhtä helppo lukea. */
+    const cs = getComputedStyle(el);
+    const w = el.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+    const h = el.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0);
+    return { w: w > 0 ? w : window.innerWidth, h: h > 0 ? h : window.innerHeight };
   },
 
   _rakenna() {
@@ -17991,7 +18314,7 @@ const HavLaaja = {
     d.innerHTML =
       '<div class="hl-kahva" id="hl-kahva" aria-hidden="true"></div>'
       + '<div class="hl-yla" id="hl-ylarivi">'
-        + '<div style="min-width:0">'
+        + '<div class="hl-nimiryhma">'
           + '<div class="hl-nimi" id="hl-nimi"></div>'
           + '<div class="hl-sub" id="hl-sub"></div>'
         + '</div>'
@@ -18016,8 +18339,8 @@ const HavLaaja = {
     /* Kaanto vaihtaa laatikon muodon, joten asu on valittava uudelleen.
        Ilman tata vaakaan kaannetty pystyasu jaisi voimaan.
        Kaannon jalkeen mitat asettuvat vasta seuraavilla ruuduilla, joten
-       piirto viivastetaan — muuten `_asu()` lukisi vanhat mitat ja
-       valitsisi vaaran asun juuri kaannon hetkella. */
+       piirto viivastetaan — muuten asu luettaisiin vanhoista mitoista ja
+       valitsisi vaaran juuri kaannon hetkella. */
     window.addEventListener('resize', () => {
       if (!this.auki()) return;
       clearTimeout(this._resizeAjastin);
@@ -18071,20 +18394,20 @@ const HavLaaja = {
 
   auki() { return !!(this._el && this._el.classList.contains('auki')); },
 
-  avaa(korttiEl, data, wx, avaaja, kaannolla) {
-    if (!korttiEl || !data) return;
+  avaa(lahde, avaaja, kaannolla) {
+    if (!lahde || !lahde.el || typeof lahde.piirra !== 'function') return;
     this._rakenna();
     this._kaannolla = !!kaannolla;
-    this._lahde = { el: korttiEl, data: data, wx: wx };
-    this._otsikko.textContent = data.station || 'Tuulihavainto';
-    this._sub.textContent = (data.place ? '' : '')
-      + (data.ageMin != null ? _havIkaTeksti(data.ageMin) : '');
-    this._el.setAttribute('aria-label', (data.station || 'Tuulihavainto') + ' — laajennettu kaavio');
+    this._lahde = lahde;
+    const nimi = lahde.otsikko || 'Kaavio';
+    this._otsikko.textContent = nimi;
+    this._sub.textContent = lahde.sub || '';
+    this._el.setAttribute('aria-label', nimi + ' — laajennettu kaavio');
     this._el.classList.add('auki');
     this.paivita();
     /* UUSINTAMITTAUS ASETTUMISEN JALKEEN. Kaannolla avattaessa
        `matchMedia`-tapahtuma ehtii ennen kuin selain on asettanut uudet
-       ikkunamitat, ja `_asu()` mittaa silloin vanhan laatikon: mitattuna
+       ikkunamitat, ja laatikko mitataan silloin vanhasta: mitattuna
        kaavio jai vaakaan 714x187 px kun asettuneena se on 714x280.
        Resize-kuuntelija ei korjaa sita, koska se ehti ajaa nakyman
        ollessa viela kiinni. */
@@ -18102,74 +18425,53 @@ const HavLaaja = {
     setTimeout(() => { if (!this.auki() && this._kaavio) this._kaavio.innerHTML = ''; }, 220);
   },
 
-  /* Lukemarivi: levossa jakson tilastot, raahatessa osoitetun hetken
-     arvot. `b` on nippu tai null (lepo). */
-  naytaLukema(b) {
+  /* LUKEMARIVI. Levossa jakson tilastot, raahatessa osoitetun hetken
+     arvot. Kiinteassa paikassa eika kelluvana kuplana: kokonaytossa
+     juuri sormen alle jaava kupla oli suurin syy siihen ettei lukemaa
+     nahnyt.
+   *
+   * Solut ovat `[{ nimi, arvo, ala }]` ja ne tulevat KAAVIOLTA: eri
+   * kaavioilla on eri suureet, mutta rivi on sama. */
+  rivi(solut) {
     if (!this._lukema) return;
-    const solu = (nimi, arvo, ala) => '<span class="hl-lk"><span class="hl-lk-nimi">' + nimi
-      + '</span><span class="hl-lk-arvo">' + arvo + '</span>'
-      + (ala ? '<span class="hl-lk-ala">' + ala + '</span>' : '') + '</span>';
-    if (b) {
-      const dt = new Date(b.ms);
-      const PV = ['su', 'ma', 'ti', 'ke', 'to', 'pe', 'la'];
-      const kello = ('0' + dt.getHours()).slice(-2) + ':' + ('0' + dt.getMinutes()).slice(-2);
-      this._lukema.innerHTML =
-        solu(PV[dt.getDay()] + ' ' + dt.getDate() + '.' + (dt.getMonth() + 1) + '.', kello, '')
-        + solu('Tuuli', Units.fmt(b.ws), Units.label())
-        + solu('Puuska', Units.fmt(b.wg), Units.label())
-        + (b.d != null ? solu('Suunta', _havIlmansuuntaLyhyt(b.d), Math.round(b.d) + '°') : '')
-        + (b.ta != null ? solu('Lämpö', b.ta.toFixed(1), '°C') : '');
-      return;
-    }
-    const y = this._kaavio && this._kaavio._havYhteenveto;
-    if (!y) { this._lukema.innerHTML = ''; return; }
-    /* Lämpötila VÄLINÄ eikä käyränä. Oma y-akseli tuulen rinnalla
-       tekisi risteämisistä merkitseviä vaikka ne ovat mittayksikön
-       sattumaa; väli kertoo saman ilman toista asteikkoa. */
-    const lampoTeksti = (y.lampoMin != null && y.lampoMax != null)
-      ? (Math.abs(y.lampoMax - y.lampoMin) < 0.15
-         ? y.lampoMax.toFixed(1)
-         : y.lampoMin.toFixed(1) + '–' + y.lampoMax.toFixed(1))
-      : null;
-    this._lukema.innerHTML =
-      solu('Keskituuli', Units.fmt(y.ka), Units.label())
-      + solu('Kovin puuska', Units.fmt(y.max), Units.label())
-      + (y.puuskaisuus != null ? solu('Puuskaisuus', '×' + y.puuskaisuus.toFixed(2), '') : '')
-      + (y.min != null ? solu('Tyynin', Units.fmt(y.min), Units.label()) : '')
-      + (y.suunta != null ? solu('Vallitseva', _havIlmansuuntaLyhyt(y.suunta), Math.round(y.suunta) + '°') : '')
-      + (lampoTeksti != null ? solu('Lämpö', lampoTeksti, '°C') : '');
+    this._lukema.innerHTML = (solut || []).map(function (s) {
+      return '<span class="hl-lk"><span class="hl-lk-nimi">' + s.nimi
+        + '</span><span class="hl-lk-arvo">' + s.arvo + '</span>'
+        + (s.ala ? '<span class="hl-lk-ala">' + s.ala + '</span>' : '') + '</span>';
+    }).join('');
   },
 
   /* Piirtaa laajan kaavion uudelleen kortin nykyisella jaksolla. */
   paivita() {
     if (!this.auki() || !this._lahde) return;
     const l = this._lahde;
-    this._kaavio._fmiHours = l.el._fmiHours;
     /* LUKEMARIVI TAYTETAAN ENNEN MITTAUSTA. Rivin korkeus muuttuu sen
-       mukaan montako riviä teksti vie, ja `_asu()` mittaa juuri sen
-       laatikon jonka kokoon rivi vaikuttaa — jos rivi taytetaan vasta
-       piirron jalkeen, mitta on vanhentunut. Mitattuna sama nakyma
-       antoi peraakkain 645 px ja 625 px. Kortin yhteenveto kelpaa
-       lahteeksi: se on piirretty samasta datasta samalla jaksolla. */
-    if (l.el._havYhteenveto) this._kaavio._havYhteenveto = l.el._havYhteenveto;
-    this.naytaLukema(null);
-    _renderLiveHistory(this._kaavio, l.data, l.wx, this._asu());
-    /* Koukku asetetaan piirron JÄLKEEN: `_renderLiveHistory` kirjoittaa
-       elementin sisällön uusiksi mutta ei kosketa sen omiin kenttiin. */
-    this._kaavio._havScrub = (b) => this.naytaLukema(b);
-    this.naytaLukema(null);
+       mukaan montako riviä teksti vie, ja laatikko jonka kokoon rivi
+       vaikuttaa mitataan heti perään — jos rivi taytetaan vasta piirron
+       jalkeen, mitta on vanhentunut. Mitattuna sama nakyma antoi
+       peraakkain 645 px ja 625 px. */
+    l.piirra(this._kaavio, this._laatikko(), this);
     /* Jaksonapit otsikkoriville: kortin omat napit ovat sen sisalla
-       eivatka nay taalla. Sama `data-fmi-period`, sama kasittelija. */
-    const napit = l.el.querySelectorAll('[data-fmi-period]');
+       eivatka nay taalla. Sama attribuutti, sama kasittelija. */
+    const napit = l.el.querySelectorAll(l.jaksot || '[data-fmi-period]');
+    /* TYHJENNYS ENNEN PALUUTA. Sama näkymä avataan peräkkäin eri
+       kaavioille, ja piilotettu rivi jäisi muuten kantamaan edellisen
+       kaavion nappeja — mitattuna piilossa oli kolme väärän kaavion
+       jaksonappia, jotka olisivat palanneet näkyviin seuraavassa
+       kaaviossa jolla jaksoja on. */
+    this._jaksot.innerHTML = '';
     if (!napit.length) { this._jaksot.style.display = 'none'; return; }
     this._jaksot.style.display = '';
-    this._jaksot.innerHTML = '';
     napit.forEach((b) => {
       const k = document.createElement('button');
       k.type = 'button';
       k.textContent = b.textContent;
-      k.setAttribute('aria-pressed', b.getAttribute('aria-pressed'));
+      /* Valittu luetaan `aria-pressed`ista, joka on kortin napeilla
+         joka tapauksessa oltava: nappirivi on `role="group"` ja
+         valinta on kerrottava ruudunlukijalle. Toinen lippu samasta
+         asiasta ajautuisi erilleen. */
       const on = b.getAttribute('aria-pressed') === 'true';
+      k.setAttribute('aria-pressed', on ? 'true' : 'false');
       k.style.cssText = 'font-variant-numeric:tabular-nums;font-size:var(--fs-9);padding:4px 9px;border:none;'
         + 'white-space:nowrap;border-radius:8px;cursor:pointer;'
         + 'background:' + (on ? 'var(--surface-hi)' : 'transparent') + ';'
@@ -18179,6 +18481,91 @@ const HavLaaja = {
     });
   },
 };
+
+/* TUULIHAVAINNON LAHDE laajaan nakymaan. `_renderLiveHistory` on sama
+   funktio kuin kortilla, vain eri asulla — ja asu valitaan LAATIKON
+   MUODOSTA, ei media queryn perusteella: tyopoydan kapea ikkuna ja
+   puhelimen vaaka ovat sama tilanne, ja media query vastaisi niihin
+   eri tavalla.
+ *
+ * KORKEUS SOVITETAAN LAATIKKOON. SVG skaalautuu leveyden mukaan ja sen
+ * korkeus tulee viewBoxin kuvasuhteesta, joten kiintea korkeus jattaa
+ * ruudusta osan kayttamatta: mitattuna pystyssa iPhone 16:lla kaavio
+ * oli 532 px kun tilaa oli ~660, eli 128 px tyhjaa. */
+function _havAsuLaatikosta(laatikko) {
+  var lev = laatikko.w, kork = laatikko.h;
+  var pohja = (lev / Math.max(1, kork)) > 1.3 ? HAV_ASU_LAAJA : HAV_ASU_PYSTY;
+  if (!(lev > 0) || !(kork > 0)) return pohja;
+  var asu = Object.assign({}, pohja);
+  /* Piirretty korkeus = (lev / asu.W) * TH, ja
+     TH = H + (suuntaH ? 5 : 0) + suuntaH + (suuntaH ? 11 : 13) + reuna. */
+  var lisa = (asu.suuntaH ? 5 + asu.suuntaH + 11 : 13) + (asu.fs > 9 ? 5 : 3);
+  var haluttuTH = kork / (lev / asu.W);
+  asu.H = Math.round(haluttuTH - lisa);
+  /* Rajat: liian matala puristaa ramppin lukukelvottomaksi, liian
+     korkea venyttaa yhden puuskapiikin koko ruudun mittaiseksi. */
+  if (asu.H < 180) asu.H = 180;
+  if (asu.H > 760) asu.H = 760;
+  return asu;
+}
+
+/* Lukemarivin solut tuulihavainnolle. `b` on nippu tai null (lepo). */
+function _havLukemaSolut(kaavioEl, b) {
+  const solu = (nimi, arvo, ala) => ({ nimi: nimi, arvo: arvo, ala: ala || '' });
+  if (b) {
+    const dt = new Date(b.ms);
+    const PV = ['su', 'ma', 'ti', 'ke', 'to', 'pe', 'la'];
+    const kello = ('0' + dt.getHours()).slice(-2) + ':' + ('0' + dt.getMinutes()).slice(-2);
+    const ulos = [
+      solu(PV[dt.getDay()] + ' ' + dt.getDate() + '.' + (dt.getMonth() + 1) + '.', kello),
+      solu('Tuuli', Units.fmt(b.ws), Units.label()),
+      solu('Puuska', Units.fmt(b.wg), Units.label()),
+    ];
+    if (b.d != null) ulos.push(solu('Suunta', _havIlmansuuntaLyhyt(b.d), Math.round(b.d) + '°'));
+    if (b.ta != null) ulos.push(solu('Lämpö', b.ta.toFixed(1), '°C'));
+    return ulos;
+  }
+  const y = kaavioEl && kaavioEl._havYhteenveto;
+  if (!y) return [];
+  /* Lämpötila VÄLINÄ eikä käyränä. Oma y-akseli tuulen rinnalla
+     tekisi risteämisistä merkitseviä vaikka ne ovat mittayksikön
+     sattumaa; väli kertoo saman ilman toista asteikkoa. */
+  const lampoTeksti = (y.lampoMin != null && y.lampoMax != null)
+    ? (Math.abs(y.lampoMax - y.lampoMin) < 0.15
+       ? y.lampoMax.toFixed(1)
+       : y.lampoMin.toFixed(1) + '–' + y.lampoMax.toFixed(1))
+    : null;
+  const ulos = [
+    solu('Keskituuli', Units.fmt(y.ka), Units.label()),
+    solu('Kovin puuska', Units.fmt(y.max), Units.label()),
+  ];
+  if (y.puuskaisuus != null) ulos.push(solu('Puuskaisuus', '×' + y.puuskaisuus.toFixed(2)));
+  if (y.min != null) ulos.push(solu('Tyynin', Units.fmt(y.min), Units.label()));
+  if (y.suunta != null) ulos.push(solu('Vallitseva', _havIlmansuuntaLyhyt(y.suunta), Math.round(y.suunta) + '°'));
+  if (lampoTeksti != null) ulos.push(solu('Lämpö', lampoTeksti, '°C'));
+  return ulos;
+}
+
+function _havLaajaLahde(el, data, wx) {
+  return {
+    el: el,
+    otsikko: data.station || 'Tuulihavainto',
+    sub: (data.ageMin != null ? _havIkaTeksti(data.ageMin) : ''),
+    jaksot: '[data-fmi-period]',
+    piirra: function (kaavio, laatikko, laaja) {
+      kaavio._fmiHours = el._fmiHours;
+      /* Kortin yhteenveto kelpaa lahteeksi ennen piirtoa: se on
+         piirretty samasta datasta samalla jaksolla. */
+      if (el._havYhteenveto) kaavio._havYhteenveto = el._havYhteenveto;
+      laaja.rivi(_havLukemaSolut(kaavio, null));
+      _renderLiveHistory(kaavio, data, wx, _havAsuLaatikosta(laatikko));
+      /* Koukku asetetaan piirron JÄLKEEN: `_renderLiveHistory` kirjoittaa
+         elementin sisällön uusiksi mutta ei kosketa sen omiin kenttiin. */
+      kaavio._havScrub = function (b) { laaja.rivi(_havLukemaSolut(kaavio, b)); };
+      laaja.rivi(_havLukemaSolut(kaavio, null));
+    },
+  };
+}
 
 /* KAANTO AVAA JA SULKEE.
  *
@@ -18197,10 +18584,41 @@ const HavLaaja = {
       if (HavLaaja.auki()) return;
       var sheet = document.getElementById('sheet');
       if (!sheet || !sheet.classList.contains('open')) return;
-      var nappi = sheet.querySelector('[data-hav-laajenna]');
-      var kaavio = nappi && nappi.closest ? nappi.closest('.hav-kaavio') : null;
-      if (!kaavio || !kaavio._havData) return;
-      HavLaaja.avaa(kaavio, kaavio._havData, kaavio._havWx, nappi, true);
+      /* KORTIN ENSIMMAINEN KYTKETTY KAAVIO. Kortilla niita on nyt
+         useampi (tuuliennuste, tuulihavainto, vedenlampo) eika kaanto
+         voi tietaa mita katsottiin — ensimmainen on se jonka kortti
+         itse nostaa ylimmaksi. Lahde luetaan napista, joten tahan ei
+         tarvita haaraa kaaviotyyppia kohti.
+       *
+       * "ENSIMMAINEN" EI RIITA, KOSKA NAPPI ON OLEMASSA ENNEN
+       * KYTKENTAANSA. Kaavio kytkee itsensa korttinsa omassa
+       * `setTimeout`issa, ja kaanto rakentaa kortin uudelleen juuri
+       * ennen tapahtumaa: mitattuna kaannon hetkella kortilla oli kaksi
+       * nappia joista ensimmaisella `_havLaajaLahde` oli viela
+       * `undefined`, ja koko oikotie jai siksi laukeamatta. Siksi
+       * otetaan ensimmainen KYTKETTY ja yritetaan hetken paasta
+       * uudelleen jos yhtaan ei ole. */
+      var ekaKytketty = function () {
+        var napit = sheet.querySelectorAll('[data-hav-laajenna]');
+        for (var i = 0; i < napit.length; i++) {
+          if (typeof napit[i]._havLaajaLahde === 'function') return napit[i];
+        }
+        return null;
+      };
+      var yrita = function (jaljella) {
+        /* Tilanne on voinut muuttua odotuksen aikana: kaannetty
+           takaisin, kortti suljettu tai nakyma jo auki. */
+        if (!mq.matches || HavLaaja.auki()) return;
+        if (!sheet.classList.contains('open')) return;
+        var nappi = ekaKytketty();
+        if (!nappi) {
+          if (jaljella > 0) setTimeout(function () { yrita(jaljella - 1); }, 120);
+          return;
+        }
+        var lahde = nappi._havLaajaLahde();
+        if (lahde) HavLaaja.avaa(lahde, nappi, true);
+      };
+      yrita(4);
     } else if (HavLaaja.auki() && HavLaaja._kaannolla) {
       /* Sulkeutuu vain jos se AVATTIIN kaantamalla — silloin pystyyn
          palaaminen on luonteva peruutus. Napista avattu jaa auki ja
@@ -18214,10 +18632,13 @@ const HavLaaja = {
 
 function _renderLiveHistory(el, data, wx, asu) {
   asu = asu || HAV_ASU_KORTTI;
-  /* Merkki ja lahdetiedot elementtiin: kaannon varassa avautuva
-     laajennus tarvitsee ne loytaakseen kaavion ilman globaalia
-     viitetta, joka menisi rikki heti kun kortteja on kaksi. */
-  if (!asu.laaja) { el.classList.add('hav-kaavio'); el._havData = data; el._havWx = wx; }
+  /* Luokka on TUNNISTE, ei tyyli. Kaanto luki taalta ennen myos
+     `_havData`n ja `_havWx`n, mutta laaja nakyma saa lahteensa nyt
+     laajennusnapista — ne kentat olivat kuollutta painolastia ja
+     poistettiin. Luokka jaa, koska se on ainoa tapa osoittaa juuri
+     tuulihavaintokaavioon mittauksessa (kortilla on kolme kaaviota,
+     ja pelkka `svg` osuu myos nappien ikoneihin). */
+  if (!asu.laaja) el.classList.add('hav-kaavio');
   var wsKaikki = data.ws || [], wgKaikki = data.wg || [], taKaikki = data.ta || [];
   if (!wsKaikki.length) {
     el.innerHTML = '<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);text-align:center;padding:20px">Ei historiadataa</div>';
@@ -18917,10 +19338,16 @@ function _renderLiveHistory(el, data, wx, asu) {
   });
 
   /* ── Laajennusnappi ─────────────────────────────────────────────── */
+  /* LAHDE RIPUSTETAAN NAPPIIN, ei kirjoiteta kahteen paikkaan.
+     Sama nappi avaa laajan sekä napautuksesta että kääntämällä, ja
+     kääntöpolku ei tiedä mikä kaavio on kyseessä — se lukee lähteen
+     napista. Ilman tätä jokainen uusi laajennettava kaavio olisi uusi
+     haara kääntökäsittelijässä. */
   var laajNappi = el.querySelector('[data-hav-laajenna]');
   if (laajNappi) {
+    laajNappi._havLaajaLahde = function () { return _havLaajaLahde(el, data, wx); };
     laajNappi.addEventListener('click', function () {
-      HavLaaja.avaa(el, data, wx, laajNappi);
+      HavLaaja.avaa(laajNappi._havLaajaLahde(), laajNappi);
     }, { passive: true });
   }
 
@@ -20732,6 +21159,20 @@ const Lahde = {
     ecmwf_ifs025: 'ECMWF IFS 9 km',
     icon_eu: 'ICON EU 7 km',
     gfs_seamless: 'GFS 13 km'
+  },
+  /* SAMAT LÄHTEET LYHYESSÄ MUODOSSA — samasta objektista, ei omasta
+     taulukostaan. Kaavion selite ja työkaluvihje eivät mahduta
+     "Ilmatieteen laitos · HARMONIE 2,5 km" -mittaista riviä muiden
+     mallien viereen, mutta ne eivät myöskään saa keksiä nimeä itse:
+     spottikortin oma `modelNames`-taulukko oli juuri sellainen ja se
+     sanoi pääviivasta "Auto" vaikka data oli FMI:n. */
+  LYHYET: {
+    fmi: 'FMI HARMONIE 2,5 km',
+    om:  'Open-Meteo',
+    laatta: 'ECMWF IFS 0,25 °',
+    ecmwf_ifs025: 'ECMWF',
+    icon_eu: 'ICON',
+    gfs_seamless: 'GFS'
   },
   alusta() {
     this._el = document.getElementById('lahde-merkki');

@@ -3805,3 +3805,120 @@ Osoitin osuu valittuun lappuun jokaisella siirrolla — se on se lupaus.
 Jäykästi keskitetty lappu ei voisi liukua lainkaan: se hyppäisi
 vuorokauden välein, ja juuri sitä nykimistä vanha koodi vältti
 jättämällä kiskon paikalleen.
+
+---
+
+## Laaja näkymä: yksi kuori, kolme kaaviota
+
+Laajennettu näkymä (`HavLaaja`) oli tehty yhtä kaaviota varten:
+`avaa(korttiEl, data, wx, avaaja, kaannolla)` otti tuulihavainnon datan
+ja `paivita()` kutsui kovakoodattuna `_renderLiveHistory`ä. Kun
+spottikortin tuuliennuste ja vedenlämpö piti saada samalla tavalla
+auki, vaihtoehtoja oli kaksi: kolme kokoruudun polkua tai yksi kuori
+joka kutsuu lähteen omaa piirtofunktiota.
+
+Kuori omistaa kaiken sen mikä on kaikille sama — otsikkorivi,
+lukemarivi, jaksonapit, liu'utuksen, käännön, turva-alueet,
+`Modaali`-kytkennän — ja lähde on tavallinen olio:
+
+```js
+{ el, otsikko, sub, jaksot, piirra(kaavioEl, laatikko, laaja) }
+```
+
+`el` on **kortin** kaavioelementti, koska jaksovalinta säilytetään
+siellä: laajan jaksonapit ovat kortin nappien peili (`b.click()`),
+jolloin valinta ei haarraudu kahteen paikkaan. `piirra` saa laatikon
+mitat pikseleinä ja valitsee niistä oman asunsa — kaavio tietää itse
+mikä sen muodossa on olennaista, kuori ei.
+
+### Lähde ripustetaan nappiin
+
+Kääntöoikotie etsi ennen `sheet.querySelector('[data-hav-laajenna]')`
+-napin ja päätteli siitä `closest('.hav-kaavio')._havData`. Kun
+kortilla on kolme laajennettavaa kaaviota, se päättely olisi kolme
+haaraa. Nyt jokainen kaavio ripustaa oman lähteensä nappiin
+(`nappi._havLaajaLahde = () => ({...})`), ja sekä napautus että kääntö
+lukevat sen samasta paikasta.
+
+**"Ensimmäinen nappi" ei riitä, koska nappi on olemassa ennen
+kytkentäänsä.** Spottikortin tuuliennuste kytkee itsensä oman korttinsa
+`setTimeout(..., 50)`:ssä, ja kääntö rakentaa kortin uudelleen juuri
+ennen `matchMedia`-tapahtumaa. Mitattuna käännön hetkellä kortilla oli
+kaksi nappia joista ensimmäisellä `_havLaajaLahde` oli vielä
+`undefined` — ja koko oikotie jäi laukeamatta, vaikka 1,2 s myöhemmin
+kaikki oli paikallaan. Nyt otetaan ensimmäinen **kytketty** nappi ja
+yritetään uudelleen 120 ms välein neljä kertaa.
+
+### Sulkunappi oli nimen perässä
+
+`.hl-yla`-rivin oikea reuna tuli `.hl-jaksot`in `margin-left: auto`sta,
+eli **napin paikka riippui siitä onko kaaviolla jaksovalitsinta**.
+Spottikortin tuulihavainnolla ei ole (jaksonapit ovat vain
+havaintokortissa), joten siellä valitsin piilotetaan `display: none`lla
+— eikä automarginaalia silloin ole olemassa. X liukui kiinni nimeen.
+
+Työntö tulee nyt nimilohkosta (`.hl-nimiryhma { flex: 1 1 auto }`),
+joka on olemassa aina. `min-width: 0` on pakollinen: ilman sitä
+flex-lapsen vähimmäiskoko on sen sisällön koko, jolloin pitkä asemanimi
+työntäisi napin ulos rivistä sen sijaan että katkeaisi kolmeen
+pisteeseen. Mitattuna X:n oikea reuna osuu rivin sisällön oikeaan
+reunaan 0,0 px tarkkuudella kaikissa kolmessa kaaviossa, pystyssä ja
+vaakassa.
+
+**Piilotettu jaksorivi tyhjennetään.** Näkymä avataan peräkkäin eri
+kaavioille, ja `paivita()` palasi ennen `display:none`-haarassa ilman
+tyhjennystä — piilossa oli mitattuna kolme edellisen kaavion
+jaksonappia, jotka olisivat palanneet näkyviin seuraavassa kaaviossa
+jolla jaksoja on.
+
+### Kaksi asua, yksi piirtofunktio — nyt kolmelle kaaviolle
+
+Tuuliennusteen ja vedenlämmön kaaviot saivat saman rakenteen kuin
+havaintokaavion `HAV_ASU_*`: kaikki mikä eroaa kortin ja laajan välillä
+on taulukossa, ei piirtokoodin haaroissa.
+
+**Laaja on 1:1 pikseleihin.** Kortin ennustekaavio on
+`preserveAspectRatio="none"`, eli 300 yksikön viewBox venytetään noin
+407 pikseliin: teksti on jo siellä 36 % leveämpää kuin korkeaa.
+Puhelimen vaakaruudulla sama kerroin olisi 2,7 ja kirjaimista tulisi
+lattioita. Siksi laajan viewBox **on** laatikon pikselikoko ja
+luettavuus ostetaan kirjasinkoolla (`fs` 1,55 pystyssä, 1,9 vaakassa).
+
+### Laajennus ei saa kaventaa mitään — mitattuna
+
+Sääntö on vanha (`.hl-kaavio`-sivutäyte on 4 px juuri tästä syystä),
+mutta ensimmäinen versio rikkoi sen: y-akselin ura oli `30 × fs` eli
+47 px, josta 25 px oli tyhjää. Piirtoalue jäi kortin piirtoaluetta
+kapeammaksi.
+
+Mittaus on tehtävä **näkyvästä** piirtoalueesta, ei SVG:n ulkomitasta.
+Kortin 24 h -kaavio on 414 px leveä 382 px:n kääreessä, eli sen oikea
+laita on vierityksen takana; ulkomitasta mitattuna kortin piirtoalue
+näyttää 364 px:ltä kun näkyvää on 338 px. Ensimmäinen mittari teki juuri
+tämän virheen ja vaati mahdotonta.
+
+Lopputulos (iPhone 16 -mitoilla, pysty):
+
+| kaavio | kortti (näkyvä) | laaja pysty | leveys | korkeus |
+|---|---|---|---|---|
+| tuuliennuste | 338 px | 346 px | 1,02× | 6,1× |
+| tuulihavainto | 332 px | 334 px | 1,01× | 3,8× |
+| vedenlämpö | 314 px | 330 px | 1,05× | 5,7× |
+
+Vaakassa ennustekaavion piirtoalue on 792 px eli 2,34× kortin
+(korkeus 234 px, 2,1×).
+Y-akselin ura on `20 × fs` (tuuli, kaksinumeroinen lappu) ja `26 × fs`
+(vedenlämpö, "12.5°"), ja laaja vuotaa `.hl-kaavio`n 4 px sivutäytteeseen
+samalla tavalla kuin kortin kaavio vuotaa kortin omaan täytteeseensä.
+
+### Lukema kiinteälle riville, myös uusissa kaavioissa
+
+Vanha sääntö: kokonäytössä kelluva kupla jää sormen alle. Ennustekaavion
+`attachTooltip` sai siksi kolmannen parametrin (`scrub`): kun se on
+annettu, kuplaa ei edes lasketa vaan arvot menevät `.hl-lukema`-riville.
+Vedenlämpökaaviossa sama koukku on elementissä (`el._uwScrub`), kuten
+havaintokaaviossa `_havScrub`.
+
+Levossa rivillä on jakson tilastot. Ennusteessa ne ovat lähde,
+keskituuli, kovin (ja mihin aikaan) ja tyynin; vedenlämmössä nyt,
+vaihteluväli, jakso ja lähde.
