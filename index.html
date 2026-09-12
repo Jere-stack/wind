@@ -3349,7 +3349,7 @@ html[data-sadekerros="1"] .saa-laatat { display: none !important; }
                rajapinnasta. Vihje kertoo hinnan, koska se on todellinen. -->
           <div class="sp-label" style="margin-top:18px">Kartan säämalli</div>
           <div class="sp-chips" id="asetus-malli">
-            <div class="sp-chip active" data-arvo="auto">Automaattinen</div>
+            <div class="sp-chip active" data-arvo="auto">Paras saatavilla</div>
             <div class="sp-chip" data-arvo="fmi_harmonie">FMI HARMONIE</div>
             <div class="sp-chip" data-arvo="ecmwf_ifs025">ECMWF</div>
             <div class="sp-chip" data-arvo="icon_eu">ICON</div>
@@ -4473,7 +4473,25 @@ const Saalaatat = {
   _versio: '',               /* ajon tunnus, menee laattojen osoitteeseen */
   _MAX_LAATTAA: 40,          /* muistikatto; laatta on ~112 kt purettuna */
 
+  /* KAKSI ERI KYSYMYSTÄ.
+   *
+   * `kaytossa()` — onko varasto KUNNOSSA ja käytettävissä. Tämä on
+   * varaston oma terveystarkistus, ja sen takana ovat sen omat
+   * datafunktiot (`varmista`, `naytteista`, `wxTunneittain`) sekä
+   * AIKAJANA, joka lukee varastoa riippumatta siitä mitä kartalla on.
+   *
+   * `kartallaKaytossa()` — lukeeko KARTTA sitä juuri nyt. Mallivalinta
+   * koskee vain tätä: se ottaa varaston sivuun kartalta muttei kaada
+   * sitä eikä tyhjennä laattavälimuistia, koska Automaattinen vaihtaa
+   * tilaa kartan liikkuessa ja paluun on oltava välitön.
+   *
+   * Ero ei ole kosmeettinen: kun `kaytossa()` tarkoitti hetken aikaa
+   * "kartta lukee", varaston oma `varmista()` lakkasi hakemasta
+   * laattoja — ja aikajana menetti 51 tuntia menneisyyttään. */
+  _paalla: true,
   kaytossa() { return this._tila === 'ok'; },
+  kartallaKaytossa() { return this._tila === 'ok' && this._paalla; },
+  kartalla(paalla) { this._paalla = !!paalla; },
   pois() { this._tila = 'pois'; this._laatat.clear(); },
   /* PALUU ON OLTAVA, koska varasto suljetaan nyt myös ASETUKSESTA eikä
      vain virheestä. `alusta()` palaa heti jos tila ei ole
@@ -4482,6 +4500,7 @@ const Saalaatat = {
      palautettava. Jos luetteloa ei koskaan saatu, ei ole mitään mihin
      palata ja `alusta()` hoitaa haun. */
   async paalle() {
+    this._paalla = true;
     if (this._tila === 'ok') return true;
     if (this._tila === 'pois' && this._luettelo) { this._tila = 'ok'; return true; }
     this._tila = 'alustamaton';
@@ -5143,7 +5162,7 @@ const ViewportGrid = {
        — ja se oli mitattuna 276 paikkaa eli lähes koko maailmanäkymän hinta.
        Nämä pisteet eivät myöskään vanhene localStorageen, koska laatat
        päivittyvät itsestään kolmen tunnin välein. */
-    if (Saalaatat.kaytossa()) {
+    if (Saalaatat.kartallaKaytossa()) {
       try {
         const maailma = L.latLngBounds([[-60, -180], [75, 175]]);
         await Saalaatat.varmista(maailma, step);
@@ -5237,7 +5256,7 @@ const ViewportGrid = {
   KATTO: 600,
   KATTO_LAATTA: 3400,
   katto() {
-    return (typeof Saalaatat !== 'undefined' && Saalaatat.kaytossa())
+    return (typeof Saalaatat !== 'undefined' && Saalaatat.kartallaKaytossa())
       ? this.KATTO_LAATTA : this.KATTO;
   },
   _viimeStep: 0,
@@ -5427,11 +5446,27 @@ const ViewportGrid = {
      * rajapinnasta tulevat, joten interpolointi, lämpökartta, partikkelit
      * ja aikajana eivät tiedä erosta. Ainoa ero näkyy lähdemerkinnässä. */
     const laattaAskel = this._viimeStep || this.gridStep(zoom);
+    /* LAATAT HAETAAN AINA KUN VARASTO ON KUNNOSSA, myös silloin kun
+     * kartta lukee jotain muuta mallia.
+     *
+     * AIKAJANA LUKEE VARASTOA (`aikajananLahde`), ja `wxTunneittain`
+     * tarvitsee juuri nämä laatat. Kun mallivalinta otti varaston pois
+     * kartalta, laattoja ei enää haettu — ja aikajana putosi lähimpään
+     * ennustepisteeseen, jolloin akseli kutistui 54,5 tunnista 3,5
+     * tuntiin menneisyyttä. Eiliseen ei enää päässyt, ja sadetutkan
+     * mennyt kuva menetti kantamansa samalla.
+     *
+     * Hinta on pieni ja tunnettu: laatat ovat muuttumattomia ja
+     * versioituja, joten ne tulevat välimuistista — ja ne haettiin joka
+     * tapauksessa ennen tätä muutosta.
+     *
+     * Hilapisteiden täyttö sen sijaan on `kaytossa()`-ehdon takana:
+     * siinä on kyse siitä mitä KARTTA näyttää. */
     if (Saalaatat.kaytossa()) {
       try {
         await Saalaatat.varmista(bounds, laattaAskel);
         if (myGen !== this._loadGeneration) return null;
-        for (const p of gridPoints) {
+        if (Saalaatat.kartallaKaytossa()) for (const p of gridPoints) {
           const k = this._ptKey(p.lat, p.lng);
           if (this._points.has(k)) continue;
           /* Piste MERKITÄÄN laattapisteeksi, sarjaa ei pureta.
@@ -7357,6 +7392,15 @@ function initMap() {
        koko eleen ajan ja jatkuu tästä eteenpäin. Näkymän ulkopuolelle
        jääneet partikkelit syntyvät uudelleen silmukan rajatarkistuksesta. */
     PerfTracker.reset();
+    /* AUTOMAATTINEN VAIHTAA MALLIA NÄKYMÄN MUKANA. Tarkistus on halpa
+       (keskipiste ja hilaväli) ja se tekee työtä vain kun malli
+       oikeasti vaihtuu — eli rajan yli mentäessä, ei joka
+       panoroinnissa. Ilman tätä maailmannäkymästä Suomeen zoomaava
+       jäisi varastoon kunnes asetusta koskee. */
+    if (typeof KarttaAsetukset !== 'undefined' && kartanMalli() !== _kartanMalliNyt) {
+      KarttaAsetukset._vaihdaMalli(false);
+      return;
+    }
     _scheduleViewportLoad();
 
     /* Eleen aikaiset kiinniottorakennukset ovat karkeita (SCRUB_STEP),
@@ -7552,7 +7596,7 @@ function initMap() {
          zoom on nyt mannerten mittakaavassa eikä koko pallossa — 15
          asteen tukihilalle ei ole enää käyttöä. Se myös sekoittaisi
          2,5 asteen hilan sekaan yksittäisiä hyvin kaukaisia pisteitä. */
-      if (map.getZoom() <= 5 && !Saalaatat.kaytossa()) {
+      if (map.getZoom() <= 5 && !Saalaatat.kartallaKaytossa()) {
         ViewportGrid.loadGlobalCoarse()
           .then(() => { ViewportGrid.invalidateCache(); _rakennaKentta(); })
           .catch(() => {});
@@ -8263,7 +8307,7 @@ const WindTexture = {
        tekstuuri kattaa noin 2,25-kertaisen pinta-alan — ilman budjetin
        nostoa juuri se nakyisi texelin kasvuna. */
     if (zoom <= 4) {
-      const laatat = (typeof Saalaatat !== 'undefined') && Saalaatat.kaytossa();
+      const laatat = (typeof Saalaatat !== 'undefined') && Saalaatat.kartallaKaytossa();
       if (laatat) return mobiili ? 170000 : 240000;
       return mobiili ? 75000 : 110000;
     }
@@ -8422,7 +8466,7 @@ const WindTexture = {
          4x kuristuksella: karkea rakennus 83 ms -> 138 ms, eli juuri se
          rakennus joka osuu sormen alle kallistui. */
       const hilaMahdollinen = (typeof Saalaatat !== 'undefined')
-        && Saalaatat.kaytossa()
+        && Saalaatat.kartallaKaytossa()
         && Saalaatat.asetaHetki(WindTexture.hetki != null
              ? WindTexture.hetki : _tlTimeAt(State.currentHourIdx));
       /* Pohjakerros on olemassa VAIN varmuuden vuoksi, joten se ei saa
@@ -8658,7 +8702,7 @@ const WindTexture = {
          *
          * Kuristus on pakollinen: rakennuksia tulee tiheään, ja jokainen
          * haravoi laatat uudelleen. */
-        if (puuttuu > 0 && Saalaatat.kaytossa()) {
+        if (puuttuu > 0 && Saalaatat.kartallaKaytossa()) {
           const nyt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
           if (nyt - (WindTexture._laattaHakuT || 0) > 700) {
             WindTexture._laattaHakuT = nyt;
@@ -10345,7 +10389,7 @@ const SaaLaattaKerros = L.GridLayer.extend({
    *
    * Kuristus on pakollinen: `moveend` tulee jokaisen vedon perässä. */
   _esilataa: function () {
-    if (!this._map || typeof Saalaatat === 'undefined' || !Saalaatat.kaytossa()) return;
+    if (!this._map || typeof Saalaatat === 'undefined' || !Saalaatat.kartallaKaytossa()) return;
     const nyt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
     if (nyt - (this._esiT || 0) < 500) return;
     this._esiT = nyt;
@@ -10504,7 +10548,7 @@ const SaaLaattaKerros = L.GridLayer.extend({
    * Haravointi on sama kuin `varmista`:lla — säälaatta on vähintään
    * 5 astetta, joten kulmat ja keskiviivat riittävät. */
   _dataKasassa: function (r, d) {
-    if (typeof Saalaatat === 'undefined' || !Saalaatat.kaytossa()) return true;
+    if (typeof Saalaatat === 'undefined' || !Saalaatat.kartallaKaytossa()) return true;
     const askel = Math.max(1, (r.laN - r.laS) / 6);
     const lAskel = Math.max(1, (r.loE - r.loW) / 6);
     for (let la = r.laS; la <= r.laN + askel; la += askel) {
@@ -10528,7 +10572,7 @@ const SaaLaattaKerros = L.GridLayer.extend({
   /* Solmuhila laatalle, GLOBAALISTI KOHDISTETTUNA. Ks. saumattomuus
      ylempänä: origo on `floor(x/d)*d`, ei laatan oma reuna. */
   _hila: function (r, z) {
-    if (typeof Saalaatat === 'undefined' || !Saalaatat.kaytossa()) return null;
+    if (typeof Saalaatat === 'undefined' || !Saalaatat.kartallaKaytossa()) return null;
     Saalaatat.asetaKentta(State.activeLayer);
     if (!Saalaatat.asetaHetki(_tlTimeAt(State.currentHourIdx))) return null;
     const d = ViewportGrid.gridStep(z);
@@ -10713,7 +10757,7 @@ const SaaLaattaKerros = L.GridLayer.extend({
 let _laattaYritys = 0;
 function _aktivoiLaattakerros(map) {
   if (State.saaKerros) return;
-  if (typeof Saalaatat === 'undefined' || !Saalaatat.kaytossa()) {
+  if (typeof Saalaatat === 'undefined' || !Saalaatat.kartallaKaytossa()) {
     if (++_laattaYritys <= 20) setTimeout(function () { _aktivoiLaattakerros(map); }, 500);
     return;
   }
@@ -10924,7 +10968,7 @@ function pohjaVarmista(viive) {
     if (State.liikkeessa || State.map._animatingZoom || State.map._nipistysKesken
         || _pohjaBusy) { pohjaVarmista(400); return; }
     if (!State.windField || !State.windField.length) return;
-    if (typeof Saalaatat === 'undefined' || !Saalaatat.kaytossa()) return;
+    if (typeof Saalaatat === 'undefined' || !Saalaatat.kartallaKaytossa()) return;
     if (pohjaRiittaa()) return;
     pohjaRakenna();
   }, viive === undefined ? 350 : viive);
@@ -12153,6 +12197,56 @@ const HARMONIE_ALUE = { etela: 47, pohjoinen: 78, lansi: -20, ita: 55 };
  * hakevat aina oman pisteensä, ja siellä 2,5 km on koko juju. */
 const HARMONIE_MAX_STEP = 1.0;
 
+/* MIKÄ MALLI KARTALLA ON JUURI NYT.
+ *
+ * "Automaattinen" ei tarkoita "aina varasto" vaan "paras saatavilla".
+ * Pohjois-Euroopassa paras on FMI HARMONIE 2,5 km, ja siellä kartta
+ * lukee sitä; muualla varasto (ECMWF 0,25°, esilaskettu).
+ *
+ * Ennen automaattinen oli aina varasto, ja se oli valittu SUORITUSKYVYN
+ * perusteella: varasto ei maksa rajapintakiintiötä eikä tee pyyntöjä
+ * panoroinnissa. Perustelu on yhä voimassa — mutta se ratkaisi väärän
+ * kysymyksen. Sovellus on Suomen rannikon wingfoil-sovellus, ja juuri
+ * siellä missä sitä käytetään on tarjolla kymmenkertaisesti tarkempi
+ * malli. Käyttäjän päätös: FMI on paras ja se kuuluu oletukseen.
+ *
+ * KAKSI EHTOA, molemmat jo koodissa ennestään:
+ *   1. `harmonieAlueella` — HARMONIEn hila kattaa Pohjois-Euroopan.
+ *   2. `HARMONIE_MAX_STEP` — 2,5 km hilasta ei näy mitään kun karttahila
+ *      on 280 km. Raja on 1,0° eli zoom 6 ja lähempänä, ja se on mitattu
+ *      erikseen (ks. vakion oma kommentti).
+ *
+ * Maailmannäkymä ja maanosanäkymä pysyvät siis varastossa, eli uloin
+ * zoom on yhtä nopea kuin ennenkin. Vaihto tapahtuu vain rajan yli
+ * mentäessä, ei joka panoroinnissa. */
+const KARTTA_VARASTO = 'varasto';
+/* Voimassa oleva tila. Kartan liike tarkistaa tätä vasten eikä rakenna
+   mitään uudelleen jos malli ei vaihdu — panorointi Suomen sisällä ei
+   siis maksa mitään ylimääräistä. */
+let _kartanMalliNyt = null;
+function kartanMalli() {
+  const v = (typeof Asetukset !== 'undefined') ? Asetukset.arvot.malli : 'auto';
+  if (v !== 'auto') return v;
+  if (!State.map) return KARTTA_VARASTO;
+  const c = State.map.getCenter();
+  /* `gridStep` EIKÄ `kaytettyStep`.
+   *
+   * `kaytettyStep` on `max(gridStep(zoom), _viimeStep)` eli se muistaa
+   * mitä EDELLINEN lataus käytti. Se on oikein interpoloinnin tukisäteelle
+   * mutta väärin tälle: zoomattaessa ulompaa sisään se raportoi yhä
+   * vanhaa karkeaa väliä, jolloin `kartanMalli()` sanoi "varasto"
+   * juuri sillä hetkellä kun `moveend` tarkistaa vaihdon — ja koska se
+   * vastasi voimassa olevaa tilaa, vaihtoa ei tehty. Seuraavaa moveendia
+   * ei tullut, joten malli ei vaihtunut koskaan. Mitattuna z4 -> z9
+   * Helsinkiin jäi varastoon (1212 pistettä, 12 FMI, merkintä ECMWF).
+   *
+   * `gridStep` kertoo mitä TÄMÄ zoom pyytää, ja se on se mitä valinnan
+   * pitää seurata. */
+  const step = ViewportGrid.gridStep(State.map.getZoom());
+  return (harmonieAlueella([c]) && step <= HARMONIE_MAX_STEP)
+    ? 'fmi_harmonie' : KARTTA_VARASTO;
+}
+
 function harmonieAlueella(points) {
   for (var i = 0; i < points.length; i++) {
     var p = points[i];
@@ -12487,7 +12581,7 @@ function buildWindField(hourIdx, opts) {
      löytyi varastosta; sarjaa ei ole materialisoitu, koska kenttä
      tarvitsee vain yhden hetken (ks. Saalaatat.naytteista). */
   const laattaKaytossa = !!(targetTime && typeof Saalaatat !== 'undefined'
-    && Saalaatat.kaytossa() && Saalaatat.asetaHetki(targetTime));
+    && Saalaatat.kartallaKaytossa() && Saalaatat.asetaHetki(targetTime));
   if (laattaKaytossa) Saalaatat.asetaKentta(layer);
   for (let i = 0; i < all.length; i++) {
     const pt = all[i];
@@ -19779,6 +19873,26 @@ function nearestPointToCenter() {
  *
  * Ennustepistepolku on yhä varatie eikä koriste: ilman sitä aikajana
  * katoaisi varaston kattamattomilta alueilta ja `?laatat=0`-tilassa. */
+/* AIKAJANA LUKEE VARASTOA MYÖS SILLOIN KUN KARTTA EI LUE.
+ *
+ * `kaytossa()` eikä `kartallaKaytossa()`: kartan mallivalinta ottaa
+ * varaston sivuun kartalta, mutta varasto itse on yhä kunnossa ja sen
+ * akseli on aikajanalle korvaamaton.
+ *
+ * MITATTU SYY. Kun aikajana seurasi karttaa HARMONIElle, akseli
+ * kutistui: varastossa menneisyyttä on 54,5 h ja 403 tikkiä, HARMONIEn
+ * sarjassa 3,5 h ja 372 — eli **51 tuntia historiaa katosi**, eikä
+ * eiliseen päässyt enää raahaamaan. Sadetutkan mennyt kuva seuraa
+ * aikajanaa, joten se menetti kantamansa samalla (mitattuna sadesarjan
+ * "siirto menneisyyteen" ei liikkunut lainkaan).
+ *
+ * Hinta on tiedossa ja se on pienempi: aikajanan palkit ovat varaston
+ * ECMWF:ää ja kartta HARMONIEa, eli ne voivat näyttää eri lukua. Sama
+ * ero on sovelluksessa ollut ennenkin kahden datatason välillä (ka
+ * 1,38 m/s), ja se on dokumentoitu. Kadonnut vuorokausi olisi ollut
+ * uusi menetys, tämä ei ole.
+ *
+ * Asetuksen nimi sanoo saman: "Kartan säämalli". */
 function aikajananLahde() {
   if (typeof Saalaatat !== 'undefined' && Saalaatat.kaytossa() && State.map) {
     const c = State.map.getCenter();
@@ -22900,7 +23014,10 @@ const KarttaAsetukset = {
        alustetaan mainissa, ja jos asetus on muu kuin 'auto', se on
        suljettava heti. Ilman tätä tallennettu valinta unohtuisi joka
        uudelleenlatauksella. */
-    if (Asetukset.arvot.malli !== 'auto') this._vaihdaMalli(true);
+    /* Alustuksessa tila asetetaan AINA, ei vain pakotetulla mallilla:
+       automaattinen valitsee nyt FMI:n Pohjois-Euroopassa, joten
+       oletuskin voi olla muu kuin varasto. */
+    this._vaihdaMalli(true);
     this._partikkeliNakyvyys();
     document.documentElement.setAttribute('data-pohja', Asetukset.arvot.pohja);
   },
@@ -22930,19 +23047,29 @@ const KarttaAsetukset = {
 
   _partikkeliNakyvyys() { partikkelitNakyvyys(); },
 
+  /* Vihje kertoo mitä kartalla on JUURI NYT, ei mitä asetus abstraktisti
+     tarkoittaa. Automaattinen vaihtaa mallia näkymän mukana, joten pelkkä
+     "paras saatavilla" jättäisi lukijan arvailemaan kumpi se tällä
+     hetkellä on. */
   _malliVihje() {
     const el = document.getElementById('malli-vihje');
     if (!el) return;
     const v = Asetukset.arvot.malli;
-    el.textContent = v === 'auto'
-      ? 'Oma säälaattavarasto (ECMWF IFS 0,25°). Kartta piirtyy laatoista, '
-        + 'eikä panorointi tee yhtäkään rajapintakutsua.'
-      : (v === 'fmi_harmonie'
-          ? 'Ilmatieteen laitoksen 2,5 km hila. Kattaa Pohjois-Euroopan; '
-            + 'sen ulkopuolella piste putoaa Open-Meteoon.'
-          : 'Pakotettu malli.')
-        + ' Kenttä haetaan rajapinnasta, joten kartta on karkeampi ja '
-        + 'uusi näkymä kestää muutaman sekunnin.';
+    if (v === 'auto') {
+      const nyt = (typeof kartanMalli === 'function') ? kartanMalli() : KARTTA_VARASTO;
+      el.textContent = 'Paras saatavilla: FMI HARMONIE 2,5 km Pohjois-Euroopassa, '
+        + 'muualla oma säälaattavarasto (ECMWF IFS 0,25°). '
+        + (nyt === 'fmi_harmonie'
+            ? 'Nyt käytössä FMI HARMONIE.'
+            : 'Nyt käytössä varasto — kartta on joko HARMONIEn hilan '
+              + 'ulkopuolella tai niin kaukana, ettei 2,5 km näy.');
+      return;
+    }
+    el.textContent = (v === 'fmi_harmonie'
+        ? 'Ilmatieteen laitoksen 2,5 km hila. Kattaa Pohjois-Euroopan; '
+          + 'sen ulkopuolella piste putoaa Open-Meteoon.'
+        : 'Pakotettu malli kaikkialla, myös siellä missä se ei ole paras.')
+      + ' Kenttä haetaan rajapinnasta, joten uusi näkymä kestää muutaman sekunnin.';
   },
 
   /* KARTAN MALLIN PAKOTUS.
@@ -22978,14 +23105,18 @@ const KarttaAsetukset = {
    * `alustus`-lipulla ei piirretä mitään: main() lataa näkymän
    * kuitenkin heti perään. */
   async _vaihdaMalli(alustus) {
-    const v = Asetukset.arvot.malli;
-    if (v === 'auto') {
+    const v = kartanMalli();
+    /* `_kartanMalliNyt` muistaa mikä tila on voimassa, jotta kartan
+       liike ei rakenna kaikkea uudelleen joka kerta — vain rajan yli
+       mentäessä. */
+    _kartanMalliNyt = v;
+    if (v === KARTTA_VARASTO) {
       State.activeModel = 'best_match';
       if (typeof Saalaatat !== 'undefined') await Saalaatat.paalle();
       if (State.map) _aktivoiLaattakerros(State.map);
     } else {
       State.activeModel = v;
-      if (typeof Saalaatat !== 'undefined') Saalaatat.pois();
+      if (typeof Saalaatat !== 'undefined') Saalaatat.kartalla(false);
       if (State.map) _laattakerrosPois(State.map);
     }
     this._malliVihje();
