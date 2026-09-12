@@ -5,15 +5,17 @@
 # raw.githubusercontent.comin kautta (CORS on siellä auki ja välimuisti
 # 5 minuuttia — juuri sopiva kolmen tunnin välein päivittyvälle datalle).
 #
-# MIKSI ORVOKSI JA PAKOLLA. Laatat ovat noin 19 MB kierrokselta (nousi
-# 9 MB:stä kun 1 asteen taso laajennettiin koko maailmaan). Jos ne
+# MIKSI ORVOKSI JA PAKOLLA. Laatat ovat noin 24 MB kierrokselta (9 MB ->
+# 19 MB kun 1 asteen taso laajennettiin koko maailmaan, 19 -> 24 kun
+# FMI:n HARMONIE tuli omaksi tasokseen `h0`). Jos ne
 # kasautuisivat historiaan, repo kasvaisi 76 MB vuorokaudessa ja täyttäisi
 # GitHubin gigatavun rajan kahdessa viikossa. `git checkout --orphan` +
 # `push --force` tarkoittaa että haarassa on aina täsmälleen yksi
 # committi: nykyinen tilanne, ei mitään muuta.
 #
 # Julkisessa reposessa Actions-minuutit ovat rajattomat, joten tämä on
-# ilmaista. Ajo kestää noin kolme minuuttia.
+# ilmaista. Ajo kestää noin neljä minuuttia: ECMWF noin kolme ja
+# HARMONIE-hila noin yhden (24,9 MB GRIB2:ta 49 sekunnissa).
 
 name: Säädata
 
@@ -98,6 +100,12 @@ jobs:
               console.log("| Aika-askelia | " + l.nt + " |");
               console.log("| Jakso | " + new Date(l.ajat[0]).toISOString() + " … " + new Date(l.ajat[l.ajat.length-1]).toISOString() + " |");
               console.log("| Laattoja | " + l.tasot.reduce((s,t)=>s+t.laatat.length,0) + " |");
+              const h = l.tasot.find(t => t.id === "h0");
+              console.log("| HARMONIE | " + (h
+                ? h.laatat.length + " laattaa, " + h.nt + " tuntia, "
+                  + new Date(h.ajat[0]).toISOString() + " … "
+                  + new Date(h.ajat[h.nt-1]).toISOString()
+                : "EI MUKANA") + " |");
               console.log("| Koko | " + mb.toFixed(1) + " MB |");
               console.log("| Puuttuvia hetkiä | " + l.puuttuvia + " |");
             '

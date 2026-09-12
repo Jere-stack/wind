@@ -4468,8 +4468,10 @@ const Saalaatat = {
   _tila: 'alustamaton',      /* alustamaton | ok | pois */
   _laatat: new Map(),        /* avain -> purettu laatta */
   _kesken: new Map(),        /* avain -> Promise */
-  _ajat: null,               /* jaettu aikataulukko, sama joka pisteelle */
+  _ajat: null,               /* ECMWF-tasojen aikataulukko ISO-muodossa */
   _tsMs: null,               /* sama akseli millisekunteina — naytteista() */
+  _perus: null,              /* ECMWF-tasojen akseli oliona */
+  _akselit: null,            /* kaikki akselit — asetaHetki käy ne läpi */
   _versio: '',               /* ajon tunnus, menee laattojen osoitteeseen */
   _MAX_LAATTAA: 40,          /* muistikatto; laatta on ~112 kt purettuna */
 
@@ -4531,11 +4533,26 @@ const Saalaatat = {
       const ms = Array.isArray(l.ajat) && l.ajat.length === l.nt
         ? l.ajat
         : Array.from({ length: l.nt }, (_, i) => l.t0 + i * l.dtSek * 1000);
-      this._ajat = ms.map(t => new Date(t).toISOString());
+      this._perus = this._teeAkseli(ms);
+      this._ajat = this._perus.ajat;
       /* Sama akseli lukuina. naytteista() hakee hetkea taalta eika
          jasenna merkkijonoja lainkaan, ja `_ts()` saa taman jaetun
          `_ajat`-taulukon kautta yhden ainoan kerran. */
-      this._tsMs = Float64Array.from(ms);
+      this._tsMs = this._perus.tsMs;
+      /* TASOKOHTAINEN AKSELI. Kaikki ECMWF-tasot jakavat yllä olevan;
+         HARMONIE-taso tuo oman tuntiakselinsa, joka kattaa vain 66
+         tuntia. Akseli ripustetaan TASO-OLIOON, koska `taso()` on ainoa
+         paikka joka tietää mistä tasosta on kyse — ja laatta saa saman
+         viitteen `_lataa`ssa, koska `naytteista` näkee vain laatan. */
+      this._akselit = [this._perus];
+      for (const t of l.tasot) {
+        if (Array.isArray(t.ajat) && t.ajat.length > 1) {
+          t._ax = this._teeAkseli(t.ajat);
+          this._akselit.push(t._ax);
+        } else {
+          t._ax = this._perus;
+        }
+      }
       /* Tuntiakseli johdetaan tästä, joten se mitätöityy samalla. */
       this._ajatH = null; this._tsMsH = null; this._kartta = null;
       /* Laattojen osoitteisiin menee ajon tunnus, jolloin service worker
@@ -4552,14 +4569,52 @@ const Saalaatat = {
     }
   },
 
+  /* Yksi aika-akseli: hetket ISO-merkkijonoina ja lukuina, sekä
+     `asetaHetki`n jättämä indeksi ja murto-osa. Varastolla on näitä
+     kaksi — ECMWF:n yhteinen ja HARMONIEn oma. */
+  _teeAkseli(ms) {
+    return {
+      ajat: ms.map(t => new Date(t).toISOString()),
+      tsMs: Float64Array.from(ms),
+      ti: 0, tf: 0, ok: false,
+    };
+  },
+
+  /* Kattaako tason akseli VALITUN hetken?
+   *
+   * Tämä on se ehto joka pitää hienon tason pois sieltä minne se ei
+   * kuulu: HARMONIE loppuu 66 tunnin päähän, ja sen jälkeen kartan on
+   * palattava ECMWF:ään. Ilman tätä laatta olisi olemassa mutta tyhjä,
+   * ja `kokoaHila` levittäisi reunan arvon koko ruudulle — eli kartta
+   * näyttäisi tasaista tuulta siellä missä dataa ei ole.
+   *
+   * Ehto luetaan HETKESTÄ eikä `asetaHetki`n jättämästä `ok`-lipusta,
+   * koska `varmista`, `onLaatta` ja `wx` kutsutaan myös ilman että
+   * hetkeä on asetettu (käynnistys). Tuntematon hetki ei rajaa mitään. */
+  _hetkiMs: null,
+  _kattaa(t) {
+    const ax = t._ax;
+    if (!ax || ax === this._perus) return true;
+    const h = this._hetkiMs;
+    if (h == null) return true;
+    /* Sama tunnin toleranssi kuin `asetaHetki`ssä. */
+    return h >= ax.tsMs[0] - 3600000 && h <= ax.tsMs[ax.tsMs.length - 1] + 3600000;
+  },
+
   /* Hienoin taso jonka askel riittää pyydettyyn hilaväliin. Sovelluksen
      hilaväli on gridStep(zoom); jos sitä hienompaa tasoa ei ole tälle
-     alueelle, karkeampi kelpaa — se on yhä oikeaa dataa, vain harvempaa. */
-  taso(lat, lng, step) {
+     alueelle, karkeampi kelpaa — se on yhä oikeaa dataa, vain harvempaa.
+
+     `sarjalle` = haetaanko kokonaista AIKASARJAA (wx). Silloin
+     `vainKartta`-tasot ohitetaan: HARMONIE kattaa 66 tuntia ja aikajana
+     16,6 vuorokautta, joten sen sarja katkeaisi kesken. */
+  taso(lat, lng, step, sarjalle) {
     if (!this._luettelo) return null;
     let paras = null;
     for (const t of this._luettelo.tasot) {
       if (lat < t.lat[0] || lat > t.lat[1]) continue;
+      if (sarjalle && t.vainKartta) continue;
+      if (!this._kattaa(t)) continue;
       const lo = ((lng + 180) % 360 + 360) % 360 - 180;
       if (t.lng[0] > -180 || t.lng[1] < 180) {
         if (lo < t.lng[0] || lo > t.lng[1]) continue;
@@ -4606,6 +4661,10 @@ const Saalaatat = {
         askel: dv.getFloat32(8, true),
         la0: dv.getFloat32(12, true), lo0: dv.getFloat32(16, true),
         ny, nx, nt,
+        /* Laatta kantaa TASONSA aika-akselin. `naytteista` näkee vain
+           laatan, ei tasoa, ja indeksi on akselikohtainen. */
+        _ax: taso._ax || this._perus,
+        _taso: taso,
         nop: tavut.subarray(ot, ot + koko),
         suunta: tavut.subarray(ot + koko, ot + 2 * koko),
         puuska: tavut.subarray(ot + 2 * koko, ot + 3 * koko),
@@ -4683,30 +4742,55 @@ const Saalaatat = {
    * koko tekstuurilla se on sama — sitä ei kannata hakea uudelleen
    * jokaiselle näytteelle. */
   _nU: 0, _nV: 0,
-  _ti: 0, _tf: 0, _tiValmis: false,
+  /* Indeksi ja murto-osa eivät ole täällä vaan AKSELISSA (`_teeAkseli`).
+     Jaettuina ne olisivat väärin heti kun tasoja on kaksi eri askelella. */
+  _tiValmis: false,
 
   /* Valitsee aikaindeksin ja murto-osan. Akseli EI ole tasavälinen
      (ECMWF vaihtaa kolmen tunnin askeleesta kuuteen kuuden vuorokauden
      kohdalla), joten tämä on puolitushaku eikä jakolasku. Palauttaa
      epätoden jos hetki on sarjan ulkopuolella — silloin varasto ei voi
      palvella tätä hetkeä lainkaan ja kutsujan on käytettävä varatietä. */
-  asetaHetki(tMs) {
-    this._tiValmis = false;
-    const ts = this._tsMs;
-    if (!ts || !ts.length || tMs == null || !isFinite(tMs)) return false;
+  _asetaAkseli(ax, tMs) {
+    const ts = ax.tsMs;
+    ax.ok = false;
+    if (!ts || !ts.length) return false;
     const viim = ts.length - 1;
     /* Tunnin toleranssi kummassakin päässä, kuten buildWindFieldissä:
        sarjat ovat tasatunneittain ja hetki on tuntien välissä. */
     if (tMs < ts[0] - 3600000 || tMs > ts[viim] + 3600000) return false;
-    if (tMs <= ts[0])    { this._ti = 0;        this._tf = 0; this._tiValmis = true; return true; }
-    if (tMs >= ts[viim]) { this._ti = viim;     this._tf = 0; this._tiValmis = true; return true; }
+    if (tMs <= ts[0])    { ax.ti = 0;    ax.tf = 0; ax.ok = true; return true; }
+    if (tMs >= ts[viim]) { ax.ti = viim; ax.tf = 0; ax.ok = true; return true; }
     let lo = 0, hi = viim;
     while (lo < hi) { const m = (lo + hi) >> 1; if (ts[m] < tMs) lo = m + 1; else hi = m; }
     const b = lo, a = lo - 1;
-    this._ti = a;
-    this._tf = (tMs - ts[a]) / (ts[b] - ts[a]);
-    this._tiValmis = true;
+    ax.ti = a;
+    ax.tf = (tMs - ts[a]) / (ts[b] - ts[a]);
+    ax.ok = true;
     return true;
+  },
+
+  /* HETKI ASETETAAN KAIKILLE AKSELEILLE KERRALLA, koska kutsuja ei tiedä
+     miltä tasolta seuraava näyte tulee — `naytteista` valitsee tason
+     paikan mukaan, ja sama ruutu voi lukea kahta tasoa (HARMONIEn reuna
+     kulkee kartan poikki). Akseleita on kaksi, joten hinta on olematon.
+     Paluuarvo on "voiko varasto palvella tätä hetkeä lainkaan". */
+  asetaHetki(tMs) {
+    this._tiValmis = false;
+    this._hetkiMs = null;
+    if (!this._akselit || tMs == null || !isFinite(tMs)) return false;
+    this._hetkiMs = tMs;
+    let jokuOk = false;
+    for (const ax of this._akselit) {
+      if (this._asetaAkseli(ax, tMs)) jokuOk = true;
+    }
+    /* Laattamuisti on askel- JA hetkikohtainen: sama piste ja sama
+       askel voi osua eri tasoon eri hetkellä, koska `taso()` ohittaa
+       nyt tason jonka akseli ei kata hetkeä. Ilman mitätöintä 66 tunnin
+       rajan yli siirtyminen jäisi vanhan laatan varaan. */
+    this._mLaatta = null; this._mStep = -1;
+    this._tiValmis = jokuOk;
+    return jokuOk;
   },
 
   /* Yhden alkion muisti laattahaulle.
@@ -4728,8 +4812,10 @@ const Saalaatat = {
     if (!laatta) return null;
     /* Vanhentunut laatta: eri ajon aika-akseli kuin luettelossa. Osoitteet
        on versioitu, joten tätä ei pitäisi tapahtua — mutta jos tapahtuu,
-       hiljainen väärä aika on pahin mahdollinen lopputulos. */
-    if (laatta.nt !== this._tsMs.length) return null;
+       hiljainen väärä aika on pahin mahdollinen lopputulos.
+       Vertailu on TASON akselia vastaan, ei luettelon yhteistä: HARMONIEn
+       laatassa on 67 hetkeä ja ECMWF:n laatassa 99. */
+    if (laatta.nt !== (laatta._ax || this._perus).tsMs.length) return null;
     this._mLaatta = laatta; this._mLa0 = r.la0; this._mLo0 = r.lo0;
     this._mSpan = taso.span; this._mStep = step;
     return laatta;
@@ -4824,15 +4910,21 @@ const Saalaatat = {
     const k0 = iy * l.nx + ix, k1 = k0 + 1, k2 = k0 + l.nx, k3 = k2 + 1;
     const w0 = (1 - wy) * (1 - wx), w1 = (1 - wy) * wx, w2 = wy * (1 - wx), w3 = wy * wx;
     const taso2 = l.ny * l.nx;
-    const ia = this._ti, ib = Math.min(this._ti + 1, l.nt - 1);
+    /* Aikaindeksi on LAATAN OMALTA akselilta. Sama hetki on HARMONIEn
+       tuntiakselilla eri indeksi kuin ECMWF:n kolmen tunnin akselilla —
+       jaettu `_ti` olisi sama vika kuin aikajanan indeksin siirtäminen
+       akselilta toiselle (ks. CLAUDE.md). */
+    const ax = l._ax || this._perus;
+    if (!ax.ok) return false;
+    const ia = ax.ti, ib = Math.min(ax.ti + 1, l.nt - 1);
 
     if (!this._paikassa(l, ia * taso2, k0, k1, k2, k3, w0, w1, w2, w3)) return false;
     const msA = this._sMs, dirA = this._sDir;
     let ms, dir;
-    if (ib === ia || this._tf === 0) { ms = msA; dir = dirA; }
+    if (ib === ia || ax.tf === 0) { ms = msA; dir = dirA; }
     else {
       if (!this._paikassa(l, ib * taso2, k0, k1, k2, k3, w0, w1, w2, w3)) return false;
-      const msB = this._sMs, dirB = this._sDir, f = this._tf;
+      const msB = this._sMs, dirB = this._sDir, f = ax.tf;
       ms = msA + (msB - msA) * f;
       const dd = ((dirB - dirA) % 360 + 540) % 360 - 180;   /* -180..180 */
       dir = ((dirA + dd * f) % 360 + 360) % 360;
@@ -4922,9 +5014,13 @@ const Saalaatat = {
   /* Yhden pisteen aikasarja samassa muodossa kuin rajapinta antaa, jotta
      kaikki muu sovelluksessa toimii muuttumatta. Palauttaa null jos
      laattaa ei ole ladattu tai piste on tyhjä. */
+  /* `sarjalle` = true: `vainKartta`-tasot ohitetaan. Aikajana ja
+     spottikortti tarvitsevat 16,6 vuorokauden sarjan, ja HARMONIEn taso
+     kattaa 66 tuntia — sen sarja loppuisi kesken ilman että mikään
+     kertoisi siitä. Kartta lukee HARMONIEa `naytteista`n kautta. */
   wx(lat, lng, step) {
     if (!this.kaytossa()) return null;
-    const taso = this.taso(lat, lng, step);
+    const taso = this.taso(lat, lng, step, true);
     if (!taso) return null;
     const { la0, lo0 } = this._ruutu(taso, lat, lng);
     const laatta = this._laatat.get(this._avain(taso, la0, lo0));
@@ -4985,7 +5081,7 @@ const Saalaatat = {
     if (!kelpoja) return null;
     return {
       hourly: {
-        time: this._ajat,
+        time: (taso._ax || this._perus).ajat,
         windspeed_10m: nop,
         winddirection_10m: suu,
         windgusts_10m: puu,
@@ -5134,6 +5230,30 @@ const ViewportGrid = {
     if (zoom <= 7) return 1.0;   /* Itämeri / Suomi — l2 */
     if (zoom <= 9) return 0.5;   /* alue-taso — l1 */
     return 0.25;                 /* paikallinen — l0, ECMWF:n oma hila */
+  },
+
+  /* ── LAATTAPYRAMIDIN OMA ASKEL ────────────────────────────────────
+   *
+   * `gridStep` on RAJAPINTAHILAN väli: siitä syntyy `getViewportPoints`in
+   * pistelista, ja jokainen piste on Open-Meteon laskutuksessa oma
+   * kutsunsa. Se ei siis saa tihentyä.
+   *
+   * Laattapyramidi ei kysy pisteitä vaan valitsee VARASTON TASON, ja
+   * siellä tiheämpi askel on ilmainen — se vain ohjaa `taso()`:n
+   * hienompaan laattaan jos sellainen on olemassa. Jos ei ole, `taso()`
+   * palauttaa hienoimman mitä alueella on, eli täsmälleen saman kuin
+   * ennen.
+   *
+   * 0,05 vastaa HARMONIE-tasoa (h0). Sen ulkopuolella — Australiassa,
+   * Atlantilla, tai 66 tunnin päässä — tämä ei muuta mitään, koska
+   * hienompaa tasoa ei ole eikä `taso()` keksi sellaista.
+   *
+   * ERILLINEN FUNKTIO EIKÄ `gridStep`IN MUUTOS. Yhteinen askel olisi
+   * tarkoittanut z12:ssa 0,05 asteen rajapintahilaa, eli kymmeniä kertoja
+   * enemmän pisteitä varaston ulkopuolella — juuri se kiintiö jonka takia
+   * koko varasto rakennettiin. */
+  laattaStep(zoom) {
+    return zoom >= 10 ? 0.05 : this.gridStep(zoom);
   },
   _tileKey(lat, lng) {
     const d = this.TILE_DEG;
@@ -8670,8 +8790,19 @@ const WindTexture = {
       const hilaPolku = (function () {
         if (!hilaMahdollinen) return null;
         Saalaatat.asetaKentta(State.activeLayer);
-        const dStep = (typeof ViewportGrid !== 'undefined')
+        /* Solmuväli on `kaytettyStep` kuten ennen — paitsi lähizoomissa,
+           jossa varaston hienoin taso on HARMONIE (0,05°) eikä ECMWF
+           (0,25°). Ilman tätä solmuhila jäisi 0,25 asteeseen ja koko
+           hienon tason tarkkuus menisi hukkaan juuri siellä missä sitä
+           katsotaan: solmuhilasta lukevat sekä partikkelit että kapseli.
+           Ehto voi vain TIHENTÄÄ (min), koska leveässä näkymässä
+           `kaytettyStep` on tarkoituksella suurempi kuin `gridStep` — se
+           pitää laattamäärän kurissa. */
+        let dStep = (typeof ViewportGrid !== 'undefined')
           ? ViewportGrid.kaytettyStep(zoom) : 0.25;
+        if (zoom >= 10 && typeof ViewportGrid !== 'undefined') {
+          dStep = Math.min(dStep, ViewportGrid.laattaStep(zoom));
+        }
         /* Solmuhila kattaa tekstuurin ja kaksi solmua yli kummallakin
            reunalla, koska kuubinen ydin lukee j−1 … j+2. */
         const M = 2;
@@ -10353,6 +10484,58 @@ const SaaLaattaKerros = L.GridLayer.extend({
   GL_TEXELIT: 256,
   CPU_TEXELIT: 128,
 
+  /* ── REUNUS: MIKSI LAATTOJA MAALATAAN NÄKYMÄÄ LAAJEMMALLE ─────────
+   *
+   * Ulos zoomatessa lämpökartta katosi ruudun laidoilta kesken eleen.
+   * Mitattu pikseleistä (screencast, 420x860, mediaani kahdesta
+   * ajosta, peitto ruudusta):
+   *
+   *     z12 -> z11   100 % -> 58 %      z10 -> z9   100 % -> 80 %
+   *     z11 -> z10   100 % -> 83 %      z9  -> z8   100 % -> 58 %
+   *     z13 -> z10   100 % ->  8 %      z10 -> z8   100 % -> 26 %
+   *
+   * Syy on geometriaa eikä latausta. `L.GridLayer` lataa laatat VAIN
+   * näkymän alalle. Ulos zoomatessa Leaflet skaalaa vanhan tason
+   * säiliötä kertoimella 0,5 ankkurin ympäri, jolloin maalattu ala
+   * kutistuu puoleen ja reunoille jää tyhjää — ja uuden, karkeamman
+   * tason laatat eivät ole vielä valmiita, joten `_tasoVuoro` näyttää
+   * yhä sitä kutistuvaa. Mitään ei voi näyttää, koska mitään ei ole
+   * maalattu sinne.
+   *
+   * Ehto on suoraan geometriasta: jotta puoleen skaalattu ala peittäisi
+   * ruudun, maalattua alaa on oltava PUOLI RUUTUA joka laidalla.
+   * Ankkuri ei ole aina keskellä (kaksoisnapautus zoomaa napautetun
+   * pisteen ympäri), joten reunus on 0,6 eikä 0,5.
+   *
+   * Sama reunus korjaa toisenkin oireen: panoroitaessa laatat
+   * ilmestyivät johtavaan reunaan vasta kun se oli jo ruudulla.
+   *
+   * MIKSI EI ULOIMMISSA NÄKYMISSÄ. Siellä reunus maksaisi
+   * VARASTOlaattoja: uloin näkymä on 24 laattaa ja 1,3 MB, ja 2,2
+   * kertainen ala olisi noin kaksinkertainen lataus yhden ruudullisen
+   * avaamiseen. Vastinetta ei olisi — mitattuna z11 -> z5 säilytti
+   * 99 % peitostaan ilman reunusta, koska siellä yksi säälaatta kattaa
+   * koko ruudun eikä uusi taso odota mitään. */
+  REUNUS: 0.6,
+  REUNUS_MIN_Z: 6,
+
+  _getTiledPixelBounds: function (center) {
+    const map = this._map;
+    const reunus = (map && map.getZoom() >= this.REUNUS_MIN_Z) ? this.REUNUS : 0;
+    if (!reunus) return L.GridLayer.prototype._getTiledPixelBounds.call(this, center);
+    /* Sama laskenta kuin kantaluokassa, mutta puolikas kerrotaan
+       reunuksella. Kantaluokan kutsu + laajennus EI kelpaa: sen
+       palauttama `Bounds` on jo pyöristetty laattaruudukkoon, ja
+       skaalauskerroin (`getZoomScale`) on luettava tässä, koska kesken
+       zoom-animaation `_tileZoom` ei ole sama kuin kartan zoom. */
+    const mapZoom = map._animatingZoom
+      ? Math.max(map._animateToZoom, map.getZoom()) : map.getZoom();
+    const scale = map.getZoomScale(mapZoom, this._tileZoom);
+    const keskus = map.project(center, this._tileZoom).floor();
+    const puoli = map.getSize().divideBy(scale * 2).multiplyBy(1 + 2 * reunus);
+    return new L.Bounds(keskus.subtract(puoli), keskus.add(puoli));
+  },
+
   initialize: function (options) {
     L.GridLayer.prototype.initialize.call(this, options);
     this._gl = null;
@@ -10394,7 +10577,7 @@ const SaaLaattaKerros = L.GridLayer.extend({
     if (nyt - (this._esiT || 0) < 500) return;
     this._esiT = nyt;
     try {
-      const d = ViewportGrid.gridStep(Math.round(this._map.getZoom()));
+      const d = ViewportGrid.laattaStep(Math.round(this._map.getZoom()));
       Saalaatat.varmista(this._map.getBounds(), d).catch(function () {});
     } catch (e) {}
   },
@@ -10517,7 +10700,7 @@ const SaaLaattaKerros = L.GridLayer.extend({
       done(v, laatta);
     }
     const r = this._rajat(coords);
-    const d = (typeof ViewportGrid !== 'undefined') ? ViewportGrid.gridStep(coords.z) : 0.25;
+    const d = (typeof ViewportGrid !== 'undefined') ? ViewportGrid.laattaStep(coords.z) : 0.25;
     if (this._dataKasassa(r, d)) { setTimeout(valmis, 0); return; }
     /* Verkko voi olla poissa tai alue varaston ulkopuolella. Laattaa ei
        saa jättää ikuisesti näkymättömäksi: silloin piirretään sillä mitä
@@ -10575,7 +10758,7 @@ const SaaLaattaKerros = L.GridLayer.extend({
     if (typeof Saalaatat === 'undefined' || !Saalaatat.kartallaKaytossa()) return null;
     Saalaatat.asetaKentta(State.activeLayer);
     if (!Saalaatat.asetaHetki(_tlTimeAt(State.currentHourIdx))) return null;
-    const d = ViewportGrid.gridStep(z);
+    const d = ViewportGrid.laattaStep(z);
     const M = 2;                     /* kuubinen ydin lukee j-1 .. j+2 */
     const la0 = (Math.floor(r.laS / d) - M) * d;
     const lo0 = (Math.floor(r.loW / d) - M) * d;
@@ -10604,7 +10787,7 @@ const SaaLaattaKerros = L.GridLayer.extend({
      * Jos laatalla on jo sisältöä eikä data ole kasassa, se jätetään
      * rauhaan ja haetaan puuttuva. */
     const dStep = (typeof ViewportGrid !== 'undefined')
-      ? ViewportGrid.gridStep(coords.z) : 0.25;
+      ? ViewportGrid.laattaStep(coords.z) : 0.25;
     if (laatta._maalattu && !this._dataKasassa(r, dStep)) {
       this._taydenna(laatta, coords, r, dStep);
       return;
@@ -12199,26 +12382,28 @@ const HARMONIE_MAX_STEP = 1.0;
 
 /* MIKÄ MALLI KARTALLA ON JUURI NYT.
  *
- * "Automaattinen" ei tarkoita "aina varasto" vaan "paras saatavilla".
- * Pohjois-Euroopassa paras on FMI HARMONIE 2,5 km, ja siellä kartta
- * lukee sitä; muualla varasto (ECMWF 0,25°, esilaskettu).
+ * "Automaattinen" tarkoittaa yhä PARASTA SAATAVILLA — mutta paras tulee
+ * nyt varastosta eikä rajapinnasta.
  *
- * Ennen automaattinen oli aina varasto, ja se oli valittu SUORITUSKYVYN
- * perusteella: varasto ei maksa rajapintakiintiötä eikä tee pyyntöjä
- * panoroinnissa. Perustelu on yhä voimassa — mutta se ratkaisi väärän
- * kysymyksen. Sovellus on Suomen rannikon wingfoil-sovellus, ja juuri
- * siellä missä sitä käytetään on tarjolla kymmenkertaisesti tarkempi
- * malli. Käyttäjän päätös: FMI on paras ja se kuuluu oletukseen.
+ * Tässä oli välivaihe, jossa automaattinen pakotti rajapinnan HARMONIEn
+ * aina kun keskipiste oli `harmonieAlueella` ja hilaväli alle
+ * `HARMONIE_MAX_STEP`in. Se antoi oikean MALLIN mutta väärää tietä:
+ * rajapintapolulla kartalla ei ole laattapyramidia lainkaan, joten
+ * zoom rakensi näkymätekstuurin uudelleen ja panorointi haki pistelistan
+ * verkosta. Sen hinta mitattiin ja kirjattiin ylös — panorointi Suomessa
+ * 6,1 s ja 44 pyyntöä, käynnistys 22 s vastaan 3 s — ja samaan
+ * muistiinpanoon kirjattiin oikea korjaus: **vie HARMONIE laattaputkeen.**
+ * Se on nyt tehty (`tools/harmonie.mjs`, taso `h0`).
  *
- * KAKSI EHTOA, molemmat jo koodissa ennestään:
- *   1. `harmonieAlueella` — HARMONIEn hila kattaa Pohjois-Euroopan.
- *   2. `HARMONIE_MAX_STEP` — 2,5 km hilasta ei näy mitään kun karttahila
- *      on 280 km. Raja on 1,0° eli zoom 6 ja lähempänä, ja se on mitattu
- *      erikseen (ks. vakion oma kommentti).
+ * Automaattinen ei siis enää valitse mallia lainkaan. Valinnan tekee
+ * `Saalaatat.taso()`, joka ottaa hienoimman tason joka kattaa sekä
+ * PAIKAN että HETKEN: Suomen rannikolla ja 66 tunnin sisällä HARMONIEn
+ * (0,05°, tunneittain), muualla ja kauempana ECMWF:n. Molemmissa
+ * tapauksissa kartalla on pyramidi.
  *
- * Maailmannäkymä ja maanosanäkymä pysyvät siis varastossa, eli uloin
- * zoom on yhtä nopea kuin ennenkin. Vaihto tapahtuu vain rajan yli
- * mentäessä, ei joka panoroinnissa. */
+ * `harmonieAlueella` ja `HARMONIE_MAX_STEP` ovat yhä käytössä — ne
+ * ohjaavat SPOTTIEN ja hilapisteiden rajapintahakua (`loadBatch`,
+ * `loadViewport`), joka on eri polku kuin kartan pinta. */
 const KARTTA_VARASTO = 'varasto';
 /* Voimassa oleva tila. Kartan liike tarkistaa tätä vasten eikä rakenna
    mitään uudelleen jos malli ei vaihdu — panorointi Suomen sisällä ei
@@ -12227,24 +12412,27 @@ let _kartanMalliNyt = null;
 function kartanMalli() {
   const v = (typeof Asetukset !== 'undefined') ? Asetukset.arvot.malli : 'auto';
   if (v !== 'auto') return v;
-  if (!State.map) return KARTTA_VARASTO;
-  const c = State.map.getCenter();
-  /* `gridStep` EIKÄ `kaytettyStep`.
+  /* AUTOMAATTINEN ON VARASTO — ja se ON HARMONIE siellä missä HARMONIE on.
    *
-   * `kaytettyStep` on `max(gridStep(zoom), _viimeStep)` eli se muistaa
-   * mitä EDELLINEN lataus käytti. Se on oikein interpoloinnin tukisäteelle
-   * mutta väärin tälle: zoomattaessa ulompaa sisään se raportoi yhä
-   * vanhaa karkeaa väliä, jolloin `kartanMalli()` sanoi "varasto"
-   * juuri sillä hetkellä kun `moveend` tarkistaa vaihdon — ja koska se
-   * vastasi voimassa olevaa tilaa, vaihtoa ei tehty. Seuraavaa moveendia
-   * ei tullut, joten malli ei vaihtunut koskaan. Mitattuna z4 -> z9
-   * Helsinkiin jäi varastoon (1212 pistettä, 12 FMI, merkintä ECMWF).
+   * Tässä luki aiemmin "jos keskipiste on HARMONIEn alueella ja zoom
+   * riittävä, pakota rajapinnan HARMONIE". Se antoi oikean MALLIN mutta
+   * väärällä tavalla: rajapintapolulla kartalla ei ole laattapyramidia
+   * lainkaan, joten jokainen zoom rakensi näkymätekstuurin uudelleen ja
+   * jokainen panorointi haki pistelistan verkosta (mitattuna 6,1 s ja
+   * 44 pyyntöä yhtä Suomen-panorointia kohti, käynnistys 22 s / 3 s).
+   * Juuri se tuntui nykimisenä.
    *
-   * `gridStep` kertoo mitä TÄMÄ zoom pyytää, ja se on se mitä valinnan
-   * pitää seurata. */
-  const step = ViewportGrid.gridStep(State.map.getZoom());
-  return (harmonieAlueella([c]) && step <= HARMONIE_MAX_STEP)
-    ? 'fmi_harmonie' : KARTTA_VARASTO;
+   * Nyt HARMONIE on varastossa omana tasonaan (`h0`, 0,05°, tunneittain,
+   * 66 h). Automaattinen ei siis enää valitse mallia vaan jättää
+   * valinnan `Saalaatat.taso()`:lle, joka ottaa hienoimman tason joka
+   * kattaa sekä paikan että hetken — Suomen rannikolla ja 66 tunnin
+   * sisällä HARMONIEn, muualla ja kauempana ECMWF:n. Pyramidi on
+   * päällä kummassakin tapauksessa.
+   *
+   * Siruvalinta jää: `fmi_harmonie`, `ecmwf_ifs025`, `icon_eu` ja
+   * `gfs_seamless` pakottavat yhä rajapintapolun, koska ne ovat juuri
+   * sitä varten — "näytä minulle nimenomaan tämä malli". */
+  return KARTTA_VARASTO;
 }
 
 function harmonieAlueella(points) {
@@ -21465,7 +21653,18 @@ const Lahde = {
      * nimesi lähteen josta viereinen luku ei ollut peräisin. Sen oma
      * sopimus on päinvastainen: se kertoo mitä RUUDULLA on. */
     if (typeof WindTexture !== 'undefined' && WindTexture.hila) {
-      const varasto = this.NIMET.laatta;
+      /* VARASTOSSA ON KAKSI MALLIA, joten "esilaskettu" ei yksin riitä.
+         Hienoin taso Suomen rannikolla ja 66 tunnin sisällä on FMI:n
+         HARMONIE; sen ulkopuolella ECMWF. Nimi luetaan SAMASTA
+         valinnasta jolla laatta piirretään (`Saalaatat.taso`), ei
+         päätellä alueesta uudelleen — kaksi sääntöä samalle valinnalle
+         ajautuisi erilleen heti kun tason rajoja säädetään. */
+      let varasto = this.NIMET.laatta;
+      if (typeof Saalaatat !== 'undefined' && Saalaatat.kartallaKaytossa()) {
+        const t = Saalaatat.taso(c.lat, c.lng,
+          ViewportGrid.laattaStep(State.map.getZoom()));
+        if (t && t.malli && this.NIMET[t.malli]) varasto = this.NIMET[t.malli];
+      }
       if (this._el.textContent !== varasto) this._el.textContent = varasto;
       this._el.classList.add('nakyy');
       return;
@@ -23056,13 +23255,20 @@ const KarttaAsetukset = {
     if (!el) return;
     const v = Asetukset.arvot.malli;
     if (v === 'auto') {
-      const nyt = (typeof kartanMalli === 'function') ? kartanMalli() : KARTTA_VARASTO;
-      el.textContent = 'Paras saatavilla: FMI HARMONIE 2,5 km Pohjois-Euroopassa, '
-        + 'muualla oma säälaattavarasto (ECMWF IFS 0,25°). '
-        + (nyt === 'fmi_harmonie'
+      /* Nyt käytössä oleva malli luetaan SIITÄ TASOSTA jonka laatta
+         kartan keskellä on — samasta valinnasta kuin lähdemerkintä. */
+      let nyt = null;
+      if (typeof Saalaatat !== 'undefined' && Saalaatat.kartallaKaytossa() && State.map) {
+        const c = State.map.getCenter();
+        const t = Saalaatat.taso(c.lat, c.lng, ViewportGrid.laattaStep(State.map.getZoom()));
+        nyt = t && t.malli;
+      }
+      el.textContent = 'Paras saatavilla: FMI HARMONIE 2,5 km Suomen rannikolla '
+        + 'ja 66 tuntiin asti, muualla oma säälaattavarasto (ECMWF IFS 0,25°). '
+        + (nyt === 'fmi'
             ? 'Nyt käytössä FMI HARMONIE.'
-            : 'Nyt käytössä varasto — kartta on joko HARMONIEn hilan '
-              + 'ulkopuolella tai niin kaukana, ettei 2,5 km näy.');
+            : 'Nyt käytössä ECMWF — kartta on joko HARMONIEn alueen '
+              + 'ulkopuolella tai valittu hetki on sen ennusteen jälkeen.');
       return;
     }
     el.textContent = (v === 'fmi_harmonie'
