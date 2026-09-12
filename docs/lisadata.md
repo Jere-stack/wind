@@ -18,6 +18,22 @@ Kaikki kutsut tehtiin ilman tunnistautumista.
 > toteutuksessa ja ne on korjattu myös tähän tekstiin alla: WAMin
 > ennustepituus, aaltojen suuntakonventio ja `starttime`-vaatimus.
 > Kohdat 3, 4, 5, 8, 9 ja 10 ovat yhä tekemättä.
+>
+> **TÄYDENNYS — sadekerros tehtiin uusiksi.** Ensimmäinen versio näytti
+> aina tuoreimman puolen tunnin riippumatta aikajanasta, eli kartalla
+> oli kaksi eri aikaa yhtä aikaa. Nyt kerros seuraa valittua tuntia:
+> menneisyys tulee tutka-arkistosta (mitattu 7 vrk, PT5M) ja
+> tulevaisuus HARMONIEn sade-ennusteesta (`api/sade.js`, GRIB2, mitattu
+> 61–62 h). Samalla lämpökartta ja partikkelit sammuvat sadekerroksen
+> ajaksi, ja sade sai oman mm/h-asteikkonsa. Mittaukset `docs/data.md`,
+> väristrategia `docs/ui.md`.
+>
+> Tämä muuttaa yhden alla olevan päätelmän: **ECMWF 0,25°:n
+> `precipitation` hylättiin karttakerroksena.** Se on samassa
+> `.om`-tiedostossa jonka laattaputki jo lukee eikä maksaisi kiintiötä,
+> mutta Helsingin ruudulla (z10, 40 × 28 km) se on **2,9 × 1,0 solua** —
+> yksi läiskä. Kuuron läpimitta on 5–15 km eli pienempi kuin yksi solu.
+> HARMONIEn 2,5 km antaa samalle ruudulle 16 × 11 solua.
 
 ---
 
@@ -32,6 +48,8 @@ Kaikki kutsut tehtiin ilman tunnistautumista.
 | aallot | `/api/aallot` (10 poijua) | korkeus, jakso, suunta, vedenlämpö — **havainto** |
 | vedenlämpö | UiRaS + Open-Meteo marine | uimaveden lämpötila |
 | paikalliset | Kruunuvuori, Mellsten, Laru | tuuli |
+| sade, mennyt | FMI WMS `suomi_dbz_eureffin` | tutkakomposiitti, 5 min, 7 vrk — **havainto** |
+| sade, tuleva | `/api/sade` (FMI HARMONIE, GRIB2) | mm/h 2,5 km hilalla, 61 h — **ennuste** |
 
 Kaksi aukkoa erottuu: **aaltoENNUSTETTA ei ole lainkaan** (poijut ovat
 havaintoa, ja `5150fc1` perui Open-Meteon aaltoerän), ja **vedenkorkeutta ei

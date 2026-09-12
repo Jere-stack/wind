@@ -2257,3 +2257,489 @@ Suhde lasketaan **sarjan sisällä**: `ms` ja `gst` ovat saman sarjan sama
 indeksi. Varaston puuska ei kelpaa tähän — se puuttuu joka toiselta
 kolmen tunnin askeleelta, jolloin laattojen rakennus täyttää aukon
 tuulella ja suhde on tasan 1,00 (ks. yllä).
+
+---
+
+## Sadetutka seuraa aikajanaa — ja jatkuu ennusteena
+
+Vika oli yksinkertainen ja käyttäjän itsensä löytämä: *"nyt kun vaihdan
+aikajanan aikaa niin samat sateet näkyvät"*. Kehysajat laskettiin
+`Date.now()`:sta, joten kerros näytti aina tuoreimman puolen tunnin
+riippumatta siitä mitä tuntia aikajana osoitti. Kartalla oli kaksi eri
+aikaa yhtä aikaa.
+
+### Arkisto kattaa aikajanan menneisyyden yli kolminkertaisesti
+
+Ensimmäinen kysymys oli onko menneisyyttä ylipäätään saatavilla.
+`GetCapabilities` vastaa siihen suoraan:
+
+```
+suomi_dbz_eureffin        2026-09-04T17:30Z / 2026-09-11T17:20Z / PT5M
+radar_finland_cappi_rate  2026-08-28T02:20Z / 2026-09-11T17:20Z / PT5M
+suomi_rr1h_eureffin       2026-09-04T18:00Z / 2026-09-11T17:00Z / PT1H
+```
+
+Eli tutkakomposiitilla on **seitsemän vuorokautta** viiden minuutin
+välein. Aikajanan menneisyys on 48 h. Kate riittää moninkertaisesti, ja
+raja (`Sadetutka.ARKISTO_MS`) on kirjattu tästä mittauksesta eikä
+arvattu.
+
+### Ankkuri on valittu hetki, ei nyt
+
+`kehykset(hetki)` pyöristää valitun hetken alaspäin lähteen viiden
+minuutin hilaan ja **katkaisee tuoreimpaan saatavilla olevaan**.
+Nykyhetkessä ja tulevaisuudessa ankkuri on siis tuorein kehys,
+menneisyydessä se hetki jota katsotaan.
+
+Tuoreimman etsintä (luotain, ks. edellinen luku) erotettiin omaksi
+funktiokseen `uusin()`. Ilman sitä jokainen aikajanan tunnin askel olisi
+maksanut luotaimen; nyt luotain ajetaan kerran viidessä minuutissa ja
+kehyslista lasketaan siitä.
+
+Mitattu selaimessa: kuusi tuntia taaksepäin siirretty valinta siirsi
+kehyksiä **6,00 h** (kehysvälit pysyivät 5 min), ja lähde pysyi
+tutkana.
+
+### Raja tutkan ja ennusteen välillä on AIKAJANAN NYT-TIKKI
+
+Tämä meni väärin kahdesti, ja molemmat kerrat paljastuivat vasta
+toistetuissa ajoissa — yksittäinen ajo antoi oikean tuloksen.
+
+**Ensimmäinen yritys:** raja = tuorein tutkakehys + yksi askel. Tutkan
+viive on mitattuna alle 5 – noin 7 minuuttia, joten kello 22:02 tuorein
+kehys oli 21:55 ja tunti 22:00 jäi rajan ulkopuolelle. Sovellus näytti
+nykyhetkestä **ennustetta vaikka tutkakuva oli olemassa**. Ehto oli siis
+kellonajasta riippuva: sama koodi antoi eri tuloksen sen mukaan monelta
+ajo osui tunnin sisällä. Kolmesta ajosta yksi kaatui.
+
+**Toinen yritys:** raja = kuluva tunti ja kaikki sitä vanhemmat. Tämä
+kaatui joka ajolla, ja syy oli sovelluksen oma "nyt"-käsite:
+
+```
+now      2026-09-11T18:33:06Z
+NYT-tikki 2026-09-11T19:00:00Z     +27 min
+```
+
+`nowIdx` valitsee **lähimmän** tasatunnin, ei kuluvaa. Puolenvälin
+jälkeen aikajanan nyt-tikki on siis jo seuraava tunti, ja kerros avautui
+ennusteeseen vaikka käyttäjä katsoi "NYT"-kohtaa.
+
+**Voimassa:** `Math.round(hetki/1h) <= Math.round(now/1h)` — sama
+pyöristys kuin `nowIdx`illä. Kahta eri sääntöä samalle "nyt"-käsitteelle
+ei saa olla.
+
+Tuorein kehys ei katoa mihinkään: se ratkaisee yhä **kehysten
+ankkurin**, eli nyt-tikin kuva on se 21:55 ja aikaleima sanoo sen
+ääneen. Siitä seuraa yksi asia joka näyttää mittarissa virheeltä muttei
+ole: nyt-tikistä taaksepäin siirryttäessä kehykset liikkuvat
+VÄHEMMÄN kuin jana (mitattuna 5,50 h kun jana liikkui 6,00 h), koska
+lähtöpää oli katkaistu ja päätepää ei. Siirron mittaus on siis tehtävä
+kahden MENNEEN tunnin välillä.
+
+**Luotainta ei ajeta ennen lähteen valintaa.** Se kysytään vasta
+tutkahaarassa: tulevaisuuden tunti ei tarvitse tutkaa lainkaan, ja jos
+luotain epäonnistuisi, "ei saatavilla" olisi piilottanut myös
+ennusteen — eli tutkan verkkovika olisi vienyt kerroksen jolla ei ole
+tutkan kanssa mitään tekemistä.
+
+### Tulevaisuus: HARMONIE GRIBinä, koska kuvaa ei ole olemassa
+
+**FMI:n avoimessa WMS:ssä ei ole yhtään ennustekerrosta.** Tarkistettu
+koko palvelun GetCapabilitiesista (450 969 tavua, 128 kerrosta):
+työtiloja on kolme — `Basemaps`, `Radar`, `silva` — ja haku
+`/fore|ennu|nowcast|harmon|meps|precip|sade|hirlam/i` antoi **nolla**
+osumaa. Sade-ennustetta ei siis saa valmiina laattana mistään, ja siksi
+`api/sade.js` purkaa GRIBiä.
+
+Vaihtoehdot mitattuna:
+
+| lähde | hila | Helsingin ruutu (z10, 40×28 km) | verdikti |
+|---|---|---|---|
+| tutka | 1 km | 40 × 28 solua | havainto, ei ennustetta |
+| HARMONIE GRIB | 2,5 km | 16 × 11 solua | **valittu** |
+| ECMWF 0,25° (laattaputkessa jo) | 14 × 28 km | **2,9 × 1,0 solua** | yksi läiskä |
+| `metno_nordic_pp` (S3-peili) | 1 km | 40 × 28 | Lambert-projektio, ei tasavälinen lat/lon |
+
+ECMWF olisi ollut ilmainen — `precipitation` on samassa `.om`-
+tiedostossa jonka laattaputki jo lukee — mutta kolme solua ruudulle
+piirtyisi bikuubisesti pehmennettynä yhdeksi liukuvärjäykseksi. Kuuron
+läpimitta on 5–15 km; se on pienempi kuin yksi solu. Kuva näyttäisi
+uskottavalta ja olisi väärä.
+
+`metno_nordic_pp` on peilissä 1 km:n hilalla ja sisältää
+`precipitation`, mutta sen `crs_wkt` on Lambert Conformal Conic — eli
+laattaputkeen olisi pitänyt lisätä uudelleenprojisointi, ja yksi
+aikapala on peilissä 25–52 MB.
+
+### GRIB on yksinkertaista pakkausta, ja yksikkö mitattiin
+
+`fmi::forecast::harmonie::surface::grid` antaa `fileReference`in
+`opendata.fmi.fi/download`iin. Sanoman rakenne:
+
+```
+hilamalline 0   regular_ll        Ni=245 Nj=81  di=0,022541  dj=0,0225
+datamalline 0   simple packing    nbits=24      skannaus 64 (i itään, j pohjoiseen)
+```
+
+Ei uudelleenprojisointia, ei monimutkaista purkua — purkaja on noin
+viisikymmentä riviä eikä vaadi riippuvuutta.
+
+**Yksikkö on `kg m-2 s-1`, ja kerroin on 3600.** Tämä ei ole päätelty:
+haettiin 48 h hila koko Suomen ylle, etsittiin sen suurin arvo ja
+kysyttiin sama piste ja hetki erikseen pistekyselyllä.
+
+```
+GRIB   0,005806 × 3600 = 20,90     lat 59,8514  lon 27,8480  2026-09-13T00:00Z
+piste  Precipitation1h = 20,9      /meta: uom="mm/h"
+```
+
+Sama luku kolmella merkitsevällä numerolla.
+
+**Ensimmäinen versio antoi pelkkiä nollia** (178 356 pistettä, kaikki
+0,0). Syy: GRIB2:n kentät E ja D ovat **etumerkki-itseisarvoa** eivätkä
+kahden komplementteja. `readInt16BE` luki E:n arvona −32735 kun oikea
+arvo oli −33, jolloin skaalakerroin oli nolla. Jos joskus näyttää siltä
+että koko kenttä on tasan nolla, epäile ensin tätä.
+
+### Vastauksen koko rajataan hilalla, ei rajauksella
+
+`download` osaa resamploida palvelimella. Mitattu sama hetki ja rajaus
+(24,0–25,6 E / 59,7–60,5 N):
+
+```
+natiivi      72×36    8 279 B   max 2,20  ka 0,078  märkiä 23,9 %
+gridsize 64  64×64   12 979 B   max 2,20  ka 0,075  märkiä 23,3 %
+```
+
+Arvot säilyvät. **Huomaa että 64×64 oli isompi**: se ylinäytteisti
+j-suunnan 36 → 64. Siksi `gridsize` lähetetään vain kun se oikeasti
+harventaa. Koko Suomen rajauksella ero on toista luokkaa: natiivi
+534×334 = 557 542 B, `gridresolution=10,10` = 35 354 B.
+
+Kokoja käytännössä:
+
+```
+Helsingin ruutu (0,9° × 0,5°)      3 126 B GRIB    41×23 solua
+Suomenlahti     (3° × 1,3°)       24 467 B GRIB   133×58
+koko Suomi      (12° × 7,5°)     557 542 B GRIB   534×334
+```
+
+Asiakas pyytää yhden solun kuutta CSS-pikseliä kohti ja proxy leikkaa
+sen sekä kattoon (160/akseli) että **mallin omaan tarkkuuteen** —
+ylinäytteistys olisi isompi vastaus ilman yhtään uutta arvoa.
+
+### Lähteen 400 ei ole verkkovika
+
+`download` vastaa **400:lla ja tyhjällä rungolla** aina kun pyydetty
+hetki on ajon ulkopuolella. Mitattu sekä +120 h että −72 h: molemmat
+antoivat saman. Ja se on koko rajapinnan tavallisin vastaus, koska
+aikajana on 16,6 vrk ja ennuste 61:
+
+```
+Helsinki, pistekysely 81 tuntia:   62 kelvollista, loput NaN sarjan lopussa
+                                   17:00 → seuraavan päivän 06:00
+```
+
+Jos 400 heitettäisiin poikkeuksena, kerros näyttäisi verkkovikaa joka
+kerta kun käyttäjä raahaa janan ennusteen ohi. Proxy kääntää sen
+`{error:'no data'}`:ksi HTTP 200:lla — sama erottelu kuin
+FMI-havaintoasemilla ja WAMilla.
+
+### Ennusteessa EI ole silmukkaa
+
+Lähteen askel on **tunti**, ei viisi minuuttia. Seitsemän kehystä
+tarkoittaisi kuutta keksittyä välikuvaa, ja juuri liikkeen suunta on se
+mitä silmukasta luetaan — keksitty liike valehtelisi enemmän kuin
+pysäytyskuva.
+
+Silmukan pysähtyminen on samalla se merkki jolla käyttäjä huomaa
+siirtyneensä havainnosta ennusteeseen. Aikaleima sanoo saman sanoin:
+`Sadetutka 15:05` vs. `Sade-ennuste 18:00 · HARMONIE`.
+
+### Yksi haku koko ruudulle, ei laattaa kohti
+
+Ennustehila on pieni (Helsingin ruutu noin 40 × 22 solua), joten laatat
+näytteistävät siitä bilineaarisesti. Laattakohtainen haku olisi
+kaksitoista pyyntöä yhden hinnalla — sama virhe jota aaltopoijuilla
+varotaan.
+
+Hila haetaan puolen näkymän reunuksella, eli tavallinen sormenveto ei
+laukaise uutta hakua. Panoroinnin osuessa reunan yli
+`_tutkaEnnusteVarmista` hakee uuden.
+
+Rivin leveysaste lasketaan `ymercInv`illä ja sarakkeen pituusaste
+lineaarisesti — laatta on Mercatorissa ja hila tasavälinen lat/lon.
+Lineaarisena molemmissa suunnissa kuuro liukuisi laatan sisällä
+pohjoiseen.
+
+### Kuva katoaa kun ennuste loppuu
+
+Mitattuna selaimessa: aikajanan loppupäässä (yli +96 h) laattojen
+pikselipeitto on **0** ja leima sanoo *"Ei sade-ennustetta tälle
+tunnille"*. Kerros jää kartalle tyhjänä eikä sitä poisteta —
+poisto hävittäisi laatat ja seuraava tunti maksaisi ne uudelleen.
+
+Verkkovika on eri asia: silloin vanha kuva jää ja leima sanoo *"ei
+yhteyttä"*. Vanha kuva on hetken vanha, ei väärä.
+
+---
+
+## Tuulikerrokset ja sadekerros ovat toisensa poissulkevat
+
+Sadetutkan kytkeminen päälle **sammuttaa lämpökartan ja partikkelit**.
+Kolme syytä, tässä järjestyksessä:
+
+1. **Kartan pinnalla saa olla kerrallaan yksi väriasteikko.** Muuten
+   sävy tarkoittaisi kahta asiaa samassa kuvassa — ja juuri tämä tekee
+   sateen väreistä mahdollisia (ks. seuraava luku).
+2. **Lähteiden kantama on eri.** Tuuli ulottuu 16,6 vuorokauteen, sade
+   tutkana 7 vrk taaksepäin ja ennusteena 61 h eteenpäin. Päällekkäisyys
+   peittäisi sen eron: käyttäjä näkisi tuulivärin siellä missä sadetta ei
+   ole enää olemassa ja luulisi sen tarkoittavan poutaa.
+3. **Luettavuus.** Sade piirtyy peittävyydellä 0,85 asti, ja sen alla
+   lämpökartta olisi joka tapauksessa arvailua.
+
+Piilotus on **CSS:llä** (`html[data-sadekerros="1"]`) eikä kerroksen
+poistolla: `L.GridLayer` hävittäisi laattansa ja maksaisi ne uudelleen
+heti kun kytkin käännetään takaisin. Attribuutti on oma eikä
+`data-tutka` (jonka `_tutkaLeima` asettaa aikaleimaa varten) — kaksi
+merkitystä samalle lipulle ajautuisi erilleen heti kun toinen niistä
+muuttuu.
+
+Partikkeleilla on jo yksi kysymys (`partikkelitPois()`), ja sadekerros
+on nyt sen **kolmas** ehto mittauskytkimen ja asetuspaneelin rinnalla.
+Toinen kysymys ajautuisi siitä erilleen.
+
+Mitattu selaimessa molempiin suuntiin: lämpökartan `display` menee
+`none`iin ja takaisin, partikkelikanvas `hidden` → `''`, ja hiukkasten
+määrä 148 → 0 → 148.
+
+---
+
+## Sateen asteikko: FMI:n omat selitteet siltana dBZ:n ja mm/h:n välillä
+
+Kahden lähteen yhdistäminen vaati yhteisen yksikön. Tutka antaa
+palettivärin, HARMONIE millimetrejä tunnissa. Käännös tehtiin **FMI:n
+omista selitteistä**, ei Marshall–Palmerin kaavasta.
+
+`suomi_dbz_eureffin` ja `suomi_rr_eureffin` ovat sama tutkakomposiitti
+kahtena tuotteena, ja niillä on **täsmälleen sama väriketju**.
+`GetLegendGraphic&format=application/json` antaa molemmille värin ja sen
+raaka-arvon, ja rr:n raaka-arvo on mm/h sadasosina:
+
+```
+väri      dbz q   dBZ    rr q    mm/h    paletti-idx   osuma palettiin
+#6CEBF3      80     8       7    0,07         19       tarkka (dE 0,0)
+#58C797      88    12      14    0,14         40       tarkka
+#409857     100    18      34    0,34         61       tarkka
+#F1F35A     112    24      86    0,86         82       tarkka
+#DFC40A     124    30     216    2,16        103       tarkka
+#EB951A     132    34     398    3,98        124       tarkka
+#E85616     144    40    1000   10,00        145       tarkka
+#CE0202     156    46    2513   25,13        166       tarkka
+#830A46     168    52    6313   63,13        187       tarkka
+```
+
+Yhdeksän väriä, yhdeksän tarkkaa osumaa, ja indeksit **tasan 21
+välein**. Paletti on GeoServerin ramppi 209 pisteenä. Käyrä on siis
+pystyssä ilman yhtään sovitettua parametria.
+
+**Ristiintarkistus:** 12 dBZ:stä ylöspäin log10(R) kasvaa 0,0667
+dBZ-astetta kohti, eli `Z = 303 · R^1,5` — pohjoismainen Z–R-suhde.
+Kaavaa ei käytetä; se on vain vahvistus. Alapäässä ne eroavat
+(0,07 mm/h on taulukossa 8 dBZ, kaavalla 7,5), ja mitattu voittaa.
+
+Ankkurien välissä interpoloidaan **logarithmisesti**, koska mm/h-arvot
+ovat lähes geometrinen sarja (suhteet 1,8–2,5). Lineaarinen väli antaisi
+0,86:n ja 2,16:n puoliväliin 1,51 kun oikea luku on 1,36.
+
+Mitattu selaimessa: `Sade.mmh()` osuu jokaiseen ankkuriin suhteellisella
+virheellä **0,0**, `Sade.v()` on sen käänteisfunktio erolla **0,0**, ja
+asteikko on monotoninen koko 255 tavun alueella.
+
+### Maski on VOIMAKKUUTTA, ei alfaa
+
+Aiemmin laatan maskiin talletettiin valmis alfa. Silloin voimakkuus
+katosi eikä kerrosta voinut värittää lainkaan — ja ennustehila olisi
+pitänyt kääntää alfaksi omaa käyrää pitkin, eli kaksi käyrää samalle
+asialle. Nyt tavu on paletin normalisoitu paikka 0..255 ja sekä väri
+että peittävyys johdetaan siitä piirrettäessä. Yksi esitysmuoto, kaksi
+lähdettä.
+
+**Lähteen alfa on osa voimakkuutta.** FMI häivyttää tihkun itse
+nostamalla alfan 0 → 255 indekseillä 1..19, eli juuri siellä missä sade
+on alle 0,07 mm/h. Jos alfa jätettäisiin erilliseksi kertoimeksi,
+voimakkuus väittäisi tihkusta 0,07 mm/h ja häivytys tulisi vasta
+piirrossa — mm/h-luku olisi väärä vaikka kuva näyttäisi oikealta.
+
+Piirto on yksi 32-bittinen kirjoitus pikseliä kohti (`Uint32Array`
+`ImageData`n puskurin päällä + 256-alkioinen LUT). Little-endian
+testataan eikä oleteta.
+
+### Leiman pituus mitattiin kolmella ruudulla
+
+Ensimmäinen teksti oli *"Sade-ennuste päättyy · ei dataa tälle
+tunnille"*. Se mahtui kehitysruudulle mutta ei kaikille:
+
+```
+                                               tarve   näkyvä   390  360  430
+Sadetutka 15:05                                   61     61      OK   OK   OK
+Sade-ennuste 18:00 · HARMONIE                    127    127      OK   OK   OK
+Sade-ennuste päättyy · ei dataa tälle tunnille   165    156      OK  LEIK  OK
+Ei sade-ennustetta tälle tunnille                116    116      OK   OK   OK
+Sadetutka · ei arkistoa tälle päivälle           132    132      OK   OK   OK
+```
+
+`#tutka-aika`:n `max-width` on `calc(50vw - var(--sar) - 24px)`, eli
+360 px:n ruudulla 156 px — koko rivin toinen puoli kuuluu
+lähdemerkinnälle. Pisin teksti olisi katkennut juuri siihen kohtaan
+jossa se sanoo asiansa (*"…ei dat…"*). Kaikki leimat mahtuvat nyt
+360 px:llä.
+
+---
+
+## Spottikortin havaintoasema tuli väärästä listasta
+
+Käyttäjä huomasi sen yhdestä spotista: *"Hangon spoteille on
+tulliniemessä havainto jota kortti ei näytä?"* Asema on kartalla, 2 km
+spotista, ja kortti näytti Espoo Tapiolaa 112 kilometrin päästä.
+
+### Syy: kaksi listaa samasta asiasta
+
+`_fmiStationsSorted` piti **omaa kopiotaan** asemalistasta. Kopio oli
+jäänyt kahdeksaan asemaan samalla kun kartalle (`FMI_MAP_STATIONS`) oli
+lisätty yksitoista:
+
+```
+kartalla   kaisaniemi kumpula harmaja tapiola malmi vuosaari sipoo
+           vantaa emasalo porkkala hanko
+kortissa   kaisaniemi kumpula harmaja tapiola malmi vuosaari sipoo vantaa
+puuttui    emasalo  porkkala  hanko
+```
+
+Puuttuvat kolme ovat täsmälleen ne jotka ovat pääkaupunkiseudun
+ulkopuolella — eli ainoat lähellä Hangon, Porkkalan ja Emäsalon
+spotteja.
+
+**Seuraus ei ollut pelkkä puuttuva rivi vaan väärä perustelu koodissa.**
+Spottikortin kommenttiin oli kirjattu mittaus: *"mitattuna Hangon
+spoteille lähin on 107–112 km — eri sääjärjestelmä. Tyhjä on silloin
+rehellisempi kuin väärä."* Mittaus oli tehty tästä vajaasta listasta ja
+se oli itsessään oikein; virhe oli siinä että siitä pääteltiin sääntö.
+Kun lista korjattiin, luku oli 2 km.
+
+### Paikallisasemat kuuluvat samaan rekisteriin
+
+Kolme asemaa ei ole FMI:n havaintoverkossa ja niillä on siksi oma proxy:
+Mellsten (Haukilahti), Laru (Lauttasaari) ja Kruunuvuorenselkä. Ne
+olivat kartalla mutta eivät kortin asemalistassa lainkaan — eli spotin
+lähin havainto saattoi olla kilometrin päässä ja kortti näytti
+kahdentoista kilometrin päästä.
+
+"Lähin havainto" ei saa riippua siitä kenen palvelin sattuu vastaamaan,
+joten ne ovat nyt samassa rekisterissä (`PAIKALLISASEMAT`) ja `lahde`
+kertoo mistä sarja haetaan.
+
+### Mitattu: yksitoista spottia kahdestatoista sai lähemmän aseman
+
+```
+spotti              ennen                    jälkeen
+Hanko Tulliniemi    tapiola   112 km   ->    Hanko Tulliniemi      2 km
+Hanko Silversand    tapiola   107 km   ->    Hanko Tulliniemi      7 km
+Haukilahti          harmaja    12 km   ->    Espoo Haukilahti      1 km
+Lauttasaari         harmaja     8 km   ->    Helsinki Laru         0 km
+Otaniemi            harmaja    12 km   ->    Helsinki Laru         4 km
+Munkkiniemi         harmaja    12 km   ->    Helsinki Laru         5 km
+Hietaniemi          harmaja     9 km   ->    Helsinki Laru         3 km
+Kruunuvuorenranta   harmaja     7 km   ->    Kruunuvuorenselkä     1 km
+Puuskaniemi        vuosaari     7 km   ->    Kruunuvuorenselkä     5 km
+Kallahti           vuosaari     4 km   ->    Kruunuvuorenselkä     8 km  (ketju)
+Porkkala            harmaja    35 km   ->    Kirkkonummi Mäkiluoto 8 km
+Emäsalo            vuosaari    24 km   ->    Porvoo Emäsalo        0 km
+```
+
+Kallahti on ainoa jolla lähin asema ei ole ensimmäinen valinta:
+Vuosaaren satama on 3,9 km päässä mutta **ei lähetä tuulta** (ks.
+CLAUDE.md — viimeisin havainto 18.8.2026). `_fmiLoadWithFallback` ohittaa
+sen ja ottaa seuraavan. Asema jää rekisteriin, koska merkki palaa
+itsestään jos FMI jatkaa lähettämistä.
+
+`HAVAINTO_MAX_KM = 30` jäi paikalleen vaikka se ei enää osu yhteenkään
+spottiin: raja ei ole Hangosta vaan etäisyydestä, ja spottilista voi
+kasvaa.
+
+### `pref` johdetaan tagista
+
+Vanhassa kopiossa oli erillinen `pref`-lippu (meriasema ohittaa sisämaan
+aseman alle 40 km:n matkalla). Se olisi ollut kahdestoista paikka joka
+ajautuu erilleen, joten se luetaan nyt tagista: `'Meri'` tai
+`'Avomeri'`.
+
+### Yksi haku neljälle lähteelle
+
+Proxyt oli kirjoitettu valmiiksi samaan muotoon (`api/mellsten.js`:
+*"Sarjat samassa muodossa kuin api/fmi.js:n historia"*), joten
+`_havHaeSarja` on osoite ja yksi purku:
+
+```
+fmi          kaksi pyyntöä: tuorein + historia
+mellsten     yksi pyyntö, `latest` mukana. Ikkuna 30 min — jaksovalitsin
+             karsii itse liian pitkät napit pois
+laru         yksi pyyntö, `latest` mukana, koko kuluva vuorokausi
+kruunuvuori  yksi pyyntö, historia kentässä `history`, tuorein juuressa
+```
+
+### Aseman nimi on paikan nimi, ei maston
+
+Surfing ry:n asema oli `'Espoo Mellsten'`. Spotti jonka kohdalla se on,
+on Haukilahti, ja kortissa lukee nyt *"Tuulihavainto · Espoo
+Haukilahti"* spotin "Haukilahti" alla — se sanoo suoraan että havainto on
+spotilla. Mellsten ei katoa: se on lähdemerkinnässä (*"Surfing ry ·
+Mellsten · minuutin välein"*), joka on oikea paikka kertoa kenen mittari
+se on.
+
+### Mittarin oma ansa
+
+Ensimmäinen mittaus avasi neljä korttia peräkkäin kiinteällä 5 s
+odotuksella ja väitti Haukilahden näyttävän Larua. Kortti ratkeaa
+mitattuna **614 ms**:ssä; syy oli että harness oli juuri ajanut
+kaksitoista hakuketjua rinnakkain ja dev-serveri oli ruuhkassa, jolloin
+Mellsten ehti vastata virheellä ja ketju otti OIKEIN seuraavan aseman.
+Mittari mittasi omaa kuormaansa. Korjattuna: lista tarkistetaan ilman
+verkkoa, ja korttitesti odottaa arvon asettumista eikä kelloa.
+
+### Mellstenin lähde rajoittaa rinnakkaisia pyyntöjä
+
+Kun asemasta tuli Haukilahden spottikortin lähin havainto, sen
+luotettavuudesta tuli tärkeämpää kuin ennen — ja mittaus paljasti
+ongelman jota ei aiemmin näkynyt:
+
+```
+pyyntöjä rinnakkain     onnistui      403
+ 1 (x8)                  8/8          0 %
+ 2 (x8)                 14/16        13 %
+ 3 (x8)                 22/24         8 %
+ 6 (x5)                 15/30        50 %
+```
+
+Peräkkäin ajettuna 12/12 onnistui. Kyse ei siis ole katkosta vaan
+rinnakkaisuuden rajoituksesta pienellä harrastepalvelimella.
+
+Proxyn uusinta oli **yksi yritys kiinteän 400 ms:n jälkeen**. Se ei auta
+tähän: jos kuusi pyyntöä epäonnistuu yhtä aikaa, ne kaikki uusivat
+samalla hetkellä ja törmäävät samaan rajoitukseen. Nyt yrityksiä on
+kolme, odotus kasvaa (250 / 500 ms) ja siinä on satunnaishajontaa, joka
+levittää uusinnat eri hetkille. Mitattu kuudella rinnakkaisella:
+50 % → 40 / 17 / 0 % kolmessa peräkkäisessä ajossa.
+
+**Sovelluksen oma rinnakkaisuus on 1–2**, ei kuusi: karttamerkki hakee
+kerran käynnistyksessä ja spottikortti kerran avattaessa. Tuotannossa
+päälle tulee reunavälimuisti (`s-maxage=120`), joten useimmat pyynnöt
+eivät mene lähteelle asti lainkaan. Kuuden rinnakkaisen mittaus on siis
+pahin tapaus eikä tavallinen.
+
+**Kun se silti epäonnistuu, kortti näyttää seuraavaa asemaa** (Laru,
+5 km) — ei virhettä. Se on ketjun oikea käytös, mutta se tekee viasta
+näkymättömän: kortti näyttää oikealta, vain kauempaa. Siksi mittarin on
+sallittava molemmat eikä vaadittava Mellsteniä; rekisterin järjestys on
+oma, verkoton testinsä.

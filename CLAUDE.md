@@ -19,6 +19,7 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
 - `index.html` — koko sovellus: CSS, HTML ja JS yhdessä tiedostossa (ei erillistä
   `src/`-hakemistoa). Leaflet ladataan CDN:stä `<script>`-tagilla.
 - `api/*.js` — Vercelin serverless-funktiot (FMI-havainnot, HARMONIE-ennuste,
+  aaltoennuste, vedenkorkeus, sade-ennuste GRIB2:sta,
   FMI:n aaltopoijut, Kruunuvuorenselän, Mellstenin, Larun ja Uiraan
   mittausdata-proxyt).
   ES-moduuleja, koska
@@ -64,7 +65,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/partikkelit.md` | tuulipartikkeleita, jäljen muotoa, tiheyttä tai ruutuaikabudjettia |
 | `docs/eleet.md` | nipistystä, zoomia, zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen |
 | `docs/data.md` | säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja |
-| `docs/ui.md` | paletteja, paneeleita, spottikorttia, aikajanaa, kapselia, havaintoasemia |
+| `docs/ui.md` | paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa, kapselia, havaintoasemia |
 | `docs/pwa.md` | service workeria, offline-käynnistystä tai kotivalikon appia |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
 
@@ -96,7 +97,11 @@ kokeiltu ja kaadettu mittauksella.
   yksikkö joka ei lue vastauksessa · Ilman starttimea sarja alkaa
   seuraavasta tunnista · Sadetutka — miksi se ei ole L.TileLayer.WMS ·
   Tutkan silmukka — kehykset löytyvät luotaamalla ·
-  Puuskaisuus oli koodissa mutta ei näkyvissä
+  Puuskaisuus oli koodissa mutta ei näkyvissä ·
+  Sadetutka seuraa aikajanaa — ja jatkuu ennusteena ·
+  Tuulikerrokset ja sadekerros ovat toisensa poissulkevat ·
+  Sateen asteikko: FMI:n omat selitteet siltana dBZ:n ja mm/h:n välillä ·
+  Spottikortin havaintoasema tuli väärästä listasta
 - **lisadata**: Mistä sovellus lukee nyt · TOP 10 — data · TOP 10 — lähteet ·
   Mitattu ja hylätty (MEPS on HARMONIE · hydrodyn 2/12 spottia · vuorovesi ·
   Holfuy · ilmanlaatu) · Toinen kerros — kontekstia, ei päätöstä ·
@@ -117,7 +122,9 @@ kokeiltu ja kaadettu mittauksella.
   Vuosaaren asema sanoi "ei signaalia" · Havaintokaavio uusiksi: väri tulee
   korkeudesta · Havaintokaavion laajennus koko ruudulle · Laajennettu
   kaavio iPhonella: turva-alueet, liuku ja lukemarivi · Havaintokortin
-  siivous: väriliuska pois ja neljä kahdennusta
+  siivous: väriliuska pois ja neljä kahdennusta · Sateen värit:
+  strategia ja se mitä siitä on jo tehty · Aikajana: korkeammat palkit,
+  matalampi kisko, keskitetty päiväys
 
 </details>
 
@@ -202,6 +209,12 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 
 - **Kartalla sävy tarkoittaa tuulennopeutta ja vain sitä.** Kaikki muu kartalla
   on joko tummaa pilleriä (mitattu data) tai paperia (kaikki muu).
+  **Yksi poikkeus, ja se on ehdollinen: sadekerros.** Kun sadetutka on
+  päällä, lämpökartta ja partikkelit sammuvat (`_tuulikerrokset-`
+  `Nakyvissa`), jolloin kartan pinnalla on kerrallaan tasan yksi
+  väriasteikko ja sävy saa tarkoittaa sateen voimakkuutta. Ehto EI ole
+  neuvoteltavissa: jos lämpökartta joskus palautetaan näkyviin
+  sadekerroksen alle, sateen värit on poistettava samassa muutoksessa.
 - **Aikajanan palkit ovat `ColorRamp.paperi()`, eivät `rgb()` eivätkä
   `ink()`.** Se on karttaramppi kerrottuna 0,48:lla: sävy on kartan,
   kirkkaus kortin paperin. Kerroin ei ole makuasia — 0,52 jätti limetin
@@ -346,10 +359,27 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   0,5 m/s rajan, ja 94 % minuuteista renderöityisi identtisesti.
   10 min veisi +7 vrk raahauksen 10 ruudullisesta 60:een.
   Aikajanan vika oli navigointi, ja se on `#tl-paivat`.
-- **Palkin korkeus on KIINTEÄLLÄ asteikolla (16 m/s = täysi).**
+- **Palkin korkeus on KIINTEÄLLÄ asteikolla (14 m/s = täysi, 44 px).**
   Sarjakohtainen maksimi teki palkeista vertailukelpoisia vain sarjan
   sisällä, ja sarja vaihtuu joka kartansiirrolla: mitattuna 7,67 m/s oli
   14,1 px ja 8,40 m/s 13,4 px. Älä palauta `maxMs`-skaalausta.
+- **KATTO ON 14 m/s, EI 16, ja korkeus 44 px, ei 35.** Molemmat
+  palvelevat erottelua siellä missä päätös tehdään: väli 4–11 m/s sai
+  4,4–4,7 px metriä sekunnissa kohti (ennen 2,6–3,1), ja 4 → 10 m/s on
+  nyt 27 px ero (ennen 17). Yli neljäntoista väli menetti korkeuseron
+  kokonaan — se on tarkoitus, siellä ei valita keliä vaan kokoa, ja väri
+  jatkaa kyllästymisen jälkeen.
+- **PUUSKAHUNTU EI SAA KADOTA KYLLÄSTYNEELLÄ PALKILLA.** Kun sekä tuuli
+  että puuska ovat yli katon, korkeuksien erotus on nolla — eli
+  myrskyssä, jossa puuskaisuus on tärkeintä, huntu häviäisi. Silloin
+  korkeus on kiinteä 3 px eikä yritäkään kertoa määrää; tieto on
+  alfassa, kuten muutenkin katon sitoessa.
+- **KORTIN KORKEUS ON SUMMA, EI YKSI LUKU.** `#tl-wrap` on
+  `97px + var(--tl-paivat-h) + var(--sab-tl)`, ja tuntinauha saa siitä
+  sen mikä jää täytteiden jälkeen (61 px). Palkkia ei voi kasvattaa
+  koskematta siihen 97:ään. Kisko 40 -> 30 ja nauha 52 -> 61 pitivät
+  hereillä olevan kortin ennallaan (128 -> 127); levossa se kasvoi
+  88 -> 97, ja se on korkeampien palkkien väistämätön hinta.
 - **Aikajanan valokaista ja puuskavyöhyke päivitetään MYÖS nopeassa
   polussa**, ja päiväerottimet ovat oma taulukkonsa (`_tlErottimet`).
   Ne eivät ole `_tlTicks`issä, ja ilman erillistä päivitystä ne jäivät
@@ -383,6 +413,32 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   hitaassa (se riippuu aikaleimoista), mutta kaista riippuu nopeuksista
   ja nopea polku on juuri se joka ajetaan kun aika pysyy ja paikka
   vaihtuu. Sama ansa kuin päiväerottimien valovaiheessa.
+- **PÄIVÄYS SANOTAAN KERRAN.** Kupla ja kisko ovat päällekkäin, ja kun
+  kisko näkyy, valittu päivä lukee tummassa pillerissä täsmälleen
+  osoittimen kohdalla. Kuplassa on silloin VAIN kellonaika; päiväys
+  palaa siihen vasta kun kisko painuu lepoon. Teksti kirjoitetaan
+  `_tlKuplaTeksti`ssä ja ajetaan MYÖS kiskon heräämisestä ja
+  nukahtamisesta — pelkkä valinnan siirto jättäisi tekstin edellisen
+  tilan mukaiseksi seuraavaan tuntiin asti.
+- **KISKO SEURAA OSOITINTA JATKUVASTI** (`_tlKiskoKeskita`), ei päivä
+  kerrallaan: se on sama akseli karkeampana. Osuus lapun sisällä tulee
+  TIKKIVÄLILTÄ (`_i0.._i1`) eikä kellonajasta — akselin reunapäivät ovat
+  vajaita, ja kellonajasta laskettuna vajaan päivän ensimmäinen tunti
+  olisi heti 58 %:n kohdalla. Kutsu on `_tlUpdateNow`in JÄLKEEN:
+  `_tlKorostaPaiva` keskittää `currentHourIdx`:n mukaan, ja raahatessa
+  se luku on vielä edellisessä tikissä. `scrollLeft` kirjoitetaan
+  suoraan, EI `scrollTo`lla — pehmeä vieritys hakisi sormea vastaan.
+- **LAPPU EI OLE TÄSMÄLLEEN KESKELLÄ, EIKÄ SEN KUULU OLLA.** Se on
+  keskellä päivän puolivälissä ja korkeintaan puoli lappua sivussa
+  muulloin (mitattu max 24,1 px, puoli lappua 27,5 px). Lupaus on että
+  OSOITIN OSUU VALITTUUN LAPPUUN. Jäykästi keskitetty lappu ei voisi
+  liukua lainkaan vaan hyppäisi vuorokauden välein.
+- **Kiskossa on reunavälikkeet**, kuten tuntinauhassa: ilman niitä
+  selain rajaa `scrollLeft`in nollaan eikä akselin ensimmäistä ja
+  viimeistä päivää saa osoittimen alle.
+- **Sormi kiskolla voittaa** (`_tlKiskoKosketusOma`). Lippu nollataan
+  IKKUNASTA, koska kisko rakennetaan uudelleen kesken eleen ja
+  alkuperäinen kohde irtoaa DOM:sta.
 - **Päiväkisko on levossa PIILOSSA, ja se palaa MISTÄ TAHANSA
   kosketuksesta aikajanaan** — ei vain raahauksesta. Kisko on olemassa
   raahauksen välttämiseksi (12 ruudullista viikon päähän), joten se ei
@@ -410,6 +466,35 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 
 **Havaintoasemat**
 
+- **ASEMAREKISTERI ON YKSI: `FMI_MAP_STATIONS` + `PAIKALLISASEMAT`.**
+  `_fmiStationsSorted` piti omaa kopiotaan, ja kopio oli jäänyt
+  kahdeksaan asemaan kun kartalla oli yksitoista — puuttuivat `emasalo`,
+  `porkkala` ja `hanko`, eli täsmälleen ne jotka ovat pääkaupunkiseudun
+  ulkopuolella. Hangon spotti näytti Espoo Tapiolaa 112 km päästä vaikka
+  samanniminen asema on 2 km päässä. Korjattuna 11/12 spottia sai
+  lähemmän aseman. **Älä lisää asemaa vain toiseen paikkaan.**
+- **KOPIO EI OLLUT VAIN PUUTTUVA RIVI VAAN VÄÄRÄ MITTAUS KOODISSA.**
+  Spottikortin kommenttiin oli kirjattu "Hangon spoteille lähin on
+  107–112 km — eri sääjärjestelmä, tyhjä on rehellisempi kuin väärä".
+  Mittaus oli oikein mutta se oli tehty vajaasta listasta. Kun mittaat
+  etäisyyksiä, tarkista ensin että lista on se jota sovellus käyttää.
+- **`pref` JOHDETAAN TAGISTA** (`'Meri'` tai `'Avomeri'`), ei kirjoiteta
+  erikseen: erillinen lippu olisi toinen paikka joka ajautuu erilleen.
+  Meriasema ohittaa sisämaan aseman alle 40 km:n matkalla.
+- **PAIKALLISASEMAT OVAT TAVALLISIA HAVAINTOJA.** Mellsten (Espoo
+  Haukilahti), Laru ja Kruunuvuorenselkä eivät ole FMI:n verkossa mutta
+  kuuluvat samaan rekisteriin: "lähin havainto" ei saa riippua siitä
+  kenen palvelin vastaa. `lahde` kertoo mistä sarja haetaan
+  (`_havHaeSarja`), ja karttamerkit lukevat sijaintinsa SAMASTA
+  rekisteristä — ei omista kopioistaan.
+- **ASEMAN NIMI ON PAIKAN NIMI, EI MASTON.** 'Espoo Mellsten' ->
+  'Espoo Haukilahti', koska spotti jonka kohdalla se on, on Haukilahti.
+  Mellsten ei katoa: se on lähdemerkinnässä, joka on oikea paikka kertoa
+  kenen mittari se on.
+- **KALLAHTI EI SAA ASEMAANSA ENSIMMÄISESTÄ OSUMASTA.** Vuosaaren satama
+  on 3,9 km päässä mutta ei lähetä tuulta, joten `_fmiLoadWithFallback`
+  ohittaa sen. Jos mittaat asemavalintaa, mittaa KETJU äläkä listan
+  ensimmäistä — muuten Kallahti näyttää rikkinäiseltä vaikka se toimii.
 - **HAVAINTOKAAVION TÄYTTÖ ON `paperi()` JA VIIVAT `--ink`.** Väri on
   funktio KORKEUDESTA, ei sarjasta: vaakaviipale korkeudella y saa sen
   nopeuden värin jota y edustaa. Älä sävytä viivoja rampilla — mitattuna
@@ -633,9 +718,73 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   vääriksi: `styles=raster` on alfaltaan 255 kaikkialla ja sen harmaat
   1–109 ovat palettityylin läpinäkyvää kohinaa, ja `grayscale(1)` antaa
   kirkkauden joka poukkoilee (214 askeleesta 65 ylös, 139 alas).
-  Ratkaisu on paletin taulukointi ja käännös takaisin voimakkuudeksi:
-  **yksi muste, voimakkuus alfassa.** Paletti on tavulleen sama
-  pyynnöstä toiseen (tarkistettu).
+  Ratkaisu on paletin taulukointi ja käännös takaisin voimakkuudeksi.
+  Paletti on tavulleen sama pyynnöstä toiseen (tarkistettu).
+- **PALETTI KÄÄNNETÄÄN MILLIMETREIKSI FMI:N OMISTA SELITTEISTÄ, ei
+  Marshall–Palmerin kaavasta.** `suomi_dbz_eureffin` ja
+  `suomi_rr_eureffin` ovat sama komposiitti kahtena tuotteena ja niillä
+  on sama väriketju; `GetLegendGraphic&format=application/json` antaa
+  molemmille värin ja raaka-arvon, ja rr:n raaka-arvo on mm/h
+  sadasosina. Yhdeksän ankkuria osuu palettiin TARKALLEEN (dE 0,0) ja
+  indeksit ovat tasan 21 välein. Väliin interpoloidaan LOGARITMISESTI
+  (suhteet 1,8–2,5; lineaarinen antaisi 0,86:n ja 2,16:n puoliväliin
+  1,51 kun oikea on 1,36). `Z = 303·R^1,5` on vain ristiintarkistus —
+  älä korvaa taulukkoa sillä, ne eroavat alapäässä.
+- **MASKI ON VOIMAKKUUTTA, EI ALFAA.** Tavu on paletin normalisoitu
+  paikka; väri JA peittävyys johdetaan siitä piirrettäessä. Valmis alfa
+  hävittäisi voimakkuuden, ja ennustehila tarvitsisi oman käyränsä —
+  kaksi käyrää samalle asialle. **Lähteen alfa on osa voimakkuutta**:
+  FMI häivyttää tihkun itse indekseillä 1..19, ja erillisenä kertoimena
+  mm/h-luku olisi väärä vaikka kuva näyttäisi oikealta.
+- **SADEKERROS SEURAA AIKAJANAA, ja ankkuri on VALITTU HETKI.** Kehykset
+  laskettiin ennen `Date.now()`:sta, jolloin sama sade näkyi joka
+  tunnilla. Hetki luetaan AJASTA (`_tutkaHetki` → `_tlTimeAt`), ei
+  indeksistä. Arkisto on mitattu 7 vrk (PT5M) ja aikajanan menneisyys
+  48 h, joten kate riittää; sen ulkopuolella kerros TYHJENEE ja sanoo
+  sen. Luotain (`uusin()`) on eri asia kuin kehyslista — muuten jokainen
+  tunnin askel maksaisi luotaimen.
+- **RAJA TUTKAN JA ENNUSTEEN VÄLILLÄ ON AIKAJANAN NYT-TIKKI**, ja se
+  haetaan SAMALLA pyöristyksellä kuin `nowIdx` (lähin tasatunti, ei
+  kuluva). Kaksi virhettä samassa kohdassa: "tuorein kehys + askel"
+  putosi tutkan 5–7 min viiveen takia ennusteeseen kello 22:02, ja
+  "kuluva tunti" unohti että nyt-tikki on puolenvälin jälkeen jo
+  SEURAAVA tunti (mitattu 18:33 UTC → tikki 19:00). Kahta sääntöä
+  samalle "nyt"-käsitteelle ei saa olla. Tuorein kehys ratkaisee yhä
+  KEHYSTEN ANKKURIN — siksi nyt-tikistä taaksepäin siirryttäessä
+  kehykset liikkuvat VÄHEMMÄN kuin jana (5,50 h vs 6,00 h), ja siirron
+  mittaus on tehtävä kahden MENNEEN tunnin välillä.
+- **TYHJÄ TILA ON OMA LÄHTEENSÄ (`'tyhja'`), ei hilaton `'ennuste'`.**
+  Muuten panorointi yrittäisi hakea ennustehilan menneelle tunnille joka
+  on tutka-arkiston ulkopuolella — pyyntö johon lähde vastaa aina 400:lla.
+- **LUOTAINTA EI AJETA ENNEN LÄHTEEN VALINTAA.** Tulevaisuuden tunti ei
+  tarvitse tutkaa lainkaan, ja luotaimen epäonnistuessa "ei saatavilla"
+  piilottaisi myös ennusteen — tutkan verkkovika veisi kerroksen jolla ei
+  ole tutkan kanssa mitään tekemistä.
+- **ENNUSTEESSA EI OLE SILMUKKAA.** HARMONIEn askel on tunti, ei viisi
+  minuuttia; seitsemän kehystä olisi kuusi keksittyä välikuvaa. Silmukan
+  pysähtyminen on samalla se merkki jolla käyttäjä huomaa siirtyneensä
+  havainnosta ennusteeseen.
+- **ENNUSTEHILA HAETAAN KERRAN KOKO RUUDULLE**, ei laattaa kohti, ja
+  puolen näkymän reunuksella. Laattakohtainen haku olisi kaksitoista
+  pyyntöä yhden hinnalla. Rivin leveysaste on `ymercInv`, sarakkeen
+  pituusaste lineaarinen — molemmat lineaarisina kuuro liukuisi laatan
+  sisällä pohjoiseen.
+- **`api/sade.js`:n 400 EI OLE VERKKOVIKA.** Lähde vastaa 400:lla ja
+  tyhjällä rungolla aina kun hetki on ajon ulkopuolella (mitattu +120 h
+  ja −72 h), ja se on rajapinnan tavallisin vastaus: aikajana on 16,6
+  vrk ja ennuste 61 h. Proxy kääntää sen `{error:'no data'}`:ksi
+  HTTP 200:lla.
+- **GRIB2:N E JA D OVAT ETUMERKKI-ITSEISARVOA**, eivät kahden
+  komplementteja. `readInt16BE` luki E:n arvona −32735 kun oikea oli
+  −33, ja koko kenttä (178 356 pistettä) skaalautui nollaksi. Jos hila
+  näyttää olevan tasan nolla, epäile ensin tätä.
+- **GRIBin yksikkö on kg m⁻² s⁻¹ ja kerroin 3600.** Tarkistettu
+  pistekyselyä vasten: 0,005806 × 3600 = 20,90 ja `Precipitation1h` =
+  20,9 samassa pisteessä samana tuntina. Muunnos tehdään proxyssä ja
+  vain siellä.
+- **`gridsize` LÄHETETÄÄN VAIN KUN SE HARVENTAA.** Mitattuna 64×64
+  ylinäytteisti 72×36 hilan ja kasvatti vastauksen 8 279 → 12 979
+  tavuun. Proxy leikkaa pyynnön mallin omaan tarkkuuteen.
 - **Tutkakerros on `overlayPane`ssa eikä `tilePane`ssa**, koska
   lämpökartta sekoittuu pohjakarttaan `plus-lighter`illä eikä tutka saa
   osallistua siihen summaan. Luokka on `.tutka-laatat` — EI
