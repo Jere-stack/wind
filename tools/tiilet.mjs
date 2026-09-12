@@ -216,8 +216,24 @@ async function haeAjot(maxTaakse) {
  * saatavilla olevaa analyysiä eikä vanhaa ennustetta. */
 function rakennaAikaAkseli(ajot, menneisyysH, dtSek) {
   const dtMs = dtSek * 1000;
-  const uusin = ajot[0];
-  const loppu = Date.parse(uusin.meta.valid_times[uusin.meta.valid_times.length - 1]);
+  /* LOPPU ON KAUIMMAS YLTÄVÄ AJO, EI TUOREIN.
+   *
+   * ECMWF:n ajot eivät ole samanmittaisia: 00Z ja 12Z ulottuvat
+   * viiteentoista vuorokauteen (85 askelta), 06Z ja 18Z vain kuuteen
+   * (49 askelta). Tässä luki ennen `ajot[0]`, eli tuoreimman ajon
+   * viimeinen hetki — ja koska työ ajetaan neljästi vuorokaudessa,
+   * KAHDELLA AJOLLA NELJÄSTÄ aikajana lyheni 15 vuorokaudesta kuuteen.
+   * Mitattuna samana päivänä: klo 13:36 ajo antoi 99 askelta
+   * (-> 27.9.), klo 18:04 ajo 61 askelta (-> 18.9.).
+   *
+   * Korjaus on yhden rivin mittainen eikä se maksa mitään, koska
+   * jokaiselle hetkelle valitaan alempana joka tapauksessa TUOREIN ajo
+   * joka sen kattaa: kuuden vuorokauden jälkeiset askeleet tulevat
+   * silloin viimeisimmästä 00Z- tai 12Z-ajosta, kuten niiden kuuluukin.
+   * `haeAjot` kelaa 60 tuntia taaksepäin, joten pitkä ajo on aina
+   * mukana. */
+  const loppu = Math.max(...ajot.map(a =>
+    Date.parse(a.meta.valid_times[a.meta.valid_times.length - 1])));
   const alku = Math.floor((Date.now() - menneisyysH * 3600e3) / dtMs) * dtMs;
   /* Ajo -> Set kattamista hetkistä, jotta valinta on O(1). */
   const katteet = ajot.map(a => ({ a, ajat: new Set(a.meta.valid_times.map(Date.parse)) }));

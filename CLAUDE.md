@@ -547,6 +547,13 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kävelee jokaisen välipäivän läpi (mitattu 15 välitilaa ja 1001 ms
   ennen kuin oikea päivä jäi voimaan). Pitkä hyppy asetetaan suoraan
   `_tlSetScrollLeft`illä.
+- **VARASTON AKSELIN LOPPU TULEE KAUIMMAS YLTÄVÄSTÄ AJOSTA, EI
+  TUOREIMMASTA.** ECMWF:n 00Z ja 12Z ulottuvat 15 vuorokauteen mutta
+  06Z ja 18Z vain kuuteen, joten `ajot[0]` lyhensi aikajanan 15
+  vuorokaudesta kuuteen KAHDELLA AJOLLA NELJÄSTÄ (mitattu samana
+  päivänä: 99 askelta klo 13:36, 61 klo 18:04). Se ei maksa mitään,
+  koska jokaiselle hetkelle valitaan joka tapauksessa tuorein ajo joka
+  sen kattaa.
 - **Laattavaraston akseli on 3 h (ja 6 h yli 7,5 vrk).**
   `wxTunneittain()` interpoloi siitä tuntiakselin — se ei ole uutta
   dataa vaan täsmälleen se mitä `asetaHetki`+`naytteista` jo antaa
