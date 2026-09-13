@@ -1298,13 +1298,16 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
   scrollbar-width: none; -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain; touch-action: pan-x;
   padding: 0 10px;
-  /* NATIIVI SNÄPPÄYS, SAMA KUIN TUNTINAUHASSA. Kisko on nyt raahattava
-     valitsin eikä pelkkä nappirivi: raahaus valitsee sen päivän joka on
-     osoittimen alla, ja sormen noustessa selain pysäyttää lapun
-     täsmälleen keskelle. Ilman snäppäystä heitto jäisi kahden lapun
-     väliin, ja `_tlKiskoKeskita` vetäisi sen sieltä erikseen — kaksi
-     liikettä yhdestä eleestä. */
-  scroll-snap-type: x mandatory;
+  /* KISKOSSA EI OLE NATIIVIA SNÄPPÄYSTÄ, VAIKKA TUNTINAUHASSA ON.
+     Se kokeiltiin ja se oli väärä työkalu tähän. `scroll-snap-type:
+     x mandatory` sitoo myös OHJELMALLISEN vierityksen: selain vetää
+     jokaisen `scrollLeft`-kirjoituksen lähimpään lappuun ja tuottaa
+     siitä oman tapahtumasarjansa, joten kisko taisteli
+     `_tlKiskoKeskita`a vastaan ja pienet askeleet kumoutuivat
+     kokonaan (mitattu: kymmenen 26 px:n kirjoitusta siirsivät kiskoa
+     0 px). Keskitys on jo olemassa ja tarkempi — mitattu poikkeama
+     lapun keskikohdasta 0,4 px levossa ja −0,9 px raahauksen jälkeen —
+     ja se ajetaan eleen päätteeksi `_kiskoLoppu`ssa. */
   pointer-events: all; z-index: 3;
   -webkit-mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
           mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
@@ -1345,9 +1348,6 @@ html.tl-kisko-piilossa #tl-paivat {
   height: 100%;
   display: flex; align-items: center; justify-content: center;
   padding: 0 10px;
-  /* Vain laput ovat snäppäyskohtia — reunavälikkeet eivät, muuten
-     akselin päihin syntyisi kohta johon kisko pysähtyy ilman päivää. */
-  scroll-snap-align: center;
   font-size: var(--fs-10);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -1437,17 +1437,18 @@ html.tl-kisko-piilossa #tl-paivat {
  * Mitattuna palkin maksimi 22 px -> 35 px -> 44 px -> 52 px; viimeinen
  * askel on puuskahunnun poistama tila, ks. TL_PALKKI_H.
  *
- * TIKKI ON 22 -> 16 px JA PALKKI 12 -> 10 px, jotta sama jakso vaatisi
- * vähemmän raahausta. Mitattuna viikon päähän: 3 934 px -> 2 926 px eli
- * kymmenestä ruudullisesta seitsemään ja puoleen. Palkkien väli kapenee
- * 10 -> 6 px, eli rivi tiivistyy mutta palkit pysyvät erillisinä.
+ * TIKKI ON 22 -> 16 -> 12 px JA PALKKI 12 -> 10 -> 8 px, jotta sama
+ * jakso vaatisi vähemmän raahausta. Mitattuna viikon päähän:
+ * 3 934 px -> 2 232 px eli kymmenestä ruudullisesta 5,7:ään, ja näkyviä
+ * tunteja 17 -> 28. Palkkien väli kapenee 10 -> 4 px, eli rivi tiivistyy
+ * mutta palkit pysyvät erillisinä.
  * LEVEYS JA VÄLI KUULUVAT YHTEEN: jos muutat toista, tarkista että
  * vierekkäiset tunnit eivät sula yhdeksi juovaksi. Tikin puolikas
  * (`TL_TIKKI_PUOLI`) on keskityslaskujen ainoa lähde — se oli ennen
  * kirjoitettu neljään paikkaan lukuina 12, 12, 11 ja 10, joista kaksi
  * viimeistä olivat jo valmiiksi eri mieltä kahden ensimmäisen kanssa. */
 .htick {
-  flex: 0 0 16px; display: flex; flex-direction: column; align-items: center;
+  flex: 0 0 12px; display: flex; flex-direction: column; align-items: center;
   justify-content: flex-end; height: 100%;
   -webkit-user-select: none; user-select: none; cursor: pointer;
   position: relative; padding-bottom: 2px;
@@ -1467,7 +1468,7 @@ html.tl-kisko-piilossa #tl-paivat {
  * keskikaistan (10 m/s, 98,115,0) palkeille terävän reunan hiekkaa
  * vasten. Kirkkailla ja tummilla väreillä se ei näy. */
 .htick-bar {
-  width: 10px; border-radius: 3px 3px 0 0; min-height: 3px;
+  width: 8px; border-radius: 3px 3px 0 0; min-height: 3px;
   box-shadow: inset 0 0 0 1px rgba(16,26,32,.16);
   transition: opacity 0.15s;
 }
@@ -1603,8 +1604,13 @@ html.tl-kisko-piilossa #tl-paivat {
   color: var(--ink-3); white-space: nowrap; letter-spacing: .06em;
 }
 
+/* PÄIVÄEROTIN KAPENI TIKIN MUKANA (34 -> 26 px). Se on tauko rivin
+   rytmissä, ja tikin kavetessa 34 px alkoi lukea aukkona eikä taukona.
+   Teksti ("Ma 15.") on leveämpi kuin laatikko ja vuotaa reunojen yli —
+   se on turvallista, koska erottimen teksti on `flex-start` eli nauhan
+   YLÄREUNASSA, jonne palkit eivät yllä kuin kyllästyneinä. */
 .day-sep {
-  flex: 0 0 34px; display: flex; align-items: flex-start; justify-content: center;
+  flex: 0 0 26px; display: flex; align-items: flex-start; justify-content: center;
   height: 100%; padding-top: 0;
   font-variant-numeric: tabular-nums; font-size: var(--fs-10); font-weight: 600;
   color: var(--ink-3); letter-spacing: .02em; white-space: nowrap;
@@ -20171,17 +20177,17 @@ function nowIdx(times) {
  * mallista samalla tuntiruudukolla — ja vain palkin korkeus ja väri
  * muuttuvat. Silloin 370 elementin uudelleenluonti on turhaa työtä. */
 /* TIKIN LEVEYS — SAMA KUIN `.htick`in flex-basis, JA KESKITYKSEN AINOA
-   LÄHDE. Tikki kapeni 22 -> 16 px, koska aikajanan vika on matka: viikon
-   päähän oli 3 934 px eli kymmenen ruudullista raahausta. Kapeampi tikki
-   on suora alennus siihen (2 926 px, 7,5 ruudullista) eikä maksa
-   tarkkuudesta mitään — tuntiaskel on yhä tuntiaskel.
+   LÄHDE. Tikki kapeni 22 -> 16 -> 12 px, koska aikajanan vika on matka:
+   viikon päähän oli 3 934 px eli kymmenen ruudullista raahausta.
+   Kapeampi tikki on suora alennus siihen (2 232 px, 5,7 ruudullista)
+   eikä maksa tarkkuudesta mitään — tuntiaskel on yhä tuntiaskel.
 
    Puolikas luetaan TÄSTÄ. Se oli ennen kirjoitettu neljään paikkaan
    lukuina (`_fracFromScroll` 12, `_tlCommitSelection` 12, `_playSijainti`
    11, `scrollTimelineTo` 10), joista kaksi jälkimmäistä olivat jo
    valmiiksi eri mieltä kuin kaksi ensimmäistä — eli play ja pehmeä
    vieritys keskittivät tikin pikselin tai kaksi eri kohtaan kuin sormi. */
-const TL_TIKKI_LEV = 16;
+const TL_TIKKI_LEV = 12;
 const TL_TIKKI_PUOLI = TL_TIKKI_LEV / 2;
 /* PALKIN ASTEIKKO ON KIINTEÄ, EI SARJAKOHTAINEN.
  *
@@ -20379,7 +20385,8 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
 
   for (let i = 0; i < times.length; i++) {
     const d = new Date(times[i]), day = d.getDay(), hour = d.getHours();
-    if (day !== lastDay) {
+    const uusiPaiva = day !== lastDay;
+    if (uusiPaiva) {
       lastDay = day;
       const sep = document.createElement('div'); sep.className = 'day-sep';
       /* Erotin saa saman valovaiheen kuin sen jälkeen tuleva tunti —
@@ -20405,7 +20412,13 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
        lukema jätetään pois merkin viereisiltä tikeiltä. Niitä on
        korkeintaan yksi, koska lukema on vain joka kolmannessa. */
     const nytVieressa = Math.abs(i - realNowIdx) <= 1;
-    tick.className = 'htick' + (hour % 3 === 0 && !nytVieressa ? ' show-lbl' : '')
+    /* PÄIVÄEROTTIMEN VIERESTÄ JÄTETÄÄN LUKEMA POIS, samasta syystä kuin
+       NYT-merkin vierestä. Erottimen teksti ("La 19.") on leveämpi kuin
+       sen laatikko ja vuotaa naapuritikin päälle; sen vieressä oleva
+       tunti on aina 00, eli juuri se jonka erotin jo kertoo. Ilman tätä
+       ne piirtyvät päällekkäin — mitattuna tikin kavettua 12 px:iin
+       "La 19." ja "00" menivät toistensa päälle. */
+    tick.className = 'htick' + (hour % 3 === 0 && !nytVieressa && !uusiPaiva ? ' show-lbl' : '')
       + (isPast ? ' past' : '')
       + (valo && TL_VALO_LUOKKA[valo[i]] ? ' ' + TL_VALO_LUOKKA[valo[i]] : '');
     tick.dataset.idx = i;
@@ -20446,13 +20459,28 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
   const kisko = document.getElementById('tl-paivat');
   if (kisko && !kisko._tlBound) {
     kisko._tlBound = true;
+    /* NAPAUTUS EROTETAAN RAAHAUKSESTA MATKALLA, EI TAPAHTUMALLA.
+     *
+     * Selain lähettää raahauksen päätteeksi usein myös clickin, ja se
+     * osuisi siihen lappuun jonka kohdalla sormi sattui olemaan — ei
+     * siihen jonka raahaus jätti osoittimen alle. Kisko hyppäisi siis
+     * vielä kerran sen jälkeen kun se oli jo asettunut.
+     *
+     * Ensimmäinen versio merkitsi eleen raahaukseksi heti kun kiskolta
+     * tuli yksikin scroll-tapahtuma. Puhelimella se tarkoittaa
+     * KÄYTÄNNÖSSÄ JOKAISTA napautusta: sormi liikkuu aina pari
+     * pikseliä, kosketusvieritys lähtee liikkeelle ja palaa takaisin, ja
+     * scroll-tapahtuma on lähtenyt. Napautukset jäivät siis nielaistuiksi
+     * — päivälappua ei voinut valita lainkaan.
+     *
+     * Mittari on nyt MATKA: eleen alussa talletetaan kiskon sijainti, ja
+     * click hylätään vasta jos kisko on liikkunut yli kuusi pikseliä.
+     * Kuusi on Applen oma raahauskynnys samassa suuruusluokassa, ja
+     * pienin päivälappu on 44 px leveä eli väärän lapun valitseminen
+     * vaatisi paljon enemmän. */
     kisko.addEventListener('click', function (e) {
-      /* Raahaus ei ole napautus. Selain lähettää eleen päätteeksi usein
-         myös clickin, ja se osuisi siihen lappuun jonka kohdalla sormi
-         sattui olemaan — ei siihen jonka raahaus jätti osoittimen alle.
-         Kisko hyppäisi siis vielä kerran sen jälkeen kun se oli jo
-         asettunut. */
-      if (_tlKiskoLiikkui) return;
+      if (_tlKiskoAlkuScroll != null
+          && Math.abs(kisko.scrollLeft - _tlKiskoAlkuScroll) > 6) return;
       const el = e.target.closest && e.target.closest('.tl-paiva');
       if (!el || !el.dataset.pv) return;
       _tlValitseIdx(_tlPaivanIdx(Number(el.dataset.pv)));
@@ -20465,21 +20493,14 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
        kohde on irronnut DOM:sta eikä tapahtuma enää kupli tänne. */
     ['pointerdown', 'touchstart', 'wheel'].forEach(function (n) {
       kisko.addEventListener(n, function () {
-        /* Käyttäjä voittaa aina, tuntinauhan sanamuodolla: toisto
-           pysähtyy, oman vierityksen merkintä puretaan heti (muuten
-           eleen ensimmäiset ruudut menisivät ohitettuina) ja
-           napautus/raahaus erotellaan. `wheel` on mukana, koska
-           työpöydällä kiskoa vieritetään ilman pointerdownia. */
+        /* Käyttäjä voittaa aina: toisto pysähtyy, ja eleen alkusijainti
+           talletetaan napautus/raahaus-erotteluun. `wheel` on mukana,
+           koska työpöydällä kiskoa vieritetään ilman pointerdownia. */
         if (State.isPlaying) stopPlay();
-        _tlKiskoOmaScroll = false;
+        _tlKiskoAlkuScroll = kisko.scrollLeft;
         if (n === 'wheel') return;
         _tlKiskoKosketusOma = true;
-        _tlKiskoLiikkui = false;
       }, { passive: true });
-    });
-    ['pointerup', 'pointercancel', 'touchend', 'touchcancel'].forEach(function (n) {
-      window.addEventListener(n, function () { _tlKiskoKosketusOma = false; },
-        { passive: true, capture: true });
     });
 
     /* ── KISKON RAAHAUS VALITSEE PÄIVÄN, JA SE TAPAHTUU ELEEN AIKANA ──
@@ -20491,9 +20512,18 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
      * ja päällekkäin: osoitin kulkee molempien läpi.
      *
      * Nyt kisko on sama valitsin karkeampana. Keskimmäinen lappu
-     * valitaan jatkuvasti (rAF-kuristettuna, kuten tuntinauhassa), ja
-     * valinta vie tuntinauhan mukanaan — ei päinvastoin, koska sormi
-     * on kiskolla.
+     * valitaan jatkuvasti, ja valinta vie tuntinauhan mukanaan — ei
+     * päinvastoin, koska sormi on kiskolla.
+     *
+     * TYÖ TEHDÄÄN SCROLL-KÄSITTELIJÄSSÄ, EI `requestAnimationFrame`issa.
+     * Ensimmäinen versio siirsi sen rAF:iin (niin kuin tuntinauhakin
+     * teki), ja se on juuri se kohta joka ei kestä oikeaa laitetta:
+     * WebKit ajaa vieritystä omalla säikeellään ja rAF-takaisinkutsut
+     * voivat jäädä kokonaan väliin niin kauan kuin sormi liikuttaa
+     * kelaa — scroll-tapahtumat tulevat, mutta ruutupyyntö ei palaa.
+     * Silloin valinta tapahtuisi vasta sormen noustua, eli juuri se
+     * mitä tässä oltiin korjaamassa. Kuristus on nyt aikaleima, ei
+     * ruutu.
      *
      * Kellonaika säilyy päivästä toiseen (`_tlPaivanIdx`), paitsi
      * "Tänään", joka vie nykyhetkeen.
@@ -20504,9 +20534,8 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
      * Täysi tarkkuus tulee vierityksen pysähtyessä
      * `_tlCommitSelection`ista — se lukee TUNTINAUHAN sijainnin, joka
      * on tässä vaiheessa jo viety kohdalleen. */
-    let _kiskoRaf = false, _kiskoAjastin = null;
+    let _kiskoAjastin = null, _kiskoViimeksi = 0;
     function _kiskoSeuraa() {
-      _kiskoRaf = false;
       const el = _tlKiskoKeskimmainen(kisko);
       if (!el || !el.dataset.pv) return;
       const idx = _tlPaivanIdx(Number(el.dataset.pv));
@@ -20521,21 +20550,49 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
       }
       if (State._esikatsele) State._esikatsele(idx);
     }
+    /* ELE ON OHI VASTA KUN SORMI ON NOUSSUT JA VIERITYS PYSÄHTYNYT —
+       molemmat, ei kumpi tahansa. Selain lähettää `scrollend`in myös
+       kesken eleen aina kun vieritys hetkeksi pysähtyy sormen alla
+       (mitattu: viisi askelta, viisi scrollendiä, sormi yhä kiinni).
+       Jos ele päätettäisiin siitä, keskitys osuisi sormen alle ja
+       täystarkka kenttä rakennettaisiin kesken raahauksen. */
     function _kiskoLoppu() {
       clearTimeout(_kiskoAjastin);
+      if (_tlKiskoKosketusOma) return;
       _tlKiskoVierii = false;
+      _kiskoSeuraa();
       const tl2 = document.getElementById('tl-scroll');
       if (tl2) _tlCommitSelection(tl2);
+      /* Kisko ei snäppää itse, joten keskitys on tehtävä tässä: eleen
+         aikana `_tlKiskoKeskita` on vaiennettu, ja `_tlCommitSelection`
+         ei löydä muutosta (tunti on jo seurattu) eikä siis aja
+         `_tlUpdateNow`ia joka sen muuten tekisi. Ilman tätä lappu jäisi
+         siihen mihin sormi sen jätti (mitattu 10,9 px sivussa). */
+      _tlKiskoKeskita(State.currentHourIdx || 0);
     }
+    /* SORMEN NOSTO ON TOINEN PUOLI SAMASTA EHDOSTA. Ilman tätä ele
+       jäisi päättymättä silloin kun selain on jo ehtinyt lähettää
+       viimeisen `scrollend`insä sormen ollessa vielä kiinni: kisko jäisi
+       keskittämättä eikä täystarkkaa kenttää rakennettaisi lainkaan.
+       Ajastin antaa heitolle tilaisuuden jatkaa — jokainen uusi
+       scroll-tapahtuma nollaa sen. */
+    ['pointerup', 'pointercancel', 'touchend', 'touchcancel'].forEach(function (n) {
+      window.addEventListener(n, function () {
+        if (!_tlKiskoKosketusOma) return;
+        _tlKiskoKosketusOma = false;
+        clearTimeout(_kiskoAjastin);
+        _kiskoAjastin = setTimeout(_kiskoLoppu, 140);
+      }, { passive: true, capture: true });
+    });
     kisko.addEventListener('scroll', function () {
-      if (_tlKiskoOmaScroll) return;
+      if (_tlKiskoOmaTapahtuma(kisko)) return;
       _tlKiskoVierii = true;
-      _tlKiskoLiikkui = true;
       /* Heitto on navigointia päivissä, eli juuri se mitä varten kisko
          on olemassa — se pitää kiskon hereillä samalla tavalla kuin
          tuntinauhan vieritys. */
       if (!State.isPlaying && typeof _tlKiskoHerata === 'function') _tlKiskoHerata();
-      if (!_kiskoRaf) { _kiskoRaf = true; requestAnimationFrame(_kiskoSeuraa); }
+      const nyt = Date.now();
+      if (nyt - _kiskoViimeksi >= 16) { _kiskoViimeksi = nyt; _kiskoSeuraa(); }
       /* Ajastin on varmistus KAHDELLE asialle, ei vain vanhoille
          selaimille: `_tlKiskoVierii` vaientaa keskityksen koko eleen
          ajaksi, joten jos `scrollend` jää tulematta, kisko lakkaisi
@@ -20547,7 +20604,7 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
     }, { passive: true });
     if ('onscrollend' in kisko) {
       kisko.addEventListener('scrollend', function () {
-        if (_tlKiskoOmaScroll) { _tlKiskoOmaScroll = false; return; }
+        if (_tlKiskoOmaTapahtuma(kisko)) return;
         _kiskoLoppu();
       }, { passive: true });
     }
@@ -20557,7 +20614,7 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
   tl._tlBound = true;
 
   let _scrollTimer = null;
-  let _rafPending = false, _fieldBusy = false, _pendingFrac = null;
+  let _fieldBusy = false, _pendingFrac = null;
 
   /* Sormi janalla kumoaa oman scrollin merkinnän heti: käyttäjän ele saa aina
      etusijan, vaikka ohjelmallinen scroll olisi juuri ehtinyt tapahtua.
@@ -20654,6 +20711,44 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
   ['touchstart', 'pointerdown', 'wheel'].forEach(t =>
     tl.addEventListener(t, () => { State._tlOhjelmallinen = false; }, { passive: true }));
 
+  /* SORMEN SEURANTA AJETAAN SCROLL-KÄSITTELIJÄSSÄ, EI
+     `requestAnimationFrame`issa.
+     
+     Tämä oli rAF:n takana, ja se on kohta joka ei kestä oikeaa
+     laitetta. WebKit ajaa kosketusvieritystä omalla säikeellään, ja
+     rAF-takaisinkutsu voi jäädä palaamatta niin kauan kuin sormi
+     liikuttaa kelaa: scroll-tapahtumat tulevat normaalisti mutta
+     ruutupyyntö ei. Silloin kaikki mikä oli rAF:n sisällä — tunnin
+     vaihto, päiväkiskon seuranta ja kentän esikatselu — tapahtuisi
+     vasta sormen noustua, eli juuri se mitä tässä oltiin korjaamassa.
+     
+     Kuristus on nyt AIKALEIMA eikä ruutu: korkeintaan kerran 16 ms:ssä.
+     Se on sama tahti kuin rAF:lla parhaimmillaan, mutta se ei ole
+     kiinni siitä palaako ruutupyyntö. Työ on kevyttä — `offsetLeft` ei
+     laukaise uudelleenasettelua, koska vieritys ei likaa asettelua. */
+  let _seurantaViimeksi = 0;
+  function _tlSeurantaAskel() {
+    const frac = _fracFromScroll();
+    const nearest = Math.round(frac);
+    /* Tikin ylitys: haptiikka ja kaikki mikä on sidottu kokonaiseen
+       tuntiin — ks. `_tlSeuraaHetkea`. */
+    if (nearest !== State._tlLastTick) {
+      Haptics.selection();
+      _tlSeuraaHetkea(nearest);
+    }
+    /* PÄIVÄKISKO SEURAA JATKUVASTI, ei vasta tikin vaihtuessa: se on
+       sama akseli karkeampana, ja rajaus tikkiin tekisi liu'usta
+       nykivän. Tämä on suora `scrollLeft`-kirjoitus eikä animaatio,
+       joten se maksaa saman kuin yksi tyylikirjoitus.
+       TÄMÄ ON `_tlUpdateNow`in JÄLKEEN eikä ennen: se kutsuu
+       `_tlKorostaPaiva`a, joka keskittää `currentHourIdx`:n mukaan —
+       ja raahauksen aikana se luku on vielä edellisessä tikissä,
+       koska valinta vahvistetaan vasta sormen noustua. Jatkuva
+       `frac` on tässä se oikea sijainti, joten se kirjoitetaan
+       viimeisenä. */
+    _tlKiskoKeskita(frac);
+    if (!State._tlOhjelmallinen) _previewField(frac);
+  }
   tl.addEventListener('scroll', () => {
     if (State._tlSelfScroll) return;
     /* Heiton jälkeinen momentumvieritys on yhä käyttäjän elettä, joten se
@@ -20661,37 +20756,18 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
        liu'un. Toiston aikana EI herätetä: play ei ole navigointia
        päivissä, ja jokainen ruutu pitäisi kiskon ikuisesti auki. */
     if (!State.isPlaying && typeof _tlKiskoHerata === 'function') _tlKiskoHerata();
-    if (_rafPending) return;
-    _rafPending = true;
-    requestAnimationFrame(() => {
-      _rafPending = false;
-      const frac = _fracFromScroll();
-      const nearest = Math.round(frac);
-      /* Tikin ylitys: haptiikka ja kaikki mikä on sidottu kokonaiseen
-         tuntiin — ks. `_tlSeuraaHetkea`. */
-      if (nearest !== State._tlLastTick) {
-        Haptics.selection();
-        _tlSeuraaHetkea(nearest);
-      }
-      /* PÄIVÄKISKO SEURAA JATKUVASTI, ei vasta tikin vaihtuessa: se on
-         sama akseli karkeampana, ja rajaus tikkiin tekisi liu'usta
-         nykivän. Tämä on suora `scrollLeft`-kirjoitus eikä animaatio,
-         joten se maksaa saman kuin yksi tyylikirjoitus.
-         TÄMÄ ON `_tlUpdateNow`in JÄLKEEN eikä ennen: se kutsuu
-         `_tlKorostaPaiva`a, joka keskittää `currentHourIdx`:n mukaan —
-         ja raahauksen aikana se luku on vielä edellisessä tikissä,
-         koska valinta vahvistetaan vasta sormen noustua. Jatkuva
-         `frac` on tässä se oikea sijainti, joten se kirjoitetaan
-         viimeisenä. Molemmat osuvat samaan ruutuun, joten välitilaa ei
-         piirretä. */
-      _tlKiskoKeskita(frac);
-      if (!State._tlOhjelmallinen) _previewField(frac);
-    });
+    const nyt = Date.now();
+    if (nyt - _seurantaViimeksi >= 16) { _seurantaViimeksi = nyt; _tlSeurantaAskel(); }
     /* Varmistus vanhoille selaimille joilla ei ole scrollend-tapahtumaa.
        Natiivi snäppäys on jo asettanut sijainnin, joten tässä ei enää
-       scrollata mihinkään — vain vahvistetaan valinta. */
+       scrollata mihinkään — vain vahvistetaan valinta. Viimeinen
+       seuranta-askel ajetaan tässä, koska kuristus on voinut niellä
+       eleen viimeiset pikselit. */
     clearTimeout(_scrollTimer);
-    _scrollTimer = setTimeout(() => { if (!('onscrollend' in tl)) _tlCommitSelection(tl); }, 140);
+    _scrollTimer = setTimeout(() => {
+      _tlSeurantaAskel();
+      if (!('onscrollend' in tl)) _tlCommitSelection(tl);
+    }, 140);
   }, { passive: true });
 
   if ('onscrollend' in tl) {
@@ -20868,10 +20944,11 @@ function _tlRakennaPaivat(times) {
   const kisko = document.getElementById('tl-paivat');
   if (!kisko) return;
   /* Tyhjennys kutistaa vieritysalueen nollaan ja lähettää
-     scroll-tapahtuman. Merkitään se omaksi, jottei kiskon seuranta
-     valitse akselin ensimmäistä päivää joka kerta kun jana
-     rakennetaan uudelleen. */
-  _tlKiskoOmaAlkaa();
+     scroll-tapahtuman. Merkitään NOLLA omaksi sijainniksi, jottei kiskon
+     seuranta valitse akselin ensimmäistä päivää joka kerta kun jana
+     rakennetaan uudelleen. Keskitys kirjoittaa oikean sijainnin heti
+     perään, ja kumpi tahansa niistä täsmää tapahtuman kanssa. */
+  _tlKiskoKirjoitettu = 0;
   kisko.innerHTML = '';
   State._tlPaivat = [];
   if (!times || !times.length) return;
@@ -20956,25 +21033,39 @@ function _tlRakennaPaivat(times) {
  * kuin ennenkin. */
 let _tlKiskoKosketusOma = false;   /* sormi kiskolla juuri nyt */
 let _tlKiskoVierii = false;        /* kiskon oma vieritys kesken — myös heitto */
-let _tlKiskoLiikkui = false;       /* tämä ele vieritti kiskoa (ei siis napautus) */
+let _tlKiskoAlkuScroll = null;     /* kiskon sijainti eleen alussa */
 
-/* KISKON OMA VIERITYS MERKITÄÄN, sama kuvio kuin tuntinauhan
- * `_tlBeginSelfScroll`illa ja samasta syystä. `_tlKiskoKeskita`
- * kirjoittaa `scrollLeft`in joka ruudussa ja `_tlRakennaPaivat`
+/* KISKON OMA VIERITYS TUNNISTETAAN SIJAINNISTA, EI AJASTIMESTA.
+ *
+ * `_tlKiskoKeskita` kirjoittaa `scrollLeft`in ja `_tlRakennaPaivat`
  * tyhjentää kiskon kokonaan; molemmat lähettävät scroll-tapahtuman, ja
- * ilman merkintää kiskon oma seuranta luulisi niitä sormeksi ja
+ * ilman tunnistusta kiskon oma seuranta luulisi niitä sormeksi ja
  * valitsisi uudelleen sen minkä juuri asetti — tai akselin ensimmäisen
- * päivän, koska tyhjennys vie `scrollLeft`in nollaan. */
-let _tlKiskoOmaScroll = false, _tlKiskoOmaScrollT = null;
-function _tlKiskoOmaAlkaa() {
-  _tlKiskoOmaScroll = true;
-  clearTimeout(_tlKiskoOmaScrollT);
-  _tlKiskoOmaScrollT = setTimeout(function () { _tlKiskoOmaScroll = false; }, 300);
-}
+ * päivän, koska tyhjennys vie `scrollLeft`in nollaan.
+ *
+ * Ensimmäinen versio merkitsi oman vierityksen 300 ms:n AIKAIKKUNALLA,
+ * ja se oli väärä mittari kahdesta suunnasta. Kirjoituksen jälkeiset
+ * scroll-tapahtumat eivät tule tietyn ajan sisällä — selain voi
+ * koalesoida ne, ja snäppäys tuottaa niitä vielä satoja millisekunteja
+ * myöhemmin — jolloin oma vieritys luetaan sormeksi. Toisaalta ikkuna
+ * oli auki 300 ms JOKAISEN kirjoituksen jälkeen, ja keskitys ajetaan
+ * jokaisesta tuntimuutoksesta, joten ikkuna saattoi olla käytännössä
+ * aina auki ja sormen oma vieritys jäädä huomiotta.
+ *
+ * Nyt mittari on SIJAINTI: talletetaan mitä kirjoitettiin, ja
+ * scroll-tapahtuma on omamme jos kisko on yhä siinä. Yhden pikselin
+ * liike riittää tekemään siitä käyttäjän. Ei ajastimia, ei ikkunoita. */
+let _tlKiskoKirjoitettu = null;
 function _tlKiskoAsetaScroll(kisko, x) {
+  x = Math.max(0, Math.min(x, kisko.scrollWidth - kisko.clientWidth));
+  _tlKiskoKirjoitettu = x;
   if (Math.abs(kisko.scrollLeft - x) < 0.5) return;
-  _tlKiskoOmaAlkaa();
   kisko.scrollLeft = x;
+}
+/* Onko tämä scroll-tapahtuma meidän oma kirjoituksemme? */
+function _tlKiskoOmaTapahtuma(kisko) {
+  return _tlKiskoKirjoitettu != null
+    && Math.abs(kisko.scrollLeft - _tlKiskoKirjoitettu) <= 1;
 }
 
 function _tlKiskoKeskita(frac) {

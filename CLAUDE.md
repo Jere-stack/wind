@@ -131,7 +131,8 @@ kokeiltu ja kaadettu mittauksella.
   strategia ja se mitä siitä on jo tehty · Aikajana: korkeammat palkit,
   matalampi kisko, keskitetty päiväys · Laaja näkymä: yksi kuori,
   kolme kaaviota · Aikajana: päiväys paikalleen, yö kaistaksi ·
-  Aikajana: huntu pois, tikki kapeammaksi, kisko valitsimeksi
+  Aikajana: huntu pois, tikki kapeammaksi, kisko valitsimeksi ·
+  Aikajana, toinen erä: se ei toiminut laitteella
 
 </details>
 
@@ -200,6 +201,28 @@ Ruutuaikapäätökset on varmistettava oikealla laitteella.
 `ViewportGrid`, `ColorRamp`, `PerfTracker`, `buildWindField`, `idw`). Ilman
 kytkintä globaaliin nimiavaruuteen ei viedä mitään. Automaattinen selaintarkistus
 tarvitsee tämän — moduulit ovat muuten saman skriptilohkon `const`-sidoksia.
+
+**ELEEN MITTAAMINEN VAATII OIKEAN MOOTTORIN, TUOTANTOBUILDIN JA
+SORMEN.** Chromium + dev-serveri + `scrollLeft`-kirjoitus näytti kolme
+kertaa vihreää sellaisesta joka ei toiminut laitteella lainkaan.
+Asetelma on: `playwright-core` + **webkit** (asennus `npx playwright
+install webkit` ja `install-deps webkit`), `npm run build` +
+`vite preview`, iPhone-konteksti (`hasTouch`, `deviceScaleFactor: 3`)
+ja `timezoneId: 'Europe/Helsinki'` — kontti ajaa UTC:ssä ja päivärajat
+lasketaan paikallisajassa. Ja koska Playwrightilla ei ole touchmovea
+eikä mobiili-WebKitissä rullaa, ELE ON SIMULOITAVA OIKEIN:
+
+- **`requestAnimationFrame` on jäädytettävä eleen ajaksi.** WebKit ajaa
+  kosketusvieritystä omalla säikeellään eikä ruutupyyntö välttämättä
+  palaa ennen kuin sormi nousee. Ilman tätä rAF:n takana oleva koodi
+  näyttää toimivan.
+- **`scrollend` on estettävä kesken eleen.** Askeleittainen
+  `scrollLeft`-kirjoitus saa selaimen lähettämään sen jokaisen askeleen
+  jälkeen; aito yhtäjaksoinen sormi ei tee niin, ja ilman estoa mitataan
+  vahingossa vahvistuspolkua.
+- **Napautus on mitattava VÄRISEVÄNÄ** (pari pikseliä vieritystä sormen
+  alas- ja ylösnoston välissä). Puhdas napautus ei paljasta sitä että
+  napautukset nielaistaan.
 
 **Mittaa totuutta vastaan, älä zoomia toista vastaan.** Kahden zoomin vertailu
 sekoittaa aliotannan ja virheen eikä kerro kumpi on väärässä. Kentän tarkkuus
@@ -451,13 +474,55 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   spottikortin kaavion vyöhykkeessä. Poisto vapautti 11 px, ja palkki
   kasvoi 44 → 52. Älä palauta huntua — sille ei ole enää tilaa, ja
   palkin korkeus olisi pudotettava takaisin.
-- **TIKKI ON 16 px JA PALKKI 10 px, JA PUOLIKAS LUETAAN
-  `TL_TIKKI_PUOLI`:STA.** Tikki kapeni 22 → 16, koska aikajanan vika on
-  matka: viikon päähän oli mitattuna 3 934 px eli kymmenen ruudullista,
-  nyt 2 926 px eli 7,5 (näkyviä tunteja 17 → 23). Palkkien väli on
-  6 px — leveys ja väli kuuluvat yhteen, ks. `.htick`. Keskityksen
-  puolikas oli ennen kirjoitettu neljään paikkaan lukuina (12, 12, 11,
-  10), joista kaksi oli jo valmiiksi eri mieltä kahden muun kanssa.
+- **TIKKI ON 12 px JA PALKKI 8 px, JA PUOLIKAS LUETAAN
+  `TL_TIKKI_PUOLI`:STA.** Tikki kapeni 22 → 16 → 12, koska aikajanan
+  vika on matka: viikon päähän oli mitattuna 3 934 px eli kymmenen
+  ruudullista, nyt 2 232 px eli 5,7 (näkyviä tunteja 17 → 28).
+  Palkkien väli on 4 px — leveys ja väli kuuluvat yhteen, ks. `.htick`.
+  Keskityksen puolikas oli ennen kirjoitettu neljään paikkaan lukuina
+  (12, 12, 11, 10), joista kaksi oli jo valmiiksi eri mieltä kahden
+  muun kanssa.
+- **PÄIVÄEROTTIMEN VIERESTÄ JÄTETÄÄN TUNTILUKEMA POIS**, samasta syystä
+  kuin NYT-merkin vierestä: erottimen teksti ("La 19.") on leveämpi kuin
+  sen 26 px:n laatikko ja vuotaa naapuritikin päälle. Erottimen viereinen
+  tunti on aina 00, eli juuri se jonka erotin jo kertoo. Mitattuna tikin
+  kavettua 12 px:iin "La 19." ja "00" piirtyivät päällekkäin.
+- **VIERITYKSEN SEURANTAA EI SAA AJAA `requestAnimationFrame`issa.**
+  WebKit ajaa kosketusvieritystä omalla säikeellään, ja ruutupyyntö voi
+  jäädä palaamatta koko sen ajan kun sormi liikuttaa kelaa —
+  scroll-tapahtumat tulevat silti normaalisti. Mitattuna rAF
+  jäädytettynä: tuntinauhaa raahatessa `currentHourIdx` ja kapseli eivät
+  liikkuneet lainkaan sormen alla (62 → 62, 6,2 kts → 6,2 kts) ja
+  päivittyivät vasta nostosta; päiväkiskolla valinta ei vaihtunut
+  kertaakaan. Kuristus on aikaleima (16 ms), ei ruutu. Mitattu hinta
+  yhdelle askeleelle: `_tlSeuraaHetkea` mediaani 3 ms, max 4 ms.
+- **KISKOSSA EI OLE `scroll-snap`IA, VAIKKA TUNTINAUHASSA ON.**
+  `scroll-snap-type: x mandatory` sitoo myös OHJELMALLISEN vierityksen:
+  selain vetää jokaisen `scrollLeft`-kirjoituksen lähimpään lappuun ja
+  tuottaa siitä oman tapahtumasarjansa. Mitattuna kymmenen 26 px:n
+  kirjoitusta siirsivät kiskoa 0 px. `_tlKiskoKeskita` hoitaa
+  keskityksen tarkemmin (mitattu −0,9 px) ja se ajetaan eleen
+  päätteeksi.
+- **KISKON OMA VIERITYS TUNNISTETAAN SIJAINNISTA, EI AJASTIMESTA.**
+  300 ms:n ikkuna oli väärä mittari molempiin suuntiin: kirjoituksen
+  jälkeiset tapahtumat voivat tulla myöhemmin (jolloin oma vieritys
+  luetaan sormeksi) ja ikkuna oli auki jokaisen kirjoituksen jälkeen,
+  eli käytännössä aina (jolloin sormi luetaan omaksi vieritykseksi).
+  `_tlKiskoKirjoitettu` + yhden pikselin toleranssi ratkaisee sen ilman
+  ajastimia.
+- **NAPAUTUS EROTETAAN RAAHAUKSESTA MATKALLA, EI TAPAHTUMALLA.**
+  Puhelimella sormi liikkuu napautuksessakin pari pikseliä ja
+  scroll-tapahtuma lähtee, joten "onko scrollattu" nielaisee
+  napautukset. Mittari on kiskon `scrollLeft` eleen alussa ja lopussa,
+  kynnys 6 px.
+- **KISKON ELE ON OHI VASTA KUN SORMI ON NOUSSUT JA VIERITYS
+  PYSÄHTYNYT** — molemmat, ei kumpi tahansa. Selain lähettää
+  `scrollend`in myös kesken eleen aina kun vieritys hetkeksi pysähtyy
+  sormen alla, ja siitä päätellen keskitys osuisi sormen alle. Toisaalta
+  pelkkä `scrollend` ei riitä päätteeksi: jos se ehti tulla sormen
+  ollessa vielä kiinni, kisko jäi keskittämättä (mitattu 10,9 px
+  sivussa). Molemmat reitit (`scrollend`/ajastin ja sormen nosto)
+  johtavat samaan `_kiskoLoppu`un.
 - **KORTIN KORKEUS ON SUMMA, EI YKSI LUKU.** `#tl-wrap` on
   `97px + var(--tl-paivat-h) + var(--sab-tl)`, ja tuntinauha saa siitä
   sen mikä jää täytteiden jälkeen (61 px). Kisko 40 -> 30 ja nauha
@@ -589,14 +654,15 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   valitsee osoittimen alla olevan päivän jatkuvasti, myös sormen ollessa
   kiinni — sama sopimus kuin tuntinauhalla, jonka kanssa se on
   päällekkäin. Kolme asiaa pitävät sen erossa itsestään: kiskon oma
-  `scrollLeft`-kirjoitus merkitään (`_tlKiskoAsetaScroll`,
-  `_tlKiskoOmaAlkaa`) eikä `_tlRakennaPaivat`in tyhjennys siis valitse
-  akselin ensimmäistä päivää; `_tlKiskoKeskita` vaikenee koko eleen ajan
-  (`_tlKiskoVierii` kattaa myös heiton, ei vain sormen); ja raahauksen
-  perään tuleva click ohitetaan (`_tlKiskoLiikkui`), muuten kisko
-  hyppäisi vielä kerran sormen alla olleeseen lappuun. Kenttä
-  päivitetään eleen aikana KARKEANA ja täysi tarkkuus tulee
-  `_tlCommitSelection`ista, joka lukee tuntinauhan sijainnin.
+  `scrollLeft`-kirjoitus tunnistetaan sijainnista
+  (`_tlKiskoKirjoitettu`) eikä `_tlRakennaPaivat`in tyhjennys siis
+  valitse akselin ensimmäistä päivää; `_tlKiskoKeskita` vaikenee koko
+  eleen ajan (`_tlKiskoVierii` kattaa myös heiton, ei vain sormen); ja
+  raahauksen perään tuleva click ohitetaan MATKAN perusteella
+  (`_tlKiskoAlkuScroll`, 6 px), muuten kisko hyppäisi vielä kerran
+  sormen alla olleeseen lappuun. Kenttä päivitetään eleen aikana
+  KARKEANA ja täysi tarkkuus tulee `_tlCommitSelection`ista, joka lukee
+  tuntinauhan sijainnin.
 - **"TÄNÄÄN" VIE NYKYHETKEEN, MUUT PÄIVÄT SÄILYTTÄVÄT KELLONAJAN.**
   `_tlPaivanIdx` palauttaa tämän päivän kohdalla `nowIdx`in. Sama
   kellonaika olisi vienyt paluussa esimerkiksi kello 03:een, eli

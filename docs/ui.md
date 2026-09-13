@@ -4115,23 +4115,34 @@ piirtyy siis palkin PÄÄLLE, sen numerot istuvat laatikkonsa keskellä, ja
 9–16 m/s pyyhkäisyllä yksikään lukema ei jää palkin alle. Tätä
 korkeampi palkki söisi numeron, joten 52 on katto.
 
-### Tikki 22 → 16 px
+### Tikki 22 → 16 → 12 px
 
 Aikajanan oma vika on **matka**, ei tuntiaskel — se on kirjattu jo
 kahdesti (*Minuuttitarkkuus kaatui mittaukseen*, *Päiväkisko*). Tikin
 kaventaminen on suora alennus siihen eikä maksa tarkkuudesta mitään:
 
-| | ennen | nyt |
-|---|---|---|
-| tikki | 22 px | 16 px |
-| palkki | 12 px | 10 px |
-| palkkien väli | 10 px | 6 px |
-| näkyviä tunteja (390 px) | 17 | **23** |
-| NYT → +7 vrk | 3 934 px | **2 926 px** |
-| ruudullista raahausta | 10 | **7,5** |
+Ensimmäinen erä vei tikin 16 pikseliin. Palaute oli *"haluan vieläkin
+tiiviimmin palkit"*, ja toinen erä vei sen 12:een:
+
+| | alun perin | 1. erä | nyt |
+|---|---|---|---|
+| tikki | 22 px | 16 px | **12 px** |
+| palkki | 12 px | 10 px | **8 px** |
+| palkkien väli | 10 px | 6 px | **4 px** |
+| päiväerotin | 34 px | 34 px | **26 px** |
+| näkyviä tunteja (390 px) | 17 | 23 | **28** |
+| NYT → +7 vrk | 3 934 px | 2 926 px | **2 232 px** |
+| ruudullista raahausta | 10 | 7,5 | **5,7** |
 
 Tuntilukema on 10 px leveä ja tulee joka kolmanteen tikkiin, eli
-lukemien väli on 48 px — tiiviimpi rivi ei tihennä asteikkoa.
+lukemien väli on 36 px — tiiviimpi rivi ei tihennä asteikkoa.
+
+**Päiväerottimen vierestä lukema jätetään pois.** Erottimen teksti
+("La 19.") on leveämpi kuin sen 26 px:n laatikko ja vuotaa
+naapuritikin päälle; 12 px:n tikillä se piirtyi suoraan "00":n päälle.
+Erottimen viereinen tunti on aina 00 — juuri se jonka erotin jo
+kertoo — joten lukema on siinä kahdesti sanottu. Sama ratkaisu kuin
+NYT-merkin vieressä.
 
 **Keskityksen puolikas on nyt yksi vakio** (`TL_TIKKI_PUOLI`). Se oli
 kirjoitettu neljään paikkaan lukuina — `_fracFromScroll` 12,
@@ -4215,10 +4226,11 @@ kellonaika                  20:00 koko ajan (säilyy päivästä toiseen)
 kapselin tuuli              4,6 -> 6,0 -> 4,6 -> 7,5 -> 9,1 kts
 ```
 
-**Kisko sai natiivin snäppäyksen**, samasta syystä kuin tuntinauha:
-ilman sitä heitto jäisi kahden lapun väliin ja `_tlKiskoKeskita`
-vetäisi sen sieltä erikseen — kaksi liikettä yhdestä eleestä. Mitattu
-lapun poikkeama osoittimesta sormen noustua: 0,1 px.
+**Kisko sai ensin natiivin snäppäyksen, ja se oli virhe** — ks.
+seuraava luku. `scroll-snap-type: x mandatory` sitoo myös ohjelmallisen
+vierityksen, eikä kiskon oma keskitys enää päässyt tekemään työtään.
+Snäppäys poistettiin; `_tlKiskoKeskita` hoitaa keskityksen ja se on
+tarkempi (mitattu poikkeama osoittimesta sormen noustua −0,9 px).
 
 Kolme asiaa pitävät kiskon erossa itsestään, ja jokainen niistä on
 korjaus mitattuun kierteeseen:
@@ -4259,3 +4271,115 @@ nyt     Ti 15. klo 03  ->  NYT-tikki       (idx 50 = _tlNytIdx)
 
 Sama kohde kuin näppäimistön Home-näppäimellä, eli kaksi tapaa palata
 nykyhetkeen osuvat nyt samaan tikkiin.
+
+---
+
+## Aikajana, toinen erä: se ei toiminut laitteella
+
+Edellinen erä mitattiin Chromiumissa dev-serveriä vasten ja kaikki
+kolme kohtaa näyttivät toimivan. Laitteella kolme viidestä ei toiminut:
+kapseli ei seurannut sormea, päiväkisko ei valinnut raahatessa, eikä
+"Tänään" vienyt nykyhetkeen.
+
+**Mittausasetelma oli väärä, ja se on tämän luvun tärkein opetus.**
+Uusi asetelma on: **WebKit** (sama moottoriperhe kuin Safarissa,
+`playwright-core` + `webkit`), **tuotantobuild** (`npm run build` +
+`vite preview`, ei dev-serveriä), **iPhone-konteksti** (`hasTouch`,
+`deviceScaleFactor: 3`) ja **Suomen vyöhyke** (`timezoneId:
+'Europe/Helsinki'` — kontti ajaa UTC:ssä ja aikajanan päivärajat
+lasketaan paikallisajassa). Pelkkä WebKit ei vielä riittänyt: kaikki
+kolme kohtaa läpäisivät senkin, koska tavallinen harness ei tuota
+niitä kahta asiaa jotka oikea sormi tuottaa.
+
+### Oire 1: rAF ei palaa vierityksen aikana
+
+WebKit ajaa kosketusvieritystä omalla säikeellään. Scroll-tapahtumat
+tulevat normaalisti, mutta `requestAnimationFrame`-takaisinkutsu voi
+jäädä palaamatta niin kauan kuin sormi liikuttaa kelaa. Sekä
+tuntinauhan seuranta että kiskon uusi seuranta olivat rAF:n takana, eli
+molemmat tekivät työnsä vasta sormen noustua — juuri se mitä oltiin
+korjaamassa.
+
+Se simuloidaan korvaamalla `requestAnimationFrame` jonolla joka
+puretaan vasta eleen jälkeen. Mitattu edellisen erän koodilla:
+
+```
+                          ennen      sormi kiinni   sormi noussut
+currentHourIdx              62            62             74
+kapselin tuuli            6,2 kts       6,2 kts        6,1 kts
+päiväkiskon valinta       Tänään        Tänään         Tänään
+```
+
+Eli ei mitään ennen nostoa, ja kisko ei vaihtanut päivää lainkaan.
+Korjattuna samalla mittarilla: `currentHourIdx` 62 → 74 ja kapseli
+6,4 → 6,1 kts sormen ollessa yhä kiinni, ja kiskolla Tänään → Su 20.
+
+**Kuristus on nyt aikaleima (16 ms), ei ruutu.** Mitattu hinta
+yhdelle askeleelle kontissa: `_tlSeuraaHetkea` mediaani 3 ms, max 4 ms
+(`renderSpots` 1 ms, `_tlUpdateNow` 1 ms) — eli kuudenkymmenen askeleen
+sekunnissa mahtuu ruutubudjettiin myös hitaalla koneella.
+
+### Oire 2: napautus vierittää pari pikseliä
+
+Puhelimella sormi liikkuu napautuksessakin, kosketusvieritys lähtee
+liikkeelle ja palaa takaisin — ja scroll-tapahtuma on lähtenyt.
+Edellinen erä merkitsi eleen raahaukseksi *tapahtuman* perusteella
+(`_tlKiskoLiikkui`) ja nielaisi siis napautukset. Mittari on nyt
+**matka**: kiskon `scrollLeft` talletetaan eleen alussa ja click
+hylätään vasta jos kisko on liikkunut yli 6 px.
+
+Tämä on todennäköisin selitys sille miksi "Tänään" ei vienyt
+nykyhetkeen: napautus ei mennyt läpi lainkaan. Harnessilla oiretta ei
+saatu toistumaan, koska vanha 300 ms:n aikaikkuna (alla) suojasi
+napautuksen vahingossa juuri silloin kun testi napautti.
+
+### `scroll-snap` ei sovi ohjelmallisesti vieritettävään kiskoon
+
+Kisko sai edellisessä erässä `scroll-snap-type: x mandatory`.
+Mitattuna se sitoo myös **ohjelmallisen** vierityksen: selain vetää
+jokaisen `scrollLeft`-kirjoituksen lähimpään lappuun ja tuottaa siitä
+oman tapahtumasarjansa. Kymmenen 26 px:n kirjoitusta siirsivät kiskoa
+**0 px**. Kisko taisteli siis `_tlKiskoKeskita`a vastaan.
+
+Snäppäys poistettiin. Keskitys oli jo olemassa ja on tarkempi:
+mitattu poikkeama lapun keskikohdasta 0,4 px levossa ja −0,9 px
+raahauksen jälkeen.
+
+### Aikaikkuna on väärä mittari omalle vieritykselle
+
+`_tlKiskoKeskita` kirjoittaa `scrollLeft`in ja `_tlRakennaPaivat`
+tyhjentää kiskon; molemmista tulee scroll-tapahtuma jota seuranta ei
+saa lukea sormeksi. Edellinen erä merkitsi ne 300 ms:n ikkunalla, ja se
+on väärin molempiin suuntiin:
+
+- kirjoituksen jälkeiset tapahtumat eivät tule tietyn ajan sisällä
+  (selain koalesoi, snäppäys tuottaa niitä vielä satoja millisekunteja
+  myöhemmin) → oma vieritys luetaan sormeksi;
+- ikkuna oli auki 300 ms **jokaisen** kirjoituksen jälkeen, ja keskitys
+  ajetaan jokaisesta tuntimuutoksesta → ikkuna on käytännössä aina auki
+  ja sormi jää huomiotta.
+
+Mittari on nyt **sijainti**: talletetaan mitä kirjoitettiin, ja
+tapahtuma on omamme jos kisko on yhä siinä (toleranssi 1 px). Ei
+ajastimia, ei ikkunoita.
+
+### Eleen loppu on kaksi ehtoa, ei yksi
+
+Selain lähettää `scrollend`in myös kesken eleen aina kun vieritys
+hetkeksi pysähtyy sormen alla (mitattu: viisi askelta, viisi
+scrollendiä, sormi yhä kiinni). Jos ele päätettäisiin siitä, keskitys
+osuisi sormen alle. Mutta pelkkä sormen nosto ei sekään riitä, koska
+heitto jatkuu.
+
+Ele on ohi kun **sormi on noussut JA vieritys pysähtynyt**. Molemmat
+reitit johtavat samaan `_kiskoLoppu`un, joka palaa saman tien jos sormi
+on yhä kiskolla. Ilman sormen noston reittiä kisko jäi keskittämättä
+aina kun selain ehti lähettää viimeisen `scrollend`insä sormen ollessa
+vielä kiinni — mitattuna **10,9 px sivussa**.
+
+### Mitä tästä jää sääntönä
+
+Chromium dev-serveriä vasten mitattu ele ei ole mitattu ele. Kolme
+asiaa on lisättävä asetelmaan ennen kuin eleen käyttäytymisestä voi
+sanoa mitään: oikea moottori, tuotantobuild ja se että **sormi ei ole
+`scrollLeft`-kirjoitus** — se jäädyttää rAF:n ja se värisee.
