@@ -132,7 +132,8 @@ kokeiltu ja kaadettu mittauksella.
   matalampi kisko, keskitetty päiväys · Laaja näkymä: yksi kuori,
   kolme kaaviota · Aikajana: päiväys paikalleen, yö kaistaksi ·
   Aikajana: huntu pois, tikki kapeammaksi, kisko valitsimeksi ·
-  Aikajana, toinen erä: se ei toiminut laitteella
+  Aikajana, toinen erä: se ei toiminut laitteella ·
+  Aikajana on nauha — koko ennuste kerralla, ei yhtään vieritintä
 
 </details>
 
@@ -245,8 +246,8 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   väriasteikko ja sävy saa tarkoittaa sateen voimakkuutta. Ehto EI ole
   neuvoteltavissa: jos lämpökartta joskus palautetaan näkyviin
   sadekerroksen alle, sateen värit on poistettava samassa muutoksessa.
-- **Aikajanan palkit ovat `ColorRamp.paperi()`, eivät `rgb()` eivätkä
-  `ink()`.** Se on karttaramppi kerrottuna 0,48:lla: sävy on kartan,
+- **Aikajanan nauha ja luuppi ovat `ColorRamp.paperi()`, eivät `rgb()`
+  eivätkä `ink()`.** Se on karttaramppi kerrottuna 0,48:lla: sävy on kartan,
   kirkkaus kortin paperin. Kerroin ei ole makuasia — 0,52 jätti limetin
   (10 m/s) 2,97:ään, 0,48 nostaa koko asteikon välille 3,84–13,46
   (mitatusta kortin sävystä 228,219,197) ja peräkkäisten nopeuksien
@@ -254,32 +255,35 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   paperilla 1,02:1; `ink()` on väärä koska se on oma sävypolkunsa eikä
   matchaa karttaan. Taulu ei seuraa pohjakarttaa (mitattu: sama palkki
   tummalla, vaalealla ja satelliitilla) mutta seuraa värisokeusasetusta.
-- **AIKAJANALLA EI OLE URAA.** Kortti on yhtä paperia; päivärivi ja
-  tuntirivi erottaa vain tyhjä tila (9 px). Ura oli kolmessa muodossa —
+- **AIKAJANALLA EI OLE URAA.** Kortti on yhtä paperia; lukemarivi ja
+  nauha erottaa vain tyhjä tila (4 px). Ura oli kolmessa muodossa —
   tumma, hiekka, ja lopulta kaksi identtistä uraa (1,01:1 raidasta
   raitaan) — ja jokainen niistä oli reuna jota kortin oma reuna jo
-  kertoi. Älä palauta uraa "jotta palkit näkyisivät": palkit saavat
-  kortilla ENEMMÄN kontrastia kuin urassa (heikoin 3,41 → 3,84).
-- **Uran päällä olleiden merkintöjen alfat on valittu VAIKUTUKSEN
-  mukaan, ei luvun.** Yökaista on ollut kolmella eri alustalla ja sen
-  voimakkuus on pidetty samana joka kerta: musta .34 tummalla uralla
-  1,35:1, `76,89,96` .24 hiekkauralla 1,35:1, ja kortin paperilla sama
-  .24 olisi 1,40:1 — eli uran poisto olisi vahingossa äänekkäämpi yö.
-  Nyt .20/.129/.060 antaa 1,32:1. Jos vaihdat alustaa, laske alfat
-  uudelleen. (Puuskahuntu oli samasta syystä muste .34 eikä valkoinen
-  .22; huntu on poistettu, ks. alempaa.)
-- **Päivälapuissa EI ole tuulikaistaa.** Kokeiltiin ja mitattiin
-  toimivaksi (väri ja leveys sen päivän kovimmasta tuulesta valoisaan
-  aikaan), mutta poistettiin: kahdeksantoista väripilkkua yhdellä
-  rivillä on kahdeksantoista asiaa joita silmä lukee, ja sama tieto on
-  tuntirivillä tarkempana. Kisko on navigointia, ei yhteenvetoa.
+  kertoi. Älä palauta uraa "jotta data näkyisi": data saa kortilla
+  ENEMMÄN kontrastia kuin urassa (heikoin 3,41 → 3,84).
+- **Valokaistan sävyt on valittu VAIKUTUKSEN mukaan, ei luvun.**
+  Yökaista on ollut kolmella eri alustalla ja sen voimakkuus on pidetty
+  samana joka kerta: musta .34 tummalla uralla 1,35:1, `76,89,96` .24
+  hiekkauralla 1,35:1, ja kortin paperilla sama .24 olisi 1,40:1 — eli
+  uran poisto olisi vahingossa äänekkäämpi yö. Nykyiset luvut ovat
+  `VALO_VARIT`issa. Jos vaihdat alustaa, laske alfat uudelleen.
+  (Puuskahuntu oli samasta syystä muste .34 eikä valkoinen .22; huntu
+  on poistettu, ks. alempaa.)
+- **Päiväkirjaimissa EI ole väriä.** Päiväkiskon lapuilla kokeiltiin
+  kerran 3 px:n tuulikaistaa (sen päivän kovin tuuli valoisaan aikaan);
+  se mitattiin toimivaksi ja poistettiin, koska kahdeksantoista
+  väripilkkua yhdellä rivillä on kahdeksantoista asiaa joita silmä
+  lukee. Sama pätee nauhan päiväkirjaimiin kaksin verroin: nauha ON se
+  yhteenveto, ja kirjaimet ovat vain sen akselin merkinnät.
 - **Kortin paljas paperi mitataan RIVIEN VÄLISTÄ.** Rivin sisältä otettu
-  näyte osuu palkkiin, yökaistaan, NYT-osoittimeen tai napin varjoon —
-  ja väittää sitten että sama paperi on eri väristä eri kohdissa.
-- **Palkin korkeusasteikko on EPÄLINEAARINEN** (4–14 m/s levennetty) ja
-  täysi mitta on 52 px (`TL_PALKKI_H`). Korkeus on muoto, väri on arvo.
-  Älä palauta lineaarista: se antaa 1,38 px/(m/s) ja peräkkäisten
-  tuntien tyypillinen ero on 0,2 m/s eli alle puoli pikseliä.
+  näyte osuu profiiliin, yökaistaan, NYT-viivaan, osoittimeen tai napin
+  varjoon — ja väittää sitten että sama paperi on eri väristä eri
+  kohdissa.
+- **Korkeusasteikko on EPÄLINEAARINEN** (4–14 m/s levennetty), ja
+  `_tlPalkkiOsuus` palauttaa 0..1 — mitta tulee piirtopaikalta (nauhan
+  profiili, luupin palkki). Korkeus on muoto, väri on arvo. Älä palauta
+  lineaarista: peräkkäisten tuntien tyypillinen ero on 0,2 m/s, joka
+  olisi lineaarisella alle puoli pikseliä.
 - **`ColorRamp.rgb()` on kartalle, `ink()` paneeleihin.** Ne kulkevat
   vastakkaisiin suuntiin kirkkaudessa. Muste ei ole värisokeusturvallinen eikä
   sen tarvitse olla — paneelissa väri on aina luvun vieressä.
@@ -441,6 +445,99 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 
 **Aikajana**
 
+- **AIKAJANA ON NAUHA, EI VIERITIN.** Koko akseli (16,3 vrk, 391 tuntia)
+  mahtuu yhteen canvasiin: 0,93 px/tunti puhelimessa, 3,2 px/tunti
+  työpöydällä. Vieritystä ei ole missään, joten navigointimatka on nolla
+  ja viikon muoto luetaan yhdellä silmäyksellä. Edeltäjä oli kaksi
+  sisäkkäistä natiivivieritintä (tuntinauha + päiväkisko), ja niiden
+  synkronointi vaati snäppäyksen, momentumin, `scrollend`in,
+  ristiinvierityksen ja omien kirjoitusten tunnistamisen — kolme
+  korjauskierrosta eikä se silti toiminut laitteella. Älä palauta
+  vieritintä: sen tilaa ei omista sovellus vaan selaimen vierityssäie.
+- **ELE ON OSOITINELE.** `pointerdown/move/up` + `setPointerCapture` +
+  `touch-action: none`, sama kuvio kuin aaltokaavion raahauksessa.
+  `touch-action: none` on VÄLTTÄMÄTÖN eikä varotoimi: ilman sitä selain
+  aloittaa vierityksen heti kun sormi liikkuu vaakaan ja vie
+  osoitintapahtumat mukanaan. Mitattuna rAF jäädytettynä (WebKit ei
+  palauta ruutupyyntöä kosketusvierityksen aikana) tunti, kapseli ja
+  luuppi seuraavat sormea normaalisti — se on koko uudistuksen tekninen
+  ydin.
+- **PROFIILI ON PALKKI TOISESSA MITTAKAAVASSA.** Sarakkeen KORKEUS ja
+  VÄRI tulevat samasta epälineaarisesta asteikosta (`_tlPalkkiOsuus`,
+  katto 14 m/s) ja samasta `ColorRamp.paperi()`-rampista kuin palkeilla.
+  Asteikko palauttaa 0..1 ja mitta tulee piirtopaikalta — nauhassa
+  profiilin korkeus, luupissa palkin. Älä tee luupille omaa asteikkoa
+  äläkä palauta sarjakohtaista maksimia (`maxMs`): sarja vaihtuu joka
+  kartansiirrolla.
+- **SARAKKEEN ARVO ON PEITTOPAINOTETTU KESKIARVO.** Ei maksimi: sävy
+  tarkoittaa tässä sovelluksessa nopeutta, joten liioittelu olisi valhe
+  eikä tyylikeino. Ei pistenäyte: puhelimessa pikseliä kohti on
+  1,08 tuntia, joten näyte ohittaisi joka kolmannentoista tunnin.
+- **POHJA PIIRRETÄÄN KERRAN JA BLITATAAN.** Raahatessa muuttuu vain
+  valinnan viiva; 362 sarakkeen uudelleenpiirto joka osoitintapahtumalla
+  olisi työtä josta ei näy mitään. `piirraPohja()` maalaa
+  taustacanvasin, `piirra()` blittaa sen ja piirtää osoittimen.
+- **TARKKUUS TULEE LUUPISTA, EI NAUHASTA.** Nauhalla tunti on 0,93 px
+  eli sormi kattaa 43 tuntia; luupissa tunti on 26 px. **Molemmat ovat
+  SIJAINTIOHJAUTUVIA** — sormen alla oleva tunti valitaan — eikä
+  kumpikaan ole suhteellinen tai käännetty. Jotta se on mahdollista,
+  **luupin ikkuna jäädytetään kosketuksen ajaksi** (`lLukittu`): muuten
+  valinta siirtäisi ikkunaa, ikkuna siirtäisi sormen alla olevaa tuntia
+  ja valinta karkaisi käsistä.
+- **LUUPPI KELLUU KORTIN YLÄPUOLELLA, EI SEN SISÄLLÄ.** Kortissa se
+  maksaisi 48 px korkeutta koko ajan; yläpuolella se on läsnä vain eleen
+  ajan eikä koskaan jää sormen alle, koska sormi on nauhalla sen
+  alapuolella. Piilotus on `visibility` eikä `display`: canvas tarvitsee
+  pikselikokonsa myös levossa, ja piilotettu pinta ei saa jäädä
+  sarkainkierrokseen. Lukema JÄÄ näkyviin sormen noustua (2,6 s) — sama
+  sääntö kuin aaltokaaviolla.
+- **KORTTI ON 88 px EIKÄ PIILOUDU.** Aiempi oli 127 px hereillä ja 97 px
+  levossa, ja siinä oli piiloutuvaa kromia. Mitat: 6 + 36 (lukemarivi) +
+  4 + 36 (nauha) + 6. Napit ovat 44 px kosketuskohteita ja ylittävät
+  rivinsä 4 px molempiin suuntiin — rivi on tyhjää paperia, joten ylitys
+  ei osu mihinkään.
+- **NAPIT OVAT LUKEMARIVILLÄ, EIVÄT NAUHAN PÄÄLLÄ.** Vanha sääntö
+  ("transportti kuuluu sen raidan päälle jota se ajaa") antaa nyt toisen
+  vastauksen, koska raita on eri kokoinen: uralla nappi peitti 6 näkyvää
+  tuntia 17:stä, nauhalla sama 44 px olisi 47 TUNTIA eli kaksi
+  vuorokautta koko ennusteesta. Napit ovat yhä kiinni nauhassa, rivin
+  verran ylempänä.
+- **LUKEMARIVI SANOO PÄIVÄYKSEN AINA.** Vanha "päiväys sanotaan kerran"
+  oli työnjako aikakuplan ja päiväkiskon välillä; kumpaakaan ei ole.
+  Kuplaa ei voi palauttaa: osoitin ei ole kortin keskellä vaan siellä
+  missä sormi, joten kelluva kupla olisi puolet ajasta sormen alla ja
+  reunoilla rajattuna.
+- **NAUHA ON `role="slider"`.** Yksi sarkainpysäkki, nuolet askeltavat
+  tunnin (shift kolme), ylä/ala vuorokauden, Home vie nykyhetkeen ja End
+  akselin loppuun. `stopPropagation` on pakollinen: nuolet kuuluvat
+  muuten Leafletille joka panoroi niillä karttaa. Vieritin ei ollut
+  ruudunlukijalle arvo lainkaan.
+- **`--tl-lukema` EI OLE KAPSELIN LUKU.** Aikajana näyttää HETKEN, ei
+  tuulta. Kaksi tuulilukemaa vierekkäin olisi kaksi eri lähdettä samasta
+  asiasta (ks. "SOVELLUKSESSA ON KAKSI DATATASOA").
+- **PÄIVÄRAJA EI LÄVISTÄ PROFIILIA.** Ensimmäinen versio veti sen koko
+  korkeudelta, ja seitsemäntoista pystyviivaa datan läpi luki
+  ruudukkona: rivin äänekkäin muoto oli hila eikä tuuli. Raja on 4 px
+  tikki kirjainrivillä. Sama päätös kuin aikanaan aikajanan uralla —
+  reuna jonka toinen asia jo kertoo.
+- **PUUSKAHUNTU ON POISTETTU.** Palkin päällä oli ylöspäin häviävä
+  muste-huntu (korkeus = puuskan ja tuulen ero, alfa = puuska/tuuli).
+  Se oli mitattu ja kalibroitu kahdesti mutta oli koko ajan toinen muoto
+  samalla akselilla ja näkyi 85 %:ssa tunneista, koska puuska/tuuli-
+  suhteen mediaani on Itämerellä 1,41. Tieto on kapselin puuskarivillä
+  ja spottikortin kaavion vyöhykkeessä. Älä palauta sitä nauhaan: yhden
+  pikselin sarakkeessa ei ole tilaa kahdelle suureelle.
+- **YÖ ON KAISTA PROFIILIN ALLA, EI HARSO SEN PÄÄLLÄ.** 2 px, ja värit
+  ovat samasta rekisteristä kuin spottikortin kaaviolla (`VALO_VARIT` +
+  `VALO_URA`). **Canvas lukee literaalit suoraan** — CSS-muuttujia
+  (`_valoVaritCssiin`) tarvitsi vain vanha `::after`-kaista, ja
+  kirjoittaja on jäljellä siltä varalta että joku muu tarvitsee niitä.
+  Älä piirrä auringon korkeutta käyränä: se olisi toinen jatkuva muoto
+  profiilin rinnalle.
+- **MENNYT AIKA HIMMENNETÄÄN `destination-out`illa.** Se SYÖ maalia
+  pois, jolloin kortin paperi näkyy läpi — sama vaikutus kuin palkkien
+  `opacity: .4`, eikä päälle maalattua harmaata joka olisi kortilla oma
+  pintansa.
 - **`currentHourIdx` on INDEKSI, ja aika-akseli vaihtuu kartan mukana.**
   Akseli tulee siltä ennustepisteeltä joka on kartan keskellä, ja
   zoomaus vaihtaa pisteen. Älä koskaan siirrä indeksiä sellaisenaan
@@ -451,230 +548,25 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   sisällä tuntipisteet ovat SUORALLA (poikkeama 0 m/s, 10 640 kolmikkoa),
   muutos minuutissa on 0,0033 m/s eli 150× alle sovelluksen oman
   0,5 m/s rajan, ja 94 % minuuteista renderöityisi identtisesti.
-  10 min veisi +7 vrk raahauksen 10 ruudullisesta 60:een.
-  Aikajanan vika oli navigointi, ja se on `#tl-paivat`.
-- **Palkin korkeus on KIINTEÄLLÄ asteikolla (14 m/s = täysi, 52 px).**
-  Sarjakohtainen maksimi teki palkeista vertailukelpoisia vain sarjan
-  sisällä, ja sarja vaihtuu joka kartansiirrolla: mitattuna 7,67 m/s oli
-  14,1 px ja 8,40 m/s 13,4 px. Älä palauta `maxMs`-skaalausta.
-- **KATTO ON 14 m/s, EI 16, ja korkeus 52 px, ei 35 eikä 44.** Molemmat
-  palvelevat erottelua siellä missä päätös tehdään: väli 4–11 m/s sai
-  5,2–5,6 px metriä sekunnissa kohti (35 px:llä 2,6–3,1, 44 px:llä
-  4,4–4,7), ja 4 → 10 m/s on nyt 32 px ero (ennen 27 ja sitä ennen 17).
-  Yli neljäntoista väli menetti korkeuseron kokonaan — se on tarkoitus,
-  siellä ei valita keliä vaan kokoa, ja väri jatkaa kyllästymisen
-  jälkeen.
-- **PUUSKAHUNTU ON POISTETTU, JA PALKKI SAI SEN TILAN.** Palkin päällä
-  oli ylöspäin häviävä muste-huntu (korkeus = puuskan ja tuulen ero,
-  katto 11 px; alfa = puuska/tuuli-suhde). Se oli mitattu ja kalibroitu
-  kahdesti — täytettynä vyöhykkeenä ja sitten huntuna — mutta se oli
-  koko ajan toinen muoto samalla akselilla ja näkyi 85 %:ssa tunneista,
-  koska puuska/tuuli-suhteen mediaani on Itämerellä 1,41. Esitystavan
-  keventäminen ei riittänyt; tieto on nyt kapselin puuskarivillä ja
-  spottikortin kaavion vyöhykkeessä. Poisto vapautti 11 px, ja palkki
-  kasvoi 44 → 52. Älä palauta huntua — sille ei ole enää tilaa, ja
-  palkin korkeus olisi pudotettava takaisin.
-- **TIKKI ON 12 px JA PALKKI 8 px, JA PUOLIKAS LUETAAN
-  `TL_TIKKI_PUOLI`:STA.** Tikki kapeni 22 → 16 → 12, koska aikajanan
-  vika on matka: viikon päähän oli mitattuna 3 934 px eli kymmenen
-  ruudullista, nyt 2 232 px eli 5,7 (näkyviä tunteja 17 → 28).
-  Palkkien väli on 4 px — leveys ja väli kuuluvat yhteen, ks. `.htick`.
-  Keskityksen puolikas oli ennen kirjoitettu neljään paikkaan lukuina
-  (12, 12, 11, 10), joista kaksi oli jo valmiiksi eri mieltä kahden
-  muun kanssa.
-- **PÄIVÄEROTTIMEN VIERESTÄ JÄTETÄÄN TUNTILUKEMA POIS**, samasta syystä
-  kuin NYT-merkin vierestä: erottimen teksti ("La 19.") on leveämpi kuin
-  sen 26 px:n laatikko ja vuotaa naapuritikin päälle. Erottimen viereinen
-  tunti on aina 00, eli juuri se jonka erotin jo kertoo. Mitattuna tikin
-  kavettua 12 px:iin "La 19." ja "00" piirtyivät päällekkäin.
-- **VIERITYKSEN SEURANTAA EI SAA AJAA `requestAnimationFrame`issa.**
-  WebKit ajaa kosketusvieritystä omalla säikeellään, ja ruutupyyntö voi
-  jäädä palaamatta koko sen ajan kun sormi liikuttaa kelaa —
-  scroll-tapahtumat tulevat silti normaalisti. Mitattuna rAF
-  jäädytettynä: tuntinauhaa raahatessa `currentHourIdx` ja kapseli eivät
-  liikkuneet lainkaan sormen alla (62 → 62, 6,2 kts → 6,2 kts) ja
-  päivittyivät vasta nostosta; päiväkiskolla valinta ei vaihtunut
-  kertaakaan. Kuristus on aikaleima (16 ms), ei ruutu. Mitattu hinta
-  yhdelle askeleelle: `_tlSeuraaHetkea` mediaani 3 ms, max 4 ms.
-- **KISKOSSA EI OLE `scroll-snap`IA, VAIKKA TUNTINAUHASSA ON.**
-  `scroll-snap-type: x mandatory` sitoo myös OHJELMALLISEN vierityksen:
-  selain vetää jokaisen `scrollLeft`-kirjoituksen lähimpään lappuun ja
-  tuottaa siitä oman tapahtumasarjansa. Mitattuna kymmenen 26 px:n
-  kirjoitusta siirsivät kiskoa 0 px. `_tlKiskoKeskita` hoitaa
-  keskityksen tarkemmin (mitattu −0,9 px) ja se ajetaan eleen
-  päätteeksi.
-- **KISKON OMA VIERITYS TUNNISTETAAN SIJAINNISTA, EI AJASTIMESTA.**
-  300 ms:n ikkuna oli väärä mittari molempiin suuntiin: kirjoituksen
-  jälkeiset tapahtumat voivat tulla myöhemmin (jolloin oma vieritys
-  luetaan sormeksi) ja ikkuna oli auki jokaisen kirjoituksen jälkeen,
-  eli käytännössä aina (jolloin sormi luetaan omaksi vieritykseksi).
-  `_tlKiskoKirjoitettu` + yhden pikselin toleranssi ratkaisee sen ilman
-  ajastimia.
-- **NAPAUTUS EROTETAAN RAAHAUKSESTA MATKALLA, EI TAPAHTUMALLA.**
-  Puhelimella sormi liikkuu napautuksessakin pari pikseliä ja
-  scroll-tapahtuma lähtee, joten "onko scrollattu" nielaisee
-  napautukset. Mittari on kiskon `scrollLeft` eleen alussa ja lopussa,
-  kynnys 6 px.
-- **KISKON ELE ON OHI VASTA KUN SORMI ON NOUSSUT JA VIERITYS
-  PYSÄHTYNYT** — molemmat, ei kumpi tahansa. Selain lähettää
-  `scrollend`in myös kesken eleen aina kun vieritys hetkeksi pysähtyy
-  sormen alla, ja siitä päätellen keskitys osuisi sormen alle. Toisaalta
-  pelkkä `scrollend` ei riitä päätteeksi: jos se ehti tulla sormen
-  ollessa vielä kiinni, kisko jäi keskittämättä (mitattu 10,9 px
-  sivussa). Molemmat reitit (`scrollend`/ajastin ja sormen nosto)
-  johtavat samaan `_kiskoLoppu`un.
-- **KORTIN KORKEUS ON SUMMA, EI YKSI LUKU.** `#tl-wrap` on
-  `97px + var(--tl-paivat-h) + var(--sab-tl)`, ja tuntinauha saa siitä
-  sen mikä jää täytteiden jälkeen (61 px). Kisko 40 -> 30 ja nauha
-  52 -> 61 pitivät hereillä olevan kortin ennallaan (128 -> 127);
-  levossa se kasvoi 88 -> 97. **Palkin kasvattaminen vaatii joko sen
-  97:n tai tilan josta se on pois.** 44 -> 52 on jälkimmäistä: tila
-  tuli puuskahunnun poistosta eikä kortti muuttunut pikseliäkään
-  (mitattu 97 px levossa ennen ja jälkeen). **52 on katto, ja rajan
-  asettaa tuntilukema.** Yläreunaan jää 7 px, ja `.htick-lbl` on 10 px
-  korkea puhelimessa ja 12 px työpöydällä: kyllästynyt palkki (yli
-  ~12,9 m/s) menee siis lukeman laatikon alareunaan — mitattuna 5 px
-  korkeammalle kuin mikään maalasi ennen (korkein pikseli oli huntu,
-  12 px nauhan yläreunasta). Se on hyväksytty, koska lukema piirtyy
-  palkin PÄÄLLE ja numerot istuvat laatikkonsa keskellä; sitä korkeampi
-  palkki söisi numeron.
-- **YÖ ON 2 px KAISTA TIKIN ALALAIDASSA, EI KOKO KORKEUDEN HARSO.**
-  Harso (`rgba(76,89,96,.20)` + kaksi astetta) oli mitattu ja
-  kalibroitu, mutta se oli rivin suurin muoto ja häiritsi lukemista.
-  Kaista mahtuu `.htick`in olemassa olevaan 2 px alatäytteeseen, joten
-  se ei vie palkilta korkeutta eikä muuta kortin mittoja. Mitattuna se
-  on samalla kertaa PIENEMPI ja SELVEMPI: yö 4,71:1 paperiin, kun
-  vanha koko korkeuden harso oli 1,31:1. Päiväerotin saa saman
-  kaistan, muuten keskiyöhön jää 34 px aukko. Älä palauta harsoa
-  äläkä piirrä auringon korkeutta käyränä — se olisi toinen jatkuva
-  muoto palkkien rinnalle.
-- **VALOKAISTAN VÄRIT OVAT YHDESSÄ REKISTERISSÄ (`VALO_VARIT`).**
-  Spottikortin kaavio ja aikajana kertovat saman asian ja kertoivat sen
-  ennen eri sävyillä. Kaavio lukee literaalit (SVG:n
-  esitysattribuutit eivät tunne `var()`:ia), aikajana CSS-muuttujat
-  jotka `_valoVaritCssiin()` kirjoittaa — kaksi muotoa, yhdet luvut.
-- **Aikajanan valokaista ja puuskavyöhyke päivitetään MYÖS nopeassa
-  polussa**, ja päiväerottimet ovat oma taulukkonsa (`_tlErottimet`).
-  Ne eivät ole `_tlTicks`issä, ja ilman erillistä päivitystä ne jäivät
-  edellisen sijainnin sävyyn (mitattu 0/18 oikein). `_tlMuisti`-vertailu
-  sisältää lat/lng, koska laattapisteet jakavat aikataulukon.
-- **Nuolinäppäimet kuuluvat Leafletille.** Sen `Keyboard` panoroi karttaa
-  nuolilla eikä tarkista shiftiä (vain alt/ctrl/meta), joten Shift+nuoli
-  panoroi myös. Aikajanan askellus on `,` ja `.`, ja shiftattu merkki on
-  eri `e.key` (suomalaisella `:` ja `;`) — lue `e.code`.
-- **Play ja kelihyppy KELLUVAT URAN PÄÄLLÄ, ja erottuvat kohotuksella.**
-  Ne peittävät mobiilissa 6 näkyvää tuntia 17:stä (35 %; työpöydällä
-  8 %) — se on kelluvan kontrollin tietoinen hinta, ei huomaamatta jäänyt
-  vika, ja siirto kiskoriville on kokeiltu ja peruttu (transportti kuuluu
-  sen raidan päälle jota se ajaa). Näkyvyyttä EI korjata tummentamalla
-  nappia: se tekisi kontrollista kortin äänekkäimmän elementin datan
-  päällä. Kiekko on uraa VAALEAMPI (`--surface-hi`) + kehä + varjo:
-  1,56:1 alustaan, kuvake 16,4:1 kiekkoon. Käytöstä poissa oleva nappi
-  menettää kohotuksen — ei `opacity`, joka haalistaa myös varjon.
-- **Nappien peitto mitataan MOLEMMISSA suunnissa.** Pelkkä vaakavertailu
-  väitti siirron jälkeen yhä 29 %:n peittoa vaikka napit olivat eri
-  rivillä. Napautus on lisäksi mitattava oikeasti — ja niin että mittari
-  palauttaa lähtötilan joka näytteen väliin: kelihyppy kuluttaa akselia,
-  ja lopussa se ei liiku vaikka napautus osuu.
-- **Päivälapun tuulikaista: LEVEYS on muoto, VÄRI on arvo.** Pelkkä väri
-  ei kelpaa, koska rampin hiljainen pää on paperilla tummin (0 m/s on
-  `6,14,58`) eli tyyni päivä näyttäisi raskaimmalta. Kaista on pillerin
-  ULKOPUOLELLA: sisällä se osuisi valitun päivän mustaan, jossa ramppi on
-  1,3:1. Luku on VALOISAN ajan huippu (varatie: koko väli, kun valoisia
-  tunteja on nolla) — yöllä puhaltava huippu ei ole keli.
-- **Kaistat päivitetään MYÖS nopeassa polussa.** Kisko rakennetaan vain
-  hitaassa (se riippuu aikaleimoista), mutta kaista riippuu nopeuksista
-  ja nopea polku on juuri se joka ajetaan kun aika pysyy ja paikka
-  vaihtuu. Sama ansa kuin päiväerottimien valovaiheessa.
-- **PÄIVÄYS SANOTAAN KERRAN.** Kupla ja kisko ovat päällekkäin, ja kun
-  kisko näkyy, valittu päivä lukee tummassa pillerissä täsmälleen
-  osoittimen kohdalla. Kuplassa on silloin VAIN kellonaika; päiväys
-  palaa siihen vasta kun kisko painuu lepoon. Teksti kirjoitetaan
-  `_tlKuplaTeksti`ssä ja ajetaan MYÖS kiskon heräämisestä ja
-  nukahtamisesta — pelkkä valinnan siirto jättäisi tekstin edellisen
-  tilan mukaiseksi seuraavaan tuntiin asti.
-- **KISKO SEURAA OSOITINTA JATKUVASTI** (`_tlKiskoKeskita`), ei päivä
-  kerrallaan: se on sama akseli karkeampana. Osuus lapun sisällä tulee
-  TIKKIVÄLILTÄ (`_i0.._i1`) eikä kellonajasta — akselin reunapäivät ovat
-  vajaita, ja kellonajasta laskettuna vajaan päivän ensimmäinen tunti
-  olisi heti 58 %:n kohdalla. Kutsu on `_tlUpdateNow`in JÄLKEEN:
-  `_tlKorostaPaiva` keskittää `currentHourIdx`:n mukaan, ja raahatessa
-  se luku on vielä edellisessä tikissä. `scrollLeft` kirjoitetaan
-  suoraan, EI `scrollTo`lla — pehmeä vieritys hakisi sormea vastaan.
-- **PÄIVÄYS ON TÄSMÄLLEEN KESKELLÄ EIKÄ LIU'U.** Lapun OMA keskikohta
-  asetetaan osoittimen alle, joten päivän sisällä kisko ei liiku
-  pikseliäkään (mitattu poikkeama −1,0…+0,1 px kahdeksalla siirrolla,
-  tuntiaskel 0 px). Tämä on KÄÄNNÖS aiempaan: kisko liukui ennen
-  jatkuvasti ja lappu oli keskellä vain päivän puolivälissä (max
-  24,1 px sivussa). Vanha perustelu oli oikea mutta ratkaisu väärä —
-  ruudulla liike oli se mitä silmä seurasi. Keskiyön yli kisko siirtyy
-  yhden lapun verran, ja se hyppy on SISÄLTÖÄ: se on ainoa hetki
-  jolloin päiväys vaihtuu. Älä animoi askelta — pehmeä siirtymä
-  laahaisi sormesta jäljessä ja kaksi vierityskonetta hakisi toisiaan.
-- **Kiskossa on reunavälikkeet**, kuten tuntinauhassa: ilman niitä
-  selain rajaa `scrollLeft`in nollaan eikä akselin ensimmäistä ja
-  viimeistä päivää saa osoittimen alle.
-- **Sormi kiskolla voittaa** (`_tlKiskoKosketusOma`). Lippu nollataan
-  IKKUNASTA, koska kisko rakennetaan uudelleen kesken eleen ja
-  alkuperäinen kohde irtoaa DOM:sta.
-- **Päiväkisko on levossa PIILOSSA, ja se palaa MISTÄ TAHANSA
-  kosketuksesta aikajanaan** — ei vain raahauksesta. Kisko on olemassa
-  raahauksen välttämiseksi (12 ruudullista viikon päähän), joten se ei
-  saa vaatia raahausta. Päiväys on siksi kuplassa: piilossa ei saa olla
-  tietoa jota ei näy muualla. Lepoaika alkaa SORMEN NOUSUSTA, ei
-  kosketuksesta — pelkkä ajastin nukuttaisi kiskon kesken pitkää
-  raahausta (mitattu 6,5 s eleellä). Toiston aikana ei herätetä.
-- **Kiskon korkeus on yksi muuttuja (`--tl-paivat-h`)**, joka kasvattaa
-  kääreen korkeutta ja sen ylätäytettä yhtä paljon. Siksi piilotus ei
-  siirrä tuntiriviä eikä nappeja pikseliäkään (mitattu 0 px, kortti
-  128 → 88). Jos erotat luvut, ne ajautuvat erilleen ensimmäisessä
-  säädössä.
-- **Aikajanan valinta kulkee `_tlValitseIdx`:n kautta** (päiväkiskon
-  napautus, näppäimistö, kelihyppy). Älä kirjoita neljättä polkua.
-- **LIIKKUVA VALINTA KULKEE `_tlSeuraaHetkea`:N KAUTTA.** Sormi
-  tuntinauhalla, sormi päiväkiskolla ja play liikuttavat valintaa ILMAN
-  vahvistushetkeä, ja kaikki tuntiin sidottu (aikakupla, päiväkorostus,
-  sadekerros, spottimerkit, spottikortti, `currentHourIdx`) on
-  päivitettävä matkan varrella. Tämä oli ennen kirjoitettu vain
-  `_playSijainti`in, ja siksi raahatessa liikkuivat vain kartta,
-  partikkelit ja kupla — mitattuna kapseli ja `currentHourIdx` eivät
-  muuttuneet pikseliäkään ennen kuin sormi nousi. Myös `_tlValitseIdx`
-  ja `_tlCommitSelection` kutsuvat sitä, joten `changed` on raahauksen
-  jälkeen epätosi: silloin jäljellä on VAIN karkean esikatselun
-  korvaaminen täydellä kentällä. Vartija lukee sekä `currentHourIdx`:n
-  että `_tlLastTick`in — `updateTimelineToCenter` siirtää edellistä
-  koskematta jälkimmäiseen.
+  Nauhalla se olisi sitä paitsi näkymätöntä: sarake on jo 1,08 tuntia.
+- **Aikajanan valinta kulkee `_tlValitseIdx`:n kautta** (näppäimistö,
+  kelihyppy, spottikortin aikavalitsin, kelivikkunan napautus). Älä
+  kirjoita viidettä polkua.
+- **LIIKKUVA VALINTA KULKEE `_tlSeuraaHetkea`:N KAUTTA, JA NAUHAN
+  OSOITIN PIIRTYY SIELTÄ.** Sormi nauhalla, sormi luupissa, play,
+  näppäimistö ja kelihyppy liikuttavat valintaa, ja kaikki tuntiin
+  sidottu (lukemarivi, aria, sadekerros, spottimerkit, spottikortti,
+  `currentHourIdx`, nauhan osoitin) on päivitettävä matkan varrella.
+  Tämä oli ennen kirjoitettu vain `_playSijainti`in, ja siksi raahatessa
+  liikkuivat vain kartta ja partikkelit. Vartija lukee sekä
+  `currentHourIdx`:n että `_tlLastTick`in — `updateTimelineToCenter`
+  siirtää edellistä koskematta jälkimmäiseen.
 - **KAPSELI SEURAA SORMEA `_previewField`istä, EI TIKIN VAIHDOSTA.**
   `buildWindField` ohittaa `Crosshair`in ja `WeatherWidget`in
   `scrub`-lipulla, joten päivitys on siinä kohdassa jossa karkea kenttä
-  juuri valmistui — kapseli lukee sitä kenttää. Tikin kohdalla luku
-  olisi vielä edellisestä kentästä. Play käyttää samaa `_previewField`iä
-  (`State._esikatsele`), joten sillä ei ole enää omaa kutsuparia.
-- **PÄIVÄKISKO ON RAAHATTAVA VALITSIN, EI NAPPIRIVI.** Kiskon vieritys
-  valitsee osoittimen alla olevan päivän jatkuvasti, myös sormen ollessa
-  kiinni — sama sopimus kuin tuntinauhalla, jonka kanssa se on
-  päällekkäin. Kolme asiaa pitävät sen erossa itsestään: kiskon oma
-  `scrollLeft`-kirjoitus tunnistetaan sijainnista
-  (`_tlKiskoKirjoitettu`) eikä `_tlRakennaPaivat`in tyhjennys siis
-  valitse akselin ensimmäistä päivää; `_tlKiskoKeskita` vaikenee koko
-  eleen ajan (`_tlKiskoVierii` kattaa myös heiton, ei vain sormen); ja
-  raahauksen perään tuleva click ohitetaan MATKAN perusteella
-  (`_tlKiskoAlkuScroll`, 6 px), muuten kisko hyppäisi vielä kerran
-  sormen alla olleeseen lappuun. Kenttä päivitetään eleen aikana
-  KARKEANA ja täysi tarkkuus tulee `_tlCommitSelection`ista, joka lukee
-  tuntinauhan sijainnin.
-- **"TÄNÄÄN" VIE NYKYHETKEEN, MUUT PÄIVÄT SÄILYTTÄVÄT KELLONAJAN.**
-  `_tlPaivanIdx` palauttaa tämän päivän kohdalla `nowIdx`in. Sama
-  kellonaika olisi vienyt paluussa esimerkiksi kello 03:een, eli
-  päivään tänään mutta hetkeen joka on jo mennyt — ja lappu lukee
-  "Tänään" juuri siksi että se on paluu nykyhetkeen. Muilla päivillä
-  kellonaika on vertailun koko pointti ("onko lauantaina yhtä kova kuin
-  tänään viideltä").
-- **Päiväkiskon napautus ei saa käyttää `scrollTimelineTo`a.** Kupla ja
-  päiväkorostus päivittyvät VIERITYKSEN mukaan, joten pehmeä animaatio
-  kävelee jokaisen välipäivän läpi (mitattu 15 välitilaa ja 1001 ms
-  ennen kuin oikea päivä jäi voimaan). Pitkä hyppy asetetaan suoraan
-  `_tlSetScrollLeft`illä.
+  juuri valmistui — kapseli lukee sitä kenttää. Aiemmin tai myöhemmin
+  luku olisi väärästä hetkestä. Play käyttää samaa `_previewField`iä
+  (`State._esikatsele`), joten sillä ei ole omaa kutsuparia.
 - **VARASTON AKSELIN LOPPU TULEE KAUIMMAS YLTÄVÄSTÄ AJOSTA, EI
   TUOREIMMASTA.** ECMWF:n 00Z ja 12Z ulottuvat 15 vuorokauteen mutta
   06Z ja 18Z vain kuuteen, joten `ajot[0]` lyhensi aikajanan 15
