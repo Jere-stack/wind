@@ -749,7 +749,11 @@ html.tyopoyta #kapseli.vaistyy {
    MAP CONTROLS — bottom bar row
    ============================================================ */
 #bottom-bar {
-  display: flex; align-items: flex-end; gap: 0; margin-bottom: 6px;
+  /* 6 -> 10 px. Rako kortin yläreunaan oli mitattuna 6 px, eli napin
+     varjo ja kortin paperi koskettivat toisiaan. Pino on kortin
+     yläpuolella normaalivirrassa, joten tämä on ainoa luku joka sen
+     etäisyyttä säätää — kortin korkeus hoitaa loput itsestään. */
+  display: flex; align-items: flex-end; gap: 0; margin-bottom: 10px;
   padding: 0 calc(var(--sar) + 8px) 0 calc(var(--sal) + 8px);
   pointer-events: none;
 }
@@ -1064,15 +1068,29 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
 
 #tl-wrap {
   position: relative; pointer-events: all;
-  height: calc(97px + var(--tl-paivat-h) + var(--sab-tl));
+  height: calc(114px + var(--tl-paivat-h) + var(--sab-tl));
   overflow: visible;
   /* KAKSI RAITAA, YKSI VÄLI. Täyte oli 14 + kisko ylhäällä ja 22
      alhaalla, jolloin tuntiuran ja päiväkiskon väliin jäi 3 px ja uran
      alle 14 px tyhjää korttia. Kun kiskokin sai oman uransa, se 3 px:n
      rako luki saumana kahden pinnan välissä. Nyt väli on jaettu
      uudelleen: 20 ylhäällä ja 16 alhaalla eli raitojen väliin 9 px ja
-     kortin alareunaan 8 px. Summa on sama 36 px, joten uran korkeus
-     (52 px) ja koko kortin korkeus eivät muutu. */
+     kortin alareunaan 8 px. Summa on sama 36 px.
+
+     KORTTI KASVOI 97 -> 114 px, KOSKA LUKEMARIVI TULI PALKKIEN ALLE.
+     Nauha saa täytteiden jälkeen 114 - 36 = 78 px (oli 61), ja se
+     jakautuu kolmeen: 10 px yläreunan NYT-lappu, 56 px palkkivyöhyke ja
+     12 px alalaidan lukemarivi. Palkin täysi mitta on 58 (ks.
+     TL_PALKKI_H), eli kyllästynyt palkki nousee 2 px NYT-lapun
+     laatikkoon — VÄHEMMÄN kuin ennen, jolloin sama törmäys tuntilukeman
+     kanssa oli 3 px ja hyväksyttiin. 108 px kokeiltiin ensin ja se
+     olisi tehnyt siitä 8 px, eli korjaus olisi pahentanut juuri sitä
+     mitä se korjasi.
+
+     Nappipino on normaalivirrassa kortin YLÄPUOLELLA
+     (`#bottom` > `#bottom-bar` + `#tl-wrap`), joten kortin kasvu nostaa
+     napit saman verran ilman omaa sääntöä — mitattu rako kortin
+     yläreunaan oli 6 px ennen ja on 10 px nyt, peitto 0 % molemmilla. */
   padding: calc(20px + var(--tl-paivat-h)) 0 calc(var(--sab-tl) + 16px);
   background: none;
   /* Kortin yläreuna liukuu kun kisko piiloutuu. Korkeus ja ylätäyte
@@ -1171,7 +1189,15 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
 .tl-play-btn {
   position: absolute;
   left: calc(var(--sal) + 9px);
-  bottom: calc(var(--sab-tl) + 20px);
+  /* 20 -> 34 px: NAPPI KELLUU PALKKIVYÖHYKKEELLÄ, EI LUKEMARIVILLÄ.
+     Kiekko on 44 px ja sen alareuna oli 20 px kortin pohjasta, eli
+     se peitti alalaidan 12 px:n lukemarivistä 8 px — juuri sen rivin
+     jonka takia kortti kasvoi. 34 px vie kiekon palkkien tasalle:
+     mitattuna peitto lukemarivistä 8 px -> 0 px. Palkkien peittoa
+     tämä ei poista eikä ole tarkoituskaan — se on kelluvan
+     kontrollin tietoinen hinta, ja siirto omalle riville on jo
+     kertaalleen kokeiltu ja peruttu. */
+  bottom: calc(var(--sab-tl) + 34px);
   width: 44px; height: 44px;
   border-radius: 50%;
   background: none;
@@ -1225,7 +1251,15 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
 .tl-keli-btn {
   position: absolute;
   right: calc(var(--sar) + 9px);
-  bottom: calc(var(--sab-tl) + 20px);
+  /* 20 -> 34 px: NAPPI KELLUU PALKKIVYÖHYKKEELLÄ, EI LUKEMARIVILLÄ.
+     Kiekko on 44 px ja sen alareuna oli 20 px kortin pohjasta, eli
+     se peitti alalaidan 12 px:n lukemarivistä 8 px — juuri sen rivin
+     jonka takia kortti kasvoi. 34 px vie kiekon palkkien tasalle:
+     mitattuna peitto lukemarivistä 8 px -> 0 px. Palkkien peittoa
+     tämä ei poista eikä ole tarkoituskaan — se on kelluvan
+     kontrollin tietoinen hinta, ja siirto omalle riville on jo
+     kertaalleen kokeiltu ja peruttu. */
+  bottom: calc(var(--sab-tl) + 34px);
   width: 44px; height: 44px;
   border-radius: 50%;
   background: none;
@@ -1427,15 +1461,26 @@ html.tl-kisko-piilossa #tl-paivat {
 }
 #tl-scroll::-webkit-scrollbar { display: none; }
 
-/* LUKEMA YLOS, PALKKI ALAS.
+/* LUKEMA PALKIN ALLE — JA SE ON PALUU, EI UUSI IDEA.
  *
- * Tuntilukema oli palkkien ALLA ja vei 15 px viidestakymmenestäkahdesta
- * eli 29 % koko nauhan korkeudesta. Ylhäällä se ei vie palkilta mitään:
- * palkki ei koskaan yllä nauhan yläreunaan asti, koska sen täysi mitta
- * on 14 m/s eikä rampin 20.
+ * Lukema oli alun perin palkkien alla, siirrettiin ylös tilan takia
+ * ("se ei vie palkilta mitään") ja on nyt taas alla. Peruste on
+ * vaihtunut: ylhäällä lukema oli vain joka kolmannessa tikissä, koska
+ * sen laatikko on 10 px eikä 12 px:n tikkiin mahdu enempää ilman että
+ * palkki jää sen alle. Nyt lukema on JOKA tunnilla, ja joka tunnin
+ * lukema ylhäällä olisi ollut 391 laatikkoa palkkien päällä.
  *
- * Mitattuna palkin maksimi 22 px -> 35 px -> 44 px -> 52 px; viimeinen
- * askel on puuskahunnun poistama tila, ks. TL_PALKKI_H.
+ * Alla se on asteikko eikä merkintä: rivi lukee vasemmalta oikealle
+ * kuten aikajana itse, ja palkit seisovat sen päällä. Se maksaa 12 px,
+ * ja se maksetaan kortin korkeudesta (97 -> 108) eikä palkista —
+ * palkki päinvastoin kasvoi 52 -> 58.
+ *
+ * KAIKKI TEKSTI ON NYT ALARIVILLÄ. Myös NYT-lappu, joka oli ennen
+ * ylhäällä: kun se on ainoa ylhäällä oleva merkintä, kyllästynyt palkki
+ * piirtyy sen päälle ja "NYT" katoaa värillisen palkin sisään. Alarivi
+ * on tekstin rivi, palkkien vyöhyke on palkkien.
+ *
+ * Mitattuna palkin maksimi 22 px -> 35 px -> 44 px -> 52 px -> 58 px.
  *
  * TIKKI ON 22 -> 16 -> 12 px JA PALKKI 12 -> 10 -> 8 px, jotta sama
  * jakso vaatisi vähemmän raahausta. Mitattuna viikon päähän:
@@ -1451,9 +1496,15 @@ html.tl-kisko-piilossa #tl-paivat {
   flex: 0 0 12px; display: flex; flex-direction: column; align-items: center;
   justify-content: flex-end; height: 100%;
   -webkit-user-select: none; user-select: none; cursor: pointer;
-  position: relative; padding-bottom: 2px;
-  /* Vain tikit ovat snäppäyskohtia — päiväerottimet ja NYT-merkki
-     ohitetaan, koska niillä ei ole scroll-snap-alignia. */
+  /* 12 px = lukemarivi. Se oli 2 px (valokaista, poistettu), ja palkki
+     seisoo nyt lukeman päällä eikä kaistan. */
+  position: relative; padding-bottom: 12px;
+  /* Vain tikit ovat snäppäyskohtia — NYT-merkki ohitetaan, koska sillä
+     ei ole scroll-snap-alignia. Päiväerottimia ei enää ole: ne olivat
+     26 px:n laatikko ILMAN snäppäyskohtaa, eli keskiyön yli askel oli
+     43 px kun se muualla on 12. Mitattuna 16 px:n vieritys ei ylittänyt
+     keskiyötä LAINKAAN — snäppäys veti sen takaisin klo 23:een, neljä-
+     toista askelta peräkkäin. Ks. `.htick.pv-alku`. */
   scroll-snap-align: center;
 }
 /* PALKKI ON KARTAN SÄVYINEN, PAPERIN KIRKKAUDELLA.
@@ -1494,65 +1545,72 @@ html.tl-kisko-piilossa #tl-paivat {
  * spottikortin kaavion vyöhyke. Älä palauta sitä tuntinauhaan — palkki
  * kantaa nyt sen tilan. */
 
-/* VALOKAISTA — mitkä tunnit ovat pimeitä.
+/* VALOKAISTA ON POISTETTU TUNTINAUHASTA.
  *
- * 12 m/s klo 03 lokakuussa ei ole keli, eikä janassa ollut mitään joka
- * kertoisi sen. Sävyt ovat samat kuin havaintokaavion yöharsossa, eli
- * käyttäjä on nähnyt saman kielen jo spottikortissa. Harso on tarkoituk-
- * sella kevyt: sen tehtävä on kertoa "tämä osa on pimeää", ei kilpailla
- * palkkien kanssa.
+ * Yö oli janassa kolmessa muodossa: ensin koko korkeuden harso, sitten
+ * 2 px:n kaista tikin alalaidassa, ja kaista oli mitattuna sekä
+ * pienempi että selvempi (yö 4,71:1 paperiin, harso 1,31:1). Se ei
+ * silti jäänyt: palaute oli että se häiritsee lukemista. Sama syy kuin
+ * harsolla, eri koko.
  *
- * Tausta on TIKISSÄ itsessään eikä erillisessä kerroksessa, jolloin
- * vierekkäiset yötunnit muodostavat yhtenäisen palkin ilman saumoja ja
- * kaista vierii janan mukana ilmaiseksi. Päiväerotin saa saman sävyn,
- * koska se on aina keskiyöllä eli keskellä yötä — ilman sitä kaistaan
- * jäisi 34 px:n aukko juuri pimeimpään kohtaan. */
-/* YÖ ON KAISTA, EI KOKO KORKEUDEN HARSO.
+ * Tieto ei katoa sovelluksesta. Spottikortin kaavio kantaa valovaiheet
+ * yhä (`VALO_VARIT`, yöharso täytön päällä), ja kelihyppy osaa hypätä
+ * vain sellaiseen tuntiin jossa aurinko on ylhäällä — eli aikajanan
+ * oma oikotie tuntee yön vaikka jana ei sitä piirrä.
  *
- * Yö oli tuntirivin taustana koko korkeudelta (`rgba(76,89,96,.20)`
- * ja kaksi vaaleampaa astetta). Se oli mitattu ja perusteltu — mutta
- * se oli myös rivin suurin yksittäinen muoto, ja palaute oli selvä:
- * tumma alue häiritsi lukemista. Palkit kantavat arvon, ja niiden
- * takana oleva iso harmaa laatta kilpaili niiden kanssa.
+ * Poistettu: `.htick::after`/`.day-sep::after` -kaistat, niiden neljä
+ * `valo-*`-luokkaa, `_tlValoLuokka`, `TL_VALO_LUOKKA`,
+ * `_tlValovaiheet`, `State._tlErottimet` ja `_valoVaritCssiin`
+ * (CSS-muuttujia ei lukenut enää mikään). Kaavio lukee literaalit
+ * suoraan, koska SVG:n esitysattribuutit eivät tunne `var()`:ia. */
+
+/* LUKEMARIVI — JOKA TUNNILLA AIKA, JOKA KOLMAS TUMMEMPI.
  *
- * Spottikortin kaaviossa sama kysymys on jo ratkaistu kerran:
- * "KAISTA EIKA HARSO. Ensimmainen versio varjosti koko kuvaajan yon
- * kohdalta. Se ei toiminut." Aikajana saa nyt saman ratkaisun ja
- * SAMAT VÄRIT (`VALO_VARIT` -> CSS-muuttujat), jolloin käyttäjä näkee
- * saman kielen molemmilla korteilla.
+ * Ennen lukema oli vain joka kolmannessa tikissä, ja perustelu oli
+ * "kaikki 120 lukemaa vierekkäin olisi harmaa juova, ei asteikko".
+ * Juova syntyi kuitenkin siitä että lukemat olivat PALKKIEN PÄÄLLÄ
+ * ylhäällä, missä niillä ei ole omaa riviä eikä rytmiä. Omalla
+ * rivillään ne ovat asteikko, ja kahdella painolla siinä on rytmi:
+ * harmaa 8 px joka tunnille, tumma 600 joka kolmannelle (00, 03, …,
+ * 09, 12, 15, …). Silmä lukee tummat ankkureina ja harmaat väleinä.
  *
- * Kaista on 2 px tikin ALALAIDASSA, siinä 2 px:n täytteessä joka
- * `.htick`illä on jo (`padding-bottom`). Se ei siis vie palkilta
- * yhtään korkeutta eikä muuta kortin mittoja. Palkit seisovat sen
- * päällä kuin maassa, ja vierekkäiset tunnit muodostavat yhtenäisen
- * juovan ilman saumoja.
- *
- * Täysi päivä saa pohjauran (`--valo-ura`) eikä tyhjää: tyhjä kaista
- * lukisi "ei dataa", ja täyden auringon pitää näkyä joksikin. Sama
- * peruste kuin kaaviossa.
- *
- * Matala aurinko (`--valo-kulta`) on nyt mukana, vaikka vanha
- * kolmiportainen harso ei sitä tuntenut: se on lämmin sävy eikä
- * tummuusaste, ja se merkitsee juuri sen tunnin jota illan sessiossa
- * jahdataan. */
-.htick::after, .day-sep::after {
-  content: ''; position: absolute; left: 0; right: 0; bottom: 0;
-  height: 2px; background: var(--valo-ura); pointer-events: none;
-}
-.htick.valo-yo::after,      .day-sep.valo-yo::after      { background: var(--valo-yo); }
-.htick.valo-hamara::after,  .day-sep.valo-hamara::after  { background: var(--valo-hamara); }
-.htick.valo-siviili::after, .day-sep.valo-siviili::after { background: var(--valo-siviili); }
-.htick.valo-kulta::after,   .day-sep.valo-kulta::after   { background: var(--valo-kulta); }
-/* Mennyt tunti on muutenkin himmeä; kaista seuraa mukana. */
-.htick.past::after { opacity: 0.5; }
+ * KOKO ON 8 px EIKÄ 9, JA SE ON MITTAUS. Tikki on 12 px, ja "23"
+ * mitattuna: 7 px -> 7,8 px, 8 px -> 8,9, 9 px -> 10,0, 10 px -> 11,1.
+ * Yhdeksällä pikselillä peräkkäisten lukemien väliin jää 2,0 px eli
+ * numerot lukisivat yhtenä nauhana; kahdeksalla väli on 3,1 px.
+ * Kymmenen ei mahdu lainkaan järkevästi. Sama koko on jo käytössä
+ * NYT-lapussa (`--fs-8`), eli tämä ei tuo uutta askelta typografiaan. */
 .htick-lbl {
-  position: absolute; top: 0; font-variant-numeric: tabular-nums;
-  font-size: var(--fs-9); color: rgba(16,26,32,.38); white-space: nowrap;
-  pointer-events: none; opacity: 0;
+  position: absolute; bottom: 0; font-variant-numeric: tabular-nums;
+  font-size: var(--fs-8); color: var(--ink-3); white-space: nowrap;
+  pointer-events: none; line-height: 10px;
 }
-/* Vain joka kolmas tunti saa lukeman. Kaikki 120 lukemaa vierekkäin olisi
-   harmaa juova, ei asteikko. */
-.htick.show-lbl .htick-lbl { color: var(--ink-2); font-weight: 600; opacity: 1; }
+.htick.show-lbl .htick-lbl { color: var(--ink); font-weight: 600; }
+/* Mennyt tunti on himmeä palkkia myöten; lukema seuraa mukana. */
+.htick.past .htick-lbl { opacity: 0.45; }
+
+/* PÄIVÄRAJA ON HIUSVIIVA, EI LAATIKKO.
+ *
+ * Erotin oli oma 26 px:n elementti keskellä nauhaa, ja se maksoi kaksi
+ * asiaa. Ensin RYTMIN: tikkiväli oli mitattuna 12 px kaikkialla mutta
+ * 43 px keskiyön yli, eli yksi askel kolmesta ja puolesta. Sitten
+ * ELEEN: erottimella ei ollut `scroll-snap-align`ia, joten
+ * `scroll-snap-type: x mandatory` veti jokaisen keskiyötä lähestyvän
+ * vierityksen takaisin klo 23:een — mitattuna neljätoista 16 px:n
+ * askelta peräkkäin eikä jana liikkunut tuntiakaan. Juuri se on se
+ * "päivän yli vierittäminen hämää" -oire.
+ *
+ * Nyt raja on 1 px hiusviiva päivän ENSIMMÄISEN tikin vasemmassa
+ * laidassa, ja se ulottuu vain lukemariviin — ei palkkien läpi.
+ * Palkkien läpi vedetty viiva olisi seitsemäntoista pystysuoraa muotoa
+ * datan päällä, eli rivin äänekkäin hahmo olisi hila eikä tuuli.
+ * Päiväys itse on kiskon pillerissä ja aikakuplassa, eli se sanotaan
+ * yhä kerran — nyt vain ei kolmatta kertaa nauhassa. */
+.htick.pv-alku::before {
+  content: ''; position: absolute; left: 0; bottom: 0;
+  width: 1px; height: 16px; background: var(--hairline);
+  pointer-events: none;
+}
 
 #tl-indicator {
   position: absolute;
@@ -1596,27 +1654,25 @@ html.tl-kisko-piilossa #tl-paivat {
   flex: 0 0 2px; height: 100%; background: rgba(120,105,70,.45);
   position: relative; z-index: 1;
 }
-/* NYT ei ole tunti vaan eri lajin merkki, joten se menee omalle rivilleen
-   palkkien yläpuolelle. Tuntirivillä se törmäsi lukemaan ("NYT15"). */
+/* NYT-LAPPU ON YLÄREUNASSA, JA NYT SE ON SIELLÄ YKSIN.
+ *
+ * Lappu kokeiltiin lukemariville, koska kaikki muu teksti muutti
+ * sinne. Se ei käynyt: lappu on 17,5 px leveä 2 px:n merkin päällä ja
+ * peittää molemmat naapurilukemat, joten alarivillä siitä seurasi
+ * KOLMEN TUNNIN REIKÄ ruudulla luettavaan asteikkoon
+ * (… 16 17 NYT 21 22 …). Juuri se asteikko on tämän erän koko idea,
+ * eikä sen keskelle saa jäädä aukkoa.
+ *
+ * Ylhäällä lappu ei ole keneltäkään pois: tuntilukemat ovat alarivillä
+ * ja päiväerotin on poistettu, joten yläreuna on muuten tyhjä.
+ * Kyllästynyt palkki (yli ~12,9 m/s) voi piirtyä sen yli yhtenä
+ * tuntina — se on sama altistus joka tuntilukemalla oli ennenkin,
+ * eikä NYT-merkkiä tarvitse lukea numerona: sen kertoo pystyviiva. */
 .tl-now-label {
   position: absolute; top: 0; left: 50%; transform: translateX(-50%);
   font-variant-numeric: tabular-nums; font-size: var(--fs-8); font-weight: 700;
-  color: var(--ink-3); white-space: nowrap; letter-spacing: .06em;
-}
-
-/* PÄIVÄEROTIN KAPENI TIKIN MUKANA (34 -> 26 px). Se on tauko rivin
-   rytmissä, ja tikin kavetessa 34 px alkoi lukea aukkona eikä taukona.
-   Teksti ("Ma 15.") on leveämpi kuin laatikko ja vuotaa reunojen yli —
-   se on turvallista, koska erottimen teksti on `flex-start` eli nauhan
-   YLÄREUNASSA, jonne palkit eivät yllä kuin kyllästyneinä. */
-.day-sep {
-  flex: 0 0 26px; display: flex; align-items: flex-start; justify-content: center;
-  height: 100%; padding-top: 0;
-  font-variant-numeric: tabular-nums; font-size: var(--fs-10); font-weight: 600;
-  color: var(--ink-3); letter-spacing: .02em; white-space: nowrap;
-  border-left: 1px solid var(--hairline);
-  /* Valokaista on `::after` — ks. `.htick::after`. */
-  position: relative;
+  color: var(--ink-2); white-space: nowrap; letter-spacing: .06em;
+  line-height: 10px;
 }
 
 /* Foilable-palkilla EI ole omaa koristetta. Aiemmin tassa oli ensin vihrea
@@ -6085,10 +6141,6 @@ const State = {
      partikkelit kuuluvat sinne missä ne näkyvät. */
   alue: { x0: 0, y0: 0, x1: 0, y1: 0 },
   _tlTimes: null, _tlSpeeds: null, _tlDirs: null, _tlTicks: [],
-  /* Valovaiheiden muisti: { times, lat, lng, arvot } — ks. _tlValovaiheet. */
-  _tlValo: null,
-  /* Päiväerottimet { el, i } — nopea polku päivittää näidenkin sävyn. */
-  _tlErottimet: [],
   _spotTaydetAvain: '',   /* mitkä spotit saivat täyden merkin viime piirrossa */
   _lastTlHour: -1,
   /* Aikajanan oma, ohjelmallinen vieritys — katso _tlSetScrollLeft() */
@@ -16095,10 +16147,13 @@ const Aurinko = {
  * illan sessiossa jahdataan. Täysi päivä ei saa väriä lainkaan, jolloin
  * pohjaura jää näkyviin.
  *
- * Aikajana lukee nämä CSS-muuttujina (`_valoVaritCssiin`), koska
- * `var()` ei toimi SVG:n esitysattribuuteissa — kaavio tarvitsee
- * literaalit, aikajana muuttujat, mutta luvut ovat samat ja yhdestä
- * paikasta. */
+ * VAIN KAAVIO KÄYTTÄÄ NÄITÄ. Aikajana luki ne ennen CSS-muuttujina
+ * (`_valoVaritCssiin`), mutta sen valokaista on poistettu — muuttujia
+ * ei lukenut enää yksikään sääntö, joten kirjoittaja poistettiin
+ * samassa. Jos kaista joskus palaa johonkin, kirjoita muuttujat
+ * uudelleen TÄSTÄ objektista äläkä kopioi lukuja: `var()` ei toimi
+ * SVG:n esitysattribuuteissa, joten kaavio tarvitsee literaalit ja
+ * CSS muuttujat — kaksi muotoa, yhdet luvut. */
 const VALO_VARIT = {
   0:   'rgba(31,45,58,.74)',    /* yö */
   0.5: 'rgba(56,72,86,.52)',    /* hämärä */
@@ -16107,14 +16162,6 @@ const VALO_VARIT = {
   3:   '',                      /* täysi päivä: pohjaura näkyviin */
 };
 const VALO_URA = 'rgba(205,190,154,.45)';
-function _valoVaritCssiin() {
-  const r = document.documentElement.style;
-  r.setProperty('--valo-yo', VALO_VARIT[0]);
-  r.setProperty('--valo-hamara', VALO_VARIT[0.5]);
-  r.setProperty('--valo-siviili', VALO_VARIT[1]);
-  r.setProperty('--valo-kulta', VALO_VARIT[2]);
-  r.setProperty('--valo-ura', VALO_URA);
-}
 
 function openSheet(spot, hourIdx) {
   /* Jos wx puuttuu (vapaa piste), hae Harmonie ensin */
@@ -20214,7 +20261,24 @@ const TL_TIKKI_PUOLI = TL_TIKKI_LEV / 2;
  * Kovan tuulen väli 14–20 m/s menetti korkeuseron kokonaan — se on
  * juuri se väli jossa ero ei muuta mitään, koska sinne ei mennä. */
 const TL_PALKKI_TAYSI_MS = 14;
-/* KORKEUS 44 -> 52 px, JA SE ON PUUSKAHUNNUN JÄTTÄMÄ TILA.
+/* KORKEUS 52 -> 58 px, JA SE ON LUKEMARIVIN SIIRRON TUOMA TILA.
+ *
+ * Nauha kasvoi 61 -> 78 px (kortti 97 -> 114). Siitä menee 12 px
+ * alalaidan lukemariviin ja 10 px yläreunan NYT-lappuun, joten palkille
+ * jää 56 — ja täysi mitta 58 nousee siis 2 px lapun laatikkoon.
+ * Aiemmin katto oli 52 siksi, että ylhäällä oli 10 px:n lukemalaatikko
+ * JOKA KOLMANNESSA tikissä ja kyllästynyt palkki söi siitä 3 px. Nyt
+ * ylhäällä on enää yksi laatikko koko akselilla (NYT), ja törmäys on
+ * 2 px eli pienempi kuin ennen.
+ *
+ * Askel metriä sekunnissa kohti nousee samassa suhteessa: 4-8 m/s
+ * 5,80 px (oli 5,20), 8-11 m/s 6,19 (5,55). 4 -> 10 m/s on 36 px ero
+ * (oli 32).
+ *
+ * Alla vanha perustelu edellisestä askeleesta (44 -> 52), koska se
+ * kertoo mistä tila alun perin tuli:
+ *
+ * KORKEUS 44 -> 52 px, JA SE ON PUUSKAHUNNUN JÄTTÄMÄ TILA.
  *
  * Huntu istui palkin yläpuolella ja sen katto oli 11 px, joten palkin
  * täysi mitta ei mahtunut kasvamaan: mitattuna (pyyhkäisy tuuli 0-18 m/s
@@ -20238,7 +20302,7 @@ const TL_PALKKI_TAYSI_MS = 14;
  *
  * Askel metriä sekunnissa kohti: 4-8 m/s 5,20 px (oli 4,40), 8-11 m/s
  * 5,55 (4,70). 4 -> 10 m/s on nyt 32 px ero (oli 27). */
-const TL_PALKKI_H = 52;
+const TL_PALKKI_H = 58;
 
 /* ASTEIKKO ON EPÄLINEAARINEN, JA SE ON TIETOINEN VALINTA.
  *
@@ -20272,73 +20336,43 @@ function _tlPalkkiPx(ms) {
   return Math.max(3, _tlPalkkiOsuus(ms) * TL_PALKKI_H);
 }
 
-/* VALOVAIHE JOKA TUNNILLE.
+/* VALOVAIHEET POISTUIVAT AIKAJANASTA.
  *
- * `Aurinko.korkeus` on suljettu kaava eikä iteroi, joten 403 kutsua on
- * mitättömän halpa. Tulos on silti muistissa, koska nopea polku ajetaan
- * joka kartansiirrolla: taulukon identiteetti ja puolen asteen tarkkuu-
- * teen pyöristetty sijainti riittävät avaimeksi. Puoli astetta on noin
- * 55 km, ja tuntiakselilla se ei siirrä auringonnousua yhtä tikkiä.
- *
- * Palautettu vaihe on `Aurinko.vaihe()`:n oma asteikko (0 yö … 3 täysi
- * päivä), eli sama luokittelu jota havaintokaavio käyttää. */
-/* Täysi päivä (3) ei saa luokkaa: se jää pohjauralle. Sama jako kuin
-   `VALO_VARIT`issa, josta värit tulevat. */
-const TL_VALO_LUOKKA = { 0: 'valo-yo', 0.5: 'valo-hamara', 1: 'valo-siviili', 2: 'valo-kulta' };
-function _tlValovaiheet(times, lat, lng) {
-  if (!times || !times.length || lat == null || lng == null) return null;
-  const la = Math.round(lat * 2) / 2, lo = Math.round(lng * 2) / 2;
-  const m = State._tlValo;
-  if (m && m.times === times && m.lat === la && m.lng === lo) return m.arvot;
-  const ms = _ts({ time: times });
-  const n = times.length, arvot = new Array(n);
-  for (let i = 0; i < n; i++) arvot[i] = Aurinko.vaihe(Aurinko.korkeus(ms[i], la, lo));
-  State._tlValo = { times: times, lat: la, lng: lo, arvot: arvot };
-  return arvot;
-}
+ * Tässä oli `TL_VALO_LUOKKA` + `_tlValovaiheet`, jotka laskivat
+ * auringon korkeuden joka tunnille ja antoivat tikille yön sävyn.
+ * Kaista on poistettu (ks. CSS), joten laskenta olisi ollut työtä josta
+ * ei näy mitään. `Aurinko.korkeus`/`Aurinko.vaihe` jäävät: spottikortin
+ * kaavio ja kelihyppy (`_tlSeuraavaKeli`) lukevat niitä yhä. Myös
+ * muistikenttä `State._tlValo` poistettiin, koska sen kirjoitti vain
+ * `_tlValovaiheet`. */
 
-function _tlPaivitaPalkit(speeds, valo) {
+/* Nopea polku päivittää VAIN palkit. Valovaiheita ei enää ole janassa
+   (ks. "VALOKAISTA ON POISTETTU" CSS:ssä), joten tästä katosi samalla
+   päiväerottimien erillinen päivityssilmukka — erottimet eivät olleet
+   `_tlTicks`issä ja jäivät siksi kerran 18/18 väärään sävyyn. Sitä
+   ansaa ei enää ole, koska erottimia ei ole. */
+function _tlPaivitaPalkit(speeds) {
   const tikit = State._tlTicks;
   for (let i = 0; i < tikit.length; i++) {
     const ms = speeds[i] || 0, bc = ColorRamp.paperi(ms);
-    const tikki = tikit[i];
-    const bar = tikki.querySelector('.htick-bar');
+    const bar = tikit[i].querySelector('.htick-bar');
     if (!bar) continue;
     bar.style.height = _tlPalkkiPx(ms) + 'px';
     bar.style.background = 'rgb(' + bc.r + ',' + bc.g + ',' + bc.b + ')';
     bar.classList.toggle('foilable', ms >= 8);
-    if (valo) _tlValoLuokka(tikki, valo[i]);
   }
-  /* PAIVAEROTTIMET PAIVITETAAN MYOS.
-     Ne eivat ole tikkejä eivätkä siis `_tlTicks`issä, joten ilman tätä
-     nopea polku jätti niiden sävyn vanhaksi: tikit vaihtoivat yön
-     paikkaa uuden sijainnin mukaan ja erottimet jäivät edellisen päälle.
-     Mitattuna juuri niin kävi — 18 erotinta 18:sta väärällä sävyllä. */
-  const erot = State._tlErottimet;
-  if (valo && erot) {
-    for (let j = 0; j < erot.length; j++) _tlValoLuokka(erot[j].el, valo[erot[j].i]);
-  }
-}
-
-function _tlValoLuokka(el, vaihe) {
-  const lk = TL_VALO_LUOKKA[vaihe];
-  el.classList.toggle('valo-yo', lk === 'valo-yo');
-  el.classList.toggle('valo-hamara', lk === 'valo-hamara');
-  el.classList.toggle('valo-siviili', lk === 'valo-siviili');
-  el.classList.toggle('valo-kulta', lk === 'valo-kulta');
 }
 
 /* `lisa` on valinnainen: { lat, lng }.
  *
- * Sijainti tarvitaan valokaistaan; ilman sitä kaista jätetään
- * piirtämättä eikä arvata. Puuskasarja kulki tässä aiemmin mukana
- * palkin yläpuolista huntua varten — huntu poistettiin, ks.
- * "PUUSKAHUNTU POISTETTIIN" CSS:ssä. */
+ * Sijaintia tarvittiin ennen valokaistaan; kaista on poistettu, mutta
+ * `lisa` jää kutsurajapintaan koska `_tlMuisti`-vertailu tunnistaa
+ * paikan vaihtumisen siitä (laattapisteet jakavat aikataulukon).
+ * Puuskasarja kulki tässä aiemmin mukana palkin yläpuolista huntua
+ * varten — huntu poistettiin, ks. "PUUSKAHUNTU POISTETTIIN". */
 function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
-  const valo = _tlValovaiheet(times, lisa ? lisa.lat : null, lisa ? lisa.lng : null);
   /* Mitä ruudulla nyt on — ks. updateTimelineToCenter. */
   State._tlMuisti = { times: times, speeds: speeds, dirs: dirs, activeIdx: activeIdx,
-    valo: valo,
     lat: lisa ? lisa.lat : null, lng: lisa ? lisa.lng : null };
   const tl = document.getElementById('tl-scroll');
   /* Nopea tie: sama rakenne kuin ruudulla jo on. Ehtoihin kuuluu myös
@@ -20349,7 +20383,7 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
       && vanhat && vanhat.length === times.length
       && vanhat[0] === times[0] && vanhat[times.length - 1] === times[times.length - 1]
       && State._tlNytIdx === nowIdx(times)) {
-    _tlPaivitaPalkit(speeds, valo);
+    _tlPaivitaPalkit(speeds);
     State._tlTimes = times; State._tlSpeeds = speeds; State._tlDirs = dirs;
     _tlBeginSelfScroll();
     requestAnimationFrame(() => {
@@ -20368,12 +20402,11 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
   if (!times || !times.length) { _tlRakennaPaivat(null); return; }
   State._tlTimes = times; State._tlSpeeds = speeds; State._tlDirs = dirs;
   State._tlTicks = [];
-  State._tlErottimet = [];
   /* Kisko rakennetaan vain täällä, hitaassa polussa: se riippuu VAIN
      aikaleimoista, ja nopea polku ajetaan nimenomaan silloin kun ne ovat
      samat. Korostuksen hoitaa `_tlUpdateNow` molemmissa. */
   _tlRakennaPaivat(times);
-  const DAY = ['Su','Ma','Ti','Ke','To','Pe','La']; let lastDay = -1;
+  let lastDay = -1;
 
   const spacerL = document.createElement('div');
   spacerL.style.cssText = 'flex:0 0 ' + (window.innerWidth / 2 - TL_TIKKI_PUOLI) + 'px';
@@ -20385,17 +20418,15 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
 
   for (let i = 0; i < times.length; i++) {
     const d = new Date(times[i]), day = d.getDay(), hour = d.getHours();
+    /* PÄIVÄRAJA EI OLE ENÄÄ OMA ELEMENTTI. Se oli 26 px:n laatikko
+       ilman `scroll-snap-align`ia, eli tikkiväli oli keskiyön yli 43 px
+       kun se muualla on 12 — ja mandatory-snäppäys veti pienen askeleen
+       takaisin klo 23:een. Nyt raja on luokka päivän ensimmäisellä
+       tikillä ja piirtyy 1 px hiusviivana (`.htick.pv-alku`). Väli on
+       sama 12 px koko akselilla, eikä keskiyössä ole mitään mihin
+       vieritys voisi juuttua. */
     const uusiPaiva = day !== lastDay;
-    if (uusiPaiva) {
-      lastDay = day;
-      const sep = document.createElement('div'); sep.className = 'day-sep';
-      /* Erotin saa saman valovaiheen kuin sen jälkeen tuleva tunti —
-         muuten yökaistaan jäisi 34 px:n aukko keskiyön kohdalle. */
-      if (valo) _tlValoLuokka(sep, valo[i]);
-      sep.textContent = DAY[day] + ' ' + d.getDate() + '.';
-      tl.appendChild(sep);
-      State._tlErottimet.push({ el: sep, i: i });
-    }
+    if (uusiPaiva) lastDay = day;
     if (!nowMarkerInserted && i >= realNowIdx) {
       const nowLine = document.createElement('div');
       nowLine.className = 'tl-now-marker';
@@ -20406,21 +20437,20 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
     const ms = speeds[i]||0, bc = ColorRamp.paperi(ms);
     const tick = document.createElement('div');
     const isPast = i < realNowIdx;
-    /* NYT-lappu on 17,5 px leveä 2 px:n merkin päällä, eli se levittäytyy
-       naapuritikkien päälle — ja nyt tuntilukema on samalla rivillä sen
-       kanssa. Sama törmäys kuin aikanaan ("NYT15"), sama ratkaisu:
-       lukema jätetään pois merkin viereisiltä tikeiltä. Niitä on
-       korkeintaan yksi, koska lukema on vain joka kolmannessa. */
-    const nytVieressa = Math.abs(i - realNowIdx) <= 1;
-    /* PÄIVÄEROTTIMEN VIERESTÄ JÄTETÄÄN LUKEMA POIS, samasta syystä kuin
-       NYT-merkin vierestä. Erottimen teksti ("La 19.") on leveämpi kuin
-       sen laatikko ja vuotaa naapuritikin päälle; sen vieressä oleva
-       tunti on aina 00, eli juuri se jonka erotin jo kertoo. Ilman tätä
-       ne piirtyvät päällekkäin — mitattuna tikin kavettua 12 px:iin
-       "La 19." ja "00" menivät toistensa päälle. */
-    tick.className = 'htick' + (hour % 3 === 0 && !nytVieressa && !uusiPaiva ? ' show-lbl' : '')
+    /* LUKEMA ON JOKA TUNNILLA — EIKÄ NYT-MERKKI OLE POIKKEUS.
+       Lukema jätettiin ennen pois merkin viereisiltä tikeiltä, koska
+       lappu oli samalla rivillä. Lappu siirtyi takaisin yläreunaan
+       (ks. `.tl-now-label`), joten alariviin ei jää reikää: mitattuna
+       388/391 -> 391/391.
+
+       LUKEMA ON JOKA TUNNILLA, TUMMEMPI JOKA KOLMANNELLA.
+       `show-lbl` ei enää päätä NÄKYYKÖ lukema vaan minkä painoisena se
+       piirtyy. Päiväerottimen viereinen poikkeus poistui erottimen
+       mukana: klo 00 on nyt tavallinen tunti kuten muutkin, ja se on
+       juuri se lukema joka kertoo että vuorokausi vaihtui. */
+    tick.className = 'htick' + (hour % 3 === 0 ? ' show-lbl' : '')
       + (isPast ? ' past' : '')
-      + (valo && TL_VALO_LUOKKA[valo[i]] ? ' ' + TL_VALO_LUOKKA[valo[i]] : '');
+      + (uusiPaiva && i > 0 ? ' pv-alku' : '');
     tick.dataset.idx = i;
     const barH = _tlPalkkiPx(ms);
     const foilable = ms >= 8;
@@ -23889,10 +23919,6 @@ function _avaaLinkista(linkki) {
    Kaikki muu main():n sisällä on synkronista tai käynnistää oman
    promisensa, joten odotus ei viivytä kartan piirtoa. */
 async function main() {
-  /* Valokaistan värit CSS-muuttujiksi ENNEN ensimmäistä piirtoa:
-     aikajana lukee ne `::after`-säännöstä, ja ilman tätä kaista olisi
-     ensimmäisen ruudun ajan väritön. Ks. `VALO_VARIT`. */
-  _valoVaritCssiin();
   buildLegend(); initMap(); initCanvases();
   Crosshair.init(); WeatherWidget.init(); Units.init(); Suunta.init();
   /* Kartan asetukset vasta initCanvasesin jälkeen: partikkelikanvas on

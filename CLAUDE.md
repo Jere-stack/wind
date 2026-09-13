@@ -133,7 +133,8 @@ kokeiltu ja kaadettu mittauksella.
   kolme kaaviota · Aikajana: päiväys paikalleen, yö kaistaksi ·
   Aikajana: huntu pois, tikki kapeammaksi, kisko valitsimeksi ·
   Aikajana, toinen erä: se ei toiminut laitteella ·
-  Nauha rakennettiin, mitattiin ja peruttiin
+  Nauha rakennettiin, mitattiin ja peruttiin ·
+  Lukemarivi palkkien alle, päiväerotin pois
 
 </details>
 
@@ -261,14 +262,16 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   raitaan) — ja jokainen niistä oli reuna jota kortin oma reuna jo
   kertoi. Älä palauta uraa "jotta palkit näkyisivät": palkit saavat
   kortilla ENEMMÄN kontrastia kuin urassa (heikoin 3,41 → 3,84).
-- **Uran päällä olleiden merkintöjen alfat on valittu VAIKUTUKSEN
-  mukaan, ei luvun.** Yökaista on ollut kolmella eri alustalla ja sen
-  voimakkuus on pidetty samana joka kerta: musta .34 tummalla uralla
-  1,35:1, `76,89,96` .24 hiekkauralla 1,35:1, ja kortin paperilla sama
-  .24 olisi 1,40:1 — eli uran poisto olisi vahingossa äänekkäämpi yö.
-  Nyt .20/.129/.060 antaa 1,32:1. Jos vaihdat alustaa, laske alfat
-  uudelleen. (Puuskahuntu oli samasta syystä muste .34 eikä valkoinen
-  .22; huntu on poistettu, ks. alempaa.)
+- **AIKAJANASSA EI OLE VALOKAISTAA.** Yö oli janassa kolmessa
+  muodossa: koko korkeuden harso, 2 px:n kaista tikin alalaidassa, ja
+  kolmella eri alustalla kalibroidut alfat (musta .34, `76,89,96` .24,
+  lopuksi .20/.129/.060). Kaista oli mitattuna sekä pienempi että
+  selvempi kuin harso (yö 4,71:1 paperiin vastaan 1,31:1), eikä se
+  silti jäänyt: se häiritsi lukemista. Valovaiheet elävät yhä
+  spottikortin kaaviossa (`VALO_VARIT`) ja kelihypyssä, joka osaa
+  hypätä vain tuntiin jossa aurinko on ylhäällä. Älä palauta kaistaa
+  janaan — kolme kertaa riittää. (Puuskahuntu oli samasta syystä muste
+  .34 eikä valkoinen .22; sekin on poistettu, ks. alempaa.)
 - **Päivälapuissa EI ole tuulikaistaa.** Kokeiltiin ja mitattiin
   toimivaksi (väri ja leveys sen päivän kovimmasta tuulesta valoisaan
   aikaan), mutta poistettiin: kahdeksantoista väripilkkua yhdellä
@@ -278,7 +281,7 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   näyte osuu palkkiin, yökaistaan, NYT-osoittimeen tai napin varjoon —
   ja väittää sitten että sama paperi on eri väristä eri kohdissa.
 - **Palkin korkeusasteikko on EPÄLINEAARINEN** (4–14 m/s levennetty) ja
-  täysi mitta on 52 px (`TL_PALKKI_H`). Korkeus on muoto, väri on arvo.
+  täysi mitta on 58 px (`TL_PALKKI_H`). Korkeus on muoto, väri on arvo.
   Älä palauta lineaarista: se antaa 1,38 px/(m/s) ja peräkkäisten
   tuntien tyypillinen ero on 0,2 m/s eli alle puoli pikseliä.
 - **`ColorRamp.rgb()` on kartalle, `ink()` paneeleihin.** Ne kulkevat
@@ -469,14 +472,15 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   0,5 m/s rajan, ja 94 % minuuteista renderöityisi identtisesti.
   10 min veisi +7 vrk raahauksen 10 ruudullisesta 60:een.
   Aikajanan vika oli navigointi, ja se on `#tl-paivat`.
-- **Palkin korkeus on KIINTEÄLLÄ asteikolla (14 m/s = täysi, 52 px).**
+- **Palkin korkeus on KIINTEÄLLÄ asteikolla (14 m/s = täysi, 58 px).**
   Sarjakohtainen maksimi teki palkeista vertailukelpoisia vain sarjan
   sisällä, ja sarja vaihtuu joka kartansiirrolla: mitattuna 7,67 m/s oli
   14,1 px ja 8,40 m/s 13,4 px. Älä palauta `maxMs`-skaalausta.
-- **KATTO ON 14 m/s, EI 16, ja korkeus 52 px, ei 35 eikä 44.** Molemmat
-  palvelevat erottelua siellä missä päätös tehdään: väli 4–11 m/s sai
-  5,2–5,6 px metriä sekunnissa kohti (35 px:llä 2,6–3,1, 44 px:llä
-  4,4–4,7), ja 4 → 10 m/s on nyt 32 px ero (ennen 27 ja sitä ennen 17).
+- **KATTO ON 14 m/s, EI 16, ja korkeus 58 px, ei 35, 44 eikä 52.**
+  Molemmat palvelevat erottelua siellä missä päätös tehdään: väli
+  4–11 m/s sai 5,8–6,2 px metriä sekunnissa kohti (35 px:llä 2,6–3,1,
+  44 px:llä 4,4–4,7, 52 px:llä 5,2–5,6), ja 4 → 10 m/s on nyt 36 px
+  ero (ennen 32, sitä ennen 27 ja 17).
   Yli neljäntoista väli menetti korkeuseron kokonaan — se on tarkoitus,
   siellä ei valita keliä vaan kokoa, ja väri jatkaa kyllästymisen
   jälkeen.
@@ -498,11 +502,19 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   Keskityksen puolikas oli ennen kirjoitettu neljään paikkaan lukuina
   (12, 12, 11, 10), joista kaksi oli jo valmiiksi eri mieltä kahden
   muun kanssa.
-- **PÄIVÄEROTTIMEN VIERESTÄ JÄTETÄÄN TUNTILUKEMA POIS**, samasta syystä
-  kuin NYT-merkin vierestä: erottimen teksti ("La 19.") on leveämpi kuin
-  sen 26 px:n laatikko ja vuotaa naapuritikin päälle. Erottimen viereinen
-  tunti on aina 00, eli juuri se jonka erotin jo kertoo. Mitattuna tikin
-  kavettua 12 px:iin "La 19." ja "00" piirtyivät päällekkäin.
+- **PÄIVÄRAJA ON HIUSVIIVA TIKISSÄ, EI OMA ELEMENTTI — JA SE OLI ELEEN
+  VIKA.** Erotin oli 26 px:n laatikko nauhan virrassa, ja se maksoi
+  kaksi asiaa. RYTMIN: tikkiväli oli mitattuna 12 px kaikkialla mutta
+  **43 px keskiyön yli**. Ja ELEEN: erottimella ei ollut
+  `scroll-snap-align`ia, joten `scroll-snap-type: x mandatory` veti
+  keskiyötä lähestyvän vierityksen takaisin — mitattuna **neljätoista
+  16 px:n askelta peräkkäin eikä jana liikkunut klo 23:sta tuntiakaan**.
+  Juuri se on "päivän yli vierittäminen hämää" -oire. Nyt raja on
+  `.htick.pv-alku`:n 1 px hiusviiva, joka ulottuu vain lukemariviin;
+  sama 16 px:n askel etenee nyt tunnin per askel koko matkan, ja
+  päivälappu pysyy osoittimessa 1,2 px:n sisällä. Älä palauta omaa
+  elementtiä, äläkä vedä viivaa palkkien läpi: seitsemäntoista
+  pystyviivaa datan päällä lukisi hilana.
 - **VIERITYKSEN SEURANTAA EI SAA AJAA `requestAnimationFrame`issa.**
   WebKit ajaa kosketusvieritystä omalla säikeellään, ja ruutupyyntö voi
   jäädä palaamatta koko sen ajan kun sormi liikuttaa kelaa —
@@ -540,49 +552,60 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   sivussa). Molemmat reitit (`scrollend`/ajastin ja sormen nosto)
   johtavat samaan `_kiskoLoppu`un.
 - **KORTIN KORKEUS ON SUMMA, EI YKSI LUKU.** `#tl-wrap` on
-  `97px + var(--tl-paivat-h) + var(--sab-tl)`, ja tuntinauha saa siitä
-  sen mikä jää täytteiden jälkeen (61 px). Kisko 40 -> 30 ja nauha
-  52 -> 61 pitivät hereillä olevan kortin ennallaan (128 -> 127);
-  levossa se kasvoi 88 -> 97. **Palkin kasvattaminen vaatii joko sen
-  97:n tai tilan josta se on pois.** 44 -> 52 on jälkimmäistä: tila
-  tuli puuskahunnun poistosta eikä kortti muuttunut pikseliäkään
-  (mitattu 97 px levossa ennen ja jälkeen). **52 on katto, ja rajan
-  asettaa tuntilukema.** Yläreunaan jää 7 px, ja `.htick-lbl` on 10 px
-  korkea puhelimessa ja 12 px työpöydällä: kyllästynyt palkki (yli
-  ~12,9 m/s) menee siis lukeman laatikon alareunaan — mitattuna 5 px
-  korkeammalle kuin mikään maalasi ennen (korkein pikseli oli huntu,
-  12 px nauhan yläreunasta). Se on hyväksytty, koska lukema piirtyy
-  palkin PÄÄLLE ja numerot istuvat laatikkonsa keskellä; sitä korkeampi
-  palkki söisi numeron.
-- **YÖ ON 2 px KAISTA TIKIN ALALAIDASSA, EI KOKO KORKEUDEN HARSO.**
-  Harso (`rgba(76,89,96,.20)` + kaksi astetta) oli mitattu ja
-  kalibroitu, mutta se oli rivin suurin muoto ja häiritsi lukemista.
-  Kaista mahtuu `.htick`in olemassa olevaan 2 px alatäytteeseen, joten
-  se ei vie palkilta korkeutta eikä muuta kortin mittoja. Mitattuna se
-  on samalla kertaa PIENEMPI ja SELVEMPI: yö 4,71:1 paperiin, kun
-  vanha koko korkeuden harso oli 1,31:1. Päiväerotin saa saman
-  kaistan, muuten keskiyöhön jää 34 px aukko. Älä palauta harsoa
-  äläkä piirrä auringon korkeutta käyränä — se olisi toinen jatkuva
-  muoto palkkien rinnalle.
-- **VALOKAISTAN VÄRIT OVAT YHDESSÄ REKISTERISSÄ (`VALO_VARIT`).**
-  Spottikortin kaavio ja aikajana kertovat saman asian ja kertoivat sen
-  ennen eri sävyillä. Kaavio lukee literaalit (SVG:n
-  esitysattribuutit eivät tunne `var()`:ia), aikajana CSS-muuttujat
-  jotka `_valoVaritCssiin()` kirjoittaa — kaksi muotoa, yhdet luvut.
-- **Aikajanan valokaista ja puuskavyöhyke päivitetään MYÖS nopeassa
-  polussa**, ja päiväerottimet ovat oma taulukkonsa (`_tlErottimet`).
-  Ne eivät ole `_tlTicks`issä, ja ilman erillistä päivitystä ne jäivät
-  edellisen sijainnin sävyyn (mitattu 0/18 oikein). `_tlMuisti`-vertailu
-  sisältää lat/lng, koska laattapisteet jakavat aikataulukon.
+  `114px + var(--tl-paivat-h) + var(--sab-tl)`, ja tuntinauha saa
+  siitä sen mikä jää täytteiden jälkeen (78 px). Nauha jakautuu
+  kolmeen: **10 px NYT-lappu ylhäällä, 56 px palkkivyöhyke, 12 px
+  lukemarivi alhaalla.** Kortti on levossa 114 px ja hereillä 144
+  (oli 97 / 127).
+  **Palkin kasvattaminen vaatii joko sen 114:n tai tilan josta se on
+  pois.** 44 -> 52 oli jälkimmäistä (puuskahunnun poisto, kortti ei
+  muuttunut pikseliäkään); 52 -> 58 on edellistä, koska lukemarivi
+  tarvitsi oman 12 px:nsä eikä sitä ollut mistä ottaa.
+  **Katon asettaa NYT-lappu.** Kyllästynyt palkki (yli ~12,9 m/s)
+  nousee 2 px sen laatikkoon — mitattu, ja VÄHEMMÄN kuin ennen, jolloin
+  sama törmäys tuntilukeman kanssa oli 3 px. Kortti 108 px kokeiltiin
+  ensin ja se olisi tehnyt siitä 8 px: korjaus olisi pahentanut juuri
+  sitä mitä se korjasi.
+- **LUKEMA ON ALARIVILLÄ JA JOKA TUNNILLA.** Rivi on 12 px nauhan
+  alalaidassa (`.htick`in `padding-bottom`), ja siinä on kaksi painoa:
+  harmaa `--ink-3` joka tunnille, tumma `--ink` + 600 joka kolmannelle
+  (00, 03, 06, 09, 12, 15, 18, 21). Ennen lukema oli PALKKIEN PÄÄLLÄ
+  ylhäällä ja vain joka kolmannessa tikissä, ja perustelu oli "kaikki
+  lukemat vierekkäin olisi harmaa juova" — juova syntyi siitä ettei
+  niillä ollut omaa riviä. **Koko on 8 px eikä 9, ja se on mittaus:**
+  tikki on 12 px ja "23" on 8 px:llä 8,9 px leveä (9 px:llä 10,0),
+  joten peräkkäisten lukemien väliin jää mitattuna 3,1 px — yhdeksällä
+  se olisi 2,0 px eli yhtenäinen nauha. Mitattu 391/391 lukemaa.
+- **NYT-LAPPU ON YLÄREUNASSA, EIKÄ SE MAHDU ALARIVILLE.** Lappu on
+  17,5 px leveä 2 px:n merkin päällä eli peittää molemmat naapurit:
+  alarivillä siitä tuli mitattuna KOLMEN TUNNIN REIKÄ asteikkoon
+  (… 16 17 NYT 21 22 …, 388/391 lukemaa). Ylhäällä se on yksin, koska
+  tuntilukemat ja päiväerotin ovat poissa sieltä.
+- **`VALO_VARIT` ON NYT VAIN KAAVION.** Aikajana luki samat luvut
+  CSS-muuttujina, jotka `_valoVaritCssiin()` kirjoitti; kaista
+  poistettiin, eikä muuttujia lukenut enää yksikään sääntö, joten
+  kirjoittaja poistettiin samassa. Jos kaista joskus palaa johonkin,
+  kirjoita muuttujat uudelleen SIITÄ objektista äläkä kopioi lukuja —
+  SVG:n esitysattribuutit eivät tunne `var()`:ia, joten kaavio
+  tarvitsee literaalit ja CSS muuttujat: kaksi muotoa, yhdet luvut.
+- **NOPEA POLKU PÄIVITTÄÄ VAIN PALKIT.** Se riitti jo ennen kaikelle
+  paitsi päiväerottimille, jotka eivät olleet `_tlTicks`issä ja jäivät
+  siksi edellisen sijainnin sävyyn (mitattu 0/18 oikein). Sekä erottimet
+  että valokaista on poistettu, joten ansaa ei enää ole eikä
+  `_tlErottimet`-taulukkoa. `_tlMuisti`-vertailu sisältää yhä lat/lng,
+  koska laattapisteet jakavat aikataulukon.
 - **Nuolinäppäimet kuuluvat Leafletille.** Sen `Keyboard` panoroi karttaa
   nuolilla eikä tarkista shiftiä (vain alt/ctrl/meta), joten Shift+nuoli
   panoroi myös. Aikajanan askellus on `,` ja `.`, ja shiftattu merkki on
   eri `e.key` (suomalaisella `:` ja `;`) — lue `e.code`.
-- **Play ja kelihyppy KELLUVAT URAN PÄÄLLÄ, ja erottuvat kohotuksella.**
-  Ne peittävät mobiilissa 6 näkyvää tuntia 17:stä (35 %; työpöydällä
-  8 %) — se on kelluvan kontrollin tietoinen hinta, ei huomaamatta jäänyt
-  vika, ja siirto kiskoriville on kokeiltu ja peruttu (transportti kuuluu
-  sen raidan päälle jota se ajaa). Näkyvyyttä EI korjata tummentamalla
+- **Play ja kelihyppy KELLUVAT PALKKIEN PÄÄLLÄ, EIVÄT LUKEMARIVILLÄ.**
+  Ne peittävät osan näkyvistä tunneista — se on kelluvan kontrollin
+  tietoinen hinta, ei huomaamatta jäänyt vika, ja siirto kiskoriville on
+  kokeiltu ja peruttu (transportti kuuluu sen raidan päälle jota se
+  ajaa). Alareuna on `--sab-tl + 34px` eikä 20px: kiekko peitti 20:llä
+  alalaidan 12 px:n lukemarivistä 8 px eli juuri sen rivin jonka takia
+  kortti kasvoi. Mitattu 34:llä: lukemarivistä 0 px ja 0 lukemaa napin
+  alla, palkkivyöhykkeestä 44 px. Näkyvyyttä EI korjata tummentamalla
   nappia: se tekisi kontrollista kortin äänekkäimmän elementin datan
   päällä. Kiekko on uraa VAALEAMPI (`--surface-hi`) + kehä + varjo:
   1,56:1 alustaan, kuvake 16,4:1 kiekkoon. Käytöstä poissa oleva nappi

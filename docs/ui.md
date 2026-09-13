@@ -4427,3 +4427,146 @@ seuraa sitä, mutta työ oli haarassa `claude/timeline-improvements-w15e9r`
 josta käyttäjä testasi. **Kun korjaus ei näy laitteella, tarkista
 julkaisuhaara ennen kuin epäilet mittausasetelmaa.** Se olisi säästänyt
 kaksi kierrosta.
+
+## Lukemarivi palkkien alle, päiväerotin pois — ja se korjasi eleen
+
+Kuusi pyyntöä samassa erässä, ja kaksi niistä osoittautui samaksi
+vaksi.
+
+### Mitä pyydettiin
+
+1. kellonajat tuulipalkkien alapuolelle
+2. aika joka tunnille harmaalla, tummempi klo 9, 12, 15 …
+3. palkkeja hieman korkeammiksi
+4. aikajana ei saa peittää muita nappeja
+5. yön ja päivän merkintä pois
+6. päivävalinta hyppää väärään kohtaan kun tuntigraafia vierittää
+   päivän yli, ja korjaantuu vasta kun vieritystä jatkaa
+7. ei isoa väliä tuntipalkkeihin vuorokauden vaihtuessa
+
+### Kohta 6 ja kohta 7 olivat sama vika
+
+Päivävalinnan sijaintia epäiltiin ensin, ja se mitattiin: kisko pysyi
+osoittimen alla **1,2 px:n** sisällä koko päivärajan ylityksen ajan,
+sekä eleen aikana että sen jälkeen. Keskityslaskussa ei siis ollut
+mitään vikaa.
+
+Vika löytyi siitä mittauksesta joka ei edes ollut kohdan 6 mittaus.
+Raahausharness kirjoitti 16 px askelia ja tulostaa jokaisen askeleen
+jälkeen valitun tunnin:
+
+```
+askel 2 | idx 122 | klo 23   ← ja tähän se jäi
+askel 3 | idx 122 | klo 23
+...
+askel 16| idx 122 | klo 23
+```
+
+**Neljätoista askelta peräkkäin eikä jana liikkunut tuntiakaan.** Syy on
+`.day-sep`: se oli 26 px:n elementti nauhan virrassa ilman
+`scroll-snap-align`ia, joten tikkiväli oli mitattuna
+
+| | |
+|---|---|
+| normaali tikkiväli | 12 px |
+| **keskiyön yli** | **43 px** |
+
+ja `scroll-snap-type: x mandatory` veti jokaisen alle 21 px:n askeleen
+takaisin klo 23:een. Sormella tämä tuntuu täsmälleen siltä mitä
+raportissa luki: jana jumittuu keskiyöhön, sitten hyppää.
+
+Erotin poistettiin. Päiväraja on nyt 1 px hiusviiva päivän ensimmäisen
+tikin vasemmassa laidassa (`.htick.pv-alku`), ja se ulottuu vain
+lukemariviin — palkkien läpi vedettynä seitsemäntoista pystyviivaa
+lukisi hilana, ei rajoina. Sama 16 px askel etenee nyt tunnin per
+askel koko matkan:
+
+```
+askel 1 | klo 22 | Ti 15. | 1,2 px
+askel 2 | klo 23 | Ti 15. | 1,2 px
+askel 3 | klo 00 | Ke 16. | 0,6 px    ← raja ylitetty
+askel 4 | klo 01 | Ke 16. | 0,6 px
+```
+
+Päiväys ei kadonnut: se on kiskon pillerissä ja levossa aikakuplassa,
+eli sanotaan yhä kerran.
+
+### Lukemarivi
+
+Lukema oli alun perin palkkien alla, siirrettiin ylös tilan takia ja on
+nyt taas alla. Peruste on vaihtunut: ylhäällä lukema mahtui vain joka
+kolmanteen tikkiin, ja pyyntö oli aika JOKA tunnille.
+
+**Koko on 8 px eikä 9, ja se on mittaus.** Tikki on 12 px, ja "23"
+mitattuna:
+
+| kirjasinkoko | leveys | väli lukemien välissä |
+|---|---|---|
+| 7 px | 7,8 px | 4,2 px |
+| **8 px** | **8,9 px** | **3,1 px** |
+| 9 px | 10,0 px | 2,0 px |
+| 10 px | 11,1 px | 0,9 px |
+
+Yhdeksällä numerot lukisivat yhtenä nauhana. Kahdeksan on sama koko
+kuin NYT-lapussa, eli typografiaan ei tullut uutta askelta. Kaksi
+painoa antaa rytmin: harmaa joka tunnille, tumma 600 joka kolmannelle.
+Mitattu 391/391 lukemaa, korostus tunneilla 0, 3, 6, 9, 12, 15, 18, 21.
+
+**NYT-lappu ei mahtunut alariville.** Ensimmäinen versio siirsi senkin
+sinne, ja lappu (17,5 px, 2 px:n merkin päällä) peitti molemmat
+naapurilukemat: asteikkoon jäi kolmen tunnin reikä
+(… 16 17 NYT 21 22 …) ja lukemia oli 388/391. Lappu palasi yläreunaan,
+joka on nyt muutenkin tyhjä.
+
+### Korkeudet
+
+| | ennen | nyt |
+|---|---|---|
+| kortti levossa | 97 px | 114 px |
+| kortti hereillä | 127 px | 144 px |
+| nauha | 61 px | 78 px |
+| palkin täysi mitta | 52 px | 58 px |
+| askel 4–11 m/s | 5,2–5,6 px/(m/s) | 5,8–6,2 |
+| 4 → 10 m/s ero | 32 px | 36 px |
+
+Nauha jakautuu kolmeen: 10 px NYT-lappu, 56 px palkkivyöhyke, 12 px
+lukemarivi. **Kortti 108 px kokeiltiin ensin ja hylättiin**: sillä
+kyllästynyt palkki olisi noussut 8 px NYT-lapun laatikkoon, kun vanha
+hyväksytty törmäys tuntilukeman kanssa oli 3 px. 114 px vie sen
+**2 px:iin** eli pienemmäksi kuin ennen. Mitattu pakotetulla täydellä
+palkilla: lappu 570–580, palkki 578–636.
+
+### Napit
+
+Nappipino (`btn-loc`, `btn-freespot`, `fc-btn`, `btn-settings`) on
+normaalivirrassa kortin yläpuolella, joten kortin kasvu nostaa sen
+itsestään — omaa sääntöä ei tarvittu. Rako kortin yläreunaan oli
+mitattuna 6 px ja `#bottom-bar`in marginaali nostettiin 6 → 10 px.
+Peitto 0 % ennen ja jälkeen.
+
+Play ja kelihyppy ovat kortin sisällä ja kelluvat nauhan päällä. Niiden
+alareuna nostettiin `--sab-tl + 20px` → `+ 34px`: kahdellakymmenellä
+kiekko peitti alalaidan lukemarivistä 8 px eli juuri sen rivin jonka
+takia kortti kasvoi. Mitattu 34:llä lukemarivistä **0 px** ja **0
+lukemaa** napin alla; palkkivyöhykkeestä 44 px, mikä on kelluvan
+kontrollin vanha ja tietoinen hinta.
+
+### Valokaista
+
+Yö oli janassa kolmannessa muodossaan (harso → 2 px kaista → poistettu).
+Kaista oli mitattuna sekä pienempi että selvempi kuin harso — 4,71:1
+paperiin vastaan 1,31:1 — eikä se silti jäänyt. Poiston mukana lähtivät
+`_tlValoLuokka`, `TL_VALO_LUOKKA`, `_tlValovaiheet`, `State._tlErottimet`
+ja `_valoVaritCssiin`; `VALO_VARIT` jäi, koska spottikortin kaavio lukee
+sitä, ja kelihyppy tuntee yön yhä `Aurinko`n kautta.
+
+### Mittausasetelmasta
+
+Yksi harness antoi kesken erän `tikkeja: 0` ja `palkki Infinity`, ja se
+näytti siltä kuin aikajana olisi hajonnut. Toinen harness löysi samasta
+buildista 391 tikkiä. Vika oli mittarissa: se ei odottanut tikkejä.
+Vuorotellen ajettuna vanha ja uusi build latautuivat yhtä hyvin
+(13/14 vastaan 14/14, ja ainoa epäonnistuminen oli juuri käynnistetyn
+palvelimen ensimmäinen pyyntö), ja diffissä on **0 riviä**
+datapolussa. Kun mittaus väittää ettei jotain ole olemassa, epäile
+ensin mittaria.
