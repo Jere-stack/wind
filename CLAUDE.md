@@ -50,6 +50,18 @@ Vercel ajaa `npm run build`:n ja julkaisee `dist/`-hakemiston sekä
 `api/`-funktiot. Deployn tulee tapahtua tästä reposta, jotta sivu ja sen
 `/api`-funktiot pysyvät samassa versiossa.
 
+**TUOTANTO ON REPON OLETUSHAARA `claude/vite-project-setup-6je1pq`, EI
+`main`.** Vercelin tuotantodeploy seuraa sitä ja julkaisee osoitteeseen
+`wind-delta.vercel.app`; muut haarat saavat vain preview-deployn. Repossa ei
+ole `main`- eikä `master`-haaraa lainkaan.
+
+**Valmis muutos viedään oletushaaralle, oletuksena ja kysymättä.** Työ tehdään
+omalla haarallaan ja siirretään sieltä fast-forwardilla — ei erillistä
+sulautuscommittia. Ilman tätä askelta muutos ei ole siinä osoitteessa josta
+sovellusta käytetään, ja se on maksanut kolme kierrosta: kolme peräkkäistä
+aikajanan korjausta raportoitiin rikkinäisiksi, ja jokainen raportti oli tehty
+deploysta jossa niitä ei ollut.
+
 Säälaatat ovat orpossa `saadata`-haarassa (aina tasan yksi committi,
 pakkopäivitys) ja ne haetaan `raw.githubusercontent.com`:sta.
 
