@@ -4384,136 +4384,46 @@ asiaa on lisättävä asetelmaan ennen kuin eleen käyttäytymisestä voi
 sanoa mitään: oikea moottori, tuotantobuild ja se että **sormi ei ole
 `scrollLeft`-kirjoitus** — se jäädyttää rAF:n ja se värisee.
 
----
+## Nauha rakennettiin, mitattiin ja peruttiin
 
-## Aikajana on nauha — koko ennuste kerralla, ei yhtään vieritintä
+Aikajanan eleet oli korjattu kahdesti eikä kumpikaan kierros toiminut
+käyttäjän laitteella. Kolmannella kerralla johtopäätös oli
+arkkitehtuurinen: vieritin on väärä työkalu, koska sen tilaa ei omista
+sovellus vaan selaimen vierityssäie. Tilalle rakennettiin **nauha** —
+koko 16,3 vuorokauden ennuste yhtenä canvasina (0,93 px/tunti
+puhelimessa), luuppi (±6 h palkkeina) kortin yläpuolella eleen ajan, ja
+osoitinele (`pointerdown/move/up` + `setPointerCapture` +
+`touch-action: none`) natiivin vierityksen tilalle.
 
-Kolme korjauskierrosta meni aikajanan vierityskoneistoon eikä se
-toiminut laitteella. Neljäs kierros ei ollut korjaus vaan se huomio
-että **vieritin on väärä työkalu tähän**: sen tilaa ei omista sovellus
-vaan selaimen vierityssäie, ja sen kanssa neuvottelemiseen tarvittiin
-snäppäys, momentum, `scrollend`, ristiinvieritys ja omien kirjoitusten
-tunnistaminen. Viisi mekanismia, joista jokainen oli oma
-epäonnistumistapansa.
+Se mitattiin toimivaksi. WebKit ja Chromium, tuotantobuild,
+iPhone-konteksti, rAF jäädytettynä: raahaus idx 69 → 152 → 234 → 288 ja
+kapseli 5,3 → 8,8 kts sormen ollessa kiinni, napautus 82 %:n kohdalle
+288 → 320, luupin raahaus tasan +3 h, Home elävään nykyhetkeen.
+Raahausmatka viikon päähän 2 232 px → 0, vierittimiä 2 → 0, kortti
+127/97 px → 88 px, `index.html` 1 255 kB → 1 216 kB.
 
-Käyttäjä valitsi viidestä vaihtoehdosta tämän: **koko ennuste yhtenä
-nauhana, ei vieritystä lainkaan.**
+**Ja se peruttiin, koska käyttäjä ei pitänyt siitä.** Ei mittauksen
+takia — mittarit olivat hyvät — vaan koska tuntipalkki on tämän
+sovelluksen aikajanan tunnistettava muoto, ja yhden pikselin sarake ei
+ole palkki. Sama kuvio kuin partikkelien eleenaikaisella jäädytyksellä:
+toteutettu, mitattu erinomaiseksi, peruttu käyttökokemuksen
+perusteella.
 
-### Mikä muuttui
+### Mikä tästä jää
 
-```
-                       ennen                    nyt
-akseli            391 tuntia, 12 px/tunti   391 tuntia, 0,93 px/tunti
-raahausmatka      2 232 px viikon päähän    0 px
-vierittimiä       2 (tuntinauha + kisko)    0
-kortti            127 px / 97 px levossa    88 px, ei lepotilaa
-osoitin           kortin keskellä, kiinteä  siellä missä sormi
-DOM-solmuja       ~410 tikkiä + 18 lappua   2 canvasia
-```
+Vieritinpohjainen aikajana (`9c48287` + `d83c9e8`) **toimii**. Se
+mitattiin palautuksen yhteydessä samalla oirekokeella joka kirjoitettiin
+kierroksen 2 valituksista, tuotantobuildia vasten rAF jäädytettynä, ja
+kaikki kolme väitettyä vikaa menivät läpi molemmilla moottoreilla:
+"Tänään" vei elävään nykyhetkeen (idx 126 → 69, nytIdx 69), sormi
+janalla liikutti tuntia ja kapselia sormen ollessa kiinni (69 → 74,
+5,3 → 6,1 kts), ja sormi kiskolla vaihtoi päivän kesken eleen (Tänään →
+Su 20.).
 
-Kortissa on kolme osaa:
-
-- **nauha** — koko ennuste profiilina, canvas
-- **luuppi** — ±6 h palkkeina nauhan yläpuolella, eleen ajan
-- **lukemarivi** — valittu hetki tekstinä, play ja kelihyppy
-
-### Profiili on palkki toisessa mittakaavassa
-
-Yhden pikselin levyistä palkkia ei ole. Sarake on tunnin viipale, ja
-sen **korkeus ja väri tulevat samasta epälineaarisesta asteikosta ja
-samasta `ColorRamp.paperi()`-rampista** kuin palkeilla — koodaus on
-sama, vain merkki on eri. `_tlPalkkiOsuus` palauttaa nyt 0..1 ja mitta
-tulee piirtopaikalta, joten nauha ja luuppi jakavat käyrän.
-
-Palkit eivät kadonneet: ne ovat luupissa, jossa tunti on 26 px ja
-palkki on taas oikea muoto.
-
-**Sarakkeen arvo on peittopainotettu keskiarvo.** Maksimi näyttäisi koko
-ennusteen tuulisempana kuin se on — ja sävy tarkoittaa tässä
-sovelluksessa nopeutta, joten liioittelu olisi valhe eikä tyylikeino.
-Pistenäyte taas ohittaisi joka kolmannentoista tunnin, koska pikseliä
-kohti on 1,08 tuntia.
-
-### Tarkkuus tulee luupista, ja molemmat ovat sijaintiohjautuvia
-
-Nauhalla tunti on 0,93 px eli sormi kattaa 43 tuntia; tarkin osuma on
-noin ±4 h. Luupissa tunti on 26 px.
-
-Kumpikin valitsee **sen tunnin joka on sormen alla** — ei suhteellista
-siirtoa, ei käännettyä filmikelaa. Sekoitus kahdesta mallista samalla
-kortilla olisi ollut se hinta jonka moni picker maksaa; tässä sitä ei
-tarvita, koska **luupin ikkuna jäädytetään kosketuksen ajaksi**. Ilman
-jäädytystä valinta siirtäisi ikkunaa, ikkuna siirtäisi sormen alla
-olevaa tuntia ja valinta karkaisi käsistä.
-
-Mitattuna luupin raahaus kolmen tunnin yli: idx 320 → 323, eli tasan
-kolme.
-
-### Ele on osoitinele, ja se on koko uudistuksen ydin
-
-`pointerdown/move/up` + `setPointerCapture` + `touch-action: none` —
-sama kuvio kuin aaltokaavion raahauksessa. Selaimen vierityssäie ei
-osallistu, joten rAF:n jäätyminen, momentum, snäppäys ja `scrollend`
-eivät voi enää viedä valintaa mukanaan.
-
-Mitattuna **rAF jäädytettynä** (WebKit ei palauta ruutupyyntöä
-kosketusvierityksen aikana — se oli edellisen kierroksen vika):
-
-```
-                ennen ele   sormi kiinni, matkalla        
-currentHourIdx     69        152 -> 234 -> 288
-kapselin tuuli   5,3 kts     7,5 -> 8,8 -> 1,9 kts
-lukemarivi     Su 13. 18:00  To 17. 05:00 -> Ti 22. 21:00
-luuppi            piilossa   näkyvissä
-```
-
-Ja `touch-action: none` ei ole varotoimi vaan edellytys: ilman sitä
-selain aloittaa vierityksen heti kun sormi liikkuu vaakaan ja vie
-osoitintapahtumat mukanaan. Mitattuna kartta ei liiku kun nauhaa
-raahataan (keskipiste ja zoom ennallaan).
-
-### Mitä koodista poistui
-
-Kahdeksan funktiota ja kaksi tilakonetta: `_tlBeginSelfScroll`,
-`_tlSetScrollLeft`, `_fracFromScroll`, `scrollTimelineTo`,
-`_tlRakennaPaivat`, `_tlKiskoKeskita`, `_tlKiskoKeskimmainen`,
-`_tlKiskoAsetaScroll`, `_tlKiskoOmaTapahtuma`, `_tlPaivanIdx`,
-`_tlKorostaPaiva`, `_tlKuplaTeksti`, `_tlPvNro`, `_tlPaivitaPalkit`,
-`_tlValoLuokka`, kiskon herätys/nukutus ja `renderTimeline`in
-nopea/hidas-haara. Tilalle tuli yksi moduuli (`Nauha`) ja kaksi
-canvasia. `index.html` kutistui 1 255 kB → 1 214 kB.
-
-Myös kaksi vanhaa erillispolkua katosi: spottikortin aikavalitsin ja
-kelivikkunan napautus tekivät molemmat oman kopionsa koko valintaketjusta
-(mukaan lukien aikajanan vierityksen). Nyt ne kutsuvat
-`_tlValitseIdx`iä kuten muutkin.
-
-### Napit siirtyivät lukemariville
-
-Vanha sääntö oli "transportti kuuluu sen raidan päälle jota se ajaa", ja
-se maksoi uralla 6 näkyvää tuntia 17:stä. Nauhalla sama 44 px olisi
-**47 tuntia eli kaksi vuorokautta koko ennusteesta**. Sääntö ei muuttunut
-mutta raita muuttui, ja vastaus sen mukana. Napit ovat yhä kiinni
-nauhassa — rivin verran ylempänä.
-
-### Saavutettavuus parani
-
-Nauha on `role="slider"`: yksi sarkainpysäkki, `aria-valuenow` ja
-`aria-valuetext` ("Su 13. klo 17"), nuolet askeltavat tunnin, Home vie
-nykyhetkeen ja End akselin loppuun. Vieritin ei ollut ruudunlukijalle
-arvo lainkaan, ja tikkejä oli 391 kappaletta.
-
-`stopPropagation` on nuolissa pakollinen: ne kuuluvat muuten Leafletille
-joka panoroi niillä karttaa.
-
-### Päiväraja ei lävistä profiilia
-
-Ensimmäinen versio veti päivärajan koko korkeudelta. Seitsemäntoista
-pystyviivaa datan läpi luki ruudukkona — rivin äänekkäin muoto oli hila
-eikä tuuli. Raja on nyt 4 px tikki kirjainrivillä. Sama päätös kuin
-aikanaan uran kanssa: reuna jonka toinen asia jo kertoo.
-
-Mennyt aika himmennetään `destination-out`illa, joka **syö maalia pois**
-ja päästää kortin paperin läpi — sama vaikutus kuin palkkien
-`opacity: .4`, eikä päälle maalattua harmaata joka olisi kortilla oma
-pintansa.
+Ne eivät siis olleet koskaan rikki. Vika oli julkaisussa: repon
+oletushaara on `claude/vite-project-setup-6je1pq` ja Vercelin tuotanto
+seuraa sitä, mutta työ oli haarassa `claude/timeline-improvements-w15e9r`
+— eli kolme kierrosta korjauksia ei ollut kertaakaan siinä osoitteessa
+josta käyttäjä testasi. **Kun korjaus ei näy laitteella, tarkista
+julkaisuhaara ennen kuin epäilet mittausasetelmaa.** Se olisi säästänyt
+kaksi kierrosta.
