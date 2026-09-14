@@ -149,7 +149,8 @@ kokeiltu ja kaadettu mittauksella.
   Lukemarivi palkkien alle, päiväerotin pois ·
   Keskiyön vilkahdus oli kiskon väärin luettu scroll-tapahtuma ·
   Palkkien asteikko ei enää kyllästy ·
-  Aikajana kelluu tummennuksella — paperikortti pois
+  Aikajana kelluu tummennuksella — paperikortti pois ·
+  Kolme hienosäätöä: päiväys kuplaan, leveämpi tikki, rajan pyöristys
 
 </details>
 
@@ -526,15 +527,17 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   spottikortin kaavion vyöhykkeessä. Poisto vapautti 11 px, ja palkki
   kasvoi 44 → 52. Älä palauta huntua — sille ei ole enää tilaa, ja
   palkin korkeus olisi pudotettava takaisin.
-- **TIKKI ON 16 px JA PALKKI 11 px, JA PUOLIKAS LUETAAN
+- **TIKKI ON 18 px JA PALKKI 12 px, JA PUOLIKAS LUETAAN
   `TL_TIKKI_PUOLI`:STA.** Tikki kapeni 22 → 16 → 12 koska aikajanan vika
   oli matka (viikon päähän 3 934 px eli kymmenen ruudullista → 2 232 px
   eli 5,7), ja leveni sitten takaisin 16:een koska tunnit lukivat liian
   tiheinä: 12 px:n tikillä ruudulle mahtui 32 tuntia ja lukemien väliin
-  jäi 3,1 px. Kuudellatoista näkyviä tunteja on 24 ja lukemien väli
-  6,0 px, ja lukema kasvoi 8 → 9 px. Viikon matka on 2 688 px eli 6,9
-  ruudullista — hinta maksetaan tietoisesti luettavuudesta.
-  Palkkien väli on 5 px — leveys ja väli kuuluvat yhteen, ks. `.htick`.
+  jäi 3,1 px. Kahdeksaantoista se leveni siksi että lukema saisi oman
+  pykälänsä: 16 px ja 9 px:n lukema jätti väliin 6,0 px, 18 px ja 10 px:n
+  lukema jättää 6,9 px — eli rivi hengittää ENEMMÄN vaikka kirjasin
+  kasvoi. Näkyviä tunteja on 21 (16 px:llä 24). Viikon matka on 3 024 px
+  eli 7,8 ruudullista — hinta maksetaan tietoisesti luettavuudesta.
+  Palkkien väli on 6 px — leveys ja väli kuuluvat yhteen, ks. `.htick`.
   Keskityksen puolikas oli ennen kirjoitettu neljään paikkaan lukuina
   (12, 12, 11, 10), joista kaksi oli jo valmiiksi eri mieltä kahden
   muun kanssa.
@@ -547,7 +550,8 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   16 px:n askelta peräkkäin eikä jana liikkunut klo 23:sta tuntiakaan**.
   Juuri se on "päivän yli vierittäminen hämää" -oire. Nyt raja on
   `.htick.pv-alku`:n 1 px hiusviiva, joka ulottuu vain lukemariviin;
-  sama 16 px:n askel etenee nyt tunnin per askel koko matkan, ja
+  tikkiväli on mitattuna sama keskiyön yli kuin muualla (18 px ja
+  18 px), yksi tikin askel etenee tunnin koko matkan, ja
   päivälappu pysyy osoittimessa 1,2 px:n sisällä. Älä palauta omaa
   elementtiä, äläkä vedä viivaa palkkien läpi: seitsemäntoista
   pystyviivaa datan päällä lukisi hilana.
@@ -627,11 +631,13 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   PALKKIEN PÄÄLLÄ ylhäällä ja vain joka kolmannessa tikissä, ja
   perustelu oli "kaikki lukemat vierekkäin olisi harmaa juova" — juova
   syntyi siitä ettei niillä ollut omaa riviä.
-  **Koko on 9 px, ja se seuraa tikin leveyttä.** Kahdellatoista
+  **Koko on 10 px, ja se seuraa tikin leveyttä.** Kahdellatoista
   pikselillä mahtui vain 8 px ("23" on 8 px:llä 8,9 px leveä, 9 px:llä
-  10,0), ja lukemien väliin jäi 3,1 px. Kuudentoista tikillä väli on
-  mitattuna 6,0 px eli rivi hengittää. Mitattu 391/391 lukemaa, ja
-  mitattuna ruudulta lukeman kontrasti alustaan 16,6:1.
+  10,0 ja 10 px:llä 11,1), ja lukemien väliin jäi 3,1 px. Kuudentoista
+  tikillä ja 9 px:n lukemalla väli oli 6,0 px; kahdeksantoista tikillä ja
+  10 px:n lukemalla se on mitattuna 6,9 px — kirjasin kasvoi ja rivi
+  hengittää silti enemmän. Mitattu 391/391 lukemaa, ja mitattuna
+  ruudulta lukeman kontrasti alustaan 17,11:1.
 - **KAIKKI ON NÄKYVISSÄ, MYÖS LÄHDEMERKINTÄ.** Liukuväri on reunasta
   reunaan ja ulottuu ruudun pohjaan, eli täsmälleen sinne missä
   `#lahde-merkki` ja `#tutka-aika` ovat. Ne olivat `z-index: 19` ja
@@ -693,13 +699,23 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   hitaassa (se riippuu aikaleimoista), mutta kaista riippuu nopeuksista
   ja nopea polku on juuri se joka ajetaan kun aika pysyy ja paikka
   vaihtuu. Sama ansa kuin päiväerottimien valovaiheessa.
-- **PÄIVÄYS SANOTAAN KERRAN, JA SEN SANOO KISKO.** Kupla näytti
-  päiväyksen silloin kun kisko oli piilossa; kisko on nyt aina
-  näkyvissä, joten haara poistui ja kuplassa on VAIN kellonaika.
-  Valittu päivä lukee VAALEASSA pillerissä täsmälleen osoittimen
-  kohdalla — pilleri kääntyi paperin mukana, koska tummalla alustalla
-  tumma pilleri katoaisi. Mitattu valkoinen pilleri kiskon pohjaa
-  vasten 19,37:1.
+- **PÄIVÄYS ON KUPLASSA, KOSKA SORMI ON KISKON PÄÄLLÄ.** Sääntö oli
+  ensin "päiväys sanotaan kerran, ja sen sanoo kisko": kupla näytti
+  päiväyksen vain kun kisko oli piilossa, ja kun kisko jäi pysyvästi
+  näkyviin, haara poistui. Se päättely piti niin kauan kuin kisko oli
+  aikajanan YLÄPUOLELLA. Kisko on nyt alareunassa, eli täsmälleen siinä
+  kohdassa jota sormi peittää koko sen eleen ajan jolla päivää
+  vaihdetaan — ja juuri silloin päiväystä katsotaan. Kupla on osoittimen
+  yläpäässä, sormen yläpuolella, ja se on eleen aikana ainoa paikka
+  jossa päiväys näkyy. Kahdennus on tietoinen hinta, ja se maksetaan
+  painolla eikä poistolla: päiväys on `.tl-kupla-pv` (500, alfa 0,62) ja
+  kellonaika täydellä painolla. Mitattu kupla 102 px leveä, kokonaan
+  kääreen YLÄPUOLELLA (pohja 506, kääre alkaa 508), peitettyjä palkkeja
+  0 ja mahtuu ruudulle.
+  Valittu päivä lukee edelleen VAALEASSA pillerissä täsmälleen
+  osoittimen kohdalla — pilleri kääntyi paperin mukana, koska tummalla
+  alustalla tumma pilleri katoaisi. Mitattu valkoinen pilleri kiskon
+  pohjaa vasten 19,36:1.
 - **KISKO SEURAA OSOITINTA JATKUVASTI** (`_tlKiskoKeskita`), ei päivä
   kerrallaan: se on sama akseli karkeampana. Osuus lapun sisällä tulee
   TIKKIVÄLILTÄ (`_i0.._i1`) eikä kellonajasta — akselin reunapäivät ovat
@@ -708,6 +724,26 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   `_tlKorostaPaiva` keskittää `currentHourIdx`:n mukaan, ja raahatessa
   se luku on vielä edellisessä tikissä. `scrollLeft` kirjoitetaan
   suoraan, EI `scrollTo`lla — pehmeä vieritys hakisi sormea vastaan.
+- **KESKITYS PYÖRISTÄÄ INDEKSIN, JA PYÖRISTYS ON `_tlKiskoKeskita`:N
+  SISÄLLÄ.** Seuranta valitsee tikin PYÖRISTETYSTÄ luvusta
+  (`nearest = Math.round(frac)`) mutta keskitti kiskon RAA'ASTA
+  `frac`:sta, ja päivärajalla ne osoittavat eri päivään: frac 50,5
+  valitsee jo uuden päivän klo 00:n, mutta `_i0 <= 50,5` valitsee vielä
+  vanhan lapun. Mitattuna korostettu lappu jäi silloin **51,9 px eli
+  tasan yhden lapun verran sivuun** kolmessa näytteessä yhdeksästä
+  (frac −0,5 … −0,2 rajasta) ja asettui keskelle vasta frac 51,0 —
+  ruudulla se näkyy niin että päiväys on klo 00 kohdalla sivussa ja
+  keskittyy vasta klo 01. Jälkeen 0/9, pahin 0,9 px; sama molemmilla
+  moottoreilla.
+  **ELE EI KELPAA TÄMÄN MITTARIKSI.** `scroll-snap-type: x mandatory`
+  vetää harnessin jokaisen `scrollLeft`-kirjoituksen lähimpään tikkiin,
+  joten `frac` on siellä AINA kokonaisluku eikä rajatapausta synny:
+  24 askelta yhdeksän pikselin välein antoi 0,7 px poikkeaman
+  MOLEMMISSA buildeissa, eli mittari ei yltänyt vikaan. Mittaus tehdään
+  ajamalla sama pari suoraan (`_tlSeuraaHetkea(Math.round(frac))` +
+  `_tlKiskoKeskita(frac)`) murtoluvuilla rajan molemmin puolin.
+  Pyöristys on `_tlKiskoKeskita`:n sisällä eikä kutsupaikassa, koska
+  kutsupaikkoja on kolme ja kahdella niistä luku on jo kokonaisluku.
 - **PÄIVÄYS ON TÄSMÄLLEEN KESKELLÄ EIKÄ LIU'U.** Lapun OMA keskikohta
   asetetaan osoittimen alle, joten päivän sisällä kisko ei liiku
   pikseliäkään (mitattu poikkeama −1,0…+0,1 px kahdeksalla siirrolla,

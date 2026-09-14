@@ -1574,12 +1574,13 @@ html.tyopoyta #kapseli.vaistyy {
  * kirjoitettu neljään paikkaan lukuina 12, 12, 11 ja 10, joista kaksi
  * viimeistä olivat jo valmiiksi eri mieltä kahden ensimmäisen kanssa. */
 .htick {
-  flex: 0 0 16px; display: flex; flex-direction: column; align-items: center;
+  flex: 0 0 18px; display: flex; flex-direction: column; align-items: center;
   justify-content: flex-end; height: 100%;
   -webkit-user-select: none; user-select: none; cursor: pointer;
   /* 14 px = lukemarivi. Se oli 2 px (valokaista, poistettu) ja sitten
-     12 px; lukema kasvoi 8 -> 9 px kun tikki leveni, joten rivi kasvoi
-     kaksi pikseliä mukana. */
+     12 px; lukema kasvoi 8 -> 9 -> 10 px kun tikki leveni 12 -> 16 ->
+     18 px, joten rivi kasvoi kaksi pikseliä mukana. Neljästätoista
+     mahtuu 10 px:n lukema 12 px:n rivikorkeudella. */
   position: relative; padding-bottom: 14px;
   /* Vain tikit ovat snäppäyskohtia — NYT-merkki ohitetaan, koska sillä
      ei ole scroll-snap-alignia. Päiväerottimia ei enää ole: ne olivat
@@ -1589,19 +1590,21 @@ html.tyopoyta #kapseli.vaistyy {
      toista askelta peräkkäin. Ks. `.htick.pv-alku`. */
   scroll-snap-align: center;
 }
-/* PALKKI ON KARTAN SÄVYINEN, PAPERIN KIRKKAUDELLA.
+/* PALKKI ON KARTAN SÄVYINEN, TUMMENNUKSEN KIRKKAUDELLA.
  *
- * `ColorRamp.paperi()` on sama karttaramppi kerrottuna 0,48:lla: sävy
- * on täsmälleen kartan (8 m/s on vihreä molemmissa), kirkkaus on
- * hiekkauralle sopiva. Ei paneelien `ink()`, joka on oma sävypolkunsa
- * eikä siis matchaa karttaan.
+ * `ColorRamp.varjo()` on sama karttaramppi sekoitettuna VALKOISEEN
+ * kertoimella 0,45: sävy on täsmälleen kartan (8 m/s on vihreä
+ * molemmissa), kirkkaus on liukuvärille sopiva. Se on `paperi()`:n
+ * peilikuva — paperilla sama ramppi kerrottiin 0,48:lla kohti mustaa.
+ * Ei paneelien `ink()`, joka on oma sävypolkunsa eikä siis matchaa
+ * karttaan, eikä paljas `rgb()`: mitattuna tummennusta vasten sen
+ * hiljainen pää on 1,10:1 (2 m/s) ja 1,46 (5 m/s).
  *
- * Kehys on nyt TUMMA eikä vaalea, ja sen tehtävä on kääntynyt: aiemmin
- * se erotti tumman nollapään tummasta urasta, nyt se antaa vaalean
- * keskikaistan (10 m/s, 98,115,0) palkeille terävän reunan hiekkaa
- * vasten. Kirkkailla ja tummilla väreillä se ei näy. */
+ * Kehys on hiuksenohut VALO: alusta on tumma, joten reunan tekee
+ * alustan tummuus, ja kehyksen tehtävä on pitää kirkas palkki terävänä
+ * juuri siellä missä tummennus on vaaleimmillaan. */
 .htick-bar {
-  width: 11px; border-radius: 4px 4px 0 0; min-height: 3px;
+  width: 12px; border-radius: 4px 4px 0 0; min-height: 3px;
   /* Kehys oli tumma muste paperia vasten. Tummalla alustalla se söisi
      palkin reunan; nyt reunan tekee ALUSTAN tummuus, ja kehys on
      hiuksenohut valo joka pitää kirkkaan palkin terävänä. */
@@ -1667,7 +1670,7 @@ html.tyopoyta #kapseli.vaistyy {
  * NYT-lapussa (`--fs-8`), eli tämä ei tuo uutta askelta typografiaan. */
 .htick-lbl {
   position: absolute; bottom: 0; font-variant-numeric: tabular-nums;
-  font-size: var(--fs-9); color: var(--tl-teksti-3); white-space: nowrap;
+  font-size: var(--fs-10); color: var(--tl-teksti-3); white-space: nowrap;
   pointer-events: none; line-height: 12px;
 }
 .htick.show-lbl .htick-lbl { color: var(--tl-teksti); font-weight: 600; }
@@ -20357,7 +20360,7 @@ function nowIdx(times) {
    11, `scrollTimelineTo` 10), joista kaksi jälkimmäistä olivat jo
    valmiiksi eri mieltä kuin kaksi ensimmäistä — eli play ja pehmeä
    vieritys keskittivät tikin pikselin tai kaksi eri kohtaan kuin sormi. */
-const TL_TIKKI_LEV = 16;
+const TL_TIKKI_LEV = 18;
 const TL_TIKKI_PUOLI = TL_TIKKI_LEV / 2;
 /* PALKIN ASTEIKKO ON KIINTEÄ, EI SARJAKOHTAINEN.
  *
@@ -21282,7 +21285,22 @@ function _tlKiskoKeskita(frac) {
      seuranta odottaa vierityksen pysähtymistä eikä irrotusta — muuten
      keskitys kilpailisi momentumin kanssa ja jana nykisi. */
   if (_tlKiskoKosketusOma || _tlKiskoVierii) return;
-  const f = Math.max(0, frac || 0);
+  /* INDEKSI PYÖRISTETÄÄN TÄSSÄ, JA SE ON KOKO PÄIVÄRAJAN KORJAUS.
+   *
+   * Seuranta valitsee tikin PYÖRISTETYSTÄ luvusta
+   * (`nearest = Math.round(frac)`) ja korostaa sen päivän pillerin,
+   * mutta keskitti kiskon RAA'ASTA `frac`:sta. Rajalla ne osoittavat eri
+   * päivään: kun frac on 99,6 ja päivä vaihtuu indeksissä 100, valinta
+   * on jo uuden päivän klo 00 mutta `_i0 <= 99,6` valitsee vielä
+   * vanhan — eli korostettu lappu jää lapun verran sivuun. Se korjautuu
+   * vasta kun frac ylittää sadan, mikä ruudulla näkyy niin että
+   * päiväys asettuu keskelle vasta klo 01 kohdalla.
+   *
+   * Pyöristys on TÄSSÄ eikä kutsupaikassa, koska kutsupaikkoja on
+   * kolme (seuranta, `_tlKorostaPaiva`, `_kiskoLoppu`) ja kahdella
+   * niistä luku on jo valmiiksi kokonaisluku. Yksi paikka, yksi
+   * sääntö. */
+  const f = Math.max(0, Math.round(frac || 0));
   let el = lista[0];
   for (let i = 0; i < lista.length; i++) {
     if (lista[i]._i0 <= f) el = lista[i]; else break;
@@ -21387,11 +21405,20 @@ function _tlKuplaTeksti(d) {
     ai = document.createElement('span');
     bubble.appendChild(pv); bubble.appendChild(ai);
   }
-  /* PÄIVÄYS SANOTAAN KERRAN, ja sen sanoo kisko. Kupla näytti päiväyksen
-     silloin kun kisko oli piilossa; kisko on nyt aina näkyvissä, joten
-     haara poistui ja kuplassa on vain kellonaika. Solmu jää paikalleen,
-     koska `_tlKuplaTeksti` kirjoittaa molemmat joka askeleella. */
-  pv.textContent = '';
+  /* PÄIVÄYS ON MYÖS KUPLASSA, VAIKKA KISKO ON AINA NÄKYVISSÄ.
+   *
+   * "Sanotaan kerran" oli oikein niin kauan kuin kisko oli palkkien
+   * YLÄPUOLELLA: silloin sen pilleri oli osoittimen kohdalla ja aina
+   * näkyvissä. Kisko siirtyi alas, ja alhaalla se on täsmälleen siellä
+   * missä sormi on koko raahauksen ajan — eli päiväys on piilossa juuri
+   * sinä hetkenä kun sitä luetaan. Kupla on osoittimen yläpäässä eli
+   * sormen yläpuolella, ja se on ainoa paikka jossa päiväys näkyy
+   * eleen aikana.
+   *
+   * Toisto on tietoinen ja halpa: kupla ja kisko ovat eri päissä
+   * osoitinta, eivät vierekkäin kuten aikanaan. Paino erottaa ne —
+   * päiväys on kuplassa kevyt ja himmeä, kellonaika on lukema. */
+  pv.textContent = TL_KUPLA_PV[d.getDay()] + ' ' + d.getDate() + '. ';
   ai.textContent = ('0' + d.getHours()).slice(-2) + ':00';
 }
 

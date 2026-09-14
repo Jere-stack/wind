@@ -4761,3 +4761,112 @@ Kortti 156 px molemmilla leveyksillä, nauha 96, kisko 34, napeille 10 px
 rako ja peitto 0 %. Kierroksen 2 oirekoe menee läpi WebKitillä ja
 Chromiumilla — myös kiskon oma raahaus, joka on nyt eri paikassa.
 Keskiyön kiskotapahtuma antaa yhä 0 h ja 0 px.
+
+## Kolme hienosäätöä: päiväys kuplaan, leveämpi tikki, rajan pyöristys
+
+Kolme erillistä asiaa, mutta kaikki seurausta siitä että kisko siirtyi
+alareunaan.
+
+### Päiväys palasi kuplaan
+
+Sääntö oli ollut "päiväys sanotaan kerran, ja sen sanoo kisko". Se piti
+niin kauan kuin kisko oli aikajanan yläpuolella. Kisko on nyt
+alareunassa — täsmälleen siinä kohdassa jota sormi peittää koko sen
+eleen ajan jolla päivää vaihdetaan, ja juuri silloin päiväystä
+katsotaan. Kupla on osoittimen yläpäässä, sormen yläpuolella.
+
+Kahdennus on tietoinen ja maksetaan painolla eikä poistolla: päiväys on
+`.tl-kupla-pv` (paino 500, alfa 0,62), kellonaika täydellä painolla.
+
+Mitattu: kupla 102 px leveä, pohja y 506 ja kääreen ylälaita y 508 — se
+on siis kokonaan kääreen YLÄPUOLELLA, peittää **0 palkkia** ja mahtuu
+ruudulle. Teksti "Ma 14. 13:00".
+
+### Tikki 16 → 18 px
+
+| | ennen | nyt |
+|---|---|---|
+| tikki | 16 px | 18 px |
+| palkki | 11 px | 12 px |
+| lukema | 9 px | 10 px |
+| lukemien väli | 6,0 px | 6,9 px |
+| näkyviä tunteja | 24 | 21 |
+| viikon matka | 2 688 px | 3 024 px |
+
+Kirjasin kasvoi ja rivi hengittää silti enemmän. "23" on 9 px:llä
+10,0 px leveä ja 10 px:llä 11,1 px, eli teksti vie 1,1 px lisää mutta
+tikki antoi 2 px. Lukemia edelleen 391/391 ja lukeman kontrasti
+alustaan ruudulta mitattuna 17,11:1 (oli 16,6:1).
+
+Palkkien värit eivät muuttuneet: 2 m/s 4,88:1, 5 m/s 7,73, 8 m/s 8,58,
+11 m/s 9,47, 14 m/s 6,86, 20 m/s 4,98.
+
+### Päiväraja: pyöristys keskityksen sisään
+
+Oire: kun tuntijanaa vierittää klo 23:sta klo 00:aan, päiväys ei ole
+keskellä vaan lapun verran eteenpäin, ja asettuu keskelle vasta klo 01.
+
+Syy on yhdessä rivissä. Seuranta tekee joka scroll-tapahtumassa tämän:
+
+```js
+const frac = _fracFromScroll();
+if (Math.round(frac) !== last) _tlSeuraaHetkea(Math.round(frac));
+_tlKiskoKeskita(frac);
+```
+
+eli VALITSEE pyöristetystä ja KESKITTÄÄ raa'asta. Päivärajalla ne
+osoittavat eri päivään: frac 50,5 valitsee jo uuden päivän klo 00:n,
+mutta `_i0 <= 50,5` valitsee vielä vanhan lapun.
+
+### Miksi ele ei kelvannut mittariksi
+
+Ensimmäinen yritys oli raahata sormella keskiyön yli ja lukea lapun
+poikkeama. Se antoi 0,7 px **molemmissa buildeissa**, neljällä ajolla,
+vuorotellen porteissa 5200/5201 — eli ei eroa lainkaan. Syy on
+sovelluksen oma sääntö toisesta suunnasta: `scroll-snap-type: x
+mandatory` sitoo myös ohjelmallisen vierityksen, ja harnessin
+`vetoAskel` kirjoittaa `scrollLeft`in. Selain vetää jokaisen
+kirjoituksen lähimpään tikkiin, joten `frac` on harnessissa aina
+kokonaisluku eikä rajatapausta synny kertaakaan. 24 askelta yhdeksän
+pikselin välein tuotti 20 näytettä, joista yksikään ei ollut
+murtoluvussa.
+
+`requestAnimationFrame`-pohjainen ruutunäytteistys oli vielä huonompi:
+koko 14 askeleen eleestä tuli 27 näytettä, koska WebKit ei palauta
+ruutupyyntöä sormen alla — sama ansa joka on jo kirjattu sovelluksen
+omasta seurannasta.
+
+Mittaus tehtiin siis FUNKTIOSTA: ajetaan sama pari suoraan
+murtoluvuilla rajan molemmin puolin ja katsotaan onko KOROSTETTU lappu
+se joka on OSOITTIMEN ALLA.
+
+| frac | klo | korostettu | osoittimen alla | poikkeama |
+|---|---|---|---|---|
+| 50,0 | 23 | La 12. | La 12. | −0,6 px |
+| 50,3 | 23 | La 12. | La 12. | −0,6 px |
+| **50,5** | **0** | **Su 13.** | **La 12.** | **51,9 px** |
+| **50,6** | **0** | **Su 13.** | **La 12.** | **51,9 px** |
+| **50,8** | **0** | **Su 13.** | **La 12.** | **51,9 px** |
+| 51,0 | 0 | Su 13. | Su 13. | 0,9 px |
+| 51,2 | 0 | Su 13. | Su 13. | 0,9 px |
+| 51,5 | 1 | Su 13. | Su 13. | 0,9 px |
+| 52,0 | 1 | Su 13. | Su 13. | 0,9 px |
+
+51,9 px on tasan yhden lapun verran — juuri se "menee yhden ruudun
+eteenpäin" jonka käyttäjä raportoi. Ja se korjaantuu frac 51,0:ssa, mikä
+ruudulla on klo 01.
+
+Korjaus on pyöristys `_tlKiskoKeskita`:n SISÄLLÄ eikä kutsupaikassa:
+kutsupaikkoja on kolme (seuranta, `_tlKorostaPaiva`, `_kiskoLoppu`) ja
+kahdella niistä luku on jo valmiiksi kokonaisluku.
+
+Jälkeen 0/9 väärin, pahin 0,9 px. Sama molemmilla moottoreilla
+(Chromiumissa ennen 3/9 ja 51,9 px, jälkeen 0/9 ja −0,6 px).
+
+### Regressiot
+
+Kierroksen 2 oirekoe menee läpi WebKitillä ja Chromiumilla (tärisevä
+napautus, sormi janalla rAF jäädytettynä, sormi kiskolla). Keskiyön
+kiskotapahtuma antaa 0 h ja 0 px. Kääreen elementeistä yksikään ei jää
+ruudun ulkopuolelle. Tikkiväli on 18 px sekä normaalisti että keskiyön
+yli.
