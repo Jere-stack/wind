@@ -1065,8 +1065,15 @@ html.tyopoyta #kapseli.vaistyy {
   --tl-teksti:   rgba(255,255,255,.94);
   --tl-teksti-2: rgba(255,255,255,.50);
   --tl-teksti-3: rgba(255,255,255,.30);
-  --tl-lasi:       rgba(255,255,255,.15);
-  --tl-lasi-reuna: rgba(255,255,255,.24);
+  /* LASI ON 24 % EIKÄ 15 %, KOSKA VARJO EI NOSTA TUMMALLA ALUSTALLA.
+     Paperikortilla kiekon kohotuksen teki `0 2px 8px rgba(0,0,0,.28)`;
+     tummennuksen päällä tumma varjo on näkymätön, joten nosto oli
+     pelkän lasin varassa. Mitattuna ruudulta 15 %:n lasi oli alustaansa
+     vasten 1,72:1 (play) ja 1,12:1 (kelinappi levossa) — eli nappi luki
+     liukuvärin ALLA olevana vaikka se on sen päällä (z-index 6 vastaan
+     auto). Kohotus tehdään nyt valolla: täyttö ja hiusreuna ylös. */
+  --tl-lasi:       rgba(255,255,255,.24);
+  --tl-lasi-reuna: rgba(255,255,255,.40);
   --tl-viiva:      rgba(255,255,255,.20);
 }
 
@@ -1160,10 +1167,36 @@ html.tyopoyta #kapseli.vaistyy {
  * Ilman ylimenoa liukuvärin oma yläreuna olisi sama katkoviiva kuin
  * laatikon reuna, vain pehmeämpi — ja juuri se reuna oli syy vaihtaa.
  *
+ * YLIMENO ON 32 px, EI 64, JA SE ON MITATTU VALKOISTA VASTEN. Kartan
+ * päältä mitattu profiili ei kerro liukuväristä mitään — Itämeri yöllä on
+ * jo valmiiksi tummaa ja luminanssi seuraa karttaa (mitattu: L poukkoili
+ * 0,0046 ja 0,0798 välillä vierekkäisissä näytteissä, ja suurin arvo oli
+ * lukemarivin teksti). Kun kartta piilotetaan ja taakse jätetään
+ * valkoinen, pikselin arvo ON alfa.
+ *
+ * Niin mitattuna 64 px:n ylimeno alkoi näkyä 58 px kääreen yläpuolella ja
+ * oli puolessa (a = 0,50) täsmälleen kääreen ylälaidassa. Se oli liian
+ * korkealla: tummennus söi karttaa lähes kuudenkymmenen pikselin verran
+ * ennen kuin aikajanaa edes alkoi. Nyt ylimeno on 32 px, eli sama
+ * alfaväli kuljetaan PUOLESSA matkassa — reuna häipyy nopeammin ylöspäin
+ * mentäessä, mikä oli koko pyyntö.
+ *
+ * YLIMENO LYHENI MUTTA PALKKIVYÖHYKE EI VAALENTUNUT, JA SE ON EHTO
+ * EIKÄ SATTUMA. Ensimmäinen yritys siirsi koko käyrää alemmas, jolloin
+ * palkkien takana oleva alfa putosi 0,805 -> 0,780 — pieni luku, mutta
+ * kartta on siinä kohtaa kirkas, ja mitattuna palkin kontrasti alustaan
+ * romahti: heikoin pää 4,88:1 -> 3,50:1 eli käytännössä takaisin sinne
+ * mistä paperikortilta lähdettiin (3,41). Sääntö on että palkit saavat
+ * tummennuksella ENEMMÄN kontrastia kuin paperilla, joten alfa
+ * palkkivyöhykkeellä pidetään ennallaan ja lyhennys maksetaan pelkästään
+ * ylimenosta.
+ *
  * Pysäkit eivät ole tasavälein: silmä lukee lineaarisen liukuvärin
- * juovana, koska sen keskikohta nousee liian nopeasti. Painotettu käyrä
- * (0 → .30 → .66 → .88 → .93) pitää yläpään näkymättömänä ja tuo massan
- * vasta siellä missä palkit ovat.
+ * juovana, koska sen keskikohta nousee liian nopeasti. Käyrä on
+ * loiveneva — jokainen osuus nousee edellistä hitaammin (0,0282 →
+ * 0,0213 → 0,0062 → 0,0011 alfaa prosenttia kohti) — eikä siinä siis
+ * ole kohtaa jossa nousu KIIHTYISI uudelleen. Juuri se kiihtyminen on
+ * se mikä lukisi juovana, ja se on tämän käyrän ainoa kielletty muoto.
  *
  * `pointer-events: none`, koska kerros ulottuu kääreen yli: ilman sitä
  * se söisi karttaeleet 64 px korkealta kaistalta aikajanan yläpuolelta.
@@ -1172,13 +1205,13 @@ html.tyopoyta #kapseli.vaistyy {
   content: '';
   position: absolute;
   left: 0; right: 0;
-  top: -64px; bottom: 0;
+  top: -32px; bottom: 0;
   background: linear-gradient(to bottom,
     rgba(var(--tl-pohja), 0)   0%,
-    rgba(var(--tl-pohja), .38) 24%,
-    rgba(var(--tl-pohja), .78) 40%,
-    rgba(var(--tl-pohja), .92) 58%,
-    rgba(var(--tl-pohja), .95) 100%);
+    rgba(var(--tl-pohja), .48) 17%,
+    rgba(var(--tl-pohja), .82) 33%,
+    rgba(var(--tl-pohja), .90) 46%,
+    rgba(var(--tl-pohja), .96) 100%);
   pointer-events: none;
 }
 
@@ -1372,9 +1405,13 @@ html.tyopoyta #kapseli.vaistyy {
 .tl-keli-btn.tyhja { color: rgba(255,255,255,.26); }
 .tl-keli-btn.tyhja::before {
   /* Sama esine ilman nostetta: lasi himmenee eikä kiekko enää kohoa.
-     Ei `opacity`, joka haalistaisi myös reunan puoliksi piirretyksi. */
-  background: rgba(255,255,255,.05);
-  box-shadow: inset 0 0 0 .5px rgba(255,255,255,.09);
+     Ei `opacity`, joka haalistaisi myös reunan puoliksi piirretyksi.
+     Luvut nousivat .05/.09 -> .11/.20 samasta syystä kuin lasin omat:
+     tummennusta vasten .05 oli mitattuna 1,12:1 eli käytännössä
+     näkymätön. Käytöstä poissa oleva nappi saa näkyä — se vain ei
+     kohoa. */
+  background: rgba(255,255,255,.11);
+  box-shadow: inset 0 0 0 .5px rgba(255,255,255,.20);
 }
 
 /* PÄIVÄKISKO — pitkä hyppy yhdellä napautuksella.
@@ -1412,7 +1449,19 @@ html.tyopoyta #kapseli.vaistyy {
      jolloin tekstien väliin jää 20 px. */
   display: flex; gap: 0; align-items: center;
   overflow-x: auto; overflow-y: hidden;
-  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  /* EI `-webkit-overflow-scrolling: touch`. Se oli tässä momentumin
+     takia, mutta iOS 13:sta lähtien momentum on `overflow: auto`:n
+     oletus eikä ominaisuus enää kytke mitään päälle — sen sijaan se
+     siirtää elementin vanhaan vierityskerrokseen, jossa OHJELMALLINEN
+     `scrollLeft`-kirjoitus asettuu USEAMMAN RUUDUN aikana. Kiskolla
+     jokainen keskitys on ohjelmallinen kirjoitus, ja niistä kaksi ovat
+     suurimmat mahdolliset: kokonaisen lapun siirto keskiyön yli, ja
+     nollasta kohteeseen kun kisko on juuri rakennettu uudelleen.
+     Molemmat luettiin ruudulla päiväyksen välähdyksenä — lappu MATKASI
+     paikalleen sen sijaan että olisi vaihtunut. Ilman ominaisuutta
+     kirjoitus laskeutuu samassa ruudussa, eli päiväys vaihtuu keskellä
+     eikä liu'u sinne. */
+  scrollbar-width: none;
   overscroll-behavior-x: contain; touch-action: pan-x;
   padding: 0 10px;
   /* KISKOSSA EI OLE NATIIVIA SNÄPPÄYSTÄ, VAIKKA TUNTINAUHASSA ON.
@@ -20543,13 +20592,13 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
      rAF:n _tlSetScrollLeft():iin asti. */
   _tlBeginSelfScroll();
   tl.innerHTML = '';
-  if (!times || !times.length) { _tlRakennaPaivat(null); return; }
+  if (!times || !times.length) { _tlRakennaPaivat(null, null); return; }
   State._tlTimes = times; State._tlSpeeds = speeds; State._tlDirs = dirs;
   State._tlTicks = [];
   /* Kisko rakennetaan vain täällä, hitaassa polussa: se riippuu VAIN
      aikaleimoista, ja nopea polku ajetaan nimenomaan silloin kun ne ovat
      samat. Korostuksen hoitaa `_tlUpdateNow` molemmissa. */
-  _tlRakennaPaivat(times);
+  _tlRakennaPaivat(times, activeIdx);
   let lastDay = -1;
 
   const spacerL = document.createElement('div');
@@ -20737,6 +20786,18 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
     function _kiskoLoppu() {
       clearTimeout(_kiskoAjastin);
       if (_tlKiskoKosketusOma) return;
+      /* SORMI TUNTINAUHALLA PÄÄTTÄÄ KISKON ELEEN MUTTA EI SEURAA SITÄ.
+         Portti ei voi olla pelkkä `return`: `_tlKiskoVierii` vaientaa
+         keskityksen, ja jos se jäisi päälle, kisko lakkaisi seuraamasta
+         osoitinta pysyvästi. Liput siis nollataan — kiskon ele on ohi
+         siinä hetkessä kun sormi on nauhalla — mutta `_kiskoSeuraa` ja
+         vahvistus jätetään ajamatta, koska ne veisivät tuntinauhan
+         kiskon lapun kellonaikaan eli sormen alta pois. */
+      if (State._tlTouching) {
+        _tlKiskoVierii = false;
+        _tlKiskoSormiOllut = false;
+        return;
+      }
       /* ELETTÄ EI VOI PÄÄTTÄÄ JOS SITÄ EI OLE ALOITETTU. Portti on tässä
          eikä kutsupaikoissa, koska kutsupaikkoja on kolme: `scrollend`,
          varmistusajastin ja sormen nosto. Mitattuna ilman tätä kiskon
@@ -20775,6 +20836,15 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
     });
     kisko.addEventListener('scroll', function () {
       if (_tlKiskoOmaTapahtuma(kisko)) return;
+      /* SORMI TUNTINAUHALLA -> KISKOLLA EI OLE ELETTÄ, PISTE.
+         Tuntinauhaa raahatessa kisko liikkuu koko ajan — se seuraa
+         osoitinta — ja jokainen sen kirjoitus lähettää scroll-tapahtuman.
+         Jos sellainen luetaan kiskon omaksi eleeksi, `_kiskoSeuraa` vie
+         TUNTINAUHAN kiskon keskimmäisen lapun kellonaikaan eli sormen
+         alta pois. `_tlKiskoSormiOllut` sulkee sen vain siihen asti kun
+         kiskoa on viimeksi koskettu; tämä sulkee sen aina kun sormi on
+         nauhalla. */
+      if (State._tlTouching) return;
       /* KISKON ELE VAATII SORMEN KISKOLLA — SIJAINTIVERTAILU EI RIITÄ
          YKSIN.
        *
@@ -21147,7 +21217,7 @@ function _tlSetScrollLeft(tl, x) {
  * pelkkä `getDay()` osuisi väärään. */
 function _tlPvNro(d) { return d.getFullYear() * 10000 + d.getMonth() * 100 + d.getDate(); }
 
-function _tlRakennaPaivat(times) {
+function _tlRakennaPaivat(times, idx) {
   const kisko = document.getElementById('tl-paivat');
   if (!kisko) return;
   /* Tyhjennys kutistaa vieritysalueen nollaan ja lähettää
@@ -21205,6 +21275,29 @@ function _tlRakennaPaivat(times) {
   valikeR.className = 'tl-paiva-valike';
   valikeR.style.cssText = 'flex:0 0 ' + Math.round(window.innerWidth / 2) + 'px';
   kisko.appendChild(valikeR);
+
+  /* KISKO EI SAA JÄÄDÄ NOLLAAN YHDEKSIKÄÄN RUUDUKSI.
+   *
+   * Tyhjennys vie `scrollLeft`in nollaan, eli osoittimen alle akselin
+   * ENSIMMÄISEN päivän — ja akselissa on noin kaksi vuorokautta
+   * menneisyyttä. Korostus ja keskitys tehtiin ennen vasta
+   * `renderTimeline`in `requestAnimationFrame`issa, ja siinä on kaksi
+   * vuotoa: keskitys vaikenee jos kiskolla sattuu olemaan ele kesken
+   * (jolloin kisko jää nollaan kokonaan), ja nollasta kohteeseen on
+   * kiskon SUURIN mahdollinen kirjoitus. Kumpikin luettiin ruudulla
+   * välähdyksenä päiväyksestä kahden vuorokauden takaa.
+   *
+   * Sijainti ja korostus asetetaan siis TÄSSÄ, samassa suorituksessa
+   * jossa laput syntyivät, ja pakotettuna: uusia lappuja ei omista
+   * mikään ele. rAF:n `_tlUpdateNow` tekee saman uudelleen, ja se on
+   * silloin no-op (`_tlKiskoAsetaScroll` ohittaa alle 0,5 px:n eron). */
+  if (idx != null && times[idx] != null) {
+    const pv = String(_tlPvNro(new Date(times[idx])));
+    for (let i = 0; i < State._tlPaivat.length; i++) {
+      State._tlPaivat[i].classList.toggle('valittu', State._tlPaivat[i].dataset.pv === pv);
+    }
+    _tlKiskoKeskita(idx, true);
+  }
 }
 
 /* PÄIVÄYS ON TÄSMÄLLEEN KESKELLÄ, EI LIUKUVA.
@@ -21276,15 +21369,21 @@ function _tlKiskoOmaTapahtuma(kisko) {
     && Math.abs(kisko.scrollLeft - _tlKiskoKirjoitettu) <= 1;
 }
 
-function _tlKiskoKeskita(frac) {
+function _tlKiskoKeskita(frac, pakota) {
   const kisko = document.getElementById('tl-paivat');
   const lista = State._tlPaivat;
   if (!kisko || !lista || !lista.length) return;
   /* Sormi kiskolla: käyttäjä selaa päiviä itse, eikä sitä saa ohjata.
      Heitto on yhä käyttäjän elettä vaikka sormi on jo noussut, joten
      seuranta odottaa vierityksen pysähtymistä eikä irrotusta — muuten
-     keskitys kilpailisi momentumin kanssa ja jana nykisi. */
-  if (_tlKiskoKosketusOma || _tlKiskoVierii) return;
+     keskitys kilpailisi momentumin kanssa ja jana nykisi.
+
+     PAKOTA OHITTAA TÄMÄN, JA SILLE ON TASAN YKSI KÄYTTÖ: kisko on juuri
+     rakennettu uudelleen. Silloin ne laput joita sormi raahasi eivät ole
+     enää olemassa, eikä mikään ele voi omistaa sijaintia jota ei ole —
+     ja vaihtoehto olisi jättää kisko nollaan, eli akselin ENSIMMÄISEEN
+     päivään joka on noin kaksi vuorokautta menneisyydessä. */
+  if (!pakota && (_tlKiskoKosketusOma || _tlKiskoVierii)) return;
   /* INDEKSI PYÖRISTETÄÄN TÄSSÄ, JA SE ON KOKO PÄIVÄRAJAN KORJAUS.
    *
    * Seuranta valitsee tikin PYÖRISTETYSTÄ luvusta
@@ -21354,10 +21453,21 @@ function _tlPaivanIdx(pvNro) {
   return paras;
 }
 
-/* Korostus seuraa valintaa, ja kisko seuraa korostusta — ks.
-   `_tlKiskoKeskita`. Sijainti otetaan `currentHourIdx`:stä eikä
-   päivästä, jotta lappu liukuu myös päivän sisällä. */
-function _tlKorostaPaiva(d) {
+/* KOROSTUS JA KESKITYS TULEVAT SAMASTA HETKESTÄ.
+ *
+ * Tässä korostettiin päivä `d`:n mukaan mutta keskitettiin
+ * `State.currentHourIdx`:n mukaan. Ne ovat sama luku vain silloin kun
+ * kutsu tulee `_tlSeuraaHetkea`:sta, joka on juuri asettanut molemmat.
+ * `renderTimeline` kutsuu `_tlUpdateNow(activeIdx)`:ia akselin
+ * vaihtuessa, ja SILLOIN `currentHourIdx` on vielä VANHAN akselin luku:
+ * korostus meni uuteen päivään ja keskitys vanhan akselin indeksiin,
+ * eli osoittimen alle jäi eri lappu kuin korostettu. Ruudulla se on
+ * päiväyksen välähdys väärästä kohdasta.
+ *
+ * Nyt indeksi tulee parametrina samasta paikasta kuin `d`, joten ne
+ * eivät voi olla eri mieltä. Sijainti on indeksistä eikä päivästä,
+ * jotta reunapäivien vajaus ei siirrä lappua (ks. `_i0.._i1`). */
+function _tlKorostaPaiva(d, idx) {
   const lista = State._tlPaivat;
   if (!lista || !lista.length) return;
   const pv = String(_tlPvNro(d));
@@ -21365,7 +21475,7 @@ function _tlKorostaPaiva(d) {
     const on = lista[i].dataset.pv === pv;
     if (lista[i].classList.contains('valittu') !== on) lista[i].classList.toggle('valittu', on);
   }
-  _tlKiskoKeskita(State.currentHourIdx || 0);
+  _tlKiskoKeskita(idx != null ? idx : (State.currentHourIdx || 0));
 }
 
 /* AIKAKUPLAN TEKSTI — PÄIVÄYS SANOTAAN KERRAN.
@@ -21429,7 +21539,7 @@ function _tlUpdateNow(idx) {
      tulevaisuudessa (ennuste) aina viimeisin havainto */
   if (window._updateObsIcons) window._updateObsIcons(d.getTime());
   _tlKuplaTeksti(d);
-  _tlKorostaPaiva(d);
+  _tlKorostaPaiva(d, idx);
   if (typeof _tlKeliNappiTila === 'function') _tlKeliNappiTila();
   /* SADEKERROS SEURAA AIKAJANAA. Tämä on ainoa paikka josta valinnan
      siirto tavoitetaan kaikilta poluilta — päiväkisko, näppäimistö,

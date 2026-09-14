@@ -4870,3 +4870,167 @@ napautus, sormi janalla rAF jäädytettynä, sormi kiskolla). Keskiyön
 kiskotapahtuma antaa 0 h ja 0 px. Kääreen elementeistä yksikään ei jää
 ruudun ulkopuolelle. Tikkiväli on 18 px sekä normaalisti että keskiyön
 yli.
+
+## Liukuväri alemmas, lasi ylös, ja päiväyksen välähdys kahdesta syystä
+
+Neljä pyyntöä, ja kaksi niistä osoittautui samaksi vaaksi kahdessa
+paikassa.
+
+### Liukuväri: ylimeno 64 → 32 px
+
+Ensin mittari. Kartan päältä mitattu pystyprofiili ei kerro liukuväristä
+mitään: Itämeri yöllä on jo valmiiksi tummaa, ja luminanssi seuraa
+karttaa eikä alfaa — mitattuna L poukkoili 0,0046 ja 0,0798 välillä
+vierekkäisissä näytteissä, ja koko profiilin suurin arvo oli lukemarivin
+teksti. Kun kartta piilotetaan ja taakse jätetään VALKOINEN, pikselin
+arvo on suoraan alfa:
+
+```
+tulos = pohja·a + 255·(1−a)   ->   a = (255 − tulos) / (255 − pohja)
+```
+
+Niin mitattuna vanha 64 px:n ylimeno alkoi näkyä **58 px kääreen
+yläpuolella** ja oli puolessa (a = 0,50) täsmälleen kääreen ylälaidassa.
+Se on paljon: tummennus söi karttaa lähes kuudenkymmenen pikselin verran
+ennen kuin aikajanaa edes alkoi.
+
+| | ennen | nyt |
+|---|---|---|
+| ylimeno | 64 px | 32 px |
+| ensimmäinen näkyvä tummennus | −58 px | −30 px |
+| a = 0,50 | +2 px | +2 px |
+| reunan kaltevuus | 0,087 alfaa / 10 px | 0,150 |
+| alfa palkkien takana (+30 px) | 0,805 | **0,822** |
+| alfa (+50 px) | 0,876 | **0,888** |
+
+Ensimmäinen yritys siirsi koko käyrää alas (0 → .45 → .80 → .91), ja se
+oli väärin: alfa palkkivyöhykkeellä putosi 0,805 → 0,780. Pieni luku,
+mutta kartta on siinä kohtaa kirkas. Nyt pysäkit ovat
+0 → .48 → .82 → .90 → .96 (0 / 17 / 33 / 46 / 100 %), eli palkkien takana
+on entistä tummempaa ja lyhennys maksetaan pelkästään ylimenosta.
+
+Käyrän ainoa kielletty muoto on KIIHTYVÄ nousu — se on se mikä lukee
+juovana. Osuuksien kaltevuus on 0,0282 → 0,0213 → 0,0062 → 0,0011 alfaa
+prosenttia kohti, eli aina edellistä pienempi.
+
+### Mittari mittasi napin lasia ja kutsui sitä tummennukseksi
+
+Liukuvärin muutoksen jälkeen palkkien kontrasti näytti romahtaneen:
+2 m/s 4,88:1 → 3,50:1. Se olisi ollut takaisin siellä mistä
+paperikortilta lähdettiin (3,41), eli muutos olisi pitänyt perua.
+
+Vika oli mittarissa. `kontrasti.mjs` otti alustanäytteen kiinteästä
+kohdasta `nauha.left + 24`, ja PLAY-NAPPI on x 9..53. Mittari luki siis
+napin lasia tummennuksena — ja koska samassa erässä lasin alfa nostettiin
+.15 → .24, "alusta" vaaleni 43,60,61 → 67,80,81 ja jokainen palkki näytti
+menettäneen kontrastia, vaikka liukuvärin alfa samassa kohdassa oli
+mitattuna NOUSSUT.
+
+Sama virhe kuin kortin paperinäytteessä aikanaan, ja sama opetus: kun
+mittaat alustaa, ota näyte sieltä missä alusta on paljas. Näyte otetaan
+nyt kahden palkin VÄLISTÄ (tikki 18 px, palkki 12, väliin 6 px) ja
+mittari tarkistaa vielä ettei piste osu nappiin.
+
+Oikeat luvut, vuorotellen kahdella portilla:
+
+| m/s | ennen | nyt |
+|---|---|---|
+| 2 | 7,88:1 | 7,76:1 |
+| 5 | 12,49 | 12,30 |
+| 8 | 13,86 | 13,65 |
+| 11 | 15,31 | 15,08 |
+| 14 | 11,09 | 10,92 |
+| 20 | 8,05 | 7,93 |
+
+Liukuvärin siirto maksaa siis heikoimmassa päässä 0,12 kontrastiyksikköä.
+Ja CLAUDE.md:n vanhat luvut (4,88 / 7,73 / …) korjattiin: ne oli mitattu
+napin lasia vasten.
+
+### Napit olivat päällä mutta eivät näyttäneet siltä
+
+Palaute oli että play ja kelihyppy ovat liukuvärjäyksen takana. Ne eivät
+ole: nappi on `z-index: 6`, liukuväri `auto`, ja `elementFromPoint` napin
+keskellä osuu napin omaan svg-polkuun. Kerrosjärjestys oli oikein.
+
+Vika oli materiaalissa. Paperikortilla kiekon kohotuksen teki varjo
+(`0 2px 8px rgba(0,0,0,.28)`); tummennuksen päällä tumma varjo on
+näkymätön, joten nosto jäi pelkän lasin varaan — ja 15 % valkoista ei
+riitä. Mitattuna ruudulta nappi alustaansa vasten:
+
+| | ennen | nyt |
+|---|---|---|
+| play | 1,72:1 | **2,45:1** |
+| kelihyppy (kytketty) | ~1,5 | **2,12:1** |
+| kelihyppy (levossa) | 1,12:1 | **1,34:1** |
+
+Nosto tehdään nyt valolla: lasi .15 → .24, hiusreuna .24 → .40, ja
+levossa olevan napin .05/.09 → .11/.20.
+
+### Päiväyksen välähdys oli kaksi eri vikaa
+
+Kumpaakaan ei saa kiinni eleellä. Sormiharness kirjoittaa `scrollLeft`in,
+`scroll-snap` vetää sen tikkiin ja kisko asettuu samassa ruudussa, joten
+välitilaa ei synny kertaakaan: mitattuna 0 ristiriitaa 7 ja 3 näytteessä,
+molemmissa buildeissa. Laitteella ne syntyvät, koska iOS asettaa kiskon
+kirjoituksen usean ruudun aikana. Mitattiin siis se TILA josta välähdys
+syntyy, suoraan funktioista.
+
+**1. Korostus ja keskitys eri hetkestä.** `_tlKorostaPaiva(d)` korosti
+päivän `d`:n mukaan mutta keskitti kiskon `State.currentHourIdx`:n
+mukaan. Ne ovat sama luku vain silloin kun kutsu tulee
+`_tlSeuraaHetkea`:sta. `renderTimeline` kutsuu `_tlUpdateNow(activeIdx)`
+akselin vaihtuessa, ja silloin `currentHourIdx` on vielä VANHAN akselin
+luku.
+
+```
+odotettu päiväys : Ke 16.
+korostettu lappu : Ke 16.
+osoittimen alla  : La 12.   <-- neljä päivää sivussa
+```
+
+**2. Kisko jäi nollaan uudelleenrakennuksen jälkeen.**
+`_tlRakennaPaivat` tyhjentää kiskon, jolloin `scrollLeft` menee nollaan
+eli osoittimen alle akselin ENSIMMÄINEN päivä — ja akselissa on noin
+kaksi vuorokautta menneisyyttä. Korostus ja keskitys tehtiin vasta
+`renderTimeline`in rAF:issa. Mitattuna heti rakennuksen jälkeen, samassa
+suorituksessa:
+
+```
+odotettu päiväys : Ke 16.
+korostettu lappu : (ei mitään)
+osoittimen alla  : To 10.   (Chromium, kiskoX 0)
+osoittimen alla  : La 12.   (WebKit,   kiskoX 154)
+```
+
+Tänään on Ma 14., joten `La 12.` on täsmälleen se "kaksi päivää
+menneisyydestä" jonka palaute nimesi.
+
+Molemmat 0/2 → 2/2 OK, sama molemmilla moottoreilla. Korjaukset:
+indeksi kulkee `_tlKorostaPaiva`lle parametrina, ja `_tlRakennaPaivat`
+asettaa korostuksen ja sijainnin itse — PAKOTETTUNA, koska juuri
+syntyneitä lappuja ei omista mikään ele.
+
+### Kolme muuta porttia samaan asiaan
+
+- **Sormi tuntinauhalla → kiskolla ei ole elettä.** `State._tlTouching`
+  on portti sekä kiskon scroll-polussa että `_kiskoLoppu`ssa.
+  `_kiskoLoppu`ssa se ei saa olla pelkkä `return`: liput on nollattava,
+  muuten `_tlKiskoVierii` jäisi päälle ja kisko lakkaisi seuraamasta
+  osoitinta pysyvästi.
+- **`-webkit-overflow-scrolling: touch` pois kiskolta.** iOS 13:sta
+  lähtien momentum on `overflow: auto`:n oletus eikä ominaisuus kytke
+  mitään päälle — sen sijaan se siirtää elementin vanhaan
+  vierityskerrokseen, jossa ohjelmallinen `scrollLeft` asettuu useamman
+  ruudun aikana. Kiskon kaksi suurinta kirjoitusta ovat juuri ne joissa
+  välähdys näkyi. Tätä ei voi mitata kontissa (Linux-WebKitissä
+  ominaisuus on no-op) — se on pääteltyä, toisin kuin välähdyksen sisältö.
+- **`_tlKiskoKeskita` sai `pakota`-lipun**, ja sillä on tasan yksi
+  käyttö: kisko on juuri rakennettu uudelleen.
+
+### Regressiot
+
+Kierroksen 2 oirekoe läpi WebKitillä ja Chromiumilla — myös C, sormi
+kiskolla, eli kiskon oma raahaus kestää sekä `_tlTouching`-portin että
+vierityskerroksen poiston. Päivärajan pyöristys 0/9 väärin. Keskiyön
+kiskotapahtuma 0 h / 0 px. Tikki 18 px, palkki 12, lukema 10 px, 391/391
+lukemaa, pienin rako 6,9 px, ei yhtään elementtiä ruudun ulkopuolella.
