@@ -146,7 +146,9 @@ kokeiltu ja kaadettu mittauksella.
   Aikajana: huntu pois, tikki kapeammaksi, kisko valitsimeksi ·
   Aikajana, toinen erä: se ei toiminut laitteella ·
   Nauha rakennettiin, mitattiin ja peruttiin ·
-  Lukemarivi palkkien alle, päiväerotin pois
+  Lukemarivi palkkien alle, päiväerotin pois ·
+  Keskiyön vilkahdus oli kiskon väärin luettu scroll-tapahtuma ·
+  Palkkien asteikko ei enää kyllästy
 
 </details>
 
@@ -293,7 +295,7 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   näyte osuu palkkiin, yökaistaan, NYT-osoittimeen tai napin varjoon —
   ja väittää sitten että sama paperi on eri väristä eri kohdissa.
 - **Palkin korkeusasteikko on EPÄLINEAARINEN** (4–14 m/s levennetty) ja
-  täysi mitta on 58 px (`TL_PALKKI_H`). Korkeus on muoto, väri on arvo.
+  täysi mitta on 72 px (`TL_PALKKI_H`). Korkeus on muoto, väri on arvo.
   Älä palauta lineaarista: se antaa 1,38 px/(m/s) ja peräkkäisten
   tuntien tyypillinen ero on 0,2 m/s eli alle puoli pikseliä.
 - **`ColorRamp.rgb()` on kartalle, `ink()` paneeleihin.** Ne kulkevat
@@ -484,18 +486,24 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   0,5 m/s rajan, ja 94 % minuuteista renderöityisi identtisesti.
   10 min veisi +7 vrk raahauksen 10 ruudullisesta 60:een.
   Aikajanan vika oli navigointi, ja se on `#tl-paivat`.
-- **Palkin korkeus on KIINTEÄLLÄ asteikolla (14 m/s = täysi, 58 px).**
+- **Palkin korkeus on KIINTEÄLLÄ asteikolla (30 m/s = täysi, 72 px).**
   Sarjakohtainen maksimi teki palkeista vertailukelpoisia vain sarjan
   sisällä, ja sarja vaihtuu joka kartansiirrolla: mitattuna 7,67 m/s oli
   14,1 px ja 8,40 m/s 13,4 px. Älä palauta `maxMs`-skaalausta.
-- **KATTO ON 14 m/s, EI 16, ja korkeus 58 px, ei 35, 44 eikä 52.**
-  Molemmat palvelevat erottelua siellä missä päätös tehdään: väli
-  4–11 m/s sai 5,8–6,2 px metriä sekunnissa kohti (35 px:llä 2,6–3,1,
-  44 px:llä 4,4–4,7, 52 px:llä 5,2–5,6), ja 4 → 10 m/s on nyt 36 px
-  ero (ennen 32, sitä ennen 27 ja 17).
-  Yli neljäntoista väli menetti korkeuseron kokonaan — se on tarkoitus,
-  siellä ei valita keliä vaan kokoa, ja väri jatkaa kyllästymisen
-  jälkeen.
+- **KATTO ON 30 m/s JA KORKEUS 72 px — ASTEIKKO EI KYLLÄSTY.** Katto
+  oli pitkään 14 m/s sillä perusteella että sen yli ei enää valita
+  keliä vaan kokoa, joten väli sai kyllästyä ja värin annettiin jatkaa
+  yksin. Se oli väärin: 14, 20 ja 28 m/s piirtyivät PIKSELILLEEN
+  samankorkuisina, eli myrskypäivä näytti rivissä samalta kuin kova
+  mutta foilattava päivä. Korkeus on rivin ensimmäinen luettava muoto
+  eikä se saa vaieta siellä missä lukema on vaarallisin.
+  Nyt yläpää saa pienen mutta AINA KASVAVAN siivun: 14 m/s = 0,88,
+  20 m/s = 0,96, 30 m/s = 1,00 (14 → 20 on 5,8 px, 20 → 30 on 2,9 px).
+  Korkeus 72 px maksaa noston: päätösväli 4–11 m/s pitää 5,8–6,2 px
+  metriä sekunnissa kohti eli saman kuin 58 px:llä kapeammalla
+  akselilla, ja tavallinen rannikkotuuli nousee korkeammalle
+  (6 m/s 18,6 → 25 px, 10 m/s 42,5 → 49 px). Älä palauta kattoa
+  kyllästyväksi.
 - **PUUSKAHUNTU ON POISTETTU, JA PALKKI SAI SEN TILAN.** Palkin päällä
   oli ylöspäin häviävä muste-huntu (korkeus = puuskan ja tuulen ero,
   katto 11 px; alfa = puuska/tuuli-suhde). Se oli mitattu ja kalibroitu
@@ -543,7 +551,25 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kirjoitusta siirsivät kiskoa 0 px. `_tlKiskoKeskita` hoitaa
   keskityksen tarkemmin (mitattu −0,9 px) ja se ajetaan eleen
   päätteeksi.
-- **KISKON OMA VIERITYS TUNNISTETAAN SIJAINNISTA, EI AJASTIMESTA.**
+- **KISKON ELE VAATII SORMEN KISKOLLA — SIJAINTIVERTAILU EI RIITÄ
+  YKSIN.** Kiskon scroll-käsittelijä päätteli ennen pelkästä
+  sijainnista: jos `scrollLeft` ei ole se minkä juuri kirjoitimme
+  (±1 px), tapahtuma on käyttäjän. Päättely pettää aina kun oma
+  kirjoitus ei laskeudu tarkalleen — ja keskiyön yli se on kiskon
+  SUURIN kirjoitus, kokonaisen lapun verran, jonka iOS:n
+  `-webkit-overflow-scrolling: touch` asettaa useamman ruudun aikana.
+  Seuraus ei ollut kosmeettinen: väärin luettu tapahtuma ajoi
+  `_kiskoSeuraa`n, joka vie TUNTINAUHAN kiskon keskimmäisen päivän
+  samaan kellonaikaan (`_tlPaivanIdx`). Mitattuna vanhalla koodilla
+  **24 tunnin hyppy ja 288 px nauhan siirto sormen ollessa
+  tuntinauhalla** — sitä käyttäjä näki päivämäärän vilkahduksena
+  väärässä kohdassa. Portti on nyt suora signaali
+  (`_tlKiskoSormiOllut`), ei päättely, ja se on MYÖS `_kiskoLoppu`ssa,
+  koska sinne tullaan kolmesta paikasta (`scrollend`, varmistusajastin,
+  sormen nosto) — pelkkä scroll-polun portti jätti tunnin hypyn
+  jäljelle. Mitattu jälkeen 0 h ja 0 px, kontrolli ilman kiskon
+  nytkäystä 0 h.
+- **Kiskon oma vieritys tunnistetaan SIJAINNISTA, ei ajastimesta.**
   300 ms:n ikkuna oli väärä mittari molempiin suuntiin: kirjoituksen
   jälkeiset tapahtumat voivat tulla myöhemmin (jolloin oma vieritys
   luetaan sormeksi) ja ikkuna oli auki jokaisen kirjoituksen jälkeen,
@@ -564,20 +590,17 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   sivussa). Molemmat reitit (`scrollend`/ajastin ja sormen nosto)
   johtavat samaan `_kiskoLoppu`un.
 - **KORTIN KORKEUS ON SUMMA, EI YKSI LUKU.** `#tl-wrap` on
-  `114px + var(--tl-paivat-h) + var(--sab-tl)`, ja tuntinauha saa
-  siitä sen mikä jää täytteiden jälkeen (78 px). Nauha jakautuu
-  kolmeen: **10 px NYT-lappu ylhäällä, 56 px palkkivyöhyke, 12 px
-  lukemarivi alhaalla.** Kortti on levossa 114 px ja hereillä 144
-  (oli 97 / 127).
-  **Palkin kasvattaminen vaatii joko sen 114:n tai tilan josta se on
+  `130px + var(--tl-paivat-h) + var(--sab-tl)`, ja tuntinauha saa
+  siitä sen mikä jää täytteiden jälkeen (94 px). Nauha jakautuu
+  kolmeen: **10 px NYT-lappu ylhäällä, 72 px palkkivyöhyke, 12 px
+  lukemarivi alhaalla.** Kortti on levossa 130 px ja hereillä 158
+  (oli 97 / 127, sitä ennen 88 / 128).
+  **Palkin kasvattaminen vaatii joko sen 130:n tai tilan josta se on
   pois.** 44 -> 52 oli jälkimmäistä (puuskahunnun poisto, kortti ei
-  muuttunut pikseliäkään); 52 -> 58 on edellistä, koska lukemarivi
-  tarvitsi oman 12 px:nsä eikä sitä ollut mistä ottaa.
-  **Katon asettaa NYT-lappu.** Kyllästynyt palkki (yli ~12,9 m/s)
-  nousee 2 px sen laatikkoon — mitattu, ja VÄHEMMÄN kuin ennen, jolloin
-  sama törmäys tuntilukeman kanssa oli 3 px. Kortti 108 px kokeiltiin
-  ensin ja se olisi tehnyt siitä 8 px: korjaus olisi pahentanut juuri
-  sitä mitä se korjasi.
+  muuttunut pikseliäkään); 52 -> 58 ja 58 -> 72 ovat edellistä.
+  **Palkki päättyy TASAN NYT-lapun alareunaan**: mitattuna kyllästynyt
+  palkki 564–636 ja lappu 554–564, päällekkäisyys 0 px. 114 px:llä se
+  oli 2 px ja 108 px:llä olisi ollut 8 px.
 - **LUKEMA ON ALARIVILLÄ JA JOKA TUNNILLA.** Rivi on 12 px nauhan
   alalaidassa (`.htick`in `padding-bottom`), ja siinä on kaksi painoa:
   harmaa `--ink-3` joka tunnille, tumma `--ink` + 600 joka kolmannelle

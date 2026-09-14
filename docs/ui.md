@@ -4570,3 +4570,93 @@ Vuorotellen ajettuna vanha ja uusi build latautuivat yhtä hyvin
 palvelimen ensimmäinen pyyntö), ja diffissä on **0 riviä**
 datapolussa. Kun mittaus väittää ettei jotain ole olemassa, epäile
 ensin mittaria.
+
+## Keskiyön vilkahdus oli kiskon väärin luettu scroll-tapahtuma
+
+Päivämäärä vilkahti väärässä kohdassa kun tuntinauhaa raahasi keskiyön
+yli. Edellinen kierros mittasi valitun päivälapun sijainnin ja sai
+1,2 px — eli keskityslaskussa ei ollut vikaa, ja korjaus meni ohi.
+
+### Mittari ei nähnyt sitä koska se katsoi väärää asiaa
+
+Vilkahdus ei ole lapun sijainti vaan VALINNAN hyppy. Kiskon
+scroll-käsittelijä päätteli sormen pelkästä sijainnista:
+
+```js
+if (_tlKiskoOmaTapahtuma(kisko)) return;   // ±1 px omasta kirjoituksesta
+_tlKiskoVierii = true;                     // muuten: oletetaan sormi
+... _kiskoSeuraa();
+```
+
+`_kiskoSeuraa()` ottaa kiskon keskimmäisen lapun ja vie **tuntinauhan**
+sen päivän samaan kellonaikaan (`_tlPaivanIdx`). Jos päättely menee
+pieleen, valinta siirtyy sormen alta aivan toiseen tuntiin.
+
+Keskiyö on juuri se kohta jossa se menee pieleen: siellä kisko tekee
+suurimman kirjoituksensa, kokonaisen päivälapun verran, ja iOS:n
+`-webkit-overflow-scrolling: touch` asettaa ison hypyn usean ruudun
+aikana. Välitilat eivät ole siellä minne kirjoitimme, joten ne luetaan
+sormeksi.
+
+### Toisto ilman iOS:ää
+
+Kontti ei toista momentumia eikä yllä 13 fps:n yli, joten ruutukohtainen
+näytteenotto ei nähnyt mitään (32 näytettä, 0 yli 6 px). Sen sijaan
+toistettiin **seuraus**: nytkäytetään kiskoa oikeasti 30 px samalla kun
+sormi on tuntinauhalla.
+
+Synteettinen `scroll`-tapahtuma ei kelvannut — sijainti täsmäsi yhä ja
+`_tlKiskoOmaTapahtuma` tunnisti sen omaksi. Vasta aito nytkäys tuotti
+oireen:
+
+| | vanha | uusi |
+|---|---|---|
+| kiskotapahtuman aiheuttama hyppy | **24 h** | **0 h** |
+| tuntinauha siirtyi | **288 px** | **0 px** |
+| kontrolli (ei nytkäystä) | — | 0 h |
+
+### Korjaus on suora signaali, ei päättely
+
+Kiskon ele on olemassa vain jos sormi (tai rulla) on koskenut
+KISKOON — `_tlKiskoSormiOllut`, nollataan vasta `_kiskoLoppu`ssa jotta
+se kattaa myös heiton. Sijaintivertailu jää eteen halpana oikotienä
+mutta ei ole enää ainoa vartija.
+
+**Portti tarvittiin KAHTEEN paikkaan.** Pelkkä scroll-polun portti
+pudotti hypyn 24 tunnista yhteen — jäljelle jäi `scrollend`, joka ajaa
+`_kiskoLoppu`n, joka ajaa `_kiskoSeuraa`n. Portti siirrettiin
+`_kiskoLoppu`un, jonne tullaan kaikista kolmesta suunnasta
+(`scrollend`, varmistusajastin, sormen nosto). Vasta silloin luku oli
+0 h.
+
+## Palkkien asteikko ei enää kyllästy
+
+Katto oli 14 m/s ja perustelu "yli neljäntoista ei valita keliä vaan
+kokoa". Käytössä se tarkoitti että 14, 20 ja 28 m/s piirtyivät
+**pikselilleen samankorkuisina** ja erosivat vain sävyltä — myrskypäivä
+näytti rivissä samalta kuin kova mutta foilattava päivä.
+
+Katto on nyt 30 m/s (12 bft alkaa 32,7) ja palkki 72 px. Käyrä pitää
+päätösvälin ennallaan ja antaa yläpäälle pienen mutta aina kasvavan
+siivun:
+
+| m/s | ennen (58 px) | nyt (72 px) |
+|---|---|---|
+| 4 | 7,0 px | 13,7 px |
+| 6 | 18,6 | 25,0 |
+| 8 | 30,2 | 37,4 |
+| 10 | 42,5 | 49,0 |
+| 12 | 51,8 | 57,6 |
+| **14** | **58,0** | **63,4** |
+| **20** | **58,0** | **69,1** |
+| **30** | **58,0** | **72,0** |
+
+Päätösväli 4–11 m/s saa yhä 5,8–6,2 px metriä sekunnissa kohti eli
+saman erottelun kuin ennen — korkeuden nosto maksoi akselin
+venyttämisen, ei päinvastoin.
+
+Kortti kasvoi 114 → 130 px (hereillä 144 → 158), nauha 78 → 94 px:
+10 px NYT-lappu, 72 px palkit, 12 px lukemarivi. Kyllästynyt palkki
+päättyy nyt **tasan** NYT-lapun alareunaan: mitattuna palkki 564–636 ja
+lappu 554–564, päällekkäisyys 0 px (oli 2 px). Napit pysyvät 10 px
+kortin yläpuolella, peitto 0 %.

@@ -1068,7 +1068,7 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
 
 #tl-wrap {
   position: relative; pointer-events: all;
-  height: calc(114px + var(--tl-paivat-h) + var(--sab-tl));
+  height: calc(130px + var(--tl-paivat-h) + var(--sab-tl));
   overflow: visible;
   /* KAKSI RAITAA, YKSI VÄLI. Täyte oli 14 + kisko ylhäällä ja 22
      alhaalla, jolloin tuntiuran ja päiväkiskon väliin jäi 3 px ja uran
@@ -1077,15 +1077,14 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
      uudelleen: 20 ylhäällä ja 16 alhaalla eli raitojen väliin 9 px ja
      kortin alareunaan 8 px. Summa on sama 36 px.
 
-     KORTTI KASVOI 97 -> 114 px, KOSKA LUKEMARIVI TULI PALKKIEN ALLE.
-     Nauha saa täytteiden jälkeen 114 - 36 = 78 px (oli 61), ja se
-     jakautuu kolmeen: 10 px yläreunan NYT-lappu, 56 px palkkivyöhyke ja
-     12 px alalaidan lukemarivi. Palkin täysi mitta on 58 (ks.
-     TL_PALKKI_H), eli kyllästynyt palkki nousee 2 px NYT-lapun
-     laatikkoon — VÄHEMMÄN kuin ennen, jolloin sama törmäys tuntilukeman
-     kanssa oli 3 px ja hyväksyttiin. 108 px kokeiltiin ensin ja se
-     olisi tehnyt siitä 8 px, eli korjaus olisi pahentanut juuri sitä
-     mitä se korjasi.
+     KORTTI 97 -> 114 -> 130 px. Ensimmäinen askel toi lukemarivin
+     palkkien alle, toinen antoi palkille korkeutta. Nauha saa
+     täytteiden jälkeen 130 - 36 = 94 px (oli 61), ja se jakautuu
+     kolmeen: 10 px yläreunan NYT-lappu, 72 px palkkivyöhyke ja 12 px
+     alalaidan lukemarivi. Palkin täysi mitta on 72 (ks. TL_PALKKI_H),
+     eli se päättyy TASAN NYT-lapun alareunaan — kyllästynyt palkki ei
+     enää kosketa lappua lainkaan (114 px:llä se nousi siihen 2 px,
+     108 px:llä olisi noussut 8 px).
 
      Nappipino on normaalivirrassa kortin YLÄPUOLELLA
      (`#bottom` > `#bottom-bar` + `#tl-wrap`), joten kortin kasvu nostaa
@@ -20249,34 +20248,40 @@ const TL_TIKKI_PUOLI = TL_TIKKI_LEV / 2;
  * Eli enemmän tuulta, lyhyempi palkki. Muoto valehteli aina kun karttaa
  * liikutti.
  *
- * Täysi korkeus on 14 m/s eikä rampin 20: yli neljäntoista ei enää
- * valita keliä vaan kokoa, joten se väli saa kyllästyä. Väri jatkaa
- * siitä mihin korkeus loppuu — ramppi kulkee punaisen kautta magentaan
- * vielä senkin jälkeen kun palkki on täydessä mitassaan.
+ * KATTO 14 -> 30 m/s: MYRSKY EI SAA NÄYTTÄÄ KOVALTA TUULELTA.
  *
- * KATTO LASKETTIIN 16:STA 14:ÄÄN JA KORKEUS NOSTETTIIN 35:STÄ 44:ÄÄN,
- * ja molemmat palvelevat samaa asiaa: erottelua siellä missä päätös
- * tehdään. Yhdessä ne antavat foilattavalle välille 4–11 m/s
- * 4,4–4,7 px metriä sekunnissa kohti, kun se ennen oli 2,6–3,1.
- * Kovan tuulen väli 14–20 m/s menetti korkeuseron kokonaan — se on
- * juuri se väli jossa ero ei muuta mitään, koska sinne ei mennä. */
-const TL_PALKKI_TAYSI_MS = 14;
-/* KORKEUS 52 -> 58 px, JA SE ON LUKEMARIVIN SIIRRON TUOMA TILA.
+ * Katto oli 14 m/s, ja sen perustelu oli että yli neljäntoista ei enää
+ * valita keliä vaan kokoa — se väli sai kyllästyä ja värin annettiin
+ * jatkaa yksin. Käytössä se osoittautui vääräksi: 14, 20 ja 28 m/s
+ * piirtyivät TÄSMÄLLEEN saman korkuisina ja erosivat vain sävyltä,
+ * jolloin myrskypäivä näytti rivissä samalta kuin kova mutta
+ * foilattava päivä. Korkeus on rivin ensimmäinen luettava muoto, eikä
+ * se saa vaieta juuri siellä missä lukema on vaarallisin.
  *
- * Nauha kasvoi 61 -> 78 px (kortti 97 -> 114). Siitä menee 12 px
- * alalaidan lukemariviin ja 10 px yläreunan NYT-lappuun, joten palkille
- * jää 56 — ja täysi mitta 58 nousee siis 2 px lapun laatikkoon.
- * Aiemmin katto oli 52 siksi, että ylhäällä oli 10 px:n lukemalaatikko
- * JOKA KOLMANNESSA tikissä ja kyllästynyt palkki söi siitä 3 px. Nyt
- * ylhäällä on enää yksi laatikko koko akselilla (NYT), ja törmäys on
- * 2 px eli pienempi kuin ennen.
+ * 30 m/s on täysi myrsky (12 bft alkaa 32,7 m/s), eli akseli kattaa
+ * kaiken minkä Itämerellä voi kohdata ilman että katto tulee vastaan
+ * käytännössä koskaan. Käyrä pitää päätösvälin ennallaan ja antaa
+ * yläpäälle pienen mutta AINA KASVAVAN siivun: 14 m/s on 0,88, 20 m/s
+ * 0,96 ja 30 m/s 1,00. Ero on pieni pikseleinä mutta se on olemassa,
+ * ja se on oikea suunta — tasainen katto oli väärä tieto, ei karkea. */
+const TL_PALKKI_TAYSI_MS = 30;
+/* KORKEUS 52 -> 58 -> 72 px.
  *
- * Askel metriä sekunnissa kohti nousee samassa suhteessa: 4-8 m/s
- * 5,80 px (oli 5,20), 8-11 m/s 6,19 (5,55). 4 -> 10 m/s on 36 px ero
- * (oli 32).
+ * Nauha on 94 px (kortti 130): 12 px alalaidan lukemarivi, 10 px
+ * yläreunan NYT-lappu, ja 72 px siihen väliin. Täysi mitta on siis
+ * tasan palkkivyöhykkeen korkuinen eikä kosketa NYT-lappua lainkaan
+ * (58 px nousi siihen 2 px).
  *
- * Alla vanha perustelu edellisestä askeleesta (44 -> 52), koska se
- * kertoo mistä tila alun perin tuli:
+ * Korkeuden kasvattaminen ei ollut kosmetiikkaa vaan sama asia kuin
+ * katon nosto: kun akseli venyi 14:stä 30:een, päätösvälille 4–11 m/s
+ * jäisi samalla 58 pikselillä vähemmän tilaa kuin ennen. 72 px pitää
+ * sen ennallaan ja maksaa noston: mitattuna 4–11 m/s saa 5,8–6,2 px
+ * metriä sekunnissa kohti eli saman kuin ennen, ja tavallinen
+ * rannikkotuuli nousee korkeammalle (6 m/s 18,6 -> 25 px, 10 m/s
+ * 42,5 -> 49 px) koska käyrän alapää ei enää tuhlaa niin paljon.
+ *
+ * Alla vanhat perustelut edellisistä askeleista, koska ne kertovat
+ * mistä tila alun perin tuli:
  *
  * KORKEUS 44 -> 52 px, JA SE ON PUUSKAHUNNUN JÄTTÄMÄ TILA.
  *
@@ -20302,7 +20307,7 @@ const TL_PALKKI_TAYSI_MS = 14;
  *
  * Askel metriä sekunnissa kohti: 4-8 m/s 5,20 px (oli 4,40), 8-11 m/s
  * 5,55 (4,70). 4 -> 10 m/s on nyt 32 px ero (oli 27). */
-const TL_PALKKI_H = 58;
+const TL_PALKKI_H = 72;
 
 /* ASTEIKKO ON EPÄLINEAARINEN, JA SE ON TIETOINEN VALINTA.
  *
@@ -20312,13 +20317,22 @@ const TL_PALKKI_H = 58;
  * Muoto ei siis erotu siitä välistä jota tässä sovelluksessa
  * katsotaan.
  *
- * Käyrä levittää sen välin jolla keli ratkeaa ja puristaa päät:
+ * Käyrä levittää sen välin jolla keli ratkeaa ja puristaa päät — mutta
+ * se EI enää kyllästy, vaan jatkaa myrskyyn asti (72 px:n palkilla):
  *
- *      0- 4 m/s -> 0,00-0,12   1,32 px per m/s   (tyven, harvoin luettu)
- *      4- 8     -> 0,12-0,52   4,40 px           <- sessioraja
- *      8-11     -> 0,52-0,84   4,69 px           <- paras keli
- *     11-14     -> 0,84-1,00   2,35 px
- *       > 14    -> 1,00        (kyllästyy, väri jatkaa)
+ *      0- 2 m/s -> 0,00-0,05   1,80 px per m/s   (tyven, harvoin luettu)
+ *      2- 5     -> 0,05-0,26   5,04 px
+ *      5- 8     -> 0,26-0,52   6,24 px           <- sessioraja
+ *      8-11     -> 0,52-0,76   5,76 px           <- paras keli
+ *     11-14     -> 0,76-0,88   2,88 px
+ *     14-20     -> 0,88-0,96   0,96 px           <- kova, yhä kasvava
+ *     20-30     -> 0,96-1,00   0,29 px           <- myrsky
+ *       > 30    -> 1,00
+ *
+ * Yläpään siivut ovat pieniä mutta EIVÄT NOLLIA, ja se on koko muutos:
+ * ennen 14, 20 ja 28 m/s olivat pikselilleen samankorkuisia ja erosivat
+ * vain sävyltä. Nyt 14 -> 20 m/s on 5,8 px ja 20 -> 30 m/s 2,9 px, eli
+ * rivi kertoo myrskyn myös muodolla.
  *
  * Korkeus on siis MUOTO ja väri on ARVO. Se on työnjako eikä puute:
  * ramppi on kvantisoitu 0,1 m/s välein ja kartan kanssa yhteinen, joten
@@ -20327,10 +20341,13 @@ const TL_PALKKI_H = 58;
 function _tlPalkkiOsuus(ms) {
   const m = Math.max(0, ms || 0);
   if (m >= TL_PALKKI_TAYSI_MS) return 1;
-  if (m <= 4)  return (m / 4) * 0.12;
-  if (m <= 8)  return 0.12 + ((m - 4) / 4) * 0.40;
-  if (m <= 11) return 0.52 + ((m - 8) / 3) * 0.32;
-  return              0.84 + ((m - 11) / 3) * 0.16;
+  if (m <= 2)  return (m / 2) * 0.05;
+  if (m <= 5)  return 0.05 + ((m - 2) / 3) * 0.21;
+  if (m <= 8)  return 0.26 + ((m - 5) / 3) * 0.26;
+  if (m <= 11) return 0.52 + ((m - 8) / 3) * 0.24;
+  if (m <= 14) return 0.76 + ((m - 11) / 3) * 0.12;
+  if (m <= 20) return 0.88 + ((m - 14) / 6) * 0.08;
+  return              0.96 + ((m - 20) / 10) * 0.04;
 }
 function _tlPalkkiPx(ms) {
   return Math.max(3, _tlPalkkiOsuus(ms) * TL_PALKKI_H);
@@ -20528,6 +20545,10 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
            koska työpöydällä kiskoa vieritetään ilman pointerdownia. */
         if (State.isPlaying) stopPlay();
         _tlKiskoAlkuScroll = kisko.scrollLeft;
+        /* SORMI ON OLLUT KISKOLLA. Tämä kattaa myös heiton sormen
+           noston jälkeen, ja se on scroll-käsittelijän PORTTI: ilman
+           tätä kiskon oma keskitys voi tulla luetuksi eleeksi. */
+        _tlKiskoSormiOllut = true;
         if (n === 'wheel') return;
         _tlKiskoKosketusOma = true;
       }, { passive: true });
@@ -20589,7 +20610,18 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
     function _kiskoLoppu() {
       clearTimeout(_kiskoAjastin);
       if (_tlKiskoKosketusOma) return;
+      /* ELETTÄ EI VOI PÄÄTTÄÄ JOS SITÄ EI OLE ALOITETTU. Portti on tässä
+         eikä kutsupaikoissa, koska kutsupaikkoja on kolme: `scrollend`,
+         varmistusajastin ja sormen nosto. Mitattuna ilman tätä kiskon
+         nytkäys sormen ollessa TUNTINAUHALLA ajoi `scrollend`in kautta
+         `_kiskoSeuraa`n ja siirsi valintaa tunnin — sama oire pienempänä
+         kuin se 24 tunnin hyppy jonka scroll-polku teki. */
+      if (!_tlKiskoSormiOllut) return;
       _tlKiskoVierii = false;
+      /* Sormi on nyt noussut JA heitto pysähtynyt, eli kiskon oma ele on
+         ohi. Vasta tässä kisko lakkaa olemasta käyttäjän ohjaama — sitä
+         ennen lippu kattaa heiton. */
+      _tlKiskoSormiOllut = false;
       _kiskoSeuraa();
       const tl2 = document.getElementById('tl-scroll');
       if (tl2) _tlCommitSelection(tl2);
@@ -20616,6 +20648,33 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
     });
     kisko.addEventListener('scroll', function () {
       if (_tlKiskoOmaTapahtuma(kisko)) return;
+      /* KISKON ELE VAATII SORMEN KISKOLLA — SIJAINTIVERTAILU EI RIITÄ
+         YKSIN.
+       *
+       * Tässä luettiin ennen pelkkää sijaintia: jos `scrollLeft` ei ole
+       * se minkä juuri kirjoitimme (±1 px), tapahtuma on käyttäjän.
+       * Päättely on väärä aina kun oma kirjoitus ei laskeudu tarkalleen
+       * — ja juuri keskiyön yli se on kiskon SUURIN kirjoitus, kokonaisen
+       * lapun verran. iOS:n `-webkit-overflow-scrolling: touch` asettuu
+       * isoon hyppyyn useamman ruudun aikana, joten välitilat luetaan
+       * sormeksi.
+       *
+       * Seuraus ei ollut kosmeettinen. Väärin luettu tapahtuma ajoi
+       * `_kiskoSeuraa()`:n, joka ottaa kiskon keskimmäisen lapun ja
+       * VIE TUNTINAUHAN sen päivän samaan kellonaikaan
+       * (`_tlPaivanIdx`) — eli siirsi valinnan aivan toiseen tuntiin
+       * juuri sillä hetkellä kun sormi oli tuntinauhalla ylittämässä
+       * keskiyötä. Sitä käyttäjä näki päivämäärän vilkahduksena väärässä
+       * kohdassa. Samalla `_tlKiskoVierii` jäi päälle ja vaiensi
+       * keskityksen loppueleen ajaksi, mistä tuli se "korjaantuu vasta
+       * kun jatkaa".
+       *
+       * Nyt portti on SUORA SIGNAALI eikä päättely: kiskon ele on
+       * olemassa vain jos sormi (tai rulla) on koskenut KISKOON. Lippu
+       * kattaa myös heiton, koska se nollataan vasta `_kiskoLoppu`ssa.
+       * Sijaintivertailu jää eteen halpana oikotienä, mutta se ei ole
+       * enää ainoa vartija. */
+      if (!_tlKiskoKosketusOma && !_tlKiskoSormiOllut) return;
       _tlKiskoVierii = true;
       /* Heitto on navigointia päivissä, eli juuri se mitä varten kisko
          on olemassa — se pitää kiskon hereillä samalla tavalla kuin
@@ -21062,6 +21121,7 @@ function _tlRakennaPaivat(times) {
  * `scrollLeft` kirjoitetaan suoraan eikä `scrollTo`lla samasta syystä
  * kuin ennenkin. */
 let _tlKiskoKosketusOma = false;   /* sormi kiskolla juuri nyt */
+let _tlKiskoSormiOllut = false;    /* sormi on koskenut kiskoon — kattaa heiton */
 let _tlKiskoVierii = false;        /* kiskon oma vieritys kesken — myös heitto */
 let _tlKiskoAlkuScroll = null;     /* kiskon sijainti eleen alussa */
 
