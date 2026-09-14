@@ -148,7 +148,8 @@ kokeiltu ja kaadettu mittauksella.
   Nauha rakennettiin, mitattiin ja peruttiin ·
   Lukemarivi palkkien alle, päiväerotin pois ·
   Keskiyön vilkahdus oli kiskon väärin luettu scroll-tapahtuma ·
-  Palkkien asteikko ei enää kyllästy
+  Palkkien asteikko ei enää kyllästy ·
+  Aikajana kelluu tummennuksella — paperikortti pois
 
 </details>
 
@@ -261,21 +262,32 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   väriasteikko ja sävy saa tarkoittaa sateen voimakkuutta. Ehto EI ole
   neuvoteltavissa: jos lämpökartta joskus palautetaan näkyviin
   sadekerroksen alle, sateen värit on poistettava samassa muutoksessa.
-- **Aikajanan palkit ovat `ColorRamp.paperi()`, eivät `rgb()` eivätkä
-  `ink()`.** Se on karttaramppi kerrottuna 0,48:lla: sävy on kartan,
-  kirkkaus kortin paperin. Kerroin ei ole makuasia — 0,52 jätti limetin
-  (10 m/s) 2,97:ään, 0,48 nostaa koko asteikon välille 3,84–13,46
-  (mitatusta kortin sävystä 228,219,197) ja peräkkäisten nopeuksien
-  pienin dE2000 on 10,7. `rgb()` on väärä koska paljas karttaramppi on
-  paperilla 1,02:1; `ink()` on väärä koska se on oma sävypolkunsa eikä
-  matchaa karttaan. Taulu ei seuraa pohjakarttaa (mitattu: sama palkki
-  tummalla, vaalealla ja satelliitilla) mutta seuraa värisokeusasetusta.
-- **AIKAJANALLA EI OLE URAA.** Kortti on yhtä paperia; päivärivi ja
-  tuntirivi erottaa vain tyhjä tila (9 px). Ura oli kolmessa muodossa —
-  tumma, hiekka, ja lopulta kaksi identtistä uraa (1,01:1 raidasta
-  raitaan) — ja jokainen niistä oli reuna jota kortin oma reuna jo
-  kertoi. Älä palauta uraa "jotta palkit näkyisivät": palkit saavat
-  kortilla ENEMMÄN kontrastia kuin urassa (heikoin 3,41 → 3,84).
+- **Aikajanan palkit ovat `ColorRamp.varjo()`, eivät `rgb()`, `paperi()`
+  eivätkä `ink()`.** Aikajana on nyt tummennus eikä paperi, ja SEN
+  alustan ramppi on karttaramppi sekoitettuna VALKOISEEN kertoimella
+  0,45 — `paperi()`:n peilikuva, joka kertoi saman rampin 0,48:lla kohti
+  mustaa. Molemmat säilyttävät sävyn ja muuttavat vain kirkkautta, eli
+  sen ominaisuuden joka sitoo palkin karttaan.
+  Kumpikin paljas ramppi katoaa väärälle alustalleen, ja se on mitattu
+  molempiin suuntiin: `rgb()` on paperilla 1,02:1, ja tummennusta vasten
+  (rgb 43,60,61) sen hiljainen pää on 1,10:1 (2 m/s), 1,46 (5) ja 1,71
+  (8) — juuri se pää jota Suomen rannikolla katsotaan useimmin.
+  `varjo()`:lla mitattuna ruudulta: 2 m/s 4,88:1, 5 m/s 7,73, 8 m/s
+  8,58, 11 m/s 9,47, 14 m/s 6,86, 20 m/s 6,46. Heikoin on siis 4,88
+  (paperiversiossa 3,41). `ink()` on yhä väärä koska se on oma
+  sävypolkunsa eikä matchaa karttaan. Taulu ei seuraa pohjakarttaa mutta
+  seuraa värisokeusasetusta — se koskee näköä eikä alustaa.
+- **AIKAJANALLA EI OLE URAA EIKÄ KORTTIA.** Ura oli kolmessa muodossa
+  (tumma, hiekka, kaksi identtistä uraa 1,01:1 raidasta raitaan) ja
+  jokainen oli reuna jota kortin oma reuna jo kertoi; sitten kortti
+  poistui sekin. Alusta on nyt liukuväri: läpinäkyvä ylhäältä, tumma
+  alhaalta, reunasta reunaan, 64 px ylimenoa kääreen yläpuolelle.
+  Kartta jatkuu aikajanan läpi eikä mikään reuna katkaise sitä.
+  Älä palauta laatikkoa "jotta palkit näkyisivät": palkit saavat
+  tummennuksella ENEMMÄN kontrastia kuin paperilla (heikoin 3,41 →
+  4,88). Liukuvärin pysäkit eivät ole tasavälein (0 → .38 → .78 → .92 →
+  .95): lineaarinen luki juovana, koska sen keskikohta nousee liian
+  nopeasti.
 - **AIKAJANASSA EI OLE VALOKAISTAA.** Yö oli janassa kolmessa
   muodossa: koko korkeuden harso, 2 px:n kaista tikin alalaidassa, ja
   kolmella eri alustalla kalibroidut alfat (musta .34, `76,89,96` .24,
@@ -514,11 +526,15 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   spottikortin kaavion vyöhykkeessä. Poisto vapautti 11 px, ja palkki
   kasvoi 44 → 52. Älä palauta huntua — sille ei ole enää tilaa, ja
   palkin korkeus olisi pudotettava takaisin.
-- **TIKKI ON 12 px JA PALKKI 8 px, JA PUOLIKAS LUETAAN
-  `TL_TIKKI_PUOLI`:STA.** Tikki kapeni 22 → 16 → 12, koska aikajanan
-  vika on matka: viikon päähän oli mitattuna 3 934 px eli kymmenen
-  ruudullista, nyt 2 232 px eli 5,7 (näkyviä tunteja 17 → 28).
-  Palkkien väli on 4 px — leveys ja väli kuuluvat yhteen, ks. `.htick`.
+- **TIKKI ON 16 px JA PALKKI 11 px, JA PUOLIKAS LUETAAN
+  `TL_TIKKI_PUOLI`:STA.** Tikki kapeni 22 → 16 → 12 koska aikajanan vika
+  oli matka (viikon päähän 3 934 px eli kymmenen ruudullista → 2 232 px
+  eli 5,7), ja leveni sitten takaisin 16:een koska tunnit lukivat liian
+  tiheinä: 12 px:n tikillä ruudulle mahtui 32 tuntia ja lukemien väliin
+  jäi 3,1 px. Kuudellatoista näkyviä tunteja on 24 ja lukemien väli
+  6,0 px, ja lukema kasvoi 8 → 9 px. Viikon matka on 2 688 px eli 6,9
+  ruudullista — hinta maksetaan tietoisesti luettavuudesta.
+  Palkkien väli on 5 px — leveys ja väli kuuluvat yhteen, ks. `.htick`.
   Keskityksen puolikas oli ennen kirjoitettu neljään paikkaan lukuina
   (12, 12, 11, 10), joista kaksi oli jo valmiiksi eri mieltä kahden
   muun kanssa.
@@ -589,28 +605,41 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   ollessa vielä kiinni, kisko jäi keskittämättä (mitattu 10,9 px
   sivussa). Molemmat reitit (`scrollend`/ajastin ja sormen nosto)
   johtavat samaan `_kiskoLoppu`un.
-- **KORTIN KORKEUS ON SUMMA, EI YKSI LUKU.** `#tl-wrap` on
-  `130px + var(--tl-paivat-h) + var(--sab-tl)`, ja tuntinauha saa
-  siitä sen mikä jää täytteiden jälkeen (94 px). Nauha jakautuu
-  kolmeen: **10 px NYT-lappu ylhäällä, 72 px palkkivyöhyke, 12 px
-  lukemarivi alhaalla.** Kortti on levossa 130 px ja hereillä 158
-  (oli 97 / 127, sitä ennen 88 / 128).
-  **Palkin kasvattaminen vaatii joko sen 130:n tai tilan josta se on
-  pois.** 44 -> 52 oli jälkimmäistä (puuskahunnun poisto, kortti ei
-  muuttunut pikseliäkään); 52 -> 58 ja 58 -> 72 ovat edellistä.
-  **Palkki päättyy TASAN NYT-lapun alareunaan**: mitattuna kyllästynyt
-  palkki 564–636 ja lappu 554–564, päällekkäisyys 0 px. 114 px:llä se
-  oli 2 px ja 108 px:llä olisi ollut 8 px.
-- **LUKEMA ON ALARIVILLÄ JA JOKA TUNNILLA.** Rivi on 12 px nauhan
+- **KORKEUS ON SUMMA, EI YKSI LUKU, JA JÄRJESTYS ON YLHÄÄLTÄ ALAS
+  KARKEAMPAAN.** `#tl-wrap` on `122px + var(--tl-paivat-h) +
+  var(--sab-tl)` eli 156 px, ja se jakautuu näin: 6 px ylätäyte,
+  96 px tuntinauha, 6 px väli, 34 px päiväkisko, 14 px alatäyte.
+  Tuntinauhan 96 jakautuu edelleen kolmeen: **10 px NYT-lappu ylhäällä,
+  72 px palkkivyöhyke, 14 px lukemarivi alhaalla.**
+  Lukujärjestys on tarkoitus: hetki (kupla), tuuli (palkit), tunti
+  (lukemat), päivä (kisko) — karkeampi askel aina edellisen alla.
+  **Alatäyte on 14 px eikä 8, ja se on lähdemerkinnän tila.**
+  `#lahde-merkki` ja `#tutka-aika` ovat `bottom: 0`, ja kahdeksalla
+  kisko peitti niistä 2 px.
+  **Palkin kasvattaminen vaatii joko sen 122:n tai tilan josta se on
+  pois.** 44 -> 52 oli jälkimmäistä (puuskahunnun poisto); 52 -> 58 ja
+  58 -> 72 ovat edellistä. Palkki päättyy TASAN NYT-lapun alareunaan,
+  mitattu päällekkäisyys 0 px.
+- **LUKEMA ON ALARIVILLÄ JA JOKA TUNNILLA.** Rivi on 14 px nauhan
   alalaidassa (`.htick`in `padding-bottom`), ja siinä on kaksi painoa:
-  harmaa `--ink-3` joka tunnille, tumma `--ink` + 600 joka kolmannelle
-  (00, 03, 06, 09, 12, 15, 18, 21). Ennen lukema oli PALKKIEN PÄÄLLÄ
-  ylhäällä ja vain joka kolmannessa tikissä, ja perustelu oli "kaikki
-  lukemat vierekkäin olisi harmaa juova" — juova syntyi siitä ettei
-  niillä ollut omaa riviä. **Koko on 8 px eikä 9, ja se on mittaus:**
-  tikki on 12 px ja "23" on 8 px:llä 8,9 px leveä (9 px:llä 10,0),
-  joten peräkkäisten lukemien väliin jää mitattuna 3,1 px — yhdeksällä
-  se olisi 2,0 px eli yhtenäinen nauha. Mitattu 391/391 lukemaa.
+  himmeä `--tl-teksti-3` joka tunnille, valkoinen `--tl-teksti` + 600
+  joka kolmannelle (00, 03, 06, 09, 12, 15, 18, 21). Ennen lukema oli
+  PALKKIEN PÄÄLLÄ ylhäällä ja vain joka kolmannessa tikissä, ja
+  perustelu oli "kaikki lukemat vierekkäin olisi harmaa juova" — juova
+  syntyi siitä ettei niillä ollut omaa riviä.
+  **Koko on 9 px, ja se seuraa tikin leveyttä.** Kahdellatoista
+  pikselillä mahtui vain 8 px ("23" on 8 px:llä 8,9 px leveä, 9 px:llä
+  10,0), ja lukemien väliin jäi 3,1 px. Kuudentoista tikillä väli on
+  mitattuna 6,0 px eli rivi hengittää. Mitattu 391/391 lukemaa, ja
+  mitattuna ruudulta lukeman kontrasti alustaan 16,6:1.
+- **KAIKKI ON NÄKYVISSÄ, MYÖS LÄHDEMERKINTÄ.** Liukuväri on reunasta
+  reunaan ja ulottuu ruudun pohjaan, eli täsmälleen sinne missä
+  `#lahde-merkki` ja `#tutka-aika` ovat. Ne olivat `z-index: 19` ja
+  aikajana 20, joten tummennus peitti ne kokonaan. Nosto 21:een
+  palauttaa ne, ja väri vaihtui kartan mukaan säätyvästä
+  `--kartta-teksti`-tokenista aikajanan omaan valoon — alusta ei ole
+  enää kartta vaan tummennus. Mittari tarkistaa myös ettei yksikään
+  kääreen elementti jää ruudun ulkopuolelle (mitattu: tyhjä lista).
 - **NYT-LAPPU ON YLÄREUNASSA, EIKÄ SE MAHDU ALARIVILLE.** Lappu on
   17,5 px leveä 2 px:n merkin päällä eli peittää molemmat naapurit:
   alarivillä siitä tuli mitattuna KOLMEN TUNNIN REIKÄ asteikkoon
@@ -633,18 +662,22 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   nuolilla eikä tarkista shiftiä (vain alt/ctrl/meta), joten Shift+nuoli
   panoroi myös. Aikajanan askellus on `,` ja `.`, ja shiftattu merkki on
   eri `e.key` (suomalaisella `:` ja `;`) — lue `e.code`.
-- **Play ja kelihyppy KELLUVAT PALKKIEN PÄÄLLÄ, EIVÄT LUKEMARIVILLÄ.**
-  Ne peittävät osan näkyvistä tunneista — se on kelluvan kontrollin
-  tietoinen hinta, ei huomaamatta jäänyt vika, ja siirto kiskoriville on
-  kokeiltu ja peruttu (transportti kuuluu sen raidan päälle jota se
-  ajaa). Alareuna on `--sab-tl + 34px` eikä 20px: kiekko peitti 20:llä
-  alalaidan 12 px:n lukemarivistä 8 px eli juuri sen rivin jonka takia
-  kortti kasvoi. Mitattu 34:llä: lukemarivistä 0 px ja 0 lukemaa napin
-  alla, palkkivyöhykkeestä 44 px. Näkyvyyttä EI korjata tummentamalla
-  nappia: se tekisi kontrollista kortin äänekkäimmän elementin datan
-  päällä. Kiekko on uraa VAALEAMPI (`--surface-hi`) + kehä + varjo:
-  1,56:1 alustaan, kuvake 16,4:1 kiekkoon. Käytöstä poissa oleva nappi
-  menettää kohotuksen — ei `opacity`, joka haalistaa myös varjon.
+- **Play ja kelihyppy KELLUVAT PALKKIEN PÄÄLLÄ, EIVÄT LUKEMARIVILLÄ
+  EIVÄTKÄ KISKOLLA.** Ne peittävät osan näkyvistä tunneista — se on
+  kelluvan kontrollin tietoinen hinta, ei huomaamatta jäänyt vika, ja
+  siirto kiskoriville on kokeiltu ja peruttu (transportti kuuluu sen
+  raidan päälle jota se ajaa). Alareuna on `--sab-tl + 82px`, ja luku
+  johdetaan kääreen pohjasta ylöspäin: turva-alue + 14 (alatäyte) + 34
+  (kisko) + 6 (väli) + 14 (lukemarivi) = palkkivyöhykkeen alareuna, ja
+  44 px:n kiekko keskitetään sen 72 px:n päälle. Kaksikymmentä peitti
+  lukemariviä ja 34 osui kiskoon sen jälkeen kun kisko siirtyi alas.
+  **KIEKKO ON LASIA, EI PAPERIA.** Paperikortilla se oli alustaansa
+  VAALEAMPI (`--surface-hi` + kehä + varjo, 1,56:1). Tummennuksella
+  vaalea kiekko olisi kortin äänekkäin elementti — kirkkaampi kuin
+  yksikään palkki — eli sama sääntö rikkoutuisi toisesta suunnasta.
+  Lasi on 15 % valkoista + 0,5 px hiusreuna + varjo. Käytöstä poissa
+  oleva nappi menettää nosteen — ei `opacity`, joka haalistaa myös
+  reunan.
 - **Nappien peitto mitataan MOLEMMISSA suunnissa.** Pelkkä vaakavertailu
   väitti siirron jälkeen yhä 29 %:n peittoa vaikka napit olivat eri
   rivillä. Napautus on lisäksi mitattava oikeasti — ja niin että mittari
@@ -660,13 +693,13 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   hitaassa (se riippuu aikaleimoista), mutta kaista riippuu nopeuksista
   ja nopea polku on juuri se joka ajetaan kun aika pysyy ja paikka
   vaihtuu. Sama ansa kuin päiväerottimien valovaiheessa.
-- **PÄIVÄYS SANOTAAN KERRAN.** Kupla ja kisko ovat päällekkäin, ja kun
-  kisko näkyy, valittu päivä lukee tummassa pillerissä täsmälleen
-  osoittimen kohdalla. Kuplassa on silloin VAIN kellonaika; päiväys
-  palaa siihen vasta kun kisko painuu lepoon. Teksti kirjoitetaan
-  `_tlKuplaTeksti`ssä ja ajetaan MYÖS kiskon heräämisestä ja
-  nukahtamisesta — pelkkä valinnan siirto jättäisi tekstin edellisen
-  tilan mukaiseksi seuraavaan tuntiin asti.
+- **PÄIVÄYS SANOTAAN KERRAN, JA SEN SANOO KISKO.** Kupla näytti
+  päiväyksen silloin kun kisko oli piilossa; kisko on nyt aina
+  näkyvissä, joten haara poistui ja kuplassa on VAIN kellonaika.
+  Valittu päivä lukee VAALEASSA pillerissä täsmälleen osoittimen
+  kohdalla — pilleri kääntyi paperin mukana, koska tummalla alustalla
+  tumma pilleri katoaisi. Mitattu valkoinen pilleri kiskon pohjaa
+  vasten 19,37:1.
 - **KISKO SEURAA OSOITINTA JATKUVASTI** (`_tlKiskoKeskita`), ei päivä
   kerrallaan: se on sama akseli karkeampana. Osuus lapun sisällä tulee
   TIKKIVÄLILTÄ (`_i0.._i1`) eikä kellonajasta — akselin reunapäivät ovat
@@ -691,18 +724,14 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **Sormi kiskolla voittaa** (`_tlKiskoKosketusOma`). Lippu nollataan
   IKKUNASTA, koska kisko rakennetaan uudelleen kesken eleen ja
   alkuperäinen kohde irtoaa DOM:sta.
-- **Päiväkisko on levossa PIILOSSA, ja se palaa MISTÄ TAHANSA
-  kosketuksesta aikajanaan** — ei vain raahauksesta. Kisko on olemassa
-  raahauksen välttämiseksi (12 ruudullista viikon päähän), joten se ei
-  saa vaatia raahausta. Päiväys on siksi kuplassa: piilossa ei saa olla
-  tietoa jota ei näy muualla. Lepoaika alkaa SORMEN NOUSUSTA, ei
-  kosketuksesta — pelkkä ajastin nukuttaisi kiskon kesken pitkää
-  raahausta (mitattu 6,5 s eleellä). Toiston aikana ei herätetä.
-- **Kiskon korkeus on yksi muuttuja (`--tl-paivat-h`)**, joka kasvattaa
-  kääreen korkeutta ja sen ylätäytettä yhtä paljon. Siksi piilotus ei
-  siirrä tuntiriviä eikä nappeja pikseliäkään (mitattu 0 px, kortti
-  128 → 88). Jos erotat luvut, ne ajautuvat erilleen ensimmäisessä
-  säädössä.
+- **PÄIVÄKISKO ON ALHAALLA JA AINA NÄKYVISSÄ.** Se piiloutui ennen
+  neljän sekunnin levossa, koska paperikortilla se oli 30 px kromia
+  128:sta. Liukuvärillä korkeus ei maksa karttaa samalla tavalla —
+  tummennus häivyttää eikä katkaise — ja piiloutuva kisko oli silti
+  aina yksi ele lisää ennen kuin päivän saattoi valita. Poistuivat
+  `html.tl-kisko-piilossa`, `_tlKiskoHerata`, `_tlKiskoNukuta`, niiden
+  kolme kutsupaikkaa ja aikakuplan päiväyshaara. `--tl-paivat-h` on
+  vakio eikä vaihtele.
 - **Aikajanan valinta kulkee `_tlValitseIdx`:n kautta** (päiväkiskon
   napautus, näppäimistö, kelihyppy). Älä kirjoita neljättä polkua.
 - **LIIKKUVA VALINTA KULKEE `_tlSeuraaHetkea`:N KAUTTA.** Sormi

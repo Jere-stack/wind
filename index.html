@@ -1040,7 +1040,35 @@ html.tyopoyta #kapseli.vaistyy {
    mukana 30 -> 22 px. Kortti on hereillä 128 -> 127 px eli ennallaan;
    levossa se kasvaa 88 -> 97 px, mikä on korkeampien palkkien hinta ja
    maksetaan kerran. */
-:root { --tl-paivat-h: 30px; }
+:root { --tl-paivat-h: 34px; }
+
+/* AIKAJANA EI OLE KORTTI VAAN KELLUVA KERROS TUMMENNUKSEN PÄÄLLÄ.
+ *
+ * Paperikortti oli oma pintansa kartan päällä: `--chip`, 18 px kulmat ja
+ * varjo. Se ratkaisi luettavuuden erottamalla aikajanan kartasta — mutta
+ * se myös PEITTI kartan suorakaiteen verran ja pakotti palkit paperin
+ * kirkkaudelle (`ColorRamp.paperi()` = karttaramppi × 0,48).
+ *
+ * Nyt alusta on liukuväri: läpinäkyvä ylhäältä, tumma alhaalta. Kartta
+ * jatkuu aikajanan läpi eikä mikään reuna katkaise sitä, ja palkit
+ * saavat TÄYDEN karttarampin (`ColorRamp.rgb()`) koska alusta on tumma.
+ * Sama ramppi kuin lämpökartalla, eli kartan 8 m/s ja janan 8 m/s ovat
+ * nyt kirjaimellisesti sama väri — paperilla ne olivat sama SÄVY mutta
+ * eri kirkkaus.
+ *
+ * Tokenit ovat tässä eivätkä paneelien `--ink`-perheessä, koska aikajana
+ * on ainoa tumma pinta koko sovelluksessa. */
+:root {
+  /* Liukuvärin pohja. Ei musta: sinertävä tummuus istuu sekä
+     satelliittiin että vaaleaan merikarttaan. */
+  --tl-pohja: 9, 14, 19;
+  --tl-teksti:   rgba(255,255,255,.94);
+  --tl-teksti-2: rgba(255,255,255,.50);
+  --tl-teksti-3: rgba(255,255,255,.30);
+  --tl-lasi:       rgba(255,255,255,.15);
+  --tl-lasi-reuna: rgba(255,255,255,.24);
+  --tl-viiva:      rgba(255,255,255,.20);
+}
 
 /* PÄIVÄKISKO ON LEVOSSA POISSA.
  *
@@ -1064,11 +1092,19 @@ html.tyopoyta #kapseli.vaistyy {
  * ylätäyte kutistuvat yhtä paljon, jolloin tuntinauha, napit ja
  * indikaattori eivät liiku pikseliäkään — vain kortin yläreuna laskee.
  * Mitattu: kortti 128 -> 88 px, tuntirivi samassa kohdassa molemmissa. */
-html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
+/* PÄIVÄKISKO ON ALHAALLA JA AINA NÄKYVISSÄ.
+ *
+ * Kisko piiloutui ennen neljän sekunnin levossa, koska paperikortilla se
+ * oli 30 px kromia 128:sta. Liukuvärillä korkeus ei maksa karttaa samalla
+ * tavalla — tummennus häivyttää eikä katkaise — ja piiloutuva kisko oli
+ * silti aina yksi ele lisää ennen kuin päivän saattoi valita. Nyt kaikki
+ * mitä aikajanalla on, on näkyvissä koko ajan, eikä `--tl-paivat-h`
+ * vaihtele. Poistuivat: `html.tl-kisko-piilossa`, `_tlKiskoHerata`,
+ * `_tlKiskoNukuta` ja aikakuplan päiväyshaara. */
 
 #tl-wrap {
   position: relative; pointer-events: all;
-  height: calc(130px + var(--tl-paivat-h) + var(--sab-tl));
+  height: calc(122px + var(--tl-paivat-h) + var(--sab-tl));
   overflow: visible;
   /* KAKSI RAITAA, YKSI VÄLI. Täyte oli 14 + kisko ylhäällä ja 22
      alhaalla, jolloin tuntiuran ja päiväkiskon väliin jäi 3 px ja uran
@@ -1090,7 +1126,7 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
      (`#bottom` > `#bottom-bar` + `#tl-wrap`), joten kortin kasvu nostaa
      napit saman verran ilman omaa sääntöä — mitattu rako kortin
      yläreunaan oli 6 px ennen ja on 10 px nyt, peitto 0 % molemmilla. */
-  padding: calc(20px + var(--tl-paivat-h)) 0 calc(var(--sab-tl) + 16px);
+  padding: 6px 0 calc(var(--sab-tl) + 14px + var(--tl-paivat-h) + 6px);
   background: none;
   /* Kortin yläreuna liukuu kun kisko piiloutuu. Korkeus ja ylätäyte
      muuttuvat saman verran, joten sisältö ei liiku — vain reuna. */
@@ -1116,16 +1152,33 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
 @media (display-mode: standalone) { :root { --sab-tl: 14px; } }
 :root.standalone { --sab-tl: 14px; }
 
-/* Kelluva alusta. Erillinen kerros scrollin takana, jotta laatikko voi olla
-   sisennetty reunoista samalla kun scroll ulottuu reunasta reunaan. */
+/* LIUKUVÄRI, EI LAATIKKOA.
+ *
+ * Alusta oli sisennetty paperilaatikko (`--chip`, 18 px kulmat, varjo).
+ * Nyt se on reunasta reunaan ulottuva tummennus joka ALKAA KÄÄREEN
+ * YLÄPUOLELTA: 64 px ylimenoa, jonka aikana kartta häipyy tummaan.
+ * Ilman ylimenoa liukuvärin oma yläreuna olisi sama katkoviiva kuin
+ * laatikon reuna, vain pehmeämpi — ja juuri se reuna oli syy vaihtaa.
+ *
+ * Pysäkit eivät ole tasavälein: silmä lukee lineaarisen liukuvärin
+ * juovana, koska sen keskikohta nousee liian nopeasti. Painotettu käyrä
+ * (0 → .30 → .66 → .88 → .93) pitää yläpään näkymättömänä ja tuo massan
+ * vasta siellä missä palkit ovat.
+ *
+ * `pointer-events: none`, koska kerros ulottuu kääreen yli: ilman sitä
+ * se söisi karttaeleet 64 px korkealta kaistalta aikajanan yläpuolelta.
+ * Kääre itse pitää oman osumapintansa. */
 #tl-wrap::before {
   content: '';
   position: absolute;
-  left: calc(var(--sal) + 8px); right: calc(var(--sar) + 8px);
-  top: 6px; bottom: calc(var(--sab-tl) + 8px);
-  background: var(--chip);
-  border-radius: 18px;
-  box-shadow: var(--shadow-2);
+  left: 0; right: 0;
+  top: -64px; bottom: 0;
+  background: linear-gradient(to bottom,
+    rgba(var(--tl-pohja), 0)   0%,
+    rgba(var(--tl-pohja), .38) 24%,
+    rgba(var(--tl-pohja), .78) 40%,
+    rgba(var(--tl-pohja), .92) 58%,
+    rgba(var(--tl-pohja), .95) 100%);
   pointer-events: none;
 }
 
@@ -1187,6 +1240,7 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
  * aikanaan viereiselle `#tl-scroll`:lle (ks. docs/eleet.md). */
 .tl-play-btn {
   position: absolute;
+  color: var(--tl-teksti);
   left: calc(var(--sal) + 9px);
   /* 20 -> 34 px: NAPPI KELLUU PALKKIVYÖHYKKEELLÄ, EI LUKEMARIVILLÄ.
      Kiekko on 44 px ja sen alareuna oli 20 px kortin pohjasta, eli
@@ -1196,7 +1250,12 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
      tämä ei poista eikä ole tarkoituskaan — se on kelluvan
      kontrollin tietoinen hinta, ja siirto omalle riville on jo
      kertaalleen kokeiltu ja peruttu. */
-  bottom: calc(var(--sab-tl) + 34px);
+  /* Luku johdetaan kääreen pohjasta ylöspäin: turva-alue + 8 (kiskon
+     täyte) + 34 (kisko) + 6 (väli) + 14 (lukemarivi) = palkkivyöhykkeen
+     alareuna, ja 44 px:n kiekko keskitetään sen 72 px:n päälle.
+     Kaksikymmentä peitti lukemariviä ja 34 osuu nyt kiskoon, koska
+     kisko siirtyi alas. */
+  bottom: calc(var(--sab-tl) + 82px);
   width: 44px; height: 44px;
   border-radius: 50%;
   background: none;
@@ -1208,15 +1267,21 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
 .tl-play-btn::before {
   content: ''; position: absolute; inset: 2px;
   border-radius: 50%;
-  background: var(--surface-hi);
+  /* LASI, EI PAPERIA. Paperikortilla kiekko oli `--surface-hi` + varjo,
+     koska se oli alustaansa VAALEAMPI. Tummennuksella vaalea kiekko
+     olisi kortin äänekkäin elementti — kirkkaampi kuin yksikään palkki
+     — ja rikkoisi saman säännön toisesta suunnasta. Lasi on alustaa
+     vaaleampi mutta ei valoa: 15 % valkoista + hiusreuna. */
+  background: var(--tl-lasi);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+          backdrop-filter: blur(12px) saturate(1.2);
   /* Varjo ja kehä kantavat napin, koska kiekko ei kanna: kortin
      paperilla `--surface-hi` on 1,27:1 eli lähes sama pinta. Uran
      päällä alusta oli tummempi ja kiekko sai 1,56:1 ilmaiseksi; nyt
      kohotus on tehtävä varjolla. Kaksi varjoa: tiukka 1 px irrottaa
      reunan, pehmeä 5 px antaa korkeuden. */
-  box-shadow: 0 2px 5px rgba(60, 48, 20, .26),
-              0 1px 1px rgba(60, 48, 20, .18),
-              0 0 0 1px rgba(120, 105, 70, .28);
+  box-shadow: inset 0 0 0 .5px var(--tl-lasi-reuna),
+              0 2px 8px rgba(0,0,0,.28);
   transition: background .2s ease, transform .12s ease;
 }
 /* Painallus tuntuu myös silmässä. Kiekko painuu, ei koko laatikko:
@@ -1249,6 +1314,7 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
  * päässä. Keskitys ei muutu: se tulee reunavälikkeistä, ei täytteestä. */
 .tl-keli-btn {
   position: absolute;
+  color: var(--tl-teksti);
   right: calc(var(--sar) + 9px);
   /* 20 -> 34 px: NAPPI KELLUU PALKKIVYÖHYKKEELLÄ, EI LUKEMARIVILLÄ.
      Kiekko on 44 px ja sen alareuna oli 20 px kortin pohjasta, eli
@@ -1258,7 +1324,12 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
      tämä ei poista eikä ole tarkoituskaan — se on kelluvan
      kontrollin tietoinen hinta, ja siirto omalle riville on jo
      kertaalleen kokeiltu ja peruttu. */
-  bottom: calc(var(--sab-tl) + 34px);
+  /* Luku johdetaan kääreen pohjasta ylöspäin: turva-alue + 8 (kiskon
+     täyte) + 34 (kisko) + 6 (väli) + 14 (lukemarivi) = palkkivyöhykkeen
+     alareuna, ja 44 px:n kiekko keskitetään sen 72 px:n päälle.
+     Kaksikymmentä peitti lukemariviä ja 34 osuu nyt kiskoon, koska
+     kisko siirtyi alas. */
+  bottom: calc(var(--sab-tl) + 82px);
   width: 44px; height: 44px;
   border-radius: 50%;
   background: none;
@@ -1270,15 +1341,21 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
 .tl-keli-btn::before {
   content: ''; position: absolute; inset: 2px;
   border-radius: 50%;
-  background: var(--surface-hi);
+  /* LASI, EI PAPERIA. Paperikortilla kiekko oli `--surface-hi` + varjo,
+     koska se oli alustaansa VAALEAMPI. Tummennuksella vaalea kiekko
+     olisi kortin äänekkäin elementti — kirkkaampi kuin yksikään palkki
+     — ja rikkoisi saman säännön toisesta suunnasta. Lasi on alustaa
+     vaaleampi mutta ei valoa: 15 % valkoista + hiusreuna. */
+  background: var(--tl-lasi);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+          backdrop-filter: blur(12px) saturate(1.2);
   /* Varjo ja kehä kantavat napin, koska kiekko ei kanna: kortin
      paperilla `--surface-hi` on 1,27:1 eli lähes sama pinta. Uran
      päällä alusta oli tummempi ja kiekko sai 1,56:1 ilmaiseksi; nyt
      kohotus on tehtävä varjolla. Kaksi varjoa: tiukka 1 px irrottaa
      reunan, pehmeä 5 px antaa korkeuden. */
-  box-shadow: 0 2px 5px rgba(60, 48, 20, .26),
-              0 1px 1px rgba(60, 48, 20, .18),
-              0 0 0 1px rgba(120, 105, 70, .28);
+  box-shadow: inset 0 0 0 .5px var(--tl-lasi-reuna),
+              0 2px 8px rgba(0,0,0,.28);
   transition: background .2s ease, transform .12s ease;
 }
 .tl-keli-btn svg { position: relative; }
@@ -1292,10 +1369,12 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
    näytti puoliksi piirretyltä. Käytöstä poissa oleva kontrolli ei kellu:
    kiekko laskeutuu uran tasoon ja kuvake vaalenee. Sama esine, ei
    nostetta. */
-.tl-keli-btn.tyhja { color: rgba(16, 26, 32, .32); }
+.tl-keli-btn.tyhja { color: rgba(255,255,255,.26); }
 .tl-keli-btn.tyhja::before {
-  background: var(--surface-lo);
-  box-shadow: 0 0 0 1px rgba(120, 105, 70, .16);
+  /* Sama esine ilman nostetta: lasi himmenee eikä kiekko enää kohoa.
+     Ei `opacity`, joka haalistaisi myös reunan puoliksi piirretyksi. */
+  background: rgba(255,255,255,.05);
+  box-shadow: inset 0 0 0 .5px rgba(255,255,255,.09);
 }
 
 /* PÄIVÄKISKO — pitkä hyppy yhdellä napautuksella.
@@ -1316,7 +1395,12 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
  * ansa jonka takia tuntinauhassa on `_tlBeginSelfScroll`. */
 #tl-paivat {
   position: absolute;
-  top: 11px;
+  /* KISKO ON ALHAALLA. Se oli palkkien YLÄPUOLELLA, missä se erotti
+     aikakuplan datasta ja jäi osoittimen yläpään tielle. Alhaalla
+     järjestys lukee ajallisesti oikein ylhäältä alas: hetki (kupla),
+     tuuli (palkit), tunti (lukemat), päivä (kisko) — karkeampi askel
+     aina edellisen alla. */
+  bottom: calc(var(--sab-tl) + 14px);
   /* Sama sisennys kuin tuntinauhan sisällöllä, jotta rivit ovat samassa
      linjassa nyt kun kummallakaan ei ole omaa laatikkoa. */
   left: calc(var(--sal) + 14px); right: calc(var(--sar) + 14px);
@@ -1350,17 +1434,9 @@ html.tl-kisko-piilossa { --tl-paivat-h: 0px; }
    jättäisi laput sarkainkierrokseen ja ruudunlukijan puuhun. Näkyvyys
    vaihtuu vasta liu'un JÄLKEEN, muuten kisko katoaisi kesken
    häivytyksen. Sama kuvio kuin suljetulla paneelilla. */
-#tl-paivat {
-  opacity: 1; visibility: visible;
-  transition: opacity .20s ease, visibility 0s linear 0s;
-}
-html.tl-kisko-piilossa #tl-paivat {
-  opacity: 0; visibility: hidden; pointer-events: none;
-  transition: opacity .20s ease, visibility 0s linear .20s;
-}
-@media (prefers-reduced-motion: reduce) {
-  #tl-paivat, html.tl-kisko-piilossa #tl-paivat { transition: none; }
-}
+/* Kiskon piilotus poistui: se on nyt aina näkyvissä, ks. ylempi
+   kommentti. Näkyvyyssäännöt (`visibility`, siirtymät) lähtivät samalla
+   — piilotettavaa ei ole. */
 
 /* LAPPU TÄYTTÄÄ KISKON KORKEUDELTAAN, eikä se ole makuasia.
  *
@@ -1381,16 +1457,17 @@ html.tl-kisko-piilossa #tl-paivat {
   height: 100%;
   display: flex; align-items: center; justify-content: center;
   padding: 0 10px;
-  font-size: var(--fs-10);
-  font-weight: 600;
+  font-size: var(--fs-11);
+  font-weight: 590;
   font-variant-numeric: tabular-nums;
-  /* Sama muste kuin tuntinauhan lukemissa: molemmat ovat nyt samalla
-     paperilla, joten niillä ei ole syytä olla eri sävyä. */
-  color: var(--ink-2);
+  letter-spacing: .01em;
+  /* Sama valo kuin tuntinauhan lukemissa: molemmat ovat nyt samalla
+     tummennuksella, joten niillä ei ole syytä olla eri sävyä. */
+  color: var(--tl-teksti-2);
   white-space: nowrap;
   cursor: pointer;
   -webkit-user-select: none; user-select: none;
-  transition: color .15s ease;
+  transition: color .18s ease;
 }
 /* Pilleri on omana kerroksenaan eikä lapun taustana. Lappu on 40 px eli
    koko rivin korkuinen napautuspinta; pilleri on 30 px eli sen kokoinen
@@ -1403,12 +1480,17 @@ html.tl-kisko-piilossa #tl-paivat {
   border-radius: 9px;
   transition: background .15s ease;
 }
-/* Valittu päivä on TUMMA PILLERI, ei magenta. `--accent` on toiminto- ja
-   varoitusväri; päivävalinta ei ole kumpaakaan. Sama kieli kuin
-   aikakuplalla, joka on saman valinnan toinen puoli. */
-.tl-paiva.valittu::before { background: var(--ink); }
-.tl-paiva:active::before  { background: var(--hairline); }
-.tl-paiva.valittu { color: var(--surface); }
+/* VALITTU PÄIVÄ ON VAALEA PILLERI TUMMALLA, ei magenta. `--accent` on
+   toiminto- ja varoitusväri; päivävalinta ei ole kumpaakaan. Pilleri
+   kääntyi paperin mukana: tummalla alustalla tumma pilleri katoaisi,
+   joten valinta on nyt se mikä on VALOA. Sama kieli kuin aikakuplalla,
+   joka on saman valinnan toinen puoli. */
+.tl-paiva.valittu::before {
+  background: rgba(255,255,255,.95);
+  box-shadow: 0 1px 3px rgba(0,0,0,.30);
+}
+.tl-paiva:active::before  { background: var(--tl-lasi); }
+.tl-paiva.valittu { color: #10171D; font-weight: 640; }
 .tl-paiva-txt { position: relative; }
 
 /* PÄIVÄN TUULIKAISTA POISTETTIIN.
@@ -1492,12 +1574,13 @@ html.tl-kisko-piilossa #tl-paivat {
  * kirjoitettu neljään paikkaan lukuina 12, 12, 11 ja 10, joista kaksi
  * viimeistä olivat jo valmiiksi eri mieltä kahden ensimmäisen kanssa. */
 .htick {
-  flex: 0 0 12px; display: flex; flex-direction: column; align-items: center;
+  flex: 0 0 16px; display: flex; flex-direction: column; align-items: center;
   justify-content: flex-end; height: 100%;
   -webkit-user-select: none; user-select: none; cursor: pointer;
-  /* 12 px = lukemarivi. Se oli 2 px (valokaista, poistettu), ja palkki
-     seisoo nyt lukeman päällä eikä kaistan. */
-  position: relative; padding-bottom: 12px;
+  /* 14 px = lukemarivi. Se oli 2 px (valokaista, poistettu) ja sitten
+     12 px; lukema kasvoi 8 -> 9 px kun tikki leveni, joten rivi kasvoi
+     kaksi pikseliä mukana. */
+  position: relative; padding-bottom: 14px;
   /* Vain tikit ovat snäppäyskohtia — NYT-merkki ohitetaan, koska sillä
      ei ole scroll-snap-alignia. Päiväerottimia ei enää ole: ne olivat
      26 px:n laatikko ILMAN snäppäyskohtaa, eli keskiyön yli askel oli
@@ -1518,8 +1601,11 @@ html.tl-kisko-piilossa #tl-paivat {
  * keskikaistan (10 m/s, 98,115,0) palkeille terävän reunan hiekkaa
  * vasten. Kirkkailla ja tummilla väreillä se ei näy. */
 .htick-bar {
-  width: 8px; border-radius: 3px 3px 0 0; min-height: 3px;
-  box-shadow: inset 0 0 0 1px rgba(16,26,32,.16);
+  width: 11px; border-radius: 4px 4px 0 0; min-height: 3px;
+  /* Kehys oli tumma muste paperia vasten. Tummalla alustalla se söisi
+     palkin reunan; nyt reunan tekee ALUSTAN tummuus, ja kehys on
+     hiuksenohut valo joka pitää kirkkaan palkin terävänä. */
+  box-shadow: inset 0 0 0 .5px rgba(255,255,255,.22);
   transition: opacity 0.15s;
 }
 .htick.past .htick-bar { opacity: 0.4; }
@@ -1581,12 +1667,12 @@ html.tl-kisko-piilossa #tl-paivat {
  * NYT-lapussa (`--fs-8`), eli tämä ei tuo uutta askelta typografiaan. */
 .htick-lbl {
   position: absolute; bottom: 0; font-variant-numeric: tabular-nums;
-  font-size: var(--fs-8); color: var(--ink-3); white-space: nowrap;
-  pointer-events: none; line-height: 10px;
+  font-size: var(--fs-9); color: var(--tl-teksti-3); white-space: nowrap;
+  pointer-events: none; line-height: 12px;
 }
-.htick.show-lbl .htick-lbl { color: var(--ink); font-weight: 600; }
+.htick.show-lbl .htick-lbl { color: var(--tl-teksti); font-weight: 600; }
 /* Mennyt tunti on himmeä palkkia myöten; lukema seuraa mukana. */
-.htick.past .htick-lbl { opacity: 0.45; }
+.htick.past .htick-lbl { opacity: 0.42; }
 
 /* PÄIVÄRAJA ON HIUSVIIVA, EI LAATIKKO.
  *
@@ -1607,16 +1693,16 @@ html.tl-kisko-piilossa #tl-paivat {
  * yhä kerran — nyt vain ei kolmatta kertaa nauhassa. */
 .htick.pv-alku::before {
   content: ''; position: absolute; left: 0; bottom: 0;
-  width: 1px; height: 16px; background: var(--hairline);
+  width: 1px; height: 20px; background: var(--tl-viiva);
   pointer-events: none;
 }
 
 #tl-indicator {
   position: absolute;
-  /* Alkaa päiväkiskon ALTA: kisko rullaa omaa tahtiaan, eikä tuntinauhan
-     osoitin saa piirtyä sen yli. */
-  top: calc(16px + var(--tl-paivat-h));
-  bottom: calc(var(--sab-tl) + 6px);
+  /* Osoitin kattaa TASAN tuntinauhan: kisko on nyt sen alapuolella ja
+     rullaa omaa tahtiaan, eikä osoitin saa piirtyä sen yli. */
+  top: 6px;
+  bottom: calc(var(--sab-tl) + 14px + var(--tl-paivat-h) + 6px);
   left: 50%; width: 2px;
   transform: translateX(-50%); pointer-events: none; z-index: 2;
   background: var(--accent);
@@ -1624,10 +1710,9 @@ html.tl-kisko-piilossa #tl-paivat {
 }
 #tl-time-bubble {
   position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
-  /* Kupla pysyy siellä missä se on aina ollut: kortin yläpuolella.
-     Indikaattori siirtyi kiskon verran alas, joten marginaali kasvaa
-     saman verran — muuten kupla laskeutuisi kiskon päälle. */
-  margin-bottom: calc(8px + var(--tl-paivat-h));
+  /* Kupla pysyy siellä missä se on aina ollut: aikajanan yläpuolella.
+     Osoitin alkaa nyt nauhan ylälaidasta, joten marginaali on kiinteä. */
+  margin-bottom: 8px;
   background: var(--ink);
   color: var(--surface);
   font-variant-numeric: tabular-nums;
@@ -1650,7 +1735,7 @@ html.tl-kisko-piilossa #tl-paivat {
   border: 5px solid transparent; border-top-color: var(--ink);
 }
 .tl-now-marker {
-  flex: 0 0 2px; height: 100%; background: rgba(120,105,70,.45);
+  flex: 0 0 2px; height: 100%; background: rgba(255,255,255,.34);
   position: relative; z-index: 1;
 }
 /* NYT-LAPPU ON YLÄREUNASSA, JA NYT SE ON SIELLÄ YKSIN.
@@ -1670,7 +1755,7 @@ html.tl-kisko-piilossa #tl-paivat {
 .tl-now-label {
   position: absolute; top: 0; left: 50%; transform: translateX(-50%);
   font-variant-numeric: tabular-nums; font-size: var(--fs-8); font-weight: 700;
-  color: var(--ink-2); white-space: nowrap; letter-spacing: .06em;
+  color: var(--tl-teksti-2); white-space: nowrap; letter-spacing: .06em;
   line-height: 10px;
 }
 
@@ -2528,8 +2613,16 @@ html.tyopoyta {
  * kilpaile datan kanssa. Varjo on siksi että kartan sävy vaihtelee
  * pikselistä pikseliin — pelkkä läpikuultava valkoinen katoaisi
  * vaaleimman lämpökartan päälle. */
+/* LIUKUVÄRIN PÄÄLLE, EI SEN ALLE. Nämä kaksi lappua ovat ruudun
+   alalaidassa samalla rivillä, eli täsmälleen siellä missä tummennus on
+   syvimmillään. Kerros oli 19 ja aikajana 20, joten liukuväri peitti ne
+   — mitattuna teksti jäi kokonaan sen alle. Nosto 21:een palauttaa ne
+   näkyviin, ja väri kääntyy kartan mukaan säätyvästä `--kartta-teksti`
+   -tokenista aikajanan omaan valoon: alusta ei ole enää kartta vaan
+   tummennus, joten sävyn ei pidä seurata pohjakarttaa. Varjo jää,
+   koska lappu alkaa liukuvärin alareunasta jossa kartta vielä kuultaa. */
 #lahde-merkki {
-  position: fixed; z-index: 19;
+  position: fixed; z-index: 21;
   left: calc(var(--sal) + 18px);
   bottom: 0;
   padding-bottom: max(0px, calc(var(--sab-tl) - 6px));
@@ -2542,6 +2635,7 @@ html.tyopoyta {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   opacity: 0; transition: opacity .3s ease;
 }
+#lahde-merkki { color: var(--tl-teksti-2); }
 #lahde-merkki.nakyy { opacity: 1; }
 
 /* SADETUTKAN KEHYKSEN AIKALEIMA. Perii lähdemerkinnän asun kokonaan:
@@ -2555,7 +2649,7 @@ html.tyopoyta {
    y 756 — eli leima oli kokonaan sen alla. Sama rivi ja vastakkainen
    reuna on ainoa paikka jossa molemmat näkyvät. */
 #tutka-aika {
-  position: fixed; z-index: 19;
+  position: fixed; z-index: 21;
   right: calc(var(--sar) + 18px);
   bottom: 0;
   text-align: right;
@@ -2569,6 +2663,7 @@ html.tyopoyta {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   opacity: 0; transition: opacity .3s ease;
 }
+#tutka-aika { color: var(--tl-teksti-2); }
 #tutka-aika.nakyy { opacity: 1; }
 
 /* Kaksi lappua samalla rivillä: lähdemerkintä lyhenee sen verran kuin
@@ -2584,7 +2679,7 @@ html[data-tutka="1"] #lahde-merkki {
 #rl-banner {
   /* --sab-tl eika --sab: banneri kelluu aikajanan ylapuolella, joten sen
      on liikuttava saman verran, muuten vali muuttuisi standalone-tilassa. */
-  position: fixed; bottom: calc(var(--sab-tl) + 148px); left: 12px; right: 12px; z-index: 50;
+  position: fixed; bottom: calc(var(--sab-tl) + var(--tl-paivat-h) + 130px); left: 12px; right: 12px; z-index: 50;
   background: var(--surface-hi);
   border: 1px solid var(--hairline);
   border-left: 3px solid #9A5116;
@@ -4424,6 +4519,34 @@ const ColorRamp = (() => {
    * pohjakartta-asetuksen mukana vaikka ura pysyy samana. */
   const PAPERI_K = 0.48;
   const _paperiLUT = new Array(LUT_SIZE);
+  /* KARTAN SÄVY, TUMMENNUKSEN KIRKKAUS — sama ongelma toisesta päästä.
+   *
+   * Aikajana ei ole enää paperia vaan tummennus, ja `paperi()` on siellä
+   * yhtä väärä kuin `rgb()` oli paperilla — kumpikin katoaa alustaansa.
+   * Paljas karttaramppi mitattuna tummennusta vasten (rgb 43,60,61):
+   *
+   *     2 m/s  1,10:1     11 m/s  3,21:1
+   *     5 m/s  1,46:1     14 m/s  4,59:1
+   *     8 m/s  1,71:1     20 m/s  4,27:1
+   *
+   * Rampin hiljainen pää on tummansininen, ja tummalla alustalla se on
+   * käytännössä näkymätön — juuri se pää jota Suomen rannikolla
+   * katsotaan useimmin. Ratkaisu on `paperi()`:n peilikuva: sama
+   * karttaramppi sekoitettuna VALKOISEEN sen sijaan että se kerrottaisiin
+   * mustaa kohti. Sekoitus sRGB:ssä säilyttää sävyn ja nostaa
+   * kirkkautta, eli se ominaisuus joka sitoo palkin karttaan jää
+   * koskematta.
+   *
+   * Kerroin 0,45 on mitattu: se nostaa heikoimman (2 m/s) 1,10:stä
+   * 3,46:een ja pitää kärjen yli neljän. Pienempi kerroin jättää
+   * hiljaisen pään alle kolmen; suurempi haalistaa koko rampin kohti
+   * valkoista ja syö sävyeron peräkkäisten nopeuksien väliltä.
+   *
+   * Kuten `paperi()`, tämä taulu EI seuraa pohjakarttaa — alusta on aina
+   * sama tummennus — mutta seuraa värisokeusasetusta, koska se koskee
+   * näköä eikä alustaa. */
+  const VARJO_K = 0.45;
+  const _varjoLUT = new Array(LUT_SIZE);
   const _inkCssLUT = new Array(LUT_SIZE);
 
   /* Taulut täytetään PAIKALLEEN eikä korvata uusilla. Syy on että ne ovat
@@ -4445,6 +4568,9 @@ const ColorRamp = (() => {
       _paperiLUT[i] = { r: Math.round(cp.r * PAPERI_K),
                         g: Math.round(cp.g * PAPERI_K),
                         b: Math.round(cp.b * PAPERI_K) };
+      _varjoLUT[i] = { r: Math.round(cp.r + (255 - cp.r) * VARJO_K),
+                       g: Math.round(cp.g + (255 - cp.g) * VARJO_K),
+                       b: Math.round(cp.b + (255 - cp.b) * VARJO_K) };
       _inkCssLUT[i] = 'rgb(' + ci.r + ',' + ci.g + ',' + ci.b + ')';
     }
     for (let a = 0; a < ALPHA_STEPS; a++) {
@@ -4469,7 +4595,8 @@ const ColorRamp = (() => {
     return _cssAlphaLUT[ai][idx];
   }
   function paperi(ms) { return _paperiLUT[_lutIdx(ms)]; }
-  return { rgb, css, msToT, ink, inkCss, paperi, paivita: rakennaLUTit };
+  function varjo(ms)  { return _varjoLUT[_lutIdx(ms)]; }
+  return { rgb, css, msToT, ink, inkCss, paperi, varjo, paivita: rakennaLUTit };
 })();
 
 /* -- SPOTS ----------------------------------------------------- */
@@ -20006,9 +20133,6 @@ document.getElementById('sheet-handle').addEventListener('click', closeSheet, { 
       }
       default: hoidettu = false;
     }
-    /* Näppäimistö on samaa käyttäjän toimintaa kuin kosketus: kiskon on
-       oltava näkyvissä myös silloin kun aikaa askelletaan näppäimillä. */
-    if (hoidettu && typeof _tlKiskoHerata === 'function') _tlKiskoHerata();
     if (hoidettu) e.preventDefault();
   });
 })();
@@ -20233,7 +20357,7 @@ function nowIdx(times) {
    11, `scrollTimelineTo` 10), joista kaksi jälkimmäistä olivat jo
    valmiiksi eri mieltä kuin kaksi ensimmäistä — eli play ja pehmeä
    vieritys keskittivät tikin pikselin tai kaksi eri kohtaan kuin sormi. */
-const TL_TIKKI_LEV = 12;
+const TL_TIKKI_LEV = 16;
 const TL_TIKKI_PUOLI = TL_TIKKI_LEV / 2;
 /* PALKIN ASTEIKKO ON KIINTEÄ, EI SARJAKOHTAINEN.
  *
@@ -20371,7 +20495,7 @@ function _tlPalkkiPx(ms) {
 function _tlPaivitaPalkit(speeds) {
   const tikit = State._tlTicks;
   for (let i = 0; i < tikit.length; i++) {
-    const ms = speeds[i] || 0, bc = ColorRamp.paperi(ms);
+    const ms = speeds[i] || 0, bc = ColorRamp.varjo(ms);
     const bar = tikit[i].querySelector('.htick-bar');
     if (!bar) continue;
     bar.style.height = _tlPalkkiPx(ms) + 'px';
@@ -20451,7 +20575,7 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
       tl.appendChild(nowLine);
       nowMarkerInserted = true;
     }
-    const ms = speeds[i]||0, bc = ColorRamp.paperi(ms);
+    const ms = speeds[i]||0, bc = ColorRamp.varjo(ms);
     const tick = document.createElement('div');
     const isPast = i < realNowIdx;
     /* LUKEMA ON JOKA TUNNILLA — EIKÄ NYT-MERKKI OLE POIKKEUS.
@@ -20676,10 +20800,6 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
        * enää ainoa vartija. */
       if (!_tlKiskoKosketusOma && !_tlKiskoSormiOllut) return;
       _tlKiskoVierii = true;
-      /* Heitto on navigointia päivissä, eli juuri se mitä varten kisko
-         on olemassa — se pitää kiskon hereillä samalla tavalla kuin
-         tuntinauhan vieritys. */
-      if (!State.isPlaying && typeof _tlKiskoHerata === 'function') _tlKiskoHerata();
       const nyt = Date.now();
       if (nyt - _kiskoViimeksi >= 16) { _kiskoViimeksi = nyt; _kiskoSeuraa(); }
       /* Ajastin on varmistus KAHDELLE asialle, ei vain vanhoille
@@ -20840,11 +20960,6 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
   }
   tl.addEventListener('scroll', () => {
     if (State._tlSelfScroll) return;
-    /* Heiton jälkeinen momentumvieritys on yhä käyttäjän elettä, joten se
-       pitää päiväkiskon hereillä — muuten kisko katoaisi kesken
-       liu'un. Toiston aikana EI herätetä: play ei ole navigointia
-       päivissä, ja jokainen ruutu pitäisi kiskon ikuisesti auki. */
-    if (!State.isPlaying && typeof _tlKiskoHerata === 'function') _tlKiskoHerata();
     const nyt = Date.now();
     if (nyt - _seurantaViimeksi >= 16) { _seurantaViimeksi = nyt; _tlSeurantaAskel(); }
     /* Varmistus vanhoille selaimille joilla ei ole scrollend-tapahtumaa.
@@ -21272,10 +21387,11 @@ function _tlKuplaTeksti(d) {
     ai = document.createElement('span');
     bubble.appendChild(pv); bubble.appendChild(ai);
   }
-  const kiskoPiilossa = document.documentElement.classList.contains('tl-kisko-piilossa');
-  pv.textContent = kiskoPiilossa
-    ? TL_KUPLA_PV[d.getDay()] + ' ' + d.getDate() + '. '
-    : '';
+  /* PÄIVÄYS SANOTAAN KERRAN, ja sen sanoo kisko. Kupla näytti päiväyksen
+     silloin kun kisko oli piilossa; kisko on nyt aina näkyvissä, joten
+     haara poistui ja kuplassa on vain kellonaika. Solmu jää paikalleen,
+     koska `_tlKuplaTeksti` kirjoittaa molemmat joka askeleella. */
+  pv.textContent = '';
   ai.textContent = ('0' + d.getHours()).slice(-2) + ':00';
 }
 
@@ -22852,59 +22968,15 @@ document.addEventListener('keydown', function (e) {
   el.click();
 });
 
-/* PÄIVÄKISKON LEPOTILA — ks. `html.tl-kisko-piilossa` CSS:ssä.
+/* PÄIVÄKISKON LEPOTILA POISTUI.
  *
- * Herätys on `pointerdown` KÄÄREESSÄ eikä tuntinauhassa: sama ele
- * herättää kiskon riippumatta siitä osuiko sormi palkkiin, nappiin,
- * kuplaan vai kiskoon itseensä — ja ennen kaikkea PELKKÄ KOSKETUS
- * riittää, raahausta ei tarvita. Se on koko ratkaisun ehto: kisko on
- * olemassa raahauksen välttämiseksi, joten se ei saa vaatia raahausta.
- *
- * Kuuntelija on kaappausvaiheessa ja passiivinen, joten se ei häiritse
- * vierityksen eikä napautuksen omaa käsittelyä.
- *
- * Toiston aikana kiskoa EI herätetä vaikka valinta liikkuu: play ei ole
- * navigointia päivissä, ja herätys joka ruudulla pitäisi kiskon
- * ikuisesti auki. Sama koskee kartansiirron aiheuttamaa uudelleen-
- * rakennusta — kisko herää vain käyttäjän omasta eleestä. */
-const TL_KISKO_LEPO_MS = 4000;
-let _tlKiskoAjastin = null, _tlKiskoKosketus = false;
-function _tlKiskoNukuta() {
-  _tlKiskoAjastin = null;
-  /* SORMI KIINNI KORTISSA = ELE ON KESKEN. Pelkkä ajastin nukuttaisi
-     kiskon kesken pitkää raahausta: lepoaika on 4 s ja janan voi
-     raahata paljon kauemmin, jolloin kisko olisi kadonnut sormen alta
-     ja palannut irrotuksessa. Yritetään uudelleen. */
-  if (_tlKiskoKosketus) { _tlKiskoAjastin = setTimeout(_tlKiskoNukuta, TL_KISKO_LEPO_MS); return; }
-  document.documentElement.classList.add('tl-kisko-piilossa');
-  /* Kupla ottaa päiväyksen takaisin samalla hetkellä kun kisko vie sen
-     mennessään — ks. `_tlKuplaTeksti`. */
-  if (typeof _tlKuplaTeksti === 'function') _tlKuplaTeksti();
-}
-function _tlKiskoHerata() {
-  const oliPiilossa = document.documentElement.classList.contains('tl-kisko-piilossa');
-  document.documentElement.classList.remove('tl-kisko-piilossa');
-  if (oliPiilossa && typeof _tlKuplaTeksti === 'function') _tlKuplaTeksti();
-  if (_tlKiskoAjastin) clearTimeout(_tlKiskoAjastin);
-  _tlKiskoAjastin = setTimeout(_tlKiskoNukuta, TL_KISKO_LEPO_MS);
-}
-(function () {
-  const w = document.getElementById('tl-wrap');
-  if (!w) return;
-  w.addEventListener('pointerdown', function () {
-    _tlKiskoKosketus = true; _tlKiskoHerata();
-  }, { capture: true, passive: true });
-  /* Lepoaika alkaa vasta sormen noususta, ei kosketuksesta. */
-  for (const t of ['pointerup', 'pointercancel']) {
-    w.addEventListener(t, function () {
-      _tlKiskoKosketus = false; _tlKiskoHerata();
-    }, { capture: true, passive: true });
-  }
-  /* Käynnistyksessä kisko on NÄKYVISSÄ ja painuu piiloon vasta ensimmäisen
-     lepojakson jälkeen. Suoraan piilossa aloittava kisko olisi
-     ominaisuus jota kukaan ei löydä; kerran nähtynä ele on opittu. */
-  _tlKiskoHerata();
-})();
+ * Tässä oli `_tlKiskoHerata` / `_tlKiskoNukuta` ja neljän sekunnin
+ * ajastin, joka painoi kiskon piiloon levossa. Kisko on nyt aina
+ * näkyvissä aikajanan alalaidassa (ks. `#tl-paivat` CSS:ssä), joten
+ * herätystä ei ole eikä nukutusta — eikä myöskään sitä ansaa että
+ * ajastin nukuttaisi kiskon kesken pitkää raahausta (mitattu 6,5 s
+ * eleellä). Myös kolme herätyskutsua poistettiin: näppäimistö,
+ * tuntinauhan vieritys ja kiskon oma vieritys. */
 
 document.getElementById('btn-play').addEventListener('click', togglePlay, { passive: true });
 

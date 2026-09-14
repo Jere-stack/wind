@@ -4660,3 +4660,104 @@ Kortti kasvoi 114 → 130 px (hereillä 144 → 158), nauha 78 → 94 px:
 päättyy nyt **tasan** NYT-lapun alareunaan: mitattuna palkki 564–636 ja
 lappu 554–564, päällekkäisyys 0 px (oli 2 px). Napit pysyvät 10 px
 kortin yläpuolella, peitto 0 %.
+
+## Aikajana kelluu tummennuksella — paperikortti pois
+
+Neljä pyyntöä samassa erässä, ja ne osoittautuivat yhdeksi: kortti pois,
+liukuväri tilalle, kisko alas, palkit leveämmiksi.
+
+### Paperi oli se joka rajoitti kaiken muun
+
+Aikajana oli oma pintansa kartan päällä: `--chip`, 18 px kulmat, varjo.
+Se ratkaisi luettavuuden erottamalla — ja maksoi kahdesti. Kortti peitti
+kartan suorakaiteen verran, ja se pakotti palkit paperin kirkkaudelle
+(`ColorRamp.paperi()` = karttaramppi × 0,48), koska paljas karttaramppi
+on paperilla **1,02:1**.
+
+Alusta on nyt liukuväri: läpinäkyvä ylhäältä, tumma alhaalta, reunasta
+reunaan, 64 px ylimenoa kääreen yläpuolelle. Kartta jatkuu aikajanan
+läpi eikä mikään reuna katkaise sitä.
+
+**Pysäkit eivät ole tasavälein.** Lineaarinen liukuväri luki juovana,
+koska sen keskikohta nousee liian nopeasti. Käyrä on
+0 → .38 → .78 → .92 → .95, eli yläpää pysyy näkymättömänä ja massa tulee
+vasta siellä missä palkit ovat.
+
+### Palkkien ramppi vaihtui — ja se piti mitata
+
+Ensimmäinen versio otti palkeille paljaan karttarampin: tumma alusta,
+kirkas ramppi, looginen. Mitattuna ruudulta tummennusta vasten (rgb
+43,60,61) se on sama vika kuin `rgb()` paperilla, toisesta päästä:
+
+| m/s | `rgb()` | `varjo()` |
+|---|---|---|
+| 2 | **1,10:1** | 4,88:1 |
+| 5 | **1,46:1** | 7,73:1 |
+| 8 | **1,71:1** | 8,58:1 |
+| 11 | 3,21:1 | 9,47:1 |
+| 14 | 4,59:1 | 6,86:1 |
+| 20 | 4,27:1 | 6,46:1 |
+
+Rampin hiljainen pää on tummansininen, ja tummalla alustalla se on
+käytännössä näkymätön — juuri se pää jota Suomen rannikolla katsotaan
+useimmin.
+
+Ratkaisu on `paperi()`:n peilikuva: `ColorRamp.varjo()` = sama
+karttaramppi sekoitettuna VALKOISEEN kertoimella 0,45, kun `paperi()`
+kertoo sen 0,48:lla kohti mustaa. Molemmat säilyttävät sävyn ja muuttavat
+vain kirkkautta, eli sen ominaisuuden joka sitoo palkin karttaan.
+Heikoin kohta on nyt 4,88:1 — paperiversiossa se oli 3,41.
+
+Ensimmäinen mittausajo antoi 11 m/s:lle 1,7:1 ja järjestyksen
+sininen–syaani–vihreä–**magenta**–oranssi. Magenta rikkoi rampin
+järjestyksen, ja syy oli mittarissa: näyte osui ruudun keskellä olevaan
+NYT-osoittimeen. Näytteet siirrettiin osoittimen oikealle puolelle.
+
+### Kisko alas, ja piilotus pois
+
+Kisko oli palkkien YLÄPUOLELLA ja piiloutui neljän sekunnin levossa,
+koska paperikortilla se oli 30 px kromia 128:sta. Nyt se on alhaalla ja
+aina näkyvissä: liukuvärillä korkeus ei maksa karttaa samalla tavalla,
+ja piiloutuva kisko oli silti aina yksi ele lisää.
+
+Järjestys lukee nyt ylhäältä alas karkeampaan: hetki (kupla), tuuli
+(palkit), tunti (lukemat), päivä (kisko).
+
+Poistuivat `html.tl-kisko-piilossa`, `_tlKiskoHerata`, `_tlKiskoNukuta`,
+niiden kolme kutsupaikkaa ja aikakuplan päiväyshaara — päiväys on nyt
+aina kiskossa. Valittu päivä on VAALEA pilleri (mitattu 19,37:1), koska
+tumma pilleri katoaisi tummaan alustaan.
+
+### Leveämmät palkit
+
+| | ennen | nyt |
+|---|---|---|
+| tikki | 12 px | 16 px |
+| palkki | 8 px | 11 px |
+| lukema | 8 px | 9 px |
+| lukemien väli | 3,1 px | 6,0 px |
+| näkyviä tunteja | 32 | 24 |
+| viikon matka | 2 232 px | 2 688 px |
+
+Tikki kapeni aikanaan 22 → 16 → 12, koska aikajanan vika oli matka.
+Nyt se leveni takaisin, koska tunnit lukivat liian tiheinä — matkaa
+tulee 456 px lisää ja se maksetaan tietoisesti luettavuudesta.
+
+### Mikään ei jää piiloon
+
+Liukuväri ulottuu ruudun pohjaan eli täsmälleen sinne missä
+`#lahde-merkki` ja `#tutka-aika` ovat. Ne olivat `z-index: 19` ja
+aikajana 20, joten tummennus peitti ne kokonaan; nosto 21:een palauttaa
+ne ja väri vaihtui aikajanan omaan valoon. Kääreen alatäyte kasvoi
+8 → 14 px, koska kahdeksalla kisko peitti niistä 2 px.
+
+Mittari tarkistaa myös ettei yksikään kääreen elementti jää ruudun
+ulkopuolelle: mitattuna tyhjä lista sekä puhelimella (390×664) että
+työpöydällä (1280×800).
+
+### Mitä mitattiin lopuksi
+
+Kortti 156 px molemmilla leveyksillä, nauha 96, kisko 34, napeille 10 px
+rako ja peitto 0 %. Kierroksen 2 oirekoe menee läpi WebKitillä ja
+Chromiumilla — myös kiskon oma raahaus, joka on nyt eri paikassa.
+Keskiyön kiskotapahtuma antaa yhä 0 h ja 0 px.
