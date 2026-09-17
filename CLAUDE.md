@@ -29,6 +29,10 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   vuorokaudessa (`.github/workflows/`).
 - `tools/harmonie.mjs` — FMI HARMONIE 2,5 km hilana GRIB2:sta
   (`tiilet.mjs`:n toinen lähde, taso `h0`).
+- `tools/ikoni.mjs` — sovelluksen merkin ainoa lähde: kirjoittaa
+  `public/icon.svg`:n, `--png` koko PNG-sarjan ja `--inline` sen
+  `<svg>`:n joka on latausruudussa. Rasterointi Chromiumilla; tiedostot
+  ovat repossa valmiina, joten build ei tarvitse tätä. Ks. `docs/pwa.md`.
 - `tools/suunnat.html` — spottien tuulisuuntien asetustyökalu. `npm run dev`,
   sitten `/tools/suunnat.html`. Ei kuulu tuotantobuildiin. Lukee spotit
   `index.html`:stä ajossa, joten lista ei vanhene.
@@ -80,8 +84,8 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/partikkelit.md` | tuulipartikkeleita, jäljen muotoa, tiheyttä tai ruutuaikabudjettia |
 | `docs/eleet.md` | nipistystä, zoomia, zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen |
 | `docs/data.md` | säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja |
-| `docs/ui.md` | paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa, kapselia, havaintoasemia |
-| `docs/pwa.md` | service workeria, offline-käynnistystä tai kotivalikon appia |
+| `docs/ui.md` | paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa, kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä** |
+| `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
 
 <details>
@@ -155,7 +159,11 @@ kokeiltu ja kaadettu mittauksella.
   Kolme hienosäätöä: päiväys kuplaan, leveämpi tikki, rajan pyöristys ·
   Liukuväri alemmas, lasi ylös, ja päiväyksen välähdys kahdesta syystä ·
   Spottikortin tuuliennustekaavio: laatikko sivuun, pallot omiin
-  väreihinsä, akseli oikeaan yksikköön
+  väreihinsä, akseli oikeaan yksikköön ·
+  Latausruutu: kuva esiin, merkki uusiksi
+- **pwa**: PWA — kotivalikkoon ja rannalle · Mitä välimuistiin menee ·
+  Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
+  Ikoni ja kotivalikko
 
 </details>
 
@@ -358,6 +366,57 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   Nimilappu tai datapiste ei ole kumpaakaan; ne ovat mustetta.
 - **`var()` ei toimi SVG:n esitysattribuuteissa.** Kaavioiden `fill=` tarvitsee
   literaalin; inline-tyyleissä tokenit toimivat.
+
+**Latausruutu ja sovelluksen merkki**
+
+- **LATAUSRUUTU ON KAHDESSA OSASSA: KUVA YLHÄÄLLÄ, PAPERI ALHAALLA.**
+  Teksti oli ennen keskellä eli täsmälleen kuvan päällä, jolloin kuvan
+  piti väistyä koko ruudun leveydeltä — se oli `opacity: .16` ja
+  paperiliuku .30–.86 sen päällä, eli kuvaa näkyi 2–11 %. Älä korjaa
+  tätä alfalla: mitattuna paljasta kuvaa vasten muste on nimen
+  kaistalla mediaaniltaan 3,09:1 ja heikoimmillaan 1,62:1, ja 66 %
+  pinnasta alittaa 4,5:1 (merkin kaistalla 100 %).
+  Nimilohko VAATII umpinaisen paperin alleen, ja kuva saa kaiken
+  sen yläpuolelta. Mitattu kuvan osuus kaistoittain (0–255, sama ruutu
+  kuvan kanssa ja ilman): 9,19 → 67,31 · 12,85 → 103,63 · 9,74 → 33,03
+  · 7,98 → 0.
+- **RAJALIUKU ON SMOOTHSTEP, EI HIDASTUVA KUTEN AIKAJANALLA.** Aikajanan
+  liuku päättyy ILMAAN, jolloin kiihtyvä pää lukee juovana; latausruudun
+  liuku päättyy umpinaiseen paperiin MOLEMMISSA päissä, jolloin juovan
+  tekee kaltevuuden äkkipysähdys päädyissä. S-käyrä lähtee ja pysähtyy
+  nollakaltevuudella. Pysäkit ovat s²(3−2s) kahdeksassa pisteessä, koska
+  CSS interpoloi pysäkkien VÄLIT suorina — käyrää ei saa kahdella
+  pysäkillä.
+- **LATAUSRUUDUN YLÄLAIDAN TUMMENNUS ON TILAPALKKIA VARTEN.**
+  `black-translucent` piirtää kellon ja akun VALKOISENA sisällön päälle,
+  ja kermalla se on mitattuna 1,32:1 eli näkymätön. Tummennus (190 px,
+  ink .60 → 0) nostaa sen 8,18:1:een. Älä poista sitä "koska paperi on
+  vaaleaa" — juuri siksi se on siellä.
+- **`object-position` VAIKUTTAA VAIN LEVEISSÄ NÄKYMISSÄ.** 562×1000 kuva
+  mahtuu 393×852 ruudulle korkeussuunnassa täsmälleen, joten puhelimen
+  pystynäkymässä pystyarvo ei tee mitään; työpöydällä ylivuotoa on
+  1478 px ja arvo ratkaisee näkyykö kuvassa ratsastaja vai purjekangasta.
+- **MERKKI ON YKSI MUOTO JA KAKSI ASUA, JA SE SYNTYY `tools/ikoni.mjs`:STÄ.**
+  Kotivalikon ikoni on karttamaailmaa (meren tumma pohja, `RAMP_KARTTA`),
+  latausruudun merkki paperimaailmaa (yksivärinen muste) — sama jako kuin
+  `rgb()`/`ink()`-säännöllä. Ramppi paperilla on mitattu ja kaatunut:
+  kermaa vasten heikoin on 1,06:1 (limetti, t 0,65) ja koko väli
+  t 0,50–0,78 jää alle 1,6:1, eli kaaren yläkolmannes katoaa. Älä
+  piirrä merkkiä käsin uudestaan kumpaankaan paikkaan.
+- **SEKTORIVIUHKAN ON ULOTUTTAVA KAAREN KULMAVÄLIN YLI.** Pyöreä
+  päätykorkki pullistuu kulmavälin ulkopuolelle, eikä sitä peitä yksikään
+  sektori: korkki jäi pohjan väriseksi ja leveä pää luki suorana
+  leikkauksena. Ylitys 16°, ja sen väri on rampin pää eikä jatkettu
+  ramppi. Keskitys tehdään RAJAUSLAATIKOSTA eikä ympyrän keskipisteestä —
+  270° kaari ei ole symmetrinen.
+- **MASKATTAVA IKONI ON ERI KOKO SAMASTA MUODOSTA.** Android leikkaa
+  siitä 80 %:n ympyrän. Täyteen asti ulottuva merkki menettäisi päänsä,
+  ja maskin mitoille tehty kelluisi pikkuruisena kotivalikossa.
+- **`background_color` ON PAPERI, `theme_color` ON KARTTA.** Edellinen on
+  käynnistyksen välähdys ennen ensimmäistä maalausta, eli latausruudun
+  väri; jälkimmäinen värittää järjestelmäpalkit kun ruudulla on kartta.
+  Kun molemmat olivat `#060912`, kotivalikosta avattu appi välähti
+  mustana ennen kermaa.
 
 **Saavutettavuus**
 

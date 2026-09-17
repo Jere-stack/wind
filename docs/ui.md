@@ -5162,3 +5162,149 @@ on sama kummin päin.
 
 Spottikortti avataan `openSheet`illa eikä napauttamalla merkkiä:
 kosketussäätö siirtää napautuksen naapurimerkkiin.
+
+## Latausruutu: kuva esiin, merkki uusiksi
+
+Latausruutu oli viimeinen pinta jota Merikartta-migraatio ei ollut
+koskenut, ja sen alla oli valokuva jota ei käytännössä nähnyt.
+
+### Kuva oli 2–11 % näkyvissä
+
+Kuva oli `opacity: .16` ja sen päällä paperiliuku, jonka alfa oli
+.55 → .30 → .42 → .86. Kerrottuna jäljelle jäi 2–11 % kuvaa. Se ei
+lukenut valokuvana vaan tahrana paperissa — ja se oli koko ruudun ainoa
+asia joka kertoo mistä sovelluksessa on kyse.
+
+**Mittari on kuvan OSUUS, ei sen alfa.** Sama ruutu kaapataan kahdesti,
+kuva päällä ja `visibility: hidden`, ja erotuksen keskiarvo pikseliä
+kohti kertoo kuinka paljon lopullisesta pikselistä on valokuvaa. CSS:n
+alfaa lukemalla tätä ei saa selville: päällä on kaksi liukua, ja vasta
+niiden jälkeen jäljelle jäävä osuus on se mitä silmä näkee. Palkkien
+aalto pysäytetään kaappausten väliksi, muuten erotus mittaisi myös sitä.
+
+Mitattu 393×852, asteikko 0–255:
+
+```
+kaista        vanha    uusi
+0–25 %         9,19   67,31
+25–50 %       12,85  103,63
+50–70 %        9,74   33,03
+70–100 %       7,98    0
+```
+
+### Korjaus ei ollut alfa vaan TILANJAKO
+
+Teksti oli keskellä eli täsmälleen kuvan päällä, joten kuvan piti
+väistyä tekstin alta koko ruudun leveydeltä. Alfan nostaminen yksin
+olisi vain vaihtanut vian toiseen. Mitattuna paljasta kuvaa vasten
+(paperiliuku pois, muste `--ink`):
+
+```
+kaista            heikoin  mediaani  alle 4,5:1
+nimi   y 656–683   1,62:1    3,09:1      66 %
+merkki y 594–640   1,89:1    2,36:1     100 %
+tilarivi y 782–798 2,29:1    2,70:1      85 %
+```
+
+Ruutu on nyt kahdessa osassa. Ylin 70 % on kuvaa (alfa .88, `saturate`
+.74), alin 30 % umpinaista paperia, jolla nimilohko lepää. Kumpikaan ei
+ole toisen tiellä. Alfa .88 ei ole häivytys vaan PAPERIN MÄÄRÄ: kuvan
+alla on `#loading`in `--surface`, joten 12 % paperia sekoittuu kuvaan ja
+lämmittää sen valkoiset kermaksi ilman omaa peiteväriä.
+
+**Rajaliuku on smoothstep välillä 44–70 %, ei suora eikä hidastuva.**
+Tämä on eri työ kuin aikajanan liu'ulla, jossa kiihtyvä nousu on
+kielletty: siellä liuku päättyy ILMAAN ja kiihtyvä pää lukee juovana.
+Täällä liuku päättyy umpinaiseen paperiin molemmissa päissä, jolloin
+juovan tekee nimenomaan kaltevuuden äkkipysähdys päädyissä. S-käyrä
+lähtee ja pysähtyy nollakaltevuudella. Pysäkit ovat s²(3−2s) kahdeksassa
+pisteessä, koska CSS interpoloi pysäkkien VÄLIT suorina — käyrä on
+tehtävä pisteinä, ei kahdella pysäkillä.
+
+`object-position` on 38 %, ja se vaikuttaa VAIN leveissä näkymissä.
+Puhelimen pystynäkymässä 562×1000 kuva mahtuu 393×852 ruudulle
+korkeussuunnassa täsmälleen (cover skaalaa 0,852:lla), joten ylivuoto on
+vaakasuunnassa eikä pystyarvolla ole vaikutusta. Työpöydällä ylivuotoa
+on paljon (1280 px leveänä korkeus on 2278 px), ja oletus 50 % näytti
+pelkkää purjekangasta; 38 % tuo ratsastajan kuvan puoliväliin.
+
+### Tilapalkki oli näkymätön, eikä se ollut uusi vika
+
+`apple-mobile-web-app-status-bar-style` on `black-translucent`, eli iOS
+piirtää kellon ja akun VALKOISENA sovelluksen sisällön päälle. Kartalla
+se on oikein, mutta latausruutu on kermaa: **valkoinen kermalla on
+mitattuna 1,32:1 eli näkymätön**, ja niin oli myös ennen tätä työtä.
+Ylälaidan tummennus (190 px, ink .60 → 0) nostaa sen 8,18:1:een ruudun
+ylälaidassa ja 5,60:1:een 44 px:n kohdalla, ja on samalla se valokuvan
+kehys jonka kuva muutenkin tarvitsee.
+
+### Kolme muuta löydöstä samalta ruudulta
+
+- **Alanimi oli aksenttia.** `--accent` on toiminto- ja varoitusväri;
+  alanimi ei ole kumpaakaan — sama sääntö joka vei magentan pois
+  nimilapuilta ja datapisteiltä. Nyt magenta on tällä ruudulla tasan
+  yhdessä paikassa: edistymispalkissa, joka on käynnissä oleva toiminto.
+- **Palkeissa oli viisi keksittyä väriä** (`#1F4FA0`, `#146C86`,
+  `#0E7361`, `#2A702D`, `#7A5D07`) joita ei ole missään muualla
+  sovelluksessa, ja kahdella samankorkuisella palkilla oli eri väri. Nyt
+  väri on funktio KORKEUDESTA kuten havaintokaaviossa, ja se tulee
+  musterampista (4, 7 ja 11 m/s), koska alusta on paperia.
+- **Aallon pohja oli .34.** Matalin palkki oli silloin 14 × .34 = 4,8 px,
+  eli kaksi viidestä palkista muuttui silmänräpäykseksi pisteiksi ja rivi
+  luki rikkinäisenä. Pohja on nyt .5, ja matalin palkki ei alita 14 px:ää
+  edes matalan ruudun tiiviissä asussa.
+
+Sivutuotteena myös tilarivin kontrasti nousi 4,29:1 → 4,56:1, eli se
+alitti AA:n aiemmin. Nimi 11,7 → 14,3 (umpinainen paperi alustana), ja
+edistymispalkin ura 1 px → 2 px: yhden pikselin ura katosi kermaan, eli
+palkkia ei nähnyt ennen kuin se oli jo puolivälissä.
+
+### Merkki: sama muoto, kaksi asua
+
+Latausruudun logo oli kolmiopurje ja kotivalikon ikoni sateenkaarirengas
+tummalla — kaksi eri merkkiä samalle sovellukselle. Nyt kumpikin on
+**puuska**: kapeasta tyvestä leveäksi paisuva kaari, joka kiertää 270°
+ja kaartuu lopussa sisään.
+
+Asu seuraa maailmaa, ei tiedostoa — sama jako kuin väreillä muutenkin
+(`ColorRamp.rgb()` kartalle, `ink()` paneeleihin):
+
+- **Kotivalikon ikoni on karttamaailmaa**: meren tumma pohja ja kaari
+  kantaa `RAMP_KARTTA`n sellaisenaan.
+- **Latausruudun merkki on paperimaailmaa**, joten se on yksivärinen
+  muste.
+
+Ramppia kokeiltiin ensin paperilla ja se kaatui mittaukseen. `RAMP_KARTTA`
+kermaa (`#F0E7CE`) vasten:
+
+```
+t      väri              kontrasti
+0,000  rgb(12,30,120)      11,56:1
+0,220  rgb(0,175,250)       2,00:1
+0,500  rgb(60,235,45)       1,30:1
+0,650  rgb(205,240,0)       1,06:1   <- heikoin
+0,780  rgb(255,165,0)       1,60:1
+1,000  rgb(255,85,235)      2,20:1
+```
+
+Koko väli t 0,50–0,78 jää alle 1,6:1, eli kaaren yläkolmannes katosi
+paperiin. Ikonin pohja on siksi meri eikä paperi, ja se on
+myös rehellisempi — auki sovellus ON tumma merikartta, paperi on sen
+kromia.
+
+Muoto syntyy `tools/ikoni.mjs`:stä, josta tulevat sekä PNG-sarja että
+index.html:ään upotettu `<svg>`. Ääriviiva on yksi polku ja ikonin ramppi
+maalataan sen SISÄÄN sektoreina (`clipPath`), jolloin kumpikin asu on
+pikselilleen sama muoto — kaksi erikseen laskettua reunaa ajautuisi
+erilleen ensimmäisellä hienosäädöllä.
+
+Kaksi asiaa jotka meni ensin väärin:
+
+- **Sektoriviuhkan on ulotuttava kaaren kulmavälin YLI.** Pyöreä
+  päätykorkki pullistuu kulmavälin ulkopuolelle, eikä sitä peittänyt
+  yksikään sektori: korkki jäi meren väriseksi ja kaaren leveä pää luki
+  suorana veitsenleikkauksena. Ylitys on 16° kummassakin päässä, ja sen
+  väri on rampin pää eikä jatkettu ramppi.
+- **Keskitys tehdään rajauslaatikosta, ei ympyrän keskipisteestä.**
+  Kaari ei ole symmetrinen (270° ja kasvava leveys), joten geometrinen
+  keskipiste jättää merkin ylös ja vasemmalle.
