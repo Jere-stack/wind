@@ -1638,3 +1638,96 @@ sen kylläisyyttä ei voi nostaa kartan takia.
   itseään, kuten tässä ympäristössä on tapana. Mekanismia ei myöskään
   ole: LUT on esilaskettu, samankokoinen, ja molemmat polut lukevat sen
   samalla tavalla.
+
+## Zoomin välkky uudestaan — ja se ei ollutkaan häivytys
+
+Palaute: "kartta on paljon bugisempi nyt ja kartta taas välkkyy
+zoomatessa. Tarkista että lämpölaatat on esiladattu."
+
+### Ensin: se ei ollut regressio
+
+Epäilty muutoserä ei koskenut karttakoodia lainkaan — diff osui vain
+partikkelivakioon, spottikortin kaavioon ja `?perf=1`-vientiin.
+Mitattiin silti kaksi buildia vuorotellen (nykyinen ja istuntoa
+edeltävä) samalla mittarilla: päällekkäisiä painettuja laattoja 0/0,
+esilatauskutsut samat, `renderTimeline` 17 ms vs 21 ms. Ero ei ollut
+siellä mistä sitä haettiin.
+
+### Mittari oli väärä kahdesti
+
+`requestAnimationFrame`-näytteistys antoi kymmenen sekunnin zoom-sarjasta
+**27 näytettä** — mediaaniruutuväli 259 ms. Sillä otannalla 200 ms:n
+välähdystä ei näe, ja mittari antoi 0 päällekkäisyyttä molemmille
+buildeille. Sama virhe kuin ruutukaappauksella aikanaan.
+
+`MutationObserver` ei auttanut sekään: sen takaisinkutsu on mikrotask ja
+ajetaan tehtävän lopussa, joten se näkee vain lopputilan — ja Leaflet
+liittää laatat ja ajaa `_tasoVuoro`n samassa tehtävässä.
+
+Toimiva mittari oli suora: **kääri kerroksen oma `_updateLevels` ja lue
+heti kutsun jälkeen jokaisen tason `style.opacity` ja lapsimäärä.**
+Ruututahdilla ei ole osuutta asiaan.
+
+### Mikä se oli
+
+```
+uuden tason syntyhetkellä:
+  taso 6   lapsia 35   alfa "0"        <- VALMIS, piilotettu
+  taso 7   lapsia  0   alfa "(tyhjä)"  <- TYHJÄ, näkyvissä
+  _tileZoom 7, cur 35, kesken 0
+```
+
+`_tasoVuoro` laski `valmis`-ehtoonsa **kaikki** `current`-laatat
+zoomista riippumatta. Leaflet siirtää `_tileZoom`in uuteen zoomiin ja
+luo uuden tasoelementin ennen kuin edellisen zoomin laatat merkitään
+vanhoiksi, joten ne 35 valmista laattaa olivat edellisen tason lapsia.
+Ehto luki siis "nykyinen taso on valmis" tyhjästä tasosta.
+
+Seuraus on `_tasoVuoro`n tarkoituksen vastakohta: joka zoomilla
+lämpökartta piilotettiin ja tyhjä taso näytettiin, ja kuva rakentui
+takaisin laatta kerrallaan. Portti on yksi rivi:
+
+```js
+if (t.coords && t.coords.z !== nyt) continue;
+```
+
+Mitattu: uusia tasoja 6, näkyvänä syntyneitä **6 → 0**.
+
+Samalla tehtiin se mikä oli kirjattu seuraavaksi askeleeksi jo
+edellisellä kierroksella: uusi taso syntyy `_updateLevels`issä
+alfalla 0, eikä jää Leafletin oletukseen odottamaan ensimmäistä
+vuoronvaihtoa.
+
+### Esilataus kattoi vähemmän kuin kerros maalaa
+
+`_getTiledPixelBounds` laajentaa maalattavan alan kertoimella
+`1 + 2·REUNUS` eli 2,2× zoomista 6 ylöspäin. `_esilataa` pyysi
+`map.getBounds()` — mitattu suhde **1,0**. Reunuksen laatat jäivät siis
+esilatauksen ulkopuolelle, ja `_valmista` ei kutsu `done`a ennen kuin
+laatan oma haku on valmis: ne jäivät näkymättömiksi yksi kerrallaan.
+
+Ehto on nyt sama kuin kerroksella (`getZoom() >= REUNUS_MIN_Z`), joten
+esilataus ei kasva sinne missä reunusta ei ole. Mitattu jälkeen 2,2
+(z ≥ 6) ja 1,0 (z 5).
+
+### Kuristus pudotti sen kutsun jota eniten tarvittiin
+
+`_esilataa`n kuristus oli pelkkä `return` alle 500 ms:n välein. Zoom
+lähettää sekä `zoomend`in että `moveend`in, ja kaksi zoomia mahtuu
+helposti samaan puoleen sekuntiin:
+
+| | ennen | nyt |
+|---|---|---|
+| yksi rauhallinen zoom | 2 esilatausta | 3 |
+| kaksi zoomia 250 ms välein | **1** | **2** |
+
+Yhdellä esilatauksella kahdesta zoomista lopullinen näkymä jäi kokonaan
+esilataamatta. Pudotettu kutsu jää nyt ajastimeen ja ajetaan kun ikkuna
+aukeaa.
+
+### Peitto ei kärsinyt
+
+Riski oli että vanhan tason pitäminen näkyvissä jättää reiän tai jumittaa
+kartan väärään tasoon. Mitattu 30 näytettä viidellä zoomilla: ei yhtään
+hetkeä ilman painettua tasoa, ei yhtään hetkeä kahdella, ja lopputilassa
+näkyvä taso on se jolla kartta on (tileZoom 5 = zoom 5, 12 laattaa).

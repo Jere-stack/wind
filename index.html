@@ -10790,6 +10790,7 @@ const SaaLaattaKerros = L.GridLayer.extend({
     map.off('zoomend', this._esilataa, this);
     map.off('moveend', this._esilataa, this);
     this.off('load loading tileload tileunload', this._tasoVuoro, this);
+    if (this._esiAjastin) { clearTimeout(this._esiAjastin); this._esiAjastin = null; }
     L.GridLayer.prototype.onRemove.call(this, map);
   },
 
@@ -10806,11 +10807,54 @@ const SaaLaattaKerros = L.GridLayer.extend({
   _esilataa: function () {
     if (!this._map || typeof Saalaatat === 'undefined' || !Saalaatat.kartallaKaytossa()) return;
     const nyt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-    if (nyt - (this._esiT || 0) < 500) return;
+    const kulunut = nyt - (this._esiT || 0);
+    /* KURISTUS SIIRTÄÄ, EI PUDOTA.
+     *
+     * Tässä oli pelkkä `return`, ja se on väärä kuristus juuri siihen
+     * tilanteeseen jota varten esilataus on olemassa. Zoom lähettää
+     * sekä `zoomend`in että `moveend`in, ja kaksi zoomia peräkkäin
+     * mahtuu helposti samaan puoleen sekuntiin: mitattuna kaksi zoomia
+     * 250 ms välein tuotti YHDEN esilatauksen kahden sijaan, eli
+     * LOPULLINEN näkymä jäi kokonaan esilataamatta. Sen jälkeen jokainen
+     * laatta hakee datansa itse `_valmista`ssa — ja `_valmista` ei kutsu
+     * `done`a ennen kuin haku on valmis, joten laatat jäävät
+     * näkymättömiksi yksi kerrallaan. Juuri se on "kartta etsii
+     * paikkaansa".
+     *
+     * Nyt viivästynyt kutsu jää ajastimeen ja ajetaan kun ikkuna
+     * aukeaa. Ajastimia on korkeintaan yksi kerrallaan. */
+    if (kulunut < 500) {
+      if (!this._esiAjastin) {
+        const self = this;
+        this._esiAjastin = setTimeout(function () {
+          self._esiAjastin = null;
+          self._esilataa();
+        }, 500 - kulunut);
+      }
+      return;
+    }
     this._esiT = nyt;
     try {
-      const d = ViewportGrid.laattaStep(Math.round(this._map.getZoom()));
-      Saalaatat.varmista(this._map.getBounds(), d).catch(function () {});
+      const map = this._map;
+      const d = ViewportGrid.laattaStep(Math.round(map.getZoom()));
+      /* ESILATAUS KATTAA SEN MITÄ KERROS MAALAA, EI PELKKÄÄ NÄKYMÄÄ.
+       *
+       * `_getTiledPixelBounds` laajentaa maalattavan alan kertoimella
+       * 1 + 2·REUNUS (2,2x) zoomista `REUNUS_MIN_Z` ylöspäin, mutta
+       * tämä pyysi `getBounds()` eli paljaan näkymän. Reunuksen laatat
+       * jäivät siis esilatauksen ulkopuolelle ja hakivat datansa yksi
+       * kerrallaan — eli juuri se mitä esilataus rakennettiin
+       * poistamaan, vain ruudun laidoilla. Ehto on SAMA kuin
+       * kerroksella, joten esilataus ei myöskään kasva sinne missä
+       * reunusta ei ole (uloimmat näkymät, ks. `REUNUS_MIN_Z`). */
+      let rajat = map.getBounds();
+      if (map.getZoom() >= this.REUNUS_MIN_Z) {
+        const p = rajat.pad(this.REUNUS);
+        rajat = L.latLngBounds(
+          L.latLng(Math.max(-85, p.getSouth()), p.getWest()),
+          L.latLng(Math.min(85, p.getNorth()), p.getEast()));
+      }
+      Saalaatat.varmista(rajat, d).catch(function () {});
     } catch (e) {}
   },
 
@@ -10846,6 +10890,26 @@ const SaaLaattaKerros = L.GridLayer.extend({
     for (const k in this._tiles) {
       const t = this._tiles[k];
       if (!t || !t.current) continue;
+      /* LAATAN ON OLTAVA TÄMÄN TASON LAATTA.
+       *
+       * Tässä laskettiin kaikki `current`-laatat riippumatta siitä millä
+       * zoomilla ne ovat, ja se on väärin juuri sillä hetkellä jolla on
+       * väliä. Leaflet siirtää `_tileZoom`in uuteen zoomiin ja luo uuden
+       * tasoelementin ENNEN kuin edellisen zoomin laatat on merkitty
+       * vanhoiksi. Silloin `valmis` luki edellisen tason laatoista:
+       * mitattuna uuden tason syntyhetkellä `cur = 35, kesken = 0`,
+       * vaikka uudessa tasossa oli NOLLA laattaa ja ne 35 olivat
+       * edellisen tason lapsia.
+       *
+       * Seuraus oli päinvastainen kuin miltä `_tasoVuoro`n nimi lupaa:
+       * TYHJÄ uusi taso julistettiin valmiiksi ja näytettiin, ja
+       * edellinen VALMIS taso piilotettiin (mitattu: taso 6 lapsia 35
+       * alfa 0, taso 7 lapsia 0 alfa tyhjä). Lämpökartta katosi siis
+       * hetkeksi joka zoomilla ja rakentui takaisin laatta kerrallaan.
+       * Sitä käyttäjä näki välkkymisenä.
+       *
+       * `coords.z` on tason tunniste, ja se on laatalla aina. */
+      if (t.coords && t.coords.z !== nyt) continue;
       nykyisia++;
       if (!t.loaded) kesken++;
     }
@@ -10866,6 +10930,35 @@ const SaaLaattaKerros = L.GridLayer.extend({
       const arvo = Number(z) === nakyva ? '' : '0';
       if (el.style.opacity !== arvo) el.style.opacity = arvo;
     }
+  },
+
+  /* UUSI TASO SYNTYY NÄKYMÄTTÖMÄNÄ.
+   *
+   * `_tasoVuoro` pitää näkyvissä tasan yhden tason, mutta se ajetaan
+   * vasta kun jotain on ladattu. Leaflet luo uuden tason elementin
+   * `_updateLevels`issä ja liittää siihen laattoja ENNEN sitä, ja
+   * elementti on oletuksena täysin läpinäkymätön — eli kaksi tasoa on
+   * hetken yhtä aikaa painettuna. Puoliläpinäkyvillä, lisäävästi
+   * sekoittuvilla laatoilla se ei ole ristihäivytys vaan summa
+   * (a + a(1−a) > a), eli ruutu kirkastuu. Tämä oli aiemmin mitattu
+   * jäännökseksi "2–4 ruutua per zoom", ja kirjattu seuraavaksi
+   * askeleeksi juuri tämä: aseta uusi taso läpinäkyväksi jo täällä
+   * eikä vasta ensimmäisessä vuoronvaihdossa.
+   *
+   * Näkyvyys tulee sen jälkeen aina `_tasoVuoro`lta, joka osaa valita
+   * varatason kunnes uusi on valmis. Tason ei siis tarvitse eikä pidä
+   * olla näkyvissä syntyessään. */
+  _updateLevels: function () {
+    const ennen = {};
+    for (const z in this._levels) ennen[z] = true;
+    const tulos = L.GridLayer.prototype._updateLevels.call(this);
+    for (const z in this._levels) {
+      if (ennen[z]) continue;
+      const el = this._levels[z].el;
+      if (el) el.style.opacity = '0';
+    }
+    this._tasoVuoro();
+    return tulos;
   },
 
   /* Leafletin oma häivytys korvataan: laatta täyteen alfaan heti ja

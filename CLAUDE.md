@@ -91,7 +91,8 @@ kokeiltu ja kaadettu mittauksella.
   canvas, ei PNG · Väriasteikko — vain asetuspaneelissa · Lämpökartta jäi väärään
   mittakaavaan ulos zoomatessa · Kartan asetukset · Lämpökartan värit olivat eri
   kohdissa eri zoomeilla · Lämpökartta oli väärässä projektiossa · Nopea zoom ei
-  saa näyttää mustaa
+  saa näyttää mustaa · Zoomin välkky uudestaan — ja se ei ollutkaan
+  häivytys
 - **partikkelit**: Sujuvuus — mitattu, ei arvattu · Partikkelit ovat tasaisia —
   maa/vesi-rajaus kokeiltiin ja poistettiin · Rakeisuus oli kahta eri vikaa ·
   Kolme jatkokorjausta: heitto, lähizoomin terävyys, tiheys ·
@@ -1659,6 +1660,40 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   `GridLayer`in säiliö on 0×0, joten maski leikkaa koko kerroksen pois
   (mitattu: täysin näkymätön vaikka laatat olivat kunnossa). Luokka on
   `.saa-laatat`, ilman maskia: pyramidilla ei ole datan reunaa.
+- **`_tasoVuoro`N VALMIUSLASKENTA SAA LASKEA VAIN OMAN TASONSA
+  LAATTOJA.** Se laski kaikki `current`-laatat zoomista riippumatta, ja
+  se on väärin juuri sillä hetkellä jolla on väliä: Leaflet siirtää
+  `_tileZoom`in uuteen zoomiin ja luo uuden tasoelementin ENNEN kuin
+  edellisen zoomin laatat merkitään vanhoiksi. Mitattuna uuden tason
+  syntyhetkellä `cur = 35, kesken = 0` vaikka uudessa tasossa oli NOLLA
+  laattaa ja ne 35 olivat edellisen tason lapsia. Seuraus oli
+  päinvastainen kuin `_tasoVuoro`n tarkoitus: **tyhjä uusi taso
+  julistettiin valmiiksi ja näytettiin, ja edellinen VALMIS taso
+  piilotettiin** (mitattu: taso 6 lapsia 35 alfa 0, taso 7 lapsia 0
+  alfa tyhjä). Lämpökartta katosi siis hetkeksi joka zoomilla ja
+  rakentui takaisin laatta kerrallaan — se on "kartta välkkyy
+  zoomatessa". Portti on `t.coords.z !== this._tileZoom`.
+  Mitattu jälkeen: 6/6 uutta tasoa syntyy näkymättömänä (ennen 0/6), ja
+  peitto pysyy — 30 näytettä, ei yhtään hetkeä ilman painettua tasoa.
+- **UUSI TASO SYNTYY NÄKYMÄTTÖMÄNÄ (`_updateLevels`).** Leaflet luo
+  tasoelementin ja liittää siihen laattoja ennen kuin `_tasoVuoro` ehtii
+  ajaa, ja elementti on oletuksena läpinäkymätön. Tämä oli kirjattu
+  jäännökseksi "2–4 ruutua per zoom" ja seuraavaksi askeleeksi juuri
+  tämä. Näkyvyys tulee sen jälkeen aina `_tasoVuoro`lta.
+- **ESILATAUS KATTAA SEN MITÄ KERROS MAALAA, EI PELKKÄÄ NÄKYMÄÄ.**
+  `_getTiledPixelBounds` laajentaa maalattavan alan kertoimella
+  1 + 2·REUNUS (2,2×) zoomista `REUNUS_MIN_Z` ylöspäin, mutta
+  `_esilataa` pyysi `map.getBounds()` eli paljaan näkymän — mitattu
+  suhde 1,0. Reunuksen laatat jäivät siis esilatauksen ulkopuolelle ja
+  hakivat datansa yksi kerrallaan `_valmista`ssa, joka EI kutsu `done`a
+  ennen kuin haku on valmis: laatat jäävät näkymättömiksi yksi
+  kerrallaan. Ehto on sama kuin kerroksella, joten esilataus ei kasva
+  sinne missä reunusta ei ole. Mitattu jälkeen 2,2 (z ≥ 6) ja 1,0 (z 5).
+- **ESILATAUKSEN KURISTUS SIIRTÄÄ, EI PUDOTA.** Zoom lähettää sekä
+  `zoomend`in että `moveend`in, ja kaksi zoomia mahtuu helposti samaan
+  puoleen sekuntiin: mitattuna kaksi zoomia 250 ms välein tuotti YHDEN
+  esilatauksen kahden sijaan, eli LOPULLINEN näkymä jäi kokonaan
+  esilataamatta. Pudotettu kutsu jää nyt ajastimeen. Mitattu jälkeen 2/2.
 - **Pyramidista on näkyvissä TASAN YKSI taso, eikä laattoja häivytetä.**
   `L.GridLayer` on tehty läpinäkymättömille laatoille: se pitää isän
   näkyvissä kunnes lapset ovat valmiit ja häivyttää lapset sisään
