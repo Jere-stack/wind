@@ -94,7 +94,8 @@ kokeiltu ja kaadettu mittauksella.
   saa näyttää mustaa
 - **partikkelit**: Sujuvuus — mitattu, ei arvattu · Partikkelit ovat tasaisia —
   maa/vesi-rajaus kokeiltiin ja poistettiin · Rakeisuus oli kahta eri vikaa ·
-  Kolme jatkokorjausta: heitto, lähizoomin terävyys, tiheys
+  Kolme jatkokorjausta: heitto, lähizoomin terävyys, tiheys ·
+  Jälki lyhennettiin puoleen — raja puree, aikapituus ei
 - **eleet**: Kosketuskohteet ja pseudoelementtien osumapinta · Zoom-alue ·
   Nipistyszoomin pehmennys · Eleen loppu ja tuntuma — kolme asiaa Apple Mapsista ·
   Kaksi kokeilua jotka eivät jääneet · Yhden sormen zoom oli rikki — neljä eri
@@ -151,7 +152,9 @@ kokeiltu ja kaadettu mittauksella.
   Palkkien asteikko ei enää kyllästy ·
   Aikajana kelluu tummennuksella — paperikortti pois ·
   Kolme hienosäätöä: päiväys kuplaan, leveämpi tikki, rajan pyöristys ·
-  Liukuväri alemmas, lasi ylös, ja päiväyksen välähdys kahdesta syystä
+  Liukuväri alemmas, lasi ylös, ja päiväyksen välähdys kahdesta syystä ·
+  Spottikortin tuuliennustekaavio: laatikko sivuun, pallot omiin
+  väreihinsä, akseli oikeaan yksikköön
 
 </details>
 
@@ -965,6 +968,70 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **JAKSOVALINTA SÄILYTETÄÄN KORTISSA.** Laajan jaksonapit ovat kortin
   nappien peili (`b.click()`), ja valittu luetaan `aria-pressed`ista —
   toinen lippu samasta asiasta ajautuisi erilleen.
+- **TUULIENNUSTEKAAVION Y-AKSELI ON KÄYTTÄJÄN YKSIKÖSSÄ.** Akselille
+  kirjoitettiin raaka m/s samaan aikaan kun jokainen lukema samassa
+  kortissa on valitussa yksikössä: solmuissa huippurivi sanoi
+  "20,7 kts", työkaluvihje "23,8 kts" ja akseli näytti kahtatoista.
+  Data pysyy m/s:nä (kaikki laskenta on sitä), mutta TIKIT valitaan
+  näyttöyksikössä ja sijoitetaan kertoimella takaisin m/s-akselille.
+  **Boforille ei saa keksiä käänteismuunnosta** (sama sääntö kuin
+  havaintokaavion gradientissa): sille tikit OVAT `Units._bft`-kynnykset,
+  mikä on boforin luonnollinen akseli eikä kiertotie.
+- **AKSELIN TIHEYS TULEE PIKSELEISTÄ, EI `maxV`:STÄ.** Askel oli
+  `maxV>15?4:maxV>8?2:1`, joten kortti ja kaksi kertaa korkeampi laaja
+  näkymä saivat saman askeleen — laajassa mitattiin kuusi viivaa. Nyt
+  askel on pienin tikkaista 1/2/5/10/20/50 joka antaa vähintään
+  **16·FS px** välin. Kortti pitää entisen tiheytensä (4 lukemaa),
+  laaja saa 11. Kymmenellä laaja päätyi 23 viivaan — se on ruutupaperia,
+  ei asteikkoa.
+- **FOILAUSRAJA ON VAHVEMPI KUIN RUUDUKKO.** Kun ruudukko tiheni,
+  6 m/s raja katosi sen sekaan: molemmat olivat samaa hiekkaa ja ero oli
+  vain viivanleveys. Raja on sovelluksen oma päätöskynnys (foilBadge
+  vaihtuu kuudessa), joten se on `#9C8447` ja 1,5·LW, ja ruudukko meni
+  alfaan 0,55. Rajan kohdalta jätetään tavallinen ruudukkoviiva pois,
+  jottei kaksi viivaa paksunna sitä. **FMI-rajamerkki pysyy vaaleassa
+  hiekassa** (`#CDBE9A`) — se on kontekstia eikä päätöskynnys, ja juuri
+  se ero on nyt näkyvissä.
+- **MALLIN PALLO ON OMAN VIIVANSA VÄRINEN, PÄÄVIIVAN PALLO `ink()`.**
+  Kaikki pallot värjättiin lukemalla (`ColorRamp.ink(v)`), eli ne
+  kertoivat saman minkä pallon KORKEUS jo kertoo — ja kolme mallia
+  samassa kohdassa saivat lähes saman värin (mitattu rgb(61,94,104) /
+  rgb(60,93,93) / rgb(60,80,41)). Pallo on piste omalla viivallaan,
+  joten se on viivan värinen; sama koskee selitteen riviä. Pääviiva on
+  poikkeus, koska se EI ole yhtä väriä vaan karttarampin gradientti.
+  Pallon kehä on VAALEA (`#FAF5E7`): tumma sulaisi sekä viivaan että
+  tuuligradienttiin.
+- **LUKEMALAATIKKO MENEE OSOITTIMEN SIVUUN, EI PALLOJEN PÄÄLLE.**
+  Laatikko oli `translateX(-50%)` + `top: 4px` eli naulattu osoittimen
+  päälle ja kuvaajan ylälaitaan: mitattuna se peitti **kaikki neljä
+  palloa jokaisessa kolmessa osoituskohdassa**, ja vuoti kuvaajan yli
+  (11 px vasemmalta, 18 px oikealta). Nyt se on sillä puolella
+  osoitinviivaa jolla on tilaa, pystysuunnassa pallorypään keskellä ja
+  kuvaajaan rajattuna — mitattu 0/4 peitossa kaikissa kolmessa.
+  **RAKO ON PALLON SÄDE PLUS VÄLI** (`10 + 6·lw`): pelkkä kymmenen
+  pikseliä jätti laatikon reunan täsmälleen pallon reunaan ja yksi
+  neljästä jäi yhä alle.
+- **LAAJAA KAAVIOTA VEDETÄÄN AJASSA, JA KÄÄRE SÄILYY VEDON YLI.**
+  Laaja oli umpikuja: 24 h jaksolla kääreessä ei ollut vieritettävää
+  lainkaan ja 5 vrk jaksolla sitä oli 382 px eli puolet kuvaajasta —
+  mutta SVG:llä on `touch-action: none` ja `attachTooltip` kutsuu
+  `preventDefault`ia, joten mitattu 168 px veto siirsi kaaviota 0 px.
+  Nyt raahaus on sovelluksen omaa työtä ja tekee yhden asian: siirtää
+  aikaa. Järjestys on se missä liike on halvinta — ensin kääreen oma
+  vieritys, ja kun se on päässä, ikkuna siirtyy TUNNEITTAIN
+  (`laajaSiirtoMs`, sarja on tuntihilalla). Kuuntelijat kiinnitetään
+  KERRAN ja vain SVG kääreen sisällä vaihtuu; jos kääre korvattaisiin,
+  raahaus kuolisi kesken eleen omaan uudelleenpiirtoonsa — sama ansa
+  kuin päiväkiskossa. Tuore geometria talletetaan kääreelle
+  (`kaare._d`), ei suljeta sulkeumaan. Siirto NOLLATAAN avattaessa ja
+  jaksoa vaihdettaessa: muuten laaja aukeaisi johonkin eiliseen kohtaan
+  ilman että mikään kertoisi miksi.
+- **MALLIDATAA EI MITATA VERKOSTA.** Sama build antoi peräkkäisillä
+  ajoilla 75 ja 0 malliviivaa, ja `wk.mjs`:n curl-välimuisti tallettaa
+  myös epäonnistumisen. Mittari istuttaa sarjat sovelluksen OMAAN
+  välimuistiin (`spot._modelCache`, avain
+  `'_mc_'+nimi+'_'+floor(Date.now()/3600000)`) — se on sovelluksen oma
+  polku, joten mitattava koodi on sama kummin päin.
 
 **Havaintoasemat**
 
@@ -1517,6 +1584,41 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
 
 **Partikkelit**
 
+- **JÄLJEN PITUUSRAJA ON 26 px (`JalkiViritys.maxPx`), EI 64.** Jäljet
+  lukivat pitkinä valojuovina; pyydetty ilme on Windyn lyhyt viiva.
+  Pyyhkäisy samassa pisteessä (3,8 m/s keskituuli, 80 hiukkasta):
+
+  ```
+  maxPx    64     40     30     24     18
+  med px  50,9   41,1   29,9   25,2   17,7
+  p90 px  70,4   49,1   35,2   28,5   19,5
+  peitto%  1,54   1,41   1,17   1,03   0,70
+  ```
+
+  Alaraja on talon oma mittaus: **alle 20 px jälki lukee pilkkuna**, joten
+  18 olisi vienyt mediaanin sen alle. 26 antaa mitattuna mediaanin 26 px
+  ja p90:n 27 px, eli noin puolet entisestä, ja koko jakauma jää
+  pilkkurajan yläpuolelle. Muste puolittui (1,54 → 0,66 %) — se on
+  lyhyemmän jäljen hinta, ei vika.
+  **AIKAPITUUTTA (`JALKI × ASKEL`) EI MUUTETTU.** Tällä tuulella raja on
+  se joka sitoo; aikapituuden lyhennys olisi osunut vain heikkoon
+  tuuleen, eli sinne missä jälki on jo valmiiksi lyhyt.
+  **VANHA MERKINTÄ "raja ei pure lainkaan" OLI TOTTA VAIN SILLÄ
+  TUULELLA JOLLA SE MITATTIIN.** Uusi pyyhkäisy purki sen: 3,8 m/s:ssä
+  raja puri jokaisella arvolla 40:stä alas.
+- **JÄLKIÄ ON ODOTETTAVA, EI OLETETTAVA VALMIIKSI.** `resetParticles`
+  nollaa `hn`:n, ja rengaspuskuri täyttyy vasta `JALKI × ASKEL` ruudussa
+  — kontissa 5–11 s. Mittari joka luki heti sai `n = 0` kaikilla
+  riveillä ja näytti siltä kuin partikkeleita ei olisi lainkaan, vaikka
+  niitä oli 117. Odota EHTOA (osuus jäljistä täysimittaisia), älä kelloa.
+  Ja rajan muutoksen jälkeen on odotettava erikseen: `odotaJaljet` palaa
+  heti kun jäljet ovat pitkiä, ja ne ovat sitä edellisen rivin jäljiltä —
+  ilman omaa odotusta kolme eri rajaa antoi pikselilleen saman luvun
+  (57,6 / 57,6 / 57,6).
+- **`?perf=1` VIE MYÖS `JalkiViritys`, `JALKI` JA `ASKEL`.** Ensimmäinen
+  on olio nimenomaan siksi että pituuden voi pyyhkäistä ilman
+  uudelleenkäännöstä — mutta se ei ollut viedyissä, joten pyyhkäisy vaati
+  buildin per arvo.
 - **Älä lisää maa/vesi-rajausta.** Kokeiltu, mitattu toimivaksi ja poistettu
   käyttäjän pyynnöstä — ero luki kartalta häiritsevänä.
 - **Leveys ja määrä on viritetty yhdessä.** Jos muutat toista yksin, mustemäärä

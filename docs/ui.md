@@ -5034,3 +5034,131 @@ kiskolla, eli kiskon oma raahaus kestää sekä `_tlTouching`-portin että
 vierityskerroksen poiston. Päivärajan pyöristys 0/9 väärin. Keskiyön
 kiskotapahtuma 0 h / 0 px. Tikki 18 px, palkki 12, lukema 10 px, 391/391
 lukemaa, pienin rako 6,9 px, ei yhtään elementtiä ruudun ulkopuolella.
+
+## Spottikortin tuuliennustekaavio: laatikko sivuun, pallot omiin väreihinsä, akseli oikeaan yksikköön
+
+Neljä pyydettyä korjausta, ja yksi jonka mittaus paljasti matkan varrella.
+
+### Lukemalaatikko peitti juuri sen mitä se selittää
+
+Laatikko oli `translateX(-50%)` + `top: 4px`: keskitetty osoittimen
+päälle ja naulattu kuvaajan ylälaitaan. Mitattuna kolmessa
+osoituskohdassa (0,2 / 0,5 / 0,82 leveydestä):
+
+```
+kohta 0.2 : palloja 4, laatikon alla 4, ulkona vasemmalta 11 px
+kohta 0.5 : palloja 4, laatikon alla 4
+kohta 0.82: palloja 4, laatikon alla 4, ulkona oikealta  18 px
+```
+
+Eli se peitti **kaikki pallot joka kerta** ja vuoti kuvaajan yli
+molemmissa reunoissa.
+
+Nyt laatikko menee osoitinviivan SIVUUN sille puolelle jolla on tilaa,
+pystysuunnassa pallorypään keskelle, ja rajataan kuvaajan sisään.
+Sivuttaissiirto ratkaisee peiton: pallot ovat viivalla, laatikko ei.
+
+Rako oli ensin kiinteä 10 px ja se jätti laatikon reunan täsmälleen
+pallon reunaan — yksi neljästä jäi yhä alle (pallo 64..74, laatikko
+alkoi 74:stä). Rako on nyt **pallon säde plus väli**, `10 + 6·lw`.
+Jälkeen 0/4 kaikissa kolmessa kohdassa, ja laatikko pysyy kääreen
+sisällä.
+
+### Pallo kertoi saman minkä sen korkeus jo kertoi
+
+Kaikki pallot värjättiin `ColorRamp.ink(v)`:llä eli tuulen lukemalla.
+Kolme mallia samassa kohdassa saivat siis lähes saman värin — mitattuna
+`rgb(61,94,104)` / `rgb(60,93,93)` / `rgb(60,80,41)` — eikä pallosta
+voinut lukea kenen viivan piste se on. Malleilla on jo värit
+(`#1C5C86` / `#A15A0E` / `#7A2E8F`) ja ne ovat viivoissa.
+
+Nyt pallo on oman viivansa värinen, ja sama koskee selitteen riviä.
+Pääviiva on poikkeus ja pysyy `ink()`illä: se ei ole yhtä väriä vaan
+karttarampin gradientti, joten sen pisteen oikea väri on sen tunnin
+lukema. Pallon kehä vaihtui tummasta vaaleaan (`#FAF5E7`) — tumma sulaisi
+sekä viivaan että tuuligradienttiin.
+
+### Akseli oli metreissä sekunnissa, kaikki muu solmuissa
+
+Tämä ei ollut pyydetty vaan löytyi kuvaa katsomalla: y-akselille
+kirjoitettiin raaka m/s samaan aikaan kun jokainen lukema samassa
+kortissa on valitussa yksikössä. Solmuissa se tarkoitti että huippurivi
+sanoi "20,7 kts", työkaluvihje "23,8 kts" ja akseli näytti kahtatoista.
+
+Data pysyy m/s:nä — kaikki laskenta on sitä — mutta tikit valitaan
+näyttöyksikössä ja sijoitetaan kertoimella takaisin m/s-akselille.
+Boforille ei saa keksiä käänteismuunnosta (sama sääntö kuin
+havaintokaavion gradientissa), joten sille tikit ovat `Units._bft`
+-kynnykset: boforin luonnollinen akseli, ei kiertotie.
+
+Kortti: `5 10 15 20` kts. Laaja: `2 4 … 22` kts. Foilausrajan lappu
+lukee `11,7 kts` eikä enää `6`.
+
+### Tiheys tulee pikseleistä, ei ylärajasta
+
+Askel oli `maxV>15?4:maxV>8?2:1`, joten kortti ja kaksi kertaa korkeampi
+laaja näkymä saivat saman askeleen: laajassa mitattiin **kuusi** viivaa.
+Nyt askel on pienin tikkaista 1/2/5/10/20/50 joka antaa vähintään
+`16·FS` px välin.
+
+| | ennen | nyt |
+|---|---|---|
+| kortti | 6 lukemaa (m/s) | 4 lukemaa (kts) |
+| laaja | 6 lukemaa (m/s) | 11 lukemaa (kts) |
+| ruudukon alfa | 1,0 | 0,55 |
+| foilausraja | `#CDBE9A`, 1,0·LW | `#9C8447`, 1,5·LW |
+
+Vähimmäisväli oli ensin `10·FS`, ja laaja päätyi silloin yhden solmun
+askeleeseen eli **23 viivaan** — se on ruutupaperia, ei asteikkoa.
+
+Foilausraja sai oman, tummemman sävynsä koska ruudukko tiheni: molemmat
+olivat samaa hiekkaa ja ero oli vain viivanleveys. Raja on sovelluksen
+oma päätöskynnys (foilBadge vaihtuu kuudessa). FMI-rajamerkki pysyy
+vaaleassa hiekassa — se on kontekstia eikä päätöskynnys, ja juuri se ero
+on nyt näkyvissä. Rajan kohdalta jätetään tavallinen ruudukkoviiva pois.
+
+### Laaja näkymä oli umpikuja
+
+Mitattuna 24 h jaksolla kääreessä ei ollut vieritettävää lainkaan
+(`scrollWidth === clientWidth`), ja 5 vrk jaksolla sitä oli **382 px eli
+puolet kuvaajasta** — mutta SVG:llä on `touch-action: none` ja
+`attachTooltip` kutsuu `preventDefault`ia `touchmove`ssa, joten 168 px
+veto siirsi kaaviota **0 px**. Kaavion toinen puolisko oli olemassa
+mutta saavuttamaton.
+
+Nyt raahaus on sovelluksen omaa työtä ja tekee yhden asian: siirtää
+aikaa. Järjestys on se missä liike on halvinta — ensin kääreen oma
+vieritys (ei uudelleenpiirtoa), ja kun se on päässä, ikkuna siirtyy
+tunneittain (`laajaSiirtoMs`; sarja on tuntihilalla, joten pienempi
+askel piirtäisi saman kuvan uudelleen).
+
+Mitattu, 24 h jakso:
+
+```
+alku                  ikkuna alkaa 15:00
+veto vasemmalle 200px  ->        05:00   (aika eteenpäin)
+veto oikealle   200px  ->        15:00   (takaisin)
+8 x 600 px taakse      ->        12:00   (akselin alku)
++3 x 600 px lisää      ->        12:00   (raja pitää)
+```
+
+**Kääre säilyy vedon yli.** Kuuntelijat kiinnitetään kerran ja vain SVG
+sen sisällä vaihtuu; jos kääre korvattaisiin, raahaus kuolisi kesken
+eleen omaan uudelleenpiirtoonsa — sama ansa joka on kirjattu
+päiväkiskosta. Tuore geometria talletetaan kääreelle (`kaare._d`) eikä
+suljeta sulkeumaan.
+
+Siirto nollataan avattaessa ja jaksoa vaihdettaessa: muuten laaja
+aukeaisi seuraavalla kerralla johonkin eiliseen kohtaan ilman että mikään
+kertoisi miksi.
+
+### Mittarista
+
+Mallidataa ei mitata verkosta. Sama build antoi peräkkäisillä ajoilla 75
+ja 0 malliviivaa, ja `wk.mjs`:n curl-välimuisti tallettaa myös
+epäonnistumisen. Mittari istuttaa sarjat sovelluksen omaan välimuistiin
+(`spot._modelCache`) — se on sovelluksen oma polku, joten mitattava koodi
+on sama kummin päin.
+
+Spottikortti avataan `openSheet`illa eikä napauttamalla merkkiä:
+kosketussäätö siirtää napautuksen naapurimerkkiin.

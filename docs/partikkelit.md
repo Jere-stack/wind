@@ -1123,3 +1123,63 @@ uloin  401    z7 341 (×0,85)    z9 281 (×0,70)    z11+ 221 (×0,55)
 **Kerroin on luettavuudesta, ei suorituskyvystä.** Sivuvaikutuksena
 lähizoomi on halvempi, mutta se ei ole syy — jos sen kirjaa
 suorituskykysäädöksi, seuraava lukija optimoi sen pois väärästä syystä.
+
+## Jälki lyhennettiin puoleen — raja puree, aikapituus ei
+
+Palaute oli yksiselitteinen: jäljet lukevat pitkinä valojuovina, ja
+haluttu ilme on Windyn lyhyt viiva.
+
+### Mittari ensin, ja se oli kahdesti väärässä
+
+Pituus luetaan siitä polylinjasta joka oikeasti piirretään — kärki ja
+`min(p.hn, p.piirra)` talletettua pistettä — eikä arvioida. Ensimmäinen
+mittari antoi silti `n = 0` kaikilla riveillä, vaikka partikkeleita oli
+117. Syy: `resetParticles` nollaa `hn`:n, ja rengaspuskuri täyttyy vasta
+`JALKI × ASKEL` ruudussa. Kontti ajaa 8–18 fps, joten se on 5–11 s —
+pidempi kuin mikään kiinteä odotus jonka olisi arvannut riittävän.
+Odotetaan siis ehtoa (osuus jäljistä täysimittaisia), ei kelloa.
+
+Toinen virhe oli hienovaraisempi. Kun ehto oli kunnossa, kolme eri
+pituusrajaa antoi **pikselilleen saman luvun** (57,6 / 57,6 / 57,6).
+Ehto-odotus palaa heti kun jäljet ovat pitkiä — ja ne ovat sitä
+edellisen rivin jäljiltä. Rajan muutoksen jälkeen on odotettava
+erikseen, että uusi raja ehtii purra.
+
+### Pyyhkäisy
+
+Samassa pisteessä, 3,8 m/s keskituuli, 80 hiukkasta:
+
+| maxPx | med px | p90 px | peitto % |
+|---|---|---|---|
+| 64 | 50,9 | 70,4 | 1,54 |
+| 40 | 41,1 | 49,1 | 1,41 |
+| 30 | 29,9 | 35,2 | 1,17 |
+| 24 | 25,2 | 28,5 | 1,03 |
+| 18 | 17,7 | 19,5 | 0,70 |
+
+**Vanha merkintä "raja ei pure lainkaan" oli totta vain sillä tuulella
+jolla se mitattiin.** Tässä se puri jokaisella arvolla 40:stä alas, ja
+oli siis ainoa vipu jota tarvittiin.
+
+Valinta on **26**: mediaani 26 px, p90 27 px. Alaraja tulee talon omasta
+aiemmasta mittauksesta — alle 20 px jälki lukee pilkkuna — joten 18 olisi
+vienyt mediaanin sen alle.
+
+Muste puolittui (1,54 → 0,66 %). Se on lyhyemmän jäljen hinta eikä vika.
+Tiheyttä EI nostettu kompensaatioksi: kontissa `PerfTracker` kuristaa
+hiukkasmäärän (80 kun laitteella olisi 221–401), joten täkäläinen
+ruutukaappaus ei kerro miltä tiheys laitteella näyttää — eikä
+tiheyspäätöstä saa tehdä sitä vasten.
+
+### Aikapituuteen ei koskettu
+
+`JALKI × ASKEL` on yhä 90 ruutua. Tällä tuulella raja sitoo, joten
+aikapituuden lyhennys olisi osunut vain heikkoon tuuleen — eli sinne
+missä jälki on jo valmiiksi lyhyt ja pilkkuraja lähellä.
+
+### `?perf=1` vie nyt myös jälkivakiot
+
+`JalkiViritys` on olio nimenomaan siksi, että pituuden voi pyyhkäistä
+ilman uudelleenkäännöstä. Se ei kuitenkaan ollut viedyissä, joten
+pyyhkäisy olisi vaatinut buildin per arvo. Nyt viedään `JalkiViritys`,
+`JALKI` ja `ASKEL`.

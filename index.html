@@ -12089,8 +12089,27 @@ const ASKEL = 3;
  * ennalleen. Aikapituus 80 → 60 ruutua, tämä raja 62 → 46 px. */
 /* Oliona eikä vakiona, jotta pituuden voi pyyhkäistä mittauksessa
    ilman uudelleenkäännöstä — arvo on VALITTU mittaamalla, ks. CLAUDE.md
-   "Partikkelit lukivat pilkkuina". */
-const JalkiViritys = { maxPx: 64 };
+   "Partikkelit lukivat pilkkuina".
+ *
+ * 64 -> 26 KÄYTTÄJÄN PYYNNÖSTÄ: jäljet lukivat pitkinä valojuovina, ja
+ * pyydetty ilme on Windyn lyhyt viiva. Pyyhkäisy samassa pisteessä
+ * (3,8 m/s keskituuli, z-taso ennallaan, 80 hiukkasta):
+ *
+ *     maxPx    64     40     30     24     18
+ *     med px  50,9   41,1   29,9   25,2   17,7
+ *     p90 px  70,4   49,1   35,2   28,5   19,5
+ *     peitto% 1,54   1,41   1,17   1,03   0,70
+ *
+ * Alaraja tulee talon omasta aiemmasta mittauksesta: alle 20 px jälki
+ * lukee PILKKUNA eikä virtaviivana. 18 veisi mediaanin sen alle, joten
+ * valinta on 26 — mediaani noin 27 px eli lähes puolet entisestä, p90
+ * noin 31, ja koko jakauma pysyy pilkkurajan yläpuolella.
+ *
+ * AIKAPITUUTTA (JALKI x ASKEL) EI MUUTETTU. Tällä tuulella raja on se
+ * joka sitoo, ja aikapituuden lyhentäminen olisi osunut vain heikkoon
+ * tuuleen — eli sinne missä jälki on jo valmiiksi lyhyt ja pilkkuraja
+ * lähellä. */
+const JalkiViritys = { maxPx: 26 };
 
 /* Häivytys tehdään SISÄKKÄISILLÄ VEDOILLA, ei segmentti kerrallaan.
  *
@@ -16626,11 +16645,16 @@ function openSheet(spot, hourIdx) {
       { id: 'gfs_seamless', label: 'GFS',   key: 'gfs'   },
     ];
 
-    function getSlice(periodKey) {
+    /* `siirtoMs` on LAAJAN NAKYMAN oma aikasiirto, ei sovelluksen.
+       Kortti kutsuu ilman sita ja saa entisen ikkunan; laaja siirtaa
+       ikkunaa raahauksella (ks. `laajaSiirto`). Yksi funktio, yksi
+       viipalointi — erillinen "laajan getSlice" olisi toinen totuus. */
+    function getSlice(periodKey, siirtoMs) {
       var hours  = PERIODS.find(function(p){ return p.key===periodKey; }).hours;
+      var alkuMs = selectedTime + (siirtoMs || 0);
       /* Aloitetaan valitusta hetkesta, max 1h taaksepain kontekstia varten */
-      var startMs = selectedTime - 3600000;
-      var endMs   = hours ? selectedTime + hours*3600000 : Infinity;
+      var startMs = alkuMs - 3600000;
+      var endMs   = hours ? alkuMs + hours*3600000 : Infinity;
       var vs = [], ts = [];
       for (var i = 0; i < allVals.length; i++) {
         var tMs = allTimes[i] ? new Date(allTimes[i]).getTime() : 0;
@@ -16651,7 +16675,7 @@ function openSheet(spot, hourIdx) {
       });
     }
 
-    function buildSvg(periodKey, asu) {
+    function buildSvg(periodKey, asu, siirtoMs) {
       asu = asu || ASU_KORTTI;
       /* Geometria tulee asusta. Nimet ovat samat kuin ennen, jotta
          piirtokoodi on rivilleen sama kummallakin asulla. */
@@ -16659,7 +16683,7 @@ function openSheet(spot, hourIdx) {
       var TH = CHART_H + LABEL_H, Y_PAD = asu.yPad, FS = asu.fs, LW = asu.lw;
       var VALO_Y = CHART_H + 2 * FS, VALO_H = 6 * FS;   /* valo + pilvet */
       var SADE_Y = CHART_H + 9 * FS, SADE_H = 2 * FS;   /* sade / lumi */
-      var sl = getSlice(periodKey);
+      var sl = getSlice(periodKey, siirtoMs);
       var vals=sl.vals, times=sl.times, n=vals.length;
       var isFluid = !PERIOD_W[periodKey];
       /* Kiinteät jaksoleveydet skaalataan samassa suhteessa kuin fluid,
@@ -16910,19 +16934,89 @@ function openSheet(spot, hourIdx) {
         }
       }
 
-      /* Y-akseli + foilausalue */
+      /* ── Y-AKSELI: TIHEYS TULEE PIKSELEISTÄ, EI `maxV`:STÄ ────────
+       *
+       * Askel oli `maxV>15?4:maxV>8?2:1`, eli se luki vain asteikon
+       * ylärajaa eikä sitä kuinka paljon TILAA on. Kortilla ja laajassa
+       * näkymässä on sama `maxV` mutta eri korkeus, joten molemmat
+       * saivat saman askeleen: laajassa mitattiin kuusi viivaa
+       * (2,4,6,8,10,12) vaikka korkeutta oli kaksinkertaisesti.
+       *
+       * Nyt askel valitaan siitä montako pikseliä yksi m/s vie.
+       * Vähimmäisväli on 10·FS px — noin 1,3 kertaa lukeman korkeus
+       * (7,5·FS), mikä riittää kun viivat ovat hiuksia. Kortti pitää
+       * entisen askeleensa (9,5 px/yksikkö -> 2), laaja tihenee
+       * yhteen (19 px/yksikkö -> 1).
+       *
+       * Askel napsautetaan tikkaisiin 1/2/5/10, ettei akselille tule
+       * kolmosia tai seitsemiä. */
+      /* Y-AKSELI ON KÄYTTÄJÄN YKSIKÖSSÄ, EI m/s:SSÄ.
+       *
+       * Tämä oli rikki eikä liity tiheyteen: akselille kirjoitettiin
+       * RAAKA m/s (2, 4, 6, …) samaan aikaan kun kaikki lukemat samassa
+       * kortissa ovat valitussa yksikössä. Solmuissa se tarkoitti että
+       * huippurivi sanoi "20,7 kts", työkaluvihje "23,8 kts" ja akseli
+       * näytti kahtatoista — kolme lukua samasta kuvaajasta, kaksi eri
+       * asteikkoa. Data pysyy m/s:nä (kaikki laskenta on sitä), mutta
+       * TIKIT valitaan näyttöyksikössä ja sijoitetaan kertoimella
+       * takaisin m/s-akselille.
+       *
+       * Bofori ei ole kerroin vaan kynnystaulukko, eikä käänteismuunnosta
+       * saa keksiä (sama sääntö kuin havaintokaavion gradientissa).
+       * Sille tikit OVAT ne kynnykset — se on boforin luonnollinen
+       * akseli, ei kiertotie. */
       var ylbls='';
-      var yStep = maxV>15?4:maxV>8?2:1;
-      for(var yv=yStep;yv<=Math.ceil(maxV);yv+=yStep){
-        var yy=yOf(yv).toFixed(1);
-        ylbls+='<text x="'+(Y_PAD-6*FS).toFixed(1)+'" y="'+yy+'" font-size="'+(7.5*FS).toFixed(1)+'" fill="#5F696F" text-anchor="end" dominant-baseline="middle">'+yv+'</text>';
-        ylbls+='<line x1="'+Y_PAD+'" y1="'+yy+'" x2="'+(W-PAD)+'" y2="'+yy+'" stroke="#DFD4B6" stroke-width="'+(0.5*LW).toFixed(2)+'"/>';
+      var pxPerMs = (CHART_H - PAD*2) / (maxV || 1);
+      /* Vähimmäisväli 16·FS px. Kymmenellä laaja päätyi yhden solmun
+         askeleeseen eli 23 viivaan — se on ruutupaperia, ei asteikkoa.
+         Kuudellatoista laaja saa kahden solmun askeleen (11 lukemaa,
+         väli 44 px) ja kortti pitää entisen viiden solmun askeleensa. */
+      var minVali = 16 * FS;
+      var yTikit = (function(){
+        var out=[];
+        if(Units.get()==='bft'){
+          var rajat=Units._bft;
+          for(var bi=0;bi<rajat.length;bi++){
+            if(rajat[bi]>maxV) break;
+            if(bi>0 && (rajat[bi]-rajat[bi-1])*pxPerMs<minVali) continue;
+            out.push({ms:rajat[bi],lbl:String(bi+1)});
+          }
+          return out;
+        }
+        var k=Units.convert(1)||1;                    /* lineaarinen kerroin */
+        var TIKAT=[1,2,5,10,20,50];
+        var step=TIKAT[TIKAT.length-1];
+        for(var ti=0;ti<TIKAT.length;ti++){
+          if(TIKAT[ti]/k*pxPerMs>=minVali){ step=TIKAT[ti]; break; }
+        }
+        for(var dv=step;dv/k<=maxV+1e-6;dv+=step) out.push({ms:dv/k,lbl:String(dv)});
+        return out;
+      })();
+      for(var yi=0;yi<yTikit.length;yi++){
+        var yv=yTikit[yi].ms, yy=yOf(yv).toFixed(1);
+        ylbls+='<text x="'+(Y_PAD-6*FS).toFixed(1)+'" y="'+yy+'" font-size="'+(7.5*FS).toFixed(1)+'" fill="#5F696F" text-anchor="end" dominant-baseline="middle">'+yTikit[yi].lbl+'</text>';
+        /* Foilausrajan kohdalle EI tavallista ruudukkoviivaa: raja
+           piirtyy siihen omalla, vahvemmalla viivallaan, ja kaksi
+           viivaa samassa kohdassa paksuntaisi sen epämääräiseksi. */
+        if(6<maxV && Math.abs(yv-6)*pxPerMs<1.5) continue;
+        ylbls+='<line x1="'+Y_PAD+'" y1="'+yy+'" x2="'+(W-PAD)+'" y2="'+yy+'" stroke="#DFD4B6" stroke-opacity="0.55" stroke-width="'+(0.5*LW).toFixed(2)+'"/>';
       }
-      /* 6 m/s foilausalue-viiva */
+      /* 6 m/s FOILAUSRAJA — VAHVEMPI KUIN RUUDUKKO.
+       *
+       * Ruudukko tiheni, joten foilausraja katosi sen sekaan: molemmat
+       * olivat samaa hiekkaa ja ero oli vain viivanleveys. Raja ei ole
+       * ruudukkoa vaan sovelluksen oma päätöskynnys (foilBadge vaihtuu
+       * kuudessa), joten se saa oman, tummemman sävynsä ja lihavamman
+       * lukeman. Ruudukko meni samalla vaimeammaksi (alfa 0,55).
+       *
+       * FMI-rajamerkki pysyy vaaleassa hiekassa (`#CDBE9A`): se on
+       * kontekstia eikä päätöskynnys, ja juuri se ero on nyt näkyvissä. */
       if(6 < maxV) {
         var fyBot6 = yOf(6).toFixed(1);
-        ylbls+='<line x1="'+Y_PAD+'" y1="'+fyBot6+'" x2="'+(W-PAD)+'" y2="'+fyBot6+'" stroke="#CDBE9A" stroke-width="'+LW.toFixed(2)+'" stroke-dasharray="4,3"/>';
-        ylbls+='<text x="'+(W-PAD-2*FS).toFixed(1)+'" y="'+fyBot6+'" font-size="'+(7*FS).toFixed(1)+'" fill="#5F696F" text-anchor="end" dominant-baseline="auto" dy="'+(-2*FS).toFixed(1)+'">6</text>';
+        ylbls+='<line x1="'+Y_PAD+'" y1="'+fyBot6+'" x2="'+(W-PAD)+'" y2="'+fyBot6+'" stroke="#9C8447" stroke-width="'+(1.5*LW).toFixed(2)+'" stroke-dasharray="'+(5*LW).toFixed(1)+','+(3*LW).toFixed(1)+'"/>';
+        /* Lappu on VALITUSSA YKSIKÖSSÄ, kuten akseli ja lukemat: raja on
+           kuusi metriä sekunnissa, mutta solmuissa se on 11,7 kts. */
+        ylbls+='<text x="'+(W-PAD-2*FS).toFixed(1)+'" y="'+fyBot6+'" font-size="'+(7*FS).toFixed(1)+'" font-weight="700" fill="#7C6730" text-anchor="end" dominant-baseline="auto" dy="'+(-2*FS).toFixed(1)+'">'+Units.fmt(6)+' '+Units.label()+'</text>';
       }
 
       /* FMI:N JA OPEN-METEON RAJA.
@@ -17026,7 +17120,7 @@ function openSheet(spot, hourIdx) {
          tarvitsevat samat luvut, ja asu voi olla eri kummallakin
          näkymällä yhtä aikaa (kortti auki laajan takana). */
       return {svg:svg,svgId:svgId,vals:vals,times:times,n:n,maxV:maxV,xOf:xOf,yOf:yOf,
-              nowSlot:nowSlot,W:W,harmCutX:harmCutX,
+              nowSlot:nowSlot,W:W,harmCutX:harmCutX,siirtoMs:siirtoMs||0,
               asu:asu,PAD:PAD,Y_PAD:Y_PAD,CHART_H:CHART_H,TH:TH};
     }
 
@@ -17198,6 +17292,9 @@ function openSheet(spot, hourIdx) {
       function redraw(periodKey){
         currentDraw=buildSvg(periodKey);
         spot._chartPeriod=periodKey;
+        /* Jakson vaihto vaihtaa ikkunan pituuden, joten vanha siirto ei
+           tarkoita enää samaa kohtaa. Nollataan se jakson mukana. */
+        laajaSiirtoMs=0;
         /* Napit */
         secEl.querySelectorAll('[data-cp]').forEach(function(btn){
           var a=btn.dataset.cp===periodKey;
@@ -17277,15 +17374,31 @@ function openSheet(spot, hourIdx) {
               if(dot){dot.setAttribute('cx','-10');dot.setAttribute('cy','-10');}
               return;
             }
-            var cc=ColorRamp.ink(v);
-            var col='rgb('+cc.r+','+cc.g+','+cc.b+')';
+            /* PALLO ON OMAN VIIVANSA VÄRINEN, EI LUKEMAN.
+             *
+             * Tässä oli `ColorRamp.ink(v)`, eli pallo kertoi TUULEN
+             * NOPEUDEN — saman minkä pallon korkeus jo kertoo. Kolme
+             * mallia samassa kohdassa saivat silloin lähes saman värin
+             * (mitattuna rgb(61,94,104) / rgb(60,93,93) / rgb(60,80,41)),
+             * eikä pallosta voinut lukea KENEN viivan piste se on.
+             * Mallin väri on jo olemassa ja se on viivassa; pallo on
+             * sama piste samalla viivalla, joten sen on oltava sama
+             * väri. Sama koskee selitteen riviä alla.
+             *
+             * Pääviiva on poikkeus ja pysyy `ink()`illä: se EI ole yhtä
+             * väriä vaan piirretään karttarampin gradientilla, joten
+             * sen pisteen oikea väri on juuri sen tunnin lukema. */
+            var col=getModelColor(m.key);
             if(dot){
               dot.setAttribute('cx',x.toFixed(1));
               dot.setAttribute('cy',d.yOf(v).toFixed(1));
               dot.setAttribute('fill',col);
               dot.setAttribute('r',(3.5*d.asu.lw).toFixed(1));
-              dot.setAttribute('stroke','rgba(0,0,0,.3)');
-              dot.setAttribute('stroke-width',d.asu.lw.toFixed(2));
+              /* Kehä on VAALEA eikä musta: pallo istuu oman viivansa
+                 päällä ja taustalla on tuuligradientti, joten tumma kehä
+                 sulaisi molempiin. Paperin väri irrottaa sen kummastakin. */
+              dot.setAttribute('stroke','#FAF5E7');
+              dot.setAttribute('stroke-width',(0.9*d.asu.lw).toFixed(2));
             }
             entries.push({label:m.label,v:v,col:col,isMain:false});
           });
@@ -17306,10 +17419,54 @@ function openSheet(spot, hourIdx) {
               +'</div>';
           });
           tipEl.innerHTML=html;
-          var r2=svgEl.getBoundingClientRect(),relX=cx-r2.left;
-          tipEl.style.left=relX+'px';
-          tipEl.style.top='4px';
           tipEl.style.display='block';
+          /* LAATIKKO MENEE SORMEN VIEREEN, EI PALLOJEN PÄÄLLE.
+           *
+           * Laatikko oli `translateX(-50%)` + `top: 4px`, eli se
+           * keskitettiin osoittimen päälle ja naulattiin kuvaajan
+           * ylälaitaan. Mitattuna se peitti KAIKKI NELJÄ palloa
+           * jokaisessa kolmessa osoituskohdassa — ja pallot ovat juuri
+           * se mitä laatikko selittää. Lisäksi se vuoti kuvaajan yli
+           * reunoilla: 11 px vasemmalta ja 18 px oikealta.
+           *
+           * Nyt laatikko on osoitinviivan SIVUSSA (sillä puolella jolla
+           * on tilaa) ja pystysuunnassa pallorypään keskellä, mutta
+           * kuvaajan sisään rajattuna. Sivuttaissiirto ratkaisee
+           * peiton: pallot ovat viivalla, ja laatikko ei ole viivan
+           * päällä. */
+          tipEl.style.transform='none';
+          var r2=svgEl.getBoundingClientRect();
+          var kaare=tipEl.offsetParent?tipEl.offsetParent.getBoundingClientRect():r2;
+          var bw=tipEl.offsetWidth, bh=tipEl.offsetHeight;
+          /* RAKO ON PALLON SÄDE PLUS VÄLI, EI PELKKÄ VÄLI. Kymmenen
+             pikseliä osoittimesta jätti laatikon reunan täsmälleen
+             pallon reunaan (mitattu: pallo 64..74, laatikko alkoi
+             74:stä, ja yksi neljästä jäi yhä alle). Suurin pallo on
+             `4·lw` säteeltään, joten väli lasketaan siitä. */
+          var RAKO=10+6*d.asu.lw;
+          var relX=cx-kaare.left;
+          /* Puoli valitaan tilan mukaan, ei kiinteästi. */
+          var vasemmalle=relX+RAKO+bw>kaare.width-2;
+          var left=vasemmalle?relX-RAKO-bw:relX+RAKO;
+          if(left<2) left=2;
+          if(left+bw>kaare.width-2) left=Math.max(2,kaare.width-2-bw);
+          tipEl.style.left=left.toFixed(1)+'px';
+          /* Pallorypään pystysuora keskikohta SVG-yksiköissä -> px. */
+          var yMin=Infinity,yMax=-Infinity;
+          entries.forEach(function(e){
+            var yy=d.yOf(e.v);
+            if(yy<yMin) yMin=yy;
+            if(yy>yMax) yMax=yy;
+          });
+          var skaala=r2.height/d.TH;
+          var keskiY=(r2.top-kaare.top)+(yMin+yMax)/2*skaala;
+          var top=keskiY-bh/2;
+          var ylaRaja=(r2.top-kaare.top)+2;
+          var alaRaja=(r2.top-kaare.top)+d.CHART_H*skaala-bh-2;
+          if(alaRaja<ylaRaja) alaRaja=ylaRaja;
+          if(top<ylaRaja) top=ylaRaja;
+          if(top>alaRaja) top=alaRaja;
+          tipEl.style.top=top.toFixed(1)+'px';
         }
 
         function hideTip(){
@@ -17368,19 +17525,136 @@ function openSheet(spot, hourIdx) {
         ulos.push({nimi:'Tyynin',arvo:Units.fmt(min),ala:Units.label()});
         return ulos;
       }
+      /* ── LAAJAA VOI VETÄÄ AJASSA ──────────────────────────────────
+       *
+       * Laaja näkymä oli mitattuna umpikuja: 24 h jaksolla kääreessä ei
+       * ollut vieritettävää lainkaan (`scrollWidth === clientWidth`), ja
+       * 5 vrk jaksolla sitä oli 382 px eli PUOLET kuvaajasta — mutta
+       * SVG:llä on `touch-action: none` ja `attachTooltip` kutsuu
+       * `preventDefault`ia `touchmove`ssa, joten natiivi vieritys ei
+       * ollut sormella tavoitettavissa. Mitattu veto 168 px siirsi
+       * kaaviota 0 px. Kaavion toinen puolisko oli siis olemassa mutta
+       * saavuttamaton.
+       *
+       * Nyt raahaus on sovelluksen omaa työtä ja se tekee YHDEN asian:
+       * siirtää aikaa. Järjestys on se missä liike on halvinta —
+       * ensin kääreen oma vieritys (ei uudelleenpiirtoa), ja kun se on
+       * päässä, ikkuna siirtyy tunneittain (`laajaSiirtoMs`). Käyttäjän
+       * kannalta ne ovat sama ele: kaavio liikkuu ajassa.
+       *
+       * Tunti on pienin askel jolla on merkitystä — sarja on
+       * tuntihilalla — joten uudelleenpiirto tehdään vain kun kokonaisten
+       * tuntien määrä muuttuu. Se on samalla luonnollinen kuristus.
+       *
+       * Osoitinlukema (`attachTooltip`) jatkaa toimintaansa vedon
+       * aikana: sormen alla oleva tunti kertoo mihin kohtaan ollaan
+       * tultu. Kaksi asiaa samasta eleestä, ei kahta elettä. */
+      var laajaSiirtoMs=0;
+      var _laajaArgs=null;
+      function laajaRajat(){
+        /* Ikkuna ei saa valua akselin ulkopuolelle: siella ei ole dataa,
+           ja `getSlice` palauttaisi koko sarjan varatienaan — eli
+           raahaus hyppaisi yhtakkia 16 vuorokauteen. */
+        if(!allTimes.length) return {min:0,max:0};
+        var eka=new Date(allTimes[0]).getTime();
+        var vika=new Date(allTimes[allTimes.length-1]).getTime();
+        var h=PERIODS.find(function(p){return p.key===laajaJakso();}).hours;
+        var kesto=h?h*3600000:(vika-eka);
+        return {min:eka+3600000-selectedTime, max:vika-kesto-selectedTime};
+      }
+      function laajaSiirra(uusi){
+        var r=laajaRajat();
+        if(uusi<r.min) uusi=r.min;
+        if(uusi>r.max) uusi=r.max;
+        if(uusi===laajaSiirtoMs) return false;
+        laajaSiirtoMs=uusi;
+        if(_laajaArgs) laajaPiirra(_laajaArgs[0],_laajaArgs[1],_laajaArgs[2]);
+        return true;
+      }
+      /* GEOMETRIA LUETAAN KÄÄREELTÄ, EI SULKEUMASTA.
+       *
+       * Kuuntelijat kiinnitetään KERRAN ja kääre säilyy piirrosta
+       * toiseen — vain SVG sen sisällä vaihtuu. Jos kääre korvattaisiin,
+       * raahaus kuolisi kesken eleen omaan uudelleenpiirtoonsa: sama
+       * ansa joka on kirjattu päiväkiskosta ("kisko rakennetaan
+       * uudelleen kesken eleen ja alkuperäinen kohde irtoaa DOM:sta").
+       * Siksi tuore `d` talletetaan kääreelle eikä suljeta sulkeumaan. */
+      function kiinnitaVeto(kaare){
+        if(kaare._laajaVeto) return;
+        kaare._laajaVeto=true;
+        var akt=false,viimX=0;
+        function pxPerTunti(){
+          var d=kaare._d; if(!d) return 0;
+          var svgEl=kaare.querySelector('svg');
+          /* Fluid-jaksolla SVG venyy kääreen leveyteen, kiinteällä se on
+             oman W:nsä levyinen. Suhde luetaan ruudulta, ei pääteltä. */
+          var skaala=svgEl?svgEl.getBoundingClientRect().width/d.W:1;
+          return (d.W-d.Y_PAD-d.PAD)/Math.max(1,d.n-1)*skaala;
+        }
+        function alas(e){
+          if(e.pointerType==='mouse'&&e.button!==0) return;
+          akt=true; viimX=e.clientX;
+          kaare.style.cursor='grabbing';
+          try{ kaare.setPointerCapture(e.pointerId); }catch(_){}
+        }
+        function liike(e){
+          if(!akt) return;
+          var dx=e.clientX-viimX;
+          if(!dx) return;
+          /* 1) Kääreen oma vieritys ensin — se on ilmaista eikä vaadi
+                uudelleenpiirtoa. */
+          var ennen=kaare.scrollLeft;
+          kaare.scrollLeft=ennen-dx;
+          var yli=dx-(ennen-kaare.scrollLeft);
+          viimX=e.clientX;
+          if(Math.abs(yli)<0.5) return;
+          /* 2) Loppu menee aikaikkunaan. Sormi oikealle = sisältö
+                oikealle = ikkuna taaksepäin ajassa. Askel on TUNTI,
+                koska sarja on tuntihilalla — pienempi askel piirtäisi
+                saman kuvan uudelleen. */
+          var pp=pxPerTunti();
+          if(!pp) return;
+          var tunnit=Math.round(-yli/pp);
+          if(!tunnit) return;
+          if(laajaSiirra(laajaSiirtoMs+tunnit*3600000)){
+            /* Jäännös jätetään kertymään: muuten pyöristys söisi
+               hitaan vedon kokonaan. */
+            viimX=e.clientX+(yli+tunnit*pp);
+          }
+        }
+        function ylos(e){
+          if(!akt) return;
+          akt=false;
+          kaare.style.cursor='grab';
+          try{ kaare.releasePointerCapture(e.pointerId); }catch(_){}
+        }
+        kaare.addEventListener('pointerdown',alas);
+        kaare.addEventListener('pointermove',liike);
+        kaare.addEventListener('pointerup',ylos);
+        kaare.addEventListener('pointercancel',ylos);
+      }
       var laajaPiirra=function(kaavio,laatikko,laaja){
+        _laajaArgs=[kaavio,laatikko,laaja];
         var asu=asuLaaja(laatikko.w+2*LAAJA_VUOTO,laatikko.h);
-        var d=buildSvg(laajaJakso(),asu);
+        var d=buildSvg(laajaJakso(),asu,laajaSiirtoMs);
         /* Kaare on oma eika kortin: kortin kaareessa on negatiivinen
            vasen marginaali joka vetaa y-akselin kortin tayteeseen —
            laajassa se leikkaisi akselin ruudun ulkopuolelle. Tassa
            vuoto on symmetrinen ja menee vain `.hl-kaavio`n omaan
            tayteeseen, joka on `overflow: hidden`in sisapuolella. */
-        kaavio.innerHTML='<div style="position:relative;margin:0 -'+LAAJA_VUOTO+'px;'
-          +'width:calc(100% + '+(2*LAAJA_VUOTO)+'px);overflow-x:auto;'
-          +'overflow-y:visible;-webkit-overflow-scrolling:touch;scrollbar-width:none">'+d.svg+'</div>';
+        /* KÄÄRE SÄILYY, SISÄLTÖ VAIHTUU. Ks. `kiinnitaVeto`. */
+        var kaare=kaavio.querySelector('[data-laaja-kaare]');
+        if(!kaare){
+          kaavio.innerHTML='<div data-laaja-kaare style="position:relative;margin:0 -'+LAAJA_VUOTO+'px;'
+            +'width:calc(100% + '+(2*LAAJA_VUOTO)+'px);overflow-x:auto;'
+            +'overflow-y:visible;scrollbar-width:none;touch-action:none;cursor:grab"></div>';
+          kaare=kaavio.querySelector('[data-laaja-kaare]');
+        }
+        kaare.innerHTML=d.svg;
+        kaare._d=d;
         laaja.rivi(laajaLepoSolut(d));
         drawAllModels(d);
+        kiinnitaVeto(kaare);
         attachTooltip(d,null,function(info){
           if(!info){ laaja.rivi(laajaLepoSolut(d)); return; }
           var solut=[{nimi:info.isPast?'Mennyt':'Hetki',arvo:info.timeStr,ala:''}];
@@ -17393,6 +17667,11 @@ function openSheet(spot, hourIdx) {
       var laajNappi=secEl.querySelector('[data-hav-laajenna]');
       if(laajNappi){
         laajNappi._havLaajaLahde=function(){
+          /* AVAUS ALKAA AINA VALITUSTA HETKESTÄ. Raahauksen siirto on
+             näkymän oma tila, ei kortin: jos se jäisi voimaan, laaja
+             aukeaisi seuraavalla kerralla johonkin eiliseen kohtaan
+             ilman että mikään kertoisi miksi. */
+          laajaSiirtoMs=0;
           return {
             el: secEl, jaksot: '[data-cp]',
             otsikko: spot.name, sub: 'Tuuliennuste',
@@ -24339,7 +24618,13 @@ const _loadingSafety = setTimeout(() => {
       Sade: Sade, Sadetutka: Sadetutka, Sadeennuste: Sadeennuste,
       _tutkaHetki: _tutkaHetki, _tutkaLahde: _tutkaLahde,
       _tlTimeAt: _tlTimeAt, _tlSailytaHetki: _tlSailytaHetki,
-      _tlValitseIdx: _tlValitseIdx };
+      _tlValitseIdx: _tlValitseIdx,
+      /* JÄLJEN PITUUS ON PYYHKÄISTÄVÄ ILMAN UUDELLEENKÄÄNNÖSTÄ.
+         `JalkiViritys` on olio juuri tätä varten (ks. sen oma
+         kommentti), mutta se ei ollut viedyissä — eli pyyhkäisy vaati
+         buildin per arvo. Aikapituus (JALKI x ASKEL) tarvitaan samassa
+         mittauksessa, koska heikossa tuulessa se on se joka sitoo. */
+      JalkiViritys: JalkiViritys, JALKI: JALKI, ASKEL: ASKEL };
   } catch (e) {}
 
   var worstEver = 0;
