@@ -33,7 +33,7 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
 - `tools/tiilet.mjs` — säälaattojen rakennus kolmesta mallista: ECMWF
   (AWS Open Data, koko maapallo), FMI:n HARMONIE (Suomi) ja MET Nordic
   (Yr:n data, Pohjoismaat ja Baltia). Ajetaan GitHub Actionsissa neljästi
-  vuorokaudessa (`.github/workflows/`), noin 10 min ja 106 MB.
+  vuorokaudessa (`.github/workflows/`), noin 8–10 min ja 107 MB.
 - `tools/pyramidi.mjs` — säännöllisestä hilasta suodatettu laattapyramidi
   ja painokanava; kaikki kolme mallia kirjoitetaan sen kautta.
 - `tools/harmonie.mjs` — FMI HARMONIE 2,5 km hilana GRIB2:sta (tasot

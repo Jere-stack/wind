@@ -439,6 +439,12 @@ Mitattu kontissa (23.9. klo 21–22 UTC):
 | MET Nordic n0–n3 | 1 126 | 64,5 MB | 261 s |
 | **yhteensä** | **1 774** | **105,7 MB** | **622 s**, muisti enintään 0,85 GB |
 
+Ensimmäinen ajo GitHub Actionsissa (23.9. klo 21:36 UTC, käsin
+käynnistetty): rakennus 494 s (ECMWF 143 s, FMI 147 s ajoista 18Z ja
+15Z, MET Nordic 201 s ja 107 tuntia), 107,2 MB, julkaisu 13 s.
+Tuotantosivu luki sen heti oikein (sama `ui.mjs`-kierros kuin
+kontissa, ei virheitä).
+
 Työnkulun aikaraja nostettiin 30 → 45 min. Orpo haara pitää yhden
 version kerrallaan; repon koko oli 31,8 MB kuukauden pakkopäivitysten
 jälkeen, eli GitHub siivoaa pudotetut versiot.
@@ -535,4 +541,23 @@ johon MET Nordic liukuu kahdessa tunnissa, MET Nordic, FMI
 ECMWF on muualla maailmassa yhä 0,25°:n suodatettu pyramidi (l0 vain
 Pohjois-Euroopassa). Windyn 9 km:n ECMWF koko maapallolle vaatii oman
 ruutupalvelun (`api/malli.js`, `ecmwf_ifs` S3:sta), koska 0,1°:n
-maailma ei mahdu git-varastoon; se on seuraava vaihe.
+maailma ei mahdu git-varastoon.
+
+**Prototyyppimittaus (palvelinpää, kontista, 23.9.):** `ecmwf_ifs` on
+O1280-hila (6 599 680 pistettä, 2 560 leveysriviä, rivillä 20 + 4(i−1)
+pistettä, lohko 1 024 pistettä), 145 tuntia 15 vuorokauteen, u/v/puuska.
+Leveyskaista luetaan yhtenä yhtenäisenä välinä:
+
+| alue, yksi tunti, kolme kenttää | pisteitä | luku | pyyntöjä | siirto |
+|---|---|---|---|---|
+| 5° kaista (58–63°N, koko maapallon ympäri) | 122 256 | 1,0 s | 60 | 0,28 MB |
+| 20° kaista (40–60°N) | 656 084 | 2,1 s | 77 | 1,42 MB |
+
+Tiedoston avaus kaikkien lasten nimineen kesti 4 s; lapsi-indeksien
+muisti (kuten `tools/metnordic.mjs`) pudottaa sen noin 0,5 s:iin.
+
+**Johtopäätös suunnitteluun:** tunti kerrallaan palvelu on kevyt, mutta
+koko sarjan laatta (145 tiedostoa) olisi minuutteja. 9 km:n ECMWF vaatii
+siis Windyn mallin mukaiset TUNTIKOHTAISET ruudut ja esihaun aikajanan
+edellä — eri laattamallin kuin nykyinen varasto, jossa laatassa on koko
+akseli. Viive puhelimella on mitattava laitteella ennen toteutusta.
