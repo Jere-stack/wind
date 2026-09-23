@@ -1854,15 +1854,14 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   kuristetulla suorittimella. Ruutunopeuksia ei voi mitata täällä;
   oikeaa laitetta vastaan on mitattava. Pikselivastaavuus ja
   pääsäikeen JS-aika mitataan täällä hyvin.
-- **`?lasi=0` ON KOKEILUKYTKIN, EI OLETUS.** Se poistaa
-  havaintopillerien `backdrop-filter: blur(10px)`in (`html.ei-lasia`).
-  Sumennus pakottaa kompositorin sumentamaan kartan pillerin alta joka
-  ruudussa, ja kartta muuttuu nyt joka ruudussa; ruudulla on 8–13
-  pilleriä z9–z10. Pillerin tausta on 78 % peittävä, joten ero näkyy
-  vain alta kulkevassa partikkelissa. Hintaa ei voi mitata kontissa —
-  päätös tehdään laitteella vertaamalla, ja jos lasi poistetaan, poista
-  se pilleristä (`_pilleri`) eikä jätä kytkintä oletukseksi.
-  Aikajanan napit pitävät lasinsa (sääntö "KIEKKO ON LASIA").
+- **HAVAINTOPILLERIEN LASI ON KOKEILTU POIS JA SE JÄI.** Pillerin
+  `backdrop-filter: blur(10px)` sumentaa alustansa joka ruudussa, ja
+  kartta muuttuu MapLibre-siirron jälkeen joka ruudussa (8–13 pilleriä
+  ruudulla z9–z10), joten sitä epäiltiin puhelimen ja iPadin
+  kustannukseksi. Se poistettiin kokeilukytkimellä (`?lasi=0`) ja
+  verrattiin laitteella: käyttäjä ei huomannut eroa sujuvuudessa eikä
+  ulkoasussa, joten lasi pidettiin ja kytkin poistettiin. Älä poista
+  lasia sujuvuuden nimissä ilman uutta laitemittausta.
 - **Varjostimet ovat GLSL ES 1.00:aa**, jotta sama koodi ajaa WebGL2:ssa
   ja MapLibren WebGL1-varatiellä. Kenttä kulkee RGBA8:ssa 16-bittisinä
   (±64 m/s, askel 0,002 m/s) eikä liukulukutekstuurina, ja solmut

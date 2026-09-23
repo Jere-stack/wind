@@ -141,10 +141,10 @@ samassa ruudussa likaantuneen (MapLibre kirjoittaa 60 merkin sijainnin
 joka ruudussa). Mitattuna edellinen [142, 143, 96] ms ja uusi
 [138, 76, 108] ms kuuden vedon aikana — hajonta on suurempi kuin ero.
 
-**Kokeilukytkin: havaintopillerien lasi (`?lasi=0`).** Pillereillä on
-`backdrop-filter: blur(10px)`, ja kartta muuttuu nyt joka ruudussa, joten
-jokainen näkyvä pilleri pakottaa kompositorin sumentamaan alustansa
-joka ruudussa. Ruudulla mitattuna:
+**Havaintopillerien lasi — kokeiltu pois laitteella, ja se jäi.**
+Pillereillä on `backdrop-filter: blur(10px)`, ja kartta muuttuu nyt joka
+ruudussa, joten jokainen näkyvä pilleri pakottaa kompositorin
+sumentamaan alustansa joka ruudussa. Ruudulla mitattuna:
 
 | näkymä | z7 | z9 | z10 | z12 |
 |---|---|---|---|---|
@@ -154,9 +154,11 @@ joka ruudussa. Ruudulla mitattuna:
 | iPad: lasipillereitä ruudulla | 0 | 9 | 13 | 9 |
 
 Pillerin tausta on 78 % peittävä, joten sumennus näkyy vain 22 %:ssa.
-Kytkimellä kaikki 27 pilleriä saavat `backdrop-filter: none`, ja
-aikajanan napit pitävät lasinsa. Kontti ei mittaa kompositoria, joten
-vertailu tehdään laitteella kahdella välilehdellä.
+Kontti ei mittaa kompositoria, joten sumennus poistettiin väliaikaisella
+kytkimellä (`?lasi=0`: kaikki 27 pilleriä `backdrop-filter: none`,
+aikajanan napit ennallaan) ja verrattiin laitteella kahdella
+välilehdellä. **Tulos: käyttäjä ei huomannut eroa sujuvuudessa eikä
+ulkoasussa.** Lasi pidettiin ja kytkin poistettiin koodista.
 
 **Jätetty laitemittauksen varaan:**
 - *Merkkien karsinta ruudun ulkopuolelta.* MapLibre siirtää jokaista

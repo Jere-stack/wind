@@ -25,10 +25,6 @@
   catch (e) { s = false; }
   if (s) document.documentElement.classList.add('standalone');
 })();
-/* Kokeilukytkin ?lasi=0: kartan pillerit ilman taustasumennusta
-   (ks. html.ei-lasia CSS:ssa). Vain osoitteesta, ei tallenneta —
-   vertailu tehdaan kahdella valilehdella. */
-if (/[?&]lasi=0\b/.test(location.search)) document.documentElement.classList.add('ei-lasia');
 /* Valittu pohjakartta juurielementtiin ENNEN ensimmaista maalausta.
    Ilman tata vaalea pohjakartta valahtaisi kaynnistyksessa mustana:
    #map:n tausta ja sovelluksen --bg tulevat tyylitiedostosta, ja jos ne
@@ -273,16 +269,6 @@ body {
 /* Merkki ei saa periä MapLibren oletuskursoria (grab) — spotti on nappi. */
 .kartta-merkki { cursor: pointer; }
 .kartta-merkki.ei-osuma { pointer-events: none; cursor: default; }
-/* KOKEILUKYTKIN `?lasi=0`: havaintopillerit ilman taustasumennusta.
-   Pillerin `backdrop-filter: blur(10px)` pakottaa kompositorin
-   sumentamaan kartan sen alta joka ruudussa, ja kartta muuttuu nyt joka
-   ruudussa (partikkelit, myös levossa). Ruudulla on 8–13 pilleriä z9–z10
-   (mitattu iPhone- ja iPad-näkymällä). Pillerin tausta on jo 78 %
-   peittävä, joten sumennus näkyy vain 22 %:ssa — ero on se, näkyykö
-   alta kulkeva partikkeli himmeänä viivana vai sumeana. Hintaa ei voi
-   mitata kontissa, joten tämä on laitteella tehtävää vertailua varten
-   eikä oletus. Inline-tyyli ohitetaan vain `!important`illa. */
-html.ei-lasia .kartta-merkki * { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 
 /* Tuulikanvas (#c-wind) ja lämpökartan DOM-kerrokset (.heatmap-overlay,
    .saa-laatat) ovat poissa: molemmat piirtyvät nyt MapLibren omaan
@@ -13258,6 +13244,11 @@ function _addObsMarkers(map) {
      tulla nakyviin AIEMMALLA zoomilla ilman etta merkit peittavat
      toisensa — taysikokoinen pilleri z8:lla peitti Helsingin edustalla
      naapurinsa 65-prosenttisesti (mitattu). */
+  /* LASI JÄÄ. Sumennus (`backdrop-filter`) kokeiltiin pois laitteella,
+     koska kartta muuttuu MapLibre-siirron jälkeen joka ruudussa ja
+     jokainen näkyvä pilleri sumentaa alustansa uudelleen. Käyttäjä ei
+     huomannut eroa sujuvuudessa eikä ulkoasussa, joten lasi pidettiin
+     (ks. docs/sujuvuus.md). */
   function _pilleri(glyfi, arvo, yksikko, hiljainen, pieni) {
     return '<div style="'
         +'display:inline-flex;align-items:baseline;gap:'+(pieni?'2px':'3px')+';'
