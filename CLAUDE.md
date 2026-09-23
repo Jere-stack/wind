@@ -87,6 +87,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/ui.md` | paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa, kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
+| `docs/sujuvuus.md` | **työpöydän** zoomin ja panoroinnin raskautta, laattojen uudelleenmaalausta, windy.comin arkkitehtuuria, sujuvuusstrategiaa |
 
 <details>
 <summary>Osioiden nimet tiedostoittain (jos et tiedä mistä etsiä)</summary>
@@ -164,6 +165,12 @@ kokeiltu ja kaadettu mittauksella.
 - **pwa**: PWA — kotivalikkoon ja rannalle · Mitä välimuistiin menee ·
   Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
   Ikoni ja kotivalikko
+- **sujuvuus**: Tiivistelmä · Mittausasetelma · Mitä mitattiin (laattojen
+  uudelleenmaalaus per ele, aikajanan askel, pääsäikeen profiili, eleen
+  aikana, localStorage, mitä ei voitu mitata) · Miksi juuri työpöytä ·
+  windy.com — mitä se tekee · Julkiset lähteet (GitHub) · Vaihtoehdot
+  (Vaihe 0, A1–A4, B1–B3, C1–C2) · Suositus ja järjestys · Mitä ei
+  ehdoteta
 
 </details>
 
