@@ -6,6 +6,40 @@ zoom-alueen rajaus ja kosketuskohteiden osumapinta.
 > Osa FoilSpotin muistiinpanoja. Hakemisto ja säännöt ovat `CLAUDE.md`:ssä;
 > tämä tiedosto luetaan vain kun työ osuu tähän aiheeseen.
 
+## Kartta on MapLibre GL — mikä tästä tiedostosta on historiaa
+
+Syyskuussa 2026 kartta siirtyi Leafletista MapLibre GL JS 5.24:ään
+(`docs/sujuvuus.md`, vaihtoehto C2). **Eleet ovat nyt MapLibren omat**, ja
+suurin osa tämän tiedoston koneistosta poistui koodista sellaisenaan:
+
+| tässä tiedostossa | nyt |
+|---|---|
+| One Euro -suodin nipistykseen, `nipistysAlkaa/Paattyy`, alipikselitila | poissa — MapLibren oma nipistys |
+| oma tuplanapauta-ja-vedä (`_installDoubleTapZoom`) | MapLibren `tapDragZoom` |
+| rullan kertymä ja puolikkaan tason pyöristys (`rullaZoom`) | `scrollZoom.setWheelZoomRate(1/136)` = 0,50 tasoa 120 px:n napsautukselta (mitattu); **ei pyöristystä** |
+| tuplaklikkaus puolikkaisiin (`tuplaklikkausZoom`) | MapLibre: +1 taso, Shift −1 (mitattu +1,000) |
+| zoom-inertia, joustava uloin raja (`getScaleZoom`) | MapLibren inertia; uloin raja on kova (`setMinZoom`) |
+| lämpökartan jäädytys eleen ajaksi | ei tarvita — kerros piirretään joka ruudussa kamerasta |
+| `zoomanim`, liu'un kello, `_animatingZoom` | ei vastinetta: MapLibressa kartan tila ja kuva ovat samassa ruudussa |
+
+Mitkä päätökset jäivät: kierto ja kallistus pois, uloin näkymä
+leveysasteista (`uloinZoom`), avausnäkymä `uloin + 1,6` työpöydällä,
+heiton katto zoomin mukaan (`dragPan.maxSpeed` 900 / 1500 px/s),
+kosketuskohteet ja pseudoelementtien osumapinta (alla).
+
+**Nipistyksen värinää ei ole mitattu MapLibrella.** Leaflet-version
+One Euro -suodin oli mitattu tarpeelliseksi (nurkan suunnanvaihdot 9/s →
+0). MapLibren nipistys on suodattamaton; jos laitteella näkyy nurkan
+tärinää hitaassa nipistyksessä, tämän tiedoston luvut ovat lähtökohta —
+mutta kontti ei tuota kosketuksen touchmovea, joten se on mitattava
+laitteella.
+
+**Merkin z-järjestys on `maailman y + zIndexOffset + 1 000 000`**
+(`Merkki._paivitaZ`). Hover-nosto on siksi 2 000 000 000 eikä 700: liian
+matala arvo LASKI merkin naapurinsa alle, jolloin painallus osui
+spottiin ja nosto asemaan, ja klikkaus meni niiden yhteiselle
+vanhemmalle (mitattu Lauttasaaressa, Larun asemamerkin kohdalla).
+
 ## Kosketuskohteet ja pseudoelementtien osumapinta
 
 Kaksi kohtaa, joissa 44 px:n kosketusminimi oli näennäisesti kunnossa mutta

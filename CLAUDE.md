@@ -1,6 +1,6 @@
 # FoilSpot v7
 
-Wingfoil-sääsovellus Suomen rannikon spoteille. Kartta (Leaflet) + tuuliennusteet
+Wingfoil-sääsovellus Suomen rannikon spoteille. Kartta (MapLibre GL) + tuuliennusteet
 (oma säälaattavarasto, FMI HARMONIE, Open-Meteo, FMI-havaintoasemat) yhdessä
 self-contained HTML-sivussa.
 
@@ -17,7 +17,13 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
 ## Rakenne
 
 - `index.html` — koko sovellus: CSS, HTML ja JS yhdessä tiedostossa (ei erillistä
-  `src/`-hakemistoa). Leaflet ladataan CDN:stä `<script>`-tagilla.
+  `src/`-hakemistoa). MapLibre GL JS 5 (UMD) ladataan CDN:stä
+  `<script>`-tagilla. Leafletia ei ole enää: `L` on sovelluksen oma
+  pieni yhteensopivuuskerros (`L.marker`, `L.latLng`, `L.Util`…) ja
+  `State.map` on `KarttaGL`, Leafletin muotoinen julkisivu jonka
+  `map.ml` on varsinainen MapLibre-kartta. Lämpökartta (`LampoGL`),
+  partikkelit (`PartikkeliGL`) ja sadetutka (`GLRuudukko`) piirtyvät
+  MapLibren omaan WebGL-ruutuun custom layereina.
 - `api/*.js` — Vercelin serverless-funktiot (FMI-havainnot, HARMONIE-ennuste,
   aaltoennuste, vedenkorkeus, sade-ennuste GRIB2:sta,
   FMI:n aaltopoijut, Kruunuvuorenselän, Mellstenin, Larun ja Uiraan
@@ -82,30 +88,34 @@ kokeiltu ja kaadettu mittauksella.
 |---|---|
 | `docs/lampokartta.md` | pohjakarttaa, lämpökarttaa, väriramppia, tekstuurin mitoitusta tai projektiota, kartan asetuksia |
 | `docs/partikkelit.md` | tuulipartikkeleita, jäljen muotoa, tiheyttä tai ruutuaikabudjettia |
-| `docs/eleet.md` | nipistystä, zoomia, zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen |
+| `docs/eleet.md` | nipistystä, zoomia, zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
 | `docs/data.md` | säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja |
 | `docs/ui.md` | paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa, kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
-| `docs/sujuvuus.md` | **työpöydän** zoomin ja panoroinnin raskautta, laattojen uudelleenmaalausta, windy.comin arkkitehtuuria, sujuvuusstrategiaa |
+| `docs/sujuvuus.md` | **työpöydän** zoomin ja panoroinnin raskautta, windy.comin arkkitehtuuria, sujuvuusstrategiaa, **MapLibre-siirtoa (C2) ja sen mittauksia** |
 
 <details>
 <summary>Osioiden nimet tiedostoittain (jos et tiedä mistä etsiä)</summary>
 
-- **lampokartta**: Pohjakartta · Lämpökartta pohjakartan päällä · Lämpökartta on
+- **lampokartta**: Lämpökartta on GL-kerros MapLibren ruudussa ·
+  Pohjakartta · Lämpökartta pohjakartan päällä · Lämpökartta on
   canvas, ei PNG · Väriasteikko — vain asetuspaneelissa · Lämpökartta jäi väärään
   mittakaavaan ulos zoomatessa · Kartan asetukset · Lämpökartan värit olivat eri
   kohdissa eri zoomeilla · Lämpökartta oli väärässä projektiossa · Nopea zoom ei
   saa näyttää mustaa · Zoomin välkky uudestaan — ja se ei ollutkaan
   häivytys
-- **partikkelit**: Sujuvuus — mitattu, ei arvattu · Partikkelit ovat tasaisia —
+- **partikkelit**: Partikkelit piirtyvät kartan GL-ruutuun · Sujuvuus —
+  mitattu, ei arvattu · Partikkelit ovat tasaisia —
   maa/vesi-rajaus kokeiltiin ja poistettiin · Rakeisuus oli kahta eri vikaa ·
   Kolme jatkokorjausta: heitto, lähizoomin terävyys, tiheys ·
   Jälki lyhennettiin puoleen — raja puree, aikapituus ei
-- **eleet**: Kosketuskohteet ja pseudoelementtien osumapinta · Zoom-alue ·
+- **eleet**: Kartta on MapLibre GL — mikä tästä tiedostosta on historiaa ·
+  Kosketuskohteet ja pseudoelementtien osumapinta · Zoom-alue ·
   Nipistyszoomin pehmennys · Eleen loppu ja tuntuma — kolme asiaa Apple Mapsista ·
   Kaksi kokeilua jotka eivät jääneet · Yhden sormen zoom oli rikki — neljä eri
-  vikaa · Uloin näkymä rajattiin — ja se muutti kaiken muun · Kerrosten tahti
+  vikaa · Uloin näkymä rajattiin — ja se muutti kaiken muun · Lämpökartan
+  jäädytys eleen aikana · Uloin raja: vastusta, ei mustaa · Kerrosten tahti
   eleen jälkeen
 - **data**: Verkkotila · Ensilataus — mihin aika menee · Käynnistys: välimuisti
   ruudulle ennen verkkoa · Käynnistyksen pyyntömäärä · Säädata koko maailmalle ·
@@ -165,7 +175,8 @@ kokeiltu ja kaadettu mittauksella.
 - **pwa**: PWA — kotivalikkoon ja rannalle · Mitä välimuistiin menee ·
   Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
   Ikoni ja kotivalikko
-- **sujuvuus**: Tiivistelmä · Mittausasetelma · Mitä mitattiin (laattojen
+- **sujuvuus**: C2 toteutettu — mitä muuttui ja mitä mitattiin ·
+  Tiivistelmä · Mittausasetelma · Mitä mitattiin (laattojen
   uudelleenmaalaus per ele, aikajanan askel, pääsäikeen profiili, eleen
   aikana, localStorage, mitä ei voitu mitata) · Miksi juuri työpöytä ·
   windy.com — mitä se tekee · Julkiset lähteet (GitHub) · Vaihtoehdot
@@ -211,9 +222,10 @@ mitä työpöydällä pitikin tapahtua. Kaikki laitekohtainen mittaus vaatii
 `elementFromPoint` eivät kerro mihin napautus oikeasti menee; Chromiumin
 kosketussäätö siirtää sen lähimpään maalattuun kohteeseen.
 
-**Jos paikkaat Leafletin prototyyppiä, tarkista onko metodi rekisteröity
-kuuntelijaksi** (`getEvents()`). Jos on, paikkauksen on oltava paikallaan ennen
-`addTo(map)`:ia — Leaflet tallettaa funktioviitteen kerran.
+**Leaflet-zoom on MapLibre-zoom + 1 (`ZOOM_ERO`).** Kaikki sovelluksen
+kynnykset (z8 poijut, `REUNUS_MIN_Z`, `laattaStep`, `uloinZoom`) ovat
+Leaflet-asteikolla, ja `KarttaGL` kääntää rajalla. Jos kutsut `map.ml`:ää
+suoraan, käännä itse — muuten jokainen kynnys osuu tason verran väärin.
 
 **Dokumentaatio ja koodi ajautuvat erilleen.** Näin on käynyt kahdesti:
 Syne-fontti oli kirjattu poistetuksi mutta `<head>` latasi sen yhä, ja
@@ -483,8 +495,11 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   pysäkkiä. Ryhmän sisällä nuolet, ja VALINTA SEURAA FOKUSTA, koska
   valinta ajetaan ryhmän delegoidusta klikkauksesta.
 - **Nuolet paneelissa vaativat `stopPropagation`in.** Pelkkä
-  `preventDefault` ei riitä: nuolet kuuluvat muuten Leafletille, joka
-  panoroi niillä karttaa.
+  `preventDefault` ei riitä: nuolet kuuluvat muuten kartalle, joka
+  panoroi niillä. (MapLibren näppäinkäsittelijä kuuntelee vain
+  karttasäiliötä, joten paneelista kupliva nuoli ei enää yllä siihen.
+  Pysäytys jää silti: kuuntelijan paikka on MapLibren sisäinen
+  yksityiskohta, ei sopimus.)
 - **Aria-tila synkataan MutationObserverilla.** `.active` ja `.on`
   asetetaan kuudessa eri paikassa; aria-tilan kirjoittaminen jokaiseen
   olisi seitsemäs polku samaan asiaan.
@@ -548,9 +563,18 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **MALLIN PAKOTUS ON `Saalaatat.pois()`, EI `?laatat=0`.** Mitattuna
   `?laatat=0` vaihtaa vain piirtotavan ja data tulee yhä varastosta
   (506 pistettä 518:sta). Varaston sulkeminen on se kytkin joka siirtää
-  koko kentän rajapintapolulle. Leafletin laattakerros on poistettava
-  ERIKSEEN (`_laattakerrosPois`): pelkkä `pois()` jätti `.saa-laatat`in
-  kartalle vanhoine laattoineen, eli valittu malli ei näkynyt missään.
+  koko kentän rajapintapolulle. (`?laatat=0` poistui MapLibre-siirrossa.)
+  `LampoGL` lukee `kartallaKaytossa()`a joka ruudussa ja vaihtaa itse
+  solmuhilasta näkymätekstuuriin (`WindTexture.canvas`, tila `'kuva'`);
+  Leaflet-aikana laattakerros piti poistaa erikseen, ja pelkkä `pois()`
+  jätti vanhat laatat kartalle.
+  **NÄKYMÄTEKSTUURI LADATAAN SISÄLTÖVERSIOSTA, EI RAJOISTA.**
+  `WindTexture.build` tyhjentää kankaan ennen kuin uusi kenttä on
+  valmis, ja rajoihin sidottu lataus ehti ottaa tyhjän kankaan
+  GPU:lle (mitattu: pakotetun mallin lämpökartta tyhjä). Lataus
+  seuraa `WindTexture.kuvaVersio`a ja rajat talletetaan samalla
+  (`kuvaRajat`), jotta kuva ja sen paikka tulevat samasta
+  rakennuksesta.
 - **PAKOTETTU FMI EI OLE PELKKÄ FMI.** HARMONIEn hila kattaa vain
   Pohjois-Euroopan, joten `loadBatch`in `fmi_harmonie`-haarassa on
   oltava Open-Meteo-varatie. Ilman sitä erä jonka yksikään piste ei osu
@@ -762,10 +786,12 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   että valokaista on poistettu, joten ansaa ei enää ole eikä
   `_tlErottimet`-taulukkoa. `_tlMuisti`-vertailu sisältää yhä lat/lng,
   koska laattapisteet jakavat aikataulukon.
-- **Nuolinäppäimet kuuluvat Leafletille.** Sen `Keyboard` panoroi karttaa
-  nuolilla eikä tarkista shiftiä (vain alt/ctrl/meta), joten Shift+nuoli
-  panoroi myös. Aikajanan askellus on `,` ja `.`, ja shiftattu merkki on
-  eri `e.key` (suomalaisella `:` ja `;`) — lue `e.code`.
+- **Nuolinäppäimet kuuluvat kartalle.** MapLibren näppäinkäsittelijä
+  panoroi nuolilla (kun fokus on kartassa) ja varaa Shift+nuolen
+  kierrolle, joka on pois päältä — eli Shift+nuoli ei tee mitään.
+  Aikajanan askellus on silti `,` ja `.`, koska nuolet ovat kartan, ja
+  shiftattu merkki on eri `e.key` (suomalaisella `:` ja `;`) — lue
+  `e.code`.
 - **Play ja kelihyppy KELLUVAT PALKKIEN PÄÄLLÄ, EIVÄT LUKEMARIVILLÄ
   EIVÄTKÄ KISKOLLA.** Ne peittävät osan näkyvistä tunneista — se on
   kelluvan kontrollin tietoinen hinta, ei huomaamatta jäänyt vika, ja
@@ -1287,9 +1313,10 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **Aaltokaavion raahaus tarvitsee `touch-action: none`in ja
   `setPointerCapture`in**, ja lukeman on JÄÄTÄVÄ näkyviin sormen
   noustua — muuten napautus ei tee mitään. Ajastin palauttaa otsikon.
-- **Peitto mitataan SISEMMÄSTÄ elementistä.** Leafletin `_icon`-kuori
-  kantaa `translate3d`-sijainnin eikä liiku väistön mukana — kuoresta
-  mitattu peitto valehtelee.
+- **Peitto mitataan SISEMMÄSTÄ elementistä.** Merkin `_icon`-kuori
+  (nyt MapLibren `Marker`-elementti, `Merkki._el`) kantaa
+  `translate`-sijainnin eikä liiku väistön mukana — kuoresta mitattu
+  peitto valehtelee.
 - **Väistön suunta lukitaan ensimmäisestä osumasta.** Ilman lukitusta se
   työntää ylös yhden ohi, törmää seuraavaan ja työntää takaisin alas:
   nettosiirto 3 px. Pistetilassa väistöä ei ajeta lainkaan.
@@ -1421,11 +1448,13 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
 - **`gridsize` LÄHETETÄÄN VAIN KUN SE HARVENTAA.** Mitattuna 64×64
   ylinäytteisti 72×36 hilan ja kasvatti vastauksen 8 279 → 12 979
   tavuun. Proxy leikkaa pyynnön mallin omaan tarkkuuteen.
-- **Tutkakerros on `overlayPane`ssa eikä `tilePane`ssa**, koska
-  lämpökartta sekoittuu pohjakarttaan `plus-lighter`illä eikä tutka saa
-  osallistua siihen summaan. Luokka on `.tutka-laatat` — EI
-  `.heatmap-overlay`, joka kantaa elementin kokoon mitoitetun maskin ja
-  leikkaisi 0×0-säiliöisen `GridLayer`in kokonaan pois.
+- **Tutkakerros piirtyy lämpökartan JÄLKEEN ja tavallisella
+  alfasekoituksella**, koska lämpökartta summautuu pohjakarttaan
+  (`ONE, ONE` = `plus-lighter`) eikä tutka saa osallistua siihen summaan.
+  Se on `GLRuudukko` (Leafletin `GridLayer`in osajoukko GL-ruudussa):
+  laatat ovat yhä kankaita, ja kangas ladataan tekstuuriksi vain kun se
+  on merkitty likaiseksi (`laatta._likainen`). Jos kirjoitat kankaalle
+  merkitsemättä, ruudulla näkyy edellinen kehys.
 - **TUTKAN KEHYSAIKA ON NIMENOMAINEN, EI `current`.** Se ratkaisee kaksi
   asiaa kerralla: silmukka tarvitsee tietyt hetket, ja nimetty aika on
   myös oikea välimuistiavain — lähde sanoo `max-age=86400` ja
@@ -1444,7 +1473,7 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   yli megan juuri silloin kun kerros kytketään päälle. Älä kasvata
   lukua mittaamatta.
 - **YKSI kerros ja alfamaskit, EI seitsemää päällekkäistä kerrosta.**
-  Seitsemän `GridLayer`ia olisi Leafletin omaa koneistoa mutta laukaisisi
+  Seitsemän ruudukkokerrosta olisi valmista koneistoa mutta laukaisisi
   seitsemät laattapyynnöt joka panoroinnilla. Maskit ovat
   `Uint8ClampedArray` (1 tavu/pikseli), koska väri on vakio: mitattu
   8,3 MB puhelimen ruudulla ja 16,5 MB työpöydällä — `ImageData`na
@@ -1695,137 +1724,126 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
 
 **Eleet**
 
+- **KARTTA ON MAPLIBRE GL, JA ELEET OVAT KIRJASTON OMIA.** Veto,
+  nipistys, tuplanapautus ja -veto, rulla, inertia ja laatikkozoom
+  tulevat MapLibrelta. Leaflet-aikaiset paikkaukset (`nipistysAlkaa` /
+  `nipistysPaattyy`, eleenaikainen jäädytys, `bounceAtZoomLimits`-jousto
+  `getScaleZoom`issa, `_tasoVuoro`, `_updateLevels`, liu'un vartijat,
+  `_heatmapCovers` liu'un aikana, kaksi lämpökarttakerrosta) poistettiin
+  EIKÄ niitä siirretty: lähes jokainen korjasi vikaa jossa kartan TILA ja
+  KUVA olivat eri asiat (CSS-transformi joka valehtelee rajoista,
+  `supressEvent`, liu'un kello). MapLibressa ne ovat sama asia joka
+  ruudussa. Historia ja mittaukset ovat `docs/eleet.md`:ssä ja
+  `docs/lampokartta.md`:ssä — älä rakenna niitä uudelleen tämän kartan
+  päälle.
+- **SÄILYTETYT PÄÄTÖKSET OVAT MAPLIBREN ASETUKSIA.** Rulla
+  `setWheelZoomRate(1/136)` = puoli tasoa 120 px:n napsautukselta (sama
+  sigmoidi kuin Leafletilla, mitattu 0,50/napsautus); tuplaklikkaus +1;
+  kierto ja kallistus pois (`dragRotate`, `touchPitch`,
+  `disableRotation`); heiton katto 900 / 1500 px/s zoomin mukaan
+  (`dragPan.enable({maxSpeed})`); uloin näkymä leveysasteista
+  (`setMinZoom`); zoom ei napsahda tasoihin. MapLibre kiinnittää zoomin
+  `minZoom`iin myös nipistyksessä — Leafletin jousto päästi mitattuna
+  3,46 tasoa ali, eikä sitä tarvitse enää rajata erikseen.
 - **Älä yritä neljättä derivaattapohjaista suodinta.** Lead compensation, Holt ja
   nollaviiveinen FIR kaatuivat kaikki samaan asiaan: näillä nopeuksilla
-  derivaatta on lähes pelkkää vapinaa.
-- **Eleen tila kulkee `nipistysAlkaa` / `nipistysPaattyy` -parin kautta**, ja
-  molemmat zoom-eleet käyttävät sitä. Palautus on tehtävä jokaisella
-  poistumistiellä, myös `touchcancel`issa.
-- **Eleen ajaksi jäädytetty kerros on vapautettava `nipistysPaattyy`ssä**, ei
-  vasta seuraavassa `_reset`issä. Sormen noustessa kartta liukuu maaliin
-  Leafletin omalla animaatiolla, ja `_animateZoom` olettaa että elementin
-  koko vastaa sen rajoja — jäädytetty koko ei vastaa, ja kerros lensi
-  ruudun ulkopuolelle (musta välähdys).
-- **`minZoom` ei rajaa nipistystä.** Leafletin `bounceAtZoomLimits` on
-  oletuksena tosi ja päästää eleen käytännössä rajattomasti ali (mitattu
-  3,46 tasoa, 92 % ruudusta paljasta taustaa). Raja tehdään joustona
-  `getScaleZoom`issa — ei `_move`ssa, koska keskipiste lasketaan zoomista
-  ja ankkuri valuisi.
-- **Lämpökartta on LAATTAPYRAMIDI** (`SaaLaattaKerros`, `L.GridLayer`).
-  Laatta ei liiku koskaan: siirto vain paljastaa uusia. Älä palauta
-  näkymänkokoista tekstuuria uudelleenrakennuksineen — se ankkuroitui
-  uudelleen kaksi kertaa yhtä sormenvetoa kohti (mitattu luisto z13:lla
-  26 288 px), ja juuri se tuntui. Vanha polku on yhä olemassa
-  varatienä (`?laatat=0`) mutta ei ole oletus.
-- **Laattojen solmuhilan origo on GLOBAALISTI KOHDISTETTU**
-  (`floor(x/d)*d`), ei laatan reuna. Muuten naapurit näytteistävät eri
-  hilasta ja sauma näkyy. Mittari on `saumat.mjs`: ero sauman yli pitää
-  olla enintään sama kuin vierekkäisten sarakkeiden ero laatan sisällä.
-- **Laattakerros EI saa käyttää `.heatmap-overlay`-luokkaa.** Se kantaa
-  reunahäivytyksen maskin, joka mitoitetaan elementin kokoon — ja
-  `GridLayer`in säiliö on 0×0, joten maski leikkaa koko kerroksen pois
-  (mitattu: täysin näkymätön vaikka laatat olivat kunnossa). Luokka on
-  `.saa-laatat`, ilman maskia: pyramidilla ei ole datan reunaa.
-- **`_tasoVuoro`N VALMIUSLASKENTA SAA LASKEA VAIN OMAN TASONSA
-  LAATTOJA.** Se laski kaikki `current`-laatat zoomista riippumatta, ja
-  se on väärin juuri sillä hetkellä jolla on väliä: Leaflet siirtää
-  `_tileZoom`in uuteen zoomiin ja luo uuden tasoelementin ENNEN kuin
-  edellisen zoomin laatat merkitään vanhoiksi. Mitattuna uuden tason
-  syntyhetkellä `cur = 35, kesken = 0` vaikka uudessa tasossa oli NOLLA
-  laattaa ja ne 35 olivat edellisen tason lapsia. Seuraus oli
-  päinvastainen kuin `_tasoVuoro`n tarkoitus: **tyhjä uusi taso
-  julistettiin valmiiksi ja näytettiin, ja edellinen VALMIS taso
-  piilotettiin** (mitattu: taso 6 lapsia 35 alfa 0, taso 7 lapsia 0
-  alfa tyhjä). Lämpökartta katosi siis hetkeksi joka zoomilla ja
-  rakentui takaisin laatta kerrallaan — se on "kartta välkkyy
-  zoomatessa". Portti on `t.coords.z !== this._tileZoom`.
-  Mitattu jälkeen: 6/6 uutta tasoa syntyy näkymättömänä (ennen 0/6), ja
-  peitto pysyy — 30 näytettä, ei yhtään hetkeä ilman painettua tasoa.
-- **UUSI TASO SYNTYY NÄKYMÄTTÖMÄNÄ (`_updateLevels`).** Leaflet luo
-  tasoelementin ja liittää siihen laattoja ennen kuin `_tasoVuoro` ehtii
-  ajaa, ja elementti on oletuksena läpinäkymätön. Tämä oli kirjattu
-  jäännökseksi "2–4 ruutua per zoom" ja seuraavaksi askeleeksi juuri
-  tämä. Näkyvyys tulee sen jälkeen aina `_tasoVuoro`lta.
-- **ESILATAUS KATTAA SEN MITÄ KERROS MAALAA, EI PELKKÄÄ NÄKYMÄÄ.**
-  `_getTiledPixelBounds` laajentaa maalattavan alan kertoimella
-  1 + 2·REUNUS (2,2×) zoomista `REUNUS_MIN_Z` ylöspäin, mutta
-  `_esilataa` pyysi `map.getBounds()` eli paljaan näkymän — mitattu
-  suhde 1,0. Reunuksen laatat jäivät siis esilatauksen ulkopuolelle ja
-  hakivat datansa yksi kerrallaan `_valmista`ssa, joka EI kutsu `done`a
-  ennen kuin haku on valmis: laatat jäävät näkymättömiksi yksi
-  kerrallaan. Ehto on sama kuin kerroksella, joten esilataus ei kasva
-  sinne missä reunusta ei ole. Mitattu jälkeen 2,2 (z ≥ 6) ja 1,0 (z 5).
-- **ESILATAUKSEN KURISTUS SIIRTÄÄ, EI PUDOTA.** Zoom lähettää sekä
-  `zoomend`in että `moveend`in, ja kaksi zoomia mahtuu helposti samaan
-  puoleen sekuntiin: mitattuna kaksi zoomia 250 ms välein tuotti YHDEN
-  esilatauksen kahden sijaan, eli LOPULLINEN näkymä jäi kokonaan
-  esilataamatta. Pudotettu kutsu jää nyt ajastimeen. Mitattu jälkeen 2/2.
-- **Pyramidista on näkyvissä TASAN YKSI taso, eikä laattoja häivytetä.**
-  `L.GridLayer` on tehty läpinäkymättömille laatoille: se pitää isän
-  näkyvissä kunnes lapset ovat valmiit ja häivyttää lapset sisään
-  200 ms:ssä. Puoliläpinäkyvillä laatoilla ja lisäävällä sekoituksella se
-  ei ole ristihäivytys vaan summa (`a + a(1−a) > a`) — kartta kirkastuu
-  koko päällekkäisyyden ajan (mitattu 302–3418 ms zoomia kohti).
-  `_tasoVuoro` valitsee näkyvän tason, `_updateOpacity` on korvattu.
-  Älä palauta Leafletin häivytystä äläkä salli kahta painettua tasoa.
-- **Peitto mitataan PIKSELEISTÄ, ei elementin rajoista.** Pyramidilla
-  rajapohjainen mittari antaisi triviaalisti 100 %. Piilota pohjakartta
-  ja partikkelit, jolloin kaikki ei-läpinäkyvä on lämpökarttaa — ja
-  muista säästää `.saa-laatat`, ei `.heatmap-overlay`. Zoomin aikainen
-  peitto vaatii ruutukaappauksen joka kompositointikehyksestä (CDP:n
-  `Page.startScreencast`), ei `getBoundingClientRect`ia.
-- **PYRAMIDI MAALAA NÄKYMÄÄ LAAJEMMALLE (`REUNUS` 0,6), JA LUKU TULEE
-  GEOMETRIASTA.** Ulos zoomatessa Leaflet skaalaa vanhan tason säiliötä
-  kertoimella 0,5, joten maalattua alaa on oltava PUOLI RUUTUA joka
-  laidalla tai reunoille jää tyhjää; 0,6 eikä 0,5 siksi, että
-  kaksoisnapautus zoomaa napautetun pisteen ympäri eikä keskeltä.
-  Mitattu ennen: z12 -> z11 peitto putosi 58 %:iin, z13 -> z10 8 %:iin.
-  Jälkeen 100 % joka kehyksellä molempiin suuntiin. **Reunus kattaa
-  TASAN YHDEN tason** — kahden tason hyppy jää 55 %:iin ja vaatisi
-  reunuksen 1,5 eli yhdeksänkertaisen laattamäärän. Älä kasvata sitä
-  mittaamatta, äläkä ulota sitä uloimpiin näkymiin
-  (`REUNUS_MIN_Z = 6`): siellä se maksaisi varastolaattoja eikä antaisi
-  mitään, koska yksi säälaatta kattaa koko ruudun (mitattu z11 -> z5:
-  99 % peitto ilman reunusta). Lähizoomissa reunus ei maksa yhtään
-  tavua — laajennettu ala mahtuu samojen säälaattojen sisään.
-- **Lämpökartta piirtyy GPU:lla kun laite kiihdyttää** (`GLKentta`,
-  WebGL2). Varjostimen ja CPU-silmukan on annettava sama tulos: rivin
-  leveysaste `ymercInv(myMax - r*myStep)`, sarake `lngMin + c*lngStep`
-  (ei texelin keskipiste), ankkuri `clamp(floor(f), 1, g-3)`. Jos
-  muutat toista polkua, muuta molemmat — pikselivertailu on
-  `glruudulla.mjs`. Ramppi luetaan `pikseliLUT()`:n tavuista, ei
-  lasketa uudelleen.
-- **`failIfMajorPerformanceCaveat` ei estä ohjelmistorasterointia.**
-  Mitattu: Chromium loi kontekstin SwiftShaderille sen kanssa yhtä
-  lailla. Portti on renderöijän nimi (`swiftshader`, `llvmpipe`,
-  `softpipe`, `basic render`, `software`). Nimen puuttuminen ei ole
-  todiste — silloin päästetään läpi.
-- **Kontissa ei ole GPU:ta.** WebGL ajetaan SwiftShaderilla, eli
-  varjostin suoritetaan samalla kuristetulla suorittimella. GL-polun
-  nopeuslukuja ei voi mitata täällä; oikeaa laitetta vastaan on
-  mitattava. Pikselivastaavuus sen sijaan mitataan täällä hyvin.
-- - **Lämpökartta on KAKSI kerrosta: tarkka ja karkea pohja.** Ne eivät
-  ole koskaan yhtä aikaa näkyvissä levossa — kaksi lisäävää kerrosta
-  päällekkäin laskettaisiin yhteen. Vuoro vaihtuu peittotarkistuksella
-  ja summa pysyy ykkösessä, koska `plus-lighter` on lineaarinen. Reiän
-  puhkaisu pohjan kankaaseen kokeiltiin ja mitattiin rikki: pohjan texel
-  on lähizoomissa satoja pikseleitä eikä reikä mahdu sen hilaan.
-- **Nipistys ei lähetä `move`- eikä `zoom`-tapahtumia** (Leaflet ajaa
-  `_move`n `supressEvent`-lipulla). Eleen ajan tarvittava tarkistus on
-  ajettava omassa ruutusilmukassa, ei tapahtuman varassa. Samasta
-  syystä `State.liikkeessa` on epätosi nipistyksen aikana —
-  `_nipistysKesken` on oma ehtonsa.
-- **`_heatmapCovers` ei kelpaa zoom-liu'un EIKÄ nipistyksen aikana.** Sen rajat ovat
-  lopputilan arvoja, elementti ei ole. Liu'un ajaksi peitto luetaan
-  ruudulta (`getBoundingClientRect`).
-- **Kerrosta ei piiloteta liu'un aikana.** Korvaava kerros on silloin
-  itsekin kesken siirtymää, ja mitattuna peitto putosi nollaan.
-- **Tekstuuria ei rakenneta liu'un aikana.** Rakennuksen päättävä
-  `setBounds` on `_reset`, joka kirjoittaa koon kohdezoomille kesken
-  transform-siirtymän; kerros kutistuu kahdesti.
-
-**Jäädytys on kiinnitettävä VOIMASSA OLEVIIN rajoihin.** Lämpökartta
-  rakennetaan uudelleen kesken eleen, ja vanhalla ankkurilla uusi laaja
-  tekstuuri piirtyi vanhan pienen alueen kokoisena. `_heatmapCovers` on
-  tälle sokea: mittaa elementin `getBoundingClientRect` suhteessa
-  karttasäiliöön.
+  derivaatta on lähes pelkkää vapinaa. Nipistys on nyt MapLibren oma eikä
+  sitä suodateta; sen tuntumaa ei ole mitattu laitteella.
+- **LÄMPÖKARTTA ON YKSI HILA JA YKSI VARJOSTIN (`LampoGL`), EI
+  LAATTAPYRAMIDI.** Kenttä piirretään JOKA RUUDUSSA solmuhilasta
+  (`Saalaatat.kokoaHila`, solmuväli `laattaStep(round(zoom))`) samaan
+  WebGL-ruutuun pohjakartan kanssa. Hila on maantieteessä kiinni, joten
+  veto tai zoom ei maalaa mitään uudelleen — Leaflet-versio maalasi
+  1920×1080:lla 308 laattaa vedon perään ja 494–1722 zoomin perään.
+  Vaiheet: Catmull-Rom + `pikseliLUT()` 1 näytteellä CSS-pikseliä kohti
+  ruudun ulkopuoliseen puskuriin (reunus `ceil(3σ)+2`), erotettava Gauss
+  σ 3 CSS px (13 hakua per vaihe: vierekkäiset texelit parina yhdellä
+  lineaarisella haulla, mitattuna tavulleen sama kuin 25 hakua ja
+  lämpökartan liikkuva ruutu −35 %; ks. `_painot`),
+  `saturate` 1,4 (1,6 z ≤ 5) esikertomattomalle värille,
+  sekoitus `ONE, ONE` (plus-lighter) tai `DST_COLOR, ONE_MINUS_SRC_ALPHA`
+  (multiply, paperi). Puskurivaiheet ajetaan vain kun näkymä, hila tai
+  ramppi muuttuu; levossa jää yksi kopio. Älä palauta pyramidia äläkä
+  näkymäntekstuuria DOM-kerroksena.
+- **LÄMPÖKARTAN HINTA ON LIIKKEESSÄ, EI LEVOSSA.** Levossa se on yksi
+  kopio (SwiftShaderilla pohja 118 → 140 ms/ruutu), liikkuvassa ruudussa
+  kaikki kolme puskurivaihetta (137 → 495 ms). Jokainen pikselikohtainen
+  lisähaku kenttä- tai sumennusvaiheeseen maksetaan jokaisessa eleen
+  ruudussa. Kontti ei mittaa laitteen aikaa, mutta SwiftShaderin
+  ruutuaika on GPU-työtä suorittimella, joten kerrosten SUHDE on
+  mitattavissa: sama näkymä, `jumpTo` + `render`-tapahtuma, asetukset
+  vuorotellen, mediaani.
+- **HILAN ORIGO ON GLOBAALISTI KOHDISTETTU** (`floor(x/d)*d`), ei näkymän
+  reuna. Siksi uudelleenrakennus ei siirrä kenttää pikseliäkään: sama
+  solmu on samassa paikassa jokaisessa hilassa. Ilman kohdistusta kenttä
+  hyppäisi jokaisella uudelleenrakennuksella (pyramidissa sama sääntö
+  esti saumat laattojen välillä).
+- **PUUTTUVA DATA ON LÄPINÄKYVÄÄ, EI ARVATTUA.** `kokoaHila` täyttää
+  reiät reunan jatkeella jotta kuubinen ydin ei saa NaNia, mutta jatke on
+  arvaus. Solmukohtainen kate (`maski`-parametri) kulkee omana
+  tekstuurinaan ja kertoo alfan.
+- **UUSI HILA RUUDULLE VASTA KUN SEN NÄKYVÄLTÄ ALUEELTA EI PUUDU DATAA**
+  (`_odottava`, enintään `ODOTUS_MS` 6 s). Tämä on `_tasoVuoro`n
+  perillinen ja korjaa saman vian: solmuvälin vaihto zoomatessa (esim.
+  z9,5 → z10, ECMWF → HARMONIE) tyhjentäisi kartan siksi aikaa kun uuden
+  tason laatat haetaan — se oli "kartta välkkyy zoomatessa". Tyhjä
+  HETKI on eri asia: jos varasto ei kata valittua tuntia, kerros
+  tyhjenee heti, koska väärän tunnin kenttä olisi pahempi kuin ei mitään.
+- **HILAN PEHMUSTE ON 0,6 NÄKYMÄÄ JOKA LAIDALLA (z ≥ `REUNUS_MIN_Z` 6),
+  ULOMPANA 0,3.** Luku on pyramidin REUNUS ja tulee samasta
+  geometriasta: yhden tason ulos-zoomi tarvitsee puoli ruutua joka
+  laidalle, ja 0,6 eikä 0,5 koska tuplanapautus zoomaa napautetun
+  pisteen ympäri. Hila rakennetaan uudelleen vasta kun näkymä karkaa sen
+  yli (`_kattaa`), joten pehmuste on se mikä pitää uudelleenrakennukset
+  harvassa. Ulompana jokainen lisäaste maksaa varastolaattoja — älä ulota
+  täyttä pehmustetta sinne mittaamatta.
+- **ESILATAUS KATTAA SAMAN PEHMUSTETUN ALAN KUIN HILA**
+  (`_esilataa`: `getBounds().pad(P)`), ei paljasta näkymää. Muuten
+  pehmusteen laatat haettaisiin vasta kun hila niitä tarvitsee, ja
+  `_odottava` pitäisi vanhaa hilaa ruudulla sen ajan.
+- **ESILATAUKSEN KURISTUS SIIRTÄÄ, EI PUDOTA.** Kaksi zoomia mahtuu
+  helposti samaan puoleen sekuntiin: mitattuna (Leaflet-versiossa) kaksi
+  zoomia 250 ms välein tuotti YHDEN esilatauksen kahden sijaan, eli
+  LOPULLINEN näkymä jäi kokonaan esilataamatta. Pudotettu kutsu jää
+  ajastimeen.
+- **ESILATAUS KÄYNNISTYY HETI KUN VARASTO ON KARTAN KÄYTÖSSÄ, EI
+  ENSIMMÄISESSÄ `moveend`issä** (`esilataaKunValmis`), ja laattojen
+  tultua aikajana tarkistetaan (`updateTimelineToCenter`). Aikajana lukee
+  varastoa kartan keskeltä (`aikajananLahde`), ja ilman tätä jana jäi
+  spotin sarjaan: mitattuna 144 tikkiä 400:n sijaan. Leaflet-versiossa
+  tämä ratkesi sattumalta, koska laattakerros esilatasi näkymän heti.
+- **Peitto ja väri mitataan PIKSELEISTÄ, kerroksia piilottamalla.**
+  Pohjakartta pois: `ml.setLayoutProperty('pohja', 'visibility', 'none')`
+  (ja `'pohja-tausta'`); lämpökartta pois: `State._perfNoHeatmap = true`
+  + `triggerRepaint()`; partikkelit pois: `State._perfNoParticles`. DOM-
+  luokkia `.saa-laatat` ja `.heatmap-overlay` ei ole enää — niihin
+  tarttuva mittari ei piilota mitään eikä sano sitä.
+- **VERTAA VANHAAN BUILDIIN VASTA YHDEN ZOOMIN JÄLKEEN.** Leaflet-version
+  lämpökartalta puuttui `blur`- ja `saturate`-suodin käynnistyksessä
+  (ne kirjoitettiin vain tekstuurihaarassa ja zoom-animaation alussa),
+  joten sama kartta oli ennen ensimmäistä zoomia eri värinen
+  (luminanssi 81,6 → 85,4). GL-versio käyttää suodinta aina. Suotimen
+  kanssa ero on keskimäärin 0,5–1,0/255 (`docs/lampokartta.md`).
+- **KAIKKI KARTAN PIIRTO ON YHDESSÄ GL-RUUDUSSA, JÄRJESTYKSESSÄ pohja →
+  lämpökartta → tutka → partikkelit, ja merkit ovat DOMia sen päällä.**
+  Partikkelit ovat siis nyt merkkien ALLA (Leafletissa `#c-wind` oli
+  niiden päällä). Ruudun ulkopuoliset puskurit kuuluvat custom-kerroksen
+  `prerender`iin: sen jälkeen MapLibre sitoo oman kehyspuskurinsa ja
+  näkymänsä uudelleen, `render`in jälkeen ei — siellä sidottu puskuri
+  veisi seuraavat kerrokset mukanaan.
+- **Kontissa ei ole GPU:ta.** WebGL ajetaan SwiftShaderilla, eli koko
+  kartta — pohja, lämpökartta ja partikkelit — suoritetaan samalla
+  kuristetulla suorittimella. Ruutunopeuksia ei voi mitata täällä;
+  oikeaa laitetta vastaan on mitattava. Pikselivastaavuus ja
+  pääsäikeen JS-aika mitataan täällä hyvin.
+- **Varjostimet ovat GLSL ES 1.00:aa**, jotta sama koodi ajaa WebGL2:ssa
+  ja MapLibren WebGL1-varatiellä. Kenttä kulkee RGBA8:ssa 16-bittisinä
+  (±64 m/s, askel 0,002 m/s) eikä liukulukutekstuurina, ja solmut
+  luetaan lähimmällä suodatuksella texelin keskeltä — se on WebGL1:ssä
+  sama kuin `texelFetch`.
+- **MapLibre lähettää `move`- ja `zoom`-tapahtumat MYÖS nipistyksessä**
+  (Leaflet ei: `supressEvent`). Kapseli ja spottien mittakaava kuuntelevat
+  niitä, ja `State.liikkeessa` on tosi `movestart`ista `moveend`iin myös
+  nipistyksen ajan — omaa `_nipistysKesken`-ehtoa ei ole. Partikkelit
+  eivät kuuntele tapahtumia lainkaan: `Ruudusto.paivita` lukee kartan
+  tilan joka ruudussa ennen piirtoa.

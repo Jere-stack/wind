@@ -6,6 +6,37 @@ ruutuaika oikeasti menee.
 > Osa FoilSpotin muistiinpanoja. Hakemisto ja säännöt ovat `CLAUDE.md`:ssä;
 > tämä tiedosto luetaan vain kun työ osuu tähän aiheeseen.
 
+## Partikkelit piirtyvät kartan GL-ruutuun (syyskuu 2026)
+
+`#c-wind`-kanvasta ja sen `mix-blend-mode`a ei enää ole. Partikkelit ovat
+MapLibren custom-kerros (`PartikkeliGL`), kartan ylin GL-kerros; merkit
+ovat DOMina sen päällä (ennen kanvas oli merkkien PÄÄLLÄ, z-index 3).
+
+**Simulaatio on rivilleen sama** (`partikkelitAskel`, ruutupisteet,
+`Ruudusto`, `AlueVahti`, `JalkiViritys`, JALKI × ASKEL). Muuttui piirto:
+
+- Nauha on kolmioliuska, jossa jokainen kärkipiste kantaa etäisyytensä
+  keskiviivasta; kate `(w − |d|)·pr + 0,5` laitepikseleissä on sama
+  analyyttinen reunanpehmennys jonka canvas teki. Puolivälikäyrät
+  korvautuvat keskiviivan siloittelulla (P₋ + 6P + P₊)/8 — käyrän arvo
+  pisteen kohdalla. Kärki on puoliympyrä etupuolella, kiinni
+  ensimmäisessä poikkileikkauksessa: se ei mene nauhan päälle, joten
+  lisäävässä sekoituksessa kärkeen ei tule kirkasta pisaraa.
+- Kaikki nauhat yhtenä liuskana (rappeutuneet liitokset), yksi veto.
+- Sekoitus on `blendFunc`: plus-lighter = (ONE, ONE), multiply =
+  (DST_COLOR, ONE_MINUS_SRC_ALPHA). Screen-varatie ja sen 1,25-kerroin
+  poistuivat — GL-summa on sama kaikilla laitteilla.
+- **Yksi tietoinen ero:** kanvas täytti saman nopeusluokan nauhat yhtenä
+  polkuna, jolloin päällekkäinen kohta täyttyi kerran; GL:ssä kumpikin
+  lisää valonsa. Peitto on ~1 %, joten risteyksiä on vähän.
+- `renderLoop` on nyt tahdistin (PerfTracker + `triggerRepaint`); liike
+  ja piirto tapahtuvat kartan omassa ruudussa, joten partikkelit ja kartta
+  ovat aina samassa kamerassa. Liu'un kelloa ei tarvita.
+
+Mitattu vierekkäin vanhan kanssa (DPR 2, 8× suurennos): muoto, leveys,
+kärki ja väri samat. Alla olevat ruutuaikamittaukset koskevat kanvasta
+ja ovat historiaa siltä osin kuin ne mittaavat kompositiota.
+
 ## Sujuvuus — mitattu, ei arvattu
 
 Kaikki alla oleva on mitattu Chromiumissa **4× CPU-kuristuksella**, DPR 3,

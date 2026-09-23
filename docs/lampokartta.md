@@ -6,6 +6,82 @@ sekoitustila, väriramppi, tekstuurin projektio ja mitoitus, kartan asetukset.
 > Osa FoilSpotin muistiinpanoja. Hakemisto ja säännöt ovat `CLAUDE.md`:ssä;
 > tämä tiedosto luetaan vain kun työ osuu tähän aiheeseen.
 
+## Lämpökartta on GL-kerros MapLibren ruudussa (syyskuu 2026)
+
+Kartta siirtyi Leafletista MapLibre GL JS 5.24:ään (`docs/sujuvuus.md`,
+C2). Lämpökartta on custom-kerros `LampoGL`, joka piirtää kentän **joka
+ruudussa** solmuhilasta samaan WebGL-ruutuun pohjakartan kanssa. Laattoja
+ei ole, joten mikään ele ei maalaa mitään uudelleen.
+
+**Mikä tästä tiedostosta on historiaa:** laattapyramidi
+(`SaaLaattaKerros`, `_tasoVuoro`, `_updateLevels`, REUNUS laattoina),
+näkymätekstuuri `KanvasYlitys`ina, karkea pohjakerros ja sen
+vuoronvaihto, reunahäivytyksen maski, liu'un aikaiset jäädytykset ja
+`?laatat=0` / `?gl=0` -kytkimet. Niiden tilalla:
+
+| ennen | nyt (`LampoGL`) |
+|---|---|
+| laatta 256 px, oma solmuhila per laatta | yksi solmuhila näkymälle + pehmuste (0,6 näkymää z ≥ 6, 0,3 ulompana), uudelleenrakennus vasta kun näkymä karkaa sen yli |
+| solmuväli `laattaStep(laatan z)` | sama: `laattaStep(round(zoom))`, origo globaalisti kohdistettu — uudelleenrakennus ei siirrä kenttää pikseliäkään |
+| varjostin laattaan + `drawImage` 2D-kankaalle | varjostin suoraan ruudun ulkopuoliseen puskuriin, 1 näyte / CSS px |
+| CSS `blur(3px) saturate(1.4/1.6)` + `mix-blend-mode` | Gaussin σ 3 px kahtena vaiheena (13 hakua per vaihe, ks. alla), sama saturate-matriisi esikertomattomalle värille, `blendFunc` |
+| `_tasoVuoro`: uusi taso näkyviin vasta valmiina | `_odottava`: uusi hila ruudulle vasta kun sen näkyvältä alueelta ei puutu dataa (enintään 6 s) |
+| vajaa laatta jätetään läpinäkyväksi | solmukohtainen kate (`kokoaHila`n `maski`) alfaksi: puuttuva data on läpinäkyvää, ei reunan jatketta |
+| pohjakartan `filter: contrast()/brightness()` | sama `--pohja-suodin`-token käännettynä `raster-contrast`/`-brightness-*`-arvoiksi (`pohjanMaali`) |
+
+**Mitattu vierekkäin Leaflet-version kanssa** (1280×800, sama hetki,
+partikkelit pois, vanha `?gl=1`): pohjakartta yksinään keskiero 0,37/255
+ja luminanssi 31,8 = 31,8; lämpökartta + pohja z9 keskiero 0,53,
+luminanssi 80,4 = 80,4, kroma 80,7 = 80,7; z12 (HARMONIE 0,05°) 0,66;
+vaalea pohja (multiply) 0,83; satelliitti 0,60; pakotettu malli
+(näkymätekstuuri) 1,01. Alle 4 tason ero 98,2–99,2 %:ssa pikseleistä;
+loput ovat merkkien tekstiä.
+
+**Leaflet-versiossa suodin puuttui käynnistyksessä.** `updateHeatmapBlur`
+kirjoitti `blur()`- ja `saturate()`-suotimen vain `drawColorField`in
+TEKSTUURIhaarassa ja zoom-animaation alussa — laattahaara palasi ennen
+sitä. Mitattuna: käynnistyksen jälkeen suodinta ei ollut lainkaan
+(`style.filter` tyhjä), ja ensimmäisen rullanapsautuksen jälkeen
+`blur(3px) saturate(1.4)`. Sama kartta näytti siis eri väreiltä ennen ja
+jälkeen ensimmäisen zoomin (luminanssi 81,6 → 85,4 samassa näkymässä).
+GL-versio käyttää suodinta aina, eli se on se kuva jonka käyttäjä näki
+ensimmäisen zoomin jälkeen — ja jonka dokumentoitu sääntö kuvaa. Jos
+vertaat vanhaan buildiin, tee ensin yksi zoom.
+
+**Mitä lämpökartta maksaa GPU:lla — ja miksi sumennus on 13 hakua.**
+Levossa kerros on yksi koko ruudun kopio valmiista puskurista.
+Liikkuvassa ruudussa (veto, zoom) kaikki kolme puskurivaihetta ajetaan
+joka ruudussa, koska näkymä muuttuu: kenttä (16 solmuhakua + LUT +
+kate pikseliä kohti) ja kaksi sumennusvaihetta. Kontissa GL on
+SwiftShader, jolloin ruudun kesto on GPU-työtä suorittimella; se ei
+kerro laitteen aikaa, mutta SUHTEET pätevät. Mitattuna 1280×800,
+kuusi siirtoa, mediaani kolmesta vuorottelevasta kierroksesta:
+
+| ruutu | pohja yksin | + lämpökartta, 25 hakua | + lämpökartta, 13 hakua |
+|---|---|---|---|
+| liikkuva | 137 ms [130, 144, 137] | 688 ms [703, 649, 688] | 495 ms [497, 495, 471] |
+| lepo (vain kopio) | 118 ms [138, 118, 117] | — | 140 ms [140, 142, 133] |
+
+Sumennus oli siis suurin osa lämpökartan eleenaikaisesta työstä, ja
+parinäytteet veivät lämpökartan osuuden 551 → 358 ms (−35 %).
+Menetelmä on tarkka: kun askel on tasan texeli, vierekkäiset näytteet
+i ja i+1 luetaan yhdellä lineaarisella haulla paikassa
+(i·wᵢ + (i+1)·wᵢ₊₁)/(wᵢ + wᵢ₊₁) painolla wᵢ + wᵢ₊₁. Mitattuna
+valmis puskuri luettuna suoraan GL:stä (1302×822, 3,2 M nollasta
+poikkeavaa tavua): 25 vs 13 hakua **0 eroavaa tavua**, ja mittari
+kirjasi että `_painot` antoi todella 25, 13 ja 25 näytettä. Laitteella
+lineaarisuodatuksen painot voivat olla 8-bittisiä, jolloin ero on
+enintään tason murto-osa. Varatiellä (näkymätekstuuri, σ jopa 22)
+askel on useampi texeli eivätkä näytteet ole vierekkäisiä, joten sille
+jää 25 hakua.
+
+Liikkuvan ruudun lämpökarttatyö on yhä 2,6× pohjakartan työ. Jos
+laitteella liikkuva ruutu ei pysy tahdissa, seuraava askel on käyttää
+puskuri uudelleen pelkässä siirrossa (leveämpi reunus, kopio
+siirtymällä) — kuva on sumennettu σ 3:lla, joten alipikselisiirron
+bilineaarinen uudelleennäytteistys on käytännössä häviötön. Sitä ei
+ole tehty, koska sitä ei ole mitattu tarpeelliseksi.
+
 ## Pohjakartta
 
 Oletus on Esri Dark Gray Canvas,

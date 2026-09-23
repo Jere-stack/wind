@@ -2,8 +2,10 @@
 
 Zoomauksen ja panoroinnin raskaus työpöydän selaimessa: mitä mitattiin,
 mitä windy.com tekee toisin, mitä julkiset repot opettavat, ja
-vaihtoehdot suosituksineen. **Tämä on päätösasiakirja, ei toteutus** —
-mitään sovelluskoodia ei ole muutettu.
+vaihtoehdot suosituksineen. Asiakirja kirjoitettiin päätöksen pohjaksi,
+ja käyttäjä valitsi siitä **C2:n kokonaisuudessaan** (MapLibre-siirto).
+Toteutus ja sen jälkeiset mittaukset ovat heti alla; kaikki sen jälkeen on
+alkuperäinen analyysi Leaflet-versiosta.
 
 > Osa FoilSpotin muistiinpanoja. Hakemisto ja säännöt ovat `CLAUDE.md`:ssä;
 > tämä tiedosto luetaan kun työ koskee zoomin tai panoroinnin raskautta,
@@ -12,6 +14,90 @@ mitään sovelluskoodia ei ole muutettu.
 Reunaehto käyttäjältä: **laatu ja resoluutio eivät saa heiketä.** Kaikki
 alla olevat vaihtoehdot on arvioitu sitä vasten; ne jotka rikkoisivat
 sen, on merkitty.
+
+## C2 toteutettu — mitä muuttui ja mitä mitattiin (syyskuu 2026)
+
+Kartta on MapLibre GL JS 5.24 (UMD CDN:stä; v6 on pelkkä ESM).
+Pohjakartta, lämpökartta, sadetutka ja partikkelit piirtyvät samaan
+WebGL-ruutuun, merkit ovat DOMia sen päällä. Muu sovellus puhuu kartalle
+Leafletin muotoista rajapintaa: `State.map` on `KarttaGL` ja `L` oma pieni
+yhteensopivuuskerros, joten aikajana, kortit, linkit ja asetukset
+säilyivät koskematta. Yksityiskohdat aiheen omissa tiedostoissa:
+
+- lämpökartta `LampoGL` — `docs/lampokartta.md` (alku)
+- partikkelit `PartikkeliGL` — `docs/partikkelit.md` (alku)
+- eleet ja mikä eletyöstä jäi historiaksi — `docs/eleet.md` (alku)
+
+**Pääsäikeen JS, 1920×1080 @1**, vanha ja uusi build rinnakkain omissa
+porteissaan, eleet vuorotellen, kolme kierrosta, mediaani (raaka
+suluissa). Vanha oletuspolullaan, eli kontissa CPU-laatoilla kuten
+tämän tiedoston alkuperäiset luvut. (`?gl=1` pakottaisi vanhan
+SwiftShader-laattoihin, joiden takaisinluku tukkii pääsäikeen: mitattu
+104 s JS:ää yhteen vetosarjaan — ei vertailukelpoinen.)
+
+| ele | vanha (Leaflet) | uusi (MapLibre) | muutos |
+|---|---|---|---|
+| veto, 3 × 600 px | 2 039 ms [2 039, 1 797, 2 100] | 2 766 ms [2 338, 2 766, 2 813] | ks. alla |
+| rulla, 4 sisään + 4 ulos | 5 756 ms [7 181, 5 756, 5 720] | 1 233 ms [1 803, 1 128, 1 233] | −79 % |
+| aikajana, 10 tunnin askelta | 1 479 ms [1 203, 1 479, 1 482] | 223 ms [271, 223, 170] | −85 % |
+
+Rullan ja aikajanan voitto on se jota tämän tiedoston analyysi ennusti:
+laattojen uudelleenmaalaus (494–1 722 laattaa zoomia kohti, 170–187
+aikajanan askelta kohti) ja `_tasoVuoro`n neliöllinen silmukka ovat
+poissa. Lämpökartta piirretään solmuhilasta joka ruudussa, joten
+aikajanan askel on yksi hilan uudelleenrakennus, ei satoja laattoja.
+
+**Veto ei pienentynyt kontissa, eikä sitä voi tästä lukea kumpaankaan
+suuntaan.** Uuden vetosarjan profiili (1920×1080): seinäkello 208 s,
+josta pääsäie oli 204 s natiivikoodissa odottamassa SwiftShaderia ja JS
+2 288 ms. JS jakautuu roskienkeruuseen 443 ms, MapLibren omaan
+ruutukohtaiseen työhön (`_update`, `_render`, `_calcMatrices`,
+`getRenderableIds`… yhteensä satoja ms), aikajanan päivitykseen
+(`renderTimeline`in keskitys 102 ms, `_tlPaivitaPalkit` 47 ms) ja
+partikkeleihin (`nauha` 52 ms, `partikkelitAskel` 19 ms). Laattojen
+uudelleenmaalausta ei ole lainkaan, ja `_restoreCache` oli 21 ms
+(alkuperäisessä profiilissa 396 ms). Mutta vanha sarja kesti ~6 s ja
+uusi 208 s, joten
+ruutu- ja ajastinkohtainen JS kertyy uudessa 35 kertaa pidemmältä
+ajalta; oikealla GPU:lla seinäkello on sama kuin vanhalla, ja
+ruutukohtainen työ on silloin vain eleen ajalta.
+
+**Kontin pitkät tehtävät eivät ole vertailukelpoisia.** Uudessa
+buildissa pääsäie odottaa GPU-prosessia, ja kontissa GPU on SwiftShader:
+1920×1080-ruudulla liikkuva ruutu kesti 1,5–2 s, joten yksi vetosarja
+kesti seinäkellossa minuutteja (vanhalla sekunteja, koska CPU-laatat ja
+kankaan kompositointi ovat kontissa halpoja). Pitkien tehtävien summa
+oli yli 99 % muuta kuin JS:ää. Se ei kerro laitteen ruutuaikaa — mutta
+SwiftShaderin ruutuaika on GPU-työtä suorittimella, joten kerrosten
+SUHTEET ovat mitattavissa (`docs/lampokartta.md`: lämpökartan liikkuva
+ruutu on 2,6× pohjakartan työ, levossa vain kopio; sumennuksen
+parinäytteet veivät lämpökartan osuuden −35 % tavulleen samalla
+kuvalla).
+
+**Laatu mitattu vanhaa vastaan** (`docs/lampokartta.md`): pohjakartta
+keskiero 0,37/255, lämpökartta 0,53–1,01/255 eri pohjilla ja zoomeilla,
+98,2–99,2 % pikseleistä alle 4 tason; loput ovat merkkien tekstiä.
+Partikkelien muoto, leveys, kärki ja väri samat 8× suurennoksella.
+
+**Tunnetut erot, kaikki tietoisia:**
+
+- Partikkelit ovat merkkien ALLA (ennen kangas oli merkkien päällä).
+- Partikkelinauhojen risteys summautuu (ennen saman nopeusluokan nauhat
+  täyttyivät yhtenä polkuna); peitto ~1 %, risteyksiä vähän.
+- Rulla ei pyöristä puolikkaisiin tasoihin eikä tuplaklikkaus
+  puolikkaisiin — MapLibre jättää zoomin sinne mihin ele päättyy ja
+  tuplaklikkaus on +1 taso.
+- Nipistys on suodattamaton (One Euro -suodin jäi Leafletin mukana);
+  tuntumaa ei ole mitattu laitteella.
+- Uloin raja on kova (MapLibre kiinnittää `minZoom`iin), ei joustava.
+- Lämpökartan suodin (`blur`+`saturate`) on voimassa heti; vanhassa
+  se puuttui ennen ensimmäistä zoomia (`docs/lampokartta.md`).
+
+**Mitä ei voitu mitata täällä ja pitää mitata laitteella:** ruutunopeus
+vedossa, rullassa ja nipistyksessä työpöydällä (erityisesti heikko
+integroitu GPU ja 4K 150 %), sekä nipistyksen tuntuma puhelimella. Jos
+liikkuva ruutu ei pysy tahdissa, ensimmäinen korjaus on lämpökartan
+puskurin uudelleenkäyttö pelkässä siirrossa (`docs/lampokartta.md`).
 
 ## Tiivistelmä
 

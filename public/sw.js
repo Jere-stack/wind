@@ -22,7 +22,11 @@ const KUORI  = 'kuori-' + LEIMA.split(' ')[0];
 /* Laattavälimuistia EI versioida. Sen koko arvo on että eilen katsotut
    laatat ovat tallessa tänään — jos se tyhjenisi joka deployssa, rannalla
    ei olisi mitään. */
-const LAATAT = 'laatat-v1';
+/* v2: kartta on MapLibre GL, joka hakee laatat CORS-pyyntöinä. v1:ssä
+   on Leafletin <img>-hakujen LÄPINÄKYMÄTTÖMIÄ vastauksia, ja sellainen
+   CORS-pyynnön vastauksena on verkkovirhe — vanha välimuisti rikkoisi
+   pohjakartan juuri offline-tilassa. Siksi uusi nimi ja vanhan poisto. */
+const LAATAT = 'laatat-v2';
 const LAATTA_KATTO = 600;
 /* Saalaattojen luettelo omassa valimuistissaan: se on ainoa mika kertoo
    onko varasto tuore, ja offline-kaynnistys tarvitsee sen. */
@@ -37,8 +41,8 @@ let saaViimeVersio = null;
 
 const KUORI_TIEDOSTOT = [
   '/',
-  'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.css',
-  'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js',
+  'https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css',
+  'https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js',
 ];
 
 const onLaatta = (u) =>
@@ -46,7 +50,7 @@ const onLaatta = (u) =>
   u.hostname.endsWith('.basemaps.cartocdn.com');
 
 const onKuori = (u) =>
-  u.hostname === 'cdn.jsdelivr.net' && u.pathname.includes('leaflet@1.9.4');
+  u.hostname === 'cdn.jsdelivr.net' && u.pathname.includes('maplibre-gl@5.24.0');
 
 /* Saadatan laatat ja luettelo. Nama EIVAT ole /api: ne ovat
    muuttumattomia binaareja versioidulla sisallolla, eivat elavia
@@ -75,6 +79,7 @@ self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
     for (const n of await caches.keys()) {
       if (n.startsWith('kuori-') && n !== KUORI) await caches.delete(n);
+      if (n.startsWith('laatat-') && n !== LAATAT) await caches.delete(n);
     }
     await self.clients.claim();
   })());
@@ -138,16 +143,16 @@ self.addEventListener('fetch', (e) => {
   }
 
   if (onLaatta(u)) {
-    /* Vanhene-ja-virkistä. Laatat ovat <img>-hakuja ilman CORSia, joten
-       vastaus on läpinäkymätön eikä sen onnistumista voi tarkistaa —
-       cache-first jättäisi yhden epäonnistuneen laatan pysyvästi ruudulle.
-       Virkistys korjaa sellaisen seuraavalla käynnillä, ja välimuistista
+    /* Vanhene-ja-virkistä. MapLibre hakee laatat CORS-pyyntöinä, joten
+       vastauksen tila näkyy ja vain onnistunut talletetaan. LÄPINÄKYMÄTÖNTÄ
+       ei talleteta: CORS-pyynnölle tarjoiltuna se on verkkovirhe.
+       Virkistys päivittää laatan seuraavalle käynnille, ja välimuistista
        tarjoillaan silti heti. */
     e.respondWith((async () => {
       const c = await caches.open(LAATAT);
       const osuma = await c.match(e.request);
       const haku = fetch(e.request)
-        .then((r) => { if (r.status === 200 || r.type === 'opaque') {
+        .then((r) => { if (r.status === 200 && r.type !== 'opaque') {
           c.put(e.request, r.clone()); siivoaLaatat(); } return r; })
         .catch(() => null);
       if (osuma) return osuma;
@@ -180,7 +185,7 @@ self.addEventListener('fetch', (e) => {
 
   if (onSaaLaatta(u)) {
     /* Valimuisti edella. Osoite on versioitu (?v=<ajoAika>), joten sen
-       sisalto ei voi muuttua — sama perustelu kuin Leafletin versioidulla
+       sisalto ei voi muuttua — sama perustelu kuin kartan versioidulla
        osoitteella. Uusi ajo tuo uuden version eli uuden avaimen, ja
        vanhan sukupolven valimuisti poistetaan kokonaan. */
     const versio = u.searchParams.get('v') || 'tuntematon';
