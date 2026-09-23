@@ -90,6 +90,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/partikkelit.md` | tuulipartikkeleita, jäljen muotoa, tiheyttä tai ruutuaikabudjettia |
 | `docs/eleet.md` | nipistystä, zoomia, zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
 | `docs/data.md` | säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja |
+| `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, Open-Meteon S3-malleja** (suunnitelma ja mittaukset, ei vielä toteutettu) |
 | `docs/ui.md` | paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa, kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
@@ -136,6 +137,10 @@ kokeiltu ja kaadettu mittauksella.
   Spottikortin havaintoasema tuli väärästä listasta ·
   "Miksi Helsingin yllä ei tule FMI:tä" — se tulee, mutta ei sanonut sitä ·
   Kartan säämalli valittavaksi · HARMONIE varastoon ja zoomin välkky
+- **mallit**: Tiivistelmä · Tavoitteet · Nykytila mitattuna (varaston
+  tasot, zoom ja taso, maailmankierros ja paluu, rajojen hyppy, mitä
+  S3:ssa on, Windy) · Strategiat S1–S4 · Mihin lukittuihin sääntöihin S1
+  koskee · Avoimet kysymykset
 - **lisadata**: Mistä sovellus lukee nyt · TOP 10 — data · TOP 10 — lähteet ·
   Mitattu ja hylätty (MEPS on HARMONIE · hydrodyn 2/12 spottia · vuorovesi ·
   Holfuy · ilmanlaatu) · Toinen kerros — kontekstia, ei päätöstä ·
