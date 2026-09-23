@@ -3073,6 +3073,11 @@ tämä ei ole. Asetuksen nimi sanoo saman: "Kartan säämalli".
 
 ## HARMONIE varastoon — ja zoomin välkky
 
+> **Jatko:** HARMONIE on nyt oma pyramidinsa (h0–h3) koko Suomeen, MET
+> Nordic tuli rinnalle ja mallit sekoitetaan painokanavalla —
+> `docs/mallit.md`, osio *Toteutus*. Tämä osio kuvaa ensimmäisen h0-tason
+> ja sen mittaukset.
+
 Edellisen erän lopputulos oli oikea malli väärää tietä. Kartta luki
 Helsingissä FMI HARMONIEa, mutta se tuli RAJAPINNASTA, ja rajapintapolulla
 kartalla ei ole laattapyramidia lainkaan. Muistiinpanoon kirjattiin sekä

@@ -5,9 +5,16 @@
    (s3://openmeteo, CC BY 4.0, ei tunnistautumista, ei kiintiötä) ja
    kirjoittaa siitä laatat joita sovellus lataa suoraan.
 
-   TOINEN LÄHDE: FMI:n HARMONIE 2,5 km (`tools/harmonie.mjs`) hienoimmaksi
-   tasoksi Suomen rannikolle. Sillä on OMA tuntiakselinsa — ks. tason
-   oma kommentti, ja mittaus `docs/data.md`:ssä.
+   KOLME MALLIA, JOKAINEN OMANA PYRAMIDINAAN (docs/mallit.md):
+   - ECMWF IFS 0,25° koko maapallolle (tasot l0–l4) — pohja joka on aina.
+   - FMI HARMONIE 2,5 km Suomeen ja sen ympärille (h0–h3,
+     `tools/harmonie.mjs`).
+   - MET Nordic 1 km eli Yr:n data Pohjoismaihin ja Baltiaan, myös
+     menneisyyteen (n0–n3, `tools/metnordic.mjs`).
+   Alueellisilla malleilla on OMA tuntiakselinsa ja laatoissa PAINOKANAVA,
+   jolla asiakas sekoittaa ne alempaan malliin pehmeästi
+   (`tools/pyramidi.mjs`). Karkeat tasot ovat kaikissa suodatettuja
+   eivätkä poimintoja.
 
    MIKSI TÄMÄ ON OLEMASSA. Open-Meteon ILMAINEN API laskuttaa paikoittain:
    jokainen koordinaatti erässä on oma kutsunsa. Mitattuna yksi todellinen
@@ -32,7 +39,13 @@ import { OmFileReader, OmHttpBackend, OmDataType } from '@openmeteo/file-reader'
 import { gzipSync } from 'node:zlib';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { haeHarmonie } from './harmonie.mjs';
+import { haeHarmonie, harmonieAjot } from './harmonie.mjs';
+import * as MetNordic from './metnordic.mjs';
+import {
+  N, TYHJA, NOP_ASKEL, SUUNTA_ASKEL, OTSAKE,
+  luoPyramidi, uvHilaksi, kirjoitaHetki, tiivistaAika, kirjoitaLaatta, onDataa,
+  suorakaidePaino,
+} from './pyramidi.mjs';
 
 const S3 = 'https://openmeteo.s3.amazonaws.com';
 const MALLI = 'ecmwf_ifs025';
@@ -68,10 +81,11 @@ const SRC = { lat0: -90, lng0: -180, step: 0.25, ny: 721, nx: 1440 };
    yksi laatta) ja kallis kaukana. Siksi oikea kysymys ei ole "paljonko
    tilaa on" vaan "mitä tarkkuutta mikin zoom oikeasti käyttää".
 
-   Sovellus käyttää 0,25 astetta vasta zoomista 10 ylöspäin, ja siellä
-   katsotaan aina jotain tiettyä spottia. Kaikki spotit ovat Suomessa,
-   jonka l0 jo kattaa. Koko maailman 0,25° palvelisi siis vain sitä että
-   joku zoomaa z10:een keskelle Tyyntämerta — ei ketään.
+   l0 KATTAA MET NORDICIN YMPÄRISTÖN, ei vain Suomea. MET Nordic
+   sekoittuu reunoillaan ECMWF:ään, ja sekoitusvyöhykkeellä ECMWF:n pitää
+   olla sen hienoin taso — muuten raja-alue olisi 0,5 asteen kenttää 1 km
+   mallin vieressä. Alue on MET Nordicin lat/lon-rajaus (52–74°,
+   −12…42°) pyöristettynä laattoihin.
 
    Sen sijaan ULOIN näkymä näyttää aina ison siivun maailmaa, ja siellä
    hilaväli on 1,25° eli taso l2. Siksi **l2 on nyt globaali**: se on se
@@ -83,25 +97,34 @@ const SRC = { lat0: -90, lng0: -180, step: 0.25, ny: 721, nx: 1440 };
    Pakkauksesta ei ole apua: mitattuna paikkadelta ennen gzipiä säästää
    13 %, aikadelta 6 % ja molemmat yhdessä 13 %. Data on jo lähellä
    entropiaansa, koska arvot on kvantisoitu tavuun.                     */
-const N = 21;                       /* pistettä laatan sivulla */
 const TASOT = [
-  { id: 'l0', askel: 0.25, lat: [54, 71],  lng: [14, 33]   },  /* Itämeri + Suomi     */
+  { id: 'l0', askel: 0.25, lat: [50, 75],  lng: [-15, 45]  },  /* Pohjoismaat + Baltia */
   { id: 'l1', askel: 0.5,  lat: [28, 80],  lng: [-45, 65]  },  /* Eurooppa + Atlantti */
   { id: 'l2', askel: 1.0,  lat: [-90, 90], lng: [-180, 180]},  /* koko maailma        */
   { id: 'l3', askel: 2.5,  lat: [-90, 90], lng: [-180, 180]},  /* koko maailma        */
   { id: 'l4', askel: 5.0,  lat: [-90, 90], lng: [-180, 180]},  /* maailma, uloin      */
 ];
 /* ------------------------------------------------------------------
-   HIENOIN TASO EI OLE ECMWF:ÄÄ VAAN HARMONIEA.
+   SUOMEN YLLÄ EI OLE ECMWF:ÄÄ VAAN HARMONIEA — KAIKILLA ZOOMEILLA.
 
    Kaikki edellä olevat tasot ovat samaa 0,25 asteen maailmanlaajuista
-   mallia harvennettuna. Hienompi ECMWF-taso ei ole olemassa: 0,25° ON
+   mallia suodatettuna. Hienompi ECMWF-taso ei ole olemassa: 0,25° ON
    mallin oma hila, ja sen alapuolella olisi vain interpolointia jonka
    sovellus tekee itsekin.
 
    Lähikatselun tarkkuus tulee siis toisesta mallista. FMI:n HARMONIE on
-   2,5 km (0,0225°) ja kattaa Itämeren; sovellus on Suomen rannikon
-   kelisovellus, joten juuri se alue on se jota katsotaan zoomilla 10+.
+   2,5 km (0,0225°); sovellus on Suomen rannikon kelisovellus. Ennen se
+   oli yksi taso (h0) jonka sai vasta zoomilla 10, jolloin Helsingin yllä
+   oli zoomista riippuen kolmea eri kenttää (docs/mallit.md). Nyt
+   HARMONIElla on oma pyramidinsa h0–h3, ja zoom valitsee vain sen
+   tarkkuuden: malli on paikan ja hetken ominaisuus, ei zoomin.
+
+   ALUE ON KOKO SUOMI JA 50 KM SEKOITUSVYÖHYKE SEN ULKOPUOLELLA:
+   lat 58–71, lng 17–33. Utsjoki (70,1°) on 100 km ja itäraja (31,6°)
+   70 km reunasta, joten vyöhyke osuu kokonaan Suomen ulkopuolelle.
+   Painokanava on smoothstep etäisyydestä suorakaiteen reunaan
+   (`suorakaidePaino`), ja reunalla sen alla jatkaa MET Nordic — sama
+   MEPS-ajo jälkikäsiteltynä, joten raja on myös sisällöltään pehmeä.
 
    AIKA-AKSELI ON TÄLLÄ TASOLLA OMANSA, eikä se ole valinnainen ylellisyys.
    Mitattuna (10 pistettä, 400 tuntia): jos HARMONIE tallennettaisiin
@@ -111,25 +134,33 @@ const TASOT = [
    nousi 172 asteeseen. Kolmen tunnin askel riittää ECMWF:lle, koska se
    ON ECMWF:n oma askel; HARMONIElle se olisi datan heittämistä pois.
 
-   Taso on `vainKartta`: se palvelee lämpökarttaa, partikkeleita ja
-   tähtäintä, muttei aikajanaa eikä spottikorttia. Ne tarvitsevat
-   16,6 vuorokauden sarjan, ja tämä kattaa 66 tuntia.                  */
-const HARMONIE_TASO = {
-  id: 'h0', askel: 0.05, lat: [58, 66], lng: [18, 31],
-  /* `malli` ON LÄHDEREKISTERIN AVAIN, ei vapaa nimi. Sovelluksessa
-     lähteiden nimet ovat yhdessä paikassa (`Lahde.NIMET` / `LYHYET`),
-     ja lähdemerkintä hakee tason nimen tällä avaimella. Oma nimikenttä
-     tässä olisi toinen rekisteri, joka ajautuisi siitä erilleen. */
-  malli: 'fmi',
-  lahde: 'Ilmatieteen laitos · HARMONIE 2,5 km · CC BY 4.0',
-  vainKartta: true,
-};
+   Taso on `vainKartta`: vanha asiakas ei käytä sitä aikajanaan eikä
+   spottikorttiin, koska ne tarvitsevat 16,6 vuorokauden sarjan ja tämä
+   kattaa noin 70 tuntia.                                              */
+const FMI_ALUE = { lat: [58, 71], lng: [17, 33] };
+const FMI_TASOT = [0.05, 0.1, 0.25, 0.5].map((askel, i) => ({
+  id: 'h' + i, askel, lat: FMI_ALUE.lat, lng: FMI_ALUE.lng,
+  paino: (lat, lng) => suorakaidePaino(lat, lng, FMI_ALUE),
+}));
+/* `malli` ON LÄHDEREKISTERIN AVAIN, ei vapaa nimi. Sovelluksessa
+   lähteiden nimet ovat yhdessä paikassa (`Lahde.NIMET` / `LYHYET`), ja
+   lähdemerkintä hakee tason nimen tällä avaimella. Oma nimikenttä tässä
+   olisi toinen rekisteri, joka ajautuisi siitä erilleen. */
+const FMI_MALLI = { malli: 'fmi', perhe: 'fmi',
+  lahde: 'Ilmatieteen laitos · HARMONIE 2,5 km · CC BY 4.0' };
 /* MIKSI 0,05° EIKÄ MALLIN OMA 0,0225°. Laatta on 21 x 21 pistettä, joten
    askel määrää myös laatan koon: 0,05° antaa yhden asteen laatan, jolloin
    Helsingin z11-näkymä on yksi laatta. 0,0225° antaisi 0,45 asteen laatan
    eli nelinkertaisen määrän laattoja samaan näkymään — ja viisinkertaisen
    varaston. 0,05° on 2,8 km Suomen leveyksillä eli käytännössä mallin oma
    tarkkuus, ja se on viisi kertaa hienompi kuin l0. */
+
+/* MET Nordic: sama porrastus, oma alue (Lambert-hilan lat/lon-rajaus).
+   Paino tulee Lambert-hilan omasta reunasta, ei suorakaiteesta. */
+const MN_HILA_ASKEL = 0.05;
+const MN_TASOT_POHJA = [0.05, 0.1, 0.25, 0.5];
+const MN_MALLI = { malli: 'metnordic', perhe: 'metnordic',
+  lahde: 'MET Norway · MET Nordic 1 km (Yr) · Open-Meteo / AWS Open Data · CC BY 4.0' };
 
 /* MIKSI l3 ja l4 ovat yhä olemassa vaikka l2 kattaa saman alueen
    tarkempana. Ne ovat VARATIE pistekatolle: `getViewportPoints`
@@ -139,44 +170,11 @@ const HARMONIE_TASO = {
    162 laattaa yhden ruudullisen avaamiseen. Data on samaa; ero on vain
    siinä ettei ladata monikertaa enempää kuin näytetään. */
 
-/* Kvantisointi. Tuuli 0,2 m/s askelin 0..50,8 m/s ja suunta 2° askelin:
-   molemmat selvästi hienompia kuin ennusteen oma tarkkuus, ja mahtuvat
-   tavuun. 255 = puuttuva arvo. */
-const TYHJA = 255;
-const NOP_ASKEL = 0.2;
-const SUUNTA_ASKEL = 2;
-function pakkaaNopeus(v) {
-  if (!Number.isFinite(v)) return TYHJA;
-  const q = Math.round(v / NOP_ASKEL);
-  return q < 0 ? 0 : (q > 254 ? 254 : q);
-}
-function pakkaaSuunta(d) {
-  if (!Number.isFinite(d)) return TYHJA;
-  const q = Math.round(((d % 360) + 360) % 360 / SUUNTA_ASKEL);
-  return q >= 180 ? 0 : q;
-}
+/* Kvantisointi (`pyramidi.mjs`): tuuli 0,2 m/s askelin 0..50,8 m/s ja
+   suunta 2° askelin — molemmat selvästi hienompia kuin ennusteen oma
+   tarkkuus, ja mahtuvat tavuun. 255 = puuttuva arvo. */
 
 /* ------------------------------------------------------------------ */
-
-function laatanRuudukko(taso) {
-  const span = (N - 1) * taso.askel;
-  const ruudut = [];
-  for (let lat = Math.floor(taso.lat[0] / span) * span; lat < taso.lat[1]; lat += span) {
-    for (let lng = Math.floor(taso.lng[0] / span) * span; lng < taso.lng[1]; lng += span) {
-      ruudut.push({ lat0: +lat.toFixed(4), lng0: +lng.toFixed(4) });
-    }
-  }
-  return ruudut;
-}
-
-/* Lähdehilan indeksi. Kaikki tasojen askeleet ovat 0,25°:n monikertoja,
-   joten osuma on tarkka eikä interpolointia tarvita. */
-function srcIdx(lat, lng) {
-  const y = Math.round((lat - SRC.lat0) / SRC.step);
-  let lg = ((lng + 180) % 360 + 360) % 360 - 180;
-  const x = Math.round((lg - SRC.lng0) / SRC.step);
-  return { y, x: ((x % SRC.nx) + SRC.nx) % SRC.nx };
-}
 
 async function haeJson(url) {
   const r = await fetch(url);
@@ -291,39 +289,63 @@ const RINNAKKAIN = +(process.env.RINNAKKAIN || 6);
 const MAX_ASKELTA = +(process.env.MAX_ASKELTA || 0);
 
 const MENNEISYYS_H = +(process.env.MENNEISYYS_H || 48);
+/* MET Nordicin tiedosto on 7 MB ja kolme tuulikenttää siitä noin 3 MB
+   (mitattu 6 s / hetki), joten rinnakkaisuus on ECMWF:ää pienempi:
+   jokainen lukija pitää kolmea 4,2 M pisteen kenttää muistissa. */
+const MN_RINNAKKAIN = +(process.env.MN_RINNAKKAIN || 4);
+
+rmSync(ULOS, { recursive: true, force: true });
+mkdirSync(ULOS, { recursive: true });
+
+const alkoi = Date.now();
+let tavujaRaaka = 0, tavujaPakattu = 0, laattojaYht = 0;
+const aika = () => `${((Date.now() - alkoi) / 1000).toFixed(0)} s`;
+
+/* Tason laatat levylle. Palauttaa kirjoitettujen laattojen listan —
+   tyhjät jätetään pois (`onDataa`), ja luettelo kertoo asiakkaalle mitkä
+   ovat olemassa. */
+function kirjoitaTaso(taso, nt, t0Ms, dtSek) {
+  mkdirSync(join(ULOS, taso.id), { recursive: true });
+  const laatat = [];
+  let tavut = 0;
+  for (const ruutu of taso.ruudut) {
+    if (!onDataa(ruutu)) continue;
+    const raaka = kirjoitaLaatta(taso, ruutu, nt, t0Ms, dtSek);
+    const pakattu = gzipSync(raaka, { level: 9 });
+    writeFileSync(join(ULOS, taso.id, `${ruutu.lat0}_${ruutu.lng0}.bin.gz`), pakattu);
+    tavujaRaaka += raaka.length; tavujaPakattu += pakattu.length; tavut += pakattu.length;
+    laatat.push([ruutu.lat0, ruutu.lng0]);
+  }
+  laattojaYht += laatat.length;
+  console.log(`  ${taso.id}: askel ${taso.askel}°, ${laatat.length}/${taso.ruudut.length} laattaa, `
+    + `${(tavut / 1e6).toFixed(1)} MB`);
+  return laatat;
+}
+
+function rivi(taso, laatat, lisat) {
+  return { id: taso.id, askel: taso.askel, span: (N - 1) * taso.askel,
+           lat: taso.lat, lng: taso.lng, laatat, ...lisat };
+}
+
+/* ==================================================================
+   ECMWF — pohja joka kattaa koko maapallon ja 15 vuorokautta.       */
 
 const ajot = await haeAjot(2 + Math.ceil(MENNEISYYS_H / 6));
 const dtSek = ajot[0].meta.temporal_resolution_seconds || 10800;
 let akseli = rakennaAikaAkseli(ajot, MENNEISYYS_H, dtSek);
 if (MAX_ASKELTA > 0) akseli = akseli.slice(0, MAX_ASKELTA);
-const ajat = akseli.map(a => new Date(a.ms).toISOString());
-console.log(`${ajot.length} ajoa löytyi, uusin ${ajot[0].pv} ${ajot[0].ajo}`);
-console.log(`aika-akseli ${akseli.length} askelta, askel ${dtSek/3600} h`);
-console.log(`  ${ajat[0]} .. ${ajat[ajat.length-1]}`);
+console.log(`ECMWF: ${ajot.length} ajoa löytyi, uusin ${ajot[0].pv} ${ajot[0].ajo}`);
+console.log(`  aika-akseli ${akseli.length} askelta, askel ${dtSek/3600} h`);
+console.log(`  ${new Date(akseli[0].ms).toISOString()} .. ${new Date(akseli[akseli.length-1].ms).toISOString()}`);
 {
   const kaytetyt = new Map();
   akseli.forEach(a => kaytetyt.set(a.ajo.ajo, (kaytetyt.get(a.ajo.ajo) || 0) + 1));
   console.log('  ajoittain: ' + [...kaytetyt].map(([k, v]) => `${k} ${v}`).join(', '));
 }
 
-/* Varataan puskurit: taso -> laatta -> {nop, suunta, puuska} */
-const tasot = TASOT.map(t => {
-  const ruudut = laatanRuudukko(t);
-  return {
-    ...t,
-    ruudut: ruudut.map(r => ({
-      ...r,
-      nop:    new Uint8Array(ajat.length * N * N).fill(TYHJA),
-      suunta: new Uint8Array(ajat.length * N * N).fill(TYHJA),
-      puuska: new Uint8Array(ajat.length * N * N).fill(TYHJA),
-    })),
-  };
-});
-const laattojaYht = tasot.reduce((s, t) => s + t.ruudut.length, 0);
-console.log(`  ${laattojaYht} laattaa, ${(laattojaYht * ajat.length * N * N * 3 / 1e6).toFixed(1)} MB pakkaamattomana`);
-
-let valmiit = 0, puuttuvat = 0;
-const alkoi = Date.now();
+const ecmwf = luoPyramidi(TASOT, akseli.length);
+const ecmwfOk = [];
+let valmiit = 0;
 
 await rinnakkain(akseli, RINNAKKAIN, async (kohta, ti) => {
   /* Tiedostonimi on 2026-08-26T1200.om eli ISO ilman sekunteja ja
@@ -335,89 +357,39 @@ await rinnakkain(akseli, RINNAKKAIN, async (kohta, ti) => {
   try {
     kentat = await lueHetki(url);
   } catch (e) {
-    puuttuvat++;
     console.warn(`  ! ${d.toISOString()}: ${e.message}`);
     return;
   }
-  const u = kentat.wind_u_component_10m;
-  const v = kentat.wind_v_component_10m;
-  const g = kentat.wind_gusts_10m;
-
-  for (const taso of tasot) {
-    for (const ruutu of taso.ruudut) {
-      const pohja = ti * N * N;
-      for (let iy = 0; iy < N; iy++) {
-        const lat = ruutu.lat0 + iy * taso.askel;
-        if (lat < -90 || lat > 90) continue;
-        for (let ix = 0; ix < N; ix++) {
-          const lng = ruutu.lng0 + ix * taso.askel;
-          const { y, x } = srcIdx(lat, lng);
-          if (y < 0 || y >= SRC.ny) continue;
-          const si = y * SRC.nx + x;
-          const uu = u[si], vv = v[si];
-          if (!Number.isFinite(uu) || !Number.isFinite(vv)) continue;
-          const nop = Math.sqrt(uu * uu + vv * vv);
-          /* Meteorologinen suunta = MISTÄ tuuli tulee. */
-          const suunta = (270 - Math.atan2(vv, uu) * 180 / Math.PI + 360) % 360;
-          const k = pohja + iy * N + ix;
-          ruutu.nop[k] = pakkaaNopeus(nop);
-          ruutu.suunta[k] = pakkaaSuunta(suunta);
-          if (g) ruutu.puuska[k] = pakkaaNopeus(g[si]);
-        }
-      }
-    }
-  }
+  /* Lähdehila on koko maapallo 0,25°:n välein, rivi 0 etelänavalla ja
+     pituusaste kiertää. Tasojen askeleet ovat 0,25°:n monikertoja, joten
+     laatan solmut osuvat hilan solmuihin tarkasti. */
+  kirjoitaHetki(ecmwf, ti, {
+    la0: SRC.lat0, lo0: SRC.lng0, askel: SRC.step, ni: SRC.nx, nj: SRC.ny, kierto: true,
+    ...uvHilaksi(kentat.wind_u_component_10m, kentat.wind_v_component_10m, kentat.wind_gusts_10m),
+  });
+  ecmwfOk.push(ti);
   valmiit++;
   if (valmiit % 20 === 0 || valmiit === akseli.length) {
-    const kulunut = (Date.now() - alkoi) / 1000;
-    console.log(`  ${valmiit}/${akseli.length} hetkeä  ${kulunut.toFixed(0)} s`);
+    console.log(`  ${valmiit}/${akseli.length} hetkeä  ${aika()}`);
   }
 });
 
-if (valmiit === 0) throw new Error('yhtään hetkeä ei saatu luettua');
-
-/* ------------------------------------------------------------------
-   Kirjoitus. Otsake on kiinteän mittainen ja pikkuendian; sen jälkeen
-   kolme tavutasoa järjestyksessä [aika][y][x]. Yksi hetki on siis
-   yhtenäinen lohko — sovellus piirtää yhden hetken kerrallaan.        */
-const OTSAKE = 40;
-/* `t0Ms` ja `dt` ovat parametreja eivätkä moduulin muuttujia, koska
-   HARMONIE-tasolla on OMA aika-akselinsa (tunnin askel, 66 h) eikä
-   varaston yhteinen. Otsakkeessa ne ovat jo valmiiksi laattakohtaisia;
-   vain kirjoittaja oletti ne yhteisiksi. */
-function kirjoitaLaatta(taso, ruutu, nt, t0Ms, dt) {
-  const runko = new Uint8Array(OTSAKE + 3 * nt * N * N);
-  const dv = new DataView(runko.buffer);
-  runko.set(new TextEncoder().encode('FSTILE\0'), 0);
-  dv.setUint8(7, 1);                          /* versio */
-  dv.setFloat32(8, taso.askel, true);
-  dv.setFloat32(12, ruutu.lat0, true);
-  dv.setFloat32(16, ruutu.lng0, true);
-  dv.setUint16(20, N, true);
-  dv.setUint16(22, N, true);
-  dv.setUint16(24, nt, true);
-  dv.setFloat64(26, t0Ms, true);
-  dv.setUint32(34, dt, true);
-  dv.setUint8(38, TYHJA);
-  dv.setUint8(39, 0);
-  const koko = nt * N * N;
-  runko.set(ruutu.nop.subarray(0, koko), OTSAKE);
-  runko.set(ruutu.suunta.subarray(0, koko), OTSAKE + koko);
-  runko.set(ruutu.puuska.subarray(0, koko), OTSAKE + 2 * koko);
-  return runko;
+if (ecmwfOk.length === 0) throw new Error('yhtään hetkeä ei saatu luettua');
+const puuttuvat = akseli.length - ecmwfOk.length;
+ecmwfOk.sort((a, b) => a - b);
+if (puuttuvat) {
+  tiivistaAika(ecmwf, ecmwfOk);
+  akseli = ecmwfOk.map(i => akseli[i]);
 }
+const ajat = akseli.map(a => a.ms);
 
-rmSync(ULOS, { recursive: true, force: true });
-mkdirSync(ULOS, { recursive: true });
-
-let tavujaRaaka = 0, tavujaPakattu = 0;
 const luettelo = {
   versio: 1,
   malli: MALLI,
   lahde: 'Open-Meteo / ECMWF IFS 0.25° · AWS Open Data · CC BY 4.0',
   ajoAika: ajot[0].meta.reference_time,
   luotu: new Date().toISOString(),
-  t0: Date.parse(ajat[0]),
+  t0: ajat[0],
   dtSek,
   nt: ajat.length,
   /* Aika-akseli EI OLE tasavälinen, joten se luetellaan kokonaan.
@@ -429,128 +401,158 @@ const luettelo = {
      näyttäisi rikkinäiseltä. Lista on 98 lukua eli pari kilotavua.
      Interpolointi osaa epätasaisen välin itsestään: se hakee hetkeä
      ympäröivän parin, ei kiinteää askelta. */
-  ajat: ajat.map(a => Date.parse(a)),
+  ajat,
   n: N,
   nopAskel: NOP_ASKEL,
   suuntaAskel: SUUNTA_ASKEL,
   tyhja: TYHJA,
   otsake: OTSAKE,
   puuttuvia: puuttuvat,
+  /* `tasot` on se lista jota VANHA asiakas lukee: se valitsee siitä
+     askeleella eikä tunne painokanavaa. Siksi siinä ovat vain ECMWF ja
+     HARMONIEn hienoin taso (joka oli siinä ennenkin, nyt isommalla
+     alueella). Uudet tasot ovat `lisatasot`-listassa, jonka vain
+     painokanavan osaava asiakas lukee — muuten vanha asiakas valitsisi
+     MET Nordicin tai karkean HARMONIEn pelkän askeleen perusteella ja
+     piirtäisi sen kovalla reunalla. */
   tasot: [],
+  lisatasot: [],
 };
 
-for (const taso of tasot) {
-  mkdirSync(join(ULOS, taso.id), { recursive: true });
-  const tiedostot = [];
-  for (const ruutu of taso.ruudut) {
-    const raaka = kirjoitaLaatta(taso, ruutu, ajat.length, Date.parse(ajat[0]), dtSek);
-    const pakattu = gzipSync(raaka, { level: 9 });
-    const nimi = `${ruutu.lat0}_${ruutu.lng0}.bin.gz`;
-    writeFileSync(join(ULOS, taso.id, nimi), pakattu);
-    tavujaRaaka += raaka.length; tavujaPakattu += pakattu.length;
-    tiedostot.push([ruutu.lat0, ruutu.lng0]);
-  }
-  const span = (N - 1) * taso.askel;
-  luettelo.tasot.push({ id: taso.id, askel: taso.askel, span,
-    lat: taso.lat, lng: taso.lng, laatat: tiedostot });
-  console.log(`  ${taso.id}: askel ${taso.askel}°, ${taso.ruudut.length} laattaa`);
+console.log('\nECMWF-laatat:');
+for (const taso of ecmwf) {
+  const laatat = kirjoitaTaso(taso, ajat.length, ajat[0], dtSek);
+  luettelo.tasot.push(rivi(taso, laatat, { perhe: 'ecmwf' }));
 }
 
-/* ------------------------------------------------------------------
-   HARMONIE-taso.
+/* ==================================================================
+   FMI HARMONIE — Suomi.
 
    Ajetaan ECMWF:n JÄLKEEN ja omassa try/catchissaan. Jos FMI on
-   poissa, varasto julkaistaan ilman tätä tasoa — sovellus valitsee
-   silloin l0:n aivan kuten ennenkin. Ajastettu työ ei saa kaatua
-   siihen että toinen lähde on hetken nurin.                          */
-let harmonieLaattoja = 0;
+   poissa, varasto julkaistaan ilman näitä tasoja — sovellus näyttää
+   silloin MET Nordicia tai ECMWF:ää. Ajastettu työ ei saa kaatua siihen
+   että toinen lähde on hetken nurin.
+
+   KAKSI AJOA. Tuoreimmasta ajosta koko ennuste, ja edellisestä ajosta
+   sen alkutunnit tuoreimman ajohetkeen asti — latauspalvelu säilyttää
+   vain nämä kaksi (`harmonieAjot`). Ennen haku alkoi rakennushetken
+   tunnista, jolloin FMI kattoi vasta rakennuksesta eteenpäin ja kaikki
+   sitä edeltävä oli ECMWF:ää; nyt kate alkaa 3–9 h aiemmin.          */
 if (process.env.HARMONIE !== '0') {
   const h0alkoi = Date.now();
   try {
-    console.log('\nHARMONIE:');
-    const h = await haeHarmonie({
-      lat: HARMONIE_TASO.lat, lng: HARMONIE_TASO.lng, askel: HARMONIE_TASO.askel,
-      tunteja: +(process.env.HARMONIE_H || 66),
-      log: (s) => console.log(s),
-    });
-    const U = h.kentat.get('WindUMS'), V = h.kentat.get('WindVMS'), G = h.kentat.get('WindGust');
-    const hNt = h.ajat.length;
-
-    /* PUUSKAN LEIMA ON TUNNIN EDELLÄ. Mitattuna samassa pisteessä:
-       pistekyselyn WindGust klo 13:00 = 8,50 ja hilan puuska leimalla
-       12:00 = 8,47, kun taas hilan puuska leimalla 13:00 = 8,12 — joka
-       on pistekyselyn klo 14:00 arvo. Hilassa leima on siis jakson ALKU
-       ja pistekyselyssä sen loppu. Ilman siirtoa laatan puuska olisi
-       tunnin myöhässä ja eri luku kuin spottikortin puuska SAMASTA
-       MALLISTA. Sarja alkaa tunnin aiemmin kuin tuuli, joten siirretty
-       arvo löytyy jokaiselle askeleelle. */
-    const puuskaHetki = (t) => G.has(t - 3600e3) ? G.get(t - 3600e3) : (G.get(t) || null);
-
-    const ruudut = laatanRuudukko(HARMONIE_TASO).map(r => ({
-      ...r,
-      nop:    new Uint8Array(hNt * N * N).fill(TYHJA),
-      suunta: new Uint8Array(hNt * N * N).fill(TYHJA),
-      puuska: new Uint8Array(hNt * N * N).fill(TYHJA),
-    }));
-
-    for (let ti = 0; ti < hNt; ti++) {
-      const t = h.ajat[ti];
-      const u = U.get(t), v = V.get(t), g = puuskaHetki(t);
-      const pohja = ti * N * N;
-      for (const ruutu of ruudut) {
-        for (let iy = 0; iy < N; iy++) {
-          /* Osuma on TARKKA eikä interpoloitu: laatan askel 0,05° ja
-             hilan origo 58/18 ovat molemmat 0,05:n monikertoja, joten
-             pyöristys osuu solmuun. `round` eikä `floor` juuri siksi —
-             0,1 + 0,05 on liukuluvuissa 0,15000000000000002. */
-          const j = Math.round((ruutu.lat0 + iy * HARMONIE_TASO.askel - h.la0) / h.askel);
-          if (j < 0 || j >= h.nj) continue;
-          for (let ix = 0; ix < N; ix++) {
-            const i = Math.round((ruutu.lng0 + ix * HARMONIE_TASO.askel - h.lo0) / h.askel);
-            if (i < 0 || i >= h.ni) continue;
-            const si = j * h.ni + i;
-            const uu = u[si], vv = v[si];
-            if (!Number.isFinite(uu) || !Number.isFinite(vv)) continue;
-            const k = pohja + iy * N + ix;
-            ruutu.nop[k] = pakkaaNopeus(Math.sqrt(uu * uu + vv * vv));
-            ruutu.suunta[k] = pakkaaSuunta((270 - Math.atan2(vv, uu) * 180 / Math.PI + 360) % 360);
-            if (g) ruutu.puuska[k] = pakkaaNopeus(g[si]);
-          }
+    console.log('\nFMI HARMONIE:');
+    const ajotH = await harmonieAjot();
+    if (!ajotH.length) throw new Error('yhtään ajoa ei löytynyt');
+    console.log('  ajot: ' + ajotH.map(t => new Date(t).toISOString().slice(0, 13) + 'Z').join(', '));
+    const yhteinen = { lat: FMI_ALUE.lat, lng: FMI_ALUE.lng, askel: FMI_TASOT[0].askel,
+                       log: (s) => console.log(s) };
+    const uusin = await haeHarmonie({ ...yhteinen, ajo: ajotH[0],
+                                      tunteja: +(process.env.HARMONIE_H || 66) });
+    let edellinen = null;
+    if (ajotH[1]) {
+      try {
+        edellinen = await haeHarmonie({ ...yhteinen, ajo: ajotH[1], minHetkia: 1,
+                                        tunteja: Math.round((ajotH[0] - ajotH[1]) / 3600e3) - 1 });
+        if (edellinen.ni !== uusin.ni || edellinen.nj !== uusin.nj
+            || edellinen.la0 !== uusin.la0 || edellinen.lo0 !== uusin.lo0) {
+          console.warn('  ! edellisen ajon hila eri, jätetään pois');
+          edellinen = null;
         }
+      } catch (e) {
+        console.warn(`  ! edellinen ajo jäi pois: ${e.message}`);
       }
     }
+    const hetket = [];
+    if (edellinen) for (const t of edellinen.ajat) if (t < uusin.ajo) hetket.push({ t, h: edellinen });
+    for (const t of uusin.ajat) hetket.push({ t, h: uusin });
 
-    mkdirSync(join(ULOS, HARMONIE_TASO.id), { recursive: true });
-    const tiedostot = [];
-    for (const ruutu of ruudut) {
-      const raaka = kirjoitaLaatta(HARMONIE_TASO, ruutu, hNt, h.ajat[0], 3600);
-      const pakattu = gzipSync(raaka, { level: 9 });
-      writeFileSync(join(ULOS, HARMONIE_TASO.id, `${ruutu.lat0}_${ruutu.lng0}.bin.gz`), pakattu);
-      tavujaRaaka += raaka.length; tavujaPakattu += pakattu.length;
-      tiedostot.push([ruutu.lat0, ruutu.lng0]);
-    }
-    harmonieLaattoja = ruudut.length;
-    luettelo.tasot.push({
-      id: HARMONIE_TASO.id, askel: HARMONIE_TASO.askel, span: (N - 1) * HARMONIE_TASO.askel,
-      lat: HARMONIE_TASO.lat, lng: HARMONIE_TASO.lng, laatat: tiedostot,
-      /* TASON OMA AIKA-AKSELI. Asiakas lukee tämän eikä luettelon
-         yhteistä `ajat`-taulukkoa, ja `taso()` ohittaa tason kokonaan
-         niinä hetkinä joita se ei kata. */
-      ajat: h.ajat, nt: hNt, t0: h.ajat[0], dtSek: 3600,
-      malli: HARMONIE_TASO.malli, nimi: HARMONIE_TASO.nimi,
-      lahde: HARMONIE_TASO.lahde, vainKartta: true,
+    const fmi = luoPyramidi(FMI_TASOT, hetket.length);
+    hetket.forEach(({ t, h }, ti) => {
+      const U = h.kentat.get('WindUMS'), V = h.kentat.get('WindVMS'), G = h.kentat.get('WindGust');
+      /* PUUSKAN LEIMA ON TUNNIN EDELLÄ. Mitattuna samassa pisteessä:
+         pistekyselyn WindGust klo 13:00 = 8,50 ja hilan puuska leimalla
+         12:00 = 8,47, kun taas hilan puuska leimalla 13:00 = 8,12 — joka
+         on pistekyselyn klo 14:00 arvo. Hilassa leima on siis jakson ALKU
+         ja pistekyselyssä sen loppu. Ilman siirtoa laatan puuska olisi
+         tunnin myöhässä ja eri luku kuin spottikortin puuska SAMASTA
+         MALLISTA. Siirto tehdään AJON SISÄLLÄ: ajon ensimmäiselle tunnille
+         käytetään sen omaa leimaa. */
+      const g = G.has(t - 3600e3) ? G.get(t - 3600e3) : (G.get(t) || null);
+      kirjoitaHetki(fmi, ti, { la0: h.la0, lo0: h.lo0, askel: h.askel, ni: h.ni, nj: h.nj,
+                               ...uvHilaksi(U.get(t), V.get(t), g) });
     });
-    console.log(`  ${HARMONIE_TASO.id}: askel ${HARMONIE_TASO.askel}°, ${ruudut.length} laattaa, `
-      + `${hNt} hetkeä  ${new Date(h.ajat[0]).toISOString()} .. ${new Date(h.ajat[hNt-1]).toISOString()}`
-      + `  ${((Date.now() - h0alkoi) / 1000).toFixed(0)} s`);
+
+    const hAjat = hetket.map(x => x.t);
+    for (const taso of fmi) {
+      const laatat = kirjoitaTaso(taso, hAjat.length, hAjat[0], 3600);
+      const r = rivi(taso, laatat, {
+        /* TASON OMA AIKA-AKSELI. Asiakas lukee tämän eikä luettelon
+           yhteistä `ajat`-taulukkoa, ja `taso()` ohittaa tason kokonaan
+           niinä hetkinä joita se ei kata. */
+        ajat: hAjat, nt: hAjat.length, t0: hAjat[0], dtSek: 3600,
+        ...FMI_MALLI, ajoAika: new Date(uusin.ajo).toISOString(),
+        paino: true, vainKartta: true,
+      });
+      (taso.id === 'h0' ? luettelo.tasot : luettelo.lisatasot).push(r);
+    }
+    console.log(`  ${hAjat.length} hetkeä  ${new Date(hAjat[0]).toISOString()} .. `
+      + `${new Date(hAjat[hAjat.length - 1]).toISOString()}  `
+      + `${((Date.now() - h0alkoi) / 1000).toFixed(0)} s`);
   } catch (e) {
-    console.warn(`  ! HARMONIE-taso jäi pois: ${e.message}`);
+    console.warn(`  ! HARMONIE-tasot jäivät pois: ${e.message}`);
+  }
+}
+
+/* ==================================================================
+   MET Nordic — Pohjoismaat ja Baltia, myös menneisyys.             */
+if (process.env.METNORDIC !== '0') {
+  const mnAlkoi = Date.now();
+  try {
+    console.log('\nMET Nordic:');
+    const ax = await MetNordic.akseli(+(process.env.MN_MENNEISYYS_H || MENNEISYYS_H));
+    let hetket = ax.hetket;
+    if (MAX_ASKELTA > 0) hetket = hetket.slice(0, MAX_ASKELTA);
+    console.log(`  ajo ${new Date(ax.ajo).toISOString()}, ${hetket.length} hetkeä`);
+    const geom = MetNordic.saannollinenHila(MN_HILA_ASKEL);
+    const tasotMN = MN_TASOT_POHJA.map((askel, i) => ({
+      id: 'n' + i, askel, lat: geom.lat, lng: geom.lng, paino: MetNordic.paino,
+    }));
+    const mn = luoPyramidi(tasotMN, hetket.length);
+    const ok = [];
+    let n = 0;
+    await rinnakkain(hetket, MN_RINNAKKAIN, async (h, ti) => {
+      let k;
+      try { k = await MetNordic.lueHetki(h); }
+      catch (e) { console.warn(`  ! ${new Date(h.ms).toISOString()}: ${e.message}`); return; }
+      kirjoitaHetki(mn, ti, MetNordic.hilaksi(geom, k.wind_speed_10m, k.wind_direction_10m,
+                                              k.wind_gusts_10m));
+      ok.push(ti);
+      if (++n % 20 === 0 || n === hetket.length) console.log(`  ${n}/${hetket.length} hetkeä  ${aika()}`);
+    });
+    if (ok.length < 6) throw new Error(`vain ${ok.length} hetkeä luettiin`);
+    ok.sort((a, b) => a - b);
+    if (ok.length < hetket.length) tiivistaAika(mn, ok);
+    const mAjat = ok.map(i => hetket[i].ms);
+    for (const taso of mn) {
+      const laatat = kirjoitaTaso(taso, mAjat.length, mAjat[0], 3600);
+      luettelo.lisatasot.push(rivi(taso, laatat, {
+        ajat: mAjat, nt: mAjat.length, t0: mAjat[0], dtSek: 3600,
+        ...MN_MALLI, ajoAika: new Date(ax.ajo).toISOString(),
+        paino: true, vainKartta: true,
+      }));
+    }
+    console.log(`  ${mAjat.length}/${hetket.length} hetkeä  ${new Date(mAjat[0]).toISOString()} .. `
+      + `${new Date(mAjat[mAjat.length - 1]).toISOString()}  `
+      + `${((Date.now() - mnAlkoi) / 1000).toFixed(0)} s`);
+  } catch (e) {
+    console.warn(`  ! MET Nordic -tasot jäivät pois: ${e.message}`);
   }
 }
 
 writeFileSync(join(ULOS, 'luettelo.json'), JSON.stringify(luettelo));
-console.log(`\nvalmis: ${laattojaYht + harmonieLaattoja} laattaa`);
+console.log(`\nvalmis: ${laattojaYht} laattaa`);
 console.log(`  raaka   ${(tavujaRaaka/1e6).toFixed(2)} MB`);
 console.log(`  gzip    ${(tavujaPakattu/1e6).toFixed(2)} MB  (${(100*tavujaPakattu/tavujaRaaka).toFixed(0)} %)`);
-console.log(`  hetkiä  ${valmiit}/${ajat.length}${puuttuvat ? ` (${puuttuvat} puuttui)` : ''}`);
-console.log(`  aika    ${((Date.now()-alkoi)/1000).toFixed(0)} s`);
+console.log(`  ECMWF-hetkiä  ${ecmwfOk.length}/${ecmwfOk.length + puuttuvat}${puuttuvat ? ` (${puuttuvat} puuttui)` : ''}`);
+console.log(`  aika    ${aika()}`);

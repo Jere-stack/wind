@@ -30,11 +30,16 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   mittausdata-proxyt).
   ES-moduuleja, koska
   `package.json`:ssa on `"type": "module"` — `require()` ei toimi näissä.
-- `tools/tiilet.mjs` — säälaattojen rakennus AWS Open Datan ECMWF-datasta
-  ja FMI:n HARMONIE-hilasta. Ajetaan GitHub Actionsissa neljästi
-  vuorokaudessa (`.github/workflows/`).
-- `tools/harmonie.mjs` — FMI HARMONIE 2,5 km hilana GRIB2:sta
-  (`tiilet.mjs`:n toinen lähde, taso `h0`).
+- `tools/tiilet.mjs` — säälaattojen rakennus kolmesta mallista: ECMWF
+  (AWS Open Data, koko maapallo), FMI:n HARMONIE (Suomi) ja MET Nordic
+  (Yr:n data, Pohjoismaat ja Baltia). Ajetaan GitHub Actionsissa neljästi
+  vuorokaudessa (`.github/workflows/`), noin 10 min ja 106 MB.
+- `tools/pyramidi.mjs` — säännöllisestä hilasta suodatettu laattapyramidi
+  ja painokanava; kaikki kolme mallia kirjoitetaan sen kautta.
+- `tools/harmonie.mjs` — FMI HARMONIE 2,5 km hilana GRIB2:sta (tasot
+  `h0`–`h3`), ajo kiinnitettynä `origintime`lla.
+- `tools/metnordic.mjs` — MET Nordic 1 km Lambert-hilasta säännölliseksi
+  0,05°:n hilaksi (tasot `n0`–`n3`).
 - `tools/ikoni.mjs` — sovelluksen merkin ainoa lähde: kirjoittaa
   `public/icon.svg`:n, `--png` koko PNG-sarjan ja `--inline` sen
   `<svg>`:n joka on latausruudussa. Rasterointi Chromiumilla; tiedostot
@@ -90,7 +95,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/partikkelit.md` | tuulipartikkeleita, jäljen muotoa, tiheyttä tai ruutuaikabudjettia |
 | `docs/eleet.md` | nipistystä, zoomia, zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
 | `docs/data.md` | säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja |
-| `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, Open-Meteon S3-malleja** (suunnitelma ja mittaukset, ei vielä toteutettu) |
+| `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, MET Nordicia, Open-Meteon S3-malleja** |
 | `docs/ui.md` | paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa, kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
@@ -140,7 +145,11 @@ kokeiltu ja kaadettu mittauksella.
 - **mallit**: Tiivistelmä · Tavoitteet · Nykytila mitattuna (varaston
   tasot, zoom ja taso, maailmankierros ja paluu, rajojen hyppy, mitä
   S3:ssa on, Windy) · Strategiat S1–S4 · Mihin lukittuihin sääntöihin S1
-  koskee · Avoimet kysymykset
+  koskee · Avoimet kysymykset · Toteutus: päätösten tarkennukset ·
+  V1 valittu hetki pysyy · V2 rakentaja (kolme pyramidia, painokanava,
+  FMI:n ajot, MET Nordicin luku, koko ja kesto) · V3 sovellus (yksi
+  valintasääntö, sekoitus, laattamuisti, lähdemerkintä) · V4 aikajana ·
+  Tarkistukset lähteitä vasten · Mitä jäi (V5)
 - **lisadata**: Mistä sovellus lukee nyt · TOP 10 — data · TOP 10 — lähteet ·
   Mitattu ja hylätty (MEPS on HARMONIE · hydrodyn 2/12 spottia · vuorovesi ·
   Holfuy · ilmanlaatu) · Toinen kerros — kontekstia, ei päätöstä ·
@@ -516,21 +525,46 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 **Asetukset**
 
 - **"AUTOMAATTINEN" TARKOITTAA PARASTA SAATAVILLA, JA PARAS TULEE
-  VARASTOSTA.** HARMONIE on nyt varastossa omana tasonaan (`h0`,
-  0,05°, tunneittain, 66 h) — se oli tämän säännön edellisen version
-  oma johtopäätös ("oikea korjaus nopeudelle on viedä HARMONIE
-  laattaputkeen"), ja se on tehty. `kartanMalli()`:n auto-haara
-  palauttaa siis aina varaston eikä valitse mallia lainkaan; valinnan
-  tekee `Saalaatat.taso()`, joka ottaa hienoimman tason joka kattaa
-  sekä PAIKAN että HETKEN. Älä palauta rajapinnan pakotusta
-  automaattiin: se veisi kartalta laattapyramidin, ja sen hinta on
-  mitattu (panorointi Suomessa 6,1 s ja 44 pyyntöä, käynnistys 22 s
-  vastaan 3 s).
-- **`vainKartta`-TASO EI KELPAA SARJALLE.** `h0` kattaa 66 tuntia ja
-  aikajana 16,6 vuorokautta, joten `wx()` ja `wxTunneittain()` kutsuvat
-  `taso(lat, lng, step, /* sarjalle */ true)` joka ohittaa ne. Kartta
-  lukee `h0`:aa `naytteista()`n kautta. Jos lisäät tason jolla on oma
-  akseli, päätä kumpi se on.
+  VARASTOSTA.** Varastossa on kolme mallia omina pyramideinaan (FMI
+  HARMONIE `h0`–`h3`, MET Nordic `n0`–`n3`, ECMWF `l0`–`l4`), ja
+  `kartanMalli()`:n auto-haara palauttaa aina varaston. Valinnan tekee
+  `Saalaatat.naytteista`: malli tulee PAIKASTA JA HETKESTÄ, zoom valitsee
+  vain tarkkuuden saman mallin sisällä (docs/mallit.md). Älä palauta
+  rajapinnan pakotusta automaattiin: se veisi kartalta laattapyramidin,
+  ja sen hinta on mitattu (panorointi Suomessa 6,1 s ja 44 pyyntöä,
+  käynnistys 22 s vastaan 3 s).
+- **MALLIT SEKOITETAAN PAINOKANAVALLA, TÄRKEIN ENSIN.** Etusija on
+  FMI > MET Nordic > ECMWF (`Saalaatat.PERHEET`). Alueellisen mallin
+  laatassa on neljäs tavutaso, paino 0..1 = smoothstep etäisyydestä
+  mallin alueen reunaan 50 km matkalla; ajassa sama smoothstep akselin
+  alussa 2 h ja lopussa 6 h. Perhe peittää alemmat painonsa verran, ja
+  sekoitus on paikkainterpoloinnin sääntö (nopeus keskiarvona, suunta
+  yksikkövektoreista). Reunalla paino on 0, joten raja on jatkuva:
+  mitattuna FMI:n reunan hyppy oli 1,09 m/s keskimäärin ja 44 % yli
+  1 m/s, nyt vierekkäisten 0,05°:n pisteiden ero raja-alueella on
+  samaa luokkaa kuin mallin sisällä. Älä kirjoita toista
+  valintasääntöä: lämpökartta, partikkelit, kapseli, aikajana ja
+  lähdemerkintä (`malliKohdassa`) lukevat kaikki `naytteista`a.
+- **`Saalaatat.taso()` ON VAIN POHJAMALLI.** Se valitsi ennen kaikkien
+  tasojen joukosta askeleella, jolloin HARMONIE oli kartalla vasta
+  zoomista 10 ja lämpökartta ja lähdemerkintä olivat z9,6:lla eri
+  mieltä. Nyt se palauttaa ECMWF-tason `wx()`:lle; perheen taso on
+  `_perheenTaso`.
+- **VANHA ASIAKAS LUKEE VAIN `tasot`-LISTAN.** Uudet tasot (`h1`–`h3`,
+  `n0`–`n3`) ovat luettelon `lisatasot`-listassa, koska vanha asiakas
+  valitsee askeleella eikä tunne painokanavaa — se piirtäisi MET
+  Nordicin kovalla reunalla. `tasot`issa ovat ECMWF ja `h0`, kuten
+  ennenkin. Luettelon `versio` pysyy 1:nä: vanha asiakas hylkää muut.
+  Mitattu molempiin suuntiin: uusi asiakas vanhalla varastolla ja
+  vanha asiakas uudella, ei virheitä.
+- **LAATTOJEN VERSIOAVAIN ON RAKENNUSHETKI (`luotu`), EI ECMWF:N
+  AJOAIKA.** Kaksi rakennusta voi käyttää samaa ECMWF-ajoa ja eri
+  FMI-ajoa, ja ajoaika avaimena antoi välimuistista edellisen
+  rakennuksen FMI-laatan (mitattu: laatassa 63 hetkeä, luettelossa 70).
+- **TESTISSÄ SERVICE WORKER ON ESTETTÄVÄ** (`serviceWorkers: 'block'`)
+  kun varasto reititetään paikallisiin tiedostoihin: SW hakee laatat
+  ohi Playwrightin reitityksen, ja testi lukee silloin tuotannon
+  laattoja uuden luettelon kanssa.
 - **TASOKOHTAINEN AIKA-AKSELI EI OLE YLELLISYYTTÄ.** Mitattuna 10
   pisteessä ja 400 tunnissa: HARMONIE varaston omalle 3 h akselille
   tallennettuna jättäisi tuntien väliin keskimäärin 0,41 m/s ja
@@ -540,9 +574,8 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   (`laatta._ax`), koska `naytteista` näkee vain laatan. Älä palauta
   jaettua `_ti`/`_tf`-paria.
 - **HETKI ASETETAAN KAIKILLE AKSELEILLE KERRALLA** ja
-  `asetaHetki` mitätöi laattamuistin: sama piste ja sama askel osuu eri
-  tasoon eri hetkellä, koska `taso()` ohittaa tason jonka akseli ei kata
-  hetkeä.
+  `asetaHetki` laskee samalla perheiden aikapainot ja mitätöi
+  laattamuistin: sama piste osuu eri perheeseen eri hetkellä.
 - **ULOIN NÄKYMÄ PYSYY VARASTOSSA JA ILMAN REUNUSTA.** Se on syy miksi
   varasto on yhä olemassa, ja maailmankartan nopeus on sen ansiota.
 - **`kaytossa()` = VARASTO ON KUNNOSSA, `kartallaKaytossa()` = KARTTA
@@ -553,19 +586,33 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   lakkasi hakemasta laattoja ja aikajana menetti 51 tuntia
   menneisyyttään (54,6 h -> 3,5 h, 403 -> 372 tikkiä) — ja sadetutkan
   mennyt kuva menetti kantamansa samalla. Älä yhdistä niitä takaisin.
-- **AIKAJANA LUKEE VARASTOA MYÖS FMI-TILASSA.** Palkit ovat siis
-  ECMWF:ää ja kartta HARMONIEa, eli ne voivat näyttää eri lukua. Se on
-  tietoinen vaihtokauppa: kadonnut vuorokausi olisi ollut uusi menetys,
-  tasojen ero ei ole (se on ollut olemassa ja dokumentoitu, ka
-  1,38 m/s).
+- **AIKAJANA ON KARTAN SEKOITUS, TUNTI KERRALLAAN.** `wxTunneittain`
+  laskee jokaisen tunnin samalla `naytteista`lla kuin kartta (mitattu
+  ero kartan näytteeseen 400 tunnissa 0,0000 m/s, 1,6 ms sarjaa kohti),
+  askeleella `laattaStep(round(zoom))` kuten lämpökartta. Akseli on
+  yhä pohjamallin, joten se ei vaihdu kartan liikkuessa ja menneisyys
+  säilyy (Suomessa se on MET Nordicia). Keskipisteen KAIKKIEN perheiden
+  laatat haetaan erikseen (`varmistaPiste`), koska `varmista` jättää
+  alemmat perheet hakematta täyden ylemmän alle — ilman sitä janan päät
+  jäisivät tyhjiksi.
 - **`gridStep` ON RAJAPINTAHILAN VÄLI, `laattaStep` PYRAMIDIN.**
   Ne EIVÄT saa olla sama funktio: `gridStep` synnyttää
   `getViewportPoints`in pistelistan, ja jokainen piste on Open-Meteon
   laskutuksessa oma kutsunsa — 0,05 asteen rajapintahila z12:ssa olisi
   juuri se kiintiö jonka takia koko varasto rakennettiin. `laattaStep`
-  taas vain ohjaa `taso()`:n hienompaan laattaan jos sellainen on
-  olemassa, ja se on ilmaista. Pyramidi ja tähtäin lukevat
-  `laattaStep`iä, hilapisteet `gridStep`iä.
+  taas vain valitsee perheen sisältä tason (z10+ 0,05, z9 0,1, z8 0,25,
+  z7 0,5, muuten `gridStep`), ja se on ilmaista. Lämpökartta, tähtäin,
+  partikkelit (z7+) ja aikajana lukevat `laattaStep`iä, hilapisteet
+  `gridStep`iä.
+- **`varmista` LUETTELEE LAATAT TASOITTAIN, EI NÄYTTEISTÄ PISTEITÄ.**
+  Asteen välein näytteistetty alue ohitti tason reunalle jäävän
+  kaistaleen (l0-laatta 10–15° kattaa vanhan l0-alueen vain 14–15°):
+  mitattuna 120 solmua 3 600:sta jäi ilman laattaansa. Nyt jokaisen
+  tason laatat leikataan alueen kanssa ja testataan kulmista.
+- **LAATTAMUISTI ON KÄYTTÖJÄRJESTYKSESSÄ, 160 LAATTAA.** Katto oli 40
+  lisäysjärjestyksessä, ja maailmankierros pudotti Suomen laatat joka
+  kerta. Mitattu jälkeen: Helsinki on paluussa FMI:tä 2,5–5 s:ssa ja
+  valittu hetki pysyy.
 - **MALLIN PAKOTUS ON `Saalaatat.pois()`, EI `?laatat=0`.** Mitattuna
   `?laatat=0` vaihtaa vain piirtotavan ja data tulee yhä varastosta
   (506 pistettä 518:sta). Varaston sulkeminen on se kytkin joka siirtää
@@ -1620,11 +1667,12 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
 **Kenttä ja data**
 
 - **SOVELLUKSESSA ON KAKSI DATATASOA, ja ne antavat eri luvun.** Kartta
-  (lämpökartta, kapseli, partikkelit) lukee `Saalaatat`-varastoa
-  (Suomen rannikolla ja 66 tunnin sisällä HARMONIE 0,05°, muualla
-  ECMWF 0,25°); aikajana ja spottikortit lukevat lähintä
+  (lämpökartta, kapseli, partikkelit) ja aikajana lukevat
+  `Saalaatat`-varastoa (FMI, MET Nordic ja ECMWF sekoitettuina, ks.
+  "MALLIT SEKOITETAAN PAINOKANAVALLA"); spottikortit lukevat lähintä
   ennustepistettä, joka on Suomessa käytännössä aina spotti ja siis
-  HARMONIE. Mitattu 3 893 vertailulla: ka 1,38 m/s, med 1,20, max 7,34,
+  HARMONIE. Alla oleva mittaus on ajalta jolloin kartta oli Suomessa
+  ECMWF:ää alle zoomin 10. Mitattu 3 893 vertailulla: ka 1,38 m/s, med 1,20, max 7,34,
   ja **86 % tunneista yli 0,5 m/s rajan**. Ero KASVAA tuulen mukana
   (0,82 → 2,78 m/s välillä 0–4 ja 10–14 m/s). Avomerellä 0,10 m/s,
   koska siellä molemmat tulevat varastosta. Älä oleta että jokin kartan

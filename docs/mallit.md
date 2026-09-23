@@ -18,6 +18,11 @@ Yr.no käyttää (MET Nordic, `metno_nordic_pp`); rajan pehmennys 50 km;
 aikajana seuraa karttaa (S4); maailma S3:n mukaan eli Windyn tapaan.
 Toteutus etenee vaiheittain, ja jokainen vaihe on oma osionsa lopussa.
 
+**Tila:** V1–V4 toteutettu (valittu hetki, kolme pyramidia ja
+painokanava, yksi valintasääntö, aikajana samaan malliin). Nykytila- ja
+strategiaosiot ovat päätöksen pohjana olleet mittaukset ajalta ennen
+toteutusta; voimassa oleva kuvaus on osiossa *Toteutus*.
+
 > Osa FoilSpotin muistiinpanoja. Hakemisto ja säännöt ovat `CLAUDE.md`:ssä;
 > tämä tiedosto luetaan kun työ koskee kartan säämallia, mallien rajoja tai
 > varaston tasoja.
@@ -381,3 +386,153 @@ Akseli vaihtuu paluussa yhä edestakaisin (varasto 391 tikkiä ↔ spotin
 sarja 366), koska kartan keskikohdan varastolaatta on pudonnut 40 laatan
 muistista. Hetki säilyy nyt vaihdoissa; itse edestakaisuus poistuu
 V3:ssa (laattamuisti ja varataso).
+
+### V2 — Rakentaja: kolme pyramidia ja painokanava (toteutettu)
+
+`tools/tiilet.mjs` kirjoittaa kolme mallia omiksi pyramideikseen yhteisen
+moduulin (`tools/pyramidi.mjs`) kautta:
+
+| perhe | lähde | tasot | alue | aika |
+|---|---|---|---|---|
+| FMI | HARMONIE 2,5 km, latauspalvelu (GRIB2) | h0 0,05 · h1 0,1 · h2 0,25 · h3 0,5 | lat 58–71, lng 17–33 | kahden viimeisimmän ajon alusta +66 h, tunneittain |
+| MET Nordic | `metno_nordic_pp` S3:sta (Lambert 1 km) | n0 0,05 · n1 0,1 · n2 0,25 · n3 0,5 | Lambert-alue (lat 52,3–73,9, lng −11,8…41,8) | −48 h (kunkin tunnin oma ajo) + tuorein ajo, tunneittain |
+| ECMWF | `ecmwf_ifs025` S3:sta | l0 0,25 · l1 0,5 · l2 1 · l3 2,5 · l4 5 | l0 lat 50–75, lng −15…45; l2–l4 maapallo | noin −50 h … +15 vrk, 3 h / 6 h |
+
+**Karkeat tasot ovat suodatettuja.** Laatikkosuodin tason askeleen
+levyisenä (reunan pisteet puolella painolla), nopeus keskiarvona ja
+suunta yksikkövektoreista. Tarkistettu: h1:n solmu on h0:n solmujen
+suodin, suurin ero 0,15 m/s eli kvantisoinnin sisällä (340 solmua).
+
+**Painokanava.** Alueellisen mallin laatassa on neljäs tavutaso
+(`tools/pyramidi.mjs`, lippu tavussa 39): smoothstep etäisyydestä alueen
+reunaan 50 km matkalla. FMI:llä reuna on suorakaide, MET Nordicilla
+Lambert-hilan oma reuna (indeksietäisyys on kilometrejä). Helsingissä
+paino on 255, lat 58,00:ssa 0 ja 58,25:ssä 149.
+
+**FMI:n latauspalvelu säilyttää kaksi viimeisintä ajoa.** Luotattu
+`origintime`lla kolmen tunnin välein 54 h taaksepäin (23.9. klo 20:45
+UTC): 15Z ja 12Z vastasivat, muut 400. Ajo kiinnitetään, jotta taso ei
+koostu kahdesta ajosta jos uusi valmistuu kesken haun, ja edellisestä
+ajosta otetaan tuorein ajohetkeä edeltävät tunnit. Ennen haku alkoi
+rakennushetken tunnista; nyt FMI-kate alkaa 3–9 h aiemmin (mitattu:
+akseli 12Z → +69 h, 70 tuntia). Menneisyyttä pidemmälle FMI:llä ei ole
+— Suomen menneisyys tulee MET Nordicista.
+
+**MET Nordicin luku rivipaloissa.** Lukijan WASM-keko ei kasva, ja neljä
+rinnakkaista 4,2 M pisteen kenttää kaatui `Aborted(OOM)`:iin
+(kuusitoista kertaa, rakennus jumiin). 320 rivin paloissa kuusi
+rinnakkaista hetkeä luettiin 8,7 s:ssa. Uudelleenhilaus on
+aluekeskiarvo: jokainen 1 km:n piste lasketaan kerran lähimpään 0,05°:n
+solmuun (10–30 pistettä solmua kohti).
+
+**Luettelo.** `versio` pysyy 1:nä. `tasot` on vanhan asiakkaan lista
+(ECMWF ja h0); uudet tasot ovat `lisatasot`issa ja niillä on `perhe`,
+`malli`, `paino: true`, oma `ajat` ja `ajoAika`. Tyhjiä laattoja ei
+kirjoiteta, ja `laatat` kertoo mitkä ovat olemassa.
+
+Mitattu kontissa (23.9. klo 21–22 UTC):
+
+| osa | laattoja | koko | aika |
+|---|---|---|---|
+| ECMWF l0–l4 | 352 | 27,8 MB | 238 s |
+| FMI h0–h3 | 296 | 13,6 MB | 123 s (55 MB GRIB2) |
+| MET Nordic n0–n3 | 1 126 | 64,5 MB | 261 s |
+| **yhteensä** | **1 774** | **105,7 MB** | **622 s**, muisti enintään 0,85 GB |
+
+Työnkulun aikaraja nostettiin 30 → 45 min. Orpo haara pitää yhden
+version kerrallaan; repon koko oli 31,8 MB kuukauden pakkopäivitysten
+jälkeen, eli GitHub siivoaa pudotetut versiot.
+
+### V3 — Sovellus: malli paikan ja hetken mukaan (toteutettu)
+
+**Yksi valintasääntö.** `Saalaatat.naytteista` käy perheet läpi
+tärkeimmästä alkaen (FMI, MET Nordic, ECMWF). Perheen paino on
+painokanava kertaa aikapaino (smoothstep akselin alussa 2 h, lopussa
+6 h), ja se peittää alemmat painonsa verran. Zoom valitsee vain perheen
+sisältä tason (`_perheenTaso`, `laattaStep`: z10+ 0,05, z9 0,1, z8 0,25,
+z7 0,5). Lämpökartta, partikkelit, kapseli, aikajana ja lähdemerkintä
+lukevat kaikki tätä.
+
+**Laatat.** `varmista` hakee perhe kerrallaan eikä hae alempaa perhettä
+täyden ylemmän laatan alle; laatat luetellaan tasoittain eikä
+näytteistetä (pistenäyte ohitti tason reunakaistaleen: 120 solmua
+3 600:sta ilman laattaa). Muisti on käyttöjärjestyksessä ja 160 laattaa.
+Puuttuvan laatan tilalla käytetään saman perheen karkeampaa ladattua
+tasoa, ja solmu merkitään vajaaksi (maski 2), jolloin lämpökartta
+odottaa oikeaa kuten puuttuvaa dataa — ruudulle ei vaihdu hetkeksi
+toista mallia. Versioavain on rakennushetki (`luotu`).
+
+Mitattu uudella varastolla (`v3.mjs`, `ui.mjs`, Chromium 1280 × 800 ja
+393 × 852 `hasTouch`):
+
+| paikka (nyt) | malli |
+|---|---|
+| Helsinki, Lauttasaari, Oulu, Utsjoki, Joensuu, Tukholma, Tallinna, Pietari | FMI 100 % |
+| Riika, Oslo, Kööpenhamina | MET Nordic 100 % |
+| Berliini, Pariisi, New York | ECMWF 100 % |
+| Ruotsin rannikko 62,0 / 17,2 | MET Nordic → FMI (raja-alue) |
+| Viro 58,3 / 25,0 | FMI → MET Nordic (raja-alue) |
+
+Helsinki hetken mukaan: −47 h MET Nordic 50 % / ECMWF 50 % (MET
+Nordicin akselin alku), −30 … −10 h MET Nordic, −6 … +48 h FMI, +58 h
+FMI 26 % / ECMWF 74 %, +62 h eteenpäin ECMWF.
+
+Helsinki zoomeilla 5–11: lähdemerkintä "Ilmatieteen laitos · HARMONIE
+2,5 km" jokaisella (ennen ECMWF alle z10:n). Maailmankierroksen (New
+York, Sydney, maailma, Tokio) jälkeen FMI palasi 5 s:ssa työpöydällä ja
+2,5 s:ssa puhelimella, valittu hetki pysyi, aikajana 400 tikkiä
+varastosta koko ajan.
+
+Rajat (0,05°:n profiili rajan yli, vierekkäisten pisteiden ero):
+
+| raja | raja-alueella ka / max | mallin sisällä ka / max |
+|---|---|---|
+| FMI etelä (Viro) | 0,08 / 0,23 m/s | 0,18 / 0,80 |
+| FMI länsi (Ruotsi) | 0,23 / 1,46 | 0,18 / 0,80 |
+| FMI itä (Karjala) | 0,11 / 0,18 | 0,09 / 0,40 |
+| FMI pohjoinen (Norja) | 0,86 / 2,18 | 0,55 / 1,20 |
+| MET Nordic etelä (Puola) | 0,08 / 0,16 | 0,18 / 0,80 |
+
+Suurimmat erot ovat rannikkoviivoja (Ruotsin rannikko 17,5°, Norjan
+pohjoisrannikko), ja suunnan 120–179°:n hypyt osuvat kaikki alle
+1 m/s:n tuuleen. Ennen: h0:n reunalla ka 1,09 m/s, 44 % yli 1 m/s,
+pahin 5,4 m/s yhden solmuvälin matkalla.
+
+Zoomin rajat Helsingin seudulla, sama piste eri tasoilla: 0,5 → 0,25
+ka 0,46 m/s, 0,25 → 0,1 ka 0,23, 0,1 → 0,05 ka 0,14 (ennen 1,01 /
+0,66 / 1,62, ja z9 → z10 vaihtoi mallia).
+
+`kokoaHila` 3 600 solmua: 2,4–3,5 ms (Suomi, raja-alue, Pariisi —
+kaikki samaa luokkaa).
+
+**Yhteensopivuus molempiin suuntiin.** Uusi asiakas vanhalla
+varastolla: FMI h0 lähizoomissa (neljän kerroin estää 0,05°:n tason
+leveissä näkymissä), aikaraja pehmenee. Vanha asiakas uudella
+varastolla: toimii kuten ennen isommalla h0-alueella, ei virheitä
+kolmella ajolla.
+
+### V4 — Aikajana samaan malliin (toteutettu)
+
+`wxTunneittain` laskee jokaisen tunnin `naytteista`lla (tuuli ja
+puuska), akselina pohjamallin tuntiakseli. Mitattu Helsingissä z10:
+400 tuntia, 0 tyhjää, ero kartan näytteeseen 0,0000 m/s, 1,6 ms.
+Sarjassa näkyy sama malliketju kuin kartalla: akselin alussa ECMWF
+johon MET Nordic liukuu kahdessa tunnissa, MET Nordic, FMI
+(−9 … +54 h), sekoitus, ECMWF.
+
+### Tarkistukset lähteitä vasten
+
+- **MET Nordic** (n0-solmu vs Open-Meteon `metno_nordic`, 99 tuntia):
+  Oslo ka 0,12 m/s (max 0,40), Göteborg 0,09 (0,30), Riika 0,09 (0,30).
+  Ero on 0,05°:n aluekeskiarvon ja 1 km:n pisteen välinen.
+- **FMI** (h0-solmu vs FMI:n pistekysely): ensin ka 1,61 m/s — mutta
+  pistekysely oli jo 18Z-ajoa ja varasto 15Z:aa (`origintime` ei
+  vaikuta pistekyselyyn). Saman ajon hila vs piste: ka 0,07 m/s. Uusi
+  h0 on tavulleen sama kuin tuotannon h0 samasta ajosta.
+
+### Mitä jäi (V5)
+
+ECMWF on muualla maailmassa yhä 0,25°:n suodatettu pyramidi (l0 vain
+Pohjois-Euroopassa). Windyn 9 km:n ECMWF koko maapallolle vaatii oman
+ruutupalvelun (`api/malli.js`, `ecmwf_ifs` S3:sta), koska 0,1°:n
+maailma ei mahdu git-varastoon; se on seuraava vaihe.

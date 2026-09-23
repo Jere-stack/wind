@@ -1,10 +1,10 @@
 /* ------------------------------------------------------------------
    FMI HARMONIE 2,5 km hilana, GRIB2:sta.
 
-   Tämä on säälaattavaraston TOINEN lähde. ECMWF IFS 0,25° (tiilet.mjs)
+   Tämä on säälaattavaraston FMI-lähde. ECMWF IFS 0,25° (tiilet.mjs)
    kattaa koko maailman ja viisitoista vuorokautta; HARMONIE kattaa
-   Itämeren ja 66 tuntia, mutta kymmenkertaisella tarkkuudella. Sovellus
-   valitsee niistä hienoimman joka kattaa pyydetyn hetken.
+   Suomen ja noin 70 tuntia, mutta kymmenkertaisella tarkkuudella.
+   Sovellus sekoittaa ne painokanavalla (docs/mallit.md).
 
    MIKSI GRIB2 EIKÄ PISTEKYSELY. Pistekysely laskuttaa pisteittäin ja
    antaa yhden pisteen kerrallaan; yksi laatta on 441 pistettä ja tasossa
@@ -108,18 +108,48 @@ const PARAMIT = {
   WindGust: { kat: 2, num: 22 },
 };
 
-async function haePala(bbox, ni, nj, alku, loppu, parametrit) {
+const iso = (ms) => new Date(ms).toISOString().slice(0, 19) + 'Z';
+
+async function haePala(bbox, ni, nj, alku, loppu, parametrit, ajo) {
   const url = DL
     + '?producer=harmonie_scandinavia_surface'
     + '&param=' + parametrit.join(',')
     + '&format=grib2&projection=EPSG:4326&levels=0&timestep=60'
     + '&bbox=' + bbox.join(',')
-    + '&starttime=' + new Date(alku).toISOString().slice(0, 19) + 'Z'
-    + '&endtime=' + new Date(loppu).toISOString().slice(0, 19) + 'Z'
+    + (ajo ? '&origintime=' + iso(ajo) : '')
+    + '&starttime=' + iso(alku)
+    + '&endtime=' + iso(loppu)
     + '&gridsize=' + ni + ',' + nj;
   const r = await fetch(url);
   if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + url.slice(0, 110));
   return Buffer.from(await r.arrayBuffer());
+}
+
+/* ------------------------------------------------------------------
+   Saatavilla olevat ajot, uusin ensin.
+
+   Latauspalvelu SÄILYTTÄÄ KAKSI VIIMEISINTÄ AJOA. Mitattu 23.9.2026
+   klo 20:45 UTC luotaamalla `origintime`a kolmen tunnin välein 54 h
+   taaksepäin: 15Z ja 12Z vastasivat 200, kaikki muut 400 (18Z ei ollut
+   vielä valmis). FMI:llä ei siis ole menneisyyttä kuin muutama tunti,
+   ja varaston menneisyys Suomen yllä tulee MET Nordicista.
+
+   AJO KIINNITETÄÄN. Ilman `origintime`a jokainen pala tulee siitä ajosta
+   joka on palan hakuhetkellä tuorein, ja jos uusi ajo valmistuu kesken
+   haun, sama taso koostuu kahdesta ajosta. Luotain on yhden tunnin ja
+   yhden kentän pyyntö pienestä ruudusta (5 kB).                       */
+export async function harmonieAjot(maxTaakseH = 18) {
+  const askel = 3 * 3600e3;
+  const t0 = Math.floor(Date.now() / askel) * askel;
+  const ajot = [];
+  for (let h = 0; h <= maxTaakseH && ajot.length < 2; h += 3) {
+    const ajo = t0 - h * 3600e3;
+    try {
+      const b = await haePala([24, 60, 25, 61], 3, 3, ajo, ajo + 3600e3, ['WindUMS'], ajo);
+      if (b.length > 16 && b.toString('latin1', 0, 4) === 'GRIB') ajot.push(ajo);
+    } catch (e) { /* ei (vielä tai enää) saatavilla */ }
+  }
+  return ajot;
 }
 
 /* ------------------------------------------------------------------
@@ -142,6 +172,11 @@ export async function haeHarmonie(asetukset) {
   const tunteja = asetukset.tunteja || 66;
   const palaH = asetukset.palaH || 24;
   const log = asetukset.log || (() => {});
+  /* `ajo` kiinnittää ajon (ks. `harmonieAjot`), ja silloin haku alkaa
+     ajohetkestä eikä kuluvasta tunnista: ajon alkutunnit ovat rakennus-
+     hetkellä jo menneisyyttä, mutta ne ovat samaa ajoa ja aikajana
+     ulottuu niihin. */
+  const ajo = asetukset.ajo || 0;
 
   const ni = Math.round((lng[1] - lng[0]) / askel) + 1;
   const nj = Math.round((lat[1] - lat[0]) / askel) + 1;
@@ -150,10 +185,11 @@ export async function haeHarmonie(asetukset) {
   }
   const bbox = [lng[0], lat[0], lng[1], lat[1]];
 
-  /* Aloitus kuluvan tunnin alusta. Lähde kelaa itse ajohetkeen jos
-     pyyntö osuu sitä aiemmaksi (mitattu: -24 h antoi ajohetken), joten
-     menneisyyttä ei tarvitse erikseen rajata pois. */
-  const t0 = Math.floor(Date.now() / 3600e3) * 3600e3;
+  /* Kiinnitetty ajo alkaa ajohetkestä. Ilman kiinnitystä aloitus on
+     kuluvan tunnin alku: lähde kelaa itse ajohetkeen jos pyyntö osuu
+     sitä aiemmaksi (mitattu: -24 h antoi ajohetken), mutta ikkuna joka
+     PÄÄTTYY ennen ajohetkeä on 400. */
+  const t0 = ajo || Math.floor(Date.now() / 3600e3) * 3600e3;
   const kentat = new Map();
   const parametrit = Object.keys(PARAMIT);
   for (const p of parametrit) kentat.set(p, new Map());
@@ -165,7 +201,7 @@ export async function haeHarmonie(asetukset) {
     const loppu = t0 + Math.min(tunteja, h + palaH - 1) * 3600e3;
     let buf = null, virhe = null;
     for (let yritys = 0; yritys < 3; yritys++) {
-      try { buf = await haePala(bbox, ni, nj, alku, loppu, parametrit); break; }
+      try { buf = await haePala(bbox, ni, nj, alku, loppu, parametrit, ajo); break; }
       catch (e) { virhe = e; await new Promise(r => setTimeout(r, 2000 * (yritys + 1))); }
     }
     if (!buf) {
@@ -207,9 +243,12 @@ export async function haeHarmonie(asetukset) {
      laskettu maksimi ja sen leimat ovat tunnin eri kohdassa. */
   const ajat = [...kentat.get('WindUMS').keys()].sort((a, b) => a - b)
     .filter(t => kentat.get('WindVMS').has(t));
-  if (ajat.length < 6) throw new Error('HARMONIE: liian lyhyt akseli (' + ajat.length + ')');
+  /* Täysi ajo on 67 hetkeä; edellisestä ajosta haetaan tarkoituksella
+     vain kolme (`minHetkia`). */
+  const minHetkia = asetukset.minHetkia || 6;
+  if (ajat.length < minHetkia) throw new Error('HARMONIE: liian lyhyt akseli (' + ajat.length + ')');
 
   log('  hila ' + geom.ni + 'x' + geom.nj + ' @ ' + askel + '°, '
     + ajat.length + ' hetkeä, ' + (tavuja / 1e6).toFixed(1) + ' MB');
-  return { la0: geom.la0, lo0: geom.lo0, askel, ni: geom.ni, nj: geom.nj, ajat, kentat };
+  return { la0: geom.la0, lo0: geom.lo0, askel, ni: geom.ni, nj: geom.nj, ajat, kentat, ajo };
 }

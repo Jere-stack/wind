@@ -5,17 +5,20 @@
 # raw.githubusercontent.comin kautta (CORS on siellä auki ja välimuisti
 # 5 minuuttia — juuri sopiva kolmen tunnin välein päivittyvälle datalle).
 #
-# MIKSI ORVOKSI JA PAKOLLA. Laatat ovat noin 24 MB kierrokselta (9 MB ->
-# 19 MB kun 1 asteen taso laajennettiin koko maailmaan, 19 -> 24 kun
-# FMI:n HARMONIE tuli omaksi tasokseen `h0`). Jos ne
-# kasautuisivat historiaan, repo kasvaisi 76 MB vuorokaudessa ja täyttäisi
-# GitHubin gigatavun rajan kahdessa viikossa. `git checkout --orphan` +
-# `push --force` tarkoittaa että haarassa on aina täsmälleen yksi
-# committi: nykyinen tilanne, ei mitään muuta.
+# MIKSI ORVOKSI JA PAKOLLA. Laatat ovat noin 106 MB kierrokselta
+# (mitattu 23.9.2026: ECMWF 28 MB, FMI HARMONIE 14 MB, MET Nordic 65 MB;
+# ks. docs/mallit.md). Jos ne kasautuisivat historiaan, repo kasvaisi
+# 420 MB vuorokaudessa. `git checkout --orphan` + `push --force`
+# tarkoittaa että haarassa on aina täsmälleen yksi committi: nykyinen
+# tilanne, ei mitään muuta. GitHub siivoaa pudotetut versiot: kuukauden
+# neljästi päivässä pakkopäivitetyn varaston jälkeen repon koko oli
+# 31,8 MB.
 #
 # Julkisessa reposessa Actions-minuutit ovat rajattomat, joten tämä on
-# ilmaista. Ajo kestää noin neljä minuuttia: ECMWF noin kolme ja
-# HARMONIE-hila noin yhden (24,9 MB GRIB2:ta 49 sekunnissa).
+# ilmaista. Ajo kestää noin kymmenen minuuttia (mitattu kontissa 622 s):
+# ECMWF noin neljä, FMI:n HARMONIE-hila kahdesta ajosta noin kaksi
+# (55 MB GRIB2:ta) ja MET Nordic noin neljä (104 tuntia, 7 MB tiedostoa
+# kohti joista luetaan kolme kenttää). Muistia kuluu enimmillään 0,85 GB.
 
 name: Säädata
 
@@ -38,7 +41,7 @@ permissions:
 jobs:
   laatat:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -106,6 +109,13 @@ jobs:
                   + new Date(h.ajat[0]).toISOString() + " … "
                   + new Date(h.ajat[h.nt-1]).toISOString()
                 : "EI MUKANA") + " |");
+              const n0 = (l.lisatasot || []).find(t => t.id === "n0");
+              console.log("| MET Nordic | " + (n0
+                ? n0.laatat.length + " laattaa (n0), " + n0.nt + " tuntia, "
+                  + new Date(n0.ajat[0]).toISOString() + " … "
+                  + new Date(n0.ajat[n0.nt-1]).toISOString()
+                : "EI MUKANA") + " |");
+              console.log("| Lisätasot | " + (l.lisatasot || []).map(t => t.id + " " + t.laatat.length).join(", ") + " |");
               console.log("| Koko | " + mb.toFixed(1) + " MB |");
               console.log("| Puuttuvia hetkiä | " + l.puuttuvia + " |");
             '
