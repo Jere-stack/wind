@@ -9,9 +9,14 @@ saatavilla — näin ei aina ole jos käy kartalla aluksi muualla maailmassa
 pyörimässä, ja tämän jälkeen alakulman indikaattori ilmoittaa että jokin
 toinen säämalli on käytössä esim. Helsingin yllä."*
 
-**Tämä on päätösasiakirja, ei toteutus** — sovelluskoodia ei ole muutettu.
-Kaikki luvut on mitattu tuotantobuildista ja varaston julkaistuista
-laatoista 23.9.2026 (varaston ajo 06Z, HARMONIE-ajo 15Z).
+Kirjoitettiin päätösasiakirjaksi. Kaikki nykytilan luvut on mitattu
+tuotantobuildista ja varaston julkaistuista laatoista 23.9.2026 (varaston
+ajo 06Z, HARMONIE-ajo 15Z).
+
+**Päätökset (käyttäjä):** MEPS otetaan käyttöön siinä muodossa jota
+Yr.no käyttää (MET Nordic, `metno_nordic_pp`); rajan pehmennys 50 km;
+aikajana seuraa karttaa (S4); maailma S3:n mukaan eli Windyn tapaan.
+Toteutus etenee vaiheittain, ja jokainen vaihe on oma osionsa lopussa.
 
 > Osa FoilSpotin muistiinpanoja. Hakemisto ja säännöt ovat `CLAUDE.md`:ssä;
 > tämä tiedosto luetaan kun työ koskee kartan säämallia, mallien rajoja tai
@@ -324,3 +329,57 @@ Tuotantobuild (`vite preview`), Chromium 1194, 1280 × 800 ja 393 × 852
 (`naytteista`: bilineaarinen, suunta yksikkövektoreina). Skriptit
 scratchpadissa: `malliraja*.mjs` (maailmankierros, indikaattori ja
 hetki), `raja.mjs` (h0:n reunat), `zoomraja.mjs` (zoomin rajat).
+
+---
+
+## Toteutus
+
+### Päätösten tarkennukset
+
+- **MET Nordic on Yr:n data.** MET Norjan oma dokumentaatio: MET Nordic
+  -ennuste on Yr:n ennusteiden pohja; MEPS-malli jälkikäsiteltynä 1 km:iin
+  havainnoilla (myös joukkoistetuilla asemilla), päivitys tunneittain,
+  58–64 h. Open-Meteon `metno_nordic_pp` on sama tuote.
+- **Hilan geometria tarkistettiin totuutta vasten.** Lambert (sfääri
+  R 6 371 229 m, standardileveys 63°, keskimeridiaani 15°), kulmapisteet
+  (52,302723° / 1,918457°) ja (72,18527° / 41,764282°), 1 796 × 2 321
+  pistettä: hilaväliksi tulee 1 000,03 × 1 000,05 m. Kuusi pistettä
+  (Lauttasaari, Utö, Oulu, Kilpisjärvi, Tukholma, Bergen) luettiin
+  S3-tiedostosta ja Open-Meteon rajapinnasta samalta hetkeltä: nopeus
+  ja suunta täsmälleen samat kaikissa.
+- **GPL-2.0 ratkaisi missä S3 luetaan.** `@openmeteo/file-reader` on
+  GPL-2.0, eikä repossa ole lisenssiä. Selaimeen toimitettuna koko
+  sovellus pitäisi levittää GPL-yhteensopivana; palvelimella ja
+  rakentajassa ajettuna koodia ei levitetä. Siksi Windyn tapaan
+  omat dataruudut palvelimelta (Vercel-funktio + CDN), ei lukua
+  selaimessa.
+
+### V1 — Valittu hetki pysyy (toteutettu)
+
+Juurisyy ei ollut akseleiden kilpajuoksu, vaikka se näytti siltä, vaan
+aikajanan uudelleenrakennus: `_tlBeginSelfScroll`in lippu nollautuu
+ensimmäisessä `scrollend`issä, ja rakennuksessa vierityksiä on useita.
+Vahti `valittuMs`:n ja indeksin kirjoittajiin näytti pinon
+`scroll → _tlSeurantaAskel → _tlSeuraaHetkea(0)` 68 ms rakennuksen
+jälkeen (scrollLeft 54) — snäppäyksen oma siirto luettiin sormeksi.
+
+Korjaus kahdessa osassa:
+1. **Hetki aikana.** `State.valittuMs` on totuus; valintapaikat kirjoittavat
+   sen `_tlValitseHetki(idx, times)`illa sen akselin ajasta jolle indeksi
+   kuuluu, ja `_tlSailytaHetki` johtaa uuden akselin indeksin siitä.
+2. **Rakennusikkuna.** Hidas polku merkitsee rakennuksen ja sijoituksen;
+   vieritys- ja `scrollend`-käsittelijät ohittavat 400 ms ikkunan ellei
+   sormi ole nauhalla.
+
+Mitattu (`malliraja3.mjs`, maailmankierros ja `flyTo` Helsinkiin):
+
+| | ennen | jälkeen |
+|---|---|---|
+| valittu hetki paluussa | 21:00 → 15:00 kahdella ajolla kolmesta | 3/3 ajoa ennallaan |
+| Helsinki z10 paluun jälkeen | ECMWF kun HARMONIE-ajo alkoi 18:00 | FMI HARMONIE 3/3 |
+| rullavieritys aikajanalla | — | valitsee ja kirjoittaa `valittuMs`:n |
+
+Akseli vaihtuu paluussa yhä edestakaisin (varasto 391 tikkiä ↔ spotin
+sarja 366), koska kartan keskikohdan varastolaatta on pudonnut 40 laatan
+muistista. Hetki säilyy nyt vaihdoissa; itse edestakaisuus poistuu
+V3:ssa (laattamuisti ja varataso).

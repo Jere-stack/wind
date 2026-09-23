@@ -6288,6 +6288,10 @@ const State = {
   particles: [],
   markers: [],
   currentHourIdx: 0,
+  /* Valittu hetki millisekunteina — TOTUUS, josta `currentHourIdx`
+     johdetaan kun aika-akseli vaihtuu (ks. `_tlValitseHetki`). null =
+     ei vielä valittu. */
+  valittuMs: null,
   windField: [],
   activeLayer: 'wind',
   /* Aina automaattinen. Malli on yhä osa välimuistiavaimia ja loadBatchin
@@ -11519,6 +11523,21 @@ function loadBatch(points, forecastDays, forceOM, signal, pastDays, hilaStep) {
 /* Aikajanan hetki millisekunteina. hourIdx saa olla murtoluku: aikajanaa
    raahatessa ollaan tuntien VÄLISSÄ, jolloin kenttä lasketaan siltä
    hetkeltä eikä lähimmältä tasatunnilta. */
+/* VALINTA KIRJOITETAAN AIKANA. Indeksi on vain sen akselin osoite jolle
+   se kuuluu, joten aika luetaan SIITÄ akselista (`times`) eikä ruudulla
+   olevasta: käynnistyksessä ja linkistä avattaessa indeksi lasketaan
+   uuden sarjan akselilla ennen kuin `renderTimeline` on vaihtanut
+   `State._tlTimes`in. Akselin vaihdot (`updateTimelineToCenter`, mallin
+   vaihto) EIVÄT kutsu tätä — ne johtavat indeksin ajasta. */
+function _tlValitseHetki(idx, times) {
+  State.currentHourIdx = idx;
+  const T = times || State._tlTimes;
+  if (!T || !T.length) return;
+  const i = Math.max(0, Math.min(T.length - 1, Math.round(idx)));
+  const ms = new Date(T[i]).getTime();
+  if (isFinite(ms)) State.valittuMs = ms;
+}
+
 function _tlTimeAt(hourIdx) {
   const T = State._tlTimes;
   if (!T || !T.length) return null;
@@ -16760,7 +16779,7 @@ function openSheet(spot, hourIdx) {
       if (newIdx < 0 || newIdx > maxIdx) return;
       if (newIdx === (State.currentHourIdx || 0)) return;
       if (typeof Haptics !== 'undefined') Haptics.selection();
-      State.currentHourIdx = newIdx;
+      _tlValitseHetki(newIdx);
       var tl = document.getElementById('tl-scroll');
       if (tl && State._tlTicks && State._tlTicks[newIdx]) {
         var tick = State._tlTicks[newIdx];
@@ -19225,7 +19244,16 @@ function updateTimelineToCenter() {
  * jäsennä aikaleimoja uudelleen. */
 function _tlSailytaHetki(uusiHourly, lahtoIdx) {
   const mista = lahtoIdx === undefined ? State.currentHourIdx : lahtoIdx;
-  const vanha = _tlTimeAt(mista);
+  /* VALITTU HETKI LUETAAN AJASTA, EI INDEKSISTÄ. `_tlTimeAt(mista)` lukee
+     indeksin sillä akselilla joka on RUUDULLA — ja akselin vaihtuessa
+     kahdesti peräkkäin (varasto → spotin sarja → varasto, kun kartan
+     keskikohdan laatta ei ole vielä muistissa) indeksi ja
+     `State._tlTimes` päivittyivät eri aikaan. Mitattuna maailmankierroksen
+     jälkeen hetki jäi 21:00 → 15:00 kahdella ajolla kolmesta
+     (docs/mallit.md). Kun kutsuja ei anna omaa lähtöindeksiään, lähtö on
+     `State.valittuMs`, jota akselin vaihto ei koske. */
+  const vanha = (lahtoIdx === undefined && State.valittuMs != null)
+    ? State.valittuMs : _tlTimeAt(mista);
   if (vanha == null || !uusiHourly || !uusiHourly.time || !uusiHourly.time.length) {
     return mista;
   }
@@ -19499,8 +19527,10 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
   /* Sisällön tyhjennys kutistaa vieritysalueen nollaan, jolloin selain
      lähettää scroll-tapahtuman aivan kuin sormi olisi vetänyt janan alkuun.
      Merkitään koko uudelleenrakennus omaksi vieritykseksi — lippu jatkuu
-     rAF:n _tlSetScrollLeft():iin asti. */
+     rAF:n _tlSetScrollLeft():iin asti. Lippu ei yksin riitä, koska
+     ensimmäinen `scrollend` nollaa sen — ks. `_tlMerkitseRakennus`. */
   _tlBeginSelfScroll();
+  _tlMerkitseRakennus();
   tl.innerHTML = '';
   /* Uudet tikit kirjoitetaan kokonaan alla, joten eleen velka raukeaa. */
   State._tlPalkitVelka = null;
@@ -19577,6 +19607,7 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
 
   requestAnimationFrame(() => {
     const target = State._tlTicks[activeIdx];
+    _tlMerkitseRakennus();
     if (target) _tlSetScrollLeft(tl, target.offsetLeft - tl.offsetWidth / 2 + TL_TIKKI_PUOLI);
     _tlUpdateNow(activeIdx);
   });
@@ -19944,7 +19975,7 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
     if (!State._tlOhjelmallinen) _previewField(frac);
   }
   tl.addEventListener('scroll', () => {
-    if (State._tlSelfScroll) return;
+    if (State._tlSelfScroll || _tlRakennusKesken()) return;
     const nyt = Date.now();
     if (nyt - _seurantaViimeksi >= 16) { _seurantaViimeksi = nyt; _tlSeurantaAskel(); }
     /* Varmistus vanhoille selaimille joilla ei ole scrollend-tapahtumaa.
@@ -19962,6 +19993,7 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
   if ('onscrollend' in tl) {
     tl.addEventListener('scrollend', () => {
       if (State._tlSelfScroll) { State._tlSelfScroll = false; return; }
+      if (_tlRakennusKesken()) { clearTimeout(_scrollTimer); return; }
       clearTimeout(_scrollTimer);
       _tlCommitSelection(tl);
     }, { passive: true });
@@ -20007,7 +20039,7 @@ function _tlSeuraaHetkea(idx) {
   const sama = idx === State.currentHourIdx && idx === State._tlLastTick;
   State._tlLastTick = idx;
   if (sama) return false;
-  State.currentHourIdx = idx;
+  _tlValitseHetki(idx);
   State._lastTlHour = idx;
   _tlUpdateNow(idx);
   renderSpots(idx);
@@ -20101,6 +20133,23 @@ function _tlSeuraavaKeli(nykyIdx) {
  * Merkitään oma scroll omaksi, jotta kuuntelijat ohittavat sen. Lippu
  * puretaan kun selain on ehtinyt lähettää scroll+scrollend, tai heti kun
  * sormi koskee janaa — käyttäjän ele ei siis koskaan jää huomiotta. */
+/* UUDELLEENRAKENNUS EI OLE KÄYTTÄJÄN VALINTA.
+ *
+ * `_tlBeginSelfScroll`in lippu nollautuu ENSIMMÄISESSÄ `scrollend`issä,
+ * ja rakennuksessa vierityksiä on useita: tyhjennys vie `scrollLeft`in
+ * nollaan, snäppäys siirtää sen lähimpään tikkiin ja ruutupyyntö
+ * sijoittaa valitun tikin keskelle. Mitattuna maailmankierroksen jälkeen
+ * 68 ms rakennuksen jälkeen tullut snäppäysvieritys (scrollLeft 54)
+ * luettiin sormeksi: `_tlSeuraaHetkea(0)` kirjoitti valituksi hetkeksi
+ * akselin alun, 21:00 → 15:00 — ja koska HARMONIEn ajo alkoi 18:00,
+ * Helsinki näytti ECMWF:ää zoomilla 10 (docs/mallit.md). Ikkuna on
+ * 400 ms rakennuksesta JA sen sijoituksesta; sormi nauhalla ohittaa sen. */
+function _tlMerkitseRakennus() { State._tlRakennusT = performance.now(); }
+function _tlRakennusKesken() {
+  return !State._tlTouching && State._tlRakennusT != null
+    && performance.now() - State._tlRakennusT < 400;
+}
+
 function _tlBeginSelfScroll() {
   /* Kesken olevaa elettä ei ohiteta koskaan — jos jana rakennetaan uudelleen
      juuri kun sormi raahaa (esim. taustalla valmistunut viewport-haku), sen
@@ -22250,7 +22299,7 @@ const ForecastPanel = {
             const diff = Math.abs(new Date(State._tlTimes[i]).getTime() - target);
             if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
           }
-          State.currentHourIdx = bestIdx;
+          _tlValitseHetki(bestIdx);
           scrollTimelineTo(bestIdx);
           _tlUpdateNow(bestIdx);
           buildWindField(bestIdx).then(() => { drawColorField(); resetParticles(); });
@@ -23029,7 +23078,7 @@ function _naytaValimuististaHeti() {
   if (!(viimeinen > Date.now())) return 0;   /* sarja on kokonaan menneisyydessä */
 
   const ni = nowIdx(h.time);
-  State.currentHourIdx = ni;
+  _tlValitseHetki(ni, h.time);
   State._lastTlHour = ni;
   /* Talteen, jotta tuore lataus tunnistaa onko käyttäjä siirtänyt aikajanaa
      sillä välin — ks. spotsP.then. */
@@ -23069,7 +23118,7 @@ function _avaaLinkista(linkki) {
     const h = spot.wx && spot.wx.hourly;
     if (!h || !h.time || !h.time.length) { setTimeout(odota, 500); return; }
     const i = linkki.t ? Linkkitila.indeksiAjalle(h.time, linkki.t) : -1;
-    if (i >= 0) { State.currentHourIdx = i; State._lastTlHour = i; renderSpots(i); }
+    if (i >= 0) { _tlValitseHetki(i, h.time); State._lastTlHour = i; renderSpots(i); }
     openSheet(spot, i >= 0 ? i : (State.currentHourIdx || 0));
   })();
 }
@@ -23140,7 +23189,10 @@ async function main() {
           && State._vanhaAsetettuIdx !== undefined
           && State.currentHourIdx !== State._vanhaAsetettuIdx;
         const ni = kayttajaSiirsi ? State.currentHourIdx : nowIdx(ref.wx.hourly.time);
-        State.currentHourIdx = ni;
+        /* Käyttäjän siirtämä valinta on jo aikana `valittuMs`:ssä —
+           uudelleen kirjoitus väärältä akselilta rikkoisi sen. */
+        if (kayttajaSiirsi) State.currentHourIdx = ni;
+        else _tlValitseHetki(ni, ref.wx.hourly.time);
         State._lastTlHour = ni;
         const layer = State.activeLayer;
         const sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m;
@@ -23168,7 +23220,7 @@ async function main() {
       if (!State._tlTimes || !State._tlTimes.length) {
         const h = ref.wx.hourly;
         const ni0 = nowIdx(h.time);
-        State.currentHourIdx = ni0;
+        _tlValitseHetki(ni0, h.time);
         State._lastTlHour = ni0;
         const layer0 = State.activeLayer;
         const sp0 = layer0 === 'gust' ? (h.windgusts_10m || h.windspeed_10m) : h.windspeed_10m;

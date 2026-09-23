@@ -621,6 +621,23 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   akselilta toiselle — hae uusi indeksi AJASTA (`_tlSailytaHetki`).
   Mitattu ilman sitä: −15 h, −55 h, +75 h, ja jopa kahden tuntiakselin
   välillä 5 h, koska ne eivät ala samasta hetkestä.
+  **VALITTU HETKI ON `State.valittuMs`, JA SE ON TOTUUS.** Valinta
+  kirjoitetaan `_tlValitseHetki(idx, times)`illa, joka lukee ajan SIITÄ
+  akselista jolle indeksi kuuluu; akselin vaihdot (`updateTimelineToCenter`,
+  mallin vaihto) johtavat indeksin `valittuMs`ista eivätkä kirjoita sitä.
+  Älä kirjoita `State.currentHourIdx`iä suoraan valintapaikassa.
+- **AIKAJANAN UUDELLEENRAKENNUS EI OLE KÄYTTÄJÄN VALINTA.**
+  `_tlBeginSelfScroll`in lippu nollautuu ensimmäisessä `scrollend`issä,
+  mutta rakennuksessa vierityksiä on useita (tyhjennys, snäppäys,
+  sijoitus). Mitattuna maailmankierroksen jälkeen snäppäysvieritys 68 ms
+  rakennuksen jälkeen luettiin sormeksi ja valituksi hetkeksi tuli
+  akselin alku: 21:00 → 15:00, kahdella ajolla kolmesta — ja koska
+  HARMONIEn ajo alkoi 18:00, Helsinki näytti ECMWF:ää zoomilla 10. Se oli
+  "muualla käynnin jälkeen Helsingin yllä on muu malli". Hidas polku
+  merkitsee rakennuksen ja sen sijoituksen (`_tlMerkitseRakennus`), ja
+  vieritys- ja `scrollend`-käsittelijät ohittavat 400 ms ikkunan
+  (`_tlRakennusKesken`) ellei sormi ole nauhalla. Mitattu jälkeen 3/3
+  kierrosta ilman siirtymää, ja rullavieritys valitsee yhä.
 - **Älä tihennä aikajanaa tuntia pienemmäksi.** Mitattu: varastoaskelen
   sisällä tuntipisteet ovat SUORALLA (poikkeama 0 m/s, 10 640 kolmikkoa),
   muutos minuutissa on 0,0033 m/s eli 150× alle sovelluksen oman
