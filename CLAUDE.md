@@ -176,6 +176,7 @@ kokeiltu ja kaadettu mittauksella.
   Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
   Ikoni ja kotivalikko
 - **sujuvuus**: C2 toteutettu — mitä muuttui ja mitä mitattiin ·
+  Puhelin ja iPad C2:n jälkeen — mitä eleen aikana vielä ajetaan ·
   Tiivistelmä · Mittausasetelma · Mitä mitattiin (laattojen
   uudelleenmaalaus per ele, aikajanan askel, pääsäikeen profiili, eleen
   aikana, localStorage, mitä ei voitu mitata) · Miksi juuri työpöytä ·
@@ -786,6 +787,23 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   että valokaista on poistettu, joten ansaa ei enää ole eikä
   `_tlErottimet`-taulukkoa. `_tlMuisti`-vertailu sisältää yhä lat/lng,
   koska laattapisteet jakavat aikataulukon.
+- **KARTAN ELEEN AIKANA PÄIVITETÄÄN VAIN NÄKYVÄT PALKIT, LOPUT
+  `moveend`ISSÄ.** Jana seuraa kartan keskustaa myös vedon aikana
+  (600 ms välein), ja koko nauhan päivitys oli puhelimen näkymällä eleen
+  suurin JS-erä. Hinta on TYYLILASKENTAA, ei asettelua: 394 palkkia,
+  pelkkä väri 3,7 ms ja korkeus 5,1 ms, eikä `contain` tai
+  elementtien välimuisti muuttanut sitä (6,2 / 6,4 ms) — se on
+  verrannollinen kirjoitettujen palkkien määrään. `_tlPaivitaPalkit(
+  speeds, keskiIdx)` kirjoittaa `State.liikkeessa`-aikana vain puolen
+  ruudun + `TL_PALKIT_REUNA` kummallekin puolelle `keskiIdx`:stä ja
+  jättää loput velaksi (`State._tlPalkitVelka`); `_tlPalkitLoppuun`
+  maksaa sen kartan `moveend`issä. Mitattuna eristettynä 7,7 → 1,7 ms
+  (puhelin) ja 6,9 → 2,0 ms (iPad) päivitystä kohti, ja eleiden jälkeen
+  0/394 palkkia väärin. **Velka maksetaan `moveend`istä, ei seuraavasta
+  päivityksestä**, koska `updateTimelineToCenter` ohittaa päivityksen
+  kun data on sama — muuten 350+ palkkia jäisi edellisen paikan
+  arvoihin. Muuttumaton arvo ohitetaan (`bar._tl`), joten maksu ei
+  kirjoita uudelleen niitä jotka ele jo kirjoitti.
 - **Nuolinäppäimet kuuluvat kartalle.** MapLibren näppäinkäsittelijä
   panoroi nuolilla (kun fokus on kartassa) ja varaa Shift+nuolen
   kierrolle, joka on pois päältä — eli Shift+nuoli ei tee mitään.
@@ -1836,6 +1854,15 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   kuristetulla suorittimella. Ruutunopeuksia ei voi mitata täällä;
   oikeaa laitetta vastaan on mitattava. Pikselivastaavuus ja
   pääsäikeen JS-aika mitataan täällä hyvin.
+- **`?lasi=0` ON KOKEILUKYTKIN, EI OLETUS.** Se poistaa
+  havaintopillerien `backdrop-filter: blur(10px)`in (`html.ei-lasia`).
+  Sumennus pakottaa kompositorin sumentamaan kartan pillerin alta joka
+  ruudussa, ja kartta muuttuu nyt joka ruudussa; ruudulla on 8–13
+  pilleriä z9–z10. Pillerin tausta on 78 % peittävä, joten ero näkyy
+  vain alta kulkevassa partikkelissa. Hintaa ei voi mitata kontissa —
+  päätös tehdään laitteella vertaamalla, ja jos lasi poistetaan, poista
+  se pilleristä (`_pilleri`) eikä jätä kytkintä oletukseksi.
+  Aikajanan napit pitävät lasinsa (sääntö "KIEKKO ON LASIA").
 - **Varjostimet ovat GLSL ES 1.00:aa**, jotta sama koodi ajaa WebGL2:ssa
   ja MapLibren WebGL1-varatiellä. Kenttä kulkee RGBA8:ssa 16-bittisinä
   (±64 m/s, askel 0,002 m/s) eikä liukulukutekstuurina, ja solmut

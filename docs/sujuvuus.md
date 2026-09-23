@@ -99,6 +99,80 @@ integroitu GPU ja 4K 150 %), sekä nipistyksen tuntuma puhelimella. Jos
 liikkuva ruutu ei pysy tahdissa, ensimmäinen korjaus on lämpökartan
 puskurin uudelleenkäyttö pelkässä siirrossa (`docs/lampokartta.md`).
 
+## Puhelin ja iPad C2:n jälkeen — mitä eleen aikana vielä ajetaan
+
+Mitattu puhelimen (393×852 @3) ja iPadin (1024×1366 @2) näkymällä,
+`hasTouch` + `isMobile`, tuotantobuild. Kontin millisekunnit eivät ole
+laitteen aikaa; osuudet ovat.
+
+**Karttakerrosten JS on pieni.** Kolme vetoa ja zoom kaksi tasoa sisään
+ja ulos, kääreet säilyttävät `this`in ja argumentit: `LampoGL._rakenna`
+(hilan uudelleenrakennus) pahimmillaan 1,2 ms, `LampoGL.prerender`
+2,3 ms ja `PartikkeliGL.render` 3,5 ms ruudussa. Hilan rakennusta ei
+siis kannata siirtää taustasäikeeseen eikä partikkelisimulaatiota
+GPU:lle.
+
+**Aikajana oli eleen suurin JS-erä.** CPU-profiili (6 vetoa + zoom):
+JS 695 ms, josta aikajanaan 167 ms — `renderTimeline`in ruutupyyntö
+(pakotettu tyyli/asettelu) 91 ms, `_tlPaivitaPalkit` 51, `nowIdx` 11,
+`querySelector` 8, `_tlKiskoKeskita` 6. Jana seuraa kartan keskustaa
+myös vedon aikana (`_vpEleenAikana` → `updateTimelineToCenter`, 600 ms
+välein).
+
+Eristettynä (394 palkkia, kirjoitus + pakotettu asettelu, vuorotellen,
+mediaani 15:stä): koko nauhan päivitys 6,2 ms, josta kirjoitus 1,1 ja
+tyyli/asettelu 5,1. Pelkkä värin vaihto 3,7 ms, pelkkä korkeus 5,1 ms,
+eikä snäppäyksen tai maskin poisto muuttanut lukua (5,5 / 5,6). Kaksi
+ilmeistä korjausta mitattiin tehottomiksi: `.htick { contain: size
+layout }` 6,2 ms ja elementtien välimuisti 6,4 ms. Hinta on siis
+tyylilaskentaa ja verrannollinen kirjoitettujen palkkien määrään.
+
+**Tehty: eleen aikana vain näkyvät palkit.** Ruudulla on kerrallaan
+noin 21 palkkia; eleen aikana kirjoitetaan puoli ruutua + 6 kummallekin
+puolelle, ja loput maksetaan `moveend`issä. Eristettynä 7,7 → 1,7 ms
+(puhelin) ja 6,9 → 2,0 ms (iPad) päivitystä kohti; velan maksu
+levossa 7,4 ms, ja sen jälkeen 0/394 palkkia väärin (ennen maksua 351).
+Kuuden vedon sarjan jälkeen 0/394 väärin kolmella kierroksella, ja
+rampin vaihto molempiin suuntiin 0 väärää väriä. `nowIdx` lukee
+jäsennetyt aikaleimat `_tsMuisti`sta.
+Koko ketjun mittaus eleen aikana ei erota tätä luotettavasti: se
+sisältää ruutupyynnön pakotetun asettelun, joka maksaa myös kaiken muun
+samassa ruudussa likaantuneen (MapLibre kirjoittaa 60 merkin sijainnin
+joka ruudussa). Mitattuna edellinen [142, 143, 96] ms ja uusi
+[138, 76, 108] ms kuuden vedon aikana — hajonta on suurempi kuin ero.
+
+**Kokeilukytkin: havaintopillerien lasi (`?lasi=0`).** Pillereillä on
+`backdrop-filter: blur(10px)`, ja kartta muuttuu nyt joka ruudussa, joten
+jokainen näkyvä pilleri pakottaa kompositorin sumentamaan alustansa
+joka ruudussa. Ruudulla mitattuna:
+
+| näkymä | z7 | z9 | z10 | z12 |
+|---|---|---|---|---|
+| iPhone: merkkejä ruudulla / 60 | 36 | 27 | 22 | 8 |
+| iPhone: lasipillereitä ruudulla | 0 | 8 | 10 | 3 |
+| iPad: merkkejä ruudulla / 60 | 39 | 31 | 30 | 20 |
+| iPad: lasipillereitä ruudulla | 0 | 9 | 13 | 9 |
+
+Pillerin tausta on 78 % peittävä, joten sumennus näkyy vain 22 %:ssa.
+Kytkimellä kaikki 27 pilleriä saavat `backdrop-filter: none`, ja
+aikajanan napit pitävät lasinsa. Kontti ei mittaa kompositoria, joten
+vertailu tehdään laitteella kahdella välilehdellä.
+
+**Jätetty laitemittauksen varaan:**
+- *Merkkien karsinta ruudun ulkopuolelta.* MapLibre siirtää jokaista
+  DOM-merkkiä erikseen joka ruudussa (Leaflet siirsi yhden paneelin), ja
+  yllä olevan taulun mukaan 35–87 % niistä on ruudun ulkopuolella. JS on
+  pieni (MapLibren `Marker._update` 20 ms koko sarjassa); tyyli- ja
+  kompositorityö ei näy kontissa.
+- *Lämpökartan puskurin uudelleenkäyttö siirrossa.* Puhelimella
+  lämpökartan puskuri on 0,33 Mpx, joten hyöty on työpöydällä ja
+  iPadilla.
+
+Jos puhelimella tai iPadilla nykii vielä, ensimmäinen askel on Safarin
+Web Inspectorin Timelines → Rendering Frames laite kiinni Macissa: se
+näyttää katkeaako ruutu JS:ään, tyyliin/asetteluun vai kompositointiin,
+ja ratkaisee kumpi yllä olevista kannattaa.
+
 ## Tiivistelmä
 
 1. **Suurin yksittäinen vika on työpöytäkohtainen ja mitattu:** jokaisen

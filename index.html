@@ -25,6 +25,10 @@
   catch (e) { s = false; }
   if (s) document.documentElement.classList.add('standalone');
 })();
+/* Kokeilukytkin ?lasi=0: kartan pillerit ilman taustasumennusta
+   (ks. html.ei-lasia CSS:ssa). Vain osoitteesta, ei tallenneta —
+   vertailu tehdaan kahdella valilehdella. */
+if (/[?&]lasi=0\b/.test(location.search)) document.documentElement.classList.add('ei-lasia');
 /* Valittu pohjakartta juurielementtiin ENNEN ensimmaista maalausta.
    Ilman tata vaalea pohjakartta valahtaisi kaynnistyksessa mustana:
    #map:n tausta ja sovelluksen --bg tulevat tyylitiedostosta, ja jos ne
@@ -269,6 +273,16 @@ body {
 /* Merkki ei saa periä MapLibren oletuskursoria (grab) — spotti on nappi. */
 .kartta-merkki { cursor: pointer; }
 .kartta-merkki.ei-osuma { pointer-events: none; cursor: default; }
+/* KOKEILUKYTKIN `?lasi=0`: havaintopillerit ilman taustasumennusta.
+   Pillerin `backdrop-filter: blur(10px)` pakottaa kompositorin
+   sumentamaan kartan sen alta joka ruudussa, ja kartta muuttuu nyt joka
+   ruudussa (partikkelit, myös levossa). Ruudulla on 8–13 pilleriä z9–z10
+   (mitattu iPhone- ja iPad-näkymällä). Pillerin tausta on jo 78 %
+   peittävä, joten sumennus näkyy vain 22 %:ssa — ero on se, näkyykö
+   alta kulkeva partikkeli himmeänä viivana vai sumeana. Hintaa ei voi
+   mitata kontissa, joten tämä on laitteella tehtävää vertailua varten
+   eikä oletus. Inline-tyyli ohitetaan vain `!important`illa. */
+html.ei-lasia .kartta-merkki * { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 
 /* Tuulikanvas (#c-wind) ja lämpökartan DOM-kerrokset (.heatmap-overlay,
    .saa-laatat) ovat poissa: molemmat piirtyvät nyt MapLibren omaan
@@ -7505,6 +7519,8 @@ function initMap() {
 
   map.on('moveend zoomend', function () {
     State.liikkeessa = false;
+    /* Eleen aikana aikajanasta päivitettiin vain näkyvät palkit. */
+    _tlPalkitLoppuun();
     if (_hmPending && !_hmBusy) { var s = _hmPending; _hmPending = 0; _heatmapCatchUp(s); }
     if (_kenttaVelkaa) _rakennaKentta();
   });
@@ -19233,11 +19249,21 @@ function _tlSailytaHetki(uusiHourly, lahtoIdx) {
   return (vanha - ts[a]) <= (ts[b] - vanha) ? a : b;
 }
 
+/* Aikaleimat jäsennetään kerran taulukkoa kohti (`_tsMuisti`, sama muisti
+   kuin `_ts`:llä). Tätä kutsutaan aikajanan joka päivityksessä, ja
+   jäsennys joka kerta oli puhelimen näkymällä mitattuna 11 ms eleen
+   aikana. */
 function nowIdx(times) {
   if (!times || !times.length) return 0;
+  let ts = _tsMuisti.get(times);
+  if (!ts || ts.length !== times.length) {
+    ts = new Float64Array(times.length);
+    for (let i = 0; i < times.length; i++) ts[i] = new Date(times[i]).getTime();
+    _tsMuisti.set(times, ts);
+  }
   const now = Date.now(); let best = 0, bd = Infinity;
-  for (let i = 0; i < times.length; i++) {
-    const diff = Math.abs(new Date(times[i]).getTime() - now);
+  for (let i = 0; i < ts.length; i++) {
+    const diff = Math.abs(ts[i] - now);
     if (diff < bd) { bd = diff; best = i; }
   }
   return best;
@@ -19395,17 +19421,58 @@ function _tlPalkkiPx(ms) {
    (ks. "VALOKAISTA ON POISTETTU" CSS:ssä), joten tästä katosi samalla
    päiväerottimien erillinen päivityssilmukka — erottimet eivät olleet
    `_tlTicks`issä ja jäivät siksi kerran 18/18 väärään sävyyn. Sitä
-   ansaa ei enää ole, koska erottimia ei ole. */
-function _tlPaivitaPalkit(speeds) {
+   ansaa ei enää ole, koska erottimia ei ole.
+ *
+ * KARTAN ELEEN AIKANA VAIN NÄKYVÄT PALKIT, LOPUT KUN KARTTA PYSÄHTYY.
+ * Vedon aikana jana päivittyy kartan keskelle 600 ms välein, ja koko
+ * nauhan päivitys oli puhelimen näkymällä mitattuna eleen suurin
+ * JS-erä (167 / 695 ms). Hinta on TYYLILASKENTAA eikä asettelua:
+ * 394 palkkia, pelkkä väri 3,7 ms, korkeus 5,1 ms, eikä CSS-rajaus
+ * (`contain`) tai elementtien välimuisti muuttanut sitä (6,2 / 6,4 ms).
+ * Se on siis verrannollinen kirjoitettujen palkkien määrään, ja
+ * ruudulla on niistä kerrallaan noin 21. Eleen aikana kirjoitetaan
+ * `keskiIdx`:n ympäriltä puolen ruudun verran + `TL_PALKIT_REUNA`
+ * kummallekin puolelle, ja loppu jää velaksi (`State._tlPalkitVelka`),
+ * jonka `_tlPalkitLoppuun` maksaa kartan `moveend`issä. Velka on
+ * maksettava sieltä eikä seuraavasta päivityksestä, koska
+ * `updateTimelineToCenter` ohittaa päivityksen kun data on sama.
+ *
+ * Kirjoitus ohitetaan kun arvo on sama kuin viimeksi kirjoitettu
+ * (`bar._tl`): velan maksu ei siis kirjoita uudelleen niitä palkkeja
+ * jotka ele jo päivitti. */
+const TL_PALKIT_REUNA = 6;
+function _tlPaivitaPalkit(speeds, keskiIdx) {
   const tikit = State._tlTicks;
-  for (let i = 0; i < tikit.length; i++) {
-    const ms = speeds[i] || 0, bc = ColorRamp.varjo(ms);
-    const bar = tikit[i].querySelector('.htick-bar');
-    if (!bar) continue;
-    bar.style.height = _tlPalkkiPx(ms) + 'px';
-    bar.style.background = 'rgb(' + bc.r + ',' + bc.g + ',' + bc.b + ')';
-    bar.classList.toggle('foilable', ms >= 8);
+  if (!tikit || !tikit.length) return;
+  if (State._tlPalkitTikit !== tikit) {
+    State._tlPalkit = tikit.map(function (t) { return t.querySelector('.htick-bar'); });
+    State._tlPalkitTikit = tikit;
   }
+  const palkit = State._tlPalkit;
+  let i0 = 0, i1 = tikit.length - 1;
+  State._tlPalkitVelka = null;
+  if (State.liikkeessa && keskiIdx != null) {
+    const r = Math.ceil(window.innerWidth / (2 * TL_TIKKI_LEV)) + TL_PALKIT_REUNA;
+    const a = Math.max(0, keskiIdx - r), b = Math.min(tikit.length - 1, keskiIdx + r);
+    if (a > 0 || b < tikit.length - 1) { i0 = a; i1 = b; State._tlPalkitVelka = speeds; }
+  }
+  for (let i = i0; i <= i1; i++) {
+    const bar = palkit[i];
+    if (!bar) continue;
+    const ms = speeds[i] || 0, bc = ColorRamp.varjo(ms);
+    const h = _tlPalkkiPx(ms) + 'px', c = 'rgb(' + bc.r + ',' + bc.g + ',' + bc.b + ')', f = ms >= 8;
+    const m = bar._tl || (bar._tl = { h: null, c: null, f: null });
+    if (m.h !== h) { bar.style.height = h; m.h = h; }
+    if (m.c !== c) { bar.style.background = c; m.c = c; }
+    if (m.f !== f) { bar.classList.toggle('foilable', f); m.f = f; }
+  }
+}
+/* Eleen jättämä velka: loput palkit samasta sarjasta. Jos sarja on
+   ehtinyt vaihtua, uusi päivitys on jo kirjoittanut omansa. */
+function _tlPalkitLoppuun() {
+  const s = State._tlPalkitVelka;
+  State._tlPalkitVelka = null;
+  if (s && s === State._tlSpeeds) _tlPaivitaPalkit(s);
 }
 
 /* `lisa` on valinnainen: { lat, lng }.
@@ -19428,7 +19495,7 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
       && vanhat && vanhat.length === times.length
       && vanhat[0] === times[0] && vanhat[times.length - 1] === times[times.length - 1]
       && State._tlNytIdx === nowIdx(times)) {
-    _tlPaivitaPalkit(speeds);
+    _tlPaivitaPalkit(speeds, activeIdx);
     State._tlTimes = times; State._tlSpeeds = speeds; State._tlDirs = dirs;
     _tlBeginSelfScroll();
     requestAnimationFrame(() => {
@@ -19444,6 +19511,8 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
      rAF:n _tlSetScrollLeft():iin asti. */
   _tlBeginSelfScroll();
   tl.innerHTML = '';
+  /* Uudet tikit kirjoitetaan kokonaan alla, joten eleen velka raukeaa. */
+  State._tlPalkitVelka = null;
   if (!times || !times.length) { _tlRakennaPaivat(null, null); return; }
   State._tlTimes = times; State._tlSpeeds = speeds; State._tlDirs = dirs;
   State._tlTicks = [];
@@ -22796,7 +22865,7 @@ const KarttaAsetukset = {
       rakennaNippuVarit();
       buildLegend();
       const m = State._tlMuisti;
-      if (m) _tlPaivitaPalkit(m.speeds, m.valo);
+      if (m) _tlPaivitaPalkit(m.speeds);
       this._piirraLampokartta();
 
     } else if (avain === 'lampo') {
