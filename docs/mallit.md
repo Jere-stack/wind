@@ -34,12 +34,12 @@ Toteutus etenee vaiheittain, ja jokainen vaihe on oma osionsa lopussa.
      partikkelit/kapseli laskevat tason eri tavoin. Mitattu z9,6:lla:
      lämpökartta HARMONIE, indikaattori ECMWF.
    - *Valittu hetki voi siirtyä muualla käynnin jälkeen.* Paluussa
-     Helsinkiin aikajanan akseli vaihtuu kahdesti (varasto → spotin sarja
-     → varasto), koska Helsingin laatat on pudotettu 40 laatan muistista.
-     Hetki kulkee indeksinä, ja se jäi 21:00 →
-     15:00 (−4,6 h) kahdella ajolla kolmesta. HARMONIE kattaa vain
-     viimeisimmän ajonsa alusta eteenpäin, joten menneisyyteen siirtynyt
-     hetki on ECMWF:ää.
+     Helsinkiin aikajana rakennetaan uudelleen (akseli vaihtuu varasto →
+     spotin sarja → varasto, koska Helsingin laatat on pudotettu 40 laatan
+     muistista), ja rakennuksen oma vieritys luettiin käyttäjän
+     valinnaksi: hetki jäi 21:00 → 15:00 (−4,6 h) kahdella ajolla
+     kolmesta. HARMONIE kattaa vain viimeisimmän ajonsa alusta eteenpäin,
+     joten menneisyyteen siirtynyt hetki on ECMWF:ää. **Korjattu (V1).**
 2. **FMI:n data ei kata koko Suomea edes lähizoomissa.** Varaston
    HARMONIE-taso on lat 58–66, lng 18–31: Lappi (66–70,1°) ja itäraja
    (31–31,6°) jäävät pois. FMI:n oma HARMONIE kattaa mitattuna lat 50–75,
@@ -128,15 +128,13 @@ Tokio → `flyTo` Helsinki z10. Neljä ajoa, joista neljäs vahti-ajo.
   ja pudottaa vanhimman ensin (lisäysjärjestys, ei käyttöjärjestys), joten
   muualla käynti tyhjentää Suomen laatat joka kerta.
 - **Valittu hetki:** kahdella ajolla 21:00 → 15:00 (−4,6 h), yhdellä se
-  pysyi oikeassa. Vahti `currentHourIdx`:n asettajaan näytti kaksi kirjoitusta
-  paluussa, molemmat `updateTimelineToCenter`istä:
-  `aikajananLahde()` putoaa lähimpään rajapintapisteeseen (spotin
-  HARMONIE-sarja, alkaa ajohetkestä 15:00) kun varaston laatta ei ole
-  vielä muistissa, ja palaa varastoon kun laatta tulee. Hetki muunnetaan
-  `_tlTimeAt(State.currentHourIdx)`:lla eli sillä hetkellä RUUDULLA
-  olevalta akselilta — ja kun indeksi ja `State._tlTimes` päivittyvät eri
-  aikaan, sama indeksi luetaan väärältä akselilta. Sama ansaluokka kuin
-  CLAUDE.md:n "currentHourIdx on INDEKSI".
+  pysyi oikeassa. Paluussa akseli vaihtuu edestakaisin: `aikajananLahde()`
+  putoaa lähimpään rajapintapisteeseen (spotin HARMONIE-sarja, alkaa
+  ajohetkestä 15:00) kun varaston laatta ei ole vielä muistissa, ja palaa
+  varastoon kun laatta tulee. **Ensimmäinen arvaus oli että indeksi
+  luetaan väärältä akselilta — se oli väärin.** Tarkempi vahti näytti
+  kirjoittajaksi aikajanan oman vieritystapahtuman: uudelleenrakennuksen
+  snäppäys luettiin sormeksi (ks. *V1* alempana).
 - HARMONIEn aika-akseli alkaa **viimeisimmän ajon alusta** (nyt 15Z) eikä
   sillä ole menneisyyttä. Kun valittu hetki on yli tunnin sitä ennen,
   `taso()` ohittaa h0:n ja Helsinki on ECMWF:ää — oikein nykysäännöillä,
