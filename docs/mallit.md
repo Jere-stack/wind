@@ -590,10 +590,32 @@ Tarifan z9-näkymässä 9 km näyttää levanten purkautuvan salmesta länteen
 kielenä, jota 0,5°:n varasto ei erota; tähtäimen lukema samassa
 kohdassa 14,2 kts (varasto) ja 17,3 kts (9 km).
 
-**Avoinna:** viive puhelimella tuotannossa (Vercelin funktio ajetaan
-oletuksena itärannikolla ja S3-säilö on us-west-2:ssa, joten jokainen
-edestakainen matka maksaa). Funktion alueen vaihto koskisi myös
-FMI-proxyjä, joten se ratkaistaan vasta mittauksen jälkeen.
+**Mitattu tuotannossa** (24.9., `wind-delta.vercel.app`, funktio
+`iad1` eli itärannikko, S3-säilö `us-west-2`; jokainen rivi on
+välimuistiton `MISS`):
+
+| | kesto | palvelimen luku | koko |
+|---|---|---|---|
+| kenttä 5° × 3°, sama tunti, 7 aluetta | 1,0–1,1 s (ensimmäinen 2,3 s) | 0,9 s | 6,6 kB |
+| kenttä 5° × 3°, +30 / +100 / +200 / −20 h | 1,5–2,2 s | 1,3–2,0 s | 6,6 kB |
+| kenttä 24° × 12° (työpöytä z8) | 1,8 s | | 117 kB |
+| sarja (409 tuntia), 5 pistettä | 1,8–2,0 s | 1,6–1,9 s | 5,6 kB |
+| CDN-osuma | 0,2 s | | |
+| selaimessa: Tarifa z9 / Kanaria z9 / Helsinki z8 +80 h | 2,3 / 2,9 / 2,5 s | 2,1 / 2,0 / 2,1 s | 13,5 / 16,8 / 36,3 kB |
+
+Ennen `17efe16`:aa yksi seitsemästä kutsusta jäi odottamaan S3:a koko
+funktion 30 sekunnin katon. Nyt S3-luvulla on 6 s aikaraja ja kaksi
+uusintaa (`OmHttpBackend`in `timeoutMs`/`retries`, meta-hauilla
+`AbortSignal.timeout`) ja sovelluksella 12 s oma raja; ohitettu
+(uudempi haku korvasi) ei ole virhe. 16 välimuistitonta kutsua peräkkäin:
+ei yhtään jumia eikä virhettä.
+
+**Avoinna:** tuntuma laitteella. Tuotanto on samaa luokkaa kuin kontti
+(kenttä 1,0–2,2 s vs 1,2–1,9 s), ja kesto on lähes kokonaan palvelimen
+lukua eli peräkkäisiä S3-matkoja (ajon meta, muuttujien haku, data).
+Funktion siirto säilön viereen (`pdx1`) lyhentäisi jokaista matkaa,
+mutta se koskisi myös FMI-proxyjä, joten se tehdään vasta jos laitteella
+tuntuu hitaalta.
 
 ### Mitä jäi
 

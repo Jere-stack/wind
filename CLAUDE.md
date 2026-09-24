@@ -572,7 +572,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   tuo sitä selaimeen. O1280:n muuttujajärjestys vaihtelee tiedostosta
   toiseen (nimet haetaan rinnakkain), ja ECMWF on tunneittain vain 90 h
   asti — palvelin interpoloi 3 h / 6 h askelten välistä
-  (docs/mallit.md, V5).
+  (docs/mallit.md, V5). **S3-luvulla on AINA aikaraja** (6 s + kaksi
+  uusintaa, sovelluksessa 12 s): ilman sitä yksi kutsu seitsemästä
+  jäi tuotannossa odottamaan funktion 30 s kattoon asti.
 - **TESTISSÄ SERVICE WORKER ON ESTETTÄVÄ** (`serviceWorkers: 'block'`)
   kun varasto reititetään paikallisiin tiedostoihin: SW hakee laatat
   ohi Playwrightin reitityksen, ja testi lukee silloin tuotannon
