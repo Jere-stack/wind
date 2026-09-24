@@ -25,6 +25,7 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   partikkelit (`PartikkeliGL`) ja sadetutka (`GLRuudukko`) piirtyvät
   MapLibren omaan WebGL-ruutuun custom layereina.
 - `api/*.js` — Vercelin serverless-funktiot (FMI-havainnot, HARMONIE-ennuste,
+  ECMWF 9 km -kenttä ja -sarja Open-Meteon S3:sta (`malli.js`),
   aaltoennuste, vedenkorkeus, sade-ennuste GRIB2:sta,
   FMI:n aaltopoijut, Kruunuvuorenselän, Mellstenin, Larun ja Uiraan
   mittausdata-proxyt).
@@ -149,7 +150,8 @@ kokeiltu ja kaadettu mittauksella.
   V1 valittu hetki pysyy · V2 rakentaja (kolme pyramidia, painokanava,
   FMI:n ajot, MET Nordicin luku, koko ja kesto) · V3 sovellus (yksi
   valintasääntö, sekoitus, laattamuisti, lähdemerkintä) · V4 aikajana ·
-  Tarkistukset lähteitä vasten · Mitä jäi (V5)
+  Tarkistukset lähteitä vasten · V5 ECMWF 9 km kokeiluna (O1280,
+  aikasarjavarasto, kaksi ansaa, mittaukset) · Mitä jäi
 - **lisadata**: Mistä sovellus lukee nyt · TOP 10 — data · TOP 10 — lähteet ·
   Mitattu ja hylätty (MEPS on HARMONIE · hydrodyn 2/12 spottia · vuorovesi ·
   Holfuy · ilmanlaatu) · Toinen kerros — kontekstia, ei päätöstä ·
@@ -561,6 +563,16 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   AJOAIKA.** Kaksi rakennusta voi käyttää samaa ECMWF-ajoa ja eri
   FMI-ajoa, ja ajoaika avaimena antoi välimuistista edellisen
   rakennuksen FMI-laatan (mitattu: laatassa 63 hetkeä, luettelossa 70).
+- **ECMWF 9 km ON KOKEILU (`malli: 'auto9'`, `Ecmwf9`, `api/malli.js`).**
+  Se on dynaaminen perhe `ecmwf9` alueellisten alla ja varaston ECMWF:n
+  päällä: kenttä valitulle TASATUNNILLE näkymän alueelle zoomista 8 ja
+  sarja kartan keskipisteelle aikajanaa varten. Raahatessa hetki on
+  tuntien välissä ja 9 km:n paino 0, joten ele ei odota verkkoa. Lukija
+  (`@openmeteo/file-reader`, GPL-2.0) ajetaan VAIN palvelimella — älä
+  tuo sitä selaimeen. O1280:n muuttujajärjestys vaihtelee tiedostosta
+  toiseen (nimet haetaan rinnakkain), ja ECMWF on tunneittain vain 90 h
+  asti — palvelin interpoloi 3 h / 6 h askelten välistä
+  (docs/mallit.md, V5).
 - **TESTISSÄ SERVICE WORKER ON ESTETTÄVÄ** (`serviceWorkers: 'block'`)
   kun varasto reititetään paikallisiin tiedostoihin: SW hakee laatat
   ohi Playwrightin reitityksen, ja testi lukee silloin tuotannon

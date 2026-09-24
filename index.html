@@ -3556,6 +3556,7 @@ html[data-tutka="1"] #lahde-merkki {
           <div class="sp-label" style="margin-top:18px">Kartan säämalli</div>
           <div class="sp-chips" id="asetus-malli">
             <div class="sp-chip active" data-arvo="auto">Paras saatavilla</div>
+            <div class="sp-chip" data-arvo="auto9">Paras + ECMWF 9 km</div>
             <div class="sp-chip" data-arvo="fmi_harmonie">FMI HARMONIE</div>
             <div class="sp-chip" data-arvo="ecmwf_ifs025">ECMWF</div>
             <div class="sp-chip" data-arvo="icon_eu">ICON</div>
@@ -4561,7 +4562,7 @@ const Asetukset = {
        laattapyramidi piirtää kartan. Muut arvot PAKOTTAVAT mallin,
        jolloin varasto suljetaan ja kenttä rakennetaan rajapinnan
        hilapisteistä — ks. `KarttaAsetukset._vaihdaMalli`. */
-    malli:       ['auto', 'fmi_harmonie', 'ecmwf_ifs025', 'icon_eu', 'gfs_seamless']
+    malli:       ['auto', 'auto9', 'fmi_harmonie', 'ecmwf_ifs025', 'icon_eu', 'gfs_seamless']
   },
   /* PARTIKKELIEN AVAIMIA EI SAA VAIHTAA, vaikka nimet vaihtuivat.
      'vahan' on nyt nimeltään "Normaali" ja 'normaali' on "Paljon" —
@@ -5129,6 +5130,15 @@ const Saalaatat = {
       }
       this._pohja = this._perheet.find(p => p.pohja) || null;
       if (!this._pohja) throw new Error('luettelossa ei ole pohjamallia');
+      /* ECMWF 9 km (kokeilu, `Ecmwf9`): dynaaminen perhe ilman luettelon
+         tasoja, alueellisten alla ja varaston ECMWF:n päällä. Laatan
+         (valittu tunti, näkymän alue) ja sarjan (kartan keskipiste) tuo
+         `Ecmwf9` palvelimelta; paino on 0 kun kumpaakaan ei ole tälle
+         hetkelle, jolloin perhe maksaa yhden vertailun näytettä kohti. */
+      this._dyn = { id: 'ecmwf9', dyn: true, tasot: [], pohja: false, malli: 'ecmwf9',
+                    _aikaW: 0, _laatta: null, _sarja: null,
+                    _m: { laatta: null, la0: 0, lo0: 0, span: 0, step: -1 } };
+      this._perheet.splice(this._perheet.indexOf(this._pohja), 0, this._dyn);
       this._osuus = new Float64Array(this._perheet.length);
       /* Tuntiakseli johdetaan tästä, joten se mitätöityy samalla. */
       this._ajatH = null; this._tsMsH = null; this._kartta = null;
@@ -5169,11 +5179,53 @@ const Saalaatat = {
      smoothstep sen päissä. Perheen tasot jakavat akselin. */
   _aikaPaino(p, tMs) {
     if (p.pohja) return 1;
+    if (p.dyn) return this._dynPaino(p, tMs);
     const ax = p.tasot[0]._ax;
     if (!ax || ax === this._perus || tMs == null || !isFinite(tMs)) return 1;
     const ts = ax.tsMs, a = ts[0], b = ts[ts.length - 1];
     if (tMs < a || tMs > b) return 0;
     return this._ss((tMs - a) / this.AIKA_SISAAN_MS) * this._ss((b - tMs) / this.AIKA_ULOS_MS);
+  },
+
+  /* 9 km:n perheen paino hetkelle: laatta kattaa vain tuntinsa, sarja
+     (aikajanan tila, `_sarjaTila`) jokaisen tunnin jolle sillä on arvo.
+     Tunnin välissä paino on 0 — raahauksen karkea esikatselu on siis
+     varastoa, ja 9 km tulee kun hetki asettuu tasatuntiin. */
+  _sarjaTila: false,
+  _dynPaino(p, tMs) {
+    if (tMs == null || !isFinite(tMs)) return 0;
+    if (this._sarjaTila) {
+      const sa = p._sarja;
+      if (!sa) return 0;
+      const i = Math.round((tMs - sa.t0) / 3600e3);
+      return i >= 0 && i < sa.n && sa.nop[i] != null
+        && Math.abs(sa.t0 + i * 3600e3 - tMs) < 60e3 ? 1 : 0;
+    }
+    const l = p._laatta;
+    return l && Math.abs(l.hetki - tMs) < 60e3 ? 1 : 0;
+  },
+  /* Uusi 9 km:n laatta tai sarja: paino uudelleen samalle hetkelle ja
+     hakumuisti tyhjäksi. */
+  paivitaDyn() {
+    if (!this._dyn) return;
+    this._dyn._aikaW = this._dynPaino(this._dyn, this._hetkiMs);
+    this._nollaaMuisti();
+  },
+  _dynNayte(p, lat, lo) {
+    if (this._sarjaTila) {
+      const sa = p._sarja;
+      if (!sa || Math.abs(lat - sa.lat) > 0.06 || Math.abs(lo - sa.lng) > 0.12) return false;
+      const i = Math.round((this._hetkiMs - sa.t0) / 3600e3), v = sa.nop[i];
+      if (v == null || sa.suunta[i] == null) return false;
+      const g = sa.puuska[i];
+      this._pMs = this._puuskaTila && g != null ? g : v;
+      this._pDir = sa.suunta[i];
+      this._pPaino = 1;
+      return true;
+    }
+    const l = p._laatta;
+    if (!l || lat < l.la0 || lat > l.la1 || lo < l.lo0 || lo > l.lo1) return false;
+    return this._naytePerhe(l, lat, lo);
   },
 
   /* PERHEEN TASO paikalle ja hilavälille: suurin askel joka on <= step,
@@ -5358,6 +5410,7 @@ const Saalaatat = {
     let onnistui = 0;
     const ylemmat = [];
     for (const p of this._perheet) {
+      if (p.dyn) continue;     /* 9 km:n laatan hakee `Ecmwf9` */
       const aikaW = this._hetkiMs == null ? 1 : p._aikaW;
       if (!p.pohja && aikaW <= 0) continue;
       const tarvitaan = [];
@@ -5658,10 +5711,14 @@ const Saalaatat = {
       const p = P[i];
       let w = p._aikaW;
       if (w <= 0) continue;
-      const l = this._haePerhe(p, lat, lo, step);
-      if (!l || !this._naytePerhe(l, lat, lo)) {
-        if (p.pohja) { if (!sW) return false; this._vajaa = true; }
-        continue;
+      if (p.dyn) {
+        if (!this._dynNayte(p, lat, lo)) continue;
+      } else {
+        const l = this._haePerhe(p, lat, lo, step);
+        if (!l || !this._naytePerhe(l, lat, lo)) {
+          if (p.pohja) { if (!sW) return false; this._vajaa = true; }
+          continue;
+        }
       }
       if (!p.pohja) w *= this._pPaino;
       if (w <= 0) continue;
@@ -5943,6 +6000,9 @@ const Saalaatat = {
     const entinen = this._hetkiMs, entinenPuuska = this._puuskaTila;
     const nop = new Array(n), suu = new Array(n), puu = new Array(n);
     let kelpoja = 0;
+    /* Sarjassa 9 km:n perhe lukee pisteen sarjaa (`Ecmwf9`) eikä
+       yhden tunnin laattaa. */
+    this._sarjaTila = true;
     for (let i = 0; i < n; i++) {
       this.asetaHetki(ts[i]);
       this._puuskaTila = false;
@@ -5958,6 +6018,7 @@ const Saalaatat = {
       kelpoja++;
     }
     this._puuskaTila = entinenPuuska;
+    this._sarjaTila = false;
     this.asetaHetki(entinen);
     if (!kelpoja) return null;
     return {
@@ -5981,6 +6042,7 @@ const Saalaatat = {
     const lo = ((lng + 180) % 360 + 360) % 360 - 180;
     const tarvitaan = [];
     for (const p of this._perheet) {
+      if (p.dyn) continue;
       const L = this._perheenTaso(p, lat, lo, step);
       if (!L) continue;
       const r = this._ruutu(L, lat, lo);
@@ -5990,6 +6052,204 @@ const Saalaatat = {
     if (!tarvitaan.length) return 0;
     const t = await Promise.allSettled(tarvitaan.map(([L, r]) => this._lataa(L, r.la0, r.lo0)));
     return t.filter(x => x.status === 'fulfilled').length;
+  },
+};
+
+/* -- ECMWF 9 km (KOKEILU) ------------------------------------------
+ *
+ * Asetus "Paras + ECMWF 9 km" (`Asetukset.arvot.malli === 'auto9'`).
+ * Varasto on ennallaan (FMI, MET Nordic, ECMWF 0,25–1°) ja antaa kuvan
+ * heti; tämä tuo sen päälle ECMWF:n oman 9 km:n hilan palvelimelta
+ * (`api/malli.js`), Windyn tapaan tunti kerrallaan:
+ *
+ *   KENTTÄ  valitulle tasatunnille, näkymän pehmustetulle alueelle,
+ *           zoomista 8 ylöspäin — sitä leveämmässä näkymässä 9 km ei
+ *           erotu solmuvälistä. Ei haeta jos FMI tai MET Nordic peittää
+ *           koko alueen: siellä 9 km ei näkyisi.
+ *   SARJA   kartan keskipisteelle koko aikajanan akselille, jotta
+ *           aikajana ja kartta näyttävät yhä saman luvun.
+ *
+ * Raahatessa hetki on tuntien välissä ja 9 km:n paino 0, joten eleen
+ * aikana näkyy varasto eikä mikään odota verkkoa; kun hetki asettuu,
+ * haku lähtee ja kartta tarkentuu. Viimeisten hakujen kesto näkyy
+ * asetusvihjeessä, jotta vertailu onnistuu laitteella ilman
+ * kehitystyökaluja (docs/mallit.md, V5). */
+const Ecmwf9 = {
+  MIN_Z: 8,
+  PEHMUSTE: 0.6,
+  _kentat: new Map(),      /* avain -> laatta, käyttöjärjestyksessä */
+  _sarjat: new Map(),      /* avain -> sarja */
+  _ajastin: 0,
+  _kkesken: null, _skesken: null,
+  tilasto: { kentta: null, sarja: null, virhe: null, ohitettu: 0 },
+
+  paalla() {
+    return typeof Asetukset !== 'undefined' && Asetukset.arvot.malli === 'auto9'
+      && Saalaatat.kartallaKaytossa() && !!Saalaatat._dyn;
+  },
+
+  /* Kutsutaan kun kartta pysähtyy, hetki vaihtuu tai asetus muuttuu.
+     Ajastin siirtyy jokaisella kutsulla, joten raahaus ja heitto hakevat
+     vasta kun ne ovat ohi. */
+  ajasta() {
+    clearTimeout(this._ajastin);
+    const self = this;
+    this._ajastin = setTimeout(function () { self._hae().catch(function (e) {
+      self.tilasto.virhe = String(e && e.message || e);
+    }); }, 350);
+  },
+
+  tyhjenna() {
+    if (!Saalaatat._dyn) return;
+    Saalaatat._dyn._laatta = null; Saalaatat._dyn._sarja = null;
+    Saalaatat.paivitaDyn();
+  },
+
+  _dekoodaa(b64) {
+    const bin = atob(b64), a = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+    return a;
+  },
+
+  /* Vastaus laatan muotoon (`Saalaatat._naytePerhe`). Painotaso häivyttää
+     alueen reunan kahdeksan prosentin matkalla: reuna on ruudun
+     ulkopuolella, mutta panoroitaessa sen yli ei saa näkyä saumaa ennen
+     kuin uusi alue on haettu. */
+  _laatta(o) {
+    const ni = o.ni, nj = o.nj, paino = new Uint8Array(ni * nj);
+    const m = Math.max(2, Math.round(0.08 * Math.min(ni, nj)));
+    for (let j = 0; j < nj; j++) for (let i = 0; i < ni; i++) {
+      const d = Math.min(i, ni - 1 - i, j, nj - 1 - j) / m;
+      const x = d <= 0 ? 0 : (d >= 1 ? 1 : d * d * (3 - 2 * d));
+      paino[j * ni + i] = Math.round(255 * x);
+    }
+    return {
+      askel: o.askel, la0: o.la0, lo0: o.lo0, ny: nj, nx: ni, nt: 1,
+      la1: o.la0 + (nj - 1) * o.askel, lo1: o.lo0 + (ni - 1) * o.askel,
+      _ax: { ok: true, ti: 0, tf: 0, tsMs: [o.t] },
+      nop: this._dekoodaa(o.nop), suunta: this._dekoodaa(o.suunta), puuska: this._dekoodaa(o.puuska),
+      paino: paino, taysi: false, hetki: o.t, ajo: o.ajo,
+    };
+  },
+
+  _muista(kartta, avain, arvo, katto) {
+    kartta.delete(avain); kartta.set(avain, arvo);
+    while (kartta.size > katto) kartta.delete(kartta.keys().next().value);
+  },
+
+  async _hae() {
+    if (!this.paalla()) { this.tyhjenna(); return; }
+    const map = State.map;
+    if (!map || State._tlTouching) return;
+    const z = map.getZoom();
+    const hetki = LampoGL._hetki();
+    if (hetki == null || !isFinite(hetki) || hetki % 3600e3 !== 0) return;
+    if (z < this.MIN_Z) { this.tyhjenna(); return; }
+    await Promise.all([this._haeKentta(map, z, hetki), this._haeSarja(map)]);
+  },
+
+  async _haeKentta(map, z, hetki) {
+    const b = map.getBounds();
+    const vLat = b.getNorth() - b.getSouth(), vLng = b.getEast() - b.getWest();
+    const P = this.PEHMUSTE, q = 0.5;
+    const s = Math.max(-85, Math.floor((b.getSouth() - vLat * P) / q) * q);
+    const n = Math.min(85, Math.ceil((b.getNorth() + vLat * P) / q) * q);
+    const w = Math.floor((b.getWest() - vLng * P) / q) * q;
+    const e = Math.ceil((b.getEast() + vLng * P) / q) * q;
+    /* Päivämäärärajan yli ei haeta: laatan pituusasteet ovat ±180:n
+       sisällä, ja sauma olisi oma erikoistapauksensa. */
+    if (w < -180 || e > 180) return;
+    const dyn = Saalaatat._dyn, nyk = dyn._laatta;
+    if (nyk && nyk.hetki === hetki && s >= nyk.la0 - 1e-6 && n <= nyk.la1 + 1e-6
+        && w >= nyk.lo0 - 1e-6 && e <= nyk.lo1 + 1e-6) return;
+    /* Peittääkö FMI tai MET Nordic koko NÄKYVÄN alueen tälle hetkelle?
+       Näkyvä eikä pehmustettu: pehmusteen laatat eivät ole vielä
+       muistissa kun tämä ajetaan, ja tuntematon luetaan peittämättömäksi
+       (mitattu: Helsingin z10-näkymä haki kentän turhaan). */
+    const st = ViewportGrid.laattaStep(Math.round(z));
+    const bS = b.getSouth(), bW = b.getWest();
+    /* Näkymän laatat ensin: kaukaa hypättäessä (mitattu Kanariansaarilta
+       Helsinkiin) tarkistus ehti ennen FMI:n laattoja ja haki kentän
+       turhaan. Muistissa olevilla laatoilla tämä palaa heti. */
+    await Saalaatat.varmista(b, st);
+    if (LampoGL._hetki() !== hetki) return;
+    let peitetty = true;
+    for (const fy of [0.02, 0.5, 0.98]) for (const fx of [0.02, 0.5, 0.98]) {
+      if (!peitetty) break;
+      const o = Saalaatat.malliKohdassa(bS + vLat * fy, bW + vLng * fx, st, hetki);
+      if (!o || !o.length || (o[0].perhe !== 'fmi' && o[0].perhe !== 'metnordic') || o[0].osuus < 0.999) peitetty = false;
+    }
+    if (peitetty) { this.tilasto.ohitettu++; return; }
+
+    const avain = hetki + '|' + s + '|' + n + '|' + w + '|' + e;
+    let laatta = this._kentat.get(avain), mitta = null;
+    if (!laatta) {
+      if (this._kkesken) this._kkesken.abort();
+      const ac = this._kkesken = new AbortController();
+      const t0 = performance.now();
+      const r = await fetch(API_BASE + '/malli?t=' + hetki + '&s=' + s + '&n=' + n + '&w=' + w + '&e=' + e,
+                            { signal: ac.signal });
+      const teksti = await r.text();
+      if (this._kkesken === ac) this._kkesken = null;
+      const o = JSON.parse(teksti);
+      if (o.error) throw new Error(o.error);
+      laatta = this._laatta(o);
+      mitta = { ms: Math.round(performance.now() - t0), palvelin: o.ms ? o.ms.yht : null,
+                kB: Math.round(teksti.length / 100) / 10, solmuja: o.ni * o.nj };
+      this.tilasto.kentta = mitta;
+      this._muista(this._kentat, avain, laatta, 16);
+    } else {
+      this._muista(this._kentat, avain, laatta, 16);
+    }
+    /* Hetki tai näkymä ehti vaihtua haun aikana: tulos jää muistiin,
+       mutta ruudulle ei viedä väärää tuntia. */
+    if (LampoGL._hetki() !== hetki || State._tlTouching) return;
+    dyn._laatta = laatta;
+    Saalaatat.paivitaDyn();
+    this._paivitaKartta();
+  },
+
+  async _haeSarja(map) {
+    const c = map.getCenter();
+    const la = Math.round(c.lat * 20) / 20, lo = Math.round(c.lng * 20) / 20;
+    if (!Saalaatat._tunnit() || !Saalaatat._tsMsH || !Saalaatat._tsMsH.length) return;
+    const alku = Saalaatat._tsMsH[0], loppu = Saalaatat._tsMsH[Saalaatat._tsMsH.length - 1];
+    const avain = la + '|' + lo + '|' + alku;
+    const dyn = Saalaatat._dyn;
+    let sa = this._sarjat.get(avain);
+    if (sa && Date.now() - sa.haettu > 30 * 60e3) sa = null;
+    if (!sa) {
+      if (this._skesken) this._skesken.abort();
+      const ac = this._skesken = new AbortController();
+      const t0 = performance.now();
+      const r = await fetch(API_BASE + '/malli?tila=sarja&lat=' + la + '&lng=' + lo + '&alku=' + alku + '&loppu=' + loppu,
+                            { signal: ac.signal });
+      const teksti = await r.text();
+      if (this._skesken === ac) this._skesken = null;
+      const o = JSON.parse(teksti);
+      if (o.error) throw new Error(o.error);
+      sa = { lat: la, lng: lo, t0: o.t0, n: o.n, nop: o.nop, suunta: o.suunta, puuska: o.puuska, haettu: Date.now() };
+      this.tilasto.sarja = { ms: Math.round(performance.now() - t0), palvelin: o.ms ? o.ms.yht : null,
+                             kB: Math.round(teksti.length / 100) / 10, tunteja: o.n };
+      this._muista(this._sarjat, avain, sa, 8);
+    }
+    if (dyn._sarja === sa) return;
+    dyn._sarja = sa;
+    if (typeof updateTimelineToCenter === 'function' && !State._tlTouching) updateTimelineToCenter();
+    if (typeof KarttaAsetukset !== 'undefined') KarttaAsetukset._malliVihje();
+  },
+
+  /* Uusi kenttä ruudulle: lämpökartta seuraavassa ruudussa, partikkelit
+     ja kapseli kentän uudelleenrakennuksesta (sama polku kuin tunnin
+     vahvistus). */
+  _paivitaKartta() {
+    drawColorField();
+    if (typeof buildWindField === 'function') {
+      Promise.resolve(buildWindField(State.currentHourIdx)).then(function () {
+        if (typeof resetParticles === 'function') resetParticles();
+      }).catch(function () {});
+    }
+    if (typeof KarttaAsetukset !== 'undefined') KarttaAsetukset._malliVihje();
   },
 };
 
@@ -9060,7 +9320,7 @@ const LampoGL = {
     /* Esilataus: koko pehmustettu alue heti kun kartta pysähtyy, jotta
        seuraava siirto ei odota yhtään laattaa. Kuristus SIIRTÄÄ eikä
        pudota (ks. CLAUDE.md "ESILATAUKSEN KURISTUS SIIRTÄÄ"). */
-    map.ml.on('moveend', function () { self._esilataa(); });
+    map.ml.on('moveend', function () { self._esilataa(); Ecmwf9.ajasta(); });
     this.esilataaKunValmis();
   },
 
@@ -9213,6 +9473,9 @@ const LampoGL = {
     const b = map.getBounds();
     const tz = Math.round(map.getZoom()), d = ViewportGrid.laattaStep(tz);
     const hetki = this._hetki(), kentta = State.activeLayer;
+    /* 9 km:n kenttä on tuntikohtainen: uusi hetki = uusi haku (ajastin
+       siirtyy raahauksen ajan, joten haku lähtee vasta kun hetki asettuu). */
+    if (hetki !== this._e9Hetki) { this._e9Hetki = hetki; Ecmwf9.ajasta(); }
     const h = this._hila;
     const tarve = this._likainen || !h || h.d !== d || h.hetki !== hetki || h.kentta !== kentta || !this._kattaa(h, b);
     if (!tarve) return;
@@ -11541,7 +11804,9 @@ const KARTTA_VARASTO = 'varasto';
 let _kartanMalliNyt = null;
 function kartanMalli() {
   const v = (typeof Asetukset !== 'undefined') ? Asetukset.arvot.malli : 'auto';
-  if (v !== 'auto') return v;
+  /* 'auto9' on automaattinen + ECMWF 9 km:n kokeilu (`Ecmwf9`): kartta
+     lukee varastoa kuten automaattisessa, ja 9 km tulee sen päälle. */
+  if (v !== 'auto' && v !== 'auto9') return v;
   /* AUTOMAATTINEN ON VARASTO — ja se ON HARMONIE siellä missä HARMONIE on.
    *
    * Tässä luki aiemmin "jos keskipiste on HARMONIEn alueella ja zoom
@@ -21454,6 +21719,8 @@ const Lahde = {
     /* Yr:n data: MEPS jälkikäsiteltynä havainnoilla 1 km:iin. Varastossa
        FMI:n jatke Pohjoismaissa ja Baltiassa, ja menneisyys Suomessa. */
     metnordic: 'MET Norway · MET Nordic 1 km (Yr)',
+    /* ECMWF:n oma O1280-hila palvelimelta (`Ecmwf9`, kokeilu). */
+    ecmwf9: 'ECMWF IFS 9 km',
     ecmwf_ifs025: 'ECMWF IFS 9 km',
     icon_eu: 'ICON EU 7 km',
     gfs_seamless: 'GFS 13 km'
@@ -21469,6 +21736,7 @@ const Lahde = {
     om:  'Open-Meteo',
     laatta: 'ECMWF IFS 0,25 °',
     metnordic: 'MET Nordic 1 km',
+    ecmwf9: 'ECMWF 9 km',
     ecmwf_ifs025: 'ECMWF',
     icon_eu: 'ICON',
     gfs_seamless: 'GFS'
@@ -23069,7 +23337,7 @@ const KarttaAsetukset = {
     const el = document.getElementById('malli-vihje');
     if (!el) return;
     const v = Asetukset.arvot.malli;
-    if (v === 'auto') {
+    if (v === 'auto' || v === 'auto9') {
       /* Nyt käytössä oleva malli luetaan SIITÄ TASOSTA jonka laatta
          kartan keskellä on — samasta valinnasta kuin lähdemerkintä. */
       let nyt = null;
@@ -23084,6 +23352,19 @@ const KarttaAsetukset = {
         + 'Baltiassa sekä Suomen menneisyydessä, muualla ECMWF IFS 0,25°. '
         + 'Mallien rajat sekoitetaan 50 km matkalla. '
         + (nyt ? 'Nyt kartan keskellä: ' + nyt + '.' : '');
+      if (v === 'auto9') {
+        /* KOKEILUN MITTARI NÄKYVIIN. Vertailu tehdään puhelimella, jossa
+           kehitystyökaluja ei ole: viimeisen kentän ja sarjan haun kesto
+           (koko matka / siitä palvelimella) ja koko. */
+        const t = Ecmwf9.tilasto, f = (x) => x
+          ? (x.ms / 1000).toFixed(1).replace('.', ',') + ' s (palvelin '
+            + (x.palvelin != null ? (x.palvelin / 1000).toFixed(1).replace('.', ',') : '?') + ' s), '
+            + String(x.kB).replace('.', ',') + ' kB'
+          : 'ei vielä';
+        el.textContent += ' Kokeilu: ECMWF 9 km tulee palvelimelta valitulle tunnille zoomista '
+          + Ecmwf9.MIN_Z + ' ylöspäin ja aikajanalle kartan keskeltä. Kenttä: ' + f(t.kentta)
+          + '. Sarja: ' + f(t.sarja) + '.' + (t.virhe ? ' Virhe: ' + t.virhe + '.' : '');
+      }
       return;
     }
     el.textContent = (v === 'fmi_harmonie'
@@ -23143,6 +23424,7 @@ const KarttaAsetukset = {
        sulkeminen vaihtaa sen seuraavassa ruudussa näkymätekstuuriin. */
     drawColorField();
     this._malliVihje();
+    Ecmwf9.ajasta();
     if (alustus) return;
     /* Välimuistit ovat mallikohtaisia avaimiltaan (`fg_<malli>_`), mutta
        ViewportGridin oma muisti ei ole — se on tyhjennettävä käsin,
@@ -23597,7 +23879,7 @@ const _loadingSafety = setTimeout(() => {
    * Tämä on saman ?perf=1-portin takana kuin koko paneeli, joten
    * tuotantopolussa globaaliin nimiavaruuteen ei viedä mitään. */
   try {
-    window.FS = { State: State, WindTexture: WindTexture, Saalaatat: Saalaatat,
+    window.FS = { State: State, WindTexture: WindTexture, Saalaatat: Saalaatat, Ecmwf9: Ecmwf9,
       ViewportGrid: ViewportGrid, ColorRamp: ColorRamp, PerfTracker: PerfTracker,
       buildWindField: buildWindField, idw: idw,
       LampoGL: LampoGL, PartikkeliGL: PartikkeliGL, L: L,

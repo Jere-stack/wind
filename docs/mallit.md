@@ -536,28 +536,66 @@ johon MET Nordic liukuu kahdessa tunnissa, MET Nordic, FMI
   vaikuta pistekyselyyn). Saman ajon hila vs piste: ka 0,07 m/s. Uusi
   h0 on tavulleen sama kuin tuotannon h0 samasta ajosta.
 
-### Mitä jäi (V5)
+### V5 — ECMWF 9 km kokeiluna (toteutettu kytkimen takana)
 
-ECMWF on muualla maailmassa yhä 0,25°:n suodatettu pyramidi (l0 vain
-Pohjois-Euroopassa). Windyn 9 km:n ECMWF koko maapallolle vaatii oman
-ruutupalvelun (`api/malli.js`, `ecmwf_ifs` S3:sta), koska 0,1°:n
-maailma ei mahdu git-varastoon.
+Asetus **Kartan säämalli → Paras + ECMWF 9 km** (`malli: 'auto9'`).
+Varasto on ennallaan ja antaa kuvan heti; 9 km tulee sen päälle
+palvelimelta (`api/malli.js`, Windyn tapaan tunti kerrallaan):
 
-**Prototyyppimittaus (palvelinpää, kontista, 23.9.):** `ecmwf_ifs` on
-O1280-hila (6 599 680 pistettä, 2 560 leveysriviä, rivillä 20 + 4(i−1)
-pistettä, lohko 1 024 pistettä), 145 tuntia 15 vuorokauteen, u/v/puuska.
-Leveyskaista luetaan yhtenä yhtenäisenä välinä:
+- **Kenttä** valitulle tasatunnille näkymän pehmustetulle alueelle
+  (0,6 näkymää, pyöristetty 0,5°:een välimuistin takia), zoomista 8
+  ylöspäin, 0,1°:n hilana. Ei haeta jos FMI tai MET Nordic peittää
+  koko näkyvän alueen (mitattu: Helsingin z10 ohitettiin).
+- **Sarja** kartan keskipisteelle koko aikajanan akselille. Aikajana on
+  Suomessa MET Nordic (menneisyys) → FMI (noin 2,5 vrk) → **ECMWF 9 km**
+  loppuun asti.
+- **Perhe `ecmwf9`** on alueellisten alla ja varaston ECMWF:n päällä.
+  Paino on 1 vain sillä tunnilla jonka laatta on (tai jolle sarjassa on
+  arvo) ja reuna häivytetään 8 %:n matkalla. Raahatessa hetki on tuntien
+  välissä, joten eleen aikana näkyy varasto eikä mikään odota verkkoa.
+- **Asetusvihje näyttää viimeisen haun keston** (koko matka / siitä
+  palvelimella) ja koon, jotta vertailu onnistuu puhelimella.
 
-| alue, yksi tunti, kolme kenttää | pisteitä | luku | pyyntöjä | siirto |
-|---|---|---|---|---|
-| 5° kaista (58–63°N, koko maapallon ympäri) | 122 256 | 1,0 s | 60 | 0,28 MB |
-| 20° kaista (40–60°N) | 656 084 | 2,1 s | 77 | 1,42 MB |
+**Lähteet ja hila.** `data_spatial/ecmwf_ifs/<ajo>/<hetki>.om` kentille
+ja Open-Meteon aikasarjavarasto `data/ecmwf_ifs/<muuttuja>/chunk_N.om`
+(504 h tiedostoa kohti, lohko 6 pistettä × 504 h) sarjoille. O1280:ssa
+on 2 560 riviä pohjoisesta etelään, rivillä k (≤ 1280) 20 + 4(k−1)
+pistettä pituusasteesta 0 itään; leveysasteet Tricomin approksimaatiolla.
+Suunnat tarkistettu varaston ECMWF 0,25°:ta vasten: oikein päin ka
+0,8–1,8 m/s (alueen keskiarvo vs 9 km:n piste), peilattuna leveydessä
+6,1 ja pituudessa 3,2–6,2 m/s.
 
-Tiedoston avaus kaikkien lasten nimineen kesti 4 s; lapsi-indeksien
-muisti (kuten `tools/metnordic.mjs`) pudottaa sen noin 0,5 s:iin.
+**Kaksi mitattua ansaa:**
+- *Muuttujien järjestys vaihtelee tiedostosta toiseen* (saman ajon
+  seitsemässä tiedostossa u oli lapsi 20, 24, 25, 27, 28 tai 30), joten
+  indeksiä ei voi muistaa. Nimien haku peräkkäin maksoi 4 s, rinnakkain
+  yhden kierroksen.
+- *ECMWF on tunneittain vain 90 h asti*, sitten 3 h ja 144 h:sta 6 h
+  (06Z/18Z-ajo 109 hetkeä, 00Z/12Z 145). Tasatuntia ei aina ole
+  tiedostona (mitattu: Kanariansaaret +200 h "File not found"), joten
+  palvelin interpoloi kahden hetken välistä nopeuden ja suunnan
+  erikseen, kuten varasto.
 
-**Johtopäätös suunnitteluun:** tunti kerrallaan palvelu on kevyt, mutta
-koko sarjan laatta (145 tiedostoa) olisi minuutteja. 9 km:n ECMWF vaatii
-siis Windyn mallin mukaiset TUNTIKOHTAISET ruudut ja esihaun aikajanan
-edellä — eri laattamallin kuin nykyinen varasto, jossa laatassa on koko
-akseli. Viive puhelimella on mitattava laitteella ennen toteutusta.
+**Mitattu kontissa** (paikallinen `vite preview` + api, Chromium):
+
+| | kesto | palvelin | koko |
+|---|---|---|---|
+| kenttä Tarifa z9 (3 321 solmua) | 1,2 s | 1,2 s | 13,5 kB |
+| kenttä Helsinki z8 +80 h (9 016 solmua) | 1,9 s | 1,5 s | 36,3 kB |
+| kenttä Kanariansaaret z9 | 1,2–3,4 s | | 16,8 kB |
+| sarja (397 tuntia) | 1,3–1,4 s | 1,0–1,3 s | 5,5 kB |
+| kylmä instanssi (ensimmäinen kutsu) | 2,0 s | | |
+
+Tarifan z9-näkymässä 9 km näyttää levanten purkautuvan salmesta länteen
+kielenä, jota 0,5°:n varasto ei erota; tähtäimen lukema samassa
+kohdassa 14,2 kts (varasto) ja 17,3 kts (9 km).
+
+**Avoinna:** viive puhelimella tuotannossa (Vercelin funktio ajetaan
+oletuksena itärannikolla ja S3-säilö on us-west-2:ssa, joten jokainen
+edestakainen matka maksaa). Funktion alueen vaihto koskisi myös
+FMI-proxyjä, joten se ratkaistaan vasta mittauksen jälkeen.
+
+### Mitä jäi
+
+9 km on kokeilu kytkimen takana. Jos viive laitteella kelpaa, siitä
+tulee oletus (`auto` = nykyinen `auto9`) ja kytkin poistetaan.
