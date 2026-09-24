@@ -6077,6 +6077,7 @@ const Saalaatat = {
 const Ecmwf9 = {
   MIN_Z: 8,
   PEHMUSTE: 0.6,
+  AIKARAJA_MS: 12000,
   _kentat: new Map(),      /* avain -> laatta, käyttöjärjestyksessä */
   _sarjat: new Map(),      /* avain -> sarja */
   _ajastin: 0,
@@ -6094,8 +6095,13 @@ const Ecmwf9 = {
   ajasta() {
     clearTimeout(this._ajastin);
     const self = this;
-    this._ajastin = setTimeout(function () { self._hae().catch(function (e) {
+    this._ajastin = setTimeout(function () { self._hae().then(function () {
+      self.tilasto.virhe = null;
+    }, function (e) {
+      /* Uudempi haku ohitti tämän (`abort()` ilman syytä): ei virhe. */
+      if (e && e.name === 'AbortError') return;
       self.tilasto.virhe = String(e && e.message || e);
+      if (typeof KarttaAsetukset !== 'undefined') KarttaAsetukset._malliVihje();
     }); }, 350);
   },
 
@@ -6187,8 +6193,11 @@ const Ecmwf9 = {
       if (this._kkesken) this._kkesken.abort();
       const ac = this._kkesken = new AbortController();
       const t0 = performance.now();
+      /* Aikaraja: jumittunut haku ei saa pitää vanhaa tilaa yllä —
+         varasto on jo ruudulla, joten luovutus ei maksa mitään. */
+      const aj = setTimeout(function () { ac.abort(new Error('aikaraja ' + Ecmwf9.AIKARAJA_MS / 1000 + ' s')); }, this.AIKARAJA_MS);
       const r = await fetch(API_BASE + '/malli?t=' + hetki + '&s=' + s + '&n=' + n + '&w=' + w + '&e=' + e,
-                            { signal: ac.signal });
+                            { signal: ac.signal }).finally(function () { clearTimeout(aj); });
       const teksti = await r.text();
       if (this._kkesken === ac) this._kkesken = null;
       const o = JSON.parse(teksti);
@@ -6222,8 +6231,9 @@ const Ecmwf9 = {
       if (this._skesken) this._skesken.abort();
       const ac = this._skesken = new AbortController();
       const t0 = performance.now();
+      const aj = setTimeout(function () { ac.abort(new Error('aikaraja ' + Ecmwf9.AIKARAJA_MS / 1000 + ' s')); }, this.AIKARAJA_MS);
       const r = await fetch(API_BASE + '/malli?tila=sarja&lat=' + la + '&lng=' + lo + '&alku=' + alku + '&loppu=' + loppu,
-                            { signal: ac.signal });
+                            { signal: ac.signal }).finally(function () { clearTimeout(aj); });
       const teksti = await r.text();
       if (this._skesken === ac) this._skesken = null;
       const o = JSON.parse(teksti);

@@ -48,13 +48,21 @@ const NOP_ASKEL = 0.2, SUUNTA_ASKEL = 2, TYHJA = 255;
 const RAD = Math.PI / 180;
 const HALUTUT = ['wind_u_component_10m', 'wind_v_component_10m', 'wind_gusts_10m'];
 
+/* S3-PYYNNÖN AIKARAJA JA UUSINTA. Lukijan oletus on 30 s ja yksi
+   uusinta, ja tuotannossa yksi kutsu seitsemästä jumittui täsmälleen
+   30 sekuntiin (funktion `maxDuration`). Yksittäinen osaväliluku on
+   mitattuna 50–300 ms, joten 6 s on jumi eikä hidas vastaus. */
+const TAUSTA = { timeoutMs: 6000, retries: 2 };
+const tausta = (url) => new OmHttpBackend({ url, ...TAUSTA });
+const hae = (url) => fetch(url, { signal: AbortSignal.timeout(6000) });
+
 /* Lämpimän instanssin muisti: tuorein ajo 5 min ja ajojen hetkilistat. */
 let tuorein = null, tuoreinT = 0;
 const ajoMeta = new Map();
 
 async function haeTuorein() {
   if (tuorein && Date.now() - tuoreinT < 300e3) return tuorein;
-  const r = await fetch(`${S3}/data_spatial/${MALLI}/latest.json`);
+  const r = await hae(`${S3}/data_spatial/${MALLI}/latest.json`);
   if (!r.ok) throw new Error('latest.json HTTP ' + r.status);
   tuorein = await r.json();
   tuoreinT = Date.now();
@@ -76,7 +84,7 @@ async function haeAjonHetket(a) {
   if (ajoMeta.has(avain)) return ajoMeta.get(avain);
   let ajat = null;
   try {
-    const r = await fetch(`${S3}/data_spatial/${MALLI}/${ajoPolku(a)}/meta.json`);
+    const r = await hae(`${S3}/data_spatial/${MALLI}/${ajoPolku(a)}/meta.json`);
     if (r.ok) {
       const m = await r.json();
       ajat = (m.valid_times || []).map((t) => Date.parse(t)).filter(Number.isFinite);
@@ -100,7 +108,7 @@ async function lapsiNimella(reader) {
 }
 
 async function lueTiedosto(url, s0, s1) {
-  const reader = await OmFileReader.create(new OmHttpBackend({ url }));
+  const reader = await OmFileReader.create(tausta(url));
   const lapset = await lapsiNimella(reader);
   const kentat = await Promise.all(HALUTUT.map(async (nimi) => {
     const c = lapset[nimi];
@@ -269,7 +277,7 @@ async function sarja(q) {
       tyot.push((async () => {
         let reader;
         try {
-          reader = await OmFileReader.create(new OmHttpBackend({ url: `${S3}/data/${MALLI}/${nimi}/chunk_${c}.om` }));
+          reader = await OmFileReader.create(tausta(`${S3}/data/${MALLI}/${nimi}/chunk_${c}.om`));
         } catch (e) { return; }
         const h0 = Math.max(alkuH, c * 504), h1 = Math.min(loppuH, c * 504 + 503);
         if (h1 < h0) return;
