@@ -25,7 +25,8 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   partikkelit (`PartikkeliGL`) ja sadetutka (`GLRuudukko`) piirtyvät
   MapLibren omaan WebGL-ruutuun custom layereina.
 - `api/*.js` — Vercelin serverless-funktiot (FMI-havainnot, HARMONIE-ennuste,
-  ECMWF 9 km -kenttä ja -sarja Open-Meteon S3:sta (`malli.js`),
+  mallin oma hila Open-Meteon S3:sta — ECMWF 9 km, ICON, GFS — kenttänä ja
+  sarjana (`malli.js`),
   aaltoennuste, vedenkorkeus, sade-ennuste GRIB2:sta,
   FMI:n aaltopoijut, Kruunuvuorenselän, Mellstenin, Larun ja Uiraan
   mittausdata-proxyt).
@@ -150,8 +151,10 @@ kokeiltu ja kaadettu mittauksella.
   V1 valittu hetki pysyy · V2 rakentaja (kolme pyramidia, painokanava,
   FMI:n ajot, MET Nordicin luku, koko ja kesto) · V3 sovellus (yksi
   valintasääntö, sekoitus, laattamuisti, lähdemerkintä) · V4 aikajana ·
-  Tarkistukset lähteitä vasten · V5 ECMWF 9 km kokeiluna (O1280,
-  aikasarjavarasto, kaksi ansaa, mittaukset) · Mitä jäi
+  Tarkistukset lähteitä vasten · V5 ECMWF 9 km (O1280,
+  aikasarjavarasto, kaksi ansaa, mittaukset) · V6 pakotettu malli
+  perheinä ja mallin omana hilana (tilat, ICON ja GFS, tuntipaketti,
+  kolme ansaa, mittaukset) · Mitä jäi
 - **lisadata**: Mistä sovellus lukee nyt · TOP 10 — data · TOP 10 — lähteet ·
   Mitattu ja hylätty (MEPS on HARMONIE · hydrodyn 2/12 spottia · vuorovesi ·
   Holfuy · ilmanlaatu) · Toinen kerros — kontekstia, ei päätöstä ·
@@ -528,15 +531,17 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 
 - **"AUTOMAATTINEN" TARKOITTAA PARASTA SAATAVILLA, JA PARAS TULEE
   VARASTOSTA.** Varastossa on kolme mallia omina pyramideinaan (FMI
-  HARMONIE `h0`–`h3`, MET Nordic `n0`–`n3`, ECMWF `l0`–`l4`), ja
-  `kartanMalli()`:n auto-haara palauttaa aina varaston. Valinnan tekee
+  HARMONIE `h0`–`h3`, MET Nordic `n0`–`n3`, ECMWF `l0`–`l4`), ja niiden
+  päällä ECMWF 9 km palvelimelta (`MalliHila`, zoomista 8).
+  `kartanMalli()` palauttaa aina varaston. Valinnan tekee
   `Saalaatat.naytteista`: malli tulee PAIKASTA JA HETKESTÄ, zoom valitsee
   vain tarkkuuden saman mallin sisällä (docs/mallit.md). Älä palauta
   rajapinnan pakotusta automaattiin: se veisi kartalta laattapyramidin,
   ja sen hinta on mitattu (panorointi Suomessa 6,1 s ja 44 pyyntöä,
   käynnistys 22 s vastaan 3 s).
 - **MALLIT SEKOITETAAN PAINOKANAVALLA, TÄRKEIN ENSIN.** Etusija on
-  FMI > MET Nordic > ECMWF (`Saalaatat.PERHEET`). Alueellisen mallin
+  FMI > MET Nordic > mallin oma hila (`dyn`) > ECMWF (`Saalaatat.PERHEET`
+  ja `_dyn`). Alueellisen mallin
   laatassa on neljäs tavutaso, paino 0..1 = smoothstep etäisyydestä
   mallin alueen reunaan 50 km matkalla; ajassa sama smoothstep akselin
   alussa 2 h ja lopussa 6 h. Perhe peittää alemmat painonsa verran, ja
@@ -563,18 +568,43 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   AJOAIKA.** Kaksi rakennusta voi käyttää samaa ECMWF-ajoa ja eri
   FMI-ajoa, ja ajoaika avaimena antoi välimuistista edellisen
   rakennuksen FMI-laatan (mitattu: laatassa 63 hetkeä, luettelossa 70).
-- **ECMWF 9 km ON KOKEILU (`malli: 'auto9'`, `Ecmwf9`, `api/malli.js`).**
-  Se on dynaaminen perhe `ecmwf9` alueellisten alla ja varaston ECMWF:n
-  päällä: kenttä valitulle TASATUNNILLE näkymän alueelle zoomista 8 ja
-  sarja kartan keskipisteelle aikajanaa varten. Raahatessa hetki on
-  tuntien välissä ja 9 km:n paino 0, joten ele ei odota verkkoa. Lukija
-  (`@openmeteo/file-reader`, GPL-2.0) ajetaan VAIN palvelimella — älä
-  tuo sitä selaimeen. O1280:n muuttujajärjestys vaihtelee tiedostosta
-  toiseen (nimet haetaan rinnakkain), ja ECMWF on tunneittain vain 90 h
-  asti — palvelin interpoloi 3 h / 6 h askelten välistä
-  (docs/mallit.md, V5). **S3-luvulla on AINA aikaraja** (6 s + kaksi
-  uusintaa, sovelluksessa 12 s): ilman sitä yksi kutsu seitsemästä
-  jäi tuotannossa odottamaan funktion 30 s kattoon asti.
+- **MALLIVALINTA ON PERHEVALINTA, EI TOINEN DATAPOLKU.** Jokainen tila
+  (`auto`, `fmi`, `metnordic`, `ecmwf`, `icon`, `gfs`) on sama varasto
+  eri perheillä (`Saalaatat.TILAT`, `asetaTila`), ja kartta, kapseli,
+  partikkelit, aikajana ja lähdemerkintä lukevat saman `naytteista`n.
+  Pakotus käänsi ennen kartan rajapintapolulle (600 pistettä,
+  näkymätekstuuri), ja siksi pakotettu ICON oli läiskä eikä ICONin hila.
+  Varaston ECMWF on AINA alimpana: se näkyy mallin alueen ja jakson
+  ulkopuolella ja sen hetken kun mallin hila on matkalla — tyhjä kartta
+  olisi rikki. Älä palauta pakotusta `Saalaatat.pois()`:n kautta.
+- **MALLIVALINTAA EI TALLENNETA** (`Asetukset.TALLENTAMATTOMAT`).
+  Sovellus käynnistyy aina "Paras saatavilla" -tilassa; pakotus on
+  hetken vertailu, ja tallennettu pakotus näyttäisi seuraavalla
+  avauksella huonomman mallin ilman muistutusta. Käyttäjän päätös.
+- **MALLIN OMA HILA (`MalliHila`, `api/malli.js`).** Dynaaminen perhe
+  `dyn` alueellisten alla ja varaston ECMWF:n päällä, `api` vaihtuu
+  tilan mukana: `ecmwf` (O1280 9 km, valitulle TASATUNNILLE zoomista 8 —
+  alla sama malli, joten raahauksen varasto vaihtaa vain tarkkuutta),
+  `icon` (ICON-EU 7 km + ICON 13 km, sekoitus palvelimella 50 km ja
+  6 h) ja `gfs` (tuuli `gfs013`, puuska `gfs025`). ICON ja GFS haetaan
+  jokaisella zoomilla TUNTIPAKETTINA (±3 h, vähintään ±1 h), koska alla
+  on eri malli: laatalla on oma aika-akseli ja tuntien väli interpoloidaan
+  kuten varastossa; toistossa paketti jatkuu eteenpäin ja seuraava
+  haetaan ennen reunaa. Lukija (`@openmeteo/file-reader`, GPL-2.0)
+  ajetaan VAIN palvelimella — älä tuo sitä selaimeen.
+  **Muuttujien otsakkeet haetaan YHTENÄ ALUEENA** (`Esiluku`): lukija
+  hakee muuten jokaisen lapsen omalla pyynnöllään, ja ICON-tiedostossa
+  lapsia on 128 — 7 tunnin paketti vei 12,4 s, alueena 1,45 s.
+  **Mallin jakson loppu tulee KAUIMMAS YLTÄVÄSTÄ AJOSTA** (`mallinLoppu`),
+  ei `data_end_time`sta: ICON-EU:n välimallit ulottuvat 30 tuntiin, ja
+  tuoreimman ajon loppu häivytti ICON-EU:n jo +24 h:ssa (mitattu 6,8 vs
+  7,58 m/s). **Aikajanan sarja on KENTÄN SOLMURUUDUN NELJÄ KULMAA**
+  (`askel`, `solmut`), ei pyöristetty piste: 0,05°:n piste antoi
+  Helsingissä 0,7–0,9 m/s eri luvun kuin kartta; kulmista 0,02–0,09.
+  **S3-luvulla on AINA aikaraja** (6 s + kaksi uusintaa, sovelluksessa
+  12 s): ilman sitä yksi kutsu seitsemästä jäi tuotannossa odottamaan
+  funktion 30 s kattoon asti. Mallin jakson ulkopuolinen tunti ("ei
+  ajoa") ei ole virhe vaan muistetaan tyhjänä (docs/mallit.md, V5–V6).
 - **TESTISSÄ SERVICE WORKER ON ESTETTÄVÄ** (`serviceWorkers: 'block'`)
   kun varasto reititetään paikallisiin tiedostoihin: SW hakee laatat
   ohi Playwrightin reitityksen, ja testi lukee silloin tuotannon
@@ -593,7 +623,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **ULOIN NÄKYMÄ PYSYY VARASTOSSA JA ILMAN REUNUSTA.** Se on syy miksi
   varasto on yhä olemassa, ja maailmankartan nopeus on sen ansiota.
 - **`kaytossa()` = VARASTO ON KUNNOSSA, `kartallaKaytossa()` = KARTTA
-  LUKEE SITÄ.** Vain jälkimmäinen seuraa mallivalintaa. Varaston omat
+  LUKEE SITÄ.** Mallivalinta ei enää sulje varastoa kartalta (se on
+  perhevalinta, ks. yllä), mutta ero pätee yhä: `kartallaKaytossa()` on
+  epätosi kun varasto on rikki ja kartta on varatiellä. Varaston omat
   datafunktiot (`varmista`, `naytteista`, `wxTunneittain`) ja AIKAJANA
   ovat `kaytossa()`:n takana, ja niiden ON toimittava vaikka kartta
   lukisi HARMONIEa. Kun nämä olivat hetken sama metodi, `varmista()`
@@ -627,10 +659,13 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   lisäysjärjestyksessä, ja maailmankierros pudotti Suomen laatat joka
   kerta. Mitattu jälkeen: Helsinki on paluussa FMI:tä 2,5–5 s:ssa ja
   valittu hetki pysyy.
-- **MALLIN PAKOTUS ON `Saalaatat.pois()`, EI `?laatat=0`.** Mitattuna
-  `?laatat=0` vaihtaa vain piirtotavan ja data tulee yhä varastosta
-  (506 pistettä 518:sta). Varaston sulkeminen on se kytkin joka siirtää
-  koko kentän rajapintapolulle. (`?laatat=0` poistui MapLibre-siirrossa.)
+- **RAJAPINTAPOLKU ON `Saalaatat.pois()`, EI `?laatat=0` — JA SE ON
+  VAIN VARATIE.** Mallin pakotus kulki tätä kautta V6:een asti; nyt
+  pakotus on perhevalinta, ja `pois()` jää rikkinäisen varaston
+  varatieksi. Mitattuna `?laatat=0` vaihtoi vain piirtotavan ja data tuli
+  yhä varastosta (506 pistettä 518:sta). Varaston sulkeminen on se kytkin
+  joka siirtää koko kentän rajapintapolulle. (`?laatat=0` poistui
+  MapLibre-siirrossa.)
   `LampoGL` lukee `kartallaKaytossa()`a joka ruudussa ja vaihtaa itse
   solmuhilasta näkymätekstuuriin (`WindTexture.canvas`, tila `'kuva'`);
   Leaflet-aikana laattakerros piti poistaa erikseen, ja pelkkä `pois()`
@@ -642,12 +677,14 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   seuraa `WindTexture.kuvaVersio`a ja rajat talletetaan samalla
   (`kuvaRajat`), jotta kuva ja sen paikka tulevat samasta
   rakennuksesta.
-- **PAKOTETTU FMI EI OLE PELKKÄ FMI.** HARMONIEn hila kattaa vain
-  Pohjois-Euroopan, joten `loadBatch`in `fmi_harmonie`-haarassa on
-  oltava Open-Meteo-varatie. Ilman sitä erä jonka yksikään piste ei osu
-  hilaan jää KOKONAAN ILMAN DATAA (mitattu: neljä `harmonie_empty`-
-  virhettä ja tyhjiä eteläisiä eriä). Tyhjä kartta Keski-Euroopassa ei
-  ole "HARMONIE", se on rikki.
+- **PAKOTETTU FMI EI OLE PELKKÄ FMI.** HARMONIE kattaa vain Suomen ja
+  lähialueet noin 66 tuntiin, joten pakotetussa FMI:ssä (kuten MET
+  Nordicissa, ICON:ssa ja GFS:ssä) alue- ja jaksorajan takana on ECMWF
+  (`Saalaatat.TILAT`: pohja on aina mukana). Tyhjä kartta
+  Keski-Euroopassa ei ole "HARMONIE", se on rikki — sama sääntö mitattiin
+  aikanaan rajapintapolulla, jossa `loadBatch`in `fmi_harmonie`-haaraan
+  piti lisätä Open-Meteo-varatie (neljä `harmonie_empty`-virhettä ja
+  tyhjiä eteläisiä eriä ilman sitä).
 - **Partikkelien ja väriasteikon AVAIMIA ei saa vaihtaa** vaikka nimet
   vaihtuvat: `'vahan'` on nimeltään "Normaali" ja `'normaali'` on
   "Paljon". Avaimen vaihto pudottaisi jokaisen tallennetun valinnan
@@ -1682,7 +1719,7 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
 
 - **SOVELLUKSESSA ON KAKSI DATATASOA, ja ne antavat eri luvun.** Kartta
   (lämpökartta, kapseli, partikkelit) ja aikajana lukevat
-  `Saalaatat`-varastoa (FMI, MET Nordic ja ECMWF sekoitettuina, ks.
+  `Saalaatat`-varastoa (FMI, MET Nordic, ECMWF 9 km ja ECMWF sekoitettuina, ks.
   "MALLIT SEKOITETAAN PAINOKANAVALLA"); spottikortit lukevat lähintä
   ennustepistettä, joka on Suomessa käytännössä aina spotti ja siis
   HARMONIE. Alla oleva mittaus on ajalta jolloin kartta oli Suomessa

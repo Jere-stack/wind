@@ -2832,6 +2832,12 @@ se vain kertoo mistä näytetty luku tulee.
 
 ## Kartan säämalli valittavaksi
 
+> **Historiaa.** Tämän osion rajapintapolku (`Saalaatat.pois()`, 600
+> pisteen katto) ei ole enää pakotuksen tie: pakotettu malli on nyt
+> varaston perhevalinta ja ICON/GFS mallin omaa hilaa palvelimelta, ks.
+> `docs/mallit.md`, V6. Mittaukset alla koskevat vanhaa polkua, joka on
+> yhä varatie rikkinäiselle varastolle.
+
 Pyyntö: *"Lisää valikoon että voi valita tarvittaessa eri ennuste mallin
 kartalle. Nyt esim harmonie ei näy niin sen voisi tarvittaessa pakottaa
 näkymään."*

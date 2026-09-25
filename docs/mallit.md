@@ -18,10 +18,12 @@ Yr.no käyttää (MET Nordic, `metno_nordic_pp`); rajan pehmennys 50 km;
 aikajana seuraa karttaa (S4); maailma S3:n mukaan eli Windyn tapaan.
 Toteutus etenee vaiheittain, ja jokainen vaihe on oma osionsa lopussa.
 
-**Tila:** V1–V4 toteutettu (valittu hetki, kolme pyramidia ja
-painokanava, yksi valintasääntö, aikajana samaan malliin). Nykytila- ja
-strategiaosiot ovat päätöksen pohjana olleet mittaukset ajalta ennen
-toteutusta; voimassa oleva kuvaus on osiossa *Toteutus*.
+**Tila:** V1–V6 toteutettu (valittu hetki, kolme pyramidia ja
+painokanava, yksi valintasääntö, aikajana samaan malliin, ECMWF 9 km
+"Paras saatavilla" -tilaan, pakotetut mallit perheinä ja mallin omana
+hilana). Nykytila- ja strategiaosiot ovat päätöksen pohjana olleet
+mittaukset ajalta ennen toteutusta; voimassa oleva kuvaus on osiossa
+*Toteutus*.
 
 > Osa FoilSpotin muistiinpanoja. Hakemisto ja säännöt ovat `CLAUDE.md`:ssä;
 > tämä tiedosto luetaan kun työ koskee kartan säämallia, mallien rajoja tai
@@ -536,11 +538,14 @@ johon MET Nordic liukuu kahdessa tunnissa, MET Nordic, FMI
   vaikuta pistekyselyyn). Saman ajon hila vs piste: ka 0,07 m/s. Uusi
   h0 on tavulleen sama kuin tuotannon h0 samasta ajosta.
 
-### V5 — ECMWF 9 km kokeiluna (toteutettu kytkimen takana)
+### V5 — ECMWF 9 km (kokeilu, V6:sta alkaen osa "Paras saatavilla")
 
-Asetus **Kartan säämalli → Paras + ECMWF 9 km** (`malli: 'auto9'`).
-Varasto on ennallaan ja antaa kuvan heti; 9 km tulee sen päälle
-palvelimelta (`api/malli.js`, Windyn tapaan tunti kerrallaan):
+Kokeiluvaiheessa asetus oli **Kartan säämalli → Paras + ECMWF 9 km**
+(`malli: 'auto9'`). Käyttäjä vertasi laitteella eikä huomannut eroa
+sujuvuudessa, joten 9 km on V6:sta alkaen "Paras saatavilla" -tilassa
+eikä erillistä sirua ole. Varasto on ennallaan ja antaa kuvan heti; 9 km
+tulee sen päälle palvelimelta (`api/malli.js`, Windyn tapaan tunti
+kerrallaan):
 
 - **Kenttä** valitulle tasatunnille näkymän pehmustetulle alueelle
   (0,6 näkymää, pyöristetty 0,5°:een välimuistin takia), zoomista 8
@@ -549,7 +554,7 @@ palvelimelta (`api/malli.js`, Windyn tapaan tunti kerrallaan):
 - **Sarja** kartan keskipisteelle koko aikajanan akselille. Aikajana on
   Suomessa MET Nordic (menneisyys) → FMI (noin 2,5 vrk) → **ECMWF 9 km**
   loppuun asti.
-- **Perhe `ecmwf9`** on alueellisten alla ja varaston ECMWF:n päällä.
+- **Perhe `ecmwf9`** (V6:sta `dyn`, `api: 'ecmwf'`) on alueellisten alla ja varaston ECMWF:n päällä.
   Paino on 1 vain sillä tunnilla jonka laatta on (tai jolle sarjassa on
   arvo) ja reuna häivytetään 8 %:n matkalla. Raahatessa hetki on tuntien
   välissä, joten eleen aikana näkyy varasto eikä mikään odota verkkoa.
@@ -617,7 +622,131 @@ Funktion siirto säilön viereen (`pdx1`) lyhentäisi jokaista matkaa,
 mutta se koskisi myös FMI-proxyjä, joten se tehdään vasta jos laitteella
 tuntuu hitaalta.
 
+### V6 — Pakotettu malli perheinä ja mallin omana hilana (toteutettu)
+
+Pyyntö: *"En huomannut isoa eroa ratkaisuissa. Laitetaan 9km
+tuotantoon. Lisäksi tehdään asetus valikosta niin että aina on paras
+saatavilla valikosta valittuna. Lisäksi tehdään valinta että voidaan
+pakottaa myös yr.no data. Ongelma nyt on jos valitsen esim Icon mallin
+niin se ei selvästi ole toteutettu windy tyyliin."*
+
+**Mikä oli vialla.** Pakotettu malli käänsi kartan rajapintapolulle
+(`Saalaatat.pois()`): Open-Meteon pisteet 600 pisteen katolla,
+näkymätekstuuri ja uusi haku jokaisella panoroinnilla. Pakotettu ICON oli
+siis karkea läiskä IDW:llä, ei ICONin hila, ja se piirrettiin eri
+koneistolla kuin automaattinen.
+
+**Nyt jokainen tila on sama varasto eri perheillä** (`Saalaatat.TILAT`,
+`asetaTila`), ja kartta, kapseli, partikkelit, aikajana ja lähdemerkintä
+lukevat saman `naytteista`n:
+
+| tila (siru) | perheet tärkein ensin |
+|---|---|
+| `auto` Paras saatavilla | FMI > MET Nordic > ECMWF 9 km > ECMWF |
+| `fmi` FMI HARMONIE | FMI > ECMWF 9 km > ECMWF |
+| `metnordic` Yr (MET Nordic) | MET Nordic > ECMWF 9 km > ECMWF |
+| `ecmwf` ECMWF | ECMWF 9 km > ECMWF |
+| `icon` ICON | ICON-EU 7 km / ICON 13 km > ECMWF |
+| `gfs` GFS | GFS 13 km > ECMWF |
+
+Varaston ECMWF on aina alimpana, koska sen on katettava kaikki: mallin
+alueen ja jakson ulkopuolella sekä sen hetken kun mallin oma hila on
+matkalla. Lähdemerkintä kertoo silloin ECMWF:n. **Mallivalintaa ei
+tallenneta** (`Asetukset.TALLENTAMATTOMAT`): sovellus käynnistyy aina
+"Paras saatavilla" -tilassa, ja vanha tallennettu arvo (`auto9`,
+`icon_eu` …) ohitetaan.
+
+**Palvelin (`api/malli.js?malli=`)** lukee kolme mallia Open-Meteon
+S3:sta samalla koneistolla (hila = naapurit + ikkuna + aikasarjalohkot):
+
+| malli | lähde | hila | jakso |
+|---|---|---|---|
+| `ecmwf` | `ecmwf_ifs` | O1280 (redusoitu Gauss) | 15 vrk, tunneittain 90 h |
+| `icon` | `dwd_icon_eu` + `dwd_icon` | 0,0625° lat 29,5–70,5 lng −23,5…62,5; 0,125° globaali | EU 5 vrk, globaali 7,5 vrk; tunneittain 78 h |
+| `gfs` | `ncep_gfs013` (tuuli) + `ncep_gfs025` (puuska) | Gaussin N768 × 3 072; 0,25° | 16 vrk; tunneittain 120 h |
+
+ICON-EU sekoitetaan globaaliin palvelimella 50 km:n reunalla ja jakson
+lopussa kuuden tunnin matkalla — sama smoothstep kuin varastossa. GFS:n
+10 m tuuli on vain `gfs013`:ssa ja puuska vain `gfs025`:ssä, joten
+puuska luetaan eri hilasta. `gfs013`:n rivit ovat etelästä pohjoiseen
+(ensimmäinen −89,912°): mitattuna korrelaatio GFS 0,25°:n 100 m tuuleen
+oikein päin 0,80, peilattuna 0,07.
+
+**Tuntipaketti.** ICON ja GFS ovat eri malli kuin alla oleva varasto,
+joten yhden tunnin kenttä tekisi jokaisesta raahauksesta ja toistosta
+mallinvaihdon. Kenttä haetaan siksi valitun tunnin ympäriltä (±3 h,
+harvemmin jos solmuja on yli 3 000, vähintään ±1 h) ja se on laatta
+omalla aika-akselillaan: `_naytePerhe` interpoloi tuntien välissä
+nopeuden ja suunnan erikseen kuten varastossa. Toistossa paketti alkaa
+hetkeä edeltävästä tunnista ja jatkuu eteenpäin, ja seuraava haetaan
+puolitoista tuntia ennen reunaa. ICON ja GFS haetaan jokaisella
+zoomilla (ECMWF 9 km vain zoomista 8, koska alla on sama malli).
+
+**Kolme mitattua ansaa:**
+- *Muuttujien otsakkeet yksi kerrallaan.* Lukija hakee jokaisen lapsen
+  otsakkeen omalla pyynnöllään, ja ICON-tiedostossa lapsia on 126–128
+  (painepinnat). 7 tunnin ICON-paketti vei kontissa **12,4 s**.
+  Otsakkeet ovat tiedoston lopussa yhtenä alueena (ICON-EU 161 kB, ICON
+  680 kB, ECMWF 302 kB, GFS 188 kB), joten alue haetaan kerralla ja
+  lapset luetaan muistista (`Esiluku`): 3 pyyntöä ja 0,4–0,7 s
+  tiedostoa kohti, paketti **1,45 s**. Järjestys vaihtelee yhä
+  tiedostosta toiseen (ICON:n u oli lapsi 3–8), joten nimet on luettava.
+- *Jakson loppu tuoreimmasta ajosta.* Ensimmäinen versio luki ICON-EU:n
+  lopun aikasarjavaraston `data_end_time`sta, joka kertoo TUOREIMMAN
+  ajon lopun — ja ICON-EU:n välimallit (03Z, 09Z, 15Z, 21Z) ulottuvat
+  vain 30 tuntiin. Lyhyen ajon jälkeen ICON-EU häipyi globaaliin jo
+  +24 h:n kohdalla: mitattuna Helsingissä kenttä 6,8 m/s, ajo itse ja
+  aikajana 7,58. Loppu on nyt 12 tunnin sisällä olevien ajojen pisin
+  (`mallinLoppu`), sama sääntö kuin varaston akselilla; jälkeen kenttä
+  ja sarja 0,01–0,1 m/s.
+- *Aikajanan sarja pyöristetystä pisteestä.* V5:n sarja oli kartan
+  keskipiste 0,05°:een pyöristettynä, ja Helsingin keskustassa se antoi
+  0,7–0,9 m/s eri luvun kuin kartta: rannikolla kahden kilometrin siirto
+  on jo eri tuuli. Sarja haetaan nyt kentän solmuruudun neljälle
+  kulmalle (`askel`, `solmut`), ja `_dynNayte` interpoloi niiden välissä
+  samalla säännöllä kuin kartta laatasta. Uusi haku vain kun keskipiste
+  siirtyy toiseen ruutuun.
+
+**Mitattu kontissa** (palvelinfunktio suoraan, sitten selaimessa):
+
+| | kesto | koko |
+|---|---|---|
+| ICON Helsinki 4° × 2,5°, 7 h, 0,05° (ennen otsakekorjausta) | 12,4 s | 116 kB |
+| sama korjauksen jälkeen | 1,45 s | 116 kB |
+| ICON +100 h, 7 h (kolmen tunnin askel, 8 tiedostoa) | 1,19 s | 116 kB |
+| ICON Eurooppa z6, 3 h, 0,5° | 1,53 s | 74 kB |
+| GFS Tarifa, 7 h | 1,37 s | 25 kB |
+| sarja 415 h (ECMWF / ICON / GFS) | 0,7 / 0,7 / 0,5 s | |
+| selaimessa ICON Helsinki z9, 7 h | 1,9 s | 71 kB |
+| selaimessa GFS Helsinki z9, 7 h | 1,6 s | 71 kB |
+
+Selaimessa (Chromium, työpöytä ja puhelin `hasTouch`):
+- Jokainen tila antaa oikean lähdemerkinnän Helsingissä: FMI, FMI,
+  MET Nordic, ECMWF IFS 9 km, DWD ICON-EU 7 km, NOAA GFS 13 km; Tarifa
+  ICON-EU, Kanariansaaret (EU-alueen ulkopuolella) ICON 13 km.
+- Paketin sisällä tuntien välissä (−2,5 … +2,5 h) malli on ICON-EU 100 %,
+  paketin ulkopuolella (±3,5 h) varasto — kuten pitääkin.
+- Toisto 12 s: 24/24 näytettä ICON-EU:ta, yksi ennakkohaku.
+- Aikajana vs kartta paketin tunneilla: ICON 0,08 m/s, GFS 0,09, ECMWF
+  9 km 0,02; automaattinen, FMI ja MET Nordic 0,000.
+- Siru napautettuna (puhelin): `aria-checked` seuraa, vihje kertoo mallin
+  ja viimeisen haun keston.
+- Uudelleenlataus ICON-tilasta: "Paras saatavilla".
+- Maailmankierros automaattisessa (Helsinki → Tokio → Sydney → New York
+  → Tarifa → Helsinki): valittu hetki pysyy, Helsinki on FMI, 9 km
+  latautuu Pohjoismaiden ulkopuolella, 394 tikkiä.
+
+**Tiedossa oleva ero, ei vika.** Aikajana näyttää pakotetun mallin koko
+jaksolta (sarja), mutta kartta vain haetun paketin tunneilta; muilla
+tunneilla kartta on varaston ECMWF:ää kunnes hetki valitaan ja paketti
+tulee (1–3 s). Sama koskee automaattista FMI:n ja MET Nordicin jakson
+jälkeen: aikajana on 9 km:n sarjaa, kartta 9 km:ä vain valitulla
+tunnilla. Mitattuna ero ennen valintaa enimmillään 1,5 m/s (MET Nordic
++60…72 h) ja 3,3 m/s (ICON +24 h ennen pakettia) — se on ECMWF:n ja
+toisen mallin ero, ja lähdemerkintä kertoo kummasta on kyse.
+
 ### Mitä jäi
 
-9 km on kokeilu kytkimen takana. Jos viive laitteella kelpaa, siitä
-tulee oletus (`auto` = nykyinen `auto9`) ja kytkin poistetaan.
+Tuntuma laitteella: ICON:n ja GFS:n paketin viive (kontissa 1,5–2 s)
+ja se, luetaanko ECMWF:n näkyminen haun aikana häiritseväksi. Jos on,
+seuraava askel on funktion alue säilön viereen (`pdx1`, ks. V5).

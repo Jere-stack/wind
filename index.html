@@ -3550,17 +3550,19 @@ html[data-tutka="1"] #lahde-merkki {
           </div>
 
           <!-- KARTAN SÄÄMALLI. Oletus on ensimmäisenä vasemmalla kuten
-               muissakin ryhmissä. 'Automaattinen' on oma säälaattavarasto
-               (ECMWF 0,25°); muut pakottavat mallin ja hakevat kentän
-               rajapinnasta. Vihje kertoo hinnan, koska se on todellinen. -->
+               muissakin ryhmissä, ja valinta EI tallennu: sovellus
+               käynnistyy aina "Paras saatavilla" -tilassa, ja pakotus on
+               hetken vertailu. Jokainen tila on sama varasto eri perheillä
+               (`Saalaatat.TILAT`); ICON ja GFS tulevat mallin omana
+               hilana palvelimelta (`MalliHila`). -->
           <div class="sp-label" style="margin-top:18px">Kartan säämalli</div>
           <div class="sp-chips" id="asetus-malli">
             <div class="sp-chip active" data-arvo="auto">Paras saatavilla</div>
-            <div class="sp-chip" data-arvo="auto9">Paras + ECMWF 9 km</div>
-            <div class="sp-chip" data-arvo="fmi_harmonie">FMI HARMONIE</div>
-            <div class="sp-chip" data-arvo="ecmwf_ifs025">ECMWF</div>
-            <div class="sp-chip" data-arvo="icon_eu">ICON</div>
-            <div class="sp-chip" data-arvo="gfs_seamless">GFS</div>
+            <div class="sp-chip" data-arvo="fmi">FMI HARMONIE</div>
+            <div class="sp-chip" data-arvo="metnordic">Yr (MET Nordic)</div>
+            <div class="sp-chip" data-arvo="ecmwf">ECMWF</div>
+            <div class="sp-chip" data-arvo="icon">ICON</div>
+            <div class="sp-chip" data-arvo="gfs">GFS</div>
           </div>
           <div class="sp-vihje" id="malli-vihje"></div>
         </div>
@@ -4556,14 +4558,18 @@ const Asetukset = {
     partikkelit: ['normaali', 'vahan', 'pois'],
     ramppi:      ['nykyinen', 'cvd'],
     lampo:       ['hillitty', 'normaali', 'voimakas'],
-    /* KARTAN MALLI. 'auto' = säälaattavarasto (ECMWF 0,25°,
-       esilaskettu), joka on oletus jokaisesta mitatusta syystä:
-       ei rajapintakiintiötä, ei pyyntöjä panoroinnissa, ja
-       laattapyramidi piirtää kartan. Muut arvot PAKOTTAVAT mallin,
-       jolloin varasto suljetaan ja kenttä rakennetaan rajapinnan
-       hilapisteistä — ks. `KarttaAsetukset._vaihdaMalli`. */
-    malli:       ['auto', 'auto9', 'fmi_harmonie', 'ecmwf_ifs025', 'icon_eu', 'gfs_seamless']
+    /* KARTAN MALLI. 'auto' = paras saatavilla (FMI, MET Nordic,
+       ECMWF 9 km ja varaston ECMWF sekoitettuina). Muut arvot PAKOTTAVAT
+       mallin samassa varastossa (`Saalaatat.TILAT`), eivät enää
+       rajapinnan pisteinä. Mallia EI tallenneta (`lue`, `tallenna`). */
+    malli:       ['auto', 'fmi', 'metnordic', 'ecmwf', 'icon', 'gfs']
   },
+  /* PARAS SAATAVILLA ON AINA VALITTUNA KÄYNNISTYKSESSÄ. Pakotus on
+     vertailu ("miltä ICON näyttää tässä"), ei asetus joka jäisi voimaan:
+     tallennettu pakotus näyttäisi seuraavalla avauksella huonomman mallin
+     ilman että mikään muistuttaisi siitä. Vanha tallennettu arvo
+     ('auto9', 'icon_eu' …) ohitetaan. */
+  TALLENTAMATTOMAT: ['malli'],
   /* PARTIKKELIEN AVAIMIA EI SAA VAIHTAA, vaikka nimet vaihtuivat.
      'vahan' on nyt nimeltään "Normaali" ja 'normaali' on "Paljon" —
      sama sääntö kuin väriasteikon 'nykyinen'-avaimella: jos avain
@@ -4577,12 +4583,17 @@ const Asetukset = {
     try { raw = JSON.parse(localStorage.getItem(this.AVAIN) || '{}'); } catch (e) { raw = null; }
     if (!raw || typeof raw !== 'object') return this.arvot;
     for (const k of Object.keys(this.arvot)) {
+      if (this.TALLENTAMATTOMAT.indexOf(k) >= 0) continue;
       if (this._sallitut[k].indexOf(raw[k]) >= 0) this.arvot[k] = raw[k];
     }
     return this.arvot;
   },
   tallenna() {
-    try { localStorage.setItem(this.AVAIN, JSON.stringify(this.arvot)); } catch (e) {}
+    const talteen = {};
+    for (const k of Object.keys(this.arvot)) {
+      if (this.TALLENTAMATTOMAT.indexOf(k) < 0) talteen[k] = this.arvot[k];
+    }
+    try { localStorage.setItem(this.AVAIN, JSON.stringify(talteen)); } catch (e) {}
   },
   aseta(avain, arvo) {
     if (!(avain in this.arvot)) return false;
@@ -5120,7 +5131,7 @@ const Saalaatat = {
         if (!tasot || !tasot.length) continue;
         tasot.sort((a, b) => a.askel - b.askel);
         this._perheet.push({
-          id: pid, tasot: tasot, pohja: pid === 'ecmwf',
+          id: pid, tasot: tasot, pohja: pid === 'ecmwf', pois: false,
           /* Lähderekisterin avain (`Lahde.NIMET`). ECMWF:n tasoilla ei ole
              `malli`-kenttää; sen nimi on rekisterissä `laatta`. */
           malli: tasot[0].malli || (pid === 'ecmwf' ? 'laatta' : pid),
@@ -5130,16 +5141,20 @@ const Saalaatat = {
       }
       this._pohja = this._perheet.find(p => p.pohja) || null;
       if (!this._pohja) throw new Error('luettelossa ei ole pohjamallia');
-      /* ECMWF 9 km (kokeilu, `Ecmwf9`): dynaaminen perhe ilman luettelon
+      /* MALLIN OMA HILA (`MalliHila`): dynaaminen perhe ilman luettelon
          tasoja, alueellisten alla ja varaston ECMWF:n päällä. Laatan
-         (valittu tunti, näkymän alue) ja sarjan (kartan keskipiste) tuo
-         `Ecmwf9` palvelimelta; paino on 0 kun kumpaakaan ei ole tälle
-         hetkelle, jolloin perhe maksaa yhden vertailun näytettä kohti. */
-      this._dyn = { id: 'ecmwf9', dyn: true, tasot: [], pohja: false, malli: 'ecmwf9',
+         (näkymän alue, yksi tai useampi tunti) ja sarjan (kartan
+         keskipiste) tuo `MalliHila` palvelimelta; paino on 0 kun
+         kumpaakaan ei ole tälle hetkelle, jolloin perhe maksaa yhden
+         vertailun näytettä kohti. `api` on palvelimen malli (`ecmwf`,
+         `icon`, `gfs`) ja vaihtuu mallivalinnan mukana (`asetaTila`). */
+      this._dyn = { id: 'dyn', dyn: true, tasot: [], pohja: false, pois: false,
+                    api: 'ecmwf', malli: 'ecmwf9',
                     _aikaW: 0, _laatta: null, _sarja: null,
                     _m: { laatta: null, la0: 0, lo0: 0, span: 0, step: -1 } };
       this._perheet.splice(this._perheet.indexOf(this._pohja), 0, this._dyn);
       this._osuus = new Float64Array(this._perheet.length);
+      this.asetaTila(this._malliTila);
       /* Tuntiakseli johdetaan tästä, joten se mitätöityy samalla. */
       this._ajatH = null; this._tsMsH = null; this._kartta = null;
       /* Laattojen osoitteisiin menee ajon tunnus, jolloin service worker
@@ -5179,6 +5194,7 @@ const Saalaatat = {
      smoothstep sen päissä. Perheen tasot jakavat akselin. */
   _aikaPaino(p, tMs) {
     if (p.pohja) return 1;
+    if (p.pois) return 0;
     if (p.dyn) return this._dynPaino(p, tMs);
     const ax = p.tasot[0]._ax;
     if (!ax || ax === this._perus || tMs == null || !isFinite(tMs)) return 1;
@@ -5187,10 +5203,14 @@ const Saalaatat = {
     return this._ss((tMs - a) / this.AIKA_SISAAN_MS) * this._ss((b - tMs) / this.AIKA_ULOS_MS);
   },
 
-  /* 9 km:n perheen paino hetkelle: laatta kattaa vain tuntinsa, sarja
-     (aikajanan tila, `_sarjaTila`) jokaisen tunnin jolle sillä on arvo.
-     Tunnin välissä paino on 0 — raahauksen karkea esikatselu on siis
-     varastoa, ja 9 km tulee kun hetki asettuu tasatuntiin. */
+  /* Mallin oman hilan paino hetkelle. Sarja (aikajanan tila,
+     `_sarjaTila`) kattaa jokaisen tunnin jolle sillä on arvo. Laatta
+     kattaa tuntinsa, ja kun tunteja on useampi (ICON ja GFS hakevat
+     paketin valitun tunnin ympäriltä), myös niiden välin: hetki
+     asetetaan laatan omalle akselille ja `_naytePerhe` interpoloi
+     nopeuden ja suunnan erikseen kuten muissakin perheissä. Paketin
+     ulkopuolella paino on 0, jolloin raahauksen esikatselu on varastoa
+     ja mallin oma hila tulee kun hetki asettuu. */
   _sarjaTila: false,
   _dynPaino(p, tMs) {
     if (tMs == null || !isFinite(tMs)) return 0;
@@ -5198,28 +5218,114 @@ const Saalaatat = {
       const sa = p._sarja;
       if (!sa) return 0;
       const i = Math.round((tMs - sa.t0) / 3600e3);
-      return i >= 0 && i < sa.n && sa.nop[i] != null
+      return i >= 0 && i < sa.n && sa.kelpaa[i]
         && Math.abs(sa.t0 + i * 3600e3 - tMs) < 60e3 ? 1 : 0;
     }
     const l = p._laatta;
-    return l && Math.abs(l.hetki - tMs) < 60e3 ? 1 : 0;
+    if (!l) return 0;
+    const ax = l._ax, ts = ax.tsMs;
+    if (tMs < ts[0] - 60e3 || tMs > ts[ts.length - 1] + 60e3) return 0;
+    if (!this._asetaAkseli(ax, tMs)) return 0;
+    /* Välin on oltava tunnin mittainen: palvelin jättää pois tunnin
+       jota mikään ajo ei kata, eikä sen yli interpoloida. */
+    if (ax.tf > 0 && ts[ax.ti + 1] - ts[ax.ti] > 3600e3 + 60e3) return 0;
+    return 1;
   },
-  /* Uusi 9 km:n laatta tai sarja: paino uudelleen samalle hetkelle ja
+  /* Uusi laatta tai sarja: paino uudelleen samalle hetkelle ja
      hakumuisti tyhjäksi. */
   paivitaDyn() {
     if (!this._dyn) return;
-    this._dyn._aikaW = this._dynPaino(this._dyn, this._hetkiMs);
+    this._dyn._aikaW = this._aikaPaino(this._dyn, this._hetkiMs);
     this._nollaaMuisti();
+  },
+
+  /* KARTAN MALLI (`Asetukset.arvot.malli`) ON PERHEVALINTA, EI TOINEN
+   * DATAPOLKU.
+   *
+   * Pakotettu malli luki ennen Open-Meteon rajapintaa pisteinä
+   * (`Saalaatat.pois()`, 600 pisteen katto, näkymätekstuuri): karkea,
+   * hidas panoroida ja eri koneistolla piirretty kuin automaattinen.
+   * Nyt jokainen tila on sama varasto ja sama `naytteista`, vain eri
+   * perheet päällä:
+   *
+   *   auto       FMI > MET Nordic > ECMWF 9 km > ECMWF 0,25–5°
+   *   fmi        FMI > ECMWF 9 km > ECMWF
+   *   metnordic  MET Nordic > ECMWF 9 km > ECMWF
+   *   ecmwf      ECMWF 9 km > ECMWF
+   *   icon       ICON-EU / ICON (palvelimelta) > ECMWF
+   *   gfs        GFS (palvelimelta) > ECMWF
+   *
+   * Varaston ECMWF on aina alimpana, koska sen on katettava kaikki: se
+   * näkyy mallin alueen ja jakson ulkopuolella (FMI 66 h ja Suomi, ICON
+   * 7,5 vrk) sekä sen hetken kun mallin oma hila on vielä matkalla.
+   * Lähdemerkintä kertoo silloin ECMWF:n, koska se lukee saman
+   * sekoituksen (`malliKohdassa`). Tyhjä kartta mallin ulkopuolella olisi
+   * rikki eikä "pakotettu" (ks. CLAUDE.md, "PAKOTETTU FMI EI OLE PELKKÄ
+   * FMI"). */
+  TILAT: {
+    auto:      { perheet: ['fmi', 'metnordic'], dyn: 'ecmwf' },
+    fmi:       { perheet: ['fmi'],              dyn: 'ecmwf' },
+    metnordic: { perheet: ['metnordic'],        dyn: 'ecmwf' },
+    ecmwf:     { perheet: [],                   dyn: 'ecmwf' },
+    icon:      { perheet: [],                   dyn: 'icon' },
+    gfs:       { perheet: [],                   dyn: 'gfs' },
+  },
+  _malliTila: 'auto',
+  asetaTila(tila) {
+    this._malliTila = this.TILAT[tila] ? tila : 'auto';
+    const T = this.TILAT[this._malliTila];
+    if (!this._perheet) return;       /* `alusta` kutsuu uudelleen */
+    for (const p of this._perheet) {
+      if (p.pohja) { p.pois = false; continue; }
+      if (p.dyn) {
+        if (p.api !== T.dyn) {
+          p.api = T.dyn;
+          p.malli = T.dyn === 'ecmwf' ? 'ecmwf9' : T.dyn;
+          p._laatta = null; p._sarja = null;
+        }
+        continue;
+      }
+      p.pois = T.perheet.indexOf(p.id) < 0;
+    }
+    for (const p of this._perheet) p._aikaW = this._hetkiMs == null ? (p.pois ? 0 : 1) : this._aikaPaino(p, this._hetkiMs);
+    this._nollaaMuisti();
+  },
+  /* ICON on palvelimella kaksi hilaa: ICON-EU 7 km omalla alueellaan ja
+     ICON 13 km muualla, 50 km:n sekoituksella. Nimi tähtäimen kohdalta
+     rajan puolivälistä (25 km sisällä alueesta). */
+  _dynMalli(p, lat, lo) {
+    if (p.api !== 'icon') return p.malli;
+    const kLo = 0.225 / Math.max(0.2, Math.cos(lat * Math.PI / 180));
+    return lat > 29.5 + 0.225 && lat < 70.5 - 0.225 && lo > -23.5 + kLo && lo < 62.5 - kLo ? 'icon_eu' : 'icon';
   },
   _dynNayte(p, lat, lo) {
     if (this._sarjaTila) {
+      /* Neljä kulmaa kentän solmuruudusta (`MalliHila._haeSarja`), sama
+         bilineaarinen sääntö kuin `_paikassa`: nopeus painotettuna
+         keskiarvona, suunta yksikkövektoreista. Ruudun ulkopuolella
+         (kartta siirtyi, uusi sarja matkalla) ei arvata. */
       const sa = p._sarja;
-      if (!sa || Math.abs(lat - sa.lat) > 0.06 || Math.abs(lo - sa.lng) > 0.12) return false;
-      const i = Math.round((this._hetkiMs - sa.t0) / 3600e3), v = sa.nop[i];
-      if (v == null || sa.suunta[i] == null) return false;
-      const g = sa.puuska[i];
-      this._pMs = this._puuskaTila && g != null ? g : v;
-      this._pDir = sa.suunta[i];
+      if (!sa) return false;
+      let fy = (lat - sa.la0) / sa.askel, fx = (lo - sa.lo0) / sa.askel;
+      if (fy < -0.02 || fy > 1.02 || fx < -0.02 || fx > 1.02) return false;
+      fy = fy < 0 ? 0 : (fy > 1 ? 1 : fy); fx = fx < 0 ? 0 : (fx > 1 ? 1 : fx);
+      const i = Math.round((this._hetkiMs - sa.t0) / 3600e3);
+      if (i < 0 || i >= sa.n) return false;
+      const W = [(1 - fy) * (1 - fx), (1 - fy) * fx, fy * (1 - fx), fy * fx];
+      let sN = 0, wN = 0, sS = 0, sC = 0, wD = 0;
+      for (let c = 0; c < 4; c++) {
+        const w = W[c], sl = sa.solmut[c];
+        if (w <= 1e-6) continue;
+        const v = sl.nop[i], d = sl.suunta[i];
+        if (v == null || d == null) continue;
+        const g = sl.puuska[i];
+        sN += (this._puuskaTila && g != null ? g : v) * w; wN += w;
+        const r = d * Math.PI / 180;
+        sS += Math.sin(r) * w; sC += Math.cos(r) * w; wD += w;
+      }
+      if (!wN) return false;
+      this._pMs = sN / wN;
+      this._pDir = ((Math.atan2(sS / wD, sC / wD) * 180 / Math.PI) + 360) % 360;
       this._pPaino = 1;
       return true;
     }
@@ -5410,7 +5516,7 @@ const Saalaatat = {
     let onnistui = 0;
     const ylemmat = [];
     for (const p of this._perheet) {
-      if (p.dyn) continue;     /* 9 km:n laatan hakee `Ecmwf9` */
+      if (p.dyn || p.pois) continue;     /* mallin oman hilan hakee `MalliHila` */
       const aikaW = this._hetkiMs == null ? 1 : p._aikaW;
       if (!p.pohja && aikaW <= 0) continue;
       const tarvitaan = [];
@@ -5743,9 +5849,11 @@ const Saalaatat = {
     if (!this.kartallaKaytossa()) return null;
     if (tMs != null && tMs !== this._hetkiMs) this.asetaHetki(tMs);
     if (!this.naytteista(lat, lng, step) || this._vajaa) return null;
-    const tulos = [];
+    const tulos = [], lo = ((lng + 180) % 360 + 360) % 360 - 180;
     this._perheet.forEach((p, i) => {
-      if (this._osuus[i] > 0.001) tulos.push({ malli: p.malli, perhe: p.id, osuus: this._osuus[i] });
+      if (this._osuus[i] > 0.001) {
+        tulos.push({ malli: p.dyn ? this._dynMalli(p, lat, lo) : p.malli, perhe: p.id, osuus: this._osuus[i] });
+      }
     });
     const yht = tulos.reduce((a, t) => a + t.osuus, 0) || 1;
     tulos.forEach(t => { t.osuus /= yht; });
@@ -6000,8 +6108,8 @@ const Saalaatat = {
     const entinen = this._hetkiMs, entinenPuuska = this._puuskaTila;
     const nop = new Array(n), suu = new Array(n), puu = new Array(n);
     let kelpoja = 0;
-    /* Sarjassa 9 km:n perhe lukee pisteen sarjaa (`Ecmwf9`) eikä
-       yhden tunnin laattaa. */
+    /* Sarjassa mallin oma hila lukee pisteen sarjaa (`MalliHila`) eikä
+       näkymän laattaa. */
     this._sarjaTila = true;
     for (let i = 0; i < n; i++) {
       this.asetaHetki(ts[i]);
@@ -6042,7 +6150,7 @@ const Saalaatat = {
     const lo = ((lng + 180) % 360 + 360) % 360 - 180;
     const tarvitaan = [];
     for (const p of this._perheet) {
-      if (p.dyn) continue;
+      if (p.dyn || p.pois) continue;
       const L = this._perheenTaso(p, lat, lo, step);
       if (!L) continue;
       const r = this._ruutu(L, lat, lo);
@@ -6055,44 +6163,56 @@ const Saalaatat = {
   },
 };
 
-/* -- ECMWF 9 km (KOKEILU) ------------------------------------------
+/* -- MALLIN OMA HILA ------------------------------------------------
  *
- * Asetus "Paras + ECMWF 9 km" (`Asetukset.arvot.malli === 'auto9'`).
- * Varasto on ennallaan (FMI, MET Nordic, ECMWF 0,25–1°) ja antaa kuvan
- * heti; tämä tuo sen päälle ECMWF:n oman 9 km:n hilan palvelimelta
- * (`api/malli.js`), Windyn tapaan tunti kerrallaan:
+ * Mallin oma hila palvelimelta (`api/malli.js`), Windyn tapaan:
  *
- *   KENTTÄ  valitulle tasatunnille, näkymän pehmustetulle alueelle,
- *           zoomista 8 ylöspäin — sitä leveämmässä näkymässä 9 km ei
- *           erotu solmuvälistä. Ei haeta jos FMI tai MET Nordic peittää
- *           koko alueen: siellä 9 km ei näkyisi.
+ *   KENTTÄ  näkymän pehmustetulle alueelle, yksi tai useampi tunti.
  *   SARJA   kartan keskipisteelle koko aikajanan akselille, jotta
  *           aikajana ja kartta näyttävät yhä saman luvun.
  *
- * Raahatessa hetki on tuntien välissä ja 9 km:n paino 0, joten eleen
- * aikana näkyy varasto eikä mikään odota verkkoa; kun hetki asettuu,
- * haku lähtee ja kartta tarkentuu. Viimeisten hakujen kesto näkyy
- * asetusvihjeessä, jotta vertailu onnistuu laitteella ilman
- * kehitystyökaluja (docs/mallit.md, V5). */
-const Ecmwf9 = {
-  MIN_Z: 8,
+ * Kaksi käyttöä, sama koneisto (`Saalaatat._dyn.api`, `asetaTila`):
+ *
+ *   ecmwf   "Paras saatavilla" sekä pakotetut FMI, MET Nordic ja ECMWF:
+ *           9 km varaston ECMWF:n päällä zoomista 8, valitulle
+ *           TASATUNNILLE. Alla on sama malli harvempana, joten raahauksen
+ *           aikana näkyvä varasto ei vaihda mallia — vain tarkkuutta.
+ *           Sitä leveämmässä näkymässä 9 km ei erotu solmuvälistä.
+ *   icon,   pakotettu ICON tai GFS: jokaisella zoomilla, ja PAKETTI
+ *   gfs     valitun tunnin ympäriltä (±3 h). Alla on varaston ECMWF, eli
+ *           eri malli: yksittäinen tunti tekisi jokaisesta raahauksesta
+ *           ja toistosta mallinvaihdon. Paketin sisällä hetki
+ *           interpoloidaan kuten varastossa (nopeus ja suunta erikseen),
+ *           ja toistossa seuraava paketti haetaan ennen kuin edellinen
+ *           loppuu. Kun hila on vielä matkalla, näkyy ECMWF ja
+ *           lähdemerkintä sanoo sen.
+ *
+ * Viimeisten hakujen kesto näkyy asetusvihjeessä, jotta viivettä voi
+ * arvioida laitteella ilman kehitystyökaluja (docs/mallit.md, V5–V6). */
+const MalliHila = {
+  MIN_Z_ECMWF: 8,
   PEHMUSTE: 0.6,
   AIKARAJA_MS: 12000,
-  _kentat: new Map(),      /* avain -> laatta, käyttöjärjestyksessä */
+  /* Paketin koko solmumäärän mukaan: sama alue useammalle tunnille maksaa
+     vastauksessa tunnit kertaa solmut. Laattaaskel harvenee zoomin
+     mukana, joten tavallisesti solmuja on alle 3 000 ja paketti ±3 h. */
+  pakettiPuoli(solmuja) { return solmuja <= 3000 ? 3 : solmuja <= 6000 ? 2 : solmuja <= 12000 ? 1 : 0; },
+  _kentat: new Map(),      /* osoite -> laatta, käyttöjärjestyksessä */
   _sarjat: new Map(),      /* avain -> sarja */
   _ajastin: 0,
   _kkesken: null, _skesken: null,
+  _virheT: 0, _turha: null,
   tilasto: { kentta: null, sarja: null, virhe: null, ohitettu: 0 },
 
-  paalla() {
-    return typeof Asetukset !== 'undefined' && Asetukset.arvot.malli === 'auto9'
-      && Saalaatat.kartallaKaytossa() && !!Saalaatat._dyn;
+  _dyn() {
+    return typeof Saalaatat !== 'undefined' && Saalaatat.kartallaKaytossa() ? Saalaatat._dyn : null;
   },
+  _paketti(api) { return api !== 'ecmwf'; },
 
-  /* Kutsutaan kun kartta pysähtyy, hetki vaihtuu tai asetus muuttuu.
+  /* Kutsutaan kun kartta pysähtyy, hetki asettuu tai asetus muuttuu.
      Ajastin siirtyy jokaisella kutsulla, joten raahaus ja heitto hakevat
      vasta kun ne ovat ohi. */
-  ajasta() {
+  ajasta(viive) {
     clearTimeout(this._ajastin);
     const self = this;
     this._ajastin = setTimeout(function () { self._hae().then(function () {
@@ -6101,14 +6221,51 @@ const Ecmwf9 = {
       /* Uudempi haku ohitti tämän (`abort()` ilman syytä): ei virhe. */
       if (e && e.name === 'AbortError') return;
       self.tilasto.virhe = String(e && e.message || e);
+      self._virheT = Date.now();
       if (typeof KarttaAsetukset !== 'undefined') KarttaAsetukset._malliVihje();
-    }); }, 350);
+    }); }, viive == null ? 350 : viive);
+  },
+
+  /* Hetki vaihtui (`LampoGL._varmistaHila`). ECMWF:n 9 km haetaan vain
+     tasatunnille, joten ajastin siirtyy koko liikkeen ajan. Paketti
+     haetaan heti kun hetki lähestyy sen reunaa — myös toiston aikana,
+     jolloin hetki ei asetu koskaan. Sormen aikana ei haeta: nosto
+     vahvistaa hetken ja tuo tänne uudelleen. */
+  hetkiMuuttui(hetki) {
+    const dyn = this._dyn();
+    if (!dyn) return;
+    if (!this._paketti(dyn.api)) { this.ajasta(); return; }
+    if (State._tlTouching || hetki == null || !isFinite(hetki)) return;
+    if (dyn._laatta && this._riittaa(dyn._laatta, hetki)) return;
+    if (this._kkesken) return;                  /* matkalla oleva tarkistaa hetken */
+    if (Date.now() - this._virheT < 5000) return;   /* ei takota virhettä joka ruudussa */
+    this.ajasta(State.isPlaying ? 0 : 350);
+  },
+
+  /* Kattaako paketti hetken? Toistossa seuraava haetaan jo puolitoista
+     tuntia ennen reunaa, ellei reuna ole mallin loppu. */
+  _riittaa(l, hetki) {
+    const ts = l._ax.tsMs, a = ts[0], b = ts[ts.length - 1];
+    if (hetki < a || hetki > b) return false;
+    if (State.isPlaying && !l._loppu && hetki > b - 1.5 * 3600e3) return false;
+    return true;
+  },
+
+  /* Mallivalinta vaihtui: keskeneräiset haut pois, jotta vanhan mallin
+     vastaus ei ehdi kartalle. */
+  vaihda() {
+    if (this._kkesken) { this._kkesken.abort(); this._kkesken = null; }
+    if (this._skesken) { this._skesken.abort(); this._skesken = null; }
+    this.tilasto.kentta = null; this.tilasto.sarja = null; this.tilasto.virhe = null;
+    this._virheT = 0; this._turha = null;
   },
 
   tyhjenna() {
-    if (!Saalaatat._dyn) return;
-    Saalaatat._dyn._laatta = null; Saalaatat._dyn._sarja = null;
+    const dyn = typeof Saalaatat !== 'undefined' ? Saalaatat._dyn : null;
+    if (!dyn || (!dyn._laatta && !dyn._sarja)) return;
+    dyn._laatta = null; dyn._sarja = null;
     Saalaatat.paivitaDyn();
+    this._paivitaKartta();
   },
 
   _dekoodaa(b64) {
@@ -6117,11 +6274,12 @@ const Ecmwf9 = {
     return a;
   },
 
-  /* Vastaus laatan muotoon (`Saalaatat._naytePerhe`). Painotaso häivyttää
-     alueen reunan kahdeksan prosentin matkalla: reuna on ruudun
-     ulkopuolella, mutta panoroitaessa sen yli ei saa näkyä saumaa ennen
-     kuin uusi alue on haettu. */
-  _laatta(o) {
+  /* Vastaus laatan muotoon (`Saalaatat._naytePerhe`): tunnit peräkkäisinä
+     tasoina ja oma aika-akseli, kuten varaston laatoilla. Painotaso
+     häivyttää alueen reunan kahdeksan prosentin matkalla: reuna on
+     ruudun ulkopuolella, mutta panoroitaessa sen yli ei saa näkyä saumaa
+     ennen kuin uusi alue on haettu. */
+  _laatta(o, jalkeen) {
     const ni = o.ni, nj = o.nj, paino = new Uint8Array(ni * nj);
     const m = Math.max(2, Math.round(0.08 * Math.min(ni, nj)));
     for (let j = 0; j < nj; j++) for (let i = 0; i < ni; i++) {
@@ -6129,12 +6287,16 @@ const Ecmwf9 = {
       const x = d <= 0 ? 0 : (d >= 1 ? 1 : d * d * (3 - 2 * d));
       paino[j * ni + i] = Math.round(255 * x);
     }
+    const ajat = Array.isArray(o.ajat) && o.ajat.length ? o.ajat : [o.t];
     return {
-      askel: o.askel, la0: o.la0, lo0: o.lo0, ny: nj, nx: ni, nt: 1,
+      askel: o.askel, la0: o.la0, lo0: o.lo0, ny: nj, nx: ni, nt: ajat.length,
       la1: o.la0 + (nj - 1) * o.askel, lo1: o.lo0 + (ni - 1) * o.askel,
-      _ax: { ok: true, ti: 0, tf: 0, tsMs: [o.t] },
+      _ax: { ok: false, ti: 0, tf: 0, tsMs: Float64Array.from(ajat) },
       nop: this._dekoodaa(o.nop), suunta: this._dekoodaa(o.suunta), puuska: this._dekoodaa(o.puuska),
-      paino: paino, taysi: false, hetki: o.t, ajo: o.ajo,
+      paino: paino, taysi: false, t: o.t, ajo: o.ajo, api: o.malli || 'ecmwf',
+      /* Mallin jakso loppui paketin sisällä: toisto ei hae uutta pakettia
+         joka ruudussa sen perään. */
+      _loppu: ajat[ajat.length - 1] < o.t + jalkeen * 3600e3,
     };
   },
 
@@ -6144,106 +6306,184 @@ const Ecmwf9 = {
   },
 
   async _hae() {
-    if (!this.paalla()) { this.tyhjenna(); return; }
+    const dyn = this._dyn();
+    if (!dyn) return;
     const map = State.map;
     if (!map || State._tlTouching) return;
     const z = map.getZoom();
     const hetki = LampoGL._hetki();
-    if (hetki == null || !isFinite(hetki) || hetki % 3600e3 !== 0) return;
-    if (z < this.MIN_Z) { this.tyhjenna(); return; }
-    await Promise.all([this._haeKentta(map, z, hetki), this._haeSarja(map)]);
+    if (hetki == null || !isFinite(hetki)) return;
+    const paketti = this._paketti(dyn.api);
+    if (!paketti) {
+      if (hetki % 3600e3 !== 0) return;
+      if (z < this.MIN_Z_ECMWF) { this.tyhjenna(); return; }
+    }
+    await Promise.all([this._haeKentta(map, z, hetki, dyn), this._haeSarja(map, dyn)]);
   },
 
-  async _haeKentta(map, z, hetki) {
+  /* Näkymän pehmustettu alue, pyöristettynä välimuistin takia ja
+     rajattuna palvelimen kattoon (120° × 60°). Päivämäärärajan yli ei
+     haeta: laatan pituusasteet ovat ±180:n sisällä. */
+  _alue(map, q) {
     const b = map.getBounds();
     const vLat = b.getNorth() - b.getSouth(), vLng = b.getEast() - b.getWest();
-    const P = this.PEHMUSTE, q = 0.5;
-    const s = Math.max(-85, Math.floor((b.getSouth() - vLat * P) / q) * q);
-    const n = Math.min(85, Math.ceil((b.getNorth() + vLat * P) / q) * q);
-    const w = Math.floor((b.getWest() - vLng * P) / q) * q;
-    const e = Math.ceil((b.getEast() + vLng * P) / q) * q;
-    /* Päivämäärärajan yli ei haeta: laatan pituusasteet ovat ±180:n
-       sisällä, ja sauma olisi oma erikoistapauksensa. */
-    if (w < -180 || e > 180) return;
-    const dyn = Saalaatat._dyn, nyk = dyn._laatta;
-    if (nyk && nyk.hetki === hetki && s >= nyk.la0 - 1e-6 && n <= nyk.la1 + 1e-6
-        && w >= nyk.lo0 - 1e-6 && e <= nyk.lo1 + 1e-6) return;
-    /* Peittääkö FMI tai MET Nordic koko NÄKYVÄN alueen tälle hetkelle?
-       Näkyvä eikä pehmustettu: pehmusteen laatat eivät ole vielä
-       muistissa kun tämä ajetaan, ja tuntematon luetaan peittämättömäksi
-       (mitattu: Helsingin z10-näkymä haki kentän turhaan). */
-    const st = ViewportGrid.laattaStep(Math.round(z));
-    const bS = b.getSouth(), bW = b.getWest();
-    /* Näkymän laatat ensin: kaukaa hypättäessä (mitattu Kanariansaarilta
-       Helsinkiin) tarkistus ehti ennen FMI:n laattoja ja haki kentän
-       turhaan. Muistissa olevilla laatoilla tämä palaa heti. */
-    await Saalaatat.varmista(b, st);
-    if (LampoGL._hetki() !== hetki) return;
-    let peitetty = true;
-    for (const fy of [0.02, 0.5, 0.98]) for (const fx of [0.02, 0.5, 0.98]) {
-      if (!peitetty) break;
-      const o = Saalaatat.malliKohdassa(bS + vLat * fy, bW + vLng * fx, st, hetki);
-      if (!o || !o.length || (o[0].perhe !== 'fmi' && o[0].perhe !== 'metnordic') || o[0].osuus < 0.999) peitetty = false;
-    }
-    if (peitetty) { this.tilasto.ohitettu++; return; }
+    const P = this.PEHMUSTE;
+    let s = Math.floor((b.getSouth() - vLat * P) / q) * q, n = Math.ceil((b.getNorth() + vLat * P) / q) * q;
+    let w = Math.floor((b.getWest() - vLng * P) / q) * q, e = Math.ceil((b.getEast() + vLng * P) / q) * q;
+    s = Math.max(-85, s); n = Math.min(85, n);
+    const c = map.getCenter();
+    if (n - s > 60) { s = Math.max(-85, Math.floor((c.lat - 30) / q) * q); n = Math.min(85, s + 60); }
+    if (e - w > 120) { w = Math.floor((c.lng - 60) / q) * q; e = w + 120; }
+    /* Maailman kopio: kartta voi olla ±180:n ulkopuolella kokonaan. */
+    if (w >= 180) { w -= 360; e -= 360; } else if (e <= -180) { w += 360; e += 360; }
+    if (w < -180 || e > 180) return null;
+    return { b, s, n, w, e, vLat, vLng };
+  },
 
-    const avain = hetki + '|' + s + '|' + n + '|' + w + '|' + e;
-    let laatta = this._kentat.get(avain), mitta = null;
+  async _haeKentta(map, z, hetki, dyn) {
+    const api = dyn.api, paketti = this._paketti(api);
+    const st = ViewportGrid.laattaStep(Math.round(z));
+    const askel = paketti ? Math.min(1, Math.max(0.05, st)) : 0.1;
+    const A = this._alue(map, paketti && st >= 0.5 ? 2 : 0.5);
+    if (!A) return;
+    const { b, s, n, w, e, vLat, vLng } = A;
+    const nyk = dyn._laatta;
+    const kattaaAlueen = nyk && nyk.api === api && s >= nyk.la0 - 1e-6 && n <= nyk.la1 + 1e-6
+      && w >= nyk.lo0 - 1e-6 && e <= nyk.lo1 + 1e-6 && Math.abs(nyk.askel - askel) < 1e-9;
+    if (kattaaAlueen && (paketti ? this._riittaa(nyk, hetki) : nyk.t === hetki)) return;
+    if (!paketti) {
+      /* Peittääkö FMI tai MET Nordic koko NÄKYVÄN alueen tälle hetkelle?
+         Näkyvä eikä pehmustettu: pehmusteen laatat eivät ole vielä
+         muistissa kun tämä ajetaan, ja tuntematon luetaan peittämättömäksi
+         (mitattu: Helsingin z10-näkymä haki kentän turhaan). Näkymän
+         laatat ensin: kaukaa hypättäessä (mitattu Kanariansaarilta
+         Helsinkiin) tarkistus ehti ennen FMI:n laattoja. */
+      const st2 = ViewportGrid.laattaStep(Math.round(z));
+      await Saalaatat.varmista(b, st2);
+      if (LampoGL._hetki() !== hetki || dyn.api !== api) return;
+      let peitetty = true;
+      for (const fy of [0.02, 0.5, 0.98]) for (const fx of [0.02, 0.5, 0.98]) {
+        if (!peitetty) break;
+        const o = Saalaatat.malliKohdassa(b.getSouth() + vLat * fy, b.getWest() + vLng * fx, st2, hetki);
+        if (!o || !o.length || (o[0].perhe !== 'fmi' && o[0].perhe !== 'metnordic') || o[0].osuus < 0.999) peitetty = false;
+      }
+      if (peitetty) { this.tilasto.ohitettu++; return; }
+    }
+    /* Paketti valitun tunnin ympäriltä, vähintään ±1 h, jotta tuntien
+       välissä oleva hetki on aina paketin sisällä. Toistossa se alkaa
+       hetkeä edeltävästä tunnista ja jatkuu eteenpäin, koska taaksepäin
+       ei kuljeta — pyöristys lähimpään veisi alun hetken ohi. */
+    const H = 3600e3;
+    const tunti = paketti && State.isPlaying ? Math.floor(hetki / H) * H : Math.round(hetki / H) * H;
+    const solmuja = (Math.round((n - s) / askel) + 1) * (Math.round((e - w) / askel) + 1);
+    const puoli = paketti ? Math.max(1, this.pakettiPuoli(solmuja)) : 0;
+    const ennen = paketti && State.isPlaying ? 0 : puoli, jalkeen = paketti && State.isPlaying ? 2 * puoli : puoli;
+    const url = API_BASE + '/malli?malli=' + api + '&t=' + tunti + '&s=' + s + '&n=' + n + '&w=' + w + '&e=' + e
+      + (paketti ? '&askel=' + askel + '&ennen=' + ennen + '&jalkeen=' + jalkeen : '');
+    /* Sama pyyntö ei kattanut hetkeä viime kerralla (mallin jakso loppui
+       paketin sisällä): uusi yritys antaisi saman vastauksen. Ilman tätä
+       kattamaton hetki toistaisi haun ajastimen tahdissa. */
+    if (url === this._turha) return;
+    let laatta = this._kentat.get(url), mitta = null;
+    if (laatta === null) return;          /* muistettu "ei dataa tälle" */
+    const tuore = !laatta;
     if (!laatta) {
       if (this._kkesken) this._kkesken.abort();
       const ac = this._kkesken = new AbortController();
       const t0 = performance.now();
       /* Aikaraja: jumittunut haku ei saa pitää vanhaa tilaa yllä —
          varasto on jo ruudulla, joten luovutus ei maksa mitään. */
-      const aj = setTimeout(function () { ac.abort(new Error('aikaraja ' + Ecmwf9.AIKARAJA_MS / 1000 + ' s')); }, this.AIKARAJA_MS);
-      const r = await fetch(API_BASE + '/malli?t=' + hetki + '&s=' + s + '&n=' + n + '&w=' + w + '&e=' + e,
-                            { signal: ac.signal }).finally(function () { clearTimeout(aj); });
-      const teksti = await r.text();
-      if (this._kkesken === ac) this._kkesken = null;
+      const aj = setTimeout(function () { ac.abort(new Error('aikaraja ' + MalliHila.AIKARAJA_MS / 1000 + ' s')); }, this.AIKARAJA_MS);
+      let teksti;
+      try {
+        const r = await fetch(url, { signal: ac.signal });
+        teksti = await r.text();
+      } finally {
+        clearTimeout(aj);
+        if (this._kkesken === ac) this._kkesken = null;
+      }
       const o = JSON.parse(teksti);
-      if (o.error) throw new Error(o.error);
-      laatta = this._laatta(o);
+      if (o.error) {
+        /* Mallin jakson ulkopuolella (ICON 7,5 vrk:n jälkeen, menneisyys
+           ennen vanhinta tallessa olevaa ajoa) ei ole dataa — se ei ole
+           vika, ja alla oleva ECMWF näkyy. Muistetaan, ettei samaa kysytä
+           uudelleen. */
+        if (/ei ajoa/.test(o.error)) { this._muista(this._kentat, url, null, 16); return; }
+        throw new Error(o.error);
+      }
+      laatta = this._laatta(o, jalkeen);
       mitta = { ms: Math.round(performance.now() - t0), palvelin: o.ms ? o.ms.yht : null,
-                kB: Math.round(teksti.length / 100) / 10, solmuja: o.ni * o.nj };
+                kB: Math.round(teksti.length / 100) / 10, solmuja: o.ni * o.nj, tunteja: laatta.nt };
       this.tilasto.kentta = mitta;
-      this._muista(this._kentat, avain, laatta, 16);
-    } else {
-      this._muista(this._kentat, avain, laatta, 16);
     }
-    /* Hetki tai näkymä ehti vaihtua haun aikana: tulos jää muistiin,
-       mutta ruudulle ei viedä väärää tuntia. */
-    if (LampoGL._hetki() !== hetki || State._tlTouching) return;
+    this._muista(this._kentat, url, laatta, 16);
+    /* Malli, hetki tai näkymä ehti vaihtua haun aikana: tulos jää
+       muistiin, mutta ruudulle ei viedä väärää mallia eikä tuntia. */
+    if (dyn.api !== api || State._tlTouching) return;
+    const nyt = LampoGL._hetki(), ts = laatta._ax.tsMs;
+    if (paketti ? !(nyt >= ts[0] - 60e3 && nyt <= ts[laatta.nt - 1] + 60e3) : nyt !== hetki) {
+      /* Toisto ehti ohi tuoreen paketin: seuraava. Muuten paketti ei
+         kata hetkeä lainkaan, ja sama pyyntö jätetään väliin. */
+      if (paketti && tuore && nyt !== hetki) this.hetkiMuuttui(nyt);
+      else this._turha = url;
+      return;
+    }
+    this._turha = null;
     dyn._laatta = laatta;
     Saalaatat.paivitaDyn();
     this._paivitaKartta();
   },
 
-  async _haeSarja(map) {
-    const c = map.getCenter();
-    const la = Math.round(c.lat * 20) / 20, lo = Math.round(c.lng * 20) / 20;
+  /* AIKAJANAN SARJA KENTÄN SOLMUISTA: sama solmuväli kuin kentällä ja
+     neljä kulmaa sen ruudun ympäriltä jossa kartan keskipiste on.
+     `Saalaatat._dynNayte` interpoloi niiden välissä samalla säännöllä
+     kuin kartta laatasta, joten aikajana ja kartta näyttävät saman luvun
+     (0,05°:een pyöristetty piste antoi Helsingissä 0,7–0,9 m/s eri luvun).
+     Uusi haku vain kun keskipiste siirtyy toiseen ruutuun. */
+  _sarjaAskel(api, z) {
+    return this._paketti(api) ? Math.min(1, Math.max(0.05, ViewportGrid.laattaStep(Math.round(z)))) : 0.1;
+  },
+  async _haeSarja(map, dyn) {
+    const api = dyn.api;
+    const c = map.getCenter(), askel = this._sarjaAskel(api, map.getZoom());
+    const lng = ((c.lng + 180) % 360 + 360) % 360 - 180;
+    const la = +(Math.floor(c.lat / askel + 1e-9) * askel).toFixed(4);
+    const lo = +(Math.floor(lng / askel + 1e-9) * askel).toFixed(4);
     if (!Saalaatat._tunnit() || !Saalaatat._tsMsH || !Saalaatat._tsMsH.length) return;
     const alku = Saalaatat._tsMsH[0], loppu = Saalaatat._tsMsH[Saalaatat._tsMsH.length - 1];
-    const avain = la + '|' + lo + '|' + alku;
-    const dyn = Saalaatat._dyn;
+    const avain = api + '|' + askel + '|' + la + '|' + lo + '|' + alku;
     let sa = this._sarjat.get(avain);
     if (sa && Date.now() - sa.haettu > 30 * 60e3) sa = null;
     if (!sa) {
       if (this._skesken) this._skesken.abort();
       const ac = this._skesken = new AbortController();
       const t0 = performance.now();
-      const aj = setTimeout(function () { ac.abort(new Error('aikaraja ' + Ecmwf9.AIKARAJA_MS / 1000 + ' s')); }, this.AIKARAJA_MS);
-      const r = await fetch(API_BASE + '/malli?tila=sarja&lat=' + la + '&lng=' + lo + '&alku=' + alku + '&loppu=' + loppu,
-                            { signal: ac.signal }).finally(function () { clearTimeout(aj); });
-      const teksti = await r.text();
-      if (this._skesken === ac) this._skesken = null;
+      const aj = setTimeout(function () { ac.abort(new Error('aikaraja ' + MalliHila.AIKARAJA_MS / 1000 + ' s')); }, this.AIKARAJA_MS);
+      let teksti;
+      try {
+        /* Ruudun keskipiste, jotta palvelimen oma pyöristys osuu samaan
+           ruutuun. */
+        const r = await fetch(API_BASE + '/malli?tila=sarja&malli=' + api + '&askel=' + askel
+                              + '&lat=' + (la + askel / 2).toFixed(4) + '&lng=' + (lo + askel / 2).toFixed(4)
+                              + '&alku=' + alku + '&loppu=' + loppu, { signal: ac.signal });
+        teksti = await r.text();
+      } finally {
+        clearTimeout(aj);
+        if (this._skesken === ac) this._skesken = null;
+      }
       const o = JSON.parse(teksti);
       if (o.error) throw new Error(o.error);
-      sa = { lat: la, lng: lo, t0: o.t0, n: o.n, nop: o.nop, suunta: o.suunta, puuska: o.puuska, haettu: Date.now() };
+      if (!Array.isArray(o.solmut) || o.solmut.length !== 4) throw new Error('sarjasta puuttuu solmuja');
+      /* Tunti on käytettävissä jos yksikin kulma kattaa sen. */
+      const kelpaa = new Uint8Array(o.n);
+      for (const sl of o.solmut) for (let i = 0; i < o.n; i++) if (sl.nop[i] != null && sl.suunta[i] != null) kelpaa[i] = 1;
+      sa = { la0: o.la0, lo0: o.lo0, askel: o.askel, t0: o.t0, n: o.n, solmut: o.solmut, kelpaa: kelpaa,
+             haettu: Date.now() };
       this.tilasto.sarja = { ms: Math.round(performance.now() - t0), palvelin: o.ms ? o.ms.yht : null,
                              kB: Math.round(teksti.length / 100) / 10, tunteja: o.n };
       this._muista(this._sarjat, avain, sa, 8);
     }
-    if (dyn._sarja === sa) return;
+    if (dyn.api !== api || dyn._sarja === sa) return;
     dyn._sarja = sa;
     if (typeof updateTimelineToCenter === 'function' && !State._tlTouching) updateTimelineToCenter();
     if (typeof KarttaAsetukset !== 'undefined') KarttaAsetukset._malliVihje();
@@ -6251,15 +6491,17 @@ const Ecmwf9 = {
 
   /* Uusi kenttä ruudulle: lämpökartta seuraavassa ruudussa, partikkelit
      ja kapseli kentän uudelleenrakennuksesta (sama polku kuin tunnin
-     vahvistus). */
+     vahvistus). Toiston aikana kenttää ei rakenneta: esikatselu
+     rakentaa sen joka askeleella joka tapauksessa. */
   _paivitaKartta() {
     drawColorField();
-    if (typeof buildWindField === 'function') {
+    if (!State.isPlaying && typeof buildWindField === 'function') {
       Promise.resolve(buildWindField(State.currentHourIdx)).then(function () {
         if (typeof resetParticles === 'function') resetParticles();
       }).catch(function () {});
     }
     if (typeof KarttaAsetukset !== 'undefined') KarttaAsetukset._malliVihje();
+    try { Lahde.paivita(); } catch (e) {}
   },
 };
 
@@ -9330,7 +9572,7 @@ const LampoGL = {
     /* Esilataus: koko pehmustettu alue heti kun kartta pysähtyy, jotta
        seuraava siirto ei odota yhtään laattaa. Kuristus SIIRTÄÄ eikä
        pudota (ks. CLAUDE.md "ESILATAUKSEN KURISTUS SIIRTÄÄ"). */
-    map.ml.on('moveend', function () { self._esilataa(); Ecmwf9.ajasta(); });
+    map.ml.on('moveend', function () { self._esilataa(); MalliHila.ajasta(); });
     this.esilataaKunValmis();
   },
 
@@ -9483,9 +9725,9 @@ const LampoGL = {
     const b = map.getBounds();
     const tz = Math.round(map.getZoom()), d = ViewportGrid.laattaStep(tz);
     const hetki = this._hetki(), kentta = State.activeLayer;
-    /* 9 km:n kenttä on tuntikohtainen: uusi hetki = uusi haku (ajastin
-       siirtyy raahauksen ajan, joten haku lähtee vasta kun hetki asettuu). */
-    if (hetki !== this._e9Hetki) { this._e9Hetki = hetki; Ecmwf9.ajasta(); }
+    /* Mallin oma hila on tuntikohtainen: uusi hetki voi tarvita uuden
+       haun (`MalliHila.hetkiMuuttui` päättää milloin). */
+    if (hetki !== this._mhHetki) { this._mhHetki = hetki; MalliHila.hetkiMuuttui(hetki); }
     const h = this._hila;
     const tarve = this._likainen || !h || h.d !== d || h.hetki !== hetki || h.kentta !== kentta || !this._kattaa(h, b);
     if (!tarve) return;
@@ -11813,11 +12055,13 @@ const KARTTA_VARASTO = 'varasto';
    siis maksa mitään ylimääräistä. */
 let _kartanMalliNyt = null;
 function kartanMalli() {
-  const v = (typeof Asetukset !== 'undefined') ? Asetukset.arvot.malli : 'auto';
-  /* 'auto9' on automaattinen + ECMWF 9 km:n kokeilu (`Ecmwf9`): kartta
-     lukee varastoa kuten automaattisessa, ja 9 km tulee sen päälle. */
-  if (v !== 'auto' && v !== 'auto9') return v;
-  /* AUTOMAATTINEN ON VARASTO — ja se ON HARMONIE siellä missä HARMONIE on.
+  /* KARTTA ON AINA VARASTO. Mallivalinta ei vaihda datapolkua vaan
+     varaston perheet (`Saalaatat.asetaTila`): pakotettu FMI ja MET Nordic
+     ovat varaston omia pyramideja, ECMWF, ICON ja GFS mallin omaa hilaa
+     palvelimelta (`MalliHila`). Rajapintapolku (`Saalaatat.pois()`) jää
+     vain varatieksi sille että varasto on rikki.
+   *
+   * AUTOMAATTINEN ON VARASTO — ja se ON HARMONIE siellä missä HARMONIE on.
    *
    * Tässä luki aiemmin "jos keskipiste on HARMONIEn alueella ja zoom
    * riittävä, pakota rajapinnan HARMONIE". Se antoi oikean MALLIN mutta
@@ -11834,9 +12078,9 @@ function kartanMalli() {
    * sisällä HARMONIEn, muualla ja kauempana ECMWF:n. Pyramidi on
    * päällä kummassakin tapauksessa.
    *
-   * Siruvalinta jää: `fmi_harmonie`, `ecmwf_ifs025`, `icon_eu` ja
-   * `gfs_seamless` pakottavat yhä rajapintapolun, koska ne ovat juuri
-   * sitä varten — "näytä minulle nimenomaan tämä malli". */
+   * Siruvalinta pakotti ennen rajapintapolun ("näytä minulle nimenomaan
+   * tämä malli"), ja siksi pakotettu ICON oli karkea 600 pisteen kenttä
+   * eikä mallin hila. Nyt pakotuskin on varastossa. */
   return KARTTA_VARASTO;
 }
 
@@ -21729,11 +21973,13 @@ const Lahde = {
     /* Yr:n data: MEPS jälkikäsiteltynä havainnoilla 1 km:iin. Varastossa
        FMI:n jatke Pohjoismaissa ja Baltiassa, ja menneisyys Suomessa. */
     metnordic: 'MET Norway · MET Nordic 1 km (Yr)',
-    /* ECMWF:n oma O1280-hila palvelimelta (`Ecmwf9`, kokeilu). */
+    /* Mallin oma hila palvelimelta (`MalliHila`, `api/malli.js`). ICON
+       on kaksi hilaa, ja nimi valitaan tähtäimen kohdalta
+       (`Saalaatat._dynMalli`). */
     ecmwf9: 'ECMWF IFS 9 km',
-    ecmwf_ifs025: 'ECMWF IFS 9 km',
-    icon_eu: 'ICON EU 7 km',
-    gfs_seamless: 'GFS 13 km'
+    icon_eu: 'DWD ICON-EU 7 km',
+    icon: 'DWD ICON 13 km',
+    gfs: 'NOAA GFS 13 km'
   },
   /* SAMAT LÄHTEET LYHYESSÄ MUODOSSA — samasta objektista, ei omasta
      taulukostaan. Kaavion selite ja työkaluvihje eivät mahduta
@@ -21747,9 +21993,9 @@ const Lahde = {
     laatta: 'ECMWF IFS 0,25 °',
     metnordic: 'MET Nordic 1 km',
     ecmwf9: 'ECMWF 9 km',
-    ecmwf_ifs025: 'ECMWF',
-    icon_eu: 'ICON',
-    gfs_seamless: 'GFS'
+    icon_eu: 'ICON-EU 7 km',
+    icon: 'ICON 13 km',
+    gfs: 'GFS 13 km'
   },
   alusta() {
     this._el = document.getElementById('lahde-merkki');
@@ -23340,127 +23586,106 @@ const KarttaAsetukset = {
   _partikkeliNakyvyys() { partikkelitNakyvyys(); },
 
   /* Vihje kertoo mitä kartalla on JUURI NYT, ei mitä asetus abstraktisti
-     tarkoittaa. Automaattinen vaihtaa mallia näkymän mukana, joten pelkkä
-     "paras saatavilla" jättäisi lukijan arvailemaan kumpi se tällä
-     hetkellä on. */
+     tarkoittaa. Malli vaihtuu näkymän ja hetken mukana (myös pakotettuna:
+     mallin alueen ja jakson ulkopuolella näkyy ECMWF), joten pelkkä
+     valinnan nimi jättäisi lukijan arvailemaan mitä ruudulla on. */
+  MALLI_KUVAUS: {
+    auto: 'Paras saatavilla: FMI HARMONIE 2,5 km Suomessa noin 66 tuntiin asti, '
+      + 'MET Nordic 1 km (Yr:n data) Pohjoismaissa ja Baltiassa sekä Suomen '
+      + 'menneisyydessä, muualla ECMWF IFS 9 km (zoomista 8) ja sen alla '
+      + 'ECMWF 0,25°. Mallien rajat sekoitetaan 50 km matkalla.',
+    fmi: 'Ilmatieteen laitoksen HARMONIE 2,5 km Suomessa ja lähialueilla noin '
+      + '66 tuntiin asti. Alueen ulkopuolella ja jakson jälkeen ECMWF.',
+    metnordic: 'MET Nordic 1 km — Yr:n data, MEPS-malli havainnoilla '
+      + 'tarkennettuna. Pohjoismaissa ja Baltiassa noin 60 tuntiin asti ja '
+      + 'kaksi vuorokautta menneisyyteen. Alueen ulkopuolella ja jakson '
+      + 'jälkeen ECMWF.',
+    ecmwf: 'ECMWF IFS 9 km zoomista 8 ylöspäin, leveämmässä näkymässä saman '
+      + 'mallin 0,25–1° varastosta. 15 vuorokautta.',
+    icon: 'DWD ICON-EU 7 km Euroopassa (5 vrk) ja ICON 13 km muualla '
+      + '(7,5 vrk). Mallin oma hila haetaan palvelimelta; sillä välin ja '
+      + 'jakson jälkeen näkyy ECMWF.',
+    gfs: 'NOAA GFS 13 km koko maapallolle, 16 vuorokautta. Mallin oma hila '
+      + 'haetaan palvelimelta; sillä välin näkyy ECMWF.',
+  },
   _malliVihje() {
     const el = document.getElementById('malli-vihje');
     if (!el) return;
     const v = Asetukset.arvot.malli;
-    if (v === 'auto' || v === 'auto9') {
-      /* Nyt käytössä oleva malli luetaan SIITÄ TASOSTA jonka laatta
-         kartan keskellä on — samasta valinnasta kuin lähdemerkintä. */
-      let nyt = null;
-      if (typeof Saalaatat !== 'undefined' && Saalaatat.kartallaKaytossa() && State.map) {
-        const c = State.map.getCenter();
-        const o = Saalaatat.malliKohdassa(c.lat, c.lng,
-          ViewportGrid.laattaStep(Math.round(State.map.getZoom())), LampoGL._hetki());
-        if (o) nyt = Lahde.nimiOsuuksista(o);
-      }
-      el.textContent = 'Paras saatavilla: FMI HARMONIE 2,5 km Suomessa noin '
-        + '66 tuntiin asti, MET Nordic 1 km (Yr:n data) Pohjoismaissa ja '
-        + 'Baltiassa sekä Suomen menneisyydessä, muualla ECMWF IFS 0,25°. '
-        + 'Mallien rajat sekoitetaan 50 km matkalla. '
-        + (nyt ? 'Nyt kartan keskellä: ' + nyt + '.' : '');
-      if (v === 'auto9') {
-        /* KOKEILUN MITTARI NÄKYVIIN. Vertailu tehdään puhelimella, jossa
-           kehitystyökaluja ei ole: viimeisen kentän ja sarjan haun kesto
-           (koko matka / siitä palvelimella) ja koko. */
-        const t = Ecmwf9.tilasto, f = (x) => x
-          ? (x.ms / 1000).toFixed(1).replace('.', ',') + ' s (palvelin '
-            + (x.palvelin != null ? (x.palvelin / 1000).toFixed(1).replace('.', ',') : '?') + ' s), '
-            + String(x.kB).replace('.', ',') + ' kB'
-          : 'ei vielä';
-        el.textContent += ' Kokeilu: ECMWF 9 km tulee palvelimelta valitulle tunnille zoomista '
-          + Ecmwf9.MIN_Z + ' ylöspäin ja aikajanalle kartan keskeltä. Kenttä: ' + f(t.kentta)
-          + '. Sarja: ' + f(t.sarja) + '.' + (t.virhe ? ' Virhe: ' + t.virhe + '.' : '');
-      }
-      return;
+    /* Nyt käytössä oleva malli luetaan SIITÄ laskusta jolla kartta
+       piirretään — samasta valinnasta kuin lähdemerkintä. */
+    let nyt = null;
+    if (typeof Saalaatat !== 'undefined' && Saalaatat.kartallaKaytossa() && State.map) {
+      const c = State.map.getCenter();
+      const o = Saalaatat.malliKohdassa(c.lat, c.lng,
+        ViewportGrid.laattaStep(Math.round(State.map.getZoom())), LampoGL._hetki());
+      if (o) nyt = Lahde.nimiOsuuksista(o);
     }
-    el.textContent = (v === 'fmi_harmonie'
-        ? 'Ilmatieteen laitoksen 2,5 km hila. Kattaa Pohjois-Euroopan; '
-          + 'sen ulkopuolella piste putoaa Open-Meteoon.'
-        : 'Pakotettu malli kaikkialla, myös siellä missä se ei ole paras.')
-      + ' Kenttä haetaan rajapinnasta, joten uusi näkymä kestää muutaman sekunnin.';
+    let teksti = (this.MALLI_KUVAUS[v] || this.MALLI_KUVAUS.auto)
+      + (nyt ? ' Nyt kartan keskellä: ' + nyt + '.' : '');
+    /* HAUN KESTO NÄKYVIIN. Viivettä arvioidaan puhelimella, jossa
+       kehitystyökaluja ei ole: viimeisen kentän ja sarjan haun kesto
+       (koko matka / siitä palvelimella). */
+    const t = MalliHila.tilasto, s = (ms) => (ms / 1000).toFixed(1).replace('.', ',') + ' s';
+    const f = (x) => s(x.ms) + (x.palvelin != null ? ' (palvelin ' + s(x.palvelin) + ')' : '');
+    if (t.kentta || t.sarja) {
+      teksti += ' Viimeisin haku:' + (t.kentta ? ' kenttä ' + f(t.kentta)
+        + (t.kentta.tunteja > 1 ? ', ' + t.kentta.tunteja + ' tuntia' : '') : '')
+        + (t.kentta && t.sarja ? ';' : '') + (t.sarja ? ' aikajana ' + f(t.sarja) : '') + '.';
+    }
+    if (t.virhe) teksti += ' Virhe: ' + t.virhe + '.';
+    el.textContent = teksti;
   },
 
-  /* KARTAN MALLIN PAKOTUS.
+  /* KARTAN MALLIN VAIHTO.
    *
-   * Kysymys tuli käyttäjältä näin: "nyt esim harmonie ei näy niin sen
-   * voisi tarvittaessa pakottaa näkymään". Vastaus on kaksiosainen.
+   * Kysymys tuli käyttäjältä ensin näin: "nyt esim harmonie ei näy niin
+   * sen voisi tarvittaessa pakottaa näkymään". Pakotus käänsi silloin
+   * kartan rajapintapolulle (`Saalaatat.pois()`, Open-Meteon pisteet,
+   * 600 pisteen katto, näkymätekstuuri), ja pakotettu ICON oli siksi
+   * karkea läiskä eikä mallin hila — "ei Windyn tapaan".
    *
-   * Kartta lukee oletuksena SÄÄLAATTAVARASTOA (ECMWF 0,25°,
-   * esilaskettu), ja se on mitattu päätös: ei rajapintakiintiötä, ei
-   * pyyntöjä panoroinnissa, ja laattapyramidi piirtää kartan ilman
-   * uudelleenankkurointia. Spottikortit sen sijaan lukevat lähintä
-   * ennustepistettä, joka on Suomessa käytännössä aina HARMONIE — eli
-   * FMI:tä ON sovelluksessa, se ei vain ollut kartalla.
-   *
-   * Pakotus kääntää kartan rajapintapolulle:
-   *   1. `Saalaatat.pois()` — varasto kiinni. Tämä on se kytkin joka
-   *      ratkaisee kaiken: `ViewportGrid` täyttää hilapisteet
-   *      varastosta vain jos se on käytössä, ja `buildWindField`
-   *      lukee `pt.laatta`-pisteet varastosta. Piirtotavan vaihto ei
-   *      riittänyt: Leaflet-aikainen `?laatat=0` vaihtoi vain sen, ja
-   *      data tuli mitattuna yhä varastosta (506 pistettä 518:sta).
-   *      `LampoGL` seuraa `kartallaKaytossa()`a itse.
-   *   2. `State.activeModel` — `loadBatch` osaa reitittää mallit jo
-   *      valmiiksi (HARMONIE omana polkunaan, muut Open-Meteon
-   *      `models=`-parametrilla).
-   *   3. Välimuistit tyhjiksi ja näkymä uudelleen.
-   *
-   * HINTA ON TODELLINEN JA SE SANOTAAN VIHJEESSÄ. Pistekatto putoaa
-   * 3400:sta 600:aan (`ViewportGrid.katto()`), eli kartta on
-   * karkeampi, ja jokainen näkymä maksaa rajapintakutsuja. Mitattuna
-   * pakotus Suomen näkymässä antoi 478/518 pistettä FMI:ltä 38
-   * eräpyynnöllä.
+   * Nyt vaihto on perhevalinta samassa varastossa (`Saalaatat.asetaTila`,
+   * ks. `TILAT`): FMI ja MET Nordic ovat varaston omia pyramideja, ECMWF,
+   * ICON ja GFS mallin omaa hilaa palvelimelta (`MalliHila`). Kartta,
+   * kapseli, partikkelit, aikajana ja lähdemerkintä lukevat kaikki saman
+   * `naytteista`n, joten ne vaihtuvat yhdessä.
    *
    * `alustus`-lipulla ei piirretä mitään: main() lataa näkymän
    * kuitenkin heti perään. */
   async _vaihdaMalli(alustus) {
-    const v = kartanMalli();
-    /* `_kartanMalliNyt` muistaa mikä tila on voimassa, jotta kartan
-       liike ei rakenna kaikkea uudelleen joka kerta — vain rajan yli
-       mentäessä. */
-    _kartanMalliNyt = v;
-    if (v === KARTTA_VARASTO) {
-      State.activeModel = 'best_match';
-      if (typeof Saalaatat !== 'undefined') await Saalaatat.paalle();
-    } else {
-      State.activeModel = v;
-      if (typeof Saalaatat !== 'undefined') Saalaatat.kartalla(false);
+    _kartanMalliNyt = kartanMalli();
+    State.activeModel = 'best_match';
+    MalliHila.vaihda();
+    if (typeof Saalaatat !== 'undefined') {
+      Saalaatat.asetaTila(Asetukset.arvot.malli);
+      await Saalaatat.paalle();
     }
-    /* Lämpökartta seuraa `Saalaatat.kartallaKaytossa()`a itse: varaston
-       sulkeminen vaihtaa sen seuraavassa ruudussa näkymätekstuuriin. */
     drawColorField();
     this._malliVihje();
-    Ecmwf9.ajasta();
+    MalliHila.ajasta(0);
     if (alustus) return;
-    /* Välimuistit ovat mallikohtaisia avaimiltaan (`fg_<malli>_`), mutta
-       ViewportGridin oma muisti ei ole — se on tyhjennettävä käsin,
-       muuten edellisen mallin pisteet jäisivät kartalle. */
-    ViewportGrid.invalidateCache();
-    if (ViewportGrid._points && ViewportGrid._points.clear) ViewportGrid._points.clear();
-    if (ViewportGrid._globalBase && ViewportGrid._globalBase.clear) ViewportGrid._globalBase.clear();
-    WindTexture.kelpaa = false; WindTexture.hila = null;
     try {
-      await ViewportGrid.loadViewport(State.map);
-      await buildWindField(State.currentHourIdx);
-      /* TEKSTUURI ON RAKENNETTAVA ITSE ilman varastoa, ei riitä
-       * `drawColorField()`: varastotilassa `WindTexture.build` oikosulkee
-       * hilapolulla eikä texelikuvaa ole, ja pakotetun mallin lämpökartta
-       * lukee juuri sitä kuvaa. */
-      if (!Saalaatat.kartallaKaytossa() && State.map && State.windField && State.windField.length) {
-        WindTexture._pikseliLUT = null;
-        await WindTexture.build(State.windField, State.map.getBounds());
+      /* Uuden tilan perheiden laatat: pakotettu MET Nordic Helsingissä
+         tarvitsee laattoja joita FMI:n alla ei haettu. Lämpökartta odottaisi
+         niitä itsekin (`_odottava`), mutta kenttä, kapseli ja aikajana
+         rakennetaan tässä heti. */
+      if (State.map && Saalaatat.kartallaKaytossa()) {
+        const z = State.map.getZoom(), st = ViewportGrid.laattaStep(Math.round(z)), c = State.map.getCenter();
+        await Promise.all([
+          Saalaatat.varmista(State.map.getBounds().pad(LampoGL._pehmuste(z)), st),
+          Saalaatat.varmistaPiste(c.lat, c.lng, st),
+        ]);
       }
+      await buildWindField(State.currentHourIdx);
       drawColorField();
       resetParticles();
       renderSpots(State.currentHourIdx);
       updateTimelineToCenter();
-      /* Lähdemerkintä VIIMEISENÄ: se lukee `WindTexture.hila`n ja lähimmän
-         pisteen, ja molemmat ovat lopulliset vasta tässä. */
+      /* Lähdemerkintä VIIMEISENÄ: se lukee `WindTexture.hila`n, ja se on
+         lopullinen vasta tässä. */
       Lahde.paivita();
+      this._malliVihje();
     } catch (e) { console.warn('[malli]', e); }
   },
 
@@ -23889,7 +24114,7 @@ const _loadingSafety = setTimeout(() => {
    * Tämä on saman ?perf=1-portin takana kuin koko paneeli, joten
    * tuotantopolussa globaaliin nimiavaruuteen ei viedä mitään. */
   try {
-    window.FS = { State: State, WindTexture: WindTexture, Saalaatat: Saalaatat, Ecmwf9: Ecmwf9,
+    window.FS = { State: State, WindTexture: WindTexture, Saalaatat: Saalaatat, MalliHila: MalliHila,
       ViewportGrid: ViewportGrid, ColorRamp: ColorRamp, PerfTracker: PerfTracker,
       buildWindField: buildWindField, idw: idw,
       LampoGL: LampoGL, PartikkeliGL: PartikkeliGL, L: L,
