@@ -736,6 +736,13 @@ Selaimessa (Chromium, työpöytä ja puhelin `hasTouch`):
   → Tarifa → Helsinki): valittu hetki pysyy, Helsinki on FMI, 9 km
   latautuu Pohjoismaiden ulkopuolella, 394 tikkiä.
 
+**Mitattu tuotannossa** (25.9., `56587cd`, funktio `iad1`, välimuistiton):
+7 tunnin paketti 4° × 2,5° ICON 1,5–1,9 s (kylmä instanssi 3,2 s) ja GFS
+1,4–2,3 s, 30 kB; sarja neljälle solmulle 415 h ICON 1,3 s, GFS 1,1 s,
+ECMWF 1,0 s, 23–24 kB. Selaintesti samoin kuin kontissa: jokainen tila
+oikea merkintä, toisto 24/24 ICON-EU:ta, uudelleenlataus "Paras
+saatavilla", ei virheitä; selaimen kokonaisaika 1,1–3,2 s.
+
 **Tiedossa oleva ero, ei vika.** Aikajana näyttää pakotetun mallin koko
 jaksolta (sarja), mutta kartta vain haetun paketin tunneilta; muilla
 tunneilla kartta on varaston ECMWF:ää kunnes hetki valitaan ja paketti
