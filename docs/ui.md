@@ -1053,6 +1053,10 @@ Mitattu pienin ruudulla näkyvä koko: työpöytä 10 → 12,5 px, mobiili
 
 ### Spottikortti: panorointi, ei kutistus
 
+> **Päivitetty:** raja on nyt 740 px eikä 1024 px, ja sama sivupaneeli
+> koskee myös asetuksia ja ennustepaneelia — ks. *Paneelit leveällä
+> ruudulla: yksi sivupaneeli* tiedoston lopussa.
+
 Leveydestä 1024 px alkaen kortti on oikean reunan sivupaneeli (400 px,
 koko korkeus, ei verhoa kartan päällä) ja aikajana väistyy sen tieltä.
 Karttaa **ei** kutisteta: kartan koon muutos vetäisi perässään
@@ -5308,3 +5312,129 @@ Kaksi asiaa jotka meni ensin väärin:
 - **Keskitys tehdään rajauslaatikosta, ei ympyrän keskipisteestä.**
   Kaari ei ole symmetrinen (270° ja kasvava leveys), joten geometrinen
   keskipiste jättää merkin ylös ja vasemmalle.
+
+## Viisi asiaa: vaalea pohja ja väriasteikko pois, paneelit yhtenäisiksi, liukuväri alemmas, tunti pysyy mallin vaihdossa
+
+### Vaalea pohjakartta pois valitsimesta
+
+Käyttäjän päätös: "se ei ole toimiva". Siru, `POHJAT.vaalea`, sen kaksi
+CSS-lohkoa ja `<head>`in käynnistysskriptin haara poistettiin;
+`_sallitut.pohja` on `['tumma', 'satelliitti']`, joten tallennettu
+`'vaalea'` putoaa tummaan. Paperitilan koneisto (`Asetukset.paperi()`,
+multiply-sekoitus, `RAMP_INK`, sateen paperipaletti, partikkelien
+tummennus) jäi koodiin mutta on käyttämätön: `paperi()` lukee
+`POHJAT`-merkinnän `paperi`-lipun, eikä yhdelläkään pohjalla sitä enää
+ole. Se jätettiin tarkoituksella — poisto olisi koskenut kymmeniin
+haaroihin ilman että mikään näkyvä muuttuu.
+
+### Väriasteikko pois — "Kirkas" aina
+
+Valitsin, `#ramppi-vihje`, `RAMP_CVD`, `_ramppiVihje()` ja
+`kayta('ramppi')` poistettiin. `karttaRamppi()` palauttaa `RAMP_KARTTA`n
+(tai paperilla `RAMP_INK`in, jota ei nyt käytetä). Tallennettu
+`ramppi`-avain ohitetaan, koska `lataa()` kulkee `arvot`-avainten läpi.
+Kaaviot ja aikajanan `varjo()`-taulu eivät enää seuraa mitään
+näköasetusta — sitä ei ole.
+
+### Paneelit leveällä ruudulla: yksi sivupaneeli
+
+Mitattu ennen (`paneelit.mjs` tuotantoa vasten, kosketus päällä iPadilla):
+
+| | puhelin 393 | iPad pysty 820 | iPad vaaka 1180 | työpöytä 1440 |
+|---|---|---|---|---|
+| asetukset | 346 px | 722 px | **1 038 px** | **1 267 px** |
+| spottikortti | pohjalevy | pohjalevy, **820 px** | pohjalevy, **1 180 px** | 400 px sivupaneeli |
+| ennustepaneeli | pohjalevy | pohjalevy | pohjalevy | pohjalevy |
+
+Nyt vähintään 740 px:n leveydellä kaikki kolme ovat sama esine: oikean
+reunan sivupaneeli, koko korkeus, `--paneeli-lev` (400 px), sama varjo
+ja hiusreuna. Mitattu jälkeen: iPad pysty kaikki kolme 420,0 → 400×1180,
+iPad vaaka 780,0 → 400×820, työpöytä 1040,0 → 400×900. Puhelin ennallaan
+(asetukset 346 px, pohjalevyt).
+
+- Raja on LEVEYS (`@media (min-width: 740px)` ja sama kysely JS:ssä,
+  `sivupaneelit()`), ei `TYOPOYTA`-lippu: iPad on kosketuslaite mutta
+  sen ruutu on leveä, ja kapea työpöytäikkuna on puhelimen tilanne.
+  740 eikä 768, koska pienin iPad (mini, 744 px pystyssä) kuuluu
+  mukaan.
+- Aikajana ja alapalkki väistyvät (`html.paneeli-auki #bottom { right:
+  var(--paneeli-lev) }`), ja iPadilla kapseli siirtyy vapaan alueen
+  keskelle. Mitattu iPad pystyssä: aikajana 420 px leveä paneelin
+  ollessa auki, kapseli keskellä vapaata aluetta.
+- Luokan poistaa vain viimeinen suljettava paneeli: ennustepaneelin
+  sulku tarkistaa onko spottikortti yhä auki.
+- Pohjalevyn pystyveto ohitetaan sivupaneelissa (`makeSwipeable`,
+  ennustepaneelin `touchstart`): siellä veto ei sulje mitään, ja kahva
+  on sulkunappi.
+- Tarkkuus ratkaistaan `html #…`-valitsimilla, koska perussäännöt ovat
+  tiedostossa myöhempänä ja yhtä tarkka sääntö voittaisi järjestyksellä.
+
+### Liukuväri alkaa osoitinviivan yläpäästä
+
+Pyyntö: "se voisi olla maksimissaan nyt viivan yläpäähän asti".
+Mitattuna ennen (puhelin 393×852): kääre 696–852, NYT-viiva ja
+`#tl-indicator` 702–798, liukuväri alkoi 664:stä — eli **38 px viivan
+yläpäätä ylempää**.
+
+`::before` on nyt `top: 6px` (viivan yläpää) ja pysäkit ovat pikseleinä,
+jotta alku ei liiku kotivalikon appissa jossa kääre on korkeampi.
+Mitattu valkoista vasten (`alfa.mjs`, sama menetelmä kuin 64 → 32 px:n
+muutoksessa):
+
+| y kääreen ylälaidasta | ennen | nyt |
+|---|---|---|
+| ensimmäinen näkyvä (a > 0,005) | −30 | **+6** |
+| +16 (palkkivyöhykkeen yläreuna) | 0,66 (laskettu pysäkeistä) | 0,565 |
+| +30 | 0,822 | 0,821 |
+| +50 | 0,888 | 0,890 |
+| +74 | 0,913 | 0,915 |
+
+Palkkivyöhykkeen alfa ei laskenut (sääntö edellisestä kierroksesta);
+lyhyempi nousu maksetaan jyrkemmällä alulla. Vain palkkivyöhykkeen
+ylin kymmenkunta pikseliä vaaleni, ja sinne yltää palkki vasta noin
+12 m/s:n tuulella. Kaltevuudet 0,070 → 0,033 → 0,014 → 0,0033 → 0,0006
+alfaa pikseliä kohti, eli käyrä on yhä loiveneva eikä nousu kiihdy
+missään kohdassa. Lukemakupla on kääreen yläpuolella umpinaisella
+pohjallaan eikä tarvinnut tummennusta.
+
+### Mallin vaihto ei siirrä tuntia
+
+Pyyntö: aikajanan on pysyttävä samassa tunnissa kun mallia vaihdetaan,
+jotta ennusteita voi verrata samalle tunnille ja päivälle.
+
+Mitattu (`tunti.mjs`): hetki valitaan oikealla käyttöliittymällä
+(päiväkiskon lappu + neljä tuntiaskelta `.`-näppäimellä), ja sen jälkeen
+vaihdetaan sirusta fmi → metnordic → ecmwf → icon → gfs → auto → icon →
+fmi → auto, sekä kerran kartan siirron kanssa samassa ruudussa ja
+takaisin. Joka vaihdon jälkeen luetaan `valittuMs`, indeksin aika,
+osoittimen alla oleva tikki ja kupla.
+
+| tapaus | vaihtoja | tunti pysyi |
+|---|---|---|
+| työpöytä, +3 vrk, z9 | 11 | 11/11 |
+| puhelin, +3 vrk, z9 | 11 | 11/11 |
+| puhelin, −2 vrk (mennyt), z9 | 11 | 11/11 |
+| puhelin, +9 vrk (ICONin ja HARMONIEn jakson yli), z9 | 11 | 11/11 |
+| puhelin, +5 vrk, z5 | 11 | 11/11 |
+
+Lopputila ei riitä yksin: lyhyt hyppy ja paluu olisi näkynyt
+ruudulla. Ensimmäinen seuranta otti näytteitä ajastimella 16 ms välein,
+mutta kontti antoi vain ~38 näytettä seitsemässä sekunnissa (~180 ms
+väli), joten se olisi voinut ohittaa hypyn. Toinen seuranta on
+TAPAHTUMAPOHJAINEN: kiskon `scroll`-kuuntelija, `MutationObserver`
+kuplaan, ja `Object.defineProperty`-koukku `State.currentHourIdx`- ja
+`State.valittuMs`-kirjoituksiin. Tulos jokaisessa vaihdossa: **ei yhtään
+vieritystä eikä kirjoitusta**; kupla kirjoitettiin 1–2 kertaa samalla
+tekstillä.
+
+Koodi piti hetken siis jo valmiiksi (`_tlSailytaHetki` lukee
+`valittuMs`:n, ja akseli on pohjamallin eikä vaihdu tilan mukana).
+Yksi aukko löytyi: **käynnissä oleva toisto**. Asetusten avaus ei
+pysäytä sitä, joten jana jatkoi kulkuaan vaihdon yli. Nyt
+`kayta('malli')` pysäyttää toiston ennen vaihtoa. Mitattu
+(`toistovaihto.mjs`): toisto päällä → ICON sirusta → toisto seis
+tunnille 00:00 ja sama tunti vielä 6 s myöhemmin.
+
+Kun valittu tunti on pakotetun mallin jakson ulkopuolella (esim. FMI
+−2 vrk tai ICON +9 vrk), kartta näyttää alla olevaa ECMWF:ää ja
+lähdemerkintä sanoo sen — tunti ei siirry mallin jaksoon.

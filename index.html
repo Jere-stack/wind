@@ -26,7 +26,8 @@
   if (s) document.documentElement.classList.add('standalone');
 })();
 /* Valittu pohjakartta juurielementtiin ENNEN ensimmaista maalausta.
-   Ilman tata vaalea pohjakartta valahtaisi kaynnistyksessa mustana:
+   Ilman tata satelliittipohja valahtaisi kaynnistyksessa tumman pohjan
+   taustalla:
    #map:n tausta ja sovelluksen --bg tulevat tyylitiedostosta, ja jos ne
    asetettaisiin vasta JS:n Asetukset-moduulissa, valissa olisi yksi
    maalaus vaaralla varilla. Attribuutti riittaa — kaikki pohjakartasta
@@ -34,7 +35,7 @@
 (function () {
   try {
     var a = JSON.parse(localStorage.getItem('fs_kartta') || '{}');
-    if (a && (a.pohja === 'vaalea' || a.pohja === 'satelliitti')) {
+    if (a && a.pohja === 'satelliitti') {
       document.documentElement.setAttribute('data-pohja', a.pohja);
     }
   } catch (e) { /* eheyton arvo: pysytaan oletuksessa */ }
@@ -218,22 +219,9 @@ body {
 
 /* Pohjakartan mukana vaihtuvat sävyt.
    Attribuutti asetetaan <head>:n käynnistyslohkossa ennen ensimmäistä
-   maalausta, jotta vaalea kartta ei välähdä mustana. --bg näkyy kartan
+   maalausta, jotta satelliittipohjan tausta on oikea heti. --bg näkyy kartan
    alla ennen kuin laatat ovat ladanneet ja reunoilla ennen kuin niitä
    ehtii hakea. */
-/* Vaalea: brightness ENNEN kontrastia. Ilman sitä kontrasti leikkaa maan
-   valkoiseksi (contrast(1.2) vei 75 % pikseleistä 255:een). Mitattuna
-   valmiista ruudusta 10 m/s tuulessa: maan ja veden luminanssiero
-   20.3 -> 32.1 ja hienojen yksityiskohtien säilyminen 0.73 -> 1.10, kun
-   tuulierottelu pysyy ennallaan (24.7 -> 24.9). Rajumpi brightness(0.74)
-   contrast(2.3) antaa 33.1 mutta painaa kartan jo harmaaksi. */
-:root[data-pohja="vaalea"] {
-  --bg: #E9E6DF;
-  --pohja-suodin: brightness(0.78) contrast(2.1);
-  /* Valkoinen katoaisi paperille. Sama sävy kuin paneelien --ink-2. */
-  --kartta-teksti: rgba(16,26,32,0.62);
-  --kartta-teksti-varjo: 0 1px 2px rgba(255,255,255,0.55);
-}
 /* Satelliitti: kevyt kontrasti riittää. Ilmakuva on jo keskiharmaan
    alapuolella, joten pelkkä contrast tummentaa ja terävöittää yhtä aikaa
    kuten tummalla pohjalla. 1.2 mitattuna ruudulta: ero 38.0 -> 45.7 ja
@@ -245,19 +233,6 @@ body {
   --pohja-suodin: contrast(1.2);
 }
 
-/* Tilapalkin tummennus vaalealla pohjakartalla.
-   Kotivalikon appi ajaa tilan black-translucent, eli iOS piirtää kellon ja
-   akun VALKOISENA suoraan sivun päälle. Tyyliä ei voi vaihtaa ajossa — se
-   luetaan kirjanmerkistä käynnistyksessä — joten vaalealla kartalla
-   valkoinen teksti jäisi lukukelvottomaksi. Tämä on ainoa kohta jossa
-   pohjakartta vaikuttaa muuhun kuin karttaan.
-   Selaimessa ja ilman lovea --sat on 0, jolloin korkeus on 0 eikä mitään
-   piirry. z-index 21 = kartan yllä (1) mutta kapselin alla (22). */
-:root[data-pohja="vaalea"] body::before {
-  content: ''; position: fixed; top: 0; left: 0; right: 0;
-  height: var(--sat); z-index: 21; pointer-events: none;
-  background: linear-gradient(to bottom, rgba(6,9,18,.55), rgba(6,9,18,.26));
-}
 
 
 /* MapLibren säiliö. Kartan kanvas on yksi WebGL-pinta, ja merkit ovat
@@ -276,52 +251,69 @@ body {
    blendFunc eikä mix-blend-mode. Perustelut additiiviselle sekoitukselle
    pätevät sellaisinaan — ks. LampoGL. */
 
-/* ── SPOTTIKORTTI SIVUPANEELIKSI ──────────────────────────────────
+/* ── PANEELIT LEVEÄLLÄ RUUDULLA: YKSI SIVUPANEELI ──────────────────
  *
- * Kortti on pohjalevy: mitattuna 1440 px:n ruudulla se on 1440 px leveä
- * ja 272 px korkea, jossa sisältöä 218 px. Otsikko on vasemmassa
- * reunassa ja yksikkö oikeassa, väliin jää 1 400 pikseliä tyhjää.
- * Samalla se peittää kartan alaosan — juuri sen alueen jolla spotti on.
+ * Puhelimella asetukset ovat oikealta liukuva laatikko (88 % leveydestä)
+ * ja spottikortti sekä ennustepaneeli pohjalevyjä. Sama ratkaisu
+ * leveällä ruudulla peitti kartan: mitattuna asetukset olivat iPadilla
+ * vaakana 1 038 px ja työpöydällä 1 267 px leveät, spottikortti iPadilla
+ * koko 1 180 px:n levyinen (ja sen kaavio venyi), ja ennustepaneeli
+ * pohjalevy kaikkialla. Vain työpöydän spottikortti oli jo 400 px:n
+ * sivupaneeli.
  *
- * Työpöydällä ja vähintään 1024 px:n leveydellä kortti on oikean reunan
- * sivupaneeli: koko korkeus, oma vieritys, kaavio ja tuntitaulukko
- * saavat pystysuuntaa. Alle 1024 px:n nykyinen pohjalevy jää sellaisenaan
- * — kapea ikkuna työpöydällä on lähempänä puhelinta kuin työpöytää.
+ * Nyt kaikki kolme ovat vähintään 740 px:n leveydellä SAMA ESINE:
+ * oikean reunan sivupaneeli, koko korkeus, `--paneeli-lev` leveä, sama
+ * varjo ja hiusreuna. Raja on leveys eikä syöttölaite: iPad (744–1 366
+ * px) saa saman paneelin kuin työpöytä, ja kapea työpöytäikkuna saa
+ * puhelimen asettelun. 400 px on puhelimen leveys, jolle kortin
+ * sisältö on tehty — kaavio ja tuntitaulukko eivät veny.
+ *
+ * Tarkkuus ratkaistaan `html #…`-valitsimella, koska perussäännöt ovat
+ * tiedostossa myöhempänä: yhtä tarkka sääntö voittaisi järjestyksellä.
+ * `#….open` voittaa yhä tämän (se kantaa luokan), ja se on juuri auki-
+ * tilan siirto nollaan.
  *
  * KARTTAA EI KUTISTETA. Se olisi houkuttelevaa (spotti pysyisi
  * näkyvissä itsestään), mutta kartan koon muutos vetää perässään
  * `invalidateSize`n, uloimman zoomin uudelleenlaskennan sekä lämpökartan
  * ja pohjakerroksen rajat. Sen sijaan kartta PANOROIDAAN sen verran että
  * valittu spotti tulee vapaan alueen keskelle — sama lopputulos ilman
- * yhtään kokomuutosta.
+ * yhtään kokomuutosta (`_sivupaneeliPanorointi`).
  *
- * Verho ei tummenna karttaa työpöydällä: sivupaneeli ei ole modaali,
- * ja kartan pitää pysyä luettavana kortin vieressä. Verho jää silti
- * paikalleen, koska sen kautta kortti suljetaan klikkaamalla ohi. */
-@media (min-width: 1024px) {
-  html.tyopoyta #sheet {
+ * Verho ei tummenna karttaa sivupaneelin kanssa: spottikortti ja
+ * ennustepaneeli eivät ole modaaleja, ja kartan pitää pysyä luettavana
+ * niiden vieressä. Verho jää silti paikalleen, koska sen kautta paneeli
+ * suljetaan napauttamalla ohi. Asetukset pitävät oman verhonsa. */
+:root { --paneeli-lev: 400px; }
+@media (min-width: 740px) {
+  html #settings-popup { width: var(--paneeli-lev); }
+  html #sheet,
+  html #forecast-panel {
     top: 0; bottom: 0; left: auto; right: 0;
-    width: 400px; max-height: none;
-    border-radius: 0;
+    width: var(--paneeli-lev); height: auto; max-height: none;
+    border-radius: 0; border-top: 0;
     border-left: 1px solid var(--hairline);
+    box-shadow: -14px 0 40px rgba(4,8,12,.42);
     -webkit-transform: translate3d(100%,0,0); transform: translate3d(100%,0,0);
   }
-  html.tyopoyta #sheet.open {
-    -webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0);
-  }
-  /* Vetokahva on kosketuseleen kahva. Sivupaneelissa ei ole elettä,
-     joten se on sulkunappi — ja sen on näytettävä siltä. */
-  html.tyopoyta #sheet-handle {
-    padding: 12px 0 8px;
-  }
-  html.tyopoyta #sheet-overlay.open { background: rgba(0,0,0,0); }
-  html.tyopoyta #sp-body-inner { padding-bottom: 24px; }
+  /* Vetokahva on pohjalevyn ele. Sivupaneelissa pystyveto ei sulje
+     mitään (`sivupaneelit()` ohittaa sen), joten kahva on sulkunappi. */
+  html #sheet-handle { padding: 12px 0 8px; }
+  html #fc-handle::after { visibility: hidden; }
+  html #sheet-overlay.open { background: rgba(0,0,0,0); }
+  html #sp-body-inner { padding-bottom: 24px; }
   /* Aikajana ja alapalkki väistyvät paneelin tieltä. Ilman tätä
      paneeli peittäisi aikajanan oikean pään — eli juuri ne päivät
-     joita leveä ruutu tuo lisää. Luokka tulee openSheetistä, jotta
-     siirtymä kulkee samaa tahtia paneelin kanssa. */
-  html.tyopoyta.paneeli-auki #bottom { right: 400px; }
-  html.tyopoyta #bottom { transition: right .38s var(--spring); }
+     joita leveä ruutu tuo lisää. Luokka tulee paneelin avauksesta,
+     jotta siirtymä kulkee samaa tahtia paneelin kanssa. */
+  html.paneeli-auki #bottom { right: var(--paneeli-lev); }
+  html #bottom { transition: right .38s var(--spring); }
+  /* Kosketuslaitteella kapseli on ylälaidan keskellä, ja pystyssä
+     iPadilla paneeli peittäisi sen oikean puoliskon. Kapseli siirtyy
+     vapaan alueen keskelle. (Työpöydällä se on jo vasemmassa
+     nurkassa.) */
+  html.paneeli-auki:not(.tyopoyta) #kapseli { left: calc((100% - var(--paneeli-lev)) / 2); }
+  html:not(.tyopoyta) #kapseli { transition: opacity .28s ease, transform .28s ease, left .38s var(--spring); }
 }
 
 /* ============================================================
@@ -1050,10 +1042,9 @@ html.tyopoyta #kapseli.vaistyy {
 /* LIUKUVÄRI, EI LAATIKKOA.
  *
  * Alusta oli sisennetty paperilaatikko (`--chip`, 18 px kulmat, varjo).
- * Nyt se on reunasta reunaan ulottuva tummennus joka ALKAA KÄÄREEN
- * YLÄPUOLELTA: 64 px ylimenoa, jonka aikana kartta häipyy tummaan.
- * Ilman ylimenoa liukuvärin oma yläreuna olisi sama katkoviiva kuin
- * laatikon reuna, vain pehmeämpi — ja juuri se reuna oli syy vaihtaa.
+ * Nyt se on reunasta reunaan ulottuva tummennus. Se alkoi ensin
+ * KÄÄREEN YLÄPUOLELTA 64 px:n ylimenolla, sitten 32 px:n, ja nyt
+ * osoitinviivan yläpäästä (alla).
  *
  * YLIMENO ON 32 px, EI 64, JA SE ON MITATTU VALKOISTA VASTEN. Kartan
  * päältä mitattu profiili ei kerro liukuväristä mitään — Itämeri yöllä on
@@ -1069,6 +1060,16 @@ html.tyopoyta #kapseli.vaistyy {
  * alfaväli kuljetaan PUOLESSA matkassa — reuna häipyy nopeammin ylöspäin
  * mentäessä, mikä oli koko pyyntö.
  *
+ * YLIMENOA EI OLE ENÄÄ LAINKAAN: LIUKUVÄRI ALKAA OSOITINVIIVAN
+ * YLÄPÄÄSTÄ. 32 px:kin oli käyttäjän mukaan liian ylhäällä, ja raja on
+ * nyt sidottu siihen mitä ruudulla näkyy: tummennus saa ulottua
+ * enintään sinne mistä NYT-viiva ja `#tl-indicator` alkavat (kääreen
+ * ylälaita + 6 px täytettä). Mitattuna ennen muutosta tummennus alkoi
+ * 38 px viivan yläpäätä ylempää. Lukemakupla on kääreen yläpuolella
+ * omalla umpinaisella pohjallaan, joten se ei tarvitse tummennusta.
+ * Pysäkit ovat PIKSELEINÄ eivätkä prosentteina, jotta alku pysyy
+ * samassa kohdassa myös kotivalikon appissa jossa kääre on korkeampi.
+ *
  * YLIMENO LYHENI MUTTA PALKKIVYÖHYKE EI VAALENTUNUT, JA SE ON EHTO
  * EIKÄ SATTUMA. Ensimmäinen yritys siirsi koko käyrää alemmas, jolloin
  * palkkien takana oleva alfa putosi 0,805 -> 0,780 — pieni luku, mutta
@@ -1079,26 +1080,31 @@ html.tyopoyta #kapseli.vaistyy {
  * palkkivyöhykkeellä pidetään ennallaan ja lyhennys maksetaan pelkästään
  * ylimenosta.
  *
+ * Sama ehto pätee yhä: alfa +30 px:n kohdalla kääreen ylälaidasta on
+ * 0,82, +50:ssä 0,887 ja +74:ssä 0,912 (ennen 0,822 / 0,888 / 0,913).
+ * Lyhyempi nousu maksetaan jyrkemmällä alulla, ei vaaleammilla palkeilla.
+ *
  * Pysäkit eivät ole tasavälein: silmä lukee lineaarisen liukuvärin
  * juovana, koska sen keskikohta nousee liian nopeasti. Käyrä on
- * loiveneva — jokainen osuus nousee edellistä hitaammin (0,0282 →
- * 0,0213 → 0,0062 → 0,0011 alfaa prosenttia kohti) — eikä siinä siis
- * ole kohtaa jossa nousu KIIHTYISI uudelleen. Juuri se kiihtyminen on
- * se mikä lukisi juovana, ja se on tämän käyrän ainoa kielletty muoto.
+ * loiveneva — jokainen osuus nousee edellistä hitaammin (0,070 →
+ * 0,033 → 0,014 → 0,0033 → 0,0006 alfaa pikseliä kohti) — eikä siinä
+ * siis ole kohtaa jossa nousu KIIHTYISI uudelleen. Juuri se
+ * kiihtyminen on se mikä lukisi juovana, ja se on tämän käyrän ainoa
+ * kielletty muoto.
  *
- * `pointer-events: none`, koska kerros ulottuu kääreen yli: ilman sitä
- * se söisi karttaeleet 64 px korkealta kaistalta aikajanan yläpuolelta.
- * Kääre itse pitää oman osumapintansa. */
+ * `pointer-events: none` pysyy, vaikka kerros ei enää ulotu kääreen
+ * yli: se on kääreen oma koriste eikä osumapinta. */
 #tl-wrap::before {
   content: '';
   position: absolute;
   left: 0; right: 0;
-  top: -32px; bottom: 0;
+  top: 6px; bottom: 0;
   background: linear-gradient(to bottom,
-    rgba(var(--tl-pohja), 0)   0%,
-    rgba(var(--tl-pohja), .48) 17%,
-    rgba(var(--tl-pohja), .82) 33%,
-    rgba(var(--tl-pohja), .90) 46%,
+    rgba(var(--tl-pohja), 0)   0,
+    rgba(var(--tl-pohja), .42) 6px,
+    rgba(var(--tl-pohja), .68) 14px,
+    rgba(var(--tl-pohja), .82) 24px,
+    rgba(var(--tl-pohja), .90) 48px,
     rgba(var(--tl-pohja), .96) 100%);
   pointer-events: none;
 }
@@ -3511,7 +3517,6 @@ html[data-tutka="1"] #lahde-merkki {
           <div class="sp-label">Pohjakartta</div>
           <div class="sp-chips" id="asetus-pohja">
             <div class="sp-chip active" data-arvo="tumma">Tumma</div>
-            <div class="sp-chip" data-arvo="vaalea">Vaalea</div>
             <div class="sp-chip" data-arvo="satelliitti">Satelliitti</div>
           </div>
 
@@ -3519,28 +3524,13 @@ html[data-tutka="1"] #lahde-merkki {
           <!-- AVAIMET OVAT ENNALLAAN, NIMET VAIHTUIVAT. 'vahan' on nyt
                "Normaali" (ja oletus), 'normaali' on "Paljon". Avainta ei
                saa vaihtaa nimen mukana: jokaisen tallennettu valinta
-               putoaisi oletukseen. Sama sääntö kuin väriasteikon
-               'nykyinen'-avaimella. -->
+               putoaisi oletukseen. -->
           <div class="sp-chips" id="asetus-partikkelit">
             <div class="sp-chip active" data-arvo="vahan">Normaali</div>
             <div class="sp-chip" data-arvo="normaali">Paljon</div>
             <div class="sp-chip" data-arvo="pois">Pois</div>
           </div>
           <div class="sp-vihje">Vähentää akun kulutusta vanhemmilla puhelimilla.</div>
-
-          <div class="sp-label" style="margin-top:18px">Väriasteikko</div>
-          <div class="sp-chips" id="asetus-ramppi">
-            <!-- Tallennettu arvo on yhä 'nykyinen': nimi vaihtui, mutta
-                 avainta ei saa vaihtaa tai jokaisen localStorage putoaisi
-                 oletukseen. -->
-            <div class="sp-chip active" data-arvo="nykyinen">Kirkas</div>
-            <div class="sp-chip" data-arvo="cvd">Värisokeusystävällinen</div>
-          </div>
-          <!-- Teksti vaihtuu pohjakartan mukana: vaalealla asteikko on jo
-               kirkkauteen perustuva, jolloin valinnalla ei ole vaikutusta.
-               Ilman tätä käyttäjä valitsisi vaihtoehdon eikä näkisi mitään
-               eikä tietäisi miksi. Ks. ColorRamp.karttaRamppi(). -->
-          <div class="sp-vihje" id="ramppi-vihje"></div>
 
           <div class="sp-label" style="margin-top:18px">Lämpökartan voimakkuus</div>
           <div class="sp-chips" id="asetus-lampo">
@@ -4311,6 +4301,9 @@ function makeSwipeable(sheetEl, onDismiss, opts) {
   let startY = 0, currentY = 0, isDragging = false, startScrollTop = 0;
 
   function onTouchStart(e) {
+    /* Sivupaneelissa (leveä ruutu) pystyveto ei sulje: paneeli ei ole
+       pohjalevy, ja veto siirtäisi sen irti oikeasta reunasta. */
+    if (typeof sivupaneelit === 'function' && sivupaneelit()) return;
     /* Only start drag from handle OR if sheet is scrolled to top */
     const isHandle = e.target.closest('#sheet-handle, #spot-list-handle');
     const scrollEl = document.getElementById('sheet-scroll') || sheetEl;
@@ -4492,7 +4485,7 @@ const Units = {
 
 /* -- POHJAKARTAT ------------------------------------------------
  *
- * Kolme Esrin karttapalvelua. Jokainen tuo mukanaan kolme asiaa jotka
+ * Kaksi Esrin karttapalvelua. Jokainen tuo mukanaan kolme asiaa jotka
  * EIVÄT ole makuasioita vaan mitattuja: sävynsäädin, lämpökartan
  * sekoitustila ja se kumpaan suuntaan tuuliramppi kulkee. Kaksi ensin
  * mainittua asuvat CSS:ssä [data-pohja]-sääntöinä (--pohja-suodin ja
@@ -4517,6 +4510,13 @@ const Units = {
  * tummuuteen. Siksi vaalealla pohjalla lämpökartta käyttää RAMP_INKiä eli
  * samaa sävypolkua paperille käännettynä (ks. ColorRamp).
  *
+ * VAALEA POHJA POISTETTIIN (käyttäjän päätös: "ei ole toimiva"). Sen
+ * koneisto jäi paikalleen mutta käyttämättömäksi: `Asetukset.paperi()`
+ * lukee POHJAT-merkinnän `paperi`-lipun, eikä yhdelläkään pohjalla sitä
+ * enää ole — multiply-sekoitus, sateen paperipaletti ja partikkelien
+ * tummennus ovat siksi aina pois päältä. Tallennettu 'vaalea' putoaa
+ * tummaan (`_sallitut`).
+ *
  * Attribuutio vaihtuu palvelun mukana: Esrin ehdot vaativat "Powered by
  * Esri" -maininnan JA sen palvelun datalähteet, ja World_Imageryn lähteet
  * ovat eri kuin Canvas-karttojen. Tätä riviä ei saa pudottaa. */
@@ -4524,12 +4524,6 @@ const POHJAT = {
   tumma: {
     nimi: 'Tumma',
     url: 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-    attr: 'Esri, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>&nbsp;contributors.'
-  },
-  vaalea: {
-    nimi: 'Vaalea',
-    url: 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-    paperi: true,
     attr: 'Esri, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>&nbsp;contributors.'
   },
   satelliitti: {
@@ -4554,9 +4548,8 @@ const POHJAT = {
 const Asetukset = {
   AVAIN: 'fs_kartta',
   _sallitut: {
-    pohja:       ['tumma', 'vaalea', 'satelliitti'],
+    pohja:       ['tumma', 'satelliitti'],
     partikkelit: ['normaali', 'vahan', 'pois'],
-    ramppi:      ['nykyinen', 'cvd'],
     lampo:       ['hillitty', 'normaali', 'voimakas'],
     /* KARTAN MALLI. 'auto' = paras saatavilla (FMI, MET Nordic,
        ECMWF 9 km ja varaston ECMWF sekoitettuina). Muut arvot PAKOTTAVAT
@@ -4575,7 +4568,7 @@ const Asetukset = {
      sama sääntö kuin väriasteikon 'nykyinen'-avaimella: jos avain
      vaihdetaan, jokaisen käyttäjän localStorage putoaa oletukseen.
      Oletus on 'vahan' eli uusi "Normaali". */
-  arvot: { pohja: 'tumma', partikkelit: 'vahan', ramppi: 'nykyinen', lampo: 'normaali',
+  arvot: { pohja: 'tumma', partikkelit: 'vahan', lampo: 'normaali',
            malli: 'auto' },
 
   lue() {
@@ -4628,9 +4621,10 @@ Asetukset.lue();
 
 /* -- COLOUR RAMP ------------------------------------------------ */
 const ColorRamp = (() => {
-  /* Kartan oletusramppi on tehty NORMAALINÄKÖISELLE ja se on kylläinen.
-     Värisokeusturvallinen versio on yhä olemassa, mutta se on asetus
-     (RAMP_CVD, "Väriasteikko") eikä oletus — se on käyttäjän päätös.
+  /* Kartan ramppi on tehty NORMAALINÄKÖISELLE ja se on kylläinen.
+     Värisokeusturvallinen vaihtoehto (RAMP_CVD, asetus "Väriasteikko")
+     poistettiin käyttäjän päätöksellä: kirkas ramppi on aina käytössä.
+     Sen mittaukset ovat docs/lampokartta.md:ssä, jos se joskus palaa.
      Perustelu on mitattu ja se on koko rampin lähtökohta.
 
      RAMPPI EI OLE SE MITÄ NÄKEE. Kartalle piirretään ramppi kerrottuna
@@ -4654,7 +4648,7 @@ const ColorRamp = (() => {
      tummempi. Vanha ramppi vältti tämän tarkoituksella, koska pelkkä
      kirkkaus on ainoa signaali jonka dikromaatti näkee varmasti. Sävy
      kantaa nyt sen eron — normaalinäköiselle se on vahvempi signaali kuin
-     kirkkaus, dikromaatille heikompi. Kumpi ramppi, on asetus.
+     kirkkaus, dikromaatille heikompi.
 
      Kirkkausaikataulu on verrannollinen NOPEUTEEN eikä ankkurin
      järjestyslukuun. Ankkurit ovat epätasavälein (0,2,4,6,8,10,13,16,20),
@@ -4703,61 +4697,6 @@ const ColorRamp = (() => {
     const last = ramp[ramp.length - 1];
     return { r: last.r, g: last.g, b: last.b };
   }
-  /* Värisokeusystävällinen vaihtoehto — asetuspaneelin "Väriasteikko".
-   *
-   * Yllä oleva ramppi on hyvä deuteranoopille ja protanoopille (mitattuna
-   * renderöitynä pienin dE2000 vähintään 4 m/s erolle: 4.9 ja 7.1), mutta
-   * TRITANOOPILLE se romahtaa 2.2:een — sinikeltaisen akselin puuttuessa
-   * sen sini–turkoosi–vihreä-alkupää menee yhdeksi sävyksi. Se on tämän
-   * rampin todellinen heikko kohta, ei vihreä–keltainen niin kuin tässä
-   * aiemmin luki.
-   *
-   * Tämä ramppi luopuu sävypolusta kokonaan ja koodaa nopeuden lähes
-   * pelkkään kirkkauteen sinisestä kellanvalkoiseen — samalla periaatteella
-   * kuin cividis, joka on tehty juuri tähän. Kirkkauden näkevät kaikki
-   * dikromaatit yhtä hyvin, joten kaikki kolme tyyppiä saavat saman erot-
-   * telun. Mitattuna tummalla pohjalla renderöitynä:
-   *
-   *     ramppi        normaali  deuteran.  protan.  tritan.
-   *     nykyinen         19.2      4.9      7.1      2.2
-   *     cividis           9.0      9.4      9.3      8.3
-   *     tämä             10.9     10.5     10.3     11.2
-   *
-   * Eli tritanoopin erottelu viisinkertaistuu ja kahden muun kaksin-
-   * kertaistuu. Hinta on normaalinäön erottelu: 19.2 -> 10.9. Se on
-   * oikea vaihtokauppa vain jos käyttäjä sitä pyytää, ja siksi tämä on
-   * asetus eikä uusi oletus. 10.9 on yhä moninkertaisesti yli
-   * erottumisrajan.
-   *
-   * Rantaviiva säilyy: maan ja veden ero 10 m/s kohdalla on 10.2 (nykyisellä
-   * 12.4). Satelliittipohjalla luvut ovat 9.0 / 8.2 / 8.1 / 9.3 — pienemmät,
-   * koska pohja on jo valmiiksi kirjava.
-   *
-   * Miksi ei cividis sellaisenaan: se on suunniteltu läpinäkymättömäksi
-   * kuvaksi, ja sen keskiharmaat sävyt (0.4-0.6) ovat additiivisessa
-   * sekoituksessa lähes värittömiä. Tämä versio pitää saman kirkkaus-
-   * aikataulun mutta kääntää keskiosan turkoosiin ja vaaleanvihreään,
-   * jolloin se voittaa cividiksen jokaisella akselilla. */
-  const RAMP_CVD = [
-    { t: 0.000, r:   6, g:  24, b:  74 },  /*  0 m/s   yösininen */
-    { t: 0.050, r:   9, g:  33, b:  95 },  /*  1 m/s */
-    { t: 0.100, r:  18, g:  58, b: 134 },  /*  2 m/s   sininen */
-    { t: 0.160, r:  19, g:  80, b: 157 },  /*  3 m/s */
-    { t: 0.220, r:  20, g: 102, b: 180 },  /*  4 m/s   kirkas sininen */
-    { t: 0.290, r:  25, g: 122, b: 196 },  /*  5 m/s */
-    { t: 0.360, r:  30, g: 146, b: 200 },  /*  6 m/s   taivaansininen */
-    { t: 0.430, r:  66, g: 164, b: 198 },  /*  7 m/s */
-    { t: 0.500, r:  84, g: 182, b: 196 },  /*  8 m/s   turkoosi */
-    { t: 0.575, r: 129, g: 199, b: 173 },  /*  9 m/s */
-    { t: 0.650, r: 157, g: 207, b: 180 },  /* 10 m/s   vaalea vihreä */
-    { t: 0.715, r: 185, g: 214, b: 155 },  /* 11.5 m/s */
-    { t: 0.780, r: 216, g: 220, b: 146 },  /* 13 m/s   limetti */
-    { t: 0.840, r: 236, g: 219, b: 105 },  /* 14.5 m/s */
-    { t: 0.900, r: 247, g: 217, b:  92 },  /* 16 m/s   kulta */
-    { t: 0.950, r: 255, g: 233, b: 168 },  /* 18 m/s */
-    { t: 1.000, r: 255, g: 246, b: 224 },  /* 20 m/s   kellanvalkoinen */
-  ];
-
   /* Mustevariantti käyttöliittymään.
      Kartan ramppi on suunniteltu mustaa merta vasten; paneelin beigellä sen
      vaaleat sävyt olisivat lukukelvottomia. Tässä on sama sävypolku —
@@ -4815,29 +4754,15 @@ const ColorRamp = (() => {
     { t: 0.950, r:  79, g:   9, b:  41 },  /*   18 m/s */
     { t: 1.000, r:  61, g:  10, b:  55 },  /*   20 m/s  magenta */
   ];
-  /* Kumpi ramppi kartalle.
-   *
-   * Kaksi kysymystä, tässä järjestyksessä:
-   *
-   * 1. Vaalealla pohjalla lämpökartta sekoitetaan multiplyllä, eli se
-   *    TUMMENTAA. Kartan omat rampit vaalenevat nopeuden mukana, ja sen
-   *    läpi kirkkaus ei enää nouse monotonisesti: mitattuna sekä nykyinen
-   *    että värisokeusramppi menettivät nousevan L*:n, ja 2 ja 8 m/s
-   *    päätyivät samaan tummuuteen (dE 4.3). RAMP_INK on tehty juuri tähän
-   *    — se on sama sävypolku paperille käännettynä ja tummuu tuulen
-   *    mukana. Mitattuna vaalealla pohjalla 11.6 normaali / 6.8 deuteran. /
-   *    7.2 protan. / 6.3 tritan., ja L* laskee monotonisesti.
-   *
-   * 2. Vasta tummalla ja satelliittipohjalla väriasteikon valinta ratkaisee.
-   *
-   * Tästä seuraa se joka ei ole ilmeinen: värisokeusasetus EI muuta mitään
-   * vaalealla pohjalla. Se ei ole puute vaan mittaustulos — subtraktiivisella
-   * pohjalla signaali kulkee musteen määrässä eli kirkkaudessa, jonka
-   * jokainen dikromaatti näkee. Kartan värisokeusongelma on nimenomaan
-   * tumman pohjan additiivisen sekoituksen ongelma. */
+  /* Kumpi ramppi kartalle. Vaalealla (paperi)pohjalla lämpökartta
+   * sekoitettiin multiplyllä, eli se TUMMENSI, ja kartan oma ramppi
+   * menetti nousevan kirkkautensa: 2 ja 8 m/s päätyivät samaan
+   * tummuuteen (dE 4.3). RAMP_INK on sama sävypolku paperille
+   * käännettynä. Paperipohjaa ei nyt ole (ks. POHJAT), joten tämä
+   * palauttaa aina kylläisen rampin. */
   function karttaRamppi() {
     if (Asetukset.paperi()) return RAMP_INK;
-    return Asetukset.arvot.ramppi === 'cvd' ? RAMP_CVD : RAMP_KARTTA;
+    return RAMP_KARTTA;
   }
 
   const LUT_SIZE = 201;
@@ -4861,10 +4786,9 @@ const ColorRamp = (() => {
    * 3,41-11,97 (0,52 jätti limetin 2,97:ään) ja peräkkäisten nopeuksien
    * pienin dE2000 on 10,7 eli asteikko on yhä luettava.
    *
-   * Taulu ei seuraa pohjakarttaa vaan on aina kylläinen ramppi (tai
-   * värisokeusramppi, jos käyttäjä on sen valinnut — se valinta koskee
-   * näköä eikä alustaa). Muuten aikajanan värit vaihtuisivat
-   * pohjakartta-asetuksen mukana vaikka ura pysyy samana. */
+   * Taulu ei seuraa pohjakarttaa vaan on aina kylläinen ramppi. Muuten
+   * aikajanan värit vaihtuisivat pohjakartta-asetuksen mukana vaikka ura
+   * pysyy samana. */
   const PAPERI_K = 0.48;
   const _paperiLUT = new Array(LUT_SIZE);
   /* KARTAN SÄVY, TUMMENNUKSEN KIRKKAUS — sama ongelma toisesta päästä.
@@ -4891,8 +4815,7 @@ const ColorRamp = (() => {
    * valkoista ja syö sävyeron peräkkäisten nopeuksien väliltä.
    *
    * Kuten `paperi()`, tämä taulu EI seuraa pohjakarttaa — alusta on aina
-   * sama tummennus — mutta seuraa värisokeusasetusta, koska se koskee
-   * näköä eikä alustaa. */
+   * sama tummennus. */
   const VARJO_K = 0.45;
   const _varjoLUT = new Array(LUT_SIZE);
   const _inkCssLUT = new Array(LUT_SIZE);
@@ -4911,8 +4834,7 @@ const ColorRamp = (() => {
       _cssLUT[i] = 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')';
       const ci = interpolate(RAMP_INK, t);
       _inkLUT[i] = ci;
-      const cp = interpolate(
-        Asetukset.arvot.ramppi === 'cvd' ? RAMP_CVD : RAMP_KARTTA, t);
+      const cp = interpolate(RAMP_KARTTA, t);
       _paperiLUT[i] = { r: Math.round(cp.r * PAPERI_K),
                         g: Math.round(cp.g * PAPERI_K),
                         b: Math.round(cp.b * PAPERI_K) };
@@ -7076,6 +6998,16 @@ const TYOPOYTA = (function () {
    `@media (pointer: fine)` ei kelpaa: se on tosi myös kosketusnäytöllisellä
    kannettavalla, eikä CSS näe `maxTouchPoints`ia. */
 try { document.documentElement.classList.toggle('tyopoyta', TYOPOYTA); } catch (e) {}
+/* SIVUPANEELIT ON LEVEYS, EI SYÖTTÖLAITE. Sama raja kuin CSS:n
+   `@media (min-width: 740px)` -lohkossa "PANEELIT LEVEÄLLÄ RUUDULLA":
+   spottikortti ja ennustepaneeli ovat silloin oikean reunan
+   sivupaneeleja, jolloin pystyveto ei sulje niitä ja aikajana väistyy.
+   Luetaan joka kutsulla, koska iPadin kääntö vaihtaa sen kesken
+   istunnon. */
+const _SIVUPANEELI_MQ = (function () {
+  try { return window.matchMedia('(min-width: 740px)'); } catch (e) { return null; }
+})();
+function sivupaneelit() { return !!(_SIVUPANEELI_MQ && _SIVUPANEELI_MQ.matches); }
 
 /* -- STATE ------------------------------------------------------ */
 const State = {
@@ -17551,7 +17483,7 @@ function openSheet(spot, hourIdx) {
      Panorointi eikä kartan kutistus: ks. CSS-lohko "SPOTTIKORTTI
      SIVUPANEELIKSI". Vain jos spotti oikeasti jäisi piiloon — muuten
      kortin avaaminen liikuttaisi karttaa turhaan. */
-  if (TYOPOYTA) document.documentElement.classList.add('paneeli-auki');
+  if (sivupaneelit()) document.documentElement.classList.add('paneeli-auki');
   _sivupaneeliPanorointi(spot);
 
   /* Osoite kertoo mitä katsotaan, jotta näkymän voi jakaa sellaisenaan. */
@@ -19746,7 +19678,7 @@ function _cardinalFi(deg) {
    toisteta lukua kahdessa paikassa. */
 function _sivupaneeliPanorointi(spot) {
   try {
-    if (!TYOPOYTA || !State.map || !spot) return;
+    if (!sivupaneelit() || !State.map || !spot) return;
     const sheet = document.getElementById('sheet');
     if (!sheet) return;
     const lev = sheet.getBoundingClientRect().width;
@@ -22976,6 +22908,8 @@ const ForecastPanel = {
     document.getElementById('fc-btn').classList.add('active');
     this.render();
     document.getElementById('forecast-panel').classList.add('open');
+    /* Sivupaneelina aikajana väistyy kuten spottikortin kanssa. */
+    if (sivupaneelit()) document.documentElement.classList.add('paneeli-auki');
     Modaali.avaa(document.getElementById('forecast-panel'),
       document.getElementById('fc-btn'));
     Haptics.medium();
@@ -22987,6 +22921,11 @@ const ForecastPanel = {
     document.getElementById('forecast-panel').classList.remove('open');
     document.getElementById('sheet-overlay').classList.remove('open');
     document.getElementById('fc-btn').classList.remove('active');
+    /* Spottikortti voi olla auki ennustepaneelin sulkeutuessa; silloin
+       sen tila jää voimaan. */
+    if (!document.getElementById('sheet').classList.contains('open')) {
+      document.documentElement.classList.remove('paneeli-auki');
+    }
   },
 
   /* Time filter: returns true if this ISO time should be included */
@@ -23474,6 +23413,8 @@ const WxPanel = {
   const panel = document.getElementById('forecast-panel');
   let startY = 0, currentY = 0, dragging = false;
   panel.addEventListener('touchstart', e => {
+    /* Sivupaneelina pystyveto ei sulje (ks. `sivupaneelit`). */
+    if (sivupaneelit()) { dragging = false; return; }
     startY = e.touches[0].clientY;
     currentY = startY;
     dragging = true;
@@ -23521,7 +23462,6 @@ const KarttaAsetukset = {
   RYHMAT: {
     'asetus-pohja':       'pohja',
     'asetus-partikkelit': 'partikkelit',
-    'asetus-ramppi':      'ramppi',
     'asetus-lampo':       'lampo',
     'asetus-malli':       'malli'
   },
@@ -23546,7 +23486,6 @@ const KarttaAsetukset = {
        (ks. Asetukset.lue() ja ColorRamp), joten tässä ei piirretä
        karttaa uusiksi — vain kirjoitetaan se mikä on vielä oletuksessa. */
     this._lahteet();
-    this._ramppiVihje();
     this._malliVihje();
     /* Pakotettu malli EI ole voimassa ennen kuin se ajetaan: varasto
        alustetaan mainissa, ja jos asetus on muu kuin 'auto', se on
@@ -23571,16 +23510,6 @@ const KarttaAsetukset = {
   _lahteet() {
     const el = document.getElementById('pohja-lahteet');
     if (el) el.innerHTML = Asetukset.pohja().attr;
-  },
-
-  _ramppiVihje() {
-    const el = document.getElementById('ramppi-vihje');
-    if (!el) return;
-    el.textContent = Asetukset.paperi()
-      ? 'Vaalealla pohjakartalla asteikko on jo kirkkauteen perustuva, '
-        + 'joten tämä valinta ei muuta sitä.'
-      : 'Koodaa nopeuden lähes pelkkänä kirkkautena. Erottuu myös puna-, '
-        + 'viher- ja siniheikolle näölle.';
   },
 
   _partikkeliNakyvyys() { partikkelitNakyvyys(); },
@@ -23710,7 +23639,6 @@ const KarttaAsetukset = {
          oma valinta on syy yrittää Esriä uudelleen. */
       pohjaKarttaVaihda(State.map);
       this._lahteet();
-      this._ramppiVihje();
       /* Sekoitustila vaihtuu, ja sen mukana kumpaan suuntaan ramppi
          kulkee. Molemmat taulut on rakennettava ennen piirtoa. GL-kerrokset
          lukevat sekoituksen `Asetukset.paperi()`:sta joka ruudussa. */
@@ -23732,26 +23660,19 @@ const KarttaAsetukset = {
       }
       if (typeof buildSadeAsteikko === 'function') buildSadeAsteikko();
 
-    } else if (avain === 'ramppi') {
-      /* Paneelien musteramppi (ColorRamp.ink) ei muutu, joten
-         spottimerkkejä tai tähtäintä ei tarvitse piirtää uusiksi.
-         AIKAJANA SEN SIJAAN TARVITSEE: sen palkit ovat
-         ColorRamp.paperi(), joka on karttaramppi eikä muste, ja
-         värisokeusvalinta koskee sitäkin. Tässä luki aiemmin että
-         aikajana ei tarvitse päivitystä — se piti paikkansa vain niin
-         kauan kuin palkit olivat ink():iä. Ilman tätä palkit jäivät
-         vanhaan ramppiin seuraavaan kartansiirtoon asti. */
-      ColorRamp.paivita();
-      rakennaNippuVarit();
-      buildLegend();
-      const m = State._tlMuisti;
-      if (m) _tlPaivitaPalkit(m.speeds);
-      this._piirraLampokartta();
-
     } else if (avain === 'lampo') {
       this._piirraLampokartta();
 
     } else if (avain === 'malli') {
+      /* MALLIN VAIHTO EI SIIRRÄ TUNTIA. Vaihto on vertailua varten
+         ("sama tunti, eri malli"), joten valittu hetki (`State.valittuMs`)
+         pysyy ja indeksi johdetaan siitä (`_tlSailytaHetki`) — mitattuna
+         yhdeksän peräkkäistä vaihtoa menneellä tunnilla, +3 ja +9 vrk:n
+         päässä sekä zoomilla 5: ei yhtään vieritystä, indeksin kirjoitusta
+         eikä kuplan muutosta. Ainoa asia joka tuntia vielä liikutti oli
+         käynnissä oleva toisto: asetusten avaus ei pysäytä sitä, ja
+         jana jatkoi kulkuaan vaihdon yli. */
+      if (State.isPlaying) stopPlay();
       this._vaihdaMalli(false);
 
     } else if (avain === 'partikkelit') {

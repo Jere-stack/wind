@@ -407,7 +407,15 @@ paikallaan.
 
 ## Kartan asetukset
 
-Asetuspaneelissa on neljä kartan säätöä: **pohjakartta** (tumma / vaalea /
+> **Päivitetty:** vaalea pohjakartta ja väriasteikko poistettiin
+> käyttäjän päätöksellä. Pohjakarttoja on kaksi (tumma, satelliitti),
+> ja kartan ramppi on aina "Kirkas" (`RAMP_KARTTA`); `RAMP_CVD` on
+> poistettu koodista. Vaalean pohjan koneisto jäi koodiin
+> käyttämättömänä (`Asetukset.paperi()` on aina epätosi). Alla oleva
+> teksti ja vaalean pohjan mittaukset ovat historiaa. Ks. docs/ui.md,
+> *Viisi asiaa: vaalea pohja ja väriasteikko pois…*
+
+Asetuspaneelissa oli neljä kartan säätöä: **pohjakartta** (tumma / vaalea /
 satelliitti), **partikkelit** (normaali / vähän / pois), **väriasteikko**
 (nykyinen / värisokeusystävällinen) ja **lämpökartan voimakkuus**
 (hillitty / normaali / voimakas).
@@ -474,6 +482,9 @@ valkoinen teksti jäisi lukukelvottomaksi, joten `body::before` tummentaa
 `--sat`:in korkuisen kaistan. Selaimessa ja ilman lovea `--sat` on 0.
 
 ### Värisokeusystävällinen väriasteikko
+
+> **Poistettu.** `RAMP_CVD` ja sen asetus poistettiin käyttäjän
+> päätöksellä; mittaukset jäävät tähän historiaksi.
 
 Nykyinen ramppi on kelvollinen deuteranoopille ja protanoopille (4.9 ja
 7.1) mutta romahtaa **tritanoopille: 2.2**. Se on sen todellinen heikko
@@ -1688,6 +1699,7 @@ dikromaatti näkee varmasti. Uudessa keltainen 10–11,5 m/s kohdalla on
 kirkkain piste ja punainen 16 m/s on sitä tummempi: 9 laskua 40:stä.
 Sävy kantaa nyt sen eron.
 
+(Myöhemmin myös asetus poistettiin, ks. *Kartan asetukset*.)
 Tämä ei poista värisokeustukea vaan siirtää sen asetukseksi. `RAMP_CVD`
 on ennallaan ja se on yhä mitattu (dE 10.9 / 10.5 / 10.3 / 11.2 neljälle
 näkötyypille). Asetuspaneelin lappu on nimeltään nyt **Kirkas** eikä

@@ -190,7 +190,9 @@ kokeiltu ja kaadettu mittauksella.
   Liukuväri alemmas, lasi ylös, ja päiväyksen välähdys kahdesta syystä ·
   Spottikortin tuuliennustekaavio: laatikko sivuun, pallot omiin
   väreihinsä, akseli oikeaan yksikköön ·
-  Latausruutu: kuva esiin, merkki uusiksi
+  Latausruutu: kuva esiin, merkki uusiksi ·
+  Viisi asiaa: vaalea pohja ja väriasteikko pois, paneelit
+  yhtenäisiksi, liukuväri alemmas, tunti pysyy mallin vaihdossa
 - **pwa**: PWA — kotivalikkoon ja rannalle · Mitä välimuistiin menee ·
   Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
   Ikoni ja kotivalikko
@@ -337,32 +339,38 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kontrastia vaikka liukuvärin alfa oli mitattuna noussut. Näyte otetaan
   kahden palkin välistä (tikki 18 px, palkki 12, väliin 6 px) ja mittari
   tarkistaa vielä ettei piste osu nappiin. `ink()` on yhä väärä koska se
-  on oma sävypolkunsa eikä matchaa karttaan. Taulu ei seuraa pohjakarttaa mutta
-  seuraa värisokeusasetusta — se koskee näköä eikä alustaa.
+  on oma sävypolkunsa eikä matchaa karttaan. Taulu ei seuraa pohjakarttaa
+  (värisokeusasetusta, jota se ennen seurasi, ei enää ole).
 - **AIKAJANALLA EI OLE URAA EIKÄ KORTTIA.** Ura oli kolmessa muodossa
   (tumma, hiekka, kaksi identtistä uraa 1,01:1 raidasta raitaan) ja
   jokainen oli reuna jota kortin oma reuna jo kertoi; sitten kortti
   poistui sekin. Alusta on nyt liukuväri: läpinäkyvä ylhäältä, tumma
-  alhaalta, reunasta reunaan, 64 px ylimenoa kääreen yläpuolelle.
-  Kartta jatkuu aikajanan läpi eikä mikään reuna katkaise sitä.
+  alhaalta, reunasta reunaan. Kartta jatkuu aikajanan läpi eikä mikään
+  reuna katkaise sitä.
   Älä palauta laatikkoa "jotta palkit näkyisivät": palkit saavat
   tummennuksella ENEMMÄN kontrastia kuin paperilla (heikoin 3,41 →
   7,76).
-  **YLIMENO ON 32 px JA PYSÄKIT 0 → .48 → .82 → .90 → .96
-  (0 / 17 / 33 / 46 / 100 %).** Ylimeno oli 64 px, ja se tuli liian
-  ylös: valkoista vasten mitattuna tummennus alkoi näkyä 58 px kääreen
-  yläpuolella ja oli puolessa täsmälleen kääreen ylälaidassa. Nyt se
-  alkaa 30 px yläpuolella, eli sama alfaväli kuljetaan puolessa
-  matkassa ja reuna häipyy ylöspäin mentäessä nopeammin.
-  **PALKKIVYÖHYKKEEN ALFA EI SAA LASKEA SAMALLA.** Ensimmäinen yritys
+  **LIUKUVÄRI ALKAA OSOITINVIIVAN YLÄPÄÄSTÄ, EI KORKEAMMALTA.** Se
+  alkoi ensin 64 px ja sitten 32 px kääreen yläpuolelta, ja molemmat
+  olivat käyttäjän mukaan liian ylhäällä. Raja on nyt se mitä ruudulla
+  näkyy: tummennus saa ulottua enintään sinne mistä NYT-viiva ja
+  `#tl-indicator` alkavat, eli kääreen ylälaita + 6 px. `::before` on
+  `top: 6px` ja pysäkit ovat PIKSELEINÄ: 0 → .42 (6 px) → .68 (14) →
+  .82 (24) → .90 (48) → .96 (100 %), jotta alku ei liiku kun kääre on
+  kotivalikon appissa korkeampi. Mitattuna valkoista vasten tummennus
+  alkaa tasan 6 px kääreen ylälaidasta (ennen −38 px viivasta).
+  Lukemakupla on kääreen yläpuolella omalla umpinaisella pohjallaan
+  eikä tarvitse tummennusta.
+  **PALKKIVYÖHYKKEEN ALFA EI SAA LASKEA.** Ensimmäinen 32 px:n yritys
   siirsi koko käyrää alas (.45/.80/.91), jolloin alfa palkkien takana
-  putosi 0,805 → 0,780. Nyt se on 0,822 (+30 px), 0,888 (+50) ja
-  0,913 (+74) eli entistä tummempi siellä missä palkit ovat, ja
-  lyhennys maksetaan pelkästään ylimenosta.
+  putosi 0,805 → 0,780. Mitattuna nyt 0,821 (+30 px), 0,890 (+50) ja
+  0,915 (+74), eli sama tai tummempi kuin ennen (0,822 / 0,888 /
+  0,913). Lyhyempi nousu maksetaan jyrkemmällä alulla, ei vaaleammilla
+  palkeilla.
   Pysäkit eivät ole tasavälein: lineaarinen luki juovana, koska sen
   keskikohta nousee liian nopeasti. Käyrän ainoa kielletty muoto on
-  KIIHTYVÄ nousu — osuuksien kaltevuus on 0,0282 → 0,0213 → 0,0062 →
-  0,0011 alfaa prosenttia kohti, eli aina edellistä pienempi.
+  KIIHTYVÄ nousu — osuuksien kaltevuus on 0,070 → 0,033 → 0,014 →
+  0,0033 → 0,0006 alfaa pikseliä kohti, eli aina edellistä pienempi.
   **LIUKUVÄRIÄ EI MITATA KARTAN PÄÄLTÄ.** Itämeri yöllä on jo valmiiksi
   tummaa ja luminanssi seuraa karttaa eikä alfaa (mitattuna L poukkoili
   0,0046 ja 0,0798 välillä vierekkäisissä näytteissä, ja suurin arvo oli
@@ -393,10 +401,14 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **`ColorRamp.rgb()` on kartalle, `ink()` paneeleihin.** Ne kulkevat
   vastakkaisiin suuntiin kirkkaudessa. Muste ei ole värisokeusturvallinen eikä
   sen tarvitse olla — paneelissa väri on aina luvun vieressä.
-- **Kartan oletusramppi on kylläinen ja tehty normaalinäköiselle**
-  (sininen–syaani–vihreä–keltainen–oranssi–punainen–magenta).
-  Värisokeusturvallinen `RAMP_CVD` on asetus, ei oletus — se on käyttäjän
-  päätös. Älä palauta vaimeaa ramppia oletukseksi vetoamalla värisokeuteen.
+- **Kartan ramppi on kylläinen ja tehty normaalinäköiselle**
+  (sininen–syaani–vihreä–keltainen–oranssi–punainen–magenta), ja se on
+  AINOA. Värisokeusturvallinen `RAMP_CVD` oli ensin oletus ja sitten
+  asetus; käyttäjän päätöksellä se poistettiin kokonaan ja väriasteikon
+  valitsin sen mukana ("Kirkas" on aina käytössä). Älä palauta vaimeaa
+  ramppia oletukseksi vetoamalla värisokeuteen, äläkä palauta valitsinta
+  ilman että käyttäjä pyytää sitä. Tallennettu `ramppi`-avain ohitetaan
+  (`_sallitut` ei tunne sitä).
 - **Rampin kylläisyys ruudulla on suunnilleen kroma KERTAA alfa.**
   Lämpökartta piirtyy alfalla 0,08–0,71, joten taulukon luvut eivät kerro
   mitä nähdään. Mittari on `varit.mjs`, joka lukee `pikseliLUT()`:n ja
@@ -456,6 +468,31 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   väri; jälkimmäinen värittää järjestelmäpalkit kun ruudulla on kartta.
   Kun molemmat olivat `#060912`, kotivalikosta avattu appi välähti
   mustana ennen kermaa.
+
+**Paneelit**
+
+- **VÄHINTÄÄN 740 px:N LEVEYDELLÄ KAIKKI KOLME PANEELIA OVAT SAMA
+  SIVUPANEELI** (asetukset, spottikortti, ennustepaneeli): oikea reuna,
+  koko korkeus, `--paneeli-lev` 400 px, sama varjo ja hiusreuna.
+  Mitattuna ennen: asetukset 1 038 px (iPad vaaka) ja 1 267 px
+  (työpöytä), spottikortti iPadilla koko ruudun levyinen, ennustepaneeli
+  pohjalevy kaikkialla. Raja on LEVEYS eikä syöttölaite (`sivupaneelit()`
+  lukee saman media queryn kuin CSS), joten iPad saa saman paneelin kuin
+  työpöytä ja kapea työpöytäikkuna puhelimen asettelun. Puhelimella
+  mikään ei muuttunut.
+- **KARTTAA EI KUTISTETA, SE PANOROIDAAN** (`_sivupaneeliPanorointi`).
+  Koon muutos vetäisi perässään uloimman zoomin, lämpökartan ja
+  pohjakerroksen rajat. Aikajana ja alapalkki väistyvät
+  (`html.paneeli-auki #bottom`), ja kosketuslaitteella kapseli siirtyy
+  vapaan alueen keskelle. Luokan poistaa vasta VIIMEINEN suljettava
+  paneeli: ennustepaneelin sulku ei poista sitä jos spottikortti on
+  auki.
+- **SIVUPANEELISSA PYSTYVETO EI SULJE MITÄÄN.** Pohjalevyn vetoele
+  ohitetaan (`makeSwipeable`, ennustepaneelin `touchstart`), ja kahva on
+  sulkunappi. Spottikortin verho on sivupaneelina läpinäkyvä (kortti ei
+  ole modaali ja kartan pitää pysyä luettavana sen vieressä; verho jää,
+  koska ohi napauttaminen sulkee kortin). Asetukset pitävät oman
+  tummentavan verhonsa.
 
 **Saavutettavuus**
 
@@ -685,13 +722,29 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   aikanaan rajapintapolulla, jossa `loadBatch`in `fmi_harmonie`-haaraan
   piti lisätä Open-Meteo-varatie (neljä `harmonie_empty`-virhettä ja
   tyhjiä eteläisiä eriä ilman sitä).
-- **Partikkelien ja väriasteikon AVAIMIA ei saa vaihtaa** vaikka nimet
+- **Partikkelien AVAIMIA ei saa vaihtaa** vaikka nimet
   vaihtuvat: `'vahan'` on nimeltään "Normaali" ja `'normaali'` on
   "Paljon". Avaimen vaihto pudottaisi jokaisen tallennetun valinnan
   oletukseen.
 - **Oletus on siruryhmässä ensimmäisenä vasemmalla** (tuuli, kts,
-  tumma, partikkelit-Normaali). Poikkeus: lämpökartan voimakkuus ja
-  väriasteikko ovat asteikkoja, joissa järjestys on itsessään tieto.
+  tumma, partikkelit-Normaali). Poikkeus: lämpökartan voimakkuus on
+  asteikko, jossa järjestys on itsessään tieto.
+- **POHJAKARTTOJA ON KAKSI: TUMMA JA SATELLIITTI.** Vaalea pohja
+  poistettiin valitsimesta käyttäjän päätöksellä ("se ei ole toimiva").
+  Sen koneisto (`Asetukset.paperi()`, multiply-sekoitus, `RAMP_INK`,
+  sateen paperipaletti) jäi koodiin mutta on käyttämätön, koska
+  yhdelläkään `POHJAT`-merkinnällä ei ole `paperi`-lippua. Tallennettu
+  `'vaalea'` putoaa tummaan (`_sallitut`), ja `<head>`in
+  käynnistysskripti tuntee vain satelliitin.
+- **MALLIN VAIHTO EI SIIRRÄ TUNTIA.** Vaihto on vertailua varten ("sama
+  tunti, eri malli"): valittu hetki (`State.valittuMs`) pysyy ja indeksi
+  johdetaan siitä. Mitattu yhdeksällä peräkkäisellä vaihdolla menneellä
+  tunnilla, +3 ja +9 vrk:n päässä ja zoomilla 5, puhelimella ja
+  työpöydällä: ei yhtään vieritystä, indeksin kirjoitusta eikä kuplan
+  muutosta (tapahtumapohjainen seuranta, ei näytteenotto — kontin
+  ajastin antaa vain ~5 näytettä sekunnissa). Käynnissä oleva toisto
+  pysäytetään vaihdossa (`kayta('malli')`), koska asetusten avaus ei
+  pysäytä sitä ja jana jatkoi muuten kulkuaan vaihdon yli.
 - **Yksikkölista on samassa järjestyksessä asetuspaneelissa ja
   kapselin valitsimessa.** Kaksi järjestystä samalle listalle on kaksi
   paikkaa jotka ajautuvat erilleen.

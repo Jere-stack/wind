@@ -751,6 +751,12 @@ jälkeen: aikajana on 9 km:n sarjaa, kartta 9 km:ä vain valitulla
 tunnilla. Mitattuna ero ennen valintaa enimmillään 1,5 m/s (MET Nordic
 +60…72 h) ja 3,3 m/s (ICON +24 h ennen pakettia) — se on ECMWF:n ja
 toisen mallin ero, ja lähdemerkintä kertoo kummasta on kyse.
+Tarkistettu uudelleen (automaattinen, Helsinki z10): valitsemattomina
+tunteina +58…+95 h ero oli jopa 2,5 m/s, mutta kun sama tunti VALITAAN,
+kartta hakee 9 km:n kentän ja ero on 0,01–0,05 m/s (+59, +70, +79,
++91 h). Mittari joka ohittaa valitsemattomat tunnit vain ICONille ja
+GFS:lle (`T._dyn.api !== 'ecmwf'`) raportoi tämän virheenä — se on
+mittarin ansa, ei sovelluksen.
 
 ### Mitä jäi
 
