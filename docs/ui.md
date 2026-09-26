@@ -5169,6 +5169,11 @@ kosketussäätö siirtää napautuksen naapurimerkkiin.
 
 ## Latausruutu: kuva esiin, merkki uusiksi
 
+> **Historiaa.** Latausruutu on nyt liikegrafiikkaa tummalla merellä, ks.
+> "Latausruutu liikegrafiikaksi" tämän tiedoston lopussa. Tilanjako
+> (teksti umpinaisella pohjalla, ei kuvan päällä) on yhä voimassa;
+> valokuva, paperi, rajaliuku ja ylälaidan tummennus eivät.
+
 Latausruutu oli viimeinen pinta jota Merikartta-migraatio ei ollut
 koskenut, ja sen alla oli valokuva jota ei käytännössä nähnyt.
 
@@ -5544,3 +5549,208 @@ Hiirellä vetämistä ei lisätty: työpöydällä veto kuuluu kaavion
 lukemiselle ja tekstin valinnalle, ja X, verho ja Esc riittävät.
 Kosketusnäytöllinen kannettava saa vedon, koska ele on
 kosketustapahtumissa.
+
+## Latausruutu liikegrafiikaksi: meri, tuuli ja foilaaja
+
+Pyyntö oli "siisti wingfoil-aiheinen motion design latausruudulle".
+Valokuva paperilla vaihtui kohtaukseksi joka on piirretty sovelluksen
+omalla kielellä: tumma meri, rampin värinen tuuli, paperinvärinen
+foilaaja, ja merkki joka piirtyy rampin järjestyksessä. Edellinen osio
+("Latausruutu: kuva esiin, merkki uusiksi") on historiaa; sen
+tilanjako-opetus on voimassa, kuva ja paperi eivät.
+
+### Miksi tumma eikä paperi
+
+- **Kotivalikon ikoni -> latausruutu -> kartta on yksi jatkumo.** Ikoni
+  on tummaa merta ja rampin värinen puuska, latausruutu on sama meri ja
+  sama puuska piirtymässä, ja kartta on sama meri. Paperiruutu teki
+  kaksi kirkkaushyppyä jokaisessa käynnistyksessä (tumma -> kerma ->
+  tumma), ja selaimessa html:n `--bg` välähti ennen kermaa.
+- **Väri tarkoittaa täälläkin tuulta.** Kaikki mikä ei ole tuulta on
+  paperia (`#F0E7CE`): kuski, siipi, aallot, nimi, edistymispalkki.
+  Tuulijuovien väri on rampin ankkuri SILLÄ nopeudella jolla juova
+  kulkee (`tools/ikoni.mjs`, `TUULI`), eli sama sääntö kuin kartalla.
+  Väli on 5,5–12 m/s, joten magentaa (20 m/s) ei ruudulla ole — ja
+  siksi edistymispalkki on paperia eikä `--accent`ia, joka on
+  tummalla myös himmein vaihtoehto.
+- **Merkki on rampin värinen** (ikonin asu), koska pohja on nyt merta.
+  Ramppi paperilla on yhä mitattu ja kaatunut (1,06:1), joten tämä ei
+  kumoa sitä vaan siirtää merkin sille pohjalle jolla ramppi lukee.
+
+Tilanjako pysyi: kohtaus ylhäällä, nimilohko alhaalla omalla
+umpinaisella pohjallaan (`#lr-vesi` -> `--lr-syva`). Aallot häipyvät
+ennen nimilohkoa, eikä sen alla liiku mitään. Mitattu ruudulta
+(tekstin alta alusta, tekstin väri sekoitettuna siihen):
+
+```
+                pysty 393x852         vaaka 852x393
+nimi            16,34:1  (tasainen)   16,34:1
+alanimi          6,47:1               piilossa
+tilarivi         7,25:1               7,25:1
+tilapalkki      19,65:1  (valkoinen, ylimmät 44 px; ennen 8,18:1)
+```
+
+Heikoin ja mediaani ovat samat jokaisella rivillä — alusta on
+tasainen. Tilapalkin ylälaidan tummennusta ei tarvita, koska ruudun
+ylälaita on kartan `--bg`. Vaakatasossa siiven kärki on ylimmässä
+44 px:ssä, mutta iPhone ei näytä tilapalkkia vaakatasossa.
+
+### Kohtaus
+
+- **Kuski** on kaksi kerrosta samassa 300 yksikön viewBoxissa
+  (vesiviiva y 240): siipi ja kuski+lauta+foili. Siipi hengittää
+  etukäden ympäri (2,8 s), koko rigi keinuu foilin ympäri (pumppaus).
+  Asento on otettu vanhasta valokuvasta peilattuna: takakäsi puomilla
+  pään yläpuolella, etukäsi eteen, vartalo nojaa taaksepäin, visiiri
+  kertoo katseen suunnan. Ensimmäinen versio oli symmetrinen tikku-ukko
+  joka luki "painonnostajana".
+- **Tuuli**: neljä nopeusarkkia (5,5 / 7 / 8,5 / 10 m/s), puuska (12 m/s,
+  tulee rintamana ja välissä on tyyntä) ja etualan arkki kuskin
+  edessä. Juovan pää on vasemmalla ja häntä häipyy — kartan partikkelin
+  jäljen muoto.
+- **Meri**: viisi aaltoarkkia perspektiivissä. Aallonpituus, korkeus ja
+  vauhti kasvavat lähemmäs tultaessa (parallaksi), ja alfa on suurin
+  kuskin vesiviivalla. Vesiviivan alapuolella läpikuultava vesi kuskin
+  PÄÄLLÄ, joten masto ja siipi näkyvät veden alla himmeinä.
+- Roiske ja vaahto maston juuresta, kuunvalon kimallus aallonharjoilla.
+- Satunnaisuus on kiinteällä siemenellä: sama sommitelma joka kerta,
+  jolloin kuvavertailu mittaa muutosta eikä arpaa.
+
+Esittely: juovat ovat jo matkalla ruudun syttyessä (negatiivinen viive),
+kuski liukuu sisään vasemmalta (1,5 s), merkki piirtyy (0,26–1,41 s),
+kirjaimet nousevat rivin alta porrastettuina (0,5 s alkaen, 45 ms
+välein). Kaikki on paikallaan noin 1,9 s kohdalla, mutta mikään ei
+odota esittelyä: `hideLoading` voi tulla milloin tahansa.
+
+Lähtö (`#loading.out`): palkki täyteen, nimilohko nousee pois, kuski
+kiihtyy oikealle (0,62 s, ease-in) ja meri ja tuuli ryntäävät
+vasemmalle; häivytys alkaa vasta 0,28 s kohdalla, jotta lähtö ehtii
+näkyä. Kartta on käytettävissä heti (`pointer-events: none`), ja
+`display: none` 0,8 s kohdalla pysäyttää latausruudun animaatiot
+(mitattu: 0 jäljellä).
+
+### Merkki piirtyy kompositorissa
+
+Kaaren "piirtyminen" on kiila joka kasvaa kaaren keskipisteen ympäri
+kapeasta päästä leveään eli tyynestä myrskyyn. Kiila on kahden
+puolitason leikkaus: staattinen puolitaso (`overflow: hidden`) ja sen
+sisällä pyörivä puolitaso, jonka sisällä merkki VASTAPYÖRII paikallaan.
+Yli 180 asteen kiila (288°) vaatii kaksi palaa. Kaikki on
+`transform`ia, joten piirtyminen ei riipu pääsäikeestä joka on juuri
+silloin varattu. `stroke-dashoffset` ja SVG:n omat animaatiot olisivat
+pääsäikeessä.
+
+Kaksi asiaa jotka menivät ensin väärin:
+
+- **Kahden palan raja jätti tumman sauman** kaaren poikki (kaksi
+  reunanpehmennettyä leikkausta vierekkäin). Toinen pala alkaa nyt 3°
+  ennen ensimmäisen loppua; 0,8° ei riittänyt.
+- **Kiilan keskipiste ei ole laatikon keskikohta.** Ääriviiva
+  keskitetään rajauslaatikostaan, joten kaaren keskipiste on
+  (47,35 %, 49,7 %). Generaattori tulostaa sen (`data-keski`) samoin
+  kuin alkukulman ja pyyhkäisyn, joissa päätykorkkien ylitys
+  (`atan(r / SADE)`) on mukana.
+
+Palat ovat saman käyrän näytteitä (37 avainkuvaa, `linear` välissä),
+koska kahden erikseen helpotetun animaation kulma ei kohtaisi 180
+asteen kohdalla. Valmiina palat poistetaan ja tilalle tulee yksi SVG.
+
+### Kaikki liike on kompositorissa — ja animaatioiden MÄÄRÄ maksaa silti
+
+Chromen jäljitys (`blink.animations`, `compositeFailed`):
+
+```
+                              uusi                 vanha
+latausruudun animaatiot       kaikki 0             palkin width-siirtymä
+                                                   epäonnistui 85-145 krt
+asettelu latausvaiheessa      48-55 krt            92-170 krt
+```
+
+Vanhan edistymispalkin rAF-silmukka kirjoitti `width`iä joka ruudussa,
+ja `transition: width` käynnisti jokaisella kirjoituksella uuden
+siirtymän joka ei kompositoitunut. Nyt palkki on `scaleX` ja siirtymä
+tekee tasoituksen (1,1 s) ilman yhtään JS-ruutua.
+
+Mutta kompositori ei yksin riitä. Kun jokin muu pyytää pääsäikeen
+ruutuja — ja sovelluksen piirtosilmukka tekee sitä koko latauksen ajan
+latausruudun alla — selain päivittää jokaisen käynnissä olevan
+animaation tyylin joka ruudussa. Mitattu pakotetuilla ruuduilla
+(`tyyli.mjs`, pieni tyylimuutos rAF:ssa, sama sivu kolmessa tilassa
+vuorotellen, 3 kierrosta):
+
+```
+                                  ms/ruutu (UpdateLayoutTree)
+95 animaatiota käynnissä          1,04   (1,038 / 1,089 / 1,040)
+sama pysäytettynä                 0,058
+latausruutu piilossa              0,061
+22 animaatiota (arkit)            0,50
+```
+
+Hinta on lineaarinen määrään, noin 0,02 ms per animaatio tässä
+kontissa, eikä riipu siitä mitä animaatio liikuttaa (`var()`
+avainkuvissa, varjot, koko — kokeiltu ryhmä kerrallaan, erot kohinan
+sisällä). Siksi juovat ja aallot ovat ARKKEJA: yksi animoitu kerros
+jonka sisältö on staattista. Arkki on kaksi jaksoa leveä ja siirtyy
+-50 %, jokainen juova on kahdesti (x ja x + T) eikä ylitä jakson rajaa,
+joten silmukka on saumaton. Roiske ja kimallus ovat varjokopioita,
+yksi elementti useaa pistettä kohti.
+
+Oikeassa sovelluksessa latausvaiheen tyylilaskenta on nyt noin 31 ms/s
+(vanha noin 20 ms/s, ensimmäinen 95 animaation versio noin 57 ms/s), ja
+asettelua on vähemmän; tyyli ja asettelu yhteensä noin +10 ms/s eli
+noin prosentti pääsäikeestä kontissa. Levossa ilman muita ruutuja
+pääsäie ei tee latausruudulle mitään (kaksi esimaalausta kahdessa
+sekunnissa).
+
+### Kolme ansaa
+
+- **`fill-mode: both` voittaa lähdön.** Päättynyt `both`-animaatio pitää
+  loppuarvonsa, ja animaatio voittaa siirtymän: edistymispalkki jäi
+  täytenä ruudulle koko häivytyksen ajaksi, eikä meri rynnännyt.
+  Sisääntulot ovat `backwards`.
+- **Päättynytkin animaatio estää siirtymän kompositoinnin.** Kun samalla
+  elementillä oli (päättynyt) sisääntulo samalle ominaisuudelle kuin
+  lähdön siirtymällä, Chrome ajoi siirtymän pääsäikeessä
+  (`compositeFailed = 64`: `#lr-meri-*`, `#load-bottom`). `.out` poistaa
+  sisääntulon; siirtymä alkaa sen senhetkisestä arvosta, joten mikään
+  ei hyppää. Jäljityksessä jäljelle jäi vain sovelluksen oma
+  `.up-option` (`background-color`, sama kuin vanhassa).
+- **`innerWidth` pakottaa koko dokumentin asettelun kesken
+  jäsennyksen.** Latausruudun skripti vei 24 ms ennen ensimmäistä ruutua,
+  ja siitä 13–21 ms oli yksi `innerWidth`-luku (3 900 riviä CSS:ää
+  laskettiin kesken jäsennyksen). Leveys tulee nyt `screen`istä ja
+  suunta media querystä: skripti 6–7 ms.
+
+Mittarista: kuvasarjat otettiin jäädyttämällä animaatiot
+(`pause()` + `currentTime`), ja poistuminen reaaliajassa ILMAN
+tauotusta. Tauottava mittari antoi kaksi väärää tulosta: `play()`
+käynnisti jo päättyneet sisääntulot uudelleen (kuski "palasi"
+vasemmalta), ja taukojen kertymä jätti animaatiot seinäkellosta
+jälkeen (lähtö näytti olemattomalta).
+
+### Latautuminen hitaalla verkolla
+
+HTML pieneni 62 kB (gzip 467,7 -> 410,4 kB), koska base64-valokuva ei
+pakkaudu. Kuristettu verkko (1,6 Mbit/s, 150 ms), 7 + 7 vuorottelevaa
+ajoa, mediaani:
+
+```
+                    uusi     vanha
+FCP                 492 ms   812 ms   latausruudun sisältö näkyy
+DOMContentLoaded    2295     2562     main() alkaa
+first-paint         456      424
+```
+
+Ensimmäinen maalaus on 30 ms myöhemmin, koska `<head>`in CSS kasvoi
+(kommentit mukaan lukien) ja se on ladattava ennen ruutua. Vanhan
+first-paint oli pelkkä kermatausta ennen kuvaa ja tekstiä; uuden on
+kartan `--bg`, eli sama väri jonka html jo näytti — silmälle ero on
+FCP:ssä.
+
+Vaimennettu liike: kohtaus on pysäytyskuva (juovat saavat paikan
+skriptistä, merkki on valmiiksi piirretty, roisketta ja kimallusta ei
+luoda) molemmilla moottoreilla; häivytys jää, lähtö ei.
+
+WebKit (Playwright, iPhone-konteksti) piirtää saman kuvan kuin
+Chromium, myös merkin WAAPI-piirtymisen. Ruutunopeutta ei voi mitata
+kontissa — se on varmistettava laitteella.

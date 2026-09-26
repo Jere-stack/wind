@@ -131,10 +131,15 @@ päätöksensä, ei osa PWA-vaihetta.
 ### Ikoni syntyy koodista, ei kuvankäsittelystä
 
 `tools/ikoni.mjs` on merkin ainoa lähde. Se kirjoittaa `public/icon.svg`:n
-ja `--png`-lipulla koko PNG-sarjan; `--inline` tulostaa sen `<svg>`:n joka
-on `index.html`:n latausruudussa. Merkin muoto, mitat ja väriramppi ovat
-siis yhdessä tiedostossa, ja index.html:ään upotettu versio on saman
-ääriviivan yksivärinen asu (ks. `docs/ui.md`).
+ja `--png`-lipulla koko PNG-sarjan; `--inline` tulostaa latausruudun
+merkkilähteen (`#lr-merkki-lahde`): kaari rampin värisenä `<symbol>`ina,
+piirtymisen geometria (`data-keski`, `data-alku`, `data-pyyhk`) ja
+tuulijuovien värit nopeuksittain (`data-tuuli`). Merkin muoto, mitat ja
+väriramppi ovat siis yhdessä tiedostossa, ja index.html:ään upotettu
+versio on sama asu kuin kotivalikon ikonissa, koska latausruutukin on
+nyt karttamaailmaa (ks. `docs/ui.md`, "Latausruutu liikegrafiikaksi").
+Upotettu lähde on yksi rivi: vaihda se kokonaan tulosteella, älä
+muokkaa käsin.
 
 Rasterointi tehdään Chromiumilla:
 
@@ -164,16 +169,20 @@ Ikoneissa ei ole läpinäkyvyyttä eikä pyöristettyjä kulmia: iOS ja Android
 tekevät maskin itse, ja valmiiksi pyöristetty kulma näkyy maskin sisällä
 vaaleana kaarena.
 
-### `background_color` on PAPERI, `theme_color` on KARTTA
+### `background_color` on LATAUSRUUTU, `theme_color` on KARTTA
 
-Ne ovat eri asioita eivätkä saa olla sama luku:
+Ne ovat eri asioita, vaikka ne ovat nyt sama luku:
 
 - **`background_color` on se väri jonka käyttöjärjestelmä maalaa ennen
   ensimmäistä maalausta**, eli käynnistyksen välähdys. Sen on vastattava
-  latausruutua, joka on paperia — `#F0E7CE`. Se oli `#060912`, eli
-  kotivalikosta avattu appi välähti mustana ennen kermaa.
+  latausruudun ylälaitaa. Latausruutu oli paperia, ja silloin arvo oli
+  `#F0E7CE` (`#060912` välähti mustana ennen kermaa). Nyt latausruutu on
+  tummaa merta jonka ylälaita on kartan `--bg`, joten arvo on
+  `#060912`: ikoni, välähdys, latausruutu ja kartta ovat sama pohja.
 - **`theme_color` värittää järjestelmäpalkit sovelluksen ollessa auki**,
   ja silloin ruudulla on kartta. Se pysyy tummana (`#060912`).
 
-Latausruudun oma tilapalkkikorjaus on eri asia ja tehdään CSS:ssä, koska
-iOS:n `black-translucent` ei katso kumpaakaan näistä — ks. `docs/ui.md`.
+Jos latausruutu joskus vaihtaa väriä, `background_color` vaihtuu sen
+mukana — ei `theme_color`in. Tilapalkkiin (`black-translucent`, valkoinen
+teksti sisällön päällä) kumpikaan ei vaikuta; tummalla ylälaidalla
+mitattu kontrasti on 19,65:1, ks. `docs/ui.md`.

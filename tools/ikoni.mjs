@@ -11,18 +11,25 @@
  *     kantaa `RAMP_KARTTA`n sellaisenaan. Se on ainoa pohja jolla ramppi
  *     lukee: paperilla sen keskivaihe (limetti, keltainen) on kermaa
  *     vasten lähes näkymätön, mitattuna kontrasti 1,15:1.
- *   - LATAUSRUUDUN MERKKI on paperimaailmaa, joten se on YKSIVÄRINEN
- *     muste. Sama ääriviiva, ei ramppia.
+ *   - LATAUSRUUTU on samaa karttamaailmaa: tumma meri, jonka yllä
+ *     kulkee tuulta, ja merkki piirtyy siihen rampin värisenä — eli
+ *     kotivalikon ikoni jatkuu latausruutuna ja latausruutu kartaksi
+ *     ilman yhtään vaaleaa välähdystä. Se oli ennen paperia ja merkki
+ *     yksiväristä mustetta; jos merkki joskus tarvitaan paperille, se on
+ *     SAMA ääriviiva `fill="currentColor"`-täytöllä, ei ramppi (rampin
+ *     keskivaihe katoaa kermaan, ks. alla).
  *
- * Ääriviiva on yksi polku, ja ikonin ramppi maalataan sen SISÄÄN
- * sektoreina (`clipPath`). Niin kumpikin asu on pikselilleen sama muoto —
- * kaksi erikseen laskettua reunaa ajautuisi erilleen ensimmäisellä
+ * Ääriviiva on yksi polku, ja ramppi maalataan sen SISÄÄN sektoreina
+ * (`clipPath`). Niin jokainen asu on pikselilleen sama muoto — kaksi
+ * erikseen laskettua reunaa ajautuisi erilleen ensimmäisellä
  * hienosäädöllä.
  *
  * Ajo:
  *   node tools/ikoni.mjs         -> public/icon.svg
  *   node tools/ikoni.mjs --png   -> myös PNG-sarja (Chromium, ks. docs/pwa.md)
- *   node tools/ikoni.mjs --inline-> latausruudun <svg> vakiovirtaan
+ *   node tools/ikoni.mjs --inline-> latausruudun merkkilähde vakiovirtaan
+ *                                   (symboli, piirtymisen geometria ja
+ *                                   tuulijuovien värit, ks. latausMerkki)
  */
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -182,12 +189,43 @@ export function ikoniSvg({ koko = K, maskattu = false } = {}) {
     + `<g clip-path="url(#fs-kaari)">${sektorit()}</g></svg>`;
 }
 
-/** Latausruudun merkki: sama ääriviiva, yksivärisenä musteena. */
-export function merkkiSvg(id = 'load-logo-icon') {
-  const { d } = aariviiva(0.94);
-  return `<svg id="${id}" viewBox="0 0 ${K} ${K}" aria-hidden="true"`
-    + ` xmlns="http://www.w3.org/2000/svg">`
-    + `<path d="${d}" fill="currentColor"/></svg>`;
+/* Latausruudun tuulijuovien nopeudet. Juovan väri on RAMPIN ANKKURI
+   tällä nopeudella (sama t kuin index.html:n `msToT`), joten väri ei ole
+   koriste vaan sama lukema kuin kartalla: juova joka kulkee nopeammin
+   on kuumempi. Väli 5-13 m/s on foilattava keli — magentaa (20 m/s) ei
+   ruudulla ole, joten sävy ei sano myrskyä. */
+const TUULI = [[5, 0.290], [6, 0.360], [7, 0.430], [8, 0.500],
+               [9, 0.575], [10, 0.650], [11.5, 0.715], [13, 0.780]];
+
+/** Latausruudun merkkilähde: kaari rampin värisenä `<symbol>`ina, jota
+    latausruutu käyttää `<use>`lla kolmesti (kaksi piirtymisen puoliskoa
+    ja lepoasu). Samassa elementissä kulkee piirtymisen geometria:
+
+    - `data-keski`: kaaren KESKIPISTE prosentteina merkin laatikosta. Se
+      ei ole laatikon keskikohta, koska ääriviiva keskitetään
+      rajauslaatikostaan (ks. `aariviiva`) — piirtymisen kiila pyörii
+      kaaren keskipisteen ympäri, muuten reuna liukuisi kaarta pitkin.
+    - `data-alku`, `data-pyyhk`: kiilan alkukulma ja pyyhkäisy asteina
+      (0 = kello kolme, myötäpäivään). Päätykorkit pullistuvat kaaren
+      kulmavälin yli (`atan(r/SADE)`), joten kiila alkaa ennen kaarta ja
+      loppuu sen jälkeen; 1,5° reunavara kummassakin päässä, jottei
+      reunapikseli jää puolikkaaksi.
+    - `data-tuuli`: tuulijuovien värit, "nopeus väri" pilkulla
+      erotettuna. */
+export function latausMerkki() {
+  const { d, muunna } = aariviiva(0.94);
+  const [kx, ky] = muunna([0, 0]);
+  const aste = r => (Math.atan(r / SADE) * 180) / Math.PI;
+  const a0 = aste(LEV_0 / 2) + 1.5, a1 = aste(LEV_1 / 2) + 1.5;
+  const tuuli = TUULI.map(([ms, t]) => `${ms} ${ramppiVari(t)}`).join(',');
+  return `<svg id="lr-merkki-lahde" width="0" height="0" aria-hidden="true"`
+    + ` focusable="false" style="position:absolute"`
+    + ` data-keski="${p2((kx / K) * 100)} ${p2((ky / K) * 100)}"`
+    + ` data-alku="${p2(A_ALKU - a0)}" data-pyyhk="${p2(A_PYYHK + a0 + a1)}"`
+    + ` data-tuuli="${tuuli}" xmlns="http://www.w3.org/2000/svg">`
+    + `<defs><clipPath id="lr-kaari"><path d="${d}"/></clipPath></defs>`
+    + `<symbol id="lr-merkki" viewBox="0 0 ${K} ${K}">`
+    + `<g clip-path="url(#lr-kaari)">${sektorit()}</g></symbol></svg>`;
 }
 
 /* ------------------------------------------------------------------
@@ -226,7 +264,8 @@ async function png() {
 if (import.meta.url === `file://${process.argv[1]}`) {
   mkdirSync(resolve(JUURI, 'public'), { recursive: true });
   writeFileSync(resolve(JUURI, 'public/icon.svg'), ikoniSvg() + '\n');
-  console.log('public/icon.svg');
-  if (process.argv.includes('--inline')) console.log(merkkiSvg());
+  /* Tilarivi virhevirtaan: `--inline > tiedosto` saa vain merkkilähteen. */
+  console.error('public/icon.svg');
+  if (process.argv.includes('--inline')) console.log(latausMerkki());
   if (process.argv.includes('--png')) await png();
 }
