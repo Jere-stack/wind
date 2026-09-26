@@ -15,7 +15,7 @@ function fetchHarmonieXml(lat, lng) {
       + '&request=getFeature'
       + '&storedquery_id=fmi::forecast::harmonie::surface::point::timevaluepair'
       + '&latlon=' + lat + ',' + lng
-      + '&parameters=WindSpeedMS,WindDirection,WindGust,Temperature,WeatherSymbol3,TotalCloudCover'
+      + '&parameters=WindSpeedMS,WindDirection,WindGust,Temperature,WeatherSymbol3,TotalCloudCover,Precipitation1h'
       + '&timestep=60'
       + '&starttime=' + start
       + '&endtime=' + end;
@@ -49,7 +49,7 @@ function kelpoTz(tz) {
 function fetchOM(lat, lng, tz) {
   return new Promise(function(resolve, reject) {
     var url = OM_URL + '?latitude=' + lat + '&longitude=' + lng
-      + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m,weather_code,cloud_cover'
+      + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m,weather_code,cloud_cover,precipitation'
       + '&wind_speed_unit=ms&timezone=' + encodeURIComponent(tz) + '&forecast_days=16';
     https.get(url, function(res) {
       var body = '';
@@ -171,6 +171,7 @@ function _omVastaus(omResult) {
       temperature_2m:    oh.temperature_2m,
       weather_code:      oh.weather_code,
       cloudcover:        oh.cloud_cover,
+      precipitation:     oh.precipitation || null,
     }
   });
 }
@@ -200,6 +201,10 @@ async function haePiste(lat, lng, tz) {
     var tKey  = keys.find(function(k){ return k.includes('temperature'); });
     var wxKey = keys.find(function(k){ return k.includes('weathersymbol'); });
     var ccKey = keys.find(function(k){ return k.includes('totalcloudcover'); });
+    /* SADEMÄÄRÄ mm/h spottikortin sadepylväisiin. FMI:n `Precipitation1h`
+       ja Open-Meteon `precipitation` ovat sama suure (edeltävän tunnin
+       kertymä), joten jatko liitetään samalla säännöllä kuin muut. */
+    var prKey = keys.find(function(k){ return k.includes('precipitation1h'); });
 
     if (!wsKey || !series[wsKey].times.length) {
       /* Hilan ulkopuolella tai FMI:n poikkeus — Open-Meteo kelpaa. */
@@ -227,6 +232,7 @@ async function haePiste(lat, lng, tz) {
     var hT     = pick(tKey);
     var hWx    = wxKey ? pick(wxKey, fmiSymbolToWmo) : null;
     var hCc    = pick(ccKey);
+    var hPr    = pick(prKey);
 
     /* Jos Open-Meteo saatavilla, liitetaan se HARMONIE:n peraan */
     if (omResult.status === 'fulfilled' && omResult.value.hourly) {
@@ -251,6 +257,7 @@ async function haePiste(lat, lng, tz) {
         /* Open-Meteo on jo WMO-asteikolla, HARMONIE-osa muunnettiin siihen */
         if (hWx && oh.weather_code)    hWx = hWx.concat(oh.weather_code.slice(spliceIdx));
         if (hCc && oh.cloud_cover)     hCc = hCc.concat(oh.cloud_cover.slice(spliceIdx));
+        if (hPr && oh.precipitation)   hPr = hPr.concat(oh.precipitation.slice(spliceIdx));
       }
     }
 
@@ -267,6 +274,7 @@ async function haePiste(lat, lng, tz) {
         temperature_2m:    hT,
         weather_code:      hWx,
         cloudcover:        hCc,
+        precipitation:     hPr,
       }
     });
   } catch (err) {
