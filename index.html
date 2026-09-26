@@ -3337,6 +3337,8 @@ html[data-tutka="1"] #lahde-merkki {
 }
 .en-kaare::-webkit-scrollbar { display: none; }
 .en-kaare.vierii { overflow-x: auto; touch-action: pan-x pan-y; }
+.en-kaare:focus { outline: none; }
+.en-kaare:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 4px; }
 .en-kaare-laaja { margin: 0; height: 100%; }
 .en-paikka {
   min-height: 230px; display: flex; align-items: center; justify-content: center;
@@ -9920,7 +9922,14 @@ const LampoGL = {
      sama 500 ms × 20 kuin laattakerroksen aktivoinnilla oli. */
   esilataaKunValmis(yritys) {
     const n = yritys || 0, self = this;
-    if (typeof Saalaatat !== 'undefined' && Saalaatat.kartallaKaytossa()) { this._esilataa(); return; }
+    if (typeof Saalaatat !== 'undefined' && Saalaatat.kartallaKaytossa()) {
+      this._esilataa();
+      /* Spottimerkit lukevat samaa Paras-sarjaa kuin spottikortti
+         (`_spotLukema`), joten sarjat lasketaan taustalla heti kun
+         varasto on kartan käytössä. */
+      setTimeout(function () { KorttiSarjat.esilataaSpotit(); }, 2500);
+      return;
+    }
     if (n < 20) setTimeout(function () { self.esilataaKunValmis(n + 1); }, 500);
   },
 
@@ -13170,14 +13179,37 @@ function _taysienAvain(taydet) {
 function _spotVaistoMuuttuisi(hourIdx, zoom) {
   const pisteytetyt = [];
   for (const spot of SPOTS) {
-    if (!spot.wx || !spot.wx.hourly) continue;
-    const h = spot.wx.hourly, idx = _spotIdx(h, hourIdx);
-    const ms  = h.windspeed_10m[idx] || 0;
-    const gst = (h.windgusts_10m && h.windgusts_10m[idx]) || ms;
-    const dir = h.winddirection_10m[idx] || 0;
-    pisteytetyt.push({ spot, score: spotIndex(ms, dir, spot.bestDirs, gst) });
+    const l = _spotLukema(spot, hourIdx);
+    if (!l) continue;
+    pisteytetyt.push({ spot, score: spotIndex(l.ms, l.dir, spot.bestDirs, l.gst) });
   }
   return _taysienAvain(_valitseTaydetSpotit(pisteytetyt, zoom)) !== State._spotTaydetAvain;
+}
+
+/* SPOTIN LUKEMA MERKILLE: SAMA SARJA KUIN SPOTTIKORTILLA.
+ *
+ * Kortti lukee "Paras"-sekoitusta (docs/spottikortti.md, P2), ja merkki
+ * luki spotin omaa HARMONIE -> Open-Meteo -sarjaa. Mitattuna
+ * Lauttasaaressa samalla tunnilla merkki sanoi indeksiksi 82 ja siitä
+ * avattu kortti 46 (15,7 vs 11,3 kts) — merkki ja sen kortti eivät saa
+ * olla kaksi lukua samasta asiasta. Paras lasketaan taustalla kaikille
+ * spoteille (`KorttiSarjat.esilataaSpotit`); sitä ennen ja varaston
+ * ollessa rikki varatie on spotin oma sarja kuten ennen.
+ *
+ * Hetki tulee AJASTA (`_tlTimeAt`), ei indeksistä — sama sääntö kuin
+ * `_spotIdx`illä. */
+function _spotLukema(spot, hourIdx) {
+  let p = null;
+  try { p = KorttiSarjat.valmis(spot, 'paras'); } catch (e) { p = null; }
+  if (p) {
+    const t = _tlTimeAt(hourIdx);
+    const a = t != null ? KorttiSarjat.arvo(p, Math.round(t / 36e5) * 36e5) : null;
+    if (a) return { ms: a.ms, gst: a.gust != null ? a.gust : a.ms, dir: a.dir != null ? a.dir : 0 };
+  }
+  if (!spot.wx || !spot.wx.hourly) return null;
+  const h = spot.wx.hourly, idx = _spotIdx(h, hourIdx);
+  const ms = h.windspeed_10m[idx] || 0;
+  return { ms: ms, gst: (h.windgusts_10m && h.windgusts_10m[idx]) || ms, dir: h.winddirection_10m[idx] || 0 };
 }
 
 /* AIKAJANAN INDEKSI EI OLE SPOTIN INDEKSI.
@@ -13202,12 +13234,9 @@ function renderSpots(hourIdx) {
      kaikkien spottien pistemäärät ennen kuin ensimmäistäkään voi piirtää. */
   const pisteytetyt = [];
   for (const spot of SPOTS) {
-    if (!spot.wx || !spot.wx.hourly) continue;
-    const h = spot.wx.hourly, idx = _spotIdx(h, hourIdx);
-    const ms  = h.windspeed_10m[idx] || 0;
-    const gst = (h.windgusts_10m && h.windgusts_10m[idx]) || ms;
-    const dir = h.winddirection_10m[idx] || 0;
-    pisteytetyt.push({ spot, ms, gst, dir, score: spotIndex(ms, dir, spot.bestDirs, gst) });
+    const l = _spotLukema(spot, hourIdx);
+    if (!l) continue;
+    pisteytetyt.push({ spot, ms: l.ms, gst: l.gst, dir: l.dir, score: spotIndex(l.ms, l.dir, spot.bestDirs, l.gst) });
   }
   const taydet = _valitseTaydetSpotit(pisteytetyt, zoom);
   State._spotTaydetAvain = _taysienAvain(taydet);
@@ -16176,6 +16205,36 @@ const KorttiSarjat = {
     return tila.lupaukset[id];
   },
 
+  /* Kaikkien spottien Paras taustalla, yksi kerrallaan (spotin 9 km
+     -sarja on palvelinkutsu, ja lähekkäiset spotit jakavat 0,1°:n
+     ruudun ja siis saman sarjan). Merkit piirretään uudelleen kun
+     sarjoja on tullut — kerran erää kohti, ei spottia kohti. */
+  _esiKesken: false,
+  async esilataaSpotit() {
+    if (this._esiKesken || typeof Saalaatat === 'undefined' || !Saalaatat.kaytossa()) return;
+    this._esiKesken = true;
+    let uusia = 0;
+    const piirra = function () {
+      if (!uusia) return;
+      uusia = 0;
+      if (typeof renderSpots === 'function' && !State.liikkeessa) {
+        State._spotTaydetAvain = null;
+        renderSpots(State.currentHourIdx);
+      }
+    };
+    try {
+      for (const spot of SPOTS) {
+        if (this.valmis(spot, 'paras') && !this.valmis(spot, 'paras').kesken) continue;
+        const s = await this.lataa(spot, 'paras');
+        if (s) uusia++;
+        if (uusia >= 4) piirra();
+      }
+    } finally {
+      this._esiKesken = false;
+      piirra();
+    }
+  },
+
   /* Arvo hetkellä (tuntihila, ±30 min). */
   indeksi(s, tMs) {
     if (!s || !s.t || !s.t.length) return -1;
@@ -16690,7 +16749,10 @@ const Ennuste = {
       + sirut
       + '<div class="en-alarivi"><div class="en-hajonta" data-en-hajonta></div>' + asu + '</div>'
       + '<div class="en-lukema" data-en-lukema aria-live="off"></div>'
-      + '<div class="en-kaare" data-en-kaare><div class="en-paikka"></div></div>'
+      /* Kaavio on fokusoitava: nuolet vaihtavat tuntia (`_kiinnitaOsoitin`).
+         Ilman tätä tunnin valinta kaaviosta olisi vain osoittimen asia. */
+      + '<div class="en-kaare" data-en-kaare tabindex="0" role="group"'
+      + ' aria-label="Tuuliennustekaavio. Nuolinäppäimet vaihtavat tuntia."><div class="en-paikka"></div></div>'
       + '</section>';
   },
 
@@ -16780,7 +16842,16 @@ const Ennuste = {
     }
     this._paivitaSirut(ctx);
     piirra();
+    /* Näppäimistöllä valittu tunti rakentaa kortin uudelleen
+       (`_tlValitseIdx` -> `openSheet`), joten fokus palautetaan uuteen
+       kaavioon. Muuten jokainen nuolen painallus veisi fokuksen bodyyn. */
+    if (this._palautaFokus) {
+      this._palautaFokus = false;
+      const k = osio.querySelector('[data-en-kaare]');
+      if (k) try { k.focus({ preventScroll: true }); } catch (e) { k.focus(); }
+    }
   },
+  _palautaFokus: false,
   _naytetyt(ctx) {
     return this.valitut().filter(id => id !== ctx.piilotettu);
   },
@@ -16972,6 +17043,21 @@ const Ennuste = {
     kaare.addEventListener('pointercancel', function (e) { loppu(e, true); });
     kaare.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse' && !alku) self._naytaHover(ctx, kaare, null); });
     kaare.addEventListener('scroll', function () { ctx.vieritetty = true; }, { passive: true });
+    /* Nuolet: tunti kerrallaan, vaihto (Shift) kolme tuntia — sama askel
+       kuin kaavion luvuilla. `stopPropagation`, koska nuolet kuuluvat
+       muuten kartalle (CLAUDE.md, "Nuolet paneelissa"). */
+    kaare.addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault(); e.stopPropagation();
+      const askel = (e.key === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 3 : 1);
+      const lahto = ctx.valittu != null ? ctx.valittu : Date.now();
+      self._palautaFokus = true;
+      /* `openSheet` ajetaan synkronisesti valinnan sisällä, joten lippu
+         on käytetty kun kutsu palaa — nollataan joka tapauksessa, ettei
+         se jää odottamaan seuraavaa, ehkä hiiren avaamaa korttia. */
+      try { self.valitse(ctx, Math.round(lahto / 36e5) * 36e5 + askel * 36e5); }
+      finally { self._palautaFokus = false; }
+    });
   },
 
   valitse(ctx, tMs) {
