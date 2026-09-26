@@ -17737,6 +17737,10 @@ function openSheet(spot, hourIdx) {
    * spottilista voi kasvaa, eikä raja ole Hangosta vaan etäisyydestä. */
   (function() {
     const histEl = document.getElementById(fmiId + '-hist');
+    /* Havaintokaavio piirtää saman tunnin ennusteen katkoviivana (P9):
+       spotti kulkee elementin mukana, koska kaavio piirretään monesta
+       polusta (FMI, Mellsten, Laru, laaja). */
+    if (histEl) histEl._ennusteSpot = spot;
     const CURRENT_TTL = 10 * 60 * 1000;
 
     function kaytaHavainto(asema, latData, kmPaassa) {
@@ -18871,6 +18875,7 @@ function _havLaajaLahde(el, data, wx) {
          piirretty samasta datasta samalla jaksolla. */
       if (el._havYhteenveto) kaavio._havYhteenveto = el._havYhteenveto;
       laaja.rivi(_havLukemaSolut(kaavio, null));
+      kaavio._ennusteSpot = el._ennusteSpot || null;
       _renderLiveHistory(kaavio, data, wx, _havAsuLaatikosta(laatikko));
       /* Koukku asetetaan piirron JÄLKEEN: `_renderLiveHistory` kirjoittaa
          elementin sisällön uusiksi mutta ei kosketa sen omiin kenttiin. */
@@ -18979,6 +18984,22 @@ function _renderLiveHistory(el, data, wx, asu) {
   var ta = taKaikki.filter(ikkunassa);
   if (ws.length < 2) { ws = wsKaikki; wg = wgKaikki; ta = taKaikki; }
 
+  /* ENNUSTE VS TOTEUTUNUT (docs/spottikortti.md, P9). Spottikortissa
+     sama tunnin "Paras"-ennuste kuin kaaviossa ja kartalla, katkoviivana
+     havainnon päällä: osuvuusrivi alla kertoo saman numeroina, tämä
+     näyttää MISSÄ ennuste ja havainto erosivat. Havaintokortissa
+     (asema ilman spottia) viivaa ei ole. */
+  var ennS = data.ennusteSarja
+    || (el._ennusteSpot && typeof KorttiSarjat !== 'undefined' ? KorttiSarjat.valmis(el._ennusteSpot, 'paras') : null);
+  var ennPts = [];
+  if (ennS && ws.length > 1) {
+    var e0 = Date.parse(ws[0].iso), e1 = Date.parse(ws[ws.length - 1].iso);
+    for (var ei = 0; ei < ennS.t.length; ei++) {
+      if (ennS.t[ei] >= e0 && ennS.t[ei] <= e1 && ennS.ms[ei] != null) ennPts.push([ennS.t[ei], ennS.ms[ei]]);
+    }
+    if (ennPts.length < 2) ennPts = [];
+  }
+
   /* ── Mitat ──────────────────────────────────────────────────────── */
   /* Kuvaaja on korkeampi kuin ennen (104 -> 132). Väritetty täyttö on
      pinta-alaa, ja pinta-ala tarvitsee korkeutta ollakseen luettava:
@@ -19005,6 +19026,15 @@ function _renderLiveHistory(el, data, wx, asu) {
     if (U(niput[i].wsMin) < alin) alin = U(niput[i].wsMin);
     if (niput[i].wg > msYlin) msYlin = niput[i].wg;
     if (niput[i].wsMin < msAlin) msAlin = niput[i].wsMin;
+  }
+  /* Ennuste kuuluu asteikkoon: muuten sen huippu leikkautuisi pois
+     juuri silloin kun ennuste oli havaintoa kovempi. */
+  for (var ej = 0; ej < ennPts.length; ej++) {
+    var ev = ennPts[ej][1];
+    if (U(ev) > ylin) ylin = U(ev);
+    if (U(ev) < alin) alin = U(ev);
+    if (ev > msYlin) msYlin = ev;
+    if (ev < msAlin) msAlin = ev;
   }
   var minV = Math.max(0, alin - (ylin - alin) * 0.12);
   var maxV = ylin + (ylin - alin) * 0.16 + 0.3;
@@ -19155,8 +19185,16 @@ function _renderLiveHistory(el, data, wx, asu) {
    * jonka yläreuna on korkein puuskapiikki eikä piirtoalueen ylälaita —
    * väri ja akseli irtoaisivat toisistaan heti kun tuuli ei yllä
    * asteikon huippuun. */
-  var TAYTTO_ALA = 0.16, TAYTTO_YLA = 0.62;
-  var tayttoStops = '';
+  /* SAMA VÄRI JA SAMA TÄYTTÖJAKO KUIN ENNUSTEKAAVIOSSA (P1, V5).
+   *
+   * Täyttö oli `paperi()` (ramppi × 0,48 kohti mustaa) yhtenä
+   * pintana puuskan alle. Nyt kaksi pintaa kuten ennusteessa: puuska
+   * vaaleana (0,42 × alfa) ja keskituuli täytenä, molemmat kartan
+   * `rgb()`:llä ja `Tuulikaavio._alfa`lla — kortin kaksi tuulikaaviota
+   * puhuvat samaa värikieltä, ja sama nopeus on sama sävy molemmissa.
+   * Viivat pysyvät `--ink`inä, joten niiden kontrasti ei riipu
+   * täytöstä. */
+  var tayttoStops = '', tuuliStops = '';
   var GSTOPS = 16;
   for (var gs = GSTOPS; gs >= 0; gs--) {
     /* Näytteet otetaan M/S-asteikolla ja sijoitetaan sinne minne ne
@@ -19164,10 +19202,20 @@ function _renderLiveHistory(el, data, wx, asu) {
        tarvita — bofori ei olisi käännettävissä lainkaan. */
     var msg = msAlin + (msYlin - msAlin) * (gs / GSTOPS);
     var offg = Math.max(0, Math.min(100, (yOf(U(msg)) - padY) / (pohjaY - padY) * 100));
-    var cg = ColorRamp.paperi(msg);
-    var ag = TAYTTO_ALA + (TAYTTO_YLA - TAYTTO_ALA) * (1 - offg / 100);
-    tayttoStops += '<stop offset="' + offg.toFixed(1) + '%" stop-color="rgba('
-      + cg.r + ',' + cg.g + ',' + cg.b + ',' + ag.toFixed(3) + ')"/>';
+    var cg = ColorRamp.rgb(msg), ag = Tuulikaavio._alfa(msg);
+    var vari = 'rgb(' + cg.r + ',' + cg.g + ',' + cg.b + ')';
+    tayttoStops += '<stop offset="' + offg.toFixed(1) + '%" stop-color="' + vari + '" stop-opacity="' + (ag * 0.42).toFixed(3) + '"/>';
+    tuuliStops += '<stop offset="' + offg.toFixed(1) + '%" stop-color="' + vari + '" stop-opacity="' + ag.toFixed(3) + '"/>';
+  }
+  var tuuliAlue = tuuliPolku
+    ? tuuliPolku + ' L' + xOf(n - 1).toFixed(1) + ',' + pohjaY.toFixed(1)
+      + ' L' + xOf(0).toFixed(1) + ',' + pohjaY.toFixed(1) + ' Z'
+    : '';
+  var tuuliId = svgId + '-w';
+  var ennustePolku = '';
+  if (ennPts.length) {
+    ennustePolku = Tuulikaavio._polut(ennPts.map(function (p) { return [xOfTime(p[0]), yOf(U(p[1]))]; }))
+      .map(function (os) { return os.d; }).join(' ');
   }
 
   /* ── Yö ja päivä ─────────────────────────────────────────────────
@@ -19304,7 +19352,7 @@ function _renderLiveHistory(el, data, wx, asu) {
       if (nuoliY < padY + asu.fs) nuoliY = yOf(U(lohkoWs)) + asu.fs * 1.35;
     }
     nuolet += '<g transform="translate(' + nx.toFixed(1) + ',' + nuoliY.toFixed(1) + ') rotate(' + (dd + 180).toFixed(0) + ') scale(' + k + ')">'
-      + '<path d="M0,-4.4 L2.9,3.1 L0,1.5 L-2.9,3.1 Z" fill="' + (asu.nuoletViivalla ? 'var(--ink)' : _havInkCss(lohkoWs)) + '"'
+      + '<path d="M0,-4.4 L2.9,3.1 L0,1.5 L-2.9,3.1 Z" fill="var(--ink)"'
       + (asu.nuoletViivalla ? ' stroke="var(--surface-hi)" stroke-width="1.1" stroke-linejoin="round"' : '') + '/></g>';
   }
 
@@ -19476,9 +19524,12 @@ function _renderLiveHistory(el, data, wx, asu) {
           /* userSpaceOnUse: ks. perustelu gradientin rakennuksessa. */
           + '<linearGradient id="' + tayttoId + '" gradientUnits="userSpaceOnUse"'
             + ' x1="0" y1="' + padY + '" x2="0" y2="' + pohjaY + '">' + tayttoStops + '</linearGradient>'
+          + '<linearGradient id="' + tuuliId + '" gradientUnits="userSpaceOnUse"'
+            + ' x1="0" y1="' + padY + '" x2="0" y2="' + pohjaY + '">' + tuuliStops + '</linearGradient>'
         + '</defs>'
         + vrkViivat
         + (tayttoAlue ? '<path d="' + tayttoAlue + '" fill="url(#' + tayttoId + ')"/>' : '')
+        + (tuuliAlue ? '<path d="' + tuuliAlue + '" fill="url(#' + tuuliId + ')"/>' : '')
         + yoKaista
         /* Ruudukko täytön PÄÄLLE mutta hiljaisena: täytön alla se katoaisi
            kokonaan korkean tuulen kohdalta, ja y-akselin numerot jäisivät
@@ -19503,6 +19554,9 @@ function _renderLiveHistory(el, data, wx, asu) {
         + (ylaP ? '<path d="' + ylaP + '" fill="none" stroke="var(--ink)" stroke-width="1" stroke-opacity=".5" stroke-linecap="round"/>' : '')
         + (pohjaPolku ? '<path d="' + pohjaPolku + '" fill="none" stroke="var(--ink)" stroke-width="1" stroke-opacity=".55" stroke-dasharray="3 2.6" stroke-linecap="round"/>' : '')
         + (tuuliPolku ? '<path d="' + tuuliPolku + '" fill="none" stroke="var(--ink)" stroke-width="' + asu.viivaLev + '" stroke-linecap="round" stroke-linejoin="round"/>' : '')
+        /* Ennuste paperihalolla ja katkoviivana, havainnon päällä. */
+        + (ennustePolku ? '<path d="' + ennustePolku + '" fill="none" stroke="#FAF5E7" stroke-opacity=".85" stroke-width="' + (asu.viivaLev + 2.2) + '" stroke-linecap="round"/>'
+            + '<path d="' + ennustePolku + '" fill="none" stroke="#1C5C86" stroke-width="' + (asu.viivaLev * 0.85).toFixed(2) + '" stroke-dasharray="5 3" stroke-linecap="round"/>' : '')
         + huippuLaput
         /* Viimeisin arvo saa aina oman pisteensä — arvoa ei tarvitse
            etsiä raahaamalla. */
@@ -19539,7 +19593,12 @@ function _renderLiveHistory(el, data, wx, asu) {
           + '<line x1="1" y1="4" x2="14" y2="4" stroke="var(--ink)" stroke-opacity=".55" stroke-width="1" stroke-dasharray="3 2.6"/></svg>Tyyni</span>'
         : '')
       + '<span style="display:inline-flex;align-items:center;gap:4px">'
-        + '<svg width="9" height="9" viewBox="-5 -5 10 10" aria-hidden="true"><path d="M0,-4 L2.7,2.9 L0,1.4 L-2.7,2.9 Z" fill="#4C5960"/></svg>Suunta</span>'
+        + '<svg width="9" height="9" viewBox="-5 -5 10 10" aria-hidden="true"><path d="M0,-4 L2.7,2.9 L0,1.4 L-2.7,2.9 Z" fill="#101A20"/></svg>Suunta</span>'
+      + (ennustePolku
+        ? '<span style="display:inline-flex;align-items:center;gap:4px">'
+          + '<svg width="15" height="8" viewBox="0 0 15 8" aria-hidden="true">'
+          + '<line x1="1" y1="4" x2="14" y2="4" stroke="#1C5C86" stroke-width="1.6" stroke-dasharray="5 3"/></svg>Ennuste</span>'
+        : '')
       /* ASEMAN NIMI VAIN KERRAN. Havaintokortissa nimi on jo otsikkona
          kolmen rivin päässä, joten tässä se oli sama sana kahdesti
          samassa näkymässä; SPOTTIKORTISSA otsikko on spotin nimi eikä
