@@ -397,7 +397,6 @@ button, input, select, textarea { font-family: inherit; }
 
   /* Aikajanan tunnit. Palkki on kapea, joten hover nostaa sen
      kokonaan eikä vain väriä — muuten osumaa ei huomaa. */
-  html.tyopoyta .sh-tpslot:hover { background: var(--hairline-soft); }
 }
 
 /* FOKUS NÄKYVIIN.
@@ -2211,112 +2210,30 @@ html.tyopoyta {
 }
 .sh-hero-left { flex: 1; min-width: 0; }
 .sh-datetime { display: none; } /* korvattu pillillä */
-/* -- Time picker slider ---------------------------------------- */
-/* -- Time picker ------------------------------------------------ */
-.sh-timepill {
-  -webkit-user-select: none; user-select: none;
-  /* Alaväli 4 px eikä 14: valitun tunnin alle jäi 56 px:n nauhan
-     oman tyhjän lisäksi 30 px ennen seuraavaa riviä, ja se luki
-     kortissa aukkona. */
-  margin: 4px -20px 4px;
-  display: flex; align-items: center;
-  height: 56px;
+/* -- Heron aikarivi ja indeksin otsikko (docs/spottikortti.md, V4) -- */
+.sh-aikarivi {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px;
+  margin-top: 10px; font-size: var(--fs-11); color: var(--ink);
+  font-variant-numeric: tabular-nums; font-weight: 600;
 }
-.sh-tp-arrow {
-  flex-shrink: 0; width: 32px; height: 56px;
-  display: flex; align-items: center; justify-content: center;
-  color: var(--ink-3); cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: color .1s; z-index: 1;
+.sh-aikarivi-lahde { font-weight: 400; color: var(--ink-3); }
+.sh-aikarivi-lahde::before { content: '·'; margin-right: 8px; color: var(--ink-3); }
+.sh-nyt {
+  font-size: var(--fs-8); font-weight: 700; letter-spacing: .8px;
+  color: var(--accent); align-self: center;
 }
-.sh-tp-arrow:active { color: var(--ink); }
-/* Native-scroll ikkuna */
-.sh-tp-window {
-  flex: 1;
-  overflow-x: scroll;
-  overflow-y: hidden;
-  /* iOS inertia + snap */
-  -webkit-overflow-scrolling: touch;
-  scroll-snap-type: x mandatory;
-  scrollbar-width: none;
-  height: 56px;
-  /* Reunahäivytys, sama keino kuin aikajanassa. Ilman sitä viimeinen
-     lukema katkeaa keskeltä numeroa ("19:0") ja näyttää vialta — nyt se
-     liukuu pois ja lukee jatkuvana nauhana. Häivytys on kapea, jottei se
-     syö valittua tuntia joka on aina keskellä. */
-  -webkit-mask-image: linear-gradient(to right, transparent 0, black 22px, black calc(100% - 22px), transparent 100%);
-  mask-image: linear-gradient(to right, transparent 0, black 22px, black calc(100% - 22px), transparent 100%);
+.sh-indeksi-otsikko { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 2px; }
+.sh-indeksi-nimi { font-size: var(--fs-9); color: var(--ink-2); text-transform: uppercase; letter-spacing: 1px; }
+.sh-indeksi-otsikko .sh-foil-badge { padding: 2px 9px; font-size: var(--fs-10); animation: none; margin: 0; white-space: nowrap; }
+/* Rivi varaa korkeutensa heti, jottei hero hypi kun vertailudata
+   saapuu (docs/ui.md, "Mallien erimielisyys"). */
+.sh-hajonta { font-size: var(--fs-10); min-height: 1.45em; }
+.sh-big-suunta {
+  font-size: var(--fs-11); font-weight: 600; color: var(--ink-2);
+  font-variant-numeric: tabular-nums; margin-top: 4px; white-space: nowrap;
 }
-.sh-tp-window::-webkit-scrollbar { display: none; }
-/* Inner ei tarvitse will-change — selain hoitaa */
-.sh-tp-inner {
-  display: flex; align-items: center;
-  height: 56px;
-}
-/* Slotit — kaikki sama leveys snap-toimivuuden takaamiseksi */
-.sh-tpslot {
-  flex-shrink: 0;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 2px;
-  width: var(--tp-slot-w, 52px);
-  height: 56px;
-  scroll-snap-align: center;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: none;
-}
-/* Päivämäärä.
-   HUOM: --hairline ja --hairline-soft ovat VIIVOJEN värejä, eivät tekstin.
-   Ne olivat tässä tekstivärinä, jolloin tuntinauhan lukemat olivat 1,49:1
-   eli käytännössä lukukelvottomia. Menneen tunnin vaimennus tehdään nyt
-   musteasteikolla, joka on suunniteltu luettavaksi. */
-/* Paivalappu ("18. elo") on leveampi kuin 52 px slotti, joten se
-   leikkaantui reunoista. Absoluuttinen sijoitus keskitettyna antaa sen
-   levita naapurin paalle: lappuja on vain paivanvaihdoksissa, joten
-   paallekkaisyytta ei synny. */
-.sh-tpslot { position: relative; }
-.sh-tpslot-day {
-  position: absolute; top: 0; left: 50%;
-  -webkit-transform: translateX(-50%); transform: translateX(-50%);
-  font-variant-numeric: tabular-nums;
-  font-size: var(--fs-8); letter-spacing: .3px;
-  color: var(--ink-3);
-  height: 11px; line-height: 11px; white-space: nowrap;
-  pointer-events: none;
-  transition: color .15s;
-}
-.sh-tpslot-day.vis { color: var(--ink-2); }
-/* Kellonaika */
-.sh-tpslot-time {
-  font-variant-numeric: tabular-nums;
-  font-size: var(--fs-11); font-weight: 400;
-  color: var(--ink-2);
-  white-space: nowrap; line-height: 1;
-  transition: color .15s, transform .15s;
-  transform-origin: center;
-}
-/* Mennyt tunti on vaimeampi mutta yhä luettava (4,6:1). */
-.sh-tpslot.past .sh-tpslot-time    { color: var(--ink-3); }
-.sh-tpslot.past .sh-tpslot-day.vis { color: var(--ink-3); }
-/* Valittu: scale() ei aiheuta layout-reflow'ta */
-.sh-tpslot.active .sh-tpslot-time {
-  color: var(--ink); font-weight: 700;
-  transform: scale(1.7);
-}
-.sh-tpslot.active .sh-tpslot-day.vis { color: var(--ink-2); }
-/* Hover-like dragin aikana */
-.sh-tpslot.near .sh-tpslot-time {
-  color: var(--accent); font-weight: 600;
-  transform: scale(1.3);
-}
-.sh-tpslot.near .sh-tpslot-day.vis { color: var(--accent); }
-/* NYT */
-.sh-tpslot-now {
-  font-variant-numeric: tabular-nums;
-  font-size: var(--fs-7); font-weight: 700; letter-spacing: .8px;
-  color: var(--accent); line-height: 1;
-}
+.sh-osio-alku { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--hairline-soft); }
+.sh-meri:not(:has(.sh-aalto-rivi:not(:empty), .sh-stat-live-panel)) { display: none; }
 .sh-name {
   font-size: 20px; font-weight: 800; letter-spacing: -.4px;
   margin-bottom: 2px; line-height: 1.15; word-break: break-word;
@@ -3337,6 +3254,9 @@ html[data-tutka="1"] #lahde-merkki {
   letter-spacing: .1px;
 }
 .sh-aalto-rivi:empty { display: none; margin: 0; }
+/* Meri-osiossa rivit eivät enää hae kaavion alalaitaa (negatiivinen
+   marginaali oli sitä varten), vaan istuvat osion otsikon alla. */
+.sh-meri .sh-aalto-rivi { margin: 0 0 10px; }
 
 .sh-aalto-poiju {
   font: inherit; color: var(--ink-2); background: none; border: none;
@@ -17219,9 +17139,23 @@ function openSheet(spot, hourIdx) {
   }
   State.sheetSpot = spot;
   const h = spot.wx.hourly, idx = _spotIdx(h, hourIdx);
-  const ms  = h.windspeed_10m[idx] || 0;
-  const dir = h.winddirection_10m[idx] || 0;
-  const gst = (h.windgusts_10m && h.windgusts_10m[idx]) || ms;
+  /* HERO LUKEE SAMAA SARJAA KUIN KAAVIO (docs/spottikortti.md, P2).
+     Kortin iso luku, puuska ja suunta tulevat "Paras"-sekoituksesta
+     valitulla hetkellä — samasta jonka kartta, kapseli ja aikajana
+     näyttävät. Ennen sarjaa (ensimmäinen avaus, varasto kesken)
+     varatie on spotin oma sarja, ja kortti piirretään uudelleen kun
+     Paras tulee (ks. `Ennuste.kiinnita`:n jälkeen). */
+  const _hetkiMs = State.valittuMs != null ? State.valittuMs
+    : (h.time && h.time[idx] ? Date.parse(h.time[idx]) : Date.now());
+  const _paras = KorttiSarjat.valmis(spot, 'paras');
+  const _pa = _paras ? KorttiSarjat.arvo(_paras, _hetkiMs) : null;
+  const ms  = _pa ? _pa.ms : (h.windspeed_10m[idx] || 0);
+  const dir = _pa && _pa.dir != null ? _pa.dir : (h.winddirection_10m[idx] || 0);
+  const _onPuuska = _pa ? _pa.gust != null : (h.windgusts_10m && h.windgusts_10m[idx] != null);
+  const gst = _pa ? (_pa.gust != null ? _pa.gust : ms) : ((h.windgusts_10m && h.windgusts_10m[idx]) || ms);
+  const _heroLahde = _pa && _pa.lahde ? _pa.lahde
+    : ((spot.wx.harmonie_hours || 0) > idx ? 'fmi' : 'om');
+  spot._heroAvain = Units.fmt(ms) + '|' + Units.fmt(gst) + '|' + Math.round(dir);
   const badge    = windBadge(ms);
   const gi       = gustIndex(ms, gst);
   const trend    = windTrend(h, idx);
@@ -17536,21 +17470,30 @@ function openSheet(spot, hourIdx) {
               return '<div style="display:inline-flex;align-items:center;gap:10px;margin-top:8px">'
                 + svg2
                 + '<div style="font-variant-numeric:tabular-nums;line-height:1.45">'
-                + '<div style="font-size:var(--fs-9);color:var(--ink-2);text-transform:uppercase;letter-spacing:1px">Spottiindeksi</div>'
+                /* Päätös sanotaan KERRAN: foil-merkki oli oma rivinsä
+                   indeksin alla ja kertoi saman kuin indeksi (docs/
+                   spottikortti.md, 3.4). Nyt se on indeksin otsikko. */
+                + '<div class="sh-indeksi-otsikko"><span class="sh-indeksi-nimi">Spottiindeksi</span>'
+                +   '<span class="sh-foil-badge ' + badge.cls + '">' + badge.text + '</span></div>'
                 + '<div style="font-size:var(--fs-11);color:'+sc2+';font-weight:600">'
                 +   spotIndexSelite(osat, ms, spot.bestDirs) + '</div>'
                 + '<div>' + erittely + '</div>'
                 /* Mallien yksimielisyys taytetaan kun vertailudata saapuu
                    (drawAllModels). Tyhja kunnes se on haettu, jotta hero ei
                    hypi — rivi ei varaa tilaa ennen kuin silla on sisaltoa. */
-                + '<div id="sh-hajonta" style="font-size:var(--fs-10)"></div>'
+                + '<div id="sh-hajonta" class="sh-hajonta"></div>'
                 + '</div></div>';
             })()
         + '</div>'
         + '<div class="sh-hero-right">'
           + '<div class="sh-big-wind" style="color:' + colorStr + '">' + Units.fmt(ms) + '</div>'
           + '<span class="sh-big-unit">' + Units.label() + '</span>'
-          + '<div class="sh-big-gust">Puuska ' + Units.fmt(gst) + ' ' + Units.label() + '</div>'
+          /* Suunta heroon: se on puolet päätöksestä (indeksin toinen
+             osa), ja ennen se näkyi vain kaavion nuolina. Nuoli osoittaa
+             MIHIN tuulee, nimi MISTÄ (docs/ui.md, "Suunnan esitystapa"). */
+          + '<div class="sh-big-suunta">' + dirArrow(dir) + ' ' + Suunta.fmt(dir)
+          +   (Suunta._muoto === 'nimi' ? '' : ' · ' + Suunta.nimi(dir)) + '</div>'
+          + (_onPuuska ? '<div class="sh-big-gust">Puuska ' + Units.fmt(gst) + ' ' + Units.label() + '</div>' : '')
           /* PUUSKAISUUS OMANA LUKUNAAN — suhde puuska/keskituuli.
              Se laskettiin ennen (`gustIndex`) ja sille oli jopa oma
              korttinsa (`_gustStatCard`), mutta kortti ei ollut minkään
@@ -17572,8 +17515,7 @@ function openSheet(spot, hourIdx) {
              luku joka väittäisi tasaista tuulta siellä missä dataa ei
              yksinkertaisesti ole. */
           + (function () {
-              var onPuuska = h.windgusts_10m && h.windgusts_10m[idx] != null;
-              if (!onPuuska || ms < 1) return '';
+              if (!_onPuuska || ms < 1) return '';
               var col = gi.cls === 'gi-steady'  ? '#2A702D'
                       : gi.cls === 'gi-gusty'   ? '#8A5A00'
                       : gi.cls === 'gi-extreme' ? '#A3271C'
@@ -17584,68 +17526,32 @@ function openSheet(spot, hourIdx) {
             })()
         + '</div>'
       + '</div>'
-      + (()=>{
-          var tIdx2  = idx;
-          var tArr2  = h.time || [];
-          var isNow2 = Math.abs(new Date(tArr2[tIdx2]||0).getTime() - Date.now()) < 3600000;
-          var times2 = State._tlTimes || tArr2;
-          var curIdx2 = State.currentHourIdx || 0;
-          var DAY3 = ['Su','Ma','Ti','Ke','To','Pe','La'];
-          var MON3 = ['tam','hel','maa','huh','tou','kes','hei','elo','syy','lok','mar','jou'];
-          var allSlots2 = times2.map(function(t, ri) {
-            var d2 = new Date(t);
-            var isActive = ri === curIdx2;
-            var isPast   = ri < curIdx2;
-            var hStr = ('0'+d2.getHours()).slice(-2)+':00';
-            var prevD = ri > 0 ? new Date(times2[ri-1]) : null;
-            var isNewDay = !prevD || prevD.getDate() !== d2.getDate();
-            var showDay = isActive || isNewDay;
-            var dayStr = showDay ? DAY3[d2.getDay()]+' '+d2.getDate()+'. '+MON3[d2.getMonth()] : '';
-            var cls = 'sh-tpslot'+(isActive?' active':'')+(isPast?' past':'');
-            return '<div class="'+cls+'" data-tpidx="'+ri+'">'
-              + '<div class="sh-tpslot-day'+(showDay?' vis':'')+'">'+dayStr+'</div>'
-              + (isActive && isNow2
-                  ? '<span class="sh-tpslot-now">NYT</span><div class="sh-tpslot-time">'+hStr+'</div>'
-                  : '<div class="sh-tpslot-time">'+hStr+'</div>')
+      /* AIKARIVI korvaa kortin oman tuntivalitsimen (P5). Tunti
+         valitaan kaaviosta tai aikajanasta — kortin nauha oli kolmas
+         valitsin samalle asialle ja rakensi koko akselin (~400 lappua)
+         jokaisessa `openSheet`issa. Rivi kertoo MITÄ hetkeä ja KENEN
+         mallia yllä oleva luku on. */
+      + (function () {
+          var d = new Date(_hetkiMs);
+          var nyt = Math.abs(_hetkiMs - Date.now()) < 1800000;
+          return '<div class="sh-aikarivi">'
+            + (nyt ? '<span class="sh-nyt">NYT</span>' : '')
+            + '<span>' + Tuulikaavio.PAIVAT[d.getDay()] + ' ' + d.getDate() + '.' + (d.getMonth() + 1) + '. klo '
+            + ('0' + d.getHours()).slice(-2) + '</span>'
+            + '<span class="sh-aikarivi-lahde">' + (Lahde.LYHYET[_heroLahde] || _heroLahde) + '</span>'
             + '</div>';
-          }).join('');
-          return '<div id="sh-timepill" class="sh-timepill">'
-            + '<div class="sh-tp-arrow" id="sh-tp-prev">'
-              + '<svg width="9" height="15" viewBox="0 0 9 15" fill="none">'
-                + '<polyline points="7,1 1,7.5 7,14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'
-              + '</svg>'
-            + '</div>'
-            + '<div class="sh-tp-window" id="sh-tp-window">'
-              + '<div class="sh-tp-inner" id="sh-tp-inner">'+allSlots2+'</div>'
-            + '</div>'
-            + '<div class="sh-tp-arrow" id="sh-tp-next">'
-              + '<svg width="9" height="15" viewBox="0 0 9 15" fill="none">'
-                + '<polyline points="2,1 8,7.5 2,14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'
-              + '</svg>'
-            + '</div>'
-          + '</div>';
         })()
     + '</div>'
-    /* Foil badge */
-    + '<div class="sh-foil-badge ' + badge.cls + '" style="display:inline-flex">'      + '<span class="badge-icon">' + badge.icon + '</span>'      + badge.text    + '</div>'
-    /* 24h tuuliennuste — heti sliderin ja foil-badgen jälkeen */
+    /* Tuuliennuste heti heron jälkeen: se on kortin pääasia. */
     + build24hChart()
     /* Auringon LUVUT heti kaavion alle, koska ne selittavat sen
        valokaistan: sama aika-akseli, sama asia sanoina. Aiemmin tama
        rivi oli havaintoruutujen jalkeen — siella se oli irrallaan
        kaikesta mihin se liittyy. */
     + buildSunRivi()
-    /* Aallot heti aurinkorivin alle: molemmat ovat yhden rivin
-       lukuja jotka täydentävät yllä olevaa tuulikuvaa. Rivi jää
-       tyhjäksi (ja `:empty`-säännöllä pois) jos lähellä ei ole poijua. */
-    + buildAaltoEnnusteRivi()
-    + buildAaltoRivi()
-    /* Vedenkorkeus aaltojen alle: molemmat kertovat vedestä, ja
-       matalalla rannalla ne luetaan yhdessä — puoli metriä vettä pois
-       muuttaa sen mitä 0,4 m aalto tekee pohjan päällä. */
-    + buildVesiRivi()
-    /* Havainnot-rivi */
-    + '<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-8);font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:5px">Havainnot</div>'    + '<div class="sh-stats" id="sh-stats-live">'      + _tempDewComboCard(fmiId + '-tmp', fmiId + '-dew')      + (_uirasStation ? _uirasLinkCard(_waterStatId, _uirasStation) : _statCard('Vesi', waterTemp, _waterTempSource || '°C', null))    + (function () {
+    /* HAVAINNOT omana osionaan, samalla otsikkokomponentilla kuin
+       ennuste (`.osio-otsikko`). Kortissa oli kolme eri otsikkotyyliä. */
+    + '<div class="osio-otsikko-rivi sh-osio-alku"><h3 class="osio-otsikko">Havainnot</h3></div>'    + '<div class="sh-stats" id="sh-stats-live">'      + _tempDewComboCard(fmiId + '-tmp', fmiId + '-dew')      + (_uirasStation ? _uirasLinkCard(_waterStatId, _uirasStation) : _statCard('Vesi', waterTemp, _waterTempSource || '°C', null))    + (function () {
         /* Puku veden viereen: siinä kohtaa katsotaan vedenlämpöä, ja tämä
            on se mitä siitä seuraa. Lämpötila otetaan SAMASTA lähteestä kuin
            viereinen VESI-kortti.
@@ -17688,6 +17594,17 @@ function openSheet(spot, hourIdx) {
        Tyhjä kunnes näytteitä on tarpeeksi. */
     + '<div class="sh-osuvuus" id="' + fmiId + '-osuvuus"></div>'
 
+    /* MERI: aallot, vedenkorkeus ja vedenlämpö yhdessä osiossa. Ne
+       olivat tuuliennusteen ja havaintojen välissä yhden rivin
+       lohkoina, eli irrallaan sekä toisistaan että vedenlämmön
+       kaaviosta. Otsikko piiloutuu jos osiossa ei ole mitään
+       (`.sh-meri:has`-sääntö). Järjestys on ennallaan: aalto ennuste,
+       poiju nyt, vedenkorkeus — matalalla rannalla ne luetaan yhdessä. */
+    + '<div class="sh-meri">'
+    + '<div class="osio-otsikko-rivi sh-osio-alku"><h3 class="osio-otsikko">Meri</h3></div>'
+    + buildAaltoEnnusteRivi()
+    + buildAaltoRivi()
+    + buildVesiRivi()
     /* UiRas vedenlämpö */
     + (_uirasStation
         ? '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">'
@@ -17698,10 +17615,7 @@ function openSheet(spot, hourIdx) {
             + '<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);text-align:center;padding:14px">Ladataan...</div>'
           + '</div>'
         : '')
-
-
-
-
+    + '</div>'
 
     /* Navigation buttons */
     + buildNavButtons()
@@ -17710,12 +17624,25 @@ function openSheet(spot, hourIdx) {
   document.getElementById('sheet').classList.add('open');
   document.getElementById('sheet-overlay').classList.add('open');
   _sheetAuki(spot.name);
-  Haptics.medium();
+  if (!Ennuste._hiljaa) Haptics.medium();
   /* Ennusteosio piirretään vasta nyt: kaavio mitataan laatikostaan
      (pikselit 1:1, ei venytettyä viewBoxia). Valittu hetki on aikajanan
      (`State.valittuMs`), ja sen puuttuessa spotin oma tunti. */
   Ennuste.kiinnita(document.querySelector('#sheet-content [data-ennuste]'), spot,
     State.valittuMs != null ? State.valittuMs : (h.time && h.time[idx] ? Date.parse(h.time[idx]) : Date.now()));
+  /* Paras tulee myöhemmin kuin kortti (varaston laatat, spotin 9 km
+     -sarja). Hero piirretään uudelleen VAIN jos sen luvut muuttuvat —
+     Suomessa ensimmäiset ~60 h ovat FMI:tä molemmissa, joten useimmiten
+     mitään ei tapahdu. Uusinta on hiljainen (ei värinää). */
+  if (!_paras || _paras.kesken) KorttiSarjat.lataa(spot, 'paras').then(function (s2) {
+    if (!s2 || State.sheetSpot !== spot) return;
+    const a2 = KorttiSarjat.arvo(s2, State.valittuMs != null ? State.valittuMs : _hetkiMs);
+    if (!a2) return;
+    const avain = Units.fmt(a2.ms) + '|' + Units.fmt(a2.gust != null ? a2.gust : a2.ms) + '|' + Math.round(a2.dir);
+    if (avain === spot._heroAvain) return;
+    Ennuste._hiljaa = true;
+    try { openSheet(spot, State.currentHourIdx); } finally { Ennuste._hiljaa = false; }
+  });
   /* Sivupaneeli peittää oikean reunan. Jos valittu spotti jää sen alle,
      kartta panoroidaan niin että spotti tulee vapaan alueen keskelle.
      Panorointi eikä kartan kutistus: ks. CSS-lohko "SPOTTIKORTTI
@@ -17769,149 +17696,8 @@ function openSheet(spot, hourIdx) {
     }, { passive: true });
   })();
 
-  /* ── Time slider — native scroll snap ───────────────────────── */
-  (function() {
-    var SLOT_W = 52;   /* kaikki slotit saman levyisiä → snap toimii */
-
-    /* Datapäivitys — kutsutaan vasta scrollin pysähdyttyä */
-    function _tpGoTo(newIdx) {
-      var maxIdx = State._tlTimes ? State._tlTimes.length - 1 : 0;
-      if (newIdx < 0 || newIdx > maxIdx) return;
-      if (newIdx === (State.currentHourIdx || 0)) return;
-      if (typeof Haptics !== 'undefined') Haptics.selection();
-      _tlValitseHetki(newIdx);
-      var tl = document.getElementById('tl-scroll');
-      if (tl && State._tlTicks && State._tlTicks[newIdx]) {
-        var tick = State._tlTicks[newIdx];
-        tl.scrollTo({ left: tick.offsetLeft - tl.offsetWidth/2 + 12, behavior: 'smooth' });
-      }
-      if (typeof _tlUpdateNow === 'function') _tlUpdateNow(newIdx);
-      if (typeof buildWindField === 'function')
-        buildWindField(newIdx).then(function(){ drawColorField(); resetParticles(); });
-      if (typeof renderSpots === 'function') renderSpots(newIdx);
-      if (State.sheetSpot) openSheet(State.sheetSpot, newIdx);
-    }
-
-    requestAnimationFrame(function() {
-      var win   = document.getElementById('sh-tp-window');
-      var inner = document.getElementById('sh-tp-inner');
-      var prev  = document.getElementById('sh-tp-prev');
-      var next  = document.getElementById('sh-tp-next');
-      if (!win || !inner) return;
-
-      var times   = State._tlTimes || [];
-      var maxIdx  = times.length - 1;
-      var els     = Array.prototype.slice.call(inner.querySelectorAll('.sh-tpslot'));
-      var curIdx  = State.currentHourIdx || 0;
-      var DAY4    = ['Su','Ma','Ti','Ke','To','Pe','La'];
-      var MON4    = ['tam','hel','maa','huh','tou','kes','hei','elo','syy','lok','mar','jou'];
-
-      /* Aseta slottien leveys CSS-muuttujana */
-      win.style.setProperty('--tp-slot-w', SLOT_W + 'px');
-      els.forEach(function(el) { el.style.width = SLOT_W + 'px'; });
-
-      /* Padding: ensimmäinen ja viimeinen slotti snäppää keskelle */
-      var winW = win.offsetWidth;
-      var pad  = Math.max(0, Math.floor((winW - SLOT_W) / 2));
-      inner.style.paddingLeft  = pad + 'px';
-      inner.style.paddingRight = pad + 'px';
-
-      /* Scroll slotti idx:lle — behavior smooth tai instant */
-      function _scrollTo(idx, smooth) {
-        var target = idx * SLOT_W;  /* inner-koordinaatti ilman paddingia */
-        win.scrollTo({ left: target, behavior: smooth ? 'smooth' : 'instant' });
-      }
-
-      /* Alku-scroll ilman animaatiota */
-      _scrollTo(curIdx, false);
-
-      /* Laske mikä slotti on lähimpänä scrollin keskipistettä */
-      function _idxFromScroll() {
-        var center = win.scrollLeft;
-        var ni = Math.round(center / SLOT_W);
-        return Math.max(0, Math.min(maxIdx, ni));
-      }
-
-      /* Päivitä active/past/near -luokat ja päivätekstit */
-      function _updateClasses(activeI, nearI) {
-        els.forEach(function(el) {
-          var ei = parseInt(el.dataset.tpidx);
-          el.classList.toggle('active', ei === activeI);
-          el.classList.toggle('past',   ei < activeI);
-          el.classList.toggle('near',   ei === nearI && ei !== activeI);
-          /* Päivämäärä-teksti: aktiiviselle aina, muille päivänvaihdos */
-          var dayEl  = el.querySelector('.sh-tpslot-day');
-          var timeEl = el.querySelector('.sh-tpslot-time');
-          if (dayEl && times[ei]) {
-            var d2 = new Date(times[ei]);
-            var prevD2 = ei > 0 && times[ei-1] ? new Date(times[ei-1]) : null;
-            var isNewDay = !prevD2 || prevD2.getDate() !== d2.getDate();
-            var showDay  = (ei === activeI) || isNewDay;
-            if (showDay) {
-              dayEl.textContent = DAY4[d2.getDay()]+' '+d2.getDate()+'. '+MON4[d2.getMonth()];
-              dayEl.classList.add('vis');
-            } else {
-              dayEl.textContent = '';
-              dayEl.classList.remove('vis');
-            }
-            if (timeEl) timeEl.textContent = ('0'+d2.getHours()).slice(-2)+':00';
-          }
-        });
-      }
-
-      /* ── scroll-event: reaaliaikainen near-korostus ───────────
-         Tämä pyörii natiivisti selaimen compositorissa — ei JS blokkaa */
-      var _scrollDebounce = null;
-      win.addEventListener('scroll', function() {
-        var ni = _idxFromScroll();
-        /* Near = snap-kandidaatti, active = vahvistettu */
-        _updateClasses(curIdx, ni);
-        /* Debounce scrollin loppumiselle (fallback scrollend:lle) */
-        clearTimeout(_scrollDebounce);
-        _scrollDebounce = setTimeout(function() {
-          var settled = _idxFromScroll();
-          if (settled !== curIdx) {
-            curIdx = settled;
-            _updateClasses(curIdx, -1);
-            _tpGoTo(curIdx);
-          }
-        }, 120);
-      }, { passive: true });
-
-      /* scrollend = moderni Safari 16.4+ tarkka event */
-      if ('onscrollend' in win) {
-        win.addEventListener('scrollend', function() {
-          clearTimeout(_scrollDebounce);
-          var settled = _idxFromScroll();
-          if (settled !== curIdx) {
-            curIdx = settled;
-            _updateClasses(curIdx, -1);
-            _tpGoTo(curIdx);
-          }
-        }, { passive: true });
-      }
-
-      /* ── Nuolipainikkeet ─────────────────────────────────────── */
-      if (prev) prev.addEventListener('click', function(e) {
-        e.stopPropagation();
-        var ni = Math.max(0, curIdx - 1);
-        _scrollTo(ni, true);
-      }, { passive: true });
-      if (next) next.addEventListener('click', function(e) {
-        e.stopPropagation();
-        var ni = Math.min(maxIdx, curIdx + 1);
-        _scrollTo(ni, true);
-      }, { passive: true });
-
-      /* ── Klikkaus slottiin ───────────────────────────────────── */
-      inner.addEventListener('click', function(e) {
-        var sl = e.target.closest('[data-tpidx]');
-        if (!sl) return;
-        var ni = parseInt(sl.dataset.tpidx);
-        if (!isNaN(ni)) _scrollTo(ni, true);
-      }, { passive: true });
-    });
-  })();
+  /* Kortin oma tuntivalitsin (`#sh-timepill`) poistettiin: tunti valitaan
+     kaaviosta (`Ennuste.valitse`) tai aikajanasta. docs/spottikortti.md, P5. */
       /* Tausta hivelee tuulen mukaan */
   (function() {
     /* Väri-hehku: aseta #sheet-scroll-elementille jotta kattaa myös handle-alueen */
