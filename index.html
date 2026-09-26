@@ -758,7 +758,7 @@ html.tyopoyta #kapseli.vaistyy {
  * iPadilla paneelin sai kiinni vain napauttamalla karttaa tai Escillä.
  *
  * Ympyrä on sama kuin kaavion laajennusnapilla ja laajan näkymän
- * sulkunapilla (`.hav-nappi`) — yksi pyöreä muoto kaikelle mikä avaa
+ * sulkunapilla (`.ikoninappi`) — yksi pyöreä muoto kaikelle mikä avaa
  * tai sulkee pinnan. Osumapinta on 44 px (Applen minimi) ja se tulee
  * NAPILTA ITSELTÄÄN, ei pseudoelementiltä; ympyrä on sisempi span.
  *
@@ -780,7 +780,10 @@ html.tyopoyta #kapseli.vaistyy {
   letter-spacing: -0.01em; line-height: 1.2;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.paneeli-sulje {
+/* `.ikoninappi` on sama nappi ilman sulkemisen merkitystä (kaavion
+   laajennus): sama ympyrä, sama 44 px osumapinta. Laajennusnappi oli
+   `.hav-nappi`, jonka osumapinta oli ympyrän kokoinen 30 px. */
+.paneeli-sulje, .ikoninappi {
   flex-shrink: 0; position: relative;
   width: 44px; height: 44px; padding: 0;
   border: none; background: none; cursor: pointer;
@@ -789,20 +792,23 @@ html.tyopoyta #kapseli.vaistyy {
   -webkit-tap-highlight-color: transparent; touch-action: manipulation;
   -webkit-user-select: none; user-select: none;
 }
-.paneeli-sulje > span {
+.paneeli-sulje > span, .ikoninappi > span {
   width: 30px; height: 30px; border-radius: 50%; box-sizing: border-box;
   display: flex; align-items: center; justify-content: center;
   background: var(--surface-lo); border: 1px solid var(--hairline);
   transition: background .15s ease, transform .12s ease;
 }
-.paneeli-sulje svg { display: block; }
-.paneeli-sulje:active > span { background: var(--surface-hi); transform: scale(.92); }
+.paneeli-sulje svg, .ikoninappi svg { display: block; }
+.paneeli-sulje:active > span, .ikoninappi:active > span { background: var(--surface-hi); transform: scale(.92); }
 @media (hover: hover) {
-  .paneeli-sulje:hover > span { background: var(--surface-hi); }
+  .paneeli-sulje:hover > span, .ikoninappi:hover > span { background: var(--surface-hi); }
 }
 /* Rengas ympyrän ympärille, ei 44 px:n laatikon: laatikko on näkymätön. */
-.paneeli-sulje:focus-visible { outline: none; }
-.paneeli-sulje:focus-visible > span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.paneeli-sulje:focus-visible, .ikoninappi:focus-visible { outline: none; }
+.paneeli-sulje:focus-visible > span, .ikoninappi:focus-visible > span { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Rivissä nappi vie saman tilan kuin ennen (30 px ympyrä): osumapinnan
+   ylimenevä osa on negatiivista marginaalia. */
+.ikoninappi { margin: -7px -7px -7px auto; }
 
 /* VETOKAHVA ON ELEEN TARTUNTAKOHTA, EI NAPPI. Sama 36×4 px viiva
    jokaisessa pohjalevyssä ja samalla värillä (ennustepaneelin kahva oli
@@ -1929,6 +1935,10 @@ html.tyopoyta #kapseli.vaistyy {
  * paatoksiaan eivatka seuraa tekstia — jos ne kaipaavat ilmaa, se on
  * eri muutos ja mitataan erikseen. */
 :root {
+  /* VÄLISTYS (docs/spottikortti.md, V7): 4/8/12/16/24/32. Uudet
+     komponentit (`.segmentti`, `.en-*`, `.osio-*`) lukevat näitä;
+     vanhat vapaat pikseliarvot siirtyvät kun niitä muutenkin kosketaan. */
+  --v-1: 4px; --v-2: 8px; --v-3: 12px; --v-4: 16px; --v-5: 24px; --v-6: 32px;
   --fs-65: 6.5px;
   --fs-7: 7px;
   --fs-75: 7.5px;
@@ -2170,13 +2180,6 @@ html.tyopoyta {
 .hl-kaavio { flex: 1; min-height: 0; padding: 0 4px 2px; display: flex; align-items: center; overflow: hidden; }
 .hl-kaavio > div { width: 100%; }
 /* Laajennusnappi kortilla ja sulkunappi laajassa: sama pyorea muoto. */
-.hav-nappi {
-  flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: var(--surface-lo); border: 1px solid var(--hairline);
-  color: var(--ink-2); cursor: pointer; padding: 0;
-}
-.hav-nappi:active { background: var(--surface-hi); }
 
 /* ============================================================
    SPOT CARD — v6 redesign
@@ -2232,7 +2235,7 @@ html.tyopoyta {
   font-size: var(--fs-11); font-weight: 600; color: var(--ink-2);
   font-variant-numeric: tabular-nums; margin-top: 4px; white-space: nowrap;
 }
-.sh-osio-alku { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--hairline-soft); }
+.sh-osio-alku { margin-top: var(--v-5); padding-top: var(--v-4); border-top: 1px solid var(--hairline-soft); }
 .sh-meri:not(:has(.sh-aalto-rivi:not(:empty), .sh-stat-live-panel)) { display: none; }
 .sh-name {
   font-size: 20px; font-weight: 800; letter-spacing: -.4px;
@@ -3274,12 +3277,21 @@ html[data-tutka="1"] #lahde-merkki {
  * Valittu tila luetaan `aria-pressed`ista — toinen lippu samasta
  * asiasta ajautuisi erilleen. */
 .osio-otsikko-rivi {
-  display: flex; align-items: center; gap: 8px; margin-bottom: 8px; min-width: 0;
+  display: flex; align-items: center; gap: var(--v-2); margin-bottom: var(--v-2); min-width: 0;
 }
 .osio-otsikko {
   flex: 1 1 auto; min-width: 0; margin: 0;
   font-size: var(--fs-11); font-weight: 700; color: var(--ink-3);
   text-transform: uppercase; letter-spacing: .08em;
+}
+/* Osion sisäinen alaotsikko (kaavion nimi ja lähde). Kaksi kaaviota
+   käytti samasta asiasta kahta eri inline-tyyliä (10/600/versaali ja
+   9/400). Viiva on pseudoelementti, ei tyhjä div. */
+.osio-ala-rivi { display: flex; align-items: center; gap: 6px; margin: var(--v-3) 0 var(--v-2); }
+.osio-ala-rivi::after { content: ''; flex: 1; height: 1px; background: var(--hairline); }
+.osio-ala {
+  font-size: var(--fs-10); font-weight: 600; color: var(--ink-3);
+  letter-spacing: .06em; text-transform: uppercase; font-variant-numeric: tabular-nums;
 }
 .segmentti {
   display: inline-flex; flex-shrink: 0; gap: 1px; padding: 2px;
@@ -3291,11 +3303,18 @@ html[data-tutka="1"] #lahde-merkki {
   padding: 5px 9px; border-radius: 8px; min-height: 28px;
   -webkit-user-select: none; user-select: none; transition: background .15s, color .15s;
 }
-.segmentti > button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+/* Valittu on KOROTETTU PINTA JA MUSTE, ei musta pilleri: sovelluksessa
+   oli kaksi eri valitsinta (kortin ennusteessa musta, havainto-,
+   vesi- ja laajan näkymän jaksoissa korotettu), ja nyt kaikki neljä
+   ovat tämä yksi (docs/spottikortti.md, V7). */
+.segmentti > button[aria-pressed="true"] {
+  background: var(--surface-hi); color: var(--ink); font-weight: 600;
+  box-shadow: 0 1px 2px rgba(16,26,32,.12);
+}
 .segmentti > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .segmentti-pieni > button { padding: 3px 8px; min-height: 24px; font-size: var(--fs-9); }
 .en-mallit {
-  display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 6px;
+  display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 var(--v-2);
 }
 .en-siru {
   display: inline-flex; align-items: center; gap: 5px;
@@ -3311,7 +3330,7 @@ html[data-tutka="1"] #lahde-merkki {
   width: 12px; height: 8px; border-radius: 2px;
   background: linear-gradient(0deg, rgba(0,175,250,.9), rgba(60,235,45,.9) 50%, rgba(255,165,0,.9));
 }
-.en-alarivi { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; min-height: 24px; }
+.en-alarivi { display: flex; align-items: center; gap: var(--v-2); margin-bottom: var(--v-2); min-height: 24px; }
 .en-hajonta { flex: 1 1 auto; min-width: 0; font-size: var(--fs-10); color: var(--ink-3); }
 /* KIINTEÄ LUKEMARIVI kaavion yllä: valittu tunti levossa, osoitettu
    tunti vedon ja hiiren aikana. Korkeus on varattu, jotta kaavio ei
@@ -3570,7 +3589,7 @@ html[data-tutka="1"] #lahde-merkki {
     <div id="sp-header" class="paneeli-yla">
       <h2 id="sp-title">Asetukset</h2>
       <button type="button" class="paneeli-sulje" id="sp-close" aria-label="Sulje asetukset"
-              onclick="_closeSettings()"><span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span></button>
+              onclick="_closeSettings()"><span aria-hidden="true"></span></button>
     </div>
     <!-- Scrollattava sisältö -->
     <div id="sp-body-wrap">
@@ -3869,7 +3888,7 @@ html[data-tutka="1"] #lahde-merkki {
     <div class="pn-kortti">
       <div class="pn-yla">
         <h2>Pikanäppäimet</h2>
-        <button type="button" class="paneeli-sulje" aria-label="Sulje pikanäppäimet"><span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span></button>
+        <button type="button" class="paneeli-sulje" aria-label="Sulje pikanäppäimet"><span aria-hidden="true"></span></button>
       </div>
       <dl>
         <dt><kbd>Rulla</kbd></dt><dd>Zoomaa puoli tasoa kerrallaan</dd>
@@ -3895,7 +3914,7 @@ html[data-tutka="1"] #lahde-merkki {
          eleen tartuntakohta eikä nappi — sulkeminen on X:n työ, samoin kuin
          asetuksissa ja ennustepaneelissa. -->
     <div id="sheet-handle" class="paneeli-kahva">
-      <button type="button" class="paneeli-sulje" id="sheet-sulje" aria-label="Sulje kortti"><span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span></button>
+      <button type="button" class="paneeli-sulje" id="sheet-sulje" aria-label="Sulje kortti"><span aria-hidden="true"></span></button>
     </div>
     <div id="sheet-scroll">
       <div id="sheet-content"></div>
@@ -3924,7 +3943,7 @@ html[data-tutka="1"] #lahde-merkki {
          asetuksissa. Puhelimella sen yläreunassa on vetokahva. -->
     <div id="fc-handle" class="paneeli-yla paneeli-kahva">
       <h2 id="fc-title">Parhaat ajankohdat</h2>
-      <button type="button" class="paneeli-sulje" id="fc-sulje" aria-label="Sulje ennuste"><span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span></button>
+      <button type="button" class="paneeli-sulje" id="fc-sulje" aria-label="Sulje ennuste"><span aria-hidden="true"></span></button>
     </div>
     <div id="fc-header">
       <div id="fc-subtitle">5 vrk ennuste · parhaat 2h ikkunat spoteille</div>
@@ -14016,10 +14035,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     /* Sama valitsin kuin tuulikaaviossa: valittu on mustetta korotetulla
        pinnalla. Aiemmin valittu oli var(--surface) eli beige lähes
        valkoisella — 1.1:1, käytännössä näkymätön. */
-    return '<button data-up="'+pv[0]+'" aria-pressed="'+(a?'true':'false')+'" style="flex:1;font-variant-numeric:tabular-nums;font-size:var(--fs-9);padding:4px 6px;border:none;white-space:nowrap;'
-      +'background:'+(a?'var(--surface-hi)':'transparent')+';'
-      +'color:'+(a?'var(--ink)':'var(--ink-3)')+';font-weight:'+(a?'600':'400')+';'
-      +'border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:background .15s,color .15s">'+pv[1]+'</button>';
+    return '<button type="button" data-up="'+pv[0]+'" aria-pressed="'+(a?'true':'false')+'">'+pv[1]+'</button>';
   }).join('');
 
   /* OTSIKKORIVI JA ALARIVI OVAT KORTIN OSIA, EIVAT KAAVION.
@@ -14032,7 +14048,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     (asu.laaja ? '' :
     '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;min-width:0">'
       +'<div id="'+svgId+'-dd" style="flex:1 1 auto;min-width:0;overflow:visible;position:relative"></div>'
-      +'<div role="group" aria-label="Jakso" style="display:flex;flex-shrink:0;background:var(--surface-lo);border-radius:10px;padding:2px;gap:1px">'
+      +'<div class="segmentti segmentti-pieni" role="group" aria-label="Jakso">'
         +segBtns
       +'</div>'
       +_havLaajennaNappi(svgId)
@@ -16068,6 +16084,13 @@ function _tahtiSVG(taysi) {
    leikepöytä. Kuvake on jaon tuttu muoto: laatikko ja nuoli ylös. */
 const _JAKO_JARJESTELMA = !TYOPOYTA && typeof navigator !== 'undefined' && !!navigator.share;
 const _JAKO_NIMI = _JAKO_JARJESTELMA ? 'Jaa' : 'Kopioi linkki';
+/* SULKUNAPIN X — YKSI LÄHDE (docs/spottikortti.md, V7). Kuvio oli
+   kopioituna neljään paikkaan staattiseen HTML:ään ja viidenteen
+   laajan näkymän koodiin eri viivanpaksuudella (2 vs 2,4). Staattiset
+   napit ovat nyt tyhjiä spaneja, jotka täytetään tästä. */
+const _SULJE_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">'
+  + '<path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
+document.querySelectorAll('.paneeli-sulje > span:empty').forEach(function (sp) { sp.innerHTML = _SULJE_SVG; });
 const _JAKO_SVG = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"'
   + ' stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
   + '<path d="M12 3.5v11M8 7.5l4-4 4 4"/>'
@@ -16923,7 +16946,18 @@ const Ennuste = {
     if (hero && haj) { hero.textContent = this.hajontaTeksti(haj); hero.style.color = this.hajontaVari(haj); }
     if (!paa) { kaare.innerHTML = '<div class="en-paikka">Ladataan ennustetta…</div>'; return; }
     const ik = this._ikkuna(a.jakso, paa, ctx.valittu);
-    const W0 = Math.max(260, Math.round(kaare.clientWidth || osio.clientWidth || 360));
+    /* LEVEYS MUISTETAAN, EI MITATA JOKA KERTA. `openSheet` rakentaa
+       kortin uudelleen joka tuntiaskeleella, ja `clientWidth` heti sen
+       jälkeen pakotti koko kortin asettelun synkronisesti: mitattuna
+       `openSheet` 39 ms vs 6 ms ennen. Kortin leveys muuttuu vain kun
+       ikkuna muuttuu (paneeli on 400 px tai ruudun levyinen), joten
+       leveys mitataan kerran ja uudelleen koon muuttuessa. */
+    const avainW = sivupaneelit() + '|' + window.innerWidth;
+    if (this._leveysAvain !== avainW || !this._leveys) {
+      this._leveys = Math.round(kaare.clientWidth || osio.clientWidth || 360);
+      this._leveysAvain = avainW;
+    }
+    const W0 = Math.max(260, this._leveys);
     const pxH = W0 / this.NAKYVA_H;
     const W = ik.j.vierii ? Math.max(W0, Math.round((ik.loppu - ik.alku) / 36e5 * pxH)) : W0;
     const vert = this._naytetyt(ctx).map(id => KorttiSarjat.valmis(spot, id)).filter(Boolean);
@@ -16946,7 +16980,12 @@ const Ennuste = {
         html += d.svg; geot.push(d.g);
       });
     }
-    const vanhaVieritys = kaare.scrollLeft;
+    /* `scrollLeft`in luku pakottaa asettelun, ja juuri rakennetussa
+       kortissa se on koko kortin asettelu (mitattuna ~30 ms joka
+       tuntiaskeleella). Uusi kääre on aina nollassa, joten vain jo
+       piirretyn kääreen vieritys luetaan. */
+    const vanhaVieritys = kaare._enPiirretty ? kaare.scrollLeft : 0;
+    kaare._enPiirretty = true;
     kaare.innerHTML = html;
     kaare.classList.toggle('vierii', !!ik.j.vierii);
     kaare._geot = geot;
@@ -16955,8 +16994,20 @@ const Ennuste = {
        vieritys säilyy uudelleenpiirrossa. */
     if (ik.j.vierii) {
       const xs = paaD.g.xOf(ctx.valittu != null ? ctx.valittu : Date.now());
-      if (!ctx.vieritetty || xs < vanhaVieritys || xs > vanhaVieritys + W0) kaare.scrollLeft = Math.max(0, xs - W0 * 0.25);
-      else kaare.scrollLeft = vanhaVieritys;
+      const kohde = (!ctx.vieritetty || xs < vanhaVieritys || xs > vanhaVieritys + W0)
+        ? Math.max(0, xs - W0 * 0.25) : vanhaVieritys;
+      /* Vierityksen asetus pakottaisi juuri rakennetun kortin asettelun
+         synkronisesti (mitattuna 7 vrk:n jaksolla `openSheet` 52 ms).
+         Se tehdään vasta kun selain on asetellut kortin itse: ruudun
+         jälkeen, ja varalla ajastimella, koska WebKit voi jättää
+         ruutupyynnön palaamatta kosketusvierityksen ajaksi (CLAUDE.md). */
+      let tehty = false;
+      const aseta = function () {
+        if (tehty || !kaare.isConnected) return;
+        tehty = true; kaare.scrollLeft = kohde;
+      };
+      requestAnimationFrame(function () { setTimeout(aseta, 0); });
+      setTimeout(aseta, 120);
     }
     this._naytaLukema(ctx, ctx.hover != null ? ctx.hover : ctx.valittu);
     this._kiinnitaOsoitin(ctx, kaare);
@@ -17668,9 +17719,8 @@ function openSheet(spot, hourIdx) {
     + '<div style="height:8px"></div>'
 
     /* FMI historia-kaavio */
-    + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">'
-      + '<span style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);font-weight:600;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase" id="' + fmiId + '-chart-lbl">Tuulihavainto · ladataan...</span>'
-      + '<div style="flex:1;height:1px;background:var(--hairline)"></div>'
+    + '<div class="osio-ala-rivi">'
+      + '<span class="osio-ala" id="' + fmiId + '-chart-lbl">Tuulihavainto · ladataan...</span>'
     + '</div>'
     + '<div id="' + fmiId + '-hist" class="sh-stat-live-panel open" style="margin-bottom:6px">'
       + '<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);text-align:center;padding:14px">Ladataan...</div>'
@@ -17693,9 +17743,8 @@ function openSheet(spot, hourIdx) {
     + buildVesiRivi()
     /* UiRas vedenlämpö */
     + (_uirasStation
-        ? '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">'
-            + '<span style="font-variant-numeric:tabular-nums;font-size:var(--fs-9);color:var(--ink-3);letter-spacing:.3px" id="uiras-chart-lbl-' + _waterStatId + '">Uimaveden lämpötila · ' + _uirasStation.name + '</span>'
-            + '<div style="flex:1;height:1px;background:var(--hairline)"></div>'
+        ? '<div class="osio-ala-rivi">'
+            + '<span class="osio-ala" id="uiras-chart-lbl-' + _waterStatId + '">Uimaveden lämpötila · ' + _uirasStation.name + '</span>'
           + '</div>'
           + '<div id="uiras-always-' + _waterStatId + '" class="sh-stat-live-panel open" style="margin-bottom:6px">'
             + '<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);text-align:center;padding:14px">Ladataan...</div>'
@@ -18652,11 +18701,11 @@ function _havLaajennaNappi(svgId) {
   /* `margin-left:auto` työntää napin rivin oikeaan reunaan — rivi
      itse on `flex-start`, jotta jaksovalitsin kohdistuu sisällön
      vasempaan reunaan silloinkin kun asemavalitsinta ei ole. */
-  return '<button type="button" class="hav-nappi" style="margin-left:auto" data-hav-laajenna="' + svgId + '"'
-    + ' aria-label="Laajenna kaavio koko ruudulle" title="Laajenna">'
-    + '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">'
+  return '<button type="button" class="ikoninappi" data-hav-laajenna="' + svgId + '"'
+    + ' aria-label="Laajenna kaavio koko ruudulle" title="Laajenna"><span aria-hidden="true">'
+    + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">'
     + '<path d="M9 3H4a1 1 0 0 0-1 1v5M15 3h5a1 1 0 0 1 1 1v5M9 21H4a1 1 0 0 1-1-1v-5M15 21h5a1 1 0 0 0 1-1v-5"'
-    + ' stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>';
+    + ' stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span></button>';
 }
 
 /* LAAJENNETTU NAKYMA.
@@ -18721,11 +18770,11 @@ const HavLaaja = {
           + '<div class="hl-nimi" id="hl-nimi"></div>'
           + '<div class="hl-sub" id="hl-sub"></div>'
         + '</div>'
-        + '<div class="hl-jaksot" id="hl-jaksot" role="group" aria-label="Jakso"></div>'
-        + '<button type="button" class="hav-nappi" id="hl-sulje" aria-label="Sulje laajennettu kaavio" title="Sulje">'
-          + '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">'
-          + '<path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
-        + '</button>'
+        + '<div class="hl-jaksot segmentti segmentti-pieni" id="hl-jaksot" role="group" aria-label="Jakso"></div>'
+        /* Sama sulkunappi kuin paneeleissa (`.paneeli-sulje`, V7): ympyrä
+           ja X samasta lähteestä, osumapinta 44 px napilta itseltään. */
+        + '<button type="button" class="paneeli-sulje" id="hl-sulje" aria-label="Sulje laajennettu kaavio" title="Sulje">'
+          + '<span aria-hidden="true">' + _SULJE_SVG + '</span></button>'
       + '</div>'
       + '<div class="hl-lukema" id="hl-lukema" role="status"></div>'
       + '<div class="hl-kaavio" id="hl-kaavio"></div>';
@@ -18875,10 +18924,6 @@ const HavLaaja = {
          asiasta ajautuisi erilleen. */
       const on = b.getAttribute('aria-pressed') === 'true';
       k.setAttribute('aria-pressed', on ? 'true' : 'false');
-      k.style.cssText = 'font-variant-numeric:tabular-nums;font-size:var(--fs-9);padding:4px 9px;border:none;'
-        + 'white-space:nowrap;border-radius:8px;cursor:pointer;'
-        + 'background:' + (on ? 'var(--surface-hi)' : 'transparent') + ';'
-        + 'color:' + (on ? 'var(--ink)' : 'var(--ink-3)') + ';font-weight:' + (on ? '600' : '400');
       k.addEventListener('click', () => { b.click(); });
       this._jaksot.appendChild(k);
     });
@@ -19538,10 +19583,7 @@ function _renderLiveHistory(el, data, wx, asu) {
   /* ── Jaksovalitsin ──────────────────────────────────────────────── */
   var segBtns = tarjolla.map(function (j) {
     var a = j[0] === tunnit;
-    return '<button data-fmi-period="' + j[0] + '" aria-pressed="' + (a ? 'true' : 'false') + '" style="flex:1;font-variant-numeric:tabular-nums;font-size:var(--fs-9);padding:4px 7px;border:none;white-space:nowrap;'
-      + 'background:' + (a ? 'var(--surface-hi)' : 'transparent') + ';'
-      + 'color:' + (a ? 'var(--ink)' : 'var(--ink-3)') + ';font-weight:' + (a ? '600' : '400') + ';'
-      + 'border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:background .15s,color .15s">' + j[1] + '</button>';
+    return '<button type="button" data-fmi-period="' + j[0] + '" aria-pressed="' + (a ? 'true' : 'false') + '">' + j[1] + '</button>';
   }).join('');
 
   /* Vanhentunut data sanotaan ääneen. Ilman tätä kortti näyttää samalta
@@ -19588,7 +19630,7 @@ function _renderLiveHistory(el, data, wx, asu) {
       /* Yhden napin segmenttiraita ei ole valitsin vaan koriste — se
          näyttää siltä että vaihtoehtoja on, vaikka niitä ei ole. */
       + (tarjolla.length > 1
-        ? '<div role="group" aria-label="Jakso" style="display:flex;flex-shrink:0;background:var(--surface-lo);border-radius:10px;padding:2px;gap:1px">' + segBtns + '</div>'
+        ? '<div class="segmentti segmentti-pieni" role="group" aria-label="Jakso">' + segBtns + '</div>'
         : '')
       + _havLaajennaNappi(svgId)
     + '</div>')

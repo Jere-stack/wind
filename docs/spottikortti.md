@@ -12,11 +12,11 @@ samaan graafiin. Huomioi tyyli, esim. sulkijanapit ja niiden toimivuus
 koko apin läpi samanlaiseksi. Tee ensin selkeät ohjeet/strategia, ja minä
 päätän tehdäänkö kaikki vaiheet."*
 
-**Tila:** strategia, ei toteutusta. Mitään koodia ei ole muutettu.
-Vaiheet V0–V7 lopussa; jokainen on oma kokonaisuutensa, jonka voi hyväksyä
-tai hylätä erikseen. Päätettävät kohdat on koottu omaan osioonsa
-(**P1–P9**) — niissä strategia koskee lukittuun sääntöön tai valinta on
-aidosti makuasia.
+**Tila:** toteutettu kokonaan (V0–V7). Käyttäjän päätös 26.9.:
+"tehdään kaikki vaiheet, suositukset käyvät kaikkiin P-kohtiin".
+Strategia on alla sellaisenaan päätöksen pohjana; mitä tehtiin ja
+mitattiin, ja missä toteutus poikkesi strategiasta, on osiossa
+**7. Toteutus ja mittaukset**.
 
 > Osa FoilSpotin muistiinpanoja. Hakemisto ja säännöt ovat `CLAUDE.md`:ssä.
 > Lue myös `docs/ui.md` (spottikortti, havaintokaavio, laaja näkymä,
@@ -466,3 +466,133 @@ V1 on suurin näkyvä parannus ja toimii yksinäänkin. V2 on suurin
   näyttäisi nollaa.
 - **Ei aikajanan muutoksia.** Aikajana on mitattu ja lukittu; kortti
   mukautuu siihen (valittu hetki, valintapolut), ei päinvastoin.
+
+---
+
+## 7. Toteutus ja mittaukset
+
+Kaikki mitattu tuotantobuildista (`npm run build` + `vite preview`),
+WebKit iPhone-kontekstissa (`hasTouch`, `deviceScaleFactor: 3`,
+`Europe/Helsinki`, service worker estetty) ellei toisin sanota. Eleet
+Chromiumilla CDP-kosketustapahtumilla (`Input.dispatchTouchEvent`).
+Harnessit ovat istunnon työtiedostoja (`lahto.mjs`, `ero2.mjs`,
+`napautus.mjs`, `eleet.mjs`, `nappis.mjs`, `merkit.mjs`, `v7.mjs`).
+
+### V0 — lähtötaso
+
+| | ennen |
+|---|---|
+| kortin korkeus (puhelin, Lauttasaari) | 1 374 px |
+| inline-`style`-attribuutteja kortissa | 550 |
+| fonttiperheitä kortissa | 1 |
+| kortin luku vs aikajana spotissa, 48 h | ka 0,51–0,96 m/s, max 1,75–3,09, 46–73 % tunneista yli 0,5 m/s (5 spottia) |
+
+### V1–V3 — kaavio, Paras ja mallivalikko
+
+Moduulit: `KorttiSarjat` (data), `Tuulikaavio` (piirto, asut
+`kortti`/`rivi`/`laaja`), `Ennuste` (osio). Kortin vanha
+`build24hChart` (1 200 riviä) on poistettu.
+
+- **Paras = kartan sekoitus.** `wxTunneittain` sai `opts`in (perheet,
+  dyn-sarja, pohja, lähteet), ja perheet vaihdetaan tilapäisesti ja
+  palautetaan (`_perheetTilapaisesti`). Spotin ECMWF 9 km -sarja tulee
+  `MalliHila.pisteenSarja`sta samalla avaimella ja muistilla kuin
+  kartan keskipisteen sarja. **Kortti vs aikajana spotissa 48 h:
+  0,0000 m/s viidessä spotissa** (ennen 0,51–0,96). Aikajana ei
+  muuttunut: mitattu samassa ajossa kortin laskennan jälkeen.
+- **Vertailumallit puhtaina**: HARMONIE ja MET Nordic varastosta ilman
+  pohjaa ja muita perheitä, ECMWF/ICON/GFS `api/malli`sta (sama data
+  kuin kartan pakotus). Sarja loppuu mallin jakson päässä.
+- **Napautus valitsee tunnin**: 3/3 (+12 h, +30 h, −2 h), WebKit.
+- **Laaja**: sama piirto, asu `laaja`; allekkain ja päällekkäin.
+- `api/harmonie` palauttaa nyt sademäärän (`Precipitation1h` /
+  `precipitation`) sadepylväitä varten.
+
+**Poikkeamat strategiasta:**
+- *Jaksot* ovat 48 h / 7 vrk / Kaikki (strategiassa oli myös 3 vrk).
+  Vierivät jaksot käyttävät 48 h:n tiheyttä, joten 3 vrk olisi ollut
+  vain lyhyempi 7 vrk.
+- *Hajonta* lasketaan edelleen ECMWF/ICON/GFS-kolmikosta, ja ne
+  haetaan 1,2 s kortin jälkeen myös valitsematta. Strategiassa
+  "suljettu siru ei maksa pyyntöä" — mutta ilman niitä herosta olisi
+  kadonnut mallien yksimielisyys. Hinta on kolme `api/malli`-kutsua
+  kortin avausta kohti (30 min muisti 0,1°:n ruudulle, ei kiintiötä).
+- *Laajan näkymän vetäminen ajassa* (`laajaSiirtoMs`) poistui:
+  vierivä jakso vierii natiivisti, 48 h mahtuu kerralla.
+
+### V4 — rakenne
+
+Hero lukee Paras-sarjaa (luku, puuska, suunta); aikarivi ("NYT La 26.9.
+klo 10 · FMI HARMONIE 2,5 km") korvaa tuntivalitsimen; foil-merkki on
+indeksin otsikossa; osiot Tuuliennuste / Havainnot / Meri samalla
+`.osio-otsikko`lla. Hero piirretään hiljaa uudelleen vain jos luku
+muuttuu Parasin tultua (`spot._heroAvain`).
+
+Löytö matkalla: **spottimerkki ja sen kortti olivat eri mieltä** kun
+kortti siirtyi Parasiin (Lauttasaari 82 vs 46). Merkit lukevat nyt
+samaa sarjaa (`_spotLukema`), ja Paras lasketaan taustalla kaikille
+spoteille (`KorttiSarjat.esilataaSpotit`). Mitattu 4/4 spottia sama
+indeksi merkissä ja kortissa.
+
+### V5 — havaintokaavio
+
+Täyttö kartan rampilla kuten ennusteessa (puuska 0,42 ×, tuuli täysi),
+nuolet musteella, ja spottikortissa saman tunnin Paras-ennuste
+katkoviivana (P9) — myös laajassa. Mellstenin 30 min ikkunassa viivaa
+ei ole (alle kaksi tuntipistettä), ja se on oikein.
+
+### V6 — laitteet
+
+| mittaus | puhelin | iPad |
+|---|---|---|
+| vaakaveto +10 h valitsee noston tunnin | ✓ | ✓ |
+| paneeli pysyy auki vedon jälkeen | ✓ | ✓ |
+| värisevä napautus valitsee | ✓ | ✓ |
+| pystyveto kaaviossa ei valitse | ✓ | ✓ |
+| kontrolli: veto herosta sulkee iPadin paneelin | – | ✓ (suljettu) |
+
+Näppäimistö (työpöytä): →, →, Shift+→, ← = +1, +2, +5, +4 h, fokus
+pysyy kaaviossa jokaisen uudelleenpiirron yli, kartta ei panoroi.
+
+### V7 — tyyli
+
+| | ennen | jälkeen |
+|---|---|---|
+| inline-`style` kortissa | 550 | 173 |
+| pyöreät napit kortissa (osumapinta / ympyrä) | laajennus 30/30 | kaikki 44/30 |
+| segmenttivalitsimia | 2 tyyliä | 1 (`.segmentti`) |
+| X-kuvion kopioita | 5 (kaksi viivanpaksuutta) | 1 (`_SULJE_SVG`) |
+| laajan sulkunappi | `.hav-nappi` | `.paneeli-sulje` |
+
+Kortin korkeus kasvoi 1 374 → 1 698 px: kaavio on 150 px korkea
+(ennen 120) ja siinä on päivä-, tunti-, lähde-, nuoli- ja sadeivit, ja
+mallivalikko on uusi. Strategian tavoite "ensimmäinen ruudullinen
+sisältää heron ja koko kaavion" EI toteudu puhelimella puolikorkealla
+pohjalevyllä — hero ja kaavion alku näkyvät, loput vierittämällä.
+
+### `openSheet` joka tuntiaskeleella
+
+Kortti rakennetaan uudelleen joka aikajanan askeleella (kuten ennen),
+joten sen hinta mitattiin (mediaani 11 kutsusta, WebKit, rinnakkaiset
+buildit vuorotellen):
+
+| | vanha build | uusi, ensin | uusi, korjattu |
+|---|---|---|---|
+| 48 h | 5–7 ms (+ kaavio 50 ms:n viiveellä) | 37–42 ms | 4,9 ms |
+| 7 vrk | – | 52 ms | 5,8 ms |
+
+Kaavion piirto itse oli 0,4–1,5 ms. Loput oli **pakotettua asettelua**:
+`kaare.scrollLeft`in luku ja 7 vrk:lla sen kirjoitus heti kortin
+rakennuksen jälkeen asettelivat koko kortin synkronisesti. Nyt uuden
+kääreen vieritystä ei lueta (se on aina 0), leveys muistetaan
+ikkunan koon mukaan, ja vierivän jakson sijainti asetetaan ruudun
+jälkeen (varalla 120 ms ajastin, koska WebKit voi pidättää
+ruutupyynnön kosketusvierityksen ajan).
+
+Kartan pakotettu malli säilyy kortin laskennan yli (mitattu: ICON,
+perheiden `pois`-tilat ja `dyn.api` samat ennen ja jälkeen).
+
+### Mitä ei voitu mitata täällä
+
+Ruutunopeutta ei (kontti, ks. CLAUDE.md). Aikajanan raahaus kortin
+ollessa auki kannattaa tarkistaa laitteella.

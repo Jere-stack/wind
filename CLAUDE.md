@@ -101,7 +101,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/ui.md` | paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa, kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
-| `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit** — strategia ja päätettävät kohdat P1–P9 |
+| `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V7) |
 | `docs/sujuvuus.md` | **työpöydän** zoomin ja panoroinnin raskautta, windy.comin arkkitehtuuria, sujuvuusstrategiaa, **MapLibre-siirtoa (C2) ja sen mittauksia** |
 
 <details>
@@ -497,9 +497,16 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   pelkkä kahva ja ennustepaneelissa EI MITÄÄN — iPadilla sen sai kiinni
   vain karttaa napauttamalla tai Escillä. Sivupaneelitilassa mitattuna
   X on kaikissa neljässä paneelissa samassa pikselissä (351,4 paneelin
-  kulmasta). Ympyrä on sama kuin `.hav-nappi` (laajennus ja laajan
-  näkymän sulku). Älä palauta tekstinappia äläkä kirjoita paneelille
+  kulmasta). Laajan näkymän sulku on sama `.paneeli-sulje`, ja kaavion
+  laajennusnappi on `.ikoninappi` — sama ympyrä ja 44 px osumapinta
+  (`.hav-nappi` oli 30 px ja poistettiin, V7). X-kuvio on yhdessä
+  paikassa (`_SULJE_SVG`); staattisten nappien span on tyhjä ja
+  täytetään siitä. Älä palauta tekstinappia äläkä kirjoita paneelille
   omaa sulkunappia.
+- **SEGMENTTIVALITSIN ON YKSI (`.segmentti`)**: jaksot (ennuste,
+  havainto, vesi, laaja) ja mallien asettelu. Valittu on korotettu
+  pinta ja muste `aria-pressed`ista; kortin ennusteessa oli musta
+  pilleri ja muualla korotettu — kaksi valitsinta samalle asialle.
 - **YLÄPALKKI ON `.paneeli-yla`: otsikko 17 px/700 vasemmalla, X
   oikealla, 52 px + turva-alue.** Pohjalevyllä (puhelin) turva-aluetta
   ei lasketa, koska levy ei ulotu ruudun yläreunaan; spottikortin
@@ -1189,7 +1196,8 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kolme kutsupaikkaa ja aikakuplan päiväyshaara. `--tl-paivat-h` on
   vakio eikä vaihtele.
 - **Aikajanan valinta kulkee `_tlValitseIdx`:n kautta** (päiväkiskon
-  napautus, näppäimistö, kelihyppy). Älä kirjoita neljättä polkua.
+  napautus, näppäimistö, kelihyppy, spottikortin kaavio). Älä kirjoita
+  viidettä polkua.
 - **LIIKKUVA VALINTA KULKEE `_tlSeuraaHetkea`:N KAUTTA.** Sormi
   tuntinauhalla, sormi päiväkiskolla ja play liikuttavat valintaa ILMAN
   vahvistushetkeä, ja kaikki tuntiin sidottu (aikakupla, päiväkorostus,
@@ -1275,11 +1283,11 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **PIILOTETTU JAKSORIVI TYHJENNETÄÄN.** Sama näkymä avataan peräkkäin
   eri kaavioille, ja `display:none`-haarasta palaaminen ilman
   tyhjennystä jätti piiloon edellisen kaavion napit (mitattu kolme).
-- **LAAJA ON 1:1 PIKSELEIHIN, KORTTI VENYTTÄÄ.** Kortin ennustekaavio
-  on `preserveAspectRatio="none"` ja sen 300 yksikön viewBox venyy
-  ~407 px:iin, eli teksti on jo 36 % leveämpää kuin korkeaa; vaakassa
-  sama kerroin olisi 2,7. Laajan viewBox ON laatikon pikselikoko ja
-  luettavuus ostetaan kirjasinkoolla (`fs`), ei venytyksellä.
+- **KAAVIOT OVAT 1:1 PIKSELEIHIN, MYÖS KORTILLA.** Kortin vanha
+  ennustekaavio oli `preserveAspectRatio="none"` ja sen 300 yksikön
+  viewBox venyi ~407 px:iin (teksti 36 % leveämpää kuin korkeaa). Uusi
+  `Tuulikaavio` mitataan laatikostaan ja piirretään pikseleinä kortilla
+  ja laajassa; luettavuus ostetaan kirjasinkoolla (`asu.fs`).
 - **LAAJENNUS EI SAA KAVENTAA MITÄÄN, JA SE MITATAAN NÄKYVÄSTÄ
   PIIRTOALUEESTA.** Ulkomitta valehtelee aina kun kaavio vuotaa
   kääreensä yli — ensimmäinen mittari teki juuri tämän virheen ja
@@ -1287,16 +1295,12 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   havainto 332 → 334, vesi 314 → 330. Y-akselin ura on `20 × fs`
   (kaksinumeroinen lappu) ja vedenlämmössä `26 × fs` ("12.5°");
   ensimmäinen `30 × fs` jätti 25 px tyhjää ja rikkoi säännön.
-- **Y-AKSELIN URA VEDETÄÄN TÄYTTEESEEN KERRAN, EI KAHDESTI.**
-  Ennustekaaviossa kompensaatio oli sekä kääreen
-  `margin-left: -yPad`issa ETTÄ SVG:n `calc(100% + yPad)`-leveydessä:
-  kääre 382 px, SVG 414 px, ja oikea laita jäi `overflow-x: auto`:n
-  taakse. Mitattuna 24 h jaksolla piiloon jäi 26,5 px eli **1,8 tuntia
-  vuorokaudesta** — ja juuri se jakso on määritelty vierittämättömäksi
-  (`PERIOD_W['24h'] = null`). Fluidissa SVG on `width: 100%`. Viisi
-  päivää ja Kaikki vierittyvät tarkoituksella ja saavat leveytensä
-  `W`:stä. Vedenlämpökaaviossa sama kuvio on oikein, koska siellä
-  molemmat termit ovat SAMASSA elementissä ja kumoavat toisensa.
+- **Y-AKSELIN URA VEDETÄÄN TÄYTTEESEEN KERRAN, EI KAHDESTI** —
+  vedenlämpökaaviossa (havainto- ja vesikaavio vuotavat kortin
+  täytteeseen). Ennustekaaviolla ei ole enää y-akselin uraa: ruudukon
+  luvut ovat piirtoalueen sisällä vasemmassa reunassa JA jokaisen
+  keskiyön kohdalla, jotta ne näkyvät myös vierivässä jaksossa, ja
+  kaavio vuotaa kortin täytteeseen `.en-kaare`n marginaalilla (−14 px).
 - **LAAJASSA LUKEMA MENEE KIINTEÄLLE RIVILLE MYÖS UUSISSA
   KAAVIOISSA.** `attachTooltip`in kolmas parametri (`scrub`) ja
   vedenlämmön `el._uwScrub` ovat sama ratkaisu kuin `_havScrub`:
@@ -1313,13 +1317,11 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   **Boforille ei saa keksiä käänteismuunnosta** (sama sääntö kuin
   havaintokaavion gradientissa): sille tikit OVAT `Units._bft`-kynnykset,
   mikä on boforin luonnollinen akseli eikä kiertotie.
-- **AKSELIN TIHEYS TULEE PIKSELEISTÄ, EI `maxV`:STÄ.** Askel oli
-  `maxV>15?4:maxV>8?2:1`, joten kortti ja kaksi kertaa korkeampi laaja
-  näkymä saivat saman askeleen — laajassa mitattiin kuusi viivaa. Nyt
-  askel on pienin tikkaista 1/2/5/10/20/50 joka antaa vähintään
-  **16·FS px** välin. Kortti pitää entisen tiheytensä (4 lukemaa),
-  laaja saa 11. Kymmenellä laaja päätyi 23 viivaan — se on ruutupaperia,
-  ei asteikkoa.
+- **AKSELIN TIHEYS TULEE PIKSELEISTÄ, EI `maxV`:STÄ.** Askel on pienin
+  tikkaista 1/2/5/10/20/50 joka antaa vähintään `asu.ruutuVali · fs` px
+  välin (kortti 24, laaja 40, allekkainen rivi 22). Laaja sai
+  ensimmäisellä kortin arvolla kahden solmun askeleen ja 19 viivaa —
+  ruutupaperia, ei asteikkoa.
 - **FOILAUSRAJA ON VAHVEMPI KUIN RUUDUKKO.** Kun ruudukko tiheni,
   6 m/s raja katosi sen sekaan: molemmat olivat samaa hiekkaa ja ero oli
   vain viivanleveys. Raja on sovelluksen oma päätöskynnys (foilBadge
@@ -1328,46 +1330,30 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   jottei kaksi viivaa paksunna sitä. **FMI-rajamerkki pysyy vaaleassa
   hiekassa** (`#CDBE9A`) — se on kontekstia eikä päätöskynnys, ja juuri
   se ero on nyt näkyvissä.
-- **MALLIN PALLO ON OMAN VIIVANSA VÄRINEN, PÄÄVIIVAN PALLO `ink()`.**
-  Kaikki pallot värjättiin lukemalla (`ColorRamp.ink(v)`), eli ne
-  kertoivat saman minkä pallon KORKEUS jo kertoo — ja kolme mallia
-  samassa kohdassa saivat lähes saman värin (mitattu rgb(61,94,104) /
-  rgb(60,93,93) / rgb(60,80,41)). Pallo on piste omalla viivallaan,
-  joten se on viivan värinen; sama koskee selitteen riviä. Pääviiva on
-  poikkeus, koska se EI ole yhtä väriä vaan karttarampin gradientti.
-  Pallon kehä on VAALEA (`#FAF5E7`): tumma sulaisi sekä viivaan että
-  tuuligradienttiin.
-- **LUKEMALAATIKKO MENEE OSOITTIMEN SIVUUN, EI PALLOJEN PÄÄLLE.**
-  Laatikko oli `translateX(-50%)` + `top: 4px` eli naulattu osoittimen
-  päälle ja kuvaajan ylälaitaan: mitattuna se peitti **kaikki neljä
-  palloa jokaisessa kolmessa osoituskohdassa**, ja vuoti kuvaajan yli
-  (11 px vasemmalta, 18 px oikealta). Nyt se on sillä puolella
-  osoitinviivaa jolla on tilaa, pystysuunnassa pallorypään keskellä ja
-  kuvaajaan rajattuna — mitattu 0/4 peitossa kaikissa kolmessa.
-  **RAKO ON PALLON SÄDE PLUS VÄLI** (`10 + 6·lw`): pelkkä kymmenen
-  pikseliä jätti laatikon reunan täsmälleen pallon reunaan ja yksi
-  neljästä jäi yhä alle.
-- **LAAJAA KAAVIOTA VEDETÄÄN AJASSA, JA KÄÄRE SÄILYY VEDON YLI.**
-  Laaja oli umpikuja: 24 h jaksolla kääreessä ei ollut vieritettävää
-  lainkaan ja 5 vrk jaksolla sitä oli 382 px eli puolet kuvaajasta —
-  mutta SVG:llä on `touch-action: none` ja `attachTooltip` kutsuu
-  `preventDefault`ia, joten mitattu 168 px veto siirsi kaaviota 0 px.
-  Nyt raahaus on sovelluksen omaa työtä ja tekee yhden asian: siirtää
-  aikaa. Järjestys on se missä liike on halvinta — ensin kääreen oma
-  vieritys, ja kun se on päässä, ikkuna siirtyy TUNNEITTAIN
-  (`laajaSiirtoMs`, sarja on tuntihilalla). Kuuntelijat kiinnitetään
-  KERRAN ja vain SVG kääreen sisällä vaihtuu; jos kääre korvattaisiin,
-  raahaus kuolisi kesken eleen omaan uudelleenpiirtoonsa — sama ansa
-  kuin päiväkiskossa. Tuore geometria talletetaan kääreelle
-  (`kaare._d`), ei suljeta sulkeumaan. Siirto NOLLATAAN avattaessa ja
-  jaksoa vaihdettaessa: muuten laaja aukeaisi johonkin eiliseen kohtaan
-  ilman että mikään kertoisi miksi.
+- **ENNUSTEKAAVION LUKEMA ON KIINTEÄLLÄ RIVILLÄ, EI KELLUVASSA
+  LAATIKOSSA** (`.en-lukema`, `Ennuste._solut`). Kelluva laatikko
+  peitti mitattuna ensin kaikki pallot ja vaati sitten sivuun
+  siirron; allekkain-asussa niitä olisi ollut neljä. Rivi näyttää
+  levossa valitun tunnin ja osoittaessa osoitetun, korkeus on varattu
+  (34 px) jottei kaavio hypi. Laajassa sama tieto menee `laaja.rivi`in.
+- **TUNTI VALITAAN KAAVIOSTA AIKAJANAN POLKUA** (`Ennuste.valitse` →
+  `_tlValitseIdx`). Napautus (matka < 6 px, myös värisevä) ja 48 h:n
+  vaakaveto valitsevat noston hetken; kesken vedon ei valita mitään,
+  koska `openSheet` rakentaisi kortin uudelleen sormen alta. Vierivässä
+  jaksossa (7 vrk, Kaikki) vaakaveto on natiivia vieritystä
+  (`touch-action: pan-x pan-y`). Nuolet vaihtavat tuntia kaavion
+  fokuksessa, ja fokus palautetaan uuteen kaavioon
+  (`Ennuste._palautaFokus`). Mitattu CDP-kosketuksella puhelimella ja
+  iPadilla: veto, värisevä napautus ja pystyveto oikein, ja kontrolli
+  (veto herosta) sulkee iPadin paneelin.
+- **KORTIN OMA TUNTIVALITSIN ON POISTETTU** (`#sh-timepill`, P5). Se oli
+  kolmas valitsin samalle asialle ja kirjoitti valinnan ohi
+  `_tlValitseIdx`:n. Älä palauta sitä; heron aikarivi kertoo hetken.
 - **MALLIDATAA EI MITATA VERKOSTA.** Sama build antoi peräkkäisillä
-  ajoilla 75 ja 0 malliviivaa, ja `wk.mjs`:n curl-välimuisti tallettaa
-  myös epäonnistumisen. Mittari istuttaa sarjat sovelluksen OMAAN
-  välimuistiin (`spot._modelCache`, avain
-  `'_mc_'+nimi+'_'+floor(Date.now()/3600000)`) — se on sovelluksen oma
-  polku, joten mitattava koodi on sama kummin päin.
+  ajoilla 75 ja 0 malliviivaa. Kortin sarjat ovat
+  `KorttiSarjat._m`:ssä (spotin nimi → `{avain, sarjat}`), avain
+  varaston rakennus + tunti; mittari istuttaa tai lukee ne sieltä
+  (`FS.KorttiSarjat` `?perf=1`:llä).
 
 **Havaintoasemat**
 
@@ -1400,14 +1386,18 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   on 3,9 km päässä mutta ei lähetä tuulta, joten `_fmiLoadWithFallback`
   ohittaa sen. Jos mittaat asemavalintaa, mittaa KETJU äläkä listan
   ensimmäistä — muuten Kallahti näyttää rikkinäiseltä vaikka se toimii.
-- **HAVAINTOKAAVION TÄYTTÖ ON `paperi()` JA VIIVAT `--ink`.** Väri on
-  funktio KORKEUDESTA, ei sarjasta: vaakaviipale korkeudella y saa sen
-  nopeuden värin jota y edustaa. Älä sävytä viivoja rampilla — mitattuna
-  `ink()` katoaa oman ramppinsa päälle (kontrasti 1,14–3,33, mediaani
-  1,6, pohja 1,14 juuri 4–8 m/s kohdalla). Pienin kontrasti täyttöä
-  vasten: `--ink` 3,94:1, `--ink-2` 1,61:1, `--ink-3` 1,25:1 — `--ink`
-  on ainoa joka kestää. Yksi kanava, yksi merkitys: täyttö kantaa
-  arvon, viivat muodon.
+- **KORTIN TUULIKAAVIOT OVAT KARTAN RAMPPIA, VIIVAT `--ink`**
+  (P1, docs/spottikortti.md). Väri on funktio KORKEUDESTA, ei
+  sarjasta: vaakaviipale korkeudella y saa sen nopeuden värin jota y
+  edustaa. Ennuste- ja havaintokaavio käyttävät samaa: `ColorRamp.rgb()`
+  alfalla `Tuulikaavio._alfa(ms)` (0,30 tyynestä 0,78:aan 8 m/s:stä),
+  keskituuli täytenä ja puuska 0,42-kertaisena. Havaintokaavio oli
+  ennen `paperi()`. Alfa kasvaa nopeuden mukana, koska rampin nollapää
+  on tummaa yösinistä ja tyyni päivä olisi muuten kaavion raskain
+  kohta. Älä sävytä viivoja rampilla — mitattuna `ink()` katoaa oman
+  ramppinsa päälle (kontrasti 1,14–3,33) — ja kaavion luvuilla on
+  paperihalo (`paint-order: stroke`), joten niiden kontrasti ei riipu
+  täytöstä.
 - **`gradientUnits="userSpaceOnUse"` on pakollinen** täytön
   gradientissa. Oletusarvoinen objectBoundingBox suhteuttaisi sen
   täyttöpolun rajauslaatikkoon, jonka yläreuna on korkein puuskapiikki
@@ -1822,17 +1812,20 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
 
 **Kenttä ja data**
 
-- **SOVELLUKSESSA ON KAKSI DATATASOA, ja ne antavat eri luvun.** Kartta
-  (lämpökartta, kapseli, partikkelit) ja aikajana lukevat
-  `Saalaatat`-varastoa (FMI, MET Nordic, ECMWF 9 km ja ECMWF sekoitettuina, ks.
-  "MALLIT SEKOITETAAN PAINOKANAVALLA"); spottikortit lukevat lähintä
-  ennustepistettä, joka on Suomessa käytännössä aina spotti ja siis
-  HARMONIE. Alla oleva mittaus on ajalta jolloin kartta oli Suomessa
-  ECMWF:ää alle zoomin 10. Mitattu 3 893 vertailulla: ka 1,38 m/s, med 1,20, max 7,34,
-  ja **86 % tunneista yli 0,5 m/s rajan**. Ero KASVAA tuulen mukana
-  (0,82 → 2,78 m/s välillä 0–4 ja 10–14 m/s). Avomerellä 0,10 m/s,
-  koska siellä molemmat tulevat varastosta. Älä oleta että jokin kartan
-  luku ja jokin paneelin luku ovat samasta lähteestä.
+- **SPOTTIKORTTI JA SPOTTIMERKIT LUKEVAT SAMAA SEKOITUSTA KUIN KARTTA**
+  (`KorttiSarjat`, "Paras"). Ennen sovelluksessa oli kaksi datatasoa:
+  kartta ja aikajana varastosta, kortit ja merkit spotin omasta
+  HARMONIE → Open-Meteo -sarjasta, ja ne antoivat eri luvun (mitattu
+  3 893 vertailulla ka 1,38 m/s ennen MET Nordicia; spotissa 48 h
+  ennen tätä muutosta 0,51–0,96 m/s ja 46–73 % tunneista yli 0,5 m/s).
+  Nyt Paras on `Saalaatat.wxTunneittain(lat, lng, 0.05, { perheet:
+  ['fmi','metnordic'], dyn: spotin ECMWF 9 km -sarja })`: kortin ja
+  aikajanan ero spotissa on mitattuna 0,0000 m/s viidessä spotissa, ja
+  merkki ja sen kortti näyttävät saman indeksin (ennen 82 vs 46).
+  `spot.wx` on yhä olemassa: se on varatie (varasto rikki, Paras
+  matkalla) ja sää-rivien lähde (sade mm/h, lämpötila, pilvet), joita
+  varastossa ei ole. Ennustepaneeli ja lähimmän pisteen muut käytöt
+  lukevat yhä sitä.
 - **AIKAJANA LUKEE VARASTOA, ei lähintä ennustepistettä**
   (`aikajananLahde`). Valinta tehtiin YHTENÄISYYDEN perusteella, ei
   tarkkuuden — älä purkaa sitä tarkkuudella ilman uutta mittausta.
@@ -1841,10 +1834,9 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   INTERPOLOINTI eikä data: kapseli on bikuubinen solmuhila, aikajana
   bilineaarinen laattanäyte.
 - **AIKAJANAN INDEKSI EI OLE SPOTIN INDEKSI.** Akselit eivät ala
-  samasta hetkestä. `renderSpots`, `_spotVaistoMuuttuisi` ja
-  `openSheet` hakevat indeksin AJASTA yhden funktion kautta
-  (`_spotIdx`). Älä kirjoita neljättä polkua äläkä siirrä indeksiä
-  sellaisenaan.
+  samasta hetkestä. Merkit lukevat spotin lukeman `_spotLukema`sta
+  (Paras AJASTA, varatie `_spotIdx`), `openSheet` valitusta hetkestä
+  (`State.valittuMs`). Älä siirrä indeksiä sellaisenaan.
 - **Kumpi taso on tarkempi EI OLE RATKAISTU.** Viiden asemaparin
   otoksesta vedettiin kerran johtopäätös "aikajana on tarkempi"; 48 h
   otos käänsi järjestyksen, ja siinäkin aikajanan otos oli vain 30
@@ -1893,21 +1885,14 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   oli FMI:n HARMONIEa — `State.activeModel` on pysyvästi
   `'best_match'`, koska mallia ei valita enää käsin.
 - **FMI:N JA OPEN-METEON RAJA LUETAAN `harmonie_hours`ISTA, JA SE ON
-  INDEKSI EIKÄ KESTO.** Raja on `time[hh]`, ei "nyt + 48 h": spottidata
-  palautetaan levyltä (`_restoreSpots`), jolloin sarja on voinut alkaa
-  tunteja sitten ja kelloon sidottu raja osuisi väärään kohtaan.
-  `harmonie_hours === 0` tarkoittaa ettei FMI:tä ole eikä rajaa
-  piirretä. Ehto `State.activeModel === 'fmi_harmonie'` oli kuollutta
-  koodia eikä voinut olla tosi kertaakaan.
-- **KAAVION SELITE KUVAA NÄKYVÄÄ JAKSOA, TYÖKALUVIHJE OSOITETTUA
-  TUNTIA.** Sarja vaihtaa lähdettä kesken matkaa, joten yksi nimi
-  koko kaaviolle olisi väärin toisessa päässä: 24 h jaksolla selite on
-  `FMI HARMONIE 2,5 km`, 5 vrk ja kaikki -jaksoilla
-  `FMI HARMONIE 2,5 km → Open-Meteo`. Selite päivitetään jaksoa
-  vaihdettaessa.
-- **Rajaviivan lappu on rajan VASEMMALLA ja lukee "FMI päättyy".**
-  Pelkkä "FMI" keskellä viivaa ei kerro kummalla puolella FMI on, ja
-  juuri se on rivin koko asia.
+  INDEKSI EIKÄ KESTO** — varatiellä, kun kortti lukee `spot.wx`:ää.
+  Raja on `time[hh]`, ei "nyt + 48 h" (sarja voi olla levyltä
+  palautettu). `harmonie_hours === 0` = ei FMI:tä.
+- **KORTIN KAAVIO KERTOO LÄHTEEN TUNNEITTAIN, EI SELITTEESSÄ.**
+  Lähdekaista kaavion yläreunassa jakaa jakson sen mukaan kenen
+  osuus sekoituksessa on suurin (`hourly.lahde`, `Lahde.LYHYET`), ja
+  lukemarivi nimeää osoitetun tunnin lähteen. Vertailumalli loppuu
+  näkyvästi ("ICON päättyy") eikä jatku hiljaa toisena mallina.
 
 - **Interpolointijärjestys: paikassa vektorit, ajassa nopeus ja suunta
   erikseen.** Suuntien aritmeettinen keskiarvo hyppää väärään suuntaan 0/360
