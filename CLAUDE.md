@@ -192,7 +192,8 @@ kokeiltu ja kaadettu mittauksella.
   väreihinsä, akseli oikeaan yksikköön ·
   Latausruutu: kuva esiin, merkki uusiksi ·
   Viisi asiaa: vaalea pohja ja väriasteikko pois, paneelit
-  yhtenäisiksi, liukuväri alemmas, tunti pysyy mallin vaihdossa
+  yhtenäisiksi, liukuväri alemmas, tunti pysyy mallin vaihdossa ·
+  Valikot yhtenäisiksi: sama sulkunappi, sama ele, sama fontti
 - **pwa**: PWA — kotivalikkoon ja rannalle · Mitä välimuistiin menee ·
   Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
   Ikoni ja kotivalikko
@@ -487,12 +488,62 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   vapaan alueen keskelle. Luokan poistaa vasta VIIMEINEN suljettava
   paneeli: ennustepaneelin sulku ei poista sitä jos spottikortti on
   auki.
-- **SIVUPANEELISSA PYSTYVETO EI SULJE MITÄÄN.** Pohjalevyn vetoele
-  ohitetaan (`makeSwipeable`, ennustepaneelin `touchstart`), ja kahva on
-  sulkunappi. Spottikortin verho on sivupaneelina läpinäkyvä (kortti ei
-  ole modaali ja kartan pitää pysyä luettavana sen vieressä; verho jää,
-  koska ohi napauttaminen sulkee kortin). Asetukset pitävät oman
-  tummentavan verhonsa.
+- **JOKAISESSA PANEELISSA ON SAMA SULKUNAPPI SAMASSA KOHDASSA**
+  (`.paneeli-sulje`): 30 px:n paperiympyrä ja X, 12 px oikeasta
+  reunasta, osumapinta 44 px NAPILTA ITSELTÄÄN (ympyrä on sisempi
+  span). Asetukset, spotti-/havaintokortti, ennustepaneeli ja
+  pikanäppäimet. Ennen asetuksissa oli magenta "Valmis", korteissa
+  pelkkä kahva ja ennustepaneelissa EI MITÄÄN — iPadilla sen sai kiinni
+  vain karttaa napauttamalla tai Escillä. Sivupaneelitilassa mitattuna
+  X on kaikissa neljässä paneelissa samassa pikselissä (351,4 paneelin
+  kulmasta). Ympyrä on sama kuin `.hav-nappi` (laajennus ja laajan
+  näkymän sulku). Älä palauta tekstinappia äläkä kirjoita paneelille
+  omaa sulkunappia.
+- **YLÄPALKKI ON `.paneeli-yla`: otsikko 17 px/700 vasemmalla, X
+  oikealla, 52 px + turva-alue.** Pohjalevyllä (puhelin) turva-aluetta
+  ei lasketa, koska levy ei ulotu ruudun yläreunaan; spottikortin
+  palkki on 44 px ilman otsikkoa, koska kortin otsikko on sen sisältö.
+- **KAHVA ON ELEEN TARTUNTAKOHTA, EI NAPPI** (`.paneeli-kahva`, sama
+  36×4 px `--hairline` kaikissa pohjalevyissä). Kahvan napautus sulki
+  ennen spottikortin, ja sivupaneelina koko yläpalkki olisi ollut
+  näkymätön sulkunappi. Sivupaneelissa kahvaa ei piirretä.
+- **SULKUELE ON SAMA KAIKISSA: oikean reunan paneeli sulkeutuu vedolla
+  oikealle (`sivuveto`), pohjalevy vedolla alas (`makeSwipeable`).**
+  Asetukset ovat laatikko joka laitteella, joten ne vedetään aina
+  oikealle; spottikortti ja ennustepaneeli sivupaneelina oikealle ja
+  puhelimella alas. 80 px tai heitto 0,5 px/ms sulkee, muuten paneeli
+  palaa. Mitattu oikeilla kosketustapahtumilla (CDP
+  `Input.dispatchTouchEvent`): 30/30, ja kontrolli vanhaa buildia
+  vasten kääntyy (iPadin spottikortti ei sulkeutunut vedolla lainkaan).
+- **VAAKAELE KUULUU ENSIN SISÄLLÖLLE** (`_vaakaEleenOmistaja`).
+  Vaakaan vierivän nauhan (tuntivalitsin, 5 vrk:n kaavio), ≥ 120 px
+  leveän kaavion ja `touch-action: none` -elementin päältä alkava veto
+  ei sulje — muuten jokainen tunnin valinta sulkisi kortin. Pienet
+  kuvake-SVG:t (X, tähti) EIVÄT estä, eikä kahva (se on paneelin oma).
+- **POHJALEVYN ALASVETO VAIN KAHVASTA TAI LISTAN OLLESSA YLHÄÄLLÄ.**
+  Ennustepaneelilla oli oma käsittelijä joka lähti mistä tahansa: kun
+  käyttäjä veti listaa alas palatakseen ylös, lista vieri JA paneeli
+  sulkeutui (mitattu vanhalla buildilla). Nyt se käyttää samaa
+  `makeSwipeable`a kuin spottikortti (`kahva`, `scrollEl` parametreina)
+  ja saman `.dragging`-säännön.
+- **SIVUPANEELISSA PYSTYVETO EI SULJE MITÄÄN**, ja liuku on sama
+  .34 s kuin asetuksilla. Spottikortin verho on sivupaneelina
+  läpinäkyvä (kortti ei ole modaali ja kartan pitää pysyä luettavana sen
+  vieressä; verho jää, koska ohi napauttaminen sulkee kortin).
+  Asetukset pitävät oman tummentavan verhonsa, ja puhelimella kaikki
+  verhot ovat samat `rgba(6,10,14,.40)` (ennen .32 ja musta .45).
+- **NAPIT PERIVÄT FONTTIPERHEEN** (`button, input, select, textarea
+  { font-family: inherit }`). Ilman sitä selain antoi napeille oman
+  fonttinsa: mitattuna 13 elementtiä spotti- ja havaintokortissa oli
+  Arialia. Vain perhe — koko ja paino ovat napin omia. Myös `<kbd>`
+  on järjestelmäfonttia, ei tasalevyistä.
+- **KYTKIN ON YKSI: 40×24, 20 px:n nuppi, 16 px:n matka.**
+  Ennustepaneelin kytkin oli 36×20 ja nimi 10 px `--ink-3`; nyt sama
+  kuin asetuksissa ja nimi 12 px `--ink-2` (päällä `--ink`).
+- **Tähti ja jakonappi ovat PIIRRETTYJÄ** (`_tahtiSVG`, `_JAKO_SVG`),
+  eivät ☆/⇗-merkkejä. Jakonappi avaa kosketuslaitteella järjestelmän
+  jakoarkin (`navigator.share`) ja kopioi työpöydällä linkin;
+  peruutus (AbortError) ei ole virhe.
 
 **Saavutettavuus**
 

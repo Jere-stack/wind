@@ -159,6 +159,13 @@ body {
   overscroll-behavior: none;
   /* touch-action ei bodylle — estää iOS double-tap zoom detection */
 }
+/* NAPIT PERIVÄT FONTTIPERHEEN. Selaimen oletustyyli antaa `<button>`ille
+   oman fonttinsa, joten kaikki napit joille ei ollut kirjoitettu
+   `font: inherit` piirtyivät muulla kuin järjestelmäfontilla: mitattuna
+   spottikortissa yhdeksän elementtiä (tähti, jakonappi, kaavion
+   jaksonapit, asemavalitsin) ja havaintokortissa neljä olivat Arialia.
+   Vain PERHE — koko ja paino jäävät jokaisen napin omalle säännölle. */
+button, input, select, textarea { font-family: inherit; }
 #app { position: absolute; inset: 0; }
 
 /* RUUDUNLUKIJALLE, EI RUUDULLE.
@@ -286,7 +293,10 @@ body {
  * suljetaan napauttamalla ohi. Asetukset pitävät oman verhonsa. */
 :root { --paneeli-lev: 400px; }
 @media (min-width: 740px) {
-  html #settings-popup { width: var(--paneeli-lev); }
+  html #settings-popup {
+    width: var(--paneeli-lev);
+    border-left: 1px solid var(--hairline);
+  }
   html #sheet,
   html #forecast-panel {
     top: 0; bottom: 0; left: auto; right: 0;
@@ -295,11 +305,31 @@ body {
     border-left: 1px solid var(--hairline);
     box-shadow: -14px 0 40px rgba(4,8,12,.42);
     -webkit-transform: translate3d(100%,0,0); transform: translate3d(100%,0,0);
+    transition: transform .34s cubic-bezier(.4,0,.2,1), visibility 0s linear .34s;
   }
-  /* Vetokahva on pohjalevyn ele. Sivupaneelissa pystyveto ei sulje
-     mitään (`sivupaneelit()` ohittaa sen), joten kahva on sulkunappi. */
-  html #sheet-handle { padding: 12px 0 8px; }
-  html #fc-handle::after { visibility: hidden; }
+  /* SAMA LIUKU KUIN ASETUKSILLA. Spottikortti liukui jousella .38 s ja
+     ennustepaneeli omalla käyrällään; sivupaneeleina ne ovat sama esine,
+     joten myös liike on sama. `.open` kantaa luokan, joten avautuvan
+     tilan sääntö tarvitsee oman valitsimensa. */
+  html #sheet.open,
+  html #forecast-panel.open {
+    transition: transform .34s cubic-bezier(.4,0,.2,1), visibility 0s linear 0s;
+  }
+  /* Sivupaneelissa ei ole kahvaa — pystyveto ei sulje mitään
+     (`sivupaneelit()` ohittaa sen), ja sivuttainen veto toimii koko
+     paneelista kuten asetuksissa. Yläpalkki on silti sama 52 px +
+     turva-alue kuin asetuksissa, joten X on jokaisessa paneelissa samassa
+     pikselissä. */
+  html #sheet-handle::before,
+  html #fc-handle::before { display: none; }
+  html #sheet-handle {
+    height: calc(52px + env(safe-area-inset-top));
+    padding-top: calc(env(safe-area-inset-top) + 4px);
+  }
+  html #fc-handle {
+    min-height: calc(52px + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
+  }
   html #sheet-overlay.open { background: rgba(0,0,0,0); }
   html #sp-body-inner { padding-bottom: 24px; }
   /* Aikajana ja alapalkki väistyvät paneelin tieltä. Ilman tätä
@@ -307,13 +337,13 @@ body {
      joita leveä ruutu tuo lisää. Luokka tulee paneelin avauksesta,
      jotta siirtymä kulkee samaa tahtia paneelin kanssa. */
   html.paneeli-auki #bottom { right: var(--paneeli-lev); }
-  html #bottom { transition: right .38s var(--spring); }
+  html #bottom { transition: right .34s cubic-bezier(.4,0,.2,1); }
   /* Kosketuslaitteella kapseli on ylälaidan keskellä, ja pystyssä
      iPadilla paneeli peittäisi sen oikean puoliskon. Kapseli siirtyy
      vapaan alueen keskelle. (Työpöydällä se on jo vasemmassa
      nurkassa.) */
   html.paneeli-auki:not(.tyopoyta) #kapseli { left: calc((100% - var(--paneeli-lev)) / 2); }
-  html:not(.tyopoyta) #kapseli { transition: opacity .28s ease, transform .28s ease, left .38s var(--spring); }
+  html:not(.tyopoyta) #kapseli { transition: opacity .28s ease, transform .28s ease, left .34s cubic-bezier(.4,0,.2,1); }
 }
 
 /* ============================================================
@@ -404,14 +434,24 @@ body {
   box-shadow: var(--shadow-3);
   padding: 22px 26px 20px; max-width: 420px; width: calc(100% - 48px);
 }
+/* Otsikkorivi on sama kuin paneeleissa: 17 px otsikko ja X, jonka ympyrä
+   on 12 px kortin oikeasta ja 11 px yläreunasta. Marginaalit kumoavat
+   kortin täytteen (22 / 26 px) napin 44 px:n laatikon verran. */
+#pikanappaimet .pn-yla {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: -18px -21px 8px 0;
+}
 #pikanappaimet h2 {
-  font-size: 14px; font-weight: 700; margin: 0 0 14px; letter-spacing: .2px;
+  font-size: 17px; font-weight: 700; margin: 0; letter-spacing: -0.01em;
 }
 #pikanappaimet dl {
   display: grid; grid-template-columns: auto 1fr; gap: 9px 16px; margin: 0;
 }
 #pikanappaimet dt { display: flex; gap: 4px; }
+/* `<kbd>` saa selaimelta tasalevyisen fontin; täällä se on näppäimen
+   nimi eikä koodia, joten sama järjestelmäfontti kuin muualla. */
 #pikanappaimet kbd {
+  font-family: inherit;
   font-variant-numeric: tabular-nums; font-size: var(--fs-10); font-weight: 600;
   background: var(--surface-lo); border: 1px solid var(--hairline);
   border-bottom-width: 2px; border-radius: 5px;
@@ -678,7 +718,9 @@ html.tyopoyta #kapseli.vaistyy {
 }
 #settings-overlay.open {
   pointer-events: all;
-  background: rgba(6,10,14,.32);
+  /* Sama verho kuin pohjalevyillä (`#sheet-overlay`): kartta tummenee
+     paneelin alla yhtä paljon avattiinpa mikä tahansa. */
+  background: rgba(6,10,14,.40);
 }
 
 #settings-popup {
@@ -707,31 +749,83 @@ html.tyopoyta #kapseli.vaistyy {
   transition: transform .34s cubic-bezier(.4,0,.2,1), visibility 0s linear 0s;
 }
 
-#sp-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: calc(env(safe-area-inset-top) + 14px) 18px 13px;
+/* ── PANEELIN YLÄPALKKI JA SULKUNAPPI ─────────────────────────────
+ *
+ * Jokaisessa paneelissa on SAMA sulkunappi samassa kohdassa: 30 px:n
+ * paperiympyrä ja X oikeassa yläkulmassa, 12 px reunasta. Ennen
+ * asetuksissa oli magenta "Valmis"-teksti, spotti- ja havaintokortissa
+ * pelkkä 36×4 px:n kahva (joka oli myös nappi), ja ennustepaneelissa
+ * ei MITÄÄN: sen kahva oli `aria-hidden` ja sivupaneelina piilossa, eli
+ * iPadilla paneelin sai kiinni vain napauttamalla karttaa tai Escillä.
+ *
+ * Ympyrä on sama kuin kaavion laajennusnapilla ja laajan näkymän
+ * sulkunapilla (`.hav-nappi`) — yksi pyöreä muoto kaikelle mikä avaa
+ * tai sulkee pinnan. Osumapinta on 44 px (Applen minimi) ja se tulee
+ * NAPILTA ITSELTÄÄN, ei pseudoelementiltä; ympyrä on sisempi span.
+ *
+ * Yläpalkki (`.paneeli-yla`) on otsikko vasemmalla ja X oikealla, 52 px
+ * korkea ja turva-alueen verran alempana. Sivupaneelitilassa jokainen
+ * paneeli saa saman palkin, joten X osuu samaan pikseliin avattiinpa
+ * mikä tahansa. */
+.paneeli-yla {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  box-sizing: border-box;
+  min-height: calc(52px + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) 5px 0 16px;
   background: var(--surface);
-  border-bottom: 1px solid var(--hairline);
   flex-shrink: 0;
 }
-#sp-title {
-  margin: 0;
-  font-size: 17px; font-weight: 600; color: var(--ink);
-  letter-spacing: -0.01em;
+.paneeli-yla h2 {
+  margin: 0; min-width: 0;
+  font-size: 17px; font-weight: 700; color: var(--ink);
+  letter-spacing: -0.01em; line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-#sp-close {
-  font-size: 15px; font-weight: 500; color: var(--accent);
-  padding: 4px 2px 4px 12px;
+.paneeli-sulje {
+  flex-shrink: 0; position: relative;
+  width: 44px; height: 44px; padding: 0;
+  border: none; background: none; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--ink-2);
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
   -webkit-user-select: none; user-select: none;
-  transition: opacity .15s;
 }
-#sp-close:active { opacity: .5; }
+.paneeli-sulje > span {
+  width: 30px; height: 30px; border-radius: 50%; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface-lo); border: 1px solid var(--hairline);
+  transition: background .15s ease, transform .12s ease;
+}
+.paneeli-sulje svg { display: block; }
+.paneeli-sulje:active > span { background: var(--surface-hi); transform: scale(.92); }
+@media (hover: hover) {
+  .paneeli-sulje:hover > span { background: var(--surface-hi); }
+}
+/* Rengas ympyrän ympärille, ei 44 px:n laatikon: laatikko on näkymätön. */
+.paneeli-sulje:focus-visible { outline: none; }
+.paneeli-sulje:focus-visible > span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* VETOKAHVA ON ELEEN TARTUNTAKOHTA, EI NAPPI. Sama 36×4 px viiva
+   jokaisessa pohjalevyssä ja samalla värillä (ennustepaneelin kahva oli
+   `--surface-lo` eli lähes näkymätön, spottikortin `--hairline`). */
+.paneeli-kahva { position: relative; }
+.paneeli-kahva::before {
+  content: ''; position: absolute; top: 7px; left: 50%;
+  width: 36px; height: 4px; margin-left: -18px; border-radius: 2px;
+  background: var(--hairline);
+  transition: background .15s, width .15s, margin-left .15s;
+  pointer-events: none;
+}
+.paneeli-kahva.dragging::before,
+.dragging > .paneeli-kahva::before { background: var(--ink-3); width: 50px; margin-left: -25px; }
+
+#sp-header { border-bottom: 1px solid var(--hairline); }
 
 #sp-body-wrap { position: relative; flex: 1; overflow: hidden; }
 #sp-body {
   position: absolute; inset: 0;
   overflow-y: auto; overflow-x: hidden;
-  padding: 4px 16px calc(env(safe-area-inset-bottom) + 32px);
+  padding: 18px 16px calc(env(safe-area-inset-bottom) + 32px);
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
@@ -1917,7 +2011,7 @@ html.tyopoyta {
   background: rgba(0,0,0,0); pointer-events: none;
   transition: background .35s;
 }
-#sheet-overlay.open { background: rgba(0,0,0,.45); pointer-events: all; }
+#sheet-overlay.open { background: rgba(6,10,14,.40); pointer-events: all; }
 
 #sheet {
   position: absolute; bottom: 0; left: 0; right: 0; z-index: 30;
@@ -1944,23 +2038,17 @@ html.tyopoyta {
 #sheet.dragging { visibility: visible; }
 #sheet.dragging { transition: none; }
 
+/* Pohjalevyn yläpalkki: kahva keskellä ja X oikealla. 44 px eikä 26:
+   X tarvitsee rivinsä, eikä se mahdu sisällön oikeaan yläkulmaan, jossa
+   on spottikortin iso tuulilukema. Otsikkoa ei ole — kortin otsikko on
+   sen sisältö (spotin tai aseman nimi). */
 #sheet-handle {
-  display: flex; justify-content: center; align-items: center;
-  padding: 12px 0 10px;
+  display: flex; justify-content: flex-end; align-items: flex-start;
+  height: 44px; padding: 0 5px 0 0; box-sizing: border-box;
   flex-shrink: 0;
-  cursor: grab;
   touch-action: none;
   background: transparent;  /* saman värinen kuin #sheet */
 }
-#sheet-handle:active { cursor: grabbing; }
-#sheet-handle::after {
-  content: ''; display: block;
-  width: 36px; height: 4px; border-radius: 2px;
-  background: var(--hairline);
-  opacity: .9;
-  transition: background .15s, width .15s;
-}
-#sheet-handle:active::after { background: var(--ink-3); width: 50px; }
 
 #sheet-scroll {
   flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
@@ -2127,7 +2215,10 @@ html.tyopoyta {
 /* -- Time picker ------------------------------------------------ */
 .sh-timepill {
   -webkit-user-select: none; user-select: none;
-  margin: 4px -20px 14px;
+  /* Alaväli 4 px eikä 14: valitun tunnin alle jäi 56 px:n nauhan
+     oman tyhjän lisäksi 30 px ennen seuraavaa riviä, ja se luki
+     kortissa aukkona. */
+  margin: 4px -20px 4px;
   display: flex; align-items: center;
   height: 56px;
 }
@@ -2996,14 +3087,17 @@ html[data-tutka="1"] #lahde-merkki {
   display: flex; flex-direction: column; align-items: center; position: relative;
   gap: 6px;
 }
+/* SAMA PINTA KUIN SPOTTIKORTILLA: kulma `--sheet-radius`, varjo
+   `--shadow-3`. Paneelilla oli oma 22 px:n kulma, oma 0,7:n varjo,
+   yläreunan hiusviiva JA `backdrop-filter: blur(24px)` — viimeinen
+   läpinäkymättömän paperin alla, eli GPU sumensi joka ruudussa karttaa
+   jota ei näy. */
 #forecast-panel {
   color: var(--ink);
   position: absolute; bottom: 0; left: 0; right: 0; z-index: 31;
   background: var(--surface);
-  border-top: 1px solid var(--hairline);
-  border-radius: 22px 22px 0 0;
-  -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px);
-  box-shadow: 0 -8px 40px rgba(0,0,0,.7);
+  border-radius: var(--sheet-radius) var(--sheet-radius) 0 0;
+  box-shadow: var(--shadow-3);
   -webkit-transform: translate3d(0,100%,0); transform: translate3d(0,100%,0);
   /* Sama kuin asetuspaneelilla ja spottikortilla: suljettuna pois myös
      sarkainkierrosta. Tämä paneeli tarvitsi sen erityisesti, koska sen
@@ -3021,20 +3115,34 @@ html[data-tutka="1"] #lahde-merkki {
   visibility: visible;
   transition: transform .38s cubic-bezier(.32,.72,.24,1), visibility 0s linear 0s;
 }
-#fc-handle { display: flex; justify-content: center; padding: 10px 0 6px;
-  position: sticky; top: 0; background: var(--surface); z-index: 1; }
-#fc-handle::after { content: ''; width: 36px; height: 4px; border-radius: 2px;
-  background: var(--surface-lo); }
-#fc-header { padding: 4px 20px 14px; }
-#fc-title { margin: 0; font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
+/* Vedon aikana ei siirtymää, kuten spottikortilla (`#sheet.dragging`):
+   muuten paneeli laahaisi sormen perässä. */
+#forecast-panel.dragging { visibility: visible; transition: none; }
+/* Yläpalkki on `.paneeli-yla` (otsikko + X) ja pysyy paikallaan kun lista
+   vierii. Pohjalevynä sen yläreunassa on kahvan 8 px, eikä turva-aluetta
+   lasketa: levy ei ulotu ruudun yläreunaan. Sivupaneelina (≥ 740 px)
+   kahva katoaa ja palkki on sama kuin asetuksissa. */
+#fc-handle {
+  position: sticky; top: 0; z-index: 1;
+  min-height: 52px; padding: 8px 5px 0 20px;
+  border-bottom: 1px solid var(--hairline);
+}
+#fc-header { padding: 12px 20px 14px; }
 #fc-subtitle { font-variant-numeric: tabular-nums; font-size: var(--fs-10); color: var(--ink-3); margin-top: 2px; }
 /* Toggle switches */
-#fc-toggles { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+#fc-toggles { display: flex; gap: 4px 16px; margin-top: 10px; flex-wrap: wrap; }
+/* KYTKIN ON SAMA KUIN ASETUKSISSA (`.sp-toggle`): 40×24, 20 px:n nuppi,
+   16 px:n matka, sama siirtymä. Tämä oli 36×20 ja 14 px:n nuppi ja
+   nimi 10 px:n `--ink-3`:lla — sama esine kahdessa koossa ja kahdessa
+   värissä, ja nimi oli sivun himmein teksti vaikka se kertoo mitä
+   kytkin tekee. */
 .fc-toggle {
   position: relative;
   display: flex; align-items: center; gap: 8px;
-  font-variant-numeric: tabular-nums; font-size: var(--fs-10); font-weight: 500;
-  color: var(--ink-3); cursor: pointer; user-select: none;
+  min-height: 32px;
+  font-variant-numeric: tabular-nums; font-size: var(--fs-12); font-weight: 500;
+  color: var(--ink-2); cursor: pointer; user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 /* VALINTARUUTU PIILOON, EI POIS.
    Tässä oli `display: none`, jolloin kytkin ei ollut fokusoitavissa
@@ -3051,20 +3159,22 @@ html[data-tutka="1"] #lahde-merkki {
   outline: 2px solid var(--accent); outline-offset: 2px;
 }
 .fc-track {
-  width: 36px; height: 20px; border-radius: 10px;
-  background: var(--surface-lo); border: 1px solid var(--hairline);
-  position: relative; transition: background .2s, border-color .2s;
-  flex-shrink: 0;
+  width: 40px; height: 24px; border-radius: 12px; box-sizing: border-box;
+  background: var(--surface-lo);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  position: relative; flex-shrink: 0;
+  transition: background .22s ease, box-shadow .22s ease;
 }
 .fc-toggle input:checked ~ .fc-track {
-  background: var(--accent); border-color: var(--accent);
+  background: var(--accent); box-shadow: none;
 }
+.fc-toggle input:checked ~ .fc-nimi { color: var(--ink); }
 .fc-thumb {
   position: absolute; top: 2px; left: 2px;
-  width: 14px; height: 14px; border-radius: 50%;
+  width: 20px; height: 20px; border-radius: 50%;
   background: #fff;
   box-shadow: 0 1px 3px rgba(16,26,32,.28);
-  transition: transform .2s;
+  transition: transform .22s cubic-bezier(.4,0,.2,1);
 }
 .fc-toggle input:checked ~ .fc-track .fc-thumb {
   transform: translateX(16px);
@@ -3459,32 +3569,20 @@ html[data-tutka="1"] #lahde-merkki {
   <div id="settings-popup" role="dialog" aria-modal="true"
        aria-labelledby="sp-title" tabindex="-1">
     <!-- Otsikko -->
-    <div id="sp-header">
+    <div id="sp-header" class="paneeli-yla">
       <h2 id="sp-title">Asetukset</h2>
-      <button id="sp-close" onclick="_closeSettings()"
-              style="background:none;border:none;font:inherit;cursor:pointer">Valmis</button>
+      <button type="button" class="paneeli-sulje" id="sp-close" aria-label="Sulje asetukset"
+              onclick="_closeSettings()"><span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span></button>
     </div>
     <!-- Scrollattava sisältö -->
     <div id="sp-body-wrap">
       <div id="sp-body">
         <div id="sp-body-inner">
 
-        <!-- Säädata.
-             Mallia ei enää valita käsin. Valinta oli ansa: "FMI" kiinnitti
-             koko kartan HARMONIEen ilman varatietä, ja sen hila loppuu
-             Pohjois-Euroopan reunaan — muualla maailmassa kartta jäi silloin
-             tyhjäksi eikä mikään kertonut miksi. Nyt lähde valitaan
-             sijainnin mukaan ja käytössä oleva lähde LUKEE kartalla
-             tähtäimen alla (#lahde-merkki). -->
-        <div class="sp-card">
-          <div class="sp-label">Sääennuste</div>
-          <div class="sp-vihje" style="margin-top:0">
-            Lähde valitaan automaattisesti sijainnin mukaan: Pohjois-Euroopassa
-            Ilmatieteen laitoksen HARMONIE 2,5 km, muualla Open-Meteon paras
-            saatavilla oleva malli. Käytössä oleva lähde näkyy kartan
-            alalaidassa.
-          </div>
-        </div>
+        <!-- "Sääennuste"-kortti poistettiin: se kertoi lähteen tulevan
+             Open-Meteolta ja valitun automaattisesti, eli toisti väärin sen
+             minkä "Kartan säämalli" alempana kertoo oikein. Käytössä oleva
+             lähde lukee yhä kartalla tähtäimen alla (#lahde-merkki). -->
 
         <!-- Kerros -->
         <div class="sp-card">
@@ -3771,7 +3869,10 @@ html[data-tutka="1"] #lahde-merkki {
        paikka jossa shift+veto -laatikkozoom tulee kerrotuksi. -->
   <div id="pikanappaimet" role="dialog" aria-modal="true" aria-label="Pikanäppäimet" tabindex="-1">
     <div class="pn-kortti">
-      <h2>Pikanäppäimet</h2>
+      <div class="pn-yla">
+        <h2>Pikanäppäimet</h2>
+        <button type="button" class="paneeli-sulje" aria-label="Sulje pikanäppäimet"><span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span></button>
+      </div>
       <dl>
         <dt><kbd>Rulla</kbd></dt><dd>Zoomaa puoli tasoa kerrallaan</dd>
         <dt><kbd>Tuplaklikkaus</kbd></dt><dd>Zoomaa sisään · <kbd>Shift</kbd> ulos</dd>
@@ -3792,7 +3893,12 @@ html[data-tutka="1"] #lahde-merkki {
 
   <div id="sheet-overlay"></div>
   <div id="sheet" role="dialog" aria-modal="true" aria-label="Spotti" tabindex="-1">
-    <div id="sheet-handle" role="button" tabindex="0" aria-label="Sulje"></div>
+    <!-- Yläpalkki: vetokahva (puhelimella) ja sulkunappi. Kahva on pelkkä
+         eleen tartuntakohta eikä nappi — sulkeminen on X:n työ, samoin kuin
+         asetuksissa ja ennustepaneelissa. -->
+    <div id="sheet-handle" class="paneeli-kahva">
+      <button type="button" class="paneeli-sulje" id="sheet-sulje" aria-label="Sulje kortti"><span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span></button>
+    </div>
     <div id="sheet-scroll">
       <div id="sheet-content"></div>
     </div>
@@ -3816,25 +3922,29 @@ html[data-tutka="1"] #lahde-merkki {
   <!-- Forecast panel — best windows -->
   <div id="forecast-panel" role="dialog" aria-modal="true"
        aria-labelledby="fc-title" tabindex="-1">
-    <div id="fc-handle" aria-hidden="true"></div>
-    <div id="fc-header">
+    <!-- Yläpalkki pysyy paikallaan kun lista vierii: otsikko ja X, kuten
+         asetuksissa. Puhelimella sen yläreunassa on vetokahva. -->
+    <div id="fc-handle" class="paneeli-yla paneeli-kahva">
       <h2 id="fc-title">Parhaat ajankohdat</h2>
+      <button type="button" class="paneeli-sulje" id="fc-sulje" aria-label="Sulje ennuste"><span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span></button>
+    </div>
+    <div id="fc-header">
       <div id="fc-subtitle">5 vrk ennuste · parhaat 2h ikkunat spoteille</div>
       <div id="fc-toggles">
         <label class="fc-toggle">
           <input type="checkbox" id="fc-tog-weekday">
           <span class="fc-track"><span class="fc-thumb"></span></span>
-          Ma–Pe 16–22
+          <span class="fc-nimi">Ma–Pe 16–22</span>
         </label>
         <label class="fc-toggle">
           <input type="checkbox" id="fc-tog-weekend">
           <span class="fc-track"><span class="fc-thumb"></span></span>
-          La–Su 08–22
+          <span class="fc-nimi">La–Su 08–22</span>
         </label>
         <label class="fc-toggle">
           <input type="checkbox" id="fc-tog-allday" checked>
           <span class="fc-track"><span class="fc-thumb"></span></span>
-          Kaikki päiväajat
+          <span class="fc-nimi">Kaikki päiväajat</span>
         </label>
       </div>
     </div>
@@ -4295,18 +4405,28 @@ const Haptics = {
   error() { try { if (navigator.vibrate) navigator.vibrate([20,10,20]); } catch(e) {} }
 };
 
-/* -- SWIPE-TO-DISMISS — Reusable for any bottom sheet ----------- */
+/* -- SWIPE-TO-DISMISS — Reusable for any bottom sheet -----------
+ *
+ * Spottikortti ja ennustepaneeli käyttävät TÄTÄ SAMAA vetoa. Ennuste-
+ * paneelilla oli oma käsittelijänsä, joka lähti liikkeelle mistä tahansa
+ * kosketuksesta: alaspäin vierittäessä lista vieri JA koko paneeli
+ * liukui samaan aikaan alas, koska tarkistusta "onko lista ylhäällä" ei
+ * ollut. `kahva` ja `scrollEl` ovat siksi parametreja eivätkä kovakoodattu
+ * `#sheet-handle` ja `#sheet-scroll` — ennustepaneelissa vierittyy
+ * paneeli itse. */
 function makeSwipeable(sheetEl, onDismiss, opts) {
-  const o = Object.assign({ threshold: 100, velocityThreshold: 0.4 }, opts || {});
+  const o = Object.assign({ threshold: 100, velocityThreshold: 0.4,
+    kahva: '#sheet-handle, #spot-list-handle', scrollEl: null }, opts || {});
   let startY = 0, currentY = 0, isDragging = false, startScrollTop = 0;
 
   function onTouchStart(e) {
     /* Sivupaneelissa (leveä ruutu) pystyveto ei sulje: paneeli ei ole
-       pohjalevy, ja veto siirtäisi sen irti oikeasta reunasta. */
+       pohjalevy, ja veto siirtäisi sen irti oikeasta reunasta. Siellä
+       sulkee sivuttainen veto (`sivuveto`). */
     if (typeof sivupaneelit === 'function' && sivupaneelit()) return;
     /* Only start drag from handle OR if sheet is scrolled to top */
-    const isHandle = e.target.closest('#sheet-handle, #spot-list-handle');
-    const scrollEl = document.getElementById('sheet-scroll') || sheetEl;
+    const isHandle = e.target.closest(o.kahva);
+    const scrollEl = o.scrollEl || document.getElementById('sheet-scroll') || sheetEl;
     const scrolledToTop = scrollEl.scrollTop <= 0;
     if (!isHandle && !scrolledToTop) return;
 
@@ -4336,7 +4456,7 @@ function makeSwipeable(sheetEl, onDismiss, opts) {
     const progress = Math.min(1, currentY / o.threshold);
     const overlay = document.getElementById('sheet-overlay');
     if (overlay && overlay.classList.contains('open')) {
-      overlay.style.background = 'rgba(0,0,0,' + (0.45 * (1 - progress)) + ')';
+      overlay.style.background = 'rgba(6,10,14,' + (0.40 * (1 - progress)).toFixed(3) + ')';
     }
   }
 
@@ -4370,6 +4490,83 @@ function makeSwipeable(sheetEl, onDismiss, opts) {
     _touchStartTime = Date.now();
     onTouchStart(e);
   }, { passive: true });
+}
+
+/* -- SIVUTTAINEN VETO SULKEE OIKEAN REUNAN PANEELIN ---------------
+ *
+ * Asetuksissa tämä oli oma käsittelijänsä, eikä spottikorttia tai
+ * ennustepaneelia voinut sivupaneelina sulkea eleellä lainkaan: niiden
+ * ainoa ele oli pohjalevyn pystyveto, joka on sivupaneelissa pois.
+ * Nyt kaikki kolme käyttävät tätä, joten veto tuntuu samalta joka
+ * paneelissa: paneeli seuraa sormea oikealle, ja 80 px tai heitto
+ * (0,5 px/ms) sulkee; muuten se palaa paikalleen.
+ *
+ * `ehto` rajaa milloin ele on voimassa (spottikortti ja ennustepaneeli
+ * vain sivupaneelina — puhelimella ne ovat pohjalevyjä ja vetävät alas).
+ * `verho` on tummennus joka häivytetään sormen mukana.
+ *
+ * VAAKAELE KUULUU ENSIN SISÄLLÖLLE. Spottikortissa on vaakaan vieriviä
+ * nauhoja (tuntivalitsin, 5 vrk:n kaavio) ja kaavioita joita luetaan
+ * raahaamalla; niiden päältä alkava veto EI ole sulkuele, muuten
+ * jokainen tunnin valinta sulkisi kortin. */
+function _vaakaEleenOmistaja(kohde, juuri) {
+  for (let e = kohde; e && e !== juuri; e = e.parentElement) {
+    const t = e.tagName;
+    if (t === 'INPUT' || t === 'SELECT') return true;
+    /* Kaavio, ei kuvake: X, tähti ja rivien glyfit ovat myös SVG:tä,
+       eikä niiden päältä alkava veto saa jäädä toimimatta. */
+    if ((t === 'svg' || t === 'CANVAS') && e.getBoundingClientRect().width >= 120) return true;
+    const cs = getComputedStyle(e);
+    /* Raahattava lukema (`attachTooltip`, aaltokaavio) on `touch-action:
+       none`. Kahva on myös, mutta se on paneelin oma tartuntakohta. */
+    if (cs.touchAction === 'none' && !e.classList.contains('paneeli-kahva')) return true;
+    if (e.scrollWidth > e.clientWidth + 1 && (cs.overflowX === 'auto' || cs.overflowX === 'scroll')) return true;
+  }
+  return false;
+}
+function sivuveto(el, sulje, ehto, verho, verhoAlfa) {
+  let x0 = 0, y0 = 0, t0 = 0, dx = 0, seuraa = false, veto = false;
+  el.addEventListener('touchstart', function (e) {
+    seuraa = false; veto = false; dx = 0;
+    if (e.touches.length !== 1) return;
+    if (ehto && !ehto()) return;
+    if (!el.classList.contains('open')) return;
+    if (_vaakaEleenOmistaja(e.target, el)) return;
+    seuraa = true;
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; t0 = Date.now();
+  }, { passive: true });
+  el.addEventListener('touchmove', function (e) {
+    if (!seuraa) return;
+    const x = e.touches[0].clientX - x0, y = e.touches[0].clientY - y0;
+    if (!veto) {
+      if (Math.abs(x) < 8 && Math.abs(y) < 8) return;
+      /* Pystysuora liike on vieritystä ja vasemmalle ei ole minne mennä. */
+      if (Math.abs(x) <= Math.abs(y) || x < 0) { seuraa = false; return; }
+      veto = true;
+      el.classList.add('sivuvetaa');
+    }
+    dx = Math.max(0, x);
+    el.style.transition = 'none';
+    el.style.transform = 'translate3d(' + dx + 'px,0,0)';
+    if (verho) {
+      const p = Math.min(1, dx / Math.max(1, el.offsetWidth));
+      verho.style.background = 'rgba(6,10,14,' + (verhoAlfa * (1 - p)).toFixed(3) + ')';
+    }
+  }, { passive: true });
+  function loppu() {
+    seuraa = false;
+    if (!veto) return;
+    veto = false;
+    el.classList.remove('sivuvetaa');
+    el.style.transition = '';
+    el.style.transform = '';
+    if (verho) verho.style.background = '';
+    const nopeus = dx / Math.max(1, Date.now() - t0);
+    if (dx > 80 || nopeus > 0.5) { Haptics.medium(); sulje(); }
+    dx = 0;
+  }
+  el.addEventListener('touchend', loppu, { passive: true });
+  el.addEventListener('touchcancel', loppu, { passive: true });
 }
 
 /* -- UNITS ------------------------------------------------------ */
@@ -13668,7 +13865,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
   var gradId=svgId+'-gr', bandId=svgId+'-band';
 
   /* Period napit — segmented control */
-  var periods=[['7d','7 vrk'],['30d','30 vrk'],['all','Max']];
+  var periods=[['7d','7 vrk'],['30d','30 vrk'],['all','Kaikki']];
   var segBtns=periods.map(function(pv){
     var a=pv[0]===period;
     /* Sama valitsin kuin tuulikaaviossa: valittu on mustetta korotetulla
@@ -14963,7 +15160,7 @@ function _openObsSheet(type, station) {
       /* Nimi + arvo rinnakkain */
       +'<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px">'
         +'<div style="flex:1;min-width:0">'
-          +'<div style="font-size:22px;font-weight:800;color:var(--ink);letter-spacing:-.5px;line-height:1.1;margin-bottom:4px;word-break:break-word">'+station.name+'</div>'
+          +'<div class="sh-name" style="margin-bottom:4px">'+station.name+'</div>'
           +'<div id="'+chipId+'" style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3)">'+srcLabel+'</div>'
         +'</div>'
         +'<div style="text-align:right;flex-shrink:0">'
@@ -15710,6 +15907,27 @@ const VALO_VARIT = {
 };
 const VALO_URA = 'rgba(205,190,154,.45)';
 
+/* SPOTTIKORTIN TÄHTI JA JAKONAPPI OVAT PIIRRETTYJÄ, EIVÄT MERKKEJÄ.
+   Ne olivat ☆/★ ja ⇗, eli fontin glyfejä: koko, paino ja muoto
+   riippuivat siitä millä fontilla nappi piirtyi (mitattuna Arialilla,
+   koska `<button>` ei perinyt perhettä), ja ⇗ ei ole kenellekään jaon
+   merkki. Nyt ne ovat samaa 24 px:n ruudukkoa ja 1,8 px:n viivaa kuin
+   kartan kontrollit, ja täysi tähti on sama muoto täytettynä. */
+function _tahtiSVG(taysi) {
+  return '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">'
+    + '<path d="M12 3.3l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.7l-5.2 2.8 1-5.9-4.3-4.1 5.9-.8z"'
+    + ' fill="' + (taysi ? 'currentColor' : 'none') + '" stroke="currentColor"'
+    + ' stroke-width="1.8" stroke-linejoin="round"/></svg>';
+}
+/* Kosketuslaitteella järjestelmän jakoarkki (navigator.share), työpöydällä
+   leikepöytä. Kuvake on jaon tuttu muoto: laatikko ja nuoli ylös. */
+const _JAKO_JARJESTELMA = !TYOPOYTA && typeof navigator !== 'undefined' && !!navigator.share;
+const _JAKO_NIMI = _JAKO_JARJESTELMA ? 'Jaa' : 'Kopioi linkki';
+const _JAKO_SVG = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"'
+  + ' stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+  + '<path d="M12 3.5v11M8 7.5l4-4 4 4"/>'
+  + '<path d="M8.5 10.5H7a1.5 1.5 0 0 0-1.5 1.5v7A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5v-7a1.5 1.5 0 0 0-1.5-1.5h-1.5"/></svg>';
+
 function openSheet(spot, hourIdx) {
   /* Jos wx puuttuu (vapaa piste), hae Harmonie ensin */
   if (!spot.wx || !spot.wx.hourly) {
@@ -15877,8 +16095,8 @@ function openSheet(spot, hourIdx) {
     function lahdeNimi(tMs) { return Lahde.LYHYET[lahdeAvain(tMs)]; }
 
     const PERIODS = [
-      { key: '24h', label: '24h', hours: 24 },
-      { key: '5d',  label: '5 pv', hours: 5*24 },
+      { key: '24h', label: '24 h', hours: 24 },
+      { key: '5d',  label: '5 vrk', hours: 5*24 },
       { key: 'all', label: 'Kaikki', hours: null },
     ];
     const sectionId  = 'mc-sec-' + Math.random().toString(36).slice(2,6);
@@ -17274,10 +17492,11 @@ function openSheet(spot, hourIdx) {
         + '<div class="sh-hero-left">'
           + '<div class="sh-name-rivi">'
             + '<span class="sh-name">' + spot.name + '</span>'
-            + '<button type="button" class="sh-ikoni" id="sh-suosikki" title="Suosikki"'
+            + '<button type="button" class="sh-ikoni" id="sh-suosikki" title="Suosikki" aria-label="Suosikki"'
               + ' aria-pressed="' + (Suosikit.on(spot.name) ? 'true' : 'false') + '">'
-              + (Suosikit.on(spot.name) ? '\u2605' : '\u2606') + '</button>'
-            + '<button type="button" class="sh-ikoni" id="sh-jaa" title="Kopioi linkki">\u21D7</button>'
+              + _tahtiSVG(Suosikit.on(spot.name)) + '</button>'
+            + '<button type="button" class="sh-ikoni" id="sh-jaa" title="' + _JAKO_NIMI + '" aria-label="' + _JAKO_NIMI + '">'
+              + _JAKO_SVG + '</button>'
           + '</div>'
           + '<div class="sh-desc">' + spot.desc + '</div>'
           + (()=>{
@@ -17495,7 +17714,7 @@ function openSheet(spot, hourIdx) {
     const tahti = document.getElementById('sh-suosikki');
     if (tahti) tahti.addEventListener('click', function () {
       const lisattiin = Suosikit.vaihda(spot.name);
-      tahti.textContent = lisattiin ? '\u2605' : '\u2606';
+      tahti.innerHTML = _tahtiSVG(lisattiin);
       tahti.setAttribute('aria-pressed', lisattiin ? 'true' : 'false');
       Haptics.selection();
       Toast.show(lisattiin ? '\u2605 ' + spot.name + ' suosikkeihin'
@@ -17512,6 +17731,16 @@ function openSheet(spot, hourIdx) {
         Haptics.selection();
         Toast.show(ok ? 'Linkki kopioitu' : url, ok ? 2500 : 8000);
       };
+      /* KOSKETUSLAITTEELLA JÄRJESTELMÄN JAKO. iPhonella linkki halutaan
+         viestiin tai WhatsAppiin, ei leikepöydälle josta se pitää vielä
+         liittää; jakoarkissa on myös "Kopioi". Työpöydällä leikepöytä on
+         yhä oikea teko, joten sama nappi tekee sen siellä. Peruutus
+         (AbortError) ei ole virhe eikä ansaitse ilmoitusta. */
+      if (_JAKO_JARJESTELMA) {
+        navigator.share({ title: spot.name + ' · FoilSpot', url: url })
+          .catch(function (err) { if (err && err.name !== 'AbortError') kerro(false); });
+        return;
+      }
       /* clipboard-API vaatii suojatun yhteyden eikä ole kaikkialla; jos se
          ei onnistu, osoite näytetään jotta sen voi kopioida käsin. */
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -19715,7 +19944,11 @@ document.getElementById('sheet-overlay').addEventListener('click', () => {
   if (typeof Valitsin !== 'undefined') Valitsin.suljeKaikki();
   if (typeof WxPanel !== 'undefined') WxPanel.close();
 }, { passive: true });
-document.getElementById('sheet-handle').addEventListener('click', closeSheet, { passive: true });
+/* Sulkunapit. Kahva EI ole enää nappi: sen napautus sulki kortin, ja
+   sivupaneelina koko 52 px:n yläpalkki olisi silloin ollut näkymätön
+   sulkunappi. Sulkeminen on X:n työ jokaisessa paneelissa. */
+document.getElementById('sheet-sulje').addEventListener('click', closeSheet, { passive: true });
+document.getElementById('fc-sulje').addEventListener('click', () => ForecastPanel.close(), { passive: true });
 
 /* ── NÄPPÄIMISTÖ ──────────────────────────────────────────────────
  *
@@ -22159,40 +22392,11 @@ document.getElementById('btn-settings').addEventListener('click', (e) => {
 /* Overlay-klikkaus sulkee drawerin */
 document.getElementById('settings-overlay').addEventListener('click', _closeSettings);
 
-/* Swipe-to-close: liu'uta OIKEALLE sulkeaksesi (drawer tulee oikealta) */
-(function() {
-  var sp = document.getElementById('settings-popup');
-  var startX = 0, startY = 0, dragging = false;
-  sp.addEventListener('touchstart', function(e) {
-    startX = e.touches[0].clientX;
-    startY = e.touches[0].clientY;
-    dragging = false;
-  }, { passive: true });
-  sp.addEventListener('touchmove', function(e) {
-    var dx = e.touches[0].clientX - startX;
-    var dy = Math.abs(e.touches[0].clientY - startY);
-    if (!dragging && Math.abs(dx) > 8 && Math.abs(dx) > dy) dragging = true;
-    /* Oikea pyyhkäisy sulkee (drawer tulee oikealta) */
-    if (dragging && dx > 0) {
-      sp.style.transition = 'none';
-      sp.style.transform = 'translateX(' + dx + 'px)';
-    }
-  }, { passive: true });
-  sp.addEventListener('touchend', function(e) {
-    if (!dragging) { return; }
-    dragging = false;
-    sp.style.transition = '';
-    var dx = e.changedTouches[0].clientX - startX;
-    if (dx > 80) {
-      /* Sulkee: poista inline transform jotta CSS .open → ei open hoitaa */
-      sp.style.transform = '';
-      _closeSettings();
-    } else {
-      /* Palaa auki-asentoon */
-      sp.style.transform = '';
-    }
-  }, { passive: true });
-})();
+/* Veto oikealle sulkee (laatikko tulee oikealta). Sama ele kuin
+   spottikortilla ja ennustepaneelilla sivupaneelina — ks. `sivuveto`.
+   Asetukset ovat laatikko myös puhelimella, joten ehtoa ei ole. */
+sivuveto(document.getElementById('settings-popup'), _closeSettings, null,
+  document.getElementById('settings-overlay'), 0.40);
 
 /* ── Karttatasot-togglet ─────────────────────────────────── */
 /* FMI Maa on PAALLA oletuksena. Se oli pois, ja siksi Helsingin ylla ei
@@ -23408,36 +23612,13 @@ const WxPanel = {
   sheet.addEventListener('touchend',   e => loppu(e.changedTouches[0].clientY, true), { passive: true });
 })();
 
-/* -- FORECAST PANEL — swipe down to dismiss --------------------- */
+/* -- FORECAST PANEL — sama veto kuin spottikortilla ---------------
+   Pohjalevynä alas (vain kahvasta tai kun lista on ylhäällä), sivu-
+   paneelina oikealle. */
 (function() {
   const panel = document.getElementById('forecast-panel');
-  let startY = 0, currentY = 0, dragging = false;
-  panel.addEventListener('touchstart', e => {
-    /* Sivupaneelina pystyveto ei sulje (ks. `sivupaneelit`). */
-    if (sivupaneelit()) { dragging = false; return; }
-    startY = e.touches[0].clientY;
-    currentY = startY;
-    dragging = true;
-    panel.style.transition = 'none';
-  }, { passive: true });
-  panel.addEventListener('touchmove', e => {
-    if (!dragging) return;
-    currentY = e.touches[0].clientY;
-    const dy = Math.max(0, currentY - startY);
-    panel.style.transform = 'translate3d(0,' + dy + 'px,0)';
-  }, { passive: true });
-  panel.addEventListener('touchend', () => {
-    if (!dragging) return;
-    dragging = false;
-    panel.style.transition = '';
-    const dy = currentY - startY;
-    if (dy > 80) {
-      ForecastPanel.close();
-    } else {
-      panel.style.transform = '';
-    }
-    panel.style.transform = '';
-  }, { passive: true });
+  makeSwipeable(panel, () => ForecastPanel.close(), { kahva: '#fc-handle', scrollEl: panel });
+  sivuveto(panel, () => ForecastPanel.close(), sivupaneelit);
 })();
 
 /* Napautus muualle sulkee kaikki kapselin kortit ja tuntisään. */
@@ -23902,6 +24083,7 @@ async function main() {
   document.addEventListener('touchstart', () => Haptics.unlock(), { once: true, passive: true });
 
   makeSwipeable(document.getElementById('sheet'), closeSheet);
+  sivuveto(document.getElementById('sheet'), closeSheet, sivupaneelit);
 
   const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
 

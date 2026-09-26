@@ -5438,3 +5438,109 @@ tunnille 00:00 ja sama tunti vielä 6 s myöhemmin.
 Kun valittu tunti on pakotetun mallin jakson ulkopuolella (esim. FMI
 −2 vrk tai ICON +9 vrk), kartta näyttää alla olevaa ECMWF:ää ja
 lähdemerkintä sanoo sen — tunti ei siirry mallin jaksoon.
+
+## Valikot yhtenäisiksi: sama sulkunappi, sama ele, sama fontti
+
+Pyyntö: iPadilla ja työpöydällä kaikkien valikoiden pitää toimia kuten
+asetukset — sama sulkunappi (myös asetuksiin) ja sama sivulle veto —
+ja iPhonella toiminnot yhdenmukaisiksi. Lisäksi fontit ja kytkimet
+viimeistellyiksi.
+
+### Mitä oli ennen (mitattu, `valikot.mjs`)
+
+| | sulkunappi | ele iPadilla | ele puhelimella |
+|---|---|---|---|
+| asetukset | magenta teksti "Valmis" | veto oikealle | veto oikealle |
+| spotti-/havaintokortti | 36×4 px kahva (nappina) | ei mitään | alas kahvasta tai ylhäältä |
+| ennustepaneeli | **ei mitään** (kahva `aria-hidden`, sivupaneelina piilossa) | ei mitään | alas mistä tahansa |
+| pikanäppäimet | ei (napautus minne tahansa) | – | – |
+
+Ennustepaneelin sai iPadilla kiinni vain napauttamalla karttaa tai
+Escillä. Puhelimella sen oma vetokäsittelijä lähti liikkeelle mistä
+tahansa kosketuksesta, joten kun käyttäjä veti vieritettyä listaa alas
+palatakseen alkuun, lista vieri ja paneeli sulkeutui samalla —
+mitattu vanhalla buildilla: alasveto listan keskeltä `scrollTop` 300 →
+115 ja paneeli kiinni.
+
+Fontit: `<button>` ei perinyt fonttiperhettä, ja spottikortissa
+yhdeksän ja havaintokortissa neljä elementtiä piirtyi Arialilla
+(tähti ☆, jakonappi ⇗, kaavion jaksonapit, asemavalitsin).
+Pikanäppäinten `<kbd>` oli tasalevyistä. Kytkin oli kahdessa koossa:
+asetuksissa 40×24 ja ennustepaneelissa 36×20 px 10 px:n himmeällä
+nimellä.
+
+### Mitä tehtiin
+
+- **Yksi sulkunappi** (`.paneeli-sulje`): 30 px:n paperiympyrä ja X,
+  sama muoto kuin kaavion laajennusnapilla, osumapinta 44 px napilta
+  itseltään. Kaikkiin viiteen pintaan. Sivupaneelitilassa mitattuna
+  X on asetuksissa, spottikortissa, havaintokortissa ja
+  ennustepaneelissa **samassa pikselissä** (351,4 paneelin kulmasta),
+  puhelimella levyn oikeassa yläkulmassa.
+- **Yksi yläpalkki** (`.paneeli-yla`): otsikko 17 px/700 ja X.
+  Ennustepaneelin otsikko siirtyi palkkiin, joka pysyy paikallaan kun
+  lista vierii (kuten asetuksissa).
+- **Kahva ei ole nappi.** Se on vedon tartuntakohta, sama 36×4 px
+  `--hairline` kaikissa pohjalevyissä (ennustepaneelin oli
+  `--surface-lo` eli lähes näkymätön). Sivupaneelissa sitä ei
+  piirretä.
+- **Yksi sivuveto** (`sivuveto`): asetukset aina, spottikortti ja
+  ennustepaneeli sivupaneelina. Paneeli seuraa sormea, 80 px tai heitto
+  0,5 px/ms sulkee, muuten se palaa. Asetusten verho häivyttyy sormen
+  mukana. Vaakanauhat, kaaviot ja `touch-action: none` -elementit
+  omistavat vaakaeleensä (`_vaakaEleenOmistaja`).
+- **Yksi alasveto** (`makeSwipeable`): ennustepaneeli käyttää nyt
+  samaa kuin spottikortti, eli veto alkaa vain kahvasta tai listan
+  ollessa ylhäällä.
+- **Sama pinta ja liike.** Ennustepaneeli sai spottikortin kulman
+  (`--sheet-radius`) ja varjon (`--shadow-3`), ja sen
+  `backdrop-filter: blur(24px)` poistui (se sumensi joka ruudussa
+  karttaa läpinäkymättömän paperin alla). Sivupaneeleina kaikki kolme
+  liukuvat samalla .34 s:n käyrällä kuin asetukset. Puhelimen verhot
+  ovat samat `rgba(6,10,14,.40)`.
+- **Fontit**: `button, input, select, textarea { font-family: inherit }`
+  ja `kbd` samoin. Havaintokortin nimi on sama 20 px/800 kuin
+  spottikortin (`.sh-name`, ennen 22 px omalla inline-tyylillä).
+  Jaksonapit samalle kielelle: "24 h", "5 vrk", "Kaikki" (ennen
+  "24h", "5 pv", ja vedenlämmössä "Max").
+- **Kytkin**: ennustepaneelin kytkin on sama 40×24 kuin asetuksissa,
+  nimi 12 px `--ink-2` ja päällä `--ink`.
+- **Tähti ja jako piirrettyinä**, 24 px:n ruudukko ja 1,8 px:n viiva.
+  Jakonappi avaa kosketuslaitteella järjestelmän jakoarkin
+  (`navigator.share`: iPhonella viestiin tai WhatsAppiin suoraan) ja
+  kopioi työpöydällä linkin kuten ennen.
+- **Asetusten "Sääennuste"-kortti poistui.** Se kertoi lähteen tulevan
+  Open-Meteolta ja valikoituvan automaattisesti, eli toisti väärin sen
+  minkä "Kartan säämalli" kertoo heti alempana oikein.
+- **Spottikortin aukko**: tuntivalitsimen alaväli 14 → 4 px. Valitun
+  tunnin alle jäi nauhan oman tyhjän lisäksi 30 px ennen seuraavaa
+  riviä.
+
+### Mitattu jälkeen
+
+- Fonttiperheet paneeleittain: kaikki `-apple-system`-pinoa, Arialia 0
+  (ennen 13).
+- Eleet oikeilla kosketustapahtumilla (`eleet.mjs`, CDP
+  `Input.dispatchTouchEvent`, ei `scrollLeft`-kirjoituksia): 30/30.
+  Puhelin: X keskeltä ja 44 px:n laatikon reunalta sulkee kaikki kolme,
+  asetukset oikealle kiinni, spottikortti ei sulkeudu sivuvedolla
+  (pohjalevy) mutta sulkeutuu alas kahvasta, ennustepaneelin lista vierii
+  alasvedolla (300 → 115) eikä paneeli sulkeudu, kahvasta alas sulkee
+  vaikka lista on vieritetty, ja listan ollessa ylhäällä alasveto
+  sulkee. iPad: jokaisessa kolmessa 50 px:n hidas veto palaa
+  paikalleen (left 780), pystyveto ei sulje ja 200 px oikealle sulkee;
+  tuntinauhalla veto vierittää nauhaa (2808 → 2756) eikä sulje, kaavion
+  päällä veto ei sulje, ja yläpalkista veto sulkee.
+- **Kontrolli vanhaa buildia vasten** (`kontrolli.mjs`): iPadin
+  spottikortti pysyi auki 200 px:n vedon jälkeen, ja puhelimen
+  ennustepaneeli sulkeutui kun listaa vieritettiin ylös. Uudella
+  molemmat kääntyvät — mittari ei ole tyhjä.
+- Näppäimistö: asetuksissa ensimmäinen sarkainpysäkki on X, ja Enter
+  sulkee. Pikanäppäinkortti sulkeutuu X:stä ja Escistä.
+- Paneelien mitat ennallaan (`paneelit.mjs`), mallit ja aikajana
+  ennallaan (`palkit.mjs`).
+
+Hiirellä vetämistä ei lisätty: työpöydällä veto kuuluu kaavion
+lukemiselle ja tekstin valinnalle, ja X, verho ja Esc riittävät.
+Kosketusnäytöllinen kannettava saa vedon, koska ele on
+kosketustapahtumissa.
