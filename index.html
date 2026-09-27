@@ -23987,10 +23987,11 @@ function startProgressSimulation() {
  *
  *  1. VÄHIMMÄISAIKA `LAHTO_MIN_MS` esittelyn alusta. Välimuistista
  *     käynnistettäessä data oli valmis noin sekunnissa, ja lähtö katkaisi
- *     esittelyn ennen kuin merkki ehti piirtyä (asettuu 1,9 s). 3,4 s näyttää
- *     esittelyn, pumppausta ja ensimmäisen puuskan (saapuu 2,4 s), ja kuski
- *     lähtee puuskan keskellä. Vaimennetulla liikkeellä esittelyä ei ole,
- *     joten raja on silloin nolla.
+ *     esittelyn ennen kuin merkki ehti piirtyä (asettuu 1,9 s). 2 s näyttää
+ *     koko esittelyn, ja palkin viimeinen pala (0,3 s) vie lähdön 2,3 s:iin,
+ *     eli kuski lähtee ensimmäisen puuskan (saapuu 2,4 s) mukana.
+ *     Käyttäjän päätös: 3,4 s oli liian pitkä. Vaimennetulla liikkeellä
+ *     esittelyä ei ole, joten raja on silloin nolla.
  *  2. VALMIS KARTTA: pohjakartan näkyvät laatat ovat tulleet
  *     (`areTilesLoaded`, kaatunut laatta lasketaan tulleeksi) ja lämpökartta
  *     piirtää ilman odottavaa hilaa (`LampoGL._odottava`). Ennen ruutu aukesi
@@ -23998,13 +23999,18 @@ function startProgressSimulation() {
  *     odotusaika käytetään niiden lataamiseen. Odotuksella on KATTO
  *     `LAHTO_KARTTA_MAX_MS` siitä hetkestä kun kaksi ensimmäistä ehtoa
  *     täyttyivät: hidas laattapalvelin ei saa pitää sovellusta kiinni.
+ *     Katto on 1 s eikä 2 s, koska se tulee vähimmäisajan PÄÄLLE: kahden
+ *     sekunnin katolla ruutu näkyi hitaalla säälaattayhteydellä 4,3 s,
+ *     eli pidempään kuin vanha 3,4 s:n esittely.
  *
  * Napautus, klikkaus tai näppäin ohittaa molemmat heti kun data on valmis.
  * Ennen sitä toive muistetaan, ja lähtö tulee datan mukana — data on ainoa
- * asia jota ilman kartalla ei ole mitään näytettävää. */
-var LAHTO_MIN_MS = 3400;
-var LAHTO_KARTTA_MAX_MS = 2000;
-var _lahto = { data: 0, ohita: false, lahti: false, ajastin: null, vihje: false };
+ * asia jota ilman kartalla ei ole mitään näytettävää. Ohitusta ei kerrota
+ * tekstillä (käyttäjän päätös): kahden sekunnin odotus ei tarvitse ohjetta,
+ * ja tilarivi pysyy latauksen tilana. */
+var LAHTO_MIN_MS = 2000;
+var LAHTO_KARTTA_MAX_MS = 1000;
+var _lahto = { data: 0, ohita: false, lahti: false, ajastin: null };
 
 function _lahtoVahenna() {
   try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
@@ -24050,15 +24056,6 @@ function _lahtoTarkista() {
     const min = _lahtoMinJaljella();
     const katto = Math.max(_lahto.data, _lahtoMinLoppu()) + LAHTO_KARTTA_MAX_MS;
     if (min > 0 || (nyt < katto && !_karttaValmis())) {
-      /* Vihje vasta kun odotus on oikeasti odotusta (yli 0,8 s): lyhyellä
-         odotuksella teksti vaihtuisi juuri ennen lähtöä. */
-      if (!_lahto.vihje && Math.max(min, katto - nyt) > 800) {
-        _lahto.vihje = true;
-        const t = document.getElementById('load-txt');
-        if (t) t.textContent = TYOPOYTA ? 'Klikkaa jatkaaksesi' : 'Napauta jatkaaksesi';
-        const el = document.getElementById('loading');
-        if (el) el.style.cursor = 'pointer';
-      }
       _lahto.ajastin = setTimeout(_lahtoTarkista, min > 0 ? min : 100);
       return;
     }

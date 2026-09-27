@@ -476,14 +476,20 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kompositorissa kartan alla. Mitattu piilotuksen jälkeen: 0 jäljellä.
   `hideLoading` on idempotentti — kutsupaikkoja on viisi.
 - **`hideLoading()` ON "DATA VALMIS", EI PIILOTUS.** Lähtö (`_lahde`)
-  odottaa lisäksi vähimmäisajan 3,4 s esittelyn alusta (`LAHTO_MIN_MS`,
+  odottaa lisäksi vähimmäisajan 2 s esittelyn alusta (`LAHTO_MIN_MS`,
   kello `#loading._lrAlku`; vaimennetulla liikkeellä 0) ja valmiin
   kartan (`_karttaValmis`: `areTilesLoaded` + lämpökartta ilman
-  odottavaa hilaa), jälkimmäistä enintään 2 s (`LAHTO_KARTTA_MAX_MS`).
+  odottavaa hilaa), jälkimmäistä enintään 1 s (`LAHTO_KARTTA_MAX_MS`).
   Napautus, klikkaus tai näppäin ohittaa heti kun data on valmis.
+  **2 s ja ohjeettomuus ovat käyttäjän päätös:** 3,4 s oli liian pitkä,
+  eikä ruudulla ole "Napauta jatkaaksesi" -tekstiä — älä palauta sitä.
+  Katto tulee vähimmäisajan päälle, joten 2 s:n katolla ruutu näkyi
+  hitaalla säälaattayhteydellä 4,3 s; älä kasvata kattoa takaisin.
   Mitattuna vanha aukesi lämpimässä käynnistyksessä 0,93 s kohdalla
-  karttaan jossa ei ollut laattoja eikä lämpökarttaa (0/3), uusi 3/3
-  valmiina. Älä lisää odotusehtoa ilman kattoa, äläkä laske
+  karttaan jossa ei ollut laattoja eikä lämpökarttaa (0/3), 3,4 s:n
+  versio 3/3 valmiina. 2 s:llä pohjakartan laatat ovat perillä 3/3, ja
+  lämpökartan hila ehti kontin hitaalla säälaattayhteydellä 1/3 (muut
+  katossa, lähtö 3,3 s). Älä lisää odotusehtoa ilman kattoa, äläkä laske
   vähimmäisaikaa navigoinnin alusta (hitaalla verkolla se olisi jo
   kulunut kun ruutu syttyy).
 - **TILAPALKKI ON VALKOINEN TUMMALLA, 19,65:1.** Latausruudun ylälaita on

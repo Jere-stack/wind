@@ -5620,8 +5620,9 @@ Esittely: juovat ovat jo matkalla ruudun syttyessä (negatiivinen viive),
 kuski liukuu sisään vasemmalta (1,5 s), merkki piirtyy (0,26–1,41 s),
 kirjaimet nousevat rivin alta porrastettuina (0,5 s alkaen, 45 ms
 välein). Kaikki on paikallaan noin 1,9 s kohdalla. Lähtö odottaa
-vähintään 3,4 s esittelyn alusta ja valmista karttaa, ks. "Latausruutu
-näkyy pidempään, ja odotus käytetään kartan lataamiseen" alla.
+vähintään 2 s esittelyn alusta ja valmista karttaa (enintään 1 s lisää),
+ks. "Latausruutu näkyy pidempään, ja odotus käytetään kartan lataamiseen"
+alla.
 
 Lähtö (`#loading.out`): palkki täyteen, nimilohko nousee pois, kuski
 kiihtyy oikealle (0,62 s, ease-in) ja meri ja tuuli ryntäävät
@@ -5790,12 +5791,14 @@ joka ei ollut valmis.
 (aikajana, spotit, tuulikenttä). Kutsupaikat ovat samat viisi. Lähtö
 (`_lahde`) odottaa lisäksi:
 
-1. **Vähimmäisaika 3,4 s esittelyn alusta** (`LAHTO_MIN_MS`). Kello on
+1. **Vähimmäisaika 2 s esittelyn alusta** (`LAHTO_MIN_MS`; ensin 3,4 s,
+   ks. "Lyhennetty kahteen sekuntiin" alla). Kello on
    latausruudun oma (`#loading._lrAlku`, asetetaan skriptissä ennen
    ensimmäistä ruutua), ei navigoinnin alku: hitaalla verkolla ruutu
    syttyy vasta kun HTML on perillä, ja navigoinnista laskettu raja olisi
-   silloin jo kulunut. 3,4 s näyttää esittelyn, pumppausta ja ensimmäisen
-   puuskan (saapuu 2,4 s), ja kuski lähtee puuskan keskellä.
+   silloin jo kulunut. 2 s näyttää koko esittelyn (asettuu 1,9 s), ja
+   palkin viimeinen pala vie lähdön 2,3 s:iin, eli kuski lähtee
+   ensimmäisen puuskan (saapuu 2,4 s) mukana.
    Vaimennetulla liikkeellä esittelyä ei ole, joten raja on nolla.
 2. **Valmis kartta** (`_karttaValmis`): pohjakartan näkyvät laatat ovat
    tulleet (`areTilesLoaded`; kaatunut laatta lasketaan tulleeksi) ja
@@ -5803,15 +5806,15 @@ joka ei ollut valmis.
    `_tila`). Lämpökartta on valmis myös kun se ei piirry (sadekerros) tai
    kun varasto ei kata tuntia (`LampoGL._tyhja`, uusi lippu) — muuten
    odotus kestäisi niissä aina kattoon.
-3. **Katto 2 s** (`LAHTO_KARTTA_MAX_MS`) siitä hetkestä kun data ja
-   vähimmäisaika ovat täyttyneet. Hidas laattapalvelin ei saa pitää
-   sovellusta kiinni.
+3. **Katto 1 s** (`LAHTO_KARTTA_MAX_MS`; ensin 2 s) siitä hetkestä kun
+   data ja vähimmäisaika ovat täyttyneet. Hidas laattapalvelin ei saa
+   pitää sovellusta kiinni.
 
 Napautus, klikkaus tai näppäin ohittaa kaiken heti kun data on valmis;
-ennen sitä toive muistetaan ja lähtö tulee datan mukana. Kun odotusta on
-yli 0,8 s, tilarivi vaihtuu "Ladataan…" -> "Napauta jatkaaksesi"
-(työpöydällä "Klikkaa"), ja palkki liukuu 96 %:iin vähimmäisajan
-loppuun mennessä, jotta se liikkuu koko odotuksen.
+ennen sitä toive muistetaan ja lähtö tulee datan mukana. Palkki liukuu
+96 %:iin vähimmäisajan loppuun mennessä, jotta se liikkuu koko odotuksen.
+(Ensimmäisessä versiossa tilarivi vaihtui yli 0,8 s:n odotuksessa
+"Napauta jatkaaksesi" -tekstiksi; se poistettiin, ks. alla.)
 
 Taustalla ei tarvinnut käynnistää mitään uutta: pohjakartan laatat,
 varaston esilataus (`esilataaKunValmis`), havaintoasemat ja
@@ -5819,7 +5822,7 @@ tuulikenttä latautuvat jo käynnistyksessä rinnakkain. Uutta on se, että
 lähtö ODOTTAA niitä — ja partikkelien jäljet ehtivät täyttyä ruudun alla
 (piirtosilmukka pyörii latausruudun takana).
 
-### Mitattu
+### Mitattu (3,4 s:n vähimmäisaika ja 2 s:n katto)
 
 Pohjakartta reititettiin paikalliseen laattaan 60–160 ms viiveellä:
 kontin yhteys Esriin on niin hidas, ettei MapLibren `load` laukea
@@ -5851,3 +5854,57 @@ Napautuksen ajoitus on kontissa epätarkka (kiireinen pääsäie viivästää
 kosketustapahtumaa), mutta lähtö tuli kahdesti kolmesta ennen
 vähimmäisaikaa. Vaimennettu liike: lähtö 2,77–2,81 s, eli ilman
 vähimmäisaikaa ja kartan odotus kattoon asti (säälaatat hitaat).
+
+### Lyhennetty kahteen sekuntiin, ohjeteksti pois
+
+Käyttäjän päätös: "animaatio on 2 sekuntia näkyvissä ja ei tarvitse olla
+napauta tekstiä. Napautus saa toimia." Kolme muutosta:
+
+- `LAHTO_MIN_MS` 3400 -> 2000. Esittely asettuu 1,9 s kohdalla, joten
+  koko sommitelma ehtii näkyä; lähtö (`.out`) alkaa palkin viimeisen
+  palan jälkeen 2,3 s kohdalla.
+- `LAHTO_KARTTA_MAX_MS` 2000 -> 1000. Katto tulee vähimmäisajan PÄÄLLE,
+  ja kahden sekunnin katolla ruutu näkyi hitaalla säälaattayhteydellä
+  mitattuna 3,6–4,3 s (lähtö esittelyn alusta, kolme lämmintä
+  käynnistystä) — pidempään kuin vanha 3,4 s:n esittely, eli juuri se
+  mitä lyhennyksellä ei haettu. Nyt pahin tapaus on 2 + 1 + 0,3 s.
+- Tilarivin "Napauta jatkaaksesi" / "Klikkaa jatkaaksesi" ja
+  osoitinkursori poistettiin (`_lahto.vihje` samalla). Tilarivi sanoo
+  koko ajan "Ladataan...". Ohitus toimii kuten ennen: napautus, klikkaus
+  tai näppäin.
+
+Mitattu lämpimällä käynnistyksellä (sama asetelma kuin yllä, lähtö
+esittelyn alusta):
+
+```
+ei napautusta          2,30 / 3,45 / 3,31 s   (2,30 = kartta valmis;
+                                              muut katossa, säälaatat
+                                              hitaat kontissa)
+napautus ~1,1 s        7/7 ohitti: lähtö 1,81–2,02 s
+näppäin ~1,1 s         1,56 / 1,57 / 1,68 s
+vaimennettu liike      1,55 / 1,65 / 1,61 s
+tilarivi 1,5 s kohdalla "Ladataan..." 3/3, kursori oletus
+sivun virheet          0
+```
+
+Kartan tila lähtöhetkellä, vuorotellen vanhan (3,4 s / 2 s katto)
+kanssa, lämmin käynnistys:
+
+```
+                       vanha                     uusi
+lähtö                  4,25 / 3,80 / 5,71 s      3,30 / 2,68 / 3,31 s
+pohjakartan laatat     3/3                       3/3
+lämpökartan hila       2/3 (5,71 katossa)        1/3 (3,30 ja 3,31 katossa)
+```
+
+Pohjakartta ehtii siis aina; lämpökartan hila riippuu säälaattojen
+yhteydestä, joka on kontissa hidas. Katossa lähtevä ruutu aukeaa
+karttaan jossa lämpökartta täyttyy silmien edessä — se on lyhyen
+esittelyn tietoinen hinta, ja sama tapahtui vanhallakin kerran kolmesta.
+
+Napautuksen lähtö on näppäintä myöhemmin, koska kontin kiireinen
+pääsäie viivästää kosketustapahtumaa: mitattuna `touchstart` saapui
+0,3–0,5 s napautuksen jälkeen, `click` 0–0,13 s sen perään ja lähtö
+0,3 s klikistä (palkin viimeinen pala). Ensimmäisellä kierroksella
+yksi napautus kolmesta näytti jääneen katon varaan; seitsemän kierroksen
+tapahtumajäljityksellä jokainen napautus tuotti klikin ja ohitti.
