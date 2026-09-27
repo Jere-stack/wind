@@ -199,7 +199,8 @@ kokeiltu ja kaadettu mittauksella.
   Valikot yhtenäisiksi: sama sulkunappi, sama ele, sama fontti ·
   Latausruutu liikegrafiikaksi: meri, tuuli ja foilaaja ·
   Latausruutu näkyy pidempään, ja odotus käytetään kartan lataamiseen ·
-  Kaaviot yhdeksi moottoriksi ja spottikortti moduuleiksi
+  Kaaviot yhdeksi moottoriksi ja spottikortti moduuleiksi ·
+  Aikajana: palkit kaavion värisiksi, päivän pilleri paikalleen
 - **pwa**: PWA — kotivalikkoon ja rannalle · Mitä välimuistiin menee ·
   Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
   Ikoni ja kotivalikko
@@ -324,30 +325,21 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   väriasteikko ja sävy saa tarkoittaa sateen voimakkuutta. Ehto EI ole
   neuvoteltavissa: jos lämpökartta joskus palautetaan näkyviin
   sadekerroksen alle, sateen värit on poistettava samassa muutoksessa.
-- **Aikajanan palkit ovat `ColorRamp.varjo()`, eivät `rgb()`, `paperi()`
-  eivätkä `ink()`.** Aikajana on nyt tummennus eikä paperi, ja SEN
-  alustan ramppi on karttaramppi sekoitettuna VALKOISEEN kertoimella
-  0,45 — `paperi()`:n peilikuva, joka kertoi saman rampin 0,48:lla kohti
-  mustaa. Molemmat säilyttävät sävyn ja muuttavat vain kirkkautta, eli
-  sen ominaisuuden joka sitoo palkin karttaan.
-  Kumpikin paljas ramppi katoaa väärälle alustalleen, ja se on mitattu
-  molempiin suuntiin: `rgb()` on paperilla 1,02:1, ja tummennusta vasten
-  sen hiljainen pää katoaa samalla tavalla — juuri se pää jota Suomen
-  rannikolla katsotaan useimmin.
-  `varjo()`:lla mitattuna ruudulta: 2 m/s 7,76:1, 5 m/s 12,30, 8 m/s
-  13,65, 11 m/s 15,08, 14 m/s 10,92, 20 m/s 7,93. Heikoin on siis 7,76
-  (paperiversiossa 3,41).
-  **ALUSTANÄYTE OTETAAN PALKKIEN VÄLISTÄ.** Nämä luvut olivat pitkään
-  4,88 / 7,73 / 8,58 / 9,47 / 6,86 / 6,46, ja ne olivat väärin samasta
-  syystä kuin kortin paperinäyte aikanaan: mittarin alustapiste oli
-  kiinteä `nauha.left + 24`, joka on PLAY-NAPIN sisällä (nappi on
-  x 9..53). Se luki siis napin lasia tummennuksena — ja kun lasin alfaa
-  nostettiin, "alusta" vaaleni ja jokainen palkki näytti menettäneen
-  kontrastia vaikka liukuvärin alfa oli mitattuna noussut. Näyte otetaan
-  kahden palkin välistä (tikki 18 px, palkki 12, väliin 6 px) ja mittari
-  tarkistaa vielä ettei piste osu nappiin. `ink()` on yhä väärä koska se
-  on oma sävypolkunsa eikä matchaa karttaan. Taulu ei seuraa pohjakarttaa
-  (värisokeusasetusta, jota se ennen seurasi, ei enää ole).
+- **AIKAJANAN PALKIT OVAT `ColorRamp.rgb()` — SAMA RAMPPI KUIN
+  SPOTTIKORTIN KAAVIOSSA JA ASETUSTEN VÄRIASTEIKOSSA.** Käyttäjän
+  päätös: kolme paikkaa, yksi väri samalle nopeudelle. Palkeilla oli
+  ennen oma `varjo()` (ramppi sekoitettuna valkoiseen 0,45), joka teki
+  niistä pastellin eivätkä ne näyttäneet samoilta kuin kaavio; taulu
+  poistettiin. Mitattuna ruudulta, alusta PALKKIEN VÄLISTÄ ja
+  tulevilta tunneilta (menneet ovat `opacity .4`): 0 m/s 1,34:1, 1 m/s
+  2,24, 2 m/s 3,79, 5 m/s 9,84, 8 m/s 11,98, 11 m/s 13,78, 14 m/s 7,62,
+  20 m/s 7,09. Tyynen pää on tietoinen hinta — sillä tunnilla palkki on
+  myös matalin. `paperi()` ja `ink()` ovat yhä vääriä: edellinen on
+  paperin taulu, jälkimmäinen oma sävypolkunsa.
+  **ALUSTANÄYTE OTETAAN PALKKIEN VÄLISTÄ, EI NAPISTA EIKÄ OSOITTIMESTA.**
+  Kiinteä `nauha.left + 24` on play-napin sisällä (x 9..53), ja
+  keskimmäinen tikki on NYT-viivan alla (magenta 180,0,90 luettiin
+  kerran palkiksi). Tikki 18 px, palkki 12, väliin 6 px.
 - **AIKAJANALLA EI OLE URAA EIKÄ KORTTIA.** Ura oli kolmessa muodossa
   (tumma, hiekka, kaksi identtistä uraa 1,01:1 raidasta raitaan) ja
   jokainen oli reuna jota kortin oma reuna jo kertoi; sitten kortti
@@ -1222,6 +1214,19 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   olisi vaihtunut keskellä. Tätä ei voi mitata kontissa (Linux-WebKitissä
   ominaisuus on no-op), joten se on pääteltyä eikä mitattua; mitattu on
   se mikä välähdyksen sisältö oli.
+- **VALINTAPILLERI EI LIIKU — SE ON KISKON KESKELLÄ, JA LAPUT VIERIVÄT
+  SEN YLI** (`#tl-paiva-pilleri`, kiskon sisarus samalla geometrialla).
+  Pilleri oli valitun lapun `::before`, ja sillä oli 0,15 s:n häivytys
+  (tekstillä 0,18 s): kisko keskitettiin heti mutta vanha pilleri himmeni
+  vielä vanhan lapun mukana sivussa. Käyttäjä näki sen kahtena vikana —
+  klo 23 → 00 edellinen päivä vilahti väärässä kohdassa, ja kahden
+  päivän hypyssä valkoinen "jäi kaksi päivää taaksepäin ja palasi
+  keskelle". Nyt valittu lappu vaihtaa vain tekstin värin ILMAN
+  siirtymää, ja kaikki laput ovat saman levyisiä (5,4 em), jotta kiinteä
+  pilleri sopii jokaiseen. Mitattu: valitun lapun keskikohta pilleristä
+  0,1 px heti klo 00:n jälkeen ja −0,5 px heti +48 h hypyn jälkeen,
+  samoina kuudessa seuraavassa ruudussa. Älä palauta pilleriä lapulle
+  äläkä lisää sille `transition`ia.
 - **PÄIVÄYS ON TÄSMÄLLEEN KESKELLÄ EIKÄ LIU'U.** Lapun OMA keskikohta
   asetetaan osoittimen alle, joten päivän sisällä kisko ei liiku
   pikseliäkään (mitattu poikkeama −1,0…+0,1 px kahdeksalla siirrolla,

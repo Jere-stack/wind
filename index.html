@@ -1498,10 +1498,13 @@ html.tyopoyta #kapseli.vaistyy {
  * reunoja myöten. */
 .tl-paiva {
   position: relative;
-  flex: 0 0 auto;
+  /* KAIKKI LAPUT OVAT SAMAN LEVYISIÄ, koska valintapilleri ei liiku
+     (ks. `#tl-paiva-pilleri`): kiinteän pillerin on sovittava jokaiseen
+     lappuun. 5,4 em mahduttaa "Tänään" ja "Ke 30." väljästi. */
+  flex: 0 0 5.4em;
   height: 100%;
   display: flex; align-items: center; justify-content: center;
-  padding: 0 10px;
+  padding: 0;
   font-size: var(--fs-11);
   font-weight: 590;
   font-variant-numeric: tabular-nums;
@@ -1512,7 +1515,6 @@ html.tyopoyta #kapseli.vaistyy {
   white-space: nowrap;
   cursor: pointer;
   -webkit-user-select: none; user-select: none;
-  transition: color .18s ease;
 }
 /* Pilleri on omana kerroksenaan eikä lapun taustana. Lappu on 40 px eli
    koko rivin korkuinen napautuspinta; pilleri on 30 px eli sen kokoinen
@@ -1523,19 +1525,44 @@ html.tyopoyta #kapseli.vaistyy {
   content: ''; position: absolute;
   left: 0; right: 0; top: 4px; bottom: 4px;
   border-radius: 9px;
-  transition: background .15s ease;
 }
 /* VALITTU PÄIVÄ ON VAALEA PILLERI TUMMALLA, ei magenta. `--accent` on
-   toiminto- ja varoitusväri; päivävalinta ei ole kumpaakaan. Pilleri
-   kääntyi paperin mukana: tummalla alustalla tumma pilleri katoaisi,
-   joten valinta on nyt se mikä on VALOA. Sama kieli kuin aikakuplalla,
-   joka on saman valinnan toinen puoli. */
-.tl-paiva.valittu::before {
+   toiminto- ja varoitusväri; päivävalinta ei ole kumpaakaan. Sama kieli
+   kuin aikakuplalla, joka on saman valinnan toinen puoli.
+ *
+ * PILLERI EI OLE LAPUN OMA, SE ON KISKON KESKELLÄ PAIKALLAAN.
+ * Pilleri oli valitun lapun `::before`, ja sillä oli 0,15 s:n häivytys
+ * (tekstillä 0,18 s). Kun valinta siirtyi toiseen päivään, kisko
+ * vieritettiin heti mutta VANHA pilleri himmeni vielä 150 ms vanhan
+ * lapun mukana sivussa: klo 23 -> 00 edellinen päivä vilahti vasemmalla,
+ * ja kahden päivän hypyssä valkoinen jäi hetkeksi kahden lapun päähän
+ * ennen kuin "palasi keskelle". Käyttäjän sanoin: päivämäärän on
+ * pysyttävä koko ajan keskellä valkoisella valittuna.
+ *
+ * Nyt pilleri on kiskon SISARUS, kiinteästi keskellä, ja laput vierivät
+ * sen yli. Valittu lappu vaihtaa vain tekstin värin, ilman siirtymää,
+ * samassa suorituksessa jossa kisko keskitetään. Pilleri ei siis voi
+ * olla missään muualla kuin keskellä. Kiskon geometria (bottom, left,
+ * right, korkeus) on sama kuin `#tl-paivat`:lla, jotta keskikohdat ovat
+ * samat myös vaakatilan turva-alueilla. */
+#tl-paiva-pilleri {
+  position: absolute;
+  bottom: calc(var(--sab-tl) + 14px);
+  left: calc(var(--sal) + 14px); right: calc(var(--sar) + 14px);
+  height: var(--tl-paivat-h);
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none; z-index: 2;
+  font-size: var(--fs-11);
+}
+#tl-paiva-pilleri::before {
+  content: ''; width: 5.4em; height: calc(100% - 8px);
+  border-radius: 9px;
   background: rgba(255,255,255,.95);
   box-shadow: 0 1px 3px rgba(0,0,0,.30);
 }
-.tl-paiva:active::before  { background: var(--tl-lasi); }
-.tl-paiva.valittu { color: #10171D; font-weight: 640; }
+#tl-paiva-pilleri[hidden] { display: none; }
+.tl-paiva:not(.valittu):active::before { background: var(--tl-lasi); }
+.tl-paiva.valittu { color: #10171D; }
 .tl-paiva-txt { position: relative; }
 
 /* PÄIVÄN TUULIKAISTA POISTETTIIN.
@@ -1635,15 +1662,16 @@ html.tyopoyta #kapseli.vaistyy {
      toista askelta peräkkäin. Ks. `.htick.pv-alku`. */
   scroll-snap-align: center;
 }
-/* PALKKI ON KARTAN SÄVYINEN, TUMMENNUKSEN KIRKKAUDELLA.
+/* PALKKI ON KARTAN VÄRINEN — SAMA `ColorRamp.rgb()` KUIN SPOTTIKORTIN
+ * KAAVIOSSA JA ASETUSTEN VÄRIASTEIKOSSA.
  *
- * `ColorRamp.varjo()` on sama karttaramppi sekoitettuna VALKOISEEN
- * kertoimella 0,45: sävy on täsmälleen kartan (8 m/s on vihreä
- * molemmissa), kirkkaus on liukuvärille sopiva. Se on `paperi()`:n
- * peilikuva — paperilla sama ramppi kerrottiin 0,48:lla kohti mustaa.
- * Ei paneelien `ink()`, joka on oma sävypolkunsa eikä siis matchaa
- * karttaan, eikä paljas `rgb()`: mitattuna tummennusta vasten sen
- * hiljainen pää on 1,10:1 (2 m/s) ja 1,46 (5 m/s).
+ * Palkeilla oli oma `varjo()`-ramppi (sama sävy sekoitettuna valkoiseen
+ * 0,45), jotta hiljainen pää erottuisi tummennuksesta. Se teki palkeista
+ * pastellin, ja ne näyttivät eri väreiltä kuin kaavio ja asteikko —
+ * käyttäjän päätöksellä kaikki kolme ovat nyt sama ramppi. Hinta on
+ * tunnettu: 0–1 m/s on tummaa sinistä tummalla (mitattuna noin 1,3–2,2:1),
+ * mutta niillä tunneilla palkki on myös matalin, joten korkeus kertoo
+ * tyynen. 2 m/s:stä ylöspäin kontrasti on yli 3:1.
  *
  * Kehys on hiuksenohut VALO: alusta on tumma, joten reunan tekee
  * alustan tummuus, ja kehyksen tehtävä on pitää kirkas palkki terävänä
@@ -4512,6 +4540,7 @@ html.tyopoyta .hl-lk-arvo { font-size: 19px; }
           <path d="M6 5l6 7-6 7M14 5l6 7-6 7"/>
         </svg>
       </div>
+      <div id="tl-paiva-pilleri" aria-hidden="true" hidden></div>
       <div id="tl-paivat"></div>
       <div id="tl-indicator"><div id="tl-time-bubble">--:--</div></div>
       <div id="tl-scroll"></div>
@@ -5643,33 +5672,10 @@ const ColorRamp = (() => {
    * pysyy samana. */
   const PAPERI_K = 0.48;
   const _paperiLUT = new Array(LUT_SIZE);
-  /* KARTAN SÄVY, TUMMENNUKSEN KIRKKAUS — sama ongelma toisesta päästä.
-   *
-   * Aikajana ei ole enää paperia vaan tummennus, ja `paperi()` on siellä
-   * yhtä väärä kuin `rgb()` oli paperilla — kumpikin katoaa alustaansa.
-   * Paljas karttaramppi mitattuna tummennusta vasten (rgb 43,60,61):
-   *
-   *     2 m/s  1,10:1     11 m/s  3,21:1
-   *     5 m/s  1,46:1     14 m/s  4,59:1
-   *     8 m/s  1,71:1     20 m/s  4,27:1
-   *
-   * Rampin hiljainen pää on tummansininen, ja tummalla alustalla se on
-   * käytännössä näkymätön — juuri se pää jota Suomen rannikolla
-   * katsotaan useimmin. Ratkaisu on `paperi()`:n peilikuva: sama
-   * karttaramppi sekoitettuna VALKOISEEN sen sijaan että se kerrottaisiin
-   * mustaa kohti. Sekoitus sRGB:ssä säilyttää sävyn ja nostaa
-   * kirkkautta, eli se ominaisuus joka sitoo palkin karttaan jää
-   * koskematta.
-   *
-   * Kerroin 0,45 on mitattu: se nostaa heikoimman (2 m/s) 1,10:stä
-   * 3,46:een ja pitää kärjen yli neljän. Pienempi kerroin jättää
-   * hiljaisen pään alle kolmen; suurempi haalistaa koko rampin kohti
-   * valkoista ja syö sävyeron peräkkäisten nopeuksien väliltä.
-   *
-   * Kuten `paperi()`, tämä taulu EI seuraa pohjakarttaa — alusta on aina
-   * sama tummennus. */
-  const VARJO_K = 0.45;
-  const _varjoLUT = new Array(LUT_SIZE);
+  /* AIKAJANAN PALKIT OVAT PALJAS `rgb()`. Niille oli oma `varjo()`-taulu
+   (ramppi sekoitettuna valkoiseen 0,45), mutta käyttäjän päätöksellä
+   palkkien värit ovat samat kuin spottikortin kaaviossa ja asetusten
+   väriasteikossa — kolme paikkaa, yksi ramppi. Taulu poistettiin. */
   const _inkCssLUT = new Array(LUT_SIZE);
 
   /* Taulut täytetään PAIKALLEEN eikä korvata uusilla. Syy on että ne ovat
@@ -5690,9 +5696,6 @@ const ColorRamp = (() => {
       _paperiLUT[i] = { r: Math.round(cp.r * PAPERI_K),
                         g: Math.round(cp.g * PAPERI_K),
                         b: Math.round(cp.b * PAPERI_K) };
-      _varjoLUT[i] = { r: Math.round(cp.r + (255 - cp.r) * VARJO_K),
-                       g: Math.round(cp.g + (255 - cp.g) * VARJO_K),
-                       b: Math.round(cp.b + (255 - cp.b) * VARJO_K) };
       _inkCssLUT[i] = 'rgb(' + ci.r + ',' + ci.g + ',' + ci.b + ')';
     }
     for (let a = 0; a < ALPHA_STEPS; a++) {
@@ -5717,8 +5720,7 @@ const ColorRamp = (() => {
     return _cssAlphaLUT[ai][idx];
   }
   function paperi(ms) { return _paperiLUT[_lutIdx(ms)]; }
-  function varjo(ms)  { return _varjoLUT[_lutIdx(ms)]; }
-  return { rgb, css, msToT, ink, inkCss, paperi, varjo, paivita: rakennaLUTit };
+  return { rgb, css, msToT, ink, inkCss, paperi, paivita: rakennaLUTit };
 })();
 
 /* -- SPOTS ----------------------------------------------------- */
@@ -20510,7 +20512,7 @@ function _tlPaivitaPalkit(speeds, keskiIdx) {
   for (let i = i0; i <= i1; i++) {
     const bar = palkit[i];
     if (!bar) continue;
-    const ms = speeds[i] || 0, bc = ColorRamp.varjo(ms);
+    const ms = speeds[i] || 0, bc = ColorRamp.rgb(ms);
     const h = _tlPalkkiPx(ms) + 'px', c = 'rgb(' + bc.r + ',' + bc.g + ',' + bc.b + ')', f = ms >= 8;
     const m = bar._tl || (bar._tl = { h: null, c: null, f: null });
     if (m.h !== h) { bar.style.height = h; m.h = h; }
@@ -20601,7 +20603,7 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
       tl.appendChild(nowLine);
       nowMarkerInserted = true;
     }
-    const ms = speeds[i]||0, bc = ColorRamp.varjo(ms);
+    const ms = speeds[i]||0, bc = ColorRamp.rgb(ms);
     const tick = document.createElement('div');
     const isPast = i < realNowIdx;
     /* LUKEMA ON JOKA TUNNILLA — EIKÄ NYT-MERKKI OLE POIKKEUS.
@@ -21221,6 +21223,8 @@ function _tlRakennaPaivat(times, idx) {
   _tlKiskoKirjoitettu = 0;
   kisko.innerHTML = '';
   State._tlPaivat = [];
+  const pilleri = document.getElementById('tl-paiva-pilleri');
+  if (pilleri) pilleri.hidden = !times || !times.length;
   if (!times || !times.length) return;
   const DAY = ['Su', 'Ma', 'Ti', 'Ke', 'To', 'Pe', 'La'];
   const tanaan = _tlPvNro(new Date());

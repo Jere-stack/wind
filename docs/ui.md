@@ -5908,3 +5908,61 @@ pääsäie viivästää kosketustapahtumaa: mitattuna `touchstart` saapui
 0,3 s klikistä (palkin viimeinen pala). Ensimmäisellä kierroksella
 yksi napautus kolmesta näytti jääneen katon varaan; seitsemän kierroksen
 tapahtumajäljityksellä jokainen napautus tuotti klikin ja ohitti.
+
+## Aikajana: palkit kaavion värisiksi, päivän pilleri paikalleen (27.9.)
+
+Käyttäjän palaute kolmena kohtana: palkkien värien pitää täsmätä
+spottikortin uuteen kaavioon ja asetusten väriasteikkoon; klo 23 → 00
+seuraava päivä vilahti väärässä kohdassa; ja kahden päivän hypyssä
+valkoinen valitsin jäi hetkeksi kaksi päivää taaksepäin ennen kuin palasi
+keskelle.
+
+### Palkit ovat `ColorRamp.rgb()`
+
+Palkeilla oli oma `varjo()`-ramppi (karttaramppi sekoitettuna valkoiseen
+0,45), joten ne olivat pastellia, kun kaavio (`Tuulikaavio`) ja asetusten
+asteikko (`_legendGradient`) käyttävät paljasta `rgb()`:tä. Nyt kaikki
+kolme ovat sama ramppi ja `varjo()` on poistettu.
+
+Mitattu ruudulta (Chromium, 390×844, tulevat tunnit, alusta palkkien
+välistä):
+
+| m/s | palkki | kontrasti |
+|---|---|---|
+| 0 | 12,30,120 | 1,34 |
+| 1 | 12,62,190 | 2,24 |
+| 2 | 0,100,245 | 3,79 |
+| 5 | 0,205,220 | 9,84 |
+| 8 | 60,235,45 | 11,98 |
+| 11 | 235,223,0 | 13,78 |
+| 14 | 255,128,7 | 7,62 |
+| 20 | 255,85,235 | 7,09 |
+
+`varjo()`:n heikoin oli 7,76 (2 m/s). Rampin tyyni pää on nyt tummaa
+sinistä tummalla, ja se on hinta joka maksetaan yhtenäisyydestä; näillä
+tunneilla palkki on myös matalin, joten muoto kertoo tyynen. Mittarin
+ensimmäinen ajo luki menneitä palkkeja (`opacity .4`) ja NYT-viivaa —
+näytteet on otettava tulevista tikeistä ja keskitikki ohitettava.
+
+### Vilkkuminen oli siirtymä, ei vieritys
+
+Valittu päivä oli lapun oma `::before`-pilleri, jolla oli
+`transition: background .15s` (tekstillä `color .18s`). Kun valinta
+siirtyi, `_tlKiskoKeskita` vieritti kiskon samassa suorituksessa uuden
+lapun keskelle — mutta vanha pilleri häipyi vielä 150 ms vanhan lapun
+mukana, eli yhden lapun (klo 00) tai kahden lapun (+48 h) päässä
+keskeltä. Se oli molemmat raportoidut oireet.
+
+Korjaus ei ole pelkkä siirtymän poisto: pilleri on nyt oma elementtinsä
+(`#tl-paiva-pilleri`) kiskon sisaruksena, samalla geometrialla ja
+kiinteästi keskellä. Laput vierivät sen yli ja valittu vaihtaa vain
+tekstin värin ilman siirtymää. Lapuilla on sama leveys (5,4 em, 59 px
+puhelimella), jotta kiinteä pilleri sopii jokaiseen.
+
+Mitattu (`_tlSeuraaHetkea` + `_tlKiskoKeskita` kuten raahauksessa, ja
+`_tlValitseIdx` hypylle): valitun lapun keskikohta pilleristä klo 00:n
+jälkeen 0,1 px heti ja kuudessa seuraavassa ruudussa, +48 h hypyn jälkeen
+−0,5 px heti ja samat kuusi ruutua; valittuja lappuja tasan yksi;
+laskettu `transition-duration` 0 s sekä lapulla että `::before`lla.
+Kontissa ei ole WebKitiä — päätelmä ei tarvitse sitä, koska pilleri ei
+liiku lainkaan, mutta laitetesti on silti se joka ratkaisee.
