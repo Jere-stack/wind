@@ -105,6 +105,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
 | `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V9: yksi kaaviomoottori, kortti moduuleina, fonttilattia) |
 | `docs/sujuvuus.md` | **työpöydän** zoomin ja panoroinnin raskautta, windy.comin arkkitehtuuria, sujuvuusstrategiaa, **MapLibre-siirtoa (C2) ja sen mittauksia** |
+| `docs/julkaisu.md` | **julkaisukelpoisuutta**: UI-parannusten top 25, suositusjärjestys ja logiikan 10 kriittisintä kohtaa (27.9.) — lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 
 <details>
 <summary>Osioiden nimet tiedostoittain (jos et tiedä mistä etsiä)</summary>
@@ -212,6 +213,8 @@ kokeiltu ja kaadettu mittauksella.
   windy.com — mitä se tekee · Julkiset lähteet (GitHub) · Vaihtoehdot
   (Vaihe 0, A1–A4, B1–B3, C1–C2) · Suositus ja järjestys · Mitä ei
   ehdoteta
+- **julkaisu**: Design ja UI, top 25 (P0–P2) · Suositusjärjestys
+  (vaiheet 0–3) · Logiikka, top 10 (L1–L10)
 
 </details>
 
