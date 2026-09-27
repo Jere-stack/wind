@@ -198,6 +198,7 @@ kokeiltu ja kaadettu mittauksella.
   yhtenäisiksi, liukuväri alemmas, tunti pysyy mallin vaihdossa ·
   Valikot yhtenäisiksi: sama sulkunappi, sama ele, sama fontti ·
   Latausruutu liikegrafiikaksi: meri, tuuli ja foilaaja ·
+  Latausruutu näkyy pidempään, ja odotus käytetään kartan lataamiseen ·
   Kaaviot yhdeksi moottoriksi ja spottikortti moduuleiksi
 - **pwa**: PWA — kotivalikkoon ja rannalle · Mitä välimuistiin menee ·
   Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
@@ -474,6 +475,17 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   ANIMAATIOT.** Ilman sitä parikymmentä ikuista animaatiota jatkaisi
   kompositorissa kartan alla. Mitattu piilotuksen jälkeen: 0 jäljellä.
   `hideLoading` on idempotentti — kutsupaikkoja on viisi.
+- **`hideLoading()` ON "DATA VALMIS", EI PIILOTUS.** Lähtö (`_lahde`)
+  odottaa lisäksi vähimmäisajan 3,4 s esittelyn alusta (`LAHTO_MIN_MS`,
+  kello `#loading._lrAlku`; vaimennetulla liikkeellä 0) ja valmiin
+  kartan (`_karttaValmis`: `areTilesLoaded` + lämpökartta ilman
+  odottavaa hilaa), jälkimmäistä enintään 2 s (`LAHTO_KARTTA_MAX_MS`).
+  Napautus, klikkaus tai näppäin ohittaa heti kun data on valmis.
+  Mitattuna vanha aukesi lämpimässä käynnistyksessä 0,93 s kohdalla
+  karttaan jossa ei ollut laattoja eikä lämpökarttaa (0/3), uusi 3/3
+  valmiina. Älä lisää odotusehtoa ilman kattoa, äläkä laske
+  vähimmäisaikaa navigoinnin alusta (hitaalla verkolla se olisi jo
+  kulunut kun ruutu syttyy).
 - **TILAPALKKI ON VALKOINEN TUMMALLA, 19,65:1.** Latausruudun ylälaita on
   kartan `--bg`. Kun ruutu oli kermaa, valkoinen tilapalkki oli 1,32:1 ja
   tarvitsi erillisen tummennuksen (8,18:1); älä vaalenna ylälaitaa.

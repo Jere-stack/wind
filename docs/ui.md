@@ -5619,8 +5619,9 @@ ylälaita on kartan `--bg`. Vaakatasossa siiven kärki on ylimmässä
 Esittely: juovat ovat jo matkalla ruudun syttyessä (negatiivinen viive),
 kuski liukuu sisään vasemmalta (1,5 s), merkki piirtyy (0,26–1,41 s),
 kirjaimet nousevat rivin alta porrastettuina (0,5 s alkaen, 45 ms
-välein). Kaikki on paikallaan noin 1,9 s kohdalla, mutta mikään ei
-odota esittelyä: `hideLoading` voi tulla milloin tahansa.
+välein). Kaikki on paikallaan noin 1,9 s kohdalla. Lähtö odottaa
+vähintään 3,4 s esittelyn alusta ja valmista karttaa, ks. "Latausruutu
+näkyy pidempään, ja odotus käytetään kartan lataamiseen" alla.
 
 Lähtö (`#loading.out`): palkki täyteen, nimilohko nousee pois, kuski
 kiihtyy oikealle (0,62 s, ease-in) ja meri ja tuuli ryntäävät
@@ -5774,3 +5775,79 @@ nyt historiaa:
 - Kirjasinlattia 11 px (SVG 10,5 px) ja sulkunapin ympyrä 32 px.
 
 Säännöt ovat `CLAUDE.md`:n osiossa "Kaaviot ja laaja näkymä".
+
+## Latausruutu näkyy pidempään, ja odotus käytetään kartan lataamiseen
+
+Palaute: "Animaatio on hyvä — siitä ei kerkeä havaitsemaan mitään." Se piti
+paikkansa mitattuna: välimuistista käynnistettäessä data oli valmis
+0,5 s kohdalla ja lähtö alkoi 0,93 s, eli esittely (asettuu 1,9 s)
+katkesi ennen kuin merkki oli piirtynyt. Samalla ruutu aukesi karttaan
+joka ei ollut valmis.
+
+### Kolme ehtoa ja katto
+
+`hideLoading()` EI ENÄÄ PIILOTA, se kertoo että data on valmis
+(aikajana, spotit, tuulikenttä). Kutsupaikat ovat samat viisi. Lähtö
+(`_lahde`) odottaa lisäksi:
+
+1. **Vähimmäisaika 3,4 s esittelyn alusta** (`LAHTO_MIN_MS`). Kello on
+   latausruudun oma (`#loading._lrAlku`, asetetaan skriptissä ennen
+   ensimmäistä ruutua), ei navigoinnin alku: hitaalla verkolla ruutu
+   syttyy vasta kun HTML on perillä, ja navigoinnista laskettu raja olisi
+   silloin jo kulunut. 3,4 s näyttää esittelyn, pumppausta ja ensimmäisen
+   puuskan (saapuu 2,4 s), ja kuski lähtee puuskan keskellä.
+   Vaimennetulla liikkeellä esittelyä ei ole, joten raja on nolla.
+2. **Valmis kartta** (`_karttaValmis`): pohjakartan näkyvät laatat ovat
+   tulleet (`areTilesLoaded`; kaatunut laatta lasketaan tulleeksi) ja
+   lämpökartta piirtää ilman odottavaa hilaa (`LampoGL._odottava`,
+   `_tila`). Lämpökartta on valmis myös kun se ei piirry (sadekerros) tai
+   kun varasto ei kata tuntia (`LampoGL._tyhja`, uusi lippu) — muuten
+   odotus kestäisi niissä aina kattoon.
+3. **Katto 2 s** (`LAHTO_KARTTA_MAX_MS`) siitä hetkestä kun data ja
+   vähimmäisaika ovat täyttyneet. Hidas laattapalvelin ei saa pitää
+   sovellusta kiinni.
+
+Napautus, klikkaus tai näppäin ohittaa kaiken heti kun data on valmis;
+ennen sitä toive muistetaan ja lähtö tulee datan mukana. Kun odotusta on
+yli 0,8 s, tilarivi vaihtuu "Ladataan…" -> "Napauta jatkaaksesi"
+(työpöydällä "Klikkaa"), ja palkki liukuu 96 %:iin vähimmäisajan
+loppuun mennessä, jotta se liikkuu koko odotuksen.
+
+Taustalla ei tarvinnut käynnistää mitään uutta: pohjakartan laatat,
+varaston esilataus (`esilataaKunValmis`), havaintoasemat ja
+tuulikenttä latautuvat jo käynnistyksessä rinnakkain. Uutta on se, että
+lähtö ODOTTAA niitä — ja partikkelien jäljet ehtivät täyttyä ruudun alla
+(piirtosilmukka pyörii latausruudun takana).
+
+### Mitattu
+
+Pohjakartta reititettiin paikalliseen laattaan 60–160 ms viiveellä:
+kontin yhteys Esriin on niin hidas, ettei MapLibren `load` laukea
+kummassakaan buildissa 8 sekunnissa, ja GL-kerrokset (lämpökartta,
+partikkelit) lisätään vasta `load`in jälkeen. Muu verkko (API,
+säälaatat) oikea. Kolme vuorottelevaa kierrosta, tila lähtöhetkellä:
+
+```
+                       vanha (tuotanto)          uusi
+lämmin: lähtö          0,93 / 0,94 / 0,94 s      4,0 / 5,3 / 5,8 s
+lämmin: kartta valmis  0/3 (ei laattoja, ei      3/3 (laatat + hila)
+                       lämpökarttaa; sekunnin
+                       päästä lämpökartta yhä
+                       puuttui)
+kylmä: lähtö           3,2 / 3,5 / 3,9 s         4,4 / 4,7 / 17,9 s *
+kylmä: lämpökartta     "kuva" 2/3 (API:n karkea  hila 2/3, "kuva" 1/3
+                       kuva, vaihtuu myöhemmin)
+```
+
+\* data valmistui 16,9 s kohdalla (API vastasi hitaasti); lähtö sekunti
+sen jälkeen.
+
+Lämpimän käynnistyksen lähtö vaihtelee 4,0–5,8 s koska kontin yhteys
+säälaattoihin on hidas: 4,0 on tasan vähimmäisaika + palkki, loput
+odottivat lämpökartan hilaa katon sisällä.
+
+Ohitus (lämmin käynnistys): näppäin 1,0 s kohdalla -> lähtö 1,95–2,38 s.
+Napautuksen ajoitus on kontissa epätarkka (kiireinen pääsäie viivästää
+kosketustapahtumaa), mutta lähtö tuli kahdesti kolmesta ennen
+vähimmäisaikaa. Vaimennettu liike: lähtö 2,77–2,81 s, eli ilman
+vähimmäisaikaa ja kartan odotus kattoon asti (säälaatat hitaat).

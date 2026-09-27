@@ -3867,6 +3867,10 @@ html.tyopoyta .hl-lk-arvo { font-size: 19px; }
   var juuri = document.getElementById('loading');
   var lahde = document.getElementById('lr-merkki-lahde');
   if (!juuri || !lahde) return;
+  /* Esittelyn kello: lähdön vähimmäisaika lasketaan tästä eikä
+     navigoinnin alusta, koska hitaalla verkolla ruutu syttyy vasta kun
+     HTML on tullut perille (ks. `_lahtoMinJaljella`). */
+  juuri._lrAlku = performance.now();
   var vahenna = false;
   try { vahenna = window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
   catch (e) { vahenna = false; }
@@ -10460,7 +10464,7 @@ const LampoGL = {
   _map: null, _gl: null,
   _hila: null, _odottava: null, _hilaVersio: 0, _ladattu: -1,
   _likainen: true, _kuvaLadattu: -1, _kuvaRajat: null,
-  _allekirjoitus: '', _valmis: false,
+  _allekirjoitus: '', _valmis: false, _tyhja: false,
   _gu: null, _gv: null, _maski: null,
 
   kiinnita(map) {
@@ -10650,9 +10654,11 @@ const LampoGL = {
       /* Varasto ei kata tätä hetkeä: kerros tyhjäksi. Laattakerros teki
          saman — väärän tunnin kenttä olisi pahempi kuin ei mitään. */
       this._odottava = null;
+      this._tyhja = true;   /* tyhjä on valmis tila, ks. `_karttaValmis` */
       if (this._hila) { this._hila = null; this._hilaVersio++; }
       return;
     }
+    this._tyhja = false;
     if (uusi.puuttuu > 0) this._pyydaData(uusi);
     if (uusi.puuttuuNakyvissa > 0) {
       uusi.t0 = sama ? o.t0 : nyt;
@@ -23973,22 +23979,124 @@ function startProgressSimulation() {
   /* Ei mennä yli 90% automaattisesti — hideLoading hoitaa lopun */
 }
 
-/* Palkki täyteen, sitten lähtö (#loading.out: kuski kiihtyy pois ja ruutu
-   häipyy kartaksi), ja lopuksi `display: none`, joka myös pysäyttää
-   latausruudun ikuiset animaatiot. 800 ms on pisin lähdön osa
-   (häivytys .28 + .45 s) pyöristettynä ylöspäin.
-   Kutsupaikkoja on useita (välimuisti, verkko, varatie, turva-ajastin),
-   ja vain ensimmäinen saa käynnistää lähdön. */
+/* LATAUSRUUDUN LÄHTÖ: DATA, VÄHIMMÄISAIKA JA VALMIS KARTTA.
+ *
+ * `hideLoading()` EI PIILOTA, se kertoo että DATA on valmis (aikajana,
+ * spotit ja tuulikenttä). Kutsupaikat ovat samat viisi kuin ennen, ja vain
+ * ensimmäinen lasketaan. Lähtö odottaa lisäksi kahta asiaa:
+ *
+ *  1. VÄHIMMÄISAIKA `LAHTO_MIN_MS` esittelyn alusta. Välimuistista
+ *     käynnistettäessä data oli valmis noin sekunnissa, ja lähtö katkaisi
+ *     esittelyn ennen kuin merkki ehti piirtyä (asettuu 1,9 s). 3,4 s näyttää
+ *     esittelyn, pumppausta ja ensimmäisen puuskan (saapuu 2,4 s), ja kuski
+ *     lähtee puuskan keskellä. Vaimennetulla liikkeellä esittelyä ei ole,
+ *     joten raja on silloin nolla.
+ *  2. VALMIS KARTTA: pohjakartan näkyvät laatat ovat tulleet
+ *     (`areTilesLoaded`, kaatunut laatta lasketaan tulleeksi) ja lämpökartta
+ *     piirtää ilman odottavaa hilaa (`LampoGL._odottava`). Ennen ruutu aukesi
+ *     karttaan jonka laatat ja lämpökartta täyttyivät silmien edessä; nyt
+ *     odotusaika käytetään niiden lataamiseen. Odotuksella on KATTO
+ *     `LAHTO_KARTTA_MAX_MS` siitä hetkestä kun kaksi ensimmäistä ehtoa
+ *     täyttyivät: hidas laattapalvelin ei saa pitää sovellusta kiinni.
+ *
+ * Napautus, klikkaus tai näppäin ohittaa molemmat heti kun data on valmis.
+ * Ennen sitä toive muistetaan, ja lähtö tulee datan mukana — data on ainoa
+ * asia jota ilman kartalla ei ole mitään näytettävää. */
+var LAHTO_MIN_MS = 3400;
+var LAHTO_KARTTA_MAX_MS = 2000;
+var _lahto = { data: 0, ohita: false, lahti: false, ajastin: null, vihje: false };
+
+function _lahtoVahenna() {
+  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  catch (e) { return false; }
+}
+function _lahtoMinLoppu() {
+  const el = document.getElementById('loading');
+  const alku = (el && el._lrAlku) || 0;
+  return _lahtoVahenna() ? alku : alku + LAHTO_MIN_MS;
+}
+function _lahtoMinJaljella() { return Math.max(0, _lahtoMinLoppu() - performance.now()); }
+
+/* Onko ensimmäinen näkymä ruudulla kokonaan? Lämpökartta lasketaan
+   valmiiksi myös kun se ei piirry lainkaan (sadekerros) tai kun varasto ei
+   kata valittua tuntia (`_tyhja`) — muuten odotus kestäisi aina kattoon. */
+function _karttaValmis() {
+  const ml = State.map && State.map.ml;
+  if (!ml) return true;
+  try { if (!ml.areTilesLoaded()) return false; } catch (e) {}
+  if (LampoGL._naytetaan() && (LampoGL._odottava || !(LampoGL._tila || LampoGL._tyhja))) return false;
+  return true;
+}
+
 function hideLoading() {
   if (_loadDone) return;
   _loadDone = true;
-  var bar = document.getElementById('load-progress-bar');
+  _lahto.data = performance.now();
+  /* Palkki liukuu melkein täyteen vähimmäisajan loppuun mennessä, jotta se
+     liikkuu koko odotuksen ajan; viimeinen pala tulee lähdössä. */
+  const bar = document.getElementById('load-progress-bar');
+  if (bar) {
+    bar.style.transition = 'transform ' + Math.max(300, Math.round(_lahtoMinJaljella())) + 'ms cubic-bezier(.2,.7,.2,1)';
+    bar.style.transform = 'scaleX(.96)';
+  }
+  _lahtoTarkista();
+}
+
+function _lahtoTarkista() {
+  clearTimeout(_lahto.ajastin); _lahto.ajastin = null;
+  if (_lahto.lahti || !_loadDone) return;
+  if (!_lahto.ohita) {
+    const nyt = performance.now();
+    const min = _lahtoMinJaljella();
+    const katto = Math.max(_lahto.data, _lahtoMinLoppu()) + LAHTO_KARTTA_MAX_MS;
+    if (min > 0 || (nyt < katto && !_karttaValmis())) {
+      /* Vihje vasta kun odotus on oikeasti odotusta (yli 0,8 s): lyhyellä
+         odotuksella teksti vaihtuisi juuri ennen lähtöä. */
+      if (!_lahto.vihje && Math.max(min, katto - nyt) > 800) {
+        _lahto.vihje = true;
+        const t = document.getElementById('load-txt');
+        if (t) t.textContent = TYOPOYTA ? 'Klikkaa jatkaaksesi' : 'Napauta jatkaaksesi';
+        const el = document.getElementById('loading');
+        if (el) el.style.cursor = 'pointer';
+      }
+      _lahto.ajastin = setTimeout(_lahtoTarkista, min > 0 ? min : 100);
+      return;
+    }
+  }
+  _lahde();
+}
+
+/* Palkki täyteen, sitten lähtö (#loading.out: kuski kiihtyy pois ja ruutu
+   häipyy kartaksi), ja lopuksi `display: none`, joka myös pysäyttää
+   latausruudun ikuiset animaatiot. 800 ms on pisin lähdön osa
+   (häivytys .28 + .45 s) pyöristettynä ylöspäin. */
+function _lahde() {
+  if (_lahto.lahti) return;
+  _lahto.lahti = true;
+  const bar = document.getElementById('load-progress-bar');
   if (bar) { bar.style.transition = 'transform .3s ease'; bar.style.transform = 'scaleX(1)'; }
-  setTimeout(function() {
-    var el = document.getElementById('loading');
-    if (el) { el.classList.add('out'); setTimeout(function(){ el.classList.add('hidden'); }, 800); }
+  setTimeout(function () {
+    const el = document.getElementById('loading');
+    if (el) { el.classList.add('out'); setTimeout(function () { el.classList.add('hidden'); }, 800); }
   }, 300);
 }
+
+/* Ohitus: napautus tai klikkaus latausruudulla, tai mikä tahansa näppäin.
+   Kuunnellaan heti eikä vasta main()issa, jotta esittelyn aikana annettu
+   ohitus ei katoa. `.out` vie osumat (`pointer-events: none`). */
+(function () {
+  function ohita() {
+    if (_lahto.lahti) return;
+    _lahto.ohita = true;
+    _lahtoTarkista();
+  }
+  const el = document.getElementById('loading');
+  if (el) el.addEventListener('click', ohita);
+  document.addEventListener('keydown', function nappain() {
+    if (_lahto.lahti) { document.removeEventListener('keydown', nappain); return; }
+    ohita();
+  });
+})();
 function scheduleRefresh() {
   clearInterval(State.refreshTimer);
   State.refreshTimer = setInterval(() => {
