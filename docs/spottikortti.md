@@ -16,7 +16,10 @@ päätän tehdäänkö kaikki vaiheet."*
 "tehdään kaikki vaiheet, suositukset käyvät kaikkiin P-kohtiin".
 Strategia on alla sellaisenaan päätöksen pohjana; mitä tehtiin ja
 mitattiin, ja missä toteutus poikkesi strategiasta, on osiossa
-**7. Toteutus ja mittaukset**.
+**7. Toteutus ja mittaukset**. Jatkopyyntö 27.9. (yhtenäistys: ei
+jaksovalitsimia, pehmeä tunnin siirto, Nyt-nappi, kaikki kaaviot samalla
+moottorilla, kortti moduuleiksi, havaintoasemakortit samaan tyyliin,
+fontit ja sulkunappi) on osioissa **V8** ja **V9** luvussa 7.
 
 > Osa FoilSpotin muistiinpanoja. Hakemisto ja säännöt ovat `CLAUDE.md`:ssä.
 > Lue myös `docs/ui.md` (spottikortti, havaintokaavio, laaja näkymä,
@@ -572,8 +575,9 @@ pohjalevyllä — hero ja kaavion alku näkyvät, loput vierittämällä.
 
 ### `openSheet` joka tuntiaskeleella
 
-Kortti rakennetaan uudelleen joka aikajanan askeleella (kuten ennen),
-joten sen hinta mitattiin (mediaani 11 kutsusta, WebKit, rinnakkaiset
+*(V9:stä lähtien kortti EI rakennu uudelleen tunnin vaihtuessa — ks.
+alla. Tämä osio on V7:n tilanne.)* Kortti rakennettiin uudelleen joka
+aikajanan askeleella (kuten ennen), joten sen hinta mitattiin (mediaani 11 kutsusta, WebKit, rinnakkaiset
 buildit vuorotellen):
 
 | | vanha build | uusi, ensin | uusi, korjattu |
@@ -592,7 +596,161 @@ ruutupyynnön kosketusvierityksen ajan).
 Kartan pakotettu malli säilyy kortin laskennan yli (mitattu: ICON,
 perheiden `pois`-tilat ja `dyn.api` samat ennen ja jälkeen).
 
+### V8 — yksi kaaviomoottori, ei jaksovalitsimia (27.9.)
+
+Pyyntö: *"Spottikortissa ei tarvitse olla valintaa siitä miten pitkä
+data näkyy kun nyt graafia pystyy kivasti rullaamaan sivuun ja
+eteenpäin. […] tuntia klikkaamalla se siirtyy smoothisti seuraavaan
+tuntiin nopeahkolla animaatiolla […] Selvennetään nykyhetken kohtaa ja
+tehdään tarvittaessa nappi että voi palata nykyhetkeen […] apin kaikki
+graafit muualla ovat samalla tyylillä […] uimavedet yms."*
+
+**Ennuste.** Jaksovalitsin (48 h / 7 vrk / Kaikki) poistui: koko sarja
+(akselin alusta, noin kaksi vuorokautta menneisyyttä, loppuun) on
+piirretty ja sitä vieritetään; ruudulle mahtuu 48 h (laajassa 72 h).
+Vaakaveto on AINA natiivia vieritystä — tunti valitaan napautuksella tai
+nuolilla, ei vedolla (V6:n "48 h:n vaakaveto valitsee noston tunnin"
+kumoutui, koska vierivässä kaaviossa veto on vieritys).
+
+- **Pehmeä siirto.** Valittu kursori ja pallo ovat CSS-transformilla
+  sijoitettuja ryhmiä (`.tk-valittu`, `.tk-valittu-piste`, 0,22 s
+  `cubic-bezier(.2,.8,.2,1)`), ja tunnin vaihto kirjoittaa vain
+  transformin (`Tuulikaavio.siirraValittu`). Mitattu WebKit, napautus
+  +3 h: transform 358,4 → **374,4 (70 ms kohdalla)** → 380,3, eli
+  välitila on olemassa; 4/4 napautusta osui oikeaan tuntiin. Jos tunti
+  on näkyvän alueen ulkopuolella, kaavio vierii sinne pehmeästi
+  (`Aikakaavio.naytaHetki`). `prefers-reduced-motion` poistaa siirtymän.
+- **Kortti ei rakennu uudelleen tunnin vaihtuessa** (`openSheet`:n
+  päivityspolku): vain hero (`#sh-tunti`), tunnin laatat
+  (`#sh-laatat-tunti`) ja tekstit (`#sh-tiedot`) kirjoitetaan, ja
+  ennusteosio saa `asetaValittu`n. Mitattu: ennusteosio ja sen SVG ovat
+  SAMA elementti ennen ja jälkeen neljän napautuksen. Hinta WebKit,
+  mediaani: täysi rakennus 17–18 ms, päivitys **7 ms**.
+- **Nykyhetki.** NYT-lappu (musta pilleri) ja katkoviiva nykyhetken
+  kohdalla, menneisyys paperiharsolla (.42), ja otsikkorivillä
+  **Nyt-nappi**, joka näkyy vain kun valinta tai näkymä on muualla kuin
+  nykyisessä tunnissa. Mitattu: näkyy valinnan jälkeen, napautus vie
+  `valittuMs`:n `Ennuste.nytTunti()`in (sama pyöristys kuin aikajanan
+  `nowIdx`) ja piilottaa napin. NYT-lappu piirretään kursorin PÄÄLLE:
+  kun valittu tunti oli nyt, kursorin viiva halkaisi lapun ("N|YT").
+- **Kiinteä y-akseli** (`Aikakaavio._akseli`, `.ak-kehys`): luvut ovat
+  kääreen päällä kapean paperiliu'un kanssa eivätkä vieri. SVG:hen
+  piirrettyinä vieritetyn kaavion vasemman reunan luvut leikkautuivat
+  ("0" luki "30":n paikalla).
+- **Asteikko nykyhetkestä eteenpäin.** Koko sarjan huippu oli
+  menneisyyden myrsky (puuska 18,2 m/s → asteikko 22 m/s) kun ennusteen
+  huippu oli alle puolet siitä; tavallinen 5 m/s oli 34 px:n korkuinen.
+  Asteikko lasketaan nyt hetkestä nyt − 6 h loppuun, ja menneisyys
+  leikataan piirtoalueen yläreunaan (`clipPath`) — sen luku kertoo arvon.
+- **Hajonta sanotaan kerran**, herossa (se oli myös kaavion alla).
+- **Lähde tuulisolun nimessä** lukemarivillä ("Tuuli · FMI HARMONIE
+  2,5 km"): omana 14 px:n solunaan se rivitti puhelimella ja nosti rivin
+  korkeutta tunnista toiseen.
+
+**Havainto, vedenlämpö ja aallot samalla moottorilla.** Kaikki neljä
+kaaviota ovat nyt `Tuulikaavio.piirra` + `Aikakaavio` (kääre, kiinteä
+akseli, kiinteä lukemarivi `.en-lukema`, osoitin): sama päiväotsikko,
+tuntirivi, täyttö, `--ink`-viiva, luvut käyrällä, suuntarivi ja
+tuoreimman lukeman piste (`loppuPiste`). Kelluvat työkaluvihjeet ja
+vanhat piirtofunktiot (`HAV_ASU_*`, `UW_ASU_*`, 30 h / 7 vrk -napit)
+poistuivat.
+
+| kaavio | historia | ruudulle | laajassa | jaksonapit ennen |
+|---|---|---|---|---|
+| tuuliennuste | koko akseli | 48 h | 72 h | 48 h / 7 vrk / Kaikki |
+| tuulihavainto | 48 h spottikortissa, 7 vrk asemakortissa | 24 h | 48 h | 6 h / 24 h / 3 vrk / 7 vrk |
+| vedenlämpö | 30 vrk | 7 vrk | 14 vrk | 7 / 30 vrk / Kaikki |
+| aallot, meriveden lämpö | 7 vrk | 48 h | 72 h | 30 h / 7 vrk |
+
+- Havainnossa luku on ikkunan keskiarvo ja puuska sen maksimi
+  (`ikkunaLuvut`), ja **jakson kovin puuska saa aina lapun** myös
+  reunaikkunassa (moottori lisää sen jos ikkunaluvut ohittivat sen).
+- Havainnon asteikkoon ei oteta ennusteen puuskaa (se ei piirry
+  havaintokaavioon): mitattuna se nosti 16 kts:n havainnon asteikon
+  25 kts:iin.
+- Tilastot (keskituuli, kovin puuska, vallitseva, ilma, ruusu) ovat
+  viimeisen 24 h:n, ja jakso sanotaan KERRAN ryhmän otsikossa
+  ("Viimeiset 24 h") — nimen perässä "Kovin puuska 24 h" katkesi
+  puhelimella kolmeen pisteeseen.
+- Vedenlämmössä ei ole yöharsoa (vuorokaudenaika ei ole päätöksen osa,
+  ja viikon näkymässä se olisi seitsemän raitaa), päivän luku on klo 12
+  kohdalla, tuntiriviä ei piirretä päivätasolla, ja tiheän päivärytmin
+  rajat ovat hiljaisempia (.16). Historia rajattiin 30 vrk:een: 60
+  vrk:lla elokuun 21,8° litisti syyskuun viikon pohjalle.
+- Yöharso on moottorissa nyt täytön PÄÄLLÄ ja viivojen alla (CLAUDE.md):
+  täytön alla se luki korostuslaatikkona kaavion yläosassa.
+- SVG:n `<text>`-elementtien `style="font-variant-numeric"` siirtyi
+  CSS:ään (`.tk-svg text`): inline-`style`-attribuutteja kortissa
+  317 → 62.
+
+**Muut:** Porvoo Kilpilahti satama (FMISID 100683) on uusi meriasema
+rekisterissä (`FMI_MAP_STATIONS` ja `api/fmi.js`), ja
+`FMI_SEA_PLACES` johdetaan rekisterin tagista eikä ole enää oma
+listansa. Sivun nimi on "FoilSpot" (oli "FoilSpot v7-light").
+
+### V9 — kortti moduuleiksi, havaintokortit samaan tyyliin (27.9.)
+
+Pyyntö: *"spottikortissa on nyt paljon dataa ja se pitäisi saada
+jotenkin jaoteltua kivasti eli tekstiosia oisi omanaan ja ei olisi niin
+hallitseva […] Tee tuuli havaintoasemien korteista saman tyyliset kuin
+spottikortin graafista."*
+
+**Päätös: Applen Sään rakenne paperille.** Jokainen asia on oma
+korttinsa (`.sh-moduli`: korotettu paperi, 16 px kulma, hiusreuna),
+ryhmät nimetään pienellä versaalilla (`.sh-ryhma`), ja yksittäiset luvut
+ovat laattoja kahdessa sarakkeessa (`.sh-laatat`). Järjestys on
+päätöksen järjestys: **nyt → tunneittain → yksityiskohdat → tekstit**.
+
+| osa | puhelimella (y + korkeus, px) | vaihtuu tunnin mukana |
+|---|---|---|
+| hero: tuuli, suunta, puuska, päätös, hajonta | 68 + 177 | kyllä |
+| tuuliennuste ja mallit | 257 + 459 | kursori liukuu |
+| valitun tunnin laatat (ilma, puku, aallot, vesi, aurinko) | 736 + 224 | kyllä |
+| havainnot nyt: laatat | 1 000 + 236 | ei |
+| tuulihavainto, vedenlämpö | 1 283 + … | ei |
+| tekstit: indeksin erittely, suunnat, lähde | 2 109 + 162 | kyllä |
+
+- Päätös sanotaan kerran: foil-merkki ja vierellä vain se mitä se ei jo
+  kerro, eli suunta (`spotIndexHuomio`). Heron rivillä luki ennen
+  vierekkäin "Rajatuuli – kokeile" ja "Liian heikko" (4,6 m/s).
+- Spottiindeksin rengas sai nimen ("spottiindeksi").
+- Tekstit (indeksin erittely, sopivat suunnat, ennusteen lähde) ovat
+  alimpana omassa moduulissaan pienempinä — kuvaus ei toistu siellä,
+  koska se on jo nimen alla.
+- Ilmalaatta jää pois asemalta jolla ei ole lämpömittaria (Laru): se
+  näytti "— °C, kastepiste —°".
+- **Havaintoasemakortti** (`_openObsSheet`) käyttää samoja osia: nimi ja
+  lähde ylhäällä, "Viimeisin lukema" -hero `.sh-big-wind`illä (ja
+  puuska), kaavio moduulissa otsikolla, tilastot kaavion alla samoina
+  soluina (`.hav-tilasto`) myös aaltopoijulla.
+
+**Fontit ja sulkunappi.** Mitattu puhelimella (WebKit, kaikki näkyvät
+tekstit, SVG skaalattuna): ennen 22 tekstiluokkaa alle 11 px:n, pienimmät
+8 px (NYT-merkki, asemavalitsimen etäisyys ja tagi, laajan lukemarivin
+nimet) ja 9 px (puuskasuhde, jaksovalitsin, asemavalitsimen nimi, laajan
+alaotsikko 8,5). Jälkeen pienin HTML-teksti 11 px ja SVG:ssä 10,5 px
+(NYT-lappu versaalina pillerissä ja ruusun ilmansuunnat). Lattia on
+yhdessä CSS-lohkossa `max(Npx, var(--fs-x))`-muodossa, joten työpöydän
+suuremmat tokenit säilyvät. Laajan otsikko on 17 px (työpöydällä 20),
+kuten paneelien otsikko, ja lukemarivin arvo 17 px (oli 11).
+Sulkunapin ympyrä on 32 px (oli 30) kaikissa neljässä paneelissa ja
+laajassa; osumapinta pysyy 44 px:nä.
+
+**Regressiot (samat harnessit kuin V0–V7):**
+
+| mittaus | tulos |
+|---|---|
+| kortti vs aikajana spotissa, 48 h, 5 spottia | 0,0000 m/s |
+| spottimerkki = kortin indeksi | 4/4 |
+| näppäimistö →, →, Shift+→, ← | +1, +2, +5, +4 h, fokus pysyy, kartta ei liiku |
+| värisevä napautus valitsee (puhelin, iPad) | ✓ ✓ |
+| pystyveto kaaviossa ei valitse | ✓ ✓ |
+| vaakaveto kaaviossa ei sulje paneelia | ✓ ✓ |
+| kontrolli: veto herosta sulkee iPadin paneelin | ✓ |
+| sivuvirheitä (`pageerror`) | 0 |
+
 ### Mitä ei voitu mitata täällä
 
 Ruutunopeutta ei (kontti, ks. CLAUDE.md). Aikajanan raahaus kortin
-ollessa auki kannattaa tarkistaa laitteella.
+ollessa auki kannattaa tarkistaa laitteella, samoin kursorin siirtymän
+tuntuma: kontti näyttää että välitila on olemassa, ei miltä se tuntuu.

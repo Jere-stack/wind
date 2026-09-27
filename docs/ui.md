@@ -5754,3 +5754,23 @@ luoda) molemmilla moottoreilla; häivytys jää, lähtö ei.
 WebKit (Playwright, iPhone-konteksti) piirtää saman kuvan kuin
 Chromium, myös merkin WAAPI-piirtymisen. Ruutunopeutta ei voi mitata
 kontissa — se on varmistettava laitteella.
+
+## Kaaviot yhdeksi moottoriksi ja spottikortti moduuleiksi (27.9.)
+
+Täydellinen kirjaus mittauksineen on `docs/spottikortti.md`:n osioissa
+**V8** ja **V9**. Tämä on hakemisto sille mikä tässä tiedostossa on
+nyt historiaa:
+
+- Havaintokaavion asut `HAV_ASU_KORTTI` / `_PYSTY` / `_LAAJA`,
+  vedenlämmön `UW_ASU_*` ja `el._uwScrub`, havainnon `_havScrub`,
+  aaltokaavion raahaus sekä kaikki jaksovalitsimet (6 h – 7 vrk,
+  7/30 vrk/Kaikki, 30 h / 7 vrk, 48 h / 7 vrk / Kaikki) poistuivat.
+  Kaikki neljä kaaviota ovat `Tuulikaavio.piirra` + `Aikakaavio`
+  (vieritettävä koko sarja, kiinteä y-akseli, kiinteä lukemarivi).
+- Ennusteen `laajaSiirtoMs` oli poistunut jo V1–V3:ssa.
+- Spottikortti on moduuleja (hero → ennuste → tunnin laatat →
+  havainnot → tekstit), ja tunnin vaihto päivittää vain tuntiin sidotut
+  osat; havaintoasemakortti käyttää samoja osia.
+- Kirjasinlattia 11 px (SVG 10,5 px) ja sulkunapin ympyrä 32 px.
+
+Säännöt ovat `CLAUDE.md`:n osiossa "Kaaviot ja laaja näkymä".

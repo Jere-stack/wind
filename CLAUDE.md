@@ -103,7 +103,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/ui.md` | paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa, kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
-| `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V7) |
+| `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V9: yksi kaaviomoottori, kortti moduuleina, fonttilattia) |
 | `docs/sujuvuus.md` | **työpöydän** zoomin ja panoroinnin raskautta, windy.comin arkkitehtuuria, sujuvuusstrategiaa, **MapLibre-siirtoa (C2) ja sen mittauksia** |
 
 <details>
@@ -197,7 +197,8 @@ kokeiltu ja kaadettu mittauksella.
   Viisi asiaa: vaalea pohja ja väriasteikko pois, paneelit
   yhtenäisiksi, liukuväri alemmas, tunti pysyy mallin vaihdossa ·
   Valikot yhtenäisiksi: sama sulkunappi, sama ele, sama fontti ·
-  Latausruutu liikegrafiikaksi: meri, tuuli ja foilaaja
+  Latausruutu liikegrafiikaksi: meri, tuuli ja foilaaja ·
+  Kaaviot yhdeksi moottoriksi ja spottikortti moduuleiksi
 - **pwa**: PWA — kotivalikkoon ja rannalle · Mitä välimuistiin menee ·
   Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
   Ikoni ja kotivalikko
@@ -522,7 +523,7 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   paneeli: ennustepaneelin sulku ei poista sitä jos spottikortti on
   auki.
 - **JOKAISESSA PANEELISSA ON SAMA SULKUNAPPI SAMASSA KOHDASSA**
-  (`.paneeli-sulje`): 30 px:n paperiympyrä ja X, 12 px oikeasta
+  (`.paneeli-sulje`): 32 px:n paperiympyrä (V9, oli 30) ja X, 12 px oikeasta
   reunasta, osumapinta 44 px NAPILTA ITSELTÄÄN (ympyrä on sisempi
   span). Asetukset, spotti-/havaintokortti, ennustepaneeli ja
   pikanäppäimet. Ennen asetuksissa oli magenta "Valmis", korteissa
@@ -1289,12 +1290,63 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 
 **Kaaviot ja laaja näkymä**
 
+- **KAIKKI AIKASARJAKAAVIOT OVAT YKSI MOOTTORI** (V8,
+  docs/spottikortti.md): `Tuulikaavio.piirra` piirtää, `Aikakaavio`
+  omistaa vieritettävän kääreen, kiinteän y-akselin (`.ak-kehys`,
+  `_akseli`), osoittimen ja lukemarivin (`.en-lukema`). Tuuliennuste,
+  tuulihavainto (`_renderLiveHistory`), vedenlämpö
+  (`_uirasChartInteractive`) ja aallot (`_aaltoKaavio`) ovat sen
+  asiakkaita, kortilla ja laajassa. Mikä eroaa, on parametreissa
+  (`laji`, `ikkunaLuvut`, `loppuPiste`, `y`, `vari`, asu). Älä kirjoita
+  viidettä piirtofunktiota äläkä palauta kelluvaa työkaluvihjettä.
+- **JAKSOVALITSIMIA EI OLE.** Koko sarja on piirretty ja sitä
+  vieritetään sormella; ruudulle mahtuu ennusteessa 48 h, havainnossa
+  24 h, aalloissa 48 h ja vedenlämmössä 7 vrk (laajassa 72 h / 48 h /
+  72 h / 14 vrk). Käyttäjän päätös: "ei tarvitse olla valintaa siitä
+  miten pitkä data näkyy kun graafia pystyy rullaamaan". Havainnon
+  tilastot ovat viimeisen 24 h:n, ja jakso sanotaan KERRAN ryhmän
+  otsikossa ("Viimeiset 24 h").
+- **VAAKAVETO ON AINA VIERITYSTÄ, TUNTI VALITAAN NAPAUTUKSELLA.**
+  Kaavioissa on `touch-action: pan-x pan-y`; napautus (matka < 6 px,
+  myös värisevä) valitsee, ja nuolet vaihtavat tuntia fokuksessa.
+- **TUNNIN VAIHTO EI RAKENNA SPOTTIKORTTIA UUDELLEEN** (`openSheet`:n
+  päivityspolku, `_oliAuki`): vain `#sh-tunti`, `#sh-laatat-tunti` ja
+  `#sh-tiedot` kirjoitetaan, ja ennusteosio saa `asetaValittu`n, joka
+  siirtää kursoria CSS-transformilla (`.tk-valittu`, 0,22 s). Mitattu:
+  osio ja SVG ovat sama elementti napautusten yli, päivitys 7 ms vs
+  täysi rakennus 17–18 ms. Jos lisäät korttiin tuntiin sidotun osan,
+  lisää se päivityspolkuun — muuten se jää edelliseen tuntiin.
+- **SPOTTIKORTTI ON MODUULEJA, JÄRJESTYKSESSÄ NYT → TUNNEITTAIN →
+  YKSITYISKOHDAT → TEKSTIT** (V9, Applen Sään rakenne paperille): hero
+  (`.sh-moduli`), tuuliennuste, valitun tunnin laatat (`.sh-laatat`),
+  "Havainnot nyt" -laatat ja havaintokaaviot, ja alimpana tekstit
+  (`#sh-tiedot`). Ryhmät nimetään `.sh-ryhma`lla. Havaintoasemakortti
+  käyttää samoja osia. Päätös sanotaan kerran: foil-merkin vieressä on
+  vain se mitä se ei kerro (`spotIndexHuomio`, suunta) — nopeuteen
+  perustuva selite oli ristiriidassa merkin kanssa ("Rajatuuli –
+  kokeile" / "Liian heikko").
+- **NYKYHETKI: NYT-LAPPU, KATKOVIIVA, MENNEISYYS HARSOLLA JA NYT-NAPPI.**
+  Nappi näkyy vain kun valinta tai näkymä on muualla, ja se vie
+  `Ennuste.nytTunti()`in — sama pyöristys kuin aikajanan `nowIdx`
+  (kahta "nyt"-sääntöä ei saa olla). Lappu piirretään kursorin PÄÄLLE.
+- **ENNUSTEEN ASTEIKKO ON NYKYHETKESTÄ (−6 h) ETEENPÄIN**, ja
+  menneisyys leikataan piirtoalueeseen. Koko sarjan huippu oli
+  menneisyyden myrsky, joka litisti ennusteen (5 m/s oli 34 px).
+  Havainnon asteikkoon ei oteta ennusteen puuskaa.
+- **Y-AKSELI ON KIINTEÄ JA KAAVIO VIERII SEN ALTA** (`.ak-akseli`,
+  paperiliuku `--ak-tausta`). SVG:hen piirrettyinä vieritetyn kaavion
+  reunaluvut leikkautuivat puoliksi.
+- **KIRJASINLATTIA: 11 px HTML:ssä, 10,5 px SVG:ssä** (V9-lohko CSS:n
+  lopussa, `max(Npx, var(--fs-x))` jotta työpöydän tokenit säilyvät).
+  Ennen 22 tekstiluokkaa alle 11 px:n, pienimmät 8 px. Uusi teksti
+  korttiin tai kaavioon ei saa alittaa lattiaa.
 - **LAAJA NÄKYMÄ ON KUORI, EI KAAVIO.** `HavLaaja` omistaa otsikon,
   lukemarivin, jaksonapit, liu'utuksen, käännön, turva-alueet ja
   `Modaali`-kytkennän; piirtäminen tulee LÄHTEELTÄ
   (`{ el, otsikko, sub, jaksot, piirra(kaavioEl, laatikko, laaja) }`).
-  Kolme kaaviota käyttää sitä — tuuliennuste, tuulihavainto ja
-  vedenlämpö. Älä kirjoita neljättä kokoruudun polkua.
+  Neljä kaaviota käyttää sitä — tuuliennuste, tuulihavainto, vedenlämpö
+  ja aallot. Älä kirjoita viidettä kokoruudun polkua. `jaksot` on nyt
+  kaikilla `'[data-ei-jaksoja]'` (rivi piiloutuu).
 - **LÄHDE RIPUSTETAAN LAAJENNUSNAPPIIN** (`nappi._havLaajaLahde`), ei
   päätellä napin sijainnista. Sekä napautus että kääntö lukevat sen
   samasta paikasta; päättely (`closest('.hav-kaavio')._havData`) olisi
@@ -1323,23 +1375,11 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **LAAJENNUS EI SAA KAVENTAA MITÄÄN, JA SE MITATAAN NÄKYVÄSTÄ
   PIIRTOALUEESTA.** Ulkomitta valehtelee aina kun kaavio vuotaa
   kääreensä yli — ensimmäinen mittari teki juuri tämän virheen ja
-  vaati mahdotonta. Nykyiset: ennuste 336 → 346 px (6,1× korkeampi),
-  havainto 332 → 334, vesi 314 → 330. Y-akselin ura on `20 × fs`
-  (kaksinumeroinen lappu) ja vedenlämmössä `26 × fs` ("12.5°");
-  ensimmäinen `30 × fs` jätti 25 px tyhjää ja rikkoi säännön.
-- **Y-AKSELIN URA VEDETÄÄN TÄYTTEESEEN KERRAN, EI KAHDESTI** —
-  vedenlämpökaaviossa (havainto- ja vesikaavio vuotavat kortin
-  täytteeseen). Ennustekaaviolla ei ole enää y-akselin uraa: ruudukon
-  luvut ovat piirtoalueen sisällä vasemmassa reunassa JA jokaisen
-  keskiyön kohdalla, jotta ne näkyvät myös vierivässä jaksossa, ja
-  kaavio vuotaa kortin täytteeseen `.en-kaare`n marginaalilla (−14 px).
-- **LAAJASSA LUKEMA MENEE KIINTEÄLLE RIVILLE MYÖS UUSISSA
-  KAAVIOISSA.** `attachTooltip`in kolmas parametri (`scrub`) ja
-  vedenlämmön `el._uwScrub` ovat sama ratkaisu kuin `_havScrub`:
-  kun koukku on annettu, kuplaa ei edes lasketa.
-- **JAKSOVALINTA SÄILYTETÄÄN KORTISSA.** Laajan jaksonapit ovat kortin
-  nappien peili (`b.click()`), ja valittu luetaan `aria-pressed`ista —
-  toinen lippu samasta asiasta ajautuisi erilleen.
+  vaati mahdotonta. Laajan piirtoalue tulee laatikon korkeudesta
+  (`plotH`), ja kirjasin sen leveydestä (`laajaFs`).
+- **Kaavio vuotaa moduulin täytteeseen reunasta reunaan** (`.ak-kehys`
+  marginaali `−var(--moduli-tayte)`), ja moduulin `overflow: hidden`
+  pyöristää kulmat.
 - **TUULIENNUSTEKAAVION Y-AKSELI ON KÄYTTÄJÄN YKSIKÖSSÄ.** Akselille
   kirjoitettiin raaka m/s samaan aikaan kun jokainen lukema samassa
   kortissa on valitussa yksikössä: solmuissa huippurivi sanoi
@@ -1362,22 +1402,19 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   jottei kaksi viivaa paksunna sitä. **FMI-rajamerkki pysyy vaaleassa
   hiekassa** (`#CDBE9A`) — se on kontekstia eikä päätöskynnys, ja juuri
   se ero on nyt näkyvissä.
-- **ENNUSTEKAAVION LUKEMA ON KIINTEÄLLÄ RIVILLÄ, EI KELLUVASSA
-  LAATIKOSSA** (`.en-lukema`, `Ennuste._solut`). Kelluva laatikko
+- **KAAVION LUKEMA ON KIINTEÄLLÄ RIVILLÄ, EI KELLUVASSA LAATIKOSSA**
+  (`.en-lukema`, kaikissa neljässä kaaviossa). Kelluva laatikko
   peitti mitattuna ensin kaikki pallot ja vaati sitten sivuun
   siirron; allekkain-asussa niitä olisi ollut neljä. Rivi näyttää
-  levossa valitun tunnin ja osoittaessa osoitetun, korkeus on varattu
-  (34 px) jottei kaavio hypi. Laajassa sama tieto menee `laaja.rivi`in.
+  levossa valitun tunnin (havainnossa tuoreimman lukeman) ja
+  osoittaessa osoitetun; havainnon napautettu lukema palaa 4 s:n
+  päästä. Laajassa sama tieto menee `laaja.rivi`in. Lähde on
+  ennusteen tuulisolun NIMESSÄ, ei omana solunaan (rivitti puhelimella).
 - **TUNTI VALITAAN KAAVIOSTA AIKAJANAN POLKUA** (`Ennuste.valitse` →
-  `_tlValitseIdx`). Napautus (matka < 6 px, myös värisevä) ja 48 h:n
-  vaakaveto valitsevat noston hetken; kesken vedon ei valita mitään,
-  koska `openSheet` rakentaisi kortin uudelleen sormen alta. Vierivässä
-  jaksossa (7 vrk, Kaikki) vaakaveto on natiivia vieritystä
-  (`touch-action: pan-x pan-y`). Nuolet vaihtavat tuntia kaavion
-  fokuksessa, ja fokus palautetaan uuteen kaavioon
-  (`Ennuste._palautaFokus`). Mitattu CDP-kosketuksella puhelimella ja
-  iPadilla: veto, värisevä napautus ja pystyveto oikein, ja kontrolli
-  (veto herosta) sulkee iPadin paneelin.
+  `_tlValitseIdx` → `openSheet`:n päivityspolku). Mitattu
+  CDP-kosketuksella puhelimella ja iPadilla: värisevä napautus
+  valitsee, pysty- ja vaakaveto eivät, paneeli pysyy auki vaakavedon
+  jälkeen, ja kontrolli (veto herosta) sulkee iPadin paneelin.
 - **KORTIN OMA TUNTIVALITSIN ON POISTETTU** (`#sh-timepill`, P5). Se oli
   kolmas valitsin samalle asialle ja kirjoitti valinnan ohi
   `_tlValitseIdx`:n. Älä palauta sitä; heron aikarivi kertoo hetken.
@@ -1396,6 +1433,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   ulkopuolella. Hangon spotti näytti Espoo Tapiolaa 112 km päästä vaikka
   samanniminen asema on 2 km päässä. Korjattuna 11/12 spottia sai
   lähemmän aseman. **Älä lisää asemaa vain toiseen paikkaan.**
+  Uusin: Porvoo Kilpilahti satama (FMISID 100683, `Meri`) sekä
+  `FMI_MAP_STATIONS`issa että `api/fmi.js`:ssä. `FMI_SEA_PLACES`
+  johdetaan tagista — se oli oma listansa.
 - **KOPIO EI OLLUT VAIN PUUTTUVA RIVI VAAN VÄÄRÄ MITTAUS KOODISSA.**
   Spottikortin kommenttiin oli kirjattu "Hangon spoteille lähin on
   107–112 km — eri sääjärjestelmä, tyhjä on rehellisempi kuin väärä".
@@ -1443,11 +1483,7 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   selite — liuska oli kolmas kerta samalle tiedolle ja kuvaajan ainoa
   pystysuora muoto joka ei ollut dataa. Älä palauta sitä; jos värin
   merkitys joskus pitää sanoa ääneen, se sanotaan selitteessä sanoina.
-- **`padX` on MITATTAVA kortilla, ei laskettava.** Kortin SVG vuotaa
-  22 px omaan täytteeseensä (`margin-left:-22px`), joten viewBox-yksiköt
-  eivät kerro mihin y-akselin lukema ruudulla osuu: 22 jätti lukeman
-  3,2 px otsikkopalstan ulkopuolelle, 24 tuo sen reunaan (−0,7 px).
-- **Kaavion työkalurivi on `flex-start`, ei `space-between`.**
+- **Kaavion työkalurivi (`.hav-tyokalut`) on `flex-start`, ei `space-between`.**
   Asemavalitsimen paikka on tyhjä havaintokortissa, ja `flex: 1`
   -välikkeenä se työnsi jaksovalitsimen keskelle riviä kun sulkunappi
   jäi oikealle — kaksi kohdistusta samalla rivillä. Laajennusnappi
@@ -1470,30 +1506,24 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   spottikortiksi — ja siitä päätyi kertaalleen raporttiin "spottikortin
   asemavalitsin on rikki", vaikka havaintokortissa sitä valitsinta ei
   kuulukaan olla.
-- **Yöharso on täytön PÄÄLLÄ mutta viivojen ALLA.** Täytön alla se
-  näkyy vain siellä missä täyttöä ei ole ja lukee korostuslaatikkona.
-  Alfat (.13/.09/.05) ovat aikajanan kalibroinnista, älä säädä niitä
-  erikseen.
-- **Jakson kovin puuska saa aina lapun.** Muut huiput väistävät oikeaa
-  reunaa, mutta se sääntö sulki kerran pois juuri sen luvun jonka
-  "Kovin puuska" -ruutu sanoo (7 vrk: ruutu 31,9, kaavion suurin lappu
-  29,0). Muille lapuille kynnys on 55 % vaihteluvälistä, jottei lappu
-  mene keskitason kumpareelle.
-- **Ei vaakavieritystä.** 24 h niputtuu ~110 pisteeseen eli 13 min per
-  piste, mikä on tiheämpi kuin lähteen 30 min askel — muoto säilyy
-  mahtumalla ruudulle. Vieritys myös söisi raahauksen, jolla kaaviota
-  luetaan.
-- **KOLME ASUA, YKSI PIIRTOFUNKTIO** (`HAV_ASU_KORTTI` / `_PYSTY` /
-  `_LAAJA`). Kaikki mikä eroaa on taulukossa, ei koodihaaroissa. Älä
-  kirjoita laajalle omaa piirtofunktiota.
-- **Laajennus on VAAKANÄKYMÄ.** Aikasarja tarvitsee leveyttä: mitattuna
-  kortti antaa 13,9 px/tunti, vaakaruutu 30,8 (24 h) ja 129 (6 h).
-  Pystysuora täysi ruutu antaisi vain korkeutta, jota kortilla on jo yli
-  (sisältö 541 px, näkyvä 595 px). Pystyasu on silti olemassa, koska
-  ensimmäinen versio antoi pystyssä 373×145 px eli PIENEMMÄN kuin kortti
-  (375×209) — laajennusnappi ei saa kutistaa kuvaajaa.
-- **Asu valitaan laatikon muodosta, ei media querystä.** Työpöydän kapea
-  ikkuna ja puhelimen vaaka ovat sama tilanne.
+- **Yöharso on täytön PÄÄLLÄ mutta viivojen ALLA** (moottorissa
+  `tausta` täyttöryhmän jälkeen). Täytön alla se näkyy vain siellä
+  missä täyttöä ei ole ja lukee korostuslaatikkona. Alfat
+  (.13/.09/.05) ovat aikajanan kalibroinnista, älä säädä niitä
+  erikseen. Vedenlämmössä ja aalloissa harsoa ei ole.
+- **Jakson kovin puuska saa aina lapun.** Se sulki kerran pois juuri
+  sen luvun jonka "Kovin puuska" -ruutu sanoo (7 vrk: ruutu 31,9,
+  kaavion suurin lappu 29,0). Moottorissa havainnon luvut ovat
+  ikkunoittain (`ikkunaLuvut`: keskiarvo ja puuskan maksimi), ja jos
+  reunaikkunan lappu jäi pois, kovin puuska lisätään erikseen.
+- **HAVAINTO VIERII, EI NIPUTU RUUTUUN.** Koko ladattu historia (48 h
+  spottikortissa, 7 vrk asemakortissa) on piirretty 24 h ruudulle, ja
+  niput ovat noin 2,4 px välein (`_havSarja`). Raahaus ei enää lue
+  arvoa — napautus lukee — joten vieritys ei syö sitä.
+- **Asu valitaan laatikon muodosta, ei media querystä.** Laajan
+  piirtoalue on laatikon korkeus ja kirjasin sen leveydestä
+  (`laajaFs`); työpöydän kapea ikkuna ja puhelimen vaaka ovat sama
+  tilanne.
 - **Kääntö sulkee vain jos näkymä avattiin kääntämällä.** Napista avattu
   jää auki ja vaihtaa asua. Nappi on oikea `<button>`; kääntö yksin
   rikkoisi saavutettavuussäännön.
@@ -1505,16 +1535,11 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   token, koska selaimessa alainsetti on iPhonella nolla. Vaakatilassa
   palkki on toisella sivulla mutta kumpi riippuu kääntösuunnasta —
   molemmat on käsiteltävä.
-- **Kaavion korkeus ratkaistaan LAATIKOSTA** (`_asu()`), ei vakiona: SVG
-  skaalautuu leveyden mukaan, joten kiinteä viewBox jätti pystyssä
-  128 px käyttämättä. Lukemarivi on täytettävä ENNEN mittausta (sen
-  korkeus muuttaa laatikkoa: 645 vs 625 px), ja avauksen jälkeen on
-  piirrettävä uudestaan 180 ms:n kuluttua (kääntämällä avattaessa mitat
-  eivät ole asettuneet: 714×187 vs 714×280).
-- **`.hl-kaavio`-sivutäyte on 4 px**, koska kortin kaavio vuotaa 22 px
-  omaan täytteeseensä. Leveämpi täyte tekee laajennetusta kaaviosta
-  KAPEAMMAN kuin se oli kortilla (365 vs 375) — laajennus ei saa
-  kaventaa mitään.
+- **Laajan korkeus ratkaistaan LAATIKOSTA**, ei vakiona. Lukemarivi on
+  täytettävä ENNEN mittausta (sen korkeus muuttaa laatikkoa: 645 vs
+  625 px), ja avauksen jälkeen on piirrettävä uudestaan 180 ms:n
+  kuluttua (kääntämällä avattaessa mitat eivät ole asettuneet: 714×187
+  vs 714×280).
 - **Liu'utusele alkaa vain kahvasta tai otsikkoriviltä.** Kuvaajan
   päällä raahaus on lukeman haku, joten sulkuele siellä sulkisi näkymän
   aina kun arvoa luetaan. Napit ohitetaan `closest('button')`illa.
@@ -1575,9 +1600,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   pisteen yläpuolelle kokeiltiin ja se vain vaihtoi naapuria
   (Harmaja -> Malmi). Mitattu peitto z8:lla 36 % (perustason pari,
   ei poiju), z9–z12 0 %.
-- **Aaltokaavion raahaus tarvitsee `touch-action: none`in ja
-  `setPointerCapture`in**, ja lukeman on JÄÄTÄVÄ näkyviin sormen
-  noustua — muuten napautus ei tee mitään. Ajastin palauttaa otsikon.
+- **Aaltokaavio on sama moottori kuin muut** (V8): 7 vrk haetaan
+  kerralla (`AALTO_HISTORIA_H`) ja vieritetään, napautettu lukema jää
+  lukemariville 4 s:ksi, ja suunta (MISTÄ) piirtyy suuntariville.
 - **Peitto mitataan SISEMMÄSTÄ elementistä.** Merkin `_icon`-kuori
   (nyt MapLibren `Marker`-elementti, `Merkki._el`) kantaa
   `translate`-sijainnin eikä liiku väistön mukana — kuoresta mitattu

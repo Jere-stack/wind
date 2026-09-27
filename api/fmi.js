@@ -13,6 +13,9 @@ const STATIONS = [
   { place: 'sipoo',      name: 'Sipoo Itätoukki',          lat: 60.10121, lng: 25.19439, type: 'fmisid',   fmisid: '105392' },
   /* Porvoo Emäsalo — FMISID 101023 (vahvistettu dlarah.org:n kautta, itäpuolen avomeriasema) */
   { place: 'emasalo',    name: 'Porvoo Emäsalo',           lat: 60.20382, lng: 25.62546, type: 'fmisid',   fmisid: '101023' },
+  /* Porvoo Kilpilahti satama — FMISID 100683 (FMI WFS-rekisteri 27.9.2026,
+     60.30373 25.54916, WMO 2994). */
+  { place: 'kilpilahti', name: 'Porvoo Kilpilahti satama', lat: 60.30373, lng: 25.54916, type: 'fmisid',   fmisid: '100683' },
   /* Kirkkonummi Mäkiluoto — FMISID 100997. Tämä on virallinen viiteasema jota kaikki
      "Porkkala"-sääpalvelut käyttävät (Foreca, kilotavu.com ym.), ei erillistä
      FMI-asemaa nimellä "Porkkala" ole olemassa — Mäkiluoto on n. 7-9km Porkkalanniemestä. */
