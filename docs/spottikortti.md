@@ -754,3 +754,114 @@ laajassa; osumapinta pysyy 44 px:nä.
 Ruutunopeutta ei (kontti, ks. CLAUDE.md). Aikajanan raahaus kortin
 ollessa auki kannattaa tarkistaa laitteella, samoin kursorin siirtymän
 tuntuma: kontti näyttää että välitila on olemassa, ei miltä se tuntuu.
+
+### V10 — laajan valinta, Paras (malli), venytys ja mallit laajassa (28.9.)
+
+Käyttäjän pyyntö: laajan näkymän napautus ei vaihtanut tuntia, Paras-siru
+ei tehnyt mitään, kaavioita pitää voida venyttää kahdella sormella,
+lukemat eivät saa mennä päällekkäin tai piiloon, laajan pyyhkäisyalue
+korkeammaksi ja laajaan mallivalikko.
+
+**Laajan napautus.** Syy oli koodissa eikä laitteessa: laajan
+tuuliennusteen osoittimella ei ollut `napautus`ta lainkaan, joten
+napautus siirsi vain osoitinviivaa (joka jäi näkyviin), ja valitun tunnin
+kursori jäi avaushetken tuntiin. `asetaValittu` päivitti lisäksi vain
+kortin kääreen. Nyt laaja valitsee samaa polkua kuin kortti (`valitse` →
+`_tlValitseIdx` → `asetaValittu`), ja `asetaValittu` siirtää kursorin
+myös laajassa (`ctx.laajaKaare`). Laajan lukemarivi on levossa 48 h:n
+yhteenveto ja laajassa valitun tunnin jälkeen sen tunnin luvut.
+Mitattu WebKitillä (iPhone-konteksti) ja Chromiumilla CDP-kosketuksella:
+kaksi peräkkäistä napautusta laajassa siirtävät kursorin laajassa ja
+kortissa samaan tuntiin, näkyviä osoitinviivoja 0/0.
+
+**Haamuosoitin.** WebKit lähetti hiiren `pointermove`n kun laaja
+ilmestyi paikallaan olevan (emuloidun) osoittimen alle — yli sekunnin
+napautuksen jälkeen — ja laajan päälle syttyi osoitinviiva jota kukaan ei
+osoittanut (sama vanhassa buildissa: 0/1 heti avauksen jälkeen). Leijuva
+osoitin on nyt vain laitteella jolla `(any-hover: hover)`, ja lisäksi
+sekunnin ajan kosketuksesta ohitetaan hiiren liike. Jälkeen 0/0.
+
+**Paras (malli).** Paras-siru poistettiin, koska se ei ole valinta.
+"Vertaa kaaviossa" -rivi sanoo `Paras (FMI HARMONIE 2,5 km) · ICON ·
+GFS`: sulkeissa on VALITUN TUNNIN lähde (`Lahde.LYHYET`), koska Paras
+on sekoitus jonka malli vaihtuu ajan mukana — mitattuna Lauttasaaressa
+HARMONIE → ECMWF 9 km vuorokauden 1.10. kohdalla.
+
+**Sarja joka jo latautui.** `KorttiSarjat.lataa` palautti kesken olevan
+haun kytkemättä uutta `kun`-kuuntelijaa. Hajontaa varten ECMWF, ICON ja
+GFS haetaan taustalla 1,2 s kortin avauksen jälkeen, joten sirun painallus
+sen aikana ei piirtänyt viivaa kun sarja saapui (mitattu: 0 viivaa 6 s
+painalluksen jälkeen). Nyt kuuntelija kytketään myös kesken olevaan.
+
+**Venytys** (`Aikakaavio.venytys`, kaikki neljä kaaviota kortilla ja
+laajassa). Tiheys on "näkyviä tunteja ruudulla" (`Aikakaavio.nakyva`),
+muistetaan istunnon ajan kaaviotyypeittäin (`ennuste`, `ennuste-laaja`,
+`havainto`, `vesi`, `aalto` ja laajat) eikä tallenneta. Rajat:
+
+| kaavio | oletus | lähin | kaukaisin |
+|---|---|---|---|
+| ennuste kortti / laaja | 48 / 72 h | 12 h | 7 / 10 vrk |
+| havainto | 24 / 48 h | 3 h | 7 vrk |
+| aallot | 48 / 72 h | 12 h | 7 vrk |
+| vedenlämpö | 7 / 14 vrk | 2 vrk | 30 vrk |
+
+ja kaikissa lisäksi sarjan pituus (sen yli koko sarja on jo ruudulla).
+Eleen aikana SVG:tä vain venytetään transformilla, ja sormien noustessa
+kaavio piirretään uudelleen. Kesken eleen korvattu SVG irrottaisi
+kosketuksen kohteen eivätkä seuraavat tapahtumat enää kuplisi kääreeseen.
+Venytyksen keskipiste (hetki sormien välissä) pysyy sormien alla.
+Kosketustapahtumat eivätkä osoittimet, koska `pan-x pan-y` -kääreessä
+selain peruu osoittimet omaan vieritykseensä. Liike ei kupli
+pohjalevyn pyyhkäisyyn. Kahden sormen ele ei ole napautus (osoittimet
+lasketaan, ja 350 ms venytyksen jälkeen ohitetaan). Työpöydällä
+Ctrl+rulla ja kosketuslevyn nipistys; sivun zoom pysyy 1:ssä.
+Y-asteikko ja korkeus eivät riipu tiheydestä. Vedenlämmön asteikko ja
+"Vaihtelu"-luku laskettiin ennen nipuista, joiden koko riippuu
+leveydestä, joten ne olisivat eläneet sormien mukana. Nyt ne lasketaan
+raakamittauksista.
+
+**Päällekkäisyys.** Mittari lukee jokaisen näkyvän `<text>`in ruudulta
+(y-akselin paperiliu'un oikealta puolelta) ja etsii leikkaukset ja
+SVG:n rajojen ylitykset. Löydetyt ja korjatut:
+
+| löydös | korjaus |
+|---|---|
+| "sade mm/h" jokaisella keskiyöllä, 7 vrk ruudulla 7 paria päällekkäin | nimi vain jos edellinen on oman leveytensä + 30 px päässä |
+| lukuväli katkesi 24 h:iin: kuukausi ruudulla antoi päivän luvut 12 px välein | porras jatkuu 48 / 72 / 168 h, keskipäivä joka k:s päivä |
+| laaja vaakaruudussa: y-akseli tyhjä (20 kts:n porras, asteikko 19 kts) | vähintään yksi viiva: suurin porras joka mahtuu asteikon alle |
+| laaja vaakaruudussa: SVG 244 px kääreessä 235 px | mallirivi otsikkoriville vaakassa |
+| allekkain-rivin mallin nimi 1–2 px rivin yläreunan yli laajassa | nimikaista `15 · fs` |
+| mallin ja lähteen nimi x = 4 eli y-akselin liu'un alla | alku 38 px:stä kun akseli on kiinteä |
+
+Jälkeen puhelimella ja iPadilla (Chromium, CDP-kosketus) venytyksen
+ääripäissä: ennusteen kortti 12 h … 7 vrk, laaja allekkain kolmella
+mallilla loitonnettuna ja lähennettynä, havainto 3 h … 48 h ja vedenlämpö
+2 … 30 vrk: päällekkäin 0 ja rajojen yli 0 kaikissa. Y-akselin lukuja
+on joka vaiheessa ≥ 1.
+
+**Allekkain ei mahdu → päällekkäin.** Laajan rivin vähimmäiskorkeus on
+70 px ja pääkaavion 120 px. Puhelimen vaakaruudussa laatikko on noin
+250 px, ja kolme riviä vuoti ennen laatikon alareunan yli, jolloin
+alimmat mallit jäivät piiloon (`overflow: hidden`). Nyt mallit
+piirretään silloin päällekkäin, ja Allekkain-nappi on yliviivattu ja
+kertoo syyn (`title`). Valinta pysyy, ja pystyssä rivit palaavat.
+
+**Mallit laajassa.** Laajan lähde voi antaa työkalurivin
+(`lahde.tyokalut`), ja tuuliennuste antaa siihen samat sirut ja
+asettelun kuin kortin "Vertaa kaaviossa" (`_sirutHtml`, `_kytkeSirut`).
+Tila on yksi, joten valinta kummassa tahansa piirtää molemmat
+(`_muuttui`). Pystyssä rivi on otsikon alla, vaakassa otsikkorivillä.
+
+**Pyyhkäisy alas laajassa** alkaa nyt mistä tahansa piirtoalueen
+yläpuolelta: kahvasta, otsikosta, lukemariviltä, mallirivin väleistä ja
+kaavion omilta päivä- ja tuntiriveiltä (`_piirtoalueenYlapuolella`, raja
+`g.y0`). Mallirivi ja kaavio vierivät sivuttain, joten niissä veto on
+sulkuele vasta kun se on selvästi alaspäin (10 px, ja vaakaliike ensin
+perii eleen). Mitattu: veto piirtoalueelta ei sulje, veto päiväriviltä
+sulkee.
+
+**Mitä ei voitu mitata täällä.** Venytyksen tuntuma, eli se miltä
+transformilla venytetty kuva ja sen korvaava piirros näyttävät
+sormien alla. Playwrightin WebKit ei osaa kahta sormea, joten venytys on
+mitattu Chromiumilla ja napautukset WebKitillä. iOS:n oman sivuzoomin
+esto (`gesturestart`) on pääteltyä eikä mitattua.

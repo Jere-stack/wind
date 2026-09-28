@@ -124,7 +124,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/ui.md` | paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa, kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
-| `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V9: yksi kaaviomoottori, kortti moduuleina, fonttilattia) |
+| `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit, kaavion venytys** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V10: yksi kaaviomoottori, kortti moduuleina, fonttilattia, laajan valinta, venytys, mallit laajassa) |
 | `docs/sujuvuus.md` | **työpöydän** zoomin ja panoroinnin raskautta, windy.comin arkkitehtuuria, sujuvuusstrategiaa, **MapLibre-siirtoa (C2) ja sen mittauksia** |
 | `docs/julkaisu.md` | **julkaisukelpoisuutta**: UI-parannusten top 25, suositusjärjestys ja logiikan 10 kriittisintä kohtaa (27.9.), ja **osa 4: mitä niistä toteutettiin 28.9. ja mikä jäi auki** (Pages, lisenssit, pohjakartan kieli) — lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 
@@ -659,7 +659,10 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   `.en-vertailu`, `Ennuste._vertailuAuki`): kuusi sirua ja asettelu
   olivat kahdella rivillä ennen yhtäkään havaintoa. Otsikko erottaa sen
   asetusten "Kartan mallista" — sama nimi kahdelle eri vaikutukselle
-  oli UI 12.
+  oli UI 12. **PARAS EI OLE SIRU** (se ei ollut nappi eikä sitä voi
+  sammuttaa); rivi sanoo `Paras (lähde)`, ja lähde on VALITUN TUNNIN,
+  koska Parasin malli vaihtuu ajan mukana (V10). Sama sirurivi on
+  laajassa (`lahde.tyokalut`), ja tila on yksi (`Ennuste._muuttui`).
 - **Tähti ja jakonappi ovat PIIRRETTYJÄ** (`_tahtiSVG`, `_JAKO_SVG`),
   eivät ☆/⇗-merkkejä. Jakonappi avaa kosketuslaitteella järjestelmän
   jakoarkin (`navigator.share`) ja kopioi työpöydällä linkin;
@@ -1411,6 +1414,22 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **VAAKAVETO ON AINA VIERITYSTÄ, TUNTI VALITAAN NAPAUTUKSELLA.**
   Kaavioissa on `touch-action: pan-x pan-y`; napautus (matka < 6 px,
   myös värisevä) valitsee, ja nuolet vaihtavat tuntia fokuksessa.
+  **Myös laajassa**: laajan napautus kulkee samaa `Ennuste.valitse`-
+  polkua, ja `asetaValittu` siirtää kursorin kortissa JA laajassa
+  (`ctx.laajaKaare`). Ennen laajalla ei ollut `napautus`ta, ja
+  kursori jäi avaushetken tuntiin (V10).
+- **KAKSI SORMEA VENYTTÄÄ, ELEEN AIKANA VAIN TRANSFORM**
+  (`Aikakaavio.venytys`, kaikki neljä kaaviota kortilla ja laajassa;
+  työpöydällä Ctrl+rulla). Tiheys on `Aikakaavio.nakyva(avain)`,
+  näkyviä tunteja, istunnon ajan eikä tallenneta. Kaavio piirretään
+  uudelleen vasta sormien noustessa: kesken eleen korvattu SVG irrottaisi
+  kosketuksen kohteen. Kosketus- eikä osoitintapahtumat, koska
+  `pan-x pan-y` peruu osoittimet. Kahden sormen ele ei ole napautus.
+  Y-asteikko ei saa riippua tiheydestä: vedenlämmön asteikko laskettiin
+  nipuista, ja se olisi elänyt sormien mukana.
+- **LEIJUVA OSOITIN VAIN `(any-hover: hover)`-LAITTEELLA.** WebKit
+  lähetti laajan ilmestyessä hiiren `pointermove`n emuloidun osoittimen
+  kohtaan, ja laajaan syttyi viiva jota kukaan ei osoittanut.
 - **TUNNIN VAIHTO EI RAKENNA SPOTTIKORTTIA UUDELLEEN** (`openSheet`:n
   päivityspolku, `_oliAuki`): vain `#sh-tunti`, `#sh-laatat-tunti` ja
   `#sh-tiedot` kirjoitetaan, ja ennusteosio saa `asetaValittu`n, joka
@@ -1642,9 +1661,17 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   625 px), ja avauksen jälkeen on piirrettävä uudestaan 180 ms:n
   kuluttua (kääntämällä avattaessa mitat eivät ole asettuneet: 714×187
   vs 714×280).
-- **Liu'utusele alkaa vain kahvasta tai otsikkoriviltä.** Kuvaajan
-  päällä raahaus on lukeman haku, joten sulkuele siellä sulkisi näkymän
-  aina kun arvoa luetaan. Napit ohitetaan `closest('button')`illa.
+- **Liu'utusele alkaa mistä tahansa PIIRTOALUEEN YLÄPUOLELTA**
+  (kahva, otsikko, lukemarivi, mallirivin välit, kaavion päivä- ja
+  tuntirivit; raja `g.y0`, `_piirtoalueenYlapuolella`), ei
+  piirtoalueelta. Kuvaajan päällä raahaus on lukeman haku, joten
+  sulkuele siellä sulkisi näkymän aina kun arvoa luetaan. Sivuttain
+  vierivissä (mallirivi, kaavio) veto on sulkuele vasta kun se on
+  selvästi alaspäin. Napit ohitetaan `closest('button')`illa.
+- **ALLEKKAIN VAIN JOS SE MAHTUU.** Laajan rivit (70 px + pääkaavio
+  120 px) vuotivat puhelimen vaakaruudussa laatikon yli ja alimmat
+  mallit jäivät piiloon; silloin mallit piirretään päällekkäin ja
+  Allekkain-nappi kertoo syyn.
 - **Laajassa lukema menee kiinteälle riville, ei kelluvaan kuplaan** —
   kokonäytössä kupla jää sormen alle. Rivillä on levossa jakson
   tilastot ja raahatessa hetken arvot.
