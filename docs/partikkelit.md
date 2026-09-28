@@ -1324,3 +1324,12 @@ askel on tasainen samalla ruutumäärällä (p50 0,002, p90 0,006), pituus
 22,0 px. Näkyvällä peittävyydellä katoavat jäljet ovat ruudun
 ulkopuolella tai häivytyksen viimeisessä ruudussa (ikä 299,
 peittävyys 0,06–0,11 kontin ~25 fps:llä; 60 Hz:llä alle 0,01).
+
+### Jatko: jälki 22 → 19 px ja aikapituus 45 → 39 pistettä (28.9.)
+
+Käyttäjän pyynnöstä "viimeinen silaus, hieman lyhyempiä". Pituusraja ja
+aikapituus lyhenivät samassa suhteessa (−14 %), jotta heikon ja kovan
+tuulen jälki lyhenevät yhdessä. 19 px on hieman talon 20 px:n
+pilkkurajan alla; raja on mitattu vanhoilla porrastetuilla jäljillä, ja
+pituus on käyttäjän arvio laitteelta. Mitattu mediaani ja p90 19,0 px,
+pää kulkee yhä kärjen tahtia (p50 ja p90 1,00).

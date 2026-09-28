@@ -2096,7 +2096,7 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   ruutunopeuden muutoksen nopeutena (mm. hypyn jälkeen). Jälki talletetaan
   kellosta (`ASKEL_MS`). Mitattu: matka ≈ 60 askelta/s fps:stä
   riippumatta, vanha = fps (docs/partikkelit.md, "Liike ajasta").
-  **NOPEUS 0.0033 JA JÄLKI 45 PISTETTÄ** (käyttäjän pyyntö 28.9.):
+  **NOPEUS 0.0033 JA JÄLKI 39 PISTETTÄ** (käyttäjän pyyntö 28.9.):
   GEO_SPEED ja aikapituus muutetaan AINA yhdessä, muuten heikon tuulen
   jälki lyhenee pilkuksi. **NOPEUSLUOKKA ON LIUKULUKU**: kokonaislukuna
   väri ja leveys hyppäsivät luokkarajalla (0,30/s partikkelia kohti).
@@ -2108,8 +2108,9 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   sitten — se oli pyrstön välkyntä. Syntymä ja kuolema häivytetään
   (`_pAlfa`); satunnaista pudotusta (`DROP_RATE`) ei ole, koska se
   pysäytti partikkelin ruuduksi.
-- **JÄLJEN PITUUSRAJA ON 22 px (`JalkiViritys.maxPx`), EI 64.** 26 → 22
-  käyttäjän pyynnöstä 28.9. Jäljet
+- **JÄLJEN PITUUSRAJA ON 19 px (`JalkiViritys.maxPx`), EI 64.** 26 → 22 → 19
+  käyttäjän pyynnöstä 28.9. (hieman pilkkurajan alla, käyttäjän arvio), ja
+  aikapituus samassa suhteessa (JALKI 45 → 39). Jäljet
   lukivat pitkinä valojuovina; pyydetty ilme on Windyn lyhyt viiva.
   Pyyhkäisy samassa pisteessä (3,8 m/s keskituuli, 80 hiukkasta):
 

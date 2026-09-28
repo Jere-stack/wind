@@ -12844,7 +12844,8 @@ const AlueVahti = {
 /* 30 -> 45 samassa suhteessa kuin GEO_SPEED laski (0.005 -> 0.0033):
    heikossa tuulessa aikapituus ratkaisee jäljen pituuden, ja ilman tätä
    hitaampi liike olisi vienyt sen pilkkurajan alle. */
-const JALKI = 45;
+/* 45 -> 39 samassa suhteessa kuin pituusraja 22 -> 19 (28.9.). */
+const JALKI = 39;
 /* Ruutua pisteiden välissä — jälki on enintään JALKI × ASKEL = 60 ruutua.
  *
  * Askel oli 4 ja pisteitä 20 (80 ruutua). Jäljen lyhentäminen tehtiin
@@ -12915,7 +12916,13 @@ const ASKEL_MS = ASKEL * 1000 / 60;
  * Pilkkuraja 20 px pysyy alapuolella. Pituus on nyt KAARENPITUUS, joka
  * leikataan tarkasti (`nauha`), eikä kokonainen määrä talletettuja
  * pisteitä — siksi pää ei enää sahaa. */
-const JalkiViritys = { maxPx: 22 };
+/* 22 -> 19 KÄYTTÄJÄN PYYNNÖSTÄ ("viimeinen silaus, hieman lyhyempiä").
+ * Tämä on hieman talon 20 px:n pilkkurajan alla. Raja mitattiin
+ * vanhoilla, nopeammilla ja porrastetuilla jäljillä; nyt jälki on
+ * tasainen ja kapeneva, ja käyttäjä arvioi pituuden laitteelta. Aikapituus
+ * (JALKI) lyheni samassa suhteessa, jotta heikon ja kovan tuulen jälki
+ * lyhenevät yhdessä. */
+const JalkiViritys = { maxPx: 19 };
 
 /* Häivytys tehdään SISÄKKÄISILLÄ VEDOILLA, ei segmentti kerrallaan.
  *
