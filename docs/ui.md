@@ -6872,3 +6872,41 @@ pienetä liikaa".
 
 Animaatioita 56 / 32 (+1, laudan käännös). Kontrastit ennallaan,
 vaimennettu 0, savutesti läpi.
+
+## Pilvet, lokit, kaarron roiske ja jälki — ja vaakatilan tilapalkki (28.9.)
+
+Käyttäjä antoi vapaat kädet ("paras mahdollinen latausruutu, isoja
+muutoksia"). Lisättiin kohtaukseen elämää niin, että jokainen uusi asia
+on YKSI animoitu elementti (arkki tai varjokopiot), ja korjattiin
+samalla vaakatilan tilapalkki, joka oli ollut rikki jo ennen.
+
+- **Pilvet** (`#lr-pilvet`): viisi pilveä, kukin neljän säteittäisen
+  liukuvärin rypäs, yhdessä kaksi jaksoa leveässä arkissa joka
+  ajelehtii noin 0,55 m/s:n juovan vauhtia. Väri on taivaan valo
+  (`--lr-hehku` → `--lr-pilvi`): päivällä valkoinen, illalla
+  kupari/ruusu, yöllä kuunvalon sininen ja alfa .12.
+- **Lokit** (`#lr-lokit`): kaksi siluettia lentää ruudun poikki 17 s:ssa,
+  siivet lyövät `scaleY`:llä (0,44 ja 0,38 s). Väri on kuskin
+  (`--lr-kuski`): tumma valoisalla, paperi pimeällä.
+- **Kaarron kukonpyrstö** (`#lr-suihku`): ala-käännöksessä maston
+  juuresta nousee pisaraviuhka taakse ja ylös (56 pisaraa ja 7
+  sumuvarjoa, `em` = rigin yksikkö), laajenee ja jää taakse.
+  Ensimmäinen 30 pisaran versio luki pisteviivana.
+- **Vaahtojälki** (`#lr-jalki`): kaartuva jälki vedessä käännöksen
+  jälkeen, häipyy ennen seuraavaa kaarrosta.
+- **Vaakatilan tilapalkki:** mitattiin ensimmäistä kertaa vaakatilassa
+  (852 × 393): yö 1,19:1 (kuu tilapalkin alla), päivä 5,45:1 (auringon
+  hehku) ja ilman hehkuakin 7,50:1 (taivaan liuku vaaleni jo 44 px:n
+  sisällä). Korjaukset: taivaan yläväri kiinteänä 44 px:iin, ylin
+  tuulijuova ≥ 70 px, kuu `max(92px, 16%)`, matalalla ruudulla aurinko
+  ≥ 100 px ja kapeampi hehku. Jälkeen:
+
+| aika | pysty | vaaka |
+|---|---|---|
+| päivä | 12,36 | 11,19 |
+| ilta | 17,49 | 16,10 |
+| sininen | 19,09 | 17,92 |
+| yö | 19,89 | 18,87 |
+
+Nimilohko ennallaan (16,34 / 6,48 / 7,25). Animaatioita 62 / 38
+(+6), vaimennettu 0, savutesti läpi.

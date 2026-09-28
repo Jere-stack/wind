@@ -646,8 +646,23 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   olisi tehnyt juuri sen (ja se oli kuollut, purettiin riviä ennen
   `main()`ia). Nämä tekstit ovat virheilmoituksia, eivät ohje — sääntö
   "ei Napauta jatkaaksesi -tekstiä" koskee normaalia latausta.
+- **ELÄMÄ KOHTAUKSESSA ON ARKKEJA JA VARJOKOPIOITA** (docs/ui.md,
+  "Pilvet, lokit, kaarron roiske ja jälki"): pilvet ovat YKSI hitaasti
+  ajelehtiva arkki taivaan valon värisiä säteittäisiä liukuvärejä
+  (`--lr-pilvi`, `--lr-pilvi-a`), lokkiparvi on yksi lentoanimaatio ja
+  kaksi siiveniskua, kaarron kukonpyrstö (`#lr-suihku`) on yksi
+  elementti jonka pisarat ja sumu ovat `em`-varjokopioita, ja
+  vaahtojälki (`#lr-jalki`) on yksi opacity. Roiske ja jälki ovat
+  kaarron tahdissa (4,4 s, −0,3 s) ja pysähtyvät lähdössä.
+  Animaatioita esittelyssä 62, levossa 38.
 - **TILAPALKKI ON VALKOINEN TUMMALLA, VÄHINTÄÄN 10:1 JOKA
-  VUOROKAUDENAIKANA.** Yöllä ylälaita on kartan `--bg` (18,38:1),
+  VUOROKAUDENAIKANA — MYÖS VAAKATILASSA.** Vaakatilassa 7 % on 28 px,
+  joten taivaan yläväri on kiinteä 44 px:iin asti, ylin tuulijuova on
+  vähintään 70 px alhaalla (`YLIN`), kuu `max(92px, 16%)` ja aurinko
+  matalalla ruudulla `max(100px, …)` kapeammalla hehkulla. Ennen
+  vaakatila oli mitattuna yöllä 1,19:1 (kuu) ja päivällä 5,45:1
+  (auringon hehku); nyt vähintään 11,19:1. Pilvet eivät nouse
+  `max(80px, 12%)`:n yläpuolelle. Yöllä ylälaita on kartan `--bg` (18,38:1),
   päivällä tummansininen (10,54:1). Kun ruutu oli kermaa, valkoinen
   tilapalkki oli 1,32:1; älä vaalenna ylälaitaa alle rajan.
 - **MERKKI ON SIIPI JA SPOTTI, JA SE SYNTYY `tools/ikoni.mjs`:STÄ.**
