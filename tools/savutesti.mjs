@@ -89,31 +89,42 @@ async function aja(nimi, asetus) {
   await sivu.waitForTimeout(600);
 
   /* Asetukset napista */
-  await sivu.evaluate(() => document.getElementById('btn-settings').click());
-  await sivu.waitForTimeout(700);
-  const asetukset = await sivu.evaluate(() => {
-    const el = document.getElementById('settings-popup');
+  const nakyy = (id) => sivu.waitForFunction((i) => {
+    const el = document.getElementById(i);
     return !!el && getComputedStyle(el).visibility !== 'hidden';
-  });
-  if (!asetukset) vika('asetukset eivät auenneet');
+  }, id, { timeout: 5000 }).then(() => true, () => false);
+
+  await sivu.evaluate(() => document.getElementById('btn-settings').click());
+  if (!(await nakyy('settings-popup'))) vika('asetukset eivät auenneet');
 
   /* Tietoa asetuksista */
-  const tietoa = await sivu.evaluate(async () => {
-    const nappi = document.getElementById('sp-tietoa');
-    if (!nappi) return 'ei nappia';
-    nappi.click();
-    await new Promise((r) => setTimeout(r, 700));
-    const el = document.getElementById('tietoa');
-    return el && getComputedStyle(el).visibility !== 'hidden' ? 'ok' : 'ei auennut';
+  const nappi = await sivu.evaluate(() => {
+    const n = document.getElementById('sp-tietoa');
+    if (n) n.click();
+    return !!n;
   });
-  if (tietoa !== 'ok') vika('Tietoa-näkymä: ' + tietoa);
+  if (!nappi) vika('Tietoa-näkymä: ei nappia');
+  else if (!(await nakyy('tietoa'))) vika('Tietoa-näkymä: ei auennut');
   for (let i = 0; i < 3; i++) { await sivu.keyboard.press('Escape'); await sivu.waitForTimeout(300); }
-  const kaikkiKiinni = await sivu.evaluate(() =>
-    ['settings-popup', 'tietoa', 'sheet'].every((id) => {
+  /* EHTOA ODOTETAAN, EI KELLOA. Suljettu paneeli saa `visibility:
+     hidden`in vasta liu'un jälkeen (`transition-delay` .34 s, CLAUDE.md),
+     ja kuormitetulla CI-koneella animaation aikajana etenee ruutu
+     kerrallaan: mitattuna 6× kuristuksella asetukset olivat yhä
+     `visible` 300 ms Escin jälkeen vaikka `open` oli jo poissa, ja CI:ssä
+     (työpöydän latausruutu 19,4 s) kiinteä 600 ms ei riittänyt. */
+  const PINNAT = ['settings-popup', 'tietoa', 'sheet'];
+  const auki = () => sivu.evaluate((ids) => ids.filter((id) => {
+    const el = document.getElementById(id);
+    return el && getComputedStyle(el).visibility !== 'hidden';
+  }), PINNAT);
+  try {
+    await sivu.waitForFunction((ids) => ids.every((id) => {
       const el = document.getElementById(id);
       return !el || getComputedStyle(el).visibility === 'hidden';
-    }));
-  if (!kaikkiKiinni) vika('Esc ei sulkenut kaikkia pintoja');
+    }), PINNAT, { timeout: 5000 });
+  } catch (e) {
+    vika('Esc ei sulkenut kaikkia pintoja (auki: ' + (await auki()).join(', ') + ')');
+  }
 
   for (const v of virheet) vika('pageerror: ' + v);
   console.log(nimi + ': latausruutu pois ' + lahtoS + ' s, tikkejä ' + tila.tikit
