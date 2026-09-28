@@ -6644,3 +6644,63 @@ ja maston leveyttä lisää.
 Tilapalkki 18,38 / 10,54:1 (yö / päivä), nimilohko ennallaan.
 Animaatioita esittelyssä 55 ja levossa 31 (tukka +1). `compositeFailed`
 0 latausruudussa, savutesti läpi, vaimennettu liike 0 animaatiota.
+
+## Kuski ihmiseksi, impact vest, pinkki Droid X -siipi ja logot molemmin puolin (28.9.)
+
+Pyyntö: ajaja oikeamman ihmisen näköiseksi, lihaksikas ulkoasu näkyy
+hieman märkäpuvun läpi; harmaa paita pois ja tilalle musta impact
+vest; kasvot "todella oikean näköisiksi eikä tikku-ukko"; siipi Gong
+Galaxy Aramid Droid X:n pinkin siiven tyyliseksi väritykseltään ja
+muodoltaan, jossa leading edge kääntyy ja on värjätty samoin; FoilSpotin
+logot molemmille puolille; siipi ei läpinäkyvä paitsi ikkunoista.
+
+### Kuski
+
+- **Raajat ovat täytettyjä muotoja, eivät viivoja.** Pieni generaattori
+  (`raaja(a, b, w0, w1, pull, push)`, tehty työn aikana) piirtää
+  jokaisen raajanosan kahden nivelen välille niin, että kylkien
+  pullistus on eri puolilla: reiden etuosa (nelipäinen), pohkeen
+  takaosa, hauis ja kyynärvarren yläosa. Nivelet ovat samat kuin ennen,
+  joten pumppaus- ja hyppyanimaatiot eivät muuttuneet.
+- **Lihakset näkyvät puvun läpi kiiltona** (`--lr-kiilto`): etureisien
+  ja pohkeiden kaaret, polvilumpiot, olkapää ja hauis. Yöllä muodot
+  saavat lisäksi kuunvalon reunavalon.
+- **Impact vest** (`--lr-liivi` `#15181E`) korvaa harmaan paidan:
+  pehmustetut vaakapaneelit, sivusauma, kaulus ja olkapään valo.
+  Liivi on tiukka, joten helman lepatus (`#lr-helma`) poistettiin.
+- **Kasvot ovat profiili**: otsa, kulmakaari, nenä ja sieraimen alus,
+  ylä- ja alahuuli, leuka ja leukalinja; silmä (mantelimuoto, iiris ja
+  valopiste), kulmakarva, korva ja poskilinja. Kaula on ihoa, ja
+  märkäpuvun kaulus alkaa sen alta. Kypärä ja lieri nousivat silmien
+  yläpuolelle (ennen lieri peitti silmän korkeuden).
+- Tukka kulkee kypärän alta niskaan ja lepattaa kuten ennen; kämmenet
+  ovat puomin ympärillä sormiviivoineen.
+
+### Siipi
+
+Oikeaa Droid X:ää ei saatu kuvana, joten muoto ja väritys ovat pyynnön
+kuvauksen mukaiset:
+
+- **Pinkki, läpinäkymätön kangas** liukuvärinä putkelta takareunaan
+  (`#F27AAE` → `#E7478C` → `#B92F6B`), paneelisaumat tummempaa
+  pinkkiä. Vain kaksi ikkunaa ovat kirkkaita (vaalea .14), tumma kehys.
+- **Täyttöputki kääntyy kärjissä**: kummassakin kärjessä putki
+  kaartuu takaisin kohti takareunaa pyöreäksi kärjeksi, ja se on
+  värjätty kuten kangas (oma liukuväri, vaalea valojuova ulkoreunalla,
+  tummat saumat).
+- Keskituki on pinkki, puomi hiilimusta valojuovineen.
+- **Logot molemmilla puoliskoilla**: FoilSpotin merkki ylemmän ja
+  alemman ikkunan vieressä, leikattuna kankaan muotoon ikkunoineen,
+  joten kummankin ikkunan reuna leikkaa oman merkkinsä. Ylempi osui
+  ensin kuskin pään taakse ja siirrettiin ikkunan oikealle puolelle.
+- **Pinkki on sama joka vaiheessa**; valon puute tulee sen päälle
+  varjona, joka on leikattu siiven muotoon (`--lr-siipi-varjo`: yö .42,
+  sininen hetki .30, hämärä .16, päivä 0).
+- Pinkki/magenta latausruudulla on käyttäjän päätös: se on kuvatun
+  siiven väri, ei tuulen nopeus eikä `--accent`.
+
+### Mitattu
+
+Tilapalkki 18,38 / 17,80 / 15,97 / 10,54:1, nimilohko ennallaan.
+Animaatioita esittelyssä 54 ja levossa 30 (helma −1). `compositeFailed`
+0 latausruudussa, savutesti läpi, vaimennettu liike 0 animaatiota.

@@ -493,23 +493,27 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   Asento on oikeasta vastavalokuvasta (mittasuhteiden malli, ei
   upotettu): lähes pystyasento ja nojaus taaksepäin, siipi molemmin
   käsin olkapäiden korkeudella VINOSSA sivulla, ja kädet ovat PUOMILLA.
-  Siipi on Gong Droidin tapainen: PAKSU täyttöputki umpinaisena muotona
-  (keskeltä ~17 yks., kapenee kärkiin) saumoineen, kapeneva keskituki,
-  puomi kahdella kiinnikkeellä, kangas koverine takareunoineen ja KAKSI
-  ikkunaa (reikinä, `evenodd`). FoilSpotin merkki on painettu kankaaseen
-  ja LEIKATTU kankaan muotoon ikkunoineen (`#lr-kangas-leike`), joten
-  ikkuna leikkaa sen eikä merkki ole ikkunan päällä. Lauta on MIDLENGTH
-  (110 × 10 yks. ~200 × 18 cm, 3D kolmesta pinnasta: kansi, kylki,
-  pohjan varjo) ja masto 9 yks. leveä laudan takapuoliskolta.
-  KUSKIN VÄRIT OVAT KÄYTTÄJÄN PÄÄTÖS, EIVÄT TUULTA: keltainen
-  sombrero-kypärä (`--lr-kypara`), musta leukahihna leukalinjaa pitkin,
-  MUSTA MÄRKÄPUKU KAIKKINA VUOROKAUDENAIKOINA (`--lr-puku`; yöllä
-  kuunvalon reunavalo `--lr-reuna`, muuten musta katoaisi yötaivaaseen),
-  vaalea iho (`--lr-iho`), ruskea surffitukka joka lepattaa kypärän alta
-  (`#lr-tukka`, 0,7 s) ja harmaa paita jonka helma lepattaa (`#lr-helma`,
-  0,9 s). Siipi, lauta ja foili seuraavat valoa (`--lr-kuski`,
-  `--lr-lauta`, `--lr-foili`): pimeällä vaaleat, valoisalla vastavalossa
-  tummat. Osat ovat sisäkkäisiä kerroksia omilla
+  Siipi on Gong Galaxy Aramid Droid X:n tapainen: PINKKI ja
+  LÄPINÄKYMÄTÖN (vain kaksi ikkunaa ovat kirkkaita), paksu täyttöputki
+  joka KÄÄNTYY kärjissä takaisin kohti takareunaa ja on värjätty kuten
+  kangas, pinkki keskituki ja hiilimusta puomi. FoilSpotin merkki on
+  MOLEMMILLA puoliskoilla, leikattuna kankaan muotoon ikkunoineen
+  (`#lr-kangas-leike`), joten kummankin ikkunan reuna leikkaa oman
+  merkkinsä. Pinkki on sama joka vaiheessa, ja valon puute tulee sen
+  päälle varjona (`--lr-siipi-varjo`, yö .42). PINKKI/MAGENTA ON
+  LATAUSRUUDULLA KÄYTTÄJÄN PÄÄTÖS: se ei ole tuulen väri eikä
+  `--accent`, vaan kuvatun siiven oikea väri. Lauta on MIDLENGTH
+  (110 × 10 yks., 3D kolmesta pinnasta) ja masto 9 yks. leveä.
+  KUSKI ON IHMINEN, EI TIKKU-UKKO: raajat ovat täytettyjä muotoja
+  (`raaja()`-generaattori: reisi, pohje, olkapää, hauis, kyynärvarsi
+  lihaspullistumineen), märkäpuvun kiilto (`--lr-kiilto`) kertoo
+  lihakset, ja kasvot ovat profiili (nenä, huulet, leuka, silmä,
+  kulmakarva, korva). Värit ovat käyttäjän päätös: keltainen
+  sombrero-kypärä, musta leukahihna leukalinjaa pitkin, MUSTA
+  MÄRKÄPUKU kaikkina vuorokaudenaikoina (yöllä kuunvalon reunavalo
+  `--lr-reuna`), MUSTA IMPACT VEST (`--lr-liivi`, paneelit, kaulus,
+  vetoketju; harmaa paita ja sen helma poistettiin), vaalea iho ja
+  ruskea surffitukka joka lepattaa (`#lr-tukka`, 0,7 s). Osat ovat sisäkkäisiä kerroksia omilla
   nivelpisteillään (`#lr-jalat` nilkoista `scaleY`, `#lr-yla` lantiosta
   SAMALLA käyrällä, `#lr-kasi` = molemmat kädet ja siipi olkapäistä,
   `#lr-siipi` etukädestä), ja vartalo piirtyy siiven PÄÄLLE. Liike on
