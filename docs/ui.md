@@ -6034,3 +6034,27 @@ jälkeen 0,1 px heti ja kuudessa seuraavassa ruudussa, +48 h hypyn jälkeen
 laskettu `transition-duration` 0 s sekä lapulla että `::before`lla.
 Kontissa ei ole WebKitiä — päätelmä ei tarvitse sitä, koska pilleri ei
 liiku lainkaan, mutta laitetesti on silti se joka ratkaisee.
+
+## Aikajana hiirellä: veto vaihtaa tunnin (28.9.)
+
+Työpöydällä janaa sai liikutettua vain napauttamalla tikkiä: hiiri ei
+vieritä `overflow`-säiliötä vetämällä. Nyt `#tl-scroll` ottaa hiiren
+vedon (`_hiiriVeto`, vain `pointerType === 'mouse'`, 4 px kynnys) ja
+kirjoittaa `scrollLeft`iä suoraan, jolloin kaikki muu kulkee sormen
+polkua: scroll-käsittelijä seuraa tuntia (`_tlSeuraaHetkea`) ja
+esikatselee kentän, ja `State._tlTouching` on päällä vedon ajan.
+
+- **Snäppäys on vedon ajan pois** (`.hiiriveto`), muuten `mandatory`
+  vetäisi jokaisen kirjoituksen lähimpään tikkiin. Napin noustessa jana
+  liukuu lähimpään tikkiin ja valinta vahvistetaan `scrollend`issä.
+- **Kesken vedon tuleva `scrollend` ohitetaan**: ohjelmallinen kirjoitus
+  lähettää sen joka askeleen jälkeen, ja jokainen olisi rakentanut
+  täyden kentän.
+- Vedon perään tuleva click nielaistaan, alle 4 px:n liike on napautus.
+
+Mitattu Chromiumilla (1400×900, ei kosketusta): vedon aikana tunti
+4 → 7 → 9 → 12 → 14, lopussa tikki keskellä 0 px, `_tlTouching`
+nollautuu.
+
+Samassa erässä kartan "Powered by Esri" -nappi poistettiin; maininta
+on asetusten Tietoa-rivin alarivillä ja rivi avaa saman näkymän.

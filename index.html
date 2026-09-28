@@ -722,21 +722,6 @@ html.tyopoyta #kapseli.vaistyy {
 .mctl-settings { color: var(--ink); }
 .mctl-settings:active { background: var(--surface-lo); }
 #bottom-bar-spacer { flex: 1; pointer-events: none; }
-#kartta-tietoa {
-  pointer-events: all; align-self: flex-end;
-  height: 44px; padding: 0; margin: 0 0 0 -2px; border: 0; background: none;
-  display: inline-flex; align-items: center; cursor: pointer;
-  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
-}
-#kartta-tietoa > span {
-  display: inline-flex; align-items: center; gap: 5px;
-  height: 24px; padding: 0 9px 0 7px; border-radius: 12px;
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  border: 1px solid var(--hairline); box-shadow: var(--shadow-1, 0 1px 3px rgba(4,8,12,.25));
-  color: var(--ink-2); font-size: 11px; font-weight: 500; letter-spacing: .01em; white-space: nowrap;
-}
-#kartta-tietoa:focus-visible { outline: none; }
-#kartta-tietoa:focus-visible > span { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* Yksi pino oikealla: sijainti, vapaa piste, kalenteri, asetukset — tasavälein */
 #btn-spots-wrap {
   display: flex; flex-direction: column; align-items: center; position: relative;
@@ -877,6 +862,10 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
   color: var(--ink); font-size: var(--fs-13); font-weight: 600; text-align: left; cursor: pointer;
 }
 .sp-linkkirivi svg { color: var(--ink-3); flex-shrink: 0; }
+.sp-linkkirivi { padding-top: 8px; padding-bottom: 8px; }
+/* Esrin maininta on tällä rivillä: kartalla ollut "Powered by Esri"
+   -nappi poistettiin käyttäjän päätöksellä, ja se avasi saman näkymän. */
+.sp-linkki-sub { display: block; margin-top: 2px; font-size: var(--fs-11); font-weight: 500; color: var(--ink-3); }
 .sp-linkkirivi:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sp-versio { margin-top: 10px; font-size: var(--fs-11); color: var(--ink-3); font-variant-numeric: tabular-nums; }
 
@@ -1790,6 +1779,9 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
   scroll-snap-type: x mandatory;
 }
 #tl-scroll::-webkit-scrollbar { display: none; }
+/* Hiirellä jana vedetään (ks. `_hiiriVeto`); snäppäys on vedon ajan pois. */
+@media (pointer: fine) { #tl-scroll { cursor: grab; } }
+#tl-scroll.hiiriveto { cursor: grabbing; scroll-snap-type: none; user-select: none; -webkit-user-select: none; }
 
 /* LUKEMA PALKIN ALLE — JA SE ON PALUU, EI UUSI IDEA.
  *
@@ -4628,7 +4620,7 @@ html.tyopoyta .hl-lk-arvo { font-size: 19px; }
         <h3 class="sp-ryhma">Tietoa</h3>
         <div class="sp-card">
           <button type="button" class="sp-linkkirivi" id="sp-tietoa">
-            <span>Tietoa, lähteet ja tietosuoja</span>
+            <span>Tietoa, lähteet ja tietosuoja<span class="sp-linkki-sub">Pohjakartta: Powered by Esri</span></span>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
           <!-- Versioleima. Sovellus on yksi HTML-tiedosto ilman hajautettuja
@@ -4733,13 +4725,6 @@ html.tyopoyta .hl-lk-arvo { font-size: 19px; }
 
   <div id="bottom">
     <div id="bottom-bar">
-      <!-- KARTAN LÄHDEMAININTA JA TIETOA (docs/julkaisu.md, L6). Esrin
-           ehdot vaativat "Powered by Esri" -maininnan kartalle, ja se oli
-           ennen vain asetusten pohjalla. Paperia, koska se ei ole dataa;
-           osumapinta 44 px napilta, pilleri on sisempi span. -->
-      <button type="button" id="kartta-tietoa" aria-label="Tietoa ja lähteet">
-        <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9.2" stroke="currentColor" stroke-width="2"/><path d="M12 11v6M12 7.4v.2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>Powered by Esri</span>
-      </button>
       <div id="bottom-bar-spacer"></div>
       <!-- Yksi pino oikealla: sijainti, vapaa piste, kalenteri, asetukset -->
       <div id="btn-spots-wrap">
@@ -21488,6 +21473,8 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
 
   let _scrollTimer = null;
   let _fieldBusy = false, _pendingFrac = null;
+  /* Hiiriveto kesken (työpöytä, ks. alempana). */
+  let _hiiriVeto = null;
 
   /* Sormi janalla kumoaa oman scrollin merkinnän heti: käyttäjän ele saa aina
      etusijan, vaikka ohjelmallinen scroll olisi juuri ehtinyt tapahtua.
@@ -21641,6 +21628,9 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
   if ('onscrollend' in tl) {
     tl.addEventListener('scrollend', () => {
       if (State._tlSelfScroll) { State._tlSelfScroll = false; return; }
+      /* Hiiren vetämä `scrollLeft`-kirjoitus lähettää scrollendin joka
+         askeleen jälkeen; aito ele ei pääty ennen kuin nappi nousee. */
+      if (_hiiriVeto && _hiiriVeto.liikkui) { clearTimeout(_scrollTimer); return; }
       if (_tlRakennusKesken()) { clearTimeout(_scrollTimer); return; }
       clearTimeout(_scrollTimer);
       _tlCommitSelection(tl);
@@ -21658,6 +21648,59 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
       buildWindField(idx).then(() => { drawColorField(); resetParticles(); });
     }
   });
+
+  /* HIIRELLÄ RAAHAUS — TYÖPÖYTÄ.
+   *
+   * Hiiri ei vieritä `overflow`-säiliötä vetämällä, joten työpöydällä
+   * janaa sai liikutettua vain napauttamalla tikkiä. Veto kirjoittaa
+   * `scrollLeft`iä suoraan, ja kaikki muu on sormen polkua: scroll-
+   * käsittelijä seuraa tuntia ja esikatselee kentän matkan varrella,
+   * ja `State._tlTouching` on päällä kuten sormella (ikkunan
+   * `pointerup` nollaa sen).
+   * Snäppäys on vedon ajan pois (`.hiiriveto`): `mandatory` vetäisi
+   * jokaisen kirjoituksen lähimpään tikkiin ja jana liikkuisi
+   * tunnin nykäyksin. Napin noustessa jana liukuu lähimpään tikkiin ja
+   * valinta vahvistetaan sen `scrollend`issä, kuten sormen jälkeen.
+   * Alle 4 px:n liike on napautus, ja se jää tikin click-polulle;
+   * vedon perään tuleva click nielaistaan. */
+  tl.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+    if (e.target.closest('button')) return;
+    _hiiriVeto = { id: e.pointerId, x: e.clientX, alku: tl.scrollLeft, liikkui: false };
+  });
+  window.addEventListener('pointermove', (e) => {
+    const v = _hiiriVeto;
+    if (!v || e.pointerId !== v.id) return;
+    const dx = e.clientX - v.x;
+    if (!v.liikkui) {
+      if (Math.abs(dx) < 4) return;
+      v.liikkui = true;
+      tl.classList.add('hiiriveto');
+      try { tl.setPointerCapture(e.pointerId); } catch (_) {}
+    }
+    e.preventDefault();
+    State._tlTouching = true;
+    State._tlSelfScroll = false;
+    tl.scrollLeft = v.alku - dx;
+  });
+  function _hiiriVetoLoppu(e) {
+    const v = _hiiriVeto;
+    if (!v || e.pointerId !== v.id) return;
+    _hiiriVeto = null;
+    if (!v.liikkui) return;
+    tl.classList.remove('hiiriveto');
+    const nielaise = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+    tl.addEventListener('click', nielaise, { capture: true, once: true });
+    setTimeout(() => tl.removeEventListener('click', nielaise, { capture: true }), 0);
+    const ticks = State._tlTicks;
+    if (!ticks || !ticks.length) return;
+    const i = Math.max(0, Math.min(ticks.length - 1, Math.round(_fracFromScroll())));
+    const kohde = ticks[i].offsetLeft - tl.offsetWidth / 2 + TL_TIKKI_PUOLI;
+    if (Math.abs(kohde - tl.scrollLeft) < 1) { clearTimeout(_scrollTimer); _tlCommitSelection(tl); }
+    else tl.scrollTo({ left: kohde, behavior: 'smooth' });
+  }
+  window.addEventListener('pointerup', _hiiriVetoLoppu);
+  window.addEventListener('pointercancel', _hiiriVetoLoppu);
 }
 
 /* SEURAA LIIKKUVAA VALINTAA — sormi janalla, sormi kiskolla, play.
@@ -23105,9 +23148,6 @@ const Tietoa = {
   },
 };
 document.getElementById('sp-tietoa').addEventListener('click', function () { Tietoa.avaa(this); });
-document.getElementById('kartta-tietoa').addEventListener('click', function (e) {
-  e.stopPropagation(); Tietoa.avaa(this);
-});
 document.getElementById('tietoa-sulje').addEventListener('click', function () { Tietoa.sulje(); });
 document.getElementById('tietoa-verho').addEventListener('click', function () { Tietoa.sulje(); });
 sivuveto(document.getElementById('tietoa'), function () { Tietoa.sulje(); }, null,
