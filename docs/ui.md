@@ -5619,10 +5619,12 @@ ylälaita on kartan `--bg`. Vaakatasossa siiven kärki on ylimmässä
 Esittely: juovat ovat jo matkalla ruudun syttyessä (negatiivinen viive),
 kuski liukuu sisään vasemmalta (1,5 s), merkki piirtyy (0,26–1,41 s),
 kirjaimet nousevat rivin alta porrastettuina (0,5 s alkaen, 45 ms
-välein). Kaikki on paikallaan noin 1,9 s kohdalla. Lähtö odottaa
-vähintään 2 s esittelyn alusta ja valmista karttaa (enintään 1 s lisää),
-ks. "Latausruutu näkyy pidempään, ja odotus käytetään kartan lataamiseen"
-alla.
+välein). Kaikki on paikallaan noin 1,9 s kohdalla, mutta käyrät ovat
+jyrkästi hidastuvia, joten alanimi, tilarivi ja palkki ovat jo 1,6 s
+kohdalla lähes perillä. Lähtö alkaa aikaisintaan 1,6 s (vähimmäisaika
+1,3 s + palkin viimeinen pala) ja odottaa valmista karttaa enintään 1 s
+lisää, ks. "Latausruutu näkyy pidempään, ja odotus käytetään kartan
+lataamiseen" alla.
 
 Lähtö (`#loading.out`): palkki täyteen, nimilohko nousee pois, kuski
 kiihtyy oikealle (0,62 s, ease-in) ja meri ja tuuli ryntäävät
@@ -5791,14 +5793,14 @@ joka ei ollut valmis.
 (aikajana, spotit, tuulikenttä). Kutsupaikat ovat samat viisi. Lähtö
 (`_lahde`) odottaa lisäksi:
 
-1. **Vähimmäisaika 2 s esittelyn alusta** (`LAHTO_MIN_MS`; ensin 3,4 s,
-   ks. "Lyhennetty kahteen sekuntiin" alla). Kello on
+1. **Vähimmäisaika 1,3 s esittelyn alusta** (`LAHTO_MIN_MS`; ensin
+   3,4 s ja sitten 2 s, ks. "Lyhennetty kahteen sekuntiin" ja "Vielä
+   0,7 s lyhyemmäksi" alla). Kello on
    latausruudun oma (`#loading._lrAlku`, asetetaan skriptissä ennen
    ensimmäistä ruutua), ei navigoinnin alku: hitaalla verkolla ruutu
    syttyy vasta kun HTML on perillä, ja navigoinnista laskettu raja olisi
-   silloin jo kulunut. 2 s näyttää koko esittelyn (asettuu 1,9 s), ja
-   palkin viimeinen pala vie lähdön 2,3 s:iin, eli kuski lähtee
-   ensimmäisen puuskan (saapuu 2,4 s) mukana.
+   silloin jo kulunut. Palkin viimeinen pala vie lähdön 1,6 s:iin: merkki
+   on piirtynyt (1,41 s) ja kuskin sisääntulo päättynyt (1,6 s).
    Vaimennetulla liikkeellä esittelyä ei ole, joten raja on nolla.
 2. **Valmis kartta** (`_karttaValmis`): pohjakartan näkyvät laatat ovat
    tulleet (`areTilesLoaded`; kaatunut laatta lasketaan tulleeksi) ja
@@ -5908,6 +5910,72 @@ pääsäie viivästää kosketustapahtumaa: mitattuna `touchstart` saapui
 0,3 s klikistä (palkin viimeinen pala). Ensimmäisellä kierroksella
 yksi napautus kolmesta näytti jääneen katon varaan; seitsemän kierroksen
 tapahtumajäljityksellä jokainen napautus tuotti klikin ja ohitti.
+
+### Vielä 0,7 s lyhyemmäksi: kuski ei jää seisomaan
+
+Palaute: "0,7 s nopeampi niin että wingfoilaaja on pysähdystilassa tuon
+aikaa vähemmän." Kuski on visuaalisesti paikallaan noin 1,0 s kohdalla
+(sisääntulon käyrä on jyrkästi hidastuva), ja 2 s:n versiossa se
+pumppasi paikallaan 1,3 s ennen lähtöä. `LAHTO_MIN_MS` 2000 -> 1300,
+jolloin lähtö (`.out`) alkaa 1,6 s kohdalla ja pumppausta jää noin 0,6 s.
+Kartan katto pysyi 1 s:ssa, joten pahinkin tapaus siirtyi saman 0,7 s
+(3,3 -> 2,6 s): koko aikataulu on 0,7 s aiempi joka haarassa, kunhan
+data on valmis ennen 1,3 s:a.
+
+**Alaraja on merkin piirtyminen.** Se päättyy 1,41 s kohdalla, ja
+lähtö sen aikana katkaisisi piirtymisen kesken; lähtö on 0,3 s
+vähimmäisajan jälkeen, joten `LAHTO_MIN_MS` ei saa laskea alle
+1,1 s:n. Muut sisääntulot ovat 1,6 s kohdalla aikajanaltaan 60–100 %
+ja käyriltään 98,8–100 % perillä (tilarivi 99,5 %, palkin rivi 98,8 %),
+eikä `.out` hyppää, koska siirtymä alkaa animaation senhetkisestä
+arvosta.
+
+Mitattu lämpimällä käynnistyksellä vuorotellen 2 s:n buildia vasten,
+lähtö (`.out`) esittelyn alusta. Kontissa lämpökartan hila ei ehdi
+kummallakaan (säälaattayhteys hidas), joten ensimmäinen rivi on
+katossa; toisessa kartan odotus on poistettu mittarissa
+(`LAHTO_KARTTA_MAX_MS = 0`), eli se on nopean laitteen tilanne:
+
+```
+                        2 s (vanha)                  1,3 s (uusi)
+kartan katossa          3,43 3,38 3,31 3,03 3,33     3,27 2,90 3,09 2,71 2,64
+                        mediaani 3,33                mediaani 2,90
+kartta valmis heti      2,40 2,60 2,50 2,58 2,47     1,76 1,94 2,09 1,82 2,05
+                        mediaani 2,50                mediaani 1,94
+kesken lähtöhetkellä    ei mitään                    kirjaimet, alanimi,
+                                                     tilarivi; käyrältään
+                                                     vähintään 97,6 %
+sivun virheet           0                            0
+```
+
+Ero on kontissa 0,43–0,56 s eikä 0,7 s, koska kontin pääsäie on
+käynnistyksen alussa varattu (SwiftShader piirtää ruudun 118–495 ms):
+lähdön kaksi ajastinta (vähimmäisaika ja palkin 0,3 s) myöhästyvät
+uudessa 0,16–0,49 s ja vanhassa 0,10–0,30 s, koska uusi osuu
+kiireisempään hetkeen. Samasta syystä sisääntulot ovat kontissa
+jäljessä seinäkellosta: ensimmäinen ruutu tulee `_lrAlku`n jälkeen.
+Laitteella ajastimet osuvat, ja sisääntulot ovat 1,6 s kohdalla
+laskettuna tilarivi 99,5 % ja palkin rivi 98,8 % perillä.
+
+Sama mitattiin uudelleen sen jälkeen kun muutos siirrettiin
+julkaisukelpoisuuserän päälle (data valmistuu siinä 0,6–0,8 s eikä
+0,25 s), 2 s:n tuotantoa vasten:
+
+```
+                        2 s (tuotanto)               1,3 s (uusi)
+kartta valmis heti      2,96 2,98 3,13 2,79 2,77     1,96 1,93 2,23 1,87 1,99
+                        mediaani 2,96                mediaani 1,96
+oikea kartan odotus     3,05 3,07 3,26 3,24 2,95     3,04 2,86 3,14 2,74 2,98
+                        mediaani 3,07                mediaani 2,98
+```
+
+**Lyhennys näkyy vain kun kartta on valmis ajoissa.** Kontissa
+lämpökartta valmistuu vasta noin 2,7–3,0 s kohdalla, joten oikealla
+odotuksella molemmat lähtevät kartan tahdissa eikä vähimmäisajan.
+Laskettuna: kartan valmistuessa ennen 1,3 s:a lähtö on tasan 0,7 s
+aiemmin, 2,0–2,3 s:n välillä ei yhtään aiemmin, ja yli 3,0 s:n
+katossa taas 0,7 s aiemmin (väleillä 1,3–2,0 ja 2,3–3,0 s liukuvasti). Jos kuski seisoo laitteella yhä, seuraava
+säädettävä on kartan odotus (`LAHTO_KARTTA_MAX_MS`), ei vähimmäisaika.
 
 ## Aikajana: palkit kaavion värisiksi, päivän pilleri paikalleen (27.9.)
 

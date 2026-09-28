@@ -498,20 +498,25 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kompositorissa kartan alla. Mitattu piilotuksen jälkeen: 0 jäljellä.
   `hideLoading` on idempotentti — kutsupaikkoja on viisi.
 - **`hideLoading()` ON "DATA VALMIS", EI PIILOTUS.** Lähtö (`_lahde`)
-  odottaa lisäksi vähimmäisajan 2 s esittelyn alusta (`LAHTO_MIN_MS`,
+  odottaa lisäksi vähimmäisajan 1,3 s esittelyn alusta (`LAHTO_MIN_MS`,
   kello `#loading._lrAlku`; vaimennetulla liikkeellä 0) ja valmiin
   kartan (`_karttaValmis`: `areTilesLoaded` + lämpökartta ilman
   odottavaa hilaa), jälkimmäistä enintään 1 s (`LAHTO_KARTTA_MAX_MS`).
+  Lähtö (`.out`) on 0,3 s vähimmäisajan jälkeen eli 1,6 s kohdalla.
   Napautus, klikkaus tai näppäin ohittaa heti kun data on valmis.
-  **2 s ja ohjeettomuus ovat käyttäjän päätös:** 3,4 s oli liian pitkä,
-  eikä ruudulla ole "Napauta jatkaaksesi" -tekstiä — älä palauta sitä.
-  Katto tulee vähimmäisajan päälle, joten 2 s:n katolla ruutu näkyi
-  hitaalla säälaattayhteydellä 4,3 s; älä kasvata kattoa takaisin.
+  **1,3 s ja ohjeettomuus ovat käyttäjän päätös:** 3,4 s ja sitten 2 s
+  olivat liian pitkiä ("kuski on pysähdystilassa"), eikä ruudulla ole
+  "Napauta jatkaaksesi" -tekstiä — älä palauta sitä. **ALARAJA ON
+  MERKKI:** sen piirtyminen päättyy 1,41 s, joten `LAHTO_MIN_MS` ei saa
+  laskea alle 1,1 s:n. Katto tulee vähimmäisajan päälle, joten 2 s:n
+  katolla ruutu näkyi hitaalla säälaattayhteydellä 4,3 s; älä kasvata
+  kattoa takaisin.
   Mitattuna vanha aukesi lämpimässä käynnistyksessä 0,93 s kohdalla
   karttaan jossa ei ollut laattoja eikä lämpökarttaa (0/3), 3,4 s:n
   versio 3/3 valmiina. 2 s:llä pohjakartan laatat ovat perillä 3/3, ja
   lämpökartan hila ehti kontin hitaalla säälaattayhteydellä 1/3 (muut
-  katossa, lähtö 3,3 s). Älä lisää odotusehtoa ilman kattoa, äläkä laske
+  katossa, lähtö 3,3 s). 1,3 s:llä laatat 5/5 ja hila 2/5 lähtöhetkellä
+  (lähtö 2,6–3,3 s, eli kontissa katossa tai sen tuntumassa). Älä lisää odotusehtoa ilman kattoa, äläkä laske
   vähimmäisaikaa navigoinnin alusta (hitaalla verkolla se olisi jo
   kulunut kun ruutu syttyy).
 - **KÄYNNISTYKSEN VIRHE JA JUMI OVAT LATAUSRUUDUN OMIA TILOJA

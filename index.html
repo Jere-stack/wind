@@ -24809,11 +24809,14 @@ function startProgressSimulation() {
  *
  *  1. VÄHIMMÄISAIKA `LAHTO_MIN_MS` esittelyn alusta. Välimuistista
  *     käynnistettäessä data oli valmis noin sekunnissa, ja lähtö katkaisi
- *     esittelyn ennen kuin merkki ehti piirtyä (asettuu 1,9 s). 2 s näyttää
- *     koko esittelyn, ja palkin viimeinen pala (0,3 s) vie lähdön 2,3 s:iin,
- *     eli kuski lähtee ensimmäisen puuskan (saapuu 2,4 s) mukana.
- *     Käyttäjän päätös: 3,4 s oli liian pitkä. Vaimennetulla liikkeellä
- *     esittelyä ei ole, joten raja on silloin nolla.
+ *     esittelyn ennen kuin merkki ehti piirtyä. 1,3 s + palkin viimeinen
+ *     pala (0,3 s) vie lähdön (`.out`) 1,6 s:iin: merkki on piirtynyt
+ *     (1,41 s) ja kuskin sisääntulo päättyy (1,6 s), ja kuski lähtee heti
+ *     kun on ehtinyt paikalleen. ALARAJA on merkki: alle 1,1 s:n lähtö
+ *     katkaisisi sen piirtymisen. Käyttäjän päätös: 3,4 s ja sitten 2 s
+ *     olivat liian pitkiä — kuski seisoi paikallaan liian kauan.
+ *     Vaimennetulla liikkeellä esittelyä ei ole, joten raja on silloin
+ *     nolla.
  *  2. VALMIS KARTTA: pohjakartan näkyvät laatat ovat tulleet
  *     (`areTilesLoaded`, kaatunut laatta lasketaan tulleeksi) ja lämpökartta
  *     piirtää ilman odottavaa hilaa (`LampoGL._odottava`). Ennen ruutu aukesi
@@ -24822,15 +24825,15 @@ function startProgressSimulation() {
  *     `LAHTO_KARTTA_MAX_MS` siitä hetkestä kun kaksi ensimmäistä ehtoa
  *     täyttyivät: hidas laattapalvelin ei saa pitää sovellusta kiinni.
  *     Katto on 1 s eikä 2 s, koska se tulee vähimmäisajan PÄÄLLE: kahden
- *     sekunnin katolla ruutu näkyi hitaalla säälaattayhteydellä 4,3 s,
- *     eli pidempään kuin vanha 3,4 s:n esittely.
+ *     sekunnin katolla (ja 2 s:n vähimmäisajalla) ruutu näkyi hitaalla
+ *     säälaattayhteydellä 4,3 s, eli pidempään kuin vanha 3,4 s:n esittely.
  *
  * Napautus, klikkaus tai näppäin ohittaa molemmat heti kun data on valmis.
  * Ennen sitä toive muistetaan, ja lähtö tulee datan mukana — data on ainoa
  * asia jota ilman kartalla ei ole mitään näytettävää. Ohitusta ei kerrota
- * tekstillä (käyttäjän päätös): kahden sekunnin odotus ei tarvitse ohjetta,
+ * tekstillä (käyttäjän päätös): näin lyhyt odotus ei tarvitse ohjetta,
  * ja tilarivi pysyy latauksen tilana. */
-var LAHTO_MIN_MS = 2000;
+var LAHTO_MIN_MS = 1300;
 var LAHTO_KARTTA_MAX_MS = 1000;
 var _lahto = { data: 0, ohita: false, lahti: false, ajastin: null };
 
