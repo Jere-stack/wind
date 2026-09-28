@@ -1,10 +1,12 @@
 import https from 'https';
+import { suojaa } from './_suoja.js';
 
 /* FMI HARMONIE 2.5km + Open-Meteo jatko
    - HARMONIE: 2 vrk historiaa + 2 vrk ennustetta
    - Open-Meteo: jatkaa siita eteenpain 14 vrk (16 vrk yhteensa) */
 
 const OM_URL = 'https://api.open-meteo.com/v1/forecast';
+const AIKARAJA_MS = 8000;
 
 function fetchHarmonieXml(lat, lng) {
   return new Promise(function(resolve, reject) {
@@ -19,12 +21,16 @@ function fetchHarmonieXml(lat, lng) {
       + '&timestep=60'
       + '&starttime=' + start
       + '&endtime=' + end;
-    https.get(url, function(res) {
+    var req = https.get(url, function(res) {
       var body = '';
       res.on('data', function(c) { body += c; });
       res.on('error', reject);
       res.on('end', function() { resolve(body); });
     }).on('error', reject);
+    /* AIKARAJA: ilman sitä yksi jumiin jäänyt lähde piti funktiota auki
+       30 s:n kattoon asti ja koko erä odotti sitä (sama sääntö kuin
+       malli.js:n S3-luvussa). */
+    req.setTimeout(AIKARAJA_MS, function () { req.destroy(new Error('aikakatkaisu')); });
   });
 }
 
@@ -51,7 +57,7 @@ function fetchOM(lat, lng, tz) {
     var url = OM_URL + '?latitude=' + lat + '&longitude=' + lng
       + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m,weather_code,cloud_cover,precipitation'
       + '&wind_speed_unit=ms&timezone=' + encodeURIComponent(tz) + '&forecast_days=16';
-    https.get(url, function(res) {
+    var req = https.get(url, function(res) {
       var body = '';
       res.on('data', function(c) { body += c; });
       res.on('error', reject);
@@ -68,6 +74,7 @@ function fetchOM(lat, lng, tz) {
         catch (e) { reject(new Error('Open-Meteo: ' + String(body).slice(0, 120))); }
       });
     }).on('error', reject);
+    req.setTimeout(AIKARAJA_MS, function () { req.destroy(new Error('aikakatkaisu')); });
   });
 }
 
@@ -282,6 +289,37 @@ async function haePiste(lat, lng, tz) {
   }
 }
 
+/* PISTEKOHTAINEN MUISTI (docs/julkaisu.md, L3). Jokainen piste maksaa
+   yhden FMI- ja yhden Open-Meteo-kutsun, ja kaikki käyttäjät jakavat
+   tämän palvelimen IP:n ja sen kiintiön. CDN välimuistittaa vain koko
+   osoitteen; tämä muistaa yksittäisen pisteen lämpimän instanssin ajan,
+   joten päällekkäiset erät eri käyttäjiltä eivät hae samaa pistettä
+   uudelleen. Samaan aikaan kesken olevaa hakua ei käynnistetä toista
+   kertaa. Vain onnistunut vastaus muistetaan. Koko: piste noin 16 kt,
+   2 000 pistettä noin 32 MB. */
+const MUISTI = new Map();
+const KESKEN = new Map();
+const MUISTI_MS = 30 * 60e3;
+const MUISTI_MAX = 2000;
+function haePisteMuistista(lat, lng, tz) {
+  const k = lat.toFixed(4) + ',' + lng.toFixed(4) + '|' + tz;
+  const m = MUISTI.get(k);
+  if (m && Date.now() - m.t < MUISTI_MS) {
+    MUISTI.delete(k); MUISTI.set(k, m);   /* käyttöjärjestys */
+    return Promise.resolve(m.r);
+  }
+  if (KESKEN.has(k)) return KESKEN.get(k);
+  const p = haePiste(lat, lng, tz).then(function (r) {
+    if (r && r._status === 200 && r.body && !r.body.error) {
+      MUISTI.set(k, { t: Date.now(), r: r });
+      while (MUISTI.size > MUISTI_MAX) MUISTI.delete(MUISTI.keys().next().value);
+    }
+    return r;
+  }).finally(function () { KESKEN.delete(k); });
+  KESKEN.set(k, p);
+  return p;
+}
+
 /* Rinnakkaisuuden rajoitin. FMI:n WFS ei pida sadasta yhtaikaisesta
    pyynnosta, ja funktion aikakatkaisu on 30 s — kuusi kerrallaan pitaa
    molemmat kurissa. */
@@ -306,7 +344,7 @@ async function poolMap(lista, raja, fn) {
 const MAX_PISTEITA = 15;
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (!suojaa(req, res)) return;
   res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=300');
   /* Vastauksen aikaleimat tassa vyohykkeessa. Vyohyke on osa OSOITETTA,
      joten valimuisti erottaa ne toisistaan itsestaan — eri tz on eri avain.
@@ -322,12 +360,12 @@ export default async function handler(req, res) {
       .map(function (s) { return s.split(','); })
       .filter(function (a) { return a.length === 2; })
       .map(function (a) { return { lat: parseFloat(a[0]), lng: parseFloat(a[1]) }; })
-      .filter(function (p) { return !isNaN(p.lat) && !isNaN(p.lng); })
+      .filter(function (p) { return isFinite(p.lat) && isFinite(p.lng) && Math.abs(p.lat) <= 90 && Math.abs(p.lng) <= 180; })
       .slice(0, MAX_PISTEITA);
     if (!lista.length) return res.status(400).json({ error: 'pts required' });
     try {
       const tulokset = await poolMap(lista, 6, function (p) {
-        return haePiste(p.lat, p.lng, tz)
+        return haePisteMuistista(p.lat, p.lng, tz)
           .then(function (r) { return r.body; })
           .catch(function (e) { return { error: String((e && e.message) || e) }; });
       });
@@ -341,11 +379,11 @@ export default async function handler(req, res) {
      kayttavat sita. */
   var lat = parseFloat(req.query.lat);
   var lng = parseFloat(req.query.lng);
-  if (isNaN(lat) || isNaN(lng)) {
+  if (!isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
     return res.status(400).json({ error: 'lat/lng required' });
   }
   try {
-    const r = await haePiste(lat, lng, tz);
+    const r = await haePisteMuistista(lat, lng, tz);
     return res.status(r._status).json(r.body);
   } catch (err) {
     return res.status(500).json({ error: err.message });

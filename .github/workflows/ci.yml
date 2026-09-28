@@ -1,0 +1,60 @@
+# Tarkistus jokaiselle pushille (docs/julkaisu.md, L9).
+#
+# `npm run build` ei yksin todista mitään selaimesta (CLAUDE.md): Vite
+# ei jäsennä index.html:n inline-skriptiä. Nyt build minifioi sen
+# (vite.config.js, `tiivistys`), joten jäsennysvirhe kaataa jo buildin —
+# ja savutesti lataa tuotantobuildin oikeassa selaimessa puhelimena ja
+# työpöytänä (tools/savutesti.mjs).
+#
+# Savutesti käyttää oikeita ulkoisia palveluita (FMI, säälaatat,
+# pohjakartta). Jos jokin niistä on nurin, testi voi kaatua ilman vikaa
+# tässä koodissa — lue ensin mikä tarkistus epäonnistui.
+
+name: Tarkistus
+
+on:
+  push:
+    branches-ignore: [saadata]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tarkistus-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tarkistus:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Rajapintojen jäsennys
+        run: for f in api/*.js; do node --check "$f"; done
+
+      - name: Build (jäsentää ja tiivistää inline-skriptit)
+        run: npm run build
+
+      # Playwright EI ole projektin riippuvuus: se hidastaisi jokaista
+      # Vercelin asennusta. Asennetaan vain tähän työhön.
+      - name: Selain savutestiä varten
+        run: |
+          npm i --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+
+      - name: Savutesti
+        run: |
+          npx vite preview --port 4173 --strictPort > preview.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:4173/ > /dev/null && break; sleep 1; done
+          node tools/savutesti.mjs http://localhost:4173
+
+      - name: Esikatselun loki
+        if: failure()
+        run: tail -100 preview.log || true

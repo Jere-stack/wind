@@ -57,6 +57,7 @@
  *    etta jattaisi vanhan kuvan nakyviin.
  */
 import https from 'https';
+import { suojaa } from './_suoja.js';
 
 const DL = 'https://opendata.fmi.fi/download'
   + '?producer=harmonie_scandinavia_surface'
@@ -178,7 +179,7 @@ function tunninAlku(ms) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (!suojaa(req, res)) return;
   /* HARMONIE ajetaan neljasti vuorokaudessa. Puolen tunnin valimuisti on
      kayttajalle huomaamaton ja leikkaa aikajanan raahauksen toistuvat
      osumat — sama tunti ja sama rajaus haetaan raahatessa monta kertaa. */

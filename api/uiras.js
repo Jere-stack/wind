@@ -1,11 +1,12 @@
 import zlib from 'zlib';
 import https from 'https';
+import { suojaa } from './_suoja.js';
 
 const BASE = 'https://iot.fvh.fi/opendata/uiras/';
 const YEARS = [2025, 2026];
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (!suojaa(req, res)) return;
   res.setHeader('Cache-Control', 'public, s-maxage=3600');
 
   const id = (req.query.id || '').trim().toUpperCase();

@@ -39,6 +39,7 @@
  * sarjan hanta on lahes aina NaN:ia (ks. kohta 2).
  */
 import https from 'https';
+import { suojaa } from './_suoja.js';
 
 const WFS = 'https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
   + '&storedquery_id=fmi::observations::wave::multipointcoverage';
@@ -76,7 +77,9 @@ function parseStations(xml) {
   }
   var nre = /obsloc-fmisid-(\d+)-pos"[\s\S]{0,400}?locationcode\/name">([^<]+)</g;
   while ((m = nre.exec(xml)) !== null) {
-    if (asemat[m[1]]) asemat[m[1]].name = m[2].trim();
+    /* Nimi päätyy sovelluksessa HTML:ään: merkintämerkit pois jo täällä
+       (docs/julkaisu.md, L10). */
+    if (asemat[m[1]]) asemat[m[1]].name = m[2].trim().replace(/[<>"'`&]/g, '');
   }
   return asemat;
 }
@@ -130,7 +133,7 @@ function kelpoTz(tz) {
 function num(x) { return (x == null || isNaN(x)) ? null : x; }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (!suojaa(req, res)) return;
 
   var tz = kelpoTz(req.query.tz) || 'Europe/Helsinki';
   var isHistory = req.query.history === '1';

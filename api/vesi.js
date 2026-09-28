@@ -60,6 +60,7 @@
  *    missa UiRaS-asemaa ei ole (Hanko, Emasalo, Turku, Foglo).
  */
 import https from 'https';
+import { suojaa } from './_suoja.js';
 
 const WFS = 'https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature';
 const HAVAINTO = WFS + '&storedquery_id=fmi::observations::mareograph::instant::multipointcoverage';
@@ -206,7 +207,7 @@ function parseEnnuste(xml, tz) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (!suojaa(req, res)) return;
   var tz = kelpoTz(req.query.tz) || 'Europe/Helsinki';
 
   try {

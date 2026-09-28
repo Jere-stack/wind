@@ -28,6 +28,7 @@
  * taman lahteen riviin taydellisesti.
  */
 import https from 'https';
+import { suojaa } from './_suoja.js';
 
 const BASE = 'https://mellsten.surfing.fi/';
 const STATION = { name: 'Espoo Mellsten', place: 'mellsten', lat: 60.147, lng: 24.794 };
@@ -160,7 +161,7 @@ function kelpoTz(tz) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (!suojaa(req, res)) return;
   var tz = kelpoTz(req.query.tz) || 'Europe/Helsinki';
   var isHistory = req.query.history === '1';
   var nyt = Date.now();

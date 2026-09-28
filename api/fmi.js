@@ -1,4 +1,5 @@
 import https from 'https';
+import { suojaa } from './_suoja.js';
 
 const STATIONS = [
   { place: 'kaisaniemi', name: 'Helsinki Kaisaniemi',      lat: 60.17523, lng: 24.94459, type: 'weather', fmisid: null },
@@ -157,9 +158,18 @@ async function fetchMaritime(lat,lng,params,start,fmisid){
 }
 
 export default async function handler(req,res){
+  if (!suojaa(req, res)) return;
+  /* KEHITYSTYÖKALUT VAIN KEHITYKSESSÄ (docs/julkaisu.md, L10). Nämä kolme
+     haaraa (findstation, stationcoord, debug) tekivät kymmeniä
+     FMI-kutsuja pyyntöä kohti, ja stationcoord liitti `fmisid`in
+     sellaisenaan FMI:n osoitteeseen ja palautti vastauksen raakana.
+     Tuotannossa ne ovat kiinni; paikallisesti FS_DEBUG=1 avaa ne. */
+  var kehitys = process.env.FS_DEBUG === '1';
+  if(!kehitys && (req.query.findstation==='1' || req.query.stationcoord==='1' || req.query.debug==='1')){
+    return res.status(404).json({error:'not found'});
+  }
   /* FINDSTATION: testaa FMISID:t oikealla datalla */
   if(req.query.findstation==='1'){
-    res.setHeader('Access-Control-Allow-Origin','*');
     var target_ws=parseFloat(req.query.ws||'4.1');
     var target_date=req.query.date||'2026-04-18';
     var startT=target_date+'T07:00:00Z', endT=target_date+'T08:30:00Z';
@@ -195,8 +205,7 @@ export default async function handler(req,res){
 
   /* STATIONCOORD: hae aseman koordinaatit FMISID:llä */
   if(req.query.stationcoord==='1'){
-    res.setHeader('Access-Control-Allow-Origin','*');
-    var fid=req.query.fmisid||'105392';
+    var fid=/^\d{4,7}$/.test(req.query.fmisid||'')?req.query.fmisid:'105392';
     var start=new Date(Date.now()-2*3600000).toISOString().slice(0,16)+'Z';
     var url='https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
       +'&storedquery_id=fmi::observations::weather::timevaluepair'
@@ -219,7 +228,6 @@ export default async function handler(req,res){
 
   /* DEBUG: listaa kaikki asemat alueelta */
   if(req.query.debug==='1'){
-    res.setHeader('Access-Control-Allow-Origin','*');
     var dlat=parseFloat(req.query.lat)||60.158, dlng=parseFloat(req.query.lng)||25.326;
     var dd=parseFloat(req.query.d)||0.20;
     var bb=makeBbox(dlat,dlng,dd);
@@ -253,7 +261,6 @@ export default async function handler(req,res){
     }
     return res.status(200).json(results);
   }
-  res.setHeader('Access-Control-Allow-Origin','*');
   var lat=parseFloat(req.query.lat),lng=parseFloat(req.query.lng);
   var placeParam=req.query.place;
   var station;

@@ -45,6 +45,7 @@
  *   - molemmat kertovat lampotilaksi "ei mittausta"
  */
 import https from 'https';
+import { suojaa } from './_suoja.js';
 
 const BASE = 'https://dlarah.org/wind_data/';
 const ASEMA = 'Laru';
@@ -199,7 +200,7 @@ function niputa(rivit, katto) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (!suojaa(req, res)) return;
   var tz = kelpoTz(req.query.tz) || 'Europe/Helsinki';
   var isHistory = req.query.history === '1';
   var nyt = Date.now();

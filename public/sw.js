@@ -39,10 +39,13 @@ const SAA_LUETTELO = 'saa-luettelo-v1';
 const SAA_ETULIITE = 'saa-';
 let saaViimeVersio = null;
 
+/* MapLibre tulee samasta originista versioidulla nimellä (vite.config.js,
+   `karttakirjasto`). Ennen se oli jsDelivristä, ja CDN:n katko kaatoi
+   ensikäynnin. */
 const KUORI_TIEDOSTOT = [
   '/',
-  'https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css',
-  'https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js',
+  '/vendor/maplibre-gl-5.24.0.css',
+  '/vendor/maplibre-gl-5.24.0.js',
 ];
 
 const onLaatta = (u) =>
@@ -50,16 +53,18 @@ const onLaatta = (u) =>
   u.hostname.endsWith('.basemaps.cartocdn.com');
 
 const onKuori = (u) =>
-  u.hostname === 'cdn.jsdelivr.net' && u.pathname.includes('maplibre-gl@5.24.0');
+  u.origin === self.location.origin && u.pathname.startsWith('/vendor/');
 
 /* Saadatan laatat ja luettelo. Nama EIVAT ole /api: ne ovat
    muuttumattomia binaareja versioidulla sisallolla, eivat elavia
    kyselyita, joten niiden valimuistittaminen ei voi naytaa vanhaa
    dataa tuoreena — luettelon oma tuoreustarkistus paattaa sen. */
-const onSaaLaatta  = (u) =>
-  u.hostname === 'raw.githubusercontent.com' && u.pathname.endsWith('.bin.gz');
-const onSaaLuettelo = (u) =>
-  u.hostname === 'raw.githubusercontent.com' && u.pathname.endsWith('/luettelo.json');
+/* Kaksi kotia: GitHub Pages ensin, raw.githubusercontent varalla
+   (index.html, SAALAATAT_KANNAT). */
+const onSaaKoti = (u) =>
+  u.hostname === 'raw.githubusercontent.com' || u.hostname === 'jere-stack.github.io';
+const onSaaLaatta  = (u) => onSaaKoti(u) && u.pathname.endsWith('.bin.gz');
+const onSaaLuettelo = (u) => onSaaKoti(u) && u.pathname.endsWith('/luettelo.json');
 
 self.addEventListener('install', (e) => {
   if (DEV) return;

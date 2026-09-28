@@ -57,6 +57,7 @@
  *    kayttoliittyma voi kayttaa samaa nuolta ja samaa 'mista'-selitetta.
  */
 import https from 'https';
+import { suojaa } from './_suoja.js';
 
 const WFS = 'https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
   + '&storedquery_id=fmi::forecast::wam::point::timevaluepair';
@@ -120,7 +121,7 @@ function parseSarjat(xml) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (!suojaa(req, res)) return;
   /* WAM ajetaan neljasti vuorokaudessa, joten tunnin valimuisti ei
      vanhene kayttajan silmissa. Sama katto kuin /api/harmoniella. */
   res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=300');

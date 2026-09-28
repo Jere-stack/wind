@@ -1,4 +1,5 @@
 import https from 'https';
+import { suojaa } from './_suoja.js';
 
 const CSV_URL = 'https://swell.fmi.fi/Marinehelsinki/csv/kruunuvuorenselka_weatherdata.csv';
 const STATION = { name: 'Kruunuvuorenselkä', place: 'kruunuvuorenselka', lat: 60.163, lng: 24.997 };
@@ -21,7 +22,7 @@ const HISTORY_MAX = 336;
 const TW_STEP = 3;
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (!suojaa(req, res)) return;
   res.setHeader('Cache-Control', 'public, s-maxage=300'); /* data päivittyy n. 10min välein */
 
   try {

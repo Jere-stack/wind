@@ -37,6 +37,9 @@ concurrency:
 
 permissions:
   contents: write
+  # GitHub Pages -julkaisu (docs/julkaisu.md, L3).
+  pages: write
+  id-token: write
 
 jobs:
   laatat:
@@ -86,6 +89,28 @@ jobs:
             "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" \
             saadata
 
+      # GITHUB PAGES ON ENSISIJAINEN KOTI (docs/julkaisu.md, L3).
+      #
+      # raw.githubusercontent.com ei ole CDN: ei palvelutasoa, ja GitHub
+      # rajoittaa sitä. Pages tarjoilee saman hakemiston Fastlyn kautta,
+      # ja sovellus hakee luettelon ensin sieltä ja putoaa rawiin vain jos
+      # Pages ei vastaa tuoreella varastolla. Haara `saadata` pysyy siis
+      # varatienä ja historian korvikkeena.
+      #
+      # `continue-on-error`: Pages on kytkettävä päälle kerran käsin
+      # (Settings → Pages → Source: GitHub Actions). Ennen sitä julkaisu
+      # epäonnistuu, eikä sen saa kaataa laattapäivitystä.
+      - name: Pagesin paketti
+        continue-on-error: true
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ulos
+
+      - name: Julkaise GitHub Pagesiin
+        id: pages
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
       - name: Yhteenveto
         run: |
           {
@@ -119,4 +144,6 @@ jobs:
               console.log("| Koko | " + mb.toFixed(1) + " MB |");
               console.log("| Puuttuvia hetkiä | " + l.puuttuvia + " |");
             '
+            echo ''
+            echo "Pages: ${{ steps.pages.outcome }} ${{ steps.pages.outputs.page_url }}"
           } >> "$GITHUB_STEP_SUMMARY"

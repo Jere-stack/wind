@@ -31,6 +31,7 @@
  * TÄÄLLÄ eikä selaimessa: palvelimella ajettua koodia ei levitetä.    */
 
 import { OmFileReader, OmHttpBackend, OmDataType } from '@openmeteo/file-reader';
+import { suojaa } from './_suoja.js';
 
 const S3 = 'https://openmeteo.s3.amazonaws.com';
 const NOP_ASKEL = 0.2, SUUNTA_ASKEL = 2, TYHJA = 255;
@@ -432,8 +433,14 @@ const kokonaisluku = (x, a, b, oletus) => {
   return Number.isFinite(n) ? Math.min(b, Math.max(a, n)) : oletus;
 };
 
+/* Mallin nimi vain omista avaimista (ei `__proto__` tms.). */
+function mallinOsat(nimi) {
+  const m = nimi || 'ecmwf';
+  return Object.prototype.hasOwnProperty.call(MALLIT, m) ? MALLIT[m] : null;
+}
+
 async function kentta(q) {
-  const osat = MALLIT[q.malli || 'ecmwf'];
+  const osat = mallinOsat(q.malli);
   if (!osat) throw new Error('tuntematon malli');
   const tKeski = Math.round(Number(q.t) / H) * H;
   const ennen = kokonaisluku(q.ennen, 0, 6, 0), jalkeen = kokonaisluku(q.jalkeen, 0, 6, 0);
@@ -611,9 +618,10 @@ async function lueSarja(L, nimi, avaimet, alkuH, loppuH) {
  * kulmalle — samoille solmuille joihin kenttä on laskettu — ja sovellus
  * interpoloi niiden välissä samalla säännöllä kuin kartta. */
 async function sarja(q) {
-  const osat = MALLIT[q.malli || 'ecmwf'];
+  const osat = mallinOsat(q.malli);
   if (!osat) throw new Error('tuntematon malli');
   const la = Number(q.lat), lo = Number(q.lng);
+  if (Math.abs(la) > 90 || Math.abs(lo) > 180) throw new Error('virheellinen piste tai jakso');
   const nyt = Math.floor(Date.now() / H);
   const alkuH = Number.isFinite(Number(q.alku)) ? Math.floor(Number(q.alku) / H) : nyt - 50;
   const loppuH = Number.isFinite(Number(q.loppu)) ? Math.ceil(Number(q.loppu) / H) : nyt + 16 * 24;
@@ -685,7 +693,7 @@ async function sarja(q) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (!suojaa(req, res)) return;
   const q = req.query || {};
   try {
     const tulos = q.tila === 'sarja' ? await sarja(q) : await kentta(q);
