@@ -1423,7 +1423,28 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
  * Luettavuus tulee nyt ELEMENTEISTÄ EIKÄ ALUEESTA: jokaisella tekstillä
  * on oma tumma halonsa (`--tl-halo`), palkeilla tumma hiusreuna ja
  * varjo, ja napit ovat sumennettua lasia varjolla. Halo tummentaa vain
- * glyfin ympärillä, joten kartta näkyy lukemien välistä. */
+ * glyfin ympärillä, joten kartta näkyy lukemien välistä.
+ *
+ * TEKSTIRIVIEN TAKANA ON KAPEA LASIKAISTA, PALKKIEN TAKANA EI MITÄÄN.
+ * Kaista alkaa lukemarivin yläreunasta (14 px nauhan alalaidasta) ja
+ * jatkuu ruudun pohjaan asti: lukemarivi, väli, päiväkisko ja alatäyte
+ * lähdemerkintöineen. Sumennus tasoittaa kartan yksityiskohdat tekstin
+ * alta (halo yksin ei pärjää satelliittikuvan kohinaa vastaan), ja
+ * kevyt sävy (.34) pitää valkoisen tekstin irti kirkkaasta alustasta.
+ * Yläreuna häipyy 8 px:ssä maskilla, jottei kaistan reuna lue viivana
+ * palkkien juuressa. Palkkivyöhyke jää kartan päälle kokonaan. */
+#tl-wrap::before {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: calc(var(--sab-tl) + 14px + var(--tl-paivat-h) + 6px + 14px);
+  background: rgba(var(--tl-pohja), .34);
+  -webkit-backdrop-filter: blur(10px);
+          backdrop-filter: blur(10px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 8px);
+          mask-image: linear-gradient(to bottom, transparent 0, #000 8px);
+  pointer-events: none;
+}
 
 /* URIA EI OLE. YKSI PAPERI, KAKSI RIVIÄ.
  *

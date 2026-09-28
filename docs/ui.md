@@ -6945,3 +6945,22 @@ kuvakaappauksella tumman kartan ja lämpökartan päältä. Kontrastia
 kirkasta satelliittikuvaa vasten ei ole mitattu — jos jokin ei erotu
 siellä, vahvista sen omaa haloa, älä palauta aluetta tummentavaa
 alustaa.
+
+### Jatko: lasikaista tekstirivien taakse (28.9.)
+
+Käyttäjä valitsi ehdotuksista ensimmäisen: kapea sumennettu kaista vain
+tekstirivien takana. `#tl-wrap::before` on nyt kaista, joka alkaa
+lukemarivin yläreunasta (`--sab-tl + 14 + --tl-paivat-h + 6 + 14` px
+kääreen pohjasta) ja kattaa lukemarivin, välin, päiväkiskon ja
+alatäytteen lähdemerkintöineen. `backdrop-filter: blur(10px)` + sävy
+`rgba(--tl-pohja, .34)`, yläreuna häivytetään 8 px:n maskilla, jottei
+reuna lue viivana palkkien juuressa. Palkkivyöhyke (72 px) jää kartan
+päälle.
+
+Halot jäivät paikalleen: kaista tasoittaa alustan, halo erottaa glyfin.
+Tarkistettu savutestillä ja kuvakaappauksella tumman kartan ja
+lämpökartan päältä. Kaistan sumennus lasketaan joka ruudussa, koska
+kartta muuttuu joka ruudussa. Havaintopillerien lasista ei laitteella
+huomattu hintaa, mutta tämä kaista on koko ruudun levyinen. Jos
+työpöydällä tai iPadilla näkyy nykimistä, kokeile ensin pelkkää sävyä
+ilman sumennusta.

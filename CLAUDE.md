@@ -383,9 +383,14 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kantavat `--tl-halo`n (tumma ääriviiva + varjo `--tl-pohja`sta),
   palkeilla on tumma hiusreuna ja varjo (lämpökartta on samaa ramppia,
   joten ilman reunaa 8 m/s palkki katoaisi 8 m/s kentän päälle), ja
-  himmeät tekstisävyt nousivat (`--tl-teksti-2` .72, `-3` .58). Älä
-  palauta aluetta tummentavaa alustaa ilman käyttäjän pyyntöä; jos
-  jokin ei erotu, vahvista sen omaa haloa tai reunaa.
+  himmeät tekstisävyt nousivat (`--tl-teksti-2` .72, `-3` .58).
+  **TEKSTIRIVIEN TAKANA ON KAPEA LASIKAISTA** (`#tl-wrap::before`,
+  käyttäjän valinta samana päivänä): lukemarivin yläreunasta ruudun
+  pohjaan, `blur(10px)` + `--tl-pohja` .34, yläreuna häipyy 8 px:n
+  maskilla. PALKKIVYÖHYKKEEN TAKANA EI OLE MITÄÄN — älä venytä kaistaa
+  palkkien taakse äläkä palauta koko aikajanan tummennusta ilman
+  käyttäjän pyyntöä; jos jokin ei erotu, vahvista sen omaa haloa tai
+  reunaa.
 - **AIKAJANASSA EI OLE VALOKAISTAA.** Yö oli janassa kolmessa
   muodossa: koko korkeuden harso, 2 px:n kaista tikin alalaidassa, ja
   kolmella eri alustalla kalibroidut alfat (musta .34, `76,89,96` .24,
