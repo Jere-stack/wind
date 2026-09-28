@@ -531,8 +531,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kaula-aukko etuna, rinta ja selän notko ääriviivassa, kapenee
   vyötärölle; oikeiden liivien kuvista) (vaahtopaneelit kaarevina segmentteinä
   kohokuvioin, sivusauma, etuvetoketju vetimineen, kädentien kanttaus
-  josta märkäpuvun olkapää näkyy, vyötärön resori ja rinnassa
-  FoilSpotin merkki; harmaa paita ja sen helma poistettiin), vaalea
+  josta märkäpuvun olkapää näkyy ja vyötärön resori; rinnan
+  FoilSpotin merkki poistettiin käyttäjän pyynnöstä, samoin harmaa
+  paita ja sen helma), vaalea
   iho ja surffarin kasvot (vahva leuka, suora nenä, päivettynyt
   nenänselkä, sängen varjo, siristävä silmä naururyppyineen, auringon
   vaalentama kulmakarva ja pulisonki) ja
@@ -650,11 +651,10 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   "Pilvet, lokit, kaarron roiske ja jälki"): pilvet ovat YKSI hitaasti
   ajelehtiva arkki taivaan valon värisiä säteittäisiä liukuvärejä
   (`--lr-pilvi`, `--lr-pilvi-a`), lokkiparvi on yksi lentoanimaatio ja
-  kaksi siiveniskua, kaarron kukonpyrstö (`#lr-suihku`) on yksi
-  elementti jonka pisarat ja sumu ovat `em`-varjokopioita, ja
-  vaahtojälki (`#lr-jalki`) on yksi opacity. Roiske ja jälki ovat
-  kaarron tahdissa (4,4 s, −0,3 s) ja pysähtyvät lähdössä.
-  Animaatioita esittelyssä 62, levossa 38.
+  kaksi siiveniskua, ja kaarron vaahtojälki (`#lr-jalki`) on yksi
+  opacity kaarron tahdissa (4,4 s, −0,3 s), pysähtyy lähdössä.
+  Kaarron kukonpyrstöroiske poistettiin käyttäjän pyynnöstä — älä
+  palauta sitä. Animaatioita esittelyssä 61, levossa 37.
 - **TILAPALKKI ON VALKOINEN TUMMALLA, VÄHINTÄÄN 10:1 JOKA
   VUOROKAUDENAIKANA — MYÖS VAAKATILASSA.** Vaakatilassa 7 % on 28 px,
   joten taivaan yläväri on kiinteä 44 px:iin asti, ylin tuulijuova on

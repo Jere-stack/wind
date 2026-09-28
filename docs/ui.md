@@ -6910,3 +6910,11 @@ samalla vaakatilan tilapalkki, joka oli ollut rikki jo ennen.
 
 Nimilohko ennallaan (16,34 / 6,48 / 7,25). Animaatioita 62 / 38
 (+6), vaimennettu 0, savutesti läpi.
+
+## Kukonpyrstö ja liivin logo pois (28.9.)
+
+Käyttäjän pyynnöstä poistettiin kaarron roiskeviuhka (`#lr-suihku`:
+elementti, CSS ja skriptin pisarat) ja impact vestin rintamerkki.
+Vaahtojälki, maston juuren pisarat ja ponnistuksen roiske jäivät.
+Animaatioita 61 / 37, tilapalkki päivällä 12,36:1, vaimennettu 0,
+savutesti läpi.

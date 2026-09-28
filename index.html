@@ -3687,24 +3687,6 @@ html[data-tutka="1"] #lahde-merkki {
 }
 .lr-lokki + .lr-lokki svg { animation-duration: .38s; animation-delay: -.2s; }
 @keyframes lr-siivet { from { transform: none; } to { transform: scaleY(-.45); } }
-/* KAARRON ROISKE: pisara-viuhka maston ja vesiviivan leikkauksesta
-   taaksepäin (skripti, varjokopioina `em`-yksiköissä, 1 em = yksi
-   rigin yksikkö). Laajenee ja jää taakse kun kuski jatkaa. */
-#lr-suihku {
-  position: absolute; left: 49%; top: 80%;
-  font-size: calc(var(--lr-koko) / 300);
-  width: 1.4em; height: 1.4em; margin: -.7em 0 0 -.7em; border-radius: 50%;
-  background: var(--lr-roiske);
-  opacity: 0;
-  animation: lr-suihku 4.4s -.3s ease-out infinite;
-  will-change: transform, opacity;
-}
-@keyframes lr-suihku {
-  0%, 16%   { opacity: 0; transform: scale(.2); }
-  26%       { opacity: .95; transform: scale(.85); }
-  36%       { opacity: .8; transform: translate3d(-6em,1em,0) scale(1.1); }
-  48%, 100% { opacity: 0; transform: translate3d(-16em,3em,0) scale(1.25); }
-}
 #lr-jalki { position: absolute; inset: 0; opacity: 0;
   animation: lr-jalki 4.4s -.3s ease-in-out infinite; will-change: opacity; }
 #lr-jalki svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
@@ -3714,7 +3696,7 @@ html[data-tutka="1"] #lahde-merkki {
   70%       { opacity: .3; }
   88%, 100% { opacity: 0; }
 }
-#loading.out #lr-jalki, #loading.out #lr-suihku { animation-play-state: paused; }
+#loading.out #lr-jalki { animation-play-state: paused; }
 
 /* LÄHTÖ. Kuski kiihtyy oikealle ja meri ja tuuli ryntäävät vasemmalle,
    ja vasta sitten ruutu häipyy kartaksi. Kiihtyvä käyrä (ease-in),
@@ -4644,16 +4626,14 @@ public/icon-maskable-512.png 512px 140643 B
         <div id="lr-lahto"><div id="lr-tulo">
           <div id="lr-vana"></div>
           <div id="lr-roiske"></div>
-          <!-- KAARRON JÄLKI JA ROISKE: ala-käännöksessä foili leikkaa
-               vettä, perästä nousee roiskeviuhka (#lr-suihku, pisarat
-               skriptistä) ja veteen jää kaartuva vaahtojälki (#lr-jalki).
-               Molemmat samassa tahdissa kuin kaarto (4,4 s, −0,3 s). -->
+          <!-- KAARRON JÄLKI: ala-käännöksen jälkeen veteen jää kaartuva
+               vaahtojälki, samassa tahdissa kuin kaarto (4,4 s, −0,3 s).
+               Kukonpyrstöroiske poistettiin käyttäjän pyynnöstä. -->
           <div id="lr-jalki"><svg viewBox="0 0 300 300">
             <path d="M147 240C128 241 106 244.6 84 249C64 253 40 256 10 256" fill="none" stroke="#F0E7CE" stroke-opacity=".85" stroke-width="2" stroke-linecap="round"/>
             <path d="M147 240.4C130 238.8 110 238.6 88 239.8C66 241 40 243.2 12 242.8" fill="none" stroke="#F0E7CE" stroke-opacity=".45" stroke-width="1" stroke-linecap="round"/>
             <path d="M120 243.4C104 245.6 88 248.2 72 251" fill="none" stroke="#F0E7CE" stroke-opacity=".5" stroke-width="3.6" stroke-dasharray="2 5" stroke-linecap="round"/>
           </svg></div>
-          <i id="lr-suihku"></i>
           <div id="lr-keinu">
             <!-- Lauta ja foili (kuski 100 yks. = 180 cm). Lauta on MIDLENGTH:
                  110 × 10 yks. (~200 × 18 cm), nokka nousee, ja 3D tulee
@@ -4826,7 +4806,6 @@ public/icon-maskable-512.png 512px 140643 B
                 <path d="M143.2 121.2C146.6 121 149.8 122.6 151.2 125.4C150 128.6 147.8 130.6 145 131.4C145.6 128 145 124.2 143.2 121.2Z" style="fill:var(--lr-puku)"/>
                 <path d="M143.2 121.2C145 124.2 145.6 128 145 131.4C147.8 130.6 150 128.6 151.2 125.4" fill="none" stroke="#2E3440" stroke-width=".9" stroke-linejoin="round"/>
                 <path d="M146.4 122.4C148 123 149.2 124 149.8 125.2" fill="none" style="stroke:var(--lr-kiilto)" stroke-width=".7" stroke-linecap="round"/>
-                <path transform="translate(143.4 131.8) scale(.024) translate(-139 -117)" d="M141.06 413.84C139.82 339.08 167.85 283.02 217.69 242.52C273.75 195.8 342.28 164.65 372.18 117.93C367.2 195.8 336.05 283.02 289.33 352.79C281.23 332.85 267.52 320.4 255.07 315.41L299.92 281.77C261.3 295.48 230.15 307.94 211.46 328.49C227.03 328.49 239.49 331.61 243.85 335.97C236.38 364 174.08 376.46 141.06 413.84Z" fill="#F0E7CE" fill-opacity=".85"/>
                 <path d="M133 121.8C135.8 120.6 140.4 120 144.8 120.2C143.4 121.6 141 122.6 138.2 123" style="fill:var(--lr-liivi)" stroke="#000" stroke-opacity=".4" stroke-width=".6"/>
                 <path d="M129.6 105C128.4 108 128.6 112 130.6 115.4L133.4 114.4C132.4 111 132.6 107.6 133.8 105.2Z" style="fill:var(--lr-tukka)"/>
                 <!-- KASVOT: surffarin profiili — otsaluu ja kulmakaari, suora
@@ -5144,27 +5123,6 @@ public/icon-maskable-512.png 512px 140643 B
     var pk3 = pT / (PX_MS * 0.55);
     if (vahenna) pa.style.transform = 'translate3d(' + (-Math.round(sat() * pT)) + 'px,0,0)';
     aja(pa, pk3, -sat() * pk3);
-  }
-  /* -- Kaarron roiske: kukonpyrstö maston juuresta taakse ja ylös.
-        Varjokopiot `em`inä (1 em = rigin yksikkö), joten viuhka
-        skaalautuu kuskin mukana. */
-  var suihku = document.getElementById('lr-suihku');
-  if (suihku) {
-    var sv = [];
-    /* Sumuverho kaaren alla (sumeat varjot), sitten pisarat: tiheä
-       ja iso lähellä mastoa, harveneva ja pienenevä kaaren päässä. */
-    for (var sm = 0; sm < 7; sm++) {
-      var mt = sm / 6;
-      sv.push((-(6 + mt * 50)).toFixed(1) + 'em ' + (-(Math.sin(mt * Math.PI * 0.9) * 26 + mt * 2)).toFixed(1)
-              + 'em ' + (6 + mt * 4).toFixed(1) + 'em ' + (2 + mt).toFixed(1) + 'em rgba(240,242,246,' + (0.22 - mt * 0.1).toFixed(2) + ')');
-    }
-    for (var si = 0; si < 56; si++) {
-      var st2 = Math.pow(si / 55, 1.25);
-      var sx = -(3 + st2 * 58 + (sat() - 0.3) * 6), sy = -(Math.sin(st2 * Math.PI * 0.9) * 32 + st2 * 3) + (sat() - 0.5) * (4 + st2 * 8);
-      var sk = (0.2 + (1 - st2) * 1.3 * sat()).toFixed(2), sa = (0.5 + 0.45 * (1 - st2) * sat()).toFixed(2);
-      sv.push(sx.toFixed(1) + 'em ' + sy.toFixed(1) + 'em 0 ' + sk + 'em rgba(240,242,246,' + sa + ')');
-    }
-    suihku.style.boxShadow = sv.join(',');
   }
 
   /* -- Tähdet: yksi elementti, pisteet varjokopioina. Näkyvyys tulee
