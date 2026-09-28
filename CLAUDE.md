@@ -489,16 +489,31 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   samat joka vaiheessa (16,34 / 6,48 / 7,25). Tähtiä ei ylimpään 64
   px:iin eikä aurinkoa taivaan puoliväliä ylemmäs, koska molemmat
   vaalensivat tilapalkin alustaa (7,80:1 ja 9,60:1 ennen rajausta).
-- **KUSKI ON NIVELLETTY, JA LÄHTÖ ON HYPPY.** Osat ovat sisäkkäisiä
-  kerroksia omilla nivelpisteillään (`#lr-jalat` nilkoista `scaleY`,
-  `#lr-yla` lantiosta SAMALLA käyrällä ja ajalla, `#lr-kasi`
-  olkapäästä, `#lr-siipi` kädestä). Jos muutat jalkojen joustoa, muuta
-  ylävartalon siirtoa samassa suhteessa (44,5 yks. × jousto), muuten
-  lantio irtoaa reisistä. Siipi pysyy SIVULLA nokka ylhäällä: pään yllä
-  vaakatasossa kelluva siipi luki sateenvarjona. Lähtö `.out` ajaa
-  `lr-hyppy`-avainkuvat (lastaus, ponnistus, lento, 0,85 s), ja
-  ruudun häivytys alkaa vasta 0,4 s, jotta laki (0,44 s) nähdään;
-  `display: none` 900 ms.
+- **KUSKI ON NIVELLETTY, SE LIIKKUU NÄKYVÄSTI, JA LÄHTÖ ON HYPPY.**
+  Asento on oikeasta vastavalokuvasta (mittasuhteiden malli, ei
+  upotettu): lähes pystyasento ja nojaus taaksepäin, siipi molemmin
+  käsin olkapäiden korkeudella VINOSSA sivulla, LYHYT lauta (78 yks.)
+  pitkän maston päällä. Osat ovat sisäkkäisiä kerroksia omilla
+  nivelpisteillään (`#lr-jalat` nilkoista `scaleY`, `#lr-yla` lantiosta
+  SAMALLA käyrällä, `#lr-kasi` = molemmat kädet ja siipi olkapäistä,
+  `#lr-siipi` etukädestä), ja vartalo piirtyy siiven PÄÄLLE. Liike on
+  kolmea kerrosta: pumppaus 2,2 s (jousto 14 %, kaikki nivelet samoilla
+  avainkuvilla, painallus 30 %), aalto 4,4 s (±2,5 %, ±3°) ja liuku
+  9 s (`#lr-rata` sivuttain −5…+6 %). ÄLÄ PIENENNÄ LIIKETTÄ ALLE
+  TÄMÄN: 1–2°:n ja 7 %:n versio oli mitattuna käynnissä, mutta käyttäjän
+  mukaan "kuski ei liiku". Jos muutat joustoa, muuta ylävartalon siirtoa
+  samassa suhteessa (45 yks. × jousto), muuten lantio irtoaa reisistä.
+  Pään yllä vaakatasossa kelluva siipi luki LIUKUESSA sateenvarjona —
+  HYPYSSÄ se on oikein (siipi nousee pään yli, polvet vetäytyvät, kuten
+  oikeissa hyppykuvissa: `lr-kasi-hyppy`, `lr-jalat-hyppy`,
+  `lr-yla-hyppy`). Lähtö `.out` ajaa `lr-hyppy`-avainkuvat (lastaus,
+  ponnistus, lento, 0,85 s), ja ruudun häivytys alkaa vasta 0,4 s,
+  jotta laki (0,44 s) nähdään; `display: none` 900 ms.
+- **SILUETISSA ON NELJÄ MUOTOA EIKÄ MUUTA: Haukilahden vesitorni,
+  Tuomiokirkko, sen vieressä Katajanokan maailmanpyörä ja Suomenlinna.**
+  Käyttäjän päätös: stadionin torni, Uspenski, laiva, Lauttasaari,
+  Harmaja ja kaupunkimassa tekivät siitä yleisen kaupungin. Vilkkuva
+  valo on vesitornin lentoestevalo. Älä lisää muita maamerkkejä.
 - **KAIKKI LATAUSRUUDUN LIIKE ON `transform`IA TAI `opacity`Ä
   HTML-ELEMENTEILLÄ.** Ei canvasia, ei SVG-attribuutteja, ei
   `stroke-dashoffset`ia, ei `width`iä: käynnistyksen aikana pääsäie on

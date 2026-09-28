@@ -6404,3 +6404,77 @@ liike: 0 animaatiota, pysäytyskuva oikeassa vuorokaudenajassa.
 Hyppyä kuvattaessa mittari piti korjata: se jäädytti lähdössä vain
 siirtymät, ja hyppy on avainkuva-animaatio, joten ensimmäinen
 kuvasarja näytti kuskin seisovan paikallaan.
+
+## Kuski oikean kuvan mukaan, liike näkyväksi, siluetti neljään muotoon (28.9.)
+
+Palaute: "kuskin liikkeet eivät tunnu luontevilta ja kuski ei liiku",
+oikea kuva wingfoilaajasta pohjaksi, ja siluettiin Tuomiokirkko ja sen
+vieressä maailmanpyörä oikein, Haukilahden vesitorni lisää, Suomenlinna
+säilyy ja kaikki muu pois.
+
+### "Kuski ei liiku" — se liikkui, mutta liian vähän
+
+Mitattuna kaikki viisi nivelanimaatiota olivat käynnissä (`playState`
+`running`, laskettu `transform` muuttui 0,7 s välein). Liike oli kuitenkin
+1–2° kiertoa ja 7 %:n jousto, ja koko hahmo pysyi paikallaan, joten
+liikkuvan meren ja tuulen keskellä se luki pysähtyneenä. Nyt liike on
+kolmea kerrosta, ja jokainen näkyy yksinään:
+
+```
+kerros            jakso   liike
+pumppaus          2,2 s   polvet 14 %, lantio 2,1 % alas + 4° eteen,
+  (jalat, yla,            kädet 12°, siipi 9° — samat avainkuvat,
+   kasi, siipi)           painallus 30 %:ssa, pitkä nousu
+aalto (keinu)     4,4 s   rigi ±2,5 % ylös-alas, +2,2° / −3°
+liuku (rata)      9 s     sivuttain −5 % … +6 %, pieni korkeusero
+```
+
+Pumppauksen kaikki nivelet käyttävät samaa jaksoa ja samoja
+avainkuvakohtia, joten hahmo liikkuu yhtenä kehona. Edellinen versio
+antoi osille eri jaksot "rentouden" nimissä, ja tulos oli kasa pieniä
+toisistaan riippumattomia heilahduksia.
+
+### Asento oikeasta kuvasta
+
+Malli: Flickr "Wingfoiling in backlight" (CC BY-NC, Openverse-haun
+kautta), mittasuhteiden ja asennon malli — kuvaa ei upotettu eikä
+jäljitetty. Siitä muuttui:
+
+- **Lauta lyheni 124 → 78 yksikköä.** Oikea wingfoil-lauta on lyhyt
+  suhteessa kuskiin; vanha lauta oli purjelaudan mittainen.
+- **Siipi on edessä molemmin käsin** olkapäiden korkeudella ja vinossa
+  (kierto −22°, koko 0,72), ei yhdellä kädellä pään yllä.
+- **Kuski nojaa taaksepäin** siivestä poispäin, lantio edessä, etupolvi
+  koukussa.
+- **Tuki ei näy.** Se kulki vinon siiven kanssa vartalon läpi, eikä
+  kuvassakaan sitä erota.
+- Vartalo ja pää piirtyvät siiven ja käsien PÄÄLLE, joten siluetti lukee
+  selvänä kankaan edessä.
+
+Hyppykuvissa (Roca Cup 2022, Flickr) siipi on pään yllä ja polvet
+koukussa. Se tuli hyppyyn: `.out` korvaa pumppauksen hyppyasennolla
+(`lr-kasi-hyppy` −58°, `lr-jalat-hyppy`, `lr-yla-hyppy`). Pään yllä
+vaakatasossa oleva siipi, joka liukuessa luki sateenvarjona, on
+hypyssä juuri oikein.
+
+### Siluetti: neljä muotoa
+
+- **Haukilahden vesitorni** vasemmalla: kapea varsi ja leveä malja,
+  antenni ja lentoestevalo, joka välähtää 4 s välein (entinen Harmajan
+  majakan välähdys).
+- **Tuomiokirkko:** leveä runko, pääty, keskikupoli rummun päällä,
+  lyhty ja risti, ja kaksi näkyvää kulmakupolia lyhtyineen.
+- **Katajanokan maailmanpyörä** Tuomiokirkon oikealla puolella: kehä,
+  16 pinnaa, 12 koria ja A-jalka; yöllä kehällä valot.
+- **Suomenlinna** kirkkomajakkoineen oikealla.
+
+Olympiastadionin torni, Uspenski, laiva, Lauttasaari, Harmaja ja matala
+kaupunkimassa poistettiin. Muodot tarkistettiin nelinkertaisena
+erillisenä renderöintinä.
+
+### Mitattu
+
+Tilapalkki yö 18,38 / sininen 17,80 / ilta 15,97 / päivä 10,54:1
+(raja 10), nimilohko 16,34 / 6,48 / 7,25 kaikissa. Animaatioita
+esittelyssä 53 ja levossa 29 (liuku +1). `compositeFailed` 0
+latausruudussa, savutesti läpi, vaimennettu liike 0 animaatiota.

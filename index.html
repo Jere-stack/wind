@@ -3223,29 +3223,34 @@ html[data-tutka="1"] #lahde-merkki {
     rgba(2,4,9,0) 52%, rgba(2,4,9,var(--lr-vinjetti-a)) 100%);
 }
 
-/* HELSINKI MERELTÄ. Siluetti on taivaanrannalla, leveys vähintään
-   760 px, jotta maamerkit ovat puhelimellakin tunnistettavan kokoisia;
-   kapealla ruudulla reunat leikkautuvat ja maamerkit on sijoitettu
-   keskelle (x 280–760 / 1000) mutta kuskin vartalon ohi. */
+/* HELSINKI MERELTÄ. Siluetissa on vain neljä tunnistettavaa muotoa:
+   Haukilahden vesitorni, Tuomiokirkko (keskikupoli rummun päällä,
+   lyhty ja risti, kaksi näkyvää kulmakupolia ja pääty), sen vieressä
+   Katajanokan maailmanpyörä ja Suomenlinna kirkkomajakkoineen.
+   Ensimmäisessä versiossa oli myös Olympiastadionin torni, Uspenski,
+   laiva, Lauttasaari, Harmaja ja kaupunkimassa, ja kokonaisuus luki
+   yleisenä kaupunkina — käyttäjän päätös: vain nämä. Leveys vähintään
+   760 px, jotta ne ovat puhelimellakin tunnistettavan kokoisia, ja ne
+   on sijoitettu keskelle (x 280–720 / 1000) mutta kuskin vartalon ohi. */
 #lr-kaupunki {
   left: 50%; width: max(100%, 760px); margin-left: calc(max(100%, 760px) / -2);
   bottom: calc(100% - var(--lr-horisontti)); aspect-ratio: 1000 / 70;
   animation: lr-esiin 1.2s .1s ease-out backwards;
 }
 #lr-kaupunki svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-/* Harmajan majakka: lyhyt välähdys, pitkä tauko. Yksi animaatio. */
+/* Vesitornin lentoestevalo: lyhyt välähdys, pitkä tauko. Yksi animaatio. */
 /* Kirkkaus (päivällä 0) on elementin oma staattinen `opacity`, ja
    välähdys sen `::before`: muuttuja avainkuvassa ei ole kompositorin
    arvo. */
 #lr-majakka {
-  position: absolute; left: 76.06%; bottom: 29.7%;
-  width: 5px; height: 5px; margin: 0 0 -2.5px -2.5px;
+  position: absolute; left: 30%; bottom: 72.3%;
+  width: 4px; height: 4px; margin: 0 0 -2px -2px;
   opacity: var(--lr-valot);
 }
 #lr-majakka::before {
   content: ''; position: absolute; inset: 0; border-radius: 50%;
-  background: #FFF3D6;
-  box-shadow: 0 0 6px 2px rgba(255,236,190,.7);
+  background: #FFE2C6;
+  box-shadow: 0 0 6px 2px rgba(255,214,180,.6);
   opacity: 0;
   animation: lr-majakka 4s 1s linear infinite;
 }
@@ -3365,22 +3370,15 @@ html[data-tutka="1"] #lahde-merkki {
      #lr-lahto  hyppy ja poistuminen (.out)
      #lr-tulo   sisääntulo vasemmalta
      #lr-keinu  liuku: nousu ja loiva kaarto foilin ympäri
-   NIVELLETTY HAHMO. Ennen koko kuski oli yksi jäykkä kuva, ja
-   pumppaus oli koko kuvan keinutus. Nyt osat ovat sisäkkäisiä
-   kerroksia omilla nivelpisteillään, kuten luut. Asento on rento
-   liuku: siipi on sivulla nokka ylhäällä etukäden varassa, takakäsi
-   roikkuu ja vartalo nojaa siivestä poispäin. (Pään yllä vaakatasossa
-   kelluva siipi kokeiltiin ensin, ja se luki sateenvarjona.)
-     #lr-jalat  polvijousto: sääret ja reidet painuvat nilkoista
-                (`scaleY` .93) — koko jalka lyhenee eikä irtoa laudasta
-     #lr-yla    ylävartalo laskee SAMALLA käyrällä ja ajalla lantiosta,
-                joten lantio pysyy reisien päällä (44,5 × 7 % = 3,1 yks.
-                = 1,04 % laatikosta)
-     #lr-kasi   etukäsi olkapäästä
-     #lr-siipi  siipi kädestä: kelluu pään yllä ja lepattaa
-   Kaikki nivelpisteet ovat prosentteja samasta 300 yksikön laatikosta.
-   Jaksot ovat eri pituisia (2,6 / 3,4 / 2,2 / 5,2 s), jotta liike ei
-   toistu samana kuviona: rentous on sitä että osat eivät liiku tahdissa.
+   NIVELLETTY HAHMO: osat ovat sisäkkäisiä kerroksia omilla
+   nivelpisteillään, kuten luut. Siipi ja molemmat kädet ovat samassa
+   kerroksessa (#lr-kasi, nivel olkapäiden välissä), ja vartalo on
+   niiden PÄÄLLÄ, jotta siluetti lukee selvänä siiven edessä.
+     #lr-jalat  polvijousto nilkoista (`scaleY`)
+     #lr-yla    ylävartalo lantiosta SAMALLA käyrällä (45 × 14 % =
+                6,3 yks. = 2,1 % laatikosta), joten lantio pysyy reisillä
+     #lr-kasi   kädet ja siipi olkapäistä
+     #lr-siipi  siipi etukädestä
    Roiske ja vana ovat vedessä eivätkä keinu kuskin mukana. */
 #lr-rata {
   width: var(--lr-koko); height: var(--lr-koko);
@@ -3401,39 +3399,78 @@ html[data-tutka="1"] #lahde-merkki {
   35%  { opacity: 1; }
   to   { transform: none; opacity: 1; }
 }
+/* LIIKE ON KOLMEA KERROSTA, JA KAIKKI NÄKYVÄT. Ensimmäinen versio
+   liikkui 1–2° ja 7 % joustolla, ja mitattuna se oli käynnissä mutta
+   käyttäjän mukaan "kuski ei liiku": liike oli pienempi kuin silmä
+   erottaa liikkuvan kohtauksen keskellä. Nyt:
+     1. PUMPPAUS 2,2 s (#lr-jalat, #lr-yla, #lr-kasi, #lr-siipi):
+        polvet painuvat 14 %, lantio laskee ja vartalo nojaa eteen, ja
+        kädet vetävät siipeä alas — sama tahti ja SAMAT avainkuvat
+        kaikilla, joten hahmo toimii yhtenä kehona. Painallus on nopea
+        (30 %) ja nousu pitkä, kuten oikeassa pumpussa.
+     2. AALTO 4,4 s (#lr-keinu): koko rigi nousee ja laskee 5 % ja
+        kallistuu ±2–3° foilin ympäri.
+     3. LIUKU 9 s (#lr-rata): kuski ajelehtii ruudulla sivuttain ja
+        hieman korkeutta, kuten kamera ei pysy täsmälleen perässä.
+   Asento on otettu oikeasta vastavalokuvasta (Flickr, "Wingfoiling in
+   backlight", CC BY-NC): lähes pystyasento, siipi käsivarren päässä
+   olkapäiden korkeudella, lyhyt lauta pitkän maston päällä. Kuva on
+   mittasuhteiden malli, ei upotettu eikä jäljitetty. */
+#lr-rata { animation: lr-liuku 9s ease-in-out infinite alternate; }
+@keyframes lr-liuku {
+  from { transform: translate3d(-5%,.6%,0); }
+  to   { transform: translate3d(6%,-.8%,0); }
+}
 #lr-keinu {
-  transform-origin: 49.33% 86%;
-  animation: lr-keinu 5.2s ease-in-out infinite alternate;
+  transform-origin: 50% 86%;
+  animation: lr-keinu 4.4s ease-in-out infinite alternate;
 }
 @keyframes lr-keinu {
-  from { transform: translate3d(0,.5%,0) rotate(.9deg); }
-  to   { transform: translate3d(0,-1.1%,0) rotate(-1.6deg); }
+  from { transform: translate3d(0,2.4%,0) rotate(2.2deg); }
+  to   { transform: translate3d(0,-2.6%,0) rotate(-3deg); }
 }
-#lr-jalat {
-  transform-origin: 50% 66.83%;
-  animation: lr-jalat 2.6s ease-in-out infinite alternate;
+#lr-jalat, #lr-yla, #lr-kasi, #lr-siipi { animation: 2.2s infinite; }
+#lr-jalat { transform-origin: 50% 67.8%; animation-name: lr-jalat; }
+@keyframes lr-jalat {
+  0%, 100% { transform: none; animation-timing-function: cubic-bezier(.45,0,.55,1); }
+  30%      { transform: scaleY(.86); animation-timing-function: cubic-bezier(.3,0,.35,1); }
 }
-@keyframes lr-jalat { from { transform: none; } to { transform: scaleY(.93); } }
-#lr-yla {
-  transform-origin: 48.33% 52%;
-  animation: lr-yla 2.6s ease-in-out infinite alternate;
-}
+#lr-yla { transform-origin: 48.87% 52.67%; animation-name: lr-yla; }
 @keyframes lr-yla {
-  from { transform: none; }
-  to   { transform: translate3d(0,1.04%,0) rotate(-1.4deg); }
+  0%, 100% { transform: none; animation-timing-function: cubic-bezier(.45,0,.55,1); }
+  30%      { transform: translate3d(0,2.1%,0) rotate(4deg); animation-timing-function: cubic-bezier(.3,0,.35,1); }
 }
-#lr-kasi {
-  transform-origin: 48.67% 39.33%;
-  animation: lr-kasi 3.4s -1.1s ease-in-out infinite alternate;
+#lr-kasi { transform-origin: 48% 41.47%; animation-name: lr-kasi; }
+@keyframes lr-kasi {
+  0%, 100% { transform: rotate(-3deg); animation-timing-function: cubic-bezier(.45,0,.55,1); }
+  30%      { transform: rotate(9deg); animation-timing-function: cubic-bezier(.3,0,.35,1); }
 }
-@keyframes lr-kasi { from { transform: rotate(-2.4deg); } to { transform: rotate(2deg); } }
-#lr-siipi {
-  transform-origin: 61% 29.33%;
-  animation: lr-siipi 2.2s -.4s ease-in-out infinite alternate;
-}
+#lr-siipi { transform-origin: 60.13% 42.53%; animation-name: lr-siipi; }
 @keyframes lr-siipi {
-  from { transform: rotate(2.4deg); }
-  to   { transform: rotate(-2.8deg); }
+  0%, 100% { transform: rotate(3deg); animation-timing-function: cubic-bezier(.45,0,.55,1); }
+  30%      { transform: rotate(-6deg); animation-timing-function: cubic-bezier(.3,0,.35,1); }
+}
+/* Hypyssä siipi nousee pään yli ja polvet vetäytyvät (sama kuin
+   oikeissa hyppykuvissa): pumppaus korvataan hyppyasennolla. */
+#loading.out #lr-kasi { animation: lr-kasi-hyppy .85s forwards; }
+@keyframes lr-kasi-hyppy {
+  0%   { transform: rotate(-3deg); }
+  18%  { transform: rotate(12deg); }
+  50%, 100% { transform: rotate(-58deg); }
+}
+#loading.out #lr-jalat { animation: lr-jalat-hyppy .85s forwards; }
+@keyframes lr-jalat-hyppy {
+  0%   { transform: none; }
+  18%  { transform: scaleY(.8); }
+  36%  { transform: none; }
+  55%, 100% { transform: scaleY(.84); }
+}
+#loading.out #lr-yla { animation: lr-yla-hyppy .85s forwards; }
+@keyframes lr-yla-hyppy {
+  0%   { transform: none; }
+  18%  { transform: translate3d(0,3%,0) rotate(5deg); }
+  36%  { transform: none; }
+  55%, 100% { transform: translate3d(0,2.4%,0) rotate(-4deg); }
 }
 /* Roiske lähtee maston ja vesiviivan leikkauksesta (49 %, 80 %) taakse
    ja putoaa: kaksi puolikasta eri hidastuksella on paraabeli ilman
@@ -4356,27 +4393,37 @@ public/icon-maskable-512.png 512px 140643 B
            skripti asettaa `--lr-*`-muuttujat). Kääre päättyy taivaanrantaan,
            joten matala aurinko painuu meren taakse eikä sen päälle. -->
       <div id="lr-taivasvalo"><i id="lr-aurinko"></i><i id="lr-kuu"></i></div>
-      <!-- Helsinki mereltä: kaupunki kaukana (Olympiastadionin torni,
-           Tuomiokirkko, Uspenski, laiva), saaret lähempänä (Suomenlinnan
-           kirkko, Harmajan majakka). Staattinen; värit muuttujista. -->
+      <!-- Helsinki mereltä, neljä tunnistettavaa muotoa ja ei muuta:
+           Haukilahden vesitorni (Espoo) vasemmalla, Tuomiokirkko ja sen
+           vieressä Katajanokan maailmanpyörä, ja Suomenlinna
+           kirkkomajakkoineen oikealla. Staattinen; värit muuttujista. -->
       <div id="lr-kaupunki">
         <svg viewBox="0 0 1000 70" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
           <g style="fill:var(--lr-kaupunki)">
-            <path d="M150 70V64H160V61H168V63H176V58H184V62H192V60H200V57H206V64H214V60H224V62H232V56H240V60H250V58H258V61H266V55H274V59H282V66H290V70Z"/>
-            <path d="M280.6 70V26H282.2V21.5H284.6V26H286.2V70Z"/>
-            <path d="M296 70V60H300V56H306V57C306 55 308 53 310 53C312 53 314 55 314 57V54H320V47C320 44 322 42 326 41.4C326.6 38.6 327.2 36.6 327.6 34.4H328.4C328.8 36.6 329.4 38.6 330 41.4C334 42 336 44 336 47V54H342V57C342 55 344 53 346 53C348 53 350 55 350 57V56H356V60H362V70Z"/>
-            <path d="M362 70V62H370V58H378V61H384V54C384 52 385.4 50.4 387 50V46.6L386.4 44C386.4 42.4 387.6 41.2 388.4 40.2L388.8 33.6H389.2L389.6 40.2C390.4 41.2 391.6 42.4 391.6 44L391 46.6V50C392.6 50.4 394 52 394 54V57C394 55.8 395 55 396 55C397 55 398 55.8 398 57V60H406V63H418V66H428V70Z"/>
-            <path d="M428 70V67H440V64H452V67H458V70Z"/>
-            <path d="M500 70V65.6H505V62.4H512V60.4H520V58H528V60H538V62.2H548V64.4H556L560 70Z"/>
+            <path d="M270 70C282 67.6 292 67 300 67C308 67 318 67.6 330 70Z"/>
+            <path d="M298 67.4V36.4L289 28.6V25H311V28.6L302 36.4V67.4Z"/>
+            <path d="M299.6 25.4V19.4H300.4V25.4Z"/>
+            <path d="M340 70C346 67.6 352 66.2 358 66H402V67.6H412C420 67.6 440 67.8 452 70Z"/>
+            <path d="M358 66V52.6H371V40.6C371 39.4 371.6 38.8 372.4 38.6C373 34 376 31.4 378.6 31V27.2H378.2V26.4C378.6 25.6 379.4 25.2 380 25.2C380.6 25.2 381.4 25.6 381.8 26.4V27.2H381.4V31C384 31.4 387 34 387.6 38.6C388.4 38.8 389 39.4 389 40.6V52.6H402V66Z"/>
+            <path d="M364.4 52.8L380 46.8L395.6 52.8Z"/>
+            <path d="M358.8 52.8V48.4H359.4C359.8 46 360.8 44.8 362 44.6V43H362.4V44.6C363.6 44.8 364.6 46 365 48.4H365.6V52.8Z"/>
+            <path d="M394.4 52.8V48.4H395C395.4 46 396.4 44.8 397.6 44.6V43H398V44.6C399.2 44.8 400.2 46 400.6 48.4H401.2V52.8Z"/>
+            <path d="M379.6 25.4V23H380.4V25.4ZM378.8 23.8H381.2V24.4H378.8Z"/>
+            <path d="M428 51L420 67.8H421.6L428 53.6L434.4 67.8H436Z"/>
+            <circle cx="428" cy="51" r="1.6"/>
+            <rect x="441.00" y="50.30" width="1.8" height="1.8" rx=".4"/><rect x="439.14" y="57.25" width="1.8" height="1.8" rx=".4"/><rect x="434.05" y="62.34" width="1.8" height="1.8" rx=".4"/><rect x="427.10" y="64.20" width="1.8" height="1.8" rx=".4"/><rect x="420.15" y="62.34" width="1.8" height="1.8" rx=".4"/><rect x="415.06" y="57.25" width="1.8" height="1.8" rx=".4"/><rect x="413.20" y="50.30" width="1.8" height="1.8" rx=".4"/><rect x="415.06" y="43.35" width="1.8" height="1.8" rx=".4"/><rect x="420.15" y="38.26" width="1.8" height="1.8" rx=".4"/><rect x="427.10" y="36.40" width="1.8" height="1.8" rx=".4"/><rect x="434.05" y="38.26" width="1.8" height="1.8" rx=".4"/><rect x="439.14" y="43.35" width="1.8" height="1.8" rx=".4"/>
+          </g>
+          <g fill="none" style="stroke:var(--lr-kaupunki)">
+            <circle cx="428" cy="51" r="13" stroke-width="1.3"/>
+            <path d="M428 51L441.00 51.00M428 51L440.01 55.97M428 51L437.19 60.19M428 51L432.97 63.01M428 51L428.00 64.00M428 51L423.03 63.01M428 51L418.81 60.19M428 51L415.99 55.97M428 51L415.00 51.00M428 51L415.99 46.03M428 51L418.81 41.81M428 51L423.03 38.99M428 51L428.00 38.00M428 51L432.97 38.99M428 51L437.19 41.81M428 51L440.01 46.03" stroke-width=".45"/>
           </g>
           <g style="fill:var(--lr-valo-ikkuna);opacity:var(--lr-valot)">
-            <rect x="163" y="64" width="1.4" height="1.4"/><rect x="179" y="61" width="1.4" height="1.4"/><rect x="195" y="63" width="1.4" height="1.4"/><rect x="218" y="63" width="1.4" height="1.4"/><rect x="236" y="60" width="1.4" height="1.4"/><rect x="253" y="62" width="1.4" height="1.4"/><rect x="269" y="58" width="1.4" height="1.4"/><rect x="302" y="63" width="1.4" height="1.4"/><rect x="366" y="64" width="1.4" height="1.4"/><rect x="373" y="61" width="1.4" height="1.4"/><rect x="410" y="65" width="1.4" height="1.4"/><rect x="446" y="66" width="1.4" height="1.4"/>
-            <rect x="509" y="65" width="1.2" height="1.2"/><rect x="514" y="65" width="1.2" height="1.2"/><rect x="519" y="65" width="1.2" height="1.2"/><rect x="524" y="65" width="1.2" height="1.2"/><rect x="529" y="65" width="1.2" height="1.2"/><rect x="534" y="65" width="1.2" height="1.2"/><rect x="539" y="65" width="1.2" height="1.2"/><rect x="544" y="66.6" width="1.2" height="1.2"/><rect x="524" y="61.6" width="1.2" height="1.2"/><rect x="531" y="61.6" width="1.2" height="1.2"/>
+            <rect x="362" y="57" width="1.3" height="2.2"/><rect x="367" y="57" width="1.3" height="2.2"/><rect x="392" y="57" width="1.3" height="2.2"/><rect x="397" y="57" width="1.3" height="2.2"/><rect x="376.4" y="55" width="1.3" height="2.4"/><rect x="382.4" y="55" width="1.3" height="2.4"/><rect x="379.4" y="44" width="1.2" height="2.4"/>
+            <circle cx="440.56" cy="54.36" r=".7"/><circle cx="437.19" cy="60.19" r=".7"/><circle cx="431.36" cy="63.56" r=".7"/><circle cx="424.64" cy="63.56" r=".7"/><circle cx="418.81" cy="60.19" r=".7"/><circle cx="415.44" cy="54.36" r=".7"/><circle cx="415.44" cy="47.64" r=".7"/><circle cx="418.81" cy="41.81" r=".7"/><circle cx="424.64" cy="38.44" r=".7"/><circle cx="431.36" cy="38.44" r=".7"/><circle cx="437.19" cy="41.81" r=".7"/><circle cx="440.56" cy="47.64" r=".7"/>
+            <circle cx="638.2" cy="46" r=".9"/>
           </g>
           <g style="fill:var(--lr-saari)">
-            <path d="M0 70V67C20 65.4 50 64.8 80 66C100 66.8 116 68 124 70Z"/>
             <path d="M588 70C600 67 616 66 626 65.4V62H632V58H635V48.4C635 46.6 636.2 45.2 637.6 44.8L638 38.4H638.4L638.8 44.8C640.2 45.2 641.4 46.6 641.4 48.4V58H644V62H650V64H664V62H676V64.6C692 65 706 66.6 716 70Z"/>
-            <path d="M742 70C746 67.6 752 66.6 757.6 66.4V53.6H757V51.6H758V47.4H759.2V46.2H762V47.4H763.2V51.6H764.2V53.6H763.6V66.4C768 66.6 772 67.6 776 70Z"/>
           </g>
         </svg>
         <i id="lr-majakka"></i>
@@ -4401,44 +4448,43 @@ public/icon-maskable-512.png 512px 140643 B
           <div id="lr-roiske"></div>
           <div id="lr-keinu">
             <div id="lr-lauta"><svg viewBox="0 0 300 300"><g style="fill:var(--lr-kuski)">
-              <path d="M91 205.2C90.2 207.6 92.4 209.6 96 209.6H201C207.6 209.6 212.6 206.2 215.6 200.6C213.2 202.8 208.8 204.4 202 204.4H96C93.6 204.4 91.8 204.4 91 205.2Z"/>
-              <path d="M146.2 209.4H150.4L148.8 257H145.2Z"/>
-              <rect x="116" y="255.6" width="64" height="3" rx="1.5"/>
-              <path d="M158 257.2C166 252.4 184 252.2 194 257.2C184 261.6 166 261.8 158 257.2Z"/>
-              <path d="M109 257C112.4 254.8 120.4 254.8 125 256.8C120.4 259 112.6 259.2 109 257Z"/>
-              <ellipse cx="121" cy="203" rx="7" ry="2.5"/>
-              <ellipse cx="170" cy="203" rx="7" ry="2.5"/>
+              <path d="M114 207.4C113.2 209.6 115.2 211.4 118.6 211.4H183.4C189 211.4 193.4 208.6 196 203.6C193.8 205.6 190 206.8 184.6 206.8H118.6C116.4 206.8 114.8 206.8 114 207.4Z"/>
+              <path d="M148.6 211H152.4L151 258H147.6Z"/>
+              <rect x="124" y="256.6" width="62" height="2.8" rx="1.4"/>
+              <path d="M168 258C175 253.8 191 253.6 200 258C191 262 175 262.2 168 258Z"/>
+              <path d="M117 257.8C120 255.8 127 255.8 131 257.6C127 259.6 120 259.8 117 257.8Z"/>
+              <ellipse cx="129.4" cy="205.4" rx="6.4" ry="2.3"/>
+              <ellipse cx="164.4" cy="205.4" rx="6.4" ry="2.3"/>
             </g></svg></div>
             <div id="lr-jalat"><svg viewBox="0 0 300 300"><g fill="none" style="stroke:var(--lr-kuski)" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M122 200.4L130.6 178.6" stroke-width="7.6"/>
-              <path d="M130.6 178.6L141 155.6" stroke-width="11"/>
-              <path d="M169.2 200.4L164.4 178.4" stroke-width="7.6"/>
-              <path d="M164.4 178.4L150.4 156" stroke-width="11"/>
+              <path d="M129.6 203.4L137.6 181.4" stroke-width="7.4"/>
+              <path d="M137.6 181.4L147.4 158.4" stroke-width="10.6"/>
+              <path d="M164 203.4L163.8 180.4" stroke-width="7.4"/>
+              <path d="M163.8 180.4L153.6 158.4" stroke-width="10.6"/>
             </g></svg></div>
             <div id="lr-yla">
-              <svg viewBox="0 0 300 300"><g fill="none" style="stroke:var(--lr-kuski)" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M145.4 155L140.4 128.6" stroke-width="17"/>
-                <path d="M128.8 121.4L146.6 117.4" stroke-width="9"/>
-                <path d="M137 116L136.4 110.6" stroke-width="6"/>
-                <path d="M128.8 121.6L123.8 141.4" stroke-width="6.4"/>
-                <path d="M123.8 141.4L131.4 155.4" stroke-width="5.4"/>
-              </g><g style="fill:var(--lr-kuski)">
-                <circle cx="136.4" cy="102.6" r="8.6"/>
-                <path d="M142.8 97.4C146.6 98 148 101.6 147.2 104.4L143.2 104.2Z"/>
-              </g></svg>
               <div id="lr-kasi">
-                <svg viewBox="0 0 300 300"><g fill="none" style="stroke:var(--lr-kuski)" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M146.4 118L166 110" stroke-width="6.6"/>
-                  <path d="M166 110L183 88.4" stroke-width="5.6"/>
-                </g></svg>
-                <div id="lr-siipi"><svg viewBox="0 0 300 300"><g transform="rotate(-6 183 88) translate(-4 -18.8)">
+                <div id="lr-siipi"><svg viewBox="0 0 300 300"><g transform="translate(180 128) rotate(-22) scale(.72) translate(-187 -107)">
                   <path d="M150 24C200 24 234 70 226 112C220 146 206 172 184 190Q150 140 86 98Q118 58 150 24Z" style="fill:var(--lr-kuski)" fill-opacity=".2"/>
-                  <path d="M184 190Q150 140 86 98Q118 58 150 24" fill="none" style="stroke:var(--lr-kuski)" stroke-opacity=".55" stroke-width="1.3" stroke-linejoin="round"/>
-                  <path d="M161 100Q170 62 176 31M172 102Q185 140 198 170" fill="none" style="stroke:var(--lr-kuski)" stroke-opacity=".18"/>
-                  <path d="M226 110L86 98" fill="none" style="stroke:var(--lr-kuski)" stroke-width="3.6" stroke-linecap="round"/>
-                  <path d="M150 24C200 24 234 70 226 112C220 146 206 172 184 190" fill="none" style="stroke:var(--lr-kuski)" stroke-width="7" stroke-linecap="round"/>
+                  <path d="M184 190Q150 140 86 98Q118 58 150 24" fill="none" style="stroke:var(--lr-kuski)" stroke-opacity=".55" stroke-width="1.5" stroke-linejoin="round"/>
+                  <path d="M161 100Q170 62 176 31M172 102Q185 140 198 170" fill="none" style="stroke:var(--lr-kuski)" stroke-opacity=".18" stroke-width="1.2"/>
+                  <path d="M150 24C200 24 234 70 226 112C220 146 206 172 184 190" fill="none" style="stroke:var(--lr-kuski)" stroke-width="9.4" stroke-linecap="round"/>
                 </g></svg></div>
+                <svg viewBox="0 0 300 300"><g fill="none" style="stroke:var(--lr-kuski)" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M131.8 127L148 126" stroke-width="6.2"/>
+                  <path d="M148 126L167.4 117.6" stroke-width="5.2"/>
+                  <path d="M147.2 124.2L163 132.6" stroke-width="6.4"/>
+                  <path d="M163 132.6L180.4 127.6" stroke-width="5.4"/>
+                </g></svg>
               </div>
+              <svg viewBox="0 0 300 300"><g fill="none" style="stroke:var(--lr-kuski)" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M150.6 157.6L140.4 131.6" stroke-width="16.4"/>
+                <path d="M131.6 127.2L147.4 124.2" stroke-width="9"/>
+                <path d="M138.2 121.8L136.8 116.4" stroke-width="6"/>
+              </g><g style="fill:var(--lr-kuski)">
+                <circle cx="136" cy="108.6" r="8.4"/>
+                <path d="M142.2 103.8C146 104.4 147.4 107.8 146.6 110.6L142.6 110.4Z"/>
+              </g></svg>
             </div>
           </div>
         </div></div>
