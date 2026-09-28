@@ -468,11 +468,15 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   tilarivi 7,25:1, heikoin = mediaani (tasainen alusta). Älä vie tekstiä
   kohtauksen päälle — valokuvan aikana mitattuna muste oli kuvaa vasten
   heikoimmillaan 1,62:1, ja sama pätee liikkuvaan kohtaukseen.
-- **VÄRI ON NOPEUS MYÖS LATAUSRUUDULLA.** Tuulijuovan väri on rampin
-  ankkuri sillä nopeudella jolla sen arkki kulkee (5,5–12 m/s,
-  `tools/ikoni.mjs` `TUULI`); nimilohko, merkki ja edistymispalkki ovat
-  paperia (`#F0E7CE`). Magentaa ei ruudulla ole, joten `--accent`
-  palkissa sanoisi 20 m/s — ja se on tummalla himmein vaihtoehto.
+- **LATAUSRUUDUN TUULIJUOVAT OVAT LOGON PAPERIA, HIEMAN
+  LÄPIKUULTAVINA** (`JUOVA_VARI` `#F0E7CE`, `JUOVA_ALFA` 0,62 juovan
+  oman alfan päälle) — käyttäjän päätös 28.9. Ne olivat ennen rampin
+  ankkurin värisiä arkin nopeuden mukaan; nopeus näkyy nyt vauhdissa,
+  pituudessa ja paksuudessa. `data-tuuli` jää `tools/ikoni.mjs`:n
+  tulosteeseen mutta sitä ei lueta. Nimilohko, merkki ja
+  edistymispalkki ovat samaa paperia. Magentaa ei ruudulla ole, joten
+  `--accent` palkissa sanoisi 20 m/s — ja se on tummalla himmein
+  vaihtoehto.
 - **LATAUSRUUTU SEURAA VUOROKAUDENAIKAA** (docs/ui.md, "Latausruutu
   vuorokaudenajan mukaan"). `<head>`in `LR_PALETTI` laskee auringon
   korkeuden Helsingissä ja sekoittaa viiden ankkurin paletin (yö,
@@ -521,24 +525,37 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   leukalinjan varjostus). Värit ovat käyttäjän päätös: keltainen
   sombrero-kypärä, musta leukahihna leukalinjaa pitkin, MUSTA
   MÄRKÄPUKU kaikkina vuorokaudenaikoina (yöllä kuunvalon reunavalo
-  `--lr-reuna`), MUSTA IMPACT VEST (`--lr-liivi`, paneelit, kaulus,
-  vetoketju; harmaa paita ja sen helma poistettiin), vaalea iho ja
+  `--lr-reuna`), MUSTA IMPACT VEST (vaahtopaneelit vaakasegmentteinä
+  kohokuvioin, sivusauma, etuvetoketju vetimineen, kädentien kanttaus
+  josta märkäpuvun olkapää näkyy, vyötärön resori ja rinnassa
+  FoilSpotin merkki; harmaa paita ja sen helma poistettiin), vaalea
+  iho ja surffarin kasvot (vahva leuka, suora nenä, päivettynyt
+  nenänselkä, sängen varjo, siristävä silmä naururyppyineen, auringon
+  vaalentama kulmakarva ja pulisonki) ja
   ruskea surffitukka joka lepattaa (`#lr-tukka`, 0,7 s). Osat ovat sisäkkäisiä kerroksia omilla
   nivelpisteillään (`#lr-jalat` nilkoista `scaleY`, `#lr-yla` lantiosta
   SAMALLA käyrällä, `#lr-kasi` = molemmat kädet ja siipi olkapäistä,
   `#lr-siipi` etukädestä), ja vartalo piirtyy siiven PÄÄLLE. Liike on
   kolmea kerrosta: pumppaus 2,2 s (jousto 14 %, kaikki nivelet samoilla
-  avainkuvilla, painallus 30 %), aalto 4,4 s (±2,5 %, ±3°) ja liuku
-  9 s (`#lr-rata` sivuttain −5…+6 %). ÄLÄ PIENENNÄ LIIKETTÄ ALLE
+  avainkuvilla, painallus 30 %), KAARTO 4,4 s ja liuku 9 s (`#lr-rata`
+  sivuttain −5…+6 %). KAARTO ON KÄÄNNÖS JA KALLISTUS, EI KIERTO
+  RUUDUN TASOSSA (`#lr-keinu` `lr-kaarto` + `#lr-kansi`): sivukuvassa
+  laudan käännös on `scaleX` (0,84 ala-käännöksessä) ja kallistus
+  kameraa kohti `scaleY` + laudan KANSI joka avautuu näkyviin. Viive
+  −0,3 s asettaa ala-käännöksen noin 1,0 s kohdalle ja linjan (lauta
+  oikenee, kuski nojaa taakse ja nousee) noin 1,6 s kohdalle, eli
+  siihen mihin lähtö osuu; lähdössä kaarto PYSÄYTETÄÄN
+  (`animation-play-state`) eikä vaihdeta, jottei asento hyppää. ÄLÄ PIENENNÄ LIIKETTÄ ALLE
   TÄMÄN: 1–2°:n ja 7 %:n versio oli mitattuna käynnissä, mutta käyttäjän
   mukaan "kuski ei liiku". Jos muutat joustoa, muuta ylävartalon siirtoa
   samassa suhteessa (45 yks. × jousto), muuten lantio irtoaa reisistä.
   Pään yllä vaakatasossa kelluva siipi luki LIUKUESSA sateenvarjona —
   HYPYSSÄ se on oikein (siipi nousee pään yli, polvet vetäytyvät, kuten
   oikeissa hyppykuvissa: `lr-kasi-hyppy`, `lr-jalat-hyppy`,
-  `lr-yla-hyppy`). Lähtö `.out` ajaa `lr-hyppy`-avainkuvat (lastaus,
-  ponnistus, lento, 0,85 s), ja ruudun häivytys alkaa vasta 0,4 s,
-  jotta laki (0,44 s) nähdään; `display: none` 900 ms.
+  `lr-yla-hyppy`). Lähtö `.out` ajaa `lr-hyppy`-avainkuvat (viimeinen
+  linjanhaku 0–12 %: lauta kääntyy ja kuski nojaa kaarteeseen;
+  lastaus 24 %, ponnistus, lento, 0,85 s), ja ruudun häivytys alkaa
+  vasta 0,4 s, jotta laki (0,45 s) nähdään; `display: none` 900 ms.
 - **SILUETTI ON HELSINKI ETELÄSATAMAN SUUNNALTA:** rantarivi ja
   Kauppatori (teltat, Keisarinnan kivi), mäellä Tuomiokirkko,
   Katajanokalla Uspenski ja maailmanpyörä, satamassa Silja Linen laiva

@@ -6756,3 +6756,68 @@ pohja kaartuu kärkeen asti ohuena kuten midlengthissä.
 Kontrastit 16,34 / 6,48 / 7,25, tilapalkki päivällä 10,54:1 (ennallaan).
 Animaatioita 54 esittelyssä ja 30 levossa (ennallaan), vaimennettu
 liike 0, savutesti läpi ilman virheitä.
+
+## Tuulijuovat paperiksi, kaarto ennen hyppyä, impact vest ja surffarin kasvot (28.9.)
+
+Käyttäjän pyyntö: latausruudun tuulipartikkelit logon värisiksi ja
+hieman läpikuultaviksi; ajaja kurvaa laudalla niin että lauta aidosti
+kääntyy ja kallistuu sivuttain, hakee linjan ja hyppää; impact vest
+aidommaksi ja kasvot oikean surffarin kasvoiksi.
+
+### Tuulijuovat
+
+`juovat()` käyttää nyt logon paperia (`JUOVA_VARI` `#F0E7CE`) ja
+kertoo juovan oman alfan `JUOVA_ALFA`lla 0,62. Rampin värit
+(`data-tuuli`) jäivät lukematta; nopeus näkyy yhä arkin vauhdissa,
+juovan pituudessa ja paksuudessa. Tämä kumoaa säännön "väri on nopeus
+myös latausruudulla" käyttäjän päätöksellä.
+
+### Kaarto
+
+Sivukuvassa kaarto ei ole kierto ruudun tasossa: se on laudan
+**käännös** (pituus lyhenee, `scaleX`) ja **kallistus** kameraa kohti
+(kuski painuu, `scaleY`, ja laudan kansi tulee näkyviin). `#lr-keinu`n
+aalto korvattiin `lr-kaarto`-avainkuvilla (sama 4,4 s, ei uutta
+animaatiota), ja kansi on uusi `#lr-kansi` (kannen pinta, grippi ja
+valoreuna), joka avautuu `scaleY`llä kannen reunasta samassa tahdissa.
+
+| vaihe | osuus | muunnos |
+|---|---|---|
+| suora | 0 % | alhaalla |
+| kaarto alkaa | 14 % | 1°, `scaleX` .97 |
+| ala-käännös | 30 % | 2,5°, `scale(.84, .96)`, kansi auki |
+| linja | 44 % | nojaus taakse −2,5°, nousu, lauta suora |
+| liuku | 62 % | ylhäällä |
+| vastakaarto | 80 % | `scaleX` .92 |
+
+Viive −0,3 s: ala-käännös noin 1,0 s ja linja noin 1,6 s kohdalla,
+eli juuri kun lähtö normaalisti tulee. Lähdössä kaarto pysähtyy
+(`animation-play-state: paused`), ja `lr-hyppy` alkaa omalla
+linjanhaullaan (0–12 %: `scale(.9, .97)` ja 3,2° nojaus), lastaa 24 %
+ja ponnistaa lakeen 53 % (0,45 s). Nivelten hyppyavainkuvat ja
+ponnistuksen roiske siirrettiin samaan tahtiin. Kokonaiskesto 0,85 s
+ja häivytys 0,4 s ennallaan.
+
+### Impact vest
+
+Liukuväri selästä rintaan, vaahtopaneelien saumat urana ja valoreunana
+(kohokuvio), sivusauma, vyötärön resori, etuvetoketju hampaineen ja
+vetimineen, kädentien kanttaus josta märkäpuvun olkapää näkyy, ja
+rinnassa FoilSpotin siipimerkki paperina. Ensimmäinen kädentie oli
+ympyrä ja luki rintamerkkinä; nyt se on olkapään muotoinen aukko.
+Merkki piirrettiin ensin sisäkkäisenä `<svg>`:nä, mutta `#lr-rata svg
+{ overflow: visible }` koskee myös sitä — polku on nyt suoraan
+muunnoksella.
+
+### Kasvot
+
+Profiili uusiksi: otsaluu ja kulmakaari, suora nenä, selvä ylähuuli,
+vahvempi leuka ja leukaperä. Päivettynyt nenänselkä ja posket, sängen
+varjo leualla ja ylähuulella, siristävä silmä naururyppyineen, auringon
+vaalentama kulmakarva ja pulisonki.
+
+### Mitattu
+
+Kontrastit 16,34 / 6,48 / 7,25, tilapalkki päivä 10,54 ja yö 18,38:1
+(ennallaan). Animaatioita esittelyssä 55 ja levossa 31 (+1, kansi).
+Vaimennettu liike 0, savutesti läpi.

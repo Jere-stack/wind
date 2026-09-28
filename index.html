@@ -3366,8 +3366,8 @@ html[data-tutka="1"] #lahde-merkki {
   0%, 56%   { transform: translate3d(100vw,0,0); }
   84%, 100% { transform: translate3d(-100%,0,0); }
 }
-/* Tuulijuova: rampin värinen pää vasemmalla, häntä häipyy oikealle —
-   sama muoto kuin kartan partikkelin jäljellä. Väri on arkin nopeus. */
+/* Tuulijuova: paperinen pää vasemmalla, häntä häipyy oikealle —
+   sama muoto kuin kartan partikkelin jäljellä. Väri on logon paperi. */
 .lr-v {
   position: absolute;
   border-radius: 1px;
@@ -3415,7 +3415,7 @@ html[data-tutka="1"] #lahde-merkki {
   left: calc(50% - var(--lr-koko) * .54);
   top: calc(var(--lr-pinta) - var(--lr-koko) * .8);
 }
-#lr-lahto, #lr-tulo, #lr-keinu, #lr-lauta, #lr-jalat, #lr-yla, #lr-kasi,
+#lr-lahto, #lr-tulo, #lr-keinu, #lr-lauta, #lr-kansi, #lr-jalat, #lr-yla, #lr-kasi,
 #lr-siipi, #lr-tukka, #lr-roiske {
   position: absolute; inset: 0;
 }
@@ -3438,8 +3438,13 @@ html[data-tutka="1"] #lahde-merkki {
         kädet vetävät siipeä alas — sama tahti ja SAMAT avainkuvat
         kaikilla, joten hahmo toimii yhtenä kehona. Painallus on nopea
         (30 %) ja nousu pitkä, kuten oikeassa pumpussa.
-     2. AALTO 4,4 s (#lr-keinu): koko rigi nousee ja laskee 5 % ja
-        kallistuu ±2–3° foilin ympäri.
+     2. KAARTO 4,4 s (#lr-keinu + #lr-kansi): kuski hakee linjaa.
+        Sivukuvassa kaarto ei ole kierto ruudun tasossa vaan KÄÄNNÖS ja
+        KALLISTUS kameraa kohti: käännös lyhentää laudan (ja koko rigin)
+        `scaleX`illä, kallistus painaa kuskia kohti kameraa (`scaleY`)
+        ja avaa laudan kannen näkyviin (#lr-kansi). Ala-käännöksen
+        jälkeen lauta oikenee, kuski nojaa taakse ja nousee linjalle —
+        ja juuri siinä kohdassa (~1,6 s, viive −0,3 s) lähtö hyppää.
      3. LIUKU 9 s (#lr-rata): kuski ajelehtii ruudulla sivuttain ja
         hieman korkeutta, kuten kamera ei pysy täsmälleen perässä.
    Asento on otettu oikeasta vastavalokuvasta (Flickr, "Wingfoiling in
@@ -3451,14 +3456,24 @@ html[data-tutka="1"] #lahde-merkki {
   from { transform: translate3d(-5%,.6%,0); }
   to   { transform: translate3d(6%,-.8%,0); }
 }
-#lr-keinu {
-  transform-origin: 50% 87.33%;
-  animation: lr-keinu 4.4s ease-in-out infinite alternate;
+#lr-keinu, #lr-kansi { animation: 4.4s -.3s ease-in-out infinite; }
+#lr-keinu { transform-origin: 50% 69%; animation-name: lr-kaarto; }
+@keyframes lr-kaarto {
+  0%, 100% { transform: translate3d(0,1%,0); }
+  14%      { transform: translate3d(0,1.6%,0) rotate(1deg) scale(.97,1); }
+  30%      { transform: translate3d(-1%,2.6%,0) rotate(2.5deg) scale(.84,.96); }
+  44%      { transform: translate3d(1%,-1.4%,0) rotate(-2.5deg); }
+  62%      { transform: translate3d(0,-2.6%,0) rotate(-3deg); }
+  80%      { transform: translate3d(0,-.6%,0) rotate(-1deg) scale(.92,1); }
 }
-@keyframes lr-keinu {
-  from { transform: translate3d(0,2.4%,0) rotate(2.2deg); }
-  to   { transform: translate3d(0,-2.6%,0) rotate(-3deg); }
+#lr-kansi { transform-origin: 50% 69.07%; animation-name: lr-kansi; }
+@keyframes lr-kansi {
+  0%, 12%, 46%, 100% { transform: scaleY(0); opacity: 0; }
+  30%                { transform: none; opacity: 1; }
 }
+/* Lähdössä kaarto pysähtyy siihen mihin se jäi (ei hyppää alkuun), ja
+   hypyn oma avainkuva tekee viimeisen linjanhaun. */
+#loading.out #lr-keinu, #loading.out #lr-kansi { animation-play-state: paused; }
 #lr-jalat, #lr-yla, #lr-kasi, #lr-siipi { animation: 2.2s infinite; }
 #lr-jalat { transform-origin: 50% 67.8%; animation-name: lr-jalat; }
 @keyframes lr-jalat {
@@ -3497,22 +3512,22 @@ html[data-tutka="1"] #lahde-merkki {
 #loading.out #lr-kasi { animation: lr-kasi-hyppy .85s forwards; }
 @keyframes lr-kasi-hyppy {
   0%   { transform: rotate(-3deg); }
-  18%  { transform: rotate(12deg); }
-  50%, 100% { transform: rotate(-58deg); }
+  24%  { transform: rotate(12deg); }
+  53%, 100% { transform: rotate(-58deg); }
 }
 #loading.out #lr-jalat { animation: lr-jalat-hyppy .85s forwards; }
 @keyframes lr-jalat-hyppy {
   0%   { transform: none; }
-  18%  { transform: scaleY(.8); }
-  36%  { transform: none; }
-  55%, 100% { transform: scaleY(.84); }
+  24%  { transform: scaleY(.8); }
+  38%  { transform: none; }
+  56%, 100% { transform: scaleY(.84); }
 }
 #loading.out #lr-yla { animation: lr-yla-hyppy .85s forwards; }
 @keyframes lr-yla-hyppy {
   0%   { transform: none; }
-  18%  { transform: translate3d(0,3%,0) rotate(5deg); }
-  36%  { transform: none; }
-  55%, 100% { transform: translate3d(0,2.4%,0) rotate(-4deg); }
+  24%  { transform: translate3d(0,3%,0) rotate(5deg); }
+  38%  { transform: none; }
+  56%, 100% { transform: translate3d(0,2.4%,0) rotate(-4deg); }
 }
 /* Roiske lähtee maston ja vesiviivan leikkauksesta (49 %, 80 %) taakse
    ja putoaa: kaksi puolikasta eri hidastuksella on paraabeli ilman
@@ -3615,11 +3630,16 @@ html[data-tutka="1"] #lahde-merkki {
    ja lento kiihtyy pois. Laki on 0,44 s kohdalla, ja ruudun häivytys
    alkaa vasta 0,4 s, jotta hyppy nähdään. */
 #loading.out #lr-lahto { animation: lr-hyppy .85s forwards; }
+/* 0–12 %: viimeinen linjanhaku — lauta kääntyy (scaleX) ja kuski
+   nojaa kaarteeseen; 12–24 %: lauta oikenee ja polvet lastaavat;
+   sitten ponnistus lakeen (0,45 s). */
 @keyframes lr-hyppy {
   0%   { transform: none; animation-timing-function: cubic-bezier(.3,0,.6,1); }
-  18%  { transform: translate3d(1%,2.6%,0) rotate(2.2deg);
+  12%  { transform: translate3d(.4%,2.4%,0) rotate(3.2deg) scale(.9,.97);
+         animation-timing-function: cubic-bezier(.4,0,.6,1); }
+  24%  { transform: translate3d(1.6%,2.8%,0) rotate(1.4deg);
          animation-timing-function: cubic-bezier(.2,.75,.35,1); }
-  52%  { transform: translate3d(20%,-24%,0) rotate(-9deg);
+  53%  { transform: translate3d(20%,-24%,0) rotate(-9deg);
          animation-timing-function: cubic-bezier(.55,0,.85,.45); }
   100% { transform: translate3d(95vw,-36%,0) rotate(-16deg); }
 }
@@ -3634,7 +3654,7 @@ html[data-tutka="1"] #lahde-merkki {
     -32px -18px 0 -1px var(--lr-roiske), 6px -10px 0 -1px var(--lr-roiske),
     -14px -24px 0 -1.2px var(--lr-roiske), -22px -2px 0 0 var(--lr-roiske);
 }
-#loading.out #lr-ponnistus { animation: lr-ponnistus .6s .12s cubic-bezier(.2,.7,.4,1) forwards; }
+#loading.out #lr-ponnistus { animation: lr-ponnistus .6s .2s cubic-bezier(.2,.7,.4,1) forwards; }
 @keyframes lr-ponnistus {
   0%   { opacity: 0; transform: translate3d(0,0,0) scale(.4); }
   25%  { opacity: .9; }
@@ -4530,6 +4550,14 @@ public/icon-maskable-512.png 512px 140643 B
               </g>
               <g style="fill:var(--lr-puku)"><ellipse cx="129.4" cy="205.6" rx="6.4" ry="2.2"/><ellipse cx="164.4" cy="205.6" rx="6.4" ry="2.2"/></g>
             </svg></div>
+            <!-- KANSI NÄKYY KUN LAUTA KALLISTUU KAMERAA KOHTI (kaarto):
+                 kannen pinta avautuu kyljen yläpuolelle (`scaleY` kannen
+                 reunasta), jalat seisovat sen päällä. Levossa litteä. -->
+            <div id="lr-kansi"><svg viewBox="0 0 300 300">
+              <path d="M97.6 207.2C118 201.4 180 200.2 210 204.4C200 207 180 207.6 150 207.6C130 207.6 110 207.6 97.6 207.2Z" style="fill:var(--lr-lauta-yla)"/>
+              <path d="M104 206.2C130 203.4 176 202.6 204 204.8" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width=".8" stroke-linecap="round"/>
+              <path d="M112 205.4C140 203.8 170 203.6 196 204.6" fill="none" stroke="#000" stroke-opacity=".22" stroke-width="3.4" stroke-dasharray="14 3"/>
+            </svg></div>
             <!-- Jalat: musta märkäpuku. Yöllä kuunvalon reunavalo
                  (`--lr-reuna`) samasta muodosta siirrettynä oikealle ylös,
                  puku päällä — muuten musta hahmo katoaisi yötaivaaseen. -->
@@ -4632,31 +4660,64 @@ public/icon-maskable-512.png 512px 140643 B
               <svg viewBox="0 0 300 300">
                 <path d="M134.4 116.4L141 118.2L141.4 123.4L135.4 124Z" style="fill:var(--lr-iho)"/>
                 <path d="M134.4 121.2C136.6 122.4 139.4 122.8 141.8 122.2L142.4 125.4L134.4 126Z" style="fill:var(--lr-puku)"/>
-                <path d="M129.4 128.2C128.8 125.2 130.8 122.6 134 121.8L147.6 119.8C151.6 119.8 154.6 122.6 155.2 126.8C156.4 136 158 146 158.8 154.4C159 157.4 157.4 159.6 154.4 160.4C150.6 161.4 146.6 161.6 142.8 161C140.4 160.6 138.8 159 138 156.8C134.8 147.6 131.4 138 129.4 128.2Z" style="fill:var(--lr-liivi)"/>
-                <g fill="none" stroke="#fff" stroke-opacity=".1" stroke-width=".9" stroke-linecap="round">
-                  <path d="M132 133.4C139 132 146.6 131.2 154.6 131.2M133.6 140.2C140.6 139 148.4 138.4 156 138.6M135.8 147C142.6 146 150 145.6 157.2 146M138 153.4C144.6 152.8 151 152.8 158 153.4"/>
+                <defs>
+                  <linearGradient id="lr-liivi-sav" gradientUnits="userSpaceOnUse" x1="129" y1="0" x2="159" y2="0">
+                    <stop offset="0" stop-color="#0B0D11"/><stop offset=".62" stop-color="#1A1E26"/><stop offset=".86" stop-color="#262B35"/><stop offset="1" stop-color="#14171D"/>
+                  </linearGradient>
+                  <clipPath id="lr-liivi-leike"><path d="M129.4 128.2C128.8 125.2 130.8 122.6 134 121.8L147.6 119.8C151.6 119.8 154.6 122.6 155.2 126.8C156.4 136 158 146 158.8 154.4C159 157.4 157.4 159.6 154.4 160.4C150.6 161.4 146.6 161.6 142.8 161C140.4 160.6 138.8 159 138 156.8C134.8 147.6 131.4 138 129.4 128.2Z"/></clipPath>
+                </defs>
+                <!-- IMPACT VEST: vaahtopaneelit vaakasegmentteinä (sauma =
+                     tumma ura + valoreuna alla), sivusauma, etuvetoketju
+                     vetimineen, kädenteiden kanttaus josta märkäpuvun olkapää
+                     näkyy, vyötärön resori ja rinnassa FoilSpotin merkki. -->
+                <path d="M129.4 128.2C128.8 125.2 130.8 122.6 134 121.8L147.6 119.8C151.6 119.8 154.6 122.6 155.2 126.8C156.4 136 158 146 158.8 154.4C159 157.4 157.4 159.6 154.4 160.4C150.6 161.4 146.6 161.6 142.8 161C140.4 160.6 138.8 159 138 156.8C134.8 147.6 131.4 138 129.4 128.2Z" fill="url(#lr-liivi-sav)"/>
+                <g clip-path="url(#lr-liivi-leike)">
+                  <g fill="none" stroke-linecap="round">
+                    <path d="M130.6 132.8C138.6 131.2 147 130.6 156 130.8M132.4 139.6C140.4 138.2 148.6 137.8 156.8 138M134.4 146.4C142 145.4 149.6 145 157.6 145.4M136.6 153C143.6 152.2 150.6 152.2 158.2 152.6" stroke="#05060A" stroke-width="1.3"/>
+                    <path d="M130.8 134C138.8 132.4 147 131.8 156 132M132.6 140.8C140.6 139.4 148.6 139 156.8 139.2M134.6 147.6C142.2 146.6 149.6 146.2 157.6 146.6M136.8 154.2C143.8 153.4 150.6 153.4 158.2 153.8" stroke="#fff" stroke-opacity=".09" stroke-width=".7"/>
+                  </g>
+                  <path d="M138.4 125.6C138 136 139.2 148 142.6 161" fill="none" stroke="#05060A" stroke-width=".9"/>
+                  <path d="M139.2 125.6C138.8 136 140 148 143.4 161" fill="none" stroke="#fff" stroke-opacity=".06" stroke-width=".6"/>
+                  <path d="M137.6 157.4C142.6 158.8 149.6 158.8 158.6 156.6L159.4 162H137Z" fill="#07080B"/>
+                  <path d="M137.8 157.6C142.8 159 149.8 159 158.6 156.8" fill="none" stroke="#fff" stroke-opacity=".1" stroke-width=".5"/>
+                  <path d="M152.4 121.4C153.4 132 155.4 144 158 157.4" fill="none" stroke="#05060A" stroke-width="1.8"/>
+                  <path d="M152.4 121.4C153.4 132 155.4 144 158 157.4" fill="none" stroke="#5C6472" stroke-width=".7" stroke-dasharray=".45 .45"/>
+                  <path d="M153.8 121.8C154.8 130 156.2 138 157.6 146" fill="none" stroke="#fff" stroke-opacity=".16" stroke-width="1.2" stroke-linecap="round"/>
                 </g>
-                <path d="M152 121.6C153 132 155 144 157.6 157.8" fill="none" stroke="#000" stroke-opacity=".5" stroke-width="1"/>
-                <path d="M146.6 121C150.4 122 153.8 124.8 155 128.6" fill="none" stroke="#fff" stroke-opacity=".18" stroke-width="1.4" stroke-linecap="round"/>
+                <rect x="151.3" y="123.2" width="1.6" height="3" rx=".5" fill="#8C95A2" transform="rotate(-6 152.1 124.7)"/>
+                <path d="M143.2 121.2C146.6 121 149.8 122.6 151.2 125.4C150 128.6 147.8 130.6 145 131.4C145.6 128 145 124.2 143.2 121.2Z" style="fill:var(--lr-puku)"/>
+                <path d="M143.2 121.2C145 124.2 145.6 128 145 131.4C147.8 130.6 150 128.6 151.2 125.4" fill="none" stroke="#2E3440" stroke-width=".9" stroke-linejoin="round"/>
+                <path d="M146.4 122.4C148 123 149.2 124 149.8 125.2" fill="none" style="stroke:var(--lr-kiilto)" stroke-width=".7" stroke-linecap="round"/>
+                <path transform="translate(143.4 131.8) scale(.024) translate(-139 -117)" d="M141.06 413.84C139.82 339.08 167.85 283.02 217.69 242.52C273.75 195.8 342.28 164.65 372.18 117.93C367.2 195.8 336.05 283.02 289.33 352.79C281.23 332.85 267.52 320.4 255.07 315.41L299.92 281.77C261.3 295.48 230.15 307.94 211.46 328.49C227.03 328.49 239.49 331.61 243.85 335.97C236.38 364 174.08 376.46 141.06 413.84Z" fill="#F0E7CE" fill-opacity=".85"/>
                 <path d="M133 121.8C135.8 120.6 140.4 120 144.8 120.2C143.4 121.6 141 122.6 138.2 123" style="fill:var(--lr-liivi)" stroke="#000" stroke-opacity=".4" stroke-width=".6"/>
                 <path d="M129.6 105C128.4 108 128.6 112 130.6 115.4L133.4 114.4C132.4 111 132.6 107.6 133.8 105.2Z" style="fill:var(--lr-tukka)"/>
-                <path d="M131 116.4C129.4 114 128.8 110.6 129.4 107.4C130.2 102.8 133.6 100.4 137.2 100.4C141 100.4 143.6 102.8 144 106C144.2 107 144 107.6 144.4 108.2L146.4 111C146.6 111.5 146.2 112 145.6 112L144.8 112.2C145.2 112.8 145.2 113.2 144.9 113.5C145.2 113.9 145 114.4 144.6 114.6C144.8 115.6 144.4 116.6 143.6 117.2C142 118.2 139.6 118.4 137.4 117.8C135.4 117.4 133 117.2 131 116.4Z" style="fill:var(--lr-iho)"/>
-                <path d="M143.2 111.4C143.4 112.4 143.9 113 144.6 113.2" fill="none" stroke="#7A4A2E" stroke-opacity=".22" stroke-width=".45" stroke-linecap="round"/>
+                <!-- KASVOT: surffarin profiili — otsaluu ja kulmakaari, suora
+                     nenä, vahva leuka ja leukaperä, päivettynyt nenänselkä ja
+                     posket, sängen varjo leualla ja ylähuulella, siristävä
+                     silmä naururyppyineen, auringon vaalentama kulmakarva ja
+                     pulisonki. -->
+                <path d="M131 116.6C129.4 114 128.8 110.6 129.4 107.4C130.2 102.8 133.6 100.4 137.2 100.4C141 100.4 143.6 102.6 144.1 105.6C144.2 106.6 144.4 107.2 144.1 107.8C144.4 108.6 145.2 109.8 146 110.6C146.6 111.2 146.6 111.8 146 112C145.6 112.2 145.2 112.1 144.9 112.3C145.2 112.8 145.3 113.2 145 113.5C145.2 113.8 145.1 114.2 144.8 114.4C144.6 114.7 144.7 115.1 145 115.5C145.2 116.4 144.8 117.2 143.8 117.7C142 118.4 139.6 118.6 137.4 118C135.4 117.6 133 117.4 131 116.6Z" style="fill:var(--lr-iho)"/>
                 <path d="M133.4 106C133 110 134 114.6 137 117.6C138.2 118.4 139.6 118.6 141 118.2C138.4 117 136.6 114.6 135.8 111.6C135.2 109.6 135 107.6 135.4 106Z" fill="#7A4A2E" fill-opacity=".2"/>
-                <ellipse cx="140.4" cy="112.4" rx="1.8" ry="1.3" fill="#C8705A" fill-opacity=".12"/>
-                <path d="M139.6 107.4C140.6 107 141.4 107.8 141.4 108.8" fill="none" stroke="#7A4A2E" stroke-opacity=".3" stroke-width=".6" stroke-linecap="round"/>
-                <path d="M141 108.3C141.7 107.6 142.9 107.5 143.6 108.1C142.9 108.8 141.7 108.9 141 108.3Z" fill="#F4EEE8"/>
-                <circle cx="142.7" cy="108.2" r=".55" fill="#3B5A74"/>
-                <circle cx="142.8" cy="108.2" r=".25" fill="#0D0F12"/>
-                <circle cx="142.95" cy="108" r=".14" fill="#fff"/>
-                <path d="M140.9 108.2C141.6 107.3 143 107.2 143.8 108" fill="none" stroke="#2A1C14" stroke-width=".55" stroke-linecap="round"/>
-                <path d="M141.3 108.9C142 109.2 142.8 109.2 143.4 108.8" fill="none" stroke="#7A4A2E" stroke-opacity=".35" stroke-width=".35" stroke-linecap="round"/>
-                <path d="M140.2 106.8C141.2 105.9 142.8 105.7 144.2 106.3C143 106.2 141.6 106.4 140.6 107.1Z" fill="#4A3020" stroke="#4A3020" stroke-width=".5" stroke-linejoin="round"/>
-                <path d="M144.7 111.9C145 112.1 145.4 112 145.5 111.7" fill="none" stroke="#6A3A28" stroke-opacity=".6" stroke-width=".4" stroke-linecap="round"/>
-                <path d="M143.3 113.4C143.9 113.1 144.5 113.2 145 113.5C144.4 113.8 143.8 113.8 143.3 113.4Z" fill="#9A5E50" fill-opacity=".6"/>
-                <path d="M143.5 113.8C144 114.3 144.5 114.3 144.8 113.9" fill="none" stroke="#B57A68" stroke-opacity=".6" stroke-width=".45" stroke-linecap="round"/>
-                <path d="M143.9 115.2C144.3 115.6 144.5 116 144.4 116.5" fill="none" stroke="#7A4A2E" stroke-opacity=".3" stroke-width=".4" stroke-linecap="round"/>
-                <ellipse cx="141.4" cy="111" rx="1.2" ry=".8" fill="#fff" fill-opacity=".12"/>
+                <path d="M137 117.9C139.6 118.6 142 118.4 143.8 117.7C144.8 117.2 145.2 116.4 145 115.5C144.7 115.1 144.6 114.7 144.8 114.4L143.6 114.3C142.8 115.3 141.4 116 139.8 116.1C138.4 116.2 137.2 115.8 136.2 115.1Z" fill="#3E2A1C" fill-opacity=".24"/>
+                <path d="M144.9 112.3C144.3 112.4 143.6 112.7 143.2 113.1L145 113.3Z" fill="#3E2A1C" fill-opacity=".22"/>
+                <ellipse cx="145.2" cy="110.6" rx="1.1" ry=".8" fill="#D2765E" fill-opacity=".28"/>
+                <ellipse cx="140.8" cy="111.6" rx="2" ry="1.3" fill="#C8705A" fill-opacity=".16"/>
+                <path d="M144.1 107.8C143.6 107.4 142.6 107.3 141.8 107.5" fill="none" stroke="#7A4A2E" stroke-opacity=".3" stroke-width=".4" stroke-linecap="round"/>
+                <path d="M143.3 111C143.3 112.2 143.8 113.2 144.5 113.5" fill="none" stroke="#7A4A2E" stroke-opacity=".3" stroke-width=".45" stroke-linecap="round"/>
+                <path d="M141.2 108.5C141.9 108 142.9 107.9 143.6 108.3C142.9 108.8 141.9 108.9 141.2 108.5Z" fill="#F1EAE2"/>
+                <circle cx="142.75" cy="108.4" r=".45" fill="#35607E"/>
+                <circle cx="142.8" cy="108.4" r=".2" fill="#0D0F12"/>
+                <path d="M141 108.4C141.7 107.7 142.9 107.6 143.8 108.1" fill="none" stroke="#2A1C14" stroke-width=".6" stroke-linecap="round"/>
+                <path d="M141.4 108.9C142.1 109.2 142.9 109.1 143.4 108.8" fill="none" stroke="#7A4A2E" stroke-opacity=".4" stroke-width=".35" stroke-linecap="round"/>
+                <path d="M140.8 108.2L139.9 107.9M140.8 108.6L139.8 108.8M141 109L140.2 109.5" fill="none" stroke="#7A4A2E" stroke-opacity=".35" stroke-width=".3" stroke-linecap="round"/>
+                <path d="M140.4 107C141.4 106.2 142.9 106 144.3 106.6C143 106.5 141.6 106.7 140.7 107.3Z" fill="#8A6440" stroke="#8A6440" stroke-width=".55" stroke-linejoin="round"/>
+                <path d="M144.8 112.1C145.1 112.3 145.5 112.2 145.6 111.9" fill="none" stroke="#6A3A28" stroke-opacity=".6" stroke-width=".4" stroke-linecap="round"/>
+                <path d="M143.4 113.5C144 113.25 144.6 113.3 145 113.55C144.5 113.8 143.9 113.85 143.4 113.5Z" fill="#8E5A4C" fill-opacity=".55"/>
+                <path d="M143.3 113.5C143.1 113.7 142.9 113.7 142.7 113.6" fill="none" stroke="#7A4A2E" stroke-opacity=".45" stroke-width=".35" stroke-linecap="round"/>
+                <path d="M143.6 113.9C144.1 114.3 144.5 114.3 144.8 114" fill="none" stroke="#B57A68" stroke-opacity=".5" stroke-width=".4" stroke-linecap="round"/>
+                <path d="M144.6 115.6C144.8 116.1 144.7 116.6 144.4 117" fill="none" stroke="#7A4A2E" stroke-opacity=".28" stroke-width=".4" stroke-linecap="round"/>
+                <ellipse cx="141.6" cy="110.6" rx="1.1" ry=".7" fill="#fff" fill-opacity=".12"/>
+                <path d="M133.6 105.4C133.4 107 133.6 108.4 134.2 109.4L135 109.2C134.6 108 134.6 106.8 134.8 105.4Z" style="fill:var(--lr-tukka)"/>
                 <path d="M135.4 108.8C133.8 108.8 133.2 111.6 134.8 112.6C135.6 112.2 135.8 111.4 135.4 110.6" fill="#D9A983" stroke="#8A5A40" stroke-opacity=".6" stroke-width=".6"/>
                 <path d="M133.4 106C133 110 134 114.6 137 117.6C138.2 118.4 139.6 118.6 141 118.2" fill="none" stroke="#0B0D12" stroke-width="1" stroke-linecap="round"/>
                 <path d="M130 104.6C130 99.6 133.4 97.4 137.2 97.4C141 97.4 144.4 99.6 144.4 104.6Z" style="fill:var(--lr-kypara)"/>
@@ -4734,15 +4795,13 @@ public/icon-maskable-512.png 512px 140643 B
   var siemen = 11;
   function sat() { siemen = (siemen * 16807) % 2147483647; return (siemen - 1) / 2147483646; }
 
-  /* Rampin ankkurit nopeuksittain, tools/ikoni.mjs:stä (`data-tuuli`). */
-  var tuuli = lahde.getAttribute('data-tuuli').split(',').map(function (s) {
-    var p = s.split(' '); return { ms: +p[0], c: p[1] };
-  });
-  function vari(ms) {
-    var c = tuuli[0].c;
-    for (var i = 0; i < tuuli.length; i++) if (tuuli[i].ms <= ms + 1e-6) c = tuuli[i].c;
-    return c;
-  }
+  /* TUULIJUOVAT OVAT LOGON PAPERIA, HIEMAN LÄPIKUULTAVINA (käyttäjän
+     päätös 28.9.). Ne olivat rampin värisiä arkin nopeuden mukaan, mutta
+     ruudulla ne lukivat värikkäänä kohinana merkin ja kuskin ympärillä.
+     Nopeus näkyy yhä vauhdissa, pituudessa ja paksuudessa; alfa on
+     juovan oma kerrottuna `JUOVA_ALFA`lla. (`data-tuuli` jää
+     `tools/ikoni.mjs`:n tulosteeseen, mutta sitä ei enää lueta.) */
+  var JUOVA_VARI = '#F0E7CE', JUOVA_ALFA = 0.62;
 
   /* -- ARKIT. Jokainen liikkuva kerros on YKSI animoitu elementti, jonka
    *    sisältö (juovat, aallot) on staattista. Kompositorissa pyöriminen
@@ -4766,12 +4825,12 @@ public/icon-maskable-512.png 512px 140643 B
     el.style.animationDelay = viive.toFixed(2) + 's';
   }
   function juovat(kohde, ms, kpl, T, yMin, yMax, pit0, paks, alfa0, alfaV, kopioita) {
-    var c = vari(ms), html = '';
+    var c = JUOVA_VARI, html = '';
     for (var i = 0; i < kpl; i++) {
       var pit = Math.round(pit0 * (0.7 + sat() * 0.6));
       var x = Math.round(sat() * Math.max(0, T - pit));
       var y = (yMin + (yMax - yMin) * (i + 0.15 + sat() * 0.7) / kpl).toFixed(2);
-      var a = (alfa0 + sat() * alfaV).toFixed(2);
+      var a = ((alfa0 + sat() * alfaV) * JUOVA_ALFA).toFixed(2);
       for (var kk = 0; kk < kopioita; kk++) {
         html += '<i class="lr-v" style="left:' + (x + kk * T) + 'px;top:' + y + '%;width:' + pit
               + 'px;height:' + paks + 'px;opacity:' + a + ';--c:' + c + '"></i>';
