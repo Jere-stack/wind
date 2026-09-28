@@ -130,14 +130,17 @@ päätöksensä, ei osa PWA-vaihetta.
 
 ### Ikoni syntyy koodista, ei kuvankäsittelystä
 
-`tools/ikoni.mjs` on merkin ainoa lähde. Se kirjoittaa `public/icon.svg`:n
-ja `--png`-lipulla koko PNG-sarjan; `--inline` tulostaa latausruudun
-merkkilähteen (`#lr-merkki-lahde`): kaari rampin värisenä `<symbol>`ina,
-piirtymisen geometria (`data-keski`, `data-alku`, `data-pyyhk`) ja
-tuulijuovien värit nopeuksittain (`data-tuuli`). Merkin muoto, mitat ja
-väriramppi ovat siis yhdessä tiedostossa, ja index.html:ään upotettu
-versio on sama asu kuin kotivalikon ikonissa, koska latausruutukin on
-nyt karttamaailmaa (ks. `docs/ui.md`, "Latausruutu liikegrafiikaksi").
+`tools/ikoni.mjs` on merkin ainoa lähde. Merkki on wingfoil-siipi
+ylhäältä (paperia) ja sen alla kaksi tuulijuovaa rampin 5 m/s -sävyssä
+tummalla merellä, ks. `docs/ui.md`, "Uusi merkki: siipi ja tuuli".
+Generaattori kirjoittaa `public/icon.svg`:n ja `--png`-lipulla koko
+PNG-sarjan; `--inline` tulostaa latausruudun merkkilähteen
+(`#lr-merkki-lahde`): siipi ja juovat `<symbol>`eina (`lm-siipi`,
+`lm-juova1`, `lm-juova2`), avautumisen geometria (`data-keski`,
+`data-alku`, `data-pyyhk`, `data-r`) ja kohtauksen tuulijuovien värit
+nopeuksittain (`data-tuuli`). Merkin muoto, mitat ja värit ovat siis
+yhdessä tiedostossa, ja index.html:ään upotettu versio on sama
+sommitelma kuin kotivalikon ikoni.
 Upotettu lähde on yksi rivi: vaihda se kokonaan tulosteella, älä
 muokkaa käsin.
 
@@ -145,7 +148,12 @@ Rasterointi tehdään Chromiumilla:
 
 ```bash
 node tools/ikoni.mjs --png     # vaatii playwright-coren ja Chromiumin
+# ilman node_modulesia kontin globaalilla Playwrightilla:
+PLAYWRIGHT_MODULE=/opt/node22/lib/node_modules/playwright/index.js node tools/ikoni.mjs --png
 ```
+
+**iOS kopioi `apple-touch-icon`in kotivalikkoon lisättäessä**: jo lisätty
+sovellus pitää vanhan ikonin, kunnes se poistetaan ja lisätään uudelleen.
 
 Kontissa ei ole muuta rasteroijaa (ei ImageMagickia, ei rsvg-convertia,
 ei cairosvg:tä), eikä projektiin oteta riippuvuutta yhden staattisen
@@ -162,8 +170,8 @@ Android leikkaa `purpose: "maskable"` -ikonista ympyrän jonka halkaisija
 on 80 % sivusta. Sama tiedosto ei voi olla molempia: täyteen asti
 ulottuva merkki menettäisi päänsä maskissa, ja maskin turvamitoille
 tehty merkki kelluisi pikkuruisena kotivalikossa. Generaattori tekee
-kaksi eri kokoa samasta muodosta (`OSUUS_TAYSI` 0,76 ja
-`OSUUS_MASKATTU` 0,58).
+kaksi eri kokoa samasta muodosta (`OSUUS` 0,72 siivelle ja
+`MASKI_SKAALA` 0,8 koko sommitelmalle).
 
 Ikoneissa ei ole läpinäkyvyyttä eikä pyöristettyjä kulmia: iOS ja Android
 tekevät maskin itse, ja valmiiksi pyöristetty kulma näkyy maskin sisällä

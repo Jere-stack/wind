@@ -1,35 +1,34 @@
-/* FoilSpotin merkki — yksi muoto, kaksi asua.
+/* FoilSpotin merkki — yksi muoto, sama asu kotivalikossa ja latausruudulla.
  *
- * Merkki on PUUSKA: kapeasta tyvestä leveäksi paisuva kaari, joka kiertää
- * 270 astetta ja kaartuu lopussa sisään. Kapea pää on tyyni, leveä pää on
- * myrsky — sama järjestys kuin lämpökartalla.
+ * Merkki on SIIPI YLHÄÄLTÄ PÄIN ja sen alla TUULI. Siipi on wingfoilin
+ * oma tunnistettava muoto kolmena osana: täyttöputki (etureuna, kapea
+ * kärjistä ja paksu keskeltä), keskituki ja kangas niiden välissä.
+ * Tuuli on kaksi juovaa, jotka ovat sama muoto kuin kartan partikkelin
+ * jälki ja latausruudun tuulijuova: pää vasemmalla, häntä häipyy.
+ * (Edellinen merkki oli 270°:n ramppikaari, "puuska" — se luki
+ * latausrinkulana ja kantoi koko rampin, eli seitsemän kylläistä sävyä
+ * ikonissa jonka piti olla hillitty. Ks. docs/ui.md, "Uusi merkki:
+ * siipi ja tuuli".)
  *
- * ASU SEURAA MAAILMAA, EI TIEDOSTOA. Sovelluksessa on sama jako kuin
- * väreillä muutenkin (`ColorRamp.rgb()` kartalle, `ink()` paneeleihin):
+ * VÄRI ON NOPEUS MYÖS MERKISSÄ. Kaikki mikä ei ole tuulta on paperia
+ * (`#F0E7CE`), ja juovan sävy on rampin ankkuri SILLÄ nopeudella
+ * (`JUOVA_MS`, 5 m/s -> syaani), kuten latausruudun juovilla ja
+ * kartalla. Yksi sävy, ei ramppia: merkki sanoo "tuulta", ei asteikkoa.
  *
- *   - KOTIVALIKON IKONI on karttamaailmaa. Pohja on meren tummaa ja kaari
- *     kantaa `RAMP_KARTTA`n sellaisenaan. Se on ainoa pohja jolla ramppi
- *     lukee: paperilla sen keskivaihe (limetti, keltainen) on kermaa
- *     vasten lähes näkymätön, mitattuna kontrasti 1,15:1.
- *   - LATAUSRUUTU on samaa karttamaailmaa: tumma meri, jonka yllä
- *     kulkee tuulta, ja merkki piirtyy siihen rampin värisenä — eli
- *     kotivalikon ikoni jatkuu latausruutuna ja latausruutu kartaksi
- *     ilman yhtään vaaleaa välähdystä. Se oli ennen paperia ja merkki
- *     yksiväristä mustetta; jos merkki joskus tarvitaan paperille, se on
- *     SAMA ääriviiva `fill="currentColor"`-täytöllä, ei ramppi (rampin
- *     keskivaihe katoaa kermaan, ks. alla).
+ * POHJA ON MERI. Paperi merkin pohjana on mitattu ja kaatunut rampin
+ * takia (1,06:1), ja nyt pohja on sama tumma meri kuin latausruudun
+ * ylälaita ja kartan `--bg`: ikoni -> latausruutu -> kartta on yksi
+ * pohja ilman kirkkaushyppyä.
  *
- * Ääriviiva on yksi polku, ja ramppi maalataan sen SISÄÄN sektoreina
- * (`clipPath`). Niin jokainen asu on pikselilleen sama muoto — kaksi
- * erikseen laskettua reunaa ajautuisi erilleen ensimmäisellä
- * hienosäädöllä.
+ * Kaikki osat lasketaan YHDESTÄ geometriasta (`siipi`), joten ikoni ja
+ * latausruudun merkki ovat pikselilleen sama muoto.
  *
  * Ajo:
- *   node tools/ikoni.mjs         -> public/icon.svg
- *   node tools/ikoni.mjs --png   -> myös PNG-sarja (Chromium, ks. docs/pwa.md)
- *   node tools/ikoni.mjs --inline-> latausruudun merkkilähde vakiovirtaan
- *                                   (symboli, piirtymisen geometria ja
- *                                   tuulijuovien värit, ks. latausMerkki)
+ *   node tools/ikoni.mjs          -> public/icon.svg
+ *   node tools/ikoni.mjs --png    -> myös PNG-sarja (Chromium, ks. docs/pwa.md)
+ *   node tools/ikoni.mjs --inline -> latausruudun merkkilähde vakiovirtaan
+ *                                    (symbolit, avautumisen geometria ja
+ *                                    tuulijuovien värit, ks. latausMerkki)
  */
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -38,8 +37,8 @@ import { fileURLToPath } from 'node:url';
 const JUURI = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /* Kartan tuuliramppi. Sama taulukko kuin index.html:n RAMP_KARTTA —
-   merkki EI saa keksiä omia sävyjä, koska sen koko idea on olla se
-   asteikko jota sovellus piirtää. */
+   merkki ja latausruudun juovat EIVÄT saa keksiä omia sävyjä, koska
+   niiden väri on nopeus. */
 const RAMPPI = [
   [0.000,  12,  30, 120], [0.050,  12,  62, 190], [0.100,   0, 100, 245],
   [0.160,   0, 140, 255], [0.220,   0, 175, 250], [0.290,   0, 205, 220],
@@ -63,176 +62,217 @@ function ramppiVari(t) {
   return '#ff55eb';
 }
 
+/* Latausruudun tuulijuovien nopeudet ja rampin t (sama kuin index.html:n
+   `msToT`). Juova joka kulkee nopeammin on kuumempi. Väli 5-13 m/s on
+   foilattava keli — magentaa (20 m/s) ei ruudulla ole. */
+const TUULI = [[5, 0.290], [6, 0.360], [7, 0.430], [8, 0.500],
+               [9, 0.575], [10, 0.650], [11.5, 0.715], [13, 0.780]];
+/* Merkin juova on hitaimman latausruudun juovan värinen: viilein sävy
+   jonka ramppi foilattavalla välillä antaa, ja tummalla merellä kirkas
+   (syaani 9,65:1 ikonin pohjaa vasten). */
+const JUOVA_T = 0.290;
+
+const PAPERI   = '#F0E7CE';
+const MERI_YLA = '#15213B';   /* ikonin yläreuna: taivaanrannan sävy    */
+const MERI_KES = '#0A1122';
+const MERI_ALA = '#04070E';   /* = latausruudun --lr-syva                */
+const HEHKU    = '#96B9EB';   /* = latausruudun taivaanrannan kylmä hehku */
+
 /* ------------------------------------------------------------------
-   Geometria.
+   Geometria. Paikallinen kehys: etureunan ympyrän keskipiste origossa,
+   y ylös. Siipi on ympyrän yläosa, ja koko kuvio kallistetaan
+   (`KALLISTUS`), jotta se lentää eikä seiso.
 
-   Kaari alkaa kello yhdeksältä hieman keskilinjan alapuolelta, kiertää
-   myötäpäivään ylitse ja päättyy alas kaartuvaan koukkuun. Aukko jää
-   alavasemmalle. Umpinainen rengas lukisi kehyksenä tai latausrinkulana;
-   aukko ja koukku tekevät siitä liikkeen.
+   Etureunan leveys on sin^0,55 kärjestä kärkeen: suora sini jättää
+   kärjet neulanohuiksi pitkältä matkalta, ja potenssi pitää putken
+   pullean kuten täytetty putki on. Kärjissä on pyöreä päätykorkki.
 
-   Leveys kasvaa POTENSSILLA 0,62 eikä lineaarisesti: lineaarinen jättää
-   kapean pään näkymättömän ohueksi koko alkumatkalle, vaikka kaaren pitää
-   lukea viivana heti ensimmäisestä asteesta.
+   Jättöreuna on kaksi koveraa kaarta kärjestä tuen päähän — sama
+   kuvio kuin oikeassa siivessä, jossa kangas kiristyy tuen ja kärjen
+   väliin. Suora jättöreuna luki sateenvarjona (kokeiltu).
    ------------------------------------------------------------------ */
-const K       = 512;   /* piirtoruudukko                           */
-const SADE    = 150;   /* kaaren keskiviivan säde ennen sovitusta   */
-const LEV_0   = 9;     /* kapean pään leveys                        */
-const LEV_1   = 72;    /* leveän pään leveys                        */
-const A_ALKU  = 160;   /* asteina; 0 = kello kolme, kasvaa myötäpäivään */
-const A_PYYHK = 270;
-/* Ääriviivan pisteitä reunaa kohti. 64 on mitattu riittäväksi: yhden
-   jänteen poikkeama kaaresta on 512 px:n ruudukolla 0,13 px, eli alle
-   puolen pikselin myös kolminkertaisella laitteella. Tiheämpi vain
-   lihottaa index.html:ään upotettua merkkiä. */
-const NAYTE   = 64;
+const K         = 512;
+const SADE      = 300;   /* etureunan keskiviivan säde                 */
+const PUOLIKULMA = 55;   /* astetta keskeltä kumpaankin kärkeen         */
+const LEV_MAX   = 54;    /* etureunan leveys keskellä                   */
+const LEV_KARKI = 7;     /* etureunan leveys kärjessä                   */
+const TUKI_PAA  = 95;    /* tuen pää (y), eli kankaan syvyys keskellä   */
+const KOVERUUS  = 10;    /* jättöreunan kaaren kovera nousu             */
+const KALLISTUS = 20;    /* astetta myötäpäivään: siipi lentää ylös oikealle */
+const NAYTE     = 64;    /* ääriviivan pisteitä reunaa kohti            */
 
-/* Merkin osuus sivusta. Kotivalikon ikoni saa olla täyteen asti;
-   maskattava ei, koska Android leikkaa siitä 80 %:n ympyrän. */
-const OSUUS_TAYSI    = 0.76;
-const OSUUS_MASKATTU = 0.58;
+/* Sommitelma. Siipi yläpuolella, juovat alla; ryhmän optinen keskipiste
+   on hieman keskikohdan alapuolella, koska siipi on raskas yläosastaan. */
+const OSUUS     = 0.72;  /* siiven pitempi sivu sivusta                 */
+const SIIPI_DY  = -30;   /* siiven siirto ylös (ruudukon pikseleinä)    */
+/* Juovat: [x0, x1, y] sivun osuuksina, paksuus ja peittävyys. */
+const JUOVAT = [
+  [0.10, 0.60, 0.755, 14, 1],
+  [0.50, 0.82, 0.815,  8, 0.5],
+];
+/* Maskattava ikoni: Android leikkaa 80 %:n ympyrän, joten koko
+   sommitelma pienennetään sen sisään. */
+const MASKI_SKAALA = 0.8;
 
 const rad = a => (a * Math.PI) / 180;
 const p2  = n => Math.round(n * 100) / 100;
 
-const levAt = t => LEV_0 + (LEV_1 - LEV_0) * Math.pow(t, 0.62);
-const keskiPiste = t => {
-  const a = rad(A_ALKU + A_PYYHK * t);
-  return [SADE * Math.cos(a), SADE * Math.sin(a)];
-};
-const reuna = (t, puoli) => {
-  const a = rad(A_ALKU + A_PYYHK * t);
-  const r = SADE + (puoli * levAt(t)) / 2;
-  return [r * Math.cos(a), r * Math.sin(a)];
-};
-
-/* Ääriviiva keskitettynä origoon ja skaalattuna niin että sen PITEMPI
-   sivu on `osuus` ruudukon sivusta. Keskitys tehdään rajauslaatikosta
-   eikä ympyrän keskipisteestä: kaari ei ole symmetrinen, joten
-   geometrinen keskipiste jättäisi merkin ylös ja vasemmalle. */
-function aariviiva(osuus) {
+function siipi() {
+  const kulma = t => rad(90 + PUOLIKULMA - 2 * PUOLIKULMA * t);  /* vasen -> oikea */
+  const lev = t => LEV_KARKI + (LEV_MAX - LEV_KARKI) * Math.pow(Math.sin(Math.PI * t), 0.55);
+  const piste = (t, puoli) => {
+    const a = kulma(t), r = SADE + (puoli * lev(t)) / 2;
+    return [r * Math.cos(a), r * Math.sin(a)];
+  };
   const ulko = [], sisa = [];
-  for (let i = 0; i <= NAYTE; i++) {
-    const t = i / NAYTE;
-    ulko.push(reuna(t, +1));
-    sisa.push(reuna(t, -1));
-  }
-  const kaikki = ulko.concat(sisa);
+  for (let i = 0; i <= NAYTE; i++) { ulko.push(piste(i / NAYTE, +1)); sisa.push(piste(i / NAYTE, -1)); }
+  const tuki = [0, TUKI_PAA];
+  const kovera = p => [(p[0] + tuki[0]) / 2, (p[1] + tuki[1]) / 2 + KOVERUUS];
+  const ohjV = kovera(sisa[0]), ohjO = kovera(sisa[NAYTE]);
+
+  /* Kierto + sovitus: siiven rajauslaatikko (ei ympyrän keskipiste)
+     keskitetään, ja pitempi sivu on `OSUUS` ruudukosta. */
+  const kierra = ([x, y]) => {
+    const a = rad(-KALLISTUS);   /* y ylös -> myötäpäivään ruudulla */
+    return [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)];
+  };
+  const kaikki = [...ulko, ...sisa, tuki].map(kierra);
   const xs = kaikki.map(p => p[0]), ys = kaikki.map(p => p[1]);
   const xMin = Math.min(...xs), xMax = Math.max(...xs);
   const yMin = Math.min(...ys), yMax = Math.max(...ys);
-  const s  = (K * osuus) / Math.max(xMax - xMin, yMax - yMin);
-  const dx = K / 2 - ((xMin + xMax) / 2) * s;
-  const dy = K / 2 - ((yMin + yMax) / 2) * s;
-  const M  = ([x, y]) => [p2(x * s + dx), p2(y * s + dy)];
-
-  const r0 = p2((levAt(0) / 2) * s), r1 = p2((levAt(1) / 2) * s);
-  /* Peräkkäiset janat kirjoitetaan YHDEN L:n perään (implisiittinen
-     lineto). Merkki upotetaan index.html:ään, joten jokainen turha
-     kirjain on mukana jokaisessa latauksessa. */
+  const s = (K * OSUUS) / Math.max(xMax - xMin, yMax - yMin);
+  const M = p => {
+    const [x, y] = kierra(p);
+    return [p2(K / 2 + (x - (xMin + xMax) / 2) * s), p2(K / 2 - (y - (yMin + yMax) / 2) * s + SIIPI_DY)];
+  };
   const jono = ps => ps.map(p => M(p).join(' ')).join(' ');
-  let d = 'M' + M(ulko[0]).join(' ')
-        + 'L' + jono(ulko.slice(1))
-        + `A${r1} ${r1} 0 0 1 ` + M(sisa[NAYTE]).join(' ')
-        + 'L' + jono(sisa.slice(0, NAYTE).reverse())
-        + `A${r0} ${r0} 0 0 1 ` + M(ulko[0]).join(' ') + 'Z';
-  return { d, muunna: M, keski: t => M(keskiPiste(t)) };
+  const rK = p2((LEV_KARKI / 2) * s);
+
+  /* Etureuna yhtenä polkuna; peräkkäiset janat yhden L:n perään, koska
+     lähde upotetaan index.html:ään. */
+  const etureuna = 'M' + M(ulko[0]).join(' ') + 'L' + jono(ulko.slice(1))
+    + `A${rK} ${rK} 0 0 1 ` + M(sisa[NAYTE]).join(' ')
+    + 'L' + jono(sisa.slice(0, NAYTE).reverse())
+    + `A${rK} ${rK} 0 0 1 ` + M(ulko[0]).join(' ') + 'Z';
+  const jattoreuna = 'Q' + M(ohjO).join(' ') + ' ' + M(tuki).join(' ')
+    + 'Q' + M(ohjV).join(' ') + ' ' + M(sisa[0]).join(' ');
+  const kangas = 'M' + jono(sisa) + jattoreuna + 'Z';
+  const jatto = 'M' + M(sisa[NAYTE]).join(' ') + jattoreuna;
+
+  /* Tuki: kapeneva, leveämpi putken päässä. Pää upotetaan jättöreunaan
+     suoraan leikkauksena — pyöreä pää jätti nuppineulan pisteen. */
+  const [ax, ay] = M(piste(0.5, -1)), [bx, by] = M(tuki);
+  const L = Math.hypot(bx - ax, by - ay), nx = -(by - ay) / L, ny = (bx - ax) / L;
+  const w0 = 6.5, w1 = 2.5;
+  const tukiD = `M${p2(ax + nx * w0)} ${p2(ay + ny * w0)}L${p2(bx + nx * w1)} ${p2(by + ny * w1)}`
+    + `L${p2(bx - nx * w1)} ${p2(by - ny * w1)}L${p2(ax - nx * w0)} ${p2(ay - ny * w0)}Z`;
+
+  /* Avautumisen geometria: kaikkien osien kulmat etureunan ympyrän
+     keskipisteestä (0 = kello kolme, myötäpäivään) ja kaukaisin etäisyys. */
+  const keski = M([0, 0]);
+  const pisteet = [...ulko, ...sisa, tuki, ohjV, ohjO].map(M);
+  const kulmat = pisteet.map(([x, y]) => (Math.atan2(y - keski[1], x - keski[0]) * 180) / Math.PI);
+  const etaisyys = Math.max(...pisteet.map(([x, y]) => Math.hypot(x - keski[0], y - keski[1])));
+  return {
+    etureuna, kangas, jatto, tuki: tukiD,
+    kankaanAlku: M(piste(0.5, 1)), kankaanLoppu: [bx, by],
+    keski, kulmaMin: Math.min(...kulmat), kulmaMax: Math.max(...kulmat), etaisyys,
+  };
 }
 
-/* Ramppi maalataan ääriviivan sisään sektoreina: kärki ruudukon
-   keskellä, säde ruudukon halkaisijan mittainen. Kulmaväliin jätetään
-   limitys, muuten vierekkäisten sektorien väliin jää alipeitetty
-   pikselirivi.
- *
- * VIUHKA ULOTTUU KAAREN KULMAVÄLIN YLI MOLEMMISTA PÄISTÄ. Pyöreä
- * päätykorkki pullistuu kulmavälin ULKOPUOLELLE, ja ilman ylitystä
- * sitä ei peitä yksikään sektori: korkki jäi meren väriseksi ja
- * leveä pää luki suorana leikkauksena. Ylityksen väri on rampin pää,
- * ei jatkettu ramppi. */
-const YLITYS = 16;   /* astetta kummassakin päässä */
-
-function sektorit(n = 64) {
-  const R = K, cx = K / 2, cy = K / 2;
-  const alku = A_ALKU - YLITYS, pyyhk = A_PYYHK + 2 * YLITYS;
-  const limi = (pyyhk / n) * 0.06;
-  /* t kulman mukaan, rampin päihin kiinnitettynä. */
-  const tAt = a => Math.min(1, Math.max(0, (a - A_ALKU) / A_PYYHK));
-  let out = '';
-  for (let i = 0; i < n; i++) {
-    const d0 = alku + (pyyhk * i) / n, d1 = alku + (pyyhk * (i + 1)) / n;
-    const a0 = rad(d0 - limi), a1 = rad(d1 + limi);
-    const x0 = p2(cx + R * Math.cos(a0)), y0 = p2(cy + R * Math.sin(a0));
-    const x1 = p2(cx + R * Math.cos(a1)), y1 = p2(cy + R * Math.sin(a1));
-    out += `<path d="M${cx} ${cy}L${x0} ${y0}A${R} ${R} 0 0 1 ${x1} ${y1}Z"`
-        +  ` fill="${ramppiVari(tAt((d0 + d1) / 2))}"/>`;
-  }
-  return out;
+function juovaPolku([x0, x1, y, h]) {
+  const X0 = K * x0, X1 = K * x1, Y = K * y, r = h / 2;
+  /* Pää on puoliympyrä, häntä suippenee 1,2 px:iin. */
+  return `M${p2(X0 + r)} ${p2(Y - r)}L${p2(X1)} ${p2(Y - 0.6)}L${p2(X1)} ${p2(Y + 0.6)}`
+    + `L${p2(X0 + r)} ${p2(Y + r)}A${r} ${r} 0 0 1 ${p2(X0 + r)} ${p2(Y - r)}Z`;
 }
 
-/* Meri: sama sävyperhe kuin kartan --bg (#060912), ylhäältä hieman
-   valoisampana jotta ikonilla on muotoa. Ei kiiltoa — iOS lopetti sen
-   vuonna 2013 eikä kukaan ole kaivannut. */
-const MERI_YLA = '#121D35';
-const MERI_ALA = '#05080F';
+/* Värit ja liu'ut. Etureuna on paperia pienellä valon liu'ulla
+   (vasen yläkulma kirkkaampi), jotta täytetty putki saa muodon ilman
+   kiiltoa. Kangas on läpikuultavaa: kirkkain etureunan takana, himmenee
+   jättöreunaa kohti, kuten valo kankaan läpi. */
+function maaritykset(g, etu) {
+  const juova = ramppiVari(JUOVA_T);
+  return `<linearGradient id="${etu}-reuna" x1="0" y1="0" x2="1" y2="1">`
+    + `<stop offset="0" stop-color="#FBF5E4"/><stop offset="1" stop-color="#E4D8B8"/></linearGradient>`
+    + `<linearGradient id="${etu}-kangas" gradientUnits="userSpaceOnUse"`
+    + ` x1="${g.kankaanAlku[0]}" y1="${g.kankaanAlku[1]}" x2="${g.kankaanLoppu[0]}" y2="${g.kankaanLoppu[1]}">`
+    + `<stop offset="0" stop-color="${PAPERI}" stop-opacity=".13"/>`
+    + `<stop offset="1" stop-color="${PAPERI}" stop-opacity=".045"/></linearGradient>`
+    + `<linearGradient id="${etu}-juova" x1="0" y1="0" x2="1" y2="0">`
+    + `<stop offset="0" stop-color="${juova}"/><stop offset=".1" stop-color="${juova}"/>`
+    + `<stop offset=".45" stop-color="${juova}" stop-opacity=".55"/>`
+    + `<stop offset="1" stop-color="${juova}" stop-opacity="0"/></linearGradient>`;
+}
+function siipiOsat(g, etu) {
+  return `<path d="${g.kangas}" fill="url(#${etu}-kangas)"/>`
+    + `<path d="${g.jatto}" fill="none" stroke="${PAPERI}" stroke-opacity=".38" stroke-width="4" stroke-linejoin="round"/>`
+    + `<path d="${g.tuki}" fill="${PAPERI}" fill-opacity=".88"/>`
+    + `<path d="${g.etureuna}" fill="url(#${etu}-reuna)"/>`;
+}
+const juovaOsa = (j, etu) =>
+  `<path d="${juovaPolku(j)}" fill="url(#${etu}-juova)"${j[4] < 1 ? ` opacity="${j[4]}"` : ''}/>`;
 
-/** Kotivalikon ikoni: meri + ramppikaari. */
+/** Kotivalikon ikoni: meri, kylmä hehku, tuuli ja siipi. */
 export function ikoniSvg({ koko = K, maskattu = false } = {}) {
-  const { d } = aariviiva(maskattu ? OSUUS_MASKATTU : OSUUS_TAYSI);
+  const g = siipi();
+  const sisalto = JUOVAT.map(j => juovaOsa(j, 'fs')).join('') + siipiOsat(g, 'fs');
+  const ryhma = maskattu
+    ? `<g transform="translate(${K / 2} ${K / 2}) scale(${MASKI_SKAALA}) translate(${-K / 2} ${-K / 2})">${sisalto}</g>`
+    : sisalto;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${K} ${K}"`
-    + ` width="${koko}" height="${koko}" role="img"`
-    + ` aria-label="FoilSpot">`
+    + ` width="${koko}" height="${koko}" role="img" aria-label="FoilSpot">`
     + `<defs><linearGradient id="fs-meri" x1="0" y1="0" x2="0" y2="1">`
-    + `<stop offset="0" stop-color="${MERI_YLA}"/>`
+    + `<stop offset="0" stop-color="${MERI_YLA}"/><stop offset=".55" stop-color="${MERI_KES}"/>`
     + `<stop offset="1" stop-color="${MERI_ALA}"/></linearGradient>`
-    + `<clipPath id="fs-kaari"><path d="${d}"/></clipPath></defs>`
+    + `<radialGradient id="fs-hehku" cx=".72" cy=".22" r=".75">`
+    + `<stop offset="0" stop-color="${HEHKU}" stop-opacity=".16"/>`
+    + `<stop offset="1" stop-color="${HEHKU}" stop-opacity="0"/></radialGradient>`
+    + maaritykset(g, 'fs') + `</defs>`
     + `<rect width="${K}" height="${K}" fill="url(#fs-meri)"/>`
-    + `<g clip-path="url(#fs-kaari)">${sektorit()}</g></svg>`;
+    + `<rect width="${K}" height="${K}" fill="url(#fs-hehku)"/>`
+    + ryhma + `</svg>`;
 }
 
-/* Latausruudun tuulijuovien nopeudet. Juovan väri on RAMPIN ANKKURI
-   tällä nopeudella (sama t kuin index.html:n `msToT`), joten väri ei ole
-   koriste vaan sama lukema kuin kartalla: juova joka kulkee nopeammin
-   on kuumempi. Väli 5-13 m/s on foilattava keli — magentaa (20 m/s) ei
-   ruudulla ole, joten sävy ei sano myrskyä. */
-const TUULI = [[5, 0.290], [6, 0.360], [7, 0.430], [8, 0.500],
-               [9, 0.575], [10, 0.650], [11.5, 0.715], [13, 0.780]];
+/** Latausruudun merkkilähde. Kolme `<symbol>`ia samassa 512:n
+    ruudukossa kuin ikoni — siipi ja kaksi juovaa erikseen, koska
+    latausruutu tuo ne esiin eri liikkeillä (siipi avautuu, tuuli
+    saapuu). Samassa elementissä kulkee avautumisen geometria:
 
-/** Latausruudun merkkilähde: kaari rampin värisenä `<symbol>`ina, jota
-    latausruutu käyttää `<use>`lla kolmesti (kaksi piirtymisen puoliskoa
-    ja lepoasu). Samassa elementissä kulkee piirtymisen geometria:
-
-    - `data-keski`: kaaren KESKIPISTE prosentteina merkin laatikosta. Se
-      ei ole laatikon keskikohta, koska ääriviiva keskitetään
-      rajauslaatikostaan (ks. `aariviiva`) — piirtymisen kiila pyörii
-      kaaren keskipisteen ympäri, muuten reuna liukuisi kaarta pitkin.
+    - `data-keski`: etureunan ympyrän KESKIPISTE prosentteina merkin
+      laatikosta. Avautumisen kiila pyörii sen ympäri, joten reuna
+      pyyhkii etureunaa pitkin kärjestä kärkeen. Piste on siiven
+      alapuolella laatikon ulkopuolella — kiila on siksi laatikkoa
+      suurempi (`data-r`).
     - `data-alku`, `data-pyyhk`: kiilan alkukulma ja pyyhkäisy asteina
-      (0 = kello kolme, myötäpäivään). Päätykorkit pullistuvat kaaren
-      kulmavälin yli (`atan(r/SADE)`), joten kiila alkaa ennen kaarta ja
-      loppuu sen jälkeen; 1,5° reunavara kummassakin päässä, jottei
-      reunapikseli jää puolikkaaksi.
-    - `data-tuuli`: tuulijuovien värit, "nopeus väri" pilkulla
-      erotettuna. */
+      (0 = kello kolme, myötäpäivään), 3° reunavara kummassakin päässä
+      päätykorkkien takia.
+    - `data-r`: kiilan säde prosentteina laatikosta (kaukaisin piste
+      + reunavara).
+    - `data-tuuli`: kohtauksen tuulijuovien värit, "nopeus väri"
+      pilkulla erotettuna. */
 export function latausMerkki() {
-  const { d, muunna } = aariviiva(0.94);
-  const [kx, ky] = muunna([0, 0]);
-  const aste = r => (Math.atan(r / SADE) * 180) / Math.PI;
-  const a0 = aste(LEV_0 / 2) + 1.5, a1 = aste(LEV_1 / 2) + 1.5;
+  const g = siipi();
+  const pros = v => p2((v / K) * 100);
+  const alku = g.kulmaMin - 3, pyyhk = g.kulmaMax - g.kulmaMin + 6;
   const tuuli = TUULI.map(([ms, t]) => `${ms} ${ramppiVari(t)}`).join(',');
   return `<svg id="lr-merkki-lahde" width="0" height="0" aria-hidden="true"`
     + ` focusable="false" style="position:absolute"`
-    + ` data-keski="${p2((kx / K) * 100)} ${p2((ky / K) * 100)}"`
-    + ` data-alku="${p2(A_ALKU - a0)}" data-pyyhk="${p2(A_PYYHK + a0 + a1)}"`
+    + ` data-keski="${pros(g.keski[0])} ${pros(g.keski[1])}"`
+    + ` data-alku="${p2(alku)}" data-pyyhk="${p2(pyyhk)}" data-r="${pros(g.etaisyys + 12)}"`
     + ` data-tuuli="${tuuli}" xmlns="http://www.w3.org/2000/svg">`
-    + `<defs><clipPath id="lr-kaari"><path d="${d}"/></clipPath></defs>`
-    + `<symbol id="lr-merkki" viewBox="0 0 ${K} ${K}">`
-    + `<g clip-path="url(#lr-kaari)">${sektorit()}</g></symbol></svg>`;
+    + `<defs>${maaritykset(g, 'lm')}</defs>`
+    + `<symbol id="lm-siipi" viewBox="0 0 ${K} ${K}">${siipiOsat(g, 'lm')}</symbol>`
+    + JUOVAT.map((j, i) => `<symbol id="lm-juova${i + 1}" viewBox="0 0 ${K} ${K}">${juovaOsa(j, 'lm')}</symbol>`).join('')
+    + `</svg>`;
 }
 
 /* ------------------------------------------------------------------
    PNG-sarja. Rasterointi Chromiumilla: kontissa ei ole muuta
    rasteroijaa, eikä projektiin oteta riippuvuutta yhden staattisen
    kuvasarjan takia. Tiedostot ovat repossa valmiina — tämä ajetaan
-   vain kun merkki muuttuu.
+   vain kun merkki muuttuu. Playwrightin moduulin voi antaa
+   ympäristömuuttujalla PLAYWRIGHT_MODULE kuten savutestissä.
    ------------------------------------------------------------------ */
 const PNGT = [
   { tiedosto: 'public/apple-touch-icon.png',  koko: 180, maskattu: false },
@@ -242,7 +282,8 @@ const PNGT = [
 ];
 
 async function png() {
-  const { chromium } = await import('playwright-core');
+  const mod = await import(process.env.PLAYWRIGHT_MODULE || 'playwright-core');
+  const { chromium } = mod.chromium ? mod : mod.default;
   const selain = await chromium.launch({
     executablePath: process.env.CHROMIUM_POLKU
       || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',

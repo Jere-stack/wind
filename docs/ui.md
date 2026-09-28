@@ -6058,3 +6058,180 @@ nollautuu.
 
 Samassa erässä kartan "Powered by Esri" -nappi poistettiin; maininta
 on asetusten Tietoa-rivin alarivillä ja rivi avaa saman näkymän.
+
+## Uusi merkki: siipi ja tuuli — ja latausruudun viimeistely (28.9.)
+
+Pyyntö: latausruutu "maksimaalisesti" paremmaksi ja sovelluksen logo /
+kotivalikon ikoni uusiksi — moderni, selkeä pienessä koossa, "ei kauhean
+värikäs", ja nykyisen suunnan päällä eikä uutena brändinä. Edellinen
+osio "Latausruutu liikegrafiikaksi" on yhä voimassa kohtauksen osalta;
+merkki, sen piirtyminen ja muutama viimeistely vaihtuivat.
+
+### Miksi puuska vaihtui
+
+Edellinen merkki oli 270°:n kaari joka kantoi koko `RAMP_KARTTA`n:
+seitsemän kylläistä sävyä sinisestä magentaan. Kolme ongelmaa:
+
+- **Se luki latausrinkulana.** Paksuneva, lähes umpinainen rengas on
+  täsmälleen spinnerin muoto, ja kotivalikossa se näytti
+  edistymismittarilta eikä wingfoil-sovellukselta.
+- **Se oli ikonirivin värikkäin asia** — suoraan vastoin pyyntöä.
+- **Väri ei tarkoittanut siinä mitään.** Kaikkialla muualla sovelluksessa
+  sävy on nopeus; merkin ramppi oli koriste.
+
+### Merkki
+
+Wingfoil-siipi ylhäältä ja sen alla tuuli. Kaikki lasketaan yhdestä
+geometriasta (`tools/ikoni.mjs`, `siipi()`), 512:n ruudukossa:
+
+- **Täyttöputki** (etureuna): ympyrän kaari, säde 300, ±55°, leveys
+  `7 + 47·sin(πt)^0,55` eli pullea keskeltä ja suippo kärjistä;
+  pyöreät päätykorkit. Paperia, jossa hento valon liuku
+  (`#FBF5E4` → `#E4D8B8` vasemmasta yläkulmasta), jotta täytetty putki saa
+  muodon ilman kiiltoa.
+- **Keskituki**: kapeneva (13 → 5 px) putken keskeltä kankaan
+  takareunaan, paperia .88 — hieman himmeämpi kuin putki, koska se on
+  kankaan alla.
+- **Kangas**: läpikuultava paperi .13 → .045 putkelta jättöreunaan (valo
+  kankaan läpi), jättöreuna 4 px paperia .38. Jättöreuna on kaksi
+  koveraa kaarta kärjestä tukeen, kuten oikeassa siivessä kangas
+  kiristyy. **Suora jättöreuna luki sateenvarjona** (kokeiltu kolmella
+  kallistuksella), ja tuen päähän jäänyt pyöreä pää luki nuppineulana.
+- **Kallistus 20° myötäpäivään**: siipi lentää ylös oikealle. Pystyssä
+  se seisoi kuin varjo.
+- **Tuuli**: kaksi juovaa samaa muotoa kuin kartan partikkelin jälki ja
+  latausruudun juova — pyöreä pää vasemmalla, häntä suippenee ja häipyy.
+  Etummainen 14 px ja täysi, toinen 8 px ja .5. Väri on rampin 5 m/s
+  (`JUOVA_T` 0,29, `#00cddc`): **yksi sävy, ja se on nopeuden väri**,
+  kuten latausruudun hitain juova. Syaani merta vasten 9,65:1.
+- **Pohja** on meri: `#15213B` → `#0A1122` → `#04070E` ja oikeasta
+  yläkulmasta taivaanrannan kylmä hehku (`#96B9EB` .16) — sama valo kuin
+  latausruudun taivaanrannassa. Ei kiiltoa, ei kehystä, ei
+  pyöristyksiä (iOS maskaa itse).
+
+Värejä on siis kolme: meri, paperi ja yksi rampin sävy. Paperi merta
+vasten 12,97–15,25:1.
+
+**Pienessä koossa** (mitattu renderöimällä 180, 120, 60, 40 ja 29 px
+iOS-maskilla vaalealla ja tummalla taustalla): siluetti on kaari + tuki,
+ja se kantaa yksin 29 px:iin asti. Kangas katoaa alle 40 px:n eikä sen
+tarvitse näkyä; juovat jäävät yhdeksi syaaniksi viivaksi, joka riittää
+kertomaan "tuulta". Ohuin tärkeä viiva, putken kärki, on 7/512 eli
+0,4 px 29 px:llä — kärjet saavat hävitä, keskikohta (54/512) ei.
+
+**Maskattava** (Android) on sama sommitelma skaalattuna 0,8:aan, jolloin
+koko merkki mahtuu 80 %:n ympyrään.
+
+### Latausruudun merkki: siipi avautuu, tuuli saapuu
+
+Merkki on latausruudulla sama sommitelma samassa ruudukossa (`<use>`
+kolmeen `lm-`-symboliin), 100 px laatikossa. Laatikon ylä- ja
+alalaidassa on ruudukon tyhjää (25 % / 18 %), joten negatiiviset
+marginaalit (−25 px / +2 px) tekevät sisällöstä rivin mitan.
+
+```
+aika (s)   tapahtuma                                     käyrä
+0,04–1,44  taivaanranta syttyy keskeltä (scaleX .12→1)    (.16,1,.3,1)
+0,20–1,30  merkin laatikko nousee 10 px ja kasvaa .92→1   (.16,1,.3,1)
+0,26–1,18  SIIPI AVAUTUU kärjestä kärkeen, kiila 116°    kuutio sisään / 5. aste ulos
+0,50–1,72  nimen kirjaimet nousevat, 45 ms porras        (.16,1,.3,1)
+0,55–1,29  etummainen tuulijuova saapuu oikealta (34 %)  (.16,1,.3,1)
+0,65–1,39  toinen juova                                   (.16,1,.3,1)
+0,95–1,75  alanimi; 1,05–1,95 hiusviivat kasvavat ulos    (.16,1,.3,1)
+1,05 / 1,12 tilarivi / palkki                              (.16,1,.3,1)
+1,30–      palkin kiilto kulkee uran läpi 1,7 s välein    (.45,0,.55,1)
+1,60       lähtö (.out), ellei kartta vielä lataudu
+```
+
+**Avautuminen** on sama kompositorin kiilatekniikka kuin kaaren
+piirtyminen oli (pyörivä puolitaso staattisen sisällä, sisältö
+vastapyörii), mutta keskipiste on nyt ETUREUNAN YMPYRÄN keskipiste
+(40,72 %, 74,98 %) siiven alapuolella. Silloin kiilan reuna kulkee
+putkea pitkin kärjestä kärkeen ja kangas ja tuki paljastuvat sen
+mukana — siipi täyttyy eikä "piirry". Kiila on 116°, joten yksi pala
+riittää (koodi osaa yhä kaksi palaa yli 180°:lle). Keskipiste on
+laatikon ulkopuolella, joten neliön säde tulee generaattorista
+(`data-r`) eikä vakiosta 75.
+
+**Käyrä** on kuutio sisään 35 %:iin asti ja viidennen asteen ulos,
+saumakohdan arvo 0,473 valittu niin että kaltevuus on sama molemmin
+puolin (3v/0,35 = 5(1−v)/0,65). Vanha symmetrinen `easeInOutCubic`
+viipyi alussa niin, että siipi näytti odottavan ennen kuin avautui;
+lyhyt kiihdytys ja pitkä laskeutuminen on nosteen tuntu — vastus,
+irtoaminen ja pehmeä asettuminen.
+
+**Tuuli saapuu SAMAAN suuntaan kuin kohtauksen juovat kulkevat**
+(oikealta vasemmalle) ja hidastuen, eli juova on jo vauhdissa ruudun
+ulkopuolella ja asettuu. Kaikki merkin liike on valmis 1,39 s, eli
+ennen aikaisinta lähtöä (1,6 s); CLAUDE.md:n alaraja (`LAHTO_MIN_MS`
+≥ 1,1 s) pätee yhä.
+
+**Lähdössä** merkin tuuli ryntää vasemmalle kohtauksen tuulen mukana
+(−45 %, häipyy) ja siipi nousee ja kallistuu (5 %, −7 %, −3°) — sama
+liike kuin kuskilla, pienempänä.
+
+### Viimeistely
+
+- **Taivaanranta syttyy keskeltä.** Viiva ja sen yllä oleva kylmä hehku
+  olivat taivaan staattisia liukuja; nyt ne ovat oma kerroksensa
+  (`#lr-horisontti`), joka leviää sivuille. Ruudun ensimmäinen liike on
+  valo joka avaa näkymän. Viiva häipyy nyt reunoja kohti (ennen suora
+  1 px reunasta reunaan).
+- **Kamera työntyy lähdössä.** `#lr-nayttamo` skaalautuu 1,05:een samalla
+  kiihtyvällä käyrällä kuin kuski lähtee (0,9 s). Säiliö on
+  `contain: strict`, joten se on yksi kompositorin kerros. Ruutu syöksyy
+  karttaan sen sijaan että vain himmenisi.
+- **Rae ja vinjetti.** Tumma taivasliuku (`#060912` → `#16254A`) on
+  8-bittisenä noin 16 sävyaskelta ja porrastui näkyviksi kaistoiksi;
+  hieno `feTurbulence`-rae (alfa .07, 160 px laatta) hajottaa portaat.
+  Vinjetti painaa kulmia (.5) ja pitää katseen kuskissa ja merkissä.
+  Molemmat staattisia (`#lr-vinjetti` ja sen `::after`).
+  **Rae on maskattu pois ylimmästä 6 %:sta ja nimilohkon alta**: kohina
+  vaalentaa pohjaa, ja mitattuna kaikkialla ulottuva rae laski
+  tilapalkin 19,65 → 17,55:1 ja nimen 16,34 → 15,08:1. Syvä meri on
+  lähes tasaväristä, joten siellä ei ole portaita.
+- **Nimi on kevyempi** (600 → 500, 27 → 26 px, harvennus .34 → .30 em).
+  Isoina kirjaimina ja väljänä 600 luki raskaana merkin vieressä, jonka
+  ohuin viiva on putken kärki.
+- **Alanimi on kahden hiusviivan välissä**, ja viivat kasvavat tekstistä
+  ulospäin (`scaleX`). Harvennuksen jättämä väli viimeisen kirjaimen
+  perässä otetaan pois (`margin-right: −.2em`), jotta viivat ovat yhtä
+  kaukana tekstistä.
+- **Tilarivi on "Ladataan…"** (typografinen ellipsi, ei kolmea pistettä).
+- **Palkissa kulkee valo.** Hitaalla verkolla palkki voi seistä samassa
+  kohdassa sekunteja, ja pysähtynyt palkki luki jumina. Kiilto
+  (`#load-progress-wrap::after`, 44 px, valkoinen .7) kulkee uran läpi
+  1,7 s välein: palkki kertoo MISSÄ lataus on, kiilto että se on
+  käynnissä. Vaimennetulla liikkeellä kiiltoa ei ole.
+
+### Mitattu
+
+```
+                              uusi                 ennen
+animaatioita esittelyssä      48                   44
+animaatioita levossa          24                   23   (+ palkin kiilto)
+compositeFailed (jäljitys)    0 latausruudussa     0
+                              (+ sovelluksen oma .up-option 2, kuten ennen)
+nimi                          16,34:1              16,34:1
+alanimi                       6,48:1               6,47:1
+tilarivi                      7,25:1               7,25:1
+tilapalkki (ylin 44 px)       19,65:1              19,65:1
+vaimennettu liike             0 animaatiota, merkki valmiina, kiilto pois
+savutesti                     läpi, 0 sivuvirhettä (puhelin ja työpöytä)
+```
+
+Animaatioiden hinta on noin 0,02 ms/animaatio/ruutu (ks. "Kaikki liike
+on kompositorissa"), eli neljä lisäanimaatiota esittelyn ajan ja yksi
+levossa ovat kohinan sisällä.
+
+Kuvasarja otettiin jäädyttämällä animaatiot (`pause()` + `currentTime`)
+ja lähtö erikseen jäädyttämällä vain `.out`in siirtymät. Ensimmäinen
+kuvasarja näytti merkin kankaan mustana: kohtauksen kuskin siivellä on
+`id="lr-kangas"`, ja merkin samanniminen liuku osui siihen. Merkin
+id:t ovat nyt `lm-`-alkuisia (`lm-siipi`, `lm-kangas`…).
+
+WebKitiä ei ollut kontissa tällä kertaa; ruutunopeus ja iOS:n
+kotivalikon ikoni on varmistettava laitteella. **iOS tallentaa
+`apple-touch-icon`in kotivalikkoon lisättäessä** — jo lisätty
+sovellus pitää vanhan ikonin, kunnes se poistetaan ja lisätään
+uudelleen.

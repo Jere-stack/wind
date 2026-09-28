@@ -3023,8 +3023,8 @@ html[data-tutka="1"] #lahde-merkki {
  * valokuva paperilla. Kolme syytä vaihtoon, ks. docs/ui.md:
  *
  *  1. KOTIVALIKON IKONI -> LATAUSRUUTU -> KARTTA ON YKSI JATKUMO. Ikoni
- *     on tummaa merta ja rampin värinen puuska; latausruutu on sama meri
- *     ja sama puuska piirtymässä; kartta on sama meri. Paperiruutu teki
+ *     on tummaa merta, paperinen siipi ja syaani tuulijuova; latausruutu
+ *     on sama meri ja sama merkki avautumassa; kartta on sama meri. Paperiruutu teki
  *     kaksi kirkkaushyppyä (tumma -> kerma -> tumma) jokaisessa
  *     käynnistyksessä, ja selaimessa html:n `--bg` välähti ennen kermaa.
  *  2. VÄRI TARKOITTAA TÄÄLLÄKIN TUULTA. Tuulijuovat ovat rampin värisiä
@@ -3078,18 +3078,10 @@ html[data-tutka="1"] #lahde-merkki {
    `--bg`, eli sama väri jonka selain ja käyttöjärjestelmä maalaavat ennen
    ensimmäistä maalausta (html:n tausta, manifestin `background_color`):
    ruutu ei välähdä syttyessään.
-   Taivaanranta on 1 px paperia .16, ja sen yllä on kylmä hehku —
-   sininen eikä lämmin, koska lämmin sävy lukisi rampin keltaisena. */
+ */
 #lr-taivas {
   inset: 0;
   background:
-    linear-gradient(180deg,
-      transparent calc(var(--lr-horisontti) - 1px),
-      rgba(240,231,206,.16) calc(var(--lr-horisontti) - 1px),
-      rgba(240,231,206,.16) var(--lr-horisontti),
-      transparent var(--lr-horisontti)),
-    radial-gradient(ellipse 70% 34% at 50% var(--lr-horisontti),
-      rgba(150,185,235,.13), rgba(150,185,235,0) 70%),
     linear-gradient(180deg,
       #060912 0%,
       #0A1224 calc(var(--lr-horisontti) * .55),
@@ -3098,6 +3090,51 @@ html[data-tutka="1"] #lahde-merkki {
       #081023 var(--lr-pinta),
       #060B18 76%,
       var(--lr-syva) 100%);
+}
+
+/* TAIVAANRANTA SYTTYY KESKELTÄ: 1 px paperia .16 ja sen yllä kylmä
+   hehku — sininen eikä lämmin, koska lämmin sävy lukisi rampin
+   keltaisena. Ennen ne olivat taivaan staattisia liukuja; nyt ne ovat
+   oma kerroksensa joka leviää sivuille (`scaleX`), eli ruudun
+   ensimmäinen liike on valo joka avaa näkymän, ja kaikki muu syntyy
+   sen ympärille. */
+#lr-horisontti {
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent, rgba(240,231,206,.2) 22%,
+      rgba(240,231,206,.2) 78%, transparent)
+      0 calc(var(--lr-horisontti) - 1px) / 100% 1px no-repeat,
+    radial-gradient(ellipse 70% 34% at 50% var(--lr-horisontti),
+      rgba(150,185,235,.15), rgba(150,185,235,0) 70%);
+  animation: lr-avaa 1.4s .04s cubic-bezier(.16,1,.3,1) backwards;
+}
+@keyframes lr-avaa {
+  from { transform: scaleX(.12); opacity: 0; }
+  30%  { opacity: 1; }
+  to   { transform: none; opacity: 1; }
+}
+/* Vinjetti ja rae kaiken kohtauksen päällä, molemmat staattisia.
+   VINJETTI: kulmat painuvat ja katse jää keskelle, siihen missä kuski
+   ja merkki ovat.
+   RAE: 8-bittinen liuku tummasta sinisestä tummempaan porrastuu
+   ruudulla näkyviksi kaistoiksi (koko taivas on noin 16 sävyaskelta),
+   ja hieno kohina hajottaa portaat. Se rasteroidaan kerran eikä maksa
+   ruuduissa mitään. Rae on MASKATTU POIS ylimmästä 6 %:sta ja
+   nimilohkon alta: kohina vaalentaa pohjaa, ja sekä tilapalkin
+   valkoinen että nimilohkon muste on mitattu tasaista alustaa vasten
+   (kohinan kanssa tilapalkki heikoimmillaan 17,55:1 eikä 19,65, nimi
+   15,08:1 eikä 16,34). Syvä meri on lähes tasaväristä, joten siellä
+   ei ole portaita hajotettavaksi. */
+#lr-vinjetti {
+  inset: 0;
+  background: radial-gradient(ellipse 115% 85% at 50% 42%,
+    rgba(2,4,9,0) 52%, rgba(2,4,9,.5) 100%);
+}
+#lr-vinjetti::after {
+  content: ''; position: absolute; inset: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='r'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .94 0 0 0 0 .91 0 0 0 0 .81 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23r)'/%3E%3C/svg%3E");
+  -webkit-mask-image: linear-gradient(180deg, transparent 6%, #000 14%, #000 56%, transparent 68%);
+  mask-image: linear-gradient(180deg, transparent 6%, #000 14%, #000 56%, transparent 68%);
 }
 
 #lr-tuuli, #lr-tuuli-etu { inset: 0; }
@@ -3297,7 +3334,14 @@ html[data-tutka="1"] #lahde-merkki {
    alkaa animaation senhetkisestä arvosta, joten poisto ei hyppää. */
 #loading.out #lr-tuuli, #loading.out #lr-tuuli-etu,
 #loading.out #lr-meri-taka, #loading.out #lr-meri-etu,
+#loading.out #lr-horisontti, #loading.out .lr-m-juova,
 #loading.out #load-bottom { animation: none; }
+/* Kamera työntyy eteenpäin lähdön ajan: kohtaus kasvaa 5 % samalla
+   kiihtyvällä käyrällä kuin kuski, joten ruutu tuntuu syöksyvän
+   karttaan eikä vain himmenevän. Säiliö on `contain: strict`, joten
+   skaalaus on yksi kompositorin kerros. */
+#lr-nayttamo { transition: transform .9s cubic-bezier(.42,0,.72,.45); }
+#loading.out #lr-nayttamo { transform: scale(1.05); }
 #lr-lahto { transition: transform .62s cubic-bezier(.42,0,.72,.45); }
 #loading.out #lr-lahto { transform: translate3d(85vw,-6%,0) rotate(-6deg); }
 #loading.out #lr-tuuli, #loading.out #lr-tuuli-etu {
@@ -3318,35 +3362,67 @@ html[data-tutka="1"] #lahde-merkki {
 }
 #load-logo { display: flex; flex-direction: column; align-items: center; }
 
-/* MERKKI ON RAMPIN VÄRINEN, KOSKA POHJA ON NYT MERTA. Sama ääriviiva
-   ja sama asu kuin kotivalikon ikonissa (tools/ikoni.mjs, `--inline`
-   tulostaa lähteen). Se PIIRTYY kapeasta päästä leveään eli tyynestä
-   myrskyyn: kiila pyörii kaaren keskipisteen ympäri ja paljastaa
-   rampin järjestyksessä. Kiila on kaksi puolitasoa jotka pyörivät
-   (`transform`), ja sisältö vastapyörii paikallaan — leikkaus on
-   staattinen `overflow: hidden`, joten koko piirtyminen on
-   kompositorissa. Ks. latausruudun skripti. */
+/* MERKKI ON SAMA SOMMITELMA KUIN KOTIVALIKON IKONI: paperinen siipi
+   ja sen alla kaksi tuulijuovaa rampin värissä (tools/ikoni.mjs,
+   `--inline` tulostaa lähteen). Se syntyy kahdessa vaiheessa:
+     1. SIIPI AVAUTUU kärjestä kärkeen. Kiila pyörii etureunan ympyrän
+        keskipisteen ympäri, joten reuna pyyhkii täyttöputkea pitkin
+        kuin siipi täyttyisi. Kiila on puolitaso joka pyörii toisen
+        sisällä (`transform`), ja sisältö vastapyörii paikallaan —
+        leikkaus on staattinen `overflow: hidden`, joten koko
+        avautuminen on kompositorissa. Ks. latausruudun skripti.
+     2. TUULI SAAPUU oikealta, juova kerrallaan, samaan suuntaan kuin
+        kohtauksen juovat kulkevat.
+   Laatikko on ikonin 512:n ruudukko, jonka ylä- ja alalaidassa on
+   tyhjää (25 % ja 18 %); negatiiviset marginaalit tekevät sisällöstä
+   rivin mitan, jotta väli nimeen on sama kuin ennen. */
 #load-logo-icon {
   position: relative;
-  width: 58px; height: 58px; margin-bottom: 18px;
-  animation: lr-pyorre 1.25s .26s cubic-bezier(.16,1,.3,1) backwards;
+  width: 100px; height: 100px; margin: -25px 0 2px;
+  animation: lr-merkki 1.1s .2s cubic-bezier(.16,1,.3,1) backwards;
 }
-@keyframes lr-pyorre {
-  from { transform: rotate(-40deg) scale(.82); }
-  to   { transform: none; }
+@keyframes lr-merkki {
+  from { transform: translate3d(0,10px,0) scale(.92); opacity: 0; }
+  25%  { opacity: 1; }
+  to   { transform: none; opacity: 1; }
 }
+#lr-m-siipi, .lr-m-juova { position: absolute; inset: 0; }
 #load-logo-icon svg {
   position: absolute; inset: 0; width: 100%; height: 100%; display: block;
 }
+/* Juovat tulevat hidastuen: ne ovat jo vauhdissa ruudun ulkopuolella
+   ja asettuvat. Toinen on himmeämpi ja tulee perässä — kaksi aaltoa
+   samaa tuulta. Loppuvat 1,29 ja 1,39 s, eli merkki on valmis ennen
+   kuin lähtö voi alkaa (1,6 s). */
+.lr-m-juova {
+  animation: lr-juova .74s .55s cubic-bezier(.16,1,.3,1) backwards;
+}
+#lr-m-j2 { animation-delay: .65s; }
+@keyframes lr-juova {
+  from { transform: translate3d(34%,0,0); opacity: 0; }
+  40%  { opacity: 1; }
+  to   { transform: none; opacity: 1; }
+}
+/* Lähdössä merkin tuuli ryntää vasemmalle kohtauksen tuulen mukana ja
+   siipi nousee: sama liike kuin kuskilla, pienempänä. */
+#lr-m-siipi, .lr-m-juova {
+  transition: transform .6s cubic-bezier(.42,0,.72,.45), opacity .4s ease;
+}
+#loading.out #lr-m-siipi { transform: translate3d(5%,-7%,0) rotate(-3deg); }
+#loading.out .lr-m-juova { transform: translate3d(-45%,0,0); opacity: 0; }
+/* Nimi on kevyempi ja väljempi kuin otsikko: 500 eikä 600. Isoina
+   kirjaimina ja harvennettuna paino luki raskaana merkin vieressä, jonka
+   ohuin viiva on kärjen 7/512. Kontrasti ei riipu painosta (paperi
+   syvää merta vasten). */
 #load-logo-name {
-  font-weight: 600;
-  font-size: 27px; letter-spacing: .34em;
+  font-weight: 500;
+  font-size: 26px; letter-spacing: .3em;
   text-transform: uppercase;
   color: var(--lr-paperi);
   line-height: 1;
   /* Harvennus jättää oikeaan reunaan tyhjän välin — kompensoidaan,
      jotta nimi on optisesti keskellä. */
-  text-indent: .34em;
+  text-indent: .3em;
   /* Kirjaimet nousevat rivin alta: rivi leikkaa, kirjain liikkuu. */
   display: flex; overflow: hidden; padding: 2px 0 3px;
 }
@@ -3358,14 +3434,27 @@ html[data-tutka="1"] #lahde-merkki {
   from { transform: translate3d(0,112%,0); }
   to   { transform: none; }
 }
+/* Alanimi on kahden hiusviivan välissä, ja viivat kasvavat tekstistä
+   ulospäin: alanimi on nimen alaotsake eikä oma rivinsä. Harvennus
+   jättää viimeisen kirjaimen perään välin, ja `margin-right` ottaa
+   sen pois, jotta viivat ovat yhtä kaukana tekstistä. */
 #load-logo-tag {
-  margin-top: 9px;
+  margin-top: 10px;
+  display: flex; align-items: center;
   font-size: var(--fs-10); font-weight: 600; letter-spacing: .2em;
   text-transform: uppercase;
   color: rgba(240,231,206,.62);
-  text-indent: .2em;
   animation: lr-nouse .8s .95s cubic-bezier(.16,1,.3,1) backwards;
 }
+#load-logo-tag > span { margin-right: -.2em; }
+.lr-viiva {
+  width: 16px; height: 1px; margin: 0 10px;
+  background: rgba(240,231,206,.34);
+  transform-origin: 100% 50%;
+  animation: lr-viiva .9s 1.05s cubic-bezier(.16,1,.3,1) backwards;
+}
+.lr-viiva:last-child { transform-origin: 0 50%; }
+@keyframes lr-viiva { from { transform: scaleX(0); } to { transform: none; } }
 #load-txt {
   position: relative; z-index: 3;
   margin-top: 26px;
@@ -3399,9 +3488,26 @@ html[data-tutka="1"] #lahde-merkki {
   animation: lr-nouse .8s 1.12s cubic-bezier(.16,1,.3,1) backwards;
 }
 #load-progress-wrap {
+  position: relative;
   width: 148px; height: 2px;
   background: rgba(240,231,206,.16);
   border-radius: 2px; overflow: hidden;
+}
+/* ODOTUS ELÄÄ: valo kulkee uran läpi 1,7 s välein, myös täytetyn osan
+   yli. Palkki kertoo MISSÄ lataus on, kiilto että se on käynnissä —
+   hitaalla verkolla palkki voi seistä pitkäänkin samassa kohdassa, ja
+   pysähtynyt palkki luki jumina. Yksi animaatio, `transform`. */
+#load-progress-wrap::after {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 0;
+  width: 44px;
+  background: linear-gradient(90deg, rgba(255,255,255,0),
+    rgba(255,255,255,.7) 50%, rgba(255,255,255,0));
+  transform: translate3d(-44px,0,0);
+  animation: lr-kiilto 1.7s 1.3s cubic-bezier(.45,0,.55,1) infinite;
+}
+@keyframes lr-kiilto {
+  from { transform: translate3d(-44px,0,0); }
+  70%, to { transform: translate3d(148px,0,0); }
 }
 #load-progress-bar {
   height: 100%; width: 100%;
@@ -3424,7 +3530,7 @@ html[data-tutka="1"] #lahde-merkki {
     --lr-horisontti: 40%; --lr-pinta: 48%; --lr-koko: min(54vh, 60vw);
     padding-bottom: calc(var(--sab) + 16px);
   }
-  #load-logo-icon { width: 36px; height: 36px; margin-bottom: 10px; }
+  #load-logo-icon { width: 60px; height: 60px; margin: -15px 0 0; }
   #load-logo-name { font-size: 21px; }
   #load-logo-tag  { display: none; }
   #load-txt    { margin-top: 12px; }
@@ -3438,8 +3544,10 @@ html[data-tutka="1"] #lahde-merkki {
 @media (prefers-reduced-motion: reduce) {
   #loading *, #loading *::before, #loading *::after { animation: none !important; }
   #loading.out #lr-lahto, #loading.out #lr-tuuli, #loading.out #lr-tuuli-etu,
-  #loading.out #lr-meri-taka, #loading.out #lr-meri-etu,
+  #loading.out #lr-meri-taka, #loading.out #lr-meri-etu, #loading.out #lr-nayttamo,
+  #loading.out #lr-m-siipi, #loading.out .lr-m-juova,
   #loading.out #load-top, #loading.out #load-bottom { transform: none; }
+  #load-progress-wrap::after { display: none; }
   #load-progress-bar { transition: none; }
 }
 
@@ -4005,15 +4113,21 @@ html.tyopoyta .hl-lk-arvo { font-size: 19px; }
 
 <div id="app" role="main">
   <div id="loading">
-    <!-- Merkin lähde: rampin värinen puuska <symbol>ina, piirtymisen
-         geometria ja tuulijuovien värit. Tulostetaan komennolla
-         `node tools/ikoni.mjs --inline` — älä muokkaa käsin. -->
-    <svg id="lr-merkki-lahde" width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute" data-keski="47.35 49.7" data-alku="156.78" data-pyyhk="288.21" data-tuuli="5 #00cddc,6 #00dca5,7 #00e669,8 #3ceb2d,9 #8cf014,10 #cdf000,11.5 #fad700,13 #ffa500" xmlns="http://www.w3.org/2000/svg"><defs><clipPath id="lr-kaari"><path d="M41.23 327.67L33.21 313.57 27.68 298.38 23.59 282.65 20.83 266.55 19.38 250.19 19.23 233.7 20.36 217.17 22.78 200.71 26.46 184.41 31.39 168.39 37.54 152.72 44.88 137.52 53.37 122.85 62.97 108.82 73.63 95.5 85.29 82.99 97.89 71.34 111.37 60.63 125.64 50.92 140.64 42.29 156.29 34.77 172.49 28.42 189.17 23.27 206.23 19.37 223.57 16.74 241.1 15.4 258.73 15.36 276.36 16.63 293.89 19.21 311.21 23.09 328.25 28.26 344.89 34.68 361.04 42.34 376.62 51.19 391.54 61.19 405.71 72.29 419.04 84.44 431.47 97.56 442.92 111.59 453.32 126.47 462.61 142.1 470.73 158.41 477.65 175.31 483.31 192.71 487.68 210.51 490.72 228.62 492.43 246.95 492.77 265.38 491.76 283.82 489.38 302.18 485.65 320.34 480.57 338.2 474.18 355.68 466.51 372.67 457.59 389.07 447.46 404.8 436.18 419.76 423.81 433.88 410.4 447.07 396.04 459.25 380.79 470.36 364.74 480.34 347.96 489.11 330.56 496.64A49.88 49.88 0 0 1 296.44 402.89L307.38 398.9 318.04 394.1 328.34 388.52 338.23 382.18 347.65 375.12 356.55 367.35 364.88 358.94 372.6 349.91 379.64 340.31 385.99 330.19 391.58 319.6 396.4 308.6 400.41 297.25 403.59 285.6 405.9 273.71 407.35 261.65 407.9 249.48 407.57 237.27 406.33 225.09 404.19 212.99 401.17 201.04 397.27 189.31 392.5 177.87 386.89 166.78 380.46 156.09 373.25 145.87 365.28 136.18 356.59 127.08 347.24 118.6 337.25 110.81 326.7 103.75 315.61 97.47 304.06 91.99 292.1 87.36 279.8 83.6 267.21 80.74 254.4 78.81 241.45 77.81 228.41 77.76 215.35 78.67 202.36 80.53 189.48 83.35 176.81 87.11 164.39 91.8 152.31 97.4 140.62 103.9 129.39 111.25 118.68 119.43 108.56 128.4 99.07 138.12 90.28 148.54 82.22 159.62 74.95 171.3 68.51 183.53 62.93 196.24 58.25 209.39 54.49 222.9 51.68 236.71 49.81 250.77 48.91 265.01 48.94 279.38 49.87 293.84 51.58 308.38 52.95 323.41A6.24 6.24 0 0 1 41.23 327.67Z"/></clipPath></defs><symbol id="lr-merkki" viewBox="0 0 512 512"><g clip-path="url(#lr-kaari)"><path d="M256 256L-156.72 558.99A512 512 0 0 1 -182.88 519.69Z" fill="#0c1e78"/><path d="M256 256L-180.25 524.01A512 512 0 0 1 -203.08 482.69Z" fill="#0c1e78"/><path d="M256 256L-200.82 487.21A512 512 0 0 1 -220.17 444.15Z" fill="#0c1e78"/><path d="M256 256L-218.29 448.85A512 512 0 0 1 -234.04 404.34Z" fill="#0c1f7b"/><path d="M256 256L-232.55 409.18A512 512 0 0 1 -244.58 363.53Z" fill="#0c2a93"/><path d="M256 256L-243.49 368.47A512 512 0 0 1 -251.73 321.98Z" fill="#0c36ac"/><path d="M256 256L-251.05 327A512 512 0 0 1 -255.44 279.99Z" fill="#0b41c3"/><path d="M256 256L-255.18 285.04A512 512 0 0 1 -255.68 237.84Z" fill="#074fd6"/><path d="M256 256L-255.83 242.89A512 512 0 0 1 -252.45 195.8Z" fill="#035ce9"/><path d="M256 256L-253.02 200.83A512 512 0 0 1 -245.77 154.18Z" fill="#0069f6"/><path d="M256 256L-246.76 159.14A512 512 0 0 1 -235.7 113.25Z" fill="#0074f9"/><path d="M256 256L-237.08 118.11A512 512 0 0 1 -222.29 73.28Z" fill="#0080fc"/><path d="M256 256L-224.07 78.02A512 512 0 0 1 -205.63 34.56Z" fill="#008bff"/><path d="M256 256L-207.8 39.13A512 512 0 0 1 -185.85 -2.67Z" fill="#0096fe"/><path d="M256 256L-188.39 1.71A512 512 0 0 1 -163.08 -38.14Z" fill="#00a0fc"/><path d="M256 256L-165.96 -33.99A512 512 0 0 1 -137.46 -71.62Z" fill="#00aafb"/><path d="M256 256L-140.68 -67.72A512 512 0 0 1 -109.17 -102.88Z" fill="#00b3f6"/><path d="M256 256L-112.7 -99.25A512 512 0 0 1 -78.41 -131.7Z" fill="#00baef"/><path d="M256 256L-82.23 -128.38A512 512 0 0 1 -45.38 -157.9Z" fill="#00c2e7"/><path d="M256 256L-49.46 -154.9A512 512 0 0 1 -10.31 -181.29Z" fill="#00c9e0"/><path d="M256 256L-14.62 -178.64A512 512 0 0 1 26.56 -201.71Z" fill="#00cfd5"/><path d="M256 256L22.05 -199.42A512 512 0 0 1 64.99 -219.04Z" fill="#00d3c7"/><path d="M256 256L60.31 -217.13A512 512 0 0 1 104.72 -233.14Z" fill="#00d6b9"/><path d="M256 256L99.89 -231.62A512 512 0 0 1 145.47 -243.93Z" fill="#00daac"/><path d="M256 256L140.54 -242.81A512 512 0 0 1 186.97 -251.33Z" fill="#00dd9d"/><path d="M256 256L181.96 -250.62A512 512 0 0 1 228.94 -255.28Z" fill="#00e08e"/><path d="M256 256L223.89 -254.99A512 512 0 0 1 271.09 -255.78Z" fill="#00e27f"/><path d="M256 256L266.04 -255.9A512 512 0 0 1 313.14 -252.8Z" fill="#00e570"/><path d="M256 256L308.11 -253.34A512 512 0 0 1 354.81 -246.38Z" fill="#08e761"/><path d="M256 256L349.84 -247.33A512 512 0 0 1 395.8 -236.54Z" fill="#17e852"/><path d="M256 256L390.93 -237.9A512 512 0 0 1 435.84 -223.37Z" fill="#26e943"/><path d="M256 256L431.1 -225.13A512 512 0 0 1 474.67 -206.95Z" fill="#35ea34"/><path d="M256 256L470.08 -209.09A512 512 0 0 1 512.01 -187.4Z" fill="#45ec2a"/><path d="M256 256L507.62 -189.91A512 512 0 0 1 547.62 -164.83Z" fill="#58ed24"/><path d="M256 256L543.45 -167.69A512 512 0 0 1 581.25 -139.42Z" fill="#6bee1e"/><path d="M256 256L577.33 -142.61A512 512 0 0 1 612.68 -111.32Z" fill="#7def19"/><path d="M256 256L609.03 -114.83A512 512 0 0 1 641.69 -80.73Z" fill="#8ff013"/><path d="M256 256L638.34 -84.53A512 512 0 0 1 668.08 -47.86Z" fill="#9ef00e"/><path d="M256 256L665.06 -51.92A512 512 0 0 1 691.68 -12.93Z" fill="#adf00a"/><path d="M256 256L689 -17.22A512 512 0 0 1 712.33 23.82Z" fill="#bdf005"/><path d="M256 256L710.01 19.32A512 512 0 0 1 729.88 62.15Z" fill="#ccf000"/><path d="M256 256L727.94 57.47A512 512 0 0 1 744.22 101.79Z" fill="#d8ea00"/><path d="M256 256L742.68 96.97A512 512 0 0 1 755.26 142.47Z" fill="#e4e300"/><path d="M256 256L754.11 137.55A512 512 0 0 1 762.9 183.93Z" fill="#f0dc00"/><path d="M256 256L762.17 178.92A512 512 0 0 1 767.11 225.87Z" fill="#fad400"/><path d="M256 256L766.79 220.83A512 512 0 0 1 767.86 268.02Z" fill="#fcc700"/><path d="M256 256L767.95 262.96A512 512 0 0 1 765.13 310.09Z" fill="#fdb900"/><path d="M256 256L765.64 305.06A512 512 0 0 1 758.96 351.79Z" fill="#feac00"/><path d="M256 256L759.88 346.82A512 512 0 0 1 749.37 392.84Z" fill="#ff9d01"/><path d="M256 256L750.7 387.96A512 512 0 0 1 736.44 432.97Z" fill="#ff8d04"/><path d="M256 256L738.17 428.21A512 512 0 0 1 720.26 471.89Z" fill="#ff7d07"/><path d="M256 256L722.37 467.29A512 512 0 0 1 700.92 509.35Z" fill="#ff6d0b"/><path d="M256 256L703.41 504.94A512 512 0 0 1 678.57 545.09Z" fill="#ff5c16"/><path d="M256 256L681.41 540.9A512 512 0 0 1 653.36 578.88Z" fill="#ff4a22"/><path d="M256 256L656.53 574.93A512 512 0 0 1 625.45 610.47Z" fill="#ff392d"/><path d="M256 256L628.94 606.8A512 512 0 0 1 595.04 639.66Z" fill="#ff3146"/><path d="M256 256L598.81 636.29A512 512 0 0 1 562.33 666.25Z" fill="#ff2f68"/><path d="M256 256L566.37 663.2A512 512 0 0 1 527.54 690.06Z" fill="#ff2d89"/><path d="M256 256L531.82 687.36A512 512 0 0 1 490.91 710.93Z" fill="#ff38a9"/><path d="M256 256L495.4 708.58A512 512 0 0 1 452.69 728.71Z" fill="#ff45c8"/><path d="M256 256L457.35 726.74A512 512 0 0 1 413.14 743.29Z" fill="#ff53e8"/><path d="M256 256L417.95 741.71A512 512 0 0 1 372.52 754.57Z" fill="#ff55eb"/><path d="M256 256L377.44 753.39A512 512 0 0 1 331.11 762.46Z" fill="#ff55eb"/><path d="M256 256L336.11 761.69A512 512 0 0 1 289.19 766.92Z" fill="#ff55eb"/></g></symbol></svg>
+    <!-- Merkin lähde: siipi ja kaksi tuulijuovaa <symbol>eina, siiven
+         avautumisen geometria ja kohtauksen tuulijuovien värit.
+         Tulostetaan komennolla `node tools/ikoni.mjs --inline` — älä
+         muokkaa käsin. -->
+    <svg id="lr-merkki-lahde" width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute" data-keski="40.72 74.98" data-alku="-128" data-pyyhk="116" data-r="52.54" data-tuuli="5 #00cddc,6 #00dca5,7 #00e669,8 #3ceb2d,9 #8cf014,10 #cdf000,11.5 #fad700,13 #ffa500" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="lm-reuna" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FBF5E4"/><stop offset="1" stop-color="#E4D8B8"/></linearGradient><linearGradient id="lm-kangas" gradientUnits="userSpaceOnUse" x1="296.4" y1="142.38" x2="234.04" y2="313.73"><stop offset="0" stop-color="#F0E7CE" stop-opacity=".13"/><stop offset="1" stop-color="#F0E7CE" stop-opacity=".045"/></linearGradient><linearGradient id="lm-juova" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#00cddc"/><stop offset=".1" stop-color="#00cddc"/><stop offset=".45" stop-color="#00cddc" stop-opacity=".55"/><stop offset="1" stop-color="#00cddc" stop-opacity="0"/></linearGradient></defs><symbol id="lm-siipi" viewBox="0 0 512 512"><path d="M74.84 193 82.55 192.02 89.22 189.71 95.73 187.33 102.19 185 108.63 182.77 115.07 180.65 121.52 178.68 127.98 176.85 134.46 175.17 140.95 173.65 147.45 172.3 153.96 171.1 160.48 170.07 167.01 169.21 173.54 168.51 180.07 167.98 186.6 167.62 193.12 167.43 199.64 167.41 206.14 167.55 212.62 167.87 219.09 168.35 225.53 169 231.94 169.82 238.33 170.8 244.68 171.95 250.99 173.26 257.26 174.74 263.49 176.38 269.68 178.18 275.81 180.14 281.88 182.26 287.9 184.54 293.86 186.98 299.75 189.58 305.58 192.32 311.33 195.22 317.01 198.28 322.62 201.48 328.14 204.83 333.58 208.33 338.93 211.97 344.19 215.76 349.36 219.68 354.44 223.75 359.41 227.95 364.28 232.29 369.05 236.77 373.72 241.37 378.27 246.1 382.72 250.96 387.05 255.94 391.27 261.04 395.38 266.26 399.37 271.59 403.26 277.04 407.03 282.59 410.7 288.25 414.28 294.01 417.78 299.87 421.23 305.8 424.69 311.82 428.31 317.86 433.59 323.57Q336.5 311.27 234.04 313.73Q157.12 245.98 74.84 193Z" fill="url(#lm-kangas)"/><path d="M433.59 323.57Q336.5 311.27 234.04 313.73Q157.12 245.98 74.84 193" fill="none" stroke="#F0E7CE" stroke-opacity=".38" stroke-width="4" stroke-linejoin="round"/><path d="M275.77 180.04L231.69 312.88L236.39 314.58L287.99 184.48Z" fill="#F0E7CE" fill-opacity=".88"/><path d="M71.68 188.49L75.67 181.53 80.95 176.25 86.6 171.41 92.51 166.89 98.64 162.64 104.96 158.66 111.45 154.92 118.1 151.42 124.88 148.17 131.79 145.16 138.82 142.39 145.96 139.87 153.19 137.6 160.51 135.57 167.91 133.79 175.37 132.26 182.89 130.98 190.46 129.96 198.07 129.19 205.71 128.68 213.38 128.43 221.05 128.43 228.72 128.68 236.39 129.19 244.04 129.96 251.67 130.98 259.26 132.26 266.81 133.79 274.31 135.57 281.75 137.59 289.11 139.87 296.4 142.38 303.6 145.14 310.7 148.13 317.7 151.36 324.59 154.82 331.35 158.5 337.99 162.4 344.49 166.52 350.85 170.85 357.05 175.39 363.09 180.13 368.97 185.06 374.67 190.18 380.2 195.48 385.53 200.96 390.68 206.61 395.62 212.42 400.35 218.39 404.88 224.51 409.18 230.77 413.26 237.16 417.1 243.68 420.71 250.32 424.07 257.07 427.18 263.92 430.02 270.87 432.59 277.9 434.87 285.02 436.83 292.21 438.46 299.48 439.67 306.82 440.32 314.26 438.91 322.15A2.75 2.75 0 0 1 433.59 323.57L428.31 317.86 424.69 311.82 421.23 305.8 417.78 299.87 414.28 294.01 410.7 288.25 407.03 282.59 403.26 277.04 399.37 271.59 395.38 266.26 391.27 261.04 387.05 255.94 382.72 250.96 378.27 246.1 373.72 241.37 369.05 236.77 364.28 232.29 359.41 227.95 354.44 223.75 349.36 219.68 344.19 215.76 338.93 211.97 333.58 208.33 328.14 204.83 322.62 201.48 317.01 198.28 311.33 195.22 305.58 192.32 299.75 189.58 293.86 186.98 287.9 184.54 281.88 182.26 275.81 180.14 269.68 178.18 263.49 176.38 257.26 174.74 250.99 173.26 244.68 171.95 238.33 170.8 231.94 169.82 225.53 169 219.09 168.35 212.62 167.87 206.14 167.55 199.64 167.41 193.12 167.43 186.6 167.62 180.07 167.98 173.54 168.51 167.01 169.21 160.48 170.07 153.96 171.1 147.45 172.3 140.95 173.65 134.46 175.17 127.98 176.85 121.52 178.68 115.07 180.65 108.63 182.77 102.19 185 95.73 187.33 89.22 189.71 82.55 192.02 74.84 193A2.75 2.75 0 0 1 71.68 188.49Z" fill="url(#lm-reuna)"/></symbol><symbol id="lm-juova1" viewBox="0 0 512 512"><path d="M58.2 379.56L307.2 385.96L307.2 387.16L58.2 393.56A7 7 0 0 1 58.2 379.56Z" fill="url(#lm-juova)"/></symbol><symbol id="lm-juova2" viewBox="0 0 512 512"><path d="M260 413.28L419.84 416.68L419.84 417.88L260 421.28A4 4 0 0 1 260 413.28Z" fill="url(#lm-juova)" opacity="0.5"/></symbol></svg>
+public/apple-touch-icon.png 180px 24632 B
+public/icon-192.png 192px 27629 B
+public/icon-512.png 512px 146628 B
+public/icon-maskable-512.png 512px 140643 B
     <!-- Kohtaus: taivas, tuuli, meri, kuski. Koristetta ruudunlukijalle;
          sovelluksen nimi on h1:ssä. Juovat, aallot, kimallus ja roiske
          syntyvät alla olevasta skriptistä. -->
     <div id="lr-nayttamo" aria-hidden="true">
       <div id="lr-taivas"></div>
+      <div id="lr-horisontti"></div>
       <div id="lr-tuuli"></div>
       <div id="lr-meri-taka"></div>
       <div id="lr-kimallus"></div>
@@ -4066,17 +4180,25 @@ html.tyopoyta .hl-lk-arvo { font-size: 19px; }
       <div id="lr-vesi"></div>
       <div id="lr-meri-etu"></div>
       <div id="lr-tuuli-etu"></div>
+      <div id="lr-vinjetti"></div>
     </div>
 
     <!-- Nimilohko syvän meren päällä. Kirjaimet ovat erillisiä vain
          nousuanimaation takia; ruudunlukija lukee nimen yhtenä sanana. -->
     <div id="load-top">
       <div id="load-logo">
-        <div id="load-logo-icon" aria-hidden="true"><svg viewBox="0 0 512 512"><use href="#lr-merkki"/></svg></div>
+        <!-- Merkki on sama sommitelma kuin kotivalikon ikoni: tuuli
+             alla, siipi päällä. Juovat ovat omat kerroksensa, koska ne
+             saapuvat eri liikkeellä kuin siipi avautuu. -->
+        <div id="load-logo-icon" aria-hidden="true">
+          <div class="lr-m-juova" id="lr-m-j1"><svg viewBox="0 0 512 512"><use href="#lm-juova1"/></svg></div>
+          <div class="lr-m-juova" id="lr-m-j2"><svg viewBox="0 0 512 512"><use href="#lm-juova2"/></svg></div>
+          <div id="lr-m-siipi"><svg viewBox="0 0 512 512"><use href="#lm-siipi"/></svg></div>
+        </div>
         <div id="load-logo-name"><span class="vain-ruudunlukijalle">FoilSpot</span><span class="lr-k" aria-hidden="true">F</span><span class="lr-k" aria-hidden="true">o</span><span class="lr-k" aria-hidden="true">i</span><span class="lr-k" aria-hidden="true">l</span><span class="lr-k" aria-hidden="true">S</span><span class="lr-k" aria-hidden="true">p</span><span class="lr-k" aria-hidden="true">o</span><span class="lr-k" aria-hidden="true">t</span></div>
-        <div id="load-logo-tag">Wingfoil-sää</div>
+        <div id="load-logo-tag"><i class="lr-viiva" aria-hidden="true"></i><span>Wingfoil-sää</span><i class="lr-viiva" aria-hidden="true"></i></div>
       </div>
-      <div id="load-txt">Ladataan...</div>
+      <div id="load-txt">Ladataan…</div>
     </div>
     <div id="load-bottom">
       <div id="load-progress-wrap"><div id="load-progress-bar"></div></div>
@@ -4299,35 +4421,44 @@ html.tyopoyta .hl-lk-arvo { font-size: 19px; }
   var kirj = document.querySelectorAll('#load-logo-name .lr-k');
   for (var x = 0; x < kirj.length; x++) kirj[x].style.animationDelay = (0.5 + x * 0.045).toFixed(3) + 's';
 
-  /* -- MERKIN PIIRTYMINEN.
+  /* -- SIIVEN AVAUTUMINEN.
    *
    * Paljastettava kiila alkaa kulmasta `alku` ja kasvaa myötäpäivään
-   * `pyyhk` astetta. Kiila on kahden puolitason leikkaus: staattinen
-   * puolitaso (pala) ja sen sisällä pyörivä puolitaso (ikkuna).
-   * Puolitasot ovat `overflow: hidden` -puolikkaita, ja jokainen taso on
-   * saman neliön kokoinen kaaren keskipisteen ympärillä, joten kaikki
-   * pyörivät samaa pistettä. Merkki on ikkunan sisällä VASTAPYÖRIVÄSSÄ
-   * kääreessä, jolloin se pysyy paikallaan ja vain kiilan reuna liikkuu.
-   * Yli 180 asteen kiilaan tarvitaan kaksi palaa; toinen alkaa `LIMI`
-   * astetta ennen ensimmäisen loppua, koska kahden reunanpehmennetyn
-   * leikkauksen raja jätti mitattuna tumman sauman kaaren poikki.
+   * `pyyhk` astetta etureunan ympyrän keskipisteen ympäri, eli reuna
+   * kulkee täyttöputkea pitkin vasemmasta kärjestä oikeaan. Kiila on
+   * kahden puolitason leikkaus: staattinen puolitaso (pala) ja sen
+   * sisällä pyörivä puolitaso (ikkuna). Puolitasot ovat
+   * `overflow: hidden` -puolikkaita, ja jokainen taso on saman neliön
+   * kokoinen keskipisteen ympärillä, joten kaikki pyörivät samaa
+   * pistettä. Siipi on ikkunan sisällä VASTAPYÖRIVÄSSÄ kääreessä,
+   * jolloin se pysyy paikallaan ja vain kiilan reuna liikkuu.
+   * Keskipiste on siiven alapuolella, joten neliö on merkin laatikkoa
+   * suurempi (`data-r`). Siiven kiila on alle 180 astetta ja riittää
+   * yksi pala; yli 180 asteen kiila tarvitsisi toisen, joka alkaa
+   * `LIMI` astetta ennen ensimmäisen loppua (kahden
+   * reunanpehmennetyn leikkauksen raja jätti mitattuna sauman).
    *
    * Kaikki on `transform`ia HTML-elementeillä — SVG:n omat animaatiot
    * ja `stroke-dashoffset` ajettaisiin pääsäikeessä, joka on juuri nyt
-   * varattu. Käyrä näytteistetään avainkuviksi, koska palojen on
-   * kuljettava saman kulman läpi samalla hetkellä; kaksi erikseen
-   * helpotettua animaatiota eivät kohtaisi 180 asteen kohdalla. */
-  var ikoni = document.getElementById('load-logo-icon');
+   * varattu. Käyrä näytteistetään avainkuviksi, koska ikkunan ja
+   * vastapyörijän on kuljettava saman kulman läpi samalla hetkellä. */
+  var ikoni = document.getElementById('lr-m-siipi');
   var lepo = ikoni && ikoni.querySelector('svg');
   if (!lepo || vahenna || !lepo.animate) return;
   var kk = lahde.getAttribute('data-keski').split(' ');
   var kx = +kk[0], ky = +kk[1];
   var alku = +lahde.getAttribute('data-alku');
   var pyyhk = +lahde.getAttribute('data-pyyhk');
-  /* R on neliön puolikas merkin laatikon prosentteina: kaukaisin kulma
-     keskipisteestä on 73 %, eli 75 riittää kattamaan koko merkin. */
-  var R = 75, LIMI = 3, KESTO = 1150, VIIVE = 260, NAYTTEET = 36;
-  function helpotus(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+  var R = +lahde.getAttribute('data-r') || 75;
+  var LIMI = 3, KESTO = 920, VIIVE = 260, NAYTTEET = 36;
+  /* Lyhyt kiihdytys ja pitkä laskeutuminen: kuutiollinen sisään 35 %:iin
+     asti, viidennen asteen ulos. Saumakohdan arvo 0,473 on valittu niin
+     että kaltevuus on sama molemmin puolin (3v/0,35 = 5(1-v)/0,65),
+     joten kiila ei nytkähdä vaihdossa. Symmetrinen käyrä viipyi
+     alussa: siipi näytti odottavan ennen kuin avautui. */
+  function helpotus(t) {
+    return t < 0.35 ? 0.473 * Math.pow(t / 0.35, 3) : 1 - 0.527 * Math.pow((1 - t) / 0.65, 5);
+  }
   function kaare(tyyli, lapsi) {
     var d = document.createElement('div');
     d.style.cssText = 'position:absolute;' + tyyli;
@@ -4338,7 +4469,7 @@ html.tyopoyta .hl-lk-arvo { font-size: 19px; }
   var KOKO = 'left:-100%;top:0;width:200%;height:100%;';
   var s = 100 / (2 * R) * 100;
   var palat = [], animaatiot = [];
-  [0, 1].forEach(function (nro) {
+  (pyyhk > 180 ? [0, 1] : [0]).forEach(function (nro) {
     var a = nro === 0 ? alku + 90 : alku + 270 - LIMI;
     var kuva = lepo.cloneNode(true);
     kuva.style.cssText = 'position:absolute;display:block;left:' + ((R - kx) / (2 * R) * 100).toFixed(3)
@@ -4360,7 +4491,7 @@ html.tyopoyta .hl-lk-arvo { font-size: 19px; }
     palat.push(pala);
     ikoni.appendChild(pala);
   });
-  /* Valmis merkki on yksi SVG: palat pois, ettei piirtymisen jäänteitä
+  /* Valmis merkki on yksi SVG: palat pois, ettei avautumisen jäänteitä
      (pyöritetyt kerrokset, leikkaukset) jää lepoasuun. */
   lepo.style.visibility = 'hidden';
   animaatiot[0].finished.then(function () {
@@ -25476,7 +25607,8 @@ function startProgressSimulation() {
  *     käynnistettäessä data oli valmis noin sekunnissa, ja lähtö katkaisi
  *     esittelyn ennen kuin merkki ehti piirtyä. 1,3 s + palkin viimeinen
  *     pala (0,3 s) vie lähdön (`.out`) 1,6 s:iin: merkki on piirtynyt
- *     (1,41 s) ja kuskin sisääntulo päättyy (1,6 s), ja kuski lähtee heti
+ *     (siipi 1,18 s, merkin tuuli 1,39 s) ja kuskin sisääntulo päättyy
+ *     (1,6 s), ja kuski lähtee heti
  *     kun on ehtinyt paikalleen. ALARAJA on merkki: alle 1,1 s:n lähtö
  *     katkaisisi sen piirtymisen. Käyttäjän päätös: 3,4 s ja sitten 2 s
  *     olivat liian pitkiä — kuski seisoi paikallaan liian kauan.
