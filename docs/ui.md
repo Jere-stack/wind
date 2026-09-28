@@ -6584,3 +6584,63 @@ kaulahihna erottuu hiukan.
 Mitattu: tilapalkki ja nimilohko ennallaan, `compositeFailed` 0
 latausruudussa, savutesti läpi. Animaatioiden määrä ei muuttunut (siipi
 ja kypärä ovat staattista sisältöä olemassa olevissa kerroksissa).
+
+## Kuskille märkäpuku ja tukka, siipi Gong Droidin tapaan logoineen, midlength-lauta (28.9.)
+
+Pyyntö: kypärä keltaiseksi ja leukaremmi mustaksi; hahmon musta
+ulkoasu pidetään, koska se kuvastaa mustaa märkäpukua; vaaleampi iho,
+märkäpuku ilman huppua ja ruskea pitkähkö surffitukka lepattamaan
+kypärän alta; siipeen mallia Gong Droidista, paksumpi leading edge ja
+FoilSpotin logo kankaaseen "luonnollisesti muttei ikkunan päälle eli se
+leikkaantuu siihen"; lauta paksummaksi midlength-laudaksi 3D-efektillä
+ja maston leveyttä lisää.
+
+### Kuski
+
+- **Musta märkäpuku kaikkina vuorokaudenaikoina** (`--lr-puku`
+  `#10141C`): jalat, kädet ja kaula. Ennen kuski oli pimeällä paperia ja
+  valoisalla tumma; nyt vain puku on aina musta. Yötaivasta vasten musta
+  katoaisi, joten pimeällä jaloissa ja käsissä on kuunvalon reunavalo:
+  sama muoto paperina (.5) siirrettynä oikealle ylös ja puku päällä,
+  jolloin reunaan jää valojuova. Valoisalla reunavalo on 0.
+- **Iho** vaalea `#EBC7A5` (vastavalossa `#D2A884`): kasvot ja kämmenet.
+- **Tukka** ruskea, pitkähkö, kolme suortuvaa niskasta taakse, ja se
+  lepattaa omassa kerroksessaan (`#lr-tukka`, 0,7 s, epäsäännöllinen,
+  helmaa nopeampi ja pienempi). Tukka on kypärän ALLA.
+- **Kypärä keltainen** `#F2C230` (vastavalossa `#E0AE1C`), lierin
+  alapinnassa varjoviiva ja kuvussa heijastus. **Leukahihna musta** ja
+  ohut, leukalinjaa pitkin korvalta leuan alle. Ensimmäinen musta hihna
+  kulki U:na kasvojen yli ja luki partana.
+- Paita pysyi harmaana ja sen helma lepattaa kuten ennen.
+
+### Siipi
+
+- **Täyttöputki on paksumpi**: keskeltä ~17 yksikköä (ennen ~11), kärjet
+  suipot, viisi poikittaista saumaa, vaalea valojuova ulkoreunalla ja
+  tumma varjojuova sisäreunalla — pyöreä putki eikä litteä kaari.
+  Tuki ja puomi lyhenivät putken sisäreunaan asti.
+- **Merkki kankaassa**: FoilSpotin siipi ja spotti (sama polku kuin
+  `lm-siipi`) painettuna alemman ikkunan viereen. Merkki on
+  `clip-path`issa, jonka muoto on kangas MIINUS ikkunat (`evenodd`), joten
+  ikkunan kohdalta merkki puuttuu ja se jatkuu täyttöputken alle —
+  painatus eikä tarra. Väri `--lr-logo`: pimeällä vaalealla kankaalla
+  tumma (.55), valoisalla tummalla kankaalla vaalea (.7).
+- Ensimmäisellä sijoituksella merkki oli lähes kokonaan ikkunan kohdalla
+  ja siitä näkyi pala; nyt ikkuna leikkaa vain sen reunan.
+
+### Lauta ja foili
+
+- **Midlength-lauta** 110 × 10 yksikköä (~200 × 18 cm), nokka nousee.
+  3D kolmesta pinnasta: kansi ylhäältä nähtynä (vaalea kaista
+  `--lr-lauta-yla`), kylki (`--lr-lauta`) ja pohjan varjo (musta .28),
+  ja kannen reunassa valojuova. Pimeällä lauta on vaalea, vastavalossa
+  tumma. Jalkalenkit ja jalat ovat pukua.
+- **Masto 9 yksikköä leveä** (ennen 6) ja kapenee hieman alas,
+  etureunassa valojuova; kiinnityslevy leveni. Foili on oma sävynsä
+  (`--lr-foili`), koska hiilikuitufoili on tumma.
+
+### Mitattu
+
+Tilapalkki 18,38 / 10,54:1 (yö / päivä), nimilohko ennallaan.
+Animaatioita esittelyssä 55 ja levossa 31 (tukka +1). `compositeFailed`
+0 latausruudussa, savutesti läpi, vaimennettu liike 0 animaatiota.

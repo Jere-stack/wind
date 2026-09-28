@@ -493,19 +493,23 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   Asento on oikeasta vastavalokuvasta (mittasuhteiden malli, ei
   upotettu): lähes pystyasento ja nojaus taaksepäin, siipi molemmin
   käsin olkapäiden korkeudella VINOSSA sivulla, ja kädet ovat PUOMILLA.
-  Siipi on oikean wingin rakenne: täyttöputki umpinaisena muotona joka
-  kapenee kärkiin (keskeltä ~11 yks.) saumoineen ja valojuovineen,
-  kapeneva keskituki, puomi kahdella kiinnikkeellä tuen alla, kangas
-  koverine takareunoineen ja paneelisaumoineen, ja KAKSI ikkunaa tuen
-  molemmin puolin (reikinä, `evenodd`). Paksu tuki ja puomi rinnakkain
-  lukivat tikkaina — tuki on siksi kevyempi (alfa .8, kapenee). Lauta on oikean mittainen (84 × 7 yks. eli ~150 ×
-  13 cm, nokka nousee, jalkalenkit) ja foili oikea: masto 48 yks.
-  (~85 cm) laudan takapuoliskolta, runko, etusiipi profiilina kärki
-  näkyvissä, pieni takasiipi. Kuskilla on käyttäjän pyytämät värit:
-  tummansininen sombrero-mallinen kypärä leveällä lierillä ja näkyvällä
-  leukahihnalla (`--lr-kypara`) ja harmaa paita (`--lr-paita`),
-  jonka helma lepattaa (`#lr-helma`, 0,9 s, epäsäännöllinen) — muuten
-  kuski on `--lr-kuski`. Osat ovat sisäkkäisiä kerroksia omilla
+  Siipi on Gong Droidin tapainen: PAKSU täyttöputki umpinaisena muotona
+  (keskeltä ~17 yks., kapenee kärkiin) saumoineen, kapeneva keskituki,
+  puomi kahdella kiinnikkeellä, kangas koverine takareunoineen ja KAKSI
+  ikkunaa (reikinä, `evenodd`). FoilSpotin merkki on painettu kankaaseen
+  ja LEIKATTU kankaan muotoon ikkunoineen (`#lr-kangas-leike`), joten
+  ikkuna leikkaa sen eikä merkki ole ikkunan päällä. Lauta on MIDLENGTH
+  (110 × 10 yks. ~200 × 18 cm, 3D kolmesta pinnasta: kansi, kylki,
+  pohjan varjo) ja masto 9 yks. leveä laudan takapuoliskolta.
+  KUSKIN VÄRIT OVAT KÄYTTÄJÄN PÄÄTÖS, EIVÄT TUULTA: keltainen
+  sombrero-kypärä (`--lr-kypara`), musta leukahihna leukalinjaa pitkin,
+  MUSTA MÄRKÄPUKU KAIKKINA VUOROKAUDENAIKOINA (`--lr-puku`; yöllä
+  kuunvalon reunavalo `--lr-reuna`, muuten musta katoaisi yötaivaaseen),
+  vaalea iho (`--lr-iho`), ruskea surffitukka joka lepattaa kypärän alta
+  (`#lr-tukka`, 0,7 s) ja harmaa paita jonka helma lepattaa (`#lr-helma`,
+  0,9 s). Siipi, lauta ja foili seuraavat valoa (`--lr-kuski`,
+  `--lr-lauta`, `--lr-foili`): pimeällä vaaleat, valoisalla vastavalossa
+  tummat. Osat ovat sisäkkäisiä kerroksia omilla
   nivelpisteillään (`#lr-jalat` nilkoista `scaleY`, `#lr-yla` lantiosta
   SAMALLA käyrällä, `#lr-kasi` = molemmat kädet ja siipi olkapäistä,
   `#lr-siipi` etukädestä), ja vartalo piirtyy siiven PÄÄLLE. Liike on
