@@ -6552,3 +6552,35 @@ Tilapalkki 18,38 / 17,80 / 15,97 / 10,54:1 (raja 10), nimilohko
 ennallaan. Animaatioita esittelyssä 54 ja levossa 30 (helma +1).
 `compositeFailed` 0 latausruudussa, savutesti läpi, vaimennettu liike
 0 animaatiota.
+
+## Siipi oikean wingin rakenteella, sombrero-kypärä (28.9.)
+
+Pyyntö: siipi oikeamman näköiseksi — kaksi ikkunaa, oikean näköinen
+leading edge ja canopy — ja kuskille sombrero-tyylinen kypärä, jossa
+kaulahihna erottuu hiukan.
+
+- **Täyttöputki (leading edge) on umpinainen muoto**, ei viiva: ulkokaari
+  ja sisäkaari, jotka kohtaavat kärjissä, joten putki on keskeltä noin
+  11 yksikköä ja kapenee kärkiin kuten täytetty putki. Poikittaiset
+  saumat (viisi, musta .22) kertovat että putki on koottu paloista, ja
+  vaalea juova sen ulkoreunalla antaa pyöreyden.
+- **Kangas (canopy)**: takareuna on kaksi koveraa kaarta kärjistä
+  keskituen päähän, kuten kiristyvä kangas; paneelisaumat säteittäin
+  putkelta takareunaan; yläpuolisko hieman tummempi (kaksi
+  täyttökerrosta), jotta kangas ei ole tasainen levy.
+- **Kaksi ikkunaa** keskituen molemmin puolin puomin lähellä,
+  pyöristetyt nelikulmiot. Ne ovat kankaassa reikiä (`fill-rule`
+  `evenodd`), niissä on oma himmeä täyttö ja reunus.
+- **Keskituki** on kapeneva putki (alfa .8), ja puomi (3,6) kulkee sen
+  alla kahdella kiinnikkeellä. Ensimmäisessä versiossa tuki oli
+  täysvärinen palkki, ja tuki ja puomi rinnakkain lukivat raskaana
+  kaksoispalkkina.
+- **Kypärä**: matala kupu ja leveä, hieman alas kaartuva lieri joka
+  ulottuu pään molemmille puolille (sombrero-malli), heijastus kuvussa
+  ja lierin reunassa. Leukahihna on ohut kypärän värinen U korvilta
+  leuan alle (alfa .9), joten se erottuu hiukan kasvoja vasten mutta
+  ei nouse pääosaan.
+
+Mitattu: tilapalkki ja nimilohko ennallaan, `compositeFailed` 0
+latausruudussa, savutesti läpi. Animaatioiden määrä ei muuttunut (siipi
+ja kypärä ovat staattista sisältöä olemassa olevissa kerroksissa).

@@ -492,13 +492,18 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **KUSKI ON NIVELLETTY, SE LIIKKUU NÄKYVÄSTI, JA LÄHTÖ ON HYPPY.**
   Asento on oikeasta vastavalokuvasta (mittasuhteiden malli, ei
   upotettu): lähes pystyasento ja nojaus taaksepäin, siipi molemmin
-  käsin olkapäiden korkeudella VINOSSA sivulla, ja kädet ovat PUOMILLA
-  (siivessä täyttöputki, keskituki, puomi kahdella kiinnikkeellä,
-  kangas ja ikkuna). Lauta on oikean mittainen (84 × 7 yks. eli ~150 ×
+  käsin olkapäiden korkeudella VINOSSA sivulla, ja kädet ovat PUOMILLA.
+  Siipi on oikean wingin rakenne: täyttöputki umpinaisena muotona joka
+  kapenee kärkiin (keskeltä ~11 yks.) saumoineen ja valojuovineen,
+  kapeneva keskituki, puomi kahdella kiinnikkeellä tuen alla, kangas
+  koverine takareunoineen ja paneelisaumoineen, ja KAKSI ikkunaa tuen
+  molemmin puolin (reikinä, `evenodd`). Paksu tuki ja puomi rinnakkain
+  lukivat tikkaina — tuki on siksi kevyempi (alfa .8, kapenee). Lauta on oikean mittainen (84 × 7 yks. eli ~150 ×
   13 cm, nokka nousee, jalkalenkit) ja foili oikea: masto 48 yks.
   (~85 cm) laudan takapuoliskolta, runko, etusiipi profiilina kärki
   näkyvissä, pieni takasiipi. Kuskilla on käyttäjän pyytämät värit:
-  tummansininen kypärä (`--lr-kypara`) ja harmaa paita (`--lr-paita`),
+  tummansininen sombrero-mallinen kypärä leveällä lierillä ja näkyvällä
+  leukahihnalla (`--lr-kypara`) ja harmaa paita (`--lr-paita`),
   jonka helma lepattaa (`#lr-helma`, 0,9 s, epäsäännöllinen) — muuten
   kuski on `--lr-kuski`. Osat ovat sisäkkäisiä kerroksia omilla
   nivelpisteillään (`#lr-jalat` nilkoista `scaleY`, `#lr-yla` lantiosta
