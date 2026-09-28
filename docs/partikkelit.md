@@ -1300,3 +1300,27 @@ askel on oikeasti 1×, 2× tai 3× eikä se ole värinää.
 Samalla syntymän ja kuoleman häivytys lyhennettiin 15/30 → 10/18
 ruutuun (0,17 s / 0,3 s): pitkä häivytys piti noin joka seitsemännen
 jäljen osittain läpinäkyvänä, ja himmeä jälki lukee sumeana.
+
+### Jatko: hitaampi liike ja jatkuva nopeusluokka (28.9.)
+
+**GEO_SPEED 0.005 → 0.0033 käyttäjän pyynnöstä** ("epämiellyttävän
+nopeita"). Vanha arvo viritettiin ruutuaskeleella, joten alle 60 fps:llä
+piirtävällä laitteella se näytti hitaammalta kuin luku sanoi; ajasta
+laskettuna sama luku oli laitteella nopeampi kuin ennen. Uusi on 34 %
+hitaampi kuin vanha 60 Hz:llä. **JALKI 30 → 45 samassa suhteessa**, jotta
+heikon tuulen jälki (aikapituuden rajaama) ei lyhene pilkkurajan alle:
+aikapituus on 135 ruutua (2,25 s).
+
+**Nopeusluokka on liukuluku.** Väri, peittävyys ja leveys tulivat
+kymmenestä 2 m/s:n luokasta, ja rajan ympärillä heiluva nopeus vaihtoi
+luokkaa edestakaisin. Nyt varjostin sekoittaa kahden luokan värin
+(`mix(u_vari[i], u_vari[i+1], a_n − i)`) ja leveys interpoloidaan.
+Mitattu yli 0,5 luokan hyppäyksiä partikkelia kohti sekunnissa:
+0,30 → 0,10, ja jäljelle jäävä 0,10 on uudelleensyntymiä (partikkeli
+siirtyy uuteen paikkaan, elinikä 5 s), ei välkyntää.
+
+Tarkistettu samalla: pää kulkee yhä kärjen tahtia (p50 ja p90 1,00),
+askel on tasainen samalla ruutumäärällä (p50 0,002, p90 0,006), pituus
+22,0 px. Näkyvällä peittävyydellä katoavat jäljet ovat ruudun
+ulkopuolella tai häivytyksen viimeisessä ruudussa (ikä 299,
+peittävyys 0,06–0,11 kontin ~25 fps:llä; 60 Hz:llä alle 0,01).

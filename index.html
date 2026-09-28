@@ -5252,7 +5252,13 @@ const Config = {
      30 px ja peiton 3,4 %, mika osuu talon omaan mitattuun optimiin
      (3,55 %, ks. particleLineWidth). Pituusraja JalkiViritys.maxPx
      leikkaa kovan tuulen kuten ennenkin. */
-  GEO_SPEED: 0.005,
+  /* 0.005 -> 0.0033 KÄYTTÄJÄN PYYNNÖSTÄ (28.9., "epämiellyttävän
+     nopeita"). Kun liike muuttui ajasta lasketuksi, nopeus nousi niillä
+     laitteilla jotka piirsivät alle 60 ruutua sekunnissa — vanha arvo oli
+     viritetty ruutuaskeleella, eli se näytti hitaammalta kuin luku sanoi.
+     Heikon tuulen jälki ei lyhene: aikapituus kasvoi samassa suhteessa
+     (JALKI 30 -> 45). */
+  GEO_SPEED: 0.0033,
   WIND_SAMPLE_INTERVAL: 2,
   /* Elinikä 60 Hz:n ruutuina (5 s). Ikä kasvaa AJASSA (`f`), ei
      ruuduissa, joten 120 Hz:n näytöllä partikkeli ei kuole puolessa
@@ -12835,7 +12841,10 @@ const AlueVahti = {
    liikkuu noin 0,33 px ruudussa, joten 60 ruutua antoi vain 20 px
    jälkeä. 90 ruutua antaa 30 px, ja kovassa tuulessa raja tulee yhä
    JalkiViritys.maxPx:stä. Muistia tämä maksaa 401 × 2 × 4 × 30 ≈ 96 kt. */
-const JALKI = 30;
+/* 30 -> 45 samassa suhteessa kuin GEO_SPEED laski (0.005 -> 0.0033):
+   heikossa tuulessa aikapituus ratkaisee jäljen pituuden, ja ilman tätä
+   hitaampi liike olisi vienyt sen pilkkurajan alle. */
+const JALKI = 45;
 /* Ruutua pisteiden välissä — jälki on enintään JALKI × ASKEL = 60 ruutua.
  *
  * Askel oli 4 ja pisteitä 20 (80 ruutua). Jäljen lyhentäminen tehtiin
@@ -13357,7 +13366,13 @@ function partikkelitAskel() {
       hx[0] = p.x; hy[0] = p.y;
       if (p.hn < JALKI) p.hn++;
     }
-    p.nippu = speedT >= 1 ? NIPUT - 1 : (speedT * NIPUT) | 0;
+    /* NOPEUSLUOKKA ON LIUKULUKU. Kokonaislukuna väri, peittävyys ja
+       leveys hyppäsivät luokkarajalla, ja rajan ympärillä heiluva nopeus
+       vaihtoi luokkaa edestakaisin: mitattuna 0,30 kertaa sekunnissa
+       partikkelia kohti, eli ~70 hyppäystä sekunnissa ruudulla. Varjostin
+       ja leveys interpoloivat kahden luokan välillä. */
+    const nf = speedT * NIPUT - 0.5;
+    p.nippu = nf <= 0 ? 0 : (nf >= NIPUT - 1 ? NIPUT - 1 : nf);
     /* Jäljen pituus pikseleinä: aikapituuden liike, rajattuna. Liukuluku
        eikä pistemäärä — `nauha` leikkaa kaaren tähän kohtaan. */
     const pit = Math.sqrt(p.vx * p.vx + p.vy * p.vy) * aikaRuutua;
@@ -13395,7 +13410,8 @@ const PartikkeliGL = {
       + 'uniform vec2 u_koko; uniform vec4 u_vari[' + NIPUT + '];\n'
       + 'varying float v_d; varying float v_w; varying vec4 v_c;\n'
       + 'void main(){ vec2 c = a_xy / u_koko * 2.0 - 1.0; gl_Position = vec4(c.x, -c.y, 0.0, 1.0);\n'
-      + '  v_d = a_d; v_w = a_w; v_c = u_vari[int(a_n + 0.5)] * a_a; }\n',
+      + '  float i0 = min(floor(a_n), ' + (NIPUT - 2) + '.0);\n'
+      + '  v_d = a_d; v_w = a_w; v_c = mix(u_vari[int(i0)], u_vari[int(i0) + 1], a_n - i0) * a_a; }\n',
       GL_TARKKUUS_FS
       + 'uniform float u_pr; varying float v_d; varying float v_w; varying vec4 v_c;\n'
       + 'void main(){ float k = clamp((v_w - abs(v_d)) * u_pr + 0.5, 0.0, 1.0); gl_FragColor = v_c * k; }\n',
@@ -13420,7 +13436,9 @@ const PartikkeliGL = {
       if (p.hn < 1) continue;
       _pA = _pAlfa(p);
       if (_pA < 0.01) continue;
-      nauha(p, p.pit, Nippu.leveys[p.nippu], p.nippu, laaj);
+      const ni = Math.min(NIPUT - 2, p.nippu | 0), nfr = p.nippu - ni;
+      const lev = Nippu.leveys[ni] + (Nippu.leveys[ni + 1] - Nippu.leveys[ni]) * nfr;
+      nauha(p, p.pit, lev, p.nippu, laaj);
     }
     if (_pN < 3) return;
     const self = this, o = this._ohj;

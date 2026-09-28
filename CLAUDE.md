@@ -2096,6 +2096,10 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   ruutunopeuden muutoksen nopeutena (mm. hypyn jälkeen). Jälki talletetaan
   kellosta (`ASKEL_MS`). Mitattu: matka ≈ 60 askelta/s fps:stä
   riippumatta, vanha = fps (docs/partikkelit.md, "Liike ajasta").
+  **NOPEUS 0.0033 JA JÄLKI 45 PISTETTÄ** (käyttäjän pyyntö 28.9.):
+  GEO_SPEED ja aikapituus muutetaan AINA yhdessä, muuten heikon tuulen
+  jälki lyhenee pilkuksi. **NOPEUSLUOKKA ON LIUKULUKU**: kokonaislukuna
+  väri ja leveys hyppäsivät luokkarajalla (0,30/s partikkelia kohti).
   **AIKA PYÖRISTETÄÄN NÄYTÖN RUUTUVÄLIIN** (`PerfTracker.valiMs()`):
   raaka `performance.now()` piirtohetkellä heilui, ja kärjen askel
   vaihteli ruudusta toiseen 16 % (p90 35 %) — se luki epätarkkuutena.
