@@ -6918,3 +6918,30 @@ elementti, CSS ja skriptin pisarat) ja impact vestin rintamerkki.
 Vaahtojälki, maston juuren pisarat ja ponnistuksen roiske jäivät.
 Animaatioita 61 / 37, tilapalkki päivällä 12,36:1, vaimennettu 0,
 savutesti läpi.
+
+## Aikajanan liukuväri pois — halot tilalle (28.9.)
+
+Käyttäjän päätös: aikajanan tummennus (`#tl-wrap::before`, alfa 0 →
+.96 osoitinviivan yläpäästä ruudun pohjaan) poistettiin. Se söi karttaa
+koko alareunan leveydeltä, ja aikajana toimii ilman sitä.
+
+Mitä tilalle, jotta luettavuus ei kaadu:
+
+- **Tekstit:** `--tl-halo` = `0 0 1px` (.95) + `0 0 3px` (.85) +
+  `0 1px 4px` (.60), kaikki `--tl-pohja`sta. Tuntilukemat, NYT-lappu,
+  päiväkiskon laput, `#lahde-merkki` ja `#tutka-aika`. Valittu päivä on
+  tummaa valkoisella pillerillä, joten siltä halo on pois.
+- **Himmeät sävyt nousivat:** `--tl-teksti-2` .50 → .72 ja
+  `--tl-teksti-3` .30 → .58. 30 % valkoista ei erotu kirkkaan
+  lämpökartan päällä halollakaan; rytmi on yhä painoerossa (600/400).
+- **Palkit:** valokehys (`inset .5px` valkoinen .22) vaihtui tummaksi
+  hiusreunaksi (.70) ja varjoksi. Lämpökartta on samaa ramppia kuin
+  palkit, joten ilman reunaa palkki katoaa samanarvoisen kentän päälle.
+- **Napit** olivat jo sumennettua lasia (`backdrop-filter: blur(12px)`)
+  ja tumma varjo, joka kartan päällä taas näkyy — ei muutosta.
+
+Tarkistettu savutestillä (puhelin ja työpöytä, 0 virhettä) ja
+kuvakaappauksella tumman kartan ja lämpökartan päältä. Kontrastia
+kirkasta satelliittikuvaa vasten ei ole mitattu — jos jokin ei erotu
+siellä, vahvista sen omaa haloa, älä palauta aluetta tummentavaa
+alustaa.

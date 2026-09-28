@@ -217,7 +217,7 @@ if ('serviceWorker' in navigator) {
      sävyssä; hiekkaura poisti rajan (8,97:1 -> 1,05:1) ja päiväkisko
      sai samanlaisen; ja lopulta kaksi identtistä uraa kortin sisällä
      olivat kolme reunaa liikaa. Kortin oma reuna riittää.
-     Ks. `#tl-wrap::before` ja docs/ui.md. */
+     Nyt aikajanalla ei ole alustaa lainkaan; ks. docs/ui.md. */
   --chip-line: rgba(16,26,32,0.10);
 
   --shadow-1: 0 1px 2px rgba(16,26,32,.10);
@@ -1305,12 +1305,20 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
  * Tokenit ovat tässä eivätkä paneelien `--ink`-perheessä, koska aikajana
  * on ainoa tumma pinta koko sovelluksessa. */
 :root {
-  /* Liukuvärin pohja. Ei musta: sinertävä tummuus istuu sekä
+  /* Halojen ja reunojen sävy (oli liukuvärin pohja). Ei musta: sinertävä tummuus istuu sekä
      satelliittiin että vaaleaan merikarttaan. */
   --tl-pohja: 9, 14, 19;
   --tl-teksti:   rgba(255,255,255,.94);
-  --tl-teksti-2: rgba(255,255,255,.50);
-  --tl-teksti-3: rgba(255,255,255,.30);
+  /* Ilman tummennusta himmeät sävyt nousivat (.50 -> .72, .30 -> .58):
+     .30 valkoista satelliittikuvan tai lämpökartan päällä ei erotu,
+     vaikka halo olisi. Painoero (600 vs 400) pitää rytmin. */
+  --tl-teksti-2: rgba(255,255,255,.72);
+  --tl-teksti-3: rgba(255,255,255,.58);
+  /* Tekstin halo korvaa tummennuksen: tiukka 1 px ääriviiva + pehmeä
+     varjo, molemmat `--tl-pohja`sta. */
+  --tl-halo: 0 0 1px rgba(var(--tl-pohja), .95),
+             0 0 3px rgba(var(--tl-pohja), .85),
+             0 1px 4px rgba(var(--tl-pohja), .60);
   /* LASI ON 24 % EIKÄ 15 %, KOSKA VARJO EI NOSTA TUMMALLA ALUSTALLA.
      Paperikortilla kiekon kohotuksen teki `0 2px 8px rgba(0,0,0,.28)`;
      tummennuksen päällä tumma varjo on näkymätön, joten nosto oli
@@ -1405,75 +1413,17 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
 @media (display-mode: standalone) { :root { --sab-tl: 14px; } }
 :root.standalone { --sab-tl: 14px; }
 
-/* LIUKUVÄRI, EI LAATIKKOA.
+/* EI LIUKUVÄRIÄ, EI LAATIKKOA — KARTTA KULKEE AIKAJANAN LÄPI.
  *
- * Alusta oli sisennetty paperilaatikko (`--chip`, 18 px kulmat, varjo).
- * Nyt se on reunasta reunaan ulottuva tummennus. Se alkoi ensin
- * KÄÄREEN YLÄPUOLELTA 64 px:n ylimenolla, sitten 32 px:n, ja nyt
- * osoitinviivan yläpäästä (alla).
+ * Alusta oli ensin paperikortti ja sitten reunasta reunaan ulottuva
+ * tummennus (`#tl-wrap::before`, alfa 0 -> .96 osoitinviivan yläpäästä
+ * alas). Käyttäjän päätöksellä tummennus poistettiin: aikajana toimii
+ * ilman sitä, ja se söi karttaa koko alareunan leveydeltä.
  *
- * YLIMENO ON 32 px, EI 64, JA SE ON MITATTU VALKOISTA VASTEN. Kartan
- * päältä mitattu profiili ei kerro liukuväristä mitään — Itämeri yöllä on
- * jo valmiiksi tummaa ja luminanssi seuraa karttaa (mitattu: L poukkoili
- * 0,0046 ja 0,0798 välillä vierekkäisissä näytteissä, ja suurin arvo oli
- * lukemarivin teksti). Kun kartta piilotetaan ja taakse jätetään
- * valkoinen, pikselin arvo ON alfa.
- *
- * Niin mitattuna 64 px:n ylimeno alkoi näkyä 58 px kääreen yläpuolella ja
- * oli puolessa (a = 0,50) täsmälleen kääreen ylälaidassa. Se oli liian
- * korkealla: tummennus söi karttaa lähes kuudenkymmenen pikselin verran
- * ennen kuin aikajanaa edes alkoi. Nyt ylimeno on 32 px, eli sama
- * alfaväli kuljetaan PUOLESSA matkassa — reuna häipyy nopeammin ylöspäin
- * mentäessä, mikä oli koko pyyntö.
- *
- * YLIMENOA EI OLE ENÄÄ LAINKAAN: LIUKUVÄRI ALKAA OSOITINVIIVAN
- * YLÄPÄÄSTÄ. 32 px:kin oli käyttäjän mukaan liian ylhäällä, ja raja on
- * nyt sidottu siihen mitä ruudulla näkyy: tummennus saa ulottua
- * enintään sinne mistä NYT-viiva ja `#tl-indicator` alkavat (kääreen
- * ylälaita + 6 px täytettä). Mitattuna ennen muutosta tummennus alkoi
- * 38 px viivan yläpäätä ylempää. Lukemakupla on kääreen yläpuolella
- * omalla umpinaisella pohjallaan, joten se ei tarvitse tummennusta.
- * Pysäkit ovat PIKSELEINÄ eivätkä prosentteina, jotta alku pysyy
- * samassa kohdassa myös kotivalikon appissa jossa kääre on korkeampi.
- *
- * YLIMENO LYHENI MUTTA PALKKIVYÖHYKE EI VAALENTUNUT, JA SE ON EHTO
- * EIKÄ SATTUMA. Ensimmäinen yritys siirsi koko käyrää alemmas, jolloin
- * palkkien takana oleva alfa putosi 0,805 -> 0,780 — pieni luku, mutta
- * kartta on siinä kohtaa kirkas, ja mitattuna palkin kontrasti alustaan
- * romahti: heikoin pää 4,88:1 -> 3,50:1 eli käytännössä takaisin sinne
- * mistä paperikortilta lähdettiin (3,41). Sääntö on että palkit saavat
- * tummennuksella ENEMMÄN kontrastia kuin paperilla, joten alfa
- * palkkivyöhykkeellä pidetään ennallaan ja lyhennys maksetaan pelkästään
- * ylimenosta.
- *
- * Sama ehto pätee yhä: alfa +30 px:n kohdalla kääreen ylälaidasta on
- * 0,82, +50:ssä 0,887 ja +74:ssä 0,912 (ennen 0,822 / 0,888 / 0,913).
- * Lyhyempi nousu maksetaan jyrkemmällä alulla, ei vaaleammilla palkeilla.
- *
- * Pysäkit eivät ole tasavälein: silmä lukee lineaarisen liukuvärin
- * juovana, koska sen keskikohta nousee liian nopeasti. Käyrä on
- * loiveneva — jokainen osuus nousee edellistä hitaammin (0,070 →
- * 0,033 → 0,014 → 0,0033 → 0,0006 alfaa pikseliä kohti) — eikä siinä
- * siis ole kohtaa jossa nousu KIIHTYISI uudelleen. Juuri se
- * kiihtyminen on se mikä lukisi juovana, ja se on tämän käyrän ainoa
- * kielletty muoto.
- *
- * `pointer-events: none` pysyy, vaikka kerros ei enää ulotu kääreen
- * yli: se on kääreen oma koriste eikä osumapinta. */
-#tl-wrap::before {
-  content: '';
-  position: absolute;
-  left: 0; right: 0;
-  top: 6px; bottom: 0;
-  background: linear-gradient(to bottom,
-    rgba(var(--tl-pohja), 0)   0,
-    rgba(var(--tl-pohja), .42) 6px,
-    rgba(var(--tl-pohja), .68) 14px,
-    rgba(var(--tl-pohja), .82) 24px,
-    rgba(var(--tl-pohja), .90) 48px,
-    rgba(var(--tl-pohja), .96) 100%);
-  pointer-events: none;
-}
+ * Luettavuus tulee nyt ELEMENTEISTÄ EIKÄ ALUEESTA: jokaisella tekstillä
+ * on oma tumma halonsa (`--tl-halo`), palkeilla tumma hiusreuna ja
+ * varjo, ja napit ovat sumennettua lasia varjolla. Halo tummentaa vain
+ * glyfin ympärillä, joten kartta näkyy lukemien välistä. */
 
 /* URIA EI OLE. YKSI PAPERI, KAKSI RIVIÄ.
  *
@@ -1489,7 +1439,7 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
  * enemmän kontrastia kuin urassa, eivät vähemmän (mitattu alla
  * jokaiselle erikseen).
  *
- * `#tl-wrap::before` on kortti; toista pseudoelementtiä ei enää tarvita.
+ * Kortti ja sen jälkeinen tummennus on nyt poistettu kokonaan.
  * Tokenit `--tl-ura` ja `--tl-ura-yla` poistuivat samalla. */
 
 /* Play-nappi on 44 px eli Applen kosketusminimi, ja ympyrä täyttää siitä
@@ -1761,6 +1711,7 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
  * aikanaan tarkoituksella luovutti kartalle. Napautukset on mitattu
  * reunoja myöten. */
 .tl-paiva {
+  text-shadow: var(--tl-halo);
   position: relative;
   /* KAIKKI LAPUT OVAT SAMAN LEVYISIÄ, koska valintapilleri ei liiku
      (ks. `#tl-paiva-pilleri`): kiinteän pillerin on sovittava jokaiseen
@@ -1826,7 +1777,7 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
 }
 #tl-paiva-pilleri[hidden] { display: none; }
 .tl-paiva:not(.valittu):active::before { background: var(--tl-lasi); }
-.tl-paiva.valittu { color: #10171D; }
+.tl-paiva.valittu { color: #10171D; text-shadow: none; }
 .tl-paiva-txt { position: relative; }
 
 /* PÄIVÄN TUULIKAISTA POISTETTIIN.
@@ -1948,7 +1899,11 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
   /* Kehys oli tumma muste paperia vasten. Tummalla alustalla se söisi
      palkin reunan; nyt reunan tekee ALUSTAN tummuus, ja kehys on
      hiuksenohut valo joka pitää kirkkaan palkin terävänä. */
-  box-shadow: inset 0 0 0 .5px rgba(255,255,255,.22);
+  /* Ilman tummennusta palkin alusta on kartta, ja lämpökartta on SAMAA
+     ramppia: 8 m/s palkki 8 m/s kentän päällä katoaisi. Reunan tekee
+     nyt tumma hiusreuna ja varjo, ei alusta. */
+  box-shadow: 0 0 0 .5px rgba(var(--tl-pohja), .70),
+              0 1px 3px rgba(var(--tl-pohja), .45);
   transition: opacity 0.15s;
 }
 .htick.past .htick-bar { opacity: 0.4; }
@@ -2010,6 +1965,7 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
  * NYT-lapussa (`--fs-8`), eli tämä ei tuo uutta askelta typografiaan. */
 .htick-lbl {
   position: absolute; bottom: 0; font-variant-numeric: tabular-nums;
+  text-shadow: var(--tl-halo);
   font-size: var(--fs-10); color: var(--tl-teksti-3); white-space: nowrap;
   pointer-events: none; line-height: 12px;
 }
@@ -2097,6 +2053,7 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
  * eikä NYT-merkkiä tarvitse lukea numerona: sen kertoo pystyviiva. */
 .tl-now-label {
   position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  text-shadow: var(--tl-halo);
   font-variant-numeric: tabular-nums; font-size: var(--fs-8); font-weight: 700;
   color: var(--tl-teksti-2); white-space: nowrap; letter-spacing: .06em;
   line-height: 10px;
@@ -3016,7 +2973,7 @@ button.sh-hero-indeksi:focus-visible { outline: 2px solid var(--accent); outline
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   opacity: 0; transition: opacity .3s ease;
 }
-#lahde-merkki { color: var(--tl-teksti-2); }
+#lahde-merkki { color: var(--tl-teksti-2); text-shadow: var(--tl-halo); }
 #lahde-merkki.nakyy { opacity: 1; }
 
 /* SADETUTKAN KEHYKSEN AIKALEIMA. Perii lähdemerkinnän asun kokonaan:
@@ -3044,7 +3001,7 @@ button.sh-hero-indeksi:focus-visible { outline: 2px solid var(--accent); outline
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   opacity: 0; transition: opacity .3s ease;
 }
-#tutka-aika { color: var(--tl-teksti-2); }
+#tutka-aika { color: var(--tl-teksti-2); text-shadow: var(--tl-halo); }
 #tutka-aika.nakyy { opacity: 1; }
 
 /* Kaksi lappua samalla rivillä: lähdemerkintä lyhenee sen verran kuin

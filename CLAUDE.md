@@ -226,7 +226,8 @@ kokeiltu ja kaadettu mittauksella.
   Aikajana: palkit kaavion värisiksi, päivän pilleri paikalleen ·
   Uusi merkki: siipi ja tuuli — ja latausruudun viimeistely ·
   Merkki yksinkertaistui: siipi ja spotti ·
-  Latausruutu vuorokaudenajan mukaan: Helsinki, nivelletty kuski ja hyppy
+  Latausruutu vuorokaudenajan mukaan: Helsinki, nivelletty kuski ja hyppy ·
+  Aikajanan liukuväri pois — halot tilalle
 - **pwa**: PWA — kotivalikkoon ja rannalle · Mitä välimuistiin menee ·
   Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
   Ikoni ja kotivalikko
@@ -374,41 +375,17 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   Kiinteä `nauha.left + 24` on play-napin sisällä (x 9..53), ja
   keskimmäinen tikki on NYT-viivan alla (magenta 180,0,90 luettiin
   kerran palkiksi). Tikki 18 px, palkki 12, väliin 6 px.
-- **AIKAJANALLA EI OLE URAA EIKÄ KORTTIA.** Ura oli kolmessa muodossa
-  (tumma, hiekka, kaksi identtistä uraa 1,01:1 raidasta raitaan) ja
-  jokainen oli reuna jota kortin oma reuna jo kertoi; sitten kortti
-  poistui sekin. Alusta on nyt liukuväri: läpinäkyvä ylhäältä, tumma
-  alhaalta, reunasta reunaan. Kartta jatkuu aikajanan läpi eikä mikään
-  reuna katkaise sitä.
-  Älä palauta laatikkoa "jotta palkit näkyisivät": palkit saavat
-  tummennuksella ENEMMÄN kontrastia kuin paperilla (heikoin 3,41 →
-  7,76).
-  **LIUKUVÄRI ALKAA OSOITINVIIVAN YLÄPÄÄSTÄ, EI KORKEAMMALTA.** Se
-  alkoi ensin 64 px ja sitten 32 px kääreen yläpuolelta, ja molemmat
-  olivat käyttäjän mukaan liian ylhäällä. Raja on nyt se mitä ruudulla
-  näkyy: tummennus saa ulottua enintään sinne mistä NYT-viiva ja
-  `#tl-indicator` alkavat, eli kääreen ylälaita + 6 px. `::before` on
-  `top: 6px` ja pysäkit ovat PIKSELEINÄ: 0 → .42 (6 px) → .68 (14) →
-  .82 (24) → .90 (48) → .96 (100 %), jotta alku ei liiku kun kääre on
-  kotivalikon appissa korkeampi. Mitattuna valkoista vasten tummennus
-  alkaa tasan 6 px kääreen ylälaidasta (ennen −38 px viivasta).
-  Lukemakupla on kääreen yläpuolella omalla umpinaisella pohjallaan
-  eikä tarvitse tummennusta.
-  **PALKKIVYÖHYKKEEN ALFA EI SAA LASKEA.** Ensimmäinen 32 px:n yritys
-  siirsi koko käyrää alas (.45/.80/.91), jolloin alfa palkkien takana
-  putosi 0,805 → 0,780. Mitattuna nyt 0,821 (+30 px), 0,890 (+50) ja
-  0,915 (+74), eli sama tai tummempi kuin ennen (0,822 / 0,888 /
-  0,913). Lyhyempi nousu maksetaan jyrkemmällä alulla, ei vaaleammilla
-  palkeilla.
-  Pysäkit eivät ole tasavälein: lineaarinen luki juovana, koska sen
-  keskikohta nousee liian nopeasti. Käyrän ainoa kielletty muoto on
-  KIIHTYVÄ nousu — osuuksien kaltevuus on 0,070 → 0,033 → 0,014 →
-  0,0033 → 0,0006 alfaa pikseliä kohti, eli aina edellistä pienempi.
-  **LIUKUVÄRIÄ EI MITATA KARTAN PÄÄLTÄ.** Itämeri yöllä on jo valmiiksi
-  tummaa ja luminanssi seuraa karttaa eikä alfaa (mitattuna L poukkoili
-  0,0046 ja 0,0798 välillä vierekkäisissä näytteissä, ja suurin arvo oli
-  lukemarivin teksti). Kartta piilotetaan ja taakse jätetään valkoinen,
-  jolloin pikselin arvo ON alfa: `a = (255 − tulos) / (255 − pohja)`.
+- **AIKAJANALLA EI OLE URAA, KORTTIA EIKÄ LIUKUVÄRIÄ.** Ura oli
+  kolmessa muodossa, sitten paperikortti, sitten reunasta reunaan
+  tummennus (`#tl-wrap::before`); käyttäjän päätöksellä 28.9. sekin
+  poistettiin ("se voi toimia ilman"). Kartta kulkee aikajanan läpi
+  sellaisenaan. Luettavuus tulee ELEMENTEISTÄ EIKÄ ALUEESTA: tekstit
+  kantavat `--tl-halo`n (tumma ääriviiva + varjo `--tl-pohja`sta),
+  palkeilla on tumma hiusreuna ja varjo (lämpökartta on samaa ramppia,
+  joten ilman reunaa 8 m/s palkki katoaisi 8 m/s kentän päälle), ja
+  himmeät tekstisävyt nousivat (`--tl-teksti-2` .72, `-3` .58). Älä
+  palauta aluetta tummentavaa alustaa ilman käyttäjän pyyntöä; jos
+  jokin ei erotu, vahvista sen omaa haloa tai reunaa.
 - **AIKAJANASSA EI OLE VALOKAISTAA.** Yö oli janassa kolmessa
   muodossa: koko korkeuden harso, 2 px:n kaista tikin alalaidassa, ja
   kolmella eri alustalla kalibroidut alfat (musta .34, `76,89,96` .24,
