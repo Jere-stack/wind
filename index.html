@@ -3456,20 +3456,33 @@ html[data-tutka="1"] #lahde-merkki {
   from { transform: translate3d(-5%,.6%,0); }
   to   { transform: translate3d(6%,-.8%,0); }
 }
-#lr-keinu, #lr-kansi { animation: 4.4s -.3s ease-in-out infinite; }
+/* KÄÄNNÖS ON LAUDAN, NOJAUS KUSKIN. Ensimmäinen versio käänsi koko
+   rigin (`scale(.74, .92)`), ja kuski kutistui kaarteessa neljänneksen
+   — käyttäjän mukaan epäluonnollista. Nyt lauta ja foili (#lr-lauta,
+   #lr-kansi) lyhenevät käännöksessä, ja kuski vain nojaa ja painuu:
+   sen mittakaava pysyy vähintään 0,97:ssä. */
+#lr-keinu, #lr-kansi, #lr-lauta { animation: 4.4s -.3s ease-in-out infinite; }
 #lr-keinu { transform-origin: 50% 69%; animation-name: lr-kaarto; }
 @keyframes lr-kaarto {
   0%, 100% { transform: translate3d(0,1%,0); }
-  14%      { transform: translate3d(0,1.8%,0) rotate(1.6deg) scale(.94,.98); }
-  30%      { transform: translate3d(-1.4%,3.2%,0) rotate(4deg) scale(.74,.92); }
+  14%      { transform: translate3d(0,1.8%,0) rotate(1.6deg); }
+  30%      { transform: translate3d(-.6%,3%,0) rotate(4.5deg) scale(.98,.97); }
   44%      { transform: translate3d(1.4%,-1.8%,0) rotate(-3.5deg); }
   62%      { transform: translate3d(0,-2.6%,0) rotate(-3deg); }
-  80%      { transform: translate3d(0,-.6%,0) rotate(-1deg) scale(.92,1); }
+  80%      { transform: translate3d(0,-.6%,0) rotate(-1deg); }
 }
-#lr-kansi { transform-origin: 50% 69.07%; animation-name: lr-kansi; }
+#lr-lauta { transform-origin: 49% 69%; animation-name: lr-lauta-kaarto; }
+@keyframes lr-lauta-kaarto {
+  0%, 100% { transform: none; }
+  14%      { transform: scaleX(.9); }
+  30%      { transform: scaleX(.7); }
+  44%      { transform: none; }
+  80%      { transform: scaleX(.86); }
+}
+#lr-kansi { transform-origin: 49% 69.07%; animation-name: lr-kansi; }
 @keyframes lr-kansi {
-  0%, 12%, 46%, 100% { transform: scaleY(0); opacity: 0; }
-  30%                { transform: none; opacity: 1; }
+  0%, 12%, 46%, 100% { transform: scale(.9,0); opacity: 0; }
+  30%                { transform: scale(.7,1); opacity: 1; }
 }
 /* Lähdössä kaarto pysähtyy siihen mihin se jäi (ei hyppää alkuun), ja
    hypyn oma avainkuva tekee viimeisen linjanhaun. */
@@ -3478,8 +3491,19 @@ html[data-tutka="1"] #lahde-merkki {
    kaarteeseen kameraa kohti ennen ponnistusta. */
 #loading.out #lr-kansi { animation: lr-kansi-hyppy .85s forwards; }
 @keyframes lr-kansi-hyppy {
-  0%, 26%, 100% { transform: scaleY(0); opacity: 0; }
-  12%           { transform: none; opacity: 1; }
+  0%, 26%, 100% { transform: scale(.9,0); opacity: 0; }
+  12%           { transform: scale(.68,1); opacity: 1; }
+}
+/* Hypyssä lauta kääntyy linjalle (12 %), oikenee lastauksessa ja
+   ilmassa kuski VÄÄNTÄÄ sen kääntyneeksi jalkojensa alle: nokka
+   nousee ja lauta lyhenee, kuten laudan tweak oikeassa hypyssä. */
+#loading.out #lr-lauta { animation: lr-lauta-hyppy .85s forwards; }
+@keyframes lr-lauta-hyppy {
+  0%   { transform: none; }
+  12%  { transform: scaleX(.68); }
+  24%  { transform: scaleX(.9); }
+  53%  { transform: rotate(-13deg) scaleX(.76); }
+  100% { transform: rotate(-9deg) scaleX(.8); }
 }
 #lr-jalat, #lr-yla, #lr-kasi, #lr-siipi { animation: 2.2s infinite; }
 #lr-jalat { transform-origin: 50% 67.8%; animation-name: lr-jalat; }
@@ -3530,18 +3554,23 @@ html[data-tutka="1"] #lahde-merkki {
   46%, 100% { transform: rotate(34deg); }
 }
 #loading.out #lr-jalat { animation: lr-jalat-hyppy .85s forwards; }
+/* Jalat seuraavat laudan vääntöä (`skewY` = laudan kierto, jolloin
+   takajalka laskee ja etujalka nousee laudan mukana) ja polvet
+   vetäytyvät ilmassa: lantio siirtyy taakse (`skewX`) ja alas. */
 @keyframes lr-jalat-hyppy {
   0%   { transform: none; }
-  24%  { transform: scaleY(.8); }
+  24%  { transform: scaleY(.84); }
   38%  { transform: none; }
-  56%, 100% { transform: scaleY(.84); }
+  53%  { transform: skewY(-15.5deg) scaleY(.8) skewX(7deg); }
+  100% { transform: skewY(-11deg) scaleY(.82) skewX(6deg); }
 }
 #loading.out #lr-yla { animation: lr-yla-hyppy .85s forwards; }
 @keyframes lr-yla-hyppy {
   0%   { transform: none; }
-  24%  { transform: translate3d(0,3%,0) rotate(5deg); }
+  24%  { transform: translate3d(0,2.4%,0) rotate(5deg); }
   38%  { transform: none; }
-  56%, 100% { transform: translate3d(0,2.4%,0) rotate(-4deg); }
+  53%  { transform: translate3d(-1.5%,3%,0) rotate(-3deg); }
+  100% { transform: translate3d(-1.2%,2.7%,0) rotate(-4deg); }
 }
 /* Roiske lähtee maston ja vesiviivan leikkauksesta (49 %, 80 %) taakse
    ja putoaa: kaksi puolikasta eri hidastuksella on paraabeli ilman
@@ -3649,7 +3678,7 @@ html[data-tutka="1"] #lahde-merkki {
    sitten ponnistus lakeen (0,45 s). */
 @keyframes lr-hyppy {
   0%   { transform: none; animation-timing-function: cubic-bezier(.3,0,.6,1); }
-  12%  { transform: translate3d(-.6%,3.4%,0) rotate(5deg) scale(.72,.91);
+  12%  { transform: translate3d(-.4%,3.2%,0) rotate(5.5deg) scale(.98,.97);
          animation-timing-function: cubic-bezier(.4,0,.6,1); }
   24%  { transform: translate3d(1.6%,2.8%,0) rotate(1.4deg);
          animation-timing-function: cubic-bezier(.2,.75,.35,1); }

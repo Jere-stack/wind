@@ -6850,3 +6850,25 @@ polvet koukussa.
 Kontrastit ennallaan (16,34 / 6,48 / 7,25, tilapalkki 10,54:1),
 animaatioita 55 / 31 (kannen hyppyanimaatio korvaa pysäytyksen, siiven
 hyppyanimaatio korvaa pumppauksen), vaimennettu 0, savutesti läpi.
+
+## Käännös laudalle, ei kuskille; hypyssä lauta vääntyy ja polvet koukistuvat (28.9.)
+
+Käyttäjä: "lauta pitää olla kääntyneenä ja kun kuski hyppää niin se
+hieman taivuttaa lautaa ja jalkoja luonnollisesti — kuskin koko ei saa
+pienetä liikaa".
+
+- Kaarron `scaleX` siirtyi koko rigiltä (`#lr-keinu`, oli .74/.92)
+  laudalle ja foilille (`#lr-lauta` `lr-lauta-kaarto`: .9 → .7 → 1 →
+  .86) ja kannelle samalla `scaleX`illä. Kuski vain nojaa (4,5°) ja
+  painuu (`scale(.98, .97)`). Hypyn linjanhaussa sama: rigi
+  `scale(.98, .97)`, lauta .68 ja kansi auki.
+- Ilmassa lauta vääntyy kuskin alla: `lr-lauta-hyppy` 53 %
+  `rotate(-13deg) scaleX(.76)`, loppu `rotate(-9deg) scaleX(.8)`.
+- Jalat seuraavat lautaa: `skewY(-15.5deg)` pitää takajalan laskevan ja
+  etujalan nousevan laudan mukana (−13° riitti teoriassa, mutta
+  takajalka jäi ruudulla laudan yläpuolelle), `scaleY(.8)` koukistaa
+  polvet ja `skewX(7deg)` vie lantion taakse; ylävartalo siirtyy
+  `translate(−1,5 %, 3 %)`, jottei lantio irtoa reisistä.
+
+Animaatioita 56 / 32 (+1, laudan käännös). Kontrastit ennallaan,
+vaimennettu 0, savutesti läpi.

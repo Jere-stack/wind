@@ -544,10 +544,13 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kolmea kerrosta: pumppaus 2,2 s (jousto 14 %, kaikki nivelet samoilla
   avainkuvilla, painallus 30 %), KAARTO 4,4 s ja liuku 9 s (`#lr-rata`
   sivuttain −5…+6 %). KAARTO ON KÄÄNNÖS JA KALLISTUS, EI KIERTO
-  RUUDUN TASOSSA (`#lr-keinu` `lr-kaarto` + `#lr-kansi`): sivukuvassa
-  laudan käännös on `scaleX` (0,74 ala-käännöksessä, 0,72 hypyn
-  linjanhaussa, jossa kansi avautuu uudelleen `lr-kansi-hyppy`) ja kallistus
-  kameraa kohti `scaleY` + laudan KANSI joka avautuu näkyviin. Viive
+  RUUDUN TASOSSA, JA KÄÄNNÖS ON LAUDAN, EI KUSKIN: sivukuvassa laudan
+  ja foilin käännös on `#lr-lauta`n `scaleX` (0,70 ala-käännöksessä,
+  0,68 hypyn linjanhaussa) ja kallistus kameraa kohti on laudan KANSI
+  joka avautuu näkyviin (`#lr-kansi`, sama `scaleX`). Kuski
+  (`#lr-keinu`) vain nojaa ja painuu, ja sen mittakaava pysyy
+  vähintään 0,97:ssä — koko rigin `scale(.74, .92)` kutisti kuskin
+  neljänneksellä ja luki käyttäjän mukaan epäluonnollisena. Viive
   −0,3 s asettaa ala-käännöksen noin 1,0 s kohdalle ja linjan (lauta
   oikenee, kuski nojaa taakse ja nousee) noin 1,6 s kohdalle, eli
   siihen mihin lähtö osuu; lähdössä kaarto PYSÄYTETÄÄN
@@ -563,7 +566,11 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   (`lr-kasi-hyppy` +18°), ponnistuksessa se heilautetaan pään yli
   yliheitolla (−96° → −84°) ja käännetään lappeelleen etukädestä
   (`lr-siipi-hyppy` +34°), jolloin laella kuski roikkuu siiven alla
-  kädet suorina. Lähtö `.out` ajaa `lr-hyppy`-avainkuvat (viimeinen
+  kädet suorina. Ilmassa kuski VÄÄNTÄÄ LAUDAN kääntyneeksi jalkojensa
+  alle (`lr-lauta-hyppy`: nokka ylös −13°, `scaleX` .76), ja jalat
+  seuraavat sitä (`lr-jalat-hyppy`: `skewY` = laudan kierto, `scaleY`
+  polvien koukistus, `skewX` lantio taakse; `lr-yla-hyppy` siirtää
+  ylävartaloa samassa suhteessa). Lähtö `.out` ajaa `lr-hyppy`-avainkuvat (viimeinen
   linjanhaku 0–12 %: lauta kääntyy ja kuski nojaa kaarteeseen;
   lastaus 24 %, ponnistus, lento, 0,85 s), ja ruudun häivytys alkaa
   vasta 0,4 s, jotta laki (0,45 s) nähdään; `display: none` 900 ms.
