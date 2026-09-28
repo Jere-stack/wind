@@ -10172,6 +10172,45 @@ function idwPainoin(lat, lng, wf, idxUlos, paiUlos) {
 function px2ll(x, y) { const ll = State.map.containerPointToLatLng(L.point(x, y)); return { lat: ll.lat, lng: ll.lng }; }
 
 /* -- WIND TEXTURE ----------------------------------------------- */
+/* HYPYN HÄIVYTYS — lämpökartta ja partikkelit.
+ *
+ * Aikajanan hyppy (tikin klikkaus, päiväkisko, kelihyppy, näppäimistö,
+ * kaavion napautus — kaikki `_tlValitseIdx`in kautta) vaihtaa kentän
+ * kerralla. Ilman häivytystä se oli kova leikkaus, ja tikin klikkaus
+ * kävi ennen lisäksi jokaisen välitunnin läpi (docs/lampokartta.md,
+ * "Hyppy häivytetään"). Nyt vanha kenttä jää talteen ja sekoittuu
+ * uuteen `MS`:n aikana: lämpökartta varjostimessa (`LampoGL`, nopeus
+ * sekoitetaan, koska väri on nopeus), partikkelit näytteistyksessä
+ * (nopeus ja suunta erikseen, suunta yksikkövektoreista).
+ *
+ * Pyyntö on kertakäyttöinen ja kumpikin kerros kuluttaa omansa, koska
+ * ne vaihtuvat eri hetkinä: partikkelien solmuhila heti rakennuksessa,
+ * lämpökartan hila vasta kun sen laatat ovat perillä (`_odottava`,
+ * enintään `ODOTUS_MS`). Siksi voimassaolo on 7 s.
+ * Raahaus ja play eivät pyydä häivytystä: ne kulkevat välitunnit läpi
+ * tarkoituksella, ja niissä hetki vaihtuu jatkuvasti. */
+const Haivytys = {
+  MS: 450,
+  _lampo: 0, _part: 0,
+  pyyda() {
+    let vahenna = false;
+    try { vahenna = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+    const t = vahenna ? 0 : performance.now();
+    this._lampo = t; this._part = t;
+  },
+  ota(avain) {
+    const t = this[avain]; this[avain] = 0;
+    return t > 0 && performance.now() - t < 7000;
+  },
+  /* Vanhan kentän paino: 1 → 0, pehmeä molemmista päistä. */
+  paino(alku) {
+    const x = (performance.now() - alku) / this.MS;
+    if (x >= 1) return 0;
+    if (x <= 0) return 1;
+    return 1 - x * x * (3 - 2 * x);
+  },
+};
+
 const WindTexture = {
   canvas: null, ctx: null,
   uData: null, vData: null, msData: null,
@@ -10723,6 +10762,17 @@ const WindTexture = {
        *
        * Sironnut polku ei tuota solmuhilaa, joten se nollataan — muuten
        * edellisen näkymän hila jäisi voimaan väärälle alueelle. */
+      /* Hyppy: edellinen solmuhila jää partikkelien häivytykseen
+         (`Haivytys`). Taulukot ovat joka rakennuksessa uudet, joten
+         vanha pysyy ehjänä. Muu hetken vaihto (raahaus, play) katkaisee
+         käynnissä olevan häivytyksen. */
+      if (hilaPolku) hilaPolku.hetki = this.hetki;
+      const edHila = this.hila;
+      if (!hilaPolku || !edHila) this._vanhaHila = null;
+      else if (edHila.hetki !== hilaPolku.hetki) {
+        if (Haivytys.ota('_part')) { this._vanhaHila = edHila; this._vanhaAlku = performance.now(); }
+        else this._vanhaHila = null;
+      }
       this.hila = hilaPolku;
 
       /* Lämpökartta piirtää kentän itse varastosta (LampoGL), joten
@@ -10755,8 +10805,8 @@ const WindTexture = {
    * kolmannessa potenssissa. Rajattuna reuna pitää arvonsa, kuten
    * texelipolussakin. */
   _crP: null,
-  sampleWindHilasta(lat, lng) {
-    const h = this.hila;
+  sampleWindHilasta(lat, lng, hila) {
+    const h = hila || this.hila;
     const w = this._crP || (this._crP = new Float64Array(8));
     let fx = (lng - h.lo0) / h.dStep;
     let fy = (lat - h.la0) / h.dStep;
@@ -11077,32 +11127,50 @@ const LampoGL = {
     /* Kenttä hilasta. Solmujen luku `texture2D`:llä texelin keskeltä ja
        lähimmällä suodatuksella on tarkka kuten `texelFetch` — ja toimii
        myös WebGL1:ssä. */
+    /* Hypyn häivytys (`Haivytys`): edellinen hila on omana tekstuurinaan
+       omalla geometriallaan (`u_vk`, `u_vg`), ja sen NOPEUS sekoitetaan
+       uuteen painolla `u_vw` — väri on nopeus, joten suuntaa ei tarvita.
+       Ilman häivytystä `u_vw` on 0 ja vanhaa ei lueta lainkaan, eli
+       lisähaut maksetaan vain häivytyksen ruuduissa. */
     this._pHila = GLApu.ohjelma(gl, VS, GL_TARKKUUS_FS
       + 'uniform sampler2D u_hila; uniform sampler2D u_kate; uniform sampler2D u_lut;\n'
       + 'uniform vec2 u_hk; uniform vec3 u_hg; uniform vec4 u_nx; uniform vec2 u_mh;\n'
+      + 'uniform sampler2D u_vhila; uniform sampler2D u_vkate; uniform vec2 u_vk; uniform vec3 u_vg; uniform float u_vw;\n'
       + 'vec4 cr(float t){ float t2 = t*t, t3 = t2*t;\n'
       + '  return 0.5 * vec4(-t + 2.0*t2 - t3, 2.0 - 5.0*t2 + 3.0*t3, t + 4.0*t2 - 3.0*t3, -t2 + t3); }\n'
-      + 'vec2 solmu(float i, float j){ vec4 c = texture2D(u_hila, (vec2(i, j) + 0.5) / u_hk);\n'
+      + 'vec2 solmu(sampler2D t, vec2 hk, float i, float j){ vec4 c = texture2D(t, (vec2(i, j) + 0.5) / hk);\n'
       + '  return vec2(c.r * 65280.0 + c.g * 255.0, c.b * 65280.0 + c.a * 255.0) / 65535.0 * 128.0 - 64.0; }\n'
+      + 'float nopeus(sampler2D t, vec2 hk, float fx, float fy){\n'
+      + '  float i = floor(fx), j = floor(fy);\n'
+      + '  vec4 wx = cr(fx - i), wy = cr(fy - j);\n'
+      + '  vec2 r0 = solmu(t,hk,i-1.0, j-1.0)*wx.x + solmu(t,hk,i, j-1.0)*wx.y + solmu(t,hk,i+1.0, j-1.0)*wx.z + solmu(t,hk,i+2.0, j-1.0)*wx.w;\n'
+      + '  vec2 r1 = solmu(t,hk,i-1.0, j    )*wx.x + solmu(t,hk,i, j    )*wx.y + solmu(t,hk,i+1.0, j    )*wx.z + solmu(t,hk,i+2.0, j    )*wx.w;\n'
+      + '  vec2 r2 = solmu(t,hk,i-1.0, j+1.0)*wx.x + solmu(t,hk,i, j+1.0)*wx.y + solmu(t,hk,i+1.0, j+1.0)*wx.z + solmu(t,hk,i+2.0, j+1.0)*wx.w;\n'
+      + '  vec2 r3 = solmu(t,hk,i-1.0, j+2.0)*wx.x + solmu(t,hk,i, j+2.0)*wx.y + solmu(t,hk,i+1.0, j+2.0)*wx.z + solmu(t,hk,i+2.0, j+2.0)*wx.w;\n'
+      + '  return length(r0*wy.x + r1*wy.y + r2*wy.z + r3*wy.w); }\n'
       + 'void main(){\n'
       + '  float sx = gl_FragCoord.x - u_mh.x, sy = u_mh.y - gl_FragCoord.y - u_mh.x;\n'
       + '  float lng = u_nx.x + sx * u_nx.y;\n'
       + '  float la = degrees(2.0 * atan(exp(u_nx.z - sy * u_nx.w)) - 1.5707963267948966);\n'
       + '  float fx = (lng - u_hg.y) / u_hg.z, fy = (la - u_hg.x) / u_hg.z;\n'
-      + '  if (fx < 1.0 || fy < 1.0 || fx > u_hk.x - 2.0 || fy > u_hk.y - 2.0) { gl_FragColor = vec4(0.0); return; }\n'
-      + '  float i = floor(fx), j = floor(fy);\n'
-      + '  vec4 wx = cr(fx - i), wy = cr(fy - j);\n'
-      + '  vec2 r0 = solmu(i-1.0, j-1.0)*wx.x + solmu(i, j-1.0)*wx.y + solmu(i+1.0, j-1.0)*wx.z + solmu(i+2.0, j-1.0)*wx.w;\n'
-      + '  vec2 r1 = solmu(i-1.0, j    )*wx.x + solmu(i, j    )*wx.y + solmu(i+1.0, j    )*wx.z + solmu(i+2.0, j    )*wx.w;\n'
-      + '  vec2 r2 = solmu(i-1.0, j+1.0)*wx.x + solmu(i, j+1.0)*wx.y + solmu(i+1.0, j+1.0)*wx.z + solmu(i+2.0, j+1.0)*wx.w;\n'
-      + '  vec2 r3 = solmu(i-1.0, j+2.0)*wx.x + solmu(i, j+2.0)*wx.y + solmu(i+1.0, j+2.0)*wx.z + solmu(i+2.0, j+2.0)*wx.w;\n'
-      + '  vec2 uv = r0*wy.x + r1*wy.y + r2*wy.z + r3*wy.w;\n'
-      + '  float li = min(floor(length(uv) * 10.0 + 0.5), 200.0);\n'
+      + '  float ms = 0.0, k = 0.0;\n'
+      + '  if (fx >= 1.0 && fy >= 1.0 && fx <= u_hk.x - 2.0 && fy <= u_hk.y - 2.0) {\n'
+      + '    ms = nopeus(u_hila, u_hk, fx, fy);\n'
+      + '    k = texture2D(u_kate, (vec2(fx, fy) + 0.5) / u_hk).r; }\n'
+      + '  if (u_vw > 0.0) {\n'
+      + '    float gx = (lng - u_vg.y) / u_vg.z, gy = (la - u_vg.x) / u_vg.z;\n'
+      + '    float ko = 0.0;\n'
+      + '    if (gx >= 1.0 && gy >= 1.0 && gx <= u_vk.x - 2.0 && gy <= u_vk.y - 2.0) {\n'
+      + '      ko = texture2D(u_vkate, (vec2(gx, gy) + 0.5) / u_vk).r;\n'
+      + '      if (ko > 0.0) { float mo = nopeus(u_vhila, u_vk, gx, gy); ms = k > 0.0 ? mix(ms, mo, u_vw) : mo; } }\n'
+      + '    k = mix(k, ko, u_vw); }\n'
+      + '  if (k <= 0.0) { gl_FragColor = vec4(0.0); return; }\n'
+      + '  float li = min(floor(ms * 10.0 + 0.5), 200.0);\n'
       + '  vec4 c = texture2D(u_lut, vec2((li + 0.5) / 256.0, 0.5));\n'
-      + '  float k = texture2D(u_kate, (vec2(fx, fy) + 0.5) / u_hk).r;\n'
       + '  gl_FragColor = vec4(c.rgb * c.a, c.a) * k;\n'
       + '}\n',
-      ['a_pos'], ['u_hila', 'u_kate', 'u_lut', 'u_hk', 'u_hg', 'u_nx', 'u_mh']);
+      ['a_pos'], ['u_hila', 'u_kate', 'u_lut', 'u_hk', 'u_hg', 'u_nx', 'u_mh',
+                  'u_vhila', 'u_vkate', 'u_vk', 'u_vg', 'u_vw']);
     /* Varatie ilman varastoa: valmis RGBA-kuva WindTexturesta, rivit
        tasavälein Mercator-y:ssä. Esikerrottu latauksessa. */
     this._pKuva = GLApu.ohjelma(gl, VS, GL_TARKKUUS_FS
@@ -11156,13 +11224,16 @@ const LampoGL = {
     this._texKate = GLApu.tekstuuri(gl, gl.LINEAR);
     this._texLut = GLApu.tekstuuri(gl, gl.NEAREST);
     this._texKuva = GLApu.tekstuuri(gl, gl.LINEAR);
+    this._texVHila = GLApu.tekstuuri(gl, gl.NEAREST);
+    this._texVKate = GLApu.tekstuuri(gl, gl.LINEAR);
+    this._ladattuHila = null; this._vanha = null;
     this._ladattu = -1; this._kuvaLadattu = -1; this._lutLahde = null; this._allekirjoitus = '';
     this._fbo = [null, null, null];
   },
 
   onRemove(ml, gl) {
     [this._pHila, this._pKuva, this._pSumea, this._pKopio].forEach(p => p && gl.deleteProgram(p.o));
-    [this._texHila, this._texKate, this._texLut, this._texKuva].forEach(t => t && gl.deleteTexture(t));
+    [this._texHila, this._texKate, this._texLut, this._texKuva, this._texVHila, this._texVKate].forEach(t => t && gl.deleteTexture(t));
     (this._fbo || []).forEach(f => GLApu.poistaFbo(gl, f));
     if (this._nelio) gl.deleteBuffer(this._nelio);
     this._gl = null; this._fbo = [null, null, null];
@@ -11229,7 +11300,16 @@ const LampoGL = {
     if (!(W > 2 * m && H > 2 * m)) return;
     const sat = v.zl <= 5 ? 1.6 : 1.4;
     const lut = WindTexture.pikseliLUT();
-    const alle = this._tila + '|' + v.x0 + '|' + v.y0 + '|' + v.zl + '|' + W + '|' + H + '|' + m + '|'
+    /* Hypyn häivytys: vanhan hilan paino tälle ruudulle. Paino kuuluu
+       allekirjoitukseen, joten puskurivaiheet ajetaan häivytyksen ajan
+       joka ruudussa (~0,45 s) ja levossa taas kerran. */
+    if (this._tila !== 'hila') this._vanha = null;
+    let vw = 0;
+    if (this._vanha) {
+      vw = Haivytys.paino(this._haivAlku);
+      if (vw <= 0) { vw = 0; this._vanha = null; }
+    }
+    const alle = 'v' + vw.toFixed(3) + '|' + this._tila + '|' + v.x0 + '|' + v.y0 + '|' + v.zl + '|' + W + '|' + H + '|' + m + '|'
       + this._hilaVersio + '|' + (this._tila === 'kuva' ? T.kuvaVersio : 0) + '|' + sat + '|' + sigma;
     if (alle === this._allekirjoitus && lut === this._lutLahde) { this._valmis = true; return; }
 
@@ -11244,6 +11324,19 @@ const LampoGL = {
     }
     const h = this._hila;
     if (this._tila === 'hila' && this._ladattu !== this._hilaVersio) {
+      /* Uusi HETKI tekstuuriin: jos hyppy pyysi häivytystä, ladattu hila
+         siirtyy vanhaksi vaihtamalla tekstuurit (ei kopiota), ja uusi
+         ladataan vapautuneeseen. Saman hetken uusi versio (laatat
+         tulivat, näkymä siirtyi) ei koske vanhaan. */
+      const ed = this._ladattuHila;
+      if (ed && ed.hetki !== h.hetki) {
+        if (ed.kentta === h.kentta && Haivytys.ota('_lampo')) {
+          let t = this._texHila; this._texHila = this._texVHila; this._texVHila = t;
+          t = this._texKate; this._texKate = this._texVKate; this._texVKate = t;
+          this._vanha = ed; this._haivAlku = performance.now();
+          vw = 1;
+        } else { this._vanha = null; vw = 0; }
+      }
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
       gl.bindTexture(gl.TEXTURE_2D, this._texHila);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, h.gc, h.gr, 0, gl.RGBA, gl.UNSIGNED_BYTE, h.tavut);
@@ -11251,6 +11344,7 @@ const LampoGL = {
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, h.gc, h.gr, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, h.kate);
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
       this._ladattu = this._hilaVersio;
+      this._ladattuHila = h;
     }
     if (this._tila === 'kuva' && this._kuvaLadattu !== T.kuvaVersio) {
       gl.bindTexture(gl.TEXTURE_2D, this._texKuva);
@@ -11291,6 +11385,13 @@ const LampoGL = {
         gl.uniform3f(p.u.u_hg, h.la0, h.lo0, h.d);
         gl.uniform4f(p.u.u_nx, nx0, nx1, ny0, ny1);
         gl.uniform2f(p.u.u_mh, m, H);
+        const vh = self._vanha;
+        gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, self._texVHila);
+        gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, self._texVKate);
+        gl.uniform1i(p.u.u_vhila, 3); gl.uniform1i(p.u.u_vkate, 4);
+        gl.uniform2f(p.u.u_vk, vh ? vh.gc : 4, vh ? vh.gr : 4);
+        gl.uniform3f(p.u.u_vg, vh ? vh.la0 : 0, vh ? vh.lo0 : 0, vh ? vh.d : 1);
+        gl.uniform1f(p.u.u_vw, vh ? vw : 0);
         veto();
       });
     } else {
@@ -11329,6 +11430,7 @@ const LampoGL = {
     this._allekirjoitus = alle;
     this._kuva = { W: W, H: H, m: m, w: v.w, h: v.h };
     this._valmis = true;
+    if (this._vanha) map.ml.triggerRepaint();
   },
 
   render(gl) {
@@ -12506,6 +12608,22 @@ function naytteista(p) {
   const lat = G.lat(p.y);
   const lng = G._west + (p.x - G._ox) / G._sx;
   const w = WindTexture.sampleWind(lat, lng);
+  const T = WindTexture;
+  if (T._vanhaHila && T.hila) {
+    /* Hypyn häivytys: nopeus ja suunta sekoitetaan erikseen, suunta
+       yksikkövektoreista (vektorien sekoitus tekisi vastakkaisten
+       tuulten väliin keinotekoisen tyvenen). */
+    const k = Haivytys.paino(T._vanhaAlku);
+    if (k <= 0) T._vanhaHila = null;
+    else {
+      const o = T.sampleWindHilasta(lat, lng, T._vanhaHila);
+      const ms = o.ms * k + w.ms * (1 - k);
+      const ux = (o.ms > 0 ? o.u / o.ms : 0) * k + (w.ms > 0 ? w.u / w.ms : 0) * (1 - k);
+      const uy = (o.ms > 0 ? o.v / o.ms : 0) * k + (w.ms > 0 ? w.v / w.ms : 0) * (1 - k);
+      const n = Math.sqrt(ux * ux + uy * uy);
+      if (n > 1e-6) { p.u = ux / n * ms; p.v = uy / n * ms; p.ms = ms; return; }
+    }
+  }
   p.u = w.u; p.v = w.v; p.ms = w.ms;
 }
 /* Näkyvä alue sisällön ruudustossa: canvasin CSS-muunnoksen käänteiskuva
@@ -21642,11 +21760,13 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
     if (!tick || !tick.dataset.idx) return;
     const idx = parseInt(tick.dataset.idx);
     if (isNaN(idx)) return;
-    Haptics.selection();
-    tl.scrollTo({ left: tick.offsetLeft - tl.offsetWidth / 2 + TL_TIKKI_PUOLI, behavior: 'smooth' });
-    if (_tlSeuraaHetkea(idx)) {
-      buildWindField(idx).then(() => { drawColorField(); resetParticles(); });
-    }
+    /* TIKIN KLIKKAUS ON HYPPY, EI VIERITYSANIMAATIO. Pehmeä `scrollTo`
+       kävi scroll-käsittelijän kautta jokaisen välitunnin läpi: mitattuna
+       +6 h klikkaus valitsi ensin kohteen, palasi lähtötuntiin ja käveli
+       sitten eteenpäin karkeilla kentillä, ja lopuksi täysi kenttä —
+       kartta vilkkui. Sama polku kuin päiväkiskolla, ja kenttä
+       häivytetään (`Haivytys`). */
+    _tlValitseIdx(idx);
   });
 
   /* HIIRELLÄ RAAHAUS — TYÖPÖYTÄ.
@@ -21763,6 +21883,7 @@ function _tlValitseIdx(idx) {
   const kohde = State._tlTicks[idx];
   if (tl && kohde) _tlSetScrollLeft(tl, kohde.offsetLeft - tl.offsetWidth / 2 + TL_TIKKI_PUOLI);
   _tlSeuraaHetkea(idx);
+  Haivytys.pyyda();
   buildWindField(idx).then(function () { drawColorField(); resetParticles(); });
   return true;
 }

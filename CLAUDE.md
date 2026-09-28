@@ -137,7 +137,7 @@ kokeiltu ja kaadettu mittauksella.
   mittakaavaan ulos zoomatessa · Kartan asetukset · Lämpökartan värit olivat eri
   kohdissa eri zoomeilla · Lämpökartta oli väärässä projektiossa · Nopea zoom ei
   saa näyttää mustaa · Zoomin välkky uudestaan — ja se ei ollutkaan
-  häivytys
+  häivytys · Hyppy häivytetään
 - **partikkelit**: Partikkelit piirtyvät kartan GL-ruutuun · Sujuvuus —
   mitattu, ei arvattu · Partikkelit ovat tasaisia —
   maa/vesi-rajaus kokeiltiin ja poistettiin · Rakeisuus oli kahta eri vikaa ·
@@ -1321,9 +1321,17 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   `html.tl-kisko-piilossa`, `_tlKiskoHerata`, `_tlKiskoNukuta`, niiden
   kolme kutsupaikkaa ja aikakuplan päiväyshaara. `--tl-paivat-h` on
   vakio eikä vaihtele.
-- **Aikajanan valinta kulkee `_tlValitseIdx`:n kautta** (päiväkiskon
-  napautus, näppäimistö, kelihyppy, spottikortin kaavio). Älä kirjoita
-  viidettä polkua.
+- **Aikajanan valinta kulkee `_tlValitseIdx`:n kautta** (tikin ja
+  päiväkiskon napautus, näppäimistö, kelihyppy, spottikortin kaavio).
+  Älä kirjoita kuudetta polkua. Tikin klikkaus oli pehmeä `scrollTo`,
+  joka kävi scroll-käsittelijän kautta jokaisen välitunnin läpi ja sai
+  kartan vilkkumaan.
+- **HYPPY HÄIVYTETÄÄN (`Haivytys`, 0,45 s), RAAHAUS JA PLAY EIVÄT.**
+  `_tlValitseIdx` pyytää häivytyksen; lämpökartta sekoittaa vanhan ja
+  uuden hilan NOPEUDEN varjostimessa (tekstuurit vaihdetaan, ei
+  kopioida), partikkelit nopeuden ja suunnan erikseen. Kapseli ei
+  sekoita. Hinta vain häivytyksen ruuduissa (docs/lampokartta.md,
+  "Hyppy häivytetään").
 - **LIIKKUVA VALINTA KULKEE `_tlSeuraaHetkea`:N KAUTTA.** Sormi
   tuntinauhalla, sormi päiväkiskolla ja play liikuttavat valintaa ILMAN
   vahvistushetkeä, ja kaikki tuntiin sidottu (aikakupla, päiväkorostus,

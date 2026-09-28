@@ -1819,3 +1819,68 @@ Riski oli että vanhan tason pitäminen näkyvissä jättää reiän tai jumitta
 kartan väärään tasoon. Mitattu 30 näytettä viidellä zoomilla: ei yhtään
 hetkeä ilman painettua tasoa, ei yhtään hetkeä kahdella, ja lopputilassa
 näkyvä taso on se jolla kartta on (tileZoom 5 = zoom 5, 12 laattaa).
+
+## Hyppy häivytetään — ja tikin klikkaus on hyppy (28.9.)
+
+**Oire:** tuntipalkin klikkaus kuusi tuntia eteenpäin sai kartan
+vilkkumaan nopeasti. **Syy ei ollut puuttuva häivytys vaan välitunnit.**
+Mitattuna (+6 h klikkaus, Chromium):
+
+```
+  54 ms  tunti 12  kenttä 12 TÄYSI     klikkaus valitsi kohteen
+ 725 ms  tunti 6   kenttä 6,1 karkea   pehmeä scrollTo lähti alusta ja
+                                       scroll-käsittelijä luki sen sormeksi
+1500 ms  tunti 12  kenttä 12 karkea
+1569 ms  tunti 12  kenttä 12 TÄYSI     scrollend vahvisti
+```
+
+60 fps:n laitteella sama on kohde → lähtötunti → 7 → 8 … 12, parikymmentä
+karkeaa kenttää ja lopuksi täysi, ja spottimerkit, kortti ja kapseli
+kävivät jokaisen välitunnin läpi.
+
+**Korjaus 1:** tikin klikkaus kulkee `_tlValitseIdx`in kautta, kuten
+päiväkisko, kelihyppy, näppäimistö ja kaavio. Mitattu jälkeen: yksi tunti
+ja yksi täysi kenttä (`30 ms tunti 57`, `34 ms kenttä 57 täysi`).
+
+**Korjaus 2: `Haivytys`, 0,45 s.** `_tlValitseIdx` pyytää häivytyksen,
+ja kumpikin kerros kuluttaa oman pyyntönsä silloin kun sen kenttä
+oikeasti vaihtuu:
+
+- **Lämpökartta** (`LampoGL`): kun uuden hetken hila ladataan
+  tekstuuriin, ladattu hila siirtyy vanhaksi VAIHTAMALLA tekstuurit
+  (`_texHila` ↔ `_texVHila`, `_texKate` ↔ `_texVKate`, ei kopiota).
+  Varjostin lukee vanhan omalla geometriallaan (`u_vk`, `u_vg`) ja
+  sekoittaa NOPEUDEN (`mix(ms, mo, u_vw)`) — väri on nopeus, joten
+  suuntaa ei tarvita. Kate sekoitetaan samalla painolla, ja jos vain
+  toinen hila kattaa pikselin, nopeus tulee siltä. Saman hetken uusi
+  versio (laatat tulivat, näkymä siirtyi) ei koske vanhaan.
+- **Partikkelit** (`naytteista(p)`): `WindTexture.build` pitää
+  edellisen solmuhilan (`_vanhaHila`) kun hetki vaihtui hypyllä —
+  taulukot ovat joka rakennuksessa uudet, joten vanha pysyy ehjänä.
+  Nopeus ja suunta sekoitetaan erikseen, suunta yksikkövektoreista.
+  Kapseli ja tähtäin EIVÄT sekoita: ne lukevat `sampleWind`in suoraan
+  ja näyttävät valitun tunnin luvun.
+- **Hinta on vain häivytyksen ruuduissa.** Levossa `u_vw = 0` eikä
+  vanhaa lueta. Häivytyksen aikana paino on allekirjoituksessa, joten
+  puskurivaiheet ajetaan joka ruudussa noin 0,45 s, ja kenttävaihe
+  tekee toisen kuubisen näytteen (16 hakua).
+- **Pyyntö on voimassa 7 s**, koska lämpökartan hila vaihtuu vasta kun
+  sen laatat ovat perillä (`_odottava`, `ODOTUS_MS` 6 s).
+- **Raahaus ja play eivät pyydä häivytystä**, ja niiden hetken vaihto
+  katkaisee käynnissä olevan: ne kulkevat välitunnit läpi tarkoituksella.
+  `prefers-reduced-motion` ohittaa häivytyksen.
+
+Mitattu hidastettuna (`Haivytys.MS = 6000`) jotta kontin hitaat
+kuvakaappaukset ehtivät väliin: ruutu ennen ja jälkeen ero 16,4/255
+kanavaa kohti, välikuvat A→0,29 / B→0,75 ja A→0,53 / B→0,49 — kuva on
+vanhan ja uuden välissä eikä hyppää. Oikealla 0,45 s:lla lämpökartan
+paino 0,61 (235 ms) → 0,01 (467 ms). Ruudun sujuvuus on varmistettava
+laitteella.
+
+**Testiasetelma kontissa:** Chromium ei tavoita säälaattoja ilman apua
+(välityspalvelin; selaimen `proxy`-asetus ohjasi myös localhostin sinne).
+Toimiva tapa: `ctx.route` ohjaa `raw.githubusercontent.com`-pyynnöt
+Noden `fetch`ille (`NODE_USE_ENV_PROXY=1`,
+`NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt`) ja katkaisee Pagesin.
+Ilman sitä kartta on varatiellä (`LampoGL._tila === 'kuva'`) eikä
+hilan häivytystä synny lainkaan.
