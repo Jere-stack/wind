@@ -142,7 +142,8 @@ kokeiltu ja kaadettu mittauksella.
   mitattu, ei arvattu · Partikkelit ovat tasaisia —
   maa/vesi-rajaus kokeiltiin ja poistettiin · Rakeisuus oli kahta eri vikaa ·
   Kolme jatkokorjausta: heitto, lähizoomin terävyys, tiheys ·
-  Jälki lyhennettiin puoleen — raja puree, aikapituus ei
+  Jälki lyhennettiin puoleen — raja puree, aikapituus ei ·
+  Liike ajasta, pää ei sahaa, syntymä ja kuolema häivytetään
 - **eleet**: Kartta on MapLibre GL — mikä tästä tiedostosta on historiaa ·
   Kosketuskohteet ja pseudoelementtien osumapinta · Zoom-alue ·
   Nipistyszoomin pehmennys · Eleen loppu ja tuntuma — kolme asiaa Apple Mapsista ·
@@ -2089,7 +2090,19 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
 
 **Partikkelit**
 
-- **JÄLJEN PITUUSRAJA ON 26 px (`JalkiViritys.maxPx`), EI 64.** Jäljet
+- **LIIKE ON AJASTA, EI RUUDUISTA** (`partikkelitAskel`, `f` = kulunut
+  aika 60 Hz:n ruutuina, katto 50 ms). Ruutukohtainen askel teki
+  120 Hz:n näytöstä kaksi kertaa nopeamman ja näytti jokaisen
+  ruutunopeuden muutoksen nopeutena (mm. hypyn jälkeen). Jälki talletetaan
+  kellosta (`ASKEL_MS`). Mitattu: matka ≈ 60 askelta/s fps:stä
+  riippumatta, vanha = fps (docs/partikkelit.md, "Liike ajasta").
+- **JÄLJEN PÄÄ LEIKATAAN KAARESTA, EI PISTEMÄÄRÄSTÄ** (`nauha`, `p.pit`,
+  `NAUHA_N`). Kokonaisina pisteinä pää seisoi 70 % ruuduista ja hyppäsi
+  sitten — se oli pyrstön välkyntä. Syntymä ja kuolema häivytetään
+  (`_pAlfa`); satunnaista pudotusta (`DROP_RATE`) ei ole, koska se
+  pysäytti partikkelin ruuduksi.
+- **JÄLJEN PITUUSRAJA ON 22 px (`JalkiViritys.maxPx`), EI 64.** 26 → 22
+  käyttäjän pyynnöstä 28.9. Jäljet
   lukivat pitkinä valojuovina; pyydetty ilme on Windyn lyhyt viiva.
   Pyyhkäisy samassa pisteessä (3,8 m/s keskituuli, 80 hiukkasta):
 

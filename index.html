@@ -5254,9 +5254,12 @@ const Config = {
      leikkaa kovan tuulen kuten ennenkin. */
   GEO_SPEED: 0.005,
   WIND_SAMPLE_INTERVAL: 2,
+  /* Elinikä 60 Hz:n ruutuina (5 s). Ikä kasvaa AJASSA (`f`), ei
+     ruuduissa, joten 120 Hz:n näytöllä partikkeli ei kuole puolessa
+     ajassa. Satunnainen pudotus (DROP_RATE) poistettiin: se pysäytti
+     partikkelin yhdeksi ruuduksi 0,3–1,1 %:ssa ruuduista, ja juuri se
+     oli kärjen nykäys. */
   MAX_AGE: 300,
-  DROP_RATE: 0.003,
-  DROP_RATE_BUMP: 0.008,
   DATA_REFRESH_MS: 60 * 60 * 1000,
   PLAY_INTERVAL_MS: 800,
 };
@@ -12640,7 +12643,7 @@ function paivitaAlue(s, tx, ty) {
 }
 function makeParticle(rAge) {
   const p = { x: 0, y: 0, vx: 0, vy: 0, u: 0, v: 0, ms: 0, sampleTimer: 0, age: 0,
-              nippu: 0, hn: 0, piirra: JALKI,
+              nippu: 0, hn: 0, pit: 0,
               hx: new Float32Array(JALKI), hy: new Float32Array(JALKI) };
   respawn(p, rAge);
   p.sampleTimer = Math.floor(Math.random() * Config.WIND_SAMPLE_INTERVAL);
@@ -12832,6 +12835,11 @@ const JALKI = 30;
  * sileä — heikossa tuulessa taas askel ratkaisee pituuden, ja siellä
  * 20 × 3 antaa saman lyhennyksen kuin 15 × 4 olisi antanut. */
 const ASKEL = 3;
+/* Talletusväli AJASSA. Liike on aikaperusteinen (`partikkelitAskel`),
+   joten myös jälki talletetaan kellosta eikä ruutulaskurista: 120 Hz:n
+   näytöllä ruutulaskuri olisi puolittanut jäljen aikapituuden. ASKEL
+   jää 60 Hz:n vastineeksi (mittarit ja `?perf=1` lukevat sitä). */
+const ASKEL_MS = ASKEL * 1000 / 60;
 
 /* Jäljen pituuden yläraja RUUDULLA, ei ruuduissa.
  *
@@ -12881,7 +12889,11 @@ const ASKEL = 3;
  * joka sitoo, ja aikapituuden lyhentäminen olisi osunut vain heikkoon
  * tuuleen — eli sinne missä jälki on jo valmiiksi lyhyt ja pilkkuraja
  * lähellä. */
-const JalkiViritys = { maxPx: 26 };
+/* 26 -> 22 KÄYTTÄJÄN PYYNNÖSTÄ ("pyrstöt hieman lyhyemmiksi", 28.9.).
+ * Pilkkuraja 20 px pysyy alapuolella. Pituus on nyt KAARENPITUUS, joka
+ * leikataan tarkasti (`nauha`), eikä kokonainen määrä talletettuja
+ * pisteitä — siksi pää ei enää sahaa. */
+const JalkiViritys = { maxPx: 22 };
 
 /* Häivytys tehdään SISÄKKÄISILLÄ VEDOILLA, ei segmentti kerrallaan.
  *
@@ -12964,8 +12976,8 @@ rakennaNippuVarit();
  * `nopeus × ASKEL`, joten kovassa tuulessa pituusrajaan mahtuu vain
  * kourallinen pisteitä — 32 pikselin rajalla 18 m/s tuulessa 6,6.
  * Niin harvasta hilasta kapeneminen astuu portaina ja nauhan reunaan
- * tulee näkyvä nykäys. Pisteiden väliin lasketaan lisänäytteitä kunnes
- * niitä on vähintään `NAUHA_MIN`, ja kapeneminen otetaan jatkuvasta
+ * tulee näkyvä nykäys. Nauha näytteistetään siksi kaarenpituuden mukaan
+ * tasavälein (`NAUHA_N` näytettä), ja kapeneminen otetaan jatkuvasta
  * kaavasta.
  *
  * ── GL: KOLMIOLIUSKA, KATE ETÄISYYDESTÄ ──────────────────────────
@@ -12989,7 +13001,6 @@ rakennaNippuVarit();
  *     sekoituksessa kärkeen ei tule kirkasta pisaraa.
  *   - Kaikki nauhat ovat YHTÄ liuskaa, joka on liitetty rappeutuneilla
  *     kolmioilla. Yksi veto koko kentälle. */
-const NAUHA_MIN = 14;          /* vähintään näin monta näytettä nauhaan */
 /* Nostettu 48 -> 72: pidempään jälkeen mahtuu enemmän raakapisteitä,
    ja tihennyksen on mahduttava niiden päälle. */
 const _NAUHA_MAX = 72;
@@ -13002,10 +13013,19 @@ const _nauhaNy = new Float32Array(_NAUHA_MAX);
 const _nauhaW = new Float32Array(_NAUHA_MAX);
 const _raakaX = new Float32Array(JALKI + 1);
 const _raakaY = new Float32Array(JALKI + 1);
+const _raakaS = new Float32Array(JALKI + 1);
+let _raakaN = 0;
+/* Näytteitä nauhassa: KIINTEÄ määrä. Kun määrä vaihteli raakapisteiden
+   mukaan, näytteiden paikat ja kapenemisen parametri hyppäsivät joka
+   talletuksessa. Pituus on enintään 22 px, joten 20 näytettä on ~1 px
+   välein. */
+const NAUHA_N = 20;
 
 /* Kärkipistepuskuri: x, y, d, w, nopeusluokka. Kasvatetaan tarvittaessa,
    ei kutisteta — ruudusta toiseen koko on lähes sama. */
-const _PV = 5;
+const _PV = 6;
+/* Nauhan peittävyys (syntymän ja kuoleman häivytys, ks. `_pAlfa`). */
+let _pA = 1;
 let _pData = new Float32Array(_PV * 32768), _pN = 0;
 function _pVara(lisaa) {
   if ((_pN + lisaa) * _PV <= _pData.length) return;
@@ -13016,38 +13036,59 @@ function _pVara(lisaa) {
 function _pV(x, y, d, w, n) {
   const i = _pN++ * _PV;
   _pData[i] = x; _pData[i + 1] = y; _pData[i + 2] = d; _pData[i + 3] = w; _pData[i + 4] = n;
+  _pData[i + 5] = _pA;
 }
 /* Rappeutunut liitos edelliseen nauhaan: viimeinen kärkipiste kahdesti
    ja seuraavan ensimmäinen kahdesti — välissä ei ole pinta-alaa. */
 function _pToista() {
-  const i = (_pN - 1) * _PV;
+  const i = (_pN - 1) * _PV, a = _pA;
+  _pA = _pData[i + 5];
   _pV(_pData[i], _pData[i + 1], _pData[i + 2], _pData[i + 3], _pData[i + 4]);
+  _pA = a;
 }
 
 const KARKI_OSAT = 6;          /* puoliympyrän kolmioita — säde on alle 1,5 px */
-function nauha(p, hn, leveys, nip, laaj) {
-  const N0 = hn + 1;                /* kärki + talletetut pisteet */
-  _raakaX[0] = p.x; _raakaY[0] = p.y;
-  for (let j = 1; j < N0; j++) { _raakaX[j] = p.hx[j-1]; _raakaY[j] = p.hy[j-1]; }
-
-  /* Tihennys: montako lisänäytettä kunkin raakavälin sisään. */
-  const valeja = N0 - 1;
-  let osat = Math.ceil((NAUHA_MIN - 1) / valeja);
-  if (osat < 1) osat = 1;
-  if (valeja * osat + 1 > _NAUHA_MAX) osat = Math.floor((_NAUHA_MAX - 1) / valeja);
-  const N = valeja * osat + 1;
-  if (osat === 1) {
-    for (let j = 0; j < N0; j++) { _nauhaX[j] = _raakaX[j]; _nauhaY[j] = _raakaY[j]; }
-  } else {
-    for (let v = 0; v < valeja; v++) {
-      const ax = _raakaX[v], ay = _raakaY[v];
-      const bx = _raakaX[v+1], by = _raakaY[v+1];
-      for (let s = 0; s < osat; s++) {
-        const f = s / osat, i = v * osat + s;
-        _nauhaX[i] = ax + (bx - ax) * f; _nauhaY[i] = ay + (by - ay) * f;
-      }
+/* nauha(p, pituus, …): jälki kärjestä taaksepäin TARKALLEEN `pituus`
+ * pikseliä kaarta pitkin.
+ *
+ * PÄÄ EI SAHAA. Ennen piirrettiin `p.piirra` kokonaista talletettua
+ * pistettä: kärki liikkui joka ruudussa, mutta pää seisoi kaksi ruutua
+ * ja hyppäsi kolmannella kokonaisen talletusvälin verran, kun uusi piste
+ * tuli ja vanhin putosi pois. Mitattuna pää seisoi 69,5 %:ssa ruuduista
+ * ja p90-askel oli 3,1 kärjen askelta — se oli pyrstön välkyntä. Nyt
+ * pää interpoloidaan leikkauskohtaan, ja nauha näytteistetään
+ * kaarenpituuden mukaan kiinteällä määrällä näytteitä, joten muoto ja
+ * kapeneminen liukuvat jatkuvasti. */
+function nauha(p, pituus, leveys, nip, laaj) {
+  /* Raakapolku kärjestä taaksepäin, leikattuna pituuteen. */
+  _raakaX[0] = p.x; _raakaY[0] = p.y; _raakaS[0] = 0;
+  let n = 1, kertyma = 0;
+  for (let j = 0; j < p.hn; j++) {
+    const x = p.hx[j], y = p.hy[j];
+    const dx = x - _raakaX[n-1], dy = y - _raakaY[n-1];
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (kertyma + d >= pituus) {
+      const f = d > 1e-6 ? (pituus - kertyma) / d : 0;
+      _raakaX[n] = _raakaX[n-1] + dx * f; _raakaY[n] = _raakaY[n-1] + dy * f;
+      kertyma = pituus; _raakaS[n++] = kertyma;
+      break;
     }
-    _nauhaX[N-1] = _raakaX[valeja]; _nauhaY[N-1] = _raakaY[valeja];
+    kertyma += d;
+    _raakaX[n] = x; _raakaY[n] = y; _raakaS[n++] = kertyma;
+  }
+  _raakaN = n;
+  if (n < 2 || kertyma < 0.5) return false;
+
+  /* Tasavälinen näytteistys kaarta pitkin. */
+  const N = NAUHA_N;
+  let seg = 1;
+  for (let k = 0; k < N; k++) {
+    const sk = kertyma * k / (N - 1);
+    while (seg < n - 1 && _raakaS[seg] < sk) seg++;
+    const s0 = _raakaS[seg-1], s1 = _raakaS[seg];
+    const f = s1 > s0 ? (sk - s0) / (s1 - s0) : 0;
+    _nauhaX[k] = _raakaX[seg-1] + (_raakaX[seg] - _raakaX[seg-1]) * f;
+    _nauhaY[k] = _raakaY[seg-1] + (_raakaY[seg] - _raakaY[seg-1]) * f;
   }
   const viim = N - 1;
   /* Siloittelu puolivälikäyrän pisteisiin. Päät pysyvät. */
@@ -13103,6 +13144,23 @@ function nauha(p, hn, leveys, nip, laaj) {
     _pV(px[j] - nx[j] * r, py[j] - ny[j] * r, -r, w[j], nip);
     _pV(px[j] + nx[j] * r, py[j] + ny[j] * r, r, w[j], nip);
   }
+  return true;
+}
+
+/* Nauhan peittävyys: syntymä ja kuolema häivytetään, eikä jälki katoa
+ * kerralla. Ennen täysimittainen jälki katosi yhdessä ruudussa kun
+ * partikkeli täytti MAX_AGE:n, ja mitattuna niitä katosi noin yksi joka
+ * ruudussa — pienten välähdysten virta kentän yli. Tyyni kohta (alle
+ * 0,3 m/s, jossa partikkeli ei liiku) häivytetään samoin, jottei raja
+ * vilku kun tuuli käy sen yli. */
+const _SYNTY_RUUTUA = 15, _KUOLO_RUUTUA = 30;
+function _pAlfa(p) {
+  let a = p.age / _SYNTY_RUUTUA;
+  const b = (Config.MAX_AGE - p.age) / _KUOLO_RUUTUA;
+  if (b < a) a = b;
+  const c = (p.ms - 0.3) / 0.5;
+  if (c < a) a = c;
+  return a >= 1 ? 1 : (a > 0 ? a * a * (3 - 2 * a) : 0);
 }
 
 /* Ruudusto: missä muunnoksessa partikkelien koordinaatit ovat suhteessa
@@ -13224,28 +13282,44 @@ function partikkelitAskel() {
      kasvaa alaspäin). */
   const kx = geoSpd * GeoProject._sx / cosLat;
   const ky = -kx;
-  const hitaus = Config.INERTIA, uutta = 1 - Config.INERTIA;
+  /* LIIKE ON AJASTA, EI RUUDUISTA. Askel oli ennen vakio ruutua kohti,
+     joten 120 Hz:n näytöllä partikkelit kulkivat kaksi kertaa niin
+     nopeasti kuin 60 Hz:n näytöllä, ja jokainen ruutunopeuden muutos
+     (hypyn kentänrakennus, häivytyksen puskurivaiheet, ylimääräinen
+     kartan ruutu) näkyi nopeuden muutoksena. `f` on kulunut aika 60 Hz:n
+     ruutuina: kaikki viritetyt vakiot (GEO_SPEED, INERTIA, MAX_AGE)
+     pitävät merkityksensä 60 Hz:llä sellaisinaan. Katto 50 ms: pidempi
+     tauko ei heitä partikkeleita, ja yli 250 ms (tausta-välilehti) on
+     yksi ruutu. */
+  const nytT = performance.now();
+  let dt = State._pAika ? nytT - State._pAika : 1000 / 60;
+  State._pAika = nytT;
+  if (!(dt > 0)) dt = 0; else if (dt > 250) dt = 1000 / 60; else if (dt > 50) dt = 50;
+  const f = dt * 60 / 1000;
+  const hitaus = Math.pow(Config.INERTIA, f), uutta = 1 - hitaus;
   const alue = State.alue;
-  const talleta = (State._ruutu = (State._ruutu | 0) + 1) % ASKEL === 0;
+  /* Jälki talletetaan kellosta (ks. ASKEL_MS). */
+  State._jalkiKello = (State._jalkiKello || 0) + dt;
+  const talleta = State._jalkiKello >= ASKEL_MS;
+  if (talleta) State._jalkiKello = Math.min(ASKEL_MS, State._jalkiKello - ASKEL_MS);
+  /* Reunalla partikkeli saa jatkaa kunnes sen jälkikin on ulkona —
+     muuten jälki katkeaisi ruudun reunaan kerralla. */
+  const M = JalkiViritys.maxPx + 4;
+  /* Aikapituus 60 Hz:n ruutuina: jälki on enintään tämän ajan liike. */
+  const aikaRuutua = JALKI * ASKEL;
 
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i];
     sampleWind(p);
     const speedT = Math.min(1, p.ms / Config.MAX_MS);
-    const dropChance = Config.DROP_RATE + speedT * Config.DROP_RATE_BUMP;
-    if (p.ms < 0.3 || Math.random() < dropChance) {
-      p.age++;
-      if (p.age > Config.MAX_AGE || Math.random() < dropChance * 0.5) respawn(p);
-      continue;
-    }
+    p.age += f;
+    if (p.age > Config.MAX_AGE) { respawn(p); continue; }
+    if (p.ms < 0.3) continue;
     p.vx = p.vx * hitaus + p.u * kx * uutta;
     p.vy = p.vy * hitaus + p.v * ky * uutta;
-    p.x += p.vx; p.y += p.vy; p.age++;
-    /* Ikäraja pitää jäljet tasapituisina: ilman sitä kovassa tuulessa
-       oleva partikkeli eläisi kunnes se osuu reunaan. */
-    if (p.age > Config.MAX_AGE ||
-        p.x < alue.x0 - 4 || p.x > alue.x1 + 4 ||
-        p.y < alue.y0 - 4 || p.y > alue.y1 + 4) { respawn(p); continue; }
+    p.x += p.vx * f; p.y += p.vy * f;
+    if (p.x < alue.x0 - M || p.x > alue.x1 + M ||
+        p.y < alue.y0 - M || p.y > alue.y1 + M) { respawn(p); continue; }
     if (talleta) {
       /* Rengaspuskuri: uusin ensimmäisenä, vanhin putoaa pois. */
       const hx = p.hx, hy = p.hy, n = p.hn < JALKI ? p.hn : JALKI - 1;
@@ -13254,11 +13328,10 @@ function partikkelitAskel() {
       if (p.hn < JALKI) p.hn++;
     }
     p.nippu = speedT >= 1 ? NIPUT - 1 : (speedT * NIPUT) | 0;
-    /* Montako talletettua pistettä mahtuu pituusrajaan. Pisteet ovat
-       nopeus × ASKEL pikselin päässä toisistaan, joten tämä on jako
-       eikä polun mittausta. */
-    const vpx = Math.sqrt(p.vx * p.vx + p.vy * p.vy) * ASKEL;
-    p.piirra = vpx > 0.05 ? Math.max(2, Math.min(JALKI, Math.ceil(JalkiViritys.maxPx / vpx))) : JALKI;
+    /* Jäljen pituus pikseleinä: aikapituuden liike, rajattuna. Liukuluku
+       eikä pistemäärä — `nauha` leikkaa kaaren tähän kohtaan. */
+    const pit = Math.sqrt(p.vx * p.vx + p.vy * p.vy) * aikaRuutua;
+    p.pit = pit < JalkiViritys.maxPx ? pit : JalkiViritys.maxPx;
   }
   return true;
 }
@@ -13288,15 +13361,15 @@ const PartikkeliGL = {
     this._gl = gl;
     this._ohj = GLApu.ohjelma(gl,
       GL_TARKKUUS
-      + 'attribute vec2 a_xy; attribute float a_d; attribute float a_w; attribute float a_n;\n'
+      + 'attribute vec2 a_xy; attribute float a_d; attribute float a_w; attribute float a_n; attribute float a_a;\n'
       + 'uniform vec2 u_koko; uniform vec4 u_vari[' + NIPUT + '];\n'
       + 'varying float v_d; varying float v_w; varying vec4 v_c;\n'
       + 'void main(){ vec2 c = a_xy / u_koko * 2.0 - 1.0; gl_Position = vec4(c.x, -c.y, 0.0, 1.0);\n'
-      + '  v_d = a_d; v_w = a_w; v_c = u_vari[int(a_n + 0.5)]; }\n',
+      + '  v_d = a_d; v_w = a_w; v_c = u_vari[int(a_n + 0.5)] * a_a; }\n',
       GL_TARKKUUS_FS
       + 'uniform float u_pr; varying float v_d; varying float v_w; varying vec4 v_c;\n'
       + 'void main(){ float k = clamp((v_w - abs(v_d)) * u_pr + 0.5, 0.0, 1.0); gl_FragColor = v_c * k; }\n',
-      ['a_xy', 'a_d', 'a_w', 'a_n'], ['u_koko', 'u_vari', 'u_pr']);
+      ['a_xy', 'a_d', 'a_w', 'a_n', 'a_a'], ['u_koko', 'u_vari', 'u_pr']);
     this._puskuri = gl.createBuffer();
     this._puskuriKoko = 0;
   },
@@ -13314,11 +13387,10 @@ const PartikkeliGL = {
     _pN = 0;
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];
-      if (p.hn < 2 || p.ms < 0.3) continue;
-      /* Kärjestä lukien niin monta pistettä kuin pituusrajaan mahtuu. */
-      const hn = p.hn < p.piirra ? p.hn : p.piirra;
-      if (hn < 2) continue;
-      nauha(p, hn, Nippu.leveys[p.nippu], p.nippu, laaj);
+      if (p.hn < 1) continue;
+      _pA = _pAlfa(p);
+      if (_pA < 0.01) continue;
+      nauha(p, p.pit, Nippu.leveys[p.nippu], p.nippu, laaj);
     }
     if (_pN < 3) return;
     const self = this, o = this._ohj;
@@ -13330,11 +13402,12 @@ const PartikkeliGL = {
       }
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, _pData.subarray(0, _pN * _PV));
       const S = _PV * 4;
-      for (let i = 0; i < 4; i++) gl.enableVertexAttribArray(i);
+      for (let i = 0; i < 5; i++) gl.enableVertexAttribArray(i);
       gl.vertexAttribPointer(0, 2, gl.FLOAT, false, S, 0);
       gl.vertexAttribPointer(1, 1, gl.FLOAT, false, S, 8);
       gl.vertexAttribPointer(2, 1, gl.FLOAT, false, S, 12);
       gl.vertexAttribPointer(3, 1, gl.FLOAT, false, S, 16);
+      gl.vertexAttribPointer(4, 1, gl.FLOAT, false, S, 20);
       gl.uniform2f(o.u.u_koko, State.vw, State.vh);
       gl.uniform4fv(o.u.u_vari, Nippu.gl);
       gl.uniform1f(o.u.u_pr, pr);

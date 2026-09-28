@@ -1214,3 +1214,61 @@ missä jälki on jo valmiiksi lyhyt ja pilkkuraja lähellä.
 ilman uudelleenkäännöstä. Se ei kuitenkaan ollut viedyissä, joten
 pyyhkäisy olisi vaatinut buildin per arvo. Nyt viedään `JalkiViritys`,
 `JALKI` ja `ASKEL`.
+
+## Liike ajasta, pää ei sahaa, syntymä ja kuolema häivytetään (28.9.)
+
+Kolme muutosta yhdessä erässä, koska ne ovat saman oireen kolme syytä:
+"hypyn jälkeen partikkelit kulkevat hetken nopeammin" ja "pyrstö välkkyy".
+
+**1. Liike on ajasta, ei ruuduista.** Askel oli vakio ruutua kohti, joten
+nopeus oli verrannollinen ruutunopeuteen: 120 Hz:n näytöllä kaksinkertainen,
+ja jokainen ruutunopeuden muutos (hypyn kentänrakennus, häivytyksen
+puskurivaiheet) näkyi nopeuden muutoksena. Nyt `f` = kulunut aika 60 Hz:n
+ruutuina, ja kaikki viritetyt vakiot (GEO_SPEED, INERTIA, MAX_AGE)
+tarkoittavat 60 Hz:llä samaa kuin ennen: hitaus on `INERTIA^f`, siirtymä
+`v·f`, ikä `+= f`. Katto 50 ms, yli 250 ms (taustalla ollut välilehti) on
+yksi ruutu. Jälki talletetaan kellosta (`ASKEL_MS` = 50 ms), ei
+ruutulaskurista.
+
+Mitattu (kontti, 5 × 1 s): matka sekunnissa jaettuna ruutuaskeleella
+
+```
+          fps      matka / askel / s
+uusi    25–28      59,5 – 65,7   (≈ 60, eli 60 Hz:n vastine)
+vanha   20–26      22,5 – 25,7   (= fps)
+```
+
+**2. Pyrstön pää ei sahaa.** Nauhaan piirrettiin `p.piirra` kokonaista
+talletettua pistettä. Kärki liikkui joka ruudussa, mutta pää seisoi kaksi
+ruutua ja hyppäsi kolmannella talletusvälin verran — ja kapenemisen
+parametri ja tihennys vaihtuivat samalla. Nyt jäljen pituus on liukuluku
+(`p.pit`), `nauha` leikkaa kaaren tarkalleen siihen ja näytteistää sen
+tasavälein kiinteällä määrällä näytteitä (`NAUHA_N` 20). Mitattu 8 s,
+rinnakkaiset buildit vuorotellen, kaksi kierrosta:
+
+```
+hännän askel / kärjen askel      p10    p50    p90   hajonta   pää paikallaan
+vanha                            0,00   0,00   3,10   1,39–1,41   69,6–70,1 %
+uusi                             0,00–0,60  1,00  1,00   0,30–0,31    9,6–10,2 %
+```
+
+Uuden 10 % paikallaan olevia päitä ovat nuoret partikkelit, joiden jälki
+vasta kasvaa täyteen mittaansa — se on oikein.
+
+**3. Satunnainen pudotus poistettiin, ja syntymä ja kuolema häivytetään.**
+`DROP_RATE` pysäytti partikkelin yhdeksi ruuduksi 0,3–1,1 %:ssa ruuduista
+(nykäys kärjessä), ja MAX_AGE:n täyttänyt jälki katosi täysimittaisena
+yhdessä ruudussa — mitattuna noin yksi joka ruudussa. Nyt nauhalla on
+peittävyys (`_pAlfa`, pisteattribuutti `a_a`): syntymä 15 ja kuolema 30
+ruutua (60 Hz), ja tyyni raja 0,3 → 0,8 m/s liukuu. Ruudun reunalla
+partikkeli elää kunnes sen jälkikin on ulkona (`maxPx + 4`).
+Mitattuna katoavan jäljen peittävyys oli vanhassa aina 1,00; uudessa
+näkyvällä peittävyydellä (> 0,05) katosi 182 jälkeä 8 s:ssa, joista 160
+oli ruudun ulkopuolella ja 22 tyynessä kohdassa, jossa tuuli putoaa
+yhdellä näytteellä alle rajan.
+
+**4. `JalkiViritys.maxPx` 26 → 22** käyttäjän pyynnöstä ("pyrstöt hieman
+lyhyemmiksi"). Pilkkuraja 20 px pysyy alapuolella. Mitattu mediaani ja
+p90 22,0 px (vanha 25,5 / 27,4).
+
+Ruudun sujuvuus on varmistettava laitteella; kontti ei mittaa sitä.
