@@ -492,8 +492,15 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **KUSKI ON NIVELLETTY, SE LIIKKUU NÄKYVÄSTI, JA LÄHTÖ ON HYPPY.**
   Asento on oikeasta vastavalokuvasta (mittasuhteiden malli, ei
   upotettu): lähes pystyasento ja nojaus taaksepäin, siipi molemmin
-  käsin olkapäiden korkeudella VINOSSA sivulla, LYHYT lauta (78 yks.)
-  pitkän maston päällä. Osat ovat sisäkkäisiä kerroksia omilla
+  käsin olkapäiden korkeudella VINOSSA sivulla, ja kädet ovat PUOMILLA
+  (siivessä täyttöputki, keskituki, puomi kahdella kiinnikkeellä,
+  kangas ja ikkuna). Lauta on oikean mittainen (84 × 7 yks. eli ~150 ×
+  13 cm, nokka nousee, jalkalenkit) ja foili oikea: masto 48 yks.
+  (~85 cm) laudan takapuoliskolta, runko, etusiipi profiilina kärki
+  näkyvissä, pieni takasiipi. Kuskilla on käyttäjän pyytämät värit:
+  tummansininen kypärä (`--lr-kypara`) ja harmaa paita (`--lr-paita`),
+  jonka helma lepattaa (`#lr-helma`, 0,9 s, epäsäännöllinen) — muuten
+  kuski on `--lr-kuski`. Osat ovat sisäkkäisiä kerroksia omilla
   nivelpisteillään (`#lr-jalat` nilkoista `scaleY`, `#lr-yla` lantiosta
   SAMALLA käyrällä, `#lr-kasi` = molemmat kädet ja siipi olkapäistä,
   `#lr-siipi` etukädestä), ja vartalo piirtyy siiven PÄÄLLE. Liike on
@@ -509,11 +516,14 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   `lr-yla-hyppy`). Lähtö `.out` ajaa `lr-hyppy`-avainkuvat (lastaus,
   ponnistus, lento, 0,85 s), ja ruudun häivytys alkaa vasta 0,4 s,
   jotta laki (0,44 s) nähdään; `display: none` 900 ms.
-- **SILUETISSA ON NELJÄ MUOTOA EIKÄ MUUTA: Haukilahden vesitorni,
-  Tuomiokirkko, sen vieressä Katajanokan maailmanpyörä ja Suomenlinna.**
-  Käyttäjän päätös: stadionin torni, Uspenski, laiva, Lauttasaari,
-  Harmaja ja kaupunkimassa tekivät siitä yleisen kaupungin. Vilkkuva
-  valo on vesitornin lentoestevalo. Älä lisää muita maamerkkejä.
+- **SILUETTI ON HELSINKI ETELÄSATAMAN SUUNNALTA:** rantarivi ja
+  Kauppatori (teltat, Keisarinnan kivi), mäellä Tuomiokirkko,
+  Katajanokalla Uspenski ja maailmanpyörä, satamassa Silja Linen laiva
+  ja Suomenlinna kirkkomajakkoineen. Käyttäjän päätökset: ensin vain
+  tunnistettavat muodot (stadion, laiva, Lauttasaari ja Harmaja pois),
+  sitten "yleinen siluetti joka sisältää ainakin" Suomenlinnan,
+  Tuomiokirkon, Kauppatorin ja Silja Linen laivan, Haukilahden
+  vesitorni pois. Vilkkuva valo on Suomenlinnan kirkon majakka.
 - **KAIKKI LATAUSRUUDUN LIIKE ON `transform`IA TAI `opacity`Ä
   HTML-ELEMENTEILLÄ.** Ei canvasia, ei SVG-attribuutteja, ei
   `stroke-dashoffset`ia, ei `width`iä: käynnistyksen aikana pääsäie on

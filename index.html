@@ -117,7 +117,13 @@ var LR_PALETTI = (function () {
        paperinen kuski katoaisi, joten valoisalla se on tumma
        vastavalosiluetti. Välisävy (harmaa) olisi huonompi kuin kumpikaan. */
     '--lr-kuski': h > -3 ? '#0E1424' : '#F0E7CE',
-    '--lr-roiske': h > -3 ? 'rgba(236,242,248,.8)' : 'rgba(240,231,206,.85)'
+    '--lr-roiske': h > -3 ? 'rgba(236,242,248,.8)' : 'rgba(240,231,206,.85)',
+    /* Paita ja kypärä: käyttäjän pyytämät värit (harmaa, tummansininen).
+       Pimeällä kuski on kuunvalossa vaalea, joten paita on vaalean
+       harmaa ja kypärä kirkkaampi sininen, jottei pää katoa yötaivaaseen;
+       valoisalla vastavalossa molemmat tummuvat siluetin mukana. */
+    '--lr-paita': h > -3 ? '#4B5462' : '#AEB4BC',
+    '--lr-kypara': h > -3 ? '#1C3364' : '#2E4F8E'
   };
   try {
     var st = document.documentElement.style;
@@ -3131,6 +3137,7 @@ html[data-tutka="1"] #lahde-merkki {
   --lr-kaupunki: #0F1B36; --lr-saari: #09112A;
   --lr-valo-ikkuna: #F2D9A6; --lr-valot: 1; --lr-tahdet-a: .9;
   --lr-kuski: #F0E7CE; --lr-roiske: rgba(240,231,206,.85);
+  --lr-paita: #AEB4BC; --lr-kypara: #2E4F8E;
   --lr-aurinko-a: 0; --lr-aurinko-y: 60%; --lr-aurinko: 255,246,224;
   --lr-kuu-a: 1; --lr-polku: 240,231,206; --lr-polku-a: .10;
   --lr-vinjetti-a: .5;
@@ -3223,34 +3230,35 @@ html[data-tutka="1"] #lahde-merkki {
     rgba(2,4,9,0) 52%, rgba(2,4,9,var(--lr-vinjetti-a)) 100%);
 }
 
-/* HELSINKI MERELTÄ. Siluetissa on vain neljä tunnistettavaa muotoa:
-   Haukilahden vesitorni, Tuomiokirkko (keskikupoli rummun päällä,
-   lyhty ja risti, kaksi näkyvää kulmakupolia ja pääty), sen vieressä
-   Katajanokan maailmanpyörä ja Suomenlinna kirkkomajakkoineen.
-   Ensimmäisessä versiossa oli myös Olympiastadionin torni, Uspenski,
-   laiva, Lauttasaari, Harmaja ja kaupunkimassa, ja kokonaisuus luki
-   yleisenä kaupunkina — käyttäjän päätös: vain nämä. Leveys vähintään
-   760 px, jotta ne ovat puhelimellakin tunnistettavan kokoisia, ja ne
-   on sijoitettu keskelle (x 280–720 / 1000) mutta kuskin vartalon ohi. */
+/* HELSINKI MERELTÄ, Eteläsataman suunnalta. Yleinen siluetti, jossa
+   on käyttäjän pyytämät maamerkit: Kauppatori (rantarivi, teltat ja
+   Keisarinnan kivi), sen takana mäellä Tuomiokirkko, Katajanokalla
+   Uspenski ja maailmanpyörä, satamassa Silja Linen laiva ja oikealla
+   Suomenlinna. Kaksi syvyyttä: kaukaiset (rantarivi, kirkot, pyörä)
+   `--lr-kaupunki`, lähemmät (tori, laiva, Suomenlinna) `--lr-saari`.
+   Haukilahden vesitorni poistettiin käyttäjän pyynnöstä, ja vilkkuva
+   valo on nyt Suomenlinnan kirkon majakka — kirkko on oikeasti majakka.
+   Leveys vähintään 760 px; maamerkit ovat keskellä (x 230–740 / 1000). */
 #lr-kaupunki {
   left: 50%; width: max(100%, 760px); margin-left: calc(max(100%, 760px) / -2);
   bottom: calc(100% - var(--lr-horisontti)); aspect-ratio: 1000 / 70;
   animation: lr-esiin 1.2s .1s ease-out backwards;
 }
 #lr-kaupunki svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-/* Vesitornin lentoestevalo: lyhyt välähdys, pitkä tauko. Yksi animaatio. */
+/* Suomenlinnan kirkon majakkavalo: lyhyt välähdys, pitkä tauko.
+   Yksi animaatio. */
 /* Kirkkaus (päivällä 0) on elementin oma staattinen `opacity`, ja
    välähdys sen `::before`: muuttuja avainkuvassa ei ole kompositorin
    arvo. */
 #lr-majakka {
-  position: absolute; left: 30%; bottom: 72.3%;
+  position: absolute; left: 65.82%; bottom: 45.1%;
   width: 4px; height: 4px; margin: 0 0 -2px -2px;
   opacity: var(--lr-valot);
 }
 #lr-majakka::before {
   content: ''; position: absolute; inset: 0; border-radius: 50%;
-  background: #FFE2C6;
-  box-shadow: 0 0 6px 2px rgba(255,214,180,.6);
+  background: #FFF3D6;
+  box-shadow: 0 0 7px 2px rgba(255,236,190,.7);
   opacity: 0;
   animation: lr-majakka 4s 1s linear infinite;
 }
@@ -3386,7 +3394,7 @@ html[data-tutka="1"] #lahde-merkki {
   top: calc(var(--lr-pinta) - var(--lr-koko) * .8);
 }
 #lr-lahto, #lr-tulo, #lr-keinu, #lr-lauta, #lr-jalat, #lr-yla, #lr-kasi,
-#lr-siipi, #lr-roiske {
+#lr-siipi, #lr-helma, #lr-roiske {
   position: absolute; inset: 0;
 }
 #lr-rata svg {
@@ -3422,7 +3430,7 @@ html[data-tutka="1"] #lahde-merkki {
   to   { transform: translate3d(6%,-.8%,0); }
 }
 #lr-keinu {
-  transform-origin: 50% 86%;
+  transform-origin: 50% 87.33%;
   animation: lr-keinu 4.4s ease-in-out infinite alternate;
 }
 @keyframes lr-keinu {
@@ -3449,6 +3457,21 @@ html[data-tutka="1"] #lahde-merkki {
 @keyframes lr-siipi {
   0%, 100% { transform: rotate(3deg); animation-timing-function: cubic-bezier(.45,0,.55,1); }
   30%      { transform: rotate(-6deg); animation-timing-function: cubic-bezier(.3,0,.35,1); }
+}
+/* PAIDAN HELMA LEPATTAA. Tuuli tulee edestä (juovat kulkevat
+   oikealta vasemmalle), joten löysä helma liehuu taakse. Nopea,
+   epäsäännöllinen: kolme eri suurta heilahdusta 0,9 s:ssa, jotta se ei
+   lue tasaisena heilurina. Nivel on vyötäröllä selän puolella. */
+#lr-helma {
+  transform-origin: 48.2% 51.8%;
+  animation: lr-helma .9s linear infinite;
+}
+@keyframes lr-helma {
+  0%, 100% { transform: rotate(0) scaleX(1); }
+  22%      { transform: rotate(-7deg) scaleX(1.12); }
+  41%      { transform: rotate(3deg) scaleX(.9); }
+  63%      { transform: rotate(-4deg) scaleX(1.06); }
+  82%      { transform: rotate(5deg) scaleX(.88); }
 }
 /* Hypyssä siipi nousee pään yli ja polvet vetäytyvät (sama kuin
    oikeissa hyppykuvissa): pumppaus korvataan hyppyasennolla. */
@@ -4393,37 +4416,52 @@ public/icon-maskable-512.png 512px 140643 B
            skripti asettaa `--lr-*`-muuttujat). Kääre päättyy taivaanrantaan,
            joten matala aurinko painuu meren taakse eikä sen päälle. -->
       <div id="lr-taivasvalo"><i id="lr-aurinko"></i><i id="lr-kuu"></i></div>
-      <!-- Helsinki mereltä, neljä tunnistettavaa muotoa ja ei muuta:
-           Haukilahden vesitorni (Espoo) vasemmalla, Tuomiokirkko ja sen
-           vieressä Katajanokan maailmanpyörä, ja Suomenlinna
-           kirkkomajakkoineen oikealla. Staattinen; värit muuttujista. -->
+      <!-- Helsinki mereltä, Eteläsataman suunnalta: rantarivi ja
+           Kauppatori telttoineen ja Keisarinnan kivineen, niiden takana
+           mäellä Tuomiokirkko; Katajanokalla Uspenski ja maailmanpyörä;
+           satamassa Silja Linen laiva; oikealla Suomenlinna
+           kirkkomajakkoineen. Staattinen; värit muuttujista. -->
       <div id="lr-kaupunki">
         <svg viewBox="0 0 1000 70" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
           <g style="fill:var(--lr-kaupunki)">
-            <path d="M270 70C282 67.6 292 67 300 67C308 67 318 67.6 330 70Z"/>
-            <path d="M298 67.4V36.4L289 28.6V25H311V28.6L302 36.4V67.4Z"/>
-            <path d="M299.6 25.4V19.4H300.4V25.4Z"/>
-            <path d="M340 70C346 67.6 352 66.2 358 66H402V67.6H412C420 67.6 440 67.8 452 70Z"/>
-            <path d="M358 66V52.6H371V40.6C371 39.4 371.6 38.8 372.4 38.6C373 34 376 31.4 378.6 31V27.2H378.2V26.4C378.6 25.6 379.4 25.2 380 25.2C380.6 25.2 381.4 25.6 381.8 26.4V27.2H381.4V31C384 31.4 387 34 387.6 38.6C388.4 38.8 389 39.4 389 40.6V52.6H402V66Z"/>
-            <path d="M364.4 52.8L380 46.8L395.6 52.8Z"/>
-            <path d="M358.8 52.8V48.4H359.4C359.8 46 360.8 44.8 362 44.6V43H362.4V44.6C363.6 44.8 364.6 46 365 48.4H365.6V52.8Z"/>
-            <path d="M394.4 52.8V48.4H395C395.4 46 396.4 44.8 397.6 44.6V43H398V44.6C399.2 44.8 400.2 46 400.6 48.4H401.2V52.8Z"/>
-            <path d="M379.6 25.4V23H380.4V25.4ZM378.8 23.8H381.2V24.4H378.8Z"/>
-            <path d="M428 51L420 67.8H421.6L428 53.6L434.4 67.8H436Z"/>
-            <circle cx="428" cy="51" r="1.6"/>
-            <rect x="441.00" y="50.30" width="1.8" height="1.8" rx=".4"/><rect x="439.14" y="57.25" width="1.8" height="1.8" rx=".4"/><rect x="434.05" y="62.34" width="1.8" height="1.8" rx=".4"/><rect x="427.10" y="64.20" width="1.8" height="1.8" rx=".4"/><rect x="420.15" y="62.34" width="1.8" height="1.8" rx=".4"/><rect x="415.06" y="57.25" width="1.8" height="1.8" rx=".4"/><rect x="413.20" y="50.30" width="1.8" height="1.8" rx=".4"/><rect x="415.06" y="43.35" width="1.8" height="1.8" rx=".4"/><rect x="420.15" y="38.26" width="1.8" height="1.8" rx=".4"/><rect x="427.10" y="36.40" width="1.8" height="1.8" rx=".4"/><rect x="434.05" y="38.26" width="1.8" height="1.8" rx=".4"/><rect x="439.14" y="43.35" width="1.8" height="1.8" rx=".4"/>
+            <path d="M228 70V63.4H238V61H250V59.4H262V60.6H272V58.2H284V56.4H300V57.4H316V56.8H330V58.4H342V57.6H354V59H366V60.4H378V62H388V70Z"/>
+            <g transform="translate(-50 -6)">
+              <path d="M358 66V52.6H371V40.6C371 39.4 371.6 38.8 372.4 38.6C373 34 376 31.4 378.6 31V27.2H378.2V26.4C378.6 25.6 379.4 25.2 380 25.2C380.6 25.2 381.4 25.6 381.8 26.4V27.2H381.4V31C384 31.4 387 34 387.6 38.6C388.4 38.8 389 39.4 389 40.6V52.6H402V66Z"/>
+              <path d="M364.4 52.8L380 46.8L395.6 52.8Z"/>
+              <path d="M358.8 52.8V48.4H359.4C359.8 46 360.8 44.8 362 44.6V43H362.4V44.6C363.6 44.8 364.6 46 365 48.4H365.6V52.8Z"/>
+              <path d="M394.4 52.8V48.4H395C395.4 46 396.4 44.8 397.6 44.6V43H398V44.6C399.2 44.8 400.2 46 400.6 48.4H401.2V52.8Z"/>
+              <path d="M379.6 25.4V23H380.4V25.4ZM378.8 23.8H381.2V24.4H378.8Z"/>
+            </g>
+            <path d="M392 70C398 66.4 406 63.6 416 63.2H452C460 63.4 466 66 472 70Z"/>
+            <path d="M405 63.4V55.6H408V51.6C408 50.2 408.6 49.2 409.4 48.8C409.4 47 410.2 45.6 411.4 44.8L411.8 38.6H412.2L412.6 44.8C413.8 45.6 414.6 47 414.6 48.8C415.4 49.2 416 50.2 416 51.6V55.6H419V63.4Z"/>
+            <path d="M404.6 56V53.4C404.6 52.4 405.2 51.6 406 51.2L406.3 48.6H406.7L407 51.2C407.8 51.6 408.4 52.4 408.4 53.4V56Z"/>
+            <path d="M415.6 56V53.4C415.6 52.4 416.2 51.6 417 51.2L417.3 48.6H417.7L418 51.2C418.8 51.6 419.4 52.4 419.4 53.4V56Z"/>
+            <path d="M437 50L429.4 64H431L437 52.6L443 64H444.6Z"/>
+            <circle cx="437" cy="50" r="1.5"/>
+            <rect x="449.05" y="49.30" width="1.7" height="1.7" rx=".4"/><rect x="447.32" y="55.75" width="1.7" height="1.7" rx=".4"/><rect x="442.60" y="60.47" width="1.7" height="1.7" rx=".4"/><rect x="436.15" y="62.20" width="1.7" height="1.7" rx=".4"/><rect x="429.70" y="60.47" width="1.7" height="1.7" rx=".4"/><rect x="424.98" y="55.75" width="1.7" height="1.7" rx=".4"/><rect x="423.25" y="49.30" width="1.7" height="1.7" rx=".4"/><rect x="424.98" y="42.85" width="1.7" height="1.7" rx=".4"/><rect x="429.70" y="38.13" width="1.7" height="1.7" rx=".4"/><rect x="436.15" y="36.40" width="1.7" height="1.7" rx=".4"/><rect x="442.60" y="38.13" width="1.7" height="1.7" rx=".4"/><rect x="447.32" y="42.85" width="1.7" height="1.7" rx=".4"/>
           </g>
           <g fill="none" style="stroke:var(--lr-kaupunki)">
-            <circle cx="428" cy="51" r="13" stroke-width="1.3"/>
-            <path d="M428 51L441.00 51.00M428 51L440.01 55.97M428 51L437.19 60.19M428 51L432.97 63.01M428 51L428.00 64.00M428 51L423.03 63.01M428 51L418.81 60.19M428 51L415.99 55.97M428 51L415.00 51.00M428 51L415.99 46.03M428 51L418.81 41.81M428 51L423.03 38.99M428 51L428.00 38.00M428 51L432.97 38.99M428 51L437.19 41.81M428 51L440.01 46.03" stroke-width=".45"/>
+            <circle cx="437" cy="50" r="12" stroke-width="1.2"/>
+            <path d="M437 50L449.00 50.00M437 50L448.09 54.59M437 50L445.49 58.49M437 50L441.59 61.09M437 50L437.00 62.00M437 50L432.41 61.09M437 50L428.51 58.49M437 50L425.91 54.59M437 50L425.00 50.00M437 50L425.91 45.41M437 50L428.51 41.51M437 50L432.41 38.91M437 50L437.00 38.00M437 50L441.59 38.91M437 50L445.49 41.51M437 50L448.09 45.41" stroke-width=".42"/>
+          </g>
+          <!-- Kauppatori ja laiva ovat lähempänä, joten ne ovat saarten sävyä. -->
+          <g style="fill:var(--lr-saari)">
+            <path d="M286 70V66.6H392V70Z"/>
+            <path d="M298 66.6V64.4L301 62.6L304 64.4V66.6Z"/><path d="M306 66.6V64.4L309 62.6L312 64.4V66.6Z"/><path d="M314 66.6V64.4L317 62.6L320 64.4V66.6Z"/><path d="M322 66.6V64.4L325 62.6L328 64.4V66.6Z"/><path d="M330 66.6V64.4L333 62.6L336 64.4V66.6Z"/><path d="M338 66.6V64.4L341 62.6L344 64.4V66.6Z"/><path d="M358 66.6V64.4L361 62.6L364 64.4V66.6Z"/><path d="M366 66.6V64.4L369 62.6L372 64.4V66.6Z"/>
+            <path d="M349.4 66.6V64.4H350.6V56L351 53.6H351.8L352.2 56V64.4H353.4V66.6Z"/>
+            <circle cx="351.4" cy="52.8" r="1.2"/>
+            <path d="M484 60.4H585.6C588 60.4 590 61 592 62L586 68.4H487.4C486.4 68.4 485.6 67.8 485.4 66.8L484 60.4Z"/>
+            <path d="M487 60.6V54.4H490V51.4H570V53.8H578V56.4H584V60.6Z"/>
+            <path d="M566 51.6V48.6H578.4L580 51.6Z"/>
+            <path d="M500 51.6L501.6 44.4H510.6L511.2 51.6Z"/>
+            <path d="M574 48.8V45.4H574.8V48.8Z"/>
+            <path d="M608 70C620 67 636 66 646 65.4V62H652V58H655V48.4C655 46.6 656.2 45.2 657.6 44.8L658 38.4H658.4L658.8 44.8C660.2 45.2 661.4 46.6 661.4 48.4V58H664V62H670V64H684V62H696V64.6C712 65 726 66.6 736 70Z"/>
           </g>
           <g style="fill:var(--lr-valo-ikkuna);opacity:var(--lr-valot)">
-            <rect x="362" y="57" width="1.3" height="2.2"/><rect x="367" y="57" width="1.3" height="2.2"/><rect x="392" y="57" width="1.3" height="2.2"/><rect x="397" y="57" width="1.3" height="2.2"/><rect x="376.4" y="55" width="1.3" height="2.4"/><rect x="382.4" y="55" width="1.3" height="2.4"/><rect x="379.4" y="44" width="1.2" height="2.4"/>
-            <circle cx="440.56" cy="54.36" r=".7"/><circle cx="437.19" cy="60.19" r=".7"/><circle cx="431.36" cy="63.56" r=".7"/><circle cx="424.64" cy="63.56" r=".7"/><circle cx="418.81" cy="60.19" r=".7"/><circle cx="415.44" cy="54.36" r=".7"/><circle cx="415.44" cy="47.64" r=".7"/><circle cx="418.81" cy="41.81" r=".7"/><circle cx="424.64" cy="38.44" r=".7"/><circle cx="431.36" cy="38.44" r=".7"/><circle cx="437.19" cy="41.81" r=".7"/><circle cx="440.56" cy="47.64" r=".7"/>
-            <circle cx="638.2" cy="46" r=".9"/>
-          </g>
-          <g style="fill:var(--lr-saari)">
-            <path d="M588 70C600 67 616 66 626 65.4V62H632V58H635V48.4C635 46.6 636.2 45.2 637.6 44.8L638 38.4H638.4L638.8 44.8C640.2 45.2 641.4 46.6 641.4 48.4V58H644V62H650V64H664V62H676V64.6C692 65 706 66.6 716 70Z"/>
+            <rect x="240" y="64.4" width="1.3" height="1.3"/><rect x="254" y="61" width="1.3" height="1.3"/><rect x="266" y="62" width="1.3" height="1.3"/><rect x="288" y="59" width="1.3" height="1.3"/><rect x="296" y="59" width="1.3" height="1.3"/><rect x="336" y="60.6" width="1.3" height="1.3"/><rect x="360" y="61.4" width="1.3" height="1.3"/><rect x="372" y="63" width="1.3" height="1.3"/>
+            <rect x="326.4" y="49" width="1.2" height="2.4"/><rect x="332.4" y="49" width="1.2" height="2.4"/><rect x="329.4" y="38" width="1.2" height="2.4"/>
+            <circle cx="448.59" cy="53.11" r=".65"/><circle cx="445.49" cy="58.49" r=".65"/><circle cx="440.11" cy="61.59" r=".65"/><circle cx="433.89" cy="61.59" r=".65"/><circle cx="428.51" cy="58.49" r=".65"/><circle cx="425.41" cy="53.11" r=".65"/><circle cx="425.41" cy="46.89" r=".65"/><circle cx="428.51" cy="41.51" r=".65"/><circle cx="433.89" cy="38.41" r=".65"/><circle cx="440.11" cy="38.41" r=".65"/><circle cx="445.49" cy="41.51" r=".65"/><circle cx="448.59" cy="46.89" r=".65"/>
+            <rect x="490" y="56.2" width="1.6" height="1" /><rect x="494" y="56.2" width="1.6" height="1" /><rect x="498" y="56.2" width="1.6" height="1" /><rect x="502" y="56.2" width="1.6" height="1" /><rect x="506" y="56.2" width="1.6" height="1" /><rect x="510" y="56.2" width="1.6" height="1" /><rect x="514" y="56.2" width="1.6" height="1" /><rect x="518" y="56.2" width="1.6" height="1" /><rect x="522" y="56.2" width="1.6" height="1" /><rect x="526" y="56.2" width="1.6" height="1" /><rect x="530" y="56.2" width="1.6" height="1" /><rect x="534" y="56.2" width="1.6" height="1" /><rect x="538" y="56.2" width="1.6" height="1" /><rect x="542" y="56.2" width="1.6" height="1" /><rect x="546" y="56.2" width="1.6" height="1" /><rect x="550" y="56.2" width="1.6" height="1" /><rect x="554" y="56.2" width="1.6" height="1" /><rect x="558" y="56.2" width="1.6" height="1" /><rect x="562" y="56.2" width="1.6" height="1" /><rect x="566" y="56.2" width="1.6" height="1" /><rect x="570" y="56.2" width="1.6" height="1" /><rect x="574" y="56.2" width="1.6" height="1" /><rect x="578" y="56.2" width="1.6" height="1" /><rect x="496" y="53" width="1.4" height=".9" /><rect x="500" y="53" width="1.4" height=".9" /><rect x="504" y="53" width="1.4" height=".9" /><rect x="508" y="53" width="1.4" height=".9" /><rect x="512" y="53" width="1.4" height=".9" /><rect x="516" y="53" width="1.4" height=".9" /><rect x="520" y="53" width="1.4" height=".9" /><rect x="524" y="53" width="1.4" height=".9" /><rect x="528" y="53" width="1.4" height=".9" /><rect x="532" y="53" width="1.4" height=".9" /><rect x="536" y="53" width="1.4" height=".9" /><rect x="540" y="53" width="1.4" height=".9" /><rect x="544" y="53" width="1.4" height=".9" /><rect x="548" y="53" width="1.4" height=".9" /><rect x="552" y="53" width="1.4" height=".9" /><rect x="556" y="53" width="1.4" height=".9" /><rect x="560" y="53" width="1.4" height=".9" /><rect x="564" y="53" width="1.4" height=".9" /><rect x="568" y="53" width="1.4" height=".9" /><rect x="488" y="61.6" width="1" height="1" rx=".5"/><rect x="493" y="61.6" width="1" height="1" rx=".5"/><rect x="498" y="61.6" width="1" height="1" rx=".5"/><rect x="503" y="61.6" width="1" height="1" rx=".5"/><rect x="508" y="61.6" width="1" height="1" rx=".5"/><rect x="513" y="61.6" width="1" height="1" rx=".5"/><rect x="518" y="61.6" width="1" height="1" rx=".5"/><rect x="523" y="61.6" width="1" height="1" rx=".5"/><rect x="528" y="61.6" width="1" height="1" rx=".5"/><rect x="533" y="61.6" width="1" height="1" rx=".5"/><rect x="538" y="61.6" width="1" height="1" rx=".5"/><rect x="543" y="61.6" width="1" height="1" rx=".5"/><rect x="548" y="61.6" width="1" height="1" rx=".5"/><rect x="553" y="61.6" width="1" height="1" rx=".5"/><rect x="558" y="61.6" width="1" height="1" rx=".5"/><rect x="563" y="61.6" width="1" height="1" rx=".5"/><rect x="568" y="61.6" width="1" height="1" rx=".5"/><rect x="573" y="61.6" width="1" height="1" rx=".5"/><rect x="578" y="61.6" width="1" height="1" rx=".5"/><rect x="583" y="61.6" width="1" height="1" rx=".5"/>
           </g>
         </svg>
         <i id="lr-majakka"></i>
@@ -4447,14 +4485,23 @@ public/icon-maskable-512.png 512px 140643 B
           <div id="lr-vana"></div>
           <div id="lr-roiske"></div>
           <div id="lr-keinu">
+            <!-- Lauta ja foili oikeissa mittasuhteissa (kuski 100 yks. = 180 cm):
+                 lauta 84 yks. (~150 cm), paksuus 7 (~13 cm), nokka nousee;
+                 masto 48 yks. (~85 cm) laudan takapuoliskolta; runko, iso
+                 etusiipi profiilina ja kärki näkyvissä, pieni takasiipi. -->
             <div id="lr-lauta"><svg viewBox="0 0 300 300"><g style="fill:var(--lr-kuski)">
-              <path d="M114 207.4C113.2 209.6 115.2 211.4 118.6 211.4H183.4C189 211.4 193.4 208.6 196 203.6C193.8 205.6 190 206.8 184.6 206.8H118.6C116.4 206.8 114.8 206.8 114 207.4Z"/>
-              <path d="M148.6 211H152.4L151 258H147.6Z"/>
-              <rect x="124" y="256.6" width="62" height="2.8" rx="1.4"/>
-              <path d="M168 258C175 253.8 191 253.6 200 258C191 262 175 262.2 168 258Z"/>
-              <path d="M117 257.8C120 255.8 127 255.8 131 257.6C127 259.6 120 259.8 117 257.8Z"/>
-              <ellipse cx="129.4" cy="205.4" rx="6.4" ry="2.3"/>
-              <ellipse cx="164.4" cy="205.4" rx="6.4" ry="2.3"/>
+              <path d="M113 207.2H183C189 207.2 193.6 205.4 196.4 202.4C197 203.6 196.8 205.8 195.6 207.8C193.6 211.6 189.8 214.4 184 214.4H116C114 214.4 112.6 213.2 112.4 211.4L112.2 208.8C112.2 207.8 112.6 207.2 113 207.2Z"/>
+              <rect x="141" y="213.8" width="14.4" height="1.8" rx=".6"/>
+              <path d="M145.4 215H151.2L150.4 262.4H147.4Z"/>
+              <path d="M124 262H186C188.4 262 189.6 262.8 189.6 263.4C189.6 264 188.4 264.8 186 264.8H124C123 264.8 122.4 264 122.4 263.4C122.4 262.8 123 262 124 262Z"/>
+              <path d="M194 263.2C194 260.8 190.4 259.8 185 260C178.4 260.4 171.6 261.8 165 263.6C171.6 265 179.6 265.8 186 265.8C191 265.8 194 265 194 263.2Z"/>
+              <path d="M131.4 263.2C131.4 262 129.4 261.4 126.4 261.6C123 261.8 120.2 262.4 117.6 263.2C120.4 264 124.2 264.6 127.6 264.6C130 264.6 131.4 264.2 131.4 263.2Z"/>
+              <ellipse cx="129.4" cy="205.6" rx="6.4" ry="2.2"/>
+              <ellipse cx="164.4" cy="205.6" rx="6.4" ry="2.2"/>
+            </g><g fill="none" style="stroke:var(--lr-kuski)" stroke-linecap="round">
+              <path d="M169 265C177 268.8 187 269.2 193 266.6" stroke-width="1.1" stroke-opacity=".6"/>
+              <path d="M123 207C124 202.2 133.4 202.2 134.4 207" stroke-width="1.8"/>
+              <path d="M158.8 207C159.8 202.2 169.2 202.2 170.2 207" stroke-width="1.8"/>
             </g></svg></div>
             <div id="lr-jalat"><svg viewBox="0 0 300 300"><g fill="none" style="stroke:var(--lr-kuski)" stroke-linecap="round" stroke-linejoin="round">
               <path d="M129.6 203.4L137.6 181.4" stroke-width="7.4"/>
@@ -4464,27 +4511,47 @@ public/icon-maskable-512.png 512px 140643 B
             </g></svg></div>
             <div id="lr-yla">
               <div id="lr-kasi">
+                <!-- Siipi: täyttöputki (etureuna), keskituki, PUOMI jota
+                     kädet pitävät, kangas ikkunoineen. Puomi kulkee tuen
+                     alla kahdella kiinnikkeellä, ja molemmat kädet ovat
+                     sillä (etukäsi 187,107 ja takakäsi 160,104 siiven omissa
+                     koordinaateissa). -->
                 <div id="lr-siipi"><svg viewBox="0 0 300 300"><g transform="translate(180 128) rotate(-22) scale(.72) translate(-187 -107)">
-                  <path d="M150 24C200 24 234 70 226 112C220 146 206 172 184 190Q150 140 86 98Q118 58 150 24Z" style="fill:var(--lr-kuski)" fill-opacity=".2"/>
-                  <path d="M184 190Q150 140 86 98Q118 58 150 24" fill="none" style="stroke:var(--lr-kuski)" stroke-opacity=".55" stroke-width="1.5" stroke-linejoin="round"/>
-                  <path d="M161 100Q170 62 176 31M172 102Q185 140 198 170" fill="none" style="stroke:var(--lr-kuski)" stroke-opacity=".18" stroke-width="1.2"/>
-                  <path d="M150 24C200 24 234 70 226 112C220 146 206 172 184 190" fill="none" style="stroke:var(--lr-kuski)" stroke-width="9.4" stroke-linecap="round"/>
+                  <path fill-rule="evenodd" d="M150 24C200 24 234 70 226 112C220 146 206 172 184 190Q150 140 86 98Q118 58 150 24ZM146 66L184 60L188 88L150 92Z" style="fill:var(--lr-kuski)" fill-opacity=".22"/>
+                  <path d="M146 66L184 60L188 88L150 92Z" style="fill:var(--lr-kuski)" fill-opacity=".06"/>
+                  <path d="M146 66L184 60L188 88L150 92Z" fill="none" style="stroke:var(--lr-kuski)" stroke-opacity=".45" stroke-width="1.4" stroke-linejoin="round"/>
+                  <path d="M184 190Q150 140 86 98Q118 58 150 24" fill="none" style="stroke:var(--lr-kuski)" stroke-opacity=".6" stroke-width="1.8" stroke-linejoin="round"/>
+                  <path d="M168 30Q162 64 162 96M196 142Q182 162 176 180" fill="none" style="stroke:var(--lr-kuski)" stroke-opacity=".22" stroke-width="1.4"/>
+                  <path d="M227 100L90 89.6" fill="none" style="stroke:var(--lr-kuski)" stroke-opacity=".55" stroke-width="2.6" stroke-linecap="round"/>
+                  <path d="M212 112L104 102.4" fill="none" style="stroke:var(--lr-kuski)" stroke-width="4.4" stroke-linecap="round"/><path d="M204 99.4L205 110.8M114 92.6L115 102.6" fill="none" style="stroke:var(--lr-kuski)" stroke-width="2.2" stroke-linecap="round"/>
+                  <path d="M150 24C200 24 234 70 226 112C220 146 206 172 184 190" fill="none" style="stroke:var(--lr-kuski)" stroke-width="8.6" stroke-linecap="round"/>
                 </g></svg></div>
                 <svg viewBox="0 0 300 300"><g fill="none" style="stroke:var(--lr-kuski)" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M131.8 127L148 126" stroke-width="6.2"/>
-                  <path d="M148 126L167.4 117.6" stroke-width="5.2"/>
-                  <path d="M147.2 124.2L163 132.6" stroke-width="6.4"/>
-                  <path d="M163 132.6L180.4 127.6" stroke-width="5.4"/>
+                  <path d="M131.8 127.4L146 136.4" stroke-width="6.2"/>
+                  <path d="M146 136.4L160.6 133.4" stroke-width="5.2"/>
+                  <path d="M147.2 124.4L164 133.2" stroke-width="6.4"/>
+                  <path d="M164 133.2L179.8 127.8" stroke-width="5.4"/>
+                </g><g fill="none" style="stroke:var(--lr-paita)" stroke-linecap="round">
+                  <path d="M131.8 127.4L138.6 131.8" stroke-width="7.6"/>
+                  <path d="M147.2 124.4L154.6 128.4" stroke-width="7.8"/>
+                </g><g style="fill:var(--lr-kuski)">
+                  <circle cx="161.2" cy="133.2" r="2.9"/>
+                  <circle cx="180.4" cy="127.6" r="2.9"/>
                 </g></svg>
               </div>
-              <svg viewBox="0 0 300 300"><g fill="none" style="stroke:var(--lr-kuski)" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M150.6 157.6L140.4 131.6" stroke-width="16.4"/>
-                <path d="M131.6 127.2L147.4 124.2" stroke-width="9"/>
-                <path d="M138.2 121.8L136.8 116.4" stroke-width="6"/>
-              </g><g style="fill:var(--lr-kuski)">
-                <circle cx="136" cy="108.6" r="8.4"/>
-                <path d="M142.2 103.8C146 104.4 147.4 107.8 146.6 110.6L142.6 110.4Z"/>
-              </g></svg>
+              <!-- Paidan helma lepattaa tuulessa (oma nivelensä vyötäröllä). -->
+              <div id="lr-helma"><svg viewBox="0 0 300 300"><path d="M145.6 149.4C140.6 150.8 136.6 153.4 132.6 157.4C135.8 158 139.8 159.4 143.4 161.4Z" style="fill:var(--lr-paita)"/></svg></div>
+              <svg viewBox="0 0 300 300"><g fill="none" style="stroke:var(--lr-kuski)" stroke-linecap="round">
+                <path d="M138.4 122.4L137.6 118.6" stroke-width="6.4"/>
+              </g>
+              <path d="M143.4 161C138.6 151.6 133.8 141.4 130.4 131.6C129.6 129 130.6 126.6 132.8 125.8L146.4 122.8C148.4 123.2 149.8 125 150.4 127.6C152.6 136.4 156 145.8 157.8 155.2C153.4 158 148.4 159.8 143.4 161Z" style="fill:var(--lr-paita)"/>
+              <path d="M137.4 136.6C141 146 144.6 152.8 147.6 158.6" fill="none" stroke="#000" stroke-opacity=".12" stroke-width="1.2"/>
+              <g style="fill:var(--lr-kuski)">
+                <circle cx="136.4" cy="110.4" r="8.2"/>
+              </g>
+              <path d="M127.8 110.4C127.4 104.6 131.4 100.6 136.8 100.4C142.2 100.2 146 103.8 146.2 108.2L148.8 109.2L145.8 110.6C142 108.4 133 108.8 128.6 112Z" style="fill:var(--lr-kypara)"/>
+              <path d="M132 103.2C134 102 136.6 101.6 139 102" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width="1.2" stroke-linecap="round"/>
+              </svg>
             </div>
           </div>
         </div></div>

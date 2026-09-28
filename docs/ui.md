@@ -6478,3 +6478,77 @@ Tilapalkki yö 18,38 / sininen 17,80 / ilta 15,97 / päivä 10,54:1
 (raja 10), nimilohko 16,34 / 6,48 / 7,25 kaikissa. Animaatioita
 esittelyssä 53 ja levossa 29 (liuku +1). `compositeFailed` 0
 latausruudussa, savutesti läpi, vaimennettu liike 0 animaatiota.
+
+## Siipeen puomi, oikea lauta ja foili, kuskille värit, siluetti Eteläsatamasta (28.9.)
+
+Palaute: kuski ja erityisesti siipi luonnollisemmaksi, "nyt puuttuu
+puomi siivestä"; lauta ja foili oikeiden mukaisiksi; kuskille
+tummansininen kypärä ja harmaa paita joka lepattaa; ja yleinen siluetti,
+jossa ainakin Suomenlinna, Tuomiokirkko, Kauppatori ja Silja Linen
+laiva, ja Haukilahden vesitorni pois.
+
+### Siipi
+
+Moderni wing on täyttöputki (etureuna), keskituki, jäykkä puomi tuen
+alla ja kangas ikkunoineen. Edellisessä versiossa tuki oli piilotettu,
+koska se kulki vartalon läpi, ja siksi siivestä puuttui kohta josta sitä
+pidellään. Nyt:
+
+- **Puomi** on oma putkensa tuen alla kahdella kiinnikkeellä, ja
+  MOLEMMAT kädet ovat sillä. Takakäden paikka laskettiin siiven
+  muunnoksesta (siiven koordinaateissa 160,104 → ruudulla 161,133), jotta
+  käsi osuu puomiin eikä ilmaan.
+- **Tuki** on ohut kankaan sauma (alfa .55). Paksuna tukena ja puomina
+  rinnakkain ne lukivat tikkaina (kokeiltu).
+- **Ikkuna** on kankaan reikä (`fill-rule="evenodd"`) ja oma himmeä
+  täyttö.
+- Etureunaan kokeiltiin paksumpaa keskiosaa toisena polkuna, mutta se ei
+  osunut käyrälle ja ylhäällä näkyi kaksi viivaa; putki on tasapaksu
+  8,6.
+- Kädet ovat pyöreät kämmenet puomilla, ja lyhyet hihat ovat paidan
+  harmaata.
+
+### Lauta ja foili
+
+Mitoitus kuskin pituudesta (100 yks. = 180 cm):
+
+```
+osa         ennen            nyt
+lauta       78 × 5 yks.      84 × 7 yks. (~150 × 13 cm), nokka nousee
+jalkalenkit —                kaksi, jalkojen päällä
+masto       47 yks., keskellä  48 yks. (~85 cm) laudan takapuoliskolta,
+                             kiinnityslevy
+runko       62 yks.          64 yks.
+etusiipi    pisara           profiili (paksu etureuna, ohut jättöreuna)
+                             + kärki näkyvissä
+takasiipi   pisara           pienempi profiili
+```
+
+### Kuskin värit
+
+Tummansininen kypärä lipalla ja heijastuksella, harmaa paita lyhyin
+hihoin, ja paidan helma lepattaa selän puolella (`#lr-helma`, 0,9 s,
+neljä eri suurta heilahdusta, jotta se ei lue heilurina). Tuuli tulee
+edestä (juovat kulkevat oikealta vasemmalle), joten helma liehuu taakse.
+
+Värit tulevat vuorokaudenajasta kuten kuskin muukin väri: pimeällä
+kuski on kuunvalossa vaalea, joten paita on vaaleanharmaa `#AEB4BC` ja
+kypärä kirkkaampi `#2E4F8E` (tummempi katosi yötaivaaseen); valoisalla
+vastavalossa `#4B5462` ja `#1C3364`. Kaula lyheni ja pää laski 1,8 yks.
+
+### Siluetti Eteläsataman suunnalta
+
+Kaksi syvyyttä: kaukaiset `--lr-kaupunki` (rantarivi, Tuomiokirkko
+mäellä rivin takana, Uspenski ja maailmanpyörä Katajanokalla), lähemmät
+`--lr-saari` (Kauppatorin laituri, kahdeksan telttaa ja Keisarinnan
+kivi; Silja Linen laiva perä vasemmalla, savupiippu perässä ja keula
+oikealla; Suomenlinna). Yöllä rantarivin ikkunoissa, Tuomiokirkossa,
+pyörän kehällä ja laivan kolmella kansirivillä on valot. Haukilahden
+vesitorni poistui, ja välähtävä valo on Suomenlinnan kirkon majakka.
+
+### Mitattu
+
+Tilapalkki 18,38 / 17,80 / 15,97 / 10,54:1 (raja 10), nimilohko
+ennallaan. Animaatioita esittelyssä 54 ja levossa 30 (helma +1).
+`compositeFailed` 0 latausruudussa, savutesti läpi, vaimennettu liike
+0 animaatiota.
