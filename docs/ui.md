@@ -6821,3 +6821,32 @@ vaalentama kulmakarva ja pulisonki.
 Kontrastit 16,34 / 6,48 / 7,25, tilapalkki päivä 10,54 ja yö 18,38:1
 (ennallaan). Animaatioita esittelyssä 55 ja levossa 31 (+1, kansi).
 Vaimennettu liike 0, savutesti läpi.
+
+## Musta kypärä, hiukset sivuille, vartaloa myötäilevä liivi, voimakkaampi kaarto ja siiven heilautus (28.9.)
+
+Käyttäjä pyysi lisäksi "katsomaan videolta" siiven asennon — videota
+ei tullut istuntoon perille (kontissa ei ollut yhtään videotiedostoa),
+joten hypyn malli otettiin avoimista kuvista (Openverse: "Roca Cup 2022
+Wingfoil Event", neljä hyppykuvaa, sekä liivikuvia). Kuvissa laella
+siipi on pään yläpuolella lähes lappeellaan, molemmat kädet suorina ja
+polvet koukussa.
+
+- **Kypärä musta** (`--lr-kypara` `#16181D` / yö `#20242C`), lierin
+  valoreuna, kuvun kiilto ja keskisauma; yöllä `--lr-reuna`-ääriviiva.
+- **Hiukset pään sivulla:** kypärän alta ohimolle, korvan taakse ja
+  niskaan suortuvina, auringon vaalentamat raidat; lepattava osa
+  (`#lr-tukka`) on nyt neljä aaltoilevaa suortuvaa.
+- **Liivi myötäilee vartaloa:** uusi ääriviiva (kaula-aukko edessä,
+  rinnan kaari, selän notko, kapenee vyötärölle ja päättyy lantiolle),
+  segmentit kaartuvat rinnan mukana ja ovat etupaneelissa, sivupaneeli
+  on sileä ja saumattu, vetoketju seuraa etulinjaa.
+- **Kaarto voimakkaammaksi:** ala-käännös `scale(.74, .92)` ja 4°
+  (oli .84/.96 ja 2,5°); hypyn linjanhaku `scale(.72, .91)` ja 5°, ja
+  kansi avautuu siinä uudelleen (`lr-kansi-hyppy`).
+- **Siiven heilautus:** lastaus +18° (siipi alas ja taakse),
+  ponnistuksessa −96° yliheitolla −84°:een ja etukädestä +34°, eli
+  siipi kääntyy lappeelleen pään yli.
+
+Kontrastit ennallaan (16,34 / 6,48 / 7,25, tilapalkki 10,54:1),
+animaatioita 55 / 31 (kannen hyppyanimaatio korvaa pysäytyksen, siiven
+hyppyanimaatio korvaa pumppauksen), vaimennettu 0, savutesti läpi.

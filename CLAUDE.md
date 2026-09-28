@@ -522,17 +522,22 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   lihaspullistumineen), märkäpuvun kiilto (`--lr-kiilto`) kertoo
   lihakset, ja kasvot ovat profiili (nenä ja sierain, huulet, leuka,
   silmä valkuaisineen, iiris ja luomi, kulmakarva, korva, poskien ja
-  leukalinjan varjostus). Värit ovat käyttäjän päätös: keltainen
-  sombrero-kypärä, musta leukahihna leukalinjaa pitkin, MUSTA
+  leukalinjan varjostus). Värit ovat käyttäjän päätös: MUSTA
+  sombrero-kypärä (kiilto ja yöllä `--lr-reuna`-ääriviiva, jottei se
+  katoa taivaaseen; keltainen oli edellinen), musta leukahihna
+  leukalinjaa pitkin, MUSTA
   MÄRKÄPUKU kaikkina vuorokaudenaikoina (yöllä kuunvalon reunavalo
-  `--lr-reuna`), MUSTA IMPACT VEST (vaahtopaneelit vaakasegmentteinä
+  `--lr-reuna`), MUSTA IMPACT VEST joka MYÖTÄILEE VARTALOA (hihaton,
+  kaula-aukko etuna, rinta ja selän notko ääriviivassa, kapenee
+  vyötärölle; oikeiden liivien kuvista) (vaahtopaneelit kaarevina segmentteinä
   kohokuvioin, sivusauma, etuvetoketju vetimineen, kädentien kanttaus
   josta märkäpuvun olkapää näkyy, vyötärön resori ja rinnassa
   FoilSpotin merkki; harmaa paita ja sen helma poistettiin), vaalea
   iho ja surffarin kasvot (vahva leuka, suora nenä, päivettynyt
   nenänselkä, sängen varjo, siristävä silmä naururyppyineen, auringon
   vaalentama kulmakarva ja pulisonki) ja
-  ruskea surffitukka joka lepattaa (`#lr-tukka`, 0,7 s). Osat ovat sisäkkäisiä kerroksia omilla
+  ruskea surffitukka joka lepattaa (`#lr-tukka`, 0,7 s) ja jota on myös
+  pään SIVULLA (ohimo, korvan taakse niskaan, suortuvat). Osat ovat sisäkkäisiä kerroksia omilla
   nivelpisteillään (`#lr-jalat` nilkoista `scaleY`, `#lr-yla` lantiosta
   SAMALLA käyrällä, `#lr-kasi` = molemmat kädet ja siipi olkapäistä,
   `#lr-siipi` etukädestä), ja vartalo piirtyy siiven PÄÄLLE. Liike on
@@ -540,7 +545,8 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   avainkuvilla, painallus 30 %), KAARTO 4,4 s ja liuku 9 s (`#lr-rata`
   sivuttain −5…+6 %). KAARTO ON KÄÄNNÖS JA KALLISTUS, EI KIERTO
   RUUDUN TASOSSA (`#lr-keinu` `lr-kaarto` + `#lr-kansi`): sivukuvassa
-  laudan käännös on `scaleX` (0,84 ala-käännöksessä) ja kallistus
+  laudan käännös on `scaleX` (0,74 ala-käännöksessä, 0,72 hypyn
+  linjanhaussa, jossa kansi avautuu uudelleen `lr-kansi-hyppy`) ja kallistus
   kameraa kohti `scaleY` + laudan KANSI joka avautuu näkyviin. Viive
   −0,3 s asettaa ala-käännöksen noin 1,0 s kohdalle ja linjan (lauta
   oikenee, kuski nojaa taakse ja nousee) noin 1,6 s kohdalle, eli
@@ -552,7 +558,12 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   Pään yllä vaakatasossa kelluva siipi luki LIUKUESSA sateenvarjona —
   HYPYSSÄ se on oikein (siipi nousee pään yli, polvet vetäytyvät, kuten
   oikeissa hyppykuvissa: `lr-kasi-hyppy`, `lr-jalat-hyppy`,
-  `lr-yla-hyppy`). Lähtö `.out` ajaa `lr-hyppy`-avainkuvat (viimeinen
+  `lr-yla-hyppy`). SIIPI HEILAUTETAAN kuten oikeassa hypyssä
+  (vertailukuvat Roca Cup 2022): lastauksessa siipi painuu alas
+  (`lr-kasi-hyppy` +18°), ponnistuksessa se heilautetaan pään yli
+  yliheitolla (−96° → −84°) ja käännetään lappeelleen etukädestä
+  (`lr-siipi-hyppy` +34°), jolloin laella kuski roikkuu siiven alla
+  kädet suorina. Lähtö `.out` ajaa `lr-hyppy`-avainkuvat (viimeinen
   linjanhaku 0–12 %: lauta kääntyy ja kuski nojaa kaarteeseen;
   lastaus 24 %, ponnistus, lento, 0,85 s), ja ruudun häivytys alkaa
   vasta 0,4 s, jotta laki (0,45 s) nähdään; `display: none` 900 ms.
