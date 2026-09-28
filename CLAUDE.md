@@ -57,9 +57,9 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   `h0`–`h3`), ajo kiinnitettynä `origintime`lla.
 - `tools/metnordic.mjs` — MET Nordic 1 km Lambert-hilasta säännölliseksi
   0,05°:n hilaksi (tasot `n0`–`n3`).
-- `tools/ikoni.mjs` — sovelluksen merkin (siipi ja tuuli) ainoa lähde:
+- `tools/ikoni.mjs` — sovelluksen merkin (siipi ja spotti) ainoa lähde:
   kirjoittaa `public/icon.svg`:n, `--png` koko PNG-sarjan ja `--inline`
-  latausruudun merkkilähteen (`#lr-merkki-lahde`: siiven ja juovien
+  latausruudun merkkilähteen (`#lr-merkki-lahde`: siiven ja pallon
   symbolit, avautumisen geometria ja tuulijuovien värit). Rasterointi
   Chromiumilla; tiedostot ovat repossa valmiina, joten build ei tarvitse
   tätä. Ks. `docs/pwa.md`.
@@ -224,7 +224,8 @@ kokeiltu ja kaadettu mittauksella.
   Latausruutu näkyy pidempään, ja odotus käytetään kartan lataamiseen ·
   Kaaviot yhdeksi moottoriksi ja spottikortti moduuleiksi ·
   Aikajana: palkit kaavion värisiksi, päivän pilleri paikalleen ·
-  Uusi merkki: siipi ja tuuli — ja latausruudun viimeistely
+  Uusi merkki: siipi ja tuuli — ja latausruudun viimeistely ·
+  Merkki yksinkertaistui: siipi ja spotti
 - **pwa**: PWA — kotivalikkoon ja rannalle · Mitä välimuistiin menee ·
   Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
   Ikoni ja kotivalikko
@@ -452,9 +453,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 **Latausruutu ja sovelluksen merkki**
 
 - **LATAUSRUUTU ON KARTTAMAAILMAA JA LIIKEGRAFIIKKAA** (docs/ui.md,
-  "Latausruutu liikegrafiikaksi" ja "Uusi merkki: siipi ja tuuli"):
-  tumma meri, rampin värinen tuuli, paperinvärinen foilaaja, ja merkki
-  (paperinen siipi) avautuu kärjestä kärkeen ennen kuin sen tuuli saapuu.
+  "Latausruutu liikegrafiikaksi" ja "Merkki yksinkertaistui: siipi ja
+  spotti"): tumma meri, rampin värinen tuuli, paperinvärinen foilaaja,
+  ja merkki (paperinen siipi) avautuu tyvestä ennen kuin spotti syttyy.
   Kotivalikon ikoni -> latausruutu -> kartta on yksi pohja; paperiruutu
   teki kaksi kirkkaushyppyä joka käynnistyksessä. Älä palauta
   valokuvaa paperille: se oli 62 kB base64:ää (gzip 467,7 -> 410,4 kB)
@@ -512,7 +513,7 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   **1,3 s ja ohjeettomuus ovat käyttäjän päätös:** 3,4 s ja sitten 2 s
   olivat liian pitkiä ("kuski on pysähdystilassa"), eikä ruudulla ole
   "Napauta jatkaaksesi" -tekstiä — älä palauta sitä. **ALARAJA ON
-  MERKKI:** siipi on avautunut 1,18 s ja sen tuuli asettunut 1,39 s
+  MERKKI:** siipi on avautunut 1,18 s ja spotti asettunut 1,40 s
   kohdalla, joten `LAHTO_MIN_MS` ei saa laskea alle 1,1 s:n (lähtö
   0,3 s sen jälkeen). Katto tulee vähimmäisajan päälle, joten 2 s:n
   katolla ruutu näkyi hitaalla säälaattayhteydellä 4,3 s; älä kasvata
@@ -538,27 +539,28 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **TILAPALKKI ON VALKOINEN TUMMALLA, 19,65:1.** Latausruudun ylälaita on
   kartan `--bg`. Kun ruutu oli kermaa, valkoinen tilapalkki oli 1,32:1 ja
   tarvitsi erillisen tummennuksen (8,18:1); älä vaalenna ylälaitaa.
-- **MERKKI ON SIIPI JA TUULI, JA SE SYNTYY `tools/ikoni.mjs`:STÄ.**
-  Wingfoil-siipi ylhäältä (täyttöputki, tuki, läpikuultava kangas)
-  paperina ja sen alla kaksi tuulijuovaa rampin 5 m/s -syaanina
-  tummalla merellä. Käyttäjän päätös: ikoni "moderni eikä kauhean
-  värikäs" — edellinen 270°:n ramppikaari kantoi koko rampin ja luki
-  latausrinkulana. ÄLÄ PALAUTA RAMPPIA MERKKIIN: merkissä on yksi sävy,
-  ja se on nopeuden väri kuten kaikki muukin (`JUOVA_T`). Kotivalikon
-  ikoni ja latausruudun merkki ovat SAMA sommitelma samassa 512:n
-  ruudukossa; `--inline` tulostaa latausruudun merkkilähteen
-  (`#lr-merkki-lahde`: symbolit `lm-siipi`, `lm-juova1`, `lm-juova2`,
-  avautumisen keskipiste, kulmat ja säde, kohtauksen tuulijuovien
-  värit), ja se vaihdetaan kokonaan tulosteella. Merkin id:t ovat
+- **MERKKI ON SIIPI JA SPOTTI, JA SE SYNTYY `tools/ikoni.mjs`:STÄ.**
+  Wingfoil-siipi yhtenä umpinaisena muotona (etureuna, jättöreuna ja
+  alareunan lovi = puomi) ja kärjen yläpuolella pallo = spotti, molemmat
+  paperia tummalla merellä. Käyttäjän päätökset: ikoni "moderni eikä
+  kauhean värikäs", ja sitten "simppelimpi" annetun mallikuvan tyyliin.
+  Edellinen 270°:n ramppikaari luki latausrinkulana, ja kolmiosainen
+  siipi + tuulijuovat oli liian yksityiskohtainen. ÄLÄ PALAUTA RAMPPIA
+  MERKKIIN: merkki ei kerro nopeutta, joten siinä ei ole rampin sävyä.
+  Kotivalikon ikoni ja latausruudun merkki ovat SAMA sommitelma samassa
+  512:n ruudukossa; `--inline` tulostaa latausruudun merkkilähteen
+  (`#lr-merkki-lahde`: symbolit `lm-siipi` ja `lm-pallo`, avautumisen
+  keskipiste, kulmat ja säde, pallon keskipiste, kohtauksen
+  tuulijuovien värit), ja se vaihdetaan kokonaan tulosteella. Merkin id:t ovat
   `lm-`-alkuisia, koska kohtauksen kuskilla on jo `lr-kangas`:
   sama id kahdesti antoi merkin kankaalle kuskin liu'un (musta kangas).
   Ramppi PAPERILLA on yhä mitattu ja kaatunut (1,06:1). Älä piirrä
   merkkiä käsin uudestaan.
-- **SIIVEN AVAUTUMISEN KIILA PYÖRII ETUREUNAN YMPYRÄN KESKIPISTEEN
-  YMPÄRI** (`data-keski` 40,72 % / 74,98 %, `data-r`), ei laatikon
-  keskikohdan: silloin reuna kulkee täyttöputkea pitkin kärjestä
-  kärkeen. Kiila on 116° eli yksi pala riittää. Jättöreuna on kaksi
-  koveraa kaarta tukeen — suora jättöreuna luki sateenvarjona.
+- **SIIVEN AVAUTUMISEN KIILA PYÖRII SIIVEN TYVEN YMPÄRI**
+  (`data-keski` 27,55 % / 80,83 %, `data-r`), ei laatikon keskikohdan:
+  reuna kääntyy etureunasta jättöreunaan ja siipi nousee tuuleen. Kiila
+  on 73° eli yksi pala riittää. Spotin ponnahdus skaalautuu pallon
+  omasta keskipisteestä (`data-pallo`).
 - **MASKATTAVA IKONI ON ERI KOKO SAMASTA MUODOSTA.** Android leikkaa
   siitä 80 %:n ympyrän. Täyteen asti ulottuva merkki menettäisi päänsä,
   ja maskin mitoille tehty kelluisi pikkuruisena kotivalikossa

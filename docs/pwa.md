@@ -130,14 +130,14 @@ päätöksensä, ei osa PWA-vaihetta.
 
 ### Ikoni syntyy koodista, ei kuvankäsittelystä
 
-`tools/ikoni.mjs` on merkin ainoa lähde. Merkki on wingfoil-siipi
-ylhäältä (paperia) ja sen alla kaksi tuulijuovaa rampin 5 m/s -sävyssä
-tummalla merellä, ks. `docs/ui.md`, "Uusi merkki: siipi ja tuuli".
+`tools/ikoni.mjs` on merkin ainoa lähde. Merkki on wingfoil-siipi ja
+spotti (pallo) paperina tummalla merellä, ks. `docs/ui.md`, "Merkki
+yksinkertaistui: siipi ja spotti".
 Generaattori kirjoittaa `public/icon.svg`:n ja `--png`-lipulla koko
 PNG-sarjan; `--inline` tulostaa latausruudun merkkilähteen
-(`#lr-merkki-lahde`): siipi ja juovat `<symbol>`eina (`lm-siipi`,
-`lm-juova1`, `lm-juova2`), avautumisen geometria (`data-keski`,
-`data-alku`, `data-pyyhk`, `data-r`) ja kohtauksen tuulijuovien värit
+(`#lr-merkki-lahde`): siipi ja pallo `<symbol>`eina (`lm-siipi`,
+`lm-pallo`), avautumisen geometria (`data-keski`, `data-alku`,
+`data-pyyhk`, `data-r`, `data-pallo`) ja kohtauksen tuulijuovien värit
 nopeuksittain (`data-tuuli`). Merkin muoto, mitat ja värit ovat siis
 yhdessä tiedostossa, ja index.html:ään upotettu versio on sama
 sommitelma kuin kotivalikon ikoni.
@@ -170,7 +170,7 @@ Android leikkaa `purpose: "maskable"` -ikonista ympyrän jonka halkaisija
 on 80 % sivusta. Sama tiedosto ei voi olla molempia: täyteen asti
 ulottuva merkki menettäisi päänsä maskissa, ja maskin turvamitoille
 tehty merkki kelluisi pikkuruisena kotivalikossa. Generaattori tekee
-kaksi eri kokoa samasta muodosta (`OSUUS` 0,72 siivelle ja
+kaksi eri kokoa samasta muodosta (`OSUUS` 0,64 merkin korkeudelle ja
 `MASKI_SKAALA` 0,8 koko sommitelmalle).
 
 Ikoneissa ei ole läpinäkyvyyttä eikä pyöristettyjä kulmia: iOS ja Android

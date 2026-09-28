@@ -6235,3 +6235,50 @@ kotivalikon ikoni on varmistettava laitteella. **iOS tallentaa
 `apple-touch-icon`in kotivalikkoon lisättäessä** — jo lisätty
 sovellus pitää vanhan ikonin, kunnes se poistetaan ja lisätään
 uudelleen.
+
+## Merkki yksinkertaistui: siipi ja spotti (28.9.)
+
+Palaute edelliseen: "Tehdään logosta simppelimpi" annetun mallikuvan
+tyyliin — wingfoil-siipeä matkiva muoto ja pallo joka on spotti — ja
+värit teemaan sopiviksi. Edellisen osion kolmiosainen siipi (putki,
+tuki, läpikuultava kangas) ja kaksi syaania juovaa poistuivat;
+latausruudun viimeistelyt (taivaanranta, kamera, rae, vinjetti,
+typografia, palkin kiilto) jäivät.
+
+### Muoto
+
+- **Siipi on yksi umpinainen muoto.** Etureuna nousee tyvestä kaarena
+  kärkeen ylös oikealle, jättöreuna laskee kuperana takaisin, ja
+  alareunassa on lovi — puomi ja käsi. Lovi erottaa sen lehdestä ja
+  purjeesta. Muoto on mallikuvan mittasuhteista kahdeksana Bézier-palana
+  (`M_PALAT`), sovitettuna 512:n ruudukkoon: korkeus 0,64 sivusta ja
+  6 px ylös, koska siipi on raskas alaosastaan.
+- **Pallo on spotti** kärjen yläpuolella: paikka jonne siipi on menossa.
+- **Värit teemasta:** siipi ja pallo ovat paperia `#F0E7CE`, kuten
+  sovelluksen spottimerkit ja latausruudun kuski, ja pohja on sama meri
+  kuin ennen (`#15213B` → `#0A1122` → `#04070E`, hento kylmä hehku .12).
+  Mallikuvan valkoinen ja petroli olisivat olleet sovelluksessa vieraita
+  sävyjä. Merkissä ei ole rampin sävyä: kartalla sävy on nopeus, eikä
+  merkki kerro nopeutta. Paperi pohjaa vasten 12,97–15,25:1.
+- Pienessä koossa siluetti on yksi kappale ja piste, joten se kantaa
+  29 px:iin asti ilman ohuita osia (edellisen ohuin viiva oli 0,4 px).
+
+### Latausruudulla
+
+```
+aika (s)   tapahtuma                                      käyrä
+0,20–1,30  merkin laatikko nousee 10 px ja kasvaa .92→1    (.16,1,.3,1)
+0,26–1,18  SIIPI AVAUTUU tyven ympäri etureunasta          kuutio sisään / 5. aste ulos
+           jättöreunaan (kiila 73°)
+0,90–1,40  SPOTTI SYTTYY: 0 → 1,18 → 1 omasta keskipisteestään
+```
+
+Kiila pyörii nyt siiven TYVEN ympäri (`data-keski` 27,55 %, 80,83 %),
+joten siipi nousee tuuleen kuin se nostettaisiin vedestä. Spotti tulee
+vasta kun siipi on lähes auki: päämäärä ilmestyy kun ollaan ilmassa.
+Yliheitto on yksi (1,18) eikä jousi, joka jäisi heilumaan. Lähdössä
+siipi nousee kuten ennen, ja spotti jää paikalleen häipyen (0,6).
+
+Mitattu: nimi 16,34:1, alanimi 6,48:1, tilarivi 7,25:1, tilapalkki
+19,65:1 (ennallaan); animaatioita esittelyssä 47 ja levossa 24;
+`compositeFailed` 0 latausruudussa; savutesti läpi, 0 sivuvirhettä.
