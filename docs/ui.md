@@ -6704,3 +6704,55 @@ kuvauksen mukaiset:
 Tilapalkki 18,38 / 17,80 / 15,97 / 10,54:1, nimilohko ennallaan.
 Animaatioita esittelyssä 54 ja levossa 30 (helma −1). `compositeFailed`
 0 latausruudussa, savutesti läpi, vaimennettu liike 0 animaatiota.
+
+## Valkoinen siipi mustin kärjin, matalampi laudan kärki, nyrkit puomille (28.9.)
+
+Käyttäjän pyyntö: siipi valkoiseksi, leading edge valkomusta niin että
+musta on siiven molemmissa päissä samanmittainen pätkä; laudan kärki
+oli liian käyrä ylöspäin; kasvot, kädet, puomi ja keskituki
+aidommiksi.
+
+### Siipi
+
+- **Kangas valkoinen** (`#lr-droid-kangas` `#FFFFFF` → `#F2F4F7` →
+  `#D5DAE1`), saumat harmaat, logot tummina (`#15181E` .88) samassa
+  kankaan leikkeessä kuin ennen.
+- **Etureuna valkoinen, päät mustat yhtä pitkältä.** Musta on sama
+  putkipolku päällä, leikattuna `#lr-putki-paat`-leikkeellä: kaksi
+  nelikulmiota, jotka katkaisevat putken normaalin suuntaisesti 20 %:n
+  kohdalta etureunan pituudesta (258,6 yks.) kummastakin kärjestä.
+  Yhtä leikettä, ei kahta erikseen piirrettyä päätä: pituus on
+  laskettu yhdestä luvusta.
+- **Keskituki** on kapeneva putki (leveämpi etureunan päässä),
+  valkoinen pystyliukuvärillä, ohut ääriviiva ja kaksi saumaa.
+- **Puomi** on hiilimusta valojuovalla, kahvaosat kuvioituina ja
+  kiinnikkeet tukeen.
+
+### Kädet puomilla
+
+Ruudulta näkyi, että kämmenet olivat noin 4 yks. puomin yläpuolella.
+Puomi siirrettiin (ei käsiä) kulkemaan kahden otteen läpi, ja etukäsi
+on `#lr-siipi`n nivelpisteessä (180,4 / 127,6), joten siiven +3…−6°
+kierto ei irrota puomia etukädestä; takakäsi liukuu enimmillään
+~1,6 yks. Nyrkit ovat puomin päällä: kämmenselkä ja rystyset
+(valopisteet), sormet kiertyvät alle (sormiviivat, alapuolen varjo),
+peukalon kaari ja märkäpuvun hihansuu ranteessa.
+
+### Kasvot
+
+Lisättiin poskien ja leukalinjan varjostus, poskipuna, silmään
+valkuainen, sininen iiris, pupilli, valopiste, yläluomi ja alaluomen
+viiva, paksumpi kulmakarva, sierain ja kaksiosaiset huulet
+(hillitty sävy — kirkkaampi luki huulipunana). Vanha kaksi
+nasolabiaaliviivaa luki ryppyinä ja korvattiin yhdellä hennolla.
+
+### Lauta
+
+Kärjen nousu 8,4 yks. 18 yks. matkalla → noin 3,5 yks. 22:lla, ja
+pohja kaartuu kärkeen asti ohuena kuten midlengthissä.
+
+### Mitattu
+
+Kontrastit 16,34 / 6,48 / 7,25, tilapalkki päivällä 10,54:1 (ennallaan).
+Animaatioita 54 esittelyssä ja 30 levossa (ennallaan), vaimennettu
+liike 0, savutesti läpi ilman virheitä.

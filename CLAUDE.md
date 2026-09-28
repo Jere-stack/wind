@@ -493,22 +493,32 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   Asento on oikeasta vastavalokuvasta (mittasuhteiden malli, ei
   upotettu): lähes pystyasento ja nojaus taaksepäin, siipi molemmin
   käsin olkapäiden korkeudella VINOSSA sivulla, ja kädet ovat PUOMILLA.
-  Siipi on Gong Galaxy Aramid Droid X:n tapainen: PINKKI ja
-  LÄPINÄKYMÄTÖN (vain kaksi ikkunaa ovat kirkkaita), paksu täyttöputki
-  joka KÄÄNTYY kärjissä takaisin kohti takareunaa ja on värjätty kuten
-  kangas, pinkki keskituki ja hiilimusta puomi. FoilSpotin merkki on
-  MOLEMMILLA puoliskoilla, leikattuna kankaan muotoon ikkunoineen
-  (`#lr-kangas-leike`), joten kummankin ikkunan reuna leikkaa oman
-  merkkinsä. Pinkki on sama joka vaiheessa, ja valon puute tulee sen
-  päälle varjona (`--lr-siipi-varjo`, yö .42). PINKKI/MAGENTA ON
-  LATAUSRUUDULLA KÄYTTÄJÄN PÄÄTÖS: se ei ole tuulen väri eikä
-  `--accent`, vaan kuvatun siiven oikea väri. Lauta on MIDLENGTH
-  (110 × 10 yks., 3D kolmesta pinnasta) ja masto 9 yks. leveä.
+  Siipi on Gong Droid X:n muotoinen ja käyttäjän päätöksellä
+  VALKOINEN: läpinäkymätön valkoinen kangas (vain kaksi ikkunaa ovat
+  kirkkaita), paksu täyttöputki joka KÄÄNTYY kärjissä takaisin kohti
+  takareunaa, ja putki on valkoinen jonka KUMPIKIN pää on musta
+  SAMANMITTAISELTA matkalta (`#lr-putki-paat`, 20 % etureunasta
+  kummastakin kärjestä — älä muuta toista yksin). Keskituki on
+  kapeneva valkoinen putki, puomi hiilimusta kahvaosineen ja
+  kiinnikkeineen. FoilSpotin merkki (tumma) on MOLEMMILLA puoliskoilla,
+  leikattuna kankaan muotoon ikkunoineen (`#lr-kangas-leike`), joten
+  kummankin ikkunan reuna leikkaa oman merkkinsä. Siipi on sama joka
+  vaiheessa, ja valon puute tulee sen päälle varjona
+  (`--lr-siipi-varjo`, yö .42). (Pinkki Droid X oli edellinen versio.)
+  PUOMI KULKEE KÄSIEN LÄPI: etukäsi on `#lr-siipi`n nivelpisteessä,
+  joten siiven kääntyessä puomi pysyy sen nyrkissä; nyrkit ovat
+  puomin PÄÄLLÄ (rystyset, sormet kiertyvät alle, hihansuu). Jos
+  siirrät kättä tai niveltä, siirrä puomia samassa muutoksessa, muuten
+  kädet kelluvat sen yläpuolella (niin kävi). Lauta on MIDLENGTH
+  (110 × 10 yks., 3D kolmesta pinnasta), kärjen nousu matala (noin
+  3,5 yks. viimeisellä 22:lla; 8,4 yks. luki ylös käyränä) ja masto
+  9 yks. leveä.
   KUSKI ON IHMINEN, EI TIKKU-UKKO: raajat ovat täytettyjä muotoja
   (`raaja()`-generaattori: reisi, pohje, olkapää, hauis, kyynärvarsi
   lihaspullistumineen), märkäpuvun kiilto (`--lr-kiilto`) kertoo
-  lihakset, ja kasvot ovat profiili (nenä, huulet, leuka, silmä,
-  kulmakarva, korva). Värit ovat käyttäjän päätös: keltainen
+  lihakset, ja kasvot ovat profiili (nenä ja sierain, huulet, leuka,
+  silmä valkuaisineen, iiris ja luomi, kulmakarva, korva, poskien ja
+  leukalinjan varjostus). Värit ovat käyttäjän päätös: keltainen
   sombrero-kypärä, musta leukahihna leukalinjaa pitkin, MUSTA
   MÄRKÄPUKU kaikkina vuorokaudenaikoina (yöllä kuunvalon reunavalo
   `--lr-reuna`), MUSTA IMPACT VEST (`--lr-liivi`, paneelit, kaulus,
