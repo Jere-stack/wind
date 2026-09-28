@@ -1272,3 +1272,31 @@ lyhyemmiksi"). Pilkkuraja 20 px pysyy alapuolella. Mitattu mediaani ja
 p90 22,0 px (vanha 25,5 / 27,4).
 
 Ruudun sujuvuus on varmistettava laitteella; kontti ei mittaa sitä.
+
+### Jatko: askel näytön ruutuvälin monikerraksi — "pyrstöt epätarkkoja"
+
+Aikaperusteisen liikkeen jälkeen käyttäjä raportoi että pyrstöt
+välkkyvät vähemmän mutta näyttävät epätarkoilta. Yksittäinen ruutu oli
+suurennettuna yhtä terävä kuin ennen (muoto, leveys, kapeneminen), joten
+vika oli LIIKKEESSÄ. `performance.now()` luettiin piirtohetkellä, joka
+heiluu ruudun sisällä pääsäikeen kuorman mukaan, vaikka näyttö vaihtaa
+kuvan tasatahtiin. Kärjen askel ruudusta toiseen, |askel / edellinen − 1|:
+
+```
+                               p50     p90    yli 10 %
+vanha (ruutuaskel)            0,001   0,003-0,004   1,6-1,7 %
+aika, raaka                   0,156   0,347        66,1 %
+aika, ruutuvälin monikerta    0,002   0,008-0,009  (sama ruutumäärä)
+```
+
+Korjaus: `dt` pyöristetään lähimpään rAF-välin monikertaan
+(`PerfTracker.valiMs()`, mediaani), vähintään yksi. Tasaisella
+ruutunopeudella askel on silloin vakio, ja pudonnut ruutu lasketaan
+kahdeksi, joten nopeus pysyy ajassa. Viimeinen rivi on mitattu vain
+peräkkäisistä ruuduista joilla ruutumäärä on sama (`State._pDt`), koska
+kontti piirtää karttaa epätasaisesti joka 1.–3. rAF:llä — niiden välillä
+askel on oikeasti 1×, 2× tai 3× eikä se ole värinää.
+
+Samalla syntymän ja kuoleman häivytys lyhennettiin 15/30 → 10/18
+ruutuun (0,17 s / 0,3 s): pitkä häivytys piti noin joka seitsemännen
+jäljen osittain läpinäkyvänä, ja himmeä jälki lukee sumeana.

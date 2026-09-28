@@ -12422,6 +12422,19 @@ const PerfTracker = {
     }
   },
   getTarget() { return this._targetParticles; },
+  /* Näytön ruutuväli: rAF-aikaleimojen välien MEDIAANI. Partikkelien
+     askel pyöristetään tähän (ks. `partikkelitAskel`). Mediaani eikä
+     keskiarvo, jotta pudonneet ruudut eivät venytä sitä. 0 = ei vielä
+     tiedossa. */
+  _vali: [],
+  valiMs() {
+    const f = this._frames, n = f.length - 1;
+    if (n < 8) return 0;
+    const v = this._vali; v.length = 0;
+    for (let i = 1; i <= n; i++) v.push(f[i] - f[i-1]);
+    v.sort((a, b) => a - b);
+    return v[n >> 1];
+  },
   reset() { this._targetParticles = nParticlesBase(); this._frames = []; }
 };
 
@@ -13153,7 +13166,10 @@ function nauha(p, pituus, leveys, nip, laaj) {
  * ruudussa — pienten välähdysten virta kentän yli. Tyyni kohta (alle
  * 0,3 m/s, jossa partikkeli ei liiku) häivytetään samoin, jottei raja
  * vilku kun tuuli käy sen yli. */
-const _SYNTY_RUUTUA = 15, _KUOLO_RUUTUA = 30;
+/* Häivytykset ovat lyhyitä (0,17 s ja 0,3 s): pitkä häivytys piti noin
+   joka seitsemännen jäljen osittain läpinäkyvänä, ja himmeä jälki lukee
+   sumeana. */
+const _SYNTY_RUUTUA = 10, _KUOLO_RUUTUA = 18;
 function _pAlfa(p) {
   let a = p.age / _SYNTY_RUUTUA;
   const b = (Config.MAX_AGE - p.age) / _KUOLO_RUUTUA;
@@ -13294,7 +13310,21 @@ function partikkelitAskel() {
   const nytT = performance.now();
   let dt = State._pAika ? nytT - State._pAika : 1000 / 60;
   State._pAika = nytT;
-  if (!(dt > 0)) dt = 0; else if (dt > 250) dt = 1000 / 60; else if (dt > 50) dt = 50;
+  if (!(dt > 0)) dt = 0; else if (dt > 250) dt = 1000 / 60;
+  /* ASKEL ON NÄYTÖN RUUTUVÄLIN MONIKERTA. `performance.now()` luetaan
+     piirtohetkellä, joka heiluu ruudun sisällä pääsäikeen kuorman mukaan,
+     vaikka näyttö vaihtaa kuvan tasatahtiin: raakana aikana kärjen askel
+     vaihteli ruudusta toiseen mediaanina 16 % (p90 35 %), ja se luki
+     tärinänä ja epätarkkuutena. Pyöristettynä askel on tasainen, ja
+     pudonnut ruutu lasketaan silti kahdeksi — nopeus pysyy ajassa. */
+  const T = PerfTracker.valiMs();
+  if (T > 2 && dt > 0) {
+    let k = Math.round(dt / T);
+    if (k < 1) k = 1;
+    dt = k * T;
+  }
+  if (dt > 50) dt = 50;
+  State._pDt = dt;   /* mittareille (?perf=1) */
   const f = dt * 60 / 1000;
   const hitaus = Math.pow(Config.INERTIA, f), uutta = 1 - hitaus;
   const alue = State.alue;

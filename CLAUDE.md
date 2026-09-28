@@ -2096,6 +2096,9 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   ruutunopeuden muutoksen nopeutena (mm. hypyn jälkeen). Jälki talletetaan
   kellosta (`ASKEL_MS`). Mitattu: matka ≈ 60 askelta/s fps:stä
   riippumatta, vanha = fps (docs/partikkelit.md, "Liike ajasta").
+  **AIKA PYÖRISTETÄÄN NÄYTÖN RUUTUVÄLIIN** (`PerfTracker.valiMs()`):
+  raaka `performance.now()` piirtohetkellä heilui, ja kärjen askel
+  vaihteli ruudusta toiseen 16 % (p90 35 %) — se luki epätarkkuutena.
 - **JÄLJEN PÄÄ LEIKATAAN KAARESTA, EI PISTEMÄÄRÄSTÄ** (`nauha`, `p.pit`,
   `NAUHA_N`). Kokonaisina pisteinä pää seisoi 70 % ruuduista ja hyppäsi
   sitten — se oli pyrstön välkyntä. Syntymä ja kuolema häivytetään
