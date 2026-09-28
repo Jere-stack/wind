@@ -94,9 +94,18 @@ function versioLeima() {
       writeFileSync(t, readFileSync(t, 'utf8').replace(/__BUILD_ID__/g, tunnus()));
     },
     transformIndexHtml(html) {
-      return html.replace(/__BUILD_ID__/g, tunnus());
+      return html.replace(/__BUILD_ID__/g, tunnus()).replace(/__SIVU_URL__/g, sivuUrl());
     },
   };
+}
+
+/* Jakoesikatselun (`og:image`) absoluuttinen osoite. Vercel antaa
+ * tuotanto-osoitteen jokaiselle buildille, myös preview-deploylle, joten
+ * jaettu linkki näyttää saman kuvan haarasta riippumatta. Paikallisesti
+ * osoite jää suhteelliseksi — sivu ei tarvitse sitä mihinkään muuhun. */
+function sivuUrl() {
+  const host = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL || '';
+  return host ? 'https://' + host : '';
 }
 
 /* MapLibre samasta originista kuin sivu (docs/julkaisu.md, L2).

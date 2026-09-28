@@ -7,6 +7,19 @@
 <meta name="apple-mobile-web-app-title" content="FoilSpot">
 <meta name="theme-color" content="#060912">
 <meta name="description" content="Wingfoil-sääsovellus Suomen parhaille spoteille">
+<!-- Jakolinkin esikatselu (docs/julkaisu.md, UI 16). Kuvan osoitteen on
+     oltava absoluuttinen, joten __SIVU_URL__ korvataan buildissa Vercelin
+     tuotanto-osoitteella (vite.config.js); lähteessä ei ole host-nimeä. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FoilSpot">
+<meta property="og:title" content="FoilSpot — wingfoil-sää">
+<meta property="og:description" content="Tuuliennuste kartalla ja Suomen rannikon spottien keli tunti tunnilta.">
+<meta property="og:image" content="__SIVU_URL__/icon-512.png">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta property="og:image:alt" content="FoilSpotin merkki: tuulen värinen kaari tummalla">
+<meta property="og:locale" content="fi_FI">
+<meta name="twitter:card" content="summary">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <!-- Selaimen valilehti saa vektorin, kotivalikko ja vanhat selaimet PNG:n.
@@ -490,6 +503,13 @@ button, input, select, textarea { font-family: inherit; }
    hiusviivat erottavat ryhmät toisistaan niin ettei rivi lue yhtenä
    jonona. Vain keskiosa on napautettava kahdesti eri tavalla: tuuli
    avaa yksikkövalitsimen, sää tuntisään. */
+/* KORTTI AUKI -> KAPSELI POIS (docs/julkaisu.md, UI 4). Kapseli lukee
+   kartan KESKIPISTEEN, kortti spotin — ja kortin ollessa auki ne ovat eri
+   paikkoja: mitattuna kapseli sanoi 2,6 kts ja herossa luki 6,9 kts
+   yhtä aikaa. Sama suure kahdella eri luvulla samalla ruudulla näyttää
+   vialta, joten kapseli väistyy siksi aikaa kun kortti on auki.
+   Ennustepaneelin kanssa kapseli jää (siinä ei ole kilpailevaa lukua). */
+html:has(#sheet.open) #kapseli { opacity: 0; pointer-events: none; }
 #kapseli {
   position: fixed; z-index: 22;
   top: calc(var(--sat) + 10px); left: 50%;
@@ -2598,7 +2618,7 @@ button.sh-hero-indeksi:focus-visible { outline: 2px solid var(--accent); outline
   display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
 }
 .sh-hero-live-val { font-size: var(--fs-13); font-weight: 700; }
-.sh-hero-live-lbl { font-size: var(--fs-8); color: var(--accent); }
+.sh-hero-live-lbl { font-size: var(--fs-8); color: var(--ink-3); }
 
 /* Foilability badge — pill, compact, integrated */
 .sh-foil-badge {
@@ -2659,20 +2679,23 @@ button.sh-hero-indeksi:focus-visible { outline: 2px solid var(--accent); outline
 
 /* Asemavalitsin dropdown */
 .fmi-station-trigger {
+  /* VÄRIKURI (docs/julkaisu.md, UI 13): valitsin on musteella. Aseman
+     nimi on nimilappu, ei toiminto eikä varoitus, joten magenta ei
+     kuulu sille (CLAUDE.md, `--accent`). */
   display: inline-flex; align-items: center; gap: 7px;
   font-variant-numeric: tabular-nums; font-size: var(--fs-9);
-  color: var(--accent); cursor: pointer;
+  color: var(--ink); cursor: pointer;
   background: var(--surface-lo); border: 1px solid var(--hairline);
   border-radius: 8px; padding: 4px 10px;
   -webkit-user-select: none; user-select: none;
   transition: background .15s;
 }
 .fmi-station-trigger-name {
-  font-weight: 700; color: var(--accent);
+  font-weight: 700; color: var(--ink);
 }
 .fmi-station-trigger-dist { color: var(--ink-2); font-size: var(--fs-8); }
 .fmi-station-trigger-arrow {
-  margin-left: 2px; color: var(--accent);
+  margin-left: 2px; color: var(--ink-3);
   transition: transform .2s; font-size: var(--fs-11);
 }
 .fmi-station-trigger.open .fmi-station-trigger-arrow { transform: rotate(180deg); }
@@ -2711,7 +2734,7 @@ button.sh-hero-indeksi:focus-visible { outline: 2px solid var(--accent); outline
 .fmi-dropdown-item-left { display: flex; flex-direction: column; gap: 2px; }
 .fmi-dropdown-item-name { color: var(--ink); font-weight: 700; }
 .fmi-dropdown-item-tag {
-  font-size: var(--fs-8); color: var(--accent);
+  font-size: var(--fs-8); color: var(--ink-3);
   background: var(--surface-lo); border-radius: 4px;
   padding: 1px 5px; align-self: flex-start;
 }
@@ -2732,7 +2755,7 @@ button.sh-hero-indeksi:focus-visible { outline: 2px solid var(--accent); outline
 }
 .sh-stat-water-name {
   font-variant-numeric: tabular-nums; font-size: var(--fs-7);
-  color: var(--accent); text-align: center;
+  color: var(--ink-3); text-align: center;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   max-width: 100%; line-height: 1;
 }
@@ -2791,7 +2814,7 @@ button.sh-hero-indeksi:focus-visible { outline: 2px solid var(--accent); outline
 }
 .sh-chart-peak {
   font-variant-numeric: tabular-nums; font-size: var(--fs-9);
-  color: var(--accent);
+  color: var(--ink-2);
 }
 .sh-chart {
   display: flex; align-items: flex-end; gap: 3px; height: 64px;
@@ -3723,6 +3746,19 @@ h3.fc-day-label { margin: 0; }
 .en-mallit {
   display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: var(--v-2) 0 0;
 }
+.en-mallit[hidden] { display: none; }
+.en-vertailu { margin-top: var(--v-2); }
+.en-vertailu-nappi {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px;
+  padding: 0 12px; box-sizing: border-box; border-radius: 12px;
+  background: var(--surface-lo); border: 1px solid var(--hairline-soft);
+  color: var(--ink); font-size: max(12px, var(--fs-11)); text-align: left; cursor: pointer;
+}
+.en-vertailu-nimi { font-weight: 600; }
+.en-vertailu-valitut { flex: 1; min-width: 0; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.en-vertailu-nappi svg { color: var(--ink-3); flex-shrink: 0; transition: transform .2s; }
+.en-vertailu-nappi[aria-expanded="true"] svg { transform: rotate(180deg); }
+.en-vertailu-nappi:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .en-siru {
   display: inline-flex; align-items: center; gap: 5px;
   font-size: var(--fs-11); color: var(--ink-2); white-space: nowrap;
@@ -3860,6 +3896,12 @@ html.tyopoyta .en-solu-arvo { font-size: 15px; }
 }
 .sh-nav-btn:active { background: var(--surface-lo); }
 .sh-nav-btn svg { flex-shrink: 0; }
+.sh-nav-muut { text-align: center; margin: -2px 0 8px; }
+.sh-nav-muut a {
+  display: inline-block; padding: 8px 12px; min-height: 36px; box-sizing: border-box;
+  font-size: max(12px, var(--fs-10)); color: var(--ink-2); text-decoration: underline;
+  text-underline-offset: 2px; text-decoration-color: var(--hairline);
+}
 
 /* -- UIRAS VEDENLÄMPÖ ------------------------------------------- */
 .sh-uiras {
@@ -4487,8 +4529,8 @@ html.tyopoyta .hl-lk-arvo { font-size: 19px; }
         <div class="sp-card">
           <div class="sp-chips" id="asetus-malli">
             <div class="sp-chip active" data-arvo="auto">Paras saatavilla</div>
-            <div class="sp-chip" data-arvo="fmi">FMI HARMONIE</div>
-            <div class="sp-chip" data-arvo="metnordic">Yr (MET Nordic)</div>
+            <div class="sp-chip" data-arvo="fmi">HARMONIE</div>
+            <div class="sp-chip" data-arvo="metnordic">MET Nordic</div>
             <div class="sp-chip" data-arvo="ecmwf">ECMWF</div>
             <div class="sp-chip" data-arvo="icon">ICON</div>
             <div class="sp-chip" data-arvo="gfs">GFS</div>
@@ -6166,6 +6208,18 @@ const Saalaatat = {
       } catch (e) { viimeVirhe = e; }
     }
     throw viimeVirhe || new Error('ei luetteloa');
+  },
+
+  /* Mallin ajohetki luettelosta (docs/julkaisu.md, UI 10): ECMWF:n on
+     luettelon `ajoAika`, alueellisten mallien tasoilla on omansa.
+     Palauttaa millisekunnit tai null. */
+  ajo(malli) {
+    const l = this._luettelo;
+    if (!l) return null;
+    if (malli === 'laatta' || malli === 'ecmwf') return Date.parse(l.ajoAika) || null;
+    const t = l.tasot.concat(Array.isArray(l.lisatasot) ? l.lisatasot : [])
+      .find(x => x.malli === malli && x.ajoAika);
+    return t ? (Date.parse(t.ajoAika) || null) : null;
   },
 
   async alusta() {
@@ -8595,8 +8649,11 @@ const Osuvuus = {
          ettei siinä ole mitään. */
       const n = (this._lue()[spotNimi] || []).length;
       if (!n) return '';
-      return 'Kerätään vertailua ennusteen ja havainnon välillä (' + n
-        + '/' + this.MIN_NAYTTEITA + ')';
+      /* Käyttäjän kielellä (docs/julkaisu.md, UI 9): mitä tulee ja
+         milloin, ei "kerätään vertailua (1/5)". */
+      const jaljella = this.MIN_NAYTTEITA - n;
+      return 'Ennusteen osuvuus tällä spotilla näkyy tässä, kun olet avannut kortin vielä '
+        + jaljella + (jaljella === 1 ? ' kerran toisella tunnilla.' : ' kertaa eri tunteina.');
     }
     const abs = Math.abs(y.ka);
     const maara = y.n + ' havaintoa';
@@ -14966,7 +15023,7 @@ function buildUirasPlaceholder(spot) {
   });
 
   /* Palauta HTML heti — napit käyttävät data-attribuutteja delegaation kautta */
-  return '<div id="' + cardId + '" style="background:var(--accent-soft);border:1px solid var(--hairline);border-radius:14px;padding:12px 14px;margin-bottom:14px">'
+  return '<div id="' + cardId + '" style="background:var(--surface-hi);border:1px solid var(--hairline);border-radius:14px;padding:12px 14px;margin-bottom:14px">'
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
       + '<div style="flex:1;min-width:0">'
         + '<div style="font-size:var(--fs-11);font-weight:700;color:var(--ink)">' + station.name + '</div>'
@@ -15147,14 +15204,14 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     /* Rakenna trigger-nappi */
     function makeTriggerHtml(st){
       return '<button id="'+trId+'" class="uw-trigger" style="display:flex;align-items:center;gap:6px;'
-        +'background:var(--accent-soft);border:1px solid var(--hairline);'
+        +'background:var(--surface-lo);border:1px solid var(--hairline);'
         +'border-radius:8px;font-variant-numeric:tabular-nums;font-size:var(--fs-9);'
-        +'color:var(--accent);cursor:pointer;padding:4px 10px;'
+        +'color:var(--ink);cursor:pointer;padding:4px 10px;'
         +'-webkit-user-select:none;user-select:none;">'
         +'<span style="font-weight:700;color:var(--ink)">'+st.name+'</span>'
         +'<span class="uw-trigger-km" style="color:var(--ink-3);font-size:var(--fs-8);margin-left:2px">'+st.km.toFixed(1)+' km</span>'
         +'<svg width="12" height="12" viewBox="0 0 12 12" style="flex-shrink:0;margin-left:2px">'
-          +'<polyline points="2,4 6,8 10,4" fill="none" stroke="#1C5C86" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+          +'<polyline points="2,4 6,8 10,4" fill="none" stroke="#5B6770" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
         +'</svg></button>';
     }
 
@@ -15165,7 +15222,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
         return '<div data-uiras-pick="'+st.id+'" style="display:flex;justify-content:space-between;align-items:center;'
           +'padding:11px 16px;cursor:pointer;font-variant-numeric:tabular-nums;font-size:var(--fs-11);'
           +'border-bottom:1px solid var(--hairline-soft);-webkit-user-select:none;user-select:none;'
-          +(active?'background:var(--accent-soft)':'')+';">'
+          +(active?'background:var(--surface-lo)':'')+';">'
           +'<span style="color:'+(active?'var(--ink)':'var(--ink-2)')+';font-weight:'+(active?600:400)+'">'
             +st.name+'</span>'
           +'<div style="display:flex;align-items:center;gap:8px;">'
@@ -15224,7 +15281,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
           var pts2=results[0].status==='fulfilled'?results[0].value:null;
           var latest=results[1].status==='fulfilled'?results[1].value:null;
           if(latest&&latest[st.id]&&latest[st.id].temp!=null&&wsIdRef)
-            _updateUirasCard(wsIdRef,latest[st.id].temp,st.name);
+            _updateUirasCard(wsIdRef,latest[st.id].temp,st.name,latest[st.id].time);
           el._period=period;
           if(pts2&&pts2.length) _uirasChartInteractive(el,pts2,st.name,st,spotLat,spotLng);
           else el.innerHTML='<div style="font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);text-align:center;padding:16px">Ei dataa</div>';
@@ -17920,7 +17977,20 @@ const Ennuste = {
   html(spot) {
     const a = this.asetus();
     const valitut = this.valitut();
-    const sirut = '<div class="en-mallit" role="group" aria-label="Vertailumallit">'
+    /* MALLIVERTAILU ON AVAUTUVA (docs/julkaisu.md, UI 11). Kuusi sirua
+       kahdella rivillä ja asettelun valitsin veivät puhelimella kokonaisen
+       ruudullisen ennen yhtäkään havaintoa. Nyt yksi rivi "Vertaa
+       kaaviossa", joka kertoo mitä on valittu ja avaa sirut. Otsikko
+       erottaa tämän asetusten "Kartan mallista" (UI 12): tämä lisää
+       viivan kaavioon, se vaihtaa kartan. */
+    const auki = !!this._vertailuAuki;
+    const sirut = '<div class="en-vertailu">'
+      + '<button type="button" class="en-vertailu-nappi" data-en-vertailu aria-expanded="' + auki + '">'
+      + '<span class="en-vertailu-nimi">Vertaa kaaviossa</span>'
+      + '<span class="en-vertailu-valitut" data-en-vertailu-valitut>' + this._valitutTeksti(valitut) + '</span>'
+      + '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><polyline points="2,4 6,8 10,4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      + '</button>'
+      + '<div class="en-mallit" role="group" aria-label="Vertailumallit"' + (auki ? '' : ' hidden') + '>'
       + '<span class="en-siru en-siru-paa" title="Paras saatavilla: sama sekoitus kuin kartalla">'
       + '<span class="en-naute en-naute-paa" aria-hidden="true"></span>Paras</span>'
       + KorttiSarjat.MALLIT.map(m => {
@@ -17933,7 +18003,7 @@ const Ennuste = {
       + '<div class="segmentti segmentti-pieni en-asu" role="group" aria-label="Mallien asettelu">'
       + '<button type="button" data-asu="paalle" aria-pressed="' + (a.asu === 'paalle') + '">Päällekkäin</button>'
       + '<button type="button" data-asu="alle" aria-pressed="' + (a.asu === 'alle') + '">Allekkain</button></div>'
-      + '</div>';
+      + '</div></div>';
     return '<section class="en-osio sh-moduli" data-ennuste="' + spot.name.replace(/"/g, '') + '" aria-label="Tuuliennuste">'
       + '<div class="osio-otsikko-rivi"><h3 class="osio-otsikko">Tuuliennuste</h3>'
       /* NYT-NAPPI palauttaa valinnan tämän hetken tuntiin ja vierittää
@@ -18000,6 +18070,14 @@ const Ennuste = {
       if (!osio.isConnected) return;
       ['ecmwf', 'icon', 'gfs'].forEach(id => KorttiSarjat.lataa(spot, id, piirra));
     }, 1200);
+    const vNappi = osio.querySelector('[data-en-vertailu]');
+    if (vNappi) vNappi.addEventListener('click', function () {
+      self._vertailuAuki = !self._vertailuAuki;
+      vNappi.setAttribute('aria-expanded', String(self._vertailuAuki));
+      const m = osio.querySelector('.en-mallit');
+      if (m) m.hidden = !self._vertailuAuki;
+      if (typeof Haptics !== 'undefined') Haptics.light();
+    });
     osio.querySelectorAll('[data-asu]').forEach(b => b.addEventListener('click', function () {
       self.asetus().asu = b.dataset.asu; self.tallenna();
       osio.querySelectorAll('[data-asu]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
@@ -18049,9 +18127,15 @@ const Ennuste = {
   _naytetyt(ctx) {
     return this.valitut().filter(id => id !== ctx.piilotettu);
   },
+  _valitutTeksti(ids) {
+    const nimet = ids.map(id => (KorttiSarjat.malli(id) || {}).nimi).filter(Boolean);
+    return nimet.length ? nimet.join(', ') : 'ei valittu';
+  },
   _paivitaSirut(ctx) {
     const n = this._naytetyt(ctx);
     ctx.osio.querySelectorAll('[data-malli]').forEach(b => b.setAttribute('aria-pressed', String(n.indexOf(b.dataset.malli) >= 0)));
+    const v = ctx.osio.querySelector('[data-en-vertailu-valitut]');
+    if (v) v.textContent = this._valitutTeksti(n);
   },
 
   /* Lukemarivi: valittu tai osoitettu hetki, Paras ja vertailut. Rivi on
@@ -18527,20 +18611,28 @@ function openSheet(spot, hourIdx) {
   }
 
   /* -- NAVIGATION BUTTONS ---------------------------------------- */
+  /* YKSI REITTIOHJE, JOKA AVAA LAITTEEN OMAN KARTAN (docs/julkaisu.md,
+     UI 25). Kortissa oli kaksi yhtä painavaa nappia, Google Maps ja Waze,
+     eikä iPhonella Apple Mapsia lainkaan. Nyt: Apple-laitteella
+     maps.apple.com (avaa Kartat-apin), Androidilla `geo:` (järjestelmä
+     avaa oletuskarttasovelluksen tai kysyy sitä), muualla Google Mapsin
+     reittiosoite. Waze jää toissijaiseksi tekstilinkiksi napin alle. */
   function buildNavButtons() {
     const lat = spot.lat, lng = spot.lng, name = encodeURIComponent(spot.name);
-    const mapsUrl  = 'https://maps.google.com/?daddr=' + lat + ',' + lng + '&travelmode=driving';
+    const ua = navigator.userAgent;
+    const apple = /iPhone|iPad|iPod|Macintosh/.test(ua);
+    const android = /Android/.test(ua);
+    const reittiUrl = apple
+      ? 'https://maps.apple.com/?daddr=' + lat + ',' + lng + '&q=' + name
+      : android
+        ? 'geo:' + lat + ',' + lng + '?q=' + lat + ',' + lng + '(' + name + ')'
+        : 'https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lng;
     const wazeUrl  = 'https://waze.com/ul?ll=' + lat + '%2C' + lng + '&navigate=yes';
-    return '<div style="display:flex;gap:8px;margin-bottom:8px">'
-      + '<a href="' + mapsUrl + '" target="_blank" class="sh-nav-btn" style="text-decoration:none;flex:1">'
-        + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>'
-        + 'Google Maps'
+    return '<a href="' + reittiUrl + '" target="_blank" rel="noopener" class="sh-nav-btn" style="text-decoration:none">'
+        + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>'
+        + 'Reittiohje'
       + '</a>'
-      + '<a href="' + wazeUrl + '" target="_blank" class="sh-nav-btn" style="text-decoration:none;flex:1">'
-        + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>'
-        + 'Waze'
-      + '</a>'
-    + '</div>';
+      + '<div class="sh-nav-muut"><a href="' + wazeUrl + '" target="_blank" rel="noopener">Avaa Wazessa</a></div>';
   }
 
   /* AALTORIVIN ETÄISYYSRAJA ON MITATTU, EI ARVATTU.
@@ -18665,9 +18757,15 @@ function openSheet(spot, hourIdx) {
             + Math.abs(Math.round(m.cm)) + ' cm / ' + m.tunnit + ' h');
         }
       }
+      /* KAKSI LUKUA, KAKSI NIMEÄ (docs/julkaisu.md, UI 4). Pääluku on
+         valitun tunnin ENNUSTE, alarivin luku mareografin HAVAINTO nyt —
+         ennen ne olivat "+23 cm" ja "Kaivopuisto nyt +25 cm" ilman että
+         kumpaakaan nimettiin, eli sama suure kahdesti eri luvulla. */
+      const nimi = el.querySelector('.sh-stat-label');
+      if (nimi) nimi.textContent = e ? 'Vedenkorkeus · ennuste' : 'Vedenkorkeus · havainto';
       if (as) {
-        if (arvo == null) arvo = merkki(as.cm) + '<small>cm</small>';
-        ala.push(_mareografiNimi(as.station) + ' nyt ' + merkki(as.cm) + ' cm');
+        if (arvo == null) { arvo = merkki(as.cm) + '<small>cm</small>'; ala.push(_mareografiNimi(as.station) + ' nyt'); }
+        else ala.push('havainto nyt ' + merkki(as.cm) + ' cm · ' + _mareografiNimi(as.station));
       }
       if (arvo == null) { el.hidden = true; return; }
       el.querySelector('.sh-stat-value').innerHTML = arvo;
@@ -18721,8 +18819,11 @@ function openSheet(spot, hourIdx) {
          (sama sarja, sama tunti), ja rivi jää pois jos puuskaa ei ole
          (suhde 1,00 väittäisi tasaista tuulta siellä missä dataa ei ole). */
       if (ms >= 1) {
-        const col = gi.cls === 'gi-steady' ? '#2A702D' : gi.cls === 'gi-gusty' ? '#8A5A00'
-          : gi.cls === 'gi-extreme' ? '#A3271C' : 'var(--ink-2)';
+        /* Tasainen ja puuskainen ovat toteamuksia (muste); vain "hyvin
+           puuskainen" on varoitus, ja sovelluksen varoitusväri on
+           `--accent` (UI 13). Vihreä ja punainen olivat kolmas ja neljäs
+           väriasteikko samassa herossa. */
+        const col = gi.cls === 'gi-extreme' ? 'var(--accent)' : 'var(--ink-2)';
         t += ' <span class="sh-big-gustratio" style="color:' + col + '">×' + gi.val.toFixed(1) + ' ' + gi.label.toLowerCase() + '</span>';
       }
       return '<div class="sh-big-gust">' + t + '</div>';
@@ -18733,7 +18834,8 @@ function openSheet(spot, hourIdx) {
         + (nyt ? '<span class="sh-nyt">NYT</span>' : '')
         + '<span>' + Tuulikaavio.PAIVAT[d.getDay()] + ' ' + d.getDate() + '.' + (d.getMonth() + 1) + '. klo '
         + ('0' + d.getHours()).slice(-2) + '</span>'
-        + '<span class="sh-aikarivi-lahde">' + (Lahde.LYHYET[_heroLahde] || _heroLahde) + '</span>'
+        + '<span class="sh-aikarivi-lahde">' + (Lahde.LYHYET[_heroLahde] || _heroLahde)
+        +   (Lahde.ajoTeksti(_heroLahde) ? ' · ' + Lahde.ajoTeksti(_heroLahde) : '') + '</span>'
       + '</div>'
       + '<div class="sh-hero-rivi">'
         + '<div class="sh-hero-luku">'
@@ -19069,7 +19171,7 @@ function openSheet(spot, hourIdx) {
           var st = candidates[i].s;
           var entry = map[st.id];
           var t = entry && entry.temp != null ? entry.temp : null;
-          if (t != null && t > -5 && t < 40) return {temp:t, name:st.name, km:candidates[i].d};
+          if (t != null && t > -5 && t < 40) return {temp:t, name:st.name, km:candidates[i].d, time: entry.time || null};
         }
         return null;
       }
@@ -19089,17 +19191,26 @@ function openSheet(spot, hourIdx) {
         if (valEl) valEl.textContent = temp;
       }
       /* Päivitä UiRas linkki-kortti */
-      if (best) _updateUirasCard(_waterStatId, best.temp, best.name + (best.km > 1 ? ' (' + best.km.toFixed(0) + ' km)' : ''));
+      if (best) _updateUirasCard(_waterStatId, best.temp, best.name + (best.km > 1 ? ' (' + best.km.toFixed(0) + ' km)' : ''), best.time);
       /* Lataa historia PARHAALTA asemalta — ei alkuperäiseltä _uirasStation:lta */
       if (!uirasHistEl) return;
       /* Etsi parhaan aseman koko objekti UIRAS_STATIONS:sta */
       var bestSt = best
         ? (UIRAS_STATIONS.find(function(s){ return s.name === best.name; }) || _uirasStation)
         : _uirasStation;
-      return UiRas.history(bestSt.id).then(function(pts){ return {pts:pts, st:bestSt}; });
+      return UiRas.history(bestSt.id).then(function(pts){ return {pts:pts, st:bestSt, best:best}; });
     }).then(function(res) {
       if (!res || !res.pts || !uirasHistEl) return;
       var pts = res.pts, bestSt = res.st;
+      /* YKSI LUKU SAMASTA VEDESTÄ (docs/julkaisu.md, UI 4). Laatta lukee
+         tuoreimman mittauksen (`uiras_latest`), kaavio vuosihistorian, joka
+         päivittyy harvemmin: mitattuna laatta sanoi 12,9 °C ja kaavion
+         viimeinen piste 13,3 °C edellisillalta. Tuorein mittaus jatkaa
+         kaavion loppuun, jolloin molemmat päättyvät samaan lukuun. */
+      var b = res.best, viimeinen = pts.length ? Date.parse(pts[pts.length - 1].t) : 0;
+      if (b && b.time && b.name === bestSt.name && Date.parse(b.time) > viimeinen + 60e3) {
+        pts = pts.concat([{ t: b.time, v: b.temp }]);
+      }
       /* Päivitä graafin otsikko vastaamaan datan asemaa */
       var chartLbl = document.getElementById('uiras-chart-lbl-' + _waterStatId);
       if (chartLbl) chartLbl.textContent = 'Uimaveden lämpötila · ' + bestSt.name;
@@ -19216,11 +19327,15 @@ function _updateFmiCard(fmiId, fmi) {
   }
 }
 
-function _updateUirasCard(waterStatId, temp, stationName) {
+function _updateUirasCard(waterStatId, temp, stationName, aika) {
   var lv = document.getElementById(waterStatId+'-lnk-val');
   var ln = document.getElementById(waterStatId+'-lnk-name');
   if (lv && temp != null) { lv.textContent = temp.toFixed(1); }
-  if (ln && stationName) ln.textContent = stationName;
+  /* Mittauksen ikä nimen perään: havaintolaatta on "nyt", ja vanha
+     lukema ilman ikää näyttäisi tuoreelta (UI 4 / UI 10). */
+  var t = aika ? Date.parse(aika) : NaN;
+  var ika = isFinite(t) ? _havIkaTeksti(Math.max(0, Math.round((Date.now() - t) / 60000))) : '';
+  if (ln && stationName) ln.textContent = stationName + (ika ? ' · ' + ika : '');
 }
 
 /* Scroll-helper */
@@ -19491,7 +19606,9 @@ function _havHaeSarja(st, hours) {
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d || d.error) return [null, d || null];
-        return [d.latest || null, d];
+        /* Lämpömittarin lippu on vastauksen juuressa; kortti lukee
+           `latest`iä, joten lippu kulkee sen mukana (UI 14). */
+        return [d.latest ? Object.assign({ lampomittari: d.lampomittari }, d.latest) : null, d];
       });
   }
   if (st.lahde === 'kruunuvuori') {
@@ -19587,7 +19704,7 @@ function _fmiDropdown(panelEl, stations, selected, onSelect) {
       + '<span class="fmi-station-trigger-name">' + st.name + '</span>'
       + (st.tag ? '<span class="fmi-dropdown-item-tag">' + st.tag + '</span>' : '')
       + '<span class="fmi-station-trigger-dist">' + st.km.toFixed(1) + ' km</span>'
-      + '<svg width="10" height="10" viewBox="0 0 10 10" style="flex-shrink:0;margin-left:auto"><polyline points="2,3 5,7 8,3" fill="none" stroke="#E4D8B8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      + '<svg width="10" height="10" viewBox="0 0 10 10" style="flex-shrink:0;margin-left:auto"><polyline points="2,3 5,7 8,3" fill="none" stroke="#5B6770" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   }
   updateTrigger(selected);
 
@@ -22711,6 +22828,18 @@ const Lahde = {
     this._el = document.getElementById('lahde-merkki');
     this.paivita();
   },
+  /* DATAN TUOREUS NÄKYVIIN (docs/julkaisu.md, UI 10). Kartalla ei ennen
+     kerrottu milloin ennuste on ajettu; nyt lähteen perässä on mallin
+     ajohetki paikallisessa ajassa. Vain varaston malleille — niiden ajo
+     on luettelossa. */
+  ajoTeksti(malli) {
+    const t = (typeof Saalaatat !== 'undefined') ? Saalaatat.ajo(malli) : null;
+    if (!t) return '';
+    const d = new Date(t), nyt = new Date();
+    const hh = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+    const samaPv = d.toDateString() === nyt.toDateString();
+    return 'ajo ' + (samaPv ? 'klo ' + hh : d.getDate() + '.' + (d.getMonth() + 1) + '. klo ' + hh);
+  },
   /* Nimi osuuksista (`Saalaatat.malliKohdassa`). Yksi malli yli 95 %:n
      osuudella on pelkkä nimensä; raja-alueella kaksi suurinta lyhyinä,
      suurempi ensin — sama nuolimuoto kuin spottikortin kaavion
@@ -22755,7 +22884,11 @@ const Lahde = {
         const o = Saalaatat.malliKohdassa(c.lat, c.lng,
           ViewportGrid.laattaStep(Math.round(State.map.getZoom())), LampoGL._hetki());
         if (!o) { if (this._el.textContent) { this._el.classList.add('nakyy'); return; } }
-        else varasto = this.nimiOsuuksista(o);
+        else {
+          varasto = this.nimiOsuuksista(o);
+          const ajo = this.ajoTeksti(o[0].malli);
+          if (ajo) varasto += ' · ' + ajo;
+        }
       }
       if (this._el.textContent !== varasto) this._el.textContent = varasto;
       this._el.classList.add('nakyy');

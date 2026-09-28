@@ -270,7 +270,10 @@ export default async function handler(req, res) {
     runko.ikkunaMin = Math.round((ikkuna[ikkuna.length - 1].ms - ikkuna[0].ms) / 60000);
     runko.pisteita = ikkuna.length;
     runko.latest = {
-      ws: v.ws, wd: v.wd, wg: v.wg, tmp: null,
+      /* Lippu myös tänne: kortti lukee historiavastauksesta `latest`in,
+         ja ilman lippua Larun kortissa näkyi tyhjä "Ilma · havainto —"
+         -laatta (docs/julkaisu.md, UI 14). */
+      ws: v.ws, wd: v.wd, wg: v.wg, tmp: null, lampomittari: false,
       time: hhmm(v.ms, tz), lastIso: new Date(v.ms).toISOString(),
       ageMin: Math.round((nyt - v.ms) / 60000),
     };

@@ -17,8 +17,12 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
 ## Rakenne
 
 - `index.html` — koko sovellus: CSS, HTML ja JS yhdessä tiedostossa (ei erillistä
-  `src/`-hakemistoa). MapLibre GL JS 5 (UMD) ladataan CDN:stä
-  `<script>`-tagilla. Leafletia ei ole enää: `L` on sovelluksen oma
+  `src/`-hakemistoa). MapLibre GL JS 5 (UMD) ladataan SAMASTA
+  originista (`/vendor/maplibre-gl-<versio>.js`, `defer`): Viten
+  `karttakirjasto`-plugin kopioi sen npm-paketista `public/vendor/`iin
+  (gitignoressa), ja build kaatuu jos `index.html`:n versio ja
+  `package.json`:n `maplibre-gl` eroavat — päivitä molemmat ja
+  `public/sw.js`:n kuorilista yhdessä. Leafletia ei ole enää: `L` on sovelluksen oma
   pieni yhteensopivuuskerros (`L.marker`, `L.latLng`, `L.Util`…) ja
   `State.map` on `KarttaGL`, Leafletin muotoinen julkisivu jonka
   `map.ml` on varsinainen MapLibre-kartta. Lämpökartta (`LampoGL`),
@@ -29,9 +33,20 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   sarjana (`malli.js`),
   aaltoennuste, vedenkorkeus, sade-ennuste GRIB2:sta,
   FMI:n aaltopoijut, Kruunuvuorenselän, Mellstenin, Larun ja Uiraan
-  mittausdata-proxyt).
+  mittausdata-proxyt, selaimen virheraportit `virhe.js`).
   ES-moduuleja, koska
   `package.json`:ssa on `"type": "module"` — `require()` ei toimi näissä.
+  Alaviivalla alkava tiedosto (`_suoja.js`) on apumoduuli eikä reitti.
+  **Jokainen funktio alkaa `if (!suojaa(req, res)) return;`** eikä
+  mikään vastaa `Access-Control-Allow-Origin`illa (docs/julkaisu.md,
+  L10): sovellus kutsuu samasta originista, ja jokeri antoi kenen
+  tahansa sivun käyttää palvelun FMI- ja Open-Meteo-kiintiötä.
+- `tools/savutesti.mjs` + `.github/workflows/ci.yml` ("Tarkistus") —
+  jokaisella pushilla `node --check api/*.js`, build ja Playwright-
+  savutesti (latausruutu poistuu, aikajana ja merkit syntyvät, kortti,
+  asetukset ja Tietoa aukeavat, Esc sulkee, ei `pageerror`ia). Paikallisesti
+  `PLAYWRIGHT_MODULE=/opt/node22/lib/node_modules/playwright/index.mjs
+  node tools/savutesti.mjs http://localhost:4173`.
 - `tools/tiilet.mjs` — säälaattojen rakennus kolmesta mallista: ECMWF
   (AWS Open Data, koko maapallo), FMI:n HARMONIE (Suomi) ja MET Nordic
   (Yr:n data, Pohjoismaat ja Baltia). Ajetaan GitHub Actionsissa neljästi
@@ -82,7 +97,13 @@ aikajanan korjausta raportoitiin rikkinäisiksi, ja jokainen raportti oli tehty
 deploysta jossa niitä ei ollut.
 
 Säälaatat ovat orpossa `saadata`-haarassa (aina tasan yksi committi,
-pakkopäivitys) ja ne haetaan `raw.githubusercontent.com`:sta.
+pakkopäivitys), ja sama työ julkaisee ne GitHub Pagesiin. Sovellus
+kokeilee ensin Pagesia (`jere-stack.github.io/wind/`) ja sitten
+`raw.githubusercontent.com`:ia (`SAALAATAT_KANNAT`); KAIKKI laatat haetaan
+siitä kodista josta luettelo tuli, ja toimiva koti muistetaan
+(`fs_saakanta`). Pages on 404 kunnes se kytketään repon asetuksista
+päälle — siihen asti raw hoitaa kaiken ja konsoliin tulee yksi
+CORS-virhe, joka ei ole vika.
 
 ---
 
@@ -105,7 +126,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
 | `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V9: yksi kaaviomoottori, kortti moduuleina, fonttilattia) |
 | `docs/sujuvuus.md` | **työpöydän** zoomin ja panoroinnin raskautta, windy.comin arkkitehtuuria, sujuvuusstrategiaa, **MapLibre-siirtoa (C2) ja sen mittauksia** |
-| `docs/julkaisu.md` | **julkaisukelpoisuutta**: UI-parannusten top 25, suositusjärjestys ja logiikan 10 kriittisintä kohtaa (27.9.) — lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
+| `docs/julkaisu.md` | **julkaisukelpoisuutta**: UI-parannusten top 25, suositusjärjestys ja logiikan 10 kriittisintä kohtaa (27.9.), ja **osa 4: mitä niistä toteutettiin 28.9. ja mikä jäi auki** (Pages, lisenssit, pohjakartan kieli) — lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 
 <details>
 <summary>Osioiden nimet tiedostoittain (jos et tiedä mistä etsiä)</summary>
@@ -214,7 +235,8 @@ kokeiltu ja kaadettu mittauksella.
   (Vaihe 0, A1–A4, B1–B3, C1–C2) · Suositus ja järjestys · Mitä ei
   ehdoteta
 - **julkaisu**: Design ja UI, top 25 (P0–P2) · Suositusjärjestys
-  (vaiheet 0–3) · Logiikka, top 10 (L1–L10)
+  (vaiheet 0–3) · Logiikka, top 10 (L1–L10) · Toteutus (28.9.): UI,
+  logiikka, auki
 
 </details>
 
@@ -222,10 +244,15 @@ kokeiltu ja kaadettu mittauksella.
 
 ## Työtavat — nämä pätevät joka tehtävässä
 
-**`npm run build`:n läpimeno ei ole todiste mistään.** Vite ei jäsennä
-`index.html`:n inline-skriptiä, joten syntaksivirhe menee buildista läpi ja
-kaataa vain selaimen. Tarkista skripti erikseen (`new Function(lohko)`) ja
-**lataa sivu selaimessa**.
+**`npm run build`:n läpimeno ei ole todiste mistään.** Build jäsentää
+nyt inline-skriptin (`tiivistys`-plugin, `minifySync`) ja kaatuu
+syntaksivirheeseen, mutta ajonaikainen virhe menee yhä läpi ja kaataa
+vain selaimen — **lataa sivu selaimessa** (tai aja `tools/savutesti.mjs`).
+Dev-serveri ei tiivistä, joten `npm run dev` näyttää lähteen sellaisenaan.
+Tiivistys poistaa vain kommentit ja sisennyksen (`compress: false`,
+`mangle: false`: ylätason nimet ovat globaaleja ja `onclick`- ja
+`?perf=1`-käytössä). CSS:ää EI ajeta oikean minifioijan läpi:
+lightningcss pudotti `-webkit-backdrop-filter`in.
 
 **Kun poistat lohkoja `index.html`:stä, tee se rivipohjaisesti.** Kerran lohkon
 loppua etsittiin ensimmäisenä `};`-esiintymänä ja se osui moduulin *sisällä*
@@ -487,6 +514,16 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   katossa, lähtö 3,3 s). Älä lisää odotusehtoa ilman kattoa, äläkä laske
   vähimmäisaikaa navigoinnin alusta (hitaalla verkolla se olisi jo
   kulunut kun ruutu syttyy).
+- **KÄYNNISTYKSEN VIRHE JA JUMI OVAT LATAUSRUUDUN OMIA TILOJA
+  (`Kaynnistys`), EIKÄ NIISSÄ OLE NAPPIA.** `main()`in kaatuminen →
+  "Kartta ei käynnistynyt. Napauta yrittääksesi uudelleen."; dataa ei
+  15 s:ssa (`JUMI_MS`) → "Lataus kestää. Napauta…". Napautus mihin
+  tahansa lataa sivun uudelleen — käyttäjän päätös ("ei laiteta nappia").
+  Jumissa lataus jatkuu ja ruutu lähtee normaalisti jos data tulee.
+  Ruutu EI aukea tyhjään karttaan ajastimella: vanha 12 s:n "Safety"
+  olisi tehnyt juuri sen (ja se oli kuollut, purettiin riviä ennen
+  `main()`ia). Nämä tekstit ovat virheilmoituksia, eivät ohje — sääntö
+  "ei Napauta jatkaaksesi -tekstiä" koskee normaalia latausta.
 - **TILAPALKKI ON VALKOINEN TUMMALLA, 19,65:1.** Latausruudun ylälaita on
   kartan `--bg`. Kun ruutu oli kermaa, valkoinen tilapalkki oli 1,32:1 ja
   tarvitsi erillisen tummennuksen (8,18:1); älä vaalenna ylälaitaa.
@@ -592,8 +629,31 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   Arialia. Vain perhe — koko ja paino ovat napin omia. Myös `<kbd>`
   on järjestelmäfonttia, ei tasalevyistä.
 - **KYTKIN ON YKSI: 40×24, 20 px:n nuppi, 16 px:n matka.**
-  Ennustepaneelin kytkin oli 36×20 ja nimi 10 px `--ink-3`; nyt sama
-  kuin asetuksissa ja nimi 12 px `--ink-2` (päällä `--ink`).
+  Ennustepaneelin kytkin oli 36×20 ja nimi 10 px `--ink-3`; se oli
+  sama kuin asetuksissa. Ennustepaneelissa ei ole enää kytkimiä:
+  aikarajaus on `.segmentti` (Kaikki päivät / Arki-illat / Viikonloppu),
+  koska "Kaikki päiväajat" ohitti muut eli kyse oli yksivalinnasta
+  (docs/julkaisu.md, UI 6).
+- **ENNUSTEPANEELI ON "PARHAAT AJANKOHDAT" JA "NYT"-LISTA, JA SE LUKEE
+  SAMAA SARJAA KUIN KORTTI** (`ForecastPanel._sarja` → `KorttiSarjat`
+  Paras, varatie `spot.wx`). Vain tulevat tunnit, kaikki spotit —
+  näkymärajaus sanoi ennen tyhjällä tuloksella "valitse suodatin" kun
+  syy oli ettei näkymässä ollut spotteja. "Nyt"-lista on nykyhetken
+  tunnilta (`Ennuste.nytTunti()`), ei aikajanan valinnasta, suosikit
+  ensin.
+- **KAPSELI VÄISTYY KUN SPOTTIKORTTI ON AUKI**
+  (`html:has(#sheet.open) #kapseli`). Kapseli lukee kartan keskipisteen
+  ja kortti spotin: mitattuna 2,6 ja 6,9 kts yhtä aikaa samalla
+  ruudulla. Ennustepaneelin kanssa kapseli jää.
+- **REITTIOHJE ON YKSI NAPPI** (`buildNavButtons`): Apple-laitteella
+  `maps.apple.com`, Androidilla `geo:`, muualla Google Mapsin
+  reittiosoite; Waze tekstilinkkinä alla. Kaksi tasavertaista nappia ei
+  tarjonnut iPhonella Apple Mapsia lainkaan.
+- **KORTIN MALLIVERTAILU ON AVAUTUVA RIVI** ("Vertaa kaaviossa",
+  `.en-vertailu`, `Ennuste._vertailuAuki`): kuusi sirua ja asettelu
+  olivat kahdella rivillä ennen yhtäkään havaintoa. Otsikko erottaa sen
+  asetusten "Kartan mallista" — sama nimi kahdelle eri vaikutukselle
+  oli UI 12.
 - **Tähti ja jakonappi ovat PIIRRETTYJÄ** (`_tahtiSVG`, `_JAKO_SVG`),
   eivät ☆/⇗-merkkejä. Jakonappi avaa kosketuslaitteella järjestelmän
   jakoarkin (`navigator.share`) ja kopioi työpöydällä linkin;
@@ -623,10 +683,12 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **Piilota valintaruutu leikkauksella, älä `display: none`llä.**
   Ennustepaneelin kytkimet olivat `display:none` eivätkä siksi
   fokusoitavissa edes paneelin ollessa auki.
-- **Päällekkäinen pinta kulkee `Modaali`-moduulin kautta.** Neljä pintaa
-  (asetukset, spottikortti, ennustepaneeli, pikanäppäimet), neljä eri
-  avaus- ja sulkupolkua — paneelikohtaiset kuuntelijat ajautuisivat
-  erilleen. Älä kirjoita viidettä polkua.
+- **Päällekkäinen pinta kulkee `Modaali`-moduulin kautta.** Pinnat
+  (asetukset, spottikortti, ennustepaneeli, pikanäppäimet, laaja näkymä,
+  Tietoa ja kertaopastus) avautuvat ja sulkeutuvat eri poluista —
+  paneelikohtaiset kuuntelijat ajautuisivat erilleen. Älä kirjoita omaa
+  fokuspolkua uudelle pinnalle. Opastus ja Tietoa ovat Esc-listan
+  ensimmäiset, koska ne avautuvat muiden päälle (Tietoa asetuksista).
 - **`aria-modal` EI pidättele sarkainta.** Se hoitaa vain ruudunlukijan;
   ansa on tehtävä itse (yksi dokumenttitason kuuntelija, pinon
   päällimmäinen). `inert` ei kelpaa, koska paneelit ovat `#app`:n sisällä.
@@ -1907,8 +1969,19 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   merkki ja sen kortti näyttävät saman indeksin (ennen 82 vs 46).
   `spot.wx` on yhä olemassa: se on varatie (varasto rikki, Paras
   matkalla) ja sää-rivien lähde (sade mm/h, lämpötila, pilvet), joita
-  varastossa ei ole. Ennustepaneeli ja lähimmän pisteen muut käytöt
-  lukevat yhä sitä.
+  varastossa ei ole. Lähimmän pisteen muut käytöt lukevat yhä sitä;
+  ennustepaneeli luki sitäkin ja antoi siksi eri luvun kuin kortti
+  (docs/julkaisu.md, L5) — nyt se lukee Parasta.
+- **KELIN KYNNYKSET OVAT YHDESSÄ TAULUKOSSA (`Keli`), JA INDEKSI ON
+  0–100.** Samaa päätöstä teki viisi taulukkoa, ja ne olivat eri mieltä
+  (merkki "Tyyni" alle 4 m/s, selite alle 2; "Liian kova" 18 vs 22;
+  kolme puuskarajaa). Nyt 2 / 4 / 6 / 8 / 13 / 18 m/s ja puuska 1,25 /
+  1,6, ja foil-merkki, indeksin nopeuskäyrä, puuskasana ja -rangaistus,
+  kaavion foilausraja ja kelihyppy lukevat kaikki sitä. "Hyvä" alkaa
+  8:sta, jotta kelihyppy vie aina tuntiin jota merkki kutsuu hyväksi.
+  Indeksin katto oli oikeasti 90 (60 nopeus + 30 suunta);
+  `INDEKSI_SKAALA` venyttää osat 67 + 33:een, jotta "N / 100" ja osien
+  summa täsmäävät. Älä kirjoita kynnystä käyttöpaikkaan.
 - **AIKAJANA LUKEE VARASTOA, ei lähintä ennustepistettä**
   (`aikajananLahde`). Valinta tehtiin YHTENÄISYYDEN perusteella, ei
   tarkkuuden — älä purkaa sitä tarkkuudella ilman uutta mittausta.
@@ -1986,6 +2059,17 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   merkkijonossa on vyöhykettä — kenttä hajoaa leveillä näkymillä.
 - **Piste joka ei kata pyydettyä hetkeä jätetään pois kentästä**, ei kiinnitetä
   sarjansa päähän.
+- **PALUU TAUSTALTA ON UUDELLEENLATAUS, EI OSIEN PÄIVITYS** (`Paluu`,
+  docs/julkaisu.md L7). ≥ 30 min taustalla → sivu ladataan uudelleen,
+  näkymä ja auki ollut spotti säilyvät (sessionStorage) mutta aika
+  palaa nykyhetkeen; 5–30 min → vain nyt-valinta siirtyy uuteen
+  nyt-tuntiin, käyttäjän itse valitsemaa tuntia ei siirretä. Osien
+  päivitys paikallaan olisi viisi polkua (luettelo, havainnot, ennuste,
+  nykyhetki, kortti), joista jokainen voisi jäädä vanhaan.
+- **SELAIMEN VIRHEET MENEVÄT `/api/virhe`:en** (`VirheRaportti`,
+  `sendBeacon`): viesti, pinon alku, versio, polku — ei sijaintia eikä
+  koordinaatteja, ja Tietoa-näkymän tietosuojateksti sanoo saman. Jos
+  lisäät kenttiä, päivitä molemmat.
 - **`/api` ei kuulu service workerin välimuistiin.** Sovelluksella on oma
   ennustevälimuisti joka osaa merkitä datan vanhaksi. Säälaatat ovat eri asia:
   ne ovat muuttumattomia ja versioituja (`?v=<ajoAika>`).

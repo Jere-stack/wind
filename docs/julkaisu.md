@@ -1,7 +1,8 @@
 # Julkaisukelpoisuus — UI:n top 25, suositusjärjestys ja logiikan top 10
 
-27.9.2026. Tämä on päätöspohja, ei toteutus. Käyttäjä valitsee mitä
-tehdään, tai mennään suositusjärjestyksessä (osa 2).
+27.9.2026. Osat 1–3 ovat päätöspohja. Käyttäjä valitsi 28.9. UI:sta
+kohdat 1–4, 6–20, 22 ja 25 sekä logiikasta L1–L10; **mitä tehtiin ja mitä
+jäi auki on osassa 4** (lopussa). Tekemättä jätettiin UI 5, 21, 23 ja 24.
 
 **Miten tämä tehtiin.** `npm run build` + `vite preview`, Chromium
 puhelimena (390×844, `hasTouch`, `isMobile`, Europe/Helsinki) ja
@@ -336,3 +337,71 @@ sovelluksestaan — sovelluksen kiintiöllä ja Vercelin funktioajalla
 kertaa, ja osa sisällöstä tulee ulkoisista vastauksista (asemanimet,
 kaavitut sivut). → CORS omaan originiin, kevyt rajoitin, ulkoisten
 merkkijonojen escapointi tarkistettava.
+
+---
+
+## Osa 4 — Toteutus (28.9.)
+
+Käyttäjän valinta: UI 1–4, 6–20, 22, 25 ja L1–L10. UI 1:een
+nimenomainen tarkennus: **latausruudulle ei tule nappia**, vaan kun
+näkymä jumittaa, napautus mihin tahansa yrittää uudelleen. Tekemättä
+jätettiin UI 5 (numerot suomeksi), 21 (lisää spotteja, oma paikka), 23
+(työpöydän asettelu, lukittu aikajana) ja 24 (heron viestit).
+
+Tarkistus: `npm run build` + `vite preview`, Chromium puhelimena
+(390×844, `hasTouch`, iPhone-UA reittiohjeen tarkistukseen) ja
+työpöytänä (1440×900), `serviceWorkers: 'block'`. Kuvakaappaukset
+latausruudun virhetilasta, opastuksesta, kartasta, kortista (hero,
+indeksin selite, vertailu kiinni/auki/valittu, reittiohje),
+ennustepaneelista, asetuksista ja Tietoa-näkymästä.
+`tools/savutesti.mjs`: puhelin ja työpöytä, latausruutu pois 7,5 s,
+381 tikkiä, 0 virhettä. Ei WebKitiä eikä oikeaa laitetta.
+
+### UI
+
+| # | tila | mitä tehtiin |
+|---|---|---|
+| 1 | tehty | Latausruudulla kaksi tilaa (`Kaynnistys`): `virhe` kun `main()` kaatuu ("Kartta ei käynnistynyt. Napauta yrittääksesi uudelleen."), `jumi` kun dataa ei ole 15 s:ssa ("Lataus kestää. Napauta…"). Napautus mihin tahansa lataa sivun uudelleen; ei nappia. Jumissa lataus jatkuu ja ruutu lähtee normaalisti jos data tulee — ei aukea tyhjään karttaan. Mitattu MapLibre estettynä: teksti näkyy, napautus lataa. Kortin kaavio: epäonnistuminen tai 15 s ilman sarjaa → teksti vaihtuu ja kaavion napautus yrittää uudelleen. Ennustepaneelin tyhjätila kertoo syyn. `#rl-banner` poistettu, rajoitus on Verkkotilan tila `'raja'`. |
+| 2 | tehty | Tietoa-näkymä (`#tietoa`): mikä sovellus on, lähteet ja lisenssit, tietosuoja, palaute, versio. `.paneeli-yla`, `Modaali`, Esc-lista. Avataan asetusten alalaidasta ja kartan ⓘ-pilleristä. |
+| 3 | tehty | Aloitusnäkymä rajataan spottien alueeseen (`_keskitaRannikolle`, z ≤ 10); suosikit ja jaettu linkki voittavat. Latausruudun JÄLKEEN kolmen kortin kertaopastus (`Opastus`, `fs_opastus`: väri = nopeus asteikon kanssa, aikajana, spotit ja napit), väriasteikko kerran. Jaettu spottilinkki siirtää opastuksen seuraavaan käynnistykseen. |
+| 4 | tehty | Kapseli piiloon kun kortti on auki (`html:has(#sheet.open)`). Vedenlämmön kaavio jatkuu tuoreimpaan mittaukseen, joten laatta ja kaavio päättyvät samaan lukuun. Vedenkorkeus: "Vedenkorkeus · ennuste" + "havainto nyt +N cm · asema". |
+| 6 | tehty | `.segmentti` (Kaikki päivät / Arki-illat 16–22 / Viikonloppu), nimet musteella, alaotsikko sanoo mitä lasketaan ("parhaat 3 tunnin jaksot"). |
+| 7 | tehty | Kärkilistan symboli, ja nimilaput nappien vieressä kolmella ensimmäisellä käynnistyksellä 7 s tai ensimmäiseen kosketukseen (`Nappinimet`). |
+| 8 | tehty | Indeksirengas on nappi; napautus avaa selitteen heron sisään (nopeus + suunta − puuska, mikä on hyvä). Asteikko 0–100 (L4). |
+| 9 | tehty | Tekstikierros: osuvuus, mallivihje, hajontarivi ("ennuste voi vielä muuttua"), mallikuvaukset lyhennetty; tekninen kuvaus Tietoa-näkymään. |
+| 10 | tehty | Lähdemerkinnässä mallin ajohetki (`Lahde.ajoTeksti`, `Saalaatat.ajo`: "ajo klo 15"). |
+| 11 | tehty | Kortin mallivertailu on yksi avautuva rivi "Vertaa kaaviossa · valitut" (`.en-vertailu`, `aria-expanded`); sirut ja Päällekkäin/Allekkain avautuvat sen alle. Tila pysyy tunnin vaihdon yli (`Ennuste._vertailuAuki`). |
+| 12 | tehty | Asetuksissa "Kartan malli", kortissa "Vertaa kaaviossa"; nimet rekisteristä. |
+| 13 | tehty | Asemavalitsin ja paneelin nimet musteella, puuskaisuus ei enää punaista/ruskeaa tekstiä. |
+| 14 | tehty | Syy oli `api/laru.js`:n `latest`, josta puuttui `lampomittari: false` (vain sarjassa). Korjattu proxyssä ja asiakkaassa; laatta piiloutuu. |
+| 15 | tehty | `.mctl`-kontrollit ja `.up-option`-rivit ovat `<button>`eja (`aria-pressed`), `#rl-banner` poistui. |
+| 16 | tehty | `og:`-tagit ja `twitter:card summary`; kuvana `icon-512.png`. Osoite on absoluuttinen vain Vercel-buildissa (`__SIVU_URL__` ← `VERCEL_PROJECT_PRODUCTION_URL`), lähteessä ei host-nimeä. |
+| 17 | tehty | `AsennusVihje`: toisella käynnillä, ei työpöydällä eikä kotivalikon apissa; iOS:lle ohje, Androidille `beforeinstallprompt`. Suljettava, muistetaan. |
+| 18 | tehty | `suuntaNuoliSVG` kierrettynä tarkkaan asteeseen kortissa ja paneeleissa; `dirArrow` jää vain `textContent`-kenttiin. |
+| 19 | osin | Tagline "Wingfoil-sää". **Pohjakartan englanninkieliset nimet jäivät**: ne ovat Esrin rasterilaatoissa, ja suomenkielinen pohja vaatii pohjakartan vaihdon (vektoripohja tai avaimellinen palvelu) — käyttäjän päätös. |
+| 20 | tehty | Ennustepaneelin ylimpänä "Nyt": kaikki spotit indeksin mukaan, suosikit ensin, nykyhetken tunnilta. |
+| 22 | tehty | Asetukset ryhmiksi (Kartta / Havainnot kartalla / Tietoa), väriasteikko yksikön viereen, linkkirivi ja versio alalaitaan. |
+| 25 | tehty | Yksi "Reittiohje": Apple-laitteella `maps.apple.com`, Androidilla `geo:` (järjestelmän oletuskartta), muualla Google Mapsin reittiosoite. "Avaa Wazessa" tekstilinkkinä alla. |
+
+### Logiikka
+
+| # | tila | mitä tehtiin |
+|---|---|---|
+| L1 | tehty | Ks. UI 1. Vanha "Safety"-ajastin oli kuollut (purettiin riviä ennen `main()`ia). |
+| L2 | tehty | MapLibre `public/vendor/maplibre-gl-<versio>.js` + `defer`, kopioidaan npm-paketista buildissa (`karttakirjasto`). Build kaatuu jos `index.html`:n versio ja paketti eroavat. SW:n kuoreen. |
+| L3 | tehty, **vaatii käyttäjän kytkennän** | Säälaatat julkaistaan myös GitHub Pagesiin (`saadata.yml`), ja sovellus kokeilee Pagesia ensin, raw'ta varatienä; toimiva koti muistetaan (`fs_saakanta`). **Pages on 404 kunnes se kytketään päälle** (Settings → Pages → Source: GitHub Actions); siihen asti raw toimii kuten ennen, konsoliin tulee yksi CORS-virhe. Rajapintavaratien erät kohdistetaan globaaliin 3 × 5 solmun lohkoon (sama osoite kaikille → CDN-osuma), ja `api/harmonie.js` muistaa pisteet 30 min ja yhdistää samanaikaiset haut. |
+| L4 | tehty | `Keli`-taulukko: yksi kynnyssarja (2 / 4 / 6 / 8 / 13 / 18 m/s, puuska 1,25 / 1,6) foil-merkille, indeksille, puuskasanalle, kaavion rajalle ja kelihypylle. Indeksi skaalattu 0–100:aan (`INDEKSI_SKAALA`), osat summautuvat näkyvästi. |
+| L5 | tehty | Parhaat ajankohdat lukee `KorttiSarjat`in Parasta (sama kuin kortti ja merkit), vain tulevat tunnit, kaikki spotit. |
+| L6 | koodi tehty, **selvitys käyttäjälle** | Lähteet ja lisenssit Tietoa-näkymässä, "Powered by Esri" + ⓘ kartalla. Auki: Esrin, CARTOn ja Open-Meteon (ei-kaupallinen) käyttöehdot julkaisulle sekä Surfing ry:n ja dlarah.orgin lupa datan näyttämiseen. |
+| L7 | tehty | `Paluu`: ≥ 30 min taustalla → uudelleenlataus (näkymä ja auki ollut spotti säilyvät, aika nykyhetkeen); 5–30 min → nyt-valinta siirtyy uuteen nyt-tuntiin. |
+| L8 | tehty | `tiivistys`-plugin: inline-JS `minifySync` (ei nimien lyhennystä eikä muunnoksia), CSS:stä kommentit ja sisennys, HTML-kommentit pois. Nyt 575 kB / gzip 167,5 kB. Jäsennysvirhe inline-skriptissä KAATAA buildin. lightningcss kokeiltiin ja hylättiin: se pudotti `-webkit-backdrop-filter`in. |
+| L9 | tehty | `.github/workflows/ci.yml` (Tarkistus): `node --check api/*.js`, build, `tools/savutesti.mjs` Chromiumilla. `VirheRaportti` → `POST /api/virhe` (`sendBeacon`, katkaistut kentät, ei sijaintia) → Vercelin loki `[selainvirhe]`. |
+| L10 | tehty | `Access-Control-Allow-Origin: *` pois kaikista funktioista (sovellus kutsuu samasta originista). `api/_suoja.js`: IP-kohtainen säiliö 300 pyyntöä, täyttö 5/s, 429 + `Retry-After`. `fmi.js`:n debug-reitit vain `FS_DEBUG=1`:llä, koordinaattien ja FMISIDin validointi, ulkoiset nimet `escHtml`/merkkisuodatin. |
+
+### Auki (käyttäjän päätös tai toimenpide)
+
+- **GitHub Pages päälle** (L3) — muuten laattojen CDN-koti ei ole käytössä.
+- **Lisenssit ja luvat** (L6) — ks. yllä.
+- **Pohjakartan kieli** (UI 19) — pohjakartan vaihto.
+- **`index.html`:stä puuttuu `<!DOCTYPE html>`** (sivu on quirks-tilassa). Vanha, ei muutettu: lisäys voi siirtää asettelua, ja se on mitattava erikseen.
+- Palautelinkki vie GitHubin issueihin (`github.com/Jere-stack/wind/issues`); julkisessa julkaisussa kannattaa harkita sähköpostia tai lomaketta.
