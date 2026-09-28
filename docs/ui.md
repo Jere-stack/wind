@@ -6282,3 +6282,125 @@ siipi nousee kuten ennen, ja spotti jää paikalleen häipyen (0,6).
 Mitattu: nimi 16,34:1, alanimi 6,48:1, tilarivi 7,25:1, tilapalkki
 19,65:1 (ennallaan); animaatioita esittelyssä 47 ja levossa 24;
 `compositeFailed` 0 latausruudussa; savutesti läpi, 0 sivuvirhettä.
+
+## Latausruutu vuorokaudenajan mukaan: Helsinki, nivelletty kuski ja hyppy (28.9.)
+
+Pyyntö: "oikeampi wingfoilaaja joka hyppäisi tai liukuisi rennommin",
+tausta "oikeampi Helsingin merimaisema", ja se vaihtuu kellonajan
+mukaan (yö, päivä, ilta). Strategia esitettiin ensin ja käyttäjä
+hyväksyi kaikki kolme vaihetta sekä ehdotetut sääntöpoikkeukset.
+
+### 1. Kuski: nivelletty, rento liuku, hyppy lähtönä
+
+Ennen kuski oli yksi jäykkä kuva, jota keinutettiin kokonaisena. Nyt
+osat ovat sisäkkäisiä kerroksia samassa 300 yksikön laatikossa, ja
+jokaisella on oma nivelpisteensä:
+
+```
+kerros      nivel (yks.)   liike                          jakso
+#lr-keinu   foili 148,258  nousu ja loiva kaarto ±1,3°    5,2 s
+#lr-jalat   nilkat y 200,5 polvijousto scaleY 1 → .93     2,6 s
+#lr-yla     lantio 145,156 laskee 3,1 yks. (sama käyrä)   2,6 s
+#lr-kasi    olkapää 146,118 ±2,4°                         3,4 s
+#lr-siipi   käsi 183,88    lepatus ±2,6°                  2,2 s
+```
+
+- **Jousto ilman irtoamista:** jalat lyhenevät nilkoista (`scaleY`), ja
+  ylävartalo laskee saman verran samalla käyrällä ja ajalla (44,5 × 7 %
+  = 3,1 yks. = 1,04 % laatikosta). Kaksi kompositorin animaatiota
+  samalla ajoituksella pysyvät tahdissa.
+- **Rentous on eri jaksoista.** Osat eivät liiku samassa tahdissa, joten
+  kuvio ei toistu mekaanisena pumppauksena.
+- **Asento:** siipi on sivulla nokka ylhäällä etukäden varassa, takakäsi
+  roikkuu ja vartalo nojaa siivestä poispäin. Ensimmäinen versio piti
+  siipeä vaakatasossa pään yllä, ja se luki sateenvarjona. Puomi kulki
+  toisessa versiossa pään läpi; siipeä nostettiin ja kiertoa pienennettiin
+  (−6°), jolloin puomi on pään yllä.
+- Mittasuhteet: pää noin 1/7 pituudesta, reidet 11 ja sääret 7,6 yks.
+  paksut, vartalo 17 yks. ja hartiat erikseen, kypärän lippa kertoo
+  katseen suunnan.
+
+**Hyppy on lähtö** (`lr-hyppy`, 0,85 s), koska 1,3 s:n esittelyyn se ei
+mahdu pidentämättä ruutua:
+
+```
+0–18 %    lastaus: polvet painuvat, rigi kallistuu taakse   (.3,0,.6,1)
+18–52 %   ponnistus lakeen: +20 % oikealle, −24 % ylös      (.2,.75,.35,1)
+52–100 %  lento pois: 95vw, −36 %, −16°                     (.55,0,.85,.45)
+```
+
+Foili nousee vedestä (vesikerros on kuskin päällä, joten masto tulee
+näkyviin), ponnistuksen roiske (`#lr-ponnistus`, yksi elementti
+varjokopioina) irtoaa maston juuresta, ja kamera nousee perässä
+(`#lr-nayttamo` 4 % alas ja 1,05). Häivytys alkaa vasta 0,4 s (ennen
+0,28), jotta laki 0,44 s kohdalla nähdään, ja `display: none` on 900 ms.
+
+### 2. Helsinki mereltä
+
+Staattinen vektorisiluetti taivaanrannalla (`#lr-kaupunki`, noin 3 kB),
+kaksi syvyyttä:
+
+- **Kaupunki kaukana:** Olympiastadionin torni, Tuomiokirkko
+  kulmakupoleineen, Uspenski, matala kaupunkimassa ja laiva.
+- **Saaret lähempänä:** Lauttasaaren ranta, Suomenlinna kirkkomajakkoineen
+  ja Harmajan majakka.
+- Yöllä ikkunoissa ja laivassa on valot, ja Harmajan majakka välähtää 4 s
+  välein (yksi animaatio; kirkkaus on elementin staattinen `opacity`,
+  välähdys sen `::before`, koska muuttuja avainkuvassa ei ole
+  kompositorin arvo).
+- Leveys on vähintään 760 px, joten maamerkit ovat puhelimellakin
+  tunnistettavan kokoisia. Ne on sijoitettu keskelle (x 280–760 / 1000),
+  mutta kuskin vartalon kohdalle ei ole jätetty mitään.
+
+### 3. Vuorokaudenaika
+
+`<head>`in `LR_PALETTI` laskee auringon korkeuden Helsingissä
+(60,17 N, 24,94 E) kellosta ja sekoittaa viiden ankkurin paletin
+lineaarisesti korkeuden mukaan: yö −14°, sininen hetki −6°, hämärä −1°,
+kultainen valo 5°, päivä 22°. Muuttujat menevät juurielementtiin ennen
+ensimmäistä maalausta (#loading ei ole vielä jäsennetty), ja CSS:n
+oletusarvot ovat yön, joten ilman skriptiä ruutu on sama kuin ennen.
+Värit ovat rgb-kolmikkoja, jotta alfa toimii ilman `color-mix`iä.
+
+Muuttuvat: taivaan kolme sävyä, meri taivaanrannasta vesiviivaan,
+horisontin hehku, kaupunki ja saaret, ikkunavalot, tähdet (46 kpl,
+yksi elementti), aurinko tai kuu, valon polku merellä, vinjetin
+voimakkuus ja kuskin asu. Aurinko näkyy kun se on korkeintaan 3° alla,
+ja taivaanrantaan päättyvä kääre piilottaa sen meren taakse; kuu on
+yön merkki eikä tähtitieteellinen paikka.
+
+**Hyväksytyt sääntöpoikkeukset:**
+
+1. Päivällä taivas vaalenee, mutta yläreuna pysyy niin tummana että
+   tilapalkin valkoinen on vähintään 10:1.
+2. Ilta on haalea kupari ja ruusu (`168,128,132` taivaanrannassa), ei
+   rampin kylläistä oranssia — tuulijuovien väri tarkoittaa yhä nopeutta.
+3. Kuski on valoisalla tumma vastavalosiluetti, pimeällä paperia.
+   Vaihto on kerralla −3°:ssa: liukuva välisävy olisi harmaa.
+
+Kotivalikon käynnistyksen välähdys (`background_color`) on yhä tumma;
+päivällä kohtauksen yläosa on tummansininen, joten hyppy on pieni.
+
+### Mitattu
+
+```
+                      yö      sininen  ilta     päivä
+tilapalkki (heikoin)  18,38   15,51    15,97    10,54   (raja 10)
+nimi                  16,34   16,34    16,34    16,34
+alanimi                6,48    6,48     6,48     6,48
+tilarivi               7,25    7,25     7,25     7,25
+```
+
+Ensimmäisellä mittauksella tilapalkki jäi yöllä 7,80:1:een (tähti
+ylimmässä 44 px:ssä) ja päivällä 9,60:1:een (korkean auringon hehku).
+Tähdet alkavat nyt 64 px:stä, ja aurinko pysyy taivaan alapuoliskossa
+pienemmällä hehkulla.
+
+Animaatioita esittelyssä 52 (ennen 47) ja levossa 28 (ennen 24):
+kolme niveltä ja majakka. `compositeFailed` 0 latausruudussa (päivä,
+lähtö mukaan lukien). Savutesti läpi, 0 sivuvirhettä. Vaimennettu
+liike: 0 animaatiota, pysäytyskuva oikeassa vuorokaudenajassa.
+
+Hyppyä kuvattaessa mittari piti korjata: se jäädytti lähdössä vain
+siirtymät, ja hyppy on avainkuva-animaatio, joten ensimmäinen
+kuvasarja näytti kuskin seisovan paikallaan.

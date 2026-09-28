@@ -225,7 +225,8 @@ kokeiltu ja kaadettu mittauksella.
   Kaaviot yhdeksi moottoriksi ja spottikortti moduuleiksi ·
   Aikajana: palkit kaavion värisiksi, päivän pilleri paikalleen ·
   Uusi merkki: siipi ja tuuli — ja latausruudun viimeistely ·
-  Merkki yksinkertaistui: siipi ja spotti
+  Merkki yksinkertaistui: siipi ja spotti ·
+  Latausruutu vuorokaudenajan mukaan: Helsinki, nivelletty kuski ja hyppy
 - **pwa**: PWA — kotivalikkoon ja rannalle · Mitä välimuistiin menee ·
   Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
   Ikoni ja kotivalikko
@@ -469,9 +470,35 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   heikoimmillaan 1,62:1, ja sama pätee liikkuvaan kohtaukseen.
 - **VÄRI ON NOPEUS MYÖS LATAUSRUUDULLA.** Tuulijuovan väri on rampin
   ankkuri sillä nopeudella jolla sen arkki kulkee (5,5–12 m/s,
-  `tools/ikoni.mjs` `TUULI`); kaikki muu on paperia (`#F0E7CE`),
-  myös edistymispalkki. Magentaa ei ruudulla ole, joten `--accent`
+  `tools/ikoni.mjs` `TUULI`); nimilohko, merkki ja edistymispalkki ovat
+  paperia (`#F0E7CE`). Magentaa ei ruudulla ole, joten `--accent`
   palkissa sanoisi 20 m/s — ja se on tummalla himmein vaihtoehto.
+- **LATAUSRUUTU SEURAA VUOROKAUDENAIKAA** (docs/ui.md, "Latausruutu
+  vuorokaudenajan mukaan"). `<head>`in `LR_PALETTI` laskee auringon
+  korkeuden Helsingissä ja sekoittaa viiden ankkurin paletin (yö,
+  sininen hetki, hämärä, kultainen valo, päivä) `--lr-*`-muuttujiin
+  ENNEN ensimmäistä maalausta; testaus `?aika=yo|sininen|ilta|paiva`
+  tai `?aurinko=<astetta>`. Käyttäjän hyväksymät poikkeukset
+  aiempiin sääntöihin: (1) päivällä taivas vaalenee, mutta yläreuna
+  pysyy niin tummana että tilapalkin valkoinen on VÄHINTÄÄN 10:1
+  (mitattu päivä 10,54, ilta 15,97, sininen 15,51, yö 18,38); (2)
+  illan valo on haalea kupari/ruusu, EI rampin kylläistä oranssia; (3)
+  kuski on valoisalla (aurinko yli −3°) TUMMA vastavalosiluetti ja
+  pimeällä paperia — vaihto on kerralla, ei liukuen (välisävy harmaa).
+  Nimilohkon alla on AINA sama syvä meri: tekstien kontrastit ovat
+  samat joka vaiheessa (16,34 / 6,48 / 7,25). Tähtiä ei ylimpään 64
+  px:iin eikä aurinkoa taivaan puoliväliä ylemmäs, koska molemmat
+  vaalensivat tilapalkin alustaa (7,80:1 ja 9,60:1 ennen rajausta).
+- **KUSKI ON NIVELLETTY, JA LÄHTÖ ON HYPPY.** Osat ovat sisäkkäisiä
+  kerroksia omilla nivelpisteillään (`#lr-jalat` nilkoista `scaleY`,
+  `#lr-yla` lantiosta SAMALLA käyrällä ja ajalla, `#lr-kasi`
+  olkapäästä, `#lr-siipi` kädestä). Jos muutat jalkojen joustoa, muuta
+  ylävartalon siirtoa samassa suhteessa (44,5 yks. × jousto), muuten
+  lantio irtoaa reisistä. Siipi pysyy SIVULLA nokka ylhäällä: pään yllä
+  vaakatasossa kelluva siipi luki sateenvarjona. Lähtö `.out` ajaa
+  `lr-hyppy`-avainkuvat (lastaus, ponnistus, lento, 0,85 s), ja
+  ruudun häivytys alkaa vasta 0,4 s, jotta laki (0,44 s) nähdään;
+  `display: none` 900 ms.
 - **KAIKKI LATAUSRUUDUN LIIKE ON `transform`IA TAI `opacity`Ä
   HTML-ELEMENTEILLÄ.** Ei canvasia, ei SVG-attribuutteja, ei
   `stroke-dashoffset`ia, ei `width`iä: käynnistyksen aikana pääsäie on
@@ -536,9 +563,10 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   olisi tehnyt juuri sen (ja se oli kuollut, purettiin riviä ennen
   `main()`ia). Nämä tekstit ovat virheilmoituksia, eivät ohje — sääntö
   "ei Napauta jatkaaksesi -tekstiä" koskee normaalia latausta.
-- **TILAPALKKI ON VALKOINEN TUMMALLA, 19,65:1.** Latausruudun ylälaita on
-  kartan `--bg`. Kun ruutu oli kermaa, valkoinen tilapalkki oli 1,32:1 ja
-  tarvitsi erillisen tummennuksen (8,18:1); älä vaalenna ylälaitaa.
+- **TILAPALKKI ON VALKOINEN TUMMALLA, VÄHINTÄÄN 10:1 JOKA
+  VUOROKAUDENAIKANA.** Yöllä ylälaita on kartan `--bg` (18,38:1),
+  päivällä tummansininen (10,54:1). Kun ruutu oli kermaa, valkoinen
+  tilapalkki oli 1,32:1; älä vaalenna ylälaitaa alle rajan.
 - **MERKKI ON SIIPI JA SPOTTI, JA SE SYNTYY `tools/ikoni.mjs`:STÄ.**
   Wingfoil-siipi yhtenä umpinaisena muotona (etureuna, jättöreuna ja
   alareunan lovi = puomi) ja kärjen yläpuolella pallo = spotti, molemmat

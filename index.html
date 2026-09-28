@@ -53,6 +53,80 @@
     }
   } catch (e) { /* eheyton arvo: pysytaan oletuksessa */ }
 })();
+/* LATAUSRUUDUN VUOROKAUDENAIKA ennen ensimmäistä maalausta. Auringon
+   korkeus Helsingissä (60,17 N, 24,94 E) lasketaan kellosta, ja sen
+   mukaan sekoitetaan viiden ankkurin paletti (yö, sininen hetki, hämärä,
+   kultainen valo, päivä). Muuttujat menevät juurielementtiin, koska
+   #loading ei ole vielä jäsennetty. Testaus: `?aurinko=-20` (asteina)
+   tai `?aika=yo|sininen|ilta|paiva`.
+   ÄÄRIARVOT OVAT SÄÄNTÖJÄ, EIVÄT MAKUASIOITA (docs/ui.md, "Latausruutu
+   vuorokaudenajan mukaan"): taivaan yläreuna pysyy niin tummana että
+   tilapalkin valkoinen on vähintään 10:1 (päivälläkin 12,3:1), ilta on
+   haalea kupari eikä rampin kylläinen oranssi, ja nimilohkon alla on
+   aina sama syvä meri. */
+var LR_PALETTI = (function () {
+  /* [korkeus, t0, t1, t2, m0, m1, hehku, hehku-a, kaupunki, saari,
+      valot, tähdet, polku, polku-a, vinjetti-a] */
+  var A = [
+    [-14, [6,9,18],   [10,18,36],  [22,37,74],    [12,22,49],   [8,16,35],  [150,185,235], .15, [15,27,54],   [9,17,42],   1,   .9,  [240,231,206], .10, .5],
+    [-6,  [9,14,36],  [24,34,76],  [70,86,138],   [30,44,86],   [12,22,50], [175,180,230], .22, [27,37,70],   [16,24,50],  .85, .25, [200,205,235], .10, .45],
+    [-1,  [14,19,44], [52,52,92],  [168,128,132], [70,62,94],   [22,28,58], [220,160,140], .30, [44,42,74],   [26,27,50],  .45, 0,   [236,190,160], .22, .4],
+    [5,   [20,33,66], [66,86,128], [206,170,150], [86,98,128],  [26,42,70], [236,196,168], .28, [60,68,98],   [34,44,70],  .15, 0,   [246,214,180], .30, .35],
+    [22,  [28,53,88], [63,108,152],[169,195,216], [76,116,148], [29,58,87], [236,244,255], .25, [104,134,164],[56,86,114], 0,   0,   [255,250,236], .18, .3]
+  ];
+  function korkeus(ms) {
+    var d = ms / 864e5 - 10957.5, r = Math.PI / 180;
+    var g = (357.529 + .98560028 * d) * r, q = 280.459 + .98564736 * d;
+    var L = (q + 1.915 * Math.sin(g) + .02 * Math.sin(2 * g)) * r, e = (23.439 - 3.6e-7 * d) * r;
+    var ra = Math.atan2(Math.cos(e) * Math.sin(L), Math.cos(L)), dec = Math.asin(Math.sin(e) * Math.sin(L));
+    var ha = ((18.697374558 + 24.06570982441908 * d) * 15 + 24.94) * r - ra, lat = 60.17 * r;
+    return Math.asin(Math.sin(lat) * Math.sin(dec) + Math.cos(lat) * Math.cos(dec) * Math.cos(ha)) / r;
+  }
+  var h;
+  try {
+    var q = location.search, m = q.match(/[?&]aurinko=(-?[\d.]+)/), n = q.match(/[?&]aika=(\w+)/);
+    var nimet = { yo: -20, sininen: -6, ilta: 1, paiva: 30 };
+    h = m ? +m[1] : (n && n[1] in nimet) ? nimet[n[1]] : korkeus(Date.now());
+  } catch (e) { h = -20; }
+  var i = 0;
+  while (i < A.length - 1 && h > A[i + 1][0]) i++;
+  var a = A[i], b = A[Math.min(i + 1, A.length - 1)];
+  var f = b[0] === a[0] ? 0 : Math.max(0, Math.min(1, (h - a[0]) / (b[0] - a[0])));
+  function sek(k) {
+    var x = a[k], y = b[k];
+    if (typeof x === 'number') return (x + (y - x) * f).toFixed(3);
+    return [0, 1, 2].map(function (j) { return Math.round(x[j] + (y[j] - x[j]) * f); }).join(',');
+  }
+  var hex = function (k) { return 'rgb(' + sek(k) + ')'; };
+  var v = {
+    '--lr-t0': sek(1), '--lr-t1': sek(2), '--lr-t2': sek(3), '--lr-m0': sek(4), '--lr-m1': sek(5),
+    '--lr-hehku': sek(6), '--lr-hehku-a': sek(7), '--lr-kaupunki': hex(8), '--lr-saari': hex(9),
+    '--lr-valot': sek(10), '--lr-tahdet-a': sek(11), '--lr-polku': sek(12), '--lr-polku-a': sek(13),
+    '--lr-vinjetti-a': sek(14),
+    /* Aurinko: näkyy kun se on korkeintaan kolme astetta horisontin alla
+       (hehku ja kiekon yläreuna), korkeus ruudulla ~1,6 %/aste mutta
+       enintään taivaan puoliväliin: korkeammalla sen hehku ylsi
+       tilapalkkiin (valkoinen 9,60:1). Kuu vain
+       yöllä ja sinisellä hetkellä — ei tähtitieteellinen paikka vaan
+       yön merkki. */
+    '--lr-aurinko-a': h > -3 ? '1' : '0',
+    '--lr-aurinko-y': Math.max(46, 100 - Math.max(-3, h) * 3.4).toFixed(1) + '%',
+    '--lr-aurinko': h < 10 ? '246,214,184' : '255,248,230',
+    '--lr-kuu-a': h < -8 ? '1' : h < -3 ? '.5' : '0',
+    /* KUSKI VAIHTAA ASUA KERRAN, EI LIU'U: vaaleaa taivasta vasten
+       paperinen kuski katoaisi, joten valoisalla se on tumma
+       vastavalosiluetti. Välisävy (harmaa) olisi huonompi kuin kumpikaan. */
+    '--lr-kuski': h > -3 ? '#0E1424' : '#F0E7CE',
+    '--lr-roiske': h > -3 ? 'rgba(236,242,248,.8)' : 'rgba(240,231,206,.85)'
+  };
+  try {
+    var st = document.documentElement.style;
+    for (var k in v) st.setProperty(k, v[k]);
+    document.documentElement.setAttribute('data-lr-aika',
+      h < -8 ? 'yo' : h < -3 ? 'sininen' : h < 8 ? 'ilta' : 'paiva');
+  } catch (e) {}
+  return { korkeus: h };
+})();
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function () {
     navigator.serviceWorker.register('/sw.js').catch(function (e) {
@@ -3044,6 +3118,23 @@ html[data-tutka="1"] #lahde-merkki {
  * alhaalla omalla umpinaisella pohjallaan. Aallot ja juovat häipyvät
  * ennen nimilohkoa, joten teksti ei ole koskaan liikkeen päällä.
  */
+/* VUOROKAUDENAIKA. `<head>`in skripti laskee auringon korkeuden
+   Helsingissä ja kirjoittaa nämä muuttujat juurielementtiin ennen
+   ensimmäistä maalausta (ks. `LR_PALETTI`). Tässä ovat YÖN arvot, eli
+   jos skripti ei aja, ruutu on sama kuin ennen. Värit ovat rgb-
+   kolmikkoja, jotta niitä voi käyttää alfalla (`rgba(var(--x), .6)`)
+   ilman `color-mix`iä, jota iOS ennen 16.2:ta ei tunne. */
+:root {
+  --lr-t0: 6,9,18; --lr-t1: 10,18,36; --lr-t2: 22,37,74;
+  --lr-m0: 12,22,49; --lr-m1: 8,16,35;
+  --lr-hehku: 150,185,235; --lr-hehku-a: .15;
+  --lr-kaupunki: #0F1B36; --lr-saari: #09112A;
+  --lr-valo-ikkuna: #F2D9A6; --lr-valot: 1; --lr-tahdet-a: .9;
+  --lr-kuski: #F0E7CE; --lr-roiske: rgba(240,231,206,.85);
+  --lr-aurinko-a: 0; --lr-aurinko-y: 60%; --lr-aurinko: 255,246,224;
+  --lr-kuu-a: 1; --lr-polku: 240,231,206; --lr-polku-a: .10;
+  --lr-vinjetti-a: .5;
+}
 #loading {
   --lr-horisontti: 47%;     /* taivaanranta                               */
   --lr-pinta: 55%;          /* se vesiviiva jolla kuski ajaa              */
@@ -3060,7 +3151,7 @@ html[data-tutka="1"] #lahde-merkki {
      lähtö on ruudun ainoa "valmis"-merkki, ja ilman viivettä se häipyisi
      ennen kuin sen ehtii nähdä. Kartta on käytettävissä koko ajan, koska
      `pointer-events: none` tulee heti. */
-  transition: opacity .45s cubic-bezier(.4,0,.2,1) .28s;
+  transition: opacity .42s cubic-bezier(.4,0,.2,1) .4s;
 }
 #loading.out { opacity: 0; pointer-events: none; }
 /* `display: none` myös PYSÄYTTÄÄ kaikki CSS-animaatiot. Ilman sitä
@@ -3083,18 +3174,19 @@ html[data-tutka="1"] #lahde-merkki {
   inset: 0;
   background:
     linear-gradient(180deg,
-      #060912 0%,
-      #0A1224 calc(var(--lr-horisontti) * .55),
-      #16254A var(--lr-horisontti),
-      #0C1631 var(--lr-horisontti),
-      #081023 var(--lr-pinta),
+      rgb(var(--lr-t0)) 0%,
+      rgb(var(--lr-t1)) calc(var(--lr-horisontti) * .55),
+      rgb(var(--lr-t2)) var(--lr-horisontti),
+      rgb(var(--lr-m0)) var(--lr-horisontti),
+      rgb(var(--lr-m1)) var(--lr-pinta),
       #060B18 76%,
       var(--lr-syva) 100%);
 }
 
-/* TAIVAANRANTA SYTTYY KESKELTÄ: 1 px paperia .16 ja sen yllä kylmä
-   hehku — sininen eikä lämmin, koska lämmin sävy lukisi rampin
-   keltaisena. Ennen ne olivat taivaan staattisia liukuja; nyt ne ovat
+/* TAIVAANRANTA SYTTYY KESKELTÄ: 1 px paperia .16 ja sen yllä hehku,
+   jonka sävy tulee vuorokaudenajasta (`--lr-hehku`): yöllä kylmä
+   sininen, illalla haalea kupari — ei koskaan rampin kylläistä
+   keltaista tai oranssia, jotka tarkoittavat tuulta. Ennen ne olivat taivaan staattisia liukuja; nyt ne ovat
    oma kerroksensa joka leviää sivuille (`scaleX`), eli ruudun
    ensimmäinen liike on valo joka avaa näkymän, ja kaikki muu syntyy
    sen ympärille. */
@@ -3105,7 +3197,7 @@ html[data-tutka="1"] #lahde-merkki {
       rgba(240,231,206,.2) 78%, transparent)
       0 calc(var(--lr-horisontti) - 1px) / 100% 1px no-repeat,
     radial-gradient(ellipse 70% 34% at 50% var(--lr-horisontti),
-      rgba(150,185,235,.15), rgba(150,185,235,0) 70%);
+      rgba(var(--lr-hehku),var(--lr-hehku-a)), rgba(var(--lr-hehku),0) 70%);
   animation: lr-avaa 1.4s .04s cubic-bezier(.16,1,.3,1) backwards;
 }
 @keyframes lr-avaa {
@@ -3128,7 +3220,68 @@ html[data-tutka="1"] #lahde-merkki {
 #lr-vinjetti {
   inset: 0;
   background: radial-gradient(ellipse 115% 85% at 50% 42%,
-    rgba(2,4,9,0) 52%, rgba(2,4,9,.5) 100%);
+    rgba(2,4,9,0) 52%, rgba(2,4,9,var(--lr-vinjetti-a)) 100%);
+}
+
+/* HELSINKI MERELTÄ. Siluetti on taivaanrannalla, leveys vähintään
+   760 px, jotta maamerkit ovat puhelimellakin tunnistettavan kokoisia;
+   kapealla ruudulla reunat leikkautuvat ja maamerkit on sijoitettu
+   keskelle (x 280–760 / 1000) mutta kuskin vartalon ohi. */
+#lr-kaupunki {
+  left: 50%; width: max(100%, 760px); margin-left: calc(max(100%, 760px) / -2);
+  bottom: calc(100% - var(--lr-horisontti)); aspect-ratio: 1000 / 70;
+  animation: lr-esiin 1.2s .1s ease-out backwards;
+}
+#lr-kaupunki svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+/* Harmajan majakka: lyhyt välähdys, pitkä tauko. Yksi animaatio. */
+/* Kirkkaus (päivällä 0) on elementin oma staattinen `opacity`, ja
+   välähdys sen `::before`: muuttuja avainkuvassa ei ole kompositorin
+   arvo. */
+#lr-majakka {
+  position: absolute; left: 76.06%; bottom: 29.7%;
+  width: 5px; height: 5px; margin: 0 0 -2.5px -2.5px;
+  opacity: var(--lr-valot);
+}
+#lr-majakka::before {
+  content: ''; position: absolute; inset: 0; border-radius: 50%;
+  background: #FFF3D6;
+  box-shadow: 0 0 6px 2px rgba(255,236,190,.7);
+  opacity: 0;
+  animation: lr-majakka 4s 1s linear infinite;
+}
+@keyframes lr-majakka {
+  0%, 100% { opacity: 0; }
+  4%       { opacity: 1; }
+  12%      { opacity: 0; }
+}
+/* Aurinko ja kuu. Kääre päättyy taivaanrantaan (`overflow: hidden`),
+   joten matala aurinko painuu meren taakse. */
+#lr-taivasvalo { left: 0; right: 0; top: 0; height: var(--lr-horisontti); overflow: hidden; }
+#lr-aurinko, #lr-kuu { position: absolute; border-radius: 50%; }
+#lr-aurinko {
+  left: 72%; top: var(--lr-aurinko-y);
+  width: 30px; height: 30px; margin: -15px 0 0 -15px;
+  background: rgb(var(--lr-aurinko));
+  box-shadow: 0 0 36px 12px rgba(var(--lr-aurinko),.35), 0 0 90px 30px rgba(var(--lr-aurinko),.12);
+  opacity: var(--lr-aurinko-a);
+}
+#lr-kuu {
+  left: 74%; top: 16%;
+  width: 20px; height: 20px; margin: -10px 0 0 -10px;
+  background: #F3EBD6;
+  box-shadow: inset -5px 2px 0 0 rgba(6,9,18,.35), 0 0 26px 8px rgba(240,231,206,.16);
+  opacity: var(--lr-kuu-a);
+}
+/* Valon polku merellä: kapea pystyliuku valon alla, leviää lähemmäs. */
+#lr-valopolku {
+  left: calc(73% - 60px); width: 120px;
+  top: var(--lr-horisontti); height: 22%;
+  background: radial-gradient(ellipse 50% 100% at 50% 0,
+    rgba(var(--lr-polku),var(--lr-polku-a)), rgba(var(--lr-polku),0) 100%);
+}
+#lr-tahdet {
+  left: 0; top: 0; width: 2px; height: 2px; border-radius: 50%;
+  opacity: var(--lr-tahdet-a);
 }
 #lr-vinjetti::after {
   content: ''; position: absolute; inset: 0;
@@ -3209,17 +3362,33 @@ html[data-tutka="1"] #lahde-merkki {
    y 240 eli 80 %: siksi `top` on pinta miinus 0,8 laatikkoa. Jokainen
    liike on OMA kääreensä, koska saman elementin animaatio ja siirtymä
    eivät yhdisty (animaatio voittaa):
-     #lr-lahto  poistuminen (siirtymä, .out)
+     #lr-lahto  hyppy ja poistuminen (.out)
      #lr-tulo   sisääntulo vasemmalta
-     #lr-keinu  pumppaus: nousu ja kallistus foilin ympäri
-     #lr-siipi  siiven hengitys etukäden ympäri
+     #lr-keinu  liuku: nousu ja loiva kaarto foilin ympäri
+   NIVELLETTY HAHMO. Ennen koko kuski oli yksi jäykkä kuva, ja
+   pumppaus oli koko kuvan keinutus. Nyt osat ovat sisäkkäisiä
+   kerroksia omilla nivelpisteillään, kuten luut. Asento on rento
+   liuku: siipi on sivulla nokka ylhäällä etukäden varassa, takakäsi
+   roikkuu ja vartalo nojaa siivestä poispäin. (Pään yllä vaakatasossa
+   kelluva siipi kokeiltiin ensin, ja se luki sateenvarjona.)
+     #lr-jalat  polvijousto: sääret ja reidet painuvat nilkoista
+                (`scaleY` .93) — koko jalka lyhenee eikä irtoa laudasta
+     #lr-yla    ylävartalo laskee SAMALLA käyrällä ja ajalla lantiosta,
+                joten lantio pysyy reisien päällä (44,5 × 7 % = 3,1 yks.
+                = 1,04 % laatikosta)
+     #lr-kasi   etukäsi olkapäästä
+     #lr-siipi  siipi kädestä: kelluu pään yllä ja lepattaa
+   Kaikki nivelpisteet ovat prosentteja samasta 300 yksikön laatikosta.
+   Jaksot ovat eri pituisia (2,6 / 3,4 / 2,2 / 5,2 s), jotta liike ei
+   toistu samana kuviona: rentous on sitä että osat eivät liiku tahdissa.
    Roiske ja vana ovat vedessä eivätkä keinu kuskin mukana. */
 #lr-rata {
   width: var(--lr-koko); height: var(--lr-koko);
   left: calc(50% - var(--lr-koko) * .54);
   top: calc(var(--lr-pinta) - var(--lr-koko) * .8);
 }
-#lr-lahto, #lr-tulo, #lr-keinu, #lr-siipi, #lr-kuski, #lr-roiske {
+#lr-lahto, #lr-tulo, #lr-keinu, #lr-lauta, #lr-jalat, #lr-yla, #lr-kasi,
+#lr-siipi, #lr-roiske {
   position: absolute; inset: 0;
 }
 #lr-rata svg {
@@ -3233,22 +3402,40 @@ html[data-tutka="1"] #lahde-merkki {
   to   { transform: none; opacity: 1; }
 }
 #lr-keinu {
-  transform-origin: 44% 86%;
-  animation: lr-keinu 2.8s ease-in-out infinite alternate;
+  transform-origin: 49.33% 86%;
+  animation: lr-keinu 5.2s ease-in-out infinite alternate;
 }
 @keyframes lr-keinu {
-  from { transform: translate3d(0,.6%,0) rotate(.6deg); }
-  to   { transform: translate3d(0,-1.3%,0) rotate(-.9deg); }
+  from { transform: translate3d(0,.5%,0) rotate(.9deg); }
+  to   { transform: translate3d(0,-1.1%,0) rotate(-1.6deg); }
 }
+#lr-jalat {
+  transform-origin: 50% 66.83%;
+  animation: lr-jalat 2.6s ease-in-out infinite alternate;
+}
+@keyframes lr-jalat { from { transform: none; } to { transform: scaleY(.93); } }
+#lr-yla {
+  transform-origin: 48.33% 52%;
+  animation: lr-yla 2.6s ease-in-out infinite alternate;
+}
+@keyframes lr-yla {
+  from { transform: none; }
+  to   { transform: translate3d(0,1.04%,0) rotate(-1.4deg); }
+}
+#lr-kasi {
+  transform-origin: 48.67% 39.33%;
+  animation: lr-kasi 3.4s -1.1s ease-in-out infinite alternate;
+}
+@keyframes lr-kasi { from { transform: rotate(-2.4deg); } to { transform: rotate(2deg); } }
 #lr-siipi {
-  transform-origin: 62.7% 35.3%;
-  animation: lr-siipi 2.8s -.6s ease-in-out infinite alternate;
+  transform-origin: 61% 29.33%;
+  animation: lr-siipi 2.2s -.4s ease-in-out infinite alternate;
 }
 @keyframes lr-siipi {
-  from { transform: rotate(-2.2deg); }
-  to   { transform: rotate(1.6deg); }
+  from { transform: rotate(2.4deg); }
+  to   { transform: rotate(-2.8deg); }
 }
-/* Roiske lähtee maston ja vesiviivan leikkauksesta (40 %, 80 %) taakse
+/* Roiske lähtee maston ja vesiviivan leikkauksesta (49 %, 80 %) taakse
    ja putoaa: kaksi puolikasta eri hidastuksella on paraabeli ilman
    omaa pystyanimaatiota.
    LIIKEMATKA ON ELEMENTIN OMA KOKO. Elementti on läpinäkyvä
@@ -3259,7 +3446,7 @@ html[data-tutka="1"] #lahde-merkki {
    ensin muuttujia kalliiksi; mitattuna ne eivät olleet, hinta on
    animaatioiden määrä, ks. .lr-arkki.) */
 .lr-pisara, .lr-vaahto {
-  position: absolute; left: 40%; top: 80%;
+  position: absolute; left: 49%; top: 80%;
   opacity: 0;
   will-change: transform, opacity;
 }
@@ -3286,7 +3473,7 @@ html[data-tutka="1"] #lahde-merkki {
   100% { transform: translate3d(-50%,40%,0); opacity: 0; }
 }
 .lr-vaahto {
-  left: 36%; margin-left: -34%; width: 34%; height: 2px; margin-top: -1px;
+  left: 45%; margin-left: -34%; width: 34%; height: 2px; margin-top: -1px;
   animation: lr-vaahto 1.6s linear infinite;
 }
 .lr-vaahto::before {
@@ -3300,7 +3487,7 @@ html[data-tutka="1"] #lahde-merkki {
   100% { transform: translate3d(-100%,0,0); opacity: 0; }
 }
 #lr-vana {
-  position: absolute; left: 8%; right: 60%; top: 80%;
+  position: absolute; left: 17%; right: 51%; top: 80%;
   height: 2px; margin-top: -1px; border-radius: 1px;
   background: linear-gradient(90deg, rgba(240,231,206,0), rgba(240,231,206,.42));
 }
@@ -3311,8 +3498,8 @@ html[data-tutka="1"] #lahde-merkki {
 #lr-vesi {
   left: 0; right: 0; top: var(--lr-pinta); bottom: 0;
   background: linear-gradient(180deg,
-    rgba(10,19,40,.62) 0%,
-    rgba(7,13,28,.9) 12%,
+    rgba(var(--lr-m1),.62) 0%,
+    rgba(var(--lr-m1),.9) 12%,
     var(--lr-syva) 60%);
 }
 
@@ -3341,9 +3528,39 @@ html[data-tutka="1"] #lahde-merkki {
    karttaan eikä vain himmenevän. Säiliö on `contain: strict`, joten
    skaalaus on yksi kompositorin kerros. */
 #lr-nayttamo { transition: transform .9s cubic-bezier(.42,0,.72,.45); }
-#loading.out #lr-nayttamo { transform: scale(1.05); }
-#lr-lahto { transition: transform .62s cubic-bezier(.42,0,.72,.45); }
-#loading.out #lr-lahto { transform: translate3d(85vw,-6%,0) rotate(-6deg); }
+#loading.out #lr-nayttamo { transform: translate3d(0,4%,0) scale(1.05); }
+/* LÄHTÖ ON HYPPY. Kuski painaa polvet (lastaus), ponnistaa aallosta ja
+   lentää ylös oikealle, ja kamera nousee perässä (#lr-nayttamo). Hyppy
+   on avainkuvat eikä siirtymä, koska siinä on kolme vaihetta eri
+   käyrillä: lastaus hidastuu, ponnistus räjähtää ja hidastuu lakeen,
+   ja lento kiihtyy pois. Laki on 0,44 s kohdalla, ja ruudun häivytys
+   alkaa vasta 0,4 s, jotta hyppy nähdään. */
+#loading.out #lr-lahto { animation: lr-hyppy .85s forwards; }
+@keyframes lr-hyppy {
+  0%   { transform: none; animation-timing-function: cubic-bezier(.3,0,.6,1); }
+  18%  { transform: translate3d(1%,2.6%,0) rotate(2.2deg);
+         animation-timing-function: cubic-bezier(.2,.75,.35,1); }
+  52%  { transform: translate3d(20%,-24%,0) rotate(-9deg);
+         animation-timing-function: cubic-bezier(.55,0,.85,.45); }
+  100% { transform: translate3d(95vw,-36%,0) rotate(-16deg); }
+}
+/* Ponnistuksen roiske maston juuresta, kun lauta irtoaa vedestä. */
+#lr-ponnistus {
+  position: absolute; left: 49%; top: 80%;
+  width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%;
+  opacity: 0;
+  box-shadow:
+    -10px -6px 0 -.5px var(--lr-roiske), -18px -14px 0 0 var(--lr-roiske),
+    -26px -8px 0 -.5px var(--lr-roiske), -6px -18px 0 -1px var(--lr-roiske),
+    -32px -18px 0 -1px var(--lr-roiske), 6px -10px 0 -1px var(--lr-roiske),
+    -14px -24px 0 -1.2px var(--lr-roiske), -22px -2px 0 0 var(--lr-roiske);
+}
+#loading.out #lr-ponnistus { animation: lr-ponnistus .6s .12s cubic-bezier(.2,.7,.4,1) forwards; }
+@keyframes lr-ponnistus {
+  0%   { opacity: 0; transform: translate3d(0,0,0) scale(.4); }
+  25%  { opacity: .9; }
+  100% { opacity: 0; transform: translate3d(-20%,40%,0) scale(1.5); }
+}
 #loading.out #lr-tuuli, #loading.out #lr-tuuli-etu {
   transform: translate3d(-45vw,0,0);
   transition: transform .7s cubic-bezier(.42,0,.72,.45);
@@ -3548,6 +3765,7 @@ html[data-tutka="1"] #lahde-merkki {
   #loading.out #lr-lahto, #loading.out #lr-tuuli, #loading.out #lr-tuuli-etu,
   #loading.out #lr-meri-taka, #loading.out #lr-meri-etu, #loading.out #lr-nayttamo,
   #loading.out #lr-m-siipi, #loading.out #lr-m-pallo,
+  #loading.out #lr-ponnistus,
   #loading.out #load-top, #loading.out #load-bottom { transform: none; }
   #load-progress-wrap::after { display: none; }
   #load-progress-bar { transition: none; }
@@ -4134,54 +4352,98 @@ public/icon-maskable-512.png 512px 140643 B
     <div id="lr-nayttamo" aria-hidden="true">
       <div id="lr-taivas"></div>
       <div id="lr-horisontti"></div>
+      <!-- Taivaan valo: aurinko tai kuu vuorokaudenajan mukaan (`<head>`in
+           skripti asettaa `--lr-*`-muuttujat). Kääre päättyy taivaanrantaan,
+           joten matala aurinko painuu meren taakse eikä sen päälle. -->
+      <div id="lr-taivasvalo"><i id="lr-aurinko"></i><i id="lr-kuu"></i></div>
+      <!-- Helsinki mereltä: kaupunki kaukana (Olympiastadionin torni,
+           Tuomiokirkko, Uspenski, laiva), saaret lähempänä (Suomenlinnan
+           kirkko, Harmajan majakka). Staattinen; värit muuttujista. -->
+      <div id="lr-kaupunki">
+        <svg viewBox="0 0 1000 70" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
+          <g style="fill:var(--lr-kaupunki)">
+            <path d="M150 70V64H160V61H168V63H176V58H184V62H192V60H200V57H206V64H214V60H224V62H232V56H240V60H250V58H258V61H266V55H274V59H282V66H290V70Z"/>
+            <path d="M280.6 70V26H282.2V21.5H284.6V26H286.2V70Z"/>
+            <path d="M296 70V60H300V56H306V57C306 55 308 53 310 53C312 53 314 55 314 57V54H320V47C320 44 322 42 326 41.4C326.6 38.6 327.2 36.6 327.6 34.4H328.4C328.8 36.6 329.4 38.6 330 41.4C334 42 336 44 336 47V54H342V57C342 55 344 53 346 53C348 53 350 55 350 57V56H356V60H362V70Z"/>
+            <path d="M362 70V62H370V58H378V61H384V54C384 52 385.4 50.4 387 50V46.6L386.4 44C386.4 42.4 387.6 41.2 388.4 40.2L388.8 33.6H389.2L389.6 40.2C390.4 41.2 391.6 42.4 391.6 44L391 46.6V50C392.6 50.4 394 52 394 54V57C394 55.8 395 55 396 55C397 55 398 55.8 398 57V60H406V63H418V66H428V70Z"/>
+            <path d="M428 70V67H440V64H452V67H458V70Z"/>
+            <path d="M500 70V65.6H505V62.4H512V60.4H520V58H528V60H538V62.2H548V64.4H556L560 70Z"/>
+          </g>
+          <g style="fill:var(--lr-valo-ikkuna);opacity:var(--lr-valot)">
+            <rect x="163" y="64" width="1.4" height="1.4"/><rect x="179" y="61" width="1.4" height="1.4"/><rect x="195" y="63" width="1.4" height="1.4"/><rect x="218" y="63" width="1.4" height="1.4"/><rect x="236" y="60" width="1.4" height="1.4"/><rect x="253" y="62" width="1.4" height="1.4"/><rect x="269" y="58" width="1.4" height="1.4"/><rect x="302" y="63" width="1.4" height="1.4"/><rect x="366" y="64" width="1.4" height="1.4"/><rect x="373" y="61" width="1.4" height="1.4"/><rect x="410" y="65" width="1.4" height="1.4"/><rect x="446" y="66" width="1.4" height="1.4"/>
+            <rect x="509" y="65" width="1.2" height="1.2"/><rect x="514" y="65" width="1.2" height="1.2"/><rect x="519" y="65" width="1.2" height="1.2"/><rect x="524" y="65" width="1.2" height="1.2"/><rect x="529" y="65" width="1.2" height="1.2"/><rect x="534" y="65" width="1.2" height="1.2"/><rect x="539" y="65" width="1.2" height="1.2"/><rect x="544" y="66.6" width="1.2" height="1.2"/><rect x="524" y="61.6" width="1.2" height="1.2"/><rect x="531" y="61.6" width="1.2" height="1.2"/>
+          </g>
+          <g style="fill:var(--lr-saari)">
+            <path d="M0 70V67C20 65.4 50 64.8 80 66C100 66.8 116 68 124 70Z"/>
+            <path d="M588 70C600 67 616 66 626 65.4V62H632V58H635V48.4C635 46.6 636.2 45.2 637.6 44.8L638 38.4H638.4L638.8 44.8C640.2 45.2 641.4 46.6 641.4 48.4V58H644V62H650V64H664V62H676V64.6C692 65 706 66.6 716 70Z"/>
+            <path d="M742 70C746 67.6 752 66.6 757.6 66.4V53.6H757V51.6H758V47.4H759.2V46.2H762V47.4H763.2V51.6H764.2V53.6H763.6V66.4C768 66.6 772 67.6 776 70Z"/>
+          </g>
+        </svg>
+        <i id="lr-majakka"></i>
+      </div>
+      <!-- Valon polku merellä auringon tai kuun alla. -->
+      <div id="lr-valopolku"></div>
+      <!-- Tähdet: yksi elementti, pisteet varjokopioina (skripti). -->
+      <i id="lr-tahdet"></i>
       <div id="lr-tuuli"></div>
       <div id="lr-meri-taka"></div>
       <div id="lr-kimallus"></div>
       <!-- Kuski: 300 yksikön viewBox, vesiviiva y 240. Siipi ja kuski
            ovat eri kerroksia, koska siipi hengittää etukäden ympäri. -->
+      <!-- KUSKI: 300 yksikön viewBox, vesiviiva y 240. Nivelletty: jokainen
+           osa on oma kerroksensa omalla nivelpisteellään, ja kerrokset ovat
+           sisäkkäin kuten luut (lantio kantaa ylävartalon, olkapää käden,
+           käsi siiven). Asento on rento liuku: siipi sivulla nokka ylhäällä
+           etukäden varassa, takakäsi roikkuu, polvet joustavat aalloissa. -->
       <div id="lr-rata">
         <div id="lr-lahto"><div id="lr-tulo">
           <div id="lr-vana"></div>
           <div id="lr-roiske"></div>
           <div id="lr-keinu">
-            <div id="lr-siipi"><svg viewBox="0 0 300 300">
-              <defs><linearGradient id="lr-kangas" gradientUnits="userSpaceOnUse" x1="226" y1="0" x2="90" y2="0"><stop offset="0" stop-color="#F0E7CE" stop-opacity=".22"/><stop offset="1" stop-color="#F0E7CE" stop-opacity=".07"/></linearGradient></defs>
-              <path d="M150 24C200 24 234 70 226 112C220 146 206 172 184 190Q150 140 86 98Q118 58 150 24Z" fill="url(#lr-kangas)"/>
-              <path d="M184 190Q150 140 86 98Q118 58 150 24" fill="none" stroke="#F0E7CE" stroke-opacity=".55" stroke-width="1.3" stroke-linejoin="round"/>
-              <path d="M161 100Q170 62 176 31M172 102Q185 140 198 170" fill="none" stroke="#F0E7CE" stroke-opacity=".16"/>
-              <path d="M226 110L86 98" stroke="#F0E7CE" stroke-width="3.6" stroke-linecap="round"/>
-              <path d="M150 24C200 24 234 70 226 112C220 146 206 172 184 190" fill="none" stroke="#F0E7CE" stroke-width="7" stroke-linecap="round"/>
-            </svg></div>
-            <div id="lr-kuski"><svg viewBox="0 0 300 300">
-              <g fill="#F0E7CE">
-                <path d="M119 210H125L123 257H117Z"/>
-                <rect x="94" y="255.5" width="62" height="3.6" rx="1.8"/>
-                <path d="M132 257C139 251.5 157 251 166 256.6C157 261.6 140 262.2 132 257Z"/>
-                <path d="M90 257C93.5 254.3 101 254.3 106 256.4C101 258.8 94 259.1 90 257Z"/>
-                <path d="M104 204.5H200C207 204.5 212 202.5 215 199.5C216.5 198.3 218.4 199.5 217.4 201.5C214 207.5 208 211.5 200 211.5H106C102 211.5 100 209.5 100 207.8C100 205.9 101.8 204.5 104 204.5Z"/>
-                <path d="M131.5 129.5C137 126.5 146 126.5 151 129L151.5 146C151.5 152 155 157 155 163.5C155 169.5 138 170 137.5 165C137 158.5 138.5 153 137 146Z"/>
-                <circle cx="140" cy="115.5" r="8.2"/>
-                <path d="M146.5 111.5C149.5 112.5 150.5 116 149.5 118.5L146.5 118Z"/>
-                <ellipse cx="129" cy="203" rx="6.2" ry="2.6"/>
-                <ellipse cx="172.5" cy="203" rx="6.2" ry="2.6"/>
-                <circle cx="133" cy="102" r="3.1"/>
-                <circle cx="187" cy="106.8" r="3.1"/>
-              </g>
-              <g fill="none" stroke="#F0E7CE" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M140.5 122L141.5 129" stroke-width="6"/>
-                <path d="M141 163L134.5 184.5" stroke-width="10.5"/>
-                <path d="M134.5 184.5L129 202" stroke-width="7.5"/>
-                <path d="M151.5 162L167 182" stroke-width="10.5"/>
-                <path d="M167 182L172 202" stroke-width="7.5"/>
-                <path d="M134 131.5L129 117" stroke-width="6.5"/>
-                <path d="M129 117L133 103" stroke-width="5.5"/>
-                <path d="M149 131L167.5 125.5" stroke-width="6.5"/>
-                <path d="M167.5 125.5L186.5 107.5" stroke-width="5.5"/>
-              </g>
-              <path d="M137 150.5H152" stroke="#0A1430" stroke-width="1.6" stroke-linecap="round"/>
-            </svg></div>
+            <div id="lr-lauta"><svg viewBox="0 0 300 300"><g style="fill:var(--lr-kuski)">
+              <path d="M91 205.2C90.2 207.6 92.4 209.6 96 209.6H201C207.6 209.6 212.6 206.2 215.6 200.6C213.2 202.8 208.8 204.4 202 204.4H96C93.6 204.4 91.8 204.4 91 205.2Z"/>
+              <path d="M146.2 209.4H150.4L148.8 257H145.2Z"/>
+              <rect x="116" y="255.6" width="64" height="3" rx="1.5"/>
+              <path d="M158 257.2C166 252.4 184 252.2 194 257.2C184 261.6 166 261.8 158 257.2Z"/>
+              <path d="M109 257C112.4 254.8 120.4 254.8 125 256.8C120.4 259 112.6 259.2 109 257Z"/>
+              <ellipse cx="121" cy="203" rx="7" ry="2.5"/>
+              <ellipse cx="170" cy="203" rx="7" ry="2.5"/>
+            </g></svg></div>
+            <div id="lr-jalat"><svg viewBox="0 0 300 300"><g fill="none" style="stroke:var(--lr-kuski)" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M122 200.4L130.6 178.6" stroke-width="7.6"/>
+              <path d="M130.6 178.6L141 155.6" stroke-width="11"/>
+              <path d="M169.2 200.4L164.4 178.4" stroke-width="7.6"/>
+              <path d="M164.4 178.4L150.4 156" stroke-width="11"/>
+            </g></svg></div>
+            <div id="lr-yla">
+              <svg viewBox="0 0 300 300"><g fill="none" style="stroke:var(--lr-kuski)" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M145.4 155L140.4 128.6" stroke-width="17"/>
+                <path d="M128.8 121.4L146.6 117.4" stroke-width="9"/>
+                <path d="M137 116L136.4 110.6" stroke-width="6"/>
+                <path d="M128.8 121.6L123.8 141.4" stroke-width="6.4"/>
+                <path d="M123.8 141.4L131.4 155.4" stroke-width="5.4"/>
+              </g><g style="fill:var(--lr-kuski)">
+                <circle cx="136.4" cy="102.6" r="8.6"/>
+                <path d="M142.8 97.4C146.6 98 148 101.6 147.2 104.4L143.2 104.2Z"/>
+              </g></svg>
+              <div id="lr-kasi">
+                <svg viewBox="0 0 300 300"><g fill="none" style="stroke:var(--lr-kuski)" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M146.4 118L166 110" stroke-width="6.6"/>
+                  <path d="M166 110L183 88.4" stroke-width="5.6"/>
+                </g></svg>
+                <div id="lr-siipi"><svg viewBox="0 0 300 300"><g transform="rotate(-6 183 88) translate(-4 -18.8)">
+                  <path d="M150 24C200 24 234 70 226 112C220 146 206 172 184 190Q150 140 86 98Q118 58 150 24Z" style="fill:var(--lr-kuski)" fill-opacity=".2"/>
+                  <path d="M184 190Q150 140 86 98Q118 58 150 24" fill="none" style="stroke:var(--lr-kuski)" stroke-opacity=".55" stroke-width="1.3" stroke-linejoin="round"/>
+                  <path d="M161 100Q170 62 176 31M172 102Q185 140 198 170" fill="none" style="stroke:var(--lr-kuski)" stroke-opacity=".18"/>
+                  <path d="M226 110L86 98" fill="none" style="stroke:var(--lr-kuski)" stroke-width="3.6" stroke-linecap="round"/>
+                  <path d="M150 24C200 24 234 70 226 112C220 146 206 172 184 190" fill="none" style="stroke:var(--lr-kuski)" stroke-width="7" stroke-linecap="round"/>
+                </g></svg></div>
+              </div>
+            </div>
           </div>
         </div></div>
+        <!-- Ponnistuksen roiske: vedessä, ei kuskin mukana. Näkyy vain lähdössä. -->
+        <i id="lr-ponnistus"></i>
       </div>
       <div id="lr-vesi"></div>
       <div id="lr-meri-etu"></div>
@@ -4420,6 +4682,23 @@ public/icon-maskable-512.png 512px 140643 B
       va.style.animationDelay = (-v * 0.8).toFixed(2) + 's';
       roiske.appendChild(va);
     }
+  }
+
+  /* -- Tähdet: yksi elementti, pisteet varjokopioina. Näkyvyys tulee
+        vuorokaudenajasta (`--lr-tahdet-a`), joten päivällä ne ovat
+        olemassa mutta 0. Ei ylimpään 64 px:iin: tilapalkin valkoinen
+        on mitattu tasaista taivasta vasten (tähti siinä vei heikoimman
+        pikselin 7,80:1:een). Ei myöskään aivan taivaanrantaan, jossa on
+        kaupunki ja utu. */
+  var tahdet = document.getElementById('lr-tahdet');
+  if (tahdet) {
+    var tv = [], korkeus = (vaaka ? Math.min(sw, sh) : Math.max(sw, sh)) * 0.38;
+    for (var ti = 0; ti < 46; ti++) {
+      var tk = sat(), ta = (0.25 + 0.6 * sat() * sat()).toFixed(2);
+      tv.push(Math.round(sat() * PISIN) + 'px ' + Math.round(64 + tk * tk * korkeus) + 'px 0 '
+              + (sat() < 0.15 ? '.4px' : '0') + ' rgba(240,231,206,' + ta + ')');
+    }
+    tahdet.style.boxShadow = tv.join(',');
   }
 
   /* -- Nimen kirjaimet nousevat porrastettuina. */
@@ -25695,8 +25974,8 @@ function _lahtoTarkista() {
 
 /* Palkki täyteen, sitten lähtö (#loading.out: kuski kiihtyy pois ja ruutu
    häipyy kartaksi), ja lopuksi `display: none`, joka myös pysäyttää
-   latausruudun ikuiset animaatiot. 800 ms on pisin lähdön osa
-   (häivytys .28 + .45 s) pyöristettynä ylöspäin. */
+   latausruudun ikuiset animaatiot. 900 ms on pisin lähdön osa
+   (häivytys .4 + .42 s, hyppy .85 s) pyöristettynä ylöspäin. */
 function _lahde() {
   if (_lahto.lahti) return;
   _lahto.lahti = true;
@@ -25707,7 +25986,7 @@ function _lahde() {
     if (el) { el.classList.add('out'); setTimeout(function () {
       el.classList.add('hidden');
       if (typeof Ensikerta !== 'undefined') Ensikerta.kaynnista();
-    }, 800); }
+    }, 900); }
   }, 300);
 }
 
