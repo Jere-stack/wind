@@ -17179,10 +17179,12 @@ function _addObsMarkers(map) {
    * Neljäs oma proxy, `api/laru.js`. Asema on Nahkahousun luodolla
    * Lauttasaaren eteläkärjen edustalla.
    *
-   * LÄHDE ANTAA ITSE koko kuluvan vuorokauden noin kahden minuutin
-   * välein, joten merkki osaa vastata myös aikajanan menneistä
-   * tunneista — `history` täytetään kuten FMI-asemilla. (Mellstenillä
-   * sama tulee omasta varastosta, koska sen lähde ei anna.)
+   * LÄHDE PITÄÄ ITSE KAIKKI PÄIVÄT noin kahden minuutin välein, joten
+   * merkki osaa vastata myös aikajanan menneistä tunneista — myös
+   * keskiyön yli, koska proxy yhdistää kuluvan päivän edellisiin
+   * (varasto, tools/laru.mjs, tai lähde). `history` täytetään kuten
+   * FMI-asemilla. (Mellstenillä sama tulee omasta varastosta, koska sen
+   * lähde antaa vain puoli tuntia.)
    *
    * Yksi haku riittää: `history=1` palauttaa myös tuoreimman lukeman
    * (`latest`), joten erillistä "nyt"-pyyntöä ei tarvita. Merkki pyytää
@@ -17610,11 +17612,11 @@ function _openObsSheet(type, station) {
         if(el) el.innerHTML='<div style="text-align:center;font-variant-numeric:tabular-nums;font-size:var(--fs-10);color:var(--ink-3);padding:16px">Ei dataa</div>';
       });
   } else if(type==='laru'){
-    /* Yksi haku, kuten Mellstenillä. Kortti pyytää koko kuluvan
-       vuorokauden (kartta pyytää 24 h) — jaksovalitsin karsii itse pois
-       ne napit joiden takana ei ole dataa, joten liian pitkää ikkunaa ei
-       tarvitse estää täältä. */
-    fetch(API_BASE + '/laru?history=1&hours=24&tz=' + encodeURIComponent(AIKAVYOHYKE))
+    /* Yksi haku, kuten Mellstenillä, ja 168 h kuten FMI-asemien
+       kortilla: kuluva päivä tulee lähteestä, päättyneet omasta
+       varastosta tai lähteestä, joka pitää ne itse (docs/data.md,
+       "Larun historia"). Ennen kortti näytti vain kuluvan vuorokauden. */
+    fetch(API_BASE + '/laru?history=1&hours=168&tz=' + encodeURIComponent(AIKAVYOHYKE))
       .then(function(r){ return r.json(); })
       .then(function(data){
         if(!data || data.error || !data.ws || !data.ws.length){
@@ -21115,7 +21117,8 @@ function _fmiStationsSorted(spotLat, spotLng) {
  *   fmi          kaksi pyyntöä: tuorein + historia
  *   mellsten     yksi pyyntö, `latest` mukana. Kuluva päivä tulee
  *                omasta varastosta (tools/havainnot.mjs), 5 min niput
- *   laru         yksi pyyntö, `latest` mukana, koko kuluva vuorokausi
+ *   laru         yksi pyyntö, `latest` mukana. Kuluva päivä lähteestä,
+ *                päättyneet varastosta (tools/laru.mjs) tai lähteestä
  *   kruunuvuori  yksi pyyntö, historia kentässä `history`, tuorein
  *                juuressa
  */

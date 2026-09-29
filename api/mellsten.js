@@ -25,27 +25,17 @@
  * PWS-tietueesta "Surfing Ry Mellsten", jonka lukemat (6,5 m/s, 196°,
  * puuska 8,1, 15,0 °C, 1009,1 hPa, 85,5 %) taspasivat samalla hetkella
  * taman lahteen riviin taydellisesti. */
-import https from 'https';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
 import { suojaa } from './_suoja.js';
-import { LAHDE, OTSAKKEET, jasennaAnkkurista, jasennaPaiva, helsinkiPaiva, paivaSiirra } from './_mellsten.js';
+import { LAHDE, OTSAKKEET, jasennaAnkkurista, jasennaPaiva } from './_mellsten.js';
+import { haeTeksti, luePaivat, paivatValilla, helsinkiPaiva, niputaAjassa, nipunLeveys, hhmm, kelpoTz } from './_varasto.js';
 
 const STATION = { name: 'Espoo Mellsten', place: 'mellsten', lat: 60.147, lng: 24.794 };
-/* Varaston koti. Ymparistomuuttuja on testia varten: se voi olla myos
-   paikallinen hakemisto (keraajan tuloste). */
-const VARASTO = process.env.HAVAINNOT_KANTA || 'https://raw.githubusercontent.com/Jere-stack/wind/havainnot/';
 /* Lahde paivittyy minuutin valein; 60 s valimuisti riittaa eika
    tarjoile vanhaa. */
 const TTL_TUOREIN = 60;
 const TTL_HISTORIA = 120;
 const HISTORIA_OLETUS = 24;
 const HISTORIA_MAX = 168;
-/* Nipun leveys. Asemakortin 168 h minuutin riveina olisi 10 080 pistetta
-   ja puolitoista megaa JSONia; viiden minuutin nipuissa 2 016. Kortti
-   niputtaa itse viela noin 2,4 px:n valein (24 h ruudulla ~10 min),
-   joten tiheampi naky vasta venytettyna. */
-const NIPPU_MIN = 5;
 
 /* KOLME YRITYSTA, KASVAVA ODOTUS JA HAJONTA.
  *
@@ -74,144 +64,22 @@ async function fetchTextRetry(url) {
       var odota = 250 * Math.pow(2, k - 1) + Math.floor(Math.random() * 250);
       await new Promise(function (r) { setTimeout(r, odota); });
     }
-    try { return await fetchText(url, OTSAKKEET, 6000); }
+    try { return await haeTeksti(url, OTSAKKEET, 6000); }
     catch (e) { viimeVirhe = e; }
   }
   throw viimeVirhe;
 }
 
-/* { teksti, muokattu } tai virhe. 404 on oma virheensa (`e.status`),
-   koska varastossa puuttuva paiva ei ole vika. AIKARAJA ON PAKOLLINEN:
-   ilman sita jumittunut yhteys piti funktion auki sen kattoon asti. */
-function fetchText(url, otsakkeet, aikaraja) {
-  return new Promise(function (resolve, reject) {
-    var req = https.get(url, { headers: otsakkeet, timeout: aikaraja }, function (res) {
-      if (res.statusCode !== 200) {
-        res.resume();
-        var e = new Error('HTTP ' + res.statusCode);
-        e.status = res.statusCode;
-        reject(e);
-        return;
-      }
-      var body = '';
-      res.setEncoding('utf8');
-      res.on('data', function (c) { body += c; });
-      res.on('error', reject);
-      res.on('end', function () {
-        resolve({ teksti: body, muokattu: Date.parse(res.headers['last-modified'] || '') || null });
-      });
-    });
-    req.on('timeout', function () { req.destroy(new Error('aikaraja ' + aikaraja + ' ms')); });
-    req.on('error', reject);
-  });
-}
-
-/* ── Varasto ──────────────────────────────────────────────────────── */
-
-/* Menneet paivat muistiin lampimaan instanssiin. Kuluva paiva haetaan
-   aina: siihen kirjoitetaan kymmenen minuutin valein. */
-const _muisti = new Map();
-const MUISTI_MS = 30 * 60e3;
-
-async function luePaiva(paiva, tanaan) {
-  var m = _muisti.get(paiva);
-  if (paiva !== tanaan && m && Date.now() - m.t < MUISTI_MS) return m.rivit;
-  var polku = 'mellsten/' + paiva + '.txt';
-  var teksti;
-  try {
-    if (/^https?:/.test(VARASTO)) {
-      teksti = (await fetchText(VARASTO + polku, { 'user-agent': OTSAKKEET['user-agent'] }, 5000)).teksti;
-    } else {
-      teksti = await readFile(join(VARASTO, polku), 'utf8');
-    }
-  } catch (e) {
-    /* Puuttuva paiva = asema oli koko paivan hiljaa tai varasto on
-       nuorempi kuin pyydetty ikkuna. Ei virhe, vaan tyhja paiva. */
-    if (e.status === 404 || e.code === 'ENOENT') teksti = '';
-    else throw e;
-  }
-  var rivit = jasennaPaiva(teksti, paiva);
-  /* TYHJÄÄ PÄIVÄÄ EI MUISTETA. raw.githubusercontent.com tarjoili
-     mitattuna 404:ää välimuistista vielä puoli minuuttia haaran
-     syntymän jälkeen; muistettuna se olisi pitänyt koko päivän tyhjänä
-     puoli tuntia. */
-  if (rivit.length) _muisti.set(paiva, { t: Date.now(), rivit: rivit });
-  return rivit;
-}
-
+/* Varaston paivat ikkunan alusta tahan paivaan (api/_varasto.js). */
 async function lueVarasto(alkuMs, nytMs) {
-  var tanaan = helsinkiPaiva(nytMs);
-  var paivat = [];
-  for (var p = helsinkiPaiva(alkuMs); p <= tanaan; p = paivaSiirra(p, 1)) paivat.push(p);
-  /* Rinnakkain: varasto on GitHubin CDN eika harrastepalvelin. */
-  var tulokset = await Promise.allSettled(paivat.map(function (p) { return luePaiva(p, tanaan); }));
+  var paivat = paivatValilla(alkuMs, nytMs);
+  var tulokset = await luePaivat('mellsten', paivat, jasennaPaiva, helsinkiPaiva(nytMs));
   var rivit = [], virheita = 0;
   tulokset.forEach(function (t) {
-    if (t.status === 'fulfilled') rivit = rivit.concat(t.value);
-    else virheita++;
+    rivit = rivit.concat(t.rivit);
+    if (t.virhe) virheita++;
   });
   return { rivit: rivit, paivia: paivat.length, virheita: virheita };
-}
-
-/* ── Niputus ──────────────────────────────────────────────────────── */
-
-/* Nipuiksi AJAN mukaan, ei lukumaaran: tasaleveat nipun ikkunat eivat
-   koskaan ulotu katkon yli, joten katko jaa katkoksi (sama sopimus kuin
-   kayttoliittyman `_havNiputa`: keskituuli keskiarvo, puuska maksimi,
-   suunta yksikkovektoreista). Nipun aika on sen VIIMEINEN rivi, jotta
-   sarjan paa on oikeasti tuorein hetki. */
-function niputa(rivit, minuutit) {
-  if (minuutit <= 1) return rivit;
-  var leveys = minuutit * 60000, ulos = [], nippu = [], avain = null;
-  function sulje() {
-    if (!nippu.length) return;
-    var n = nippu.length, sWs = 0, maxG = -Infinity, minW = Infinity, sx = 0, sy = 0, sTa = 0, nTa = 0;
-    for (var i = 0; i < n; i++) {
-      var r = nippu[i];
-      sWs += r.ws;
-      if (r.wg > maxG) maxG = r.wg;
-      if (r.wsMin < minW) minW = r.wsMin;
-      var a = r.wd * Math.PI / 180;
-      sx += Math.sin(a); sy += Math.cos(a);
-      if (r.ta != null) { sTa += r.ta; nTa++; }
-    }
-    ulos.push({
-      ms: nippu[n - 1].ms,
-      ws: Math.round(sWs / n * 100) / 100,
-      wg: maxG,
-      wsMin: minW,
-      wd: Math.round((Math.atan2(sx, sy) * 180 / Math.PI + 360) % 360),
-      ta: nTa ? Math.round(sTa / nTa * 10) / 10 : null,
-    });
-    nippu = [];
-  }
-  for (var i = 0; i < rivit.length; i++) {
-    var k = Math.floor(rivit[i].ms / leveys);
-    if (k !== avain) { sulje(); avain = k; }
-    nippu.push(rivit[i]);
-  }
-  sulje();
-  return ulos;
-}
-
-/* ── Muotoilu ─────────────────────────────────────────────────────── */
-
-var _tzFmt = {};
-function hhmm(ms, tz) {
-  if (!_tzFmt[tz]) {
-    try {
-      _tzFmt[tz] = new Intl.DateTimeFormat('sv-SE',
-        { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false });
-    } catch (e) {
-      _tzFmt[tz] = new Intl.DateTimeFormat('sv-SE',
-        { timeZone: 'Europe/Helsinki', hour: '2-digit', minute: '2-digit', hour12: false });
-    }
-  }
-  return _tzFmt[tz].format(new Date(ms));
-}
-function kelpoTz(tz) {
-  if (!tz) return null;
-  try { new Intl.DateTimeFormat('sv-SE', { timeZone: tz }); return tz; } catch (e) { return null; }
 }
 
 function tuorein(v, tz, nyt) {
@@ -275,11 +143,10 @@ export default async function handler(req, res) {
        kortti voi sanoa "viimeisin …" eika vain "ei dataa" (sama kuin
        ennen, kun historia oli weather.txt:n 30 rivia). */
     if (!ikkuna.length) ikkuna = rivit.slice(-30);
-    /* Nipun leveys DATAN kestosta, ei pyydetyista tunneista: jos varasto
-       ei vastaa, jaljella on lahteen 30 minuuttia, ja se nakyy
-       minuutteina kuten ennen eika kuutena pisteena. */
-    var nippuMin = ikkuna[ikkuna.length - 1].ms - ikkuna[0].ms > 6 * 36e5 ? NIPPU_MIN : 1;
-    var niput = niputa(ikkuna, nippuMin);
+    /* Leveys datan kestosta (api/_varasto.js): ilman varastoa jaljella on
+       lahteen 30 minuuttia, ja se nakyy minuutteina kuten ennen. */
+    var nippuMin = nipunLeveys(ikkuna);
+    var niput = niputaAjassa(ikkuna, nippuMin);
     /* SARJAN VIIMEINEN PISTE ON TUOREIN HAVAINTO, EI NIPUN KESKIARVO
        (sama kuin api/laru.js): kaavion paa on kortin ison luvun alla. */
     if (niput.length && niput[niput.length - 1] !== v) niput = niput.slice(0, -1).concat([v]);

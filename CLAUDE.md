@@ -43,8 +43,8 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   (`api.github.com/repos/Jere-stack/wind/commits/<sha>/status`).
   ES-moduuleja, koska
   `package.json`:ssa on `"type": "module"` — `require()` ei toimi näissä.
-  Alaviivalla alkava tiedosto (`_suoja.js`, `_mellsten.js`,
-  `_kamerat.js`) on apumoduuli eikä reitti.
+  Alaviivalla alkava tiedosto (`_suoja.js`, `_mellsten.js`, `_laru.js`,
+  `_varasto.js`, `_kamerat.js`) on apumoduuli eikä reitti.
   **Jokainen funktio alkaa `if (!suojaa(req, res)) return;`** eikä
   mikään vastaa `Access-Control-Allow-Origin`illa (docs/julkaisu.md,
   L10): sovellus kutsuu samasta originista, ja jokeri antoi kenen
@@ -60,7 +60,11 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   30 minuutin ikkuna ja tunnin välein lähteen arkisto orpoon haaraan
   `havainnot` (`mellsten/YYYY-MM-DD.txt`, 31 vrk). `api/mellsten.js`
   lukee sen. Vain Noden omia moduuleita. Ks. docs/data.md, "Mellstenin
-  historia omaan varastoon". Samassa ajossa `tools/kamerat.mjs`
+  historia omaan varastoon". Samassa ajossa omana askeleenaan
+  `tools/laru.mjs` (`continue-on-error`) kopioi Larun PÄÄTTYNEET päivät
+  (`laru/YYYY-MM-DD.txt`), joita `api/laru.js` lukee (docs/data.md,
+  "Larun historia"). Varaston luku, Helsingin kalenteri ja niputus ovat
+  yhteisiä: `api/_varasto.js`. Samassa ajossa `tools/kamerat.mjs`
   (`continue-on-error`) kirjaa kelikameroiden pikkukuvan ETagin
   (`kamerat/tila.json`), josta `api/laru.js?kamera=1` päättelee onko kamera
   päällä (docs/data.md, "Larun kelikamera").
@@ -141,7 +145,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/lampokartta.md` | pohjakarttaa, lämpökarttaa, väriramppia, tekstuurin mitoitusta tai projektiota, kartan asetuksia |
 | `docs/partikkelit.md` | tuulipartikkeleita, jäljen muotoa, tiheyttä tai ruutuaikabudjettia |
 | `docs/eleet.md` | nipistystä, zoomia, zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
-| `docs/data.md` | säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja, **havaintoasemien oma historia (Mellsten, `havainnot`-haara)**, **kelikameran tila (YouTube, pikkukuvan ETag)** |
+| `docs/data.md` | säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja, **havaintoasemien oma historia (Mellsten ja Laru, `havainnot`-haara)**, **kelikameran tila (YouTube, pikkukuvan ETag)** |
 | `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, MET Nordicia, Open-Meteon S3-malleja** |
 | `docs/ui.md` | paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa, kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kelikameraa asemakortissa ja pillerin play-kolmiota** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
@@ -182,6 +186,7 @@ kokeiltu ja kaadettu mittauksella.
   lukua · Mellsten (Haukilahti) — kolmas oma proxy · Varaston puuska on
   joka toisella askeleella tuuli · Laru (Lauttasaari) — neljäs oma proxy ·
   **Mellstenin historia omaan varastoon — kuten Windguru** ·
+  **Larun historia — sama varasto, mutta lähde pitää päivänsä itse** ·
   Aaltoennuste tuotantoon (FMI WAM, ei laattaputkea) · Vedenkorkeus ja
   yksikkö joka ei lue vastauksessa · Ilman starttimea sarja alkaa
   seuraavasta tunnista · Sadetutka — miksi se ei ole L.TileLayer.WMS ·
@@ -2205,11 +2210,31 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   suhde 1,94–2,07 (Windguru solmuja) ja suunta 173,9° vs 173,5° kahden
   minuutin sisällä. Sijainti 60,150824 / 24,87184 tulee samasta
   tietueesta, ei arvattu.
-- **`history` TÄYTETÄÄN SUORAAN LÄHTEESTÄ.** Lähde antaa koko
-  kuluvan vuorokauden ~2 min välein, joten merkki osaa vastata myös
-  aikajanan menneistä tunneista (mitattu: neljä tuntia, neljä eri
-  lukemaa, ja paluu samaan arvoon). Mellstenillä sama tulee omasta
-  varastosta, koska sen lähde antaa vain 30 min.
+- **HISTORIA ON 168 h: KULUVA PÄIVÄ LÄHTEESTÄ, PÄÄTTYNEET VARASTOSTA
+  TAI LÄHTEESTÄ** (käyttäjän pyyntö 29.9., docs/data.md "Larun
+  historia"). Ennen proxy antoi vain kuluvan vuorokauden. Lähde pitää
+  itse kaikki päivät vuosien takaa (`Laru_<vuosi>-<vuodenpäivä>.txt`,
+  S3), joten varasto (`tools/laru.mjs`, `laru/YYYY-MM-DD.txt`) on
+  VÄLIMUISTI JA VARMUUSKOPIO eikä historian ainoa lähde kuten
+  Mellstenillä — puuttuva päivä haetaan lähteestä, ja ajastimen
+  viive vain siirtää kopiointia. Merkki pyytää 24 h (nyt keskiyön
+  yli), asemakortti 168 h, spottikortti 48 h. Mitattu Windgurun
+  asemaa 47 vasten 7,6 vrk: ero 0,42 kts, harha −0,002 kts, tunnin
+  siirto 1,3 kts ja vuorokauden 5,1–5,5 kts.
+- **VARASTOSSA ON VAIN VALMIITA PÄIVIÄ.** Keräin kopioi päivän vasta
+  puoli tuntia keskiyön jälkeen eikä koskaan kuluvaa päivää, ja proxy
+  luottaa siihen: varastossa oleva päivä on koko päivä, puuttuva
+  haetaan lähteestä. Kesken kopioitu päivä näyttäisi proxylle
+  valmiilta, ja koska GitHubin ajastin jättää tunteja väliin, sen loppu
+  jäisi kortille katkoksi. Älä lisää kuluvan päivän kopiota samaan
+  hakemistoon.
+- **RIVIN PÄIVÄ ON RIVILLÄ, EI TIEDOSTON NIMESSÄ.** Päivätiedoston
+  ensimmäinen rivi voi olla edellisen päivän 23:59 (kirjoitettu 00:01).
+  `jasennaLaru` (`api/_laru.js`) päivää rivit omista kentistään kuten
+  lähteen oma `parseData`, ja proxy yhdistää päivät minuutin mukaan.
+- **Keräin on OMA ASKELEENSA** (`continue-on-error`, `timeout-minutes:
+  3`, sisäinen 120 s budjetti): Larun vika ei saa estää Mellstenin
+  rivien julkaisua samassa ajossa.
 - **Sarjan viimeinen piste on RAAKA tuorein havainto**, ei nipun
   keskiarvo — muuten kaavion pää ja kortin päälukema olisivat eri
   luvut samasta hetkestä.

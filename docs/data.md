@@ -1768,6 +1768,9 @@ vielä erikseen datasta — `min <= ka <= max` piti 474/474 rivillä.
 
 ### Tällä on historiaa, toisin kuin Mellstenillä
 
+(Historiaa. 29.9. alkaen proxy antaa 168 h eikä vain kuluvaa päivää, ja
+Mellstenillä on oma varastonsa — ks. "Larun historia" alempana.)
+
 Mellstenin ikkuna on 30 minuuttia, joten sen `history` jätettiin
 tarkoituksella nulliksi: merkki näyttää aina tuoreimman eikä osaa
 vastata aikajanan menneistä tunneista. Laru antaa **koko kuluvan
@@ -1986,6 +1989,142 @@ kummassakin buildissa.
   minuuttia kuten ennen.
 - GitHub poistaa ajastetut työnkulut käytöstä 60 päivän
   toimettomuuden jälkeen julkisessa repossa.
+
+## Larun historia — sama varasto, mutta lähde pitää päivänsä itse
+
+Käyttäjä pyysi (29.9.) Mellstenin jälkeen "samanlaisen varaston Larun
+tuulidatalle jotta saadaan pidempi historia". Ennen muutosta Larun
+kortissa oli vain KULUVA vuorokausi (proxy haki yhden päivätiedoston,
+`HISTORIA_MAX` 24): aamulla kortti näytti muutaman tunnin ja tilastot
+"Viimeiset 15 h", merkki ei osannut eilistä iltaa, ja keskiyön kohdalla
+sarja alkoi alusta.
+
+### Lähde ei ole Mellstenin kaltainen — mitattu ennen suunnittelua
+
+Mellstenin varasto on olemassa siksi että sen lähde antaa kuluvalta
+päivältä vain 30 minuuttia ja hukkaa arkistostaan päiviä. Larulla
+kumpikaan ei pidä:
+
+- **Lähde pitää kaikki päivät.** `wind_data/Laru_<vuosi>-<vuodenpäivä>.txt`
+  vastasi mitattuna mm. 2026-1, 2026-100, 2026-271, 2025-365, 2024-300 ja
+  2023-150. Päivä on noin 860 riviä (~1,7 min välein) ja ~37 kt.
+- **Tiedosto on Helsingin vuorokausi ja valmis keskiyöllä.** Päättyneen
+  päivän `Last-Modified` on 23:59:5x Suomen aikaa (28.9.: 20:59:57 GMT),
+  ja 30.8.–28.9. jokainen päivä samoin.
+- **Lähde on S3 + CloudFront** (`server: AmazonS3`), ETag mukana, joten
+  ehdollinen haku (`If-None-Match` → 304) on halpa.
+- **Rivin päivä on rivillä itsellään.** 29.9:n tiedoston ensimmäinen
+  rivi on 29.9. 00:00, mutta 28.9:n ensimmäinen oli `2026,9,28,0,1,23:59`
+  eli 27.9. klo 23:59 kirjoitettuna 00:01. Jäsennin (`api/_laru.js`)
+  päivää rivit omista kentistään kuten lähteen oma `parseData`, joten
+  päivätiedostojen raja ei haittaa.
+
+Historia ei siis riipu keräimestä: proxy saa sen lähteestä joka
+tapauksessa. Varasto on **välimuisti** (ilman sitä jokainen 168 h:n
+korttiavaus hakisi lähteestä seitsemän tiedostoa) ja **varmuuskopio**
+(jos harrastajien palvelu siivoaa tiedostonsa tai katoaa, kuukausi on
+tallessa — Windgurun asema 47 on sama asema samasta syystä).
+
+### Ratkaisu
+
+    api/_varasto.js        yhteinen: Helsingin kalenteri, varaston luku, niputus
+    api/_laru.js           jäsennin, tiedostonimet (proxy + keräin)
+    api/laru.js            proxy: kuluva lähteestä, menneet varastosta tai lähteestä
+    tools/laru.mjs         keräin: päättyneet päivät varastoon
+    havainnot.yml          sama työnkulku kuin Mellsten, oma askel
+
+`api/_varasto.js` otettiin Mellstenin proxystä ja apumoduulista
+(kalenteri, `luePaiva`, ajan mukaan niputus); Mellstenin vastaus pysyi
+tavulleen samana (168 / 48 / 24 / 3 h ja pelkkä tuorein, vanha ja uusi
+proxy rinnakkain). Funktioita on yhä 12: alaviivalliset ovat
+apumoduuleita.
+
+**Proxy** hakee rinnakkain lähteen kuluvan päivän (`stations.txt` →
+päivätiedosto, kuten ennen) ja varastosta menneet päivät; varastosta
+puuttuva päivä haetaan lähteestä. Rivit yhdistetään minuutin mukaan
+(lähteen kuluva voittaa), ja niputus on sama kuin Mellstenillä: 5 min
+ajan mukaan kun data kattaa yli 6 h, sarjan viimeinen piste raaka
+tuorein. Ikkuna on nyt nykyhetkestä taaksepäin (ennen tuoreimmasta
+rivistä), jotta hiljaisen aseman "Viimeiset 24 h" ei ulotu kahden
+vuorokauden taakse. Lähteestä haettu mennyt päivä muistetaan lämpimässä
+instanssissa 6 h, mutta vasta kun se on varmasti valmis (puoli tuntia
+keskiyön jälkeen).
+
+**Keräin kopioi vain VALMIITA päiviä**, puoli tuntia keskiyön jälkeen,
+uusin ensin, lähteen tiedoston sellaisenaan (`laru/2026-09-28.txt`, kaksi
+otsikkoriviä edessä) ja tilan `laru/tila.json`:iin. Kuluvaa päivää ei
+kopioida. Tämä on proxyn sopimuksen ydin: varastossa oleva päivä on koko
+päivä, puuttuva haetaan lähteestä. Jos keräin kopioisi kesken olevan
+päivän, iltapäivällä kopioitu eilinen näyttäisi proxylle valmiilta — ja
+koska GitHubin ajastin jättää tunteja väliin (ks. yllä), eilisen ilta
+olisi jäänyt kortille katkoksi. Kolmen viime päivän kopiot tarkistetaan
+tunnin välein ehdollisesti (myöhässä lähetetyt rivit), vanhemmat ovat
+lopullisia; lähteestä kadonnut päivä jää varastoon (`lahteessa: false`).
+
+**Keräin on oma askeleensa** (`continue-on-error`, `timeout-minutes: 3`,
+sisäinen 120 s budjetti): Larun vika tai jumittunut lähde ei saa estää
+Mellstenin rivien julkaisua, ja väliin jäänyt päivä haetaan seuraavalla
+ajolla koska se on yhä "puuttuva".
+
+### Mitattu
+
+**Keräin:** ensimmäinen ajo 30 päivää, 30 pyyntöä, 22,8 s, 1,2 MB, kate
+94–100 % (kate = päivän 144:stä kymmenen minuutin lokerosta ne joissa on
+rivi; 4.9. 94 % ja 14.9. 97 %). Toinen ajo heti perään 0 pyyntöä;
+tunnin päästä 3 ehdollista, 3 × 304. Levyltä poistettu kopio haettiin
+uudelleen, säilytysikkunan ulkopuolinen päivä karsittiin, ja
+Mellstenin keräin ajoi samaan hakemistoon ennallaan.
+
+**Proxy, varasto vs. pelkkä lähde:** menneiden päivien pisteet
+tavulleen samat (168 h 1 838 / 1 838, 48 h 397, 24 h 109 yhteistä
+pistettä, 0 eroa). Lähteiden määrä vastauksessa (`lahteet`) kertoo kumpi
+polku ajettiin: `varasto 6005, lahde 0` tai `varasto 0, lahde 6005,
+lahdePaivia 7`. Kontissa paikallisella varastolla 1,0 s ja lähdepolku
+1,8–2,0 s (168 h). Tuotannon varasto (haara ilman `laru/`-hakemistoa) →
+404 → lähde, sama tulos.
+
+    pyyntö      pisteitä  JSON     gzip    päivärajat
+    hours=168   2 016     238 kt   27 kt   7 × 23:59 → 00:03/00:04
+    hours=48      576      68 kt    8 kt   2
+    hours=24      288      35 kt    4 kt   1
+    hours=3       107      13 kt    –      (1 min, ei nippuja)
+
+(Ennen `hours=24` oli kuluva päivä: vanha mittaus 249 pistettä ja
+30 kt.) Katkoja yli 30 min ei yhtään, ja keskiyön väli on sama kuin
+muualla.
+
+**Windgurun asema 47 vasten, 22.–29.9.:** 1 097 kymmenen minuutin
+ikkunaa, ero keskimäärin 0,42 kts, harha −0,002 kts, 7,9 % yli 1 kts.
+Siirtokoe todistaa päiväyksen: tunnin siirto 1,31 / 1,24 kts (42,8 / 40,8 %
+yli 1 kts), vuorokauden 5,09 / 5,50 kts. Ikkuna joka PÄÄTTYY Windgurun
+leimaan sopii paremmin (0,42) kuin alkava (0,44).
+
+**Selaimessa (tuotantobuild, puhelin `hasTouch`, paikallinen varasto):**
+asemakortti 168 h, kaavio 2 440 px = 7,01 ruudullista, "Viimeiset 24 h"
+(ennen samana aamuna "Viimeiset 15 h"), lämpötilaruutu yhä poissa.
+Napautus 23.9. 12, 26.9. 18 ja 28.9. 23:28 → sama kellonaika ja kortin
+oma niputus proxyn lukemasta (3,0 / 3,2, 17,8 / 17,2, 7,6 / 7,8 kts).
+Karttamerkki: 288 pisteen historia keskiyön yli, aikajanan hetket 28.9.
+22:00, 23:30, 29.9. 00:30 ja 05:00 → 8,2 / 7,8 / 10,0 / 12,5 kts =
+historian lähin piste, ja paluu tuoreimpaan. Lauttasaaren spottikortti
+(tarkistettu `State.sheetSpot`ista): Helsinki Laru 0,4 km, 48 h =
+2,01 ruudullista. Pyynnöt: merkki 24 h, kortti 168 h, spotti 48 h,
+kamera `kamera=1` ennallaan.
+
+**Savutesti kontissa kaatuu puhelimella** riville 94 ("Execution context
+was destroyed"): latausruutu jää jumitilaan kun säälaattojen luettelo ei
+tule kontista, ja Esc lataa sivun uudelleen. Sama kohta ja sama virhe
+MUUTTAMATTOMALLA buildilla. MapLibren `reading 'bind'` / `'signal'`
+-virheet (rasterikerroksen laatta, keskeytetty haku) ovat molemmissa
+buildeissa.
+
+### Mitä jää
+
+- **Varasto täyttyy ensimmäisellä ajolla oletushaaralta** (30 päivää,
+  ~25 s). Siihen asti proxy hakee menneet päivät lähteestä, eli
+  käyttäjä ei näe eroa — vain vastausaika on sekunnin pidempi.
+- Ajastimen epäluotettavuus ei koske Larua kuten Mellsteniä: väliin
+  jäänyt ajo vain siirtää kopiointia, eikä mitään katoa.
 
 ---
 

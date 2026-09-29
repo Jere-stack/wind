@@ -1,4 +1,5 @@
-# Havaintovarasto: Espoo Haukilahden (Surfing ry, Mellsten) historia.
+# Havaintovarasto: Espoo Haukilahden (Surfing ry, Mellsten) ja Larun
+# (Lauttasaari) historia.
 #
 # Lähde antaa kuluvalta vuorokaudelta vain 30 tuoreinta minuuttia, ja
 # päivän arkisto ilmestyy vasta kun vuorokausi on ohi — joskus ei
@@ -9,13 +10,18 @@
 # tunnin välein lähteen arkisto päälle (tools/havainnot.mjs,
 # docs/data.md "Mellstenin historia omaan varastoon").
 #
-# Samassa ajossa kelikameroiden tila (tools/kamerat.mjs): kaksi
-# näytettä eri aikaan on ainoa tapa nähdä päivittyykö kameran kuva
-# (docs/data.md "Larun kelikamera").
+# Samassa ajossa Larun (Lauttasaari) päättyneet päivät (tools/laru.mjs,
+# docs/data.md "Larun historia"): lähde pitää ne itse, joten varasto on
+# proxyn välimuisti ja varmuuskopio, ei historian ainoa lähde.
+#
+# Ja kelikameroiden tila (tools/kamerat.mjs): kaksi näytettä eri aikaan
+# on ainoa tapa nähdä päivittyykö kameran kuva (docs/data.md "Larun
+# kelikamera").
 #
 # ORPO HAARA JA PAKKOPÄIVITYS kuten `saadata`: haarassa on aina tasan
 # yksi committi, joten 144 ajoa vuorokaudessa ei kasvata repoa.
-# Varasto on noin 2,5 MB (31 vrk minuutin riveinä).
+# Varasto on noin 3,6 MB (31 vrk: Mellsten 2,4 MB minuutin riveinä,
+# Laru 1,2 MB).
 #
 # AJASTIN EI RIITÄ YKSIN — MITATTU. Tämä ajastin ei käynnistänyt
 # yhtään ajoa työnkulun ensimmäisen kolmen tunnin aikana (29.9. klo
@@ -85,6 +91,15 @@ jobs:
 
       - name: Kerää
         run: node tools/havainnot.mjs varasto >> "$GITHUB_STEP_SUMMARY"
+
+      # Larun päättyneet päivät (tools/laru.mjs). Oma askel, oma
+      # aikaraja ja `continue-on-error`: Larun vika tai jumittunut lähde
+      # ei saa estää Mellstenin rivien julkaisua. Väliin jäänyt päivä ei
+      # katoa — se on lähteessä ja haetaan seuraavalla ajolla.
+      - name: Laru
+        continue-on-error: true
+        timeout-minutes: 3
+        run: node tools/laru.mjs varasto >> "$GITHUB_STEP_SUMMARY"
 
       # Kelikameroiden tila (tools/kamerat.mjs, api/_kamerat.js): onko
       # pikkukuva vaihtunut edellisen käynnin jälkeen. YouTuben

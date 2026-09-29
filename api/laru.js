@@ -6,35 +6,22 @@
  * datahakemisto:
  *
  *   wind_data/stations.txt             "vuosi,vuodenpaiva" + asemalista
- *   wind_data/Laru_<vuosi>-<paiva>.txt yksi vuorokausi, ~2 min valein
+ *   wind_data/Laru_<vuosi>-<paiva>.txt yksi vuorokausi, ~1,7 min valein
  *
- * Paivatiedosto on ~20 kt ja kattaa koko vuorokauden, eli TAMA ASEMA
- * ANTAA HISTORIAA toisin kuin Mellsten (jonka ikkuna on 30 min).
+ * Rivin muoto, paivays, tiedostonimet ja lampomittarin puute:
+ * api/_laru.js.
  *
- * RIVIN MUOTO on luettu lahteen OMASTA jasentimesta
- * (`wind_data/history_graph.js`, funktio `parseData`), ei arvattu:
- *
- *   2026,9,8,13,6,13:05,183.5,5.4,6.7,7.7,0.0
- *   [0]  [1][2][3][4][5]  [6]  [7] [8] [9] [10]
- *   vuosi kk pv  h  ?  hh:mm suunta min  KA  max lampo
- *
- * Keskituuli on `fields[8]` eli KOLMAS tuuliluku — sama jarjestys kuin
- * Mellstenilla (min, ka, max). Varmistettu myos riippumatta
- * jasentimesta: min <= ka <= max piti 474/474 rivilla.
- *
- * `fields[3]` on tunti, ja lahteen oma jasennin korjaa sen avulla
- * keskiyon yli menevat rivit (`hour - checkHour > 20` -> edellinen
- * vuorokausi). Sama korjaus tehdaan tassa.
- *
- * `nan`-rivit ohitetaan, kuten lahteen jasennin tekee.
- *
- * ASEMALLA EI OLE LAMPOMITTARIA. Lampotilasarake on 0.0 JOKAISELLA
- * rivilla (474/474 mitattuna), ja Windgurun sama asema palauttaa
- * `"temperature": null`. Nolla ei siis ole lukema vaan puuttuva arvo —
- * se palautetaan nullina, ei asteina.
- *
- * LAHDE VAATII USER-AGENTIN: ilman sita se vastaa 403:lla (mitattu,
- * toistettava).
+ * HISTORIA 168 h (docs/data.md, "Larun historia"). Kuluva paiva haetaan
+ * aina lahteesta, koska lahde antaa sen kokonaan ja tuoreena. Menneet
+ * paivat luetaan varastosta (haara `havainnot`, tools/laru.mjs kopioi
+ * paattyneet paivat), ja jos varastosta puuttuu paiva, se haetaan
+ * lahteesta: lahde pitaa kaikki paivat vuosien takaa, joten historia on
+ * taysi vaikka keraaja ei olisi ehtinyt ajaa (GitHubin ajastin ei ole
+ * luotettava, docs/data.md). Varasto on siis valimuisti ja varmuuskopio —
+ * ilman sita jokainen korttiavaus hakisi lahteesta seitseman 37 kt:n
+ * tiedostoa. VARASTOSSA ON VAIN VALMIITA PAIVIA (keraaja kopioi paivan
+ * vasta puoli tuntia keskiyon jalkeen), joten siella oleva paiva on koko
+ * paiva eika sita tarvitse tarkistaa lahteesta.
  *
  * SIJAINTI JA YKSIKKO on varmistettu Windgurun asemalta 47
  * ("Lauttasaari / Larukite", lat 60.150824, lon 24.87184, alt 7 m,
@@ -44,160 +31,70 @@
  *     solmuja, tama lahde METREJA SEKUNNISSA
  *   - molemmat kertovat lampotilaksi "ei mittausta"
  */
-import https from 'https';
 import { suojaa } from './_suoja.js';
 import { kameraVastaus } from './_kamerat.js';
+import { LAHDE, OTSAKKEET, jasennaLaru, paivanTiedosto, kuluvaLahteesta } from './_laru.js';
+import {
+  haeTeksti, luePaivat, paivatValilla, helsinkiPaiva, paivaSiirra, seinaAjaksi,
+  niputaAjassa, nipunLeveys, hhmm, kelpoTz,
+} from './_varasto.js';
 
-const BASE = 'https://dlarah.org/wind_data/';
-const ASEMA = 'Laru';
 const STATION = { name: 'Helsinki Laru', place: 'laru', lat: 60.1508, lng: 24.8718 };
 /* Lahde paivittyy noin kahden minuutin valein. */
 const TTL_TUOREIN = 60;
 const TTL_HISTORIA = 180;
-const HISTORIA_OLETUS = 12;
-const HISTORIA_MAX = 24;
-/* Kaavio niputtaa noin sataankahteenkymmeneen pisteeseen, joten
-   nelisensataa riittaa reilusti — ja pitaa JSONin kymmenissa
-   kilotavuissa eika sadoissa. */
-const PISTE_KATTO = 400;
+const HISTORIA_OLETUS = 24;
+const HISTORIA_MAX = 168;
 
-/* USER-AGENT ON PAKOLLINEN. Mitattu ja toistettava: lahde vastaa
-   403:lla kun otsaketta ei ole ja 200:lla kun se on. Noden `https.get`
-   ei laheta sellaista oletuksena, joten ilman tata koko asema jaisi
-   pysyvasti tyhjaksi — eika mikaan kertoisi miksi. (Eri asia kuin
-   api/mellsten.js:n ohimeneva 403, joka toistui vain kerran.) */
-const OTSAKKEET = {
-  'user-agent': 'FoilSpot/1.0 (+https://github.com/Jere-stack/wind)',
-  'accept': 'text/plain,*/*',
-};
-
-function fetchText(url) {
-  return new Promise(function (resolve, reject) {
-    https.get(url, { headers: OTSAKKEET }, function (res) {
-      if (res.statusCode !== 200) {
-        res.resume();
-        reject(new Error('HTTP ' + res.statusCode));
-        return;
-      }
-      var body = '';
-      res.setEncoding('utf8');
-      res.on('data', function (c) { body += c; });
-      res.on('error', reject);
-      res.on('end', function () { resolve(body); });
-    }).on('error', reject);
-  });
-}
-/* Yksi uusintayritys, sama perustelu kuin api/mellsten.js:ssa. */
-async function fetchTextRetry(url) {
-  try { return await fetchText(url); }
+/* Yksi uusintayritys, sama perustelu kuin api/mellsten.js:ssa. 404 ei
+   parane uusinnalla: se on puuttuva paiva, ei ohimenevä vika. */
+async function haeLahteesta(tiedosto) {
+  try { return (await haeTeksti(LAHDE + tiedosto, OTSAKKEET, 6000)).teksti; }
   catch (e) {
+    if (e.status === 404) throw e;
     await new Promise(function (r) { setTimeout(r, 400); });
-    return fetchText(url);
+    return (await haeTeksti(LAHDE + tiedosto, OTSAKKEET, 6000)).teksti;
   }
 }
 
-/* Helsingin poikkeama UTC:sta. Intl osaa kesaajan; poikkeama
-   pyoristetaan taysiin minuutteihin, muuten muotoilun sekuntikatko
-   jattaa millisekunnit aikaleimoihin. */
-var _hkiFmt = null;
-function helsinkiPoikkeamaMs(ms) {
-  if (!_hkiFmt) {
-    _hkiFmt = new Intl.DateTimeFormat('sv-SE', {
-      timeZone: 'Europe/Helsinki', year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-    });
-  }
-  var s = _hkiFmt.format(new Date(ms));
-  return Math.round((Date.parse(s.replace(' ', 'T') + 'Z') - ms) / 60000) * 60000;
+/* Lahteen kuluva paiva ja sen rivit. Paivatiedoston nimi tulee lahteen
+   OMASTA luettelosta, ei laskemalla: `stations.txt`:n ensimmainen rivi on
+   "vuosi,paiva" sen mukaan mika on lahteen mielesta kuluva vuorokausi.
+   Itse laskettu vuodenpaiva menisi pieleen juuri keskiyon molemmin
+   puolin, ja silloin vastaus olisi 404. */
+async function haeKuluva() {
+  var kuluva = kuluvaLahteesta(await haeLahteesta('stations.txt'));
+  if (!kuluva) { var e = new Error('stations.txt'); e.luettelo = true; throw e; }
+  return { paiva: kuluva, rivit: jasennaLaru(await haeLahteesta(paivanTiedosto(kuluva))) };
 }
 
-var _tzFmt = {};
-function hhmm(ms, tz) {
-  if (!_tzFmt[tz]) {
-    try {
-      _tzFmt[tz] = new Intl.DateTimeFormat('sv-SE',
-        { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false });
-    } catch (e) {
-      _tzFmt[tz] = new Intl.DateTimeFormat('sv-SE',
-        { timeZone: 'Europe/Helsinki', hour: '2-digit', minute: '2-digit', hour12: false });
-    }
-  }
-  return _tzFmt[tz].format(new Date(ms));
-}
-function kelpoTz(tz) {
-  if (!tz) return null;
-  try { new Intl.DateTimeFormat('sv-SE', { timeZone: tz }); return tz; } catch (e) { return null; }
-}
-
-function luku(x) {
-  var v = parseFloat(x);
-  return isFinite(v) ? v : null;
+/* Mennyt paiva lahteesta, kun varasto ei sita tuntenut. Paattynyt paiva
+   on muuttumaton, joten lammin instanssi muistaa sen — mutta vasta puoli
+   tuntia keskiyon jalkeen, samalla marginaalilla jolla keraaja pitaa
+   paivaa valmiina (tools/laru.mjs). Tyhjaa ei muisteta (sama saanto kuin
+   varastolla). */
+const _lahdeMuisti = new Map();
+const LAHDE_MUISTI_MS = 6 * 36e5;
+async function mennytLahteesta(paiva, nyt) {
+  var m = _lahdeMuisti.get(paiva);
+  if (m && nyt - m.t < LAHDE_MUISTI_MS) return m.rivit;
+  var rivit;
+  try { rivit = jasennaLaru((await haeTeksti(LAHDE + paivanTiedosto(paiva), OTSAKKEET, 5000)).teksti); }
+  catch (e) { if (e.status === 404) rivit = []; else throw e; }
+  var valmis = nyt >= seinaAjaksi(paivaSiirra(paiva, 1), 0, 30);
+  if (rivit.length && valmis) _lahdeMuisti.set(paiva, { t: nyt, rivit: rivit });
+  return rivit;
 }
 
-/* Rivit -> pisteet. Paivays tulee riviltä itseltaan (kentat 0–2), joten
-   sita ei tarvitse paatella nykyhetkesta kuten Mellstenilla. */
-function jasenna(teksti) {
-  var ulos = [];
-  var rivit = String(teksti).split('\n');
-  for (var i = 0; i < rivit.length; i++) {
-    var rivi = rivit[i];
-    if (!rivi || rivi.indexOf('nan') >= 0) continue;   /* kuten lahteen oma jasennin */
-    var f = rivi.split(',');
-    if (f.length < 11) continue;
-    var aika = f[5].indexOf('T') > 0 ? f[5].split('T')[1] : f[5];
-    var osat = /^\s*(\d{1,2}):(\d{2})/.exec(aika);
-    if (!osat) continue;
-    var y = parseInt(f[0], 10), mo = parseInt(f[1], 10), d = parseInt(f[2], 10);
-    var checkHour = parseInt(f[3], 10);
-    var hh = parseInt(osat[1], 10), mm = parseInt(osat[2], 10);
-    if (!isFinite(y) || !isFinite(mo) || !isFinite(d) || !isFinite(hh)) continue;
-    /* Sama korjaus kuin lahteen jasentimessa: kellonaika voi olla
-       edelliselta vuorokaudelta. */
-    var paivaSiirto = 0;
-    if (isFinite(checkHour) && hh - checkHour > 20) paivaSiirto = -1;
-    var seina = Date.UTC(y, mo - 1, d + paivaSiirto, hh, mm, 0, 0);
-    var ms = seina - helsinkiPoikkeamaMs(seina);
-    var ws = luku(f[8]);
-    if (ws == null) continue;
-    ulos.push({
-      ms: ms,
-      wd: luku(f[6]), wsMin: luku(f[7]), ws: ws, wg: luku(f[9]),
-    });
-  }
-  ulos.sort(function (a, b) { return a.ms - b.ms; });
-  return ulos;
-}
-
-/* Harvennus joka SAILYTTAA PUUSKAT. Tasavalinen poiminta pudottaisi
-   juuri ne rivit joissa puuska on, ja kaavion puuskavyohyke kutistuisi
-   ilman etta tuuli olisi muuttunut. Niputuksessa keskituuli on
-   keskiarvo ja puuska on nipun MAKSIMI — sama sopimus jolla
-   kayttoliittyman oma `_havNiputa` niputtaa. */
-function niputa(rivit, katto) {
-  if (rivit.length <= katto) return rivit;
-  var koko = Math.ceil(rivit.length / katto);
-  var ulos = [];
-  for (var i = 0; i < rivit.length; i += koko) {
-    var nippu = rivit.slice(i, i + koko);
-    var summa = 0, n = 0, maxG = null, vahvin = nippu[0];
-    for (var j = 0; j < nippu.length; j++) {
-      summa += nippu[j].ws; n++;
-      if (nippu[j].wg != null && (maxG == null || nippu[j].wg > maxG)) maxG = nippu[j].wg;
-      if (nippu[j].ws > vahvin.ws) vahvin = nippu[j];
-    }
-    ulos.push({
-      /* Aikaleima nipun VIIMEISESTA rivista: sarjan viimeinen piste on
-         silloin oikeasti tuorein havainto eika nipun keskikohta. */
-      ms: nippu[nippu.length - 1].ms,
-      ws: summa / n,
-      wg: maxG,
-      /* Suunta vahvimmasta naytteesta: keskiarvo hyppaa 0/360 rajalla
-         vaaraan suuntaan, ja kovin hetki on se joka kiinnostaa. */
-      wd: vahvin.wd,
-      wsMin: nippu[0].wsMin,
-    });
-  }
-  return ulos;
+function tuorein(v, tz, nyt) {
+  return {
+    /* Lippu myos tanne: kortti lukee historiavastauksesta `latest`in,
+       ja ilman lippua Larun kortissa nakyi tyhja "Ilma · havainto —"
+       -laatta (docs/julkaisu.md, UI 14). */
+    ws: v.ws, wd: v.wd, wg: v.wg, tmp: null, lampomittari: false,
+    time: hhmm(v.ms, tz), lastIso: new Date(v.ms).toISOString(),
+    ageMin: Math.round((nyt - v.ms) / 60000),
+  };
 }
 
 export default async function handler(req, res) {
@@ -217,78 +114,97 @@ export default async function handler(req, res) {
   var nyt = Date.now();
 
   try {
-    /* Paivatiedoston nimi tulee lahteen OMASTA luettelosta, ei
-       laskemalla: `stations.txt`:n ensimmainen rivi on "vuosi,paiva"
-       sen mukaan mika on lahteen mielesta kuluva vuorokausi. Itse
-       laskettu vuodenpaiva menisi pieleen juuri keskiyon molemmin
-       puolin, ja silloin vastaus olisi 404. */
-    var luettelo = await fetchTextRetry(BASE + 'stations.txt');
-    var eka = String(luettelo).split('\n')[0].split(',');
-    var vuosi = parseInt(eka[0], 10), paiva = parseInt(eka[1], 10);
-    if (!isFinite(vuosi) || !isFinite(paiva)) {
-      return res.status(502).json({ error: 'stations.txt', station: STATION.name, place: STATION.place });
+    if (!isHistory) {
+      var k = await haeKuluva();
+      if (!k.rivit.length) {
+        return res.status(200).json({ error: 'no data', station: STATION.name, place: STATION.place });
+      }
+      var u = k.rivit[k.rivit.length - 1];
+      res.setHeader('Cache-Control', 'public, s-maxage=' + TTL_TUOREIN + ', stale-while-revalidate=60');
+      /* EI LAMPOTILAA. Sarake on nolla joka rivilla eika asemalla ole
+         mittaria; nolla asteena olisi keksitty lukema. */
+      return res.status(200).json(Object.assign({
+        station: STATION.name, place: STATION.place, lat: STATION.lat, lng: STATION.lng,
+        wsMin: u.wsMin,
+      }, tuorein(u, tz, nyt)));
     }
 
-    var teksti = await fetchTextRetry(BASE + ASEMA + '_' + vuosi + '-' + paiva + '.txt');
-    var rivit = jasenna(teksti);
+    var tunnit = Math.max(1, Math.min(HISTORIA_MAX, parseInt(req.query.hours, 10) || HISTORIA_OLETUS));
+    var raja = nyt - tunnit * 3600000;
+    /* Menneet paivat: varasto sisaltaa vain paattyneita paivia, joten
+       kuluva jatetaan pois. Lahde ja varasto rinnakkain (eri palvelimet);
+       kumpikin saa epaonnistua yksin. */
+    var tanaan = helsinkiPaiva(nyt);
+    var menneet = paivatValilla(raja, nyt).filter(function (p) { return p < tanaan; });
+    var tulos = await Promise.allSettled([haeKuluva(), luePaivat('laru', menneet, jasennaLaru, null)]);
+    var kuluva = tulos[0].status === 'fulfilled' ? tulos[0].value : { paiva: null, rivit: [] };
+    var varastosta = tulos[1].status === 'fulfilled' ? tulos[1].value
+      : menneet.map(function (p) { return { paiva: p, rivit: [], virhe: tulos[1].reason }; });
+    /* Varastosta puuttuvat paivat lahteesta. Rinnakkain ja ilman
+       uusintaa: tavallisesti niita ei ole yhtaan (keraaja on kopioinut
+       ne), ja pahimmillaan ne ovat kuusi kertahakua. Lahteen kuluvaa
+       paivaa ei haeta toiseen kertaan. */
+    var puuttuvat = varastosta.filter(function (t) { return !t.rivit.length && t.paiva !== kuluva.paiva; });
+    var lahteesta = await Promise.allSettled(puuttuvat.map(function (t) { return mennytLahteesta(t.paiva, nyt); }));
+
+    /* Minuutti avaimena; lahteen kuluva paiva voittaa. */
+    var kaikki = new Map(), nVarasto = 0, nLahde = 0, virheita = 0;
+    varastosta.forEach(function (t) {
+      nVarasto += t.rivit.length;
+      t.rivit.forEach(function (r) { kaikki.set(r.ms, r); });
+    });
+    lahteesta.forEach(function (t) {
+      if (t.status !== 'fulfilled') { virheita++; return; }
+      nLahde += t.value.length;
+      t.value.forEach(function (r) { kaikki.set(r.ms, r); });
+    });
+    kuluva.rivit.forEach(function (r) { kaikki.set(r.ms, r); });
+    var rivit = Array.from(kaikki.values()).sort(function (a, b) { return a.ms - b.ms; });
     if (!rivit.length) {
+      if (tulos[0].status === 'rejected') throw tulos[0].reason;
       return res.status(200).json({ error: 'no data', station: STATION.name, place: STATION.place });
     }
     var v = rivit[rivit.length - 1];
 
-    var runko = {
-      station: STATION.name, place: STATION.place,
-      lat: STATION.lat, lng: STATION.lng,
-      ws: v.ws, wd: v.wd, wg: v.wg, wsMin: v.wsMin,
-      /* EI LAMPOTILAA. Sarake on nolla joka rivilla eika asemalla ole
-         mittaria; nolla asteena olisi keksitty lukema. */
-      tmp: null, lampomittari: false,
-      time: hhmm(v.ms, tz),
-      lastIso: new Date(v.ms).toISOString(),
-      ageMin: Math.round((nyt - v.ms) / 60000),
-    };
-
-    if (!isHistory) {
-      res.setHeader('Cache-Control', 'public, s-maxage=' + TTL_TUOREIN + ', stale-while-revalidate=60');
-      return res.status(200).json(runko);
-    }
-
-    var tunnit = Math.max(1, Math.min(HISTORIA_MAX,
-      parseInt(req.query.hours, 10) || HISTORIA_OLETUS));
-    var raja = v.ms - tunnit * 3600000;
-    var ikkuna = niputa(rivit.filter(function (r) { return r.ms >= raja; }), PISTE_KATTO);
+    var ikkuna = rivit.filter(function (r) { return r.ms >= raja; });
+    /* Asema on ollut hiljaa koko ikkunan: viimeiset tunnetut rivit, jotta
+       kortti voi sanoa "viimeisin …" eika vain "ei dataa". */
+    if (!ikkuna.length) ikkuna = rivit.slice(-30);
+    /* Viiden minuutin niput AJAN mukaan (api/_varasto.js), jotta katko
+       jaa katkoksi: lukumaaraan perustuva harvennus veti nipun katkon yli. */
+    var nippuMin = nipunLeveys(ikkuna);
+    var niput = niputaAjassa(ikkuna, nippuMin);
     /* SARJAN VIIMEINEN PISTE ON TUOREIN HAVAINTO, EI NIPUN KESKIARVO.
        Kortin iso luku on `latest`, ja kaavion oikea reuna on suoraan sen
        alla — jos ne eroavat, ero nayttaa vialta vaikka molemmat ovat
        oikein omalla tavallaan. Niputus koskee siis historiaa, ei
        nykyhetkea. */
-    if (ikkuna.length && ikkuna[ikkuna.length - 1].ws !== v.ws) {
-      ikkuna = ikkuna.slice(0, -1).concat([v]);
-    }
+    if (niput.length && niput[niput.length - 1] !== v) niput = niput.slice(0, -1).concat([v]);
 
     var ws = [], wg = [];
-    for (var i = 0; i < ikkuna.length; i++) {
-      var r = ikkuna[i], iso = new Date(r.ms).toISOString(), t = hhmm(r.ms, tz);
+    for (var i = 0; i < niput.length; i++) {
+      var r = niput[i], iso = new Date(r.ms).toISOString(), t = hhmm(r.ms, tz);
       ws.push({ t: t, v: r.ws, d: r.wd, iso: iso });
       wg.push({ t: t, v: r.wg != null ? r.wg : r.ws, iso: iso });
     }
     res.setHeader('Cache-Control', 'public, s-maxage=' + TTL_HISTORIA + ', stale-while-revalidate=60');
-    runko.ws = ws; runko.wg = wg;
-    /* `ta` on tyhja taulukko eika puuttuva kentta: kayttoliittyma
-       osaa piirtaa ilman lampokayraa, mutta `undefined` nayttaisi
-       vialta. */
-    runko.ta = [];
-    runko.ikkunaMin = Math.round((ikkuna[ikkuna.length - 1].ms - ikkuna[0].ms) / 60000);
-    runko.pisteita = ikkuna.length;
-    runko.latest = {
-      /* Lippu myös tänne: kortti lukee historiavastauksesta `latest`in,
-         ja ilman lippua Larun kortissa näkyi tyhjä "Ilma · havainto —"
-         -laatta (docs/julkaisu.md, UI 14). */
-      ws: v.ws, wd: v.wd, wg: v.wg, tmp: null, lampomittari: false,
-      time: hhmm(v.ms, tz), lastIso: new Date(v.ms).toISOString(),
-      ageMin: Math.round((nyt - v.ms) / 60000),
-    };
-    return res.status(200).json(runko);
+    return res.status(200).json(Object.assign({
+      station: STATION.name, place: STATION.place, lat: STATION.lat, lng: STATION.lng,
+      wsMin: v.wsMin,
+    }, tuorein(v, tz, nyt), {
+      ws: ws, wg: wg,
+      /* `ta` on tyhja taulukko eika puuttuva kentta: kayttoliittyma
+         osaa piirtaa ilman lampokayraa, mutta `undefined` nayttaisi
+         vialta. */
+      ta: [],
+      ikkunaMin: Math.round((ikkuna[ikkuna.length - 1].ms - ikkuna[0].ms) / 60000),
+      nippuMin: nippuMin,
+      pisteita: niput.length,
+      /* Mista rivit tulivat: kaavio ei tarvitse tata, mittari tarvitsee. */
+      lahteet: { tuore: kuluva.rivit.length, kuluva: kuluva.paiva, varasto: nVarasto,
+        lahde: nLahde, lahdePaivia: puuttuvat.length, paivia: menneet.length, virheita: virheita },
+      latest: tuorein(v, tz, nyt),
+    }));
   } catch (err) {
     return res.status(502).json({ error: err.message, station: STATION.name, place: STATION.place });
   }

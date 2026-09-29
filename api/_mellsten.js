@@ -32,6 +32,12 @@
  * 29.9.2026: `Day-26-09-27` sisaltaa Helsingin 28.9:n (Windgurun
  * saman aseman 10 min sarja tasmaa siihen, ei 27.9:aan). */
 
+/* Helsingin kalenteri on yhteinen Larun kanssa (api/_varasto.js), ja se
+   viedaan taalta edelleen, jotta keraaja ja proxy lukevat sen yhdesta
+   paikasta. */
+import { helsinkiPoikkeamaMs, helsinkiPaiva, paivaSiirra, seinaAjaksi } from './_varasto.js';
+export { helsinkiPoikkeamaMs, helsinkiPaiva, paivaSiirra, seinaAjaksi };
+
 export const LAHDE = 'https://mellsten.surfing.fi/';
 
 /* Lahde rajoittaa rinnakkaisia pyyntoja (docs/data.md), ja Larun
@@ -48,44 +54,6 @@ export const OTSAKKEET = {
 };
 
 export const RIVI = /^\s*(\d{1,2}):(\d{2})\s+(-?\d+(?:\.\d+)?)°\s+(-?\d+(?:\.\d+)?)\s*<\s*(-?\d+(?:\.\d+)?)\s*<\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)°C\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)%\s+(-?\d+(?:\.\d+)?)\s*$/;
-
-/* Helsingin poikkeama UTC:sta annetulla hetkella. Intl osaa kesaajan;
-   pyoristys taysiin minuutteihin, muuten muotoilun sekuntikatko jattaa
-   millisekunnit aikaleimoihin ("...T05:50:00.738Z"). */
-var _hkiFmt = null;
-export function helsinkiPoikkeamaMs(ms) {
-  if (!_hkiFmt) {
-    _hkiFmt = new Intl.DateTimeFormat('sv-SE', {
-      timeZone: 'Europe/Helsinki', year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-    });
-  }
-  var s = _hkiFmt.format(new Date(ms));          /* "2026-09-08 08:45:00" */
-  var utc = Date.parse(s.replace(' ', 'T') + 'Z');
-  return Math.round((utc - ms) / 60000) * 60000;  /* +3 h kesalla, +2 h talvella */
-}
-
-/* Hetken Helsingin kalenteripaiva, "2026-09-29". */
-export function helsinkiPaiva(ms) {
-  return new Date(ms + helsinkiPoikkeamaMs(ms)).toISOString().slice(0, 10);
-}
-
-/* Paivan siirto kalenterissa: "2026-09-29", -1 -> "2026-09-28". */
-export function paivaSiirra(paiva, n) {
-  var t = Date.parse(paiva + 'T12:00:00Z') + n * 864e5;
-  return new Date(t).toISOString().slice(0, 10);
-}
-
-/* Helsingin seinakello -> epoch ms. Poikkeama haetaan kahdesti, koska
-   kesaajan vaihto voi osua arvauksen ja tuloksen valiin. */
-export function seinaAjaksi(paiva, h, m) {
-  var p = paiva.split('-');
-  var seina = Date.UTC(+p[0], +p[1] - 1, +p[2], h, m, 0, 0);
-  var off = helsinkiPoikkeamaMs(seina - 3 * 36e5);
-  var ms = seina - off;
-  var off2 = helsinkiPoikkeamaMs(ms);
-  return off2 === off ? ms : seina - off2;
-}
 
 /* Yksi rivi -> olio, tai null jos rivi ei ole mittausrivi (otsikko,
    tyhja, 404-sivun HTML). `teksti` on alkuperainen rivi ilman BOMia —
