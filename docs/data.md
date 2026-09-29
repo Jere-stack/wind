@@ -1949,10 +1949,38 @@ kummassakin buildissa.
 
 ### Mitä jää
 
-- **GitHubin ajastin ei ole tarkka.** Yli 30 minuutin viive jättää
-  kuluvaan päivään aukon, jonka arkisto täyttää keskiyön jälkeen — paitsi
-  ylikirjoitustapauksessa. Kuluvan päivän aukko on silloin samaa kuin
-  asemakatko.
+- **GitHubin ajastin ei riitä 30 minuutin ikkunalle — mitattu.**
+  Havainnot-työnkulku tuli oletushaaraan 29.9. klo 07:59 UTC, eikä sen
+  ajastin (`4,14,…,54 * * * *`) ollut käynnistänyt yhtään ajoa klo 11:00
+  mennessä: 17 vuoroa, 0 ajoa (`event: schedule`), työnkulun tila
+  `active`. Ainoat ajot olivat kaksi käsiajoa (08:00 ja 10:26). Saman
+  repon säädata-ajastin (`20 4,10,16,22 * * *`) 26.–29.9.: 14 vuorosta
+  ajettiin 12, ja ne alkoivat 20 min – 5 h 40 min myöhässä; ajojen
+  välit olivat 4–11 h. Seuraus tuotannossa klo 14
+  Suomen aikaa: kuluvan päivän varastossa 60 riviä (kaksi käsiajoa), ja
+  kaaviossa katkot 23:59 → 10:34 ja 11:00 → 12:59. Päättyneet päivät
+  täyttyvät arkistosta keskiyön jälkeen joka tapauksessa, joten vika
+  koskee vain kuluvaa päivää — mutta juuri se on se osa jota lähteessä
+  ei ole.
+- **Luotettava herätin on ulkoinen, ja se vaatii käyttäjän.** Työnkulussa
+  on `workflow_dispatch`, joten ulkoinen ajastin (esim. cron-job.org)
+  voi herättää sen 10 min välein:
+  `POST https://api.github.com/repos/Jere-stack/wind/actions/workflows/havainnot.yml/dispatches`,
+  otsakkeet `Authorization: Bearer <token>` ja `Accept:
+  application/vnd.github+json`, runko
+  `{"ref":"claude/vite-project-setup-6je1pq"}`, vastaus 204. Token on
+  hienojakoinen, vain tähän repoon ja vain Actions: read & write.
+  Käsiajot alkoivat mitattuna sekunneissa (08:00:03 → 08:00:09), eli
+  viive on ajastimen, ei ajon. Oma ajastin jää varalle.
+- **Mitä EI tehty.** Jatkuvasti pyörivä Actions-ajo (itseään ketjuttava
+  6 h työ, joka nukkuu kyselyjen välissä) toimisi ilman käyttäjää,
+  mutta varaisi GitHubin koneen ympäri vuorokauden; GitHubin ehdot
+  kieltävät Actionsin käytön sovelluksen palvelinosana kun kuorma on
+  suhteeton hyötyyn. Lähteen 4 tunnin kuvaaja (`plot.html` →
+  `graf/<aika>.gif`, 240 × 200 px, sarake minuutissa, palkki min–max
+  suunnan värillä ja valkoinen piste keskiarvona) olisi dekoodattavissa
+  ja venyttäisi ikkunan 30 minuutista neljään tuntiin, mutta kuvaajan
+  lukeminen pikseleistä hajoaa ensimmäisestä ulkoasun muutoksesta.
 - **Haara syntyy vasta ensimmäisellä ajolla** oletushaaralta (ajastettu
   työnkulku ajetaan vain sieltä). Sitä ennen proxy palauttaa lähteen 30
   minuuttia kuten ennen.

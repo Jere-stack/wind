@@ -2177,6 +2177,15 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   haaraa ei vielä ole), proxy palauttaa lähteen 30 minuuttia
   minuutteina kuten ennen; nipun leveys (5 min) valitaan datan
   kestosta eikä pyydetyistä tunneista.
+- **GITHUBIN AJASTIN EI RIITÄ KERUUSEEN — ÄLÄ OLETA ETTÄ SE AJAA.**
+  Havainnot-ajastin ei käynnistänyt ensimmäisten kolmen tunnin aikana
+  yhtään ajoa 17 vuorosta, ja säädata-ajastimesta ajettiin 12/14
+  vuoroa 20 min – 5 h 40 min myöhässä. 30 minuutin ikkunalle
+  luotettava herätin on ulkoinen `workflow_dispatch` 10 min välein
+  (docs/data.md, "Mitä jää"). Kun tarkistat keruuta, lue varaston
+  `mellsten/tila.json`in `paivitetty` ja ajojen `event`: käsiajo
+  (`workflow_dispatch`) ei todista ajastimesta mitään. Älä korvaa
+  herätintä jatkuvasti pyörivällä Actions-ajolla (GitHubin ehdot).
 - **Sijainti 60,147 / 24,794 on Windyn PWS-tietueesta**, ei arvattu —
   sama tietue palautti samat lukemat samalla hetkellä.
 
