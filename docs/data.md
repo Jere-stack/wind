@@ -2118,13 +2118,20 @@ MUUTTAMATTOMALLA buildilla. MapLibren `reading 'bind'` / `'signal'`
 -virheet (rasterikerroksen laatta, keskeytetty haku) ovat molemmissa
 buildeissa.
 
+**Tuotannossa (29.9., `2caf8b3`):** ennen ensimmäistä ajoa 168 h tuli
+lähdepolkua (`lahde 6005, lahdePaivia 7`, 1,59 s). Käsiajo klo 12:04
+UTC: Laru-askel 20 s, haaraan `laru/` 30 päivää + tila, 1,12 MB, kate
+vähintään 94 %. raw.githubusercontent tarjoili tiedostot 40 s pushin
+jälkeen, ja seuraava pyyntö luki varastoa (`varasto 6005, lahde 0`,
+1,19 s). Vercelin deploy ja Tarkistus vihreät, funktioita yhä 12.
+
 ### Mitä jää
 
-- **Varasto täyttyy ensimmäisellä ajolla oletushaaralta** (30 päivää,
-  ~25 s). Siihen asti proxy hakee menneet päivät lähteestä, eli
-  käyttäjä ei näe eroa — vain vastausaika on sekunnin pidempi.
 - Ajastimen epäluotettavuus ei koske Larua kuten Mellsteniä: väliin
-  jäänyt ajo vain siirtää kopiointia, eikä mitään katoa.
+  jäänyt ajo vain siirtää kopiointia, eikä mitään katoa — proxy hakee
+  puuttuvan päivän lähteestä. (Havainnot-ajastin ei ollut klo 12:05
+  UTC mennessä käynnistänyt vieläkään yhtään ajoa; kaikki neljä ajoa
+  olivat käsiajoja.)
 
 ---
 
