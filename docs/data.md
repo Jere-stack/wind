@@ -2194,11 +2194,15 @@ purkua vasten: 0 / 48 000 pikseliä eri.
   kuva klo 17:02: keskituuli, maksimi ja minimi **tasan samat 112/112**,
   suunta ±1,1° (harha +0,7°). Siirtokoe: minuutin siirto kumpaankin
   suuntaan pudottaa osumat 9/112:een, eli kohdistus on yksiselitteinen.
-- **Viisi kuvaa eri hetkiltä** (17:14 ja 17:36–17:51 viiden minuutin
-  välein, kuva ja `weather.txt` samassa haussa): jokainen täsmää omaan
-  `weather.txt`:iinsä
-  30/30, ja kaikkia tunnettuja minuutteja vasten yhteensä 268/268
-  (keskituuli ja maksimi ±0,05 m/s), suunta ±1°.
+- **Yhdeksän kuvaa eri hetkiltä** (17:14 ja 17:36–18:11 viiden
+  minuutin välein, kuva ja `weather.txt` samassa haussa): jokainen
+  täsmää omaan `weather.txt`:iinsä 30/30, ja kaikkia tunnettuja
+  minuutteja vasten (näytteiden `weather.txt`:t ja varaston tekstirivit,
+  102–117 minuuttia kuvaa kohti) yhteensä **968/968 — keskituuli,
+  maksimi JA minimi ±0,05 m/s** — ja suunta enintään 1,0°. Tuntimerkit
+  osuivat jokaisessa kuvassa tasatunneille, ja ensimmäisen merkin
+  sarake oli joka kuvassa eri (45, 23, 18, 13, 8, 3, 58, 53, 48), eli
+  kohdistus ei ole yhden vaiheen sattuma.
 - **Windgurua vasten** (asema 2399, kymmenen minuutin keskiarvo): kuva
   klo 17:41, 22 ikkunaa, ero 0,55 kts ja harha +0,08. Kontrolli samana
   päivänä lähteen omilla tekstiriveillä: 14 ikkunaa, 0,67 kts ja −0,11.
@@ -2317,11 +2321,30 @@ viisi minuuttia myöhässä — eli työnkulkutiedoston päivitys näyttää
 herättäneen GitHubin ajastimen. Se ei muuta suunnitelmaa: ajastimen
 varaan ei lasketa, mutta jos se laukeaa, ketjua ei tarvita.
 
+**`491f78d` (klo 17:54):** Tarkistus vihreä molemmissa haaroissa.
+Käsiajo klo 18:03: kuvaaja 240 minuuttia (30/30), uusia 0, koska
+edellinen ajo oli jo tallentanut ikkunan ja uudet 15 minuuttia tulivat
+tekstiriveinä. Ketjuaskel kirjoitti ajolokiin "Ympäristöllä `ajastin`
+ei ole odotusajastinta (0 min, vähintään 5)" — eli GITHUB_TOKEN lukee
+ympäristön rajapinnasta (403 olisi pysäyttänyt ketjun omalla
+viestillään), ja ketju käynnistyy ensimmäisestä ajosta kun ajastin on
+asetettu. **Ajastettu ajo 17:49 jäi toistaiseksi ainoaksi:** vuorot
+17:54 ja 18:04 eivät lauenneet, eikä 18:14 ollut lauennut 18:17
+mennessä — eli työnkulkutiedoston päivitys herätti ajastimen yhdeksi
+ajoksi, ei pysyvästi. Varaston tämän
+päivän tiedosto 18:04: 333 minuuttia, 10:31–11:00 ja 12:57 → 18:03;
+13:27–13:30 puuttuvat, koska ensimmäisen kuvaajan ikkuna alkoi vasta
+13:48.
+
 ### Mitä jää
 
 - **Tämän päivän aamu (00:00–10:31 ja 11:00–12:57) ei ole missään**
   lähteessä ennen keskiyötä. Silloin arkisto `Day-26-09-28` ilmestyy, ja
   proxy hakee sen (tila ei sano `arkisto`) — keräintä ei tarvita.
+  Tarkistettu 18:05: eilinen `Day-26-09-27` julkaistiin klo 23:59:05
+  (1 440 riviä) ja tämän päivän nimi vastaa 404 kunnes päivä on valmis;
+  Windgurulla 29.9. on 00:00–17:30 ilman yli 20 minuutin aukkoja, eli
+  asema mittasi koko aamun ja arkisto sisältää sen.
 - **Ilman ajastinketjua tai ulkoista herätintä** kuluvan päivän yli
   neljän tunnin takainen osa on ehjä vain jos jokin ajo osui sen
   kohdalle (Säädatan perään 4–11 h välein). Keskiyön jälkeen koko päivä

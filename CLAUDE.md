@@ -2189,9 +2189,10 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   (docs/data.md "Katkot pois"). Lähteen oma asteikko: 240 × 200 px,
   sarake = minuutti, y = 199 − 10·v (0,1 m/s), palkki min..max, valkoinen
   piste keskituuli, suunta = (240 − HSV-sävy) mod 360, tuntimerkit
-  riveillä 0–1. Mitattu 112/112 minuuttia keskituuli, maksimi ja minimi
-  TASAN samat kuin lähteen rivit, suunta ±1,1°, Windgurua vasten yhtä
-  hyvä kuin tekstirivi. SE LUETAAN VAIN TARKISTETTUNA: tuntimerkit
+  riveillä 0–1. Mitattu yhdeksästä kuvasta 968/968 tunnettua
+  minuuttia: keskituuli, maksimi ja minimi TASAN samat kuin lähteen
+  rivit, suunta ±1°, Windgurua vasten yhtä hyvä kuin tekstirivi. SE
+  LUETAAN VAIN TARKISTETTUNA: tuntimerkit
   tasatunneille ja saman haun `weather.txt` täsmää (90 %, ≥ 10 min),
   muuten koko kuva hylätään, ja ilman Last-Modifiedia kuvaa ei lueta
   lainkaan. Minimi alle 0,8 m/s ja maksimi yli 19 m/s ovat `?`, eikä
@@ -2214,7 +2215,8 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   (5 min) valitaan datan kestosta eikä pyydetyistä tunneista.
 - **GITHUBIN AJASTIN EI RIITÄ KERUUSEEN — ÄLÄ OLETA ETTÄ SE AJAA.**
   Havainnot-ajastin ei käynnistänyt kuuteen tuntiin yhtään ajoa (~36
-  vuoroa, työnkulku `active`, ei GitHubin häiriötä), ja säädata-
+  vuoroa, työnkulku `active`, ei GitHubin häiriötä), työnkulkutiedoston
+  päivityksen jälkeen se laukesi KERRAN ja vaikeni taas, ja säädata-
   ajastimesta ajettiin 12/14 vuoroa 20 min – 5 h 40 min myöhässä.
   Kuvaajan ansiosta ajovälin pitää olla alle NELJÄ TUNTIA (ei 30 min),
   ja herättimiä on kolme: ajastin, Säädatan perään (`workflow_run`) ja
