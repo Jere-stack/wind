@@ -49,10 +49,25 @@ export const KAMERAT = [
    ajastimen tavallisen heiton; sammunut kamera näkyy sammuneena
    20–35 minuutissa. */
 export const HILJAA_MAX_MS = 25 * 60e3;
-/* Keräimen tilaa vanhempi kuin tämä ei kerro nykyhetkestä mitään:
-   GitHubin ajastin viivästää ajoja joskus yli puoli tuntia (docs/data.md,
-   "Mitä jää"), mutta kaksi tuntia on jo pysähtynyt keräin. */
+/* Keräimen tilaa vanhempi kuin tämä ei kerro nykyhetkestä mitään
+   ILMAN omaa näytettä: GitHubin ajastin viivästää ajoja joskus yli
+   puoli tuntia (docs/data.md, "Mitä jää"), mutta kaksi tuntia on jo
+   pysähtynyt keräin. Oman näytteen kanssa vanhakin tila kelpaa (alla). */
 export const TILA_VANHA_MS = 2 * 3600e3;
+/* LASKURI ON KELLO. Kuva vaihtuu päällä olevalla kameralla tasaisesti
+   (mitattu 4,9–5,1 min kuvaa kohti, näytteissä on lisäksi CDN:n
+   viiden minuutin viive), joten kahden näytteen välinen kuvamäärä
+   kertoo onko kuvaa tullut koko ajan. 6 min on tahdin yläraja ja 2
+   kuvaa näytteiden viive: jos kamera sammui T_off sitten ja edellinen
+   näyte on T:n takaa, sääntö erehtyy vain kun T_off < T/6 + 10 min.
+   Vuorokautta vanhempaan näytteeseen sitä ei enää verrata. */
+export const KUVA_VALI_MAX_MS = 6 * 60e3;
+export const LASKURI_VARA = 2;
+export const LASKURI_MAX_MS = 24 * 3600e3;
+/* Elävän lähetyksen ETag: laskuri. Tavallisen videon ETag on Unix-aika
+   (10 numeroa), joten raja erottaa ne myös keräimen uuden lähetyksen
+   haussa (vaihdettu kansikuva ei ole lähetys). */
+export const LASKURI = /^\d{1,8}$/;
 
 export function kanavanOsoite(kanava) {
   return 'https://www.youtube.com/channel/' + kanava;
@@ -92,51 +107,68 @@ export function seurattava(kamera, k) {
   return k && k.rekisteri === kamera.video && k.video ? k.video : kamera.video;
 }
 
+/* Onko kuvia tullut tasaisesti näytteen `a` (ikä `ms`) jälkeen
+   näytteeseen `b` asti. Vain laskureille: Unix-aikainen ETag on
+   tavallinen video. */
+export function laskuriKulkee(a, b, ms) {
+  if (!LASKURI.test(String(a)) || !LASKURI.test(String(b))) return false;
+  const kuvia = Number(b) - Number(a);
+  return kuvia > 0 && kuvia >= ms / KUVA_VALI_MAX_MS - LASKURI_VARA;
+}
+
 /* TILASÄÄNTÖ. `k` on keräimen tila (tai null), `nayte` proxyn oma HEAD
  * samaan videoon (tai null jos se epäonnistui).
  *
  *   'live'        kuva on vaihtunut viimeisen 25 min aikana
  *   'pois'        kuva ei vaihdu, lähetys on päättynyt tai video poistettu
- *   'tuntematon'  keräimen tieto puuttuu tai on vanha
+ *   'tuntematon'  tieto puuttuu, tai sitä ei voi erottaa kummastakaan
  *
  * `viimeisin` on se hetki jolloin keräin näki nykyisen kuvan ilmestyvän
- * (±10 min), eli sammuneella kameralla "viimeisin kuva". */
+ * (±10 min), eli sammuneella kameralla "viimeisin kuva".
+ *
+ * HILJAISUUS ON HAVAINTO, EI PÄÄTELMÄ. 'pois' vaatii että sama kuva on
+ * NÄHTY rajan yli: oma näyte näkee nyt saman kuvan joka nähtiin
+ * `nahty`nä, tai keräin näki sen (`tarkistettu − nahty`). Pelkkä vanha
+ * `nahty` ei riitä — jos haut epäonnistuivat, tunnin takainen muutos ei
+ * kerro että kamera sammui, vaan että sitä ei ole katsottu. */
 export function paattele(kamera, k, nyt, nayte) {
   const video = seurattava(kamera, k);
   const pohja = { tila: 'tuntematon', video, syy: null, viimeisin: null };
+  const oma = nayte && nayte.video === video ? nayte : null;
   /* Päättynyt ja poistettu näkyvät yhdestäkin näytteestä, keräimestä
      riippumatta. */
-  if (nayte && nayte.video === video) {
-    if (nayte.tila === 404) return Object.assign(pohja, { tila: 'pois', syy: 'poistettu' });
-    if (nayte.etag === '0') return Object.assign(pohja, { tila: 'pois', syy: 'paattynyt' });
-  }
+  if (oma && oma.tila === 404) return Object.assign(pohja, { tila: 'pois', syy: 'poistettu' });
+  if (oma && oma.etag === '0') return Object.assign(pohja, { tila: 'pois', syy: 'paattynyt' });
   const tarkistettu = k ? Date.parse(k.tarkistettu) : NaN;
-  if (!k || k.rekisteri !== kamera.video || !(nyt - tarkistettu <= TILA_VANHA_MS)) {
+  const nahty = k ? Date.parse(k.nahty) : NaN;
+  if (!k || k.rekisteri !== kamera.video || !(nyt - tarkistettu >= 0) || !(tarkistettu >= nahty)) {
     return Object.assign(pohja, { syy: 'ei-keraajaa' });
   }
-  /* Kuva on vaihtunut keräimen käynnin jälkeen. Se todistaa elävyyden
-     vain jos käynti on tuore — kahden tunnin takaisen jälkeen vaihtunut
-     kuva voi olla puolentoista tunnin takaa. */
-  if (nayte && nayte.video === video && nayte.etag && nayte.etag !== k.etag) {
-    return nyt - tarkistettu <= 2 * HILJAA_MAX_MS
-      ? Object.assign(pohja, { tila: 'live' })
-      : Object.assign(pohja, { syy: 'ei-keraajaa' });
+  const ika = nyt - tarkistettu;
+  const hiljaa = () => Object.assign(pohja, { tila: 'pois', syy: 'hiljaa', viimeisin: k.muutos ? k.nahty : null });
+
+  if (oma && oma.etag) {
+    /* Kuva on vaihtunut keräimen käynnin jälkeen. Tuoreen käynnin jälkeen
+       se todistaa elävyyden sellaisenaan; vanhemman jälkeen vain jos
+       kuvia on tullut tahdin verran (laskuri kellona). */
+    if (oma.etag !== k.etag) {
+      if (ika <= 2 * HILJAA_MAX_MS) return Object.assign(pohja, { tila: 'live' });
+      if (ika <= LASKURI_MAX_MS && laskuriKulkee(k.etag, oma.etag, ika)) {
+        return Object.assign(pohja, { tila: 'live' });
+      }
+      return Object.assign(pohja, { syy: 'ei-keraajaa' });
+    }
+    /* Sama kuva nyt kuin `nahty`nä: havainto, keräimen iästä riippumatta. */
+    if (nyt - nahty > HILJAA_MAX_MS) return hiljaa();
+    return k.muutos ? Object.assign(pohja, { tila: 'live' }) : pohja;
   }
+
+  /* Oma näyte epäonnistui: vain keräimen tuore tila kelpaa. */
+  if (ika > TILA_VANHA_MS) return Object.assign(pohja, { syy: 'ei-keraajaa' });
   if (!k.etag || k.etag === '0') {
     return Object.assign(pohja, { tila: 'pois', syy: k.etag ? 'paattynyt' : 'poistettu' });
   }
   if (kuvaElaa(k, nyt)) return Object.assign(pohja, { tila: 'live' });
-  /* HILJAISUUS ON HAVAINTO, EI PÄÄTELMÄ. Sama kuva on NÄHTÄVÄ rajan
-     yli: joko keräin näki sen (`tarkistettu − nahty`) tai oma näyte
-     näkee sen nyt. Pelkkä vanha `nahty` ei riitä — jos keräimen ja oman
-     näytteen haut epäonnistuivat, tunnin takainen muutos ei kerro että
-     kamera sammui, vaan että sitä ei ole katsottu. Ensimmäisellä
-     käynnillä muutosta ei ole vielä nähty, joten hiljaisuus alkaa
-     todistaa vasta kun se on kestänyt koko rajan. */
-  const nahty = Date.parse(k.nahty);
-  const samaNyt = !!(nayte && nayte.video === video && nayte.etag === k.etag);
-  if (tarkistettu - nahty > HILJAA_MAX_MS || (samaNyt && nyt - nahty > HILJAA_MAX_MS)) {
-    return Object.assign(pohja, { tila: 'pois', syy: 'hiljaa', viimeisin: k.muutos ? k.nahty : null });
-  }
+  if (tarkistettu - nahty > HILJAA_MAX_MS) return hiljaa();
   return pohja;
 }

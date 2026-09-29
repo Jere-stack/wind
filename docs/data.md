@@ -3531,22 +3531,41 @@ ETag nähtiin ensin, `muutos` = korvasiko se eri ETagin (ensimmäinen
 näyte ei ole muutos). Proxy lukee tilan ja tekee oman HEADin:
 
 - `404` tai ETag `"0"` → **pois** heti, keräimestä riippumatta
-- ei tilaa, rekisteri vaihdettu käsin tai tila yli 2 h vanha → **tuntematon**
-- oma ETag eri kuin keräimen ja keräin käynyt alle 50 min sitten →
-  **live** (kuva vaihtui käynnin jälkeen — kattaa myöhästyneen ajastimen)
-- kuva vaihtunut (`muutos`) alle 25 min sitten → **live**
-- sama kuva NÄHTY yli 25 min (keräin näki sen, tai oma näyte näkee sen
-  nyt) → **pois**, ja `viimeisin` = `nahty` jos muutos nähtiin
-- muuten **tuntematon**: tunnin takainen muutos ilman uutta näytettä
-  ei kerro että kamera sammui, vaan että sitä ei ole katsottu
+- ei tilaa tai rekisteri vaihdettu käsin → **tuntematon**
+- oma ETag eri kuin keräimen: kuva vaihtui keräimen käynnin jälkeen →
+  **live** jos käynti on alle 50 min takaa (kattaa myöhästyneen
+  ajastimen), ja vanhemman käynnin jälkeen vain jos kuvia on tullut
+  tahdin verran (alla) — muuten **tuntematon**
+- oma ETag sama kuin keräimen: sama kuva kuin `nahty`nä → **pois** jos
+  siitä on yli 25 min (keräimen iästä riippumatta: se on havainto),
+  **live** jos muutos nähtiin alle 25 min sitten, muuten tuntematon
+- oma HEAD epäonnistui: vain alle 2 h vanha keräimen tila kelpaa
+  (vaihtui alle 25 min sitten → live, keräin näki saman kuvan yli
+  25 min → pois, muuten tuntematon)
+
+**Hiljaisuus on havainto, ei päätelmä.** Pelkkä vanha `nahty` ei
+todista sammumista: jos haut epäonnistuivat, tunnin takainen muutos
+kertoo vain ettei kameraa ole katsottu.
+
+**Laskuri on kello.** Kuva vaihtuu päällä olevalla kameralla
+tasaisesti: mitattuna 25 kuvaa 128 minuutissa (5,1 min) ja 19 kuvaa
+93 minuutissa (4,9 min), ja jokaisessa näytteessä on lisäksi CDN:n
+enintään viiden minuutin viive. Kahden näytteen välinen kuvamäärä
+kertoo siis onko kuvaa tullut koko ajan: `kuvia ≥ ikä / 6 min − 2`.
+Jos kamera sammui T_off sitten ja keräimen näyte on T:n takaa, sääntö
+erehtyy vain kun T_off < T/6 + 10 min, joten sitä ei käytetä
+vuorokautta vanhempaan näytteeseen. Tämä lisättiin kun keräimen
+ajastin ei käynnistynyt (ks. "Mitä jää"): ilman sitä kolmio olisi
+kadonnut 50 minuuttia viimeisen käynnin jälkeen.
 
 25 minuuttia on kaksi keräimen väliä ja yksi väliin jäänyt kuva;
 sammunut kamera näkyy sammuneena 20–35 minuutissa. Mitattu: ensimmäinen
 ajo "ensimmäinen näyte" (tila tuntematon), toinen ajo viisi minuuttia
-myöhemmin "ETag 188457, kuva vaihtui → päällä"; tilasäännön 18
-tapausta (live, myöhästynyt keräin, talvi, päättynyt, poistettu,
-vanha tila, rekisterin vaihto, uusi lähetys, epäonnistuneet näytteet)
-läpi.
+myöhemmin "ETag 188457, kuva vaihtui → päällä"; tilasäännön 23
+tapausta (live, myöhästynyt ja pysähtynyt keräin, laskuri tahdissa ja
+jäljessä, talvi, päättynyt, poistettu, rekisterin vaihto, uusi
+lähetys, epäonnistuneet näytteet) läpi. GitHub Actionsissa keräin
+kirjoitti `kamerat/tila.json`in ensimmäisellä ajolla (16 s koko ajo).
 
 **Uusi lähetys löytyy itsestään.** Jos seura joskus aloittaa uuden
 lähetyksen, rekisterin video jäisi pysyvästi pois päältä. Sammuneen
@@ -3592,7 +3611,15 @@ kontissa; mitattu on iframe (osoite, koko, fokus, poisto).
 - **Ensimmäinen ajo ei tiedä mitään.** Ennen keräimen kahta käyntiä
   (oletushaaran ensimmäinen ajastettu ajo + 10 min) tila on tuntematon
   ja kolmio puuttuu; kortti näyttää kuvan ilman SUORA-merkkiä.
-- **GitHub poistaa ajastetut työnkulut** 60 päivän toimettomuuden
-  jälkeen. Silloin tila vanhenee kahdessa tunnissa tuntemattomaksi:
+- **Havainnot-työnkulun ajastin ei ollut käynnistynyt** kertaakaan
+  työnkulun luonnin (29.9. klo 08.00 UTC) ja tämän erän välillä —
+  vain kaksi käsiajoa (`workflow_dispatch`), joista jälkimmäinen tämän
+  erän tarkistuksena. Se koskee myös Mellstenin keruuta. Jos ajastin ei
+  lähde itsestään, työnkulun poisto ja uudelleenkytkentä Actions-
+  välilehdeltä rekisteröi sen uudelleen.
+- **Pysähtynyt keräin** (esim. GitHub poistaa ajastetut työnkulut 60
+  päivän toimettomuuden jälkeen): sama kuva tunnistetaan yhä pois-
+  tilaksi ja tahdissa kulkeva laskuri live-tilaksi vuorokauden ajan
+  viimeisestä käynnistä; sen jälkeen vaihtuva kuva on tuntematon —
   kolmio katoaa, mutta kortti toimii yhä.
 - Spottikortissa (Lauttasaari) ei ole kameraa — pyyntö koski asemakorttia.

@@ -35,13 +35,12 @@
  * Vain Noden omia moduuleita: työnkulku ei aja `npm ci`:tä. */
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { KAMERAT, HILJAA_MAX_MS, haeEtag, kuvaElaa, seurattava } from '../api/_kamerat.js';
+import { KAMERAT, HILJAA_MAX_MS, LASKURI, haeEtag, kuvaElaa, seurattava } from '../api/_kamerat.js';
 
 const HAKU_VALI_MS = 60 * 60e3;
 /* Syötteessä ovat kanavan 15 uusinta; uutta lähetystä etsitään vain
    tuoreista, jotta vuosien takaiset tallenteet eivät maksa hakuja. */
 const EHDOKAS_TUORE_MS = 60 * 864e5;
-const LASKURI = /^\d{1,8}$/;
 
 const hak = process.argv[2];
 if (!hak) { console.error('kaytto: node tools/kamerat.mjs <hakemisto>'); process.exit(2); }

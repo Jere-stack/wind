@@ -1858,7 +1858,10 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   sama Actions-ajo kuin Mellsten, `continue-on-error`) kirjaa ne
   `havainnot`-haaraan ja `api/kamera.js` lisää oman HEADin.
   **HILJAISUUS ON HAVAINTO**: sama kuva on NÄHTÄVÄ rajan yli — vanha
-  muutos ilman uutta näytettä on 'tuntematon', ei 'pois'.
+  muutos ilman uutta näytettä on 'tuntematon', ei 'pois'. **LASKURI ON
+  KELLO** (~5 min/kuva): vanhan keräinnäytteen ja oman näytteen välinen
+  kuvamäärä (`kuvia ≥ ikä/6 min − 2`, enintään vuorokausi) kertoo onko
+  kuvaa tullut koko ajan, joten kolmio ei katoa keräimen viiveeseen.
 - **REKISTERI ON YKSI: `api/_kamerat.js`.** Sovellus saa kamerat
   `/api/kamera`n vastauksesta ja kytkee ne asemaan `asema`-kentällä
   (aseman `place`); index.html:ssä ei ole kameralistaa. Uusi lähetys
