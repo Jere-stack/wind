@@ -1880,6 +1880,10 @@ ole.
 rinnakkain) ja lähteen `weather.txt`:n, ja lähteen rivi voittaa saman
 minuutin varastorivin. Lähteen arkistoa proxy EI hae: se olisi jopa
 kahdeksan 90 kt:n pyyntöä pienelle palvelimelle joka korttiavauksella.
+(Muuttui 29.9. illalla: kun keräin ei ajanut, tämä jätti myös
+menneet päivät vajaiksi. Proxy hakee nyt arkiston niille päiville
+joita keräin ei ole yhdistänyt, ja lähteen 4 h kuvaajan joka haulla —
+ks. "Katkot pois" alempana.)
 
 ### Kolme ansaa päiväyksessä
 
@@ -2132,6 +2136,174 @@ jälkeen, ja seuraava pyyntö luki varastoa (`varasto 6005, lahde 0`,
   puuttuvan päivän lähteestä. (Havainnot-ajastin ei ollut klo 12:05
   UTC mennessä käynnistänyt vieläkään yhtään ajoa; kaikki neljä ajoa
   olivat käsiajoja.)
+
+## Katkot pois: kuvaaja, arkisto ja ajastinketju
+
+Käyttäjä raportoi 29.9. klo 17: "Haukilahden havaintoasema on tuottanut
+tänään dataa mutta apissa on katkoksia — Windguru on saanut datan koko
+ajalta. Tee korjaukset ettei dataan tule katkoja."
+
+### Syy, mitattu
+
+- **Havainnot-työnkulun ajastin ei ollut käynnistänyt yhtään ajoa.**
+  Työnkulku tuli oletushaaraan klo 07:59 UTC; klo 13:54 UTC ajoja oli
+  neljä, kaikki käsiajoja (`workflow_dispatch`), ~36 vuoroa ja 0
+  ajastettua. Työnkulun tila `active`, GitHubin tilasivulla ei häiriötä,
+  ja samassa repossa Säädatan ajastin laukesi (4–11 h välein). Molempien
+  työnkulkujen committien tekijä on sama, eli vika ei ole
+  työnkulkukohtainen asetus vaan GitHubin ajastin.
+- **Varastossa oli tältä päivältä neljä puolen tunnin ikkunaa**
+  (10:31–11:00, 12:57–13:26, 13:31–14:00, 14:35–15:04 — käsiajojen
+  hetkiltä). Lähde antaa tekstinä vain 30 minuuttia, joten muu päivä oli
+  poissa kunnes arkisto ilmestyy keskiyöllä.
+- **Ja proxy ei hakenut arkistoa.** Se luotti siihen että keräin
+  yhdistää päättyneen päivän arkiston varastoon — joten ilman keräintä
+  myös eilinen jäisi vajaaksi, pysyvästi.
+
+### Lähteen muut tiedostot — kaikki tekstinä 30 minuuttia
+
+`weather.txt`, `plot.html` ja `plot3.html` sisältävät samat 30 riviä,
+`plot2.html` kaksi ja `lastWeather.*` yhden. Mutta **`plot.gif` on
+neljän tunnin kuvaaja minuutin välein**, ja lähteen oma sivu kertoo
+asteikon: "Kuvaajan leveys vastaa 4 tunnin jaksoa, katkoviiva on 10 m/s
+kohdalla, maksimituuli on 20 m/s, värit kertovat tuulen suunnan." Kuva
+päivittyy minuutin välein samalla hetkellä kuin `weather.txt`
+(Last-Modified sama sekunti), ja sillä on `max-age` 30 vrk, joten
+osoitteeseen lisätään aikaleima kuten lähteen oma sivu tekee.
+
+    240 x 200 px GIF, 64 väriä, sarake = minuutti, oikea reuna = uusin
+    y = 199 - 10 * v        10 px / m/s = 0,1 m/s, sama tarkkuus kuin rivissä
+    palkki min..max         suunnan värinen
+    valkoinen piste         keskituuli (aina tasan yksi pikseli)
+    rivit 192..199          suuntanauha, sama väri kuin palkki (237/237)
+    rivit 0..1 valkoinen    tuntimerkki: sarake on HH:00
+    rivit 0..7 sininen      sade
+    rivi 99, joka 10.       katkoviiva 10 m/s
+
+**Suunta on HSV-sävy**: kompassi 0 = sininen, 90 = vihreä, 180 = keltainen,
+240 = punainen (`colors.png` näytteistettynä kehältä), eli suunta = (240 −
+sävy) mod 360. Legendaa ei tarvita.
+
+GIF puretaan omalla purkajalla (`api/_gif.js`, LZW ja lomitus), koska
+keräin ajetaan ilman `npm ci`:ta. Purkaja on tarkistettu Chromiumin
+purkua vasten: 0 / 48 000 pikseliä eri.
+
+### Tarkkuus, mitattu
+
+- **112 tunnettua minuuttia** (varaston tekstirivit + `weather.txt`),
+  kuva klo 17:02: keskituuli, maksimi ja minimi **tasan samat 112/112**,
+  suunta ±1,1° (harha +0,7°). Siirtokoe: minuutin siirto kumpaankin
+  suuntaan pudottaa osumat 9/112:een, eli kohdistus on yksiselitteinen.
+- **Useampi kuva eri hetkiltä**: jokainen tasan oma `weather.txt`:nsä
+  (30/30) ja kaikki tunnetut minuutit (ks. alla, "Mittaukset").
+- **Windgurua vasten** (asema 2399, kymmenen minuutin keskiarvo): kuva
+  klo 17:41, 22 ikkunaa, ero 0,55 kts ja harha +0,08. Kontrolli samana
+  päivänä lähteen omilla tekstiriveillä: 14 ikkunaa, 0,67 kts ja −0,11.
+  Kuvaajasta luettu on siis yhtä hyvää kuin lähteen rivi.
+
+**Nollarivi on tyyni, ei puuttuva.** Lähde kirjoittaa `0° 0.0 < 0.0 <
+0.0` (28.9. 150 kertaa, 4.9. 69), ja naapuriminuutit ovat 0,5–0,9 m/s:
+mittari pysähtyy. Kuvaaja piirtää sen samoin (valkoinen piste rivillä
+199, ei nauhaa), joten luettu ja kirjoitettu rivi täsmäävät. Joskus se on
+myös katko (29.9. 15:03–15:05 kesken 5 m/s tuulen) — lähde ei erota
+niitä, eikä tämä muutos erota.
+
+**Mitä kuvaajasta ei näe**: minimi alle 0,8 m/s (palkki jatkuu
+suuntanauhaan) ja maksimi yli 19 m/s (tuntimerkkien ja sateen alue)
+merkitään `?`:ksi eikä arvata. Lämpötilaa, painetta ja kosteutta ei ole.
+
+### Ratkaisu
+
+**1. Proxy lukee kuvaajan joka haulla** (`api/mellsten.js`). Viimeiset
+neljä tuntia ovat aina ehjät, vaikka keräin ei olisi ajanut koskaan.
+Kuvaaja kelpaa vain jos sen minuutit täsmäävät saman haun
+`weather.txt`:hen (90 %, vähintään 10 minuuttia) ja tuntimerkit osuvat
+tasatunneille; muuten se hylätään kokonaan eikä tuota vääriä lukuja.
+Lähteeseen peräkkäin (palvelin torjuu rinnakkaiset), ja jos
+`weather.txt` ei vastaa, kuvaajaa ja arkistoa ei yritetä.
+
+**2. Proxy hakee arkiston päättyneille päiville joita keräin ei ole
+yhdistänyt** (`tila.json`, `arkisto`). Helsingin päivä D on nimellä D−1
+tai D, joten molemmat haetaan. Valmis arkisto muistetaan 6 h, puuttuva
+nimi 30 min, ja haut loppuvat 6 s budjettiin (seuraava pyyntö jatkaa).
+Muistissa oleva arkisto käytetään myös päivälle jonka `tila.json`
+sanoo jo yhdistetyksi: muuten lämpimän instanssin puoli tuntia vanha
+varastokopio (vajaa, ennen yhdistämistä) näkyisi hetken. Mitattu:
+varastossa vajaa 28.9. (200 riviä), ensin ilman tilaa (arkisto haetaan,
+429 pistettä), sitten tila "yhdistetty" — yhä 429 pistettä, 0 hakua.
+
+**3. Keräin tallentaa kuvaajan** varastoon riveinä, joiden loppusana on
+`kuvaaja` (`" 13:05 231°   3.6 <  4.2 <  4.8   kuvaaja"`). Järjestys
+minuutille: arkisto voittaa kaiken, kerätty tekstirivi voittaa
+kuvaajarivin, kuvaajarivi täyttää vain tyhjän minuutin. Ajovälin ei
+siis tarvitse olla alle 30 min vaan alle neljä tuntia.
+
+**4. Herättimet** (`.github/workflows/havainnot.yml`):
+
+- `workflow_run` jokaisen Säädata-ajon perään — sen ajastin laukeaa.
+- **Ajastinketju** (`tools/ajastin.mjs`): jokainen ajo lähettää
+  seuraavan (`workflow_dispatch` on ainoa GITHUB_TOKENin tapahtuma joka
+  käynnistää uuden ajon), ja lenkin ensimmäinen työ `odota` viittaa
+  ympäristöön `ajastin`, jonka **odotusajastin** pitää työtä jonossa
+  ILMAN konetta. Se ei siis ole jatkuvasti pyörivä Actions-ajo.
+  Käyttöönotto on yksi asetus: **Settings → Environments → New
+  environment → nimi `ajastin` → Wait timer → esim. 20 min → Save**.
+  Seuraava ajo (Säädatan perään tai käsin) käynnistää ketjun.
+- Turvallisuus: ketju ei käynnisty ilman vähintään 5 min ajastinta
+  (luettu rajapinnasta), lenkki joka ei odottanut pysäyttää ketjun, ja
+  jos jokin havainnot-ajo on jo jonossa tai odottamassa, uutta ei
+  lähetetä. Testattu valerajapintaa vasten yhdeksällä tilanteella
+  (ei ympäristöä, ei ajastinta, 2 min ajastin, 20 min ajastin, lenkki
+  joka odotti 1 / 21 min, toinen ajo odottamassa, luku estetty,
+  rajapinta alhaalla): lähetys vain niissä kahdessa joissa pitää, ja
+  skripti ei kaada ajoa missään. actionlint: ei huomautuksia.
+- Ulkoinen herätin (cron-job.org, ks. "Mellstenin historia … Mitä jää")
+  toimii yhä.
+
+### Mittaukset
+
+**Proxy, oikea varasto, vanha ja uusi rinnakkain klo 17:45 (24 h):**
+ennen katkot 23:59 → 10:34, 11:00 → 12:59, 14:00 → 14:39 ja 15:04 →
+17:14 (tänään 34 pistettä); jälkeen jäljellä 23:59 → 10:34 ja 11:00 →
+12:59, ja 12:59 → nyt on yhtenäinen (65 pistettä; kuvaaja 240
+minuuttia, tarkistus 30/30). 168 h:n muut
+katkot ovat aseman omia sammumisia: Windgurun saman viikon katkot yli
+30 min ovat TÄSMÄLLEEN samat viisi (24.9. 06:50–08:00 ja 22:20–23:00,
+25.9. 01:40 → 26.9. 09:00, 26.9. 10:40–12:40 ja 16:20 → 27.9. 09:00;
+meillä ±10 min Windgurun ikkunoista). Tämän päivän aamu on ainoa ero
+Windguruun, ja se täyttyy keskiyöllä arkistosta. Kesto 0,6–2,5 s.
+
+**Proxy, tyhjä varasto** (keräin ei olisi koskaan ajanut): 48 h ja 168 h
+tulevat kokonaan — arkistosta 2 344 / 6 978 riviä (= varaston rivit
+miinus tämän päivän käsiajorivit), kuvaajasta 240. Ensimmäinen 168 h
+viidellä arkistohaulla 0,58 s, toinen muistista 0,15 s.
+
+**Lähde alhaalla** (välityspalvelin kuolleeseen porttiin): varaston
+rivit alle sekunnissa, `kuvaajaSyy: "ei haettu"`, ei arkistohakuja.
+
+**Keräin** varaston kopiolla: ensimmäinen ajo kuvaajasta 142 uutta
+minuuttia (240 − varaston tekstirivit), toinen ajo 0 — kuvaaja ei
+korvaa mitään. Tiedostossa teksti- ja kuvaajarivit vuorottelevat
+minuutin tarkkuudella (13:26 teksti, 13:27–13:30 kuvaaja, 13:31
+teksti).
+
+**Selaimessa** (tuotantobuild, puhelin `hasTouch`): karttamerkki
+osaa tämän päivän 14:30, 15:30 ja 16:30 (lähin piste 1 min päässä,
+ennen katko), asemakortin napautus 14:20 / 15:40 / 16:20 näyttää
+lukeman, ja kaavio on 13:00 → nyt yhtenäinen.
+
+### Mitä jää
+
+- **Tämän päivän aamu (00:00–10:31 ja 11:00–12:57) ei ole missään**
+  lähteessä ennen keskiyötä. Silloin arkisto `Day-26-09-28` ilmestyy, ja
+  proxy hakee sen (tila ei sano `arkisto`) — keräintä ei tarvita.
+- **Ilman ajastinketjua tai ulkoista herätintä** kuluvan päivän yli
+  neljän tunnin takainen osa on ehjä vain jos jokin ajo osui sen
+  kohdalle (Säädatan perään 4–11 h välein). Keskiyön jälkeen koko päivä
+  on ehjä arkistosta.
+- Ajastinketjun lenkit luovat ympäristöön `ajastin` "deploymentin"
+  jokaisella ajolla (GitHubin tapa); se näkyy repon Deployments-listassa
+  eikä maksa mitään.
 
 ---
 

@@ -1,14 +1,15 @@
 # Havaintovarasto: Espoo Haukilahden (Surfing ry, Mellsten) ja Larun
 # (Lauttasaari) historia.
 #
-# Lähde antaa kuluvalta vuorokaudelta vain 30 tuoreinta minuuttia, ja
-# päivän arkisto ilmestyy vasta kun vuorokausi on ohi — joskus ei
-# lainkaan (10.9.2026 klo 11:40–23:59 jäi arkistosta pois, koska
-# seuraava istunto sai saman tiedostonimen). Windgurun asemalla 2399 on
-# sama asema koko historioineen, koska Windguru kerää sen itse. Tämä
-# tekee saman: kymmenen minuutin välein 30 minuutin ikkuna varastoon, ja
-# tunnin välein lähteen arkisto päälle (tools/havainnot.mjs,
-# docs/data.md "Mellstenin historia omaan varastoon").
+# Lähde antaa kuluvalta vuorokaudelta tekstinä vain 30 tuoreinta
+# minuuttia, ja päivän arkisto ilmestyy vasta kun vuorokausi on ohi —
+# joskus ei lainkaan (10.9.2026 klo 11:40–23:59 jäi arkistosta pois,
+# koska seuraava istunto sai saman tiedostonimen). Windgurun asemalla
+# 2399 on sama asema koko historioineen, koska Windguru kerää sen itse.
+# Tämä tekee saman: joka ajolla 30 minuutin tekstirivit ja lähteen
+# neljän tunnin kuvaaja (plot.gif, luetaan minuuttiriveiksi) varastoon,
+# ja tunnin välein lähteen arkisto päälle (tools/havainnot.mjs,
+# docs/data.md "Mellstenin historia omaan varastoon" ja "Katkot pois").
 #
 # Samassa ajossa Larun (Lauttasaari) päättyneet päivät (tools/laru.mjs,
 # docs/data.md "Larun historia"): lähde pitää ne itse, joten varasto on
@@ -19,21 +20,26 @@
 # kelikamera").
 #
 # ORPO HAARA JA PAKKOPÄIVITYS kuten `saadata`: haarassa on aina tasan
-# yksi committi, joten 144 ajoa vuorokaudessa ei kasvata repoa.
+# yksi committi, joten satakin ajoa vuorokaudessa ei kasvata repoa.
 # Varasto on noin 3,6 MB (31 vrk: Mellsten 2,4 MB minuutin riveinä,
 # Laru 1,2 MB).
 #
-# AJASTIN EI RIITÄ YKSIN — MITATTU. Tämä ajastin ei käynnistänyt
-# yhtään ajoa työnkulun ensimmäisen kolmen tunnin aikana (29.9. klo
-# 07:59–11:00 UTC, 17 vuoroa), ja saman repon säädata-ajastimesta
-# ajettiin 14 vuorosta 12, 20 min – 5 h 40 min myöhässä (26.–29.9.).
-# 30 minuutin ikkuna ei kestä sellaista: päättyneet päivät
-# täyttyvät lähteen arkistosta, mutta kuluva päivä jää harvaksi.
-# LUOTETTAVA HERÄTIN ON ULKOINEN: `workflow_dispatch` 10 min välein
-# (esim. cron-job.org, POST .../actions/workflows/havainnot.yml/dispatches,
-# hienojakoinen token jolla vain Actions: read & write tähän repoon).
-# Ajastin jää varalle. docs/data.md, "Mellstenin historia omaan
-# varastoon".
+# KOLME HERÄTINTÄ, KOSKA GITHUBIN AJASTIN EI RIITÄ — MITATTU. Tämän
+# työnkulun ajastin ei käynnistänyt yhtään ajoa kuuteen tuntiin (29.9.
+# klo 07:59–14:00 UTC, ~36 vuoroa), ja Säädatan ajastin laukeaa 4–11
+# tunnin välein. Kuvaaja kattaa neljä tuntia, joten riittää että ajo
+# osuu alle neljän tunnin välein:
+#
+#   schedule       jää varalle; laukeaa jos laukeaa
+#   workflow_run   jokaisen Säädata-ajon perään (sen ajastin toimii)
+#   lenkki         AJASTINKETJU (tools/ajastin.mjs): kun ympäristölle
+#                  `ajastin` on asetettu odotusajastin (Settings →
+#                  Environments → ajastin → Wait timer, esim. 20 min),
+#                  jokainen ajo lähettää seuraavan, joka odottaa ajastimen
+#                  verran ILMAN konetta. Ilman ajastinta ketju ei käynnisty.
+#
+# Ulkoinen herätin (`workflow_dispatch` esim. cron-job.orgista) toimii
+# yhä, ks. docs/data.md.
 #
 # Julkisessa repossa Actions-minuutit ovat rajattomat. Ajo ei asenna
 # riippuvuuksia (vain Noden omat moduulit), joten se kestää sekunteja.
@@ -45,6 +51,15 @@ on:
     # Ei tasatunnille: GitHubin ajastin on silloin kuormitetuin.
     - cron: '4,14,24,34,44,54 * * * *'
   workflow_dispatch:
+    inputs:
+      lenkki:
+        description: 'Ajastinketjun lenkki (lähetyshetki, ms). Tyhjä = kerää heti.'
+        required: false
+        default: ''
+        type: string
+  workflow_run:
+    workflows: [Säädata]
+    types: [completed]
 
 # Ajot jonoon, ei peruutusta: kaksi samanaikaista pakkopäivitystä
 # hävittäisi toisen ajon rivit.
@@ -54,9 +69,24 @@ concurrency:
 
 permissions:
   contents: write
+  # Ajastinketju: seuraavan lenkin lähetys (workflow_dispatch) ja ajojen
+  # ja ympäristön luku (tools/ajastin.mjs).
+  actions: write
 
 jobs:
+  # Vain ajastinketjun lenkki odottaa. Ympäristön odotusajastin pitää
+  # työn jonossa ilman konetta; muut ajot (ajastin, Säädatan perään,
+  # käsin ilman syötettä) ohittavat tämän ja keräävät heti.
+  odota:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.lenkki != '' }}
+    runs-on: ubuntu-latest
+    environment: ajastin
+    steps:
+      - run: echo "Ajastinketjun lenkki odotti ympäristön ajastimen verran."
+
   keraa:
+    needs: odota
+    if: ${{ !cancelled() && needs.odota.result != 'failure' }}
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
@@ -128,3 +158,15 @@ jobs:
               -c user.email='data@foilspot.invalid' \
               commit -q -m "Havainnot $(date -u +%Y-%m-%dT%H:%MZ)"
           git push -q --force "$URL" havainnot
+
+      # Viimeisenä ja myös epäonnistuneen keruun jälkeen: ketju ei saa
+      # katketa siihen että lähde oli hetken alhaalla. Skripti ei kaada
+      # ajoa, ja ilman ympäristön odotusajastinta se ei tee mitään.
+      - name: Ajastinketju
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LENKKI: ${{ inputs.lenkki }}
+        run: node tools/ajastin.mjs >> "$GITHUB_STEP_SUMMARY"

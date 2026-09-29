@@ -9,25 +9,44 @@
  *
  * Rivin muoto, paivays ja arkiston nimeaminen: api/_mellsten.js.
  *
- * HISTORIA TULEE OMASTA VARASTOSTA. Lahde ei anna kuluvalta
- * vuorokaudelta kuin 30 minuuttia, joten historia oli ennen puoli
- * tuntia. Nyt keraaja (tools/havainnot.mjs, GitHub Actions 10 min
- * valein) tallettaa lahteen rivit haaraan `havainnot` ja taydentaa ne
- * lahteen arkistosta — kuten Windguru tekee saman aseman kanssa. Tama
- * proxy lukee varaston paivatiedostot ja tuoreimman ikkunan suoraan
- * lahteesta, ja lahteen rivi voittaa saman minuutin varastorivin.
+ * HISTORIA TULEE NELJASTA PAIKASTA (docs/data.md, "Mellstenin historia
+ * omaan varastoon" ja "Katkot pois: kuvaaja, arkisto ja ajastinketju"),
+ * tarkeysjarjestyksessa:
  *
- * Proxy EI hae lahteen arkistoa: se olisi jopa kahdeksan 90 kt:n pyyntoa
- * pienelle harrastepalvelimelle joka korttiavauksella, ja palvelin
- * rajoittaa rinnakkaisia pyyntoja. Arkisto luetaan kerran, keraajassa.
+ *   weather.txt        30 tuoreinta minuuttia, lahteen oma rivi
+ *   arkisto            paattynyt paiva, jota keraaja ei ole viela
+ *                      yhdistanyt varastoon (tila.json)
+ *   varasto            haara `havainnot`: keraajan tallettamat rivit
+ *                      (tools/havainnot.mjs) ja niiden paalla arkisto
+ *   plot.gif           lahteen 4 tunnin kuvaaja minuuttiriveiksi
+ *                      (api/_mellsten.js, `tulkitseKuvaaja`)
+ *
+ * Varasto riippuu keraajasta, ja keraaja GitHubin ajastimesta, joka ei
+ * ole luotettava: havainnot-tyonkulku ei kaynnistynyt kertaakaan kuuteen
+ * tuntiin, ja kaaviossa oli katkoja vaikka asema mittasi koko paivan.
+ * Siksi viimeiset nelja tuntia luetaan AINA lahteen kuvaajasta ja
+ * paattyneet paivat lahteen arkistosta, jos keraaja ei ole ehtinyt:
+ * katko jaa vain siihen osaan kuluvaa paivaa, joka on yli nelja tuntia
+ * vanhaa eika keraaja ole ajanut sen aikana.
+ *
+ * LAHTEESEEN PERAKKAIN, EI RINNAKKAIN: palvelin vastaa rinnakkaisiin
+ * pyyntoihin 403:lla (ks. alla). Arkistohauilla on aikabudjetti, ja
+ * valmis arkisto muistetaan lampimassa instanssissa, joten sama paiva
+ * haetaan lahteesta korkeintaan kerran kuudessa tunnissa.
  *
  * Asema on 60,147 / 24,794. Koordinaatti ei ole arvattu: se on Windyn
  * PWS-tietueesta "Surfing Ry Mellsten", jonka lukemat (6,5 m/s, 196°,
  * puuska 8,1, 15,0 °C, 1009,1 hPa, 85,5 %) taspasivat samalla hetkella
  * taman lahteen riviin taydellisesti. */
 import { suojaa } from './_suoja.js';
-import { LAHDE, OTSAKKEET, jasennaAnkkurista, jasennaPaiva } from './_mellsten.js';
-import { haeTeksti, luePaivat, paivatValilla, helsinkiPaiva, niputaAjassa, nipunLeveys, hhmm, kelpoTz } from './_varasto.js';
+import {
+  LAHDE, OTSAKKEET, KUVAAJA, jasennaAnkkurista, jasennaPaiva, jasennaArkisto, arkistonNimi,
+  tulkitseKuvaaja, vertaaKuvaajaan, kuvaajaKelpaa,
+} from './_mellsten.js';
+import {
+  haeTeksti, haeTavut, luePaivat, lueTila, paivatValilla, paivaSiirra, helsinkiPaiva,
+  niputaAjassa, nipunLeveys, hhmm, kelpoTz,
+} from './_varasto.js';
 
 const STATION = { name: 'Espoo Mellsten', place: 'mellsten', lat: 60.147, lng: 24.794 };
 /* Lahde paivittyy minuutin valein; 60 s valimuisti riittaa eika
@@ -55,19 +74,72 @@ const HISTORIA_MAX = 168;
  * uusinnan pitaa olla riittava.
  *
  * Kolme yritysta ei peita oikeaa vikaa: jos lahde on alhaalla, kaikki
- * kolme kaatuvat ja virhe menee lapi kuten ennenkin. */
+ * kolme kaatuvat ja virhe menee lapi kuten ennenkin. 404 ei parane
+ * uusinnalla (arkistoa ei ole), joten se heitetaan heti. */
 const UUSINNAT = 3;
-async function fetchTextRetry(url) {
+async function haeLahteesta(url, tavuina) {
   var viimeVirhe = null;
   for (var k = 0; k < UUSINNAT; k++) {
     if (k > 0) {
       var odota = 250 * Math.pow(2, k - 1) + Math.floor(Math.random() * 250);
       await new Promise(function (r) { setTimeout(r, odota); });
     }
-    try { return await haeTeksti(url, OTSAKKEET, 6000); }
-    catch (e) { viimeVirhe = e; }
+    try { return await (tavuina ? haeTavut : haeTeksti)(url, OTSAKKEET, 6000); }
+    catch (e) { if (e.status === 404) throw e; viimeVirhe = e; }
   }
   throw viimeVirhe;
+}
+function fetchTextRetry(url) { return haeLahteesta(url, false); }
+
+/* PAATTYNEEN PAIVAN ARKISTO SUORAAN LAHTEESTA, kun keraaja ei ole viela
+ * yhdistanyt sita varastoon (`tila.json`:n `arkisto`). Ilman tata
+ * eilinen jaisi katkonaiseksi niin kauan kuin keraaja ei aja — ja sen
+ * ajastin jattaa tunteja valiin. Helsingin paiva D on arkistossa D-1 tai
+ * D (api/_mellsten.js), joten kumpikin nimi haetaan, perakkain.
+ *
+ * Valmis arkisto (Last-Modified yli tunti sitten) ei muutu, joten se
+ * muistetaan kuudeksi tunniksi; puuttuva nimi puoleksi tunniksi. Haut
+ * loppuvat budjettiin: seuraava pyynto jatkaa muistista siita mihin jai. */
+const _arkistot = new Map();
+const ARKISTO_BUDJETTI_MS = 6000;
+/* `paivat` haetaan tarvittaessa lahteesta; `muistista` (muut menneet
+   paivat) otetaan vain jos arkisto on jo muistissa. Jalkimmainen sulkee
+   kilpailutilanteen: kun keraaja yhdistaa eilisen ja `tila.json`
+   kaantyy, lampimalla instanssilla voi olla viela puoli tuntia vanha
+   (vajaa) varastokopio eilisesta — muistissa oleva arkisto peittaa sen. */
+async function arkistoLahteesta(paivat, nyt, muistista) {
+  var ulos = { rivit: [], haettu: 0, virheita: 0, kesken: 0 };
+  var haettavat = new Set(), nimet = [];
+  function nimetPaivalle(p, hae) {
+    [arkistonNimi(paivaSiirra(p, -1)), arkistonNimi(p)].forEach(function (n) {
+      if (nimet.indexOf(n) < 0) nimet.push(n);
+      if (hae) haettavat.add(n);
+    });
+  }
+  paivat.forEach(function (p) { nimetPaivalle(p, true); });
+  (muistista || []).forEach(function (p) { nimetPaivalle(p, false); });
+  var tarvitaan = new Set(paivat.concat(muistista || []));
+  var alku = Date.now();
+  for (var i = 0; i < nimet.length; i++) {
+    var nimi = nimet[i], m = _arkistot.get(nimi), rivit = null;
+    if (m && Date.now() - m.t < (m.puuttuu ? 30 * 60e3 : 6 * 36e5)) rivit = m.rivit;
+    else if (!haettavat.has(nimi)) continue;
+    else if (Date.now() - alku > ARKISTO_BUDJETTI_MS) { ulos.kesken++; continue; }
+    else {
+      try {
+        var a = await haeLahteesta(LAHDE + 'archive/' + nimi, false);
+        ulos.haettu++;
+        rivit = jasennaArkisto(a.teksti, a.muokattu);
+        if (!a.muokattu || nyt - a.muokattu > 36e5) _arkistot.set(nimi, { t: Date.now(), rivit: rivit });
+      } catch (e) {
+        if (e.status !== 404) { ulos.virheita++; continue; }
+        rivit = [];
+        _arkistot.set(nimi, { t: Date.now(), rivit: rivit, puuttuu: true });
+      }
+    }
+    rivit.forEach(function (r) { if (tarvitaan.has(r.paiva)) ulos.rivit.push(r); });
+  }
+  return ulos;
 }
 
 /* Varaston paivat ikkunan alusta tahan paivaan (api/_varasto.js). */
@@ -115,26 +187,61 @@ export default async function handler(req, res) {
 
     var tunnit = Math.max(1, Math.min(HISTORIA_MAX, parseInt(req.query.hours, 10) || HISTORIA_OLETUS));
     var raja = nyt - tunnit * 3600000;
-    /* Lahde ja varasto rinnakkain: eri palvelimet. Kumpikin saa
-       epaonnistua yksin — ilman varastoa vastaus on lahteen 30 min kuten
-       ennen, ilman lahdetta varaston tuorein on korkeintaan kymmenen
-       minuuttia vanha. */
-    var tulos = await Promise.allSettled([
-      fetchTextRetry(LAHDE + 'weather.txt'),
-      lueVarasto(raja, nyt),
-    ]);
-    var tuore = tulos[0].status === 'fulfilled'
-      ? jasennaAnkkurista(tulos[0].value.teksti, tulos[0].value.muokattu || nyt) : [];
+    var tanaan = helsinkiPaiva(nyt);
+    /* Lahde perakkain (weather.txt, sitten kuvaaja), varasto ja sen tila
+       rinnakkain: eri palvelimet. Jokainen saa epaonnistua yksin —
+       ilman varastoa vastaus on lahteen 4 h kuten kuvaaja sen antaa, ilman
+       kuvaajaa varasto + 30 min kuten ennen. */
+    var lahteesta = (async function () {
+      var w = null, k = null, virhe = null;
+      try { w = await haeLahteesta(LAHDE + 'weather.txt', false); } catch (e) { virhe = e; }
+      /* Kuvalla on lahteessa max-age 30 vrk: aikaleima osoitteeseen, kuten
+         lahteen oma sivu tekee, ettei mikaan valimuisti anna vanhaa.
+         Jos weather.txt ei vastannut, lahde on alhaalla: kuvaajan (ja
+         arkiston) uusinnat vain pidentaisivat funktion kestoa. */
+      if (!virhe) {
+        try { k = await haeLahteesta(LAHDE + KUVAAJA + '?' + Math.floor(nyt / 60000), true); } catch (e) { k = null; }
+      }
+      return { w: w, k: k, virhe: virhe };
+    })();
+    var tulos = await Promise.allSettled([lahteesta, lueVarasto(raja, nyt), lueTila('mellsten')]);
+    var lahde = tulos[0].value;
+    var tuore = lahde.w ? jasennaAnkkurista(lahde.w.teksti, lahde.w.muokattu || nyt) : [];
     var varasto = tulos[1].status === 'fulfilled' ? tulos[1].value : { rivit: [], paivia: 0, virheita: 1 };
-    if (!tuore.length && !varasto.rivit.length) {
-      if (tulos[0].status === 'rejected') throw tulos[0].reason;
-      return res.status(200).json({ error: 'no data', station: STATION.name, place: STATION.place });
+    var tila = tulos[2].status === 'fulfilled' ? tulos[2].value : null;
+
+    /* Kuvaaja kelpaa vain jos samat minuutit tekstina tasmaavat. */
+    var kuva = { rivit: [] }, tarkistus = null, kuvaOk = false;
+    if (lahde.k) {
+      kuva = tulkitseKuvaaja(lahde.k.tavut, lahde.k.muokattu || nyt);
+      tarkistus = vertaaKuvaajaan(kuva.rivit, tuore);
+      kuvaOk = kuvaajaKelpaa(kuva, tarkistus);
     }
 
-    /* Minuutti avaimena; lahteen rivi voittaa varaston rivin. */
+    /* Paattyneet paivat joita keraaja ei ole yhdistanyt arkistosta. Vasta
+       tassa, kun lahteen muut haut ovat valmiita (perakkain). */
+    var menneet = paivatValilla(raja, nyt).filter(function (p) { return p < tanaan; });
+    var arkistoon = menneet.filter(function (p) {
+      return !(tila && tila.paivat && tila.paivat[p] && tila.paivat[p].arkisto);
+    });
+    var yhdistetyt = menneet.filter(function (p) { return arkistoon.indexOf(p) < 0; });
+    var arkisto = lahde.virhe ? { rivit: [], haettu: 0, virheita: 0, kesken: arkistoon.length }
+      : await arkistoLahteesta(arkistoon, nyt, yhdistetyt);
+
+    /* Minuutti avaimena, heikoimmasta vahvimpaan: kuvaaja, varasto (sen
+       tekstirivi voittaa kuvaajan), arkisto, weather.txt. */
     var kaikki = new Map();
-    varasto.rivit.forEach(function (r) { kaikki.set(r.ms, r); });
+    if (kuvaOk) kuva.rivit.forEach(function (r) { kaikki.set(r.ms, r); });
+    varasto.rivit.forEach(function (r) {
+      var oli = kaikki.get(r.ms);
+      if (!oli || !r.kuvaaja) kaikki.set(r.ms, r);
+    });
+    arkisto.rivit.forEach(function (r) { kaikki.set(r.ms, r); });
     tuore.forEach(function (r) { kaikki.set(r.ms, r); });
+    if (!kaikki.size) {
+      if (lahde.virhe) throw lahde.virhe;
+      return res.status(200).json({ error: 'no data', station: STATION.name, place: STATION.place });
+    }
     var rivit = Array.from(kaikki.values()).sort(function (a, b) { return a.ms - b.ms; });
     var v = rivit[rivit.length - 1];
 
@@ -155,7 +262,10 @@ export default async function handler(req, res) {
     for (var i = 0; i < niput.length; i++) {
       var r = niput[i], iso = new Date(r.ms).toISOString(), t = hhmm(r.ms, tz);
       ws.push({ t: t, v: r.ws, d: r.wd, iso: iso });
-      wg.push({ t: t, v: r.wg, iso: iso });
+      /* Kuvaajasta ei aina nae maksimia (yli 19 m/s): silloin keskituuli,
+         kuten Larulla puuttuvalle puuskalle. Lampotila puuttuu kuvaajan
+         riveilta, ja null jaa nulliksi. */
+      wg.push({ t: t, v: r.wg != null ? r.wg : r.ws, iso: iso });
       ta.push({ t: t, v: r.ta, iso: iso });
     }
     res.setHeader('Cache-Control', 'public, s-maxage=' + TTL_HISTORIA + ', stale-while-revalidate=60');
@@ -171,7 +281,11 @@ export default async function handler(req, res) {
       pisteita: niput.length,
       /* Mista rivit tulivat: kaavio ei tarvitse tata, mittari tarvitsee. */
       lahteet: { tuore: tuore.length, varasto: varasto.rivit.length, varastoPaivia: varasto.paivia,
-        varastoVirheita: varasto.virheita },
+        varastoVirheita: varasto.virheita,
+        kuvaaja: kuvaOk ? kuva.rivit.length : 0, kuvaajaTarkistus: tarkistus,
+        kuvaajaSyy: !lahde.k ? 'ei haettu' : kuvaOk ? null : (kuva.syy || 'ei tasmaa'),
+        arkisto: arkisto.rivit.length, arkistoPaivia: arkistoon.length, arkistoHakuja: arkisto.haettu,
+        arkistoVirheita: arkisto.virheita, arkistoKesken: arkisto.kesken, tila: !!tila },
       latest: tuorein(v, tz, nyt),
     }));
   } catch (err) {

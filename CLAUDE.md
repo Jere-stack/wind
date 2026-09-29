@@ -44,7 +44,7 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   ES-moduuleja, koska
   `package.json`:ssa on `"type": "module"` — `require()` ei toimi näissä.
   Alaviivalla alkava tiedosto (`_suoja.js`, `_mellsten.js`, `_laru.js`,
-  `_varasto.js`, `_kamerat.js`) on apumoduuli eikä reitti.
+  `_varasto.js`, `_kamerat.js`, `_gif.js`) on apumoduuli eikä reitti.
   **Jokainen funktio alkaa `if (!suojaa(req, res)) return;`** eikä
   mikään vastaa `Access-Control-Allow-Origin`illa (docs/julkaisu.md,
   L10): sovellus kutsuu samasta originista, ja jokeri antoi kenen
@@ -56,11 +56,15 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   `PLAYWRIGHT_MODULE=/opt/node22/lib/node_modules/playwright/index.mjs
   node tools/savutesti.mjs http://localhost:4173`.
 - `tools/havainnot.mjs` + `.github/workflows/havainnot.yml` —
-  Espoo Haukilahden (Mellsten) historian keräin: 10 min välein lähteen
-  30 minuutin ikkuna ja tunnin välein lähteen arkisto orpoon haaraan
-  `havainnot` (`mellsten/YYYY-MM-DD.txt`, 31 vrk). `api/mellsten.js`
-  lukee sen. Vain Noden omia moduuleita. Ks. docs/data.md, "Mellstenin
-  historia omaan varastoon". Samassa ajossa omana askeleenaan
+  Espoo Haukilahden (Mellsten) historian keräin: joka ajolla lähteen
+  30 minuutin tekstirivit JA 4 tunnin kuvaaja (`plot.gif` minuutti-
+  riveiksi, `api/_mellsten.js` + `api/_gif.js`) ja tunnin välein lähteen
+  arkisto orpoon haaraan `havainnot` (`mellsten/YYYY-MM-DD.txt`, 31 vrk).
+  `api/mellsten.js` lukee sen. Vain Noden omia moduuleita. Herättimet:
+  ajastin (ei laukea), jokaisen Säädata-ajon perään (`workflow_run`) ja
+  ajastinketju (`tools/ajastin.mjs`, käyttöön ympäristön `ajastin`
+  odotusajastimella). Ks. docs/data.md, "Mellstenin historia omaan
+  varastoon" ja "Katkot pois". Samassa ajossa omana askeleenaan
   `tools/laru.mjs` (`continue-on-error`) kopioi Larun PÄÄTTYNEET päivät
   (`laru/YYYY-MM-DD.txt`), joita `api/laru.js` lukee (docs/data.md,
   "Larun historia"). Varaston luku, Helsingin kalenteri ja niputus ovat
@@ -145,7 +149,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/lampokartta.md` | pohjakarttaa, lämpökarttaa, väriramppia, tekstuurin mitoitusta tai projektiota, kartan asetuksia |
 | `docs/partikkelit.md` | tuulipartikkeleita, jäljen muotoa, tiheyttä tai ruutuaikabudjettia |
 | `docs/eleet.md` | nipistystä, zoomia, zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
-| `docs/data.md` | säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja, **havaintoasemien oma historia (Mellsten ja Laru, `havainnot`-haara)**, **kelikameran tila (YouTube, pikkukuvan ETag)** |
+| `docs/data.md` | säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja, **havaintoasemien oma historia (Mellsten ja Laru, `havainnot`-haara)**, **Mellstenin katkot: 4 h kuvaaja, arkistovaratie ja ajastinketju**, **kelikameran tila (YouTube, pikkukuvan ETag)** |
 | `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, MET Nordicia, Open-Meteon S3-malleja** |
 | `docs/ui.md` | paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa, kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kelikameraa asemakortissa ja pillerin play-kolmiota** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
@@ -187,6 +191,7 @@ kokeiltu ja kaadettu mittauksella.
   joka toisella askeleella tuuli · Laru (Lauttasaari) — neljäs oma proxy ·
   **Mellstenin historia omaan varastoon — kuten Windguru** ·
   **Larun historia — sama varasto, mutta lähde pitää päivänsä itse** ·
+  **Katkot pois: kuvaaja, arkisto ja ajastinketju** ·
   Aaltoennuste tuotantoon (FMI WAM, ei laattaputkea) · Vedenkorkeus ja
   yksikkö joka ei lue vastauksessa · Ilman starttimea sarja alkaa
   seuraavasta tunnista · Sadetutka — miksi se ei ole L.TileLayer.WMS ·
@@ -2165,32 +2170,67 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   kirjoittaa yli (10.9. klo 11:40–23:59 puuttuu arkistosta). Lue päivä
   otsikkoriviltä, älä nimestä.
 - **HISTORIA TULEE OMASTA VARASTOSTA, KUTEN WINDGURULLA** (käyttäjän
-  pyyntö 29.9.). Lähde antaa kuluvalta päivältä vain 30 min, joten
-  keräin (`tools/havainnot.mjs`, 10 min välein) tallettaa lähteen rivit
-  haaraan `havainnot` ja täydentää päättyneet päivät lähteen arkistosta
-  (arkiston rivi voittaa kerätyn). Proxy lukee varaston + tuoreen
-  ikkunan (lähteen rivi voittaa), EIKÄ hae lähteen arkistoa — se olisi
-  kahdeksan 90 kt:n pyyntöä harrastepalvelimelle korttiavausta kohti.
-  Merkki pyytää 24 h ja seuraa aikajanaa, asemakortti 168 h,
-  spottikortti 48 h. Mitattu Windgurua vasten 28 vrk: ero 0,37 kts,
-  harha 0,000, tunnin siirto 1,5 kts ja vuorokauden 4,3 kts.
+  pyyntö 29.9.). Lähde antaa kuluvalta päivältä tekstinä vain 30 min,
+  joten keräin (`tools/havainnot.mjs`) tallettaa lähteen rivit haaraan
+  `havainnot` ja täydentää päättyneet päivät lähteen arkistosta
+  (arkiston rivi voittaa kerätyn). Merkki pyytää 24 h ja seuraa
+  aikajanaa, asemakortti 168 h, spottikortti 48 h. Mitattu Windgurua
+  vasten 28 vrk: ero 0,37 kts, harha 0,000, tunnin siirto 1,5 kts ja
+  vuorokauden 4,3 kts.
+- **PROXY EI LUOTA KERÄIMEEN** (käyttäjän raportti 29.9.: "apissa on
+  katkoksia vaikka Windgurulla on koko päivä"). Järjestys heikoimmasta
+  vahvimpaan: lähteen 4 h kuvaaja joka haulla, varasto, lähteen arkisto
+  päättyneille päiville joita `tila.json` ei merkitse `arkisto`ksi
+  (Helsingin päivä D on nimellä D−1 tai D; valmis 6 h muistissa, 6 s
+  budjetti), `weather.txt`. Ennen proxy ei hakenut arkistoa ollenkaan,
+  jolloin ajamaton keräin jätti myös menneet päivät vajaiksi. Lähteeseen
+  peräkkäin, ja jos `weather.txt` ei vastaa, muuta ei yritetä.
+- **KUVAAJA (`plot.gif`) ON NELJÄN TUNNIN MINUUTTISARJA, EI ARVAUS**
+  (docs/data.md "Katkot pois"). Lähteen oma asteikko: 240 × 200 px,
+  sarake = minuutti, y = 199 − 10·v (0,1 m/s), palkki min..max, valkoinen
+  piste keskituuli, suunta = (240 − HSV-sävy) mod 360, tuntimerkit
+  riveillä 0–1. Mitattu 112/112 minuuttia keskituuli, maksimi ja minimi
+  TASAN samat kuin lähteen rivit, suunta ±1,1°, Windgurua vasten yhtä
+  hyvä kuin tekstirivi. SE LUETAAN VAIN TARKISTETTUNA: tuntimerkit
+  tasatunneille ja saman haun `weather.txt` täsmää (90 %, ≥ 10 min),
+  muuten koko kuva hylätään. Minimi alle 0,8 m/s ja maksimi yli 19 m/s
+  ovat `?`, eikä lämpötilaa ole. Varastossa rivin loppusana on
+  `kuvaaja`; TEKSTIRIVI VOITTAA KUVAAJARIVIN, arkisto molemmat, eikä
+  kuvaajarivi korvaa koskaan mitään.
+- **NOLLARIVI `0° 0.0 < 0.0 < 0.0` ON TYYNI** (naapurit 0,5–0,9 m/s,
+  28.9. 150 kpl), joskus katko (29.9. 15:03–15:05 kesken 5 m/s). Lähde ei
+  erota niitä, ja sen kuvaaja piirtää ne samoin; älä poista nollarivejä
+  "katkoina".
 - **TYÖNKULKU NOUTAA VARASTON ENNEN PAKKOPÄIVITYSTÄ, JA TYHJÄSTÄ VAIN
   KUN HAARAA EI OLE** (`ls-remote --exit-code` = 2). Hiljaa
   epäonnistunut nouto pyyhkisi kuluvan päivän kerätyt rivit — ne joita
   lähteessä ei ole missään.
 - **Varasto on vaihtoehtoinen, ei pakollinen.** Jos se ei vastaa (tai
-  haaraa ei vielä ole), proxy palauttaa lähteen 30 minuuttia
-  minuutteina kuten ennen; nipun leveys (5 min) valitaan datan
-  kestosta eikä pyydetyistä tunneista.
+  haaraa ei vielä ole), proxy palauttaa lähteen kuvaajan 4 h ja
+  menneet päivät arkistosta (mitattu tyhjällä varastolla: 168 h
+  kokonaan, 5 arkistohakua 0,58 s, muistista 0,15 s); nipun leveys
+  (5 min) valitaan datan kestosta eikä pyydetyistä tunneista.
 - **GITHUBIN AJASTIN EI RIITÄ KERUUSEEN — ÄLÄ OLETA ETTÄ SE AJAA.**
-  Havainnot-ajastin ei käynnistänyt ensimmäisten kolmen tunnin aikana
-  yhtään ajoa 17 vuorosta, ja säädata-ajastimesta ajettiin 12/14
-  vuoroa 20 min – 5 h 40 min myöhässä. 30 minuutin ikkunalle
-  luotettava herätin on ulkoinen `workflow_dispatch` 10 min välein
-  (docs/data.md, "Mitä jää"). Kun tarkistat keruuta, lue varaston
-  `mellsten/tila.json`in `paivitetty` ja ajojen `event`: käsiajo
-  (`workflow_dispatch`) ei todista ajastimesta mitään. Älä korvaa
-  herätintä jatkuvasti pyörivällä Actions-ajolla (GitHubin ehdot).
+  Havainnot-ajastin ei käynnistänyt kuuteen tuntiin yhtään ajoa (~36
+  vuoroa, työnkulku `active`, ei GitHubin häiriötä), ja säädata-
+  ajastimesta ajettiin 12/14 vuoroa 20 min – 5 h 40 min myöhässä.
+  Kuvaajan ansiosta ajovälin pitää olla alle NELJÄ TUNTIA (ei 30 min),
+  ja herättimiä on kolme: ajastin, Säädatan perään (`workflow_run`) ja
+  AJASTINKETJU (`tools/ajastin.mjs`), joka tarvitsee ympäristön
+  `ajastin` odotusajastimen (Settings → Environments, esim. 20 min).
+  Ulkoinen `workflow_dispatch` (cron-job.org) toimii yhä. Kun tarkistat
+  keruuta, lue varaston `mellsten/tila.json`in `paivitetty` ja ajojen
+  `event`: käsiajo (`workflow_dispatch` ilman `lenkki`ä) ei todista
+  ajastimesta mitään. Älä korvaa herätintä jatkuvasti pyörivällä
+  Actions-ajolla (GitHubin ehdot) — ketjun odotus on ympäristön
+  ajastimessa ILMAN konetta.
+- **AJASTINKETJU EI SAA KARATA.** Kolme porttia `tools/ajastin.mjs`:ssä:
+  ei lenkkiä ilman vähintään 5 min odotusajastinta (luettu
+  rajapinnasta), lenkki joka ei odottanut (`lenkki`-syöte = lähetyshetki)
+  pysäyttää ketjun, ja jos havainnot-ajo on jo jonossa, odottamassa tai
+  käynnissä, uutta ei lähetetä. Jos muutat ketjua, testaa kaikki
+  yhdeksän tilannetta valerajapintaa vasten (docs/data.md) — virhe
+  tässä on ajo minuutin välein.
 - **Sijainti 60,147 / 24,794 on Windyn PWS-tietueesta**, ei arvattu —
   sama tietue palautti samat lukemat samalla hetkellä.
 

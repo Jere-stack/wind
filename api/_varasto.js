@@ -74,6 +74,17 @@ export function paivatValilla(alkuMs, loppuMs) {
    koska puuttuva paiva ei ole vika. AIKARAJA ON PAKOLLINEN: ilman sita
    jumittunut yhteys piti funktion auki sen kattoon asti. */
 export function haeTeksti(url, otsakkeet, aikaraja) {
+  return hae(url, otsakkeet, aikaraja).then(function (v) {
+    return { teksti: v.tavut.toString('utf8'), muokattu: v.muokattu };
+  });
+}
+
+/* Sama tavuina (kuvat): { tavut: Buffer, muokattu }. */
+export function haeTavut(url, otsakkeet, aikaraja) {
+  return hae(url, otsakkeet, aikaraja);
+}
+
+function hae(url, otsakkeet, aikaraja) {
   return new Promise(function (resolve, reject) {
     var req = https.get(url, { headers: otsakkeet || { 'user-agent': UA }, timeout: aikaraja || 5000 }, function (res) {
       if (res.statusCode !== 200) {
@@ -83,12 +94,11 @@ export function haeTeksti(url, otsakkeet, aikaraja) {
         reject(e);
         return;
       }
-      var body = '';
-      res.setEncoding('utf8');
-      res.on('data', function (c) { body += c; });
+      var osat = [];
+      res.on('data', function (c) { osat.push(c); });
       res.on('error', reject);
       res.on('end', function () {
-        resolve({ teksti: body, muokattu: Date.parse(res.headers['last-modified'] || '') || null });
+        resolve({ tavut: Buffer.concat(osat), muokattu: Date.parse(res.headers['last-modified'] || '') || null });
       });
     });
     req.on('timeout', function () { req.destroy(new Error('aikaraja ' + (aikaraja || 5000) + ' ms')); });
@@ -140,6 +150,24 @@ export async function luePaivat(asema, paivat, jasennin, kuluvaPaiva) {
       ? { paiva: paivat[i], rivit: t.value, virhe: null }
       : { paiva: paivat[i], rivit: [], virhe: t.reason };
   });
+}
+
+/* Aseman `tila.json` (mita keraaja on tehnyt), tai null jos varasto ei
+   vastaa. Viisi minuuttia muistissa: se muuttuu vain keraajan ajossa. */
+const _tilat = new Map();
+export async function lueTila(asema) {
+  var m = _tilat.get(asema);
+  if (m && Date.now() - m.t < 5 * 60e3) return m.tila;
+  var tila = null;
+  try {
+    var polku = asema + '/tila.json';
+    var teksti = /^https?:/.test(VARASTO)
+      ? (await haeTeksti(VARASTO + polku, { 'user-agent': UA }, 4000)).teksti
+      : await readFile(join(VARASTO, polku), 'utf8');
+    tila = JSON.parse(teksti);
+  } catch (e) { tila = null; }
+  if (tila) _tilat.set(asema, { t: Date.now(), tila: tila });
+  return tila;
 }
 
 /* ── Niputus ajan mukaan ──────────────────────────────────────────── */

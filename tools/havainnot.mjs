@@ -12,12 +12,16 @@
  * se lukee lahdetta jatkuvasti ja tallettaa rivit omaan kantaansa. Tama
  * tekee saman.
  *
- * MITEN. Ajetaan GitHub Actionsissa kymmenen minuutin valein
- * (.github/workflows/havainnot.yml). Joka ajolla:
+ * MITEN. Ajetaan GitHub Actionsissa (.github/workflows/havainnot.yml):
+ * ajastin, Saadata-ajon perään ja ajastinketju. Joka ajolla:
  *
- *   1. weather.txt (30 riviä) yhdistetaan varastoon. Ikkuna on 30 min ja
- *      ajovali 10, joten yksi tai kaksi valiin jaanyttä ajoa ei hukkaa
- *      mitaan.
+ *   1. weather.txt (30 riviä) yhdistetaan varastoon.
+ *   1b. Lahteen 4 tunnin kuvaaja (plot.gif) minuuttiriveiksi
+ *      (api/_mellsten.js, `tulkitseKuvaaja`) niille minuuteille joilta
+ *      varastossa ei ole rivia. Kuvaaja tarkistetaan saman ajon
+ *      weather.txt:ta vasten ja hylataan jos se ei tasmaa. Taman ansiosta
+ *      ajovalin ei tarvitse olla alle 30 min vaan alle nelja tuntia:
+ *      GitHubin ajastin ei pysty edes siihen luotettavasti (docs/data.md).
  *   2. Tunnin valein tarkistetaan lahteen arkisto. Paattyneen paivan
  *      arkistorivit korvaavat keratyt (lahde on alkuperainen), ja ne
  *      tayttavat aukot jotka Actionsin viivastynyt ajastin jatti.
@@ -29,7 +33,10 @@
  * `saadata`):
  *
  *   mellsten/2026-09-29.txt   Helsingin vuorokausi, lahteen OMAT rivit
- *                             sellaisenaan, nousevassa jarjestyksessa
+ *                             sellaisenaan, nousevassa jarjestyksessa;
+ *                             kuvaajasta luetut rivit loppusanalla
+ *                             "kuvaaja" (ei lampotilaa). Tekstirivi
+ *                             korvaa kuvaajarivin, arkisto molemmat.
  *   mellsten/tila.json        mita on haettu ja milloin
  *
  * KATKOT OVAT DATAA. Asema sammuu pilvisella saalla (aurinkopaneeli),
@@ -40,8 +47,8 @@
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, unlinkSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  LAHDE, OTSAKKEET, helsinkiPaiva, paivaSiirra, jasennaAnkkurista, jasennaArkisto,
-  jasennaPaiva, arkistonNimi, seinaAjaksi,
+  LAHDE, OTSAKKEET, KUVAAJA, helsinkiPaiva, paivaSiirra, jasennaAnkkurista, jasennaArkisto,
+  jasennaPaiva, arkistonNimi, seinaAjaksi, tulkitseKuvaaja, vertaaKuvaajaan, kuvaajaKelpaa,
 } from '../api/_mellsten.js';
 
 const ASEMA = 'mellsten';
@@ -68,7 +75,7 @@ const vanhin = paivaSiirra(tanaan, -(SAILYTYS_PV - 1));
 /* Sama sopimus kuin api/mellsten.js:ssa: lahde rajoittaa RINNAKKAISIA
    pyyntoja, joten haut ovat perakkain, ja ohimenevaan 403:een auttaa
    kasvava odotus. 404 on vastaus eika virhe. */
-async function hae(url, ehdot) {
+async function hae(url, ehdot, tavuina) {
   let viime = null;
   for (let k = 0; k < 3; k++) {
     if (k > 0) await new Promise((r) => setTimeout(r, 400 * 2 ** (k - 1) + Math.random() * 300));
@@ -78,8 +85,9 @@ async function hae(url, ehdot) {
         signal: AbortSignal.timeout(20000),
       });
       if (res.status === 200) {
-        return { tila: 200, teksti: await res.text(), etag: res.headers.get('etag'),
-          muokattu: Date.parse(res.headers.get('last-modified') || '') || null };
+        const muokattu = Date.parse(res.headers.get('last-modified') || '') || null;
+        if (tavuina) return { tila: 200, tavut: Buffer.from(await res.arrayBuffer()), muokattu };
+        return { tila: 200, teksti: await res.text(), etag: res.headers.get('etag'), muokattu };
       }
       if (res.status === 304 || res.status === 404) return { tila: res.status };
       viime = new Error('HTTP ' + res.status);
@@ -112,8 +120,11 @@ function paiva(p) {
   }
   return paivat.get(p);
 }
-/* `korvaa`: arkiston rivi voittaa keratyn (lahde on alkuperainen);
-   keratty rivi ei koskaan korvaa olemassa olevaa. */
+/* Kuka voittaa saman minuutin: arkisto (`korvaa`) kaiken, keratty
+   tekstirivi (weather.txt) vain kuvaajasta luetun, ja kuvaajarivi ei
+   koskaan mitaan — se tayttaa vain tyhjan minuutin. Lahteen oma rivi on
+   aina alkuperainen, kuvaaja on sen piirros. */
+const ON_KUVARIVI = / kuvaaja\s*$/;
 function lisaa(rivit, korvaa) {
   let uusia = 0;
   for (const r of rivit) {
@@ -121,7 +132,10 @@ function lisaa(rivit, korvaa) {
     const m = paiva(r.paiva);
     const oli = m.get(r.hhmm);
     if (oli === r.teksti) continue;
-    if (oli != null && !korvaa) continue;
+    if (oli != null) {
+      if (r.kuvaaja) continue;
+      if (!korvaa && !ON_KUVARIVI.test(oli)) continue;
+    }
     if (oli == null) uusia++;
     m.set(r.hhmm, r.teksti);
     muuttuneet.add(r.paiva);
@@ -132,12 +146,14 @@ function lisaa(rivit, korvaa) {
 const raportti = [];
 
 /* ── 1. Tuoreet 30 minuuttia ──────────────────────────────────────── */
+let tuoreet = [];
 try {
   const v = await hae(LAHDE + 'weather.txt');
   if (v.tila === 200) {
     /* ANKKURI ON Last-Modified, EI NYKYHETKI: sammuneen aseman
        tiedostossa on viimeiset rivit vaikka vuorokauden takaa. */
     const rivit = jasennaAnkkurista(v.teksti, v.muokattu || nyt);
+    tuoreet = rivit;
     const uusia = lisaa(rivit, false);
     if (rivit.length) tila.uusin = new Date(rivit[rivit.length - 1].ms).toISOString();
     raportti.push('weather.txt: ' + rivit.length + ' riviä, ' + uusia + ' uutta'
@@ -147,6 +163,33 @@ try {
   }
 } catch (e) {
   raportti.push('weather.txt: ' + e.message);
+}
+
+/* ── 1b. Kuvaaja: nelja tuntia ────────────────────────────────────── */
+/* Tarkistus on saman ajon weather.txt: kuvaaja kelpaa vain jos sen
+   minuutit tasmaavat tekstiriveihin (api/_mellsten.js). Aikaleima
+   osoitteeseen, koska lahde lahettaa kuvalle max-age 30 vrk. */
+try {
+  await tauko();
+  const k = await hae(LAHDE + KUVAAJA + '?' + Math.floor(nyt / 60000), null, true);
+  if (k.tila === 200) {
+    const t = tulkitseKuvaaja(k.tavut, k.muokattu || nyt);
+    const tark = vertaaKuvaajaan(t.rivit, tuoreet);
+    if (kuvaajaKelpaa(t, tark)) {
+      const uusia = lisaa(t.rivit, false);
+      tila.kuvaaja = { haettu: new Date(nyt).toISOString(), rivit: t.rivit.length, uusia, tarkistus: tark };
+      raportti.push('plot.gif: ' + t.rivit.length + ' minuuttia (' + t.rivit[0].paiva + ' ' + t.rivit[0].hhmm
+        + ' – ' + t.rivit[t.rivit.length - 1].hhmm + '), ' + uusia + ' uutta, tarkistus '
+        + tark.osui + '/' + tark.verrattu + ' weather.txt:n minuuttia');
+    } else {
+      tila.kuvaaja = { haettu: new Date(nyt).toISOString(), hylatty: t.syy || 'ei tasmaa', tarkistus: tark };
+      raportti.push('plot.gif HYLÄTTY: ' + (t.syy || ('tarkistus ' + tark.osui + '/' + tark.verrattu)));
+    }
+  } else {
+    raportti.push('plot.gif: HTTP ' + k.tila);
+  }
+} catch (e) {
+  raportti.push('plot.gif: ' + e.message);
 }
 
 /* ── 2. Arkisto ───────────────────────────────────────────────────── */
@@ -195,12 +238,14 @@ if (arkistoAika) {
 
 /* ── 3. Kirjoitus ja karsinta ─────────────────────────────────────── */
 const OTSIKKO = (p) => '# Espoo Haukilahti, Surfing ry:n sääasema (mellsten.surfing.fi) ' + p
-  + ', Suomen aika\n# aika suunta min < ka < max lämpötila paine kosteus sade — lähteen oma rivi sellaisenaan\n';
+  + ', Suomen aika\n# aika suunta min < ka < max lämpötila paine kosteus sade — lähteen oma rivi sellaisenaan;'
+  + ' "kuvaaja" = luettu lähteen 4 h kuvaajasta (plot.gif), ei lämpötilaa\n';
 for (const p of muuttuneet) {
   const m = paivat.get(p);
   const avaimet = [...m.keys()].sort();
   writeFileSync(join(asemaHak, p + '.txt'), OTSIKKO(p) + avaimet.map((k) => m.get(k)).join('\n') + '\n');
-  tila.paivat[p] = Object.assign(tila.paivat[p] || {}, { rivit: avaimet.length });
+  const kuvasta = avaimet.filter((k) => ON_KUVARIVI.test(m.get(k))).length;
+  tila.paivat[p] = Object.assign(tila.paivat[p] || {}, { rivit: avaimet.length, kuvaajasta: kuvasta });
 }
 for (const f of readdirSync(asemaHak)) {
   const m = /^(\d{4}-\d{2}-\d{2})\.txt$/.exec(f);
@@ -219,11 +264,11 @@ writeFileSync(tilaPolku, JSON.stringify(tila, null, 1) + '\n');
 /* ── Yhteenveto (tyonkulun GITHUB_STEP_SUMMARY) ───────────────────── */
 console.log('### Havainnot: Espoo Haukilahti (Mellsten)\n');
 for (const r of raportti) console.log('- ' + r);
-console.log('\n| päivä | rivejä | kate | arkisto |\n|---|---|---|---|');
+console.log('\n| päivä | rivejä | kate | kuvaajasta | arkisto |\n|---|---|---|---|---|');
 for (const p of Object.keys(tila.paivat).sort().reverse()) {
   const t = tila.paivat[p];
   /* Kate suhteessa siihen mita paivassa VOI olla: tanaan vain tahan asti. */
   const mahd = p === tanaan ? Math.max(1, Math.round((nyt - seinaAjaksi(p, 0, 0)) / 60000)) : 1440;
   console.log('| ' + p + ' | ' + (t.rivit || 0) + ' | ' + Math.min(100, Math.round((t.rivit || 0) / mahd * 100))
-    + ' % | ' + (t.arkisto ? 'kyllä' : '–') + ' |');
+    + ' % | ' + (t.kuvaajasta || 0) + ' | ' + (t.arkisto ? 'kyllä' : '–') + ' |');
 }
