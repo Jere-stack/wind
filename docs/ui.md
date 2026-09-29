@@ -6964,3 +6964,43 @@ kartta muuttuu joka ruudussa. Havaintopillerien lasista ei laitteella
 huomattu hintaa, mutta tämä kaista on koko ruudun levyinen. Jos
 työpöydällä tai iPadilla näkyy nykimistä, kokeile ensin pelkkää sävyä
 ilman sumennusta.
+
+## Merkki ensin, kuski vain lähdössä (strategia D, 29.9.)
+
+Käyttäjä: kuski alkoi olla liian häiritsevä, merkki ja latauspalkki
+jäivät vähälle huomiolle eikä ilme ollut kovin moderni. Neljästä
+vaihtoehdosta (A kevennys, B abstrakti merkki, C kartta latausruutuna,
+D hybridi) käyttäjä valitsi D:n.
+
+### Levossa
+- Kuskin kerros `#lr-rata` on `display: none`, jolloin sen animaatiot
+  eivät pyöri: **levossa 22 animaatiota (ennen 37), esittelyssä 45
+  (ennen 61)**.
+- Merkki 100 → 150 px, nimi 26 → 32 px, latauspalkki 148 × 2 → 220 × 3
+  px ja ura .16 → .2. Nimilohko nousi 7vh kohti keskustaa. Vaakatilassa
+  merkki 60 → 84 px ja nimi 21 → 24 px.
+- Nimen kontrasti laski nousun takia 16,34 → 15,46:1 (päivä), mutta
+  heikoin ≈ mediaani eli alusta on yhä tasainen; alanimi 6,47 ja
+  tilarivi 7,26 ennallaan. Tilapalkki pysty 12,36–19,89, vaaka
+  11,19–18,87.
+
+### Lähtö (`.out`)
+| aika | tapahtuma |
+|---|---|
+| 0–0,5 s | kuski liukuu sisään vasemmalta (`lr-tulo-lahto`), ala-käännös: lauta `scaleX` .7, kansi auki, nojaus 4,5° |
+| 0,45 s | hyppy alkaa: `lr-hyppy` ja nivelten hyppyavainkuvat viiveellä; ennen sitä nivelet pumppaavat; nimilohko väistyy |
+| 0,65 s | ponnistuksen roiske |
+| ~0,9 s | laki; ruudun häivytys alkaa (.85 s + .42 s) |
+| 1,35 s | `display: none` |
+
+Kaksi animaatiota samalla elementillä (kaarto + hyppy) toimii siksi,
+että jälkimmäisellä ei ole `backwards`-täyttöä: viiveen aikana
+edellinen hallitsee, sen jälkeen hyppy. Hinta on 0,45 s: kartta tulee
+käyttöön vastaavasti myöhemmin.
+
+### Mittarin ansa
+Kuvausskripti jäädytti lähdön animaatiot tunnistamalla ne
+`startTime`sta, mutta `pause()` nollaa `startTime`n — ehto luettiin
+pysäytyksen jälkeen ja kuski puuttui kaikista kuvista. Lopullinen
+sarja otettiin oikeassa ajassa, ja kuskin paikka varmistettiin
+`getBoundingClientRect`illä (x −177 → 12 px, hypyssä y 216 → 193).

@@ -444,6 +444,20 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   valokuvaa paperille: se oli 62 kB base64:ää (gzip 467,7 -> 410,4 kB)
   ja sisältö näkyi hitaalla verkolla 320 ms myöhemmin (FCP 812 vs
   492 ms).
+- **MERKKI ENSIN, KUSKI VAIN LÄHDÖSSÄ (strategia D, käyttäjän päätös
+  29.9.).** Kuski alkoi hallita ruutua ja merkki ja latauspalkki jäivät
+  sen varjoon. Levossa ruudulla on meri, taivas, tuuli ja ISO merkki
+  (150 px, nimi 32 px, palkki 220 × 3 px, lohko nostettu 7vh), ja
+  kuskin kerros `#lr-rata` on `display: none` — sen animaatiot eivät
+  pyöri lainkaan (levossa 22 animaatiota, ennen 37). Kun data on
+  valmis (`.out`), kuski syntyy: liukuu sisään vasemmalta 0,5 s
+  (`lr-tulo-lahto`), tekee ala-käännöksen (`lr-kaarto-lahto`,
+  `lr-lauta-lahto`, `lr-kansi-lahto`) ja hyppää viiveellä 0,45 s
+  (`lr-hyppy` ja nivelten hyppyavainkuvat); laki noin 0,9 s, ja vasta
+  silloin ruutu häipyy (`transition-delay` .85 s) ja nimilohko väistyy
+  (.45 s). `display: none` 1 350 ms. Hinta: kartta on käytettävissä
+  0,45 s myöhemmin kuin ennen. Vaimennetulla liikkeellä kuskia ei
+  näytetä. ÄLÄ PALAUTA KUSKIA LEPOTILAAN.
 - **TILANJAKO ON YHÄ KAKSIOSAINEN: KOHTAUS YLHÄÄLLÄ, NIMILOHKO SYVÄLLÄ
   MERELLÄ.** Aallot ja juovat häipyvät ennen nimilohkoa, eikä tekstin
   alla liiku mitään. Mitattu ruudulta: nimi 16,34:1, alanimi 6,47:1,
@@ -555,8 +569,11 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   polvien koukistus, `skewX` lantio taakse; `lr-yla-hyppy` siirtää
   ylävartaloa samassa suhteessa). Lähtö `.out` ajaa `lr-hyppy`-avainkuvat (viimeinen
   linjanhaku 0–12 %: lauta kääntyy ja kuski nojaa kaarteeseen;
-  lastaus 24 %, ponnistus, lento, 0,85 s), ja ruudun häivytys alkaa
-  vasta 0,4 s, jotta laki (0,45 s) nähdään; `display: none` 900 ms.
+  lastaus 24 %, ponnistus, lento, 0,85 s) viiveellä 0,45 s sisääntulon
+  ja ala-käännöksen jälkeen (ks. "Merkki ensin"), ja ruudun häivytys
+  alkaa vasta 0,85 s, jotta laki nähdään; `display: none` 1 350 ms.
+  Levossa pyörivät kaarto (`lr-kaarto`) ja pumppaus ovat yhä
+  koodissa, mutta kerros on levossa piilossa.
 - **SILUETTI ON HELSINKI ETELÄSATAMAN SUUNNALTA:** rantarivi ja
   Kauppatori (teltat, Keisarinnan kivi), mäellä Tuomiokirkko,
   Katajanokalla Uspenski ja maailmanpyörä, satamassa Silja Linen laiva
