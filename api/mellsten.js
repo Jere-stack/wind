@@ -131,7 +131,11 @@ async function luePaiva(paiva, tanaan) {
     else throw e;
   }
   var rivit = jasennaPaiva(teksti, paiva);
-  _muisti.set(paiva, { t: Date.now(), rivit: rivit });
+  /* TYHJÄÄ PÄIVÄÄ EI MUISTETA. raw.githubusercontent.com tarjoili
+     mitattuna 404:ää välimuistista vielä puoli minuuttia haaran
+     syntymän jälkeen; muistettuna se olisi pitänyt koko päivän tyhjänä
+     puoli tuntia. */
+  if (rivit.length) _muisti.set(paiva, { t: Date.now(), rivit: rivit });
   return rivit;
 }
 

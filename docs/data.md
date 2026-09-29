@@ -1904,6 +1904,13 @@ Sarjan viimeinen piste on raaka tuorein havainto (sama kuin Larulla).
     varasto 404        30       2 kt   vain tuore (= ennen)
     varasto kaatuu     30       2 kt   `varastoVirheita: 3`, ei virhettä
 
+**raw.githubusercontent.com jää pushista hetken jälkeen.** Ensimmäisen
+tuotantoajon jälkeen (haara 08:00:28) raw vastasi 28.9:lle ja 29.9:lle
+404 välimuistista vielä 08:00:50, ja 200 vasta 08:01:28. Siksi proxy
+muistaa lämpimässä instanssissa (30 min) vain päivän jossa on rivejä:
+tyhjä päivä muistettuna olisi pitänyt hetkellisen 404:n voimassa puoli
+tuntia.
+
 ### Katko on katko, ei viiva
 
 Kaavion niputus (`_havNiputa`) oli lukumäärän mukaan, ja moottori veti
