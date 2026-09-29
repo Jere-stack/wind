@@ -2194,8 +2194,11 @@ purkua vasten: 0 / 48 000 pikseliä eri.
   kuva klo 17:02: keskituuli, maksimi ja minimi **tasan samat 112/112**,
   suunta ±1,1° (harha +0,7°). Siirtokoe: minuutin siirto kumpaankin
   suuntaan pudottaa osumat 9/112:een, eli kohdistus on yksiselitteinen.
-- **Useampi kuva eri hetkiltä**: jokainen tasan oma `weather.txt`:nsä
-  (30/30) ja kaikki tunnetut minuutit (ks. alla, "Mittaukset").
+- **Viisi kuvaa eri hetkiltä** (17:14 ja 17:36–17:51 viiden minuutin
+  välein, kuva ja `weather.txt` samassa haussa): jokainen täsmää omaan
+  `weather.txt`:iinsä
+  30/30, ja kaikkia tunnettuja minuutteja vasten yhteensä 268/268
+  (keskituuli ja maksimi ±0,05 m/s), suunta ±1°.
 - **Windgurua vasten** (asema 2399, kymmenen minuutin keskiarvo): kuva
   klo 17:41, 22 ikkunaa, ero 0,55 kts ja harha +0,08. Kontrolli samana
   päivänä lähteen omilla tekstiriveillä: 14 ikkunaa, 0,67 kts ja −0,11.
@@ -2211,6 +2214,17 @@ niitä, eikä tämä muutos erota.
 **Mitä kuvaajasta ei näe**: minimi alle 0,8 m/s (palkki jatkuu
 suuntanauhaan) ja maksimi yli 19 m/s (tuntimerkkien ja sateen alue)
 merkitään `?`:ksi eikä arvata. Lämpötilaa, painetta ja kosteutta ei ole.
+
+**Sade on sininen palkki ylhäältä alas** (väri 32,32,255; 1,2 mm/h ≈ 5
+px). Rankkasade ulottuisi tuulialueelle, joten sateeksi luetaan
+yläreunaan yhtenäinen jakso ja palkki etsitään sen alta; sama väri
+muualla on pohjoistuulen palkki. Testattu maalaamalla sade riville 60
+asti 21 sarakkeeseen: 240/240 riviä täsmälleen samat, ja palkkiin asti
+ulottuvassa sateessa maksimi on `?` mutta keskituuli ja suunta säilyvät.
+
+**Ilman Last-Modifiedia kuvaa ei lueta**: tuntimerkit osuisivat minkä
+tahansa tasatunnin siirrolla, ja nykyhetki ei ole kuvan hetki jos asema
+on pysähtynyt. (Lähde lähettää otsakkeen aina.)
 
 ### Ratkaisu
 
@@ -2291,6 +2305,17 @@ teksti).
 osaa tämän päivän 14:30, 15:30 ja 16:30 (lähin piste 1 min päässä,
 ennen katko), asemakortin napautus 14:20 / 15:40 / 16:20 näyttää
 lukeman, ja kaavio on 13:00 → nyt yhtenäinen.
+
+**Tuotannossa (`cc2169a`, 29.9. klo 17:47):** Vercelin deploy ja
+Tarkistus vihreät, funktioita yhä 12. `/api/mellsten` 24 h: kuvaaja
+240 minuuttia, tarkistus 30/30, katkot vain 23:59 → 10:34 ja 11:00 →
+12:59. Käsiajo klo 17:47: keräin tallensi kuvaajasta 167 minuuttia
+(tarkistus 30/30), `odota` ohitettiin, ja ketjuaskel ei lähettänyt
+lenkkiä (ympäristöä ei vielä ole). **Kaksi minuuttia myöhemmin, klo
+17:49, tuli työnkulun ENSIMMÄINEN ajastettu ajo** — vuorosta 17:44,
+viisi minuuttia myöhässä — eli työnkulkutiedoston päivitys näyttää
+herättäneen GitHubin ajastimen. Se ei muuta suunnitelmaa: ajastimen
+varaan ei lasketa, mutta jos se laukeaa, ketjua ei tarvita.
 
 ### Mitä jää
 

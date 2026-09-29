@@ -225,6 +225,10 @@ var K_YLA = 8;          /* tuntimerkit ja sade 0..7 */
 
 function onMusta(c) { return c[0] === 0 && c[1] === 0 && c[2] === 0; }
 function onValko(c) { return c[0] === 255 && c[1] === 255 && c[2] === 255; }
+/* Sade on sininen palkki YLHAALTA alas (1,2 mm/h ~ 5 px). Sama vari
+   voisi olla pohjoistuulen palkki, joten sateeksi luetaan vain ylareunaan
+   yhtenainen jakso. */
+function onSade(c) { return c[0] === 32 && c[1] === 32 && c[2] === 255; }
 
 /* Kompassisuunta palkin varista (ks. yllä), null jos vari on harmaa. */
 function suuntaVarista(c) {
@@ -250,8 +254,17 @@ function yleisin(laskuri) {
  * kuvaa ei lueta. Tyhja sarake on puuttuva minuutti eika siita tehda
  * rivia. */
 export function tulkitseKuvaaja(tavut, muokattuMs) {
+  /* Ilman Last-Modifiedia kuvaa ei voi kohdistaa: tuntimerkit osuisivat
+     minka tahansa tasatunnin siirrolla, ja nykyhetki ei ole kuvan hetki
+     jos asema on pysahtynyt. Lahde lahettaa otsakkeen aina. */
+  if (!muokattuMs) return { rivit: [], syy: 'ei Last-Modifiedia' };
   var g;
   try { g = puraGif(tavut); } catch (e) { return { rivit: [], syy: e.message }; }
+  return tulkitseKuva(g, muokattuMs);
+}
+
+/* Sama purettuna kuvana { w, h, paletti, ind } (testit maalaavat siihen). */
+export function tulkitseKuva(g, muokattuMs) {
   if (g.w !== K_W || g.h !== K_H) return { rivit: [], syy: 'koko ' + g.w + 'x' + g.h };
   function px(x, y) { return g.paletti[g.ind[y * K_W + x]]; }
 
@@ -282,7 +295,15 @@ export function tulkitseKuvaaja(tavut, muokattuMs) {
   for (x = 0; x < K_W; x++) {
     var viivaSarake = x % 10 === vaihe;
     var yla = null, ala = null, pisteet = [], varit = {}, nauha = {}, viivaValko = false, y, c;
-    for (y = K_YLA; y < K_NAUHA; y++) {
+    /* Sadejakso ylhaalta (tuntimerkin rivit 0–1 saavat olla valkoisia).
+       Rankka sade voi ulottua tuulialueelle; se ei ole palkkia. */
+    var alku = K_YLA;
+    for (y = 0; y < K_NAUHA; y++) {
+      c = px(x, y);
+      if (onSade(c) || (y < 2 && onValko(c))) { if (y + 1 > alku) alku = y + 1; continue; }
+      break;
+    }
+    for (y = alku; y < K_NAUHA; y++) {
       c = px(x, y);
       if (onMusta(c)) continue;
       if (onValko(c)) {
@@ -319,8 +340,9 @@ export function tulkitseKuvaaja(tavut, muokattuMs) {
         /* Palkki joka jatkuu nauhaan: minimi on alle 0,8 eika sita nae. */
         wsMin: ala >= K_NAUHA - 1 ? null : (K_H - 1 - ala) / 10,
         ws: (K_H - 1 - pisteet[0]) / 10,
-        /* Palkki joka ulottuu tuntimerkkeihin: maksimi voi olla leikattu. */
-        wg: yla <= K_YLA ? null : (K_H - 1 - yla) / 10,
+        /* Palkki joka ulottuu tuntimerkkeihin tai sateeseen: maksimi voi
+           olla leikattu. */
+        wg: yla <= alku ? null : (K_H - 1 - yla) / 10,
       };
     }
     if (r.wd == null) r.wd = 0;

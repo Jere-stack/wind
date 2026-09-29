@@ -114,5 +114,7 @@ async function paata() {
 }
 
 try { await paata(); } catch (e) { kerro('Virhe: ' + e.message); }
+/* Yhteenvetoon (stdout ohjataan GITHUB_STEP_SUMMARYyn) ja ajolokiin
+   (stderr), jotta ketjun tila näkyy myös rajapinnasta haetussa lokissa. */
 console.log('### Ajastinketju\n');
-for (const v of viestit) console.log('- ' + v);
+for (const v of viestit) { console.log('- ' + v); console.error('ajastinketju: ' + v); }

@@ -2193,8 +2193,10 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   TASAN samat kuin lähteen rivit, suunta ±1,1°, Windgurua vasten yhtä
   hyvä kuin tekstirivi. SE LUETAAN VAIN TARKISTETTUNA: tuntimerkit
   tasatunneille ja saman haun `weather.txt` täsmää (90 %, ≥ 10 min),
-  muuten koko kuva hylätään. Minimi alle 0,8 m/s ja maksimi yli 19 m/s
-  ovat `?`, eikä lämpötilaa ole. Varastossa rivin loppusana on
+  muuten koko kuva hylätään, ja ilman Last-Modifiedia kuvaa ei lueta
+  lainkaan. Minimi alle 0,8 m/s ja maksimi yli 19 m/s ovat `?`, eikä
+  lämpötilaa ole. Sade on sininen jakso YLHÄÄLTÄ (32,32,255) eikä
+  palkkia; sama väri muualla on pohjoistuulta. Varastossa rivin loppusana on
   `kuvaaja`; TEKSTIRIVI VOITTAA KUVAAJARIVIN, arkisto molemmat, eikä
   kuvaajarivi korvaa koskaan mitään.
 - **NOLLARIVI `0° 0.0 < 0.0 < 0.0` ON TYYNI** (naapurit 0,5–0,9 m/s,

@@ -173,7 +173,7 @@ try {
   await tauko();
   const k = await hae(LAHDE + KUVAAJA + '?' + Math.floor(nyt / 60000), null, true);
   if (k.tila === 200) {
-    const t = tulkitseKuvaaja(k.tavut, k.muokattu || nyt);
+    const t = tulkitseKuvaaja(k.tavut, k.muokattu);
     const tark = vertaaKuvaajaan(t.rivit, tuoreet);
     if (kuvaajaKelpaa(t, tark)) {
       const uusia = lisaa(t.rivit, false);

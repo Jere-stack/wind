@@ -213,7 +213,7 @@ export default async function handler(req, res) {
     /* Kuvaaja kelpaa vain jos samat minuutit tekstina tasmaavat. */
     var kuva = { rivit: [] }, tarkistus = null, kuvaOk = false;
     if (lahde.k) {
-      kuva = tulkitseKuvaaja(lahde.k.tavut, lahde.k.muokattu || nyt);
+      kuva = tulkitseKuvaaja(lahde.k.tavut, lahde.k.muokattu);
       tarkistus = vertaaKuvaajaan(kuva.rivit, tuore);
       kuvaOk = kuvaajaKelpaa(kuva, tarkistus);
     }
