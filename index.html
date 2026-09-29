@@ -5609,15 +5609,16 @@ public/icon-maskable-512.png 512px 140643 B
       <button type="button" class="paneeli-sulje" id="fc-sulje" aria-label="Sulje ennuste"><span aria-hidden="true"></span></button>
     </div>
     <div id="fc-header">
-      <!-- AIKARAJAUS ON YKSIVALINTA, joten se on `.segmentti` eikä kolme
-           kytkintä: "Kaikki päiväajat" ohitti ennen kaksi muuta, eli kytkimet
-           valehtelivat toisistaan riippumattomuutta (docs/julkaisu.md, UI 6). -->
+      <!-- AIKARAJAUS: "Kaikki päivät" on tyhjä valinta ja nollaa muut; arki-illat
+           (ma–pe 16–22) ja viikonloppu (la–su 08–22) ovat kytkettävissä yhdessä.
+           Ennen Kaikki ohitti muut kytkimet (docs/julkaisu.md, UI 6), joten
+           se ei ole enää rinnakkainen kytkin vaan nollaus. -->
       <div class="segmentti fc-rajaus" role="group" aria-label="Aikarajaus">
         <button type="button" data-rajaus="kaikki" aria-pressed="true">Kaikki päivät</button>
-        <button type="button" data-rajaus="arki" aria-pressed="false">Arki-illat 16–22</button>
+        <button type="button" data-rajaus="arki" aria-pressed="false">Arki-illat</button>
         <button type="button" data-rajaus="vkl" aria-pressed="false">Viikonloppu</button>
       </div>
-      <div id="fc-subtitle">Kaikki spotit · seuraavat 5 vrk · parhaat 3 tunnin jaksot</div>
+      <div id="fc-subtitle">Foilattavaa: indeksi yli 50 ja tuuli vähintään 10 kts · seuraavat 5 vrk · 3 tunnin jaksot</div>
     </div>
     <div id="fc-content"></div>
   </div>
@@ -25370,15 +25371,29 @@ const ForecastPanel = {
     }
   },
 
-  /* Aikarajaus: 'kaikki' (06–23), 'arki' (ma–pe 16–22), 'vkl' (la–su 08–22).
-     Yöt ovat aina pois. Valinta on istunnon, ei tallenneta. */
-  _rajaus: 'kaikki',
+  /* FOILATTAVA = indeksi yli 50 JA tuuli vähintään 10 kts. Ehto on yksi
+     puhdas funktio, jota nyt-lista ja päivälistat kutsuvat: kumpikaan ei
+     saa näyttää spottia jota toinen piilottaa. Indeksi yksin ei riitä
+     (hyvä suunta nostaa heikonkin tuulen yli 50:n) eikä tuuli yksin
+     (10 kts väärästä suunnasta ei ole paikka). */
+  KYNNYS_INDEKSI: 50,
+  KYNNYS_MS: 10 / 1.9438,
+  foilattava(score, ms) {
+    return score > this.KYNNYS_INDEKSI && ms >= this.KYNNYS_MS;
+  },
+
+  /* Aikarajaus on JOUKKO: tyhjä = kaikki päivät (06–23), muuten mikä
+     tahansa valituista ('arki' ma–pe 16–22, 'vkl' la–su 08–22), eli
+     arki-illat + viikonloppu saa valita yhdessä. Yöt ovat aina pois.
+     Valinta on istunnon, ei tallenneta. */
+  _rajaus: new Set(),
   _sallittu(tMs) {
     const d = new Date(tMs), dow = d.getDay(), h = d.getHours();
     if (h < 6 || h >= 23) return false;
-    if (this._rajaus === 'arki') return dow >= 1 && dow <= 5 && h >= 16 && h < 22;
-    if (this._rajaus === 'vkl') return (dow === 0 || dow === 6) && h >= 8 && h < 22;
-    return true;
+    const r = this._rajaus;
+    if (!r.size) return true;
+    return (r.has('arki') && dow >= 1 && dow <= 5 && h >= 16 && h < 22)
+        || (r.has('vkl') && (dow === 0 || dow === 6) && h >= 8 && h < 22);
   },
 
   /* SAMA SARJA KUIN KORTISSA JA MERKEISSÄ (docs/julkaisu.md, L5).
@@ -25423,7 +25438,8 @@ const ForecastPanel = {
         const med = pisteet[1];
         const d = new Date(t0);
         ikkunat.push({ paiva: d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(),
-                       t0: t0, spot: spot, score: med.score, ms: med.ms, dir: med.dir });
+                       t0: t0, spot: spot, score: med.score, ms: med.ms, dir: med.dir,
+                       foil: this.foilattava(med.score, med.ms) });
       }
     }
     const paivittain = new Map();
@@ -25434,10 +25450,13 @@ const ForecastPanel = {
     const tulos = [];
     for (const lista of paivittain.values()) {
       lista.sort((x, y) => y.score - x.score);
+      /* Vain foilattavat jaksot. Päivä jolla niitä ei ole jää listaan
+         tyhjänä, jotta käyttäjä näkee että se katsottiin. */
       /* Sama spotti kahden tunnin sisällä paremmasta jaksosta ei ole uusi
          vaihtoehto vaan saman jakson siirto. */
       const valitut = [];
       for (const w of lista) {
+        if (!w.foil) continue;
         if (valitut.some(v => v.spot === w.spot && Math.abs(v.t0 - w.t0) < 2 * 36e5)) continue;
         valitut.push(w);
         if (valitut.length === 3) break;
@@ -25460,6 +25479,7 @@ const ForecastPanel = {
      kartalta, ja suosikit näkyivät vain aloitusnäkymässä. Nyt paneelin
      ylin osa on nykyhetki kaikista spoteista indeksin mukaan, suosikit
      ensin. Luku on nykyhetken tunnilta, ei aikajanan valinnasta. */
+  NYT_MAX: 5,
   _nytLista() {
     const nyt = Ennuste.nytTunti();
     const rivit = [];
@@ -25469,11 +25489,36 @@ const ForecastPanel = {
       if (!a) continue;
       const g = a.gust != null ? a.gust : a.ms;
       const dir = a.dir != null ? a.dir : 0;
-      rivit.push({ spot: spot, ms: a.ms, dir: dir, score: spotIndex(a.ms, dir, spot.bestDirs, g),
-                   suosikki: Suosikit.on(spot.name) });
+      const score = spotIndex(a.ms, dir, spot.bestDirs, g);
+      if (!this.foilattava(score, a.ms)) continue;
+      rivit.push({ spot: spot, ms: a.ms, dir: dir, score: score, suosikki: Suosikit.on(spot.name) });
     }
-    rivit.sort((x, y) => (y.suosikki - x.suosikki) || (y.score - x.score));
-    return rivit;
+    /* Paras ensin; suosikki ratkaisee vain tasapelin. */
+    rivit.sort((x, y) => (y.score - x.score) || (y.suosikki - x.suosikki));
+    return rivit.slice(0, this.NYT_MAX);
+  },
+
+  /* Aikajanan valinta kulkee AIKAJANAN OMAA POLKUA (`_tlValitseIdx`) ja
+     ennen karttaliikettä: kartan keskipiste vaihtaa akselia, ja valittu
+     hetki (`State.valittuMs`) säilyy vain jos se on jo kirjoitettu. Nyt-
+     rivi ei ennen siirtänyt aikajanaa lainkaan, joten kortti aukesi
+     sille tunnille jonka käyttäjä oli sattunut valitsemaan. */
+  _avaa(nimi, tMs) {
+    const spot = SPOTS.find(s => s.name === nimi);
+    if (!spot) return;
+    Haptics.medium();
+    this.close();
+    const T = State._tlTimes;
+    if (T && T.length && isFinite(tMs)) {
+      let paras = 0, ero = Infinity;
+      for (let i = 0; i < T.length; i++) {
+        const e = Math.abs(Date.parse(T[i]) - tMs);
+        if (e < ero) { ero = e; paras = i; }
+      }
+      _tlValitseIdx(paras);
+    }
+    State.map.flyTo([spot.lat, spot.lng], 10, { duration: 1 });
+    setTimeout(() => openSheet(spot, State.currentHourIdx), 700);
   },
 
   render() {
@@ -25483,9 +25528,10 @@ const ForecastPanel = {
     const fmt = t => ('0' + new Date(t).getHours()).slice(-2) + ':00';
 
     let html = '';
+    html += '<div class="fc-day fc-nyt"><h3 class="fc-day-label">Nyt · top ' + this.NYT_MAX + '</h3>'
+      + (nytRivit.length ? '' : '<div class="fc-day-tyhja">Ei foilattavia paikkoja juuri nyt.</div>');
     if (nytRivit.length) {
-      html += '<div class="fc-day fc-nyt"><h3 class="fc-day-label">Nyt</h3>'
-        + nytRivit.map(r => {
+      html += nytRivit.map(r => {
           const c = ColorRamp.ink(r.ms);
           return '<button type="button" class="fc-nyt-rivi" data-spot="' + r.spot.name.replace(/"/g, '') + '">'
             + '<span class="fc-nyt-merkki" aria-hidden="true">' + spotMarkerSVG(r.score, '', 30) + '</span>'
@@ -25494,8 +25540,9 @@ const ForecastPanel = {
             + '<span class="fc-nyt-tuuli"><span class="fc-nyt-suunta" aria-hidden="true">' + suuntaNuoliSVG(r.dir, 12) + '</span>'
             + '<b style="color:rgb(' + c.r + ',' + c.g + ',' + c.b + ')">' + Units.fmt(r.ms) + '</b> ' + Units.label() + '</span>'
             + '</button>';
-        }).join('') + '</div>';
+        }).join('');
     }
+    html += '</div>';
 
     if (!sarjoja) {
       html += '<div class="fc-empty">Ennustetta ladataan…</div>';
@@ -25504,8 +25551,8 @@ const ForecastPanel = {
     } else {
       html += paivat.map(({ t0, ikkunat }) =>
         '<div class="fc-day"><h3 class="fc-day-label">' + this._paivaNimi(t0) + '</h3>'
-        + (ikkunat[0].score < 10
-          ? '<div class="fc-day-tyhja">Ei ajettavaa tuulta millään spotilla.</div>'
+        + (!ikkunat.length
+          ? '<div class="fc-day-tyhja">Ei foilattavia paikkoja.</div>'
           : ikkunat.map(w => {
             const c = ColorRamp.ink(w.ms);
             return '<button type="button" class="fc-window" data-spot="' + w.spot.name.replace(/"/g, '') + '" data-t="' + w.t0 + '">'
@@ -25525,35 +25572,12 @@ const ForecastPanel = {
     }
     container.innerHTML = html;
 
-    container.querySelectorAll('.fc-nyt-rivi').forEach(el => el.addEventListener('click', () => {
-      const spot = SPOTS.find(s => s.name === el.dataset.spot);
-      if (!spot) return;
-      Haptics.medium();
-      this.close();
-      State.map.flyTo([spot.lat, spot.lng], 10, { duration: 1 });
-      setTimeout(() => openSheet(spot, State.currentHourIdx), 700);
-    }));
-
-    /* Jakson napautus: kartta spotille ja aikajana jakson alkuun
-       AIKAJANAN OMAA POLKUA (`_tlValitseIdx`) — ennen tässä oli viides,
-       käsin kirjoitettu valintapolku, joka ei pysäyttänyt toistoa. */
-    container.querySelectorAll('.fc-window').forEach(el => el.addEventListener('click', () => {
-      const spot = SPOTS.find(s => s.name === el.dataset.spot);
-      if (!spot) return;
-      Haptics.medium();
-      this.close();
-      const T = State._tlTimes, target = +el.dataset.t;
-      if (T && T.length && isFinite(target)) {
-        let paras = 0, ero = Infinity;
-        for (let i = 0; i < T.length; i++) {
-          const e = Math.abs(Date.parse(T[i]) - target);
-          if (e < ero) { ero = e; paras = i; }
-        }
-        _tlValitseIdx(paras);
-      }
-      State.map.flyTo([spot.lat, spot.lng], 10, { duration: 1 });
-      setTimeout(() => openSheet(spot, State.currentHourIdx), 700);
-    }));
+    /* Molemmat napautukset tekevät saman: kartta spotille ja aikajana
+       joko jakson alkuun tai nykyhetkeen (`_avaa`). */
+    container.querySelectorAll('.fc-nyt-rivi').forEach(el => el.addEventListener('click',
+      () => this._avaa(el.dataset.spot, Ennuste.nytTunti())));
+    container.querySelectorAll('.fc-window').forEach(el => el.addEventListener('click',
+      () => this._avaa(el.dataset.spot, +el.dataset.t)));
   }
 };
 
@@ -25569,8 +25593,14 @@ document.getElementById('fc-btn').addEventListener('click', (e) => {
   ryhma.addEventListener('click', function (e) {
     const b = e.target.closest('button[data-rajaus]');
     if (!b) return;
-    ForecastPanel._rajaus = b.dataset.rajaus;
-    ryhma.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    const r = ForecastPanel._rajaus, k = b.dataset.rajaus;
+    /* "Kaikki" tyhjentää joukon; arki ja viikonloppu kytketään erikseen,
+       ja kun kumpikaan ei ole päällä palataan Kaikkiin. */
+    if (k === 'kaikki') r.clear();
+    else if (r.has(k)) r.delete(k);
+    else r.add(k);
+    ryhma.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed',
+      String(x.dataset.rajaus === 'kaikki' ? !r.size : r.has(x.dataset.rajaus))));
     if (ForecastPanel._open) ForecastPanel.render();
   });
 })();
@@ -26679,7 +26709,7 @@ setTimeout(function () { Kaynnistys.jumi(); }, Kaynnistys.JUMI_MS);
   try {
     window.FS = { State: State, WindTexture: WindTexture, Saalaatat: Saalaatat, MalliHila: MalliHila,
       ViewportGrid: ViewportGrid, ColorRamp: ColorRamp, PerfTracker: PerfTracker,
-      buildWindField: buildWindField, idw: idw,
+      buildWindField: buildWindField, idw: idw, ForecastPanel: ForecastPanel,
       LampoGL: LampoGL, PartikkeliGL: PartikkeliGL, L: L,
       Sade: Sade, Sadetutka: Sadetutka, Sadeennuste: Sadeennuste,
       _tutkaHetki: _tutkaHetki, _tutkaLahde: _tutkaLahde,

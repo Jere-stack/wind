@@ -88,6 +88,26 @@ async function aja(nimi, asetus) {
   await sivu.keyboard.press('Escape');
   await sivu.waitForTimeout(600);
 
+  /* Parhaat ajankohdat: foilattava = indeksi > 50 JA tuuli >= 10 kts,
+     nyt-lista enintään 5 riviä eikä yhtään ei-foilattavaa, ja arki-illat
+     + viikonloppu ovat valittavissa yhdessä. */
+  const fc = await sivu.evaluate(() => {
+    const P = window.FS.ForecastPanel, kts = (v) => v / 1.9438;
+    const nyt = P._nytLista();
+    P._rajaus.add('arki'); P._rajaus.add('vkl');
+    const ke18 = new Date(2026, 8, 30, 18).getTime(), ke10 = new Date(2026, 8, 30, 10).getTime();
+    const la12 = new Date(2026, 9, 3, 12).getTime();
+    const yhdessa = [P._sallittu(ke18), P._sallittu(la12), P._sallittu(ke10)];
+    P._rajaus.clear();
+    return {
+      rajat: [P.foilattava(51, kts(10)), P.foilattava(50, kts(12)), P.foilattava(80, kts(9.5)), P.foilattava(51, kts(9.9))],
+      nyt: nyt.length, nytLiikaa: nyt.some((r) => !P.foilattava(r.score, r.ms)), yhdessa,
+    };
+  });
+  if (fc.rajat.join() !== 'true,false,false,false') vika('foilattava-raja väärin: ' + fc.rajat);
+  if (fc.nyt > 5 || fc.nytLiikaa) vika('nyt-lista rikkoo säännön (' + fc.nyt + ' riviä)');
+  if (fc.yhdessa.join() !== 'true,true,false') vika('arki+vkl-rajaus väärin: ' + fc.yhdessa);
+
   /* Asetukset napista */
   const nakyy = (id) => sivu.waitForFunction((i) => {
     const el = document.getElementById(i);

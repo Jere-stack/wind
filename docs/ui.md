@@ -7034,3 +7034,11 @@ värit häivytetään, ja hyppyyn liittyvä suora vesivana pois.
 Tilapalkki 12,36:1 päivällä, animaatioita 45 esittelyssä ja 22 levossa
 (ennallaan: tukan animaatio pyöri vain lähdössä), vaimennettu 0,
 savutesti läpi.
+
+## Parhaat ajankohdat: vain foilattavat, top 5 nyt, arki+viikonloppu yhdessä
+
+- **Foilattava = indeksi > 50 JA tuuli ≥ 10 kts** (`ForecastPanel.foilattava`, yksi puhdas funktio; nyt-lista ja päivälistat kutsuvat samaa). Kumpikaan ehto ei riitä yksin: hyvä suunta nostaa heikonkin tuulen yli 50:n, eikä 10 kts väärästä suunnasta ole paikka.
+- **Nyt: top 5**, indeksin mukaan, suosikki vain tasapelin ratkaisijana. Ei foilattavia → "Ei foilattavia paikkoja juuri nyt." Muut päivät: vain foilattavat jaksot (max 3), muuten "Ei foilattavia paikkoja." — päivä jää näkyviin tyhjänä, jotta näkee että se katsottiin.
+- **Napautus (nyt ja jakso) kulkee `_avaa`n kautta**: aikajana `_tlValitseIdx`llä (nyt-rivillä nykyhetkeen, ennen se ei siirtänyt aikajanaa) ja vasta sitten kartta spotille.
+- **Aikarajaus on joukko**: "Kaikki päivät" = tyhjä joukko ja nollaa; "Arki-illat" (ma–pe 16–22) ja "Viikonloppu" (la–su 08–22) kytketään erikseen ja yhdessä. Ennen kolme oli yksivalinta, jolloin arki+viikonloppu ei ollut mahdollinen.
+- Testi: `tools/savutesti.mjs` tarkistaa rajat (51/10 kts kyllä; 50/12, 80/9,5, 51/9,9 ei), nyt-listan (≤5, kaikki foilattavia) ja arki+vkl-rajauksen.
