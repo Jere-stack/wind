@@ -43,6 +43,8 @@ export const KAMERAT = [
        pilleri löytävät kameran tällä. */
     asema: 'laru',
     nimi: 'Larukite-kelikamera',
+    /* Englanninkielinen käyttöliittymä (index.html: `_kameraNimi`). */
+    nimiEn: 'Larukite webcam',
     omistaja: 'Lauttasaaren leijalautailijat ry',
     kanava: 'UCJmadTJ58HxfuPMgDm6rtrg',
     /* Sama lähetys 6.12.2019 lähtien. Jos seura aloittaa uuden, keräin
@@ -184,7 +186,7 @@ export function paattele(kamera, k, nyt, nayte) {
 
 /* ── Proxyn vastaus (api/laru.js?kamera=1) ─────────────────────────
  *
- * { kamerat: [{ id, asema, nimi, omistaja, kanava, video, tila, syy,
+ * { kamerat: [{ id, asema, nimi, nimiEn, omistaja, kanava, video, tila, syy,
  * viimeisin, kuva }], varasto }. Kartan pilleri saa play-kolmion kun
  * `tila` on 'live', ja asemakortti näyttää kameran kolmessa tilassa.
  *
@@ -236,7 +238,7 @@ export async function kameraVastaus(nyt) {
     }
     const p = paattele(c, k, nyt, nayte);
     kamerat.push({
-      id: c.id, asema: c.asema, nimi: c.nimi, omistaja: c.omistaja,
+      id: c.id, asema: c.asema, nimi: c.nimi, nimiEn: c.nimiEn || c.nimi, omistaja: c.omistaja,
       kanava: kanavanOsoite(c.kanava),
       video: p.video, tila: p.tila, syy: p.syy, viimeisin: p.viimeisin,
       kuva: (nayte && nayte.video === p.video && nayte.etag) || (k && k.video === p.video && k.etag) || null,

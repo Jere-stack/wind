@@ -151,7 +151,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/eleet.md` | nipistystä, zoomia, zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
 | `docs/data.md` | säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja, **havaintoasemien oma historia (Mellsten ja Laru, `havainnot`-haara)**, **Mellstenin katkot: 4 h kuvaaja, arkistovaratie ja ajastinketju**, **kelikameran tila (YouTube, pikkukuvan ETag)** |
 | `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, MET Nordicia, Open-Meteon S3-malleja** |
-| `docs/ui.md` | paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa, kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kelikameraa asemakortissa ja pillerin play-kolmiota** |
+| `docs/ui.md` | paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa, kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
 | `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit, kaavion venytys** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V10: yksi kaaviomoottori, kortti moduuleina, fonttilattia, laajan valinta, venytys, mallit laajassa) |
@@ -262,7 +262,8 @@ kokeiltu ja kaadettu mittauksella.
   Merkki yksinkertaistui: siipi ja spotti ·
   Latausruutu vuorokaudenajan mukaan: Helsinki, nivelletty kuski ja hyppy ·
   Aikajanan liukuväri pois — halot tilalle ·
-  **Kelikamera: play-kolmio pilleriin ja kamera asemakorttiin**
+  **Kelikamera: play-kolmio pilleriin ja kamera asemakorttiin** ·
+  **Kieli: suomi ja englanti**
 - **pwa**: PWA — kotivalikkoon ja rannalle · Mitä välimuistiin menee ·
   Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
   Ikoni ja kotivalikko
@@ -384,6 +385,49 @@ mitataan analyyttistä kenttää vasten.
 
 Nämä ovat päätöksiä, eivät makuasioita. Perustelut ovat aiheen omassa
 tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
+
+**Kieli** (docs/ui.md, "Kieli: suomi ja englanti")
+
+- **SOVELLUS ON SUOMEKSI JA ENGLANNIKSI, JA JOKAINEN NÄKYVÄ TEKSTI ON
+  KAHDESTI.** JS:ssä `_t('suomi', 'English')` tekstin vieressä,
+  staattisessa HTML:ssä `data-en` (tekstisisältö, ei lapsielementtejä)
+  tai `data-en-aria-label` / `data-en-title` / `data-en-nimi`, ja
+  latausruudulla ja rikkaassa tekstissä (Tietoa, pikanäppäimet)
+  kielipari `data-kieli="fi|en"`. Uusi teksti ilman englantia ei kaada
+  mitään — se jää hiljaa suomeksi englanninkielisen käyttöliittymän
+  keskelle. Sama koskee `aria-label`ia ja `title`a.
+- **KIELI RATKAISTAAN KERRAN, JA VAIHTO ON UUDELLEENLATAUS.** `<head>`in
+  skripti asettaa `<html lang>`in (`fs_kieli`; testaus `?kieli=en|fi`,
+  ei tallennu), ja se on ainoa lähde (`KIELI`). `Kieli.vaihda` tallentaa
+  ja lataa sivun `Paluu`n tavoin (näkymä ja spotti säilyvät, asetukset
+  avautuvat uudelleen). Älä rakenna vaihtoa paikallaan: `_t` ajetaan
+  myös vakioissa ja moduulien alustuksessa, ja ne jäisivät vanhaan
+  kieleen.
+- **Kielivalinta on asetusten ensimmäinen rivi, oletus suomi
+  vasemmalla, eikä selaimen kieltä tunnisteta** (englanninkielinen
+  puhelin ei tarkoita englanninkielistä käyttäjää). Kielten nimet
+  omalla kielellään ja omalla `lang`illaan.
+- **`data-en-kaare`, `data-en-nyt`, `data-en-lukema` ja
+  `data-en-vertailu` ovat ENNUSTEosion koukkuja, eivät käännöksiä.**
+  Käännöskierros lukee vain edellä luetellut attribuutit.
+- **Spottien englanninkielinen kuvaus on datassa (`descEn`)**, ei
+  `_t`-kutsuna: `tools/suunnat.html` lukee `SPOTS`-lohkon pelkkänä
+  literaalina. Kelikameran nimi tulee rekisteristä (`api/_kamerat.js`,
+  `nimiEn`), aaltopoijujen nimet käännetään vastauksen saapuessa
+  (`poijuNimi`).
+- **Paikan-, aseman-, mallin- ja järjestönimiä ei käännetä**
+  (poikkeus: poijujen merialueet, jotka ovat englanniksi vakiintuneita).
+  Aseman tagi (`Meri`, `Avomeri`, `Lento`) on AVAIN; näkyvä nimi
+  tulee `asemaTagi`sta.
+- **Englanti on brittienglantia, kello 24-tuntinen ja päiväys
+  "Wed 16 Sep"** (`KIELI_LOKAALI` en-GB, `pvmLyhyt`, `pvmNumero`,
+  `PV_LYHYT`, `KK_LYHYT`). Suunnan nimi on -erly-muoto
+  ("southwesterly"), koska se sanoo mistä tuulee. Sanasto on
+  docs/ui.md:ssä — käytä samoja termejä (gust, lull, gust factor,
+  rideable, spot index).
+- **Tarkistus: `?kieli=en` ja DOMin tekstit suomen sanalistaa vasten**,
+  jokainen pinta avattuna (docs/ui.md, "Mitattu"). Pelkkä koodihaku ei
+  riitä: tekstiä syntyy myös palvelimen datasta.
 
 **Väri**
 

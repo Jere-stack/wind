@@ -378,7 +378,7 @@ ennustepaneelista, asetuksista ja Tietoa-näkymästä.
 | 16 | tehty | `og:`-tagit ja `twitter:card summary`; kuvana `icon-512.png`. Osoite on absoluuttinen vain Vercel-buildissa (`__SIVU_URL__` ← `VERCEL_PROJECT_PRODUCTION_URL`), lähteessä ei host-nimeä. |
 | 17 | tehty | `AsennusVihje`: toisella käynnillä, ei työpöydällä eikä kotivalikon apissa; iOS:lle ohje, Androidille `beforeinstallprompt`. Suljettava, muistetaan. |
 | 18 | tehty | `suuntaNuoliSVG` kierrettynä tarkkaan asteeseen kortissa ja paneeleissa; `dirArrow` jää vain `textContent`-kenttiin. |
-| 19 | osin | Tagline "Wingfoil-sää". **Pohjakartan englanninkieliset nimet jäivät**: ne ovat Esrin rasterilaatoissa, ja suomenkielinen pohja vaatii pohjakartan vaihdon (vektoripohja tai avaimellinen palvelu) — käyttäjän päätös. |
+| 19 | osin | Tagline "Wingfoil-sää". **Pohjakartan englanninkieliset nimet jäivät**: ne ovat Esrin rasterilaatoissa, ja suomenkielinen pohja vaatii pohjakartan vaihdon (vektoripohja tai avaimellinen palvelu) — käyttäjän päätös. 29.9.: koko käyttöliittymä on nyt valittavissa myös englanniksi (asetusten ensimmäinen rivi, docs/ui.md "Kieli: suomi ja englanti"); englanniksi pohjakartan nimet vastaavat kieltä. |
 | 20 | tehty | Ennustepaneelin ylimpänä "Nyt": kaikki spotit indeksin mukaan, suosikit ensin, nykyhetken tunnilta. |
 | 22 | tehty | Asetukset ryhmiksi (Kartta / Havainnot kartalla / Tietoa), väriasteikko yksikön viereen, linkkirivi ja versio alalaitaan. |
 | 25 | tehty | Yksi "Reittiohje": Apple-laitteella `maps.apple.com`, Androidilla `geo:` (järjestelmän oletuskartta), muualla Google Mapsin reittiosoite. "Avaa Wazessa" tekstilinkkinä alla. |

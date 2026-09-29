@@ -7102,3 +7102,136 @@ soitin striimaisi sen alla.
 
 Tietoa-näkymä: kelikamera lähteissä ja tietosuojassa (kuva haetaan
 YouTubesta kortin avautuessa, soitin vasta napautuksesta).
+
+## Kieli: suomi ja englanti (29.9.)
+
+Käyttäjän pyyntö: sovellukseen englannin kieli, käännettynä
+luonnollisesti lajin ja meteorologian ammattisanastolla, ja kielen
+valinta asetusten ensimmäiseksi valinnaksi.
+
+### Valinta asetuksissa
+
+Asetusten ylin kortti on **Kieli** (`#asetus-kieli`): siruryhmä
+"Suomi | English". Oletus on suomi ja se on vasemmalla, kuten jokaisessa
+siruryhmässä. Kielten nimet ovat omalla kielellään ja kantavat oman
+`lang`insa: suomalainen löytää "Suomi"-sirun englanninkielisestäkin
+paneelista, ja ruudunlukija lausuu kummankin oikein. Rooli (radiogroup)
+ja nimi (`.sp-label` "Kieli" / "Language") tulevat rakenteesta kuten
+muillakin siruryhmillä.
+
+Oletuksena ei tunnisteta selaimen kieltä: moni suomalainen käyttää
+englanninkielistä puhelinta, ja silloin sovellus olisi vaihtanut kieltä
+kenenkään pyytämättä. Uutta käyttäjää varten opastuksen kolmas kortti
+mainitsee kielen myös englanniksi ("asetukset ja kieli (language)…").
+
+### Mekanismi
+
+- **Kieli ratkaistaan kerran, ennen ensimmäistä maalausta.** `<head>`in
+  skripti lukee `fs_kieli`n (tai testauksen `?kieli=en|fi`, joka ei
+  tallennu) ja asettaa `<html lang>`in. Se on ainoa lähde: CSS valitsee
+  sen mukaan kieliparista näkyvän puolen, ja pääskripti lukee sen
+  `KIELI`-vakioksi.
+- **Vaihto on uudelleenlataus** (`Kieli.vaihda`). Paikallaan vaihto olisi
+  kortin, aikajanan, merkkien, kaavioiden, kapselin ja paneelien
+  uudelleenpiirto — sama "monta polkua joista jokainen voi jäädä
+  vanhaan" jonka takia `Paluu` lataa sivun. Näkymä ja auki ollut spotti
+  säilyvät (`Paluu._lataaUudelleen`), ja asetukset avautuvat uudelleen
+  (`Ensikerta`, `Kieli.vaihtui`), jotta valinnan näkee siellä missä sen
+  teki. Valinnan ja latauksen välissä on 450 ms: siru ehtii näyttää
+  valinnan, ja näppäimistöllä (valinta seuraa fokusta) nuoli
+  edestakaisin ei lataa sivua.
+- **JS: `_t('suomi', 'English')` tekstin vieressä.** Erillinen sanakirja
+  olisi toinen paikka joka ajautuu erilleen lähteestä. Koska kieli ei
+  vaihdu kesken istunnon, `_t` saa ajaa myös vakioissa ja moduulin
+  alustuksessa (`SUUNTA_NIMET`, `Keli`, `Lahde.NIMET`, `MALLI_KUVAUS`).
+- **Staattinen HTML: `data-en`** (tekstisisältö, elementissä ei lapsia)
+  ja `data-en-aria-label`, `data-en-title`, `data-en-nimi` (→
+  `data-nimi`, karttanappien nimilaput). Pääskriptin ensimmäinen asia
+  kirjoittaa ne, ennen kuin saavutettavuuskierros lukee otsikot.
+- **Kielipari `data-kieli="fi|en"`** latausruudulle (näkyy ennen
+  pääskriptiä) ja rikkaalle tekstille (Tietoa, pikanäppäimet).
+- **Data joka tulee muualta:** spottien kuvaukset ovat `descEn`-kenttänä
+  datassa eivätkä `_t`-kutsuina, koska `tools/suunnat.html` lukee
+  `SPOTS`-lohkon pelkkänä literaalina. Kelikameran nimi tulee
+  rekisteristä (`api/_kamerat.js`, `nimiEn`). FMI:n aaltopoijujen
+  nimet käännetään vastauksen saapuessa (`poijuNimi`: merialue ja
+  "aaltopoiju" → "Bothnian Sea wave buoy"; paikannimet jäävät).
+- **`data-en-kaare`, `data-en-nyt`, `data-en-lukema` ja `data-en-vertailu`
+  ovat ENNUSTEosion koukkuja**, eivät käännöksiä. Kierros lukee vain
+  luetellut attribuutit eikä koske dynaamiseen HTML:ään.
+
+### Sanasto
+
+Englanti on brittienglantia (colour, favourite, centre), koska
+päiväykset ovat en-GB:tä. Kellonaika on 24-tuntinen molemmilla kielillä.
+
+| suomi | English | miksi |
+|---|---|---|
+| puuska / puuskaisuus (suhde) | gust / gust factor | "gust factor" on meteorologian nimi puuska/keskituuli-suhteelle |
+| keskituuli, kovin puuska | mean wind, max gust | |
+| tyyni (havainnon minimi) | lull | havaintokaavion katkoviiva on tuulen notko, ei tyyntä |
+| vallitseva | prevailing | |
+| lounaasta, pohjoisesta… | southwesterly, northerly… | -erly sanoo MISTÄ tuulee eikä lue menosuunnaksi |
+| P, KA, LO… | N, SE, SW… | |
+| Tyyntä – ei sovi / Liian heikko | Calm – no go / Too light | |
+| Rajatuuli – kokeile | Marginal – worth a try | |
+| Ajettava / Hyvä – foilaile! | Rideable / Good – go foil! | |
+| Kova – kokeneille / Liian kova | Strong – experienced riders / Too strong | |
+| Tasainen / Puuskainen / Hyvin puuskainen | Steady / Gusty / Very gusty | |
+| Nouseva / Laskeva / Vakaa (trendi) | Building / Dropping / Steady | |
+| kelivikkuna | rideable window | "wind window" on leijan lentoalue |
+| spottiindeksi | spot index | |
+| Parhaat ajankohdat, Foilattavaa | Best times, Foilable | |
+| puku: kengät, hanskat, huppu, kuivapuku | booties, gloves, hood, drysuit | märkäpukujen vakiintuneet nimet |
+| aaltopoiju, aallonkorkeus, jakso | wave buoy, wave height, period | |
+| vedenkorkeus | sea level | |
+| sadetutka, sade-ennuste | rain radar, rain forecast | |
+| lämpökartta, partikkelit, pohjakartta | heatmap, particles, base map | |
+| Kartan malli, Paras saatavilla | Map forecast model, Best available | |
+| raja-alue (mallien sekoitus) | blend zone | |
+| Vertaa kaaviossa, Päällekkäin / Allekkain | Compare in chart, Overlaid / Stacked | |
+| Havainnot kartalla, FMI · Meri / Maa | Observations on map, FMI · Marine / Land | |
+| Ilmatieteen laitos | Finnish Meteorological Institute (FMI) | |
+| Merellinen Helsinki | Marine Helsinki | |
+| Ei laske / Ei nouse (aurinko) | Midnight sun / Polar night | |
+
+Päiväys on "Wed 16 Sep" (`pvmLyhyt`, `pvmNumero`): numeerinen "16/9"
+luettaisiin Yhdysvalloissa väärin päin, kuukauden nimi ei. Aikajanan
+päivälappu on "Wed 16" ja "Today". Desimaalierotin on englanniksi piste
+(sovellus näytti lukemat jo ennestään pisteellä; kahdessa paikassa oli
+pilkku, ne ovat nyt `_t`:n takana). Kaavion päiväotsikon tilanvaraus
+lasketaan kielen merkkimäärästä ("Su 27.9." 8, "Sun 27 Sep" 10).
+
+### Mitä EI käännetä
+
+- **Paikan- ja asemanimet** (Harmaja, Helsinki Vuosaari satama,
+  Kruunuvuorenselkä, uimarannat): ne ovat nimiä, ja FMI:n asemanimi on
+  asemanimi. Aaltopoijuissa merialue käännetään, koska se on
+  englanniksi vakiintunut (Gulf of Finland, Bothnian Sea).
+- **Mallien ja organisaatioiden nimet** (HARMONIE, MET Nordic, Surfing ry,
+  Forum Virium Helsinki).
+- **Manifesti ja `og:`-tagit** ovat staattisia: kotivalikon nimi on
+  "FoilSpot" kummallakin kielellä, eikä jakoesikatselua voi vaihtaa
+  lukijan kielen mukaan.
+- **`?perf=1`-mittauspaneeli** ja sisäiset virheilmoitukset (konsoli).
+- Pohjakartan nimet ovat Esrin laatoissa englanniksi jo ennestään
+  (docs/julkaisu.md, UI 19) — englanninkielisessä käyttöliittymässä ne
+  vastaavat kieltä.
+
+### Mitattu
+
+Englanniksi (`?kieli=en`), puhelimena ja työpöytänä: jokainen pinta
+avattiin (asetukset ja sadekerros, kolme karttamallia, Tietoa,
+yksikkö- ja suuntavalitsin, tuntisää, parhaat ajankohdat ja arki-illat,
+neljän spotin kortti, indeksin selite, mallivertailu päällekkäin ja
+allekkain, laaja ennuste- ja havaintokaavio, jokainen kartan
+havaintomerkki, pikanäppäimet ja opastus), ja DOMin näkyvät tekstit
+sekä `aria-label`, `title`, `alt` ja `data-nimi` luettiin suomen
+sanalistaa vasten paikannimet sallien. Tulos: **ei yhtään
+suomenkielistä tekstiä**, ei `pageerror`ia. Ensimmäinen kierros löysi
+FMI:n poijujen nimet ("Selkämeri aaltopoiju"), ja ne käännetään nyt
+vastauksen saapuessa.
+
+Kielen vaihto asetuksista mitattu päästä päähän: English-siru →
+`fs_kieli = en` → uudelleenlataus → `<html lang="en">`, asetukset auki,
+`?perf=1` säilyy, ei virheitä.
