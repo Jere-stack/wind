@@ -9,6 +9,10 @@
 # tunnin välein lähteen arkisto päälle (tools/havainnot.mjs,
 # docs/data.md "Mellstenin historia omaan varastoon").
 #
+# Samassa ajossa kelikameroiden tila (tools/kamerat.mjs): kaksi
+# näytettä eri aikaan on ainoa tapa nähdä päivittyykö kameran kuva
+# (docs/data.md "Larun kelikamera").
+#
 # ORPO HAARA JA PAKKOPÄIVITYS kuten `saadata`: haarassa on aina tasan
 # yksi committi, joten 144 ajoa vuorokaudessa ei kasvata repoa.
 # Varasto on noin 2,5 MB (31 vrk minuutin riveinä).
@@ -75,6 +79,15 @@ jobs:
 
       - name: Kerää
         run: node tools/havainnot.mjs varasto >> "$GITHUB_STEP_SUMMARY"
+
+      # Kelikameroiden tila (tools/kamerat.mjs, api/_kamerat.js): onko
+      # pikkukuva vaihtunut edellisen käynnin jälkeen. YouTuben
+      # live-lippu ei kerro sitä, ja proxy näkee vain yhden hetken.
+      # `continue-on-error`: kameran vika ei saa estää Mellstenin rivien
+      # julkaisua samassa ajossa.
+      - name: Kelikamerat
+        continue-on-error: true
+        run: node tools/kamerat.mjs varasto >> "$GITHUB_STEP_SUMMARY"
 
       - name: Julkaise haaraan havainnot
         env:

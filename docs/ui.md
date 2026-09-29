@@ -7043,3 +7043,62 @@ savutesti läpi.
 - **Aikarajaus on joukko**: "Kaikki päivät" = tyhjä joukko ja nollaa; "Arki-illat" (ma–pe 16–22) ja "Viikonloppu" (la–su 08–22) kytketään erikseen ja yhdessä. Ennen kolme oli yksivalinta, jolloin arki+viikonloppu ei ollut mahdollinen.
 - Testi: `tools/savutesti.mjs` tarkistaa rajat (51/10 kts kyllä; 50/12, 80/9,5, 51/9,9 ei), nyt-listan (≤5, kaikki foilattavia) ja arki+vkl-rajauksen.
 - **Aikarajaus on kolme korttia, ei `.segmentti`.** Segmentti lukee yksivalintana, ja rajaus on joukko. Kortissa nimi + kellonaikaväli (06–23 / ma–pe 16–22 / la–su 08–22), valittu = korotettu pinta, muste-reuna ja ruksi; ei väriä (väri kuuluu tuulelle). Mitattu ruudulta 393 px:n puhelimella: kolme korttia mahtuu riville.
+
+## Kelikamera: play-kolmio pilleriin ja kamera asemakorttiin (29.9.)
+
+Käyttäjän pyyntö: Lauttasaaren (Laru) asemakorttiin Larukite-kelikamera,
+kartan pilleriin tyylikäs pieni harmaa play-kolmio joka kertoo että
+videota on, ja huomio siihen ettei videota aina ole (talvi). Datan puoli
+ja tilasääntö: docs/data.md, "Larun kelikamera".
+
+**Kolmio on pillerin viimeinen osa, yksikön perässä**, samaa mustetta
+(`INK_2`) kuin glyfi ja yksikkö: kartalla sävy on tuulen nopeus eikä
+mikään muu. Pyöristetty 6×7 px:n kolmio, vain tilassa `live` ja vain
+pilleritilassa (z ≥ 8 — pisteessä ei ole tilaa). Kokeiltiin ruudulla
+neljä muotoa: hiusviivan takana kolmio luki erillisenä nappina ("9.0
+kts │ ▶"), vaikka se ei ole nappi — koko pilleri avaa kortin. Ilman
+viivaa se jatkaa lukemaa. Pilleri levenee 51 → 64 px (mitattu), ja
+merkin laatikko 62 → 75.
+
+Kolmio kulkee ikonin allekirjoituksessa (`|v`), ja datan saapuessa ikoni
+asetetaan `_asetaTuuliIkoni`lla joka lukee kameran tilan: lukema ja
+kameran tila tulevat eri pyynnöistä eri aikaan, ja ilman sitä
+myöhemmin saapunut lukema olisi pudottanut kolmion.
+
+**Kamera on heron alla, ennen kaaviota** (mitattu järjestys: nimi,
+hero, naapuri, kamera, tuulihavainto, lähde). Se on "nyt"-tietoa kuten
+lukema, ja kolmio lupasi sen — sitä ei saa joutua etsimään kaavion alta.
+
+**Kolme tilaa:**
+
+- `live`: pikkukuva 16:9, 10 px kulma, vasemmassa yläkulmassa "● SUORA"
+  ja keskellä play-nappi. Merkit ovat samaa tummaa lasia kuin kartan
+  pilleri, koska ne ovat kuvaa vasten; SUORA on paperin mustetta eikä
+  punaista (`--accent` on toiminto, ei korostus). Kameran oma
+  aikaleima ja tuulilukemat näkyvät kuvassa.
+- `tuntematon`: sama ilman SUORA-merkkiä — soitin kertoo itse jos
+  lähetystä ei ole.
+- `pois`: ei kuvaa, vaan "Larukite-kelikamera ei lähetä nyt." ja
+  alarivillä "Viimeisin kuva pe 3.7. klo 18.20" jos keräin näki
+  kuvan vaihtuvan. Talvella viimeisin kuva olisi kuukausien takaa ja
+  näyttäisi väärää vuodenaikaa.
+
+**Kuva ensin, video napautuksesta.** Soitin siirtää mitattuna 0,71 Mt
+pakattua skriptiä ja tyyliä ennen ensimmäistäkään videotavua (base.js
+485 kt, ytembeds 162 kt, CSS 61 kt), kuva 10–80 kt. Soitin
+(`youtube-nocookie.com`, mykistettynä koska selain aloittaa itsestään
+vain äänettömän, `playsinline`) tulee napin tilalle samaan ruutuun,
+joten kortti ei hyppää: puhelimella 320×180 → 320×180, työpöydällä
+329×185. Kuva valitaan `srcset`illä (puhelin 3× → 640 px, työpöytä
+1× → 480 px).
+
+**Fokus ei mene soittimeen.** Ensimmäinen versio siirsi fokuksen
+iframeen, ja mitattuna Esc ei sen jälkeen sulkenut korttia: näppäin
+meni YouTuben dokumentille. Nyt fokus menee moduuliin (`tabindex -1`,
+ei ääriviivaa, kuten dialogin säiliö), ja sarkain vie siitä
+soittimeen. Mitattu: Esc sulkee kortin, soitin poistuu ja kuva palaa
+(`_kameraPysayta`, `closeSheet`). Suljettu kortti on vain piilossa, ja
+soitin striimaisi sen alla.
+
+Tietoa-näkymä: kelikamera lähteissä ja tietosuojassa (kuva haetaan
+YouTubesta kortin avautuessa, soitin vasta napautuksesta).

@@ -3473,3 +3473,126 @@ kattaa: kuuden vuorokauden jälkeiset askeleet tulevat viimeisimmästä
 00Z- tai 12Z-ajosta. Mitattuna korjauksen jälkeen 96 askelta
 (→ 27.9.), ja ajojakauma `1800Z 4, 0000Z 39, 0600Z 51, 1200Z 2` — eli
 tuorein ajo palvelee alkupään ja pitkä ajo hännän, kuten pitääkin.
+
+## Larun kelikamera — kuva kertoo, YouTuben live-lippu ei
+
+Käyttäjä pyysi (29.9.) Lauttasaaren asemakorttiin Larukite-kelikameran
+(`youtube.com/watch?v=o45aDp57IM8`, Lauttasaaren leijalautailijat ry)
+ja kartan pilleriin pienen harmaan play-kolmion joka kertoo että
+videota on — ja huomioimaan sen että kamera voi olla talvella pois.
+Käyttöliittymä: docs/ui.md, "Kelikamera: play-kolmio pilleriin ja
+kamera asemakorttiin".
+
+### Mitä YouTube kertoo palvelimelle, ja mitä ei
+
+Kaikki mitattu kontista (palvelinosoite, kuten Vercel ja Actions):
+
+| osoite | vastaus |
+|---|---|
+| `/oembed?url=…` | 200, otsikko ja kanava — kertoo vain että video on olemassa |
+| `/watch?v=…` (myös `m.`) | 302 → `google.com/sorry` (bottitarkistus) |
+| `/youtubei/v1/player`, 6 asiakastyyppiä | `LOGIN_REQUIRED` "Sign in to confirm you're not a bot" |
+| `/@kanava/live`, `/channel/…/streams` | 200, `ytInitialData`: `isLive: true`, LIVE-merkki |
+| `/feeds/videos.xml?channel_id=…` | 200, kanavan 13 videota |
+| `i.ytimg.com/vi/…/hqdefault_live.jpg` | 200 ja ETag, ei tarkistusta |
+
+**Lähetys on sama 6.12.2019 lähtien** ("Striimi alkoi 6.12.2019",
+syötteen `published` 2019-12-06). Muut kanavan lähetykset ovat
+minuuttien testejä (31:02, 1:34, 5:05). Lähetystä ei siis lopeteta
+tauolle — ja siksi `isLive` on tosi myös silloin kun kamerassa ei ole
+virtaa: lippu kertoo lähetyksen tilan, ei kuvan.
+
+### Pikkukuvan ETag on laskuri
+
+Elävän lähetyksen pikkukuva päivittyy, ja sen ETag kasvaa jokaisella
+uudella kuvalla: **188435 klo 08.18 → 188454 klo 09.51 UTC, eli 19 kuvaa
+93 minuutissa (4,9 min kuvaa kohti)**. Sama luku on YouTuben omassa
+kuvaosoitteessa heksana (`hq720.jpg?v=2e026` = 188454). Vertailuksi:
+
+- päättyneen lähetyksen ETag on `"0"` (kanavan kolme testilähetystä)
+- tavallisen videon ETag on Unix-aika (`dQw4w9WgXcQ`: 1749462010)
+- poistetun tai olemattoman videon kuva on 404
+
+Laskurista näkee myös miksi talvitauko on otettava vakavasti: 188 454
+kuvaa × 4,9 min on noin 637 vuorokautta kuvaa **2 489 vuorokauden**
+aikana, eli kamera on lähettänyt noin neljänneksen ajasta, vaikka
+lähetys on ollut koko ajan "käynnissä".
+
+### Ratkaisu: kaksi näytettä eri aikaan
+
+    api/_kamerat.js        rekisteri, HEAD, tilasääntö (keräin + proxy)
+    tools/kamerat.mjs      keräin, sama Actions-ajo kuin Mellstenillä
+    api/kamera.js          proxy: keräimen tila + oma HEAD
+
+**Yksi näyte ei riitä**: se kertoo päättyneen ja poistetun, mutta ei
+sitä vaihtuuko kuva. Keräin kirjaa ETagin kymmenen minuutin välein
+haaraan `havainnot` (`kamerat/tila.json`): `nahty` = milloin nykyinen
+ETag nähtiin ensin, `muutos` = korvasiko se eri ETagin (ensimmäinen
+näyte ei ole muutos). Proxy lukee tilan ja tekee oman HEADin:
+
+- `404` tai ETag `"0"` → **pois** heti, keräimestä riippumatta
+- ei tilaa, rekisteri vaihdettu käsin tai tila yli 2 h vanha → **tuntematon**
+- oma ETag eri kuin keräimen ja keräin käynyt alle 50 min sitten →
+  **live** (kuva vaihtui käynnin jälkeen — kattaa myöhästyneen ajastimen)
+- kuva vaihtunut (`muutos`) alle 25 min sitten → **live**
+- sama kuva NÄHTY yli 25 min (keräin näki sen, tai oma näyte näkee sen
+  nyt) → **pois**, ja `viimeisin` = `nahty` jos muutos nähtiin
+- muuten **tuntematon**: tunnin takainen muutos ilman uutta näytettä
+  ei kerro että kamera sammui, vaan että sitä ei ole katsottu
+
+25 minuuttia on kaksi keräimen väliä ja yksi väliin jäänyt kuva;
+sammunut kamera näkyy sammuneena 20–35 minuutissa. Mitattu: ensimmäinen
+ajo "ensimmäinen näyte" (tila tuntematon), toinen ajo viisi minuuttia
+myöhemmin "ETag 188457, kuva vaihtui → päällä"; tilasäännön 18
+tapausta (live, myöhästynyt keräin, talvi, päättynyt, poistettu,
+vanha tila, rekisterin vaihto, uusi lähetys, epäonnistuneet näytteet)
+läpi.
+
+**Uusi lähetys löytyy itsestään.** Jos seura joskus aloittaa uuden
+lähetyksen, rekisterin video jäisi pysyvästi pois päältä. Sammuneen
+kameran kanavan syöte luetaan tunnin välein, ja ehdokas (syötteen alle
+60 vrk vanhat + rekisterin oma video) otetaan seurantaan kun sen ETag
+vaihtuu kahden käynnin välillä ja on laskuri (enintään kahdeksan
+numeroa — Unix-aikainen ETag on vaihdettu kansikuva, ei lähetys).
+
+**Keräimen askel on `continue-on-error`**, ja skripti kirjaa virheet
+tilaan ja poistuu nollalla: sama ajo julkaisee Mellstenin rivit, eikä
+kameran vika saa estää sitä. Epäonnistunut näyte ei päivitä
+`tarkistettu`a, jolloin proxy toteaa tilan vanhaksi eikä sammuneeksi.
+
+### Kuvan `?v=` on versioraja, ei välimuistin ohitus
+
+Ensimmäinen versio liitti ETagin kuvan osoitteeseen (`?v=188457`)
+välimuistin ohittamiseksi, koska `?v=zzz` ja `?v=2e026` palauttivat
+molemmat kuvan. Selaintesti näytti 404:n. Parametri on kuvan versio
+heksana: nykyinen tai vanhempi → 200 ja NYKYINEN kuva (sama md5 viidellä
+versiolla), seuraava → 404, ja desimaalinen 188457 luetaan heksana
+tulevaksi versioksi. Osoite on nyt paljas; selaimen välimuisti on
+viisi minuuttia (`max-age=300`), sama kuin kuvan tahti.
+
+### Kuvakoot
+
+`mqdefault_live` 320×180 10 kt, `hqdefault_live` 480×360 17 kt,
+`sddefault_live` 640×480 80 kt, `maxresdefault_live` 1280×720 256 kt.
+4:3-kuvissa on mustat palkit, ja `object-fit: cover` 16:9-ruutuun
+leikkaa täsmälleen ne (palkki 45/360 = ylite 0,09375 leveydestä
+kummallekin puolelle). `srcset` tarjoaa 320/480/640; maxres jätettiin
+pois, koska kuva johtaa videoon eikä ole itse asia.
+
+### Mittausympäristö
+
+Kontin Chromium ei saa kuvia agenttiproxyn läpi (`ERR_TOO_MANY_RETRIES`,
+sama rajoite kuin docs/pwa.md:n jsDelivr), vaikka curl ja Node saavat.
+Selaintesti reitittää `i.ytimg.com`:n curlilla haettuihin tiedostoihin,
+ja `ignoreHTTPSErrors` on pakollinen. YouTuben soitinta ei voi toistaa
+kontissa; mitattu on iframe (osoite, koko, fokus, poisto).
+
+### Mitä jää
+
+- **Ensimmäinen ajo ei tiedä mitään.** Ennen keräimen kahta käyntiä
+  (oletushaaran ensimmäinen ajastettu ajo + 10 min) tila on tuntematon
+  ja kolmio puuttuu; kortti näyttää kuvan ilman SUORA-merkkiä.
+- **GitHub poistaa ajastetut työnkulut** 60 päivän toimettomuuden
+  jälkeen. Silloin tila vanhenee kahdessa tunnissa tuntemattomaksi:
+  kolmio katoaa, mutta kortti toimii yhä.
+- Spottikortissa (Lauttasaari) ei ole kameraa — pyyntö koski asemakorttia.

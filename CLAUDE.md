@@ -33,11 +33,12 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   sarjana (`malli.js`),
   aaltoennuste, vedenkorkeus, sade-ennuste GRIB2:sta,
   FMI:n aaltopoijut, Kruunuvuorenselän, Mellstenin, Larun ja Uiraan
-  mittausdata-proxyt, selaimen virheraportit `virhe.js`).
+  mittausdata-proxyt, Larun kelikameran tila `kamera.js`, selaimen
+  virheraportit `virhe.js`).
   ES-moduuleja, koska
   `package.json`:ssa on `"type": "module"` — `require()` ei toimi näissä.
-  Alaviivalla alkava tiedosto (`_suoja.js`, `_mellsten.js`) on
-  apumoduuli eikä reitti.
+  Alaviivalla alkava tiedosto (`_suoja.js`, `_mellsten.js`,
+  `_kamerat.js`) on apumoduuli eikä reitti.
   **Jokainen funktio alkaa `if (!suojaa(req, res)) return;`** eikä
   mikään vastaa `Access-Control-Allow-Origin`illa (docs/julkaisu.md,
   L10): sovellus kutsuu samasta originista, ja jokeri antoi kenen
@@ -53,7 +54,10 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   30 minuutin ikkuna ja tunnin välein lähteen arkisto orpoon haaraan
   `havainnot` (`mellsten/YYYY-MM-DD.txt`, 31 vrk). `api/mellsten.js`
   lukee sen. Vain Noden omia moduuleita. Ks. docs/data.md, "Mellstenin
-  historia omaan varastoon".
+  historia omaan varastoon". Samassa ajossa `tools/kamerat.mjs`
+  (`continue-on-error`) kirjaa kelikameroiden pikkukuvan ETagin
+  (`kamerat/tila.json`), josta `api/kamera.js` päättelee onko kamera
+  päällä (docs/data.md, "Larun kelikamera").
 - `tools/tiilet.mjs` — säälaattojen rakennus kolmesta mallista: ECMWF
   (AWS Open Data, koko maapallo), FMI:n HARMONIE (Suomi) ja MET Nordic
   (Yr:n data, Pohjoismaat ja Baltia). Ajetaan GitHub Actionsissa neljästi
@@ -131,9 +135,9 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/lampokartta.md` | pohjakarttaa, lämpökarttaa, väriramppia, tekstuurin mitoitusta tai projektiota, kartan asetuksia |
 | `docs/partikkelit.md` | tuulipartikkeleita, jäljen muotoa, tiheyttä tai ruutuaikabudjettia |
 | `docs/eleet.md` | nipistystä, zoomia, zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
-| `docs/data.md` | säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja, **havaintoasemien oma historia (Mellsten, `havainnot`-haara)** |
+| `docs/data.md` | säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja, **havaintoasemien oma historia (Mellsten, `havainnot`-haara)**, **kelikameran tila (YouTube, pikkukuvan ETag)** |
 | `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, MET Nordicia, Open-Meteon S3-malleja** |
-| `docs/ui.md` | paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa, kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä** |
+| `docs/ui.md` | paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa, kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kelikameraa asemakortissa ja pillerin play-kolmiota** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
 | `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit, kaavion venytys** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V10: yksi kaaviomoottori, kortti moduuleina, fonttilattia, laajan valinta, venytys, mallit laajassa) |
@@ -182,7 +186,8 @@ kokeiltu ja kaadettu mittauksella.
   Sateen asteikko: FMI:n omat selitteet siltana dBZ:n ja mm/h:n välillä ·
   Spottikortin havaintoasema tuli väärästä listasta ·
   "Miksi Helsingin yllä ei tule FMI:tä" — se tulee, mutta ei sanonut sitä ·
-  Kartan säämalli valittavaksi · HARMONIE varastoon ja zoomin välkky
+  Kartan säämalli valittavaksi · HARMONIE varastoon ja zoomin välkky ·
+  **Larun kelikamera — kuva kertoo, YouTuben live-lippu ei**
 - **mallit**: Tiivistelmä · Tavoitteet · Nykytila mitattuna (varaston
   tasot, zoom ja taso, maailmankierros ja paluu, rajojen hyppy, mitä
   S3:ssa on, Windy) · Strategiat S1–S4 · Mihin lukittuihin sääntöihin S1
@@ -240,7 +245,8 @@ kokeiltu ja kaadettu mittauksella.
   Uusi merkki: siipi ja tuuli — ja latausruudun viimeistely ·
   Merkki yksinkertaistui: siipi ja spotti ·
   Latausruutu vuorokaudenajan mukaan: Helsinki, nivelletty kuski ja hyppy ·
-  Aikajanan liukuväri pois — halot tilalle
+  Aikajanan liukuväri pois — halot tilalle ·
+  **Kelikamera: play-kolmio pilleriin ja kamera asemakorttiin**
 - **pwa**: PWA — kotivalikkoon ja rannalle · Mitä välimuistiin menee ·
   Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
   Ikoni ja kotivalikko
@@ -1837,6 +1843,42 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   Marine Helsinki, Digitraffic, dlarah.org). Älä lisää sitä takaisin
   kovakoodattuna eikä näytä naapuriaseman lukemaa sen kohdalla —
   merkki palaa itsestään jos FMI jatkaa lähettämistä.
+
+**Kelikamera** (Laru; docs/data.md "Larun kelikamera", docs/ui.md
+"Kelikamera: play-kolmio pilleriin ja kamera asemakorttiin")
+
+- **KAMERAN TILA TULEE PIKKUKUVAN ETAGISTA, EI YOUTUBEN LIVE-LIPUSTA.**
+  Larun lähetys on ollut "käynnissä" 6.12.2019 lähtien myös silloin
+  kun kamerassa ei ole virtaa (laskurista laskettuna kuvaa noin
+  neljännes ajasta), ja katselusivu ja soittimen rajapinta vastaavat
+  palvelinosoitteelle bottitarkistuksella. `i.ytimg.com`-kuvan ETag on
+  laskuri joka kasvaa ~4,9 min välein; päättyneen lähetyksen ETag on
+  "0" ja poistetun kuva 404. Päällä = ETag vaihtui 25 min sisällä, ja
+  se vaatii kaksi näytettä eri aikaan: keräin (`tools/kamerat.mjs`,
+  sama Actions-ajo kuin Mellsten, `continue-on-error`) kirjaa ne
+  `havainnot`-haaraan ja `api/kamera.js` lisää oman HEADin.
+  **HILJAISUUS ON HAVAINTO**: sama kuva on NÄHTÄVÄ rajan yli — vanha
+  muutos ilman uutta näytettä on 'tuntematon', ei 'pois'.
+- **REKISTERI ON YKSI: `api/_kamerat.js`.** Sovellus saa kamerat
+  `/api/kamera`n vastauksesta ja kytkee ne asemaan `asema`-kentällä
+  (aseman `place`); index.html:ssä ei ole kameralistaa. Uusi lähetys
+  löytyy kanavan syötteestä itsestään, joten videota ei vaihdeta käsin.
+- **PLAY-KOLMIO VAIN TILASSA `live`**, pillerin viimeisenä osana samaa
+  mustetta (`INK_2`) kuin yksikkö ja ilman hiusviivaa (viivan takana se
+  luki erillisenä nappina). Se kulkee allekirjoituksessa (`|v`), ja
+  datan saapuessa ikoni asetetaan `_asetaTuuliIkoni`lla — muuten
+  myöhemmin tullut lukema pudottaisi kolmion.
+- **KUVA ENSIN, SOITIN NAPAUTUKSESTA** (youtube-nocookie, mykistettynä,
+  samaan 16:9-ruutuun). Kuvan osoitteeseen EI `?v=`:tä: i.ytimg.com
+  lukee sen versioksi heksana ja vastaa 404:llä tulevaan versioon
+  (desimaalinen ETag rikkoi kuvan). Tilassa `pois` ei kuvaa: talvella
+  se olisi kuukausien takaa.
+- **FOKUS MODUULIIN, EI SOITTIMEEN, JA SULKU POISTAA SOITTIMEN.** Iframen
+  sisällä Esc menee YouTubelle eikä sulje korttia (mitattu).
+  `closeSheet` kutsuu `_kameraPysayta`a, koska piilotettu kortti
+  striimaisi yhä.
+- **Kontin Chromium ei saa `i.ytimg.com`:ia** (`ERR_TOO_MANY_RETRIES`):
+  selaintesti reitittää kuvat curlilla haettuihin tiedostoihin.
 
 **Aaltopoijut** (havainto — tämä on tuotannossa)
 
