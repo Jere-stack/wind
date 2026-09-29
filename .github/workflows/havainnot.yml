@@ -1,0 +1,96 @@
+# Havaintovarasto: Espoo Haukilahden (Surfing ry, Mellsten) historia.
+#
+# Lähde antaa kuluvalta vuorokaudelta vain 30 tuoreinta minuuttia, ja
+# päivän arkisto ilmestyy vasta kun vuorokausi on ohi — joskus ei
+# lainkaan (10.9.2026 klo 11:40–23:59 jäi arkistosta pois, koska
+# seuraava istunto sai saman tiedostonimen). Windgurun asemalla 2399 on
+# sama asema koko historioineen, koska Windguru kerää sen itse. Tämä
+# tekee saman: kymmenen minuutin välein 30 minuutin ikkuna varastoon, ja
+# tunnin välein lähteen arkisto päälle (tools/havainnot.mjs,
+# docs/data.md "Mellstenin historia omaan varastoon").
+#
+# ORPO HAARA JA PAKKOPÄIVITYS kuten `saadata`: haarassa on aina tasan
+# yksi committi, joten 144 ajoa vuorokaudessa ei kasvata repoa.
+# Varasto on noin 2,5 MB (31 vrk minuutin riveinä).
+#
+# AJASTIN EI OLE TARKKA. GitHub viivästää ja joskus jättää väliin
+# ajastettuja ajoja kuormituksen mukaan. 30 minuutin ikkuna kestää kaksi
+# väliin jäänyttä ajoa; pidempi aukko täyttyy päättyneiltä päiviltä
+# lähteen arkistosta, ja kuluvalta päivältä se jää aukoksi — kuten
+# asemakatkokin.
+#
+# Julkisessa repossa Actions-minuutit ovat rajattomat. Ajo ei asenna
+# riippuvuuksia (vain Noden omat moduulit), joten se kestää sekunteja.
+
+name: Havainnot
+
+on:
+  schedule:
+    # Ei tasatunnille: GitHubin ajastin on silloin kuormitetuin.
+    - cron: '4,14,24,34,44,54 * * * *'
+  workflow_dispatch:
+
+# Ajot jonoon, ei peruutusta: kaksi samanaikaista pakkopäivitystä
+# hävittäisi toisen ajon rivit.
+concurrency:
+  group: havainnot
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  keraa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # EDELLINEN VARASTO ON NOUDETTAVA, EI OLETETTAVA. Jos haku
+      # epäonnistuisi hiljaa ja ajo jatkaisi tyhjästä, pakkopäivitys
+      # pyyhkisi kuluvan päivän kerätyt rivit — ne joita lähteessä ei
+      # ole. Siksi tyhjästä aloitetaan VAIN kun haaraa ei ole
+      # (`ls-remote --exit-code` = 2); muu virhe kaataa ajon.
+      - name: Nouda varasto
+        env:
+          URL: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}
+        run: |
+          set +e
+          git ls-remote --exit-code --heads "$URL" havainnot > /dev/null
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+            git clone -q --depth 1 --branch havainnot "$URL" varasto
+            rm -rf varasto/.git
+          elif [ "$rc" -eq 2 ]; then
+            echo "Haaraa havainnot ei vielä ole — aloitetaan tyhjästä (arkisto täyttää historian)."
+            mkdir -p varasto
+          else
+            exit "$rc"
+          fi
+
+      - name: Kerää
+        run: node tools/havainnot.mjs varasto >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Julkaise haaraan havainnot
+        env:
+          URL: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}
+        run: |
+          set -e
+          test -f varasto/mellsten/tila.json
+          # Vercel lukee vercel.json:n siitä haarasta jota se deployaa;
+          # ilman tätä se yrittäisi rakentaa tämän haaran joka ajolla
+          # (ks. saadata.yml).
+          printf '%s\n' '{ "git": { "deploymentEnabled": { "havainnot": false } } }' > varasto/vercel.json
+          cd varasto
+          git init -q
+          git checkout -q --orphan havainnot
+          git add -A
+          git -c user.name='FoilSpot data' \
+              -c user.email='data@foilspot.invalid' \
+              commit -q -m "Havainnot $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -q --force "$URL" havainnot

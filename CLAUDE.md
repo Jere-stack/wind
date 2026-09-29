@@ -36,7 +36,8 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   mittausdata-proxyt, selaimen virheraportit `virhe.js`).
   ES-moduuleja, koska
   `package.json`:ssa on `"type": "module"` — `require()` ei toimi näissä.
-  Alaviivalla alkava tiedosto (`_suoja.js`) on apumoduuli eikä reitti.
+  Alaviivalla alkava tiedosto (`_suoja.js`, `_mellsten.js`) on
+  apumoduuli eikä reitti.
   **Jokainen funktio alkaa `if (!suojaa(req, res)) return;`** eikä
   mikään vastaa `Access-Control-Allow-Origin`illa (docs/julkaisu.md,
   L10): sovellus kutsuu samasta originista, ja jokeri antoi kenen
@@ -47,6 +48,12 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   asetukset ja Tietoa aukeavat, Esc sulkee, ei `pageerror`ia). Paikallisesti
   `PLAYWRIGHT_MODULE=/opt/node22/lib/node_modules/playwright/index.mjs
   node tools/savutesti.mjs http://localhost:4173`.
+- `tools/havainnot.mjs` + `.github/workflows/havainnot.yml` —
+  Espoo Haukilahden (Mellsten) historian keräin: 10 min välein lähteen
+  30 minuutin ikkuna ja tunnin välein lähteen arkisto orpoon haaraan
+  `havainnot` (`mellsten/YYYY-MM-DD.txt`, 31 vrk). `api/mellsten.js`
+  lukee sen. Vain Noden omia moduuleita. Ks. docs/data.md, "Mellstenin
+  historia omaan varastoon".
 - `tools/tiilet.mjs` — säälaattojen rakennus kolmesta mallista: ECMWF
   (AWS Open Data, koko maapallo), FMI:n HARMONIE (Suomi) ja MET Nordic
   (Yr:n data, Pohjoismaat ja Baltia). Ajetaan GitHub Actionsissa neljästi
@@ -105,6 +112,11 @@ siitä kodista josta luettelo tuli, ja toimiva koti muistetaan
 päälle — siihen asti raw hoitaa kaiken ja konsoliin tulee yksi
 CORS-virhe, joka ei ole vika.
 
+Havaintoasemien oma historia on orpossa `havainnot`-haarassa (sama
+malli: yksi committi, pakkopäivitys, kymmenen minuutin välein). Vercel
+(`git.deploymentEnabled`) ja Tarkistus (`branches-ignore`) ohittavat
+molemmat datahaarat — jos lisäät kolmannen, lisää se molempiin.
+
 ---
 
 ## Muistiinpanot — mistä mikäkin löytyy
@@ -119,7 +131,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/lampokartta.md` | pohjakarttaa, lämpökarttaa, väriramppia, tekstuurin mitoitusta tai projektiota, kartan asetuksia |
 | `docs/partikkelit.md` | tuulipartikkeleita, jäljen muotoa, tiheyttä tai ruutuaikabudjettia |
 | `docs/eleet.md` | nipistystä, zoomia, zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
-| `docs/data.md` | säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja |
+| `docs/data.md` | säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja, **havaintoasemien oma historia (Mellsten, `havainnot`-haara)** |
 | `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, MET Nordicia, Open-Meteon S3-malleja** |
 | `docs/ui.md` | paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa, kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
@@ -159,6 +171,7 @@ kokeiltu ja kaadettu mittauksella.
   havaintoa, ei ennustetta · Aikajana ja kartta näyttivät eri
   lukua · Mellsten (Haukilahti) — kolmas oma proxy · Varaston puuska on
   joka toisella askeleella tuuli · Laru (Lauttasaari) — neljäs oma proxy ·
+  **Mellstenin historia omaan varastoon — kuten Windguru** ·
   Aaltoennuste tuotantoon (FMI WAM, ei laattaputkea) · Vedenkorkeus ja
   yksikkö joka ei lue vastauksessa · Ilman starttimea sarja alkaa
   seuraavasta tunnista · Sadetutka — miksi se ei ole L.TileLayer.WMS ·
@@ -1793,6 +1806,14 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   tilastot ja raahatessa hetken arvot.
 - **Lämpötila on VÄLI eikä käyrä.** Oma y-akseli tuulen rinnalla tekisi
   risteämisistä merkitseviä vaikka ne ovat mittayksikön sattumaa.
+- **KATKO ON KATKO, EI VIIVA** (`HAV_KATKO_MS` 30 min). Havaintokaavion
+  nippu katkeaa kun kahden havainnon väli ylittää sen, ja `_havSarja`
+  lisää katkon kohdalle `null`-pisteen, johon käyrä, täyttö, luvut ja
+  nuolet katkeavat. Osoitin katkon sisällä näyttää katkon ("Ei
+  havaintoa 31 h · viimeinen ennen · jatkui") eikä reunan lukemaa.
+  Mellsten sammuu pilvisellä säällä tunneiksi, ja lukumääräniputus veti
+  ennen suoran viivan tyhjän yli. 30 min ei katkaise FMI:n 10 min
+  sarjaa yhden tai kahden puuttuvan näytteen takia.
 - **`wsMin` EI OLE lähteen tyyni vaan nipun sisäinen minimi.** Kun
   nippuun osuu yksi näyte, se on sama luku kuin keskiarvo — mitattuna
   katkoviiva piirtyi 0,00 yksikön päähän keskituulesta koko laajassa
@@ -2074,16 +2095,37 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
 
 - **Keskituuli on rivin KOLMAS luku** (`min < ka < max`), puuska on
   maksimi. Ensimmäinen on minuutin minimi.
-- **Aikaleimassa on vain kellonaika, ja se on Suomen aikaa.** Päiväys
-  johdetaan nykyhetkestä; arkistotiedoston otsikon luontiaika on
-  palvelimen omassa vyöhykkeessä (PDT) eikä kelpaa ankkuriksi.
-  Vyöhykepoikkeama pyöristetään täysiin minuutteihin, muuten
-  millisekunnit valuvat aikaleimoihin.
-- **`history` on nulliksi tarkoituksella.** Ikkuna on 30 min eikä kata
-  yhtäkään mennyttä tuntia, joten `_histValueAt` antaisi väärän luvun.
-  Merkki näyttää aina tuoreimman ja kortti sanoo iän.
-- **Kuluvalle vuorokaudelle ei ole pidempää historiaa.** Arkiston
-  päivätiedosto kirjoitetaan vasta vuorokauden päätyttyä.
+- **Aikaleimassa on vain kellonaika, ja se on Suomen aikaa. PÄIVÄYS
+  TULEE ANKKURISTA, EI NYKYHETKESTÄ** (`api/_mellsten.js`):
+  `weather.txt`:lle HTTP:n `Last-Modified`, arkistolle tiedoston
+  otsikkorivi (luontihetki PDT:nä). Nykyhetkestä laskettuna sammuneen
+  aseman viimeiset rivit päätyivät väärälle päivälle. Vyöhykepoikkeama
+  pyöristetään täysiin minuutteihin, muuten millisekunnit valuvat
+  aikaleimoihin.
+- **ARKISTON NIMI EI OLE HELSINGIN PÄIVÄ.** Palvelin nimeää PDT-
+  kalenterinsa mukaan: `Day-26-09-27` on Helsingin 28.9. (tarkistettu
+  Windgurua vasten), ja katkon jälkeen klo 10 jälkeen käynnistynyt
+  istunto saa päivän D nimen — jonka keskiyöllä alkava seuraava istunto
+  kirjoittaa yli (10.9. klo 11:40–23:59 puuttuu arkistosta). Lue päivä
+  otsikkoriviltä, älä nimestä.
+- **HISTORIA TULEE OMASTA VARASTOSTA, KUTEN WINDGURULLA** (käyttäjän
+  pyyntö 29.9.). Lähde antaa kuluvalta päivältä vain 30 min, joten
+  keräin (`tools/havainnot.mjs`, 10 min välein) tallettaa lähteen rivit
+  haaraan `havainnot` ja täydentää päättyneet päivät lähteen arkistosta
+  (arkiston rivi voittaa kerätyn). Proxy lukee varaston + tuoreen
+  ikkunan (lähteen rivi voittaa), EIKÄ hae lähteen arkistoa — se olisi
+  kahdeksan 90 kt:n pyyntöä harrastepalvelimelle korttiavausta kohti.
+  Merkki pyytää 24 h ja seuraa aikajanaa, asemakortti 168 h,
+  spottikortti 48 h. Mitattu Windgurua vasten 28 vrk: ero 0,37 kts,
+  harha 0,000, tunnin siirto 1,5 kts ja vuorokauden 4,3 kts.
+- **TYÖNKULKU NOUTAA VARASTON ENNEN PAKKOPÄIVITYSTÄ, JA TYHJÄSTÄ VAIN
+  KUN HAARAA EI OLE** (`ls-remote --exit-code` = 2). Hiljaa
+  epäonnistunut nouto pyyhkisi kuluvan päivän kerätyt rivit — ne joita
+  lähteessä ei ole missään.
+- **Varasto on vaihtoehtoinen, ei pakollinen.** Jos se ei vastaa (tai
+  haaraa ei vielä ole), proxy palauttaa lähteen 30 minuuttia
+  minuutteina kuten ennen; nipun leveys (5 min) valitaan datan
+  kestosta eikä pyydetyistä tunneista.
 - **Sijainti 60,147 / 24,794 on Windyn PWS-tietueesta**, ei arvattu —
   sama tietue palautti samat lukemat samalla hetkellä.
 
@@ -2103,11 +2145,11 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   suhde 1,94–2,07 (Windguru solmuja) ja suunta 173,9° vs 173,5° kahden
   minuutin sisällä. Sijainti 60,150824 / 24,87184 tulee samasta
   tietueesta, ei arvattu.
-- **`history` TÄYTETÄÄN, toisin kuin Mellstenillä.** Lähde antaa koko
+- **`history` TÄYTETÄÄN SUORAAN LÄHTEESTÄ.** Lähde antaa koko
   kuluvan vuorokauden ~2 min välein, joten merkki osaa vastata myös
   aikajanan menneistä tunneista (mitattu: neljä tuntia, neljä eri
-  lukemaa, ja paluu samaan arvoon). Mellstenin 30 min ikkuna ei riitä
-  siihen, ja siksi sen `history` on nulliksi tarkoituksella.
+  lukemaa, ja paluu samaan arvoon). Mellstenillä sama tulee omasta
+  varastosta, koska sen lähde antaa vain 30 min.
 - **Sarjan viimeinen piste on RAAKA tuorein havainto**, ei nipun
   keskiarvo — muuten kaavion pää ja kortin päälukema olisivat eri
   luvut samasta hetkestä.

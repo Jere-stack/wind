@@ -5430,7 +5430,7 @@ public/icon-maskable-512.png 512px 140643 B
           <dt>Forum Virium Helsinki</dt>
           <dd>Uimarantojen vedenlämpö (UiRas).</dd>
           <dt>Paikalliset asemat</dt>
-          <dd>Espoo Haukilahti: Surfing ry (Mellsten). Lauttasaari: dlarah.org (Laru).</dd>
+          <dd>Espoo Haukilahti: Surfing ry (Mellsten). Lähde antaa kuluvalta päivältä vain puoli tuntia, joten FoilSpot kerää sen rivit talteen kymmenen minuutin välein. Lauttasaari: dlarah.org (Laru).</dd>
           <dt>Pohjakartta</dt>
           <dd>Powered by <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a> —
             <span id="pohja-lahteet">Esri, HERE, Garmin,
@@ -17006,12 +17006,15 @@ function _addObsMarkers(map) {
    *
    * MINUUTIN TIHEYS ON TÄMÄN ASEMAN KOKO ARVO: FMI raportoi 10 min
    * välein, tämä joka minuutti ja kertoo lisäksi minuutin minimin ja
-   * maksimin. Puuskaisuuden näkee siitä suoraan. Historiaikkuna on
-   * kuitenkin vain 30 min — lähde ei tarjoa kuluvalle vuorokaudelle
-   * pidempää — joten merkki ei osaa vastata menneisyyden tunneista.
-   * Siksi `history` jätetään nulliksi: `_histValueAt` palauttaisi
-   * aikajanan menneille tunneille väärän luvun tai ei mitään, ja
-   * pilleri näyttää nyt aina TUOREIMMAN lukeman. Kortti sanoo iän. */
+   * maksimin. Puuskaisuuden näkee siitä suoraan.
+   *
+   * HISTORIA TULEE OMASTA VARASTOSTA. Lähde antaa kuluvalta
+   * vuorokaudelta vain 30 minuuttia, ja siksi `history` oli ennen
+   * nulliksi. Nyt keräin (tools/havainnot.mjs, 10 min välein) tallettaa
+   * lähteen rivit talteen kuten Windguru, ja proxy yhdistää ne
+   * tuoreimpaan ikkunaan (docs/data.md, "Mellstenin historia omaan
+   * varastoon"). Merkki pyytää 24 h kuten Laru ja FMI-asemat, ja
+   * `_histValueAt` lukee sen ilman omaa haaraa. */
   (function() {
     var MELL_STATION = PAIKALLISASEMAT.find(function (s) { return s.lahde === 'mellsten'; });
     var icon = mkWindIcon(map.getZoom(), null, MELL_STATION.name, 8);
@@ -17026,17 +17029,21 @@ function _addObsMarkers(map) {
     _addStationDot(MELL_STATION.lat, MELL_STATION.lng,
       function(){ _openObsSheet('mellsten', MELL_STATION); });
 
-    fetch(API_BASE + '/mellsten?tz=' + encodeURIComponent(AIKAVYOHYKE))
+    fetch(API_BASE + '/mellsten?history=1&hours=24&tz=' + encodeURIComponent(AIKAVYOHYKE))
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(data) {
-        if (!data || data.error || data.ws == null) return;
-        var ws = +data.ws, wg = data.wg != null ? +data.wg : ws;
+        if (!data || data.error) return;
+        var uusin = data.latest || data;
+        if (uusin.ws == null) return;
+        var ws = +uusin.ws, wg = uusin.wg != null ? +uusin.wg : ws;
         mEntry.ws = ws; mEntry.wg = wg;
         mEntry.wsLatest = ws; mEntry.wgLatest = wg;
+        /* Sama muoto kuin FMI-asemilla ({ws:[{t,v,d,iso}], wg, ta}). */
+        if (data.ws && data.ws.length) mEntry.history = data;
         /* Asema on hiljaa jos tuorein rivi on yli puoli tuntia vanha.
            Lähde päivittyy minuutin välein, joten 30 min on jo katko —
            ja katkon on näyttävä katkolta eikä tyyneltä. */
-        mEntry.hiljainen = data.ageMin != null && data.ageMin > 30;
+        mEntry.hiljainen = uusin.ageMin != null && uusin.ageMin > 30;
         mEntry._iconSig = _windIconSig(map.getZoom(), ws, 8, mEntry.hiljainen);
         mEntry.marker.setIcon(mkWindIcon(map.getZoom(), ws, MELL_STATION.name, 8, mEntry.hiljainen));
       })
@@ -17047,10 +17054,10 @@ function _addObsMarkers(map) {
    * Neljäs oma proxy, `api/laru.js`. Asema on Nahkahousun luodolla
    * Lauttasaaren eteläkärjen edustalla.
    *
-   * TÄLLÄ ON HISTORIAA, TOISIN KUIN MELLSTENILLÄ. Lähde antaa koko
-   * kuluvan vuorokauden noin kahden minuutin välein, joten merkki osaa
-   * vastata myös aikajanan menneistä tunneista — `history` täytetään
-   * kuten FMI-asemilla, eikä jätetä nulliksi.
+   * LÄHDE ANTAA ITSE koko kuluvan vuorokauden noin kahden minuutin
+   * välein, joten merkki osaa vastata myös aikajanan menneistä
+   * tunneista — `history` täytetään kuten FMI-asemilla. (Mellstenillä
+   * sama tulee omasta varastosta, koska sen lähde ei anna.)
    *
    * Yksi haku riittää: `history=1` palauttaa myös tuoreimman lukeman
    * (`latest`), joten erillistä "nyt"-pyyntöä ei tarvita. Merkki pyytää
@@ -17308,7 +17315,9 @@ function _openObsSheet(type, station) {
     +'</section>'
     +'<div class="obs-lahde">'
       +(isWater?'UiRas avoin data · Forum Virium Helsinki'
-        :type==='mellsten'?'Surfing ry · mellsten.surfing.fi'
+        /* Kuluvan päivän historia on meidän kopiomme lähteen riveistä
+           (lähde antaa itse vain 30 min), joten se sanotaan. */
+        :type==='mellsten'?'Surfing ry · mellsten.surfing.fi · historia kerätty talteen'
         :type==='laru'?'dlarah.org · Laru'
         :(type==='kruunuvuori'?'Merellinen Helsinki · swell.fmi.fi':'Ilmatieteenlaitos · avoin data'))
     +'</div>';
@@ -17437,8 +17446,10 @@ function _openObsSheet(type, station) {
       lampo:poijuLampo, accent:accent, updateHero:updateHero });
   } else if(type==='mellsten'){
     /* Yksi haku: historia sisältää myös tuoreimman lukeman
-       (`latest`), joten erillistä "nyt"-pyyntöä ei tarvita. */
-    fetch(API_BASE + '/mellsten?history=1&tz=' + encodeURIComponent(AIKAVYOHYKE))
+       (`latest`), joten erillistä "nyt"-pyyntöä ei tarvita. 168 h kuten
+       FMI-asemien kortilla: kuluva päivä tulee omasta varastosta,
+       päättyneet lähteen arkistosta (docs/data.md). */
+    fetch(API_BASE + '/mellsten?history=1&hours=168&tz=' + encodeURIComponent(AIKAVYOHYKE))
       .then(function(r){ return r.json(); })
       .then(function(data){
         if(!data || data.error || !data.ws || !data.ws.length){
@@ -17451,9 +17462,6 @@ function _openObsSheet(type, station) {
         if(uusin.wd!=null) sub += '\u2002' + dirArrow(uusin.wd) + ' ' + Math.round(uusin.wd) + '°';
         if(uusin.time)     sub += '\u2002' + uusin.time;
         updateHero(Units.fmt(uusin.ws), sub, 'rgb('+cc.r+','+cc.g+','+cc.b+')');
-        /* IKKUNA SANOTAAN. Lähde antaa kuluvalle vuorokaudelle vain
-           30 minuuttia, ja kaavio näyttäisi muuten "koko historialta"
-           puolen tunnin pätkän ilman että se kertoo niin. */
         var chip = document.getElementById(chipId);
         if(chip){
           /* IKÄ VAIN JOS LUKEMA ON VANHA. Tuoreena se sanotaan kerran,
@@ -20862,8 +20870,8 @@ function _fmiStationsSorted(spotLat, spotLng) {
  * historia") — joten tässä on vain osoite ja yksi purku:
  *
  *   fmi          kaksi pyyntöä: tuorein + historia
- *   mellsten     yksi pyyntö, `latest` mukana. Ikkuna on 30 min (ks.
- *                CLAUDE.md) — jaksovalitsin karsii itse liian pitkät.
+ *   mellsten     yksi pyyntö, `latest` mukana. Kuluva päivä tulee
+ *                omasta varastosta (tools/havainnot.mjs), 5 min niput
  *   laru         yksi pyyntö, `latest` mukana, koko kuluva vuorokausi
  *   kruunuvuori  yksi pyyntö, historia kentässä `history`, tuorein
  *                juuressa
@@ -21085,7 +21093,17 @@ function _havIlmansuuntaLyhyt(deg) {
   return ['P', 'PI', 'I', 'KA', 'E', 'LO', 'L', 'LU'][Math.round(deg / 45) % 8];
 }
 
-/* Niputus. Palauttaa enintään maxN nippua aikajärjestyksessä. */
+/* KATKO ON KATKO, EI VIIVA. Kun kahden peräkkäisen havainnon väli on
+   tätä pidempi, asema oli hiljaa: Mellsten sammuu pilvisellä säällä
+   (aurinkopaneeli) tunneiksi tai vuorokaudeksi, ja ilman katkaisua
+   kaavio veti suoran viivan tyhjän yli — väite tuulesta jota kukaan ei
+   mitannut. 30 min ei katkaise FMI:n 10 min sarjaa yhden tai kahden
+   puuttuvan näytteen takia. */
+var HAV_KATKO_MS = 30 * 60e3;
+
+/* Niputus. Palauttaa enintään maxN nippua aikajärjestyksessä (katkoja
+   kohti yksi enemmän). Nippu ei ulotu katkon yli, ja katkon jälkeisellä
+   nipulla on `katkoAlku` = viimeinen havainto ennen katkoa. */
 function _havNiputa(ws, wg, ta, maxN) {
   var n = ws.length;
   if (!n) return [];
@@ -21094,11 +21112,15 @@ function _havNiputa(ws, wg, ta, maxN) {
   var wgMap = {}, taMap = {};
   for (var i = 0; i < wg.length; i++) wgMap[wg[i].iso] = wg[i].v;
   for (var j = 0; j < ta.length; j++) taMap[ta[j].iso] = ta[j].v;
+  var tt = new Array(n);
+  for (var q = 0; q < n; q++) tt[q] = Date.parse(ws[q].iso);
 
   var koko = Math.max(1, Math.ceil(n / maxN));
   var out = [];
-  for (var s = 0; s < n; s += koko) {
-    var pala = ws.slice(s, s + koko);
+  for (var s = 0, e; s < n; s = e) {
+    e = Math.min(n, s + koko);
+    for (var c = s + 1; c < e; c++) if (tt[c] - tt[c - 1] > HAV_KATKO_MS) { e = c; break; }
+    var pala = ws.slice(s, e);
     var summa = 0, minWs = Infinity, maxWs = -Infinity, maxWg = -Infinity, tSum = 0, tN = 0;
     var kulmat = [];
     for (var k = 0; k < pala.length; k++) {
@@ -21114,7 +21136,9 @@ function _havNiputa(ws, wg, ta, maxN) {
     }
     out.push({
       ms: Date.parse(pala[Math.floor(pala.length / 2)].iso),
+      msAlku: tt[s],
       msLoppu: Date.parse(pala[pala.length - 1].iso),
+      katkoAlku: s > 0 && tt[s] - tt[s - 1] > HAV_KATKO_MS ? tt[s - 1] : null,
       ws: summa / pala.length,
       wsMin: minWs,
       wsMax: maxWs,
@@ -21474,19 +21498,32 @@ const HavLaaja = {
    välein — tiheämpi ei näy, harvempi hävittää puuskapiikit. */
 function _havSarja(data, W) {
   var niput = _havNiputa(data.ws || [], data.wg || [], data.ta || [], Math.max(40, Math.round(W / 2.4)));
-  var n = niput.length, t = new Array(n), ms = new Array(n), gust = new Array(n), dir = new Array(n), min = new Array(n);
-  for (var i = 0; i < n; i++) {
-    t[i] = niput[i].ms; ms[i] = niput[i].ws; gust[i] = niput[i].wg; dir[i] = niput[i].d; min[i] = niput[i].wsMin;
+  var t = [], ms = [], gust = [], dir = [], min = [], kaikki = [];
+  for (var i = 0; i < niput.length; i++) {
+    var b = niput[i];
+    /* Katkon kohdalle `null`-piste: moottorin käyrä ja täyttö katkeavat
+       siihen (`_polut`), ja luvut, nuolet ja asteikko ohittavat sen. */
+    if (b.katkoAlku != null) {
+      t.push((b.katkoAlku + b.msAlku) / 2); ms.push(null); gust.push(null); dir.push(null); min.push(null);
+      kaikki.push({ katko: true, alku: b.katkoAlku, loppu: b.msAlku });
+    }
+    t.push(b.ms); ms.push(b.ws); gust.push(b.wg); dir.push(b.d); min.push(b.wsMin);
+    kaikki.push(b);
   }
-  return { t: t, ms: ms, gust: gust, dir: dir, min: min, niput: niput };
+  return { t: t, ms: ms, gust: gust, dir: dir, min: min, niput: kaikki };
 }
-/* Lähin nippu hetkellä (osoitin). */
+/* Lähin nippu hetkellä (osoitin). Katkon sisällä vastaus on katko eikä
+   sen reunan nippu: lukema kymmenen tunnin takaa ei ole tämän hetken. */
 function _havNippuAjassa(sarja, t) {
-  var T = sarja.t, lo = 0, hi = T.length - 1;
+  var T = sarja.t, N = sarja.niput, lo = 0, hi = T.length - 1;
   if (hi < 0 || t == null) return null;
   while (lo < hi) { var m = (lo + hi) >> 1; if (T[m] < t) lo = m + 1; else hi = m; }
   if (lo > 0 && Math.abs(T[lo - 1] - t) < Math.abs(T[lo] - t)) lo--;
-  return sarja.niput[lo];
+  for (var k = Math.max(0, lo - 1); k <= Math.min(N.length - 1, lo + 1); k++) {
+    if (N[k].katko && t > N[k].alku && t < N[k].loppu) return N[k];
+  }
+  if (N[lo].katko) lo = (lo + 1 < N.length && Math.abs(T[lo + 1] - t) < Math.abs(T[lo - 1] - t)) ? lo + 1 : lo - 1;
+  return N[lo] || null;
 }
 /* Yksi piirros: koko historia, leveys näkyvistä tunneista. Oikeassa
    päässä on vara tuoreimman lukeman pisteelle, jottei se leikkaudu. */
@@ -21558,6 +21595,21 @@ function _havYhteenvetoLaske(data) {
    jakson tilastot). `nimi` korvaa päiväyksen (tuoreimmalle "Viimeisin"). */
 function _havLukemaSolut(kaavioEl, b, nimi) {
   const solu = (n, arvo, ala) => ({ nimi: n, arvo: arvo, ala: ala || '' });
+  if (b && b.katko) {
+    /* Osoitin katkon kohdalla: sanotaan että asema oli hiljaa ja kuinka
+       kauan, eikä näytetä reunan lukemaa kuin se olisi tältä hetkeltä. */
+    const hetki = (ms) => {
+      const d = new Date(ms);
+      return Tuulikaavio.PAIVAT[d.getDay()] + ' ' + d.getDate() + '.' + (d.getMonth() + 1) + '. '
+        + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+    };
+    const min = Math.round((b.loppu - b.alku) / 60e3);
+    return [
+      min >= 90 ? solu('Ei havaintoa', String(Math.round(min / 60)), 'h') : solu('Ei havaintoa', String(min), 'min'),
+      solu('Viimeinen ennen', hetki(b.alku)),
+      solu('Jatkui', hetki(b.loppu)),
+    ];
+  }
   if (b) {
     const dt = new Date(b.ms);
     const kello = ('0' + dt.getHours()).slice(-2) + ':' + ('0' + dt.getMinutes()).slice(-2);

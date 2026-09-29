@@ -1604,7 +1604,10 @@ kartan lisäys maksaa siis **67 tavua**.
 Arkistossa on 380 päivätiedostoa, mutta ne kirjoitetaan vasta
 vuorokauden päätyttyä (`Day-26-09-07` vastasi 404 kun oli 8.9.).
 **Kuluvalle vuorokaudelle pisin saatavilla oleva historia on 30
-minuuttia.**
+minuuttia.** (29.9.: syy oli osin väärin luettu — `Day-26-09-07` on
+Helsingin 8.9. eikä 7.9., koska palvelin nimeää PDT-kalenterinsa
+mukaan. Johtopäätös piti silti, ja historia tulee nyt omasta
+varastosta: ks. "Mellstenin historia omaan varastoon".)
 
 ### Rivin muoto on lähteen dokumentoima, ei arvattu
 
@@ -1640,7 +1643,10 @@ Asema on **60,147 / 24,794**. Koordinaatti on Windyn PWS-tietueesta
 täsmälleen tämän lähteen lukemat (6,5 m/s, 196°, puuska 8,1, 15,0 °C,
 1009,1 hPa, 85,5 %) — eli kyse on varmasti samasta asemasta.
 
-### `history` jätetään nulliksi tarkoituksella
+### `history` jätetään nulliksi tarkoituksella (kumottu 29.9.)
+
+**Ei enää voimassa:** merkki pyytää nyt 24 h historian omasta
+varastosta ja seuraa aikajanaa kuten Laru. Alla alkuperäinen perustelu.
 
 Merkki näyttää aina tuoreimman lukeman eikä seuraa aikajanaa. Muilla
 FMI-asemilla `m.history` antaa menneiden tuntien lukeman
@@ -1793,6 +1799,158 @@ eli `innerText` antaa ISOT KIRJAIMET. Jälkimmäinen oli vaarallisempi:
 juuri se väite jonka piti todistaa lämpötilaruudun poistuminen olisi
 mennyt läpi vaikka ruutu olisi ollut paikallaan. Kaikki tekstihaut ovat
 nyt `/i`.
+
+## Mellstenin historia omaan varastoon — kuten Windguru
+
+Käyttäjä pyysi (29.9.) Espoo Haukilahden asemalle riittävän historian:
+tiedot talteen omaan varastoon silloin kun lähteestä niitä ei saa, samalla
+tavalla kuin Windguru tekee (`windguru.cz/station/2399`). Lisäksi
+huomio: mittari ei toimi pilvisellä säällä, joten dataa puuttuu
+Windgurultakin.
+
+Ennen muutosta asemakortissa oli 30 minuuttia historiaa, karttamerkki
+ei osannut vastata aikajanan menneistä tunneista (`history: null`) ja
+spottikortti sai samat 30 minuuttia.
+
+### Mitä Windguru tekee
+
+Asema 2399 on Windgurun tietueessa `id_type 16`, "Surfing Ry Mellsten",
+asennettu 24.6.2020. `iapi.php?q=station_data` antaa sen 10 minuutin
+sarjan kuinka pitkältä tahansa, eli Windguru **lukee lähdettä itse ja
+tallettaa rivit omaan kantaansa**. Aukot ovat samoissa kohdissa kuin
+lähteen arkistossa (24.9. 06:50–08:00, 25.9. 01:40 → 26.9. 09:00,
+26.9. 16:20 → 27.9. 09:00): kun asema on sammunut, kukaan ei saa rivejä.
+Windgurun sarjaa käytettiin tässä vain MITTARINA, ei datalähteenä.
+
+### Lähteen arkisto on nimetty Kalifornian kalenterin mukaan
+
+`archive/Day-YY-MM-DD` ei ole Helsingin päivä. Tiedoston ensimmäinen
+rivi on luontihetki palvelimen vyöhykkeessä, ja se kertoo mikä päivä
+tiedostossa on:
+
+    Day-26-09-27  Sun Sep 27 14:00:03 PDT = 28.9. 00:00  → Helsingin 28.9. (1440 riviä)
+    Day-26-09-24  Thu Sep 24 14:00:03 PDT = 25.9. 00:00  → 25.9. 00:00–01:38 (asema sammui)
+    Day-26-09-25  Fri Sep 25 23:02:21 PDT = 26.9. 09:02  → 26.9. 09:02–16:17
+    Day-26-09-26  Sat Sep 26 22:55:19 PDT = 27.9. 08:55  → 27.9. 08:55–23:59
+
+Tarkistettu Windgurua vasten: `Day-26-09-27`:n 10 min keskiarvot
+täsmäävät Windgurun 28.9:ään (esim. klo 12:00 8,8 vs 8,8 kts). Tiedosto
+ilmestyy kun istunto päättyy — keskiyöllä tai asema sammuessa — eikä
+kuluvaa päivää ole lähteessä kuin 30 minuuttia (`weather.txt`).
+
+**Arkisto myös hukkaa päiviä.** Kun asema käynnistyy katkon jälkeen klo
+10 jälkeen Helsingin aikaa, istunto saa PDT-päivän D nimekseen — ja
+keskiyöllä alkava seuraava istunto saa saman nimen ja kirjoittaa sen
+yli. 10.9. klo 11:40–23:59 on Windgurulla (74 kymmenminuuttista) mutta
+ei arkistossa: `Day-26-09-10` sisältää 11.9:n. Tätä ei korjaa mikään
+muu kuin rivien talteenotto silloin kun ne ovat saatavilla.
+
+### Ratkaisu: keräin, orpo haara ja proxy
+
+    tools/havainnot.mjs            keräin (vain Noden omat moduulit)
+    .github/workflows/havainnot.yml  10 min välein, orpo haara `havainnot`
+    api/_mellsten.js               yhteinen jäsennin (keräin + proxy)
+    api/mellsten.js                proxy: varasto + tuore ikkuna
+
+**Keräin** yhdistää joka ajolla `weather.txt`:n 30 riviä varastoon. Ikkuna
+on 30 min ja ajoväli 10, joten kaksi väliin jäänyttä ajoa ei hukkaa
+mitään. Tunnin välein se tarkistaa lähteen arkiston nimet
+[vanhin−1, tänään] (Helsingin päivä D on nimellä D−1 tai D): uusi nimi
+haetaan, tuttu ehdollisesti (`If-None-Match`, Apache vastaa 304), ja
+yli kolme päivää vanha tuttu ohitetaan. Arkiston rivi korvaa kerätyn
+(lähde on alkuperäinen), kerätty ei korvaa koskaan olemassa olevaa.
+Ensimmäinen ajo täyttää koko säilytysikkunan arkistosta: mitattuna **32
+pyyntöä, 15 s, 37 523 riviä, 2,4 MB** (31 vrk).
+
+**Varasto** on orpo haara `havainnot` (yksi committi, pakkopäivitys kuten
+`saadata`): `mellsten/YYYY-MM-DD.txt` Helsingin vuorokausi lähteen omina
+riveinä ja `mellsten/tila.json` (mitä arkistoista on haettu, ETagit,
+päivien rivimäärät). Vercel ja Tarkistus ohittavat haaran.
+
+**Työnkulku noutaa edellisen varaston ennen kuin kirjoittaa sen yli.**
+Tyhjästä aloitetaan vain jos haaraa ei ole (`ls-remote --exit-code` =
+2); muu virhe kaataa ajon. Hiljaa epäonnistunut nouto + pakkopäivitys
+pyyhkisi kuluvan päivän kerätyt rivit, eli juuri ne joita lähteessä ei
+ole.
+
+**Proxy** lukee varaston päivätiedostot (raw.githubusercontent.com,
+rinnakkain) ja lähteen `weather.txt`:n, ja lähteen rivi voittaa saman
+minuutin varastorivin. Lähteen arkistoa proxy EI hae: se olisi jopa
+kahdeksan 90 kt:n pyyntöä pienelle palvelimelle joka korttiavauksella.
+
+### Kolme ansaa päiväyksessä
+
+1. **Ankkuri on `Last-Modified`, ei nykyhetki.** Sammuneen aseman
+   `weather.txt`:ssä on viimeiset 30 riviä vaikka vuorokauden takaa, ja
+   nykyhetkestä laskettuna 25.9. klo 01:40 olisi mennyt 26.9:lle.
+   Mitattu: `Last-Modified` 07:34:03 GMT ja tuorein rivi 10:34 Suomen
+   aikaa. Sama korjaus meni `lastWeather.txt`:n polkuun.
+2. **Arkiston päiväys otsikkorivistä, ei nimestä** (ks. yllä).
+3. **Lähde lähettää `weather.txt`:lle `max-age=172800`**, ja sen oma
+   sivu varoittaa välimuistin vanhoista tiedoista. Pyynnöt kulkevat
+   `Cache-Control: no-cache` -otsakkeella.
+
+### Proxyn vastaus
+
+Niput ovat **ajan** mukaan (5 min), ei lukumäärän: tasaleveä ikkuna ei
+koskaan ulotu katkon yli. Nipun leveys valitaan datan kestosta — jos
+varasto ei vastaa, jäljellä on lähteen 30 min minuutteina kuten ennen.
+Sarjan viimeinen piste on raaka tuorein havainto (sama kuin Larulla).
+
+    pyyntö          pisteitä  JSON     lähteet
+    hours=168       1 278     222 kt   varasto 7 008 riviä / 8 pv + tuore 30
+    hours=48          455      80 kt   varasto 2 374 / 3 pv
+    hours=24          167      30 kt   varasto 1 470 / 2 pv
+    varasto 404        30       2 kt   vain tuore (= ennen)
+    varasto kaatuu     30       2 kt   `varastoVirheita: 3`, ei virhettä
+
+### Katko on katko, ei viiva
+
+Kaavion niputus (`_havNiputa`) oli lukumäärän mukaan, ja moottori veti
+käyrän tyhjän yli: 31 tunnin sammuminen olisi näyttänyt tasaiselta
+tuulelta. Nyt nippu katkeaa kun kahden havainnon väli ylittää
+`HAV_KATKO_MS` (30 min — FMI:n 10 min sarjassa yksi tai kaksi puuttuvaa
+näytettä ei katkaise), ja `_havSarja` lisää katkon kohdalle
+`null`-pisteen, johon moottorin käyrä, täyttö, luvut ja nuolet jo
+valmiiksi katkeavat. Osoitin katkon sisällä ei näytä reunan lukemaa vaan
+katkon: "Ei havaintoa 31 h · Viimeinen ennen Pe 25.9. 01:38 · Jatkui La
+26.9. 09:04". Sääntö koskee kaikkia havaintoasemia.
+
+### Mitattu
+
+**Varasto Windgurua vasten, 1.–28.9.:** 3 553 Windgurun
+kymmenminuuttista, joista 3 476:lle varastossa on rivejä. Keskimääräinen
+ero 0,37 kts, harha 0,000 kts. Päiväyksen todiste on siirtokoe: sama
+vertailu tunnin siirrolla antaa 1,46 / 1,53 kts ja vuorokauden 4,30 /
+4,25 kts. Vain Windgurulla olevista 77 pisteestä 74 on 10.9. klo
+11:40–23:50 (ylikirjoittunut istunto, ks. yllä) ja kolme katkojen
+reunoja. (Windgurun `wind_max` on pienempi kuin minuuttimaksimien
+maksimi, joten puuskaa ei verrattu.)
+
+**Selaimessa (tuotantobuild, puhelin `hasTouch`):** asemakortti 168 h,
+kaaviossa 7 viivaosaa katkojen välissä; napautus 25.9. klo 15 näyttää
+katkon (31 h), 24.9. klo 07:30 lyhyen katkon (75 min), 28.9. klo 12 lukeman
+8,8 kts (Windguru 8,8). Karttamerkki: 167 pisteen historia, aikajanan
+tunnit 28.9. klo 12, 18 ja 23 → 8,7 / 7,2 / 7,7 kts = historian lähin
+piste, ja paluu tuoreimpaan. Haukilahden spottikortti: 48 h Mellstenistä.
+
+**Savutesti kontissa:** työpöytä läpi; puhelimella latausruutu jäi 35 s:ksi
+sekä uudella että MUUTTAMATTOMALLA buildilla, koska säälaattojen
+luettelo (`jere-stack.github.io` ja raw) aikakatkesi kontista. MapLibren
+`reading 'bind'` / `'signal'` -virheet `setView`in jälkeen ovat samat
+kummassakin buildissa.
+
+### Mitä jää
+
+- **GitHubin ajastin ei ole tarkka.** Yli 30 minuutin viive jättää
+  kuluvaan päivään aukon, jonka arkisto täyttää keskiyön jälkeen — paitsi
+  ylikirjoitustapauksessa. Kuluvan päivän aukko on silloin samaa kuin
+  asemakatko.
+- **Haara syntyy vasta ensimmäisellä ajolla** oletushaaralta (ajastettu
+  työnkulku ajetaan vain sieltä). Sitä ennen proxy palauttaa lähteen 30
+  minuuttia kuten ennen.
+- GitHub poistaa ajastetut työnkulut käytöstä 60 päivän
+  toimettomuuden jälkeen julkisessa repossa.
 
 ---
 
