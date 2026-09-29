@@ -7042,3 +7042,4 @@ savutesti läpi.
 - **Napautus (nyt ja jakso) kulkee `_avaa`n kautta**: aikajana `_tlValitseIdx`llä (nyt-rivillä nykyhetkeen, ennen se ei siirtänyt aikajanaa) ja vasta sitten kartta spotille.
 - **Aikarajaus on joukko**: "Kaikki päivät" = tyhjä joukko ja nollaa; "Arki-illat" (ma–pe 16–22) ja "Viikonloppu" (la–su 08–22) kytketään erikseen ja yhdessä. Ennen kolme oli yksivalinta, jolloin arki+viikonloppu ei ollut mahdollinen.
 - Testi: `tools/savutesti.mjs` tarkistaa rajat (51/10 kts kyllä; 50/12, 80/9,5, 51/9,9 ei), nyt-listan (≤5, kaikki foilattavia) ja arki+vkl-rajauksen.
+- **Aikarajaus on kolme korttia, ei `.segmentti`.** Segmentti lukee yksivalintana, ja rajaus on joukko. Kortissa nimi + kellonaikaväli (06–23 / ma–pe 16–22 / la–su 08–22), valittu = korotettu pinta, muste-reuna ja ruksi; ei väriä (väri kuuluu tuulelle). Mitattu ruudulta 393 px:n puhelimella: kolme korttia mahtuu riville.

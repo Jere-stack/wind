@@ -4054,10 +4054,31 @@ html[data-tutka="1"] #lahde-merkki {
 }
 #fc-header { padding: 12px 20px 14px; }
 #fc-subtitle { font-variant-numeric: tabular-nums; font-size: var(--fs-10); color: var(--ink-3); margin-top: 2px; }
-/* Aikarajaus on yksivalinta: yhteinen `.segmentti`, venytettynä
-   paneelin levyiseksi, jotta kolme vaihtoehtoa ovat saman kokoisia. */
-.fc-rajaus { display: flex; width: 100%; margin: 0 0 8px; }
-.fc-rajaus > button { flex: 1 1 0; min-height: 34px; font-size: max(12px, var(--fs-11)); }
+/* Aikarajaus: kolme korttia, koska valinta on JOUKKO eikä yksivalinta
+   (`.segmentti` lukisi yksivalintana). Otsikko + kellonaikaväli, valittu
+   on korotettu pinta, muste-reuna ja pieni ruksi; sama kieli kuin
+   spottikortin pinnoilla. Ei väriä: väri kuuluu tuulelle. */
+.fc-rajaus { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0 0 10px; }
+.fc-rajaus > button {
+  position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  min-height: 48px; padding: 8px 10px; text-align: left; font: inherit; color: var(--ink-2);
+  background: var(--surface-lo); border: 1px solid transparent; border-radius: 10px;
+  cursor: pointer; -webkit-user-select: none; user-select: none;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.fc-rajaus .fc-r-nimi { font-size: max(12px, var(--fs-11)); font-weight: 600; line-height: 1.2; }
+.fc-rajaus .fc-r-vali { font-size: max(11px, var(--fs-10)); color: var(--ink-3);
+  font-variant-numeric: tabular-nums; line-height: 1.2; white-space: nowrap; }
+.fc-rajaus > button[aria-pressed="true"] {
+  background: var(--surface-hi); color: var(--ink); border-color: var(--ink);
+}
+.fc-rajaus > button[aria-pressed="true"] .fc-r-vali { color: var(--ink-2); }
+.fc-rajaus > button[aria-pressed="true"]::after {
+  content: ""; position: absolute; top: 9px; right: 10px; width: 4px; height: 8px;
+  border: solid var(--ink); border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+.fc-rajaus > button:active { transform: scale(.98); }
+.fc-rajaus > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 /* Day groups */
 .fc-day { padding: 0 20px 4px; margin-bottom: 4px; }
 .fc-day-label {
@@ -5613,12 +5634,12 @@ public/icon-maskable-512.png 512px 140643 B
            (ma–pe 16–22) ja viikonloppu (la–su 08–22) ovat kytkettävissä yhdessä.
            Ennen Kaikki ohitti muut kytkimet (docs/julkaisu.md, UI 6), joten
            se ei ole enää rinnakkainen kytkin vaan nollaus. -->
-      <div class="segmentti fc-rajaus" role="group" aria-label="Aikarajaus">
-        <button type="button" data-rajaus="kaikki" aria-pressed="true">Kaikki päivät</button>
-        <button type="button" data-rajaus="arki" aria-pressed="false">Arki-illat</button>
-        <button type="button" data-rajaus="vkl" aria-pressed="false">Viikonloppu</button>
+      <div class="fc-rajaus" role="group" aria-label="Aikarajaus">
+        <button type="button" data-rajaus="kaikki" aria-pressed="true"><span class="fc-r-nimi">Kaikki päivät</span><span class="fc-r-vali">06–23</span></button>
+        <button type="button" data-rajaus="arki" aria-pressed="false"><span class="fc-r-nimi">Arki-illat</span><span class="fc-r-vali">ma–pe 16–22</span></button>
+        <button type="button" data-rajaus="vkl" aria-pressed="false"><span class="fc-r-nimi">Viikonloppu</span><span class="fc-r-vali">la–su 08–22</span></button>
       </div>
-      <div id="fc-subtitle">Foilattavaa: indeksi yli 50 ja tuuli vähintään 10 kts · seuraavat 5 vrk · 3 tunnin jaksot</div>
+      <div id="fc-subtitle">Foilattavaa: indeksi yli 50 ja tuuli vähintään 10 kts · 5 vrk</div>
     </div>
     <div id="fc-content"></div>
   </div>
