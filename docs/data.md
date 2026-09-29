@@ -3522,7 +3522,8 @@ lähetys on ollut koko ajan "käynnissä".
 
     api/_kamerat.js        rekisteri, HEAD, tilasääntö (keräin + proxy)
     tools/kamerat.mjs      keräin, sama Actions-ajo kuin Mellstenillä
-    api/kamera.js          proxy: keräimen tila + oma HEAD
+    api/laru.js?kamera=1   proxy: keräimen tila + oma HEAD (ei omaa
+                           funktiota: Hobby-tason 12 funktion raja)
 
 **Yksi näyte ei riitä**: se kertoo päättyneen ja poistetun, mutta ei
 sitä vaihtuuko kuva. Keräin kirjaa ETagin kymmenen minuutin välein
@@ -3605,6 +3606,18 @@ sama rajoite kuin docs/pwa.md:n jsDelivr), vaikka curl ja Node saavat.
 Selaintesti reitittää `i.ytimg.com`:n curlilla haettuihin tiedostoihin,
 ja `ignoreHTTPSErrors` on pakollinen. YouTuben soitinta ei voi toistaa
 kontissa; mitattu on iframe (osoite, koko, fokus, poisto).
+
+### Kolmastoista funktio kaatoi tuotantodeployn
+
+Reitti oli ensin oma tiedostonsa `api/kamera.js`. Paikallinen build,
+savutesti ja CI menivät läpi, mutta Vercelin deploy kaatui kummallakin
+commitilla ("Deployment has failed", commitin status), ja tuotanto jäi
+edelliseen versioon — sivun versioleima kertoi sen (`e16e7c2`), ei
+mikään virhe. Funktioita oli jo tasan 12, ja Vercelin Hobby-taso sallii
+12 deployta kohti. Reitti on nyt `api/laru.js?kamera=1` (logiikka
+`kameraVastaus` tiedostossa `_kamerat.js`), ja funktioita on taas 12.
+Deployn tila luetaan commitin statuksesta
+(`api.github.com/repos/Jere-stack/wind/commits/<sha>/status`).
 
 ### Mitä jää
 

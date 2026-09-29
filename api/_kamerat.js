@@ -2,10 +2,16 @@
  * "Larun kelikamera").
  *
  * Alaviiva nimen alussa: apumoduuli, ei reitti. Keräin
- * (tools/kamerat.mjs) ja proxy (api/kamera.js) lukevat tätä, ja
- * sovellus saa kamerat proxyn vastauksesta — index.html:ssä ei ole
- * kameralistaa. Kaksi listaa samasta asiasta ajautuisi erilleen, kuten
- * asemarekisterin kopio aikanaan (CLAUDE.md, "ASEMAREKISTERI ON YKSI").
+ * (tools/kamerat.mjs) ja proxy (`api/laru.js?kamera=1`, `kameraVastaus`
+ * alla) lukevat tätä, ja sovellus saa kamerat proxyn vastauksesta —
+ * index.html:ssä ei ole kameralistaa. Kaksi listaa samasta asiasta
+ * ajautuisi erilleen, kuten asemarekisterin kopio aikanaan (CLAUDE.md,
+ * "ASEMAREKISTERI ON YKSI").
+ *
+ * EI OMAA REITTIÄ. `api/kamera.js` oli kolmastoista funktio, ja Vercelin
+ * Hobby-taso sallii kaksitoista deployta kohti: tuotantodeploy kaatui
+ * ("Deployment has failed") eikä mikään muuttunut tuotannossa. Kamera
+ * on Larun, joten reitti on Larun proxyssa.
  *
  * YOUTUBEN LIVE-LIPPU EI KERRO ONKO KAMERA PÄÄLLÄ. Larun lähetys on
  * ollut YouTuben mielestä käynnissä 6.12.2019 lähtien ("Striimi alkoi
@@ -26,6 +32,9 @@
  * keräin kirjaa ETagin talteen kymmenen minuutin välein
  * (`kamerat/tila.json` haarassa `havainnot`). ETagia verrataan
  * merkkijonona eikä lukuna: muutos on tieto, suuruus ei. */
+
+import { readFile } from 'fs/promises';
+import { join } from 'path';
 
 export const KAMERAT = [
   {
@@ -171,4 +180,71 @@ export function paattele(kamera, k, nyt, nayte) {
   if (kuvaElaa(k, nyt)) return Object.assign(pohja, { tila: 'live' });
   if (tarkistettu - nahty > HILJAA_MAX_MS) return hiljaa();
   return pohja;
+}
+
+/* ── Proxyn vastaus (api/laru.js?kamera=1) ─────────────────────────
+ *
+ * { kamerat: [{ id, asema, nimi, omistaja, kanava, video, tila, syy,
+ * viimeisin, kuva }], varasto }. Kartan pilleri saa play-kolmion kun
+ * `tila` on 'live', ja asemakortti näyttää kameran kolmessa tilassa.
+ *
+ * KAKSI NÄYTETTÄ. Keräimen tila (haara `havainnot`) kertoo mitä kuvalle
+ * on tapahtunut; oma HEAD samaan kuvaan kertoo nyt-hetken — päättyneen
+ * ("0") ja poistetun (404) heti, ja keräimen käynnin jälkeen vaihtuneen
+ * kuvan silloinkin kun GitHubin ajastin on myöhässä. Kumpikin saa
+ * epäonnistua yksin: ilman kumpaakaan tila on 'tuntematon', ei virhe.
+ *
+ * `kuva` on se ETag josta tila pääteltiin — vianetsintää varten. Sitä EI
+ * liitetä kuvan osoitteeseen: i.ytimg.com lukee `?v=`:n kuvan versioksi
+ * heksana ja vastaa 404:llä versioon jota ei vielä ole (mitattu), joten
+ * desimaalinen ETag rikkoi kuvan. */
+
+/* Sama varasto ja sama testikytkin kuin api/mellsten.js:ssä: muuttuja
+   voi olla myös paikallinen hakemisto (keräimen tuloste). */
+const VARASTO = process.env.HAVAINNOT_KANTA || 'https://raw.githubusercontent.com/Jere-stack/wind/havainnot/';
+const AIKARAJA = 4000;
+
+async function lueTila() {
+  const polku = 'kamerat/tila.json';
+  if (/^https?:/.test(VARASTO)) {
+    const res = await fetch(VARASTO + polku, { signal: AbortSignal.timeout(AIKARAJA) });
+    /* Haaraa tai tiedostoa ei vielä ole (keräin ei ole ajanut): ei virhe. */
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error('varasto HTTP ' + res.status);
+    return res.json();
+  }
+  try { return JSON.parse(await readFile(join(VARASTO, polku), 'utf8')); }
+  catch (e) { if (e.code === 'ENOENT') return null; throw e; }
+}
+
+export async function kameraVastaus(nyt) {
+  /* Varasto ja rekisterin videoiden kuvat rinnakkain: eri palvelimet. */
+  const [t, ...n] = await Promise.allSettled(
+    [lueTila()].concat(KAMERAT.map((c) => haeEtag(c.video, AIKARAJA))));
+  const tila = t.status === 'fulfilled' ? t.value : null;
+
+  const kamerat = [];
+  for (let i = 0; i < KAMERAT.length; i++) {
+    const c = KAMERAT[i];
+    const k = tila && tila.kamerat ? tila.kamerat[c.id] || null : null;
+    const video = seurattava(c, k);
+    let nayte = n[i].status === 'fulfilled' ? Object.assign({ video: c.video }, n[i].value) : null;
+    /* Keräin on siirtynyt uuteen lähetykseen: näyte siitä. */
+    if (video !== c.video) {
+      try { nayte = Object.assign({ video }, await haeEtag(video, AIKARAJA)); }
+      catch (e) { nayte = null; }
+    }
+    const p = paattele(c, k, nyt, nayte);
+    kamerat.push({
+      id: c.id, asema: c.asema, nimi: c.nimi, omistaja: c.omistaja,
+      kanava: kanavanOsoite(c.kanava),
+      video: p.video, tila: p.tila, syy: p.syy, viimeisin: p.viimeisin,
+      kuva: (nayte && nayte.video === p.video && nayte.etag) || (k && k.video === p.video && k.etag) || null,
+    });
+  }
+  return {
+    kamerat,
+    /* Varaston vika sanotaan, jotta 'tuntematon' ei näytä selittämättömältä. */
+    varasto: t.status === 'fulfilled' ? (tila ? 'ok' : 'ei tilaa') : String(t.reason && t.reason.message || t.reason),
+  };
 }

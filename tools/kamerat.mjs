@@ -4,7 +4,7 @@
  *
  *   node tools/kamerat.mjs <hakemisto>
  *
- * MIKSI. Proxy (api/kamera.js) näkee yhden hetken: se osaa sanoa onko
+ * MIKSI. Proxy (`api/laru.js?kamera=1`) näkee yhden hetken: se osaa sanoa onko
  * lähetys päättynyt tai video poistettu, mutta ei sitä päivittyykö kuva
  * — YouTuben mielestä Larun lähetys on ollut käynnissä vuodesta 2019,
  * myös silloin kun kamera ei lähetä. Päivittyminen vaatii kaksi

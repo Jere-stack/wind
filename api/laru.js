@@ -46,6 +46,7 @@
  */
 import https from 'https';
 import { suojaa } from './_suoja.js';
+import { kameraVastaus } from './_kamerat.js';
 
 const BASE = 'https://dlarah.org/wind_data/';
 const ASEMA = 'Laru';
@@ -201,6 +202,16 @@ function niputa(rivit, katto) {
 
 export default async function handler(req, res) {
   if (!suojaa(req, res)) return;
+  /* LARUN KELIKAMERAN TILA (api/_kamerat.js). Tassa eika omana
+     reittinaan: `api/kamera.js` oli kolmastoista funktio, ja Vercelin
+     Hobby-taso sallii kaksitoista deployta kohti — tuotantodeploy kaatui.
+     Kuva vaihtuu viiden minuutin valein ja tila hitaammin; minuutti
+     CDN:ssa pitaa kutsut kurissa eika nayta vanhaa. */
+  if (req.query.kamera === '1') {
+    var vastaus = await kameraVastaus(Date.now());
+    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=240');
+    return res.status(200).json(vastaus);
+  }
   var tz = kelpoTz(req.query.tz) || 'Europe/Helsinki';
   var isHistory = req.query.history === '1';
   var nyt = Date.now();

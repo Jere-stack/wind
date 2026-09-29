@@ -33,8 +33,14 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   sarjana (`malli.js`),
   aaltoennuste, vedenkorkeus, sade-ennuste GRIB2:sta,
   FMI:n aaltopoijut, Kruunuvuorenselän, Mellstenin, Larun ja Uiraan
-  mittausdata-proxyt, Larun kelikameran tila `kamera.js`, selaimen
-  virheraportit `virhe.js`).
+  mittausdata-proxyt (Larun proxy kertoo myös kelikameran tilan,
+  `laru.js?kamera=1`), selaimen virheraportit `virhe.js`).
+  **FUNKTIOITA ON 12, JA SE ON VERCELIN HOBBY-TASON KATTO DEPLOYTA
+  KOHTI**: kolmastoista (`api/kamera.js`) kaatoi tuotantodeployn
+  ("Deployment has failed") eikä mikään muuttunut tuotannossa. Uusi
+  reitti on tila olemassa olevassa funktiossa (kyselyparametri), ei
+  uusi tiedosto — ja tarkista deployn tila commitin statuksesta
+  (`api.github.com/repos/Jere-stack/wind/commits/<sha>/status`).
   ES-moduuleja, koska
   `package.json`:ssa on `"type": "module"` — `require()` ei toimi näissä.
   Alaviivalla alkava tiedosto (`_suoja.js`, `_mellsten.js`,
@@ -56,7 +62,7 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   lukee sen. Vain Noden omia moduuleita. Ks. docs/data.md, "Mellstenin
   historia omaan varastoon". Samassa ajossa `tools/kamerat.mjs`
   (`continue-on-error`) kirjaa kelikameroiden pikkukuvan ETagin
-  (`kamerat/tila.json`), josta `api/kamera.js` päättelee onko kamera
+  (`kamerat/tila.json`), josta `api/laru.js?kamera=1` päättelee onko kamera
   päällä (docs/data.md, "Larun kelikamera").
 - `tools/tiilet.mjs` — säälaattojen rakennus kolmesta mallista: ECMWF
   (AWS Open Data, koko maapallo), FMI:n HARMONIE (Suomi) ja MET Nordic
@@ -1856,14 +1862,14 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   "0" ja poistetun kuva 404. Päällä = ETag vaihtui 25 min sisällä, ja
   se vaatii kaksi näytettä eri aikaan: keräin (`tools/kamerat.mjs`,
   sama Actions-ajo kuin Mellsten, `continue-on-error`) kirjaa ne
-  `havainnot`-haaraan ja `api/kamera.js` lisää oman HEADin.
+  `havainnot`-haaraan ja `api/laru.js?kamera=1` lisää oman HEADin.
   **HILJAISUUS ON HAVAINTO**: sama kuva on NÄHTÄVÄ rajan yli — vanha
   muutos ilman uutta näytettä on 'tuntematon', ei 'pois'. **LASKURI ON
   KELLO** (~5 min/kuva): vanhan keräinnäytteen ja oman näytteen välinen
   kuvamäärä (`kuvia ≥ ikä/6 min − 2`, enintään vuorokausi) kertoo onko
   kuvaa tullut koko ajan, joten kolmio ei katoa keräimen viiveeseen.
 - **REKISTERI ON YKSI: `api/_kamerat.js`.** Sovellus saa kamerat
-  `/api/kamera`n vastauksesta ja kytkee ne asemaan `asema`-kentällä
+  `/api/laru?kamera=1`:n vastauksesta ja kytkee ne asemaan `asema`-kentällä
   (aseman `place`); index.html:ssä ei ole kameralistaa. Uusi lähetys
   löytyy kanavan syötteestä itsestään, joten videota ei vaihdeta käsin.
 - **PLAY-KOLMIO VAIN TILASSA `live`**, pillerin viimeisenä osana samaa
