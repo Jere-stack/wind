@@ -7004,3 +7004,33 @@ Kuvausskripti jäädytti lähdön animaatiot tunnistamalla ne
 pysäytyksen jälkeen ja kuski puuttui kaikista kuvista. Lopullinen
 sarja otettiin oikeassa ajassa, ja kuskin paikka varmistettiin
 `getBoundingClientRect`illä (x −177 → 12 px, hypyssä y 216 → 193).
+
+## Kuski tikku-ukoksi, siipi pelkistetyksi, suora vana pois (29.9.)
+
+Käyttäjä: kuski yksityiskohtineen oli liian hallitseva — tilalle paljon
+yksinkertaisempi tikku-ukko samalla muodolla, siipi yksinkertaisemmaksi,
+värit häivytetään, ja hyppyyn liittyvä suora vesivana pois.
+
+- **Tikku-ukko:** jalat yhtenä murtoviivana (nilkat → polvet → lantio),
+  vartalo lantiosta olkapäähän ja kaulaan, kädet olkapäästä kyynärpään
+  kautta puomille, pää ympyränä. Nivelpisteet ja kaikki animaatiot ovat
+  ennallaan, joten pumppaus, kaarto, siiven heilautus ja hyppy toimivat
+  sellaisinaan. Kasvot, kypärä, tukka (`#lr-tukka`), liivi, lihakset ja
+  kädet sormineen poistettiin.
+- **Siipi:** kangas (ulkomuoto ilman ikkunoita ja logoja) .26,
+  täyttöputki .8, tuki ja puomi viivoina. Mustat päät, saumat, ikkunat,
+  logot ja yövarjo poistuivat.
+- **Yksi sävy:** kaikki on `--lr-kuski` (valoisalla tumma siluetti,
+  pimeällä paperi), ja koko `#lr-keinu` on `opacity: .78`. Lauta ja
+  foili ovat umpinaisia siluetteja, ja kansi näkyy kaarrossa .6.
+- **Suora vana pois:** `#lr-vana` oli `#lr-tulo`n sisällä, joten
+  hypyssä se nousi ja kiertyi kuskin mukana suorana viivana. Kaarron
+  vaahtojälki häipyy nyt ennen ponnistusta (`lr-jalki-lahto` 50 %:ssa
+  nolla), jottei sekään lennä mukana.
+- Paletin `--lr-iho`, `--lr-tukka`, `--lr-kypara`, `--lr-liivi`,
+  `--lr-kiilto`, `--lr-reuna`, `--lr-lauta*`, `--lr-foili` ja
+  `--lr-siipi-varjo` jäivät `LR_PALETTI`in mutta niitä ei enää lueta.
+
+Tilapalkki 12,36:1 päivällä, animaatioita 45 esittelyssä ja 22 levossa
+(ennallaan: tukan animaatio pyöri vain lähdössä), vaimennettu 0,
+savutesti läpi.

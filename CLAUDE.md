@@ -493,48 +493,21 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   Asento on oikeasta vastavalokuvasta (mittasuhteiden malli, ei
   upotettu): lähes pystyasento ja nojaus taaksepäin, siipi molemmin
   käsin olkapäiden korkeudella VINOSSA sivulla, ja kädet ovat PUOMILLA.
-  Siipi on Gong Droid X:n muotoinen ja käyttäjän päätöksellä
-  VALKOINEN: läpinäkymätön valkoinen kangas (vain kaksi ikkunaa ovat
-  kirkkaita), paksu täyttöputki joka KÄÄNTYY kärjissä takaisin kohti
-  takareunaa, ja putki on valkoinen jonka KUMPIKIN pää on musta
-  SAMANMITTAISELTA matkalta (`#lr-putki-paat`, 20 % etureunasta
-  kummastakin kärjestä — älä muuta toista yksin). Keskituki on
-  kapeneva valkoinen putki, puomi hiilimusta kahvaosineen ja
-  kiinnikkeineen. FoilSpotin merkki (tumma) on MOLEMMILLA puoliskoilla,
-  leikattuna kankaan muotoon ikkunoineen (`#lr-kangas-leike`), joten
-  kummankin ikkunan reuna leikkaa oman merkkinsä. Siipi on sama joka
-  vaiheessa, ja valon puute tulee sen päälle varjona
-  (`--lr-siipi-varjo`, yö .42). (Pinkki Droid X oli edellinen versio.)
-  PUOMI KULKEE KÄSIEN LÄPI: etukäsi on `#lr-siipi`n nivelpisteessä,
-  joten siiven kääntyessä puomi pysyy sen nyrkissä; nyrkit ovat
-  puomin PÄÄLLÄ (rystyset, sormet kiertyvät alle, hihansuu). Jos
-  siirrät kättä tai niveltä, siirrä puomia samassa muutoksessa, muuten
-  kädet kelluvat sen yläpuolella (niin kävi). Lauta on MIDLENGTH
-  (110 × 10 yks., 3D kolmesta pinnasta), kärjen nousu matala (noin
-  3,5 yks. viimeisellä 22:lla; 8,4 yks. luki ylös käyränä) ja masto
-  9 yks. leveä.
-  KUSKI ON IHMINEN, EI TIKKU-UKKO: raajat ovat täytettyjä muotoja
-  (`raaja()`-generaattori: reisi, pohje, olkapää, hauis, kyynärvarsi
-  lihaspullistumineen), märkäpuvun kiilto (`--lr-kiilto`) kertoo
-  lihakset, ja kasvot ovat profiili (nenä ja sierain, huulet, leuka,
-  silmä valkuaisineen, iiris ja luomi, kulmakarva, korva, poskien ja
-  leukalinjan varjostus). Värit ovat käyttäjän päätös: MUSTA
-  sombrero-kypärä (kiilto ja yöllä `--lr-reuna`-ääriviiva, jottei se
-  katoa taivaaseen; keltainen oli edellinen), musta leukahihna
-  leukalinjaa pitkin, MUSTA
-  MÄRKÄPUKU kaikkina vuorokaudenaikoina (yöllä kuunvalon reunavalo
-  `--lr-reuna`), MUSTA IMPACT VEST joka MYÖTÄILEE VARTALOA (hihaton,
-  kaula-aukko etuna, rinta ja selän notko ääriviivassa, kapenee
-  vyötärölle; oikeiden liivien kuvista) (vaahtopaneelit kaarevina segmentteinä
-  kohokuvioin, sivusauma, etuvetoketju vetimineen, kädentien kanttaus
-  josta märkäpuvun olkapää näkyy ja vyötärön resori; rinnan
-  FoilSpotin merkki poistettiin käyttäjän pyynnöstä, samoin harmaa
-  paita ja sen helma), vaalea
-  iho ja surffarin kasvot (vahva leuka, suora nenä, päivettynyt
-  nenänselkä, sängen varjo, siristävä silmä naururyppyineen, auringon
-  vaalentama kulmakarva ja pulisonki) ja
-  ruskea surffitukka joka lepattaa (`#lr-tukka`, 0,7 s) ja jota on myös
-  pään SIVULLA (ohimo, korvan taakse niskaan, suortuvat). Osat ovat sisäkkäisiä kerroksia omilla
+  KUSKI ON YKSINKERTAINEN TIKKU-UKKO YHDESSÄ SÄVYSSÄ (käyttäjän päätös
+  29.9.): yksityiskohtainen ihmishahmo (kasvot, kypärä, tukka, impact
+  vest, lihakset, kaksivärinen Droid X -siipi logoineen) oli liian
+  hallitseva. Nyt raajat ja vartalo ovat pyöreäpäisiä viivoja, pää on
+  ympyrä, siipi on läpikuultava kangas (.26) ja täyttöputki (.8),
+  tuki ja puomi, ja lauta ja foili ovat umpinaisia siluetteja — kaikki
+  `--lr-kuski`-sävyä (valoisalla tumma, pimeällä paperi) ja koko rigi
+  `opacity: .78`. ÄLÄ PALAUTA YKSITYISKOHTIA NÄKYVIIN. Muoto ja
+  nivelpisteet säilyivät: nilkat (129,4/204 ja 164,4/204), lantio
+  (150/157), olkapää = `#lr-kasi`n nivel (144/124,4), ja kädet ovat
+  PUOMILLA (160,4/134,6 ja 180,4/128,6; etukäsi on `#lr-siipi`n
+  nivelpisteessä). Jos siirrät kättä tai niveltä, siirrä puomia samassa
+  muutoksessa. Suora vana (`#lr-vana`) poistettiin: se nousi hypyssä
+  kuskin mukana suorana viivana. Kaarron vaahtojälki häipyy ennen
+  ponnistusta. Osat ovat sisäkkäisiä kerroksia omilla
   nivelpisteillään (`#lr-jalat` nilkoista `scaleY`, `#lr-yla` lantiosta
   SAMALLA käyrällä, `#lr-kasi` = molemmat kädet ja siipi olkapäistä,
   `#lr-siipi` etukädestä), ja vartalo piirtyy siiven PÄÄLLE. Liike on
