@@ -443,7 +443,11 @@ await ks.waitForTimeout(700);
 const kx = await kursoriX();
 const E = await ele({ x0: Math.round(kx) + 6, pito: 0, liikkeet: liuku(kx + 6, kx + 90, 12) });
 tarkista('kursorin tartunta aloittaa skrubin heti', E.keskella && E.keskella.skrubi && E.scroll === 0 && E.valitse.length === 1, 'kursori x ' + Math.round(kx) + ', lukemia ' + E.nayta.length);
-const F = await ele({ x0: 150, pito: 260, liikkeet: liuku(150, 350, 12), loppuun: 700 });
+/* Reunavieritys on `setInterval(16)`: CI-koneella tikkejä tulee paljon
+   harvemmin kuin 62/s (mitattu 172 px 700 ms:ssa vs 388 px kehityskoneella),
+   joten sormi pidetään reunassa 2 s — testi mittaa että kaavio vierii
+   jatkuvasti, ei kuinka monta tikkiä ajastin ehtii. */
+const F = await ele({ x0: 150, pito: 260, liikkeet: liuku(150, 350, 12), loppuun: 2000 });
 tarkista('skrubi reunaan vierittää kaaviota', F.scroll > 200 && F.valitse.length === 1, F.scroll + ' px, ' + F.nayta[0] + '…' + F.nayta[F.nayta.length - 1] + ' h');
 /* PYSTYVIIVA EI JÄÄ (30.9.): sormi paikallaan pidon yli sytyttää merkin, ja
    jos selain vie eleen vierityksenä (`touchmove` ei tule peruttavana) merkki
