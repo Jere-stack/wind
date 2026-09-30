@@ -19,7 +19,9 @@
  *   7. huiput ja saavutettava yhteenveto
  *   8. asteikon sovitus ikkunaan (piirtoja per ele, täyttöaste)
  *   9. kosketus (CDP, oikeat kosketustapahtumat): pito + veto, veto, napautus,
- *      kursorin tartunta, reunavieritys
+ *      kursorin tartunta, reunavieritys, pystyviiva ei jää vierityksen jälkeen
+ *  10. lukema pallon vieressä (kupla, kaikki vertailumallit), geometria
+ *      (nuolet ylhäällä, aika-akseli alla) ja ohut tuuliviiva
  *
  * Käyttö:  npm run build && npx vite preview --port 4173 &
  *          PLAYWRIGHT_MODULE=/opt/node22/lib/node_modules/playwright/index.mjs \
@@ -96,7 +98,7 @@ function pystytys() {
       const nak = Aikakaavio.nakyva(avain, oletus), W = Math.max(W0, Math.round((loppu - alku) / H * W0 / nak));
       const ikk = Aikakaavio.ikkunaNyt(kaare) || Aikakaavio.ikkunaArvio(alku, loppu, valittu, 0.25, nak);
       const p = Tuulikaavio.piirra({ asu: o.asu || Tuulikaavio.ASUT.kortti, plotH: o.plotH || 0, W: W, alku: alku, loppu: loppu, maxV: laske(ikk.a, ikk.b), nyt: nyt,
-        valittu: valittu, akseli: 'kiintea', lat: 60.15, lng: 24.9, bestDirs: [180, 250], paa: P, aria: 'mittaus', kayra: o.kayra, ikkunaLuvut: !!o.ikkunaLuvut });
+        valittu: valittu, akseli: 'kiintea', lat: 60.15, lng: 24.9, bestDirs: [180, 250], paa: P, vertailut: o.vertailut || [], aria: 'mittaus', kayra: o.kayra, ikkunaLuvut: !!o.ikkunaLuvut });
       Aikakaavio.aseta(kaare, [p], valittu, 0.25);
       Aikakaavio.skaala(kaare, laske);
     };
@@ -128,8 +130,10 @@ for (const nak of [12, 24, 48, 96, 168, 240, 396]) {
     await new Promise((res) => setTimeout(res, 200));
     const sl = k.scrollLeft, tekstit = window.__kaikkiTekstit(k).filter((e) => e.t && e.x >= sl && e.x <= sl + 358);
     const paivat = [].slice.call(k.querySelectorAll('.ak-pv > span')).filter((e) => { const b = e.getBoundingClientRect(), kb = k.getBoundingClientRect(); return b.right > kb.left + 38 && b.left < kb.right; }).length;
-    const tunnit = tekstit.filter((e) => e.y >= 18 && e.y < 34 && /^\d\d$/.test(e.t)).length;
-    const luvut = tekstit.filter((e) => e.lihava === '700' && e.y > 34).length;
+    const g0 = k._geot[0];
+    /* Geometria 30.9.: lähde ja nuolet ylhäällä, aika-akseli (tunnit, päivät) plotin ALLA. */
+    const tunnit = tekstit.filter((e) => e.y > g0.tuntiY && e.y <= g0.paivaY && /^\d\d$/.test(e.t)).length;
+    const luvut = tekstit.filter((e) => e.lihava === '700' && e.y > g0.y0 && e.y < g0.pohja).length;
     const tikit = [].slice.call(k.querySelectorAll('svg g[stroke-opacity=".6"] line')).filter((e) => +e.getAttribute('x1') >= sl && +e.getAttribute('x1') <= sl + 358).length;
     const g = k._geot[0];
     return { pxH: +(358 / nak).toFixed(1), paivat: paivat, tunnit: tunnit, tikit: tikit, luvut: luvut, y: g.laput.map((l) => l[1]).join(','), yks: !!k.parentElement.querySelector('.ak-yks') };
@@ -279,11 +283,11 @@ kayra.tulos.forEach((r) => {
 tarkista('havainnon käyrä on murtoviiva', kayra.suora === 'M0.0,0.0 L10.0,5.0 L20.0,2.0', kayra.suora);
 const pisteet = await s.evaluate(async () => {
   const out = {};
-  for (const nak of [12, 96]) { const k = window.__kaavio(358, { nakyva: nak }); await new Promise((r) => setTimeout(r, 150)); out[nak] = k.querySelectorAll('svg circle').length; }
+  for (const nak of [12, 96]) { const k = window.__kaavio(358, { nakyva: nak }); await new Promise((r) => setTimeout(r, 150)); out[nak] = [].slice.call(k.querySelectorAll('svg circle')).filter((c) => !c.closest('[data-tk-hover]') && !c.closest('.tk-valittu-piste')).length; }
   return out;
 });
 tarkista('mallin pisteet lähizoomissa (12 h)', pisteet[12] > 100, pisteet[12] + ' ympyrää');
-tarkista('ei pisteitä kun tunti < 9 px (96 h)', pisteet[96] <= 3, pisteet[96] + ' ympyrää (kursori + pallo)');
+tarkista('ei pisteitä kun tunti < 9 px (96 h)', pisteet[96] === 0, pisteet[96] + ' ympyrää (ilman kursorin ja valinnan palloja)');
 
 console.log('\n7. HUIPUT JA SAAVUTETTAVA YHTEENVETO');
 const huiput = await s.evaluate(async () => {
@@ -324,6 +328,61 @@ tarkista('kesken vierityksen ei piirretä uudelleen', as.kesken === 0, as.kesken
 tarkista('myrskyikkuna: arvo ei leikkaudu ja täyttöaste ≥ 55 %', as.myrsky.huippu <= as.myrsky.maxV * 1.02 && tayttoaste(as.myrsky) >= 0.55, (tayttoaste(as.myrsky) * 100).toFixed(0) + ' %');
 tarkista('myrskyyn vieritys: asteikko kasvaa ja piirto on yksi', as.myrsky.maxV > as.alku.maxV * 1.5 && as.myrsky.piirtoja === 1, as.alku.maxV.toFixed(1) + ' → ' + as.myrsky.maxV.toFixed(1) + ' m/s, ' + as.myrsky.piirtoja + ' piirtoa');
 tarkista('takaisin tyyneen: asteikko pienenee, täyttöaste ≥ 55 %, yksi piirto', as.takaisin.maxV < as.myrsky.maxV * 0.7 && tayttoaste(as.takaisin) >= 0.55 && as.takaisin.piirtoja === 1, (tayttoaste(as.takaisin) * 100).toFixed(0) + ' %, ' + as.takaisin.piirtoja + ' piirtoa');
+
+console.log('\n10. LUKEMA PALLON VIERESSÄ, GEOMETRIA JA OHUT VIIVA (30.9.)');
+const geo = await s.evaluate(async () => {
+  const P = window.__P, mk = (id, k) => ({ id: id, t: P.t, ms: P.ms.map((v) => v * k), gust: null, dir: P.dir });
+  const k = window.__kaavio(358, { nakyva: 48, vertailut: [mk('ecmwf', 0.85), mk('icon', 1.15)] });
+  await new Promise((r) => setTimeout(r, 400));
+  const g = k._geot[0], svg = k.querySelector('svg.tk-svg'), sb = svg.getBoundingClientRect(), b = k.getBoundingClientRect();
+  const nuolet = [].slice.call(svg.querySelectorAll('[data-tk-nuoli], polygon, path')).filter((e) => e.getAttribute('data-nuoli') != null);
+  const tunnit = window.__kaikkiTekstit(k).filter((e) => /^\d\d$/.test(e.t));
+  const pv = k.querySelector('.ak-pv-vaippa');
+  const inkViivat = [].slice.call(svg.querySelectorAll('path[stroke="' + Tuulikaavio.INK + '"]')).map((e) => +e.getAttribute('stroke-width')).filter((w) => w > 0);
+  return {
+    x: b.left, y: b.top, y0: g.y0, pohja: g.pohja, ylaY: g.ylaY, tuntiY: g.tuntiY, paivaY: g.paivaY, nuoliH: g.nuoliH, W: g.W,
+    tunnitYlhaalla: tunnit.filter((e) => e.y < g.y0).length, tunnitAlla: tunnit.filter((e) => e.y > g.pohja && e.y <= g.paivaY).length,
+    paivaTop: pv ? Math.round((pv.getBoundingClientRect().top - sb.top) * 10) / 10 : null,
+    ohutViiva: inkViivat.length ? Math.max.apply(null, inkViivat) : null,
+  };
+});
+tarkista('nuolirivi on plotin yläpuolella (ylaY < y0)', geo.nuoliH > 0 && geo.ylaY < geo.y0 && Math.abs(geo.y0 - geo.ylaY - geo.nuoliH) < 0.6, 'ylaY ' + geo.ylaY + ', y0 ' + geo.y0 + ', nuoliH ' + geo.nuoliH);
+tarkista('aika-akseli alkaa plotin pohjasta ja tuntilukemat ovat sen alla', geo.tuntiY === geo.pohja && geo.tunnitYlhaalla === 0 && geo.tunnitAlla > 5, 'alla ' + geo.tunnitAlla + ', ylhäällä ' + geo.tunnitYlhaalla);
+tarkista('päiväotsikko on tuntirivin alla', geo.paivaTop != null && geo.paivaTop >= geo.paivaY - 1.5 && geo.paivaTop <= geo.paivaY + 2, 'top ' + geo.paivaTop + ' vs paivaY ' + geo.paivaY);
+tarkista('tuuliviiva ohut (≤ 1,8 px kortilla)', geo.ohutViiva != null && geo.ohutViiva <= 1.8, 'paksuin musta viiva ' + geo.ohutViiva);
+
+const kuplaMittaus = () => s.evaluate(() => {
+  const k = document.querySelector('.__k .en-kaare'), svg = k.querySelector('svg.tk-svg'), h = svg.querySelector('[data-tk-hover]'), g = k._geot[0];
+  const kg = h.querySelector('[data-tk-kupla]'), pallo = h.querySelector('[data-tk-pallo]'), r = kg.querySelector('rect');
+  const rivit = [].slice.call(kg.querySelectorAll('text')).filter((e) => e.getAttribute('visibility') === 'visible').map((e) => e.textContent);
+  const mdot = [].slice.call(h.querySelectorAll('[data-tk-mdot]')).filter((e) => e.getAttribute('visibility') === 'visible');
+  const cx = +pallo.getAttribute('cx'), bx = +r.getAttribute('x'), bw = +r.getAttribute('width'), by = +r.getAttribute('y'), bh = +r.getAttribute('height');
+  return {
+    hover: h.getAttribute('visibility'), kupla: kg.getAttribute('visibility'), rivit: rivit, mdot: mdot.length,
+    mdotY: mdot.map((e) => Math.abs(+e.getAttribute('cy') - g.yOf(0)) >= 0), mdotX: mdot.every((e) => Math.abs(+e.getAttribute('cx') - cx) < 0.6),
+    vari: mdot.map((e) => e.getAttribute('fill')).join(','),
+    vasenReuna: bx, oikeaReuna: bx + bw, cx: cx, sl: k.scrollLeft, w0: k._W0, ylhaalla: by, alhaalla: by + bh, y0: g.y0, pohja: g.pohja,
+    oikealla: bx > cx,
+  };
+});
+await s.mouse.move(geo.x + 120, geo.y + geo.y0 + 30);
+await s.waitForTimeout(250);
+const K1 = await kuplaMittaus();
+tarkista('hover: kupla näkyy ja siinä on arvo, puuska ja jokainen vertailumalli', K1.kupla === 'visible' && K1.rivit.length >= 4 && /kts/.test(K1.rivit[0]) && K1.rivit.some((t) => /ECMWF/.test(t)) && K1.rivit.some((t) => /ICON/.test(t)), K1.rivit.join(' | '));
+tarkista('hover: väripiste kursorin kohdalla jokaiselle mallille', K1.mdot === 2 && K1.mdotX && K1.vari.split(',').length === 2 && K1.vari.split(',')[0] !== K1.vari.split(',')[1], K1.mdot + ' pistettä, värit ' + K1.vari);
+tarkista('hover: kupla pallon vieressä sivulla (ei sen päällä), ruudun sisällä', K1.oikealla && K1.vasenReuna - K1.cx >= 20 && K1.vasenReuna - K1.cx <= 30 && K1.oikeaReuna <= K1.sl + K1.w0, 'kupla ' + K1.vasenReuna.toFixed(0) + '–' + K1.oikeaReuna.toFixed(0) + ', pallo ' + K1.cx.toFixed(0) + ', ruutu ' + K1.sl + '–' + (K1.sl + K1.w0));
+tarkista('hover: kupla plotin sisällä pystysuunnassa', K1.ylhaalla >= K1.y0 && K1.alhaalla <= K1.pohja, K1.ylhaalla.toFixed(0) + '–' + K1.alhaalla.toFixed(0) + ' / ' + K1.y0 + '–' + K1.pohja);
+await s.mouse.move(geo.x + 340, geo.y + geo.y0 + 30);
+await s.waitForTimeout(250);
+const K2 = await kuplaMittaus();
+tarkista('hover oikeassa reunassa: kupla kääntyy pallon vasemmalle puolelle', K2.kupla === 'visible' && !K2.oikealla && K2.cx - K2.oikeaReuna >= 20 && K2.vasenReuna >= K2.sl, 'kupla ' + K2.vasenReuna.toFixed(0) + '–' + K2.oikeaReuna.toFixed(0) + ', pallo ' + K2.cx.toFixed(0));
+await s.mouse.move(geo.x - 80, geo.y + 400);
+await s.waitForTimeout(250);
+const K3 = await kuplaMittaus();
+/* SVG:n `visibility="visible"` lapsessa voittaa vanhemman `hidden`in, joten
+   luetaan laskettu näkyvyys jokaiselta osalta eikä vain ryhmältä. */
+const nakyvia = await s.evaluate(() => [].slice.call(document.querySelectorAll('.__k svg.tk-svg [data-tk-hover], .__k svg.tk-svg [data-tk-hover] *')).filter((e) => getComputedStyle(e).visibility === 'visible').length);
+tarkista('osoitin pois: kursori, pallo, kupla ja mallipisteet piilossa (laskettu näkyvyys)', K3.hover === 'hidden' && nakyvia === 0, 'näkyviä osia ' + nakyvia);
 
 /* ───────────────────────── kosketus ───────────────────────── */
 console.log('\n9. KOSKETUS (Chromium, CDP Input.dispatchTouchEvent, kortti 358 px)');
@@ -386,6 +445,42 @@ const E = await ele({ x0: Math.round(kx) + 6, pito: 0, liikkeet: liuku(kx + 6, k
 tarkista('kursorin tartunta aloittaa skrubin heti', E.keskella && E.keskella.skrubi && E.scroll === 0 && E.valitse.length === 1, 'kursori x ' + Math.round(kx) + ', lukemia ' + E.nayta.length);
 const F = await ele({ x0: 150, pito: 260, liikkeet: liuku(150, 350, 12), loppuun: 700 });
 tarkista('skrubi reunaan vierittää kaaviota', F.scroll > 200 && F.valitse.length === 1, F.scroll + ' px, ' + F.nayta[0] + '…' + F.nayta[F.nayta.length - 1] + ' h');
+/* PYSTYVIIVA EI JÄÄ (30.9.): sormi paikallaan pidon yli sytyttää merkin, ja
+   jos selain vie eleen vierityksenä (`touchmove` ei tule peruttavana) merkki
+   jäi alkupisteeseen ja vieri kaavion mukana. Simuloidaan vieritys
+   kirjoittamalla `scrollLeft` pidon jälkeen: merkin täytyy kadota. */
+const hoverNakyy = () => ks.evaluate(() => { const h = document.querySelector('.__k .en-kaare svg.tk-svg [data-tk-hover]'); return h && h.getAttribute('visibility') === 'visible'; });
+await ks.evaluate(() => { document.querySelector('.__k .en-kaare').scrollLeft += 0; });
+{
+  const kx0 = await kursoriX(), x0 = kx0 > 190 ? 70 : 300;
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: lk.x + x0, y: lk.y + 90 }] });
+  await nuku(320);
+  const pidossa = await hoverNakyy();
+  await ks.evaluate(() => { document.querySelector('.__k .en-kaare').scrollLeft += 40; });
+  await nuku(120);
+  const vierityksessa = await hoverNakyy();
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await nuku(300);
+  const lopussa = await hoverNakyy();
+  tarkista('pystyviiva ei jää kun selain vie eleen vierityksenä', pidossa && !vierityksessa && !lopussa, 'pidossa ' + pidossa + ', vierityksessä ' + vierityksessa + ', nostossa ' + lopussa);
+}
+{
+  const kx0 = await kursoriX(), x0 = kx0 > 190 ? 70 : 300, x1 = x0 + (x0 < 190 ? 200 : -200);
+  await ele({ x0: x0, pito: 0, liikkeet: liuku(x0, x1, 14) });
+  tarkista('nopea veto ei jätä pystyviivaa', !(await hoverNakyy()));
+}
+/* Kupla seuraa sormea skrubissa ja katoaa nostossa. */
+{
+  const kx0 = await kursoriX(), x0 = kx0 > 190 ? 70 : 300, x1 = x0 + (x0 < 190 ? 150 : -150);
+  const kuplaKosk = () => ks.evaluate(() => { const kg = document.querySelector('.__k .en-kaare svg.tk-svg [data-tk-kupla]'); return !!kg && getComputedStyle(kg).visibility === 'visible'; });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: lk.x + x0, y: lk.y + 90 }] });
+  await nuku(300);
+  for (const x of liuku(x0, x1, 8)) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: lk.x + x, y: lk.y + 90 }] }); await nuku(16); }
+  const keskella = await kuplaKosk();
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await nuku(300);
+  tarkista('skrubissa kupla näkyy pallon vieressä ja nostossa se katoaa', keskella && !(await kuplaKosk()), 'skrubin aikana ' + keskella);
+}
 const Reuna = await ele({ x0: -8, pito: 260, liikkeet: liuku(-8, 100, 10) });
 tarkista('vasen reuna (16 px) ei aloita pitoa (iOS:n takaisinpyyhkäisy)', Reuna.nayta.length === 0 && Reuna.valitse.length === 0, 'lukemia ' + Reuna.nayta.length);
 

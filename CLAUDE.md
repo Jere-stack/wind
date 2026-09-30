@@ -1634,7 +1634,34 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   (`_uirasChartInteractive`) ja aallot (`_aaltoKaavio`) ovat sen
   asiakkaita, kortilla ja laajassa. Mikä eroaa, on parametreissa
   (`laji`, `ikkunaLuvut`, `loppuPiste`, `y`, `vari`, asu). Älä kirjoita
-  viidettä piirtofunktiota äläkä palauta kelluvaa työkaluvihjettä.
+  viidettä piirtofunktiota äläkä palauta kelluvaa HTML-työkaluvihjettä
+  (kupla pallon vieressä on SVG:n sisällä, ks. "LUKEMA PALLON
+  VIERESSÄ").
+- **KAAVION GEOMETRIA (30.9., käyttäjän pyyntö): YLHÄÄLLÄ LÄHDE JA
+  TUULEN SUUNTA, ALLA AIKA-AKSELI.** Ylhäältä alas: lähderivi
+  (`lahdeH`), nuolirivi (`nuoliH`, tuulen suunta), plotti (`y0`…
+  `pohja`), tuntirivi (kellonaika, `tuntiY = pohja`), päiväotsikko
+  (HTML `.ak-paivat`, `top = g.paivaY`), sade ja lämpö. Kellonaika ja
+  päivämäärä ovat siis SUORAAN GRAAFIN ALLA ja nuolet sen yläpuolella;
+  ennen tuntirivi oli nuolten ja lähteen välissä ylhäällä. Kuvion
+  y-koordinaatit tulevat `g`:stä (`ylaY`, `tuntiY`, `paivaY`, `paivaH`)
+  — älä kirjoita niitä lukuina. Allekkain-asussa (useita rivejä) vain
+  VIIMEISELLÄ rivillä on aika-akseli (`otsikot`), ylemmillä ei tuntiriviä
+  eikä päiviä.
+- **PÄÄVIIVA ON OHUT: 1,7 px kortilla, 1,3 px kun tunti < 3 px**
+  (`juovaW`; oli 2,4 / 1,8). Paksu musta viiva peitti alleen mallien
+  viivat ja värjäyksen; paksuutta ei saa palauttaa vaan korostus tulee
+  pallosta, huippulapuista ja täytöstä. Testi vaatii ≤ 1,8 px.
+- **PITO-MERKKI SIIVOTAAN KUN SELAIN VIE ELEEN VIERITYKSENÄ.** Sormi
+  paikallaan pidon yli sytytti kursorin ja pallon, ja jos `touchmove`
+  ei sitten tullut peruttavana (`!e.cancelable`) tai vieritys alkoi
+  ennen pitoaikaa, merkki jäi alkupisteeseen ja vieri kaavion mukana:
+  "aloituskohtaan jää pystyviiva". `peruMerkki` kutsutaan (1)
+  touchmovessa kun ele on vieritys, (2) kääreen `scroll`-tapahtumassa
+  kun tila on `paina`/`pito` ja `scrollLeft` on siirtynyt yli 3 px
+  (turvaverkko: selain vei eleen eikä `touchmove` kertonut), ja (3)
+  `lopeta`ssa kun pitoa ei vahvistettu. Testi simuloi tämän pito +
+  `scrollLeft`-kirjoituksella.
 - **JAKSOVALITSIMIA EI OLE.** Koko sarja on piirretty ja sitä
   vieritetään sormella; ruudulle mahtuu ennusteessa 48 h, havainnossa
   24 h, aalloissa 48 h ja vedenlämmössä 7 vrk (laajassa 72 h / 48 h /
@@ -1731,7 +1758,8 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kohtaan, ja laajaan syttyi viiva jota kukaan ei osoittanut.
   Osoittimen kohdalla tuntirivillä on PILLERI ("To 14", `data-tk-pill`
   hover-ryhmässä): SVG:n sisällä samaa perhettä kuin NYT-lappu, ei
-  kelluva laatikko (lukema pysyy kiinteällä rivillä).
+  kelluva HTML-laatikko; lukeman kupla pallon vieressä on SVG:n
+  sisällä (ks. "LUKEMA PALLON VIERESSÄ").
 - **TUNNIN VAIHTO EI RAKENNA SPOTTIKORTTIA UUDELLEEN** (`openSheet`:n
   päivityspolku, `_oliAuki`): vain `#sh-tunti`, `#sh-laatat-tunti` ja
   `#sh-tiedot` kirjoitetaan, ja ennusteosio saa `asetaValittu`n, joka
@@ -1846,14 +1874,44 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   jottei kaksi viivaa paksunna sitä. **FMI-rajamerkki pysyy vaaleassa
   hiekassa** (`#CDBE9A`) — se on kontekstia eikä päätöskynnys, ja juuri
   se ero on nyt näkyvissä.
-- **KAAVION LUKEMA ON KIINTEÄLLÄ RIVILLÄ, EI KELLUVASSA LAATIKOSSA**
-  (`.en-lukema`, kaikissa neljässä kaaviossa). Kelluva laatikko
-  peitti mitattuna ensin kaikki pallot ja vaati sitten sivuun
-  siirron; allekkain-asussa niitä olisi ollut neljä. Rivi näyttää
-  levossa valitun tunnin (havainnossa tuoreimman lukeman) ja
-  osoittaessa osoitetun; havainnon napautettu lukema palaa 4 s:n
-  päästä. Laajassa sama tieto menee `laaja.rivi`in. Lähde on
-  ennusteen tuulisolun NIMESSÄ, ei omana solunaan (rivitti puhelimella).
+- **KAAVION LUKEMA ON KIINTEÄLLÄ RIVILLÄ (`.en-lukema`, kaikissa
+  neljässä kaaviossa) JA OSOITETTAESSA MYÖS KUPLASSA PALLON VIERESSÄ.**
+  Rivi on ensisijainen: se näyttää levossa valitun tunnin (havainnossa
+  tuoreimman lukeman) ja osoittaessa osoitetun; havainnon napautettu
+  lukema palaa 4 s:n päästä. Laajassa sama tieto menee `laaja.rivi`in.
+  Lähde on ennusteen tuulisolun NIMESSÄ, ei omana solunaan (rivitti
+  puhelimella).
+  **RIVIN RAKENNE (30.9., käyttäjän pyyntö "parannetaan lukemaruudut")**
+  on `Aikakaavio.lukemaHtml(solut)`: solut ovat `{ nimi, arvo, ala,
+  aika?, paa?, malli?, vari? }`. `aika` = hetki (päivä pienellä,
+  kellonaika 17 px lihavoituna), `paa` = rivin pääluku (22 px: tuuli,
+  vedenlämpö, aallonkorkeus), ja `malli` = vertailumalli, joka menee
+  OMALLE RIVILLEEN hiusviivan alle väripisteellä ja mallin värillä
+  (`.en-lk-mallit`), jotta pääluvun rivi ei muutu sen mukaan montako
+  mallia on valittu. Päätöstä (keli-chip) EI toisteta rivillä: kortin
+  hero sanoo sen kerran. Skrubissa rivin luvut EIVÄT enää isone
+  (`.en-lukema.skrubaa` vaihtaa vain taustan) — pääluku on jo iso.
+  **KUPLA PALLON VIERESSÄ (30.9., käyttäjän nimenomainen pyyntö "lukema
+  voisi näkyä pallon vieressä ja myös muilla malleilla")** on SVG:n
+  sisällä hover-ryhmässä (`data-tk-kupla`, `Aikakaavio._kupla`), EI
+  HTML-kelluva laatikko: pääsarjan arvo (`Units.fmt`, sama tarkkuus kuin
+  rivillä), puuska ja ilmansuunta, ja JOKAINEN kaaviossa oleva
+  vertailumalli omalla värillään (`g.kupla.vertailut`), ja mallien
+  käyrille väripiste kursorin kohtaan (`data-tk-mdot`, piirretään
+  pääpallon PÄÄLLE, koska mallit ovat usein samassa korkeudessa).
+  Kupla asetetaan kursorin sivulle 24 px:n päähän eli sormen (~22 px
+  säde) ohi ja se kääntyy pallon vasemmalle puolelle ruudun oikeassa
+  reunassa; pystysuunnassa se rajataan plotin sisään. Skrubissa pallo
+  kasvaa 1,6× ja kursoriviiva on umpinainen 1,2 px. Kupla peittää
+  alleen jääviä huippulappuja osoitettaessa — se on tietoinen hinta.
+  Allekkain-asussa jokaisella rivikaaviolla on oma kuplansa oman
+  mallinsa arvolla.
+  **SVG:N `visibility="visible"` LAPSESSA VOITTAA VANHEMMAN
+  `hidden`IN.** Hover-ryhmän piilotus ei piilottanut palloa, kuplaa
+  eikä mallipisteitä, koska niille oli asetettu `visible` itse; osoitin
+  lähti ja ne jäivät ruudulle. `Aikakaavio.hover(kaare, null)` piilottaa
+  ne nimeltä, ja testi lukee LASKETUN näkyvyyden jokaiselta osalta
+  (`getComputedStyle`), ei ryhmän attribuuttia.
 - **TUNTI VALITAAN KAAVIOSTA AIKAJANAN POLKUA** (`Ennuste.valitse` →
   `_tlValitseIdx` → `openSheet`:n päivityspolku). Mitattu
   CDP-kosketuksella puhelimella ja iPadilla: värisevä napautus
@@ -2027,9 +2085,10 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   120 px) vuotivat puhelimen vaakaruudussa laatikon yli ja alimmat
   mallit jäivät piiloon; silloin mallit piirretään päällekkäin ja
   Allekkain-nappi kertoo syyn.
-- **Laajassa lukema menee kiinteälle riville, ei kelluvaan kuplaan** —
-  kokonäytössä kupla jää sormen alle. Rivillä on levossa jakson
-  tilastot ja raahatessa hetken arvot.
+- **Laajassa lukema on kiinteällä rivillä JA kuplassa pallon vieressä.**
+  Rivillä on levossa jakson tilastot ja raahatessa hetken arvot; kupla
+  on samalla 24 px:n etäisyydellä kuin kortilla, joten se ei jää
+  sormen alle (aiempi HTML-kupla jäi).
 - **Lämpötila on VÄLI eikä käyrä.** Oma y-akseli tuulen rinnalla tekisi
   risteämisistä merkitseviä vaikka ne ovat mittayksikön sattumaa.
 - **KATKO ON KATKO, EI VIIVA** (`HAV_KATKO_MS` 30 min). Havaintokaavion

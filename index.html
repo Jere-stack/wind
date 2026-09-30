@@ -4428,17 +4428,35 @@ h3.fc-day-label { margin: 0; }
    tunti hiiren ja napautuksen jälkeen. Korkeus on varattu, jotta kaavio
    ei hypi kun rivin sisältö vaihtuu. */
 .en-lukema {
-  display: flex; flex-wrap: wrap; gap: 2px 14px; align-items: baseline;
-  min-height: 40px; padding: 6px 10px; margin: 0 0 6px;
-  border-radius: 10px; background: var(--surface);
+  display: flex; flex-wrap: wrap; gap: 2px 16px; align-items: flex-end;
+  min-height: 48px; padding: 7px 12px; margin: 0 0 6px;
+  border-radius: 12px; background: var(--surface);
   font-variant-numeric: tabular-nums;
 }
 .en-lukema.osoitettu { background: var(--surface-lo); }
-.en-solu { display: inline-flex; flex-direction: column; line-height: 1.22; }
+.en-solu { display: inline-flex; flex-direction: column; line-height: 1.2; min-width: 0; }
 .en-solu-nimi { font-size: var(--fs-10); color: var(--ink-3); }
 .en-solu-arvo { font-size: 14px; font-weight: 700; color: var(--ink); white-space: nowrap; }
 html.tyopoyta .en-solu-arvo { font-size: 15px; }
 .en-solu-arvo small { font-size: var(--fs-10); font-weight: 400; color: var(--ink-2); }
+/* Hetki: päivä pienellä, kellonaika lihavoituna — sama paino kuin
+   pääluvulla, jotta rivin kaksi ensimmäistä lukua ovat "koska" ja "kuinka
+   paljon". Pääluku on rivin suurin. */
+.en-solu-aika .en-solu-arvo { font-size: 17px; }
+.en-solu-paa .en-solu-arvo { font-size: 22px; line-height: 1.05; letter-spacing: -.01em; }
+.en-solu-paa .en-solu-arvo small { font-size: 12px; letter-spacing: 0; }
+/* Vertailumallit omalla rivillään väripisteellä (sama väri kuin viiva ja
+   pallo kaaviossa). Rivi on koko leveys, jotta pääluvun rivi ei muutu
+   sen mukaan montako mallia on valittu. */
+.en-lk-mallit {
+  flex: 0 0 100%; display: flex; flex-wrap: wrap; gap: 2px 14px; align-items: baseline;
+  margin-top: 4px; padding-top: 5px; border-top: 1px solid var(--hairline);
+}
+.en-mallisolu { display: inline-flex; align-items: baseline; gap: 4px; font-size: 13px; white-space: nowrap; }
+.en-mallisolu i { width: 8px; height: 8px; border-radius: 50%; background: var(--mv); align-self: center; flex: none; }
+.en-mallisolu-nimi { font-weight: 600; color: var(--mv); }
+.en-mallisolu b { color: var(--ink); font-weight: 700; }
+.en-mallisolu small { font-size: 11px; color: var(--ink-2); }
 /* Kaavio vuotaa moduulin täytteeseen reunasta reunaan (moduulin
    `overflow: hidden` pyöristää kulmat). Vieritys on AINA natiivia:
    koko sarja on piirretty, ja sitä vieritetään sormella sivuun ja
@@ -4477,9 +4495,8 @@ html.tyopoyta .en-solu-arvo { font-size: 15px; }
 /* PITO JA LIU'UTUS (V3): kursori ja pallo kasvavat, ja lukemarivin luvut
    isonevat — rivi on sormen yläpuolella, joten sormi ei peitä sitä. */
 /* Pallo kasvaa transformilla (CSS-`r` ei ole kaikissa WebKit-versioissa). */
-.en-kaare.skrubaa [data-tk-hover] circle { transform-box: fill-box; transform-origin: center; transform: scale(1.8); }
-.en-kaare.skrubaa [data-tk-hover] line { stroke: var(--ink); stroke-width: 1.6px; stroke-dasharray: none; }
-.en-lukema.skrubaa .en-solu-arvo { font-size: 17px; }
+.en-kaare.skrubaa [data-tk-pallo] { transform-box: fill-box; transform-origin: center; transform: scale(1.6); }
+.en-kaare.skrubaa [data-tk-hover] line { stroke: var(--ink); stroke-width: 1.2px; stroke-dasharray: none; }
 .en-lukema.skrubaa { background: var(--surface-lo); }
 /* Vihje kolmella ensimmäisellä avauksella kosketuslaitteella. */
 .ak-vihje { margin: 6px 0 0; font-size: max(11px, var(--fs-11, 11px)); color: var(--ink-3); text-align: center; }
@@ -4503,6 +4520,7 @@ html.tyopoyta .en-solu-arvo { font-size: 15px; }
    teksti `position: sticky` — selain pitää nimen näkyvissä koko päivän
    ja työntää sen pois seuraavan alkaessa. Ei osoitintapahtumia: rivi
    on kaavion päällä mutta osoitin kuuluu kaaviolle. */
+.ak-pv-vaippa { position: absolute; left: 0; pointer-events: none; }
 .ak-paivat { position: absolute; left: 0; top: 0; pointer-events: none; color: #101A20; font-weight: 700; }
 .ak-pv { position: absolute; top: 0; bottom: 0; }
 .ak-pv > span {
@@ -16522,14 +16540,14 @@ function _uwArvoAjassa(P, t) {
 function _uwLukema(p, b) {
   var kello = function (ms) { var d = new Date(ms); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); };
   var pv = function (ms) { return pvmLyhyt(new Date(ms)); };
-  if (b) return [{ nimi: pv(b.t), arvo: kello(b.t), ala: '' }, { nimi: _t('Vesi', 'Water'), arvo: b.v.toFixed(1), ala: '°C' }];
+  if (b) return [{ nimi: pv(b.t), arvo: kello(b.t), ala: '', aika: true }, { nimi: _t('Vesi', 'Water'), arvo: b.v.toFixed(1), ala: '°C', paa: true }];
   var vika = p.raakaVika, vt = new Date(vika.t).getTime();
   /* "Viimeisin" vain jos se on tältä päivältä: historia voi olla
      jäljessä tuoreimmasta lukemasta, ja eilinen 23:57 "viimeisimpänä"
      herossa näkyvän tämänpäiväisen vieressä luki ristiriitana. */
   var tanaan = new Date(vt).toDateString() === new Date().toDateString();
-  return [{ nimi: tanaan ? _t('Viimeisin', 'Latest') : pv(vt), arvo: kello(vt), ala: '' },
-          { nimi: _t('Vesi', 'Water'), arvo: vika.v.toFixed(1), ala: '°C' },
+  return [{ nimi: tanaan ? _t('Viimeisin', 'Latest') : pv(vt), arvo: kello(vt), ala: '', aika: true },
+          { nimi: _t('Vesi', 'Water'), arvo: vika.v.toFixed(1), ala: '°C', paa: true },
           { nimi: _t('Vaihtelu ' + UW_HISTORIA_VRK + ' vrk', UW_HISTORIA_VRK + '-day range'), arvo: p.min.toFixed(1) + '–' + p.max.toFixed(1), ala: '°C' }];
 }
 
@@ -18415,8 +18433,8 @@ function _aaltoLukema(p, i, lampoVain) {
   if (i == null) i = P.t.length - 1;
   var d = new Date(P.t[i]);
   var kello = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
-  var ulos = [{ nimi: i === P.t.length - 1 ? _t('Viimeisin', 'Latest') : pvmLyhyt(d), arvo: kello, ala: '' },
-              { nimi: lampoVain ? _t('Vesi', 'Water') : _t('Korkeus', 'Height'), arvo: P.ms[i].toFixed(1), ala: yks }];
+  var ulos = [{ nimi: i === P.t.length - 1 ? _t('Viimeisin', 'Latest') : pvmLyhyt(d), arvo: kello, ala: '', aika: true },
+              { nimi: lampoVain ? _t('Vesi', 'Water') : _t('Korkeus', 'Height'), arvo: P.ms[i].toFixed(1), ala: yks, paa: true }];
   if (P.dir && P.dir[i] != null) ulos.push({ nimi: _t('Suunta', 'Direction'), arvo: suuntaNuoliSVG(P.dir[i]) + ' ' + Math.round(P.dir[i]) + '°', ala: _t('mistä', 'from') });
   ulos.push({ nimi: _t('Suurin 7 vrk', '7-day max'), arvo: p.max.toFixed(1), ala: yks });
   return ulos;
@@ -19091,10 +19109,18 @@ const Tuulikaavio = {
     }
     if (saa && A.lampoH && saa.lampo && saa.lampo.some(v => v != null)) lampoH = A.lampoH;
     const plotH = o.plotH || A.plotH;
-    const y0 = paivaH + tuntiH + lahdeH;            /* piirtoalueen yläreuna */
-    const pohja = y0 + plotH;                        /* piirtoalueen alareuna */
-    const nuoliY = pohja + nuoliH / 2;
-    const sadeY = pohja + nuoliH;
+    /* RIVIEN JÄRJESTYS ALHAALTA YLÖS (30.9., käyttäjän pyyntö): lähderivi
+       ja tuulen suunta YLHÄÄLLÄ, kaavio, sen alla suoraan kellonaika ja
+       päivämäärä (aika-akseli), ja vasta niiden alla sade ja lämpötila.
+       Ennen aika-akseli oli kaavion yläpuolella ja nuolet sen alla. */
+    const lahdeY = 0;                                 /* lähderivi */
+    const ylaY = lahdeH;                              /* nuolirivin yläreuna */
+    const nuoliY = ylaY + nuoliH / 2;
+    const y0 = lahdeH + nuoliH;                       /* piirtoalueen yläreuna */
+    const pohja = y0 + plotH;                         /* piirtoalueen alareuna */
+    const tuntiY = pohja;                             /* tuntirivi suoraan kaavion alla */
+    const paivaY = tuntiY + tuntiH;                   /* päiväotsikko sen alla */
+    const sadeY = paivaY + paivaH;
     const lampoY = sadeY + sadeH;
     const TH = lampoY + lampoH + (sadeH || lampoH ? 2 : 0);
     const kesto = Math.max(1, loppu - alku);
@@ -19156,8 +19182,8 @@ const Tuulikaavio = {
       const pala = (a, b, v) => {
         const f = HARSO[v];
         if (!f || !(b > a)) return;
-        tausta += '<rect x="' + xOf(a).toFixed(1) + '" y="' + y0 + '" width="' + (xOf(b) - xOf(a)).toFixed(1)
-          + '" height="' + (pohja + nuoliH - y0).toFixed(1) + '" fill="' + f + '"/>';
+        tausta += '<rect x="' + xOf(a).toFixed(1) + '" y="' + ylaY + '" width="' + (xOf(b) - xOf(a)).toFixed(1)
+          + '" height="' + (pohja - ylaY).toFixed(1) + '" fill="' + f + '"/>';
       };
       for (let t = alku + ASK; t <= loppu + ASK; t += ASK) {
         const tt = Math.min(t, loppu), v = vaihe(tt);
@@ -19257,8 +19283,8 @@ const Tuulikaavio = {
            Viikon vaihde (maanantai) on silti vahvempi, jotta viikot
            erottuvat loitonnettuna (V4). */
         const tiheaa = 24 * pxH < 90, maanantai = new Date(t).getDay() === 1;
-        rajat += '<line x1="' + xOf(t).toFixed(1) + '" x2="' + xOf(t).toFixed(1) + '" y1="' + (otsikot ? 2 : y0)
-          + '" y2="' + (pohja + nuoliH) + '" stroke="rgba(76,89,96,' + (tiheaa ? (maanantai ? '.34' : '.16') : '.35') + ')" stroke-width="' + (0.8 * lw).toFixed(2) + '"/>';
+        rajat += '<line x1="' + xOf(t).toFixed(1) + '" x2="' + xOf(t).toFixed(1) + '" y1="' + ylaY
+          + '" y2="' + (otsikot ? paivaY + paivaH : pohja) + '" stroke="rgba(76,89,96,' + (tiheaa ? (maanantai ? '.34' : '.16') : '.35') + ')" stroke-width="' + (0.8 * lw).toFixed(2) + '"/>';
       }
     });
     /* TARTTUVA PÄIVÄOTSIKKO (V4). Päivän nimi oli SVG:ssä päivän keskellä
@@ -19349,12 +19375,12 @@ const Tuulikaavio = {
     const nytIkkunassa = o.nyt != null && o.nyt > alku && o.nyt < loppu;
     let menneisyys = '', nytMerkki = '', nytLappu = '';
     if (nytIkkunassa && o.menneisyys !== false) {
-      menneisyys = '<rect x="0" y="' + y0 + '" width="' + xOf(o.nyt).toFixed(1) + '" height="' + (pohja + nuoliH - y0).toFixed(1)
+      menneisyys = '<rect x="0" y="' + ylaY + '" width="' + xOf(o.nyt).toFixed(1) + '" height="' + (pohja - ylaY).toFixed(1)
         + '" fill="' + this.PAPERI + '" fill-opacity=".42"/>';
     }
     if (nytIkkunassa && o.nytMerkki !== false) {
       const x = xOf(o.nyt), lev = 34 * fs, kor = 16 * fs;
-      nytMerkki = '<line x1="' + x.toFixed(1) + '" x2="' + x.toFixed(1) + '" y1="' + y0 + '" y2="' + (pohja + nuoliH)
+      nytMerkki = '<line x1="' + x.toFixed(1) + '" x2="' + x.toFixed(1) + '" y1="' + ylaY + '" y2="' + pohja
         + '" stroke="' + this.INK + '" stroke-width="' + (1.4 * lw).toFixed(2) + '" stroke-dasharray="' + (4 * lw).toFixed(1) + ',' + (3 * lw).toFixed(1) + '"/>';
       /* Lappu piirretään VALITUN kursorin PÄÄLLE: kun valittu on nyt,
          kursorin viiva halkaisi lapun ("N|YT"). */
@@ -19402,10 +19428,11 @@ const Tuulikaavio = {
       if (erkanee) tyyni = pistePolku(P, (s, i) => s.min[i]).map(os => '<path d="' + os.d + '" fill="none" stroke="' + this.INK
         + '" stroke-opacity=".55" stroke-width="' + lw.toFixed(2) + '" stroke-dasharray="3,2.6" stroke-linecap="round"/>').join('');
     }
-    /* Juovan paksuus zoomin mukaan: 2,4 px kun tunnilla on tilaa, 1,8 px
-       kun tunti on alle 3 px (7 vrk ruudulla). Paksu juova peitti
-       loitonnettuna puuskavyöhykkeen ja luki uurteisena. */
-    const juovaW = pxH < 3 ? 1.8 : 2.4;
+    /* Juovan paksuus zoomin mukaan: 1,7 px kun tunnilla on tilaa, 1,3 px
+       kun tunti on alle 3 px (7 vrk ruudulla). Ohennettu käyttäjän
+       pyynnöstä 30.9. (oli 2,4 / 1,8): paksu juova peitti täytön värin ja
+       luki uurteisena. */
+    const juovaW = pxH < 3 ? 1.3 : 1.7;
     let paaviiva = tuuliOsat.map(os => '<path d="' + os.d + '" fill="none" stroke="' + this.INK + '" stroke-width="'
       + (juovaW * lw).toFixed(2) + '" stroke-linejoin="round" stroke-linecap="round"/>').join('');
     /* MALLIN OMAT PISTEET LÄHIZOOMISSA (V1). Kun pisteitä on ruudulla
@@ -19462,7 +19489,7 @@ const Tuulikaavio = {
       const x = xOf(t);
       if (x < 8 * fs || x > W - 8 * fs) return;
       if (otsikot && tuntiH && askelH < 24 && x - viimeTunti >= A.lukuVali * fs * 0.9) {
-        tunnitRivi += '<text x="' + x.toFixed(1) + '" y="' + (paivaH + tuntiH - 3 * fs).toFixed(1) + '" font-size="' + (11 * fs).toFixed(1)
+        tunnitRivi += '<text x="' + x.toFixed(1) + '" y="' + (tuntiY + tuntiH - 3 * fs).toFixed(1) + '" font-size="' + (11 * fs).toFixed(1)
           + '" fill="' + this.INK3 + '" text-anchor="middle">' + this._kello(t) + '</text>';
         viimeTunti = x;
         merkitytX.add(Math.round(x));
@@ -19509,7 +19536,8 @@ const Tuulikaavio = {
        keskipäivä pidempänä. Keskiyö jää päivärajalle. */
     if (otsikot && tuntiH) {
       const askel = [1, 3, 6, 12].find(h => h * pxH >= 4) || 12;
-      const y2 = paivaH + tuntiH;
+      /* Tikit riippuvat kaavion alareunasta (aika-akselin tapaan), tuntiluvut
+         niiden alla. */
       let tk = '';
       for (let ti = 0; ti < tunnit.length; ti++) {
         const t = tunnit[ti], hr = new Date(t).getHours();
@@ -19517,7 +19545,7 @@ const Tuulikaavio = {
         const x = xOf(t);
         if (x < 2 || x > W - 2 || merkitytX.has(Math.round(x))) continue;
         const pit = askelH >= 24 && hr === 12 ? 5 : 3;
-        tk += '<line x1="' + x.toFixed(1) + '" x2="' + x.toFixed(1) + '" y1="' + (y2 - pit * fs).toFixed(1) + '" y2="' + y2.toFixed(1) + '"/>';
+        tk += '<line x1="' + x.toFixed(1) + '" x2="' + x.toFixed(1) + '" y1="' + tuntiY.toFixed(1) + '" y2="' + (tuntiY + pit * fs).toFixed(1) + '"/>';
       }
       if (tk) tikit_ = '<g stroke="' + this.INK3 + '" stroke-opacity=".6" stroke-width="' + (0.9 * lw).toFixed(2) + '">' + tk + '</g>';
 
@@ -19529,7 +19557,7 @@ const Tuulikaavio = {
           if (t <= alku || t >= loppu || new Date(t).getDay() !== 1) return;
           const x = xOf(t) + 3;
           if (x > W - 26 * fs) return;
-          tikit_ += '<text x="' + x.toFixed(1) + '" y="' + (y2 - 4.5 * fs).toFixed(1) + '" font-size="' + (11 * fs).toFixed(1)
+          tikit_ += '<text x="' + x.toFixed(1) + '" y="' + (tuntiY + tuntiH - 4.5 * fs).toFixed(1) + '" font-size="' + (11 * fs).toFixed(1)
             + '" font-weight="600" fill="' + this.INK3 + '"' + this._halo(fs * 0.7) + '>' + pvmNumero(new Date(t)) + '</text>';
         });
       }
@@ -19675,7 +19703,7 @@ const Tuulikaavio = {
         const xa = Math.max(0, xOf(a)), xb = Math.min(W, xOf(b));
         if (xb - xa < 2) return;
         const nimi = (typeof Lahde !== 'undefined' && Lahde.LYHYET[avain]) || avain;
-        lahdeRivi += '<line x1="' + xa.toFixed(1) + '" x2="' + xa.toFixed(1) + '" y1="' + (y0 - lahdeH + 2) + '" y2="' + (y0 - 1)
+        lahdeRivi += '<line x1="' + xa.toFixed(1) + '" x2="' + xa.toFixed(1) + '" y1="' + (lahdeY + 2) + '" y2="' + (lahdeY + lahdeH - 1)
           + '" stroke="' + this.INK3 + '" stroke-width="1"/>';
         /* Nimi jakson alussa JA jokaisen keskiyön jälkeen, jotta se
            näkyy myös vieritetyssä kaaviossa (pitkä jakso alkaa usein
@@ -19685,7 +19713,7 @@ const Tuulikaavio = {
         keskiyot.forEach((t) => { const x = xOf(t) + 4; if (x > kohdat[kohdat.length - 1] + nlev + 40) kohdat.push(x); });
         kohdat.forEach((xk) => {
           if (xb - xk < nlev - 4) return;
-          lahdeRivi += '<text x="' + xk.toFixed(1) + '" y="' + (y0 - 3.5 * fs).toFixed(1) + '" font-size="' + (11 * fs).toFixed(1)
+          lahdeRivi += '<text x="' + xk.toFixed(1) + '" y="' + (lahdeY + lahdeH - 3.5 * fs).toFixed(1) + '" font-size="' + (11 * fs).toFixed(1)
             + '" fill="' + this.INK3 + '">' + nimi + '</text>';
         });
       };
@@ -19698,7 +19726,7 @@ const Tuulikaavio = {
       }
       lopeta(loppu + 36e5);
     } else if (lahdeH && o.nimi) {
-      lahdeRivi = '<text x="' + vasenVara + '" y="' + (y0 - 3.5 * fs).toFixed(1) + '" font-size="' + (11 * fs).toFixed(1) + '" font-weight="700" fill="'
+      lahdeRivi = '<text x="' + vasenVara + '" y="' + (lahdeY + lahdeH - 3.5 * fs).toFixed(1) + '" font-size="' + (11 * fs).toFixed(1) + '" font-weight="700" fill="'
         + (o.nimiVari || this.INK) + '">' + o.nimi + '</text>';
     }
 
@@ -19710,7 +19738,7 @@ const Tuulikaavio = {
     const valittu = (o.valittu === undefined) ? '' :
       '<g class="tk-valittu" style="transform:translate(' + vx.toFixed(1) + 'px,0px)"'
       + (o.valittu == null ? ' visibility="hidden"' : '') + '>'
-      + '<line x1="0" x2="0" y1="' + y0 + '" y2="' + (pohja + nuoliH) + '" stroke="' + this.INK + '" stroke-width="' + (1.8 * lw).toFixed(2) + '"/></g>'
+      + '<line x1="0" x2="0" y1="' + ylaY + '" y2="' + pohja + '" stroke="' + this.INK + '" stroke-width="' + (1.8 * lw).toFixed(2) + '"/></g>'
       + '<g class="tk-valittu-piste" style="transform:translate(' + vx.toFixed(1) + 'px,' + vy.toFixed(1) + 'px)"'
       + (vy < 0 ? ' visibility="hidden"' : '') + '>'
       + '<circle cx="0" cy="0" r="' + (4.6 * lw).toFixed(1) + '" fill="' + this.PAPERI + '" stroke="' + this.INK + '" stroke-width="' + (2 * lw).toFixed(2) + '"/></g>';
@@ -19720,13 +19748,26 @@ const Tuulikaavio = {
        kelluva laatikko (CLAUDE.md). Teksti ja leveys asetetaan
        `Aikakaavio.hover`issa. */
     const pilleri = (otsikot && tuntiH)
-      ? '<g data-tk-pill><rect x="-20" y="' + (paivaH + 1) + '" width="40" height="' + (tuntiH - 2) + '" rx="' + ((tuntiH - 2) / 2).toFixed(1) + '" fill="' + this.INK + '"/>'
-        + '<text x="0" y="' + (paivaH + tuntiH - 3.6 * fs).toFixed(1) + '" font-size="' + (10.5 * fs).toFixed(1) + '" font-weight="700" fill="' + this.PAPERI + '" text-anchor="middle"></text></g>'
+      ? '<g data-tk-pill><rect x="-20" y="' + (tuntiY + 1) + '" width="40" height="' + (tuntiH - 2) + '" rx="' + ((tuntiH - 2) / 2).toFixed(1) + '" fill="' + this.INK + '"/>'
+        + '<text x="0" y="' + (tuntiY + tuntiH - 3.6 * fs).toFixed(1) + '" font-size="' + (10.5 * fs).toFixed(1) + '" font-weight="700" fill="' + this.PAPERI + '" text-anchor="middle"></text></g>'
       : '';
-    const hover = '<g data-tk-hover visibility="hidden"><line x1="0" x2="0" y1="' + y0 + '" y2="' + (pohja + nuoliH)
+    /* LUKEMA PALLON VIERESSÄ (30.9., käyttäjän pyyntö): osoitettaessa tai
+       skrubatessa pallon viereen piirtyy kupla, jossa on pääsarjan arvo
+       (puuska ja suunta) ja jokaisen kaaviossa olevan vertailumallin arvo
+       omalla värillään — ja mallien käyrille väripiste kursorin kohtaan.
+       Kupla asetetaan kursorin sivulle 24 px:n päähän, eli sormen
+       (~22 px säde) ohi, ja se kääntyy vasemmalle ruudun oikeassa reunassa.
+       Rivit täytetään `Aikakaavio.hover`issa; tässä vain paikat. */
+    let kuplaHtml = '<g data-tk-kupla visibility="hidden"><rect rx="7" fill="' + this.PAPERI + '" fill-opacity=".96" stroke="rgba(76,89,96,.45)" stroke-width="1"/>';
+    for (let i = 0; i < 7; i++) kuplaHtml += '<text visibility="hidden"></text>';
+    kuplaHtml += '</g>';
+    let mdotHtml = '';
+    for (let i = 0; i < 4; i++) mdotHtml += '<circle data-tk-mdot visibility="hidden" cx="0" cy="0" r="' + (3.1 * lw).toFixed(1) + '" stroke="' + this.PAPERI + '" stroke-width="' + (1.1 * lw).toFixed(2) + '"/>';
+    const hover = '<g data-tk-hover visibility="hidden"><line x1="0" x2="0" y1="' + ylaY + '" y2="' + pohja
       + '" stroke="' + this.INK2 + '" stroke-width="' + lw.toFixed(2) + '" stroke-dasharray="3,2"/>'
-      + '<circle cx="0" cy="0" r="' + (3.8 * lw).toFixed(1) + '" fill="' + this.INK + '" stroke="' + this.PAPERI + '" stroke-width="' + (1.4 * lw).toFixed(2) + '"/>'
-      + pilleri + '</g>';
+      + '<circle data-tk-pallo cx="0" cy="0" r="' + (3.8 * lw).toFixed(1) + '" fill="' + this.INK + '" stroke="' + this.PAPERI + '" stroke-width="' + (1.4 * lw).toFixed(2) + '"/>'
+      + mdotHtml
+      + pilleri + kuplaHtml + '</g>';
 
     /* Ruudukon luvut: vasen reuna ja jokainen keskiyö, jotta ne näkyvät
        myös vieritetyssä kaaviossa. */
@@ -19757,11 +19798,25 @@ const Tuulikaavio = {
     return {
       svg: svg,
       paivat: paivatHtml,
-      g: { W: W, TH: TH, y0: y0, pohja: pohja, nuoliH: nuoliH, alku: alku, loppu: loppu, maxV: maxV, yMin: yMin, yMax: yMax, fs: fs, tuntiH: tuntiH,
+      g: { W: W, TH: TH, y0: y0, pohja: pohja, nuoliH: nuoliH, alku: alku, loppu: loppu, maxV: maxV, yMin: yMin, yMax: yMax, fs: fs, tuntiH: tuntiH, tuntiY: tuntiY, paivaY: paivaY, paivaH: paivaH, ylaY: ylaY,
            yks: tuuli ? Units.label() : (o.yks || null), nyt: o.nyt != null ? o.nyt : null,
            xOf: xOf, yOf: yOf, msX: (x) => alku + x / W * kesto,
            /* Sarjan arvo hetkellä (osoitin ja valinta lukevat tätä). */
            arvo: (s, t) => { if (!s) return null; const i = lahin(s, t, tol); return i >= 0 && s.ms[i] != null ? s.ms[i] : null; },
+           /* Sarjan piste hetkellä (kupla): arvo, puuska ja suunta. */
+           piste: (s, t) => {
+             if (!s) return null;
+             const i = lahin(s, t, tol);
+             if (i < 0 || s.ms[i] == null) return null;
+             return { v: s.ms[i], g: s.gust && s.gust[i] != null ? s.gust[i] : null, dir: s.dir && s.dir[i] != null ? s.dir[i] : null };
+           },
+           kupla: {
+             /* Kupla lukee SAMA tarkkuutta kuin lukemarivi (`Units.fmt`), ei
+                kaavion kokonaisluvuin pyöristettyjä huippulappuja. */
+             tuuli: tuuli, luku: tuuli ? (v) => Units.fmt(v) : luku, yks: tuuli ? Units.label() : (o.yks || ''), puuska: _t('puuska', 'gust'), ennusteNimi: _t('Ennuste', 'Forecast'),
+             vertailut: (o.vertailut || []).filter(Boolean).map((s) => { const m = (typeof KorttiSarjat !== 'undefined' && KorttiSarjat.malli(s.id)) || { vari: this.INK2, nimi: '' }; return { s: s, vari: m.vari, nimi: m.nimi }; }),
+             ennuste: o.ennuste || null,
+           },
            tol: tol, paa: P,
            /* Ruudukon luvut kiinteälle akselille (`Aikakaavio._akseli`). */
            laput: ruudLaput, lapFs: 11 * fs },
@@ -19828,7 +19883,15 @@ const Aikakaavio = {
     const oli = !!kaare._akPiirretty;
     const vanha = oli ? kaare.scrollLeft : 0;
     kaare._akPiirretty = true;
-    kaare.innerHTML = piirrokset.map(d => d.svg).join('') + (piirrokset[0] && piirrokset[0].paivat ? piirrokset[0].paivat : '');
+    /* Päiväotsikko on kaavion ALLA (aika-akseli): allekkaisilla riveillä se
+       kuuluu viimeiselle, joten sen paikka on edellisten korkeudet + oman
+       kaavion `paivaY`. */
+    let ytop = 0, paivatHtml = '';
+    piirrokset.forEach((d) => {
+      if (d.paivat && !paivatHtml) paivatHtml = '<div class="ak-pv-vaippa" style="top:' + (ytop + d.g.paivaY) + 'px">' + d.paivat + '</div>';
+      ytop += d.g.TH;
+    });
+    kaare.innerHTML = piirrokset.map(d => d.svg).join('') + paivatHtml;
     kaare._geot = piirrokset.map(d => d.g);
     const g = kaare._geot[0];
     const W0 = kaare._W0 || 0;
@@ -20098,8 +20161,15 @@ const Aikakaavio = {
     svgs.forEach((svg, k) => {
       const h = svg.querySelector('[data-tk-hover]'), g = geot[k];
       if (!h || !g) return;
-      if (t == null) { h.setAttribute('visibility', 'hidden'); return; }
-      const x = g.xOf(t), line = h.querySelector('line'), c = h.querySelector('circle');
+      if (t == null) {
+        h.setAttribute('visibility', 'hidden');
+        /* SVG:n `visibility="visible"` lapsessa voittaa vanhemman
+           `hidden`in: pallo, kupla ja mallien pisteet piilotetaan itse,
+           muuten ne jäävät ruudulle kun osoitin lähtee. */
+        h.querySelectorAll('[data-tk-pallo], [data-tk-kupla], [data-tk-kupla] text, [data-tk-mdot]').forEach((e) => e.setAttribute('visibility', 'hidden'));
+        return;
+      }
+      const x = g.xOf(t), line = h.querySelector('line'), c = h.querySelector('[data-tk-pallo]');
       line.setAttribute('x1', x.toFixed(1)); line.setAttribute('x2', x.toFixed(1));
       const v = g.arvo(g.paa, t);
       if (v != null) { c.setAttribute('cx', x.toFixed(1)); c.setAttribute('cy', g.yOf(v).toFixed(1)); c.setAttribute('visibility', 'visible'); }
@@ -20116,8 +20186,64 @@ const Aikakaavio = {
         rect.setAttribute('x', (-lev / 2).toFixed(1)); rect.setAttribute('width', lev.toFixed(1));
         pill.setAttribute('transform', 'translate(' + Math.max(lev / 2 + 2, Math.min(g.W - lev / 2 - 2, x)).toFixed(1) + ',0)');
       }
+      this._kupla(kaare, h, g, t, x);
       h.setAttribute('visibility', 'visible');
     });
+  },
+  /* KUPLA PALLON VIERESSÄ: rivit ja paikka. Pääsarja ylimpänä (arvo,
+     alla puuska ja ilmansuunta), sitten jokainen vertailumalli omalla
+     värillään ja havainnon päällä ennuste. Tekstit mitataan arviolla
+     (merkkejä × leveys), ei `getBBox`illa: hover ajetaan joka
+     osoitintapahtumalla. */
+  _kupla(kaare, h, g, t, x) {
+    const kg = h.querySelector('[data-tk-kupla]'), K = g.kupla;
+    const mdots = h.querySelectorAll('[data-tk-mdot]');
+    mdots.forEach((m) => m.setAttribute('visibility', 'hidden'));
+    if (!kg || !K) return;
+    const fs = g.fs || 1, rivit = [];
+    const p = g.piste(g.paa, t);
+    if (p) {
+      rivit.push({ t: K.luku(p.v) + (K.yks ? ' ' + K.yks : ''), l: true });
+      if (K.tuuli) {
+        const os = [];
+        if (p.g != null && p.g > p.v + 1e-6) os.push(K.puuska + ' ' + K.luku(p.g));
+        if (p.dir != null) os.push(_havIlmansuuntaLyhyt(p.dir));
+        if (os.length) rivit.push({ t: os.join(' · '), p: true });
+      }
+    }
+    K.vertailut.forEach((m, j) => {
+      const q = g.piste(m.s, t);
+      if (!q) return;
+      rivit.push({ t: m.nimi + ' ' + K.luku(q.v), v: m.vari });
+      const d = mdots[j];
+      if (d) { d.setAttribute('cx', x.toFixed(1)); d.setAttribute('cy', g.yOf(q.v).toFixed(1)); d.setAttribute('fill', m.vari); d.setAttribute('visibility', 'visible'); }
+    });
+    if (K.ennuste) { const q = g.piste(K.ennuste, t); if (q) rivit.push({ t: K.ennusteNimi + ' ' + K.luku(q.v), v: '#1C5C86' }); }
+    const texts = kg.querySelectorAll('text');
+    if (!rivit.length) { kg.setAttribute('visibility', 'hidden'); texts.forEach((tx) => tx.setAttribute('visibility', 'hidden')); return; }
+    const lh = 14 * fs, pad = 7;
+    let lev = 0;
+    rivit.forEach((r) => { lev = Math.max(lev, r.t.length * (r.l ? 7.7 : 6) * fs); });
+    const bw = Math.ceil(lev + pad * 2), bh = Math.ceil(rivit.length * lh + 8);
+    const sl = kaare.scrollLeft, w0 = kaare._W0 || kaare.clientWidth;
+    const oikealle = x + 24 + bw <= sl + w0 - 4 || x - 24 - bw < sl + 40;
+    const bx = oikealle ? x + 24 : x - 24 - bw;
+    const yb = p ? g.yOf(p.v) : (g.y0 + g.pohja) / 2;
+    const by = Math.max(g.y0 + 2, Math.min(g.pohja - bh - 2, yb - bh / 2));
+    const rect = kg.querySelector('rect');
+    rect.setAttribute('x', bx.toFixed(1)); rect.setAttribute('y', by.toFixed(1)); rect.setAttribute('width', bw); rect.setAttribute('height', bh);
+    texts.forEach((tx, i) => {
+      const r = rivit[i];
+      if (!r) { tx.setAttribute('visibility', 'hidden'); return; }
+      tx.textContent = r.t;
+      tx.setAttribute('x', (bx + pad).toFixed(1));
+      tx.setAttribute('y', (by + 4 + (i + 1) * lh - 3.5 * fs).toFixed(1));
+      tx.setAttribute('font-size', ((r.l ? 13.5 : (r.p ? 11 : 11.5)) * fs).toFixed(1));
+      tx.setAttribute('font-weight', r.l ? '700' : (r.p ? '400' : '600'));
+      tx.setAttribute('fill', r.v || (r.l ? Tuulikaavio.INK : Tuulikaavio.INK3));
+      tx.setAttribute('visibility', 'visible');
+    });
+    kg.setAttribute('visibility', 'visible');
   },
 
   /* VENYTYS: KAKSI SORMEA TAI CTRL+RULLA.
@@ -20255,9 +20381,21 @@ const Aikakaavio = {
     }, { passive: false });
   },
 
+  /* LUKEMARIVI (30.9., käyttäjän pyyntö "parannetaan lukemaruudut").
+     Solut ovat `{ nimi, arvo, ala, aika?, paa?, malli?, vari? }`:
+       aika   hetken solu (päivä pienellä, kellonaika lihavoituna)
+       paa    rivin pääluku (iso): tuuli, vedenlämpö, aallonkorkeus
+       malli  vertailumalli: menee OMALLE RIVILLEEN väripisteellä, jotta
+              pääluku ja sen puuska pysyvät ensimmäisellä rivillä eikä
+              rivin korkeus riipu siitä montako mallia on valittu. */
   lukemaHtml(solut) {
-    return solut.map(s => '<span class="en-solu"><span class="en-solu-nimi"' + (s.vari ? ' style="color:' + s.vari + '"' : '') + '>'
-      + s.nimi + '</span><span class="en-solu-arvo">' + s.arvo + (s.ala ? ' <small>' + s.ala + '</small>' : '') + '</span></span>').join('');
+    const solu = (s) => '<span class="en-solu' + (s.aika ? ' en-solu-aika' : '') + (s.paa ? ' en-solu-paa' : '') + '">'
+      + '<span class="en-solu-nimi">' + s.nimi + '</span><span class="en-solu-arvo">' + s.arvo
+      + (s.ala ? ' <small>' + s.ala + '</small>' : '') + '</span></span>';
+    const malli = (s) => '<span class="en-mallisolu" style="--mv:' + s.vari + '"><i></i><span class="en-mallisolu-nimi">' + s.nimi
+      + '</span><b>' + s.arvo + '</b>' + (s.ala ? '<small>' + s.ala + '</small>' : '') + '</span>';
+    const ylos = solut.filter(s => !s.malli), mallit = solut.filter(s => s.malli);
+    return ylos.map(solu).join('') + (mallit.length ? '<span class="en-lk-mallit">' + mallit.map(malli).join('') + '</span>' : '');
   },
 
   /* OSOITIN kiinnitetään KERRAN kääreeseen; kääre säilyy piirrosta
@@ -20396,6 +20534,8 @@ const Aikakaavio = {
       if (l) l.classList.toggle('skrubaa', paalla);
     };
     const nayta = function (x) { const t = aika(x); if (t != null) oo().nayta(t); };
+    /* Pidon merkki pois: kursori ja pallo piiloon, lukemarivi lepotilaan. */
+    const peruMerkki = function () { merkki(false); oo().nayta(null); };
     const lopeta = function (vahvista) {
       if (!k) return;
       const oli = k.tila === 'skrubi', pito = k.tila === 'pito', x = k.lastX;
@@ -20414,7 +20554,13 @@ const Aikakaavio = {
           if (t != null) { if (p.napautus) { p.nayta(null); p.napautus(t); } else p.nayta(t); }
         } else oo().nayta(null);
         if (typeof self._skrubiValmis === 'function') self._skrubiValmis(kaare);
-      } else if (pito) merkki(false);
+      } else if (pito) {
+        merkki(false);
+        /* Järjestelmän peruma (`touchcancel`) tai vierityksen alku: kursori
+           pois. Tavallisessa noston napautuksessa `pointerup` on jo valinnut
+           tai näyttänyt lukeman, eikä sitä saa peruuttaa. */
+        if (!vahvista) oo().nayta(null);
+      }
     };
     const reunavieritys = function (x) {
       const r = kaare.getBoundingClientRect();
@@ -20431,6 +20577,17 @@ const Aikakaavio = {
         }, 16);
       }
     };
+    /* Varmistus: jos kääre alkaa vieriä kun pito on vasta odottamassa tai
+       merkki on jo näkyvissä (selain vei eleen eikä `touchmove` tullut
+       peruttavana), ele on vieritys ja merkki pois. Skrubin oma
+       reunavieritys ei kuulu tähän (tila 'skrubi'). */
+    kaare.addEventListener('scroll', function () {
+      if (!k || (k.tila !== 'paina' && k.tila !== 'pito')) return;
+      if (Math.abs(kaare.scrollLeft - k.sl0) < 3) return;
+      clearTimeout(k.ajastin);
+      if (k.tila === 'pito') peruMerkki();
+      k.tila = 'vieritys';
+    }, { passive: true });
     kaare.addEventListener('touchstart', function (e) {
       if (e.touches.length !== 1) {
         /* Toinen sormi: venytys omistaa eleen, skrubi loppuu. */
@@ -20445,7 +20602,7 @@ const Aikakaavio = {
       if (valittu != null && g && svg) grab = Math.abs(t.clientX - (svg.getBoundingClientRect().left + g.xOf(valittu))) <= TARTUNTA;
       /* iOS:n takaisinpyyhkäisy alkaa vasemmasta reunasta: siitä ei aloiteta pitoa. */
       const reuna = t.clientX < REUNA_ESTO;
-      k = { tila: reuna ? 'vieritys' : 'paina', t0: e.timeStamp, x0: t.clientX, y0: t.clientY, lastX: t.clientX, grab: grab, ajastin: null, reunaV: 0 };
+      k = { tila: reuna ? 'vieritys' : 'paina', t0: e.timeStamp, x0: t.clientX, y0: t.clientY, lastX: t.clientX, grab: grab, ajastin: null, reunaV: 0, sl0: kaare.scrollLeft };
       if (!reuna) {
         k.ajastin = setTimeout(function () {
           if (!k || k.tila !== 'paina') return;
@@ -20464,8 +20621,15 @@ const Aikakaavio = {
         if (Math.hypot(t.clientX - k.x0, t.clientY - k.y0) <= LIUKUMA) return;
         clearTimeout(k.ajastin);
         /* Päätös aikaleimoista. `cancelable` epätosi = selain ehti jo
-           aloittaa vierityksen: silloin se saa jatkaa. */
-        if (!e.cancelable || (e.timeStamp - k.t0 < PITO_MS && !k.grab)) { k.tila = 'vieritys'; return; }
+           aloittaa vierityksen: silloin se saa jatkaa. PIDON MERKKI
+           SIIVOTAAN: sormen ollessa paikallaan syttynyt kursori (ja pallo)
+           jäi muuten alkupisteeseen ja vieri sen mukana — "aloituskohtaan
+           jää pystyviiva" (30.9.). */
+        if (!e.cancelable || (e.timeStamp - k.t0 < PITO_MS && !k.grab)) {
+          if (k.tila === 'pito') peruMerkki();
+          k.tila = 'vieritys';
+          return;
+        }
         const oliPito = k.tila === 'pito';
         k.tila = 'skrubi';
         kaare._akSkrubi = true;
@@ -20792,20 +20956,20 @@ const Ennuste = {
        vaikka sen tasatunti on. */
     const hh = ('0' + d.getHours()).slice(-2);
     solut.push({ nimi: nyt ? _t('Nyt', 'Now') : (tMs + 36e5 <= Date.now() ? _t('Mennyt · ', 'Past · ') : '') + pvmLyhyt(d),
-                 arvo: _t('klo ' + hh, hh + ':00'), ala: '' });
+                 arvo: _t('klo ' + hh, hh + ':00'), ala: '', aika: true });
     const a = paa ? KorttiSarjat.arvo(paa, tMs) : null;
     if (a) {
       /* Lähde on tuulisolun NIMESSÄ eikä omana solunaan: omana solunaan
          "FMI HARMONIE 2,5 km" 14 px:n lihavana ei mahtunut puhelimen
          riville, rivitti ja nosti rivin korkeutta tunnista toiseen. */
       solut.push({ nimi: _t('Tuuli', 'Wind') + (a.lahde ? ' · ' + (Lahde.LYHYET[a.lahde] || a.lahde) : ''),
-                   arvo: Units.fmt(a.ms), ala: Units.label() + (a.dir != null ? ' ' + suuntaNuoliSVG(a.dir) + ' ' + _havIlmansuuntaLyhyt(a.dir) : '') });
+                   arvo: Units.fmt(a.ms), ala: Units.label() + (a.dir != null ? ' ' + suuntaNuoliSVG(a.dir) + ' ' + _havIlmansuuntaLyhyt(a.dir) : ''), paa: true });
       if (a.gust != null) solut.push({ nimi: _t('Puuska', 'Gust'), arvo: Units.fmt(a.gust), ala: Units.label() });
     }
     this._naytetyt(ctx).forEach(id => {
       const s = KorttiSarjat.valmis(spot, id), m = KorttiSarjat.malli(id);
       const b = s ? KorttiSarjat.arvo(s, tMs) : null;
-      solut.push({ nimi: m.nimi, arvo: b ? Units.fmt(b.ms) : '–', ala: b ? Units.label() : '', vari: m.vari });
+      solut.push({ nimi: m.nimi, arvo: b ? Units.fmt(b.ms) : '–', ala: b ? Units.label() : '', vari: m.vari, malli: true });
     });
     return solut;
   },
@@ -20895,14 +21059,19 @@ const Ennuste = {
     const maxV = laske(ikk.a, ikk.b);
     const yhteiset = { W: W, alku: ik.alku, loppu: ik.loppu, maxV: maxV, nyt: Date.now(), valittu: ctx.valittu, akseli: 'kiintea',
                        lat: spot.lat, lng: spot.lng, bestDirs: spot.bestDirs };
+    /* Allekkain-asussa aika-akseli (kellonaika ja päivämäärä) on VIIMEISEN
+       rivin alla, ei pääkaavion: yksi jaettu x-akseli koko pinolle. */
+    const rivejaAlla = a.asu === 'alle' && vert.length > 0;
     const piirrokset = [Tuulikaavio.piirra(Object.assign({}, yhteiset, {
-      asu: Tuulikaavio.ASUT.kortti, paa: paa, vertailut: a.asu === 'paalle' ? vert : [], saa: this._saa(spot),
+      asu: Tuulikaavio.ASUT.kortti, paa: paa, vertailut: a.asu === 'paalle' ? vert : [], saa: this._saa(spot), otsikot: !rivejaAlla,
       aria: _t('Tuuliennuste ', 'Wind forecast ') + spot.name }))];
     if (a.asu === 'alle') {
-      vert.forEach(s => {
+      vert.forEach((s, ri) => {
         const m = KorttiSarjat.malli(s.id);
+        const viimeinen = ri === vert.length - 1;
         piirrokset.push(Tuulikaavio.piirra(Object.assign({}, yhteiset, {
-          asu: Tuulikaavio.ASUT.rivi, paa: Object.assign({}, s, { lahde: null }), otsikot: false,
+          asu: viimeinen ? Object.assign({}, Tuulikaavio.ASUT.rivi, { paivaH: Tuulikaavio.ASUT.kortti.paivaH, tuntiH: Tuulikaavio.ASUT.kortti.tuntiH }) : Tuulikaavio.ASUT.rivi,
+          paa: Object.assign({}, s, { lahde: null }), otsikot: viimeinen,
           nimi: m.nimi + (s.loppuMs != null && s.loppuMs < ik.loppu - 36e5
             ? _t(' · päättyy ' + Tuulikaavio.PAIVAT[new Date(s.loppuMs).getDay()] + ' klo ' + Tuulikaavio._kello(s.loppuMs),
                  ' · ends ' + Tuulikaavio.PAIVAT[new Date(s.loppuMs).getDay()] + ' ' + Tuulikaavio._kello(s.loppuMs) + ':00') : ''),
@@ -21055,12 +21224,14 @@ const Ennuste = {
     const plotH = Math.max(120, Math.round(laatikko.h - muut - (alle ? vert.length * riviTarve(riviH) : 0)));
     const yht = { W: W, alku: ik.alku, loppu: ik.loppu, maxV: maxV, nyt: Date.now(), valittu: ctx.valittu, akseli: 'kiintea',
                   lat: spot.lat, lng: spot.lng, bestDirs: spot.bestDirs };
+    /* Aika-akseli on pinon VIIMEISEN rivin alla (yksi jaettu x-akseli). */
     const piirrokset = [Tuulikaavio.piirra(Object.assign({}, yht, { asu: asuL, plotH: plotH, paa: paa,
-      vertailut: alle ? [] : vert, saa: this._saa(spot) }))];
-    if (alle) vert.forEach(s => {
-      const m = KorttiSarjat.malli(s.id);
-      piirrokset.push(Tuulikaavio.piirra(Object.assign({}, yht, { asu: Object.assign({}, Tuulikaavio.ASUT.rivi, { fs: fs, lw: 1.2, nuoliH: Math.round(asuL.nuoliH * 0.7), lahdeH: riviLahdeH }),
-        plotH: riviH, paa: Object.assign({}, s, { lahde: null }), otsikot: false, nimi: m.nimi, nimiVari: m.vari })));
+      vertailut: alle ? [] : vert, saa: this._saa(spot), otsikot: !(alle && vert.length) }))];
+    if (alle) vert.forEach((s, ri) => {
+      const m = KorttiSarjat.malli(s.id), viimeinen = ri === vert.length - 1;
+      piirrokset.push(Tuulikaavio.piirra(Object.assign({}, yht, { asu: Object.assign({}, Tuulikaavio.ASUT.rivi, { fs: fs, lw: 1.2, nuoliH: Math.round(asuL.nuoliH * 0.7), lahdeH: riviLahdeH },
+        viimeinen ? { paivaH: asuL.paivaH, tuntiH: asuL.tuntiH } : {}),
+        plotH: riviH, paa: Object.assign({}, s, { lahde: null }), otsikot: viimeinen, nimi: m.nimi, nimiVari: m.vari })));
     });
     let kaare = kaavioEl.querySelector('[data-en-kaare]');
     if (!kaare) {
@@ -22920,7 +23091,7 @@ const HavLaaja = {
   rivi(solut) {
     if (!this._lukema) return;
     this._lukema.innerHTML = (solut || []).map(function (s) {
-      return '<span class="hl-lk"><span class="hl-lk-nimi">' + s.nimi
+      return '<span class="hl-lk"><span class="hl-lk-nimi"' + (s.vari ? ' style="color:' + s.vari + '"' : '') + '>' + s.nimi
         + '</span><span class="hl-lk-arvo">' + s.arvo + '</span>'
         + (s.ala ? '<span class="hl-lk-ala">' + s.ala + '</span>' : '') + '</span>';
     }).join('');
@@ -23082,7 +23253,7 @@ function _havYhteenvetoLaske(data) {
 /* Lukemarivin solut tuulihavainnolle. `b` on nippu tai null (lepo:
    jakson tilastot). `nimi` korvaa päiväyksen (tuoreimmalle "Viimeisin"). */
 function _havLukemaSolut(kaavioEl, b, nimi) {
-  const solu = (n, arvo, ala) => ({ nimi: n, arvo: arvo, ala: ala || '' });
+  const solu = (n, arvo, ala, liput) => Object.assign({ nimi: n, arvo: arvo, ala: ala || '' }, liput);
   if (b && b.katko) {
     /* Osoitin katkon kohdalla: sanotaan että asema oli hiljaa ja kuinka
        kauan, eikä näytetä reunan lukemaa kuin se olisi tältä hetkeltä. */
@@ -23102,8 +23273,8 @@ function _havLukemaSolut(kaavioEl, b, nimi) {
     const dt = new Date(b.ms);
     const kello = ('0' + dt.getHours()).slice(-2) + ':' + ('0' + dt.getMinutes()).slice(-2);
     const ulos = [
-      solu(nimi || pvmLyhyt(dt), kello),
-      solu(_t('Tuuli', 'Wind'), Units.fmt(b.ws), Units.label()),
+      solu(nimi || pvmLyhyt(dt), kello, '', { aika: true }),
+      solu(_t('Tuuli', 'Wind'), Units.fmt(b.ws), Units.label(), { paa: true }),
       solu(_t('Puuska', 'Gust'), Units.fmt(b.wg), Units.label()),
     ];
     if (b.d != null) ulos.push(solu(_t('Suunta', 'Direction'), _havIlmansuuntaLyhyt(b.d), Math.round(b.d) + '°'));

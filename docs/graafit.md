@@ -672,3 +672,52 @@ saavutettava yhteenveto.
    piirrä kaaviota uudelleen kesken vedon (asteikon sovitus odottaa).
 4. Kaikki kosketuslaitteet: reunavieritys (sormi kaavion reunassa) ei karkaa.
 
+
+### 10.6 Toinen erä (30.9.): ohut viiva, geometria, kupla ja lukemarivi
+
+Käyttäjän pyyntö oli kuusi pientä muutosta. Kaikki ovat `index.html`:ssä
+ja niitä vartioi `tools/graafimittaus.mjs` (osa 10 ja osa 9:n lisäykset).
+
+1. **Ohuempi tuuliviiva.** `juovaW` 2,4 / 1,8 → 1,7 / 1,3 (kortti / tunti
+   < 3 px). Mitattu paksuin musta viiva 1,7 px; testi vaatii ≤ 1,8.
+2. **Pystyviiva ei jää vierityksen jälkeen.** Syy: pito sytytti kursorin ja
+   pallon (`merkki(true)`), ja kun selain vei eleen vierityksenä, mikään ei
+   sammuttanut niitä — merkki vieri kaavion mukana. Korjaus: `peruMerkki`
+   touchmovessa, kääreen `scroll`-turvaverkossa ja `lopeta`ssa. Mitattu
+   CDP:llä: pito 320 ms → merkki näkyy, `scrollLeft += 40` → merkki pois,
+   nosto → pois; nopea veto ei jätä mitään.
+   **Sivulöytö:** SVG:n `visibility="visible"` lapsessa voittaa vanhemman
+   `hidden`in, joten hover-ryhmän piilotus ei koskaan piilottanut palloa
+   (eikä nyt kuplaa tai mallipisteitä). Testi mittasi ryhmän attribuuttia
+   ja meni siksi vihreäksi; se lukee nyt laskettua näkyvyyttä jokaiselta
+   osalta (0 näkyvää osaa osoittimen lähdettyä; ensimmäinen korjaus jätti
+   vielä neljä kuplan tekstiriviä, koska niillä oli sama `visible`).
+3. **Kellonaika ja päivämäärä graafin alle, tuulen suunta ylös.** Geometria
+   ylhäältä alas: lähde, nuolirivi, plotti, tuntirivi, päiväotsikko, sade,
+   lämpö. Mitattu (kortti, ei lähdettä): `ylaY 0`, `y0 20` (= nuoliH),
+   `tuntiY = pohja`, päiväotsikon `top` = `paivaY`; tuntilukemia plotin
+   alla 68 ja ylhäällä 0. Allekkain-asussa aika-akseli vain alimmalla rivillä.
+4. **Lukema pallon viereen — myös vertailumalleille.** Kupla SVG:n
+   sisällä (`data-tk-kupla`): pääarvo, puuska ja suunta sekä jokainen
+   kaaviossa oleva malli omalla värillään ja väripiste mallin käyrälle.
+   Mitattu: kupla 24 px pallosta (kupla 434–533, pallo 410), ruudun
+   sisällä; oikeassa reunassa se kääntyy vasemmalle (518–610, pallo 634);
+   pystysuunnassa plotin sisällä (85–149 / 20–170). Kupla käyttää
+   `Units.fmt`-tarkkuutta kuten rivi — ensimmäinen versio käytti
+   huippulappujen kokonaislukuja ja näytti "ECMWF 7" rivin "6.5":n vieressä.
+5. **Lukemarivi.** Aika (päivä pienellä, kellonaika lihavana), iso pääluku
+   (22 px) suuntanuolineen, puuska, ja vertailumallit omalla rivillään
+   väripisteellä hiusviivan alla. Ei keli-chippiä: hero sanoo päätöksen
+   kerran. Rivin korkeus ei riipu mallien määrästä, koska mallit ovat
+   omalla rivillään.
+6. **Kupla jokaisessa kaaviossa** (ennuste, havainto, vedenlämpö, aallot;
+   kortti ja laaja): `g.kupla` tulee `Tuulikaavio.piirra`sta, ja muut
+   kaaviot antavat oman `luku`-funktionsa.
+
+**Mitä ei tehty:** kupla ei kata sormen kohdalla olevia lukuja
+(24 px:n siirto) mutta peittää alleen huippulappuja osoitettaessa; se on
+tietoinen hinta ja sama kuin missä tahansa ammattimaisessa kaaviossa.
+**Tarkistettavaa laitteella:** kuplan sijainti oikealla peukalolla
+(kääntyy vasemmalle) ja vasemmalla peukalolla iPhonella; lukemarivin
+korkeus 390 px:n leveydellä kun mallit on valittu (tarkistettu vain
+Chromiumilla 348 px:n kortilla).
