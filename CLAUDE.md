@@ -165,7 +165,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/eleet.md` | nipistystä, zoomia, zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
 | `docs/data.md` | säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja, **havaintoasemien oma historia (Mellsten ja Laru, `havainnot`-haara)**, **Mellstenin katkot: 4 h kuvaaja, arkistovaratie ja ajastinketju**, **kelikameran tila (YouTube, pikkukuvan ETag)** |
 | `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, MET Nordicia, Open-Meteon S3-malleja** |
-| `docs/ui.md` | paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa, kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
+| `docs/ui.md` | paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa (**toiston liuku ja päiväkiskon kelikaista**), kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
 | `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit, kaavion venytys** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V10: yksi kaaviomoottori, kortti moduuleina, fonttilattia, laajan valinta, venytys, mallit laajassa) |
@@ -279,7 +279,8 @@ kokeiltu ja kaadettu mittauksella.
   Latausruutu vuorokaudenajan mukaan: Helsinki, nivelletty kuski ja hyppy ·
   Aikajanan liukuväri pois — halot tilalle ·
   **Kelikamera: play-kolmio pilleriin ja kamera asemakorttiin** ·
-  **Kieli: suomi ja englanti**
+  **Kieli: suomi ja englanti** ·
+  **Aikajana: toisto liukuu, päivä vaihtuu liukuen, kiskoon kelikaista**
 - **pwa**: PWA — kotivalikkoon ja rannalle · Mitä välimuistiin menee ·
   Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
   Ikoni ja kotivalikko
@@ -506,14 +507,33 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   selvempi kuin harso (yö 4,71:1 paperiin vastaan 1,31:1), eikä se
   silti jäänyt: se häiritsi lukemista. Valovaiheet elävät yhä
   spottikortin kaaviossa (`VALO_VARIT`) ja kelihypyssä, joka osaa
-  hypätä vain tuntiin jossa aurinko on ylhäällä. Älä palauta kaistaa
-  janaan — kolme kertaa riittää. (Puuskahuntu oli samasta syystä muste
-  .34 eikä valkoinen .22; sekin on poistettu, ks. alempaa.)
-- **Päivälapuissa EI ole tuulikaistaa.** Kokeiltiin ja mitattiin
-  toimivaksi (väri ja leveys sen päivän kovimmasta tuulesta valoisaan
-  aikaan), mutta poistettiin: kahdeksantoista väripilkkua yhdellä
-  rivillä on kahdeksantoista asiaa joita silmä lukee, ja sama tieto on
-  tuntirivillä tarkempana. Kisko on navigointia, ei yhteenvetoa.
+  hypätä vain tuntiin jossa aurinko on ylhäällä (`_tlAurinko`; ehto oli
+  hiljaa rikki kun valokaistan kirjoittaja poistettiin, korjattu 30.9.).
+  Älä palauta kaistaa janaan — kolme kertaa riittää. (Puuskahuntu oli
+  samasta syystä muste .34 eikä valkoinen .22; sekin on poistettu, ks.
+  alempaa.) Kelikaista (alla) käyttää valoisuutta vain kelin EHTONA:
+  yö on siinä lepoväriä, ei oma sävynsä — älä tee siitä valokaistaa.
+- **PÄIVÄKISKOSSA ON KELIKAISTA — YKSI JATKUVA JUOVA, EI PÄIVÄKOHTAISIA
+  PILKKUJA** (käyttäjän pyyntö 30.9., `.tl-kaista`, `_tlKaistaPiirra`).
+  Päivälappujen tuulikaista (väri ja leveys sen päivän kovimmasta
+  tuulesta) mitattiin aikanaan toimivaksi mutta poistettiin:
+  kahdeksantoista väripilkkua yhdellä rivillä on kahdeksantoista asiaa
+  joita silmä lukee. Kelikaista on eri muoto: yksi sumennettu juova
+  kiskon alareunassa koko akselin läpi AJASSA (lapun leveys =
+  vuorokausi kellonajan mukaan), levossa tasapaksu (2 px) hiljainen
+  harmaansininen (`124,150,186` alfa .52) — eli rivillä on yksi muoto
+  eikä yhtään pilkkua. Vain foilattavina tunteina (tuuli ≥
+  `Keli.AJETTAVA` pehmeällä kynnyksellä −1…+0,5 m/s, KERTAA valoisuus
+  siviilihämärästä auringonnousuun) juova paisuu 5 px:iin, saa hehkun ja
+  lämpökartan värin (`ColorRamp.rgb`). Paino ja nopeus sumennetaan
+  ajassa (σ 0,8 h). Rampin väri alkaa vasta foilausrajalta, joten
+  hiljaisen pään tumma sininen ei koskaan näy kaistassa. Mennyt aika on
+  .45 kuten palkeissa, ja akselin ulkopuolelle juova häipyy. Kaista on
+  pillerin ALAPUOLELLA (kiskon alimmat 9 px): pilleri on 24 px ja 3 px
+  ylhäältä, ja lapun teksti on nostettu samaan (`padding-bottom: 4px`).
+  Älä palauta päiväkohtaista lukua äläkä vie kaistaa palkkien alle
+  tuntiriville: siellä se luettaisiin tuntien asteikolla vaikka sen
+  asteikko on kiskon (2,5 px/h).
 - **Kortin paljas paperi mitataan RIVIEN VÄLISTÄ.** Rivin sisältä otettu
   näyte osuu palkkiin, yökaistaan, NYT-osoittimeen tai napin varjoon —
   ja väittää sitten että sama paperi on eri väristä eri kohdissa.
@@ -1317,9 +1337,12 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   var(--sab-tl)` eli 156 px, ja se jakautuu näin: 6 px ylätäyte,
   96 px tuntinauha, 6 px väli, 34 px päiväkisko, 14 px alatäyte.
   Tuntinauhan 96 jakautuu edelleen kolmeen: **10 px NYT-lappu ylhäällä,
-  72 px palkkivyöhyke, 14 px lukemarivi alhaalla.**
+  72 px palkkivyöhyke, 14 px lukemarivi alhaalla.** Kiskon 34 jakautuu
+  kahteen: **pilleri ja päiväys 3–27 px, kelikaista alimmat 9 px**
+  (juovan keskiviiva 4,5 px kaistan yläreunasta).
   Lukujärjestys on tarkoitus: hetki (kupla), tuuli (palkit), tunti
-  (lukemat), päivä (kisko) — karkeampi askel aina edellisen alla.
+  (lukemat), päivä (kisko), päivän kelit (kaista) — karkeampi askel
+  aina edellisen alla.
   **Alatäyte on 14 px eikä 8, ja se on lähdemerkinnän tila.**
   `#lahde-merkki` ja `#tutka-aika` ovat `bottom: 0`, ja kahdeksalla
   kisko peitti niistä 2 px.
@@ -1422,16 +1445,20 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   rivillä. Napautus on lisäksi mitattava oikeasti — ja niin että mittari
   palauttaa lähtötilan joka näytteen väliin: kelihyppy kuluttaa akselia,
   ja lopussa se ei liiku vaikka napautus osuu.
-- **Päivälapun tuulikaista: LEVEYS on muoto, VÄRI on arvo.** Pelkkä väri
-  ei kelpaa, koska rampin hiljainen pää on paperilla tummin (0 m/s on
-  `6,14,58`) eli tyyni päivä näyttäisi raskaimmalta. Kaista on pillerin
-  ULKOPUOLELLA: sisällä se osuisi valitun päivän mustaan, jossa ramppi on
-  1,3:1. Luku on VALOISAN ajan huippu (varatie: koko väli, kun valoisia
-  tunteja on nolla) — yöllä puhaltava huippu ei ole keli.
-- **Kaistat päivitetään MYÖS nopeassa polussa.** Kisko rakennetaan vain
+- **Kelikaista: LEVEYS on muoto, VÄRI on arvo** (sama kielioppi kuin
+  vanhalla päivälapun kaistalla). Pelkkä väri ei kelpaa, koska rampin
+  hiljainen pää on tummin eli tyyni näyttäisi raskaimmalta — siksi
+  kaistan väri on lepoväriä foilausrajaan asti ja paksuus kertoo kelin.
+  Kaista on pillerin ULKOPUOLELLA (alla): sisällä se osuisi valkoiseen
+  pilleriin. Yöllä puhaltava tuuli ei ole keli, joten valoisuus kuuluu
+  ehtoon.
+- **Kaista päivitetään MYÖS nopeassa polussa** (`renderTimeline`in
+  nopea tie kutsuu `_tlKaistaPiirra`a). Kisko rakennetaan vain
   hitaassa (se riippuu aikaleimoista), mutta kaista riippuu nopeuksista
-  ja nopea polku on juuri se joka ajetaan kun aika pysyy ja paikka
-  vaihtuu. Sama ansa kuin päiväerottimien valovaiheessa.
+  ja paikasta, ja nopea polku on juuri se joka ajetaan kun aika pysyy ja
+  paikka vaihtuu. Sama ansa kuin päiväerottimien valovaiheessa.
+  Piirto ~2 ms (kontti, dpr 3), ja muistiavain (`_avain`: akseli,
+  nopeudet, aurinko, nyt, geometria) ohittaa saman syötteen.
 - **PÄIVÄYS ON KUPLASSA, KOSKA SORMI ON KISKON PÄÄLLÄ.** Sääntö oli
   ensin "päiväys sanotaan kerran, ja sen sanoo kisko": kupla näytti
   päiväyksen vain kun kisko oli piilossa, ja kun kisko jäi pysyvästi
@@ -1531,17 +1558,35 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   pilleri sopii jokaiseen. Mitattu: valitun lapun keskikohta pilleristä
   0,1 px heti klo 00:n jälkeen ja −0,5 px heti +48 h hypyn jälkeen,
   samoina kuudessa seuraavassa ruudussa. Älä palauta pilleriä lapulle
-  äläkä lisää sille `transition`ia.
-- **PÄIVÄYS ON TÄSMÄLLEEN KESKELLÄ EIKÄ LIU'U.** Lapun OMA keskikohta
-  asetetaan osoittimen alle, joten päivän sisällä kisko ei liiku
-  pikseliäkään (mitattu poikkeama −1,0…+0,1 px kahdeksalla siirrolla,
-  tuntiaskel 0 px). Tämä on KÄÄNNÖS aiempaan: kisko liukui ennen
-  jatkuvasti ja lappu oli keskellä vain päivän puolivälissä (max
-  24,1 px sivussa). Vanha perustelu oli oikea mutta ratkaisu väärä —
-  ruudulla liike oli se mitä silmä seurasi. Keskiyön yli kisko siirtyy
-  yhden lapun verran, ja se hyppy on SISÄLTÖÄ: se on ainoa hetki
-  jolloin päiväys vaihtuu. Älä animoi askelta — pehmeä siirtymä
-  laahaisi sormesta jäljessä ja kaksi vierityskonetta hakisi toisiaan.
+  äläkä lisää sille `transition`ia. **Toiston keskiyön liu'ussa** (alla)
+  teksti ei vaihdu luokalla vaan PEITTOSUHTEESTA (`_tlKiskoVarit`):
+  lappu on sitä tummempi mitä enemmän se on pillerin päällä, ja halo
+  haalistuu samassa suhteessa; levossa tyylit poistetaan ja luokka on
+  taas ainoa totuus (päätepisteissä ne ovat samat).
+- **PÄIVÄYS ON TÄSMÄLLEEN KESKELLÄ EIKÄ LIU'U — PAITSI TOISTOSSA
+  KESKIYÖN YLI.** Lapun OMA keskikohta asetetaan osoittimen alle, joten
+  päivän sisällä kisko ei liiku pikseliäkään (mitattu poikkeama
+  −1,0…+0,1 px kahdeksalla siirrolla, tuntiaskel 0 px). Tämä on KÄÄNNÖS
+  aiempaan: kisko liukui ennen jatkuvasti ja lappu oli keskellä vain
+  päivän puolivälissä (max 24,1 px sivussa). Keskiyön yli kisko siirtyy
+  yhden lapun verran, ja se on ainoa hetki jolloin päiväys vaihtuu.
+  SORMELLA JA HYPYSSÄ askelta ei animoida — pehmeä siirtymä laahaisi
+  sormesta jäljessä ja kaksi vierityskonetta hakisi toisiaan. TOISTOSSA
+  se liukuu (käyttäjän pyyntö 30.9., `_tlKiskoToisto`): sormea ei ole
+  (toisto pysähtyy kosketukseen), ja kerralla hyppäävä kisko oli
+  mitattuna 60 px yhdessä ruudussa jatkuvasti liukuvan nauhan alla.
+  Liuku on sidottu TOISTON SIJAINTIIN, ei kelloon: päivän viimeinen
+  tunti (`TL_KISKO_LIUKU_H` 1) kuljettaa kiskon seuraavaan lappuun
+  kuutiollisella ease-in-outilla, ja keskikohta on frac = raja − 0,5
+  eli täsmälleen se hetki jolloin valinta pyöristyy uuden päivän klo
+  00:aan. Muun päivän ajan lappu on keskellä kuten ennen. Toistossa
+  `_tlKiskoKeskita` vaikenee (ei `pakota`), koska tunnin vaihdon
+  keskitys hyppäisi juuri liu'un kohdalla. Pysäytys kesken liu'un
+  asettuu 240 ms:n liu'ulla (`_tlToistoLoppuu`); vaimennetulla
+  liikkeellä ei liu'uta. Mitattu molemmilla moottoreilla: kisko
+  172 → 231 px rajan viimeisellä tunnilla, valinta vaihtuu frac
+  −0,5:ssä, pysäytyksen jälkeen lappu 0,1–0,9 px keskeltä ja tyylit
+  poissa.
 - **Kiskossa on reunavälikkeet**, kuten tuntinauhassa: ilman niitä
   selain rajaa `scrollLeft`in nollaan eikä akselin ensimmäistä ja
   viimeistä päivää saa osoittimen alle.
@@ -1567,6 +1612,26 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kopioida), partikkelit nopeuden ja suunnan erikseen. Kapseli ei
   sekoita. Hinta vain häivytyksen ruuduissa (docs/lampokartta.md,
   "Hyppy häivytetään").
+- **TOISTOSSA TUNTINAUHAN SNÄPPÄYS ON POIS (`#tl-scroll.toistaa`), JA
+  NAUHA LIIKKUU ALIPIKSELIN TARKKUUDELLA** (käyttäjän pyyntö 30.9.:
+  "liikkuu seuraavaan tuntiin pehmeämmin"). Play laski sijainnin
+  murtolukuna joka ruudussa jo ennestään, mutta `scroll-snap-type: x
+  mandatory` veti jokaisen `scrollLeft`-kirjoituksen lähimpään tikkiin:
+  mitattuna (Chromium, puhelin) 103 ruudusta nauha liikkui 6:ssa, joka
+  kerta tasan 18 px — toisto oli tikitystä. Luokan kanssa 65/83 ruudussa.
+  WebKit pitää vierityksen KOKONAISINA pikseleinä (mitattu 0/14
+  murto-osaa), ja toisto etenee ~0,4 px ruudussa, joten
+  `_tlNauhaTarkka` kirjoittaa kokonaisosan vieritykseksi ja loput
+  `translate3d`-siirroksi `#tl-scroll`ille (alle pikselin, maski
+  hävittää sen reunoilla). Pysäytys: `_tlCommitSelection` valitsee
+  lähimmän tunnin ja `_tlToistoLoppuu` liu'uttaa nauhan sen tikille
+  180 ms:ssa, ja VASTA PERILLÄ siirto ja `.toistaa` poistuvat — silloin
+  snäppäyksen paluu ei siirrä mitään (mitattu nauha tikillä 0 px).
+  Liu'ut (`_tlLiuuta`) ovat omia ruutusilmukoita eivätkä
+  `scrollTo({behavior:'smooth'})`, ja kosketus, `_tlValitseIdx`,
+  `renderTimeline` ja uusi toisto pysäyttävät ne (`_tlLiukuSeis`, joka
+  ajaa silti siivouksen). Jos lisäät nauhaa ohjelmallisesti liikuttavan
+  polun, pysäytä liuku siinä.
 - **LIIKKUVA VALINTA KULKEE `_tlSeuraaHetkea`:N KAUTTA.** Sormi
   tuntinauhalla, sormi päiväkiskolla ja play liikuttavat valintaa ILMAN
   vahvistushetkeä, ja kaikki tuntiin sidottu (aikakupla, päiväkorostus,

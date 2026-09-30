@@ -1765,7 +1765,10 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
   flex: 0 0 5.4em;
   height: 100%;
   display: flex; align-items: center; justify-content: center;
-  padding: 0;
+  /* Alatäyte on kelikaistan tila (`.tl-kaista`): teksti ja pilleri
+     keskittyvät kiskon ylempään 30 px:iin, kaista kulkee alimmissa
+     yhdeksässä. Lappu on silti koko kiskon korkuinen osumapinta. */
+  padding: 0 0 4px;
   font-size: var(--fs-11);
   font-weight: 590;
   font-variant-numeric: tabular-nums;
@@ -1784,7 +1787,7 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
    karsittiin. */
 .tl-paiva::before {
   content: ''; position: absolute;
-  left: 0; right: 0; top: 4px; bottom: 4px;
+  left: 0; right: 0; top: 3px; bottom: 7px;
   border-radius: 9px;
 }
 /* VALITTU PÄIVÄ ON VAALEA PILLERI TUMMALLA, ei magenta. `--accent` on
@@ -1811,12 +1814,15 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
   bottom: calc(var(--sab-tl) + 14px);
   left: calc(var(--sal) + 14px); right: calc(var(--sar) + 14px);
   height: var(--tl-paivat-h);
-  display: flex; align-items: center; justify-content: center;
+  display: flex; align-items: flex-start; justify-content: center;
   pointer-events: none; z-index: 2;
   font-size: var(--fs-11);
 }
+/* Pilleri on kiskon ylemmässä 30 px:ssä (3 px ylhäältä, 24 px korkea),
+   jotta sen alle jää kelikaistan rivi — sama geometria kuin lapun
+   `::before`illa. Oli 26 px keskellä kiskoa. */
 #tl-paiva-pilleri::before {
-  content: ''; width: 5.4em; height: calc(100% - 8px);
+  content: ''; width: 5.4em; height: 24px; margin-top: 3px;
   border-radius: 9px;
   background: rgba(255,255,255,.95);
   box-shadow: 0 1px 3px rgba(0,0,0,.30);
@@ -1826,16 +1832,35 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
 .tl-paiva.valittu { color: #10171D; text-shadow: none; }
 .tl-paiva-txt { position: relative; }
 
-/* PÄIVÄN TUULIKAISTA POISTETTIIN.
+/* KELIKAISTA — YKSI JATKUVA VALOJUOVA, EI PÄIVÄKOHTAISIA PILKKUJA.
  *
- * Jokaisella lapulla oli 3 px:n väriliuska = sen päivän kovin tuuli.
- * Se toimi ja se oli mitattu oikeaksi, mutta kahdeksantoista väripilkkua
- * yhdellä rivillä on kahdeksantoista asiaa joita silmä yrittää lukea —
- * ja sama tieto on tuntirivillä alla, tarkempana. Kisko on navigointia:
- * sen tehtävä on viedä päivään, ei kilpailla sen kanssa mitä päivä
- * sisältää. Rivi on nyt pelkkiä päivämääriä.
+ * Historia: jokaisella lapulla oli ennen 3 px:n väriliuska = sen päivän
+ * kovin tuuli. Se toimi ja oli mitattu oikeaksi, mutta poistettiin:
+ * kahdeksantoista väripilkkua yhdellä rivillä on kahdeksantoista asiaa
+ * joita silmä yrittää lukea.
  *
- * `_tlPaivaKaistat` ja `State._tlPaivaAlue` poistuivat samalla. */
+ * Käyttäjän pyynnöstä (30.9.) kiskossa on nyt KELIKAISTA, ja se on eri
+ * muoto kuin se joka kaatui: yksi jatkuva, sumennettu juova koko akselin
+ * läpi, ajassa (lapun leveys = vuorokausi, kellonajan mukaan), ei luku
+ * per päivä. Levossa se on tasapaksu hiljainen harmaansininen viiva —
+ * rivillä on silloin yksi muoto eikä yhtään pilkkua. Vain FOILATTAVINA
+ * tunteina (tuuli ≥ `Keli.AJETTAVA` JA aurinko ylhäällä, sama ehto kuin
+ * kelihypyllä) juova paisuu ja syttyy lämpökartan värillä
+ * (`ColorRamp.rgb`), eli silmä poimii rivistä vain kelit.
+ *
+ * LEVEYS ON MUOTO, VÄRI ON ARVO — sama kielioppi kuin palkeilla ja
+ * vanhalla kaistalla. Pelkkä väri ei kelpaisi, koska rampin hiljainen
+ * pää on tumma ja tyyni näyttäisi raskaimmalta; siksi rampin väri
+ * ylipäätään alkaa vasta foilausrajalta, ja sen alla juova on neutraali.
+ *
+ * Kaista on pillerin ALAPUOLELLA (kiskon alimmat 9 px), ei sen sisällä:
+ * valitun päivän kelit luetaan suoraan pillerin alta. Piirto on
+ * `_tlKaistaPiirra`, ja se ajetaan myös nopeassa polussa, koska kaista
+ * riippuu nopeuksista (vanhan kaistan opetus). */
+.tl-kaista {
+  position: absolute; bottom: 0; height: 9px;
+  pointer-events: none;
+}
 
 /* PALKKI ON KORTIN PAPERILLA, EI OMASSA URASSAAN.
  *
@@ -1877,6 +1902,17 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
 /* Hiirellä jana vedetään (ks. `_hiiriVeto`); snäppäys on vedon ajan pois. */
 @media (pointer: fine) { #tl-scroll { cursor: grab; } }
 #tl-scroll.hiiriveto { cursor: grabbing; scroll-snap-type: none; user-select: none; -webkit-user-select: none; }
+/* TOISTON AIKANA SNÄPPÄYS ON POIS (`.toistaa`).
+ *
+ * Play kirjoittaa `scrollLeft`in joka ruudussa murtolukusijainnista,
+ * mutta `mandatory` vetää jokaisen kirjoituksen lähimpään tikkiin — sama
+ * sidos jonka takia kiskossa ei ole snäppäystä lainkaan. Mitattuna
+ * (Chromium, puhelin) 103 ruudusta nauha liikkui 6:ssa, joka kerta
+ * tasan 18 px eli tunnin kerrallaan: toisto oli tikitystä eikä liukua.
+ * Luokka on päällä toiston ja sen loppuliu'un ajan (`_tlToistoLoppuu`),
+ * ja liuku päättyy tikin kohdalle, joten snäppäyksen paluu ei siirrä
+ * mitään. */
+#tl-scroll.toistaa { scroll-snap-type: none; }
 
 /* LUKEMA PALKIN ALLE — JA SE ON PALUU, EI UUSI IDEA.
  *
@@ -24204,6 +24240,9 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
   State._tlMuisti = { times: times, speeds: speeds, dirs: dirs, activeIdx: activeIdx,
     lat: lisa ? lisa.lat : null, lng: lisa ? lisa.lng : null };
   const tl = document.getElementById('tl-scroll');
+  /* Toiston loppuliuku kirjoittaisi vanhaa kohdetta uuden sijoituksen
+     päälle. (Toiston aikana liukua ei ole.) */
+  _tlLiukuSeis(tl);
   /* Nopea tie: sama rakenne kuin ruudulla jo on. Ehtoihin kuuluu myös
      NYT-indeksi, koska "mennyt"-tila on sidottu siihen ja se siirtyy
      kellon mukana. */
@@ -24214,6 +24253,9 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
       && State._tlNytIdx === nowIdx(times)) {
     _tlPaivitaPalkit(speeds, activeIdx);
     State._tlTimes = times; State._tlSpeeds = speeds; State._tlDirs = dirs;
+    /* Kelikaista riippuu nopeuksista ja paikasta, ei vain ajasta — se
+       on piirrettävä myös täällä (vanhan päiväkaistan opetus). */
+    _tlKaistaPiirra();
     _tlBeginSelfScroll();
     requestAnimationFrame(() => {
       const target = State._tlTicks[activeIdx];
@@ -24361,6 +24403,8 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
            talletetaan napautus/raahaus-erotteluun. `wheel` on mukana,
            koska työpöydällä kiskoa vieritetään ilman pointerdownia. */
         if (State.isPlaying) stopPlay();
+        _tlLiukuSeis(kisko);
+        _tlLiukuSeis(document.getElementById('tl-scroll'));
         _tlKiskoAlkuScroll = kisko.scrollLeft;
         /* SORMI ON OLLUT KISKOLLA. Tämä kattaa myös heiton sormen
            noston jälkeen, ja se on scroll-käsittelijän PORTTI: ilman
@@ -24552,6 +24596,10 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
          raahauksen alla ja ohitti sormen: mitattuna janaa vedettiin
          taaksepäin ja tunti eteni silti eteenpäin. */
       if (State.isPlaying) stopPlay();
+      /* Toiston loppuliuku ei jatka sormen alla — se veisi nauhaa
+         kohti tikkiä sormea vastaan. Pysäytys palauttaa snäppäyksen. */
+      _tlLiukuSeis(tl);
+      _tlLiukuSeis(document.getElementById('tl-paivat'));
       State._tlSelfScroll = false;
       if (n !== 'wheel') State._tlTouching = true;
     }, { passive: true });
@@ -24827,6 +24875,7 @@ function _tlValitseIdx(idx) {
   if (State.isPlaying) stopPlay();
   Haptics.selection();
   const tl = document.getElementById('tl-scroll');
+  _tlLiukuSeis(tl);
   const kohde = State._tlTicks[idx];
   if (tl && kohde) _tlSetScrollLeft(tl, kohde.offsetLeft - tl.offsetWidth / 2 + TL_TIKKI_PUOLI);
   _tlSeuraaHetkea(idx);
@@ -24866,10 +24915,14 @@ const TL_KELI_MS = Keli.HYVA;
 function _tlSeuraavaKeli(nykyIdx) {
   const sp = State._tlSpeeds, n = State._tlTicks ? State._tlTicks.length : 0;
   if (!sp || !n) return -1;
-  const valo = State._tlMuisti && State._tlMuisti.valo;
-  /* Ilman valotietoa ei hylätä mitään — pimeys on lisäehto, ei
+  /* Valoisuus tulee samasta paikasta kuin kelikaistan (`_tlAurinko`):
+     kaista syttyy ja nappi hyppää saman ehdon mukaan. Tämä luki ennen
+     `State._tlMuisti.valo`a, jota ei enää kirjoittanut mikään.
+     Ilman valotietoa ei hylätä mitään — pimeys on lisäehto, ei
      edellytys sille että nappi toimii lainkaan. */
-  const hyva = i => (sp[i] || 0) >= TL_KELI_MS && !(valo && valo[i] < 2);
+  const aur = _tlAurinko(State._tlTimes);
+  const kork = aur && aur.kork.length === n ? aur.kork : null;
+  const hyva = i => (sp[i] || 0) >= TL_KELI_MS && !(kork && kork[i] < Aurinko.NOUSU);
   let i = Math.max(0, Math.round(nykyIdx || 0));
   while (i < n && hyva(i)) i++;      /* ulos käynnissä olevasta jaksosta */
   while (i < n && !hyva(i)) i++;     /* seuraavan jakson alkuun */
@@ -24946,8 +24999,11 @@ function _tlRakennaPaivat(times, idx) {
      rakennetaan uudelleen. Keskitys kirjoittaa oikean sijainnin heti
      perään, ja kumpi tahansa niistä täsmää tapahtuman kanssa. */
   _tlKiskoKirjoitettu = 0;
+  _tlLiukuSeis(kisko);
   kisko.innerHTML = '';
   State._tlPaivat = [];
+  State._tlKiskoVaritEl = [];
+  State._tlKaistaEl = null;
   const pilleri = document.getElementById('tl-paiva-pilleri');
   if (pilleri) pilleri.hidden = !times || !times.length;
   if (!times || !times.length) return;
@@ -24964,6 +25020,17 @@ function _tlRakennaPaivat(times, idx) {
   valikeL.className = 'tl-paiva-valike';
   valikeL.style.cssText = 'flex:0 0 ' + Math.round(window.innerWidth / 2) + 'px';
   kisko.appendChild(valikeL);
+
+  /* Kelikaista on kiskon SISÄLLÖN osa, jotta se vierii lappujen mukana
+     samassa kompositoinnissa — erillinen kerros jota siirrettäisiin
+     kiskon scroll-tapahtumista laahaisi sormesta ruudun verran.
+     Absoluuttinen lapsi ei osallistu flex-asetteluun eikä kasvata
+     vieritysaluetta, koska se pysyy lappujen välissä. */
+  const kaista = document.createElement('canvas');
+  kaista.className = 'tl-kaista';
+  kaista.setAttribute('aria-hidden', 'true');
+  kisko.appendChild(kaista);
+  State._tlKaistaEl = kaista;
 
   let edellinen = -1, nyk = null;
   for (let i = 0; i < times.length; i++) {
@@ -25020,6 +25087,179 @@ function _tlRakennaPaivat(times, idx) {
     }
     _tlKiskoKeskita(idx, true);
   }
+  _tlKaistaPiirra();
+}
+
+/* AURINGON KORKEUS AKSELIN JOKAISELLE TUNNILLE.
+ *
+ * Kelikaista ja kelihyppy tarvitsevat saman tiedon: onko tunti valoisa.
+ * Kelihyppy luki sitä ennen `State._tlMuisti.valo`sta, jonka kirjoitti
+ * valokaistan `_tlValovaiheet` — kaista poistettiin ja kirjoittaja sen
+ * mukana, joten kelihyppy lakkasi hiljaa tuntemasta yötä ja saattoi
+ * viedä kello kolmeen aamuyöllä. Nyt molemmat lukevat tätä.
+ *
+ * Paikka on aikajanan oma (kartan keskipiste, `_tlMuisti.lat/lng`)
+ * pyöristettynä 0,25°:een: auringon korkeus muuttuu Suomen mitoissa
+ * minuutteja, ja pyöristys pitää muistin voimassa kartan liikkuessa. */
+let _tlAurinkoMuisti = null;
+function _tlAurinko(T) {
+  if (!T || !T.length) return null;
+  const m = State._tlMuisti || {};
+  let lat = m.lat, lng = m.lng;
+  if (lat == null || lng == null) {
+    try { const c = State.map.getCenter(); lat = c.lat; lng = c.lng; } catch (e) { return null; }
+  }
+  const la = Math.round(lat * 4) / 4, lo = Math.round(lng * 4) / 4;
+  const v = _tlAurinkoMuisti;
+  if (v && v.T === T && v.la === la && v.lo === lo) return v;
+  const n = T.length;
+  const ms = new Float64Array(n), kork = new Float32Array(n), valo = new Float32Array(n);
+  const a = Aurinko.SIVIILI, b = Aurinko.NOUSU;
+  for (let i = 0; i < n; i++) {
+    ms[i] = new Date(T[i]).getTime();
+    kork[i] = Aurinko.korkeus(ms[i], la, lo);
+    /* Valoisuus 0..1: nolla siviilihämärän alarajalla, täysi
+       auringonnousussa. Hämärä saa osan — aamun ensimmäinen sessio
+       alkaa usein ennen kuin aurinko on horisontissa. */
+    const t = Math.max(0, Math.min(1, (kork[i] - a) / (b - a)));
+    valo[i] = t * t * (3 - 2 * t);
+  }
+  _tlAurinkoMuisti = { T: T, la: la, lo: lo, ms: ms, kork: kork, valo: valo };
+  return _tlAurinkoMuisti;
+}
+
+/* KELIKAISTAN PIIRTO (ks. `.tl-kaista` CSS:ssä miksi se on olemassa).
+ *
+ * Yksi kangas koko kiskon levyisenä, sarake CSS-pikseliä kohti (selain
+ * venyttää vaakaan, ja juova on vaakaan pehmeä joka tapauksessa) ja
+ * rivit laitteen tarkkuudella. Jokaiselle sarakkeelle haetaan sen
+ * KELLONAIKA lapun sisällä — lapun leveys on vuorokausi — ja siitä
+ * akselin murtolukuindeksi, joten keskiyö on täsmälleen lappujen rajalla
+ * myös akselin vajailla reunapäivillä.
+ *
+ * Tunneittain lasketaan kelipaino = nopeuden pehmeä kynnys
+ * (`Keli.AJETTAVA` − 1 … + 0,5 m/s) × valoisuus, ja sekä paino että
+ * nopeus sumennetaan ajassa Gaussilla (σ 0,8 h): juova paisuu ja syttyy
+ * kelin kohdalla eikä yksittäinen tunti tee siihen piikkiä. Väri on
+ * lepovärin ja rampin sekoitus painolla, paksuus 2 → 5 px, ja kelin
+ * kohdalla juovalla on hehku. Mennyt aika on himmeämpi kuten palkeissa,
+ * ja akselin ulkopuolelle juova häipyy.
+ *
+ * Piirto maksaa noin millisekunnin ja se ajetaan nopeassa polussa vain
+ * kun jokin sen syötteistä on vaihtunut (`_avain`). */
+const TL_KAISTA = {
+  H: 9,                 /* CSS px, sama kuin .tl-kaista */
+  KESKI: 4.5,           /* juovan keskiviiva kaistan yläreunasta */
+  LEPO: [124, 150, 186],/* harmaansininen: rampin sinisiä hiljaisempi, ei lue nopeutena */
+  LEPO_A: 0.52,
+  PAKSU: [2, 5],        /* lepo, täysi keli */
+  SIGMA_H: 0.8,
+  MENNYT: 0.45,         /* sama himmennys kuin menneillä palkeilla (.4) */
+};
+function _tlKaistaPiirra() {
+  const cv = State._tlKaistaEl;
+  const T = State._tlTimes, sp = State._tlSpeeds;
+  if (!cv || !cv.isConnected || !T || !T.length || !sp) return;
+  const g = _tlPaivaGeo();
+  if (!g) return;
+  const aur = _tlAurinko(T);
+  /* Ei `State._tlNytIdx`: hidas polku rakentaa kiskon ennen kuin se on
+     kirjoitettu uudelle akselille. */
+  const nyt = nowIdx(T);
+  const dpr = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
+  const avain = cv._avain;
+  if (avain && avain.T === T && avain.sp === sp && avain.aur === aur && avain.nyt === nyt
+      && avain.g === g && avain.dpr === dpr) return;
+  cv._avain = { T: T, sp: sp, aur: aur, nyt: nyt, g: g, dpr: dpr };
+
+  const n = T.length, lista = g.lista;
+  const tms = aur ? aur.ms : Array.from(T, function (t) { return new Date(t).getTime(); });
+  /* Tunneittain: kelipaino ja nopeus, sitten sumennus ajassa. */
+  const kyn0 = Keli.AJETTAVA - 1, kyn1 = Keli.AJETTAVA + 0.5;
+  const k0 = new Float32Array(n), s0 = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const v = sp[i] || 0;
+    const t = Math.max(0, Math.min(1, (v - kyn0) / (kyn1 - kyn0)));
+    k0[i] = t * t * (3 - 2 * t) * (aur ? aur.valo[i] : 1);
+    s0[i] = v;
+  }
+  const R = Math.ceil(TL_KAISTA.SIGMA_H * 3), ydin = [];
+  for (let r = -R; r <= R; r++) ydin.push(Math.exp(-(r * r) / (2 * TL_KAISTA.SIGMA_H * TL_KAISTA.SIGMA_H)));
+  const kk = new Float32Array(n), ss = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    let a = 0, b = 0, w = 0;
+    for (let r = -R; r <= R; r++) {
+      const j = i + r;
+      if (j < 0 || j >= n) continue;
+      const p = ydin[r + R];
+      a += k0[j] * p; b += s0[j] * p; w += p;
+    }
+    kk[i] = a / w; ss[i] = b / w;
+  }
+
+  /* Kangas lappujen päälle: ensimmäisen lapun vasemmasta reunasta
+     viimeisen oikeaan. */
+  const x0 = g.vasen[0];
+  const W = Math.max(1, Math.round(g.vasen[lista.length - 1] + g.lev[lista.length - 1] - x0));
+  const H = Math.round(TL_KAISTA.H * dpr);
+  if (cv.width !== W) cv.width = W;
+  if (cv.height !== H) cv.height = H;
+  cv.style.left = x0 + 'px';
+  cv.style.width = W + 'px';
+  const ctx = cv.getContext('2d');
+  if (!ctx) return;
+  const img = ctx.createImageData(W, H), d = img.data;
+
+  /* Lapun vuorokausi: paikallinen keskiyö ja seuraava keskiyö. */
+  const alut = new Float64Array(lista.length), loput = new Float64Array(lista.length);
+  for (let j = 0; j < lista.length; j++) {
+    const a = new Date(tms[lista[j]._i0]);
+    a.setHours(0, 0, 0, 0);
+    alut[j] = a.getTime();
+    loput[j] = new Date(a.getFullYear(), a.getMonth(), a.getDate() + 1).getTime();
+  }
+  const L = TL_KAISTA.LEPO, Hc = TL_KAISTA.H, kes = TL_KAISTA.KESKI;
+  let j = 0;
+  for (let c = 0; c < W; c++) {
+    const x = x0 + c + 0.5;
+    while (j + 1 < lista.length && g.vasen[j + 1] <= x) j++;
+    const f = Math.max(0, Math.min(1, (x - g.vasen[j]) / g.lev[j]));
+    const aika = alut[j] + f * (loput[j] - alut[j]);
+    const i0 = lista[j]._i0;
+    const fi = i0 + (aika - tms[i0]) / 3600000;
+    /* Akselin ulkopuolella juova häipyy puolessatoista tunnissa. */
+    const ulko = fi < 0 ? -fi : (fi > n - 1 ? fi - (n - 1) : 0);
+    const haivy = ulko > 0 ? Math.max(0, 1 - ulko / 1.5) : 1;
+    if (haivy <= 0) continue;
+    const fc = Math.max(0, Math.min(n - 1, fi));
+    const a0 = Math.floor(fc), a1 = Math.min(n - 1, a0 + 1), u = fc - a0;
+    const k = kk[a0] + (kk[a1] - kk[a0]) * u;
+    const v = ss[a0] + (ss[a1] - ss[a0]) * u;
+    const rc = ColorRamp.rgb(v);
+    const cr = L[0] + (rc.r - L[0]) * k, cg = L[1] + (rc.g - L[1]) * k, cb = L[2] + (rc.b - L[2]) * k;
+    /* Mennyt: sama suunta kuin palkeissa, liukuen nyt-tunnin kohdalla. */
+    const mt = Math.max(0, Math.min(1, fi - (nyt - 1)));
+    const menn = TL_KAISTA.MENNYT + (1 - TL_KAISTA.MENNYT) * mt;
+    const A = (TL_KAISTA.LEPO_A + (1 - TL_KAISTA.LEPO_A) * k) * menn * haivy;
+    const puoli = (TL_KAISTA.PAKSU[0] + (TL_KAISTA.PAKSU[1] - TL_KAISTA.PAKSU[0]) * k) / 2;
+    const sg = 0.55 + 1.15 * k, hehku = 0.30 + 0.45 * k;
+    for (let r = 0; r < H; r++) {
+      const y = (r + 0.5) / dpr;
+      const et = Math.abs(y - kes);
+      const peitto = Math.max(0, Math.min(1, (puoli - et) * dpr + 0.5));
+      const yli = et > puoli ? et - puoli : 0;
+      const gl = Math.exp(-(yli * yli) / (2 * sg * sg));
+      /* Kaistan reunat pehmenevät nollaan, jottei kiskon rajaus leikkaa
+         hehkua suoraksi viivaksi. */
+      const reuna = Math.min(y, Hc - y);
+      const ikk = reuna >= 1.5 ? 1 : Math.max(0, reuna / 1.5);
+      const alfa = A * (peitto + (1 - peitto) * hehku * gl) * ikk;
+      if (alfa <= 0.002) continue;
+      const o = (r * W + c) * 4;
+      d[o] = cr; d[o + 1] = cg; d[o + 2] = cb; d[o + 3] = Math.round(alfa * 255);
+    }
+  }
+  ctx.putImageData(img, 0, 0);
 }
 
 /* PÄIVÄYS ON TÄSMÄLLEEN KESKELLÄ, EI LIUKUVA.
@@ -25047,6 +25287,11 @@ function _tlRakennaPaivat(times, idx) {
  *    ole animoitu: pehmeä siirtymä laahaisi sormesta jäljessä, ja
  *    kaksi vierityskonetta hakisi toisiaan (sama ansa kuin
  *    tuntinauhan `scrollTimelineTo`ssa).
+ *    TOISTO ON POIKKEUS (käyttäjän pyyntö 30.9.): sormea ei ole, ja
+ *    kerralla hyppäävä kisko oli jatkuvasti liukuvan nauhan alla ainoa
+ *    nykäys. Toistossa päivän viimeinen tunti liu'uttaa kiskon
+ *    seuraavaan lappuun (`_tlKiskoToisto`), ja pysäytys kesken liu'un
+ *    asettuu lyhyellä liu'ulla (`_tlToistoLoppuu`).
  *
  * Lupaus on nyt vahvempi kuin ennen: osoitin ei ainoastaan osu
  * valittuun lappuun vaan sen keskelle.
@@ -25082,8 +25327,9 @@ let _tlKiskoKirjoitettu = null;
 function _tlKiskoAsetaScroll(kisko, x) {
   x = Math.max(0, Math.min(x, kisko.scrollWidth - kisko.clientWidth));
   _tlKiskoKirjoitettu = x;
-  if (Math.abs(kisko.scrollLeft - x) < 0.5) return;
+  if (Math.abs(kisko.scrollLeft - x) < 0.5) return x;
   kisko.scrollLeft = x;
+  return x;
 }
 /* Onko tämä scroll-tapahtuma meidän oma kirjoituksemme? */
 function _tlKiskoOmaTapahtuma(kisko) {
@@ -25106,6 +25352,23 @@ function _tlKiskoKeskita(frac, pakota) {
      ja vaihtoehto olisi jättää kisko nollaan, eli akselin ENSIMMÄISEEN
      päivään joka on noin kaksi vuorokautta menneisyydessä. */
   if (!pakota && (_tlKiskoKosketusOma || _tlKiskoVierii)) return;
+  /* TOISTOSSA KISKOA AJAA TOISTO ITSE (`_tlKiskoToisto`), joka liu'uttaa
+     sen päivästä toiseen. Tämä kutsu tulee toistossa `_tlSeuraaHetkea`n
+     kautta joka tunnin vaihdossa, ja se hyppäisi lapun kerralla juuri
+     siinä kohdassa jota liuku on kuljettamassa. */
+  if (!pakota && State.isPlaying) return;
+  _tlLiukuSeis(kisko);
+  const x = _tlKiskoKohde(frac);
+  if (x != null) _tlKiskoAsetaScroll(kisko, x);
+}
+
+/* Kiskon sijainti jossa `frac`in päivän lappu on osoittimen alla.
+   Paikat tulevat talletetusta geometriasta (`_tlPaivaGeo`), koska
+   toisto kysyy tätä joka ruudussa. */
+function _tlKiskoKohde(frac) {
+  const g = _tlPaivaGeo();
+  if (!g) return null;
+  const lista = g.lista;
   /* INDEKSI PYÖRISTETÄÄN TÄSSÄ, JA SE ON KOKO PÄIVÄRAJAN KORJAUS.
    *
    * Seuranta valitsee tikin PYÖRISTETYSTÄ luvusta
@@ -25122,11 +25385,167 @@ function _tlKiskoKeskita(frac, pakota) {
    * niistä luku on jo valmiiksi kokonaisluku. Yksi paikka, yksi
    * sääntö. */
   const f = Math.max(0, Math.round(frac || 0));
-  let el = lista[0];
+  let k = 0;
   for (let i = 0; i < lista.length; i++) {
-    if (lista[i]._i0 <= f) el = lista[i]; else break;
+    if (lista[i]._i0 <= f) k = i; else break;
   }
-  _tlKiskoAsetaScroll(kisko, el.offsetLeft + el.offsetWidth / 2 - kisko.clientWidth / 2);
+  return _tlPaivaKeski(g, k);
+}
+
+function _tlVahennaLiiketta() {
+  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  catch (e) { return false; }
+}
+
+/* LYHYT LIUKU — toiston päätös ja sen jälkeinen asettuminen.
+ *
+ * Oma ruutusilmukka eikä `scrollTo({behavior:'smooth'})`: selaimen pehmeä
+ * vieritys lähettää scroll-tapahtumia joita janan kuuntelijat lukisivat
+ * sormeksi (ks. `scrollTimelineTo`in historia), eikä sen kestoa voi
+ * valita. `kirjoita` on vierittimen oma kirjoitusfunktio, joten oma
+ * vieritys tunnistetaan samoin kuin muutenkin. Käyttäjän kosketus,
+ * uusi valinta ja uudelleenrakennus pysäyttävät liu'un (`_tlLiukuSeis`),
+ * ja vaimennettu liike vie suoraan perille. */
+function _tlLiuuta(el, alku, kohde, ms, kirjoita, valmis) {
+  _tlLiukuSeis(el);
+  if (Math.abs(kohde - alku) < 0.5 || _tlVahennaLiiketta()) {
+    kirjoita(kohde);
+    if (valmis) valmis();
+    return;
+  }
+  const t0 = performance.now();
+  const liuku = { raf: 0, valmis: valmis };
+  el._tlLiuku = liuku;
+  kirjoita(alku);
+  (function askel() {
+    liuku.raf = requestAnimationFrame(function () {
+      if (el._tlLiuku !== liuku) return;
+      const p = Math.min(1, (performance.now() - t0) / ms);
+      const e = 1 - Math.pow(1 - p, 3);
+      kirjoita(alku + (kohde - alku) * e);
+      if (p < 1) { askel(); return; }
+      el._tlLiuku = null;
+      if (valmis) valmis();
+    });
+  })();
+}
+/* Pysäyttää liu'un paikalleen. Lopetustoimi (`valmis`) ajetaan silti:
+   se on siivous (snäppäys takaisin, värit pois), ei palkinto perille
+   pääsystä. */
+function _tlLiukuSeis(el) {
+  const l = el && el._tlLiuku;
+  if (!l) return;
+  el._tlLiuku = null;
+  cancelAnimationFrame(l.raf);
+  if (l.valmis) l.valmis();
+}
+
+/* KISKON GEOMETRIA TALTEEN.
+ *
+ * Toisto liu'uttaa kiskoa joka ruudussa ja kelikaista piirretään lappujen
+ * paikoille, eikä kumpikaan saa lukea asettelua ruutu ruudulta — toiston
+ * ruudussa kartta, kupla ja merkit ovat juuri liataneet sen. Laput ovat
+ * saman levyisiä ja ne rakennetaan uudelleen aina kun akseli vaihtuu;
+ * kiskon oma leveys voi silti muuttua (kääntö, ikkunan koko), ja silloin
+ * mitataan uudelleen ja kaista piirretään uusille paikoille. */
+function _tlPaivaGeo() {
+  const kisko = document.getElementById('tl-paivat');
+  const lista = State._tlPaivat;
+  if (!kisko || !lista || !lista.length) return null;
+  const g = State._tlPaivaGeoMuisti;
+  const lev = kisko.clientWidth;
+  if (g && g.lista === lista && g.kisko === lev) return g;
+  const vasen = new Array(lista.length), levs = new Array(lista.length);
+  for (let i = 0; i < lista.length; i++) { vasen[i] = lista[i].offsetLeft; levs[i] = lista[i].offsetWidth; }
+  State._tlPaivaGeoMuisti = { lista: lista, kisko: lev, vasen: vasen, lev: levs };
+  /* Samat laput mitattiin uudelleen, eli ikkuna muuttui: kaista uusille
+     paikoille (sen muistiavain sisältää geometrian). Ensimmäinen mittaus
+     tulee rakennuksesta, joka piirtää kaistan itse. */
+  if (g && g.lista === lista) setTimeout(_tlKaistaPiirra, 0);
+  return State._tlPaivaGeoMuisti;
+}
+function _tlPaivaKeski(g, i) { return g.vasen[i] + g.lev[i] / 2 - g.kisko / 2; }
+
+/* VALITUN PÄIVÄN TEKSTI SEURAA PILLERIÄ LIU'UN AIKANA.
+ *
+ * Pilleri on paikallaan kiskon keskellä, ja valittu lappu on tummaa
+ * tekstiä sen päällä (`.valittu`). Kun kisko LIUKUU päivästä toiseen,
+ * luokka vaihtuu kerralla mutta laput ovat puolivälissä: tumma teksti
+ * olisi hetken tummalla alustalla ja valkoinen valkoisen pillerin
+ * päällä — juuri se "välähdys väärässä kohdassa" jonka takia pilleri
+ * irrotettiin lapusta. Liu'un aikana väri tulee siksi PEITTOSUHTEESTA:
+ * lappu on sitä tummempi mitä enemmän se on pillerin päällä, ja halo
+ * haalistuu samassa suhteessa. Kun kisko on levossa, tyylit poistetaan
+ * ja luokka on taas ainoa totuus — liu'un päätepisteissä ne ovat samat.
+ * `x` null poistaa. */
+function _tlKiskoVarit(x) {
+  const vanhat = State._tlKiskoVaritEl || [];
+  const uudet = [];
+  const g = x != null ? _tlPaivaGeo() : null;
+  if (g) {
+    const keski = x + g.kisko / 2;
+    const lista = g.lista;
+    for (let i = 0; i < lista.length; i++) {
+      const d = Math.abs(g.vasen[i] + g.lev[i] / 2 - keski);
+      if (d >= g.lev[i]) continue;
+      const o = 1 - d / g.lev[i], h = 1 - o;
+      const el = lista[i];
+      el.style.color = 'rgba(' + Math.round(255 - 239 * o) + ',' + Math.round(255 - 232 * o) + ','
+        + Math.round(255 - 226 * o) + ',' + (0.72 + 0.28 * o).toFixed(3) + ')';
+      el.style.textShadow = h < 0.02 ? 'none'
+        : '0 0 1px rgba(var(--tl-pohja),' + (0.95 * h).toFixed(3) + '),'
+        + '0 0 3px rgba(var(--tl-pohja),' + (0.85 * h).toFixed(3) + '),'
+        + '0 1px 4px rgba(var(--tl-pohja),' + (0.60 * h).toFixed(3) + ')';
+      uudet.push(el);
+    }
+  }
+  for (let i = 0; i < vanhat.length; i++) {
+    if (uudet.indexOf(vanhat[i]) < 0) { vanhat[i].style.color = ''; vanhat[i].style.textShadow = ''; }
+  }
+  State._tlKiskoVaritEl = uudet;
+}
+
+/* PÄIVÄKISKO TOISTOSSA — PÄIVÄ VAIHTUU LIUKUEN.
+ *
+ * Levossa ja sormella kisko hyppää keskiyön yli yhden lapun kerralla
+ * (ks. "PÄIVÄYS ON TÄSMÄLLEEN KESKELLÄ"), ja se on oikein: pehmeä
+ * siirtymä laahaisi sormesta jäljessä. Toistossa sormea ei ole — toisto
+ * pysähtyy kosketukseen — ja kerralla hyppäävä kisko oli jatkuvasti
+ * liukuvan tuntinauhan alla ainoa nykäys (mitattu: 60 px yhdessä
+ * ruudussa keskiyöllä). Käyttäjän pyyntö 30.9.: sama pehmeys päiville.
+ *
+ * Liuku on sidottu TOISTON SIJAINTIIN eikä kelloon: päivän viimeinen
+ * tunti (`TL_KISKO_LIUKU_H`) kuljettaa kiskoa lapusta seuraavaan
+ * pehmeällä käyrällä, ja keskikohta osuu siihen hetkeen jolloin valinta
+ * pyöristyy uuden päivän klo 00:aan (frac = raja − 0,5). Päiväys on
+ * siis keskellä koko muun päivän kuten ennenkin, ja vaihtuu pillerissä
+ * täsmälleen silloin kun kupla sanoo 00:00. Liuku kestää yhden tunnin
+ * toiston verran (`Config.PLAY_INTERVAL_MS`, 0,8 s). Vaimennetulla
+ * liikkeellä ei liu'uta. */
+const TL_KISKO_LIUKU_H = 1;
+function _tlKiskoToisto(frac) {
+  const kisko = document.getElementById('tl-paivat');
+  const g = _tlPaivaGeo();
+  if (!kisko || !g) return;
+  if (_tlKiskoKosketusOma || _tlKiskoVierii) return;
+  const lista = g.lista;
+  let j = -1;
+  if (!_tlVahennaLiiketta()) {
+    for (let i = 1; i < lista.length; i++) {
+      const raja = lista[i]._i0;
+      if (frac < raja) { if (frac >= raja - TL_KISKO_LIUKU_H) j = i; break; }
+    }
+  }
+  if (j < 0) {
+    if (State._tlKiskoVaritEl && State._tlKiskoVaritEl.length) _tlKiskoVarit(null);
+    const x = _tlKiskoKohde(frac);
+    if (x != null) _tlKiskoAsetaScroll(kisko, x);
+    return;
+  }
+  const t = (frac - (lista[j]._i0 - TL_KISKO_LIUKU_H)) / TL_KISKO_LIUKU_H;
+  const p = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  const a = _tlPaivaKeski(g, j - 1), b = _tlPaivaKeski(g, j);
+  _tlKiskoVarit(_tlKiskoAsetaScroll(kisko, a + (b - a) * p));
 }
 
 /* Lappu joka on osoittimen alla juuri nyt — kiskon oma `_fracFromScroll`.
@@ -25323,13 +25742,70 @@ function _playSijainti(tl, frac) {
   const i = Math.max(0, Math.min(ticks.length - 2, Math.floor(frac)));
   const t0 = ticks[i], t1 = ticks[i + 1];
   const x = t0.offsetLeft + (t1.offsetLeft - t0.offsetLeft) * (frac - i);
-  _tlSetScrollLeft(tl, x - tl.offsetWidth / 2 + TL_TIKKI_PUOLI);
+  _tlNauhaTarkka(tl, x - tl.offsetWidth / 2 + TL_TIKKI_PUOLI);
 
   /* Sama seuranta kuin sormella raahatessa — ks. `_tlSeuraaHetkea`.
      Kapseli ja tähtäin eivät ole täällä: ne päivittyvät esikatselun
      mukana (`_previewField`), eli samasta kentästä jota ne lukevat. */
   _tlSeuraaHetkea(Math.round(frac));
+  /* Päiväkisko liukuu päivästä toiseen toiston tahdissa. Tämä on
+     `_tlSeuraaHetkea`n JÄLKEEN, koska sen `_tlKorostaPaiva` vaihtaa
+     valitun lapun luokan — liu'un värit kirjoitetaan sen päälle. */
+  _tlKiskoToisto(frac);
   if (State._esikatsele) State._esikatsele(frac);
+}
+
+/* TUNTINAUHA ALIPIKSELIN TARKKUUDELLA.
+ *
+ * Toisto etenee 18 px tunnissa eli 0,8 sekunnissa: noin 0,4 px ruudussa.
+ * WebKit pitää vierityksen sijainnin kokonaisina CSS-pikseleinä, joten
+ * pelkkä `scrollLeft` liikkuisi pikselin kerrallaan epätasaisessa
+ * rytmissä (liike, pysähdys, pysähdys, liike). Kokonaisosa kirjoitetaan
+ * vieritykseksi ja se mitä selain ei ottanut vastaan siirroksi, joten
+ * nauha liukuu tasaisesti millä tahansa moottorilla. Siirto on aina
+ * alle pikselin, ja nauhan maski hävittää sen reunoilla. Käytössä VAIN
+ * toistossa ja sen loppuliu'ussa; `_tlNauhaTarkkaPois` poistaa sen. */
+function _tlNauhaTarkka(tl, x) {
+  _tlSetScrollLeft(tl, Math.round(x));
+  let ali = x - tl.scrollLeft;
+  if (Math.abs(ali) < 0.02 || Math.abs(ali) > 1) ali = 0;
+  const s = ali ? 'translate3d(' + (-ali).toFixed(2) + 'px,0,0)' : '';
+  tl._tlAli = ali;
+  if (tl._tlSiirto !== s) { tl._tlSiirto = s; tl.style.transform = s; }
+}
+function _tlNauhaTarkkaPois(tl) {
+  if (!tl) return;
+  tl._tlAli = 0;
+  if (tl._tlSiirto) { tl._tlSiirto = ''; tl.style.transform = ''; }
+  tl.classList.remove('toistaa');
+}
+
+/* TOISTO PÄÄTTYY LIUKUMALLA LÄHIMPÄÄN TIKKIIN.
+ *
+ * Kun nauha ei enää hypi tikistä tikkiin, pysäytyshetki on tikkien
+ * välissä. `_tlCommitSelection` on jo valinnut lähimmän tunnin; tämä
+ * vie nauhan sen kohdalle (enintään puoli tikkiä) ja kiskon valitun
+ * päivän kohdalle, jos pysäytys osui keskiyön liukuun. Snäppäys palaa
+ * vasta perillä, jolloin se ei siirrä mitään. */
+function _tlToistoLoppuu(tl, kiskoAlku) {
+  const tik = State._tlTicks && State._tlTicks[Math.round(State.currentHourIdx || 0)];
+  if (tl) {
+    if (tik) {
+      const kohde = tik.offsetLeft - tl.offsetWidth / 2 + TL_TIKKI_PUOLI;
+      _tlLiuuta(tl, tl.scrollLeft + (tl._tlAli || 0), kohde, 180,
+        function (x) { _tlNauhaTarkka(tl, x); },
+        function () { _tlNauhaTarkkaPois(tl); });
+    } else _tlNauhaTarkkaPois(tl);
+  }
+  const kisko = document.getElementById('tl-paivat');
+  const kohde = _tlKiskoKohde(State.currentHourIdx || 0);
+  if (!kisko || kohde == null || kiskoAlku == null || Math.abs(kohde - kiskoAlku) < 0.5) {
+    _tlKiskoVarit(null);
+    return;
+  }
+  _tlLiuuta(kisko, kiskoAlku, kohde, 240,
+    function (x) { _tlKiskoVarit(_tlKiskoAsetaScroll(kisko, x)); },
+    function () { _tlKiskoVarit(null); });
 }
 
 /* -- PLAY ------------------------------------------------------- */
@@ -25360,6 +25836,10 @@ function togglePlay() {
   icon.innerHTML = '<rect x="5" y="4" width="4" height="16" rx="1" fill="currentColor"/><rect x="15" y="4" width="4" height="16" rx="1" fill="currentColor"/>';
 
   const tl = document.getElementById('tl-scroll');
+  /* Edellisen toiston loppuliuku ei saa jatkaa uuden alla. */
+  _tlLiukuSeis(tl);
+  _tlLiukuSeis(document.getElementById('tl-paivat'));
+  if (tl) tl.classList.add('toistaa');
   let frac = State.currentHourIdx || 0, edellinen = 0;
 
   function askel(ts) {
@@ -25385,9 +25865,15 @@ function stopPlay() {
   btn.setAttribute('aria-label', _t('Toista aika', 'Play forecast'));
   btn.setAttribute('aria-pressed', 'false');
   document.getElementById('play-icon').innerHTML = '<path d="M7 4.5v15l12-7.5z" fill="currentColor"/>';
-  /* Vahvista lähin tunti täydellä tarkkuudella. */
+  /* Vahvista lähin tunti täydellä tarkkuudella. Kiskon sijainti otetaan
+     talteen ENNEN vahvistusta: jos tunti vaihtuu, `_tlKorostaPaiva`
+     keskittää kiskon kerralla, ja loppuliuku lähtee siitä missä kisko
+     oli ruudulla. */
   const tl = document.getElementById('tl-scroll');
+  const kisko = document.getElementById('tl-paivat');
+  const kiskoAlku = kisko ? kisko.scrollLeft : null;
   if (tl) _tlCommitSelection(tl);
+  _tlToistoLoppuu(tl, kiskoAlku);
 }
 
 /* Selain nukuttaa taustavälilehden rAF:n; ilman tätä play jatkaisi

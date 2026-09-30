@@ -2436,6 +2436,10 @@ reuna, joka oli tämän koko sarjan lähtökohta (8,97:1 tummalla uralla,
 
 ### Tuulikaista päivälapuista pois
 
+> **Kiskoon palasi kaista 30.9. eri muodossa** — yksi jatkuva
+> kelikaista, ei päiväkohtaista lukua. Ks. *Aikajana: toisto liukuu,
+> päivä vaihtuu liukuen, kiskoon kelikaista*.
+
 Kaista toimi ja se oli mitattu oikeaksi (väri ja leveys sen päivän
 kovimmasta tuulesta valoisaan aikaan, 9/9 oikein myös nopeassa polussa).
 Se poistettiin silti: kahdeksantoista väripilkkua yhdellä rivillä on
@@ -7239,3 +7243,136 @@ vastauksen saapuessa.
 Kielen vaihto asetuksista mitattu päästä päähän: English-siru →
 `fs_kieli = en` → uudelleenlataus → `<html lang="en">`, asetukset auki,
 `?perf=1` säilyy, ei virheitä.
+
+## Aikajana: toisto liukuu, päivä vaihtuu liukuen, kiskoon kelikaista (30.9.)
+
+Käyttäjän pyyntö: aikajana siirtyy toistossa seuraavaan tuntiin
+pehmeämmin, sama päivämäärille, ja päiväkiskoon selkeä, sumennettu
+liukuvärjäys joka näyttää foilattavat kelit lämpökartan värein — muuten
+tasapaksu, tavallinen sinertävä. Design vapaa.
+
+### Toisto oli tikitystä, ei liukua
+
+Play laski sijainnin murtolukuna joka ruudussa jo ennestään
+(`_playSijainti`), eli vika ei ollut ajastimessa. Mitattu Chromiumilla
+puhelinkontekstissa (`hasTouch`, dpr 3), 5 s toistoa klo 21:stä yli
+keskiyön, sijainti joka ruudussa:
+
+| | ennen | jälkeen |
+|---|---|---|
+| ruutuja, joissa nauha liikkui | 6 / 103 | 65 / 83 |
+| suurin askel | 18,0 px (tasan tunti) | 3,0 px (kontin ~17 fps) |
+| kiskon siirto keskiyöllä | 60 px yhdessä ruudussa | 1, 1, 6, 15, 19, 12, 1, 3, 1, 1 px |
+| `_tlSeuraaHetkea` tunnin vaihdossa | 2,8–4,2 ms | 2,1–7,3 ms |
+
+Syy oli `scroll-snap-type: x mandatory`: se sitoo myös ohjelmallisen
+vierityksen, joten jokainen kirjoitus vedettiin lähimpään tikkiin ja
+nauha hyppäsi tunnin kerrallaan (sama sidos jonka takia kiskossa ei ole
+snäppäystä). Toiston ajaksi `#tl-scroll.toistaa` poistaa snäppäyksen.
+
+**WebKit pitää vierityksen kokonaisina pikseleinä** (mitattu 0/14
+murto-osaa `scrollLeft`issä), ja toisto etenee 18 px / 0,8 s ≈ 0,4 px
+ruudussa. Pelkkä `scrollLeft` liikkuisi siis pikselin kerrallaan
+epätasaisessa rytmissä. `_tlNauhaTarkka` kirjoittaa kokonaisosan
+vieritykseksi ja loput `translate3d`-siirroksi nauhalle (alle
+pikselin; nauhan reunamaski hävittää sen). Siirto oli käytössä
+WebKitissä 10/14 ruudussa.
+
+**Pysäytys liukuu tikille.** Kun nauha ei hypi, pysäytys osuu tikkien
+väliin: `_tlCommitSelection` valitsee lähimmän tunnin ja
+`_tlToistoLoppuu` vie nauhan sen kohdalle 180 ms:ssa (ease-out). Siirto
+ja `.toistaa` poistuvat vasta perillä, joten snäppäyksen paluu ei
+siirrä mitään: mitattu nauha tikillä 0 px, snäppäys `x mandatory`,
+siirto tyhjä. Liuku on oma ruutusilmukka (`_tlLiuuta`) eikä selaimen
+pehmeä vieritys, jonka scroll-tapahtumat janan kuuntelijat lukisivat
+sormeksi; kosketus, `_tlValitseIdx`, `renderTimeline` ja uusi toisto
+pysäyttävät sen (`_tlLiukuSeis`, joka ajaa silti siivouksen).
+
+### Päivä vaihtuu liukuen — vain toistossa
+
+Kisko hyppää keskiyön yli lapun kerralla, ja sormella se on oikein
+(pehmeä siirtymä laahaisi sormesta). Toistossa sormea ei ole, ja hyppy
+oli liukuvan nauhan alla ainoa nykäys. Nyt päivän viimeinen tunti
+kuljettaa kiskon seuraavaan lappuun (`_tlKiskoToisto`,
+`TL_KISKO_LIUKU_H` = 1 h eli 0,8 s oletusnopeudella, kuutiollinen
+ease-in-out). Liuku on sidottu toiston sijaintiin eikä kelloon, ja sen
+keskikohta on frac = raja − 0,5 — täsmälleen se hetki jolloin valinta
+pyöristyy klo 00:aan ja kupla sanoo 00:00. Muun päivän lappu on
+keskellä kuten ennenkin.
+
+Mitattu WebKitillä ajamalla `_playSijainti` 1/8 tunnin välein rajan yli:
+
+| frac − raja | kisko px | pillerin alla | lapun väri | valittu |
+|---|---|---|---|---|
+| −1,25 … −0,875 | 172 | Tänään (0,5 px) | luokka / tumma | Tänään |
+| −0,75 | 176 | Tänään (−3,5) | `31,38,43` | Tänään |
+| −0,5 | 202 | Tänään (−29,5) | `136,139,142` .86 | **To 1.** |
+| −0,25 | 227 | To 1. (4,9) | `31,38,43` | To 1. |
+| 0 … +0,25 | 231 | To 1. (0,9) | luokka | To 1. |
+
+**Teksti seuraa pilleriä peittosuhteesta** (`_tlKiskoVarit`). Pilleri
+on paikallaan ja laput vierivät sen yli; luokka vaihtuisi kerralla
+kesken liu'un, jolloin tumma teksti olisi hetken tummalla alustalla ja
+valkoinen valkoisen pillerin päällä. Liu'un aikana lappu on sitä
+tummempi mitä enemmän se on pillerin päällä, ja halo haalistuu samassa
+suhteessa; levossa tyylit poistetaan ja luokka on taas ainoa totuus
+(päätepisteissä ne ovat samat, mitattu 0 inline-tyyliä pysäytyksen
+jälkeen). Pysäytys kesken liu'un (frac −0,4) asettui 240 ms:ssa
+keskelle: 0,9 px WebKit, 0,09 px Chromium.
+
+Liukuakseen kisko ei saa lukea asettelua ruutu ruudulta, joten lappujen
+paikat talletetaan (`_tlPaivaGeo`) ja mitataan uudelleen vain kun
+laput tai kiskon leveys vaihtuvat. `_tlKiskoKeskita` vaikenee
+toistossa, koska tunnin vaihdon keskitys hyppäisi juuri liu'un
+kohdalla. Vaimennetulla liikkeellä ei liu'uta.
+
+### Kelikaista
+
+Kiskon alimmissa 9 px:ssä kulkee yksi juova koko akselin läpi. Levossa
+se on tasapaksu 2 px harmaansininen (`124,150,186`, alfa .52), joka on
+tarkoituksella rampin sinisiä hiljaisempi, jottei se lue nopeutena.
+Foilattavina tunteina juova paisuu 5 px:iin, saa hehkun ja lämpökartan
+värin (`ColorRamp.rgb`), joten silmä poimii rivistä vain kelit.
+
+- **Ajassa, ei päivää kohti.** Lapun leveys on vuorokausi: sarakkeen
+  kellonaika lapun sisällä → akselin murtolukuindeksi. Keskiyö on
+  täsmälleen lappujen rajalla myös akselin vajailla reunapäivillä
+  (akseli alkoi mittaushetkellä klo 18, ja juova alkaa "Tänään"-lapun
+  kolmen neljänneksen kohdalta ja häipyy 1,5 tunnissa).
+- **Keli = tuuli × valo.** Tuulen paino on pehmeä kynnys
+  `Keli.AJETTAVA` −1 … +0,5 m/s (5 m/s → 0, 6 m/s → 0,74, 6,5 → 1), ja
+  se kerrotaan valoisuudella (siviilihämärän alaraja 0 → auringonnousu
+  1). Yöllä puhaltava tuuli ei ole keli; vanhan päiväkaistan sama
+  päätös ("valoisan ajan huippu").
+- **Sumennus.** Paino ja nopeus sumennetaan ajassa Gaussilla (σ 0,8 h),
+  ja juovan poikkileikkaus on reunanpehmennetty ydin + hehku
+  (σ 0,55 → 1,7 px painon mukaan). Kaistan ylä- ja alareuna häivyttävät
+  hehkun nollaan 1,5 px:ssä, jottei kiskon rajaus leikkaa sitä suoraksi.
+- **Mennyt** on .45 kuten palkeissa, liukuen nyt-tunnin kohdalla.
+- **Tila:** pilleri siirtyi 26 → 24 px ja 3 px kiskon yläreunasta, ja
+  lapun teksti nousi samaan (`padding-bottom: 4px`). Kiskon ja kääreen
+  korkeus eivät muuttuneet.
+- **Piirto** on yksi kangas lappujen levyisenä, sarake CSS-pikseliä
+  kohti ja rivit laitteen tarkkuudella (puhelimessa 950 × 27).
+  Mitattu 15 pakotettua piirtoa: mediaani 2,1 ms, max 3,2 ms; sama
+  syöte ohitetaan muistiavaimella (0,2 ms). Nopea polku piirtää sen
+  (vanhan päiväkaistan opetus) — mitattu: uudet nopeudet samalle
+  akselille vaihtoivat kaistan.
+
+Kuvakaappaukset (synteettinen sarja, puhelin ja työpöytä) tarkistettu
+tumman kartan ja lämpökartan päältä. Kontrastia ei ole mitattu
+satelliittikuvaa vasten.
+
+### Kelihypyn valoisuusehto oli hiljaa rikki
+
+`_tlSeuraavaKeli` luki valoisuuden `State._tlMuisti.valo`sta, jonka
+kirjoitti valokaistan `_tlValovaiheet`. Kaista poistettiin ja
+kirjoittaja sen mukana, joten kelihyppy ei enää tuntenut yötä (ja
+tasaisella kovalla tuulella se ei löytänyt kohdetta lainkaan, koska
+koko akseli oli yhtä "keliä"). Nyt se lukee samaa `_tlAurinko`a kuin
+kelikaista: tunti kelpaa kun aurinko on nousukorkeuden (−0,833°)
+yläpuolella. Mitattu tasaisella 10 m/s sarjalla klo 22:sta: kohde
+to klo 08 (aurinko +3,2°, edellinen tunti −4,2°).
+
+Testit: savutesti (puhelin ja työpöytä, 0 virhettä), graafimittaus
+(96 ok, 0 vikaa), `node --check api/*.js`.
