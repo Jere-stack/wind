@@ -7063,7 +7063,11 @@ merkin laatikko 62 → 75.
 Kolmio kulkee ikonin allekirjoituksessa (`|v`), ja datan saapuessa ikoni
 asetetaan `_asetaTuuliIkoni`lla joka lukee kameran tilan: lukema ja
 kameran tila tulevat eri pyynnöistä eri aikaan, ja ilman sitä
-myöhemmin saapunut lukema olisi pudottanut kolmion.
+myöhemmin saapunut lukema olisi pudottanut kolmion. *Päivitys 30.9.:*
+`_asetaTuuliIkoni` korvattiin `updateIcons()`illa, joka lukee kameran
+tilan samalla tavalla ja lisäksi valitun hetken — menneellä tunnilla
+juuri saapunut tuorein lukema olisi ollut väärän tunnin luku
+(docs/oikeellisuus.md, O7).
 
 **Kamera on heron alla, ennen kaaviota** (mitattu järjestys: nimi,
 hero, naapuri, kamera, tuulihavainto, lähde). Se on "nyt"-tietoa kuten

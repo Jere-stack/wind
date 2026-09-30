@@ -1237,7 +1237,9 @@ aineisto tulee perille myöhässä: mitattuna kuusi poijua olivat 57, 87,
   ikkunalla yksi asema kymmenestä putosi vastauksesta kokonaan
   (mitattu 9 vs 10).
 - Vastaus kertoo aina `ageMin`, ja kortti sanoo sen. Lukema **ei ole
-  "nyt"**, eikä sitä saa esittää nykyhetkenä.
+  "nyt"**, eikä sitä saa esittää nykyhetkenä. (30.9.: kortti laskee iän
+  vastauksen leimasta `lastIso`, koska `ageMin` jäätyy hakuhetkeen ja
+  CDN:n välimuisti vanhentaa sitä — docs/oikeellisuus.md, O7.)
 
 **3. Kaikki poijut eivät mittaa aaltoja.** 30 h aineistosta:
 
