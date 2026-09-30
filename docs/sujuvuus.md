@@ -388,7 +388,7 @@ on arvio.
 Ennen B- ja C-tason valintaa pitää tietää onko työpöydän raskaus
 eleen aikana GPU:lla vai pääsäikeellä.
 
-1. `https://wind-delta.vercel.app/?perf=1` työpöydän selaimessa
+1. `https://foilspot.vercel.app/?perf=1` työpöydän selaimessa
    tavallisella ikkunakoolla.
 2. Panoroi ja rullaa 10 s. Kirjaa fps, "huippu", "ele" ja "jälki".
 3. Toista kolmesti: *Partikkelit ✕*; *Lämpökartta ✕* (partikkelit

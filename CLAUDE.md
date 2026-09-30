@@ -119,7 +119,9 @@ Vercel ajaa `npm run build`:n ja julkaisee `dist/`-hakemiston sekä
 
 **TUOTANTO ON REPON OLETUSHAARA `claude/vite-project-setup-6je1pq`, EI
 `main`.** Vercelin tuotantodeploy seuraa sitä ja julkaisee osoitteeseen
-`wind-delta.vercel.app`; muut haarat saavat vain preview-deployn. Repossa ei
+`foilspot.vercel.app` (ennen `wind-delta.vercel.app`, jonka pitää ohjata
+uuteen; origin vaihtui, joten `localStorage` ja asennettu PWA eivät siirry);
+muut haarat saavat vain preview-deployn. Repossa ei
 ole `main`- eikä `master`-haaraa lainkaan.
 
 **Valmis muutos viedään oletushaaralle, oletuksena ja kysymättä.** Työ tehdään
