@@ -9631,19 +9631,34 @@ const Osuvuus = {
   }
 };
 
-/* Kirjaa pari ja päivitä rivi. Erillinen funktio, koska havainto saapuu
-   kahta reittiä: tuoreena hakuna ja välimuistista. Molemmissa halutaan
-   sama käsittely, ja välimuistihaarassakin rivi pitää piirtää vaikka uutta
-   paria ei synny.
+/* Kirjaa pari ja päivitä rivi.
    Vertailu tehdään NYKYHETKEN tuntiin, ei valittuun: valitun tunnin
-   ennusteelle ei ole havaintoa. */
-function _kirjaaOsuvuus(spot, h, havaintoMs, fmiId) {
+   ennusteelle ei ole havaintoa.
+
+   ENNUSTE ON SAMA "PARAS" KUIN KORTIN HEROSSA JA KAAVIOSSA
+   (docs/oikeellisuus.md, O2). Pari luki ennen spotin omaa
+   rajapintasarjaa (`spot.wx`), joka on eri ajosta kuin varasto: mitattuna
+   12 spotissa |ero| 0,45 m/s ja 35 % tunneista yli 0,5 m/s — "Ennuste
+   ollut X liian kova" koski eri ennustetta kuin sitä jota käyttäjä
+   katsoi. Jos Paras ei ole vielä valmis, pari jää tältä avaukselta
+   kirjaamatta.
+
+   HAVAINNON ON OLTAVA TUORE (≤ 60 min): Mellstenin ja Larun `latest` on
+   tuorein rivi vaikka asema olisi ollut tunteja pimeänä, ja silloin pari
+   vertaisi nykytunnin ennustetta tuntien takaiseen tuuleen. */
+function _kirjaaOsuvuus(spot, havainto, fmiId) {
   try {
-    if (h && h.time && h.windspeed_10m) {
-      const nyt = nowIdx(h.time);
-      if (nyt >= 0 && h.windspeed_10m[nyt] != null) {
-        Osuvuus.kirjaa(spot.name, h.time[nyt], h.windspeed_10m[nyt], havaintoMs);
-      }
+    const ika = _havIkaMin(havainto);
+    let p = null;
+    try { p = KorttiSarjat.valmis(spot, 'paras'); } catch (e) { p = null; }
+    const t = Ennuste.nytTunti();
+    const a = p ? KorttiSarjat.arvo(p, t) : null;
+    if (a && havainto && havainto.ws != null && ika != null && ika <= 60) {
+      /* Avain samassa muodossa kuin aiemmat näytteet (sarjan paikallinen
+         'YYYY-MM-DDTHH:MM'), jotta sama tunti kirjataan vain kerran. */
+      const d = new Date(t), k2 = function (n) { return (n < 10 ? '0' : '') + n; };
+      const avain = d.getFullYear() + '-' + k2(d.getMonth() + 1) + '-' + k2(d.getDate()) + 'T' + k2(d.getHours()) + ':00';
+      Osuvuus.kirjaa(spot.name, avain, a.ms, +havainto.ws);
     }
     const el = document.getElementById(fmiId + '-osuvuus');
     if (el) el.textContent = Osuvuus.teksti(spot.name);
@@ -11215,6 +11230,19 @@ const WindTexture = {
      tuli sironneesta polusta. Ks. `sampleWind`. */
   hila: null,
   _puskuriN: -1, _img: null, _d32: null, _laattaHakuT: 0,
+  /* Kevyt uudelleenrakennus levossa laattojen saavuttua (ks. hilapolun
+     `varmista`). Sama kutsu kuin kartan `zoomend`issä. Liikkeen aikana
+     ei mitään: `moveend` rakentaa joka tapauksessa. */
+  _taydennaAjastin: null,
+  _taydennaLevossa() {
+    clearTimeout(this._taydennaAjastin);
+    this._taydennaAjastin = setTimeout(() => {
+      if (State.liikkeessa || !State.map) return;
+      this.build(State.windField, State.map.getBounds()).then(() => {
+        drawColorField(); resetParticles(); Crosshair.refresh();
+      }).catch(() => {});
+    }, 120);
+  },
   _vaN: -1, _vaU: null, _vaV: null, _sxN: -1, _sx: null, _sw: null, _py: null,
 
   /* Tekstuurin sivun enimmäismitta. Omana metodinaan eikä buildin sisällä,
@@ -11633,19 +11661,31 @@ const WindTexture = {
            Ehto voi vain TIHENTÄÄ (min), koska leveässä näkymässä
            `kaytettyStep` on tarkoituksella suurempi kuin `gridStep` — se
            pitää laattamäärän kurissa. */
-        let dStep = (typeof ViewportGrid !== 'undefined')
-          ? ViewportGrid.kaytettyStep(zoom) : 0.25;
-        if (zoom >= 7 && typeof ViewportGrid !== 'undefined') {
-          dStep = Math.min(dStep, ViewportGrid.laattaStep(zoom));
+        /* SAMA TASO JA SAMAT SOLMUT KUIN LÄMPÖKARTALLA (docs/oikeellisuus.md,
+           O3). Askel on `laattaStep(round(zoom))` kuten `LampoGL._rakenna`ssa,
+           aikajanassa ja lähdemerkinnässä: pyöristämättä vyöhykkeellä
+           n − 0,5 … n kapseli ja partikkelit lukivat karkeampaa tasoa kuin
+           lämpökartta, ja mitattuna (z 9,7, 400 pistettä) kapseli oli
+           värin alla olevasta kentästä ka 0,59 m/s, max 1,25 m/s sivussa.
+           Origo on globaalisti kohdistettu samalla kaavalla, joten solmut
+           ovat lämpökartan solmut eikä näyte ole kahden interpoloinnin
+           tulos. `kaytettyStep` jää vain katoksi, jos hila kasvaisi yli
+           rajan. */
+        const tz = Math.round(zoom);
+        const M = 2;
+        let dStep = (typeof ViewportGrid !== 'undefined') ? ViewportGrid.laattaStep(tz) : 0.25;
+        const solmut = (d) => (Math.ceil((loMax - (Math.floor(loMin / d) - M) * d) / d) + 1 + M)
+          * (Math.ceil((laMax - (Math.floor(laMin / d) - M) * d) / d) + 1 + M);
+        if (solmut(dStep) > 400000 && typeof ViewportGrid !== 'undefined') {
+          dStep = Math.max(dStep, ViewportGrid.kaytettyStep(zoom));
         }
         /* Solmuhila kattaa tekstuurin ja kaksi solmua yli kummallakin
            reunalla, koska kuubinen ydin lukee j−1 … j+2. */
-        const M = 2;
-        const gc = Math.ceil(lngSpan / dStep) + 1 + 2 * M;
-        const gr = Math.ceil(latSpan / dStep) + 1 + 2 * M;
+        const la0 = (Math.floor(laMin / dStep) - M) * dStep, lo0 = (Math.floor(loMin / dStep) - M) * dStep;
+        const gc = Math.ceil((loMax - lo0) / dStep) + 1 + M;
+        const gr = Math.ceil((laMax - la0) / dStep) + 1 + M;
         if (gc < 4 || gr < 4 || gc * gr > 400000) return null;
         const gu = new Float32Array(gc * gr), gv = new Float32Array(gc * gr);
-        const la0 = laMin - M * dStep, lo0 = loMin - M * dStep;
         /* Yli puolet solmuista ilman dataa: varasto ei kata tätä näkymää,
            ja sironnut polku osaa yhä käyttää sen mitä on. Raja annetaan
            kokoaHilalle, joka keskeyttää heti sen ylityttyä. */
@@ -11676,7 +11716,17 @@ const WindTexture = {
               Saalaatat.varmista(L.latLngBounds(
                 L.latLng(Math.max(-85, la0), lo0),
                 L.latLng(Math.min(85, la0 + (gr - 1) * dStep), lo0 + (gc - 1) * dStep)
-              ), dStep).catch(function () {});
+              ), dStep).then(function (uusia) {
+                /* LEVOSSA SEURAAVAA RAKENNUSTA EI TULE, joten se pyydetään
+                   kun puuttuneita laattoja saapui (docs/oikeellisuus.md, O3).
+                   Ilman tätä kapseli ja partikkelit jäivät karkeammalle
+                   varatasolle tai reunan jatkeelle, kun lämpökartta odotti
+                   oikeat laatat (`_odottava`): mitattuna z 8,7:llä saman
+                   solmuvälin hilat erosivat ka 0,27 m/s, max 0,96. Vain
+                   UUSISTA laatoista, joten pysyvästi puuttuva laatta ei
+                   käynnistä kierrettä. */
+                if (uusia > 0) WindTexture._taydennaLevossa();
+              }).catch(function () {});
             } catch (e) {}
           }
         }
@@ -15478,14 +15528,6 @@ function _nuoletSvgiksi(t) {
    kerros samaa tietoa, ja se oli ainoa paikka jossa emoji jäi jäljelle. */
 function windBadge(ms) { return Keli.luokka(ms); }
 
-function windTrend(h, idx) {
-  const future = Math.min(idx + 3, h.windspeed_10m.length - 1);
-  const now = h.windspeed_10m[idx] || 0, later = h.windspeed_10m[future] || 0;
-  const diff = later - now;
-  if (diff > 2) return { arrow: '↑', label: _t('Nouseva', 'Building'), cls: 'gi-gusty' };
-  if (diff < -2) return { arrow: '↓', label: _t('Laskeva', 'Dropping'), cls: 'gi-steady' };
-  return { arrow: '→', label: _t('Vakaa', 'Steady'), cls: '' };
-}
 function gustIndex(ms, gst) {
   if (ms < 1) return { val: 1, label: _t('Tyyni', 'Calm'), cls: 'gi-steady' };
   const gi = gst / ms;
@@ -15713,22 +15755,41 @@ const UIRAS_STATIONS = [
   { name: 'Iso Huopalahti',    lat: 60.20500, lng: 24.87600, id: '70B3D5705001148E' },
 ];
 
+/* SAMA LISTA KUIN api/fmi.js:n `STATIONS` (CLAUDE.md, "ASEMAREKISTERI
+   ON YKSI"): `place` on avain, jolla karttamerkki, kortti ja palvelin
+   puhuvat samasta asemasta. Koordinaatit ovat FMI:n omasta vastauksesta
+   — Tapiola oli 1,1 km ja Helsinki-Vantaa 1,5 km sivussa.
+
+   Kalbådagrundista Rajakariin lisättiin 29.9. (docs/oikeellisuus.md,
+   O6): yksi etelärannikon kysely palautti 28 tuuliasemaa, rekisterissä
+   oli 12, ja lähellä spotteja puuttuivat juuri avomeriasemat. Malmi ja
+   Vuosaaren satama eivät juuri nyt lähetä; tyhjä vastaus poistaa niiden
+   merkit ja ne palaavat itsestään ("KATKO JA LAKKAUTUS"). */
 const FMI_MAP_STATIONS = [
-  { place:'kaisaniemi', name:'Helsinki Kaisaniemi',      lat:60.17523, lng:24.94459, tag:null },
-  { place:'kumpula',    name:'Helsinki Kumpula',         lat:60.20307, lng:24.96131, tag:null },
-  { place:'harmaja',    name:'Helsinki Harmaja',         lat:60.10512, lng:24.97539, tag:'Avomeri' },
-  { place:'tapiola',    name:'Espoo Tapiola',            lat:60.17510, lng:24.80590, tag:null },
-  { place:'malmi',      name:'Helsinki Malmi',           lat:60.25299, lng:25.04549, tag:'Lento' },
-  { place:'vuosaari',   name:'Helsinki Vuosaari satama', lat:60.20900, lng:25.19660, tag:'Meri' },
-  { place:'sipoo',      name:'Sipoo Itätoukki',          lat:60.10121, lng:25.19439, tag:'Meri' },
-  { place:'vantaa',     name:'Vantaa Helsinki-Vantaa',   lat:60.31700, lng:24.96300, tag:'Lento' },
-  { place:'emasalo',    name:'Porvoo Emäsalo',           lat:60.20382, lng:25.62546, tag:'Meri' },
+  { place:'kaisaniemi',   name:'Helsinki Kaisaniemi',      lat:60.17523, lng:24.94459, tag:null },
+  { place:'kumpula',      name:'Helsinki Kumpula',         lat:60.20307, lng:24.96131, tag:null },
+  { place:'harmaja',      name:'Helsinki Harmaja',         lat:60.10512, lng:24.97539, tag:'Avomeri' },
+  { place:'tapiola',      name:'Espoo Tapiola',            lat:60.17797, lng:24.78743, tag:null },
+  { place:'malmi',        name:'Helsinki Malmi',           lat:60.25299, lng:25.04549, tag:'Lento' },
+  { place:'vuosaari',     name:'Helsinki Vuosaari satama', lat:60.20867, lng:25.19590, tag:'Meri' },
+  { place:'sipoo',        name:'Sipoo Itätoukki',          lat:60.10121, lng:25.19439, tag:'Meri' },
+  { place:'vantaa',       name:'Vantaa Helsinki-Vantaa',   lat:60.32937, lng:24.97274, tag:'Lento' },
+  { place:'emasalo',      name:'Porvoo Emäsalo',           lat:60.20382, lng:25.62546, tag:'Meri' },
   /* FMISID 100683 (WMO 2994), Porvoon Kilpilahden satamassa noin
      11 km Emäsalosta pohjoiseen. Meriasema kuten Harmaja: lukema näkyy
      z8:sta, ja rannikon spoteille se ohittaa sisämaan asemat. */
-  { place:'kilpilahti', name:'Porvoo Kilpilahti satama', lat:60.30373, lng:25.54916, tag:'Meri' },
-  { place:'porkkala',   name:'Kirkkonummi Mäkiluoto',    lat:59.91982, lng:24.35023, tag:'Avomeri' },
-  { place:'hanko',      name:'Hanko Tulliniemi',         lat:59.80864, lng:22.91246, tag:'Avomeri' },
+  { place:'kilpilahti',   name:'Porvoo Kilpilahti satama', lat:60.30373, lng:25.54916, tag:'Meri' },
+  { place:'kalbadagrund', name:'Porvoo Kalbådagrund',      lat:59.98568, lng:25.59879, tag:'Avomeri' },
+  { place:'orrengrund',   name:'Loviisa Orrengrund',       lat:60.27476, lng:26.44759, tag:'Avomeri' },
+  { place:'rankki',       name:'Kotka Rankki',             lat:60.37538, lng:26.95893, tag:'Avomeri' },
+  { place:'haapasaari',   name:'Kotka Haapasaari',         lat:60.28676, lng:27.18482, tag:'Avomeri' },
+  { place:'porkkala',     name:'Kirkkonummi Mäkiluoto',    lat:59.91982, lng:24.35023, tag:'Avomeri' },
+  { place:'bagaskar',     name:'Inkoo Bågaskär',           lat:59.93114, lng:24.01408, tag:'Avomeri' },
+  { place:'hanko',        name:'Hanko Tulliniemi',         lat:59.80864, lng:22.91246, tag:'Avomeri' },
+  { place:'russaro',      name:'Hanko Russarö',            lat:59.77363, lng:22.94868, tag:'Avomeri' },
+  { place:'vano',         name:'Kemiönsaari Vänö',         lat:59.86949, lng:22.19343, tag:'Avomeri' },
+  { place:'fagerholm',    name:'Parainen Fagerholm',       lat:60.11163, lng:21.69828, tag:'Meri' },
+  { place:'rajakari',     name:'Turku Rajakari',           lat:60.37788, lng:22.09640, tag:'Meri' },
 ];
 /* Tagi on AVAIN (`pref`, `FMI_SEA_PLACES`) eikä sitä käännetä; asemavalitsin
    näyttää sen nimen tästä. */
@@ -16096,6 +16157,18 @@ const Vedenkorkeus = {
   }
 };
 
+/* Lähteen aikaleima `toISOString()`-muotoon, tai null. Sama sääntö kuin
+   api/uiras.js:n `isoAika`: enintään kolme desimaalia ja vyöhyke
+   kaksoispisteellä ennen jäsennystä, jolloin jokainen selain lukee sen. */
+function _isoAika(s) {
+  const m = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}(?::\d{2})?)(\.\d+)?\s*(Z|[+-]\d{2}:?\d{2})?$/.exec(String(s || '').trim());
+  if (!m) return null;
+  let vy = m[4] || 'Z';
+  if (vy !== 'Z' && vy.indexOf(':') < 0) vy = vy.slice(0, 3) + ':' + vy.slice(3);
+  const ms = Date.parse(m[1] + 'T' + m[2] + (m[3] ? m[3].slice(0, 4) : '') + vy);
+  return isNaN(ms) ? null : new Date(ms).toISOString();
+}
+
 const UiRas = {
   BASE_LATEST:  'https://iot.fvh.fi/opendata/uiras/',
   PROXY:        API_BASE + '/uiras',
@@ -16131,7 +16204,10 @@ const UiRas = {
       const id = rawId.toString().replace(/^urn:dev:ow:/i,'').toUpperCase();
       /* Lämpötila on measurement.temp_water */
       const temp = m.temp_water ?? m.water_temperature ?? m.temperature ?? null;
-      const time = m.time || p.time || null;
+      /* Leima `2026-09-29T22:11:05.128000+03:00` ISO-muotoon kuten proxyn
+         historia (api/uiras.js, docs/oikeellisuus.md O9): kuusi desimaalia
+         ei ole ECMAScriptin päiväysmuoto, ja leima jatkaa kaavion sarjaa. */
+      const time = _isoAika(m.time || p.time);
       if (id) map[id] = { temp, time };
     });
     this._latestCache=map; this._latestTs=Date.now();
@@ -16630,6 +16706,9 @@ function _addObsMarkers(map) {
   var C_STATION = INK_2;
   var _obsMarkers = [];
   var _stationDots = []; /* Pienet ruksi-sijaintimerkit prim-asemille */
+  /* Havaintolähteiden latausfunktiot, jotka `_havPaivita` ajaa uudelleen
+     istunnon aikana (docs/oikeellisuus.md, O7). */
+  var _havPaivittajat = [];
 
   /* ── Tuuliasema-ikoni ──────────────────────────────────────── */
   /* Tuuliviiri-ikoni SVG */
@@ -16969,15 +17048,10 @@ function _addObsMarkers(map) {
     /* Piste: koko ja läpinäkyvyys tulevat samoista zoom-kynnyksistä */
     return 'd|' + (z < 8 ? 0 : z < 10 ? 1 : 2) + hlj;
   }
-  /* Datan saapuessa ikoni ja sen allekirjoitus SAMASTA tilasta, kamera
-     mukaan lukien. Lukema ja kameran tila tulevat eri pyynnöistä eri
-     aikaan: ilman kameraa tässä myöhemmin saapunut lukema pudottaisi
-     play-kolmion seuraavaan updateIcons()iin asti. */
-  function _asetaTuuliIkoni(entry, ws) {
-    var z = map.getZoom(), video = Kamerat.live(entry.place);
-    entry._iconSig = _windIconSig(z, ws, entry.pilleriZ, entry.hiljainen, video);
-    entry.marker.setIcon(mkWindIcon(z, ws, entry.stName, entry.pilleriZ, entry.hiljainen, video));
-  }
+  /* Datan saapuessa merkit päivitetään `updateIcons()`illa eikä suoralla
+     setIconilla: se lukee kameran tilan (play-kolmio, `|v`) ja VALITUN
+     HETKEN — menneellä tunnilla juuri saapunut tuorein lukema olisi
+     väärän tunnin luku seuraavaan aikajanan askeleeseen asti. */
   function _waterIconSig(zoom, temp, isPrim) {
     var z = zoom || 5;
     if (isPrim && z >= 9 && temp != null) {
@@ -17038,9 +17112,18 @@ function _addObsMarkers(map) {
       if (diff < bestDiff) { bestDiff = diff; best = i; }
     }
     if (best < 0 || bestDiff > 3600000) return null; /* >1h → ei löydy */
-    var ws = hist.ws[best].v != null ? +hist.ws[best].v : null;
-    var wgPts = hist.wg || [];
-    var wg = wgPts[best] && wgPts[best].v != null ? +wgPts[best].v : ws;
+    var p = hist.ws[best];
+    var ws = p.v != null ? +p.v : null;
+    /* PUUSKA SAMALTA HETKELTÄ, EI SAMASTA INDEKSISTÄ. FMI:n historiassa
+       puuskasarja saa rivin vain kun puuska on olemassa, joten yksikin
+       puuttuva puuska siirsi kaikki myöhemmät indeksit: `wg[best]` oli
+       silloin toisen kymmenminuuttisen puuska (docs/oikeellisuus.md, O7). */
+    var wgPts = hist.wg || [], q = wgPts[best];
+    if (p.iso && !(q && q.iso === p.iso)) {
+      q = null;
+      for (var k = 0; k < wgPts.length; k++) { if (wgPts[k] && wgPts[k].iso === p.iso) { q = wgPts[k]; break; } }
+    }
+    var wg = q && q.v != null ? +q.v : ws;
     return { ws: ws, wg: wg };
   }
 
@@ -17050,6 +17133,9 @@ function _addObsMarkers(map) {
      palaisivat "nyt"-hetkeen vaikka käyttäjä katsoo toista tuntia. */
   function _tlSelectedTs() {
     try {
+      /* Valittu hetki on `State.valittuMs` (CLAUDE.md, "VALITTU HETKI ON
+         TOTUUS"); indeksi on varatie ennen ensimmäistä valintaa. */
+      if (State.valittuMs != null) return State.valittuMs;
       var t = State._tlTimes && State._tlTimes[State.currentHourIdx];
       return t ? new Date(t).getTime() : null;
     } catch (e) { return null; }
@@ -17061,14 +17147,25 @@ function _addObsMarkers(map) {
        argumenttina, joten kutsuttaessa map.on('zoomend', updateIcons) targetTs
        ei ole luku. Otetaan silloin hetki aikajanalta. */
     if (typeof targetTs !== 'number') targetTs = _tlSelectedTs();
-    /* Historiahaku VAIN jos valittu aika on menneisyydessä tai juuri nyt.
-     * Aiempi bugi: _fmiTimeToMs rakentaa kellonajan KOHDEAJAN kalenteripäivästä,
-     * joten tulevaisuuden (ennuste-)aika saattoi vahingossa täsmätä samaan
-     * kellonaikaan menneisyydessä (esim. huomenna klo 14:30 ~ tänään klo 14:30),
-     * jolloin havaintoasema näytti väärän lukeman ennusteajalle. Ratkaisu: älä
-     * edes yritä historiahakua jos kohdeaika on tulevaisuudessa. */
-    var FUTURE_GRACE = 5 * 60000; /* 5min toleranssi "nyt"-pisteen ympärille */
-    var isPastOrNow = targetTs != null && targetTs <= (Date.now() + FUTURE_GRACE);
+    /* HISTORIAHAKU VAIN MENNEELLE TUNNILLE; NYT-TIKILLÄ TUOREIN HAVAINTO
+     * (docs/oikeellisuus.md, O7).
+     *
+     * Nyt-tikki on LÄHIN tasatunti (`Ennuste.nytTunti()`, sama pyöristys
+     * kuin aikajanan `nowIdx`). Ennen raja oli "nyt + 5 min", jolloin tunnin
+     * alkupuolella (nyt-tikki = kuluva tasatunti) pilleri näytti tasatunnin
+     * historia-arvon ja kortin "Havainnot nyt" tuoreimman — sama asema,
+     * kaksi lukua samalla ruudulla.
+     *
+     * Tulevaisuudessa (ennusteen tunti) näytetään yhä tuorein havainto.
+     * Historiahakua ei yritetä sinne: aiempi bugi täsmäsi huomisen klo 14:30
+     * tämän päivän klo 14:30:een.
+     *
+     * MENNEELLÄ TUNNILLA VAIN HISTORIA. Jos historia ei ulotu siihen
+     * (asemaa ei ollut, tai tunti on ikkunan ulkopuolella), lukema on "—":
+     * tuorein havainto menneen tunnin kohdalla väittäisi nykyhetken
+     * tuulta sen tunnin tuuleksi. */
+    var nytT = (typeof Ennuste !== 'undefined') ? Ennuste.nytTunti() : Math.round(Date.now() / 36e5) * 36e5;
+    var menneessa = targetTs != null && targetTs < nytT;
 
     _obsMarkers.forEach(function(m) {
       if (m.type === 'aalto') {
@@ -17085,18 +17182,19 @@ function _addObsMarkers(map) {
       } else if (m.type === 'wind-prim' || m.type === 'wind-dot') {
         /* Oletuksena uusin havainto */
         var ws = m.wsLatest != null ? m.wsLatest : m.ws;
-        var wg = m.wgLatest != null ? m.wgLatest : m.wg;
-        /* Menneisyyden hetki JA historiaa saatavilla → hae oikean ajan havainto */
-        if (isPastOrNow && m.history) {
-          var hv = _histValueAt(m.history, targetTs);
-          if (hv !== null) { ws = hv.ws; wg = hv.wg; }
-          /* hv === null → historia ei ulotu tähän hetkeen → pysytään latest:ssa */
+        /* "Ei signaalia" kertoo aseman NYKYTILAN; menneellä tunnilla
+           ratkaisee se, onko sillä tunnilla havaintoa. */
+        var hlj = m.hiljainen;
+        if (menneessa) {
+          var hv = m.history ? _histValueAt(m.history, targetTs) : null;
+          ws = hv ? hv.ws : null;
+          hlj = false;
         }
         var video = Kamerat.live(m.place);
-        var sig = _windIconSig(z, ws, m.pilleriZ, m.hiljainen, video);
+        var sig = _windIconSig(z, ws, m.pilleriZ, hlj, video);
         if (sig !== m._iconSig) {
           m._iconSig = sig;
-          m.marker.setIcon(mkWindIcon(z, ws, m.stName, m.pilleriZ, m.hiljainen, video));
+          m.marker.setIcon(mkWindIcon(z, ws, m.stName, m.pilleriZ, hlj, video));
         }
       } else {
         var wsig = _waterIconSig(z, m.temp, m.prim);
@@ -17128,107 +17226,144 @@ function _addObsMarkers(map) {
   window.FMI_SEA_PLACES = {};
   FMI_MAP_STATIONS.forEach(function (s) { if (s.tag === 'Meri' || s.tag === 'Avomeri') window.FMI_SEA_PLACES[s.place] = true; });
 
-  /* ── FMI: hae tuulidata, luo markerit ──────────────────────── */
-  (function() {
-    var PRIM_FMI = window.FMI_SEA_PLACES, FMI_SEA_PLACES = window.FMI_SEA_PLACES;
-    /* Meriasema nayttaa lukemansa z8:sta, maa-asema vasta z10:sta.
-       Porrastus on tarkoituksellinen: meri on se mita foilaaja katsoo,
-       joten se saa tulla nakyviin aiemmin. Mutta maa-asemankin lukema
-       ON luettavissa kun kaupunkiin zoomataan — aiemmin se ei ollut
-       millaan zoomilla, ja Helsingin ylla ei siksi nakynyt yhtaan
-       FMI-lukemaa. */
-    var PILLERI_Z_MERI = 8, PILLERI_Z_MAA = 10;
-    /* 1. Lisää ensin kaikki markerit ilman dataa */
-    FMI_MAP_STATIONS.forEach(function(st) {
-      var isPrim = !!PRIM_FMI[st.place];
-      var pilleriZ = isPrim ? PILLERI_Z_MERI : PILLERI_Z_MAA;
-      var icon = mkWindIcon(map.getZoom(), null, st.name, pilleriZ);
-      var m = L.marker([st.lat,st.lng],{icon:icon,zIndexOffset:isPrim?-50:-100,keyboard:false})
-        .on('click',function(){ _openObsSheet('fmi',st); }).addTo(map);
-      var _lg = FMI_SEA_PLACES[st.place] ? 'fmi-sea' : 'fmi-land';
-      _obsMarkers.push({marker:m, type:isPrim?'wind-prim':'wind-dot',
-        pilleriZ: pilleriZ,
-        ws:null, wg:null, wsLatest:null, wgLatest:null,
-        stName:st.name, layerGroup:_lg, place:st.place,
-        history:null, _markerRef: _obsMarkers.length });
-      /* Ruksi-sijaintimerkki vain isoille prim-korteille —
-         pieni piste-tila näyttää jo täsmällisen sijainnin sellaisenaan */
-      if (isPrim) {
-        _obsMarkers[_obsMarkers.length - 1].dot =
-          _addStationDot(st.lat, st.lng, function(){ _openObsSheet('fmi', st); });
-      }
-    });
-    map.on('zoomend', updateIcons);
-    /* Sovella oletus-layertila heti — vain FMI Meri näkyy oletuksena */
-    if (typeof _applyMapLayers === 'function') _applyMapLayers();
-
-    /* 2. Lataa data jokaiselle asemalle _fmiLoadWithFallback:lla */
-    FMI_MAP_STATIONS.forEach(function(st, stIdx) {
-      var pilleriZ = PRIM_FMI[st.place] ? PILLERI_Z_MERI : PILLERI_Z_MAA;
-      var stationList = [st];
-      function loyda() {
-        for (var k = 0; k < _obsMarkers.length; k++) {
-          if (_obsMarkers[k].place === st.place) return _obsMarkers[k];
-        }
-        return null;
-      }
-      _fmiLoadWithFallback(stationList, 24, function(okSt, latData, histData) {
-        var entry = loyda();
-        if (!entry) return;
-        /* Päivitä data */
-        var ws = latData && latData.ws != null ? +latData.ws : null;
-        var wg = latData && latData.wg != null ? +latData.wg : ws;
-        entry.ws = ws; entry.wg = wg;
-        entry.wsLatest = ws; entry.wgLatest = wg;
-        entry.history = histData; /* {ws:[{t,v,d}], wg:[{t,v}], ta:[{t,v}]} */
-        /* Historiaa on, mutta uusin havainto ei kelvannut tunnin ikkunaan
-           → asema on käytännössä hiljaa. */
-        entry.hiljainen = ws == null && !_havTuore(histData);
-        /* Päivitä ikoni — pidä allekirjoitus mukana, jotta seuraava
-           updateIcons() ei luo elementtiä uudelleen turhaan */
-        _asetaTuuliIkoni(entry, ws);
-      }, function(syy) {
-        /* KATKO JA LAKKAUTUS OVAT ERI ASIA, JA NE NÄYTETÄÄN ERI TAVALLA.
-         *
-         * "Ei signaalia" tehtiin kuuden vuorokauden katkoa varten: asema
-         * on olemassa, se palaa, ja katkoviivainen pilleri kertoo ettei
-         * vika ole sovelluksessa. Pysyvästi hiljaisella asemalla se on
-         * lupaus jota ei lunasteta koskaan.
-         *
-         * Vuosaaren satama (FMISID 151028) lähetti viimeksi 18.8.2026 ja
-         * on ollut sen jälkeen kolme viikkoa täysin hiljaa — 24 tunnin
-         * ikkuna palauttaa nollan rivin, ei myöhästynyttä. Lähimmät
-         * lähettävät asemat ovat Malmi 9,7 km ja Itätoukki 12 km, eikä
-         * Vuosaaressa ole muutakaan tuulihavaintoa (mitattu: FMI:n
-         * asemarekisteri, HSY:n ilmanlaatuasemat, Marine Helsinki,
-         * Digitrafficin tiesääasemat, dlarah.org).
-         *
-         * Kun VASTAUS TULI ja se oli tyhjä koko ikkunalta, asema ei ole
-         * havaintoverkossa juuri nyt: merkki otetaan pois kokonaan.
-         * Ratkaisu paranee itsestään kumpaankin suuntaan — jos FMI
-         * jatkaa lähettämistä, merkki palaa seuraavassa latauksessa,
-         * eikä kartalle jää käsin poistettavaa asemalistaa.
-         *
-         * Verkkovika ei saa poistaa mitään: silloin ei tiedetä asemasta
-         * yhtään mitään, ja katkoviivainen pilleri on oikea vastaus. */
-        var entry = loyda();
-        if (!entry) return;
-        if (syy === 'tyhja') {
-          map.removeLayer(entry.marker);
-          if (entry.dot) {
-            map.removeLayer(entry.dot);
-            var di = _stationDots.indexOf(entry.dot);
-            if (di >= 0) _stationDots.splice(di, 1);
-          }
-          var ei = _obsMarkers.indexOf(entry);
-          if (ei >= 0) _obsMarkers.splice(ei, 1);
-          return;
-        }
-        entry.hiljainen = true;
-        _asetaTuuliIkoni(entry, null);
+  /* ── FMI: YKSI HAKU KAIKILLE ASEMILLE ──────────────────────────
+   *
+   * Karttamerkit tekivät ennen kaksi pyyntöä asemaa kohti (tuorein + 24 h
+   * historia) eli 24 `/api/fmi`-kutsua käynnistyksessä, ja ne haettiin
+   * KERRAN: istunnon aikana lukemat eivät päivittyneet lainkaan.
+   * Nyt yksi `?asemat=1`-haku (docs/oikeellisuus.md, O6 ja O7). Sama
+   * osoite kaikille käyttäjille, joten CDN jakaa sen, ja se toistetaan
+   * `_havPaivita`n tahdissa.
+   *
+   * Tuorein havainto on historian viimeinen rivi — tuuli, suunta ja
+   * puuska SAMALTA riviltä. Historia kattaa aikajanan menneisyyden
+   * (`HAV_KARTTA_H`), jotta menneen tunnin pilleri löytää lukemansa.
+   *
+   * KATKO JA LAKKAUTUS OVAT ERI ASIA, JA NE NÄYTETÄÄN ERI TAVALLA.
+   *
+   * "Ei signaalia" tehtiin kuuden vuorokauden katkoa varten: asema on
+   * olemassa, se palaa, ja katkoviivainen pilleri kertoo ettei vika ole
+   * sovelluksessa. Pysyvästi hiljaisella asemalla se on lupaus jota ei
+   * lunasteta koskaan.
+   *
+   * Vuosaaren satama (FMISID 151028) lähetti viimeksi 18.8.2026 ja Malmi
+   * (101009) 25.9.2026. Kun VASTAUS TULI ja asema oli siinä `null` (ei
+   * yhtään riviä koko ikkunasta), asema ei ole havaintoverkossa juuri
+   * nyt: merkki otetaan pois kokonaan. Ratkaisu paranee itsestään
+   * kumpaankin suuntaan — jos FMI jatkaa lähettämistä, merkki palaa
+   * seuraavassa päivityksessä, eikä kartalle jää käsin poistettavaa
+   * asemalistaa.
+   *
+   * Verkkovika tai FMI:n virhe (proxy 502) ei saa poistaa mitään:
+   * silloin ei tiedetä asemasta yhtään mitään, ja katkoviivainen pilleri
+   * on oikea vastaus. Aiemmin ladattu historia jää, ja sen IKÄ ratkaisee
+   * tuoreuden (`_havTuore`, leimasta). */
+  /* Meriasema näyttää lukemansa z8:sta, maa-asema vasta z10:sta.
+     Porrastus on tarkoituksellinen: meri on se mitä foilaaja katsoo,
+     joten se saa tulla näkyviin aiemmin. Mutta maa-asemankin lukema
+     ON luettavissa kun kaupunkiin zoomataan — aiemmin se ei ollut
+     millään zoomilla, ja Helsingin yllä ei siksi näkynyt yhtään
+     FMI-lukemaa. */
+  var PILLERI_Z_MERI = 8, PILLERI_Z_MAA = 10;
+  function _fmiMerkki(st) {
+    var isPrim = !!window.FMI_SEA_PLACES[st.place];
+    var pilleriZ = isPrim ? PILLERI_Z_MERI : PILLERI_Z_MAA;
+    var m = L.marker([st.lat, st.lng], { icon: mkWindIcon(map.getZoom(), null, st.name, pilleriZ),
+      zIndexOffset: isPrim ? -50 : -100, keyboard: false })
+      .on('click', function () { _openObsSheet('fmi', st); }).addTo(map);
+    var entry = { marker: m, type: isPrim ? 'wind-prim' : 'wind-dot', pilleriZ: pilleriZ,
+      ws: null, wg: null, wsLatest: null, wgLatest: null,
+      stName: st.name, layerGroup: isPrim ? 'fmi-sea' : 'fmi-land', place: st.place,
+      history: null, _fmi: true };
+    /* Ruksi-sijaintimerkki vain isoille prim-korteille — pieni piste-tila
+       näyttää jo täsmällisen sijainnin sellaisenaan. */
+    if (isPrim) entry.dot = _addStationDot(st.lat, st.lng, function () { _openObsSheet('fmi', st); });
+    _obsMarkers.push(entry);
+    return entry;
+  }
+  function _fmiPoista(entry) {
+    map.removeLayer(entry.marker);
+    if (entry.dot) {
+      map.removeLayer(entry.dot);
+      var di = _stationDots.indexOf(entry.dot);
+      if (di >= 0) _stationDots.splice(di, 1);
+    }
+    var ei = _obsMarkers.indexOf(entry);
+    if (ei >= 0) _obsMarkers.splice(ei, 1);
+  }
+  function _fmiLoyda(place) {
+    for (var k = 0; k < _obsMarkers.length; k++) {
+      if (_obsMarkers[k]._fmi && _obsMarkers[k].place === place) return _obsMarkers[k];
+    }
+    return null;
+  }
+  /* Tiivis sarja (`{t0, dt, n}` + asemittain `ws/wg/wd`) historian
+     muotoon jota `_histValueAt` lukee. Puuskasarja on RINNAKKAIN tuulen
+     kanssa (puuttuva puuska on null eikä pudotettu rivi). */
+  function _fmiHistoriaksi(d, s) {
+    var ws = [], wg = [], vika = -1;
+    for (var i = 0; i < s.ws.length; i++) {
+      if (s.ws[i] == null) continue;
+      var iso = new Date(d.t0 + i * d.dt).toISOString();
+      ws.push({ v: s.ws[i], d: s.wd ? s.wd[i] : null, iso: iso });
+      wg.push({ v: s.wg ? s.wg[i] : null, iso: iso });
+      vika = i;
+    }
+    if (vika < 0) return null;
+    return { ws: ws, wg: wg, lastIso: new Date(d.t0 + vika * d.dt).toISOString(),
+             latest: { ws: s.ws[vika], wg: s.wg ? s.wg[vika] : null, wd: s.wd ? s.wd[vika] : null } };
+  }
+  /* Lukema ja "ei signaalia" historian iästä, joka kerta kun merkkejä
+     päivitetään: ilman uutta hakua (verkko poikki) lukema vanhenee silti
+     silmien edessä eikä jää näyttämään tuoreelta. */
+  function _fmiTuoreus(e) {
+    var h = e.history;
+    if (!h) { e.ws = e.wg = e.wsLatest = e.wgLatest = null; e.hiljainen = !!e._eiYhteytta; return; }
+    var tuore = _havTuore(h);
+    var ws = tuore ? h.latest.ws : null;
+    var wg = tuore ? (h.latest.wg != null ? h.latest.wg : ws) : null;
+    e.ws = e.wsLatest = ws; e.wg = e.wgLatest = wg;
+    e.hiljainen = !tuore;
+  }
+  var HAV_KARTTA_H = 48;
+  var _fmiKesken = null;
+  function _fmiKarttaLataa() {
+    if (_fmiKesken) return _fmiKesken;
+    _fmiKesken = fetch(API_BASE + '/fmi?asemat=1&hours=' + HAV_KARTTA_H)
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (d) {
+        if (!d || !d.asemat || !(d.dt > 0)) throw new Error('fmi');
+        FMI_MAP_STATIONS.forEach(function (st) {
+          /* Asema jota palvelin ei tunne (eri versio) ei kerro mitään. */
+          if (!(st.place in d.asemat)) return;
+          var entry = _fmiLoyda(st.place);
+          var hist = d.asemat[st.place] ? _fmiHistoriaksi(d, d.asemat[st.place]) : null;
+          if (!hist) { if (entry) _fmiPoista(entry); return; }
+          if (!entry) entry = _fmiMerkki(st);
+          entry.history = hist;
+          entry._eiYhteytta = false;
+        });
+      })
+      .catch(function () {
+        _obsMarkers.forEach(function (e) { if (e._fmi && !e.history) e._eiYhteytta = true; });
+      })
+      .then(function () {
+        _obsMarkers.forEach(function (e) { if (e._fmi) _fmiTuoreus(e); });
+        if (typeof _applyMapLayers === 'function') _applyMapLayers();
+        updateIcons();
+        _fmiKesken = null;
       });
-    });
-  })();
+    return _fmiKesken;
+  }
+  FMI_MAP_STATIONS.forEach(_fmiMerkki);
+  map.on('zoomend', updateIcons);
+  /* Sovella oletus-layertila heti — vain FMI Meri näkyy oletuksena */
+  if (typeof _applyMapLayers === 'function') _applyMapLayers();
+  _fmiKarttaLataa();
+  _havPaivittajat.push(_fmiKarttaLataa);
 
   /* ── Kruunuvuorenselkä: erillinen havaintoasema (FMI Marine Helsinki) ──
    * Ei kuulu viralliseen FMI-havaintoverkkoon (api/fmi.js), joten oma proxy
@@ -17317,19 +17452,30 @@ function _addObsMarkers(map) {
     kvEntry._avoidOverlap = _avoidSpotOverlap; /* jaettu updateIcons() kutsuu tätä aina */
     _avoidSpotOverlap(); /* alkutila heti kartan latauduttua */
 
-    fetch(API_BASE + '/kruunuvuori')
-      .then(function(r){ return r.ok ? r.json() : null; })
-      .then(function(data) {
-        if (!data || data.error) return;
-        var ws = data.ws != null ? +data.ws : null;
-        var wg = data.wg != null ? +data.wg : ws;
-        kvEntry.ws = ws; kvEntry.wg = wg;
-        kvEntry.wsLatest = ws; kvEntry.wgLatest = wg;
-        kvEntry.history = data.history || null; /* {ws:[{t,v,d}], wg:[{t,v}], tw:[{t,v}]} — HH:MM formaatti */
-        _asetaTuuliIkoni(kvEntry, ws);
-        _avoidSpotOverlap(); /* setIcon loi uuden DOM-elementin — sovella väistö uudelleen */
-      })
-      .catch(function() { /* Lataus epäonnistui — jätä tyhjäksi */ });
+    /* Uudelleenajettava (`_havPaivita`), ja historia kattaa aikajanan
+       menneisyyden kuten FMI-asemilla (`HAV_KARTTA_H`). Tuoreus lasketaan
+       leimasta: lähde päivittyy 10 min välein, joten sama raja kuin
+       FMI-asemilla (`_havTuore`). */
+    function lataa() {
+      return fetch(API_BASE + '/kruunuvuori?hours=' + HAV_KARTTA_H)
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(data) {
+          if (!data || data.error) return;
+          var tuore = _havTuore(data.history);
+          var ws = tuore && data.ws != null ? +data.ws : null;
+          var wg = tuore && data.wg != null ? +data.wg : ws;
+          kvEntry.ws = ws; kvEntry.wg = wg;
+          kvEntry.wsLatest = ws; kvEntry.wgLatest = wg;
+          kvEntry.history = data.history || null; /* {ws:[{t,v,d,iso}], wg:[{t,v,iso}], ta, lastIso} */
+          kvEntry.hiljainen = !tuore;
+          /* updateIcons eikä suora setIcon: se lukee valitun hetken
+             (menneellä tunnilla historia) ja kutsuu väistön. */
+          updateIcons();
+        })
+        .catch(function() { /* Lataus epäonnistui — edellinen lukema jää */ });
+    }
+    lataa();
+    _havPaivittajat.push(lataa);
   })();
 
   /* ── Mellsten (Haukilahti, Espoo): Surfing ry:n oma sääasema ──
@@ -17345,8 +17491,9 @@ function _addObsMarkers(map) {
    * nulliksi. Nyt keräin (tools/havainnot.mjs, 10 min välein) tallettaa
    * lähteen rivit talteen kuten Windguru, ja proxy yhdistää ne
    * tuoreimpaan ikkunaan (docs/data.md, "Mellstenin historia omaan
-   * varastoon"). Merkki pyytää 24 h kuten Laru ja FMI-asemat, ja
-   * `_histValueAt` lukee sen ilman omaa haaraa. */
+   * varastoon"). Merkki pyytää aikajanan menneisyyden (`HAV_KARTTA_H`)
+   * kuten Laru ja FMI-asemat, ja `_histValueAt` lukee sen ilman omaa
+   * haaraa. */
   (function() {
     var MELL_STATION = PAIKALLISASEMAT.find(function (s) { return s.lahde === 'mellsten'; });
     var icon = mkWindIcon(map.getZoom(), null, MELL_STATION.name, 8);
@@ -17361,24 +17508,28 @@ function _addObsMarkers(map) {
     _addStationDot(MELL_STATION.lat, MELL_STATION.lng,
       function(){ _openObsSheet('mellsten', MELL_STATION); });
 
-    fetch(API_BASE + '/mellsten?history=1&hours=24&tz=' + encodeURIComponent(AIKAVYOHYKE))
-      .then(function(r){ return r.ok ? r.json() : null; })
-      .then(function(data) {
-        if (!data || data.error) return;
-        var uusin = data.latest || data;
-        if (uusin.ws == null) return;
-        var ws = +uusin.ws, wg = uusin.wg != null ? +uusin.wg : ws;
-        mEntry.ws = ws; mEntry.wg = wg;
-        mEntry.wsLatest = ws; mEntry.wgLatest = wg;
-        /* Sama muoto kuin FMI-asemilla ({ws:[{t,v,d,iso}], wg, ta}). */
-        if (data.ws && data.ws.length) mEntry.history = data;
-        /* Asema on hiljaa jos tuorein rivi on yli puoli tuntia vanha.
-           Lähde päivittyy minuutin välein, joten 30 min on jo katko —
-           ja katkon on näyttävä katkolta eikä tyyneltä. */
-        mEntry.hiljainen = uusin.ageMin != null && uusin.ageMin > 30;
-        _asetaTuuliIkoni(mEntry, ws);
-      })
-      .catch(function() { /* Lataus epäonnistui — jätä tyhjäksi */ });
+    function lataa() {
+      return fetch(API_BASE + '/mellsten?history=1&hours=' + HAV_KARTTA_H + '&tz=' + encodeURIComponent(AIKAVYOHYKE))
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(data) {
+          if (!data || data.error) return;
+          var uusin = data.latest || data;
+          if (uusin.ws == null) return;
+          var ws = +uusin.ws, wg = uusin.wg != null ? +uusin.wg : ws;
+          mEntry.ws = ws; mEntry.wg = wg;
+          mEntry.wsLatest = ws; mEntry.wgLatest = wg;
+          /* Sama muoto kuin FMI-asemilla ({ws:[{t,v,d,iso}], wg, ta}). */
+          if (data.ws && data.ws.length) mEntry.history = data;
+          /* Asema on hiljaa jos tuorein rivi on yli puoli tuntia vanha.
+             Lähde päivittyy minuutin välein, joten 30 min on jo katko —
+             ja katkon on näyttävä katkolta eikä tyyneltä. */
+          mEntry.hiljainen = _havIkaMin(uusin) > 30;
+          updateIcons();
+        })
+        .catch(function() { /* Lataus epäonnistui — edellinen lukema jää */ });
+    }
+    lataa();
+    _havPaivittajat.push(lataa);
   })();
 
   /* ── Laru (Lauttasaari): dlarah.org:n oma sääasema ─────────────
@@ -17394,7 +17545,7 @@ function _addObsMarkers(map) {
    *
    * Yksi haku riittää: `history=1` palauttaa myös tuoreimman lukeman
    * (`latest`), joten erillistä "nyt"-pyyntöä ei tarvita. Merkki pyytää
-   * 24 h kuten FMI-asemien karttamerkit. */
+   * aikajanan menneisyyden (`HAV_KARTTA_H`) kuten FMI-asemien merkit. */
   (function() {
     var LARU_STATION = PAIKALLISASEMAT.find(function (s) { return s.lahde === 'laru'; });
     var icon = mkWindIcon(map.getZoom(), null, LARU_STATION.name, 8);
@@ -17409,24 +17560,28 @@ function _addObsMarkers(map) {
     _addStationDot(LARU_STATION.lat, LARU_STATION.lng,
       function(){ _openObsSheet('laru', LARU_STATION); });
 
-    fetch(API_BASE + '/laru?history=1&hours=24&tz=' + encodeURIComponent(AIKAVYOHYKE))
-      .then(function(r){ return r.ok ? r.json() : null; })
-      .then(function(data) {
-        if (!data || data.error) return;
-        var uusin = data.latest || data;
-        if (uusin.ws == null) return;
-        var ws = +uusin.ws, wg = uusin.wg != null ? +uusin.wg : ws;
-        lEntry.ws = ws; lEntry.wg = wg;
-        lEntry.wsLatest = ws; lEntry.wgLatest = wg;
-        /* Sama muoto kuin FMI-asemilla ({ws:[{t,v,d,iso}], wg, ta}),
-           joten `_histValueAt` lukee sen ilman omaa haaraa. */
-        if (data.ws && data.ws.length) lEntry.history = data;
-        /* Lähde päivittyy noin kahden minuutin välein, joten 30 min on
-           jo katko. Sama kynnys kuin Mellstenillä. */
-        lEntry.hiljainen = uusin.ageMin != null && uusin.ageMin > 30;
-        _asetaTuuliIkoni(lEntry, ws);
-      })
-      .catch(function() { /* Lataus epäonnistui — jätä tyhjäksi */ });
+    function lataa() {
+      return fetch(API_BASE + '/laru?history=1&hours=' + HAV_KARTTA_H + '&tz=' + encodeURIComponent(AIKAVYOHYKE))
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(data) {
+          if (!data || data.error) return;
+          var uusin = data.latest || data;
+          if (uusin.ws == null) return;
+          var ws = +uusin.ws, wg = uusin.wg != null ? +uusin.wg : ws;
+          lEntry.ws = ws; lEntry.wg = wg;
+          lEntry.wsLatest = ws; lEntry.wgLatest = wg;
+          /* Sama muoto kuin FMI-asemilla ({ws:[{t,v,d,iso}], wg, ta}),
+             joten `_histValueAt` lukee sen ilman omaa haaraa. */
+          if (data.ws && data.ws.length) lEntry.history = data;
+          /* Lähde päivittyy noin kahden minuutin välein, joten 30 min on
+             jo katko. Sama kynnys kuin Mellstenillä. */
+          lEntry.hiljainen = _havIkaMin(uusin) > 30;
+          updateIcons();
+        })
+        .catch(function() { /* Lataus epäonnistui — edellinen lukema jää */ });
+    }
+    lataa();
+    _havPaivittajat.push(lataa);
   })();
 
   /* AALTOPOIJUN VÄISTÖ.
@@ -17531,59 +17686,100 @@ function _addObsMarkers(map) {
      Kun merkit tulevat vastauksesta, kartalla on täsmälleen ne poijut
      jotka juuri nyt raportoivat — ja uusi poiju ilmestyy ilman
      koodimuutosta. */
-  Aaltopoijut.lataa().then(function(asemat) {
-    if (!asemat || !asemat.length) return;
-    asemat.forEach(function(s) {
-      var onAalto = s.kind === 'aalto';
-      var ikoni = onAalto
-        ? mkAaltoIcon(map.getZoom(), s.hs, false)
-        : mkWaterIcon(map.getZoom(), s.tw, true);
-      /* Kortti lukee `station.name`; rajapinnan kentta on `station`.
-         Normalisoidaan tassa, jotta kortin puolelle ei jaa erikoistapausta. */
-      var kortille = Object.assign({}, s, { name: s.station });
-      /* Jäännöspeitossa poiju voittaa: se on harvinaisempi lukema kuin
-         tuuliasema, jollaisia samalla alueella on kymmenen. */
-      var m = L.marker([s.lat, s.lng], { icon: ikoni, zIndexOffset: -40, keyboard: false })
-        .on('click', function() { _openObsSheet('aalto', kortille); }).addTo(map);
-      _obsMarkers.push({
-        marker: m,
-        /* Lämpöasema kulkee vesi-ikonipolkua: se ON vedenlämpöasema,
-           ja kartan visuaalinen kieli on jo olemassa sille. Aaltoja
-           mittaamattomalle poijulle keksitty oma asu valehtelisi. */
-        type: onAalto ? 'aalto' : 'water',
-        hs: s.hs, temp: s.tw, prim: true, hiljainen: false,
-        stName: s.station, fmisid: s.fmisid, asema: s,
-        layerGroup: 'aallot',
+  /* PÄIVITYS SYNKRONOI MERKIT VASTAUKSEEN (docs/oikeellisuus.md, O7):
+     tuttu poiju saa uuden lukeman, uusi syntyy ja vastauksesta pudonnut
+     poistuu — sama sopimus kuin käynnistyksessä. `Aaltopoijut.lataa`
+     palauttaa epäonnistuessaan edellisen listan (sama olio), joten
+     verkkovika ei poista mitään. */
+  var _aallotLista = null;
+  function _aaltoPoista(e) {
+    map.removeLayer(e.marker);
+    var i = _obsMarkers.indexOf(e);
+    if (i >= 0) _obsMarkers.splice(i, 1);
+  }
+  function _aallotLataa() {
+    return Aaltopoijut.lataa().then(function(asemat) {
+      if (!asemat || asemat === _aallotLista) return;
+      _aallotLista = asemat;
+      var nahty = {};
+      asemat.forEach(function(s) {
+        var onAalto = s.kind === 'aalto', laji = onAalto ? 'aalto' : 'water';
+        nahty[s.fmisid] = true;
+        var e = null;
+        for (var k = 0; k < _obsMarkers.length; k++) {
+          if (_obsMarkers[k].layerGroup === 'aallot' && _obsMarkers[k].fmisid === s.fmisid) { e = _obsMarkers[k]; break; }
+        }
+        /* Poiju joka vaihtoi lajia (aalto <-> lämpö) rakennetaan uudelleen. */
+        if (e && e.type !== laji) { _aaltoPoista(e); e = null; }
+        if (e) {
+          e.hs = s.hs; e.temp = s.tw; e.stName = s.station; e.asema = s;
+          return;
+        }
+        var ikoni = onAalto
+          ? mkAaltoIcon(map.getZoom(), s.hs, false)
+          : mkWaterIcon(map.getZoom(), s.tw, true);
+        var entry = {
+          /* Lämpöasema kulkee vesi-ikonipolkua: se ON vedenlämpöasema,
+             ja kartan visuaalinen kieli on jo olemassa sille. Aaltoja
+             mittaamattomalle poijulle keksitty oma asu valehtelisi. */
+          type: laji,
+          hs: s.hs, temp: s.tw, prim: true, hiljainen: false,
+          stName: s.station, fmisid: s.fmisid, asema: s,
+          layerGroup: 'aallot',
+        };
+        /* Jäännöspeitossa poiju voittaa: se on harvinaisempi lukema kuin
+           tuuliasema, jollaisia samalla alueella on kymmenen. Kortti lukee
+           `station.name`; rajapinnan kenttä on `station`. Kortti saa
+           merkin TUOREIMMAN aseman (päivitys vaihtaa `asema`n). */
+        entry.marker = L.marker([s.lat, s.lng], { icon: ikoni, zIndexOffset: -40, keyboard: false })
+          .on('click', function() { _openObsSheet('aalto', Object.assign({}, entry.asema, { name: entry.asema.station })); })
+          .addTo(map);
+        /* `updateIcons` kutsuu tätä jokaisen merkin kohdalla — myös
+           silloin kun setIcon jätettiin väliin, jolloin transform on jo
+           oikea. Ilman kutsua väistö katoaisi joka ikonin vaihdossa. */
+        entry._avoidOverlap = function () { _aaltoVaisto(entry); };
+        _obsMarkers.push(entry);
       });
-      /* `updateIcons` kutsuu tätä jokaisen merkin kohdalla — myös
-         silloin kun setIcon jätettiin väliin, jolloin transform on jo
-         oikea. Ilman kutsua väistö katoaisi joka ikonin vaihdossa. */
-      _obsMarkers[_obsMarkers.length - 1]._avoidOverlap = (function (e) {
-        return function () { _aaltoVaisto(e); };
-      })(_obsMarkers[_obsMarkers.length - 1]);
-    });
-    if (typeof _applyMapLayers === 'function') _applyMapLayers();
-    updateIcons();
-  }).catch(function() { /* Lataus epäonnistui — ei merkkejä */ });
+      _obsMarkers.slice().forEach(function (e) {
+        if (e.layerGroup === 'aallot' && !nahty[e.fmisid]) _aaltoPoista(e);
+      });
+      if (typeof _applyMapLayers === 'function') _applyMapLayers();
+      updateIcons();
+    }).catch(function() { /* Lataus epäonnistui — merkit ennallaan */ });
+  }
+  _aallotLataa();
+  _havPaivittajat.push(_aallotLataa);
 
   /* ── UiRas: hae vedenlämpö, luo markerit ───────────────────── */
-  UiRas.loadLatest().then(function(tempMap) {
-    UIRAS_STATIONS.forEach(function(st) {
-      var entry=tempMap[st.id.toUpperCase()];
-      var temp=entry&&entry.temp!=null&&entry.temp>-5&&entry.temp<40?entry.temp:null;
-      var m=L.marker([st.lat,st.lng],{icon:mkWaterIcon(map.getZoom(),temp,!!st.prim),zIndexOffset:-200,keyboard:false})
-        .on('click',function(){ _openObsSheet('uiras',st); }).addTo(map);
-      _obsMarkers.push({marker:m,type:'water',temp:temp,prim:!!st.prim,layerGroup:'uiras'});
+  /* Päivitys vaihtaa vain lukeman: asemat ovat kiinteä lista. */
+  var _uirasMerkit = {};
+  function _uirasLataa() {
+    return UiRas.loadLatest().then(function(tempMap) {
+      UIRAS_STATIONS.forEach(function(st) {
+        var entry=tempMap[st.id.toUpperCase()];
+        var temp=entry&&entry.temp!=null&&entry.temp>-5&&entry.temp<40?entry.temp:null;
+        var e=_uirasMerkit[st.id];
+        if (e) { e.temp = temp; return; }
+        var m=L.marker([st.lat,st.lng],{icon:mkWaterIcon(map.getZoom(),temp,!!st.prim),zIndexOffset:-200,keyboard:false})
+          .on('click',function(){ _openObsSheet('uiras',st); }).addTo(map);
+        e = _uirasMerkit[st.id] = {marker:m,type:'water',temp:temp,prim:!!st.prim,layerGroup:'uiras'};
+        _obsMarkers.push(e);
+      });
+      if (typeof _applyMapLayers === 'function') _applyMapLayers();
+      updateIcons();
+    }).catch(function() {
+      UIRAS_STATIONS.forEach(function(st) {
+        if (_uirasMerkit[st.id]) return;
+        var m=L.marker([st.lat,st.lng],{icon:mkWaterIcon(map.getZoom(),null,!!st.prim),zIndexOffset:-200,keyboard:false})
+          .on('click',function(){ _openObsSheet('uiras',st); }).addTo(map);
+        _uirasMerkit[st.id] = {marker:m,type:'water',temp:null,prim:!!st.prim,layerGroup:'uiras'};
+        _obsMarkers.push(_uirasMerkit[st.id]);
+      });
+      if (typeof _applyMapLayers === 'function') _applyMapLayers();
     });
-    if (typeof _applyMapLayers === 'function') _applyMapLayers();
-  }).catch(function() {
-    UIRAS_STATIONS.forEach(function(st) {
-      var m=L.marker([st.lat,st.lng],{icon:mkWaterIcon(map.getZoom(),null,!!st.prim),zIndexOffset:-200,keyboard:false})
-        .on('click',function(){ _openObsSheet('uiras',st); }).addTo(map);
-      _obsMarkers.push({marker:m,type:'water',temp:null,prim:!!st.prim,layerGroup:'uiras'});
-    });
-    if (typeof _applyMapLayers === 'function') _applyMapLayers();
-  });
+  }
+  _uirasLataa();
+  _havPaivittajat.push(_uirasLataa);
 
   /* Alkutila heti — muuten ruksit näkyisivät hetken liian
      kaukaa zoomattuna ennen ensimmäistä zoomend-tapahtumaa */
@@ -17592,6 +17788,25 @@ function _addObsMarkers(map) {
   /* Kelikamerat: play-kolmio pilleriin kun vastaus tulee
      (Kamerat.lataa kutsuu updateIcons()ia). Mikään ei odota tätä. */
   Kamerat.lataa();
+  _havPaivittajat.push(function () { return Kamerat.lataa(); });
+
+  /* HAVAINNOT PÄIVITTYVÄT ISTUNNON AIKANA (docs/oikeellisuus.md, O7).
+     Ennen merkit haettiin kerran käynnistyksessä: `scheduleRefresh`
+     (60 min) päivitti vain rajapintapisteet, ja työpöydän etualalla
+     havainnot eivät päivittyneet koskaan. Nyt kaikki lähteet
+     `HAV_PAIVITYS_MS` välein kun sivu näkyy, ja Paluun 5–30 min
+     haarassa heti (`window._havPaivita`). Kahden minuutin lattia estää
+     päällekkäiset kierrokset (ajastin + paluu). Lähteiden omat
+     välimuistit (poijut 15 min, kamerat 3 min, UiRaS 30 min) pätevät
+     yhä, joten ajastin ei hae niitä tiheämmin kuin ennen. */
+  var HAV_PAIVITYS_MS = 10 * 60e3, _havPaivitetty = Date.now();
+  function _havPaivita() {
+    if (Date.now() - _havPaivitetty < 2 * 60e3) return;
+    _havPaivitetty = Date.now();
+    _havPaivittajat.forEach(function (f) { try { f(); } catch (e) {} });
+  }
+  window._havPaivita = _havPaivita;
+  setInterval(function () { if (!document.hidden) _havPaivita(); }, HAV_PAIVITYS_MS);
 }
 
 function _openObsSheet(type, station) {
@@ -17752,7 +17967,7 @@ function _openObsSheet(type, station) {
         if(!tuore){
           var chip=document.getElementById(chipId);
           if(chip){
-            chip.textContent = srcLabel+_t(' · viimeisin ', ' · latest ')+_havIkaTeksti(hist.ageMin);
+            chip.textContent = srcLabel+_t(' · viimeisin ', ' · latest ')+_havIkaTeksti(_havIkaMin(hist));
             chip.style.color = 'var(--ink-2)';
           }
           lahinTuore(naapurit, 0, naytaNaapuri);
@@ -17807,9 +18022,9 @@ function _openObsSheet(type, station) {
              kuvaajan alla, kuten joka kortissa; tässä se olisi sama luku
              kolmen rivin päässä itsestään. Vanhana se on eri lause —
              varoitus eikä aikaleima — ja kuuluu lukeman viereen. */
-          var mVanha = uusin.ageMin != null && uusin.ageMin > 30;
+          var mIka = _havIkaMin(uusin), mVanha = mIka != null && mIka > 30;
           chip.textContent = _t('Surfing ry · Mellsten · minuutin välein', 'Surfing ry · Mellsten · every minute')
-            + (mVanha ? _t(' · viimeisin ', ' · latest ') + _havIkaTeksti(uusin.ageMin) : '');
+            + (mVanha ? _t(' · viimeisin ', ' · latest ') + _havIkaTeksti(mIka) : '');
           if(mVanha) chip.style.color = 'var(--ink-2)';
         }
         if(el) _renderLiveHistory(el, Object.assign({}, data, { place: 'mellsten' }), uusin);
@@ -17838,9 +18053,9 @@ function _openObsSheet(type, station) {
         var chip = document.getElementById(chipId);
         if(chip){
           /* Sama sääntö kuin Mellstenillä: ikä tähän vain vanhana. */
-          var lVanha = uusin.ageMin != null && uusin.ageMin > 30;
+          var lIka = _havIkaMin(uusin), lVanha = lIka != null && lIka > 30;
           chip.textContent = 'dlarah.org · Laru'
-            + (lVanha ? _t(' · viimeisin ', ' · latest ') + _havIkaTeksti(uusin.ageMin) : '');
+            + (lVanha ? _t(' · viimeisin ', ' · latest ') + _havIkaTeksti(lIka) : '');
           if(lVanha) chip.style.color = 'var(--ink-2)';
         }
         if(el) _renderLiveHistory(el, Object.assign({}, data, { place: 'laru' }), uusin);
@@ -18055,10 +18270,10 @@ function _aaltoKortti(asema, o) {
   if (asema.time) osat.push(asema.time);
   o.updateHero(arvo, osat.join(' '), lampoVain ? o.accent : 'var(--ink)');
 
-  var ika = _havIkaTeksti(asema.ageMin);
+  var ikaMin = _havIkaMin(asema), ika = _havIkaTeksti(ikaMin);
   if (chip) {
     chip.textContent = _t('Aaltopoiju · Ilmatieteen laitos', 'Wave buoy · Finnish Meteorological Institute') + (ika ? ' · ' + ika : '');
-    if (asema.ageMin != null && asema.ageMin >= 180) chip.style.color = 'var(--ink-2)';
+    if (ikaMin != null && ikaMin >= 180) chip.style.color = 'var(--ink-2)';
   }
 
   if (!el) return;
@@ -18080,9 +18295,9 @@ function _aaltoKortti(asema, o) {
     ruudut.push(ruutu(_t('Suunta', 'Direction'), asema.hdir != null
       ? suuntaNuoliSVG(asema.hdir) + ' ' + Math.round(asema.hdir) + '°' : '—', _t('mistä', 'from')));
   }
+  var twIka = _havIkaMin(asema, 'twIso', 'twAgeMin');
   ruudut.push(ruutu(_t('Vesi', 'Water'), (asema.tw != null ? asema.tw.toFixed(1) + ' <small>°C</small>' : '—'),
-    asema.twAgeMin != null && asema.twAgeMin !== asema.ageMin
-      ? _havIkaTeksti(asema.twAgeMin) : null));
+    twIka != null && twIka !== ikaMin ? _havIkaTeksti(twIka) : null));
 
   var kaavioId = o.cid + '-kaavio';
   el.innerHTML =
@@ -20229,7 +20444,6 @@ function openSheet(spot, hourIdx) {
   spot._heroAvain = Units.fmt(ms) + '|' + Units.fmt(gst) + '|' + Math.round(dir);
   const badge    = windBadge(ms);
   const gi       = gustIndex(ms, gst);
-  const trend    = windTrend(h, idx);
   const c        = ColorRamp.ink(ms);
   const colorStr = 'rgb('+c.r+','+c.g+','+c.b+')';
   /* Validoi vedenlämpö — fallback lähimpään spottiin jolla on arvo */
@@ -20404,7 +20618,7 @@ function openSheet(spot, hourIdx) {
       if (p.tp != null) ala.push(p.tp.toFixed(1) + ' s' + (p.hdir != null ? ' \u00b7 ' + suuntaNuoliSVG(p.hdir) + ' ' + Math.round(p.hdir) + '°' : ''));
       /* Nimi ilman "aaltopoiju"-päätettä: laatan otsikko kertoo sen. */
       const nimi = p.station.replace(/\s*(aaltopoiju|wave buoy)\s*$/i, '');
-      const ika = _havIkaTeksti(p.ageMin);
+      const ika = _havIkaTeksti(_havIkaMin(p));
       ala.push('<button type="button" class="sh-aalto-poiju" data-aalto-poiju="' + p.fmisid + '">' + nimi + '</button> '
         + Math.round(p.km) + ' km' + (ika ? ' \u00b7 ' + ika : ''));
       el.querySelector('.sh-stat-value').innerHTML = arvo;
@@ -20851,7 +21065,7 @@ function openSheet(spot, hourIdx) {
           station: asema.name, km: kmPaassa, obsTime: latData.time
         };
         _updateFmiCard(fmiId, Object.assign({}, latData, { station: asema.name }));
-        _kirjaaOsuvuus(spot, h, latData.ws, fmiId);
+        _kirjaaOsuvuus(spot, latData, fmiId);
       }
       /* Etäisyys ja havaintohetki alariville. Asemanimi on jo omassa
          kentässään (-lnk-name), joten sitä ei toisteta tässä. */
@@ -21091,21 +21305,6 @@ function _scrollToSection(id) {
   var top = el.offsetTop - 16;
   const _scrollEl = document.getElementById('sheet-scroll') || sheet;
   _scrollEl.scrollTo({ top: top, behavior: 'smooth' });
-}
-
-/* Trendi-stat-kortti */
-function _trendStatCard(trend) {
-  /* windTrend palauttaa cls: 'gi-gusty' (nouseva) tai 'gi-steady' (laskeva) tai '' */
-  /* Paneelin beigella mitattuna vanhat savyt olivat 1.64:1 ja 1.83:1;
-     nama ovat 4.78:1 ja 5.82:1. */
-  const col = trend.arrow === '↑' ? '#9A5116'
-             : trend.arrow === '↓' ? '#1C5C86'
-             : 'var(--ink-2)';
-  return '<div class="sh-stat">'
-    + '<span class="sh-stat-label">' + _t('Trendi', 'Trend') + '</span>'
-    + '<span class="sh-stat-value" style="color:' + col + '">' + trend.arrow + ' ' + trend.label + '</span>'
-    + '<span class="sh-stat-sub">3h</span>'
-  + '</div>';
 }
 
 function _statCard(label, value, sub, rgb, cls) {
@@ -21365,7 +21564,7 @@ function _havHaeSarja(st, hours) {
         /* Tuorein on juuressa eikä omassa kentässään. `station` ja
            `place` otetaan mukaan, koska `_updateFmiCard` lukee ne. */
         return [{ ws: d.ws, wg: d.wg, wd: d.wd, tmp: d.ta, time: d.time,
-                  station: d.station, place: d.place }, d.history || null];
+                  lastIso: d.utcTime, station: d.station, place: d.place }, d.history || null];
       });
   }
   var base = API_BASE + '/fmi?';
@@ -21416,7 +21615,21 @@ function _fmiLoadWithFallback(stationList, hours, onSuccess, onFail) {
    Asemat lähettävät 10 min välein, joten puolitoista tuntia on jo
    selvä katko eikä verkkoviive. */
 var HAV_TUORE_MIN = 90;
-function _havTuore(d) { return !!d && d.ageMin != null && d.ageMin <= HAV_TUORE_MIN; }
+/* HAVAINNON IKÄ LASKETAAN TÄSSÄ, EI PALVELIMELLA (docs/oikeellisuus.md,
+   O7). Proxyn `ageMin` on laskettu hakuhetkellä, ja vastaus on CDN:ssä
+   5–10 min (`s-maxage`): "X min sitten" oli välimuistin iän verran liian
+   pieni ja jäätyi siihen, jos kortti oli auki pitkään. Leima (`lastIso`)
+   on havainnon hetki eikä vanhene. `ageMin` jää varatieksi vastaukselle
+   jossa leimaa ei ole. */
+function _havIkaMin(d, isoKentta, minKentta) {
+  if (!d) return null;
+  var iso = d[isoKentta || 'lastIso'];
+  var t = iso ? Date.parse(iso) : NaN;
+  if (isFinite(t)) return Math.max(0, Math.round((Date.now() - t) / 60000));
+  var m = d[minKentta || 'ageMin'];
+  return m != null ? m : null;
+}
+function _havTuore(d) { var ika = _havIkaMin(d); return ika != null && ika <= HAV_TUORE_MIN; }
 /* Mareografin nimi lyhyeksi. FMI:n asemanimissä on kaupunki JA
    mittauspaikan nimi ("Helsinki Kaivopuisto", "Porvoo Emäsalo
    Vaarlahti"), ja rivillä on tilaa yhdelle. Kaupunki jätetään, koska se
@@ -22114,7 +22327,7 @@ function _havLaajaLahde(el, data, wx) {
   return {
     el: el,
     otsikko: data.station || _t('Tuulihavainto', 'Wind observation'),
-    sub: (data.ageMin != null ? _havIkaTeksti(data.ageMin) : ''),
+    sub: _havIkaTeksti(_havIkaMin(data)),
     jaksot: '[data-ei-jaksoja]',
     piirra: function (kaavio, laatikko, laaja) {
       kaavio._havYhteenveto = el._havYhteenveto || _havYhteenvetoLaske(data);
@@ -22227,8 +22440,9 @@ function _renderLiveHistory(el, data, wx) {
   var y = _havYhteenvetoLaske(data);
   el._havYhteenveto = y;
 
-  /* Vanhentunut data sanotaan ääneen — Vuosaaren vika. */
-  var ika = data.ageMin != null ? data.ageMin : null;
+  /* Vanhentunut data sanotaan ääneen — Vuosaaren vika. Ikä leimasta
+     (`_havIkaMin`), ei proxyn hakuhetken luvusta. */
+  var ika = _havIkaMin(data);
   var vanha = ika != null && ika > HAV_TUORE_MIN;
   var ikaTeksti = _havIkaTeksti(ika);
   /* ASEMAN NIMI VAIN KERRAN (CLAUDE.md): havaintokortin otsikko on
@@ -24575,9 +24789,13 @@ const Crosshair = {
    *    tuntipuuska samassa pisteessä on 1,25 ja Harmajan mitattu havainto
    *    1,16. Kapselin puuska on tunnin luku, ei vuorokauden pahin hetki.
    *
-   * Puuska luetaan siksi lähimmästä RAJAPINTApisteestä, jolla on aito
-   * tuntikohtainen puuskasarja. Jos sellaista ei ole näkyvissä (avomeri,
-   * hyvin ulos zoomattu näkymä), riviä ei ole — tyhjä rivi säilyttää
+   *    TÄMÄ PÄTEE VAIN VARASTON ECMWF-PERHEESEEN. FMI:n ja MET Nordicin
+   *    tasoilla puuska on tunnin puuska, ja silloin se luetaan
+   *    varastosta (`_puuskaVarastosta`, docs/oikeellisuus.md O4).
+   *
+   * Muualla puuska luetaan lähimmästä RAJAPINTApisteestä (enintään
+   * 15 km), jolla on aito tuntikohtainen puuskasarja. Jos sellaista ei
+   * ole (avomeri, ECMWF-alue), riviä ei ole — tyhjä rivi säilyttää
    * tilansa, joten kapselin korkeus ei hypi.
    *
    * Vertailu tehdään SARJAN SISÄLLÄ: puuskaa verrataan saman sarjan
@@ -24591,25 +24809,68 @@ const Crosshair = {
   _puuskaKehe: { avain: '', arvo: null },
   _puuska(center) {
     const avain = center.lat.toFixed(3) + ',' + center.lng.toFixed(3)
-      + '|' + State.currentHourIdx;
+      + '|' + State.valittuMs + '|' + State.currentHourIdx
+      + '|' + (State.map ? Math.round(State.map.getZoom()) : '');
     if (this._puuskaKehe.avain === avain) return this._puuskaKehe.arvo;
     const arvo = this._puuskaLaske(center);
     this._puuskaKehe = { avain: avain, arvo: arvo };
     return arvo;
   },
-  /* Lähin piste jolla on tuntikohtainen puuskasarja. Laattapisteet
-     ohitetaan (ks. yllä).
-     ETÄISYYSRAJA ON TIUKEMPI KUIN LÄHDEMERKINNÄLLÄ, eikä siinä ole
-     `LAHDE_RAJA_MIN`-lattiaa. Merkintä vastaa kysymykseen "minkä mallin
-     dataa tämä alue on", johon kaukainenkin piste kelpaa; puuska on
-     paikan lukema. Mitattuna löytynyt piste on Suomessa 0–7 km päässä,
-     z8:lla 63 km ja z6:lla 200 km — kaikki hyvin `3 × step`:n sisällä
-     (0,75° / 1,5° / 3°). Kahdeksan asteen lattia ei siis auta missään
-     mitatussa tilanteessa, mutta päästäisi kattamattomalla alueella
-     läpi lukeman 900 km:n päästä. */
+  /* PUUSKA VARASTOSTA SAMASTA PISTEESTÄ JA HETKESTÄ KUIN TUULI
+     (docs/oikeellisuus.md, O4) — silloin kun sen puuska on tunnin puuska.
+
+     Yllä oleva "varaston puuska ei kelpaa" mitattiin pelkän ECMWF-
+     varaston aikaan. FMI:n ja MET Nordicin tasoilla on tuntipuuska samasta
+     ajosta kuin kapselin tuuli, ja se on mitattuna oikein (harha +0,21 /
+     +0,32 m/s havaitun tunnin maksimia vasten, 28 asemaa). Rajapintapiste
+     taas oli mitattuna 81 km päässä ja eri ajosta: Porkkalan
+     ulkopuolella kapseli sanoi puuskaksi 2,7 × tuuli, kun saman mallin
+     suhde samassa pisteessä oli 1,6.
+
+     Ehto: pohjamallin (varaston ECMWF, 3–6 h maksimi ja aukkoinen, O8)
+     JA mallin oman hilan osuus sekoituksessa yhteensä alle 1 %, eli luku
+     on kokonaan FMI:tä tai MET Nordicia. Muuten `undefined`, ja kutsuja
+     käyttää lähintä rajapintapistettä tiukalla rajalla.
+     Varaston tila (hetki, puuskatila) palautetaan: kutsuja ei saa huomata
+     käyntiä, sama sopimus kuin `wxTunneittain`issa. */
+  _puuskaVarastosta(center) {
+    const S = Saalaatat;
+    if (!S.kartallaKaytossa() || State.valittuMs == null || !State.map) return undefined;
+    const step = ViewportGrid.laattaStep(Math.round(State.map.getZoom()));
+    const entinenPuuska = S._puuskaTila, entinenHetki = S._hetkiMs;
+    try {
+      if (S._hetkiMs !== State.valittuMs) S.asetaHetki(State.valittuMs);
+      S._puuskaTila = false;
+      if (!S.naytteista(center.lat, center.lng, step) || S._vajaa) return undefined;
+      const O = S._osuus;
+      let yht = 0, muut = 0;
+      for (let k = 0; k < O.length; k++) {
+        yht += O[k];
+        const p = S._perheet[k];
+        if (p.pohja || p.dyn) muut += O[k];
+      }
+      if (!(yht > 0) || muut / yht > 0.01) return undefined;
+      const tuuli = Math.hypot(S._nU, S._nV);
+      S._puuskaTila = true;
+      if (!S.naytteista(center.lat, center.lng, step)) return undefined;
+      return { tuuli: tuuli, puuska: Math.hypot(S._nU, S._nV) };
+    } finally {
+      S._puuskaTila = entinenPuuska;
+      if (S._hetkiMs !== entinenHetki) S.asetaHetki(entinenHetki);
+    }
+  },
+  /* Lähin piste jolla on tuntikohtainen puuskasarja — VARATIE, kun
+     varaston puuska ei ole tunnin puuska (ECMWF-alue, mallin oma hila).
+     Laattapisteet ohitetaan (ks. yllä).
+     RAJA ON 15 km (docs/oikeellisuus.md, O4). Se oli `3 × step`, lattia
+     0,5°: z 10:llä 0,75° ≈ 80 km, ja Turun kohdalla kapseli näytti Hanko
+     Silversandin puuskaa 81 km päästä. Puuska on paikan lukema; sen
+     puuttuminen (rivi jää tyhjäksi ja säilyttää tilansa) on rehellisempi
+     kuin toisen paikan luku. */
+  PUUSKA_RAJA_KM: 15,
   _puuskaPiste(center) {
     if (typeof ViewportGrid === 'undefined' || !State.map) return null;
-    const raja = Math.max(3 * ViewportGrid.kaytettyStep(State.map.getZoom()), 0.5);
+    const raja = this.PUUSKA_RAJA_KM / 111.2;
     const cos = Math.cos(center.lat * Math.PI / 180);
     let paras = null, minD = Infinity;
     for (const pt of ViewportGrid.getAllPoints()) {
@@ -24619,9 +24880,13 @@ const Crosshair = {
       const d = (center.lat - pt.lat) ** 2 + ((center.lng - pt.lng) * cos) ** 2;
       if (d < minD) { minD = d; paras = pt; }
     }
-    return paras;
+    return paras && Math.sqrt(minD) <= raja ? paras : null;
   },
   _puuskaLaske(center) {
+    /* Ensin varasto: sama piste, hetki ja sekoitus kuin tuulella. Vertailu
+       SAMAN näytteen tuuleen, ei kapselin bikuubiseen lukuun. */
+    const v = this._puuskaVarastosta(center);
+    if (v) return v.puuska > v.tuuli * 1.05 ? v.puuska : null;
     const pt = this._puuskaPiste(center);
     if (!pt) return null;
     const h = pt.wx.hourly;
@@ -26936,8 +27201,9 @@ function scheduleRefresh() {
  *       jäädä vanhaan. Kartan näkymä säilyy (sessionStorage), ja auki
  *       ollut spotti avautuu uudelleen NYKYHETKESSÄ — linkin aika
  *       poistetaan, muuten kortti palaisi vanhaan tuntiin.
- *   5–30 min -> vain nykyhetki: jos valinta oli nyt-tunnissa, se siirtyy
- *       uuteen nyt-tuntiin (käyttäjän itse valitsemaa tuntia ei siirretä).
+ *   5–30 min -> nykyhetki ja havainnot: jos valinta oli nyt-tunnissa, se
+ *       siirtyy uuteen nyt-tuntiin (käyttäjän itse valitsemaa tuntia ei
+ *       siirretä), ja havaintomerkit haetaan uudelleen (`_havPaivita`).
  */
 const Paluu = {
   KOVA_MS: 30 * 60e3,
@@ -26963,7 +27229,12 @@ const Paluu = {
     const kesto = Date.now() - this._piiloon;
     this._piiloon = 0;
     if (kesto >= this.KOVA_MS) { this._lataaUudelleen(); return; }
-    if (kesto >= this.PEHMEA_MS) this._nytEteenpain();
+    if (kesto >= this.PEHMEA_MS) {
+      this._nytEteenpain();
+      /* Havainnot uusiksi heti (docs/oikeellisuus.md, O7): 5–30 min
+         tauon jälkeen merkit jäivät ennen hakuhetken lukemiin. */
+      if (typeof window._havPaivita === 'function') window._havPaivita();
+    }
   },
   _nytEteenpain() {
     if (Ennuste.nytTunti() === this._nytPiiloon) return;

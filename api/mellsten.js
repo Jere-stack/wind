@@ -45,7 +45,7 @@ import {
 } from './_mellsten.js';
 import {
   haeTeksti, haeTavut, luePaivat, lueTila, paivatValilla, paivaSiirra, helsinkiPaiva,
-  niputaAjassa, nipunLeveys, hhmm, kelpoTz,
+  niputaAjassa, nipunLeveys, kymmenenMinuuttia, hhmm, kelpoTz,
 } from './_varasto.js';
 
 const STATION = { name: 'Espoo Mellsten', place: 'mellsten', lat: 60.147, lng: 24.794 };
@@ -170,14 +170,16 @@ export default async function handler(req, res) {
 
   try {
     if (!isHistory) {
-      var yksi = await fetchTextRetry(LAHDE + 'lastWeather.txt');
+      /* weather.txt (30 min) eika lastWeather.txt (yksi rivi): tuorein
+         lukema on 10 min jakso kuten FMI:lla (docs/oikeellisuus.md, O10). */
+      var yksi = await fetchTextRetry(LAHDE + 'weather.txt');
       /* Ankkuri on tiedoston Last-Modified eika nykyhetki: sammuneen
          aseman viimeinen rivi on eilisen, ei taman paivan. */
       var r1 = jasennaAnkkurista(yksi.teksti, yksi.muokattu || nyt);
       if (!r1.length) {
         return res.status(200).json({ error: 'no data', station: STATION.name, place: STATION.place });
       }
-      var u = r1[r1.length - 1];
+      var u = kymmenenMinuuttia(r1);
       res.setHeader('Cache-Control', 'public, s-maxage=' + TTL_TUOREIN + ', stale-while-revalidate=60');
       return res.status(200).json(Object.assign({
         station: STATION.name, place: STATION.place, lat: STATION.lat, lng: STATION.lng,
@@ -243,7 +245,9 @@ export default async function handler(req, res) {
       return res.status(200).json({ error: 'no data', station: STATION.name, place: STATION.place });
     }
     var rivit = Array.from(kaikki.values()).sort(function (a, b) { return a.ms - b.ms; });
-    var v = rivit[rivit.length - 1];
+    /* Tuorein lukema 10 min jaksona kuten FMI:lla (docs/oikeellisuus.md,
+       O10; api/_varasto.js). */
+    var v = kymmenenMinuuttia(rivit);
 
     var ikkuna = rivit.filter(function (r) { return r.ms >= raja; });
     /* Asema on ollut hiljaa koko ikkunan: viimeiset tunnetut rivit, jotta
@@ -254,9 +258,11 @@ export default async function handler(req, res) {
        lahteen 30 minuuttia, ja se nakyy minuutteina kuten ennen. */
     var nippuMin = nipunLeveys(ikkuna);
     var niput = niputaAjassa(ikkuna, nippuMin);
-    /* SARJAN VIIMEINEN PISTE ON TUOREIN HAVAINTO, EI NIPUN KESKIARVO
-       (sama kuin api/laru.js): kaavion paa on kortin ison luvun alla. */
-    if (niput.length && niput[niput.length - 1] !== v) niput = niput.slice(0, -1).concat([v]);
+    /* SARJAN VIIMEINEN PISTE ON SAMA LUKEMA KUIN `latest` (sama kuin
+       api/laru.js): kaavion paa on kortin ison luvun alla. */
+    var pn = niput.length ? niput[niput.length - 1].ms : -Infinity;
+    if (pn === v.ms) niput = niput.slice(0, -1).concat([v]);
+    else if (pn < v.ms) niput = niput.concat([v]);
 
     var ws = [], wg = [], ta = [];
     for (var i = 0; i < niput.length; i++) {

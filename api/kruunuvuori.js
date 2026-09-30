@@ -1,5 +1,5 @@
-import https from 'https';
 import { suojaa } from './_suoja.js';
+import { haeTeksti, HakuVirhe } from './_haku.js';
 
 const CSV_URL = 'https://swell.fmi.fi/Marinehelsinki/csv/kruunuvuorenselka_weatherdata.csv';
 const STATION = { name: 'Kruunuvuorenselkä', place: 'kruunuvuorenselka', lat: 60.163, lng: 24.997 };
@@ -23,7 +23,6 @@ const TW_STEP = 3;
 
 export default async function handler(req, res) {
   if (!suojaa(req, res)) return;
-  res.setHeader('Cache-Control', 'public, s-maxage=300'); /* data päivittyy n. 10min välein */
 
   try {
     const csvText = await fetchText(CSV_URL);
@@ -34,6 +33,7 @@ export default async function handler(req, res) {
       .filter(function (l) { return l.length && l.charAt(0) !== '#'; });
 
     if (lines.length < 2) {
+      res.setHeader('Cache-Control', 'public, s-maxage=300');
       return res.status(200).json({ error: 'no data', station: STATION.name });
     }
 
@@ -55,6 +55,7 @@ export default async function handler(req, res) {
     let latestValid = null;     /* uusin rivi jossa ws ei ole NaN — käytetään näytölle */
     let latestValidMs = -Infinity;
 
+    const rivit = [];
     for (let i = 0; i < dataLines.length; i++) {
       const cols = dataLines[i].split(',').map(function (s) {
         return s.trim().replace(/^"|"$/g, '');
@@ -63,20 +64,39 @@ export default async function handler(req, res) {
 
       const localtime = cols[0];  /* "2026-05-25T12:10:00" — Suomen aika */
       const utcTime   = cols[1];  /* "2026-05-25T09:10:00Z" — yksiselitteinen */
-      const ws   = parseNum(cols[2]);
-      const gust = parseNum(cols[3]);
-      const wdir = parseNum(cols[4]);
-      const ta   = parseNum(cols[5]);
-      const tw   = parseNum(cols[6]);
-
       /* "HH:MM" Localtime-sarakkeesta — sama formaatti kuin muualla apissa
          (_renderLiveHistory ja _histValueAt käyttävät tätä muotoa suoraan) */
       const hhmm = localtime.length >= 16 ? localtime.slice(11, 16) : null;
       if (!hhmm) continue;
-
       const utcMs = Date.parse(utcTime);
       if (isNaN(utcMs)) continue;
+      rivit.push({ utcTime: utcTime, utcMs: utcMs, hhmm: hhmm,
+        ws: parseNum(cols[2]), gust: parseNum(cols[3]), wdir: parseNum(cols[4]),
+        ta: parseNum(cols[5]), tw: parseNum(cols[6]) });
+    }
+    rivit.sort(function (a, b) { return a.utcMs - b.utcMs; });
 
+    /* NOLLARIVI KESKELLÄ TUULTA ON KATKO, EI TYYNI (docs/oikeellisuus.md,
+       O10). Lähteessä on rivejä `0.0, 0.0, 0` (tuuli, puuska, suunta)
+       joiden naapureilla on 1–3 m/s puuska — 14 vrk:ssa viisi, esim.
+       29.9. 17:40Z naapurit 1,2 / 2,1 ja 0,7 / 1,5 m/s. Kymmenen minuutin
+       puuska 0,0 tarkoittaa ettei kuppi pyörinyt kertaakaan, ja se on
+       uskottavaa vain aivan tyynessä. Raja on naapurin puuska 1,5 m/s:
+       sen alla nolla voi olla tyyni (28.9. 02:00, naapurit 0,9 / 1,3), ja
+       se jää. Mellstenin nollarivi on eri asia (ks. CLAUDE.md). */
+    for (let i = 0; i < rivit.length; i++) {
+      const r = rivit[i];
+      if (r.ws !== 0 || r.gust !== 0 || (r.wdir !== 0 && r.wdir != null)) continue;
+      let naapuri = 0;
+      for (const j of [i - 1, i + 1]) {
+        const n = rivit[j];
+        if (n && Math.abs(n.utcMs - r.utcMs) <= 1800000 && n.gust != null) naapuri = Math.max(naapuri, n.gust);
+      }
+      if (naapuri >= 1.5) { r.ws = null; r.gust = null; r.wdir = null; }
+    }
+
+    for (let i = 0; i < rivit.length; i++) {
+      const { utcTime, utcMs, hhmm, ws, gust, wdir, ta, tw } = rivit[i];
       if (utcMs >= cutoffMs) {
         /* Anturikatkon NaN-rivit jatetaan pois sarjasta sen sijaan etta ne
            tyontaisivat nullin kaavioon. */
@@ -100,6 +120,7 @@ export default async function handler(req, res) {
     }
 
     if (!latest) {
+      res.setHeader('Cache-Control', 'public, s-maxage=300');
       return res.status(200).json({ error: 'no valid rows', station: STATION.name });
     }
 
@@ -107,6 +128,7 @@ export default async function handler(req, res) {
        muuten kaikkein uusinta riviä (voi olla null-arvoinen anturikatko) */
     const display = latestValid || latest;
 
+    res.setHeader('Cache-Control', 'public, s-maxage=300'); /* data päivittyy n. 10min välein */
     return res.status(200).json({
       station: STATION.name,
       place: STATION.place,
@@ -134,7 +156,9 @@ export default async function handler(req, res) {
         .map(function (p) { return { t: p.t, v: p.v }; })
     });
   } catch (err) {
-    return res.status(500).json({ error: err.message, station: STATION.name });
+    /* Ylävirran virhe: 502 eikä välimuistiin (docs/oikeellisuus.md, O5). */
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(502).json({ error: err.message, station: STATION.name });
   }
 };
 
@@ -144,19 +168,10 @@ function parseNum(s) {
   return isNaN(v) ? null : v;
 }
 
-function fetchText(url) {
-  return new Promise(function (resolve, reject) {
-    https.get(url, function (response) {
-      if (response.statusCode !== 200) {
-        return reject(new Error('HTTP ' + response.statusCode));
-      }
-      const chunks = [];
-      response.on('data', function (c) { chunks.push(c); });
-      response.on('error', reject);
-      response.on('end', function () {
-        resolve(Buffer.concat(chunks).toString('utf-8'));
-      });
-    }).on('error', reject);
-  });
+/* Tila tarkistetaan ja aikaraja on koko haulle (api/_haku.js). */
+async function fetchText(url) {
+  const v = await haeTeksti(url);
+  if (v.tila !== 200) throw new HakuVirhe('HTTP ' + v.tila, v.tila);
+  return v.runko;
 }
 

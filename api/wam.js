@@ -56,8 +56,8 @@
  *    Suunta on siis samaa sukua kuin poijun ja tuulen suunta, ja
  *    kayttoliittyma voi kayttaa samaa nuolta ja samaa 'mista'-selitetta.
  */
-import https from 'https';
 import { suojaa } from './_suoja.js';
+import { haeFmi } from './_haku.js';
 
 const WFS = 'https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
   + '&storedquery_id=fmi::forecast::wam::point::timevaluepair';
@@ -67,16 +67,13 @@ const WFS = 'https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFe
    lyhyt pyynto sen sijaan katkaisisi sarjan kesken. */
 const TUNTEJA = 72;
 
-function fetchUrl(url) {
-  return new Promise(function (resolve, reject) {
-    https.get(url, function (res) {
-      var body = '';
-      res.on('data', function (c) { body += c; });
-      res.on('error', reject);
-      res.on('end', function () { resolve(body); });
-    }).on('error', reject);
-  });
-}
+/* 400 + "No data available" (piste mallin ulkopuolella) on tyhjä kate
+   ja palautuu tyhjänä; muu FMI:n virhe heittää, ja proxy vastaa 502.
+   Ennen virherunko jäsentyi tyhjäksi ja proxy vastasi `no data`, jonka
+   sovellus muistaa PYSYVÄSTI (`Aaltoennuste._tyhjat`) — yksi FMI:n häiriö
+   piilotti spotin aaltorivin koko istunnon ajaksi (docs/oikeellisuus.md,
+   O5). */
+function fetchUrl(url) { return haeFmi(url, { tyhjaPoikkeuksesta: true }); }
 
 /* UTC-aikaleima -> 'YYYY-MM-DDTHH:MM' halutussa vyohykkeessa.
    Sama Intl-ratkaisu kuin api/harmonie.js:ssa — kasin kirjoitettua
@@ -122,9 +119,6 @@ function parseSarjat(xml) {
 
 export default async function handler(req, res) {
   if (!suojaa(req, res)) return;
-  /* WAM ajetaan neljasti vuorokaudessa, joten tunnin valimuisti ei
-     vanhene kayttajan silmissa. Sama katto kuin /api/harmoniella. */
-  res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=300');
 
   var lat = parseFloat(req.query.lat);
   var lng = parseFloat(req.query.lng);
@@ -142,6 +136,10 @@ export default async function handler(req, res) {
 
     var s = parseSarjat(xml);
     var hs = s.SigWaveHeight || {}, tp = s.WavePeriod || {}, di = s.WaveDirection || {};
+    /* WAM ajetaan neljasti vuorokaudessa, joten tunnin valimuisti ei
+       vanhene kayttajan silmissa. Sama katto kuin /api/harmoniella.
+       Vain onnistuneelle vastaukselle: virhe ei saa jäädä CDN:ään. */
+    res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=300');
 
     /* Aika-akseli tulee KORKEUDESTA: se on sarja jonka takia rivi on
        olemassa, ja jakso ja suunta poimitaan sen aikaleimoilla. Jos
@@ -173,6 +171,7 @@ export default async function handler(req, res) {
       viimeinen: time[time.length - 1] || null
     });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(502).json({ error: err.message });
   }
 }

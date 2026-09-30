@@ -1,55 +1,63 @@
-import https from 'https';
 import { suojaa } from './_suoja.js';
+import { haeFmi } from './_haku.js';
 
+/* ASEMAREKISTERI (docs/oikeellisuus.md, O6). Sama lista kuin index.html:n
+ * `FMI_MAP_STATIONS` — ÄLÄ LISÄÄ ASEMAA VAIN TOISEEN (CLAUDE.md).
+ *
+ * KAIKKI HAETAAN FMISID:LLÄ. Kuusi asemaa haettiin ennen nimellä
+ * (`place=malmi`), ja nimi on FMI:n paikannimihaku eikä asematunnus:
+ * `place=malmi` palautti mitattuna `numberMatched="0"` myös silloin kun
+ * FMISID 101009 lähetti. Koordinaatit ovat FMI:n omasta vastauksesta
+ * (Tapiola oli 1,1 km ja Helsinki-Vantaa 1,5 km sivussa).
+ *
+ * Malmi (lähetti viimeksi 25.9.2026) ja Vuosaaren satama (18.8.2026)
+ * ovat mukana: tyhjä ikkuna poistaa merkin kartalta ja se palaa
+ * itsestään kun asema jatkaa lähettämistä ("KATKO JA LAKKAUTUS").
+ *
+ * Avomeriasemat Kalbådagrundista Rajakariin lisättiin 29.9.: yksi
+ * etelärannikon kysely palautti 28 tuuliasemaa, ja rekisterissä oli 12. */
 const STATIONS = [
-  { place: 'kaisaniemi', name: 'Helsinki Kaisaniemi',      lat: 60.17523, lng: 24.94459, type: 'weather', fmisid: null },
-  { place: 'kumpula',    name: 'Helsinki Kumpula',         lat: 60.20307, lng: 24.96131, type: 'weather', fmisid: null },
-  { place: 'harmaja',    name: 'Helsinki Harmaja',         lat: 60.10512, lng: 24.97539, type: 'weather', fmisid: null },
-  { place: 'tapiola',    name: 'Espoo Tapiola',            lat: 60.17510, lng: 24.80590, type: 'weather', fmisid: null },
-  { place: 'malmi',      name: 'Helsinki Malmi',           lat: 60.25299, lng: 25.04549, type: 'weather', fmisid: null },
-  { place: 'vantaa',     name: 'Vantaa Helsinki-Vantaa',   lat: 60.31700, lng: 24.96300, type: 'weather', fmisid: null },
-  /* Vuosaari satama — FMISID 151028 (vahvistettu dlarah.org:n kautta) */
-  { place: 'vuosaari',   name: 'Helsinki Vuosaari satama', lat: 60.20900, lng: 25.19660, type: 'maritime', fmisid: '151028' },
-  /* Sipoo Itätoukki — FMISID 105392 (vahvistettu 18.4.2026: ws=4.1 wg=4.4) */
-  { place: 'sipoo',      name: 'Sipoo Itätoukki',          lat: 60.10121, lng: 25.19439, type: 'fmisid',   fmisid: '105392' },
-  /* Porvoo Emäsalo — FMISID 101023 (vahvistettu dlarah.org:n kautta, itäpuolen avomeriasema) */
-  { place: 'emasalo',    name: 'Porvoo Emäsalo',           lat: 60.20382, lng: 25.62546, type: 'fmisid',   fmisid: '101023' },
-  /* Porvoo Kilpilahti satama — FMISID 100683 (FMI WFS-rekisteri 27.9.2026,
-     60.30373 25.54916, WMO 2994). */
-  { place: 'kilpilahti', name: 'Porvoo Kilpilahti satama', lat: 60.30373, lng: 25.54916, type: 'fmisid',   fmisid: '100683' },
-  /* Kirkkonummi Mäkiluoto — FMISID 100997. Tämä on virallinen viiteasema jota kaikki
-     "Porkkala"-sääpalvelut käyttävät (Foreca, kilotavu.com ym.), ei erillistä
-     FMI-asemaa nimellä "Porkkala" ole olemassa — Mäkiluoto on n. 7-9km Porkkalanniemestä. */
-  { place: 'porkkala',   name: 'Kirkkonummi Mäkiluoto',    lat: 59.91982, lng: 24.35023, type: 'fmisid',   fmisid: '100997' },
-  /* Hanko Tulliniemi — FMISID 100946 (vahvistettu FMI WFS-rekisteristä, 59.808642,22.912464),
-     n. 1.7km wingfoil-spotin "Hanko Tulliniemi" koordinaateista. */
-  { place: 'hanko',      name: 'Hanko Tulliniemi',         lat: 59.80864, lng: 22.91246, type: 'fmisid',   fmisid: '100946' },
+  { place: 'kaisaniemi',   name: 'Helsinki Kaisaniemi',      lat: 60.17523, lng: 24.94459, fmisid: '100971' },
+  { place: 'kumpula',      name: 'Helsinki Kumpula',         lat: 60.20307, lng: 24.96131, fmisid: '101004' },
+  { place: 'harmaja',      name: 'Helsinki Harmaja',         lat: 60.10512, lng: 24.97539, fmisid: '100996' },
+  { place: 'tapiola',      name: 'Espoo Tapiola',            lat: 60.17797, lng: 24.78743, fmisid: '874863' },
+  { place: 'malmi',        name: 'Helsinki Malmi',           lat: 60.25299, lng: 25.04549, fmisid: '101009' },
+  { place: 'vantaa',       name: 'Vantaa Helsinki-Vantaa',   lat: 60.32937, lng: 24.97274, fmisid: '100968' },
+  { place: 'vuosaari',     name: 'Helsinki Vuosaari satama', lat: 60.20867, lng: 25.19590, fmisid: '151028' },
+  { place: 'sipoo',        name: 'Sipoo Itätoukki',          lat: 60.10121, lng: 25.19439, fmisid: '105392' },
+  { place: 'emasalo',      name: 'Porvoo Emäsalo',           lat: 60.20382, lng: 25.62546, fmisid: '101023' },
+  { place: 'kilpilahti',   name: 'Porvoo Kilpilahti satama', lat: 60.30373, lng: 25.54916, fmisid: '100683' },
+  { place: 'kalbadagrund', name: 'Porvoo Kalbådagrund',      lat: 59.98568, lng: 25.59879, fmisid: '101022' },
+  { place: 'orrengrund',   name: 'Loviisa Orrengrund',       lat: 60.27476, lng: 26.44759, fmisid: '101039' },
+  { place: 'rankki',       name: 'Kotka Rankki',             lat: 60.37538, lng: 26.95893, fmisid: '101030' },
+  { place: 'haapasaari',   name: 'Kotka Haapasaari',         lat: 60.28676, lng: 27.18482, fmisid: '101042' },
+  /* Kirkkonummi Mäkiluoto on se asema jota "Porkkala"-sääpalvelut
+     käyttävät; FMI:llä ei ole asemaa nimellä Porkkala. */
+  { place: 'porkkala',     name: 'Kirkkonummi Mäkiluoto',    lat: 59.91982, lng: 24.35023, fmisid: '100997' },
+  { place: 'bagaskar',     name: 'Inkoo Bågaskär',           lat: 59.93114, lng: 24.01408, fmisid: '100969' },
+  { place: 'hanko',        name: 'Hanko Tulliniemi',         lat: 59.80864, lng: 22.91246, fmisid: '100946' },
+  { place: 'russaro',      name: 'Hanko Russarö',            lat: 59.77363, lng: 22.94868, fmisid: '100932' },
+  { place: 'vano',         name: 'Kemiönsaari Vänö',         lat: 59.86949, lng: 22.19343, fmisid: '100945' },
+  { place: 'fagerholm',    name: 'Parainen Fagerholm',       lat: 60.11163, lng: 21.69828, fmisid: '100924' },
+  { place: 'rajakari',     name: 'Turku Rajakari',           lat: 60.37788, lng: 22.09640, fmisid: '100947' },
 ];
 
 function km(a,b,c,d){var R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;return R*2*Math.asin(Math.sqrt(Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2));}
 function nearest(lat,lng){return STATIONS.slice().sort(function(a,b){return km(lat,lng,a.lat,a.lng)-km(lat,lng,b.lat,b.lng);})[0];}
-/* Kellonajan muotoilu on hhmm() alempana — Intl:lla, ei kasin kirjoitetulla
-   kesaaikasaannolla. */
 
-function fetchUrl(url){
-  return new Promise(function(resolve,reject){
-    https.get(url,function(res){var body='';res.on('data',function(c){body+=c;});res.on('error',reject);res.on('end',function(){resolve(body);});}).on('error',reject);
-  });
-}
+/* Virhe on virhe (docs/oikeellisuus.md, O5): `haeFmi` heittää kun FMI
+   vastaa muulla kuin 200:lla tai ExceptionReportilla, ja käsittelijä
+   vastaa silloin 502:lla. Ennen virherunko jäsennettiin tyhjäksi ja
+   vastaus oli `{error:'no data'}` HTTP 200:lla — sovellus lukee sen
+   lakkautukseksi ja poisti aseman kartalta. */
+function fetchUrl(url){ return haeFmi(url); }
 
-/* Alkuperäinen toimiva parseri */
-function parseLatest(xml){
-  var result={};
-  var re=/gml:id="[^"]*-([a-zA-Z]+)"[\s\S]*?(<wml2:point[\s\S]*?<\/wml2:MeasurementTimeseries>)/g;
-  var m;
-  while((m=re.exec(xml))!==null){
-    var param=m[1].toLowerCase(),block=m[2],pairs=[];
-    var tvRe=/<wml2:time>([^<]+)<\/wml2:time>\s*<wml2:value>([^<]+)<\/wml2:value>/g,tv;
-    while((tv=tvRe.exec(block))!==null){var v=parseFloat(tv[2]);if(!isNaN(v))pairs.push({t:tv[1],v:v});}
-    if(pairs.length>0)result[param]=pairs[pairs.length-1];
-  }
-  return result;
-}
+const WFS = 'https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature';
+const MP = WFS + '&storedquery_id=fmi::observations::weather::multipointcoverage';
+const DT_MS = 600000;
+
+/* Kehitystyökalujen jäsennin (timevaluepair). Varsinaiset haut ovat
+   multipointcoverageja, ks. alla. */
 function parseHistory(xml){
   var series={};
   var re=/gml:id="[^"]*-([a-zA-Z]+)"[\s\S]*?(<wml2:point[\s\S]*?<\/wml2:MeasurementTimeseries>)/g;
@@ -65,7 +73,7 @@ function parseHistory(xml){
 
 function makeBbox(lat,lng,d){return(lng-d).toFixed(4)+','+(lat-d).toFixed(4)+','+(lng+d).toFixed(4)+','+(lat+d).toFixed(4);}
 
-/* Historia haetaan multipointcoveragena, ei timevaluepairina.
+/* Kaikki haut ovat multipointcoverageja, ei timevaluepaireja.
  *
  * Sama sisalto, murto-osa tavuista: mitattuna 7 vrk / 10 min / 3 parametria
  * on timevaluepairina 993 kt ja multipointcoveragena 84 kt — kaksitoista-
@@ -75,15 +83,26 @@ function makeBbox(lat,lng,d){return(lng-d).toFixed(4)+','+(lat-d).toFixed(4)+','
  *
  * Formaatti:
  *   <swe:field name="WindSpeedMS"/> ...   kertoo sarakejarjestyksen
+ *   <gml:Point gml:id="point-FMISID"> ... <gml:pos>lat lng</gml:pos>
  *   <gmlcov:positions>  "lat lng epoch"   rivi per hetki
  *   <gml:doubleOrNilReasonTupleList>      "6.6 7.6 311.0" rivi per hetki
- * Puuttuva arvo on NaN. */
+ * Puuttuva arvo on NaN.
+ *
+ * RIVI KERTOO ASEMAN SIJAINNILLAAN, ja sijainti sidotaan FMISID:hen
+ * pisteluettelosta. Usean aseman kyselyssä asemat tulevat tunnuksen
+ * järjestyksessä eikä pyynnön, ja tyhjä asema puuttuu kokonaan —
+ * järjestykseen luottava jäsennys antaisi aseman datan toiselle. */
 function parseMultipoint(xml){
   var fields=[],fm,fre=/<swe:field\s+name="([^"]+)"/g;
   while((fm=fre.exec(xml))!==null)fields.push(fm[1]);
   var pm=/<gmlcov:positions>([\s\S]*?)<\/gmlcov:positions>/.exec(xml);
   var vm=/<gml:doubleOrNilReasonTupleList>([\s\S]*?)<\/gml:doubleOrNilReasonTupleList>/.exec(xml);
   if(!fields.length||!pm||!vm)return null;
+  var paikat={},pp,pre=/<gml:Point\s+gml:id="point-(\d+)"[\s\S]*?<gml:pos>([^<]+)<\/gml:pos>/g;
+  while((pp=pre.exec(xml))!==null){
+    var pc0=pp[2].trim().split(/\s+/);
+    paikat[(+pc0[0]).toFixed(5)+' '+(+pc0[1]).toFixed(5)]=pp[1];
+  }
   var pl=pm[1].trim().split('\n'),vl=vm[1].trim().split('\n');
   var rows=[];
   for(var i=0;i<pl.length&&i<vl.length;i++){
@@ -92,7 +111,7 @@ function parseMultipoint(xml){
     var sec=parseInt(pc[2],10);
     if(isNaN(sec))continue;
     var vc=vl[i].trim().split(/\s+/).map(parseFloat);
-    rows.push({ms:sec*1000,v:vc});
+    rows.push({ms:sec*1000,v:vc,fmisid:paikat[(+pc[0]).toFixed(5)+' '+(+pc[1]).toFixed(5)]||null});
   }
   return {fields:fields,rows:rows};
 }
@@ -114,47 +133,12 @@ function kelpoTz(tz){
   try{ new Intl.DateTimeFormat('sv-SE',{timeZone:tz}); return tz; }catch(e){ return null; }
 }
 
-/* Weather-asema: place-parametrilla (toimii varmasti) */
-function fetchWeather(place,params,start){
-  var url='https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
-    +'&storedquery_id=fmi::observations::weather::timevaluepair'
-    +'&place='+encodeURIComponent(place)+'&parameters='+params+'&timestep=10&starttime='+start;
-  return fetchUrl(url);
-}
+function isoMin(ms){ return new Date(ms).toISOString().slice(0,16)+'Z'; }
+function arvo(r,i){ var v=i>=0?r.v[i]:NaN; return v!=null&&!isNaN(v)?v:null; }
 
-/* Maritime-asema: käytä fmisid suoraan jos tiedossa, muuten bbox */
-async function fetchMaritime(lat,lng,params,start,fmisid){
-  var BASE='https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
-    +'&storedquery_id=fmi::observations::weather::timevaluepair'
-    +'&timestep=10&starttime='+start;
-
-  /* S1: suora FMISID-haku jos asemalla on tunnettu ID */
-  if(fmisid){
-    try{
-      var xml1=await fetchUrl(BASE+'&fmisid='+fmisid+'&parameters='+params);
-      var s1=parseHistory(xml1);
-      if(s1.windspeedms&&s1.windspeedms.length){
-        console.log('[maritime] S1 fmisid='+fmisid+' OK, n='+s1.windspeedms.length);
-        return xml1;
-      }
-      console.log('[maritime] S1 fmisid='+fmisid+' empty');
-    }catch(e){console.log('[maritime] S1 error:',e.message);}
-  }
-
-  /* S2: weather bbox — pieni säde jotta ei osu väärään asemaan */
-  try{
-    var bb=makeBbox(lat,lng,0.08);
-    var xml2=await fetchUrl(BASE+'&bbox='+bb+'&parameters='+params+'&maxlocations=1');
-    var s2=parseHistory(xml2);
-    if(s2.windspeedms&&s2.windspeedms.length){
-      console.log('[maritime] S2 weather bbox OK, n='+s2.windspeedms.length);
-      return xml2;
-    }
-    console.log('[maritime] S2 bbox empty');
-  }catch(e){console.log('[maritime] S2 error:',e.message);}
-
-  console.log('[maritime] ALL FAILED lat='+lat+' lng='+lng+' fmisid='+fmisid);
-  return '';
+function mpUrl(fmisids,params,startMs){
+  return MP+'&parameters='+params+'&timestep=10&starttime='+isoMin(startMs)
+    +fmisids.map(function(id){return '&fmisid='+id;}).join('');
 }
 
 export default async function handler(req,res){
@@ -168,99 +152,35 @@ export default async function handler(req,res){
   if(!kehitys && (req.query.findstation==='1' || req.query.stationcoord==='1' || req.query.debug==='1')){
     return res.status(404).json({error:'not found'});
   }
-  /* FINDSTATION: testaa FMISID:t oikealla datalla */
-  if(req.query.findstation==='1'){
-    var target_ws=parseFloat(req.query.ws||'4.1');
-    var target_date=req.query.date||'2026-04-18';
-    var startT=target_date+'T07:00:00Z', endT=target_date+'T08:30:00Z';
-    var BASE2='https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
-      +'&storedquery_id=fmi::observations::weather::timevaluepair'
-      +'&parameters=WindSpeedMS,WindGust&timestep=10&starttime='+startT+'&endtime='+endT;
-    function isDst2(d){var mar=new Date(d.getFullYear(),2,31);mar.setDate(31-mar.getDay());var oct=new Date(d.getFullYear(),9,31);oct.setDate(31-oct.getDay());return d>=mar&&d<oct;}
-    function toFi2(iso){var d=new Date(iso);d=new Date(d.getTime()+(isDst2(d)?3:2)*3600000);return('0'+d.getUTCHours()).slice(-2)+':'+('0'+d.getUTCMinutes()).slice(-2);}
-    var testIds=['151028','151048','100928','101023','105392','100540'];
-    var results={date:target_date,target_ws:target_ws,fmisids:{}};
-    for(var ii=0;ii<testIds.length;ii++){
-      var fid=testIds[ii];
-      try{
-        var xf=await fetchUrl(BASE2+'&fmisid='+fid);
-        var sf=parseHistory(xf);
-        var wsArr=(sf.windspeedms||[]).map(function(p){return{t:toFi2(p.t),v:p.v};});
-        var wgArr=(sf.windgust||[]).map(function(p){return{t:toFi2(p.t),v:p.v};});
-        var ws10=wsArr.find(function(p){return p.t==='10:00';});
-        var wg10=wgArr.find(function(p){return p.t==='10:00';});
-        results.fmisids[fid]={ws_at_10:ws10?ws10.v:null,wg_at_10:wg10?wg10.v:null,n:wsArr.length,match:ws10&&Math.abs(ws10.v-target_ws)<0.5};
-      }catch(e){results.fmisids[fid]={error:e.message};}
-    }
-    /* Testaa myös place=sipoo */
-    try{
-      var xp=await fetchUrl(BASE2+'&place=sipoo');
-      var sp=parseHistory(xp);
-      var wsp=(sp.windspeedms||[]).map(function(p){return{t:toFi2(p.t),v:p.v};});
-      var wgp=(sp.windgust||[]).map(function(p){return{t:toFi2(p.t),v:p.v};});
-      results.place_sipoo={ws_at_10:wsp.find(function(p){return p.t==='10:00';}),wg_at_10:wgp.find(function(p){return p.t==='10:00';}),n:wsp.length};
-    }catch(e){results.place_sipoo={error:e.message};}
-    return res.status(200).json(results);
+  if(kehitys && (req.query.findstation==='1' || req.query.stationcoord==='1' || req.query.debug==='1')){
+    return kehitysHaarat(req,res);
   }
 
-  /* STATIONCOORD: hae aseman koordinaatit FMISID:llä */
-  if(req.query.stationcoord==='1'){
-    var fid=/^\d{4,7}$/.test(req.query.fmisid||'')?req.query.fmisid:'105392';
-    var start=new Date(Date.now()-2*3600000).toISOString().slice(0,16)+'Z';
-    var url='https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
-      +'&storedquery_id=fmi::observations::weather::timevaluepair'
-      +'&fmisid='+fid+'&parameters=WindSpeedMS&timestep=60&starttime='+start;
+  var tz=kelpoTz(req.query.tz)||'Europe/Helsinki';
+
+  /* KAIKKI ASEMAT YHDELLÄ KYSELYLLÄ (docs/oikeellisuus.md, O6).
+     Karttamerkit tekivät ennen kaksi pyyntöä asemaa kohti (tuorein +
+     historia) eli 24 käynnistyksessä, jokainen omalla osoitteellaan.
+     Nyt yksi FMI-kysely ja yksi osoite kaikille käyttäjille, joten CDN
+     jakaa sen. */
+  if(req.query.asemat==='1'){
     try{
-      var xml=await fetchUrl(url);
-      /* Koordinaatit ovat gml:pos tai gml:coordinates tagissa */
-      var pos=xml.match(/gml:pos[^>]*>([^<]+)/);
-      var name=xml.match(/gmd:name>([^<]+)/);
-      var fmisidMatch=xml.match(/fmisid[^>]*>(\d+)/);
-      return res.status(200).json({
-        fmisid:fid,
-        name:name?name[1]:null,
-        pos:pos?pos[1]:null,
-        fmisid_found:fmisidMatch?fmisidMatch[1]:null,
-        xml_snippet:xml.slice(0,800)
-      });
-    }catch(e){return res.status(500).json({error:e.message});}
+      var tulos=await kaikkiAsemat(Math.max(1,Math.min(48,parseInt(req.query.hours,10)||24)));
+      if(!tulos){
+        /* Yksikään asema ei vastannut: se on FMI:n tai kyselyn vika eikä
+           kaikkien asemien lakkautus. Tyhjä vastaus poistaisi koko
+           havaintokerroksen kartalta. */
+        res.setHeader('Cache-Control','no-store');
+        return res.status(502).json({error:'ei yhtään asemaa'});
+      }
+      res.setHeader('Cache-Control','public, s-maxage=300, stale-while-revalidate=60');
+      return res.status(200).json(tulos);
+    }catch(err){
+      res.setHeader('Cache-Control','no-store');
+      return res.status(502).json({error:err.message});
+    }
   }
 
-  /* DEBUG: listaa kaikki asemat alueelta */
-  if(req.query.debug==='1'){
-    var dlat=parseFloat(req.query.lat)||60.158, dlng=parseFloat(req.query.lng)||25.326;
-    var dd=parseFloat(req.query.d)||0.20;
-    var bb=makeBbox(dlat,dlng,dd);
-    var start=new Date(Date.now()-2*3600000).toISOString().slice(0,16)+'Z';
-    var results={bbox:bb,lat:dlat,lng:dlng,strategies:{}};
-    try{
-      var x1=await fetchUrl('https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
-        +'&storedquery_id=fmi::observations::weather::timevaluepair&bbox='+bb
-        +'&parameters=WindSpeedMS&timestep=60&starttime='+start+'&maxlocations=5');
-      var ids1=[...x1.matchAll(/gml:id="([^"]+)"/g)].map(m=>m[1]).filter(id=>id.includes('obs'));
-      results.strategies.weather_bbox={ids:ids1,len:x1.length,hasData:x1.includes('wml2:value')};
-    }catch(e){results.strategies.weather_bbox={error:e.message};}
-    try{
-      var x2=await fetchUrl('https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
-        +'&storedquery_id=fmi::observations::maritime::simple&bbox='+bb
-        +'&parameters=WindSpeedMS&timestep=60&starttime='+start+'&maxlocations=5');
-      var ids2=[...x2.matchAll(/gml:id="([^"]+)"/g)].map(m=>m[1]).filter(id=>id.includes('obs'));
-      results.strategies.maritime_bbox={ids:ids2,len:x2.length,hasData:x2.includes('wml2:value')};
-    }catch(e){results.strategies.maritime_bbox={error:e.message};}
-    /* Kokeile eri FMISID:jä */
-    var testIds=['151048','100928','101023','100540','100971','101004'];
-    results.fmisids={};
-    for(var fid of testIds){
-      try{
-        var xf=await fetchUrl('https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
-          +'&storedquery_id=fmi::observations::weather::timevaluepair&fmisid='+fid
-          +'&parameters=WindSpeedMS&timestep=60&starttime='+start);
-        var sf=parseHistory(xf);
-        results.fmisids[fid]={hasData:!!(sf.windspeedms&&sf.windspeedms.length),len:xf.length};
-      }catch(e){results.fmisids[fid]={error:e.message};}
-    }
-    return res.status(200).json(results);
-  }
   var lat=parseFloat(req.query.lat),lng=parseFloat(req.query.lng);
   var placeParam=req.query.place;
   var station;
@@ -275,73 +195,64 @@ export default async function handler(req,res){
   }
 
   var isHistory=req.query.history==='1';
-  var tz=kelpoTz(req.query.tz)||'Europe/Helsinki';
   /* FMI:n yksiselitteinen katto on 7 vrk: mitattuna 168 h menee lapi ja
      192 h vastaa "Too long time interval requested!". Alaraja 1 h. */
   var hours=Math.max(1,Math.min(168,parseInt(req.query.hours,10)||24));
-  var start=isHistory
-    ?new Date(Date.now()-hours*3600000).toISOString().slice(0,16)+'Z'
-    :new Date(Date.now()-60*60000).toISOString().slice(0,16)+'Z';
-
-  if(isHistory)res.setHeader('Cache-Control','public, s-maxage=600, stale-while-revalidate=120');
-  else res.setHeader('Cache-Control','public, s-maxage=300, stale-while-revalidate=60');
+  var startMs=isHistory?Date.now()-hours*3600000:Date.now()-60*60000;
 
   try{
-    /* Historiassa on nyt myos suunta ja lampotila. Ne olivat aina FMI:lla
+    /* Historiassa on myos suunta ja lampotila. Ne olivat aina FMI:lla
        saatavilla samalla 10 min tiheydella — niita ei vain pyydetty, joten
        graafi ei voinut nayttaa suuntaa lainkaan ja tooltipin nuoli oli
        kuollutta koodia (p.d oli aina null). */
-    var histParams='WindSpeedMS,WindGust,WindDirection,Temperature';
-    var latParams='WindSpeedMS,WindDirection,WindGust,Temperature,DewPoint';
-    var params=isHistory?histParams:latParams;
     if(isHistory){
-      var histXml=await fetchHistoryXml(station,params,start);
+      var histXml=await fetchUrl(mpUrl([station.fmisid],'WindSpeedMS,WindGust,WindDirection,Temperature',startMs));
+      res.setHeader('Cache-Control','public, s-maxage=600, stale-while-revalidate=120');
       return res.status(200).json(buildHistory(histXml,station,tz));
     }
-    var xml;
-    if(station.type==='fmisid'&&station.fmisid){
-      /* Suora FMISID-haku — varmin tapa tunnetuille asemille */
-      var BASE_F='https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
-        +'&storedquery_id=fmi::observations::weather::timevaluepair'
-        +'&fmisid='+station.fmisid+'&parameters='+params+'&timestep=10&starttime='+start;
-      xml=await fetchUrl(BASE_F);
-    }else if(station.type==='maritime'){
-      xml=await fetchMaritime(station.lat,station.lng,params,start,station.fmisid);
-    }else{
-      xml=await fetchWeather(station.place,params,start);
-    }
-
-    {
-      var d=parseLatest(xml);
-      var ws2=d['windspeedms']||null,wd=d['winddirection']||null,wg2=d['windgust']||null;
-      var t=d['temperature']||null,dp=d['dewpoint']||null;
-      if(!ws2)return res.status(200).json({error:'no data',station:station.name,place:station.place});
-      return res.status(200).json({
-        station:station.name,place:station.place,
-        ws:ws2.v,wd:wd?wd.v:null,wg:wg2?wg2.v:null,
-        tmp:t?t.v:null,dew:dp?dp.v:null,
-        time:hhmm(Date.parse(ws2.t),tz),
-        /* Havainnon ika minuutteina. Ilman tata kayttoliittyma ei voi
-           erottaa "asema on hiljaa" -tilaa "asemaa ei ole" -tilasta, ja
-           juuri se ero jai Vuosaaressa kertomatta. */
-        lastIso:ws2.t,
-        ageMin:Math.round((Date.now()-Date.parse(ws2.t))/60000),
-      });
-    }
-  }catch(err){return res.status(500).json({error:err.message});}
+    var xml=await fetchUrl(mpUrl([station.fmisid],'WindSpeedMS,WindDirection,WindGust,Temperature,DewPoint',startMs));
+    res.setHeader('Cache-Control','public, s-maxage=300, stale-while-revalidate=60');
+    return res.status(200).json(buildLatest(xml,station,tz));
+  }catch(err){
+    /* Ylävirran virhe ei ole "ei dataa": 502 ja ei välimuistiin, jotta
+       asiakas näyttää katkon eikä lakkautusta, eikä CDN jaa virhettä
+       kaikille viideksi minuutiksi. */
+    res.setHeader('Cache-Control','no-store');
+    return res.status(502).json({error:err.message});
+  }
 };
 
-/* Historian XML — sama asemalogiikka kuin uusimmalle havainnolle, mutta
-   aina multipointcoverage. Maritime-asemalle ei ajeta fetchMaritimea:
-   sen bbox-varatie palauttaisi TOISEN aseman datan taman aseman nimella,
-   ja juuri se hiljainen sijaisuus on se vika jota tassa korjataan.
-   Sijainen valitaan nyt selaimessa, jossa se voidaan myos sanoa. */
-function fetchHistoryXml(station,params,start){
-  var base='https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
-    +'&storedquery_id=fmi::observations::weather::multipointcoverage'
-    +'&parameters='+params+'&timestep=10&starttime='+start;
-  if(station.fmisid)return fetchUrl(base+'&fmisid='+station.fmisid);
-  return fetchUrl(base+'&place='+encodeURIComponent(station.place));
+/* TUOREIN HAVAINTO ON YKSI RIVI. Timevaluepair-jäsennin otti jokaisen
+   suureen tuoreimman erikseen, jolloin suunta ja puuska saattoivat olla
+   eri kymmenminuuttiselta kuin tuuli (asema lähettää puuskan ja suunnan
+   joskus myöhässä tai ei lainkaan). Nyt tuuli, suunta ja puuska ovat
+   samalta riviltä; lämpötila ja kastepiste tuoreimmat, koska ne eivät
+   ole tuulen kanssa samaa lukemaa. */
+function buildLatest(xml,station,tz){
+  var mp=xml?parseMultipoint(xml):null;
+  var tyhja={error:'no data',station:station.name,place:station.place};
+  if(!mp||!mp.rows.length)return tyhja;
+  var f=mp.fields;
+  var iWs=f.indexOf('WindSpeedMS'),iWd=f.indexOf('WindDirection'),iWg=f.indexOf('WindGust');
+  var iTa=f.indexOf('Temperature'),iDp=f.indexOf('DewPoint');
+  var rivi=null,ta=null,dp=null;
+  for(var i=0;i<mp.rows.length;i++){
+    var r=mp.rows[i];
+    if(arvo(r,iWs)!=null)rivi=r;
+    if(arvo(r,iTa)!=null)ta=arvo(r,iTa);
+    if(arvo(r,iDp)!=null)dp=arvo(r,iDp);
+  }
+  if(!rivi)return tyhja;
+  return {
+    station:station.name,place:station.place,
+    ws:arvo(rivi,iWs),wd:arvo(rivi,iWd),wg:arvo(rivi,iWg),
+    tmp:ta,dew:dp,
+    time:hhmm(rivi.ms,tz),
+    /* Havainnon hetki. Ika lasketaan asiakkaassa tasta (O7): `ageMin`
+       jaatyy hakuhetkeen ja CDN:n valimuisti vanhentaa sita. */
+    lastIso:new Date(rivi.ms).toISOString(),
+    ageMin:Math.round((Date.now()-rivi.ms)/60000),
+  };
 }
 
 function buildHistory(xml,station,tz){
@@ -375,3 +286,116 @@ function buildHistory(xml,station,tz){
   };
 }
 
+/* `?asemat=1&hours=N` (1–48 h). Vastaus on tiivis: yhteinen 10 min
+ * aika-akseli ja asemittain samanpituiset taulukot.
+ *
+ *   { t0, dt: 600000, n, asemat: { harmaja: { ws:[…], wg:[…], wd:[…] },
+ *                                  malmi: null, … } }
+ *
+ * `null` = asema on rekisterissä mutta FMI ei palauttanut siltä yhtään
+ * riviä koko ikkunasta (sama merkitys kuin yhden aseman `no data`).
+ * Puuttuva lukema on `null` taulukossa. Tuorein havainto on taulukon
+ * viimeinen ei-null tuuli — samalta riviltä suunta ja puuska.
+ *
+ * Tiiviys on mitattu: 21 asemaa × 48 h oliomuodossa (`{t,v,d,iso}`)
+ * olisi satoja kilotavuja, tässä muodossa kymmeniä. Lämpötilaa ei
+ * haeta, koska karttamerkki ei näytä sitä (kortti hakee oman sarjansa). */
+async function kaikkiAsemat(hours){
+  var t0=Math.floor((Date.now()-hours*3600000)/DT_MS)*DT_MS;
+  var xml=await fetchUrl(mpUrl(STATIONS.map(function(s){return s.fmisid;}),'WindSpeedMS,WindGust,WindDirection',t0));
+  var mp=parseMultipoint(xml);
+  if(!mp||!mp.rows.length)return null;
+  var iWs=mp.fields.indexOf('WindSpeedMS'),iWg=mp.fields.indexOf('WindGust'),iWd=mp.fields.indexOf('WindDirection');
+  if(iWs<0)return null;
+  var loppu=t0;
+  for(var i=0;i<mp.rows.length;i++)if(mp.rows[i].ms>loppu)loppu=mp.rows[i].ms;
+  var n=Math.round((loppu-t0)/DT_MS)+1;
+  var sarjat={};
+  for(var j=0;j<mp.rows.length;j++){
+    var r=mp.rows[j];
+    if(!r.fmisid)continue;
+    var k=Math.round((r.ms-t0)/DT_MS);
+    if(k<0||k>=n)continue;
+    var s=sarjat[r.fmisid];
+    if(!s){
+      s=sarjat[r.fmisid]={ws:new Array(n).fill(null),wg:new Array(n).fill(null),wd:new Array(n).fill(null),ok:false};
+    }
+    var w=arvo(r,iWs);
+    if(w!=null){ s.ws[k]=w; s.ok=true; }
+    s.wg[k]=arvo(r,iWg);
+    s.wd[k]=arvo(r,iWd);
+  }
+  var asemat={},yksikin=false;
+  STATIONS.forEach(function(st){
+    var s=sarjat[st.fmisid];
+    if(s&&s.ok){ asemat[st.place]={ws:s.ws,wg:s.wg,wd:s.wd}; yksikin=true; }
+    else asemat[st.place]=null;
+  });
+  if(!yksikin)return null;
+  return {t0:t0,dt:DT_MS,n:n,asemat:asemat};
+}
+
+/* ── Kehitystyökalut (FS_DEBUG=1) ─────────────────────────────── */
+async function kehitysHaarat(req,res){
+  /* FINDSTATION: testaa FMISID:t oikealla datalla */
+  if(req.query.findstation==='1'){
+    var target_ws=parseFloat(req.query.ws||'4.1');
+    var target_date=req.query.date||'2026-04-18';
+    var startT=target_date+'T07:00:00Z', endT=target_date+'T08:30:00Z';
+    var BASE2=WFS+'&storedquery_id=fmi::observations::weather::timevaluepair'
+      +'&parameters=WindSpeedMS,WindGust&timestep=10&starttime='+startT+'&endtime='+endT;
+    function toFi2(iso){return hhmm(Date.parse(iso),'Europe/Helsinki');}
+    var testIds=['151028','151048','100928','101023','105392','100540'];
+    var results={date:target_date,target_ws:target_ws,fmisids:{}};
+    for(var ii=0;ii<testIds.length;ii++){
+      var fid=testIds[ii];
+      try{
+        var xf=await fetchUrl(BASE2+'&fmisid='+fid);
+        var sf=parseHistory(xf);
+        var wsArr=(sf.windspeedms||[]).map(function(p){return{t:toFi2(p.t),v:p.v};});
+        var wgArr=(sf.windgust||[]).map(function(p){return{t:toFi2(p.t),v:p.v};});
+        var ws10=wsArr.find(function(p){return p.t==='10:00';});
+        var wg10=wgArr.find(function(p){return p.t==='10:00';});
+        results.fmisids[fid]={ws_at_10:ws10?ws10.v:null,wg_at_10:wg10?wg10.v:null,n:wsArr.length,match:ws10&&Math.abs(ws10.v-target_ws)<0.5};
+      }catch(e){results.fmisids[fid]={error:e.message};}
+    }
+    return res.status(200).json(results);
+  }
+
+  /* STATIONCOORD: hae aseman koordinaatit FMISID:llä */
+  if(req.query.stationcoord==='1'){
+    var fid2=/^\d{4,7}$/.test(req.query.fmisid||'')?req.query.fmisid:'105392';
+    var url=WFS+'&storedquery_id=fmi::observations::weather::timevaluepair'
+      +'&fmisid='+fid2+'&parameters=WindSpeedMS&timestep=60&starttime='+isoMin(Date.now()-2*3600000);
+    try{
+      var xml=await fetchUrl(url);
+      var pos=xml.match(/gml:pos[^>]*>([^<]+)/);
+      var name=xml.match(/gmd:name>([^<]+)/);
+      var fmisidMatch=xml.match(/fmisid[^>]*>(\d+)/);
+      return res.status(200).json({
+        fmisid:fid2, name:name?name[1]:null, pos:pos?pos[1]:null,
+        fmisid_found:fmisidMatch?fmisidMatch[1]:null, xml_snippet:xml.slice(0,800)
+      });
+    }catch(e){return res.status(500).json({error:e.message});}
+  }
+
+  /* DEBUG: listaa kaikki asemat alueelta */
+  var dlat=parseFloat(req.query.lat)||60.158, dlng=parseFloat(req.query.lng)||25.326;
+  var dd=parseFloat(req.query.d)||0.20;
+  var bb=makeBbox(dlat,dlng,dd);
+  var start=isoMin(Date.now()-2*3600000);
+  var out={bbox:bb,lat:dlat,lng:dlng,strategies:{}};
+  try{
+    var x1=await fetchUrl(WFS+'&storedquery_id=fmi::observations::weather::timevaluepair&bbox='+bb
+      +'&parameters=WindSpeedMS&timestep=60&starttime='+start+'&maxlocations=5');
+    var ids1=[...x1.matchAll(/gml:id="([^"]+)"/g)].map(function(m){return m[1];}).filter(function(id){return id.includes('obs');});
+    out.strategies.weather_bbox={ids:ids1,len:x1.length,hasData:x1.includes('wml2:value')};
+  }catch(e){out.strategies.weather_bbox={error:e.message};}
+  try{
+    var x2=await fetchUrl(WFS+'&storedquery_id=fmi::observations::maritime::simple&bbox='+bb
+      +'&parameters=WindSpeedMS&timestep=60&starttime='+start+'&maxlocations=5');
+    var ids2=[...x2.matchAll(/gml:id="([^"]+)"/g)].map(function(m){return m[1];}).filter(function(id){return id.includes('obs');});
+    out.strategies.maritime_bbox={ids:ids2,len:x2.length,hasData:x2.includes('wml2:value')};
+  }catch(e){out.strategies.maritime_bbox={error:e.message};}
+  return res.status(200).json(out);
+}

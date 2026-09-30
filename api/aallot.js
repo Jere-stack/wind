@@ -38,8 +38,8 @@
  * Vastaus on tarkoituksella "viimeisin EI-NaN rivi", ei viimeinen rivi:
  * sarjan hanta on lahes aina NaN:ia (ks. kohta 2).
  */
-import https from 'https';
 import { suojaa } from './_suoja.js';
+import { haeFmi } from './_haku.js';
 
 const WFS = 'https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
   + '&storedquery_id=fmi::observations::wave::multipointcoverage';
@@ -52,16 +52,10 @@ const LATEST_HOURS = 6;
 const HISTORY_MAX = 168;
 const HISTORY_DEFAULT = 30;
 
-function fetchUrl(url) {
-  return new Promise(function (resolve, reject) {
-    https.get(url, function (res) {
-      var body = '';
-      res.on('data', function (c) { body += c; });
-      res.on('error', reject);
-      res.on('end', function () { resolve(body); });
-    }).on('error', reject);
-  });
-}
+/* Virhe on virhe (api/_haku.js, docs/oikeellisuus.md O5): FMI:n
+   ExceptionReport jäsentyi ennen tyhjäksi poijulistaksi, ja kartalta
+   katosivat kaikki poijut kuin ne olisi nostettu talveksi. */
+function fetchUrl(url) { return haeFmi(url); }
 
 /* Aseman tiedot: `gml:id="point-<fmisid>"` … `<gml:pos>lat lng</gml:pos>`
    antaa sijainnin, ja `obsloc-fmisid-<fmisid>-pos` … `locationcode/name`
@@ -161,7 +155,8 @@ export default async function handler(req, res) {
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=120');
     return res.status(200).json(buildLatest(xml, tz));
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(502).json({ error: err.message });
   }
 }
 
@@ -201,6 +196,9 @@ function buildLatest(xml, tz) {
       hs: hs, hdir: di, tp: tp, tw: tw,
       time: hhmm(ms, tz), lastIso: new Date(ms).toISOString(),
       ageMin: Math.round((Date.now() - ms) / 60000),
+      /* Ikä lasketaan asiakkaassa leimoista (O7); `ageMin` jäätyy
+         hakuhetkeen ja CDN:n välimuisti vanhentaa sitä. */
+      twIso: twMs != null ? new Date(twMs).toISOString() : null,
       twAgeMin: twMs != null ? Math.round((Date.now() - twMs) / 60000) : null,
     });
   }

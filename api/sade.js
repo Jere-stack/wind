@@ -83,20 +83,27 @@ const HILA_MAX = 160;
    ennusteen ohi. Sama erottelu kuin FMI-havaintoasemilla. */
 const EI_DATAA = 'ei-dataa';
 
+/* Aikaraja koko haulle, kuten api/_haku.js:ssä (docs/oikeellisuus.md,
+   O5): jumiin jäänyt latauspalvelu piti funktion auki sen kattoon asti. */
+const AIKARAJA_MS = 12000;
 function fetchBuf(url) {
   return new Promise(function (resolve, reject) {
-    https.get(url, function (res) {
-      if (res.statusCode === 400) { res.resume(); reject(new Error(EI_DATAA)); return; }
+    const req = https.get(url, function (res) {
       if (res.statusCode !== 200) {
+        clearTimeout(ajastin);
         res.resume();
-        reject(new Error('HTTP ' + res.statusCode));
+        reject(new Error(res.statusCode === 400 ? EI_DATAA : 'HTTP ' + res.statusCode));
         return;
       }
       const osat = [];
       res.on('data', function (c) { osat.push(c); });
       res.on('error', reject);
-      res.on('end', function () { resolve(Buffer.concat(osat)); });
-    }).on('error', reject);
+      res.on('end', function () { clearTimeout(ajastin); resolve(Buffer.concat(osat)); });
+    });
+    req.on('error', function (e) { clearTimeout(ajastin); reject(e); });
+    const ajastin = setTimeout(function () {
+      req.destroy(new Error('aikakatkaisu ' + AIKARAJA_MS + ' ms'));
+    }, AIKARAJA_MS);
   });
 }
 
@@ -263,6 +270,9 @@ export default async function handler(req, res) {
     if (err && err.message === EI_DATAA) {
       return res.status(200).json({ error: 'no data', time: hetki });
     }
-    return res.status(500).json({ error: err.message });
+    /* Otsake asetettiin jo onnistumisen varalle: virhe ei saa jäädä CDN:ään
+       puoleksi tunniksi. */
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(502).json({ error: err.message });
   }
 }

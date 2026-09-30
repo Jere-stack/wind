@@ -36,7 +36,7 @@ import { kameraVastaus } from './_kamerat.js';
 import { LAHDE, OTSAKKEET, jasennaLaru, paivanTiedosto, kuluvaLahteesta } from './_laru.js';
 import {
   haeTeksti, luePaivat, paivatValilla, helsinkiPaiva, paivaSiirra, seinaAjaksi,
-  niputaAjassa, nipunLeveys, hhmm, kelpoTz,
+  niputaAjassa, nipunLeveys, kymmenenMinuuttia, hhmm, kelpoTz,
 } from './_varasto.js';
 
 const STATION = { name: 'Helsinki Laru', place: 'laru', lat: 60.1508, lng: 24.8718 };
@@ -119,7 +119,8 @@ export default async function handler(req, res) {
       if (!k.rivit.length) {
         return res.status(200).json({ error: 'no data', station: STATION.name, place: STATION.place });
       }
-      var u = k.rivit[k.rivit.length - 1];
+      /* Tuorein lukema 10 min jaksona kuten FMI:lla (api/_varasto.js). */
+      var u = kymmenenMinuuttia(k.rivit);
       res.setHeader('Cache-Control', 'public, s-maxage=' + TTL_TUOREIN + ', stale-while-revalidate=60');
       /* EI LAMPOTILAA. Sarake on nolla joka rivilla eika asemalla ole
          mittaria; nolla asteena olisi keksitty lukema. */
@@ -164,7 +165,9 @@ export default async function handler(req, res) {
       if (tulos[0].status === 'rejected') throw tulos[0].reason;
       return res.status(200).json({ error: 'no data', station: STATION.name, place: STATION.place });
     }
-    var v = rivit[rivit.length - 1];
+    /* Tuorein lukema 10 min jaksona kuten FMI:lla (docs/oikeellisuus.md,
+       O10; api/_varasto.js). */
+    var v = kymmenenMinuuttia(rivit);
 
     var ikkuna = rivit.filter(function (r) { return r.ms >= raja; });
     /* Asema on ollut hiljaa koko ikkunan: viimeiset tunnetut rivit, jotta
@@ -174,12 +177,15 @@ export default async function handler(req, res) {
        jaa katkoksi: lukumaaraan perustuva harvennus veti nipun katkon yli. */
     var nippuMin = nipunLeveys(ikkuna);
     var niput = niputaAjassa(ikkuna, nippuMin);
-    /* SARJAN VIIMEINEN PISTE ON TUOREIN HAVAINTO, EI NIPUN KESKIARVO.
-       Kortin iso luku on `latest`, ja kaavion oikea reuna on suoraan sen
-       alla — jos ne eroavat, ero nayttaa vialta vaikka molemmat ovat
-       oikein omalla tavallaan. Niputus koskee siis historiaa, ei
-       nykyhetkea. */
-    if (niput.length && niput[niput.length - 1] !== v) niput = niput.slice(0, -1).concat([v]);
+    /* SARJAN VIIMEINEN PISTE ON SAMA LUKEMA KUIN `latest`, EI NIPUN
+       KESKIARVO. Kortin iso luku on `latest`, ja kaavion oikea reuna on
+       suoraan sen alla — jos ne eroavat, ero nayttaa vialta vaikka
+       molemmat ovat oikein omalla tavallaan. `latest` on tuoreimman rivin
+       hetkella paattyva 10 min jakso (O10), joten se korvaa viimeisen
+       nipun tai rivin samalla hetkella. */
+    var pn = niput.length ? niput[niput.length - 1].ms : -Infinity;
+    if (pn === v.ms) niput = niput.slice(0, -1).concat([v]);
+    else if (pn < v.ms) niput = niput.concat([v]);
 
     var ws = [], wg = [];
     for (var i = 0; i < niput.length; i++) {

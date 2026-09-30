@@ -84,10 +84,16 @@ export function haeTavut(url, otsakkeet, aikaraja) {
   return hae(url, otsakkeet, aikaraja);
 }
 
+/* Aikaraja on KOKO haulle eika joutoajalle (`timeout`-asetus on
+   joutoaika: mitattuna 1,2 s:n raja laukesi 2,4 s:ssa, ja hitaasti
+   valuva vastaus ei laukaise sita lainkaan; api/_haku.js). */
 function hae(url, otsakkeet, aikaraja) {
+  var raja = aikaraja || 5000;
   return new Promise(function (resolve, reject) {
-    var req = https.get(url, { headers: otsakkeet || { 'user-agent': UA }, timeout: aikaraja || 5000 }, function (res) {
+    var ajastin = null;
+    var req = https.get(url, { headers: otsakkeet || { 'user-agent': UA } }, function (res) {
       if (res.statusCode !== 200) {
+        clearTimeout(ajastin);
         res.resume();
         var e = new Error('HTTP ' + res.statusCode);
         e.status = res.statusCode;
@@ -96,13 +102,14 @@ function hae(url, otsakkeet, aikaraja) {
       }
       var osat = [];
       res.on('data', function (c) { osat.push(c); });
-      res.on('error', reject);
+      res.on('error', function (e) { clearTimeout(ajastin); reject(e); });
       res.on('end', function () {
+        clearTimeout(ajastin);
         resolve({ tavut: Buffer.concat(osat), muokattu: Date.parse(res.headers['last-modified'] || '') || null });
       });
     });
-    req.on('timeout', function () { req.destroy(new Error('aikaraja ' + (aikaraja || 5000) + ' ms')); });
-    req.on('error', reject);
+    ajastin = setTimeout(function () { req.destroy(new Error('aikaraja ' + raja + ' ms')); }, raja);
+    req.on('error', function (e) { clearTimeout(ajastin); reject(e); });
   });
 }
 
@@ -178,28 +185,32 @@ export async function lueTila(asema) {
    tyyni minimi, suunta yksikkovektoreista). Nipun aika on sen VIIMEINEN
    rivi, jotta sarjan paa on oikeasti tuorein hetki. Puuttuva arvo
    (Larulla ei ole lampomittaria) jaa pois eika muutu nollaksi. */
+function koosta(nippu) {
+  var n = nippu.length, sWs = 0, maxG = null, minW = null, sx = 0, sy = 0, nD = 0, sTa = 0, nTa = 0;
+  for (var i = 0; i < n; i++) {
+    var r = nippu[i];
+    sWs += r.ws;
+    if (r.wg != null && (maxG == null || r.wg > maxG)) maxG = r.wg;
+    if (r.wsMin != null && (minW == null || r.wsMin < minW)) minW = r.wsMin;
+    if (r.wd != null) { var a = r.wd * Math.PI / 180; sx += Math.sin(a); sy += Math.cos(a); nD++; }
+    if (r.ta != null) { sTa += r.ta; nTa++; }
+  }
+  return {
+    ms: nippu[n - 1].ms,
+    ws: Math.round(sWs / n * 100) / 100,
+    wg: maxG,
+    wsMin: minW,
+    wd: nD ? Math.round((Math.atan2(sx, sy) * 180 / Math.PI + 360) % 360) : null,
+    ta: nTa ? Math.round(sTa / nTa * 10) / 10 : null,
+  };
+}
+
 export function niputaAjassa(rivit, minuutit) {
   if (minuutit <= 1) return rivit;
   var leveys = minuutit * 60000, ulos = [], nippu = [], avain = null;
   function sulje() {
     if (!nippu.length) return;
-    var n = nippu.length, sWs = 0, maxG = null, minW = null, sx = 0, sy = 0, nD = 0, sTa = 0, nTa = 0;
-    for (var i = 0; i < n; i++) {
-      var r = nippu[i];
-      sWs += r.ws;
-      if (r.wg != null && (maxG == null || r.wg > maxG)) maxG = r.wg;
-      if (r.wsMin != null && (minW == null || r.wsMin < minW)) minW = r.wsMin;
-      if (r.wd != null) { var a = r.wd * Math.PI / 180; sx += Math.sin(a); sy += Math.cos(a); nD++; }
-      if (r.ta != null) { sTa += r.ta; nTa++; }
-    }
-    ulos.push({
-      ms: nippu[n - 1].ms,
-      ws: Math.round(sWs / n * 100) / 100,
-      wg: maxG,
-      wsMin: minW,
-      wd: nD ? Math.round((Math.atan2(sx, sy) * 180 / Math.PI + 360) % 360) : null,
-      ta: nTa ? Math.round(sTa / nTa * 10) / 10 : null,
-    });
+    ulos.push(koosta(nippu));
     nippu = [];
   }
   for (var i = 0; i < rivit.length; i++) {
@@ -209,6 +220,27 @@ export function niputaAjassa(rivit, minuutit) {
   }
   sulje();
   return ulos;
+}
+
+/* TUOREIN LUKEMA ON KYMMENEN MINUUTIN JAKSO (docs/oikeellisuus.md, O10).
+ *
+ * FMI:n asemat ja Kruunuvuorenselka antavat tuulen 10 min keskiarvona ja
+ * puuskan 10 min maksimina. Mellstenin rivi on minuutti ja Larun noin
+ * 1,7 min, ja yksittainen rivi heiluu: Larun 29.9. paivasta (676 rivia,
+ * tuuli >= 2 m/s) rivi vs 10 min keskiarvo p10–p90 -0,43 … +0,45 m/s.
+ * Kartan pilleri, kortin "Havainnot nyt" ja osuvuuden pari lukevat
+ * `latest`ia, joten sama aikavali kuin FMI:lla tekee niista
+ * vertailukelpoisia keskenaan ja ennusteen kanssa. Koostus on sama kuin
+ * nipuissa (keskiarvo, puuskan maksimi, suunta yksikkovektoreista), ja
+ * hetki on jakson VIIMEINEN rivi. Muut kentat (paine, kosteus…) ovat
+ * tuoreimmalta rivilta. Kaavion minuuttirivit eivat muutu; sarjan
+ * viimeinen piste on tama sama lukema (api/laru.js, api/mellsten.js). */
+export function kymmenenMinuuttia(rivit) {
+  if (!rivit.length) return null;
+  var v = rivit[rivit.length - 1], alku = v.ms - 10 * 60000, jakso = [];
+  for (var i = rivit.length - 1; i >= 0 && rivit[i].ms > alku; i--) jakso.push(rivit[i]);
+  jakso.reverse();
+  return Object.assign({}, v, koosta(jakso), { jaksoN: jakso.length });
 }
 
 /* Nipun leveys DATAN kestosta, ei pyydetyista tunneista: jos varasto ei

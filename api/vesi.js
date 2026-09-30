@@ -59,8 +59,8 @@
  *    Se on ilmainen lisa: 14 rannikkoasemaa ymparivuotisesti, siella
  *    missa UiRaS-asemaa ei ole (Hanko, Emasalo, Turku, Foglo).
  */
-import https from 'https';
 import { suojaa } from './_suoja.js';
+import { haeFmi } from './_haku.js';
 
 const WFS = 'https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature';
 const HAVAINTO = WFS + '&storedquery_id=fmi::observations::mareograph::instant::multipointcoverage';
@@ -72,15 +72,12 @@ const ASKEL_MIN = 30;
 /* Ennusteen pituus. Malli antaa 48 h; ylimaara olisi pelkkaa NaN:ia. */
 const ENNUSTE_H = 48;
 
-function fetchUrl(url) {
-  return new Promise(function (resolve, reject) {
-    https.get(url, function (res) {
-      var body = '';
-      res.on('data', function (c) { body += c; });
-      res.on('error', reject);
-      res.on('end', function () { resolve(body); });
-    }).on('error', reject);
-  });
+/* Havainto: virhe on virhe. Ennuste: FMI vastaa 400 + "No data
+   available" kun piste on mallin ulkopuolella — se on tyhjä kate ja
+   palautuu tyhjänä, muu virhe heittää (api/_haku.js, docs/oikeellisuus.md
+   O5). */
+function fetchUrl(url, tyhjaPoikkeuksesta) {
+  return haeFmi(url, { tyhjaPoikkeuksesta: !!tyhjaPoikkeuksesta });
 }
 
 var _muotoilijat = {};
@@ -174,6 +171,7 @@ function haeAsemat(xml, tz) {
       aika: toLocal(new Date(ms).toISOString(), tz),
       lastIso: new Date(ms).toISOString(),
       ageMin: Math.round((Date.now() - ms) / 60000),
+      twIso: twMs != null ? new Date(twMs).toISOString() : null,
       twAgeMin: twMs != null ? Math.round((Date.now() - twMs) / 60000) : null
     });
   }
@@ -212,12 +210,12 @@ export default async function handler(req, res) {
 
   try {
     if (req.query.asemat) {
-      /* Havainto paivittyy minuutin valein mutta sita ei lueta sen
-         tarkemmin: viisi minuuttia on sama katto kuin FMI-havainnoilla. */
-      res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=120');
       var st = new Date(Date.now() - IKKUNA_MIN * 60000).toISOString().slice(0, 17) + '00Z';
       var xml = await fetchUrl(HAVAINTO + '&starttime=' + st
         + '&timestep=' + ASKEL_MIN + '&parameters=WATLEV,TW');
+      /* Havainto paivittyy minuutin valein mutta sita ei lueta sen
+         tarkemmin: viisi minuuttia on sama katto kuin FMI-havainnoilla. */
+      res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=120');
       return res.status(200).json({ stations: haeAsemat(xml, tz) });
     }
 
@@ -226,9 +224,6 @@ export default async function handler(req, res) {
     if (isNaN(lat) || isNaN(lng)) {
       return res.status(400).json({ error: 'lat/lng or asemat=1 required' });
     }
-    /* Ennustemalli ajetaan muutaman tunnin valein — tunnin valimuisti ei
-       vanhene kayttajan silmissa. */
-    res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=300');
     /* KULUVAN TUNNIN ALKU, EI NYT-HETKI. Ilman `starttime`a kysely
        aloittaa nyt-hetkesta ja ensimmainen tuntiaskel osuu SEURAAVAAN
        tasatuntiin — kuluva tunti puuttuu sarjasta kokonaan. Mitattuna
@@ -240,11 +235,15 @@ export default async function handler(req, res) {
     var alku  = new Date(Date.now()).toISOString().slice(0, 14) + '00:00Z';
     var loppu = new Date(Date.now() + ENNUSTE_H * 3600000).toISOString().slice(0, 14) + '00:00Z';
     var exml = await fetchUrl(ENNUSTE + '&latlon=' + lat.toFixed(4) + ',' + lng.toFixed(4)
-      + '&timestep=60&starttime=' + alku + '&endtime=' + loppu);
+      + '&timestep=60&starttime=' + alku + '&endtime=' + loppu, true);
     var e = parseEnnuste(exml, tz);
+    /* Ennustemalli ajetaan muutaman tunnin valein — tunnin valimuisti ei
+       vanhene kayttajan silmissa. */
+    res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=300');
     if (!e) return res.status(200).json({ error: 'no data', lat: lat, lng: lng, time: [] });
     return res.status(200).json({ lat: lat, lng: lng, tz: tz, time: e.time, cm: e.cm });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(502).json({ error: err.message });
   }
 }
