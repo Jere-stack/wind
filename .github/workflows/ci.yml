@@ -49,11 +49,16 @@ jobs:
           npm i --no-save playwright@1.56.1
           npx playwright install --with-deps chromium
 
-      - name: Savutesti
+      # Graafitesti (tools/graafimittaus.mjs, docs/graafit.md): kaaviomoottorin
+      # akselit, hiiri, kosketus (pito + veto) ja asteikon sovitus synteettisellä
+      # sarjalla — ei tarvitse ulkoisia palveluita, mutta käyttää samaa
+      # esikatselua kuin savutesti.
+      - name: Savutesti ja graafitesti
         run: |
           npx vite preview --port 4173 --strictPort > preview.log 2>&1 &
           for i in $(seq 1 30); do curl -sf http://localhost:4173/ > /dev/null && break; sleep 1; done
           node tools/savutesti.mjs http://localhost:4173
+          node tools/graafimittaus.mjs http://localhost:4173
 
       - name: Esikatselun loki
         if: failure()

@@ -58,9 +58,12 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   asetukset ja Tietoa aukeavat, Esc sulkee, ei `pageerror`ia). Paikallisesti
   `PLAYWRIGHT_MODULE=/opt/node22/lib/node_modules/playwright/index.mjs
   node tools/savutesti.mjs http://localhost:4173`.
-- `tools/graafimittaus.mjs` — kaaviomoottorin mittauspohja (akselit
-  zoomeittain, hiiri, päiväyksen näkyvyys, käyrän muoto, kosketus CDP:llä)
-  synteettisellä sarjalla, ei verkkoa; ks. docs/graafit.md, luku 7.
+- `tools/graafimittaus.mjs` — kaaviomoottorin regressiotesti ja
+  mittaus (akselit zoomeittain, tarttuva päiväys, hiiri, näppäimet, zoom-
+  napit, navigaattori, käyrän muoto, huiput, asteikon sovitus, kosketus
+  CDP:llä: pito + veto) synteettisellä sarjalla, ei verkkoa; jokainen rivi
+  `ok`/`VIKA`, poistumiskoodi 1 vialla. CI ajaa sen savutestin perään
+  (`Savutesti ja graafitesti`). Ks. docs/graafit.md, luku 7.
 - `tools/havainnot.mjs` + `.github/workflows/havainnot.yml` —
   Espoo Haukilahden (Mellsten) historian keräin: joka ajolla lähteen
   30 minuutin tekstirivit JA 4 tunnin kuvaaja (`plot.gif` minuutti-
@@ -168,7 +171,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit, kaavion venytys** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V10: yksi kaaviomoottori, kortti moduuleina, fonttilattia, laajan valinta, venytys, mallit laajassa) |
 | `docs/sujuvuus.md` | **työpöydän** zoomin ja panoroinnin raskautta, windy.comin arkkitehtuuria, sujuvuusstrategiaa, **MapLibre-siirtoa (C2) ja sen mittauksia** |
 | `docs/julkaisu.md` | **julkaisukelpoisuutta**: UI-parannusten top 25, suositusjärjestys ja logiikan 10 kriittisintä kohtaa (27.9.), ja **osa 4: mitä niistä toteutettiin 28.9. ja mikä jäi auki** (Pages, lisenssit, pohjakartan kieli) — lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
-| `docs/graafit.md` | **kaavioiden vuorovaikutusta ja akseleita** (strategia 30.9., päätös odottaa): hiiren veto, kosketuksen "pidä ja liu'uta", käyrän pehmennys, x- ja y-akselin tiedot joka zoomilla — mittaukset (`tools/graafimittaus.mjs`), päätökset P1–P10 ja vaiheet V0–V7; lue ennen kuin kosket `Tuulikaavio`on, `Aikakaavio`n osoittimeen tai kaavioiden akseleihin |
+| `docs/graafit.md` | **kaavioiden vuorovaikutusta ja akseleita** (strategia ja toteutus 30.9., V1–V6): hiiren veto, kosketuksen "pidä ja liu'uta", käyrän pehmennys, x- ja y-akselin tiedot joka zoomilla, asteikko ikkunan mukaan — mittaukset (`tools/graafimittaus.mjs`), päätökset P1–P10, vaiheet ja toteutuksen poikkeamat; lue ennen kuin kosket `Tuulikaavio`on, `Aikakaavio`n osoittimeen tai kaavioiden akseleihin |
 | `docs/oikeellisuus.md` | **datan oikeellisuutta** (auditointi 29.9., toteutus 30.9.): varasto havaintoja vasten, **jatkuva varmennus**, **varaston tuoreus ja Säädatan ajastin**, kapselin ja partikkelien taso vs lämpökartta, **kapselin puuska**, havaintoverkko ja sen päivitys, proxyjen virheenkäsittely, UiRaS — aukot O1–O11, suositusjärjestys ja sujuvuusvaikutus; lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 
 <details>
@@ -1639,13 +1642,81 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   miten pitkä data näkyy kun graafia pystyy rullaamaan". Havainnon
   tilastot ovat viimeisen 24 h:n, ja jakso sanotaan KERRAN ryhmän
   otsikossa ("Viimeiset 24 h").
-- **VAAKAVETO ON AINA VIERITYSTÄ, TUNTI VALITAAN NAPAUTUKSELLA.**
+- **KÄYRÄ ON MONOTONINEN KUUTIO, HAVAINTO MURTOVIIVA** (V1,
+  `Tuulikaavio._polut(pts, tyyli)`). Entinen vaakatangenttibezier teki
+  jokaiseen tuntipisteeseen tasanteen (RMS 0,59–0,74 px datan omasta
+  murtoviivasta vs 0,23–0,26 px). Fritsch–Butland-tangentit: ei ylitä
+  naapuriensa väliä eikä tee tasanteita; ennuste, vertailumallit,
+  vedenlämpö ja aallot käyttävät sitä, ja `_havPiirros` antaa
+  `kayra: 'suora'` — mitattu 1–10 min keskiarvo on data, ja sen vaihtelu
+  on se mitä kaavio näyttää. **MALLIN OMAT PISTEET** piirretään kun
+  pisteiden väli ruudulla on ≥ 9·fs px (`o.pisteet !== false`): ennusteella
+  vain lähteen oman solmun tunnit (`_natiivi`: FMI, MET Nordic ja
+  Open-Meteo tunneittain; ECMWF ~+84 h asti tunneittain, sitten 3 h ja
+  +138 h:sta 6 h, rajat nyt-hetkestä eivät ajon alusta — tunnin–kahden
+  virhe raja-alueella), havainnolla jokainen nippu. Pääviivan paksuus
+  1,8 px kun tunti on < 3 px (2,4 muuten).
+- **PÄIVÄOTSIKKO ON HTML-RIVI JA TARTTUVA** (V4, `.ak-paivat` ja
+  `.ak-pv > span { position: sticky }`), ei SVG-teksti päivän keskellä:
+  keskitetty teksti katosi kun päivän keskikohta vieri ulos, ja 12 h:n
+  zoomilla 43,2 % vierityskohdista ei näyttänyt yhtään päivämäärää;
+  nyt 0 %. Ei vierityskuuntelijaa, selain hoitaa. Laatikko sävytetään
+  lauantaina ja sunnuntaina (`.ak-pv-vk`; vain otsikkorivillä —
+  piirtoalueella sävy tarkoittaa yötä). Muotoportaikko päivän leveyden
+  mukaan: "Su 27.9." → "27.9." → "Su 27" → "S 27" → "S"; tänään
+  sanoo "Tänään"/"Today". Rivi piiloutuu venytyksen ajaksi (`.venyy`), koska
+  SVG:tä venytetään transformilla eikä sticky venyisi mukana.
+  **TUNTITIKIT**: jokainen tunti jolla ei ole lukua saa tikin (≥ 4 px
+  välein, muuten 3/6/12 h); loitonnettuna (`askelH` ≥ 24) tuntirivillä
+  on vain tikit (6 h, keskipäivä pidempi) ja maanantain päivämäärä —
+  ennen 240 h:n ja 396 h:n zoomilla ei ollut tuntitietoa lainkaan.
+  Viikon vaihde (maanantain päiväraja) on vahvempi tiheässä rytmissä.
+- **LOITONNETTUNA LUVUT OVAT HUIPPUJA, EI KESKIPÄIVÄN ARVOJA** (V6):
+  paikalliset huiput prominenssin mukaan (≥ 15 % asteikosta,
+  `askelH` ≥ 24 vähän lievemmin), ahneesti tärkein ensin ja
+  törmäyksenesto muihin lukuihin ja NYT-lappuun; laaksoille ei lappua.
+  Kaavion `aria-label` on data-yhteenveto (`_yhteenveto`: kovin tuuli
+  ja aika, foilattavien tuntien määrä, seuraava vähintään kolmen peräkkäisen tunnin ikkuna), ja
+  kortin tuulisolu kertoo ilmansuunnan sanalla (nuolen perässä).
+- **VAAKAVETO ON VIERITYSTÄ, PITO + VETO LUKEE, TUNTI VALITAAN
+  NAPAUTUKSELLA TAI SKRUBIN NOSTOLLA** (docs/graafit.md, V2–V3).
   Kaavioissa on `touch-action: pan-x pan-y`; napautus (matka < 6 px,
   myös värisevä) valitsee, ja nuolet vaihtavat tuntia fokuksessa.
+  **Vaakaveto ilman pitoa on yhä natiivia vieritystä** (käyttäjän
+  27.9. valinta), ja hiirellä veto vierittää (`cursor: grab`, 4 px:n
+  jälkeen; ennen se ei vierittänyt lainkaan: veto 180 px = 0 px).
+  **Kosketuksella pito ja liu'utus lukee** (`Aikakaavio.osoitin`):
+  sormi paikallaan ~200 ms — tai kosketus alkaa ≤ 28 px:n päästä
+  valitun tunnin kursorista — ja sitten veto = lukemarivi ja kursori
+  seuraavat sormea, nosto valitsee (`Ennuste.valitse`, kerran;
+  havainnossa lukema jää riville 4 s). **PITO PÄÄTETÄÄN TAPAHTUMIEN
+  AIKALEIMOISTA, EI AJASTIMESTA**: pito = ensimmäinen yli 8 px:n liike
+  on vähintään 200 ms `touchstart`in jälkeen. Ajastin saa vain näyttää
+  merkin sormen ollessa paikallaan; kun pääsäie oli varattu, ajastin
+  luokitteli tavallisen vedon pidoksi (mitattu). `touchmove.
+  preventDefault()` vasta pidon jälkeen ja vain jos `cancelable`
+  (muuten selain ehti aloittaa vierityksen ja saa jatkaa); ennen sitä
+  natiivi vieritys ja pohjalevyn pystyvieritys säilyvät. Kosketus-
+  tapahtumat, ei osoitintapahtumat (`pan-x pan-y` peruu osoittimet), ja
+  EI `requestAnimationFrame`a: reunavieritys (sormi < 40 px kääreen
+  reunasta) ajetaan `setInterval(16)`llä. Vasen 16 px ei aloita pitoa
+  (iOS:n takaisinpyyhkäisy), toinen sormi lopettaa skrubin (venytys
+  omistaa eleen), ja skrubin aikana `_akSkrubi` estää asteikon
+  sovituksen. **Kursorin tartunta on siksi tahallinen:** testi joka
+  aloittaa "tavallisen vedon" valitun tunnin kursorin vierestä saa
+  skrubin — aloita veto kauempaa (tools/graafimittaus.mjs tekee niin).
   **Myös laajassa**: laajan napautus kulkee samaa `Ennuste.valitse`-
   polkua, ja `asetaValittu` siirtää kursorin kortissa JA laajassa
   (`ctx.laajaKaare`). Ennen laajalla ei ollut `napautus`ta, ja
   kursori jäi avaushetken tuntiin (V10).
+- **HIIRILAITTEELLA ON TYÖKALURIVI (`Aikakaavio._tyokalut`)**: zoom-
+  napit (−, +; portaittain, `_akZoomaa` = venytyksen loppu keskipisteenä)
+  ja navigaattori (koko sarjan miniatyyri, raahattava ikkuna) —
+  vain `(any-hover: hover) and (any-pointer: fine)`, ei laajassa (laatikon
+  korkeus lasketaan kaaviolle; laajan otsikossa on omat zoom-napit
+  `#hl-zoom`). Näppäimet kääreessä: ← → tunti (Shift 3 h), PgUp/PgDn
+  ±24 h (tai leveys ilman valintaa), Home = nyt, End = loppu, + / −
+  zoom; kaikki `stopPropagation` (nuolet kuuluvat muuten kartalle).
 - **KAKSI SORMEA VENYTTÄÄ, ELEEN AIKANA VAIN TRANSFORM**
   (`Aikakaavio.venytys`, kaikki neljä kaaviota kortilla ja laajassa;
   työpöydällä Ctrl+rulla). Tiheys on `Aikakaavio.nakyva(avain)`,
@@ -1658,6 +1729,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **LEIJUVA OSOITIN VAIN `(any-hover: hover)`-LAITTEELLA.** WebKit
   lähetti laajan ilmestyessä hiiren `pointermove`n emuloidun osoittimen
   kohtaan, ja laajaan syttyi viiva jota kukaan ei osoittanut.
+  Osoittimen kohdalla tuntirivillä on PILLERI ("To 14", `data-tk-pill`
+  hover-ryhmässä): SVG:n sisällä samaa perhettä kuin NYT-lappu, ei
+  kelluva laatikko (lukema pysyy kiinteällä rivillä).
 - **TUNNIN VAIHTO EI RAKENNA SPOTTIKORTTIA UUDELLEEN** (`openSheet`:n
   päivityspolku, `_oliAuki`): vain `#sh-tunti`, `#sh-laatat-tunti` ja
   `#sh-tiedot` kirjoitetaan, ja ennusteosio saa `asetaValittu`n, joka
@@ -1678,13 +1752,34 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   Nappi näkyy vain kun valinta tai näkymä on muualla, ja se vie
   `Ennuste.nytTunti()`in — sama pyöristys kuin aikajanan `nowIdx`
   (kahta "nyt"-sääntöä ei saa olla). Lappu piirretään kursorin PÄÄLLE.
-- **ENNUSTEEN ASTEIKKO ON NYKYHETKESTÄ (−6 h) ETEENPÄIN**, ja
-  menneisyys leikataan piirtoalueeseen. Koko sarjan huippu oli
-  menneisyyden myrsky, joka litisti ennusteen (5 m/s oli 34 px).
-  Havainnon asteikkoon ei oteta ennusteen puuskaa.
+- **TUULEN Y-ASTEIKKO LASKETAAN NÄKYVÄSTÄ IKKUNASTA** (docs/graafit.md,
+  V5; `Aikakaavio.skaala`, `_sovita`): ikkuna ± 25 % marginaali,
+  alaraja 8 m/s ja "nätti" yläraja NÄYTTÖYKSIKÖSSÄ (`Tuulikaavio._yla`:
+  m/s 2, kts 5, km/h 10, boforilla seuraava kynnys) — data pysyy m/s:nä.
+  Ennen asteikko oli koko sarjan (nyt −6 h → loppu) mukaan, ja tyyneen
+  jaksoon sarjan myrsky jätti käyrän alaosaan (mitattu oikealla
+  spotilla: lähiajan 5,5 m/s täytti 21 % korkeudesta, nyt 53 %). **UUSI
+  PIIRTO VASTA KUN ELE ON LOPPUNUT** (`scrollend`, varalla 160 ms:n
+  ajastin) ja vain jos ikkunan huippu ylittää ylälaidan (leikkautuisi)
+  tai jää alle 80 %:n siitä; skrubin ja venytyksen aikana ei koskaan
+  (liikkuva akseli sormen alla lukee huteralta). Kaavio kertoo
+  ikkunansa `ikkunaNyt`stä (ei tallennettua tilaa, joka vanhenisi) ja
+  ensimmäisellä piirrolla `ikkunaArvio`sta (`aseta`n vierityksen paikka),
+  jottei kortti vilku avautuessaan. Väri on nopeuden funktio, joten
+  vertailukelpoisuus säilyy asteikon vaihtuessa. Havainnon asteikkoon ei
+  oteta ennusteen puuskaa. Vain tuulikaaviot: vedenlämpö ja aallot
+  käyttävät omaa datapohjaista asteikkoaan.
 - **Y-AKSELI ON KIINTEÄ JA KAAVIO VIERII SEN ALTA** (`.ak-akseli`,
   paperiliuku `--ak-tausta`). SVG:hen piirrettyinä vieritetyn kaavion
   reunaluvut leikkautuivat puoliksi.
+- **Y-AKSELILLA ON YKSIKKÖ, VÄHINTÄÄN KAKSI LUKUA JA FOILAUSRAJAN OMA
+  LUKU** (V5). Yksikkö (`.ak-yks`, `g.yks`) oli ennen vain lukemarivin
+  `<small>`issa; pienessä kaaviossa (rivi, laaja puhelimen vaakatilassa)
+  oli yksi luku, koska 10 kts:n väli oli 21,9 px ja raja 22 px. Nyt
+  "vähintään kaksi viivaa kun ne mahtuvat ≥ 18 px:n välein". Foilausrajan
+  (`Keli.AJETTAVA`) luku on ruskea (`.ak-foil`, `#7A6428`; viiva on yhä
+  `#9C8447`), ja sen 11·fs px:n sisällä oleva ruudukon luku jää pois —
+  viiva jää. Boforilla ylälaita on kynnys ja foil-luku bofori.
 - **KIRJASINLATTIA: 11 px HTML:ssä, 10,5 px SVG:ssä** (V9-lohko CSS:n
   lopussa, `max(Npx, var(--fs-x))` jotta työpöydän tokenit säilyvät).
   Ennen 22 tekstiluokkaa alle 11 px:n, pienimmät 8 px. Uusi teksti

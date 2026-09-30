@@ -12,9 +12,12 @@ on tarpeeksi dataa pienilläkin zoomeilla. Tee ammattimainen strategia
 graafimaailman parantamiseen apissa ja tee suositus. Minä päätän mennäänkö
 sitten suosituksella."* (Kirjoitusvirheet korjattu.)
 
-**Tila:** strategia, päätös odottaa. Mitään ei ole toteutettu; mukana on
-vain mittauspohja (`tools/graafimittaus.mjs`, V0) ja sillä mitattu
-lähtötaso (luku 2).
+**Tila:** toteutettu 30.9.2026 (käyttäjän päätös: "implementoidaan kaikki
+kohdat", suositus kaikkiin P-kohtiin): **V1–V6**. V7 (kartta seuraa
+skrubia) jätettiin pois, koska P3:n suositus on ettei kartta seuraa
+(valinta nostossa). Strategia on alla sellaisenaan päätöksen pohjana;
+mitä tehtiin, mitattiin ja missä toteutus poikkesi strategiasta, on
+luvussa **10. Toteutus ja mittaukset**.
 
 > Osa FoilSpotin muistiinpanoja. Hakemisto ja säännöt ovat `CLAUDE.md`:ssä.
 > Tämä rakentuu `docs/spottikortti.md`:n V8–V10:n päälle (yksi
@@ -82,7 +85,10 @@ Päätettävät kohdat ovat luvussa 5 (P1–P10, jokaiselle suositus), joten
 
 ---
 
-## 2. Nykytila mitattuna
+## 2. Nykytila mitattuna (ENNEN toteutusta)
+
+*Tämän luvun luvut ovat lähtötaso ennen V1–V6:ta; toteutuksen jälkeiset
+mittaukset ovat luvussa 10.*
 
 Kaikki alla oleva on toistettavissa: `tools/graafimittaus.mjs` (ks.
 luku 7, V0). Sarja on synteettinen (2 vrk menneisyyttä + 15 vrk, tunneittain,
@@ -486,41 +492,54 @@ Jos halutaan nopein näkyvä hyöty: V1 + V2 + V3 yhdessä sarjassa.
 
 ---
 
-## 7. Mittauspohja (V0)
+## 7. Mittauspohja ja regressiotesti (V0)
 
 `tools/graafimittaus.mjs` (Playwright, Chromium; ei verkkoa; osoite
-parametrina, `PLAYWRIGHT_MODULE` kuten savutestissä):
+parametrina, `PLAYWRIGHT_MODULE` kuten savutestissä). Alun perin
+mittauspohja (luvun 2 luvut), toteutuksen jälkeen regressiotesti: jokainen
+rivi on `ok` tai `VIKA`, ja vika antaa poistumiskoodin 1. CI ajaa sen
+savutestin perään (`Savutesti ja graafitesti`, ~30 s).
 
 ```bash
-npm run dev &
+npm run build && npx vite preview --port 4173 &
 PLAYWRIGHT_MODULE=/opt/node22/lib/node_modules/playwright/index.mjs \
-  node tools/graafimittaus.mjs http://localhost:5173 [kuvakansio]
+  node tools/graafimittaus.mjs http://localhost:4173 [kuvakansio]
 ```
 
-Tulostaa: (1) akselit zoomeittain, (1b) y-luvut kaaviotyypeittäin,
-(2) hiiri (veto, rulla, Shift+rulla, deltaX), (3) päivämäärän
-puuttuminen vierityskohdissa, (4) käyrän poikkeama murtoviivasta,
-(5) kosketus (pito ja veto CDP:llä). Tulokset luvussa 2 ovat sen
-tulosteita.
+Osat: (1) akselit zoomeittain, (2) päiväys ruudulla joka vieritys-
+kohdassa, (3) y-luvut kaaviotyypeittäin ja "nätti" ylälaita neljällä
+yksiköllä, (4) hiiri, (5) näppäimet, zoom-napit ja navigaattori,
+(6) käyrä, (7) huiput ja yhteenveto, (8) asteikon sovitus, (9) kosketus
+CDP:llä. Kortin kytkentä (`__kaavio`) on sama kuin `Ennuste._piirra`ssa:
+piirto, osoitin, venytys ja asteikon sovitus.
 
-Kaksi sudenkuoppaa, jotka löytyivät rakentaessa:
+Sudenkuopat jotka löytyivät:
 
 - **Kosketuskokeen ensimmäinen ele on hidas.** Ensimmäinen CDP-kosketus
   (kohteen haku) viivästyi niin että touchstartin ja touchmoven väli
-  ylitti 200 ms ilman että "sormi" pysyi paikallaan; aikaleimapohjainen
-  päätös tulkitsi sen oikein pidoksi. Harness heittää siksi yhden
-  lämmittelyeleen pois ja piilottaa muun sovelluksen (kartan
-  piirtosilmukka varaa pääsäikeen).
+  ylitti 200 ms ilman että "sormi" pysyi paikallaan. Harness heittää
+  yhden lämmittelyeleen pois ja piilottaa muun sovelluksen (kartan
+  piirtosilmukka varaa pääsäikeen); vedon luokittelu uusitaan kerran.
+- **Kursorin tartunta tekee "tavallisesta vedosta" skrubin.** Testi
+  joka aloitti vedon edellisen kierroksen valinnan (= sormen viimeisen
+  kohdan) vierestä sai skrubin — oikein, koska kursorin ±28 px on
+  tartunta-alue. Testi aloittaa vedon kursorista kauempaa.
+- **`scrollend` tulee jokaisen ohjelmallisen `scrollLeft`-kirjoituksen
+  perään** (hiiren veto, navigaattori, reunavieritys, testin askeleet), joten
+  asteikon sovitus viivästetään ja estetään vedon aikana.
+- **Vite-dev lataa sivun uudelleen kun tiedosto muuttuu** ja kaataa
+  käynnissä olevan mittauksen; mittaa `vite preview`llä.
 - **Piirtäjä toimii ilman sovellusta.** `Tuulikaavio.piirra` on puhdas
-  funktio; mittari kutsuu sitä ja `Aikakaavio`n käärekoneistoa suoraan
-  synteettisellä sarjalla, joten mittaus ei riipu verkosta eikä
-  laattavarastosta.
+  funktio; mittaus ei riipu verkosta eikä laattavarastosta. Oikean
+  spotin kortti tarkistetaan erikseen (savutesti: päiväotsikko, yksikkö,
+  työkalurivi vain hiirilaitteella).
 
-**Mitä ei voi mitata täällä:** ruutunopeus, iOS:n natiivin vierityksen ja
-pidon tuntuma (Playwrightin WebKit ei osaa touchmovea; CLAUDE.md), Android-
-haptiikka. Ne tarkistetaan laitteella jokaisen V3:n jälkeen: (a) pito ei
-laukea vedossa, (b) pito ei vierittänyt korttia, (c) reunavieritys ei
-karkaa, (d) iOS:n takaisinpyyhkäisy reunasta toimii.
+**Mitä ei voi mitata täällä:** ruutunopeus, iOS:n natiivin vierityksen
+ja pidon tuntuma (Playwrightin WebKit ei osaa touchmovea; CLAUDE.md),
+Android-haptiikka. Ne tarkistetaan laitteella: (a) pito ei laukea
+vedossa, (b) pito ei vierittänyt korttia, (c) reunavieritys ei karkaa,
+(d) iOS:n takaisinpyyhkäisy reunasta toimii, (e) tarttuva päiväotsikko
+pysyy paikallaan iOS:n vierityksessä.
 
 ---
 
@@ -564,3 +583,92 @@ Hyväksyntä tarkoittaa että nämä päivitetään samassa muutoksessa:
 - **Uutta viikon-/päiväyhteenvetoriviä aikajanalle** (aikajanan
   päivälapun tuulikaista poistettiin tarkoituksella, CLAUDE.md).
 - **Virtualisointia** ennen kuin mittari näyttää piirtoajan kasvavan.
+
+---
+
+## 10. Toteutus ja mittaukset (30.9.2026)
+
+Kaikki kuusi vaihetta toteutettiin suosituksella (P1–P10 = ensimmäinen
+vaihtoehto). Mittaukset: `tools/graafimittaus.mjs` (synteettinen sarja,
+kaikki rivit `ok`, neljä perättäistä ajoa läpi) ja oikean spotin
+(Lauttasaari) kortti puhelimella ja työpöydällä (`vite preview`,
+Chromium). Ruutunopeutta ja iOS:n tuntumaa ei voitu mitata.
+
+### 10.1 Ennen ja jälkeen
+
+| mittari | ennen | jälkeen |
+|---|---|---|
+| hiiren veto 180 px | 0 px | 180 px |
+| päivämäärä ruudulla, osuus kohdista joissa ei yhtään (12 h zoom) | 43,2 % | **0 %** (12 / 24 / 48 / 168 h) |
+| tuntitietoa aika-akselilla 240 h ja 396 h zoomilla | 0 | 49–69 tikkiä + maanantain päivämäärät |
+| y-luvut, rivi ja laaja puhelimen vaakatilassa | 1 | 3 (kortti 3–4) foilausraja mukaan lukien |
+| yksikkö y-akselilla | ei | kts / m/s / km/h / bft / m |
+| ylälaita näyttöyksikössä | mielivaltainen (31,1 kts) | pyöreä (5 kts, 2 m/s, 10 km/h; bofori: kynnys) |
+| käyrän RMS datan omasta murtoviivasta (12 / 48 / 7 vrk) | 0,59 / 0,64 / 0,74 px | 0,23 / 0,24 / 0,26 px, ylityksiä 0 |
+| kosketus: pito + veto / veto (CDP) | ei skrubia | 16 + 16 elettä oikein, nosto valitsee kerran |
+| tavallinen veto pito-eleen vieressä | – | luokittuu vedoksi, skrubi vain ≥ 200 ms tai kursorin tartunnasta |
+| kortin piirto (`Ennuste._piirra`, W ≈ 2 700 px) | – | 14 ms |
+
+### 10.2 Asteikko ikkunaan — oikea ennuste
+
+Lauttasaari, puhelin, 48 h ruudulla. Täyttöaste = ikkunan huippu (tuuli
+tai puuska) / ylälaita:
+
+| vierityskohta | ikkunan huippu | vanha ylälaita | uusi ylälaita | täyttö vanha → uusi | piirtoja |
+|---|---|---|---|---|---|
+| alku | 10,5 m/s | 24 | 12,9 | 44 % → **81 %** | 1 |
+| 25 % | 8,7 | 24 | 12,9 | 36 % → **68 %** | 0 |
+| 50 % | 15,1 | 24 | 20,6 | 63 % → 73 % | 1 |
+| 75 % | 21,1 | 24 | 25,7 | 88 % → 82 % | 1 |
+| 100 % | 18,2 | 24 | 25,7 | 76 % → 71 % | 0 |
+
+Tyynillä jaksoilla käyrä käyttää lähes kaksinkertaisen osan korkeudesta;
+myrskyikkunassa täyttö laskee hieman (nätti yläraja ja ± 25 %:n
+marginaali), mutta arvo ei koskaan leikkaudu. Vierityskohdan vaihto
+maksaa enintään yhden piirron, eikä kesken vierityksen piirretä (8 askelta
+40 ms välein: 0 piirtoa). Synteettisellä sarjalla: 12,9 → 30,9 m/s → takaisin,
+yksi piirto kumpaankin suuntaan.
+
+### 10.3 Missä toteutus poikkesi strategiasta
+
+- **V7 jätettiin pois** (P3: kartta ei seuraa skrubia).
+- **Ilmansuunnan sana on lukemarivin tuulisolussa, ei nuolen alla**
+  kaaviossa ("3,8 kts ↑ E"): nuolen alle 12 px:n rivi olisi kasvattanut
+  kaavion korkeutta zoomin mukana (nuolirivi 20 → 31 px), ja kortin
+  sisältö olisi hypännyt joka venytyksen lopussa.
+- **Valitun tunnin luku ei ole lihavoitu tuntirivillä.** Tuntipilleri
+  (hover ja skrubi) kertoo hetken siellä missä silmä on; valittu tunti
+  näkyy kursorista ja lukemariviltä.
+- **Navigaattori vain kortissa, ei laajassa** (laatikon korkeus lasketaan
+  kaaviolle); laajan otsikossa on omat zoom-napit.
+- **Asteikon sovitus vain tuulikaavioissa** (ennuste ja havainto, kortti ja
+  laaja). Vedenlämpö ja aallot käyttävät datapohjaista asteikkoaan.
+- **Foilausrajan luku syrjäyttää viereisen ruudukon luvun** (alle
+  11·fs px:n päässä): kortilla ruudukon luku 10 jää pois kun foil-luku 12
+  on sen vieressä; viiva jää. Y-akselilla on silti aina vähintään kolme
+  lukua foil mukaan lukien.
+- **Loitonnettuna "M"-kirjaimen viikonpäivälappu** — päivämäärä tulee
+  maanantaille tuntiriville (ei lappuun), koska 21,6 px:n päivälaatikkoon
+  ei mahdu "S 27".
+- **Luvut ovat huippuja vain ennusteella** (`!ikkunaLuvut`); havainnon
+  ikkunaluvut ja "jakson kovin puuska saa aina lapun" ennallaan.
+
+### 10.4 Uudet säännöt ja niiden perustelut
+
+Ne on kirjattu CLAUDE.md:hen (Kaaviot ja laaja näkymä): pito + veto ja
+aikaleimapäätös, hiirityökalurivi ja näppäimet, monotoninen käyrä ja
+mallin omat pisteet, tarttuva päiväotsikko ja tuntitikit, ikkunan
+mukainen asteikko, y-akselin yksikkö ja foil-luku, huiput ja
+saavutettava yhteenveto.
+
+### 10.5 Tarkistettavaa laitteella
+
+1. iPhone: pito 200 ms tuntuu luontevalta, veto heti vierittää, pito ei
+   laukea vierityksen alussa, ja pito ei vieritä korttia (WebKit:
+   `touchmove.preventDefault()` vain pidon jälkeen).
+2. iPhone: tarttuva päiväotsikko pysyy paikallaan (`position: sticky`
+   vaakavierityksessä, `-webkit-sticky`-etuliite mukana).
+3. Työpöytä: hiiren veto tuntuu tartunnalta; navigaattorin raahaus ei
+   piirrä kaaviota uudelleen kesken vedon (asteikon sovitus odottaa).
+4. Kaikki kosketuslaitteet: reunavieritys (sormi kaavion reunassa) ei karkaa.
+

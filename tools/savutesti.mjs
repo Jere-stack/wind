@@ -85,6 +85,19 @@ async function aja(nimi, asetus) {
     return { auki: !!el && getComputedStyle(el).visibility !== 'hidden', teksti: (el && el.innerText || '').slice(0, 200) };
   });
   if (!kortti.auki || !kortti.teksti.includes('Lauttasaari')) vika('spottikortti ei auennut');
+  /* Kaavio (docs/graafit.md): jos ennuste ehti latautua, tarttuva päiväotsikko
+     ja y-akselin yksikkö ovat paikallaan, ja työkalurivi (zoom-napit,
+     navigaattori) on vain hiirilaitteella. Ennusteen puuttuminen ei ole tässä
+     vika (ulkoinen palvelu), joten silloin ei tarkisteta mitään. */
+  const kaavio = await sivu.evaluate(async () => {
+    const el = document.getElementById('sheet');
+    for (let i = 0; i < 40; i++) { if (el.querySelector('[data-en-kaare] svg.tk-svg')) break; await new Promise((r) => setTimeout(r, 250)); }
+    const k = el.querySelector('[data-en-kaare]');
+    if (!k || !k.querySelector('svg.tk-svg')) return null;
+    return { paivat: k.querySelectorAll('.ak-pv > span').length, yks: !!k.parentElement.querySelector('.ak-yks'), tyokalut: !!k.parentElement.querySelector('.ak-tyokalut') };
+  });
+  if (kaavio && (!kaavio.paivat || !kaavio.yks)) vika('kaavion päiväotsikko tai y-yksikkö puuttuu: ' + JSON.stringify(kaavio));
+  if (kaavio && kaavio.tyokalut !== (nimi === 'tyopoyta')) vika('kaavion työkalurivi väärällä laitteella: ' + JSON.stringify(kaavio));
   await sivu.keyboard.press('Escape');
   await sivu.waitForTimeout(600);
 
