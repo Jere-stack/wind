@@ -58,6 +58,9 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   asetukset ja Tietoa aukeavat, Esc sulkee, ei `pageerror`ia). Paikallisesti
   `PLAYWRIGHT_MODULE=/opt/node22/lib/node_modules/playwright/index.mjs
   node tools/savutesti.mjs http://localhost:4173`.
+- `tools/graafimittaus.mjs` — kaaviomoottorin mittauspohja (akselit
+  zoomeittain, hiiri, päiväyksen näkyvyys, käyrän muoto, kosketus CDP:llä)
+  synteettisellä sarjalla, ei verkkoa; ks. docs/graafit.md, luku 7.
 - `tools/havainnot.mjs` + `.github/workflows/havainnot.yml` —
   Espoo Haukilahden (Mellsten) historian keräin: joka ajolla lähteen
   30 minuutin tekstirivit JA 4 tunnin kuvaaja (`plot.gif` minuutti-
@@ -165,6 +168,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit, kaavion venytys** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V10: yksi kaaviomoottori, kortti moduuleina, fonttilattia, laajan valinta, venytys, mallit laajassa) |
 | `docs/sujuvuus.md` | **työpöydän** zoomin ja panoroinnin raskautta, windy.comin arkkitehtuuria, sujuvuusstrategiaa, **MapLibre-siirtoa (C2) ja sen mittauksia** |
 | `docs/julkaisu.md` | **julkaisukelpoisuutta**: UI-parannusten top 25, suositusjärjestys ja logiikan 10 kriittisintä kohtaa (27.9.), ja **osa 4: mitä niistä toteutettiin 28.9. ja mikä jäi auki** (Pages, lisenssit, pohjakartan kieli) — lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
+| `docs/graafit.md` | **kaavioiden vuorovaikutusta ja akseleita** (strategia 30.9., päätös odottaa): hiiren veto, kosketuksen "pidä ja liu'uta", käyrän pehmennys, x- ja y-akselin tiedot joka zoomilla — mittaukset (`tools/graafimittaus.mjs`), päätökset P1–P10 ja vaiheet V0–V7; lue ennen kuin kosket `Tuulikaavio`on, `Aikakaavio`n osoittimeen tai kaavioiden akseleihin |
 | `docs/oikeellisuus.md` | **datan oikeellisuutta** (auditointi 29.9., toteutus 30.9.): varasto havaintoja vasten, **jatkuva varmennus**, **varaston tuoreus ja Säädatan ajastin**, kapselin ja partikkelien taso vs lämpökartta, **kapselin puuska**, havaintoverkko ja sen päivitys, proxyjen virheenkäsittely, UiRaS — aukot O1–O11, suositusjärjestys ja sujuvuusvaikutus; lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 
 <details>
@@ -287,6 +291,12 @@ kokeiltu ja kaadettu mittauksella.
 - **julkaisu**: Design ja UI, top 25 (P0–P2) · Suositusjärjestys
   (vaiheet 0–3) · Logiikka, top 10 (L1–L10) · Toteutus (28.9.): UI,
   logiikka, auki
+- **graafit**: Tiivistelmä (diagnoosi ja suositus) · Nykytila mitattuna
+  (akselit zoomeittain, vuorovaikutus, käyrä) · Mitä ammattilaiskaaviot
+  tekevät (gesteiden välimiehitys: pito + veto) · Ehdotukset
+  osa-alueittain (työpöytä, puhelin, x-akseli, y-akseli, käyrät ja
+  pehmennys, laitematriisi) · Päätettävät kohdat P1–P10 · Vaiheet V0–V7 ·
+  Mittauspohja · CLAUDE.md:n säännöt jotka tämä koskee · Mitä EI ehdoteta
 - **oikeellisuus**: Tiivistelmä · Kunnossa — mitattu, ei toimenpiteitä ·
   Aukot O1–O11 (varaston tuoreus, kaksi ennustetta, kapselin taso,
   kapselin puuska, virhe lakkautuksena, havaintoverkko, havaintojen
