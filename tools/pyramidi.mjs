@@ -186,6 +186,57 @@ export function tiivistaAika(pyramidi, sailyta) {
   }
 }
 
+/* PUUSKAN AUKOT PUUSKA/TUULI-SUHTEENA (docs/oikeellisuus.md, O8).
+ *
+ * ECMWF:n tiedostoissa puuska on vain +3 … +90 h (3 h maksimi) ja
+ * +150 h:sta eteenpäin (6 h maksimi); välillä +93 … +144 h sitä ei ole
+ * MISSÄÄN ajossa (mitattu 29.9.2026 neljästä ajosta). Tyhjä puuska
+ * korvautui asiakkaassa tuulella, jolloin "Puuska"-kerros näytti
+ * ECMWF-alueella kaksi ja puoli vuorokautta tuulta puuskana.
+ *
+ * Aukko täytetään solmukohtaisesti saman solmun puuska/tuuli-suhteella,
+ * joka interpoloidaan ajassa lineaarisesti aukon reunahetkistä, kertaa
+ * aukon hetken oma tuuli. Suhde on pinnan ja stabiiliuden ominaisuus eikä
+ * nopeuden, joten se kantaa aukon yli paremmin kuin puuska itse.
+ * Reunahetken suhde luetaan vain kun tuuli on vähintään 1 m/s (tyynellä
+ * suhde on kvantisointikohinaa), ja se rajataan välille 1 … 3. Aukkoa ei
+ * täytetä jos reunahetkien väli on yli `maxValiMs`.
+ *
+ * Palauttaa niiden hetkien indeksit joihin täytettiin jotain. */
+export function taytaPuuskaAukot(pyramidi, ajatMs, maxValiMs) {
+  const L = N * N, nt = ajatMs.length, MIN_NOP = Math.round(1 / NOP_ASKEL);
+  const taytetyt = new Set();
+  const suhde = (nop, puu) => (nop >= MIN_NOP ? Math.min(3, Math.max(1, puu / nop)) : null);
+  for (const taso of pyramidi) {
+    for (const r of taso.ruudut) {
+      const NOP = r.nop, PUU = r.puuska;
+      for (let k = 0; k < L; k++) {
+        let vasen = -1;
+        for (let ti = 0; ti < nt; ti++) {
+          const i = ti * L + k;
+          if (NOP[i] === TYHJA || PUU[i] === TYHJA) continue;
+          if (vasen >= 0 && ti - vasen > 1 && ajatMs[ti] - ajatMs[vasen] <= maxValiMs) {
+            const iv = vasen * L + k;
+            const sV = suhde(NOP[iv], PUU[iv]), sO = suhde(NOP[i], PUU[i]);
+            if (sV != null || sO != null) {
+              for (let t2 = vasen + 1; t2 < ti; t2++) {
+                const i2 = t2 * L + k;
+                if (NOP[i2] === TYHJA || PUU[i2] !== TYHJA) continue;
+                const f = (ajatMs[t2] - ajatMs[vasen]) / (ajatMs[ti] - ajatMs[vasen]);
+                const s = sV != null && sO != null ? sV + (sO - sV) * f : (sV != null ? sV : sO);
+                PUU[i2] = Math.min(254, Math.round(NOP[i2] * s));
+                taytetyt.add(t2);
+              }
+            }
+          }
+          vasen = ti;
+        }
+      }
+    }
+  }
+  return [...taytetyt].sort((a, b) => a - b);
+}
+
 /* Otsake on kiinteän mittainen ja pikkuendian; sen jälkeen kolme
    tavutasoa järjestyksessä [aika][y][x] ja painollisella tasolla vielä
    yksi aikariippumaton N×N-taso. Vanha asiakas lukee vain kolme

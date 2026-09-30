@@ -16,7 +16,7 @@ import { haeFmi } from './_haku.js';
  *
  * Avomeriasemat Kalbådagrundista Rajakariin lisättiin 29.9.: yksi
  * etelärannikon kysely palautti 28 tuuliasemaa, ja rekisterissä oli 12. */
-const STATIONS = [
+export const STATIONS = [
   { place: 'kaisaniemi',   name: 'Helsinki Kaisaniemi',      lat: 60.17523, lng: 24.94459, fmisid: '100971' },
   { place: 'kumpula',      name: 'Helsinki Kumpula',         lat: 60.20307, lng: 24.96131, fmisid: '101004' },
   { place: 'harmaja',      name: 'Helsinki Harmaja',         lat: 60.10512, lng: 24.97539, fmisid: '100996' },
@@ -165,7 +165,9 @@ export default async function handler(req,res){
      jakaa sen. */
   if(req.query.asemat==='1'){
     try{
-      var tulos=await kaikkiAsemat(Math.max(1,Math.min(48,parseInt(req.query.hours,10)||24)));
+      /* 48 h 21 asemalle on mitattuna 2,9 s ja 250 kt FMI:ltä: oletusraja
+         8 s jättäisi ruuhkassa liian vähän varaa (funktion katto 30 s). */
+      var tulos=await kaikkiAsemat(Math.max(1,Math.min(48,parseInt(req.query.hours,10)||24)),15000);
       if(!tulos){
         /* Yksikään asema ei vastannut: se on FMI:n tai kyselyn vika eikä
            kaikkien asemien lakkautus. Tyhjä vastaus poistaisi koko
@@ -300,9 +302,14 @@ function buildHistory(xml,station,tz){
  * Tiiviys on mitattu: 21 asemaa × 48 h oliomuodossa (`{t,v,d,iso}`)
  * olisi satoja kilotavuja, tässä muodossa kymmeniä. Lämpötilaa ei
  * haeta, koska karttamerkki ei näytä sitä (kortti hakee oman sarjansa). */
-async function kaikkiAsemat(hours){
+/* Viety myös tools/varmennus.mjs:lle (O11): sama kysely, sama jäsennys ja
+   sama rekisteri kuin sovelluksella — varmennus ei saa lukea havaintoja
+   eri tavalla kuin kartta ne näyttää. Palvelimen reitti rajaa tunnit
+   1–48:aan; työkalu pyytää pidemmän jakson suoraan. */
+export async function kaikkiAsemat(hours,aikaraja){
   var t0=Math.floor((Date.now()-hours*3600000)/DT_MS)*DT_MS;
-  var xml=await fetchUrl(mpUrl(STATIONS.map(function(s){return s.fmisid;}),'WindSpeedMS,WindGust,WindDirection',t0));
+  var xml=await haeFmi(mpUrl(STATIONS.map(function(s){return s.fmisid;}),'WindSpeedMS,WindGust,WindDirection',t0),
+    aikaraja?{aikaraja:aikaraja}:undefined);
   var mp=parseMultipoint(xml);
   if(!mp||!mp.rows.length)return null;
   var iWs=mp.fields.indexOf('WindSpeedMS'),iWg=mp.fields.indexOf('WindGust'),iWd=mp.fields.indexOf('WindDirection');

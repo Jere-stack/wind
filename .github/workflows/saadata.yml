@@ -28,12 +28,23 @@ on:
     # ECMWF ajaa 00/06/12/18 UTC ja data ilmestyy S3:een muutaman tunnin
     # viiveellä; työ etsii itse uusimman valmiin ajon, joten tarkka
     # kellonaika ei ole kriittinen.
+    #
+    # AJASTIN ON VARALLA (docs/oikeellisuus.md, O1). Se myöhästyi
+    # 22.–29.9.2026 mediaanina 3,7 h (enintään 5,7 h), ja varasto jäi
+    # FMI:stä 1–3 ajoa jälkeen. Varsinainen herätin on Havainnot-ajon
+    # askel `tools/saaherate.mjs`, joka lähettää tämän (workflow_dispatch)
+    # kun FMI:llä on varastoa uudempi ajo.
     - cron: '20 4,10,16,22 * * *'
   workflow_dispatch:
 
+# EI PERUUTUSTA: herätin ja ajastin voivat osua päällekkäin, ja
+# `cancel-in-progress: true` peruisi melkein valmiin rakennuksen uuden
+# alkaessa. Nyt uusi odottaa jonossa (GitHub pitää ryhmässä yhden
+# odottavan), ja herätin ei lähetä mitään kun ajo on jo jonossa tai
+# käynnissä.
 concurrency:
   group: saadata
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: write

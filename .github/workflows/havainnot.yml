@@ -19,10 +19,15 @@
 # on ainoa tapa nähdä päivittyykö kameran kuva (docs/data.md "Larun
 # kelikamera").
 #
+# Ja jatkuva varmennus (tools/varmennus.mjs): varaston ennuste
+# rekisterin asemille arkistoon ja havaintoja vasten tunnin välein
+# (docs/oikeellisuus.md, O11).
+#
 # ORPO HAARA JA PAKKOPÄIVITYS kuten `saadata`: haarassa on aina tasan
 # yksi committi, joten satakin ajoa vuorokaudessa ei kasvata repoa.
 # Varasto on noin 3,6 MB (31 vrk: Mellsten 2,4 MB minuutin riveinä,
-# Laru 1,2 MB).
+# Laru 1,2 MB) ja varmennuksen arkisto noin 75 kB rakennusta kohti
+# (4 vrk säilytys, enintään noin 2,5 MB).
 #
 # KOLME HERÄTINTÄ, KOSKA GITHUBIN AJASTIN EI RIITÄ — MITATTU. Tämän
 # työnkulun ajastin ei käynnistänyt yhtään ajoa kuuteen tuntiin (29.9.
@@ -70,7 +75,8 @@ concurrency:
 permissions:
   contents: write
   # Ajastinketju: seuraavan lenkin lähetys (workflow_dispatch) ja ajojen
-  # ja ympäristön luku (tools/ajastin.mjs).
+  # ja ympäristön luku (tools/ajastin.mjs). Säädatan herätin lähettää
+  # saadata.yml:n samalla oikeudella (tools/saaherate.mjs).
   actions: write
 
 jobs:
@@ -140,6 +146,17 @@ jobs:
         continue-on-error: true
         run: node tools/kamerat.mjs varasto >> "$GITHUB_STEP_SUMMARY"
 
+      # JATKUVA VARMENNUS (tools/varmennus.mjs, docs/oikeellisuus.md O11):
+      # uuden varaston ennuste arkistoidaan rekisterin asemille
+      # (`varmennus/ennusteet/`, 4 vrk), ja enintään kerran tunnissa
+      # arkisto verrataan FMI:n havaintoihin (`varmennus/tulos.json`,
+      # hälytysrajat yhteenvetoon). `continue-on-error`: varmennuksen vika
+      # ei saa estää havaintojen julkaisua.
+      - name: Varmennus
+        continue-on-error: true
+        timeout-minutes: 3
+        run: node tools/varmennus.mjs varasto >> "$GITHUB_STEP_SUMMARY"
+
       - name: Julkaise haaraan havainnot
         env:
           URL: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}
@@ -158,6 +175,21 @@ jobs:
               -c user.email='data@foilspot.invalid' \
               commit -q -m "Havainnot $(date -u +%Y-%m-%dT%H:%MZ)"
           git push -q --force "$URL" havainnot
+
+      # SÄÄDATAN HERÄTIN (tools/saaherate.mjs, docs/oikeellisuus.md O1).
+      # Säädatan oma ajastin myöhästyy tunteja, ja varasto jäi 1–3 ajoa
+      # jälkeen FMI:stä. Tämä ajo ajaa jo luotettavasti, joten se luotaa
+      # FMI:n tuoreimman ajon ja lähettää Säädatan kun FMI on edellä —
+      # vain jos varasto on vähintään 2,5 h vanha eikä Säädataa ole
+      # jonossa, käynnissä tai yritetty viimeisen 2 h aikana. Myös
+      # epäonnistuneen keruun jälkeen; skripti ei kaada ajoa.
+      - name: Säädatan herätin
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/saaherate.mjs >> "$GITHUB_STEP_SUMMARY"
 
       # Viimeisenä ja myös epäonnistuneen keruun jälkeen: ketju ei saa
       # katketa siihen että lähde oli hetken alhaalla. Skripti ei kaada

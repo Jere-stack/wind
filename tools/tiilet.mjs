@@ -44,7 +44,7 @@ import * as MetNordic from './metnordic.mjs';
 import {
   N, TYHJA, NOP_ASKEL, SUUNTA_ASKEL, OTSAKE,
   luoPyramidi, uvHilaksi, kirjoitaHetki, tiivistaAika, kirjoitaLaatta, onDataa,
-  suorakaidePaino,
+  suorakaidePaino, taytaPuuskaAukot,
 } from './pyramidi.mjs';
 
 const S3 = 'https://openmeteo.s3.amazonaws.com';
@@ -152,8 +152,11 @@ const FMI_MALLI = { malli: 'fmi', perhe: 'fmi',
    askel määrää myös laatan koon: 0,05° antaa yhden asteen laatan, jolloin
    Helsingin z11-näkymä on yksi laatta. 0,0225° antaisi 0,45 asteen laatan
    eli nelinkertaisen määrän laattoja samaan näkymään — ja viisinkertaisen
-   varaston. 0,05° on 2,8 km Suomen leveyksillä eli käytännössä mallin oma
-   tarkkuus, ja se on viisi kertaa hienompi kuin l0. */
+   varaston. 0,05° on Suomen leveyksillä 2,8 km pituussuunnassa ja 5,6 km
+   leveyssuunnassa, ja se on viisi kertaa hienompi kuin l0. Spottien
+   kohdalla taso on mitattuna FMI:n omasta pistekyselystä 0,062 m/s
+   (docs/oikeellisuus.md, "Mitä ei kannata tehdä") — tihentäminen ei
+   kannata. */
 
 /* MET Nordic: sama porrastus, oma alue (Lambert-hilan lat/lon-rajaus).
    Paino tulee Lambert-hilan omasta reunasta, ei suorakaiteesta. */
@@ -237,8 +240,11 @@ function rakennaAikaAkseli(ajot, menneisyysH, dtSek) {
   const katteet = ajot.map(a => ({ a, ajat: new Set(a.meta.valid_times.map(Date.parse)) }));
   const akseli = [];
   for (let t = alku; t <= loppu; t += dtMs) {
-    const osuma = katteet.find(k => k.ajat.has(t));
-    if (osuma) akseli.push({ ms: t, ajo: osuma.a });
+    const osumat = katteet.filter(k => k.ajat.has(t));
+    /* `varat` = vanhemmat ajot jotka kattavat saman hetken, tuoreimmasta
+       alkaen: niistä haetaan puuska kun valitulla ajolla sitä ei ole
+       (analyysihetki, O8). */
+    if (osumat.length) akseli.push({ ms: t, ajo: osumat[0].a, varat: osumat.slice(1).map(k => k.a) });
   }
   return akseli;
 }
@@ -246,11 +252,12 @@ function rakennaAikaAkseli(ajot, menneisyysH, dtSek) {
 /* Yhden hetken kolme kenttää. Luetaan koko maailma kerralla: mitattuna
    se on 1,85 MB, kun taas 81 laatan lukeminen erikseen olisi satoja
    pikkupyyntöjä per hetki. */
-async function lueHetki(url) {
+async function lueHetki(url, vainPuuska) {
   const reader = await OmFileReader.create(new OmHttpBackend({ url }));
   const n = reader.numberOfChildren();
   const kentat = {};
-  const halutut = new Set(['wind_u_component_10m', 'wind_v_component_10m', 'wind_gusts_10m']);
+  const halutut = new Set(vainPuuska ? ['wind_gusts_10m']
+    : ['wind_u_component_10m', 'wind_v_component_10m', 'wind_gusts_10m']);
   for (let i = 0; i < n; i++) {
     const c = await reader.getChild(i);
     if (!c) continue;
@@ -264,6 +271,7 @@ async function lueHetki(url) {
      olemassa: se on jakson yli laskettu maksimi, eikä nollan mittaiselle
      jaksolle ole maksimia. Ilman tätä eroa koko ensimmäinen hetki putosi
      pois — eli juuri se hetki jonka kartta oletuksena näyttää. */
+  if (vainPuuska) return kentat;
   for (const h of ['wind_u_component_10m', 'wind_v_component_10m']) {
     if (!kentat[h]) throw new Error('kenttä puuttuu: ' + h);
   }
@@ -345,7 +353,7 @@ console.log(`  ${new Date(akseli[0].ms).toISOString()} .. ${new Date(akseli[akse
 
 const ecmwf = luoPyramidi(TASOT, akseli.length);
 const ecmwfOk = [];
-let valmiit = 0;
+let valmiit = 0, puuskaToisesta = 0;
 
 await rinnakkain(akseli, RINNAKKAIN, async (kohta, ti) => {
   /* Tiedostonimi on 2026-08-26T1200.om eli ISO ilman sekunteja ja
@@ -359,6 +367,20 @@ await rinnakkain(akseli, RINNAKKAIN, async (kohta, ti) => {
   } catch (e) {
     console.warn(`  ! ${d.toISOString()}: ${e.message}`);
     return;
+  }
+  /* PUUSKA TOISESTA AJOSTA (docs/oikeellisuus.md, O8). Analyysihetkellä
+     (T+0) puuskaa ei ole, mutta edellinen ajo kattaa saman hetken +6 h:n
+     kohdalla, ja sen puuska on sama suure kuin muillakin askeleilla
+     (3 h maksimi). Ilman tätä menneisyyden puuska puuttui joka toiselta
+     askeleelta ja korvautui asiakkaassa tuulella. Epäonnistunut luku ei
+     kaada hetkeä — aukko täytetään silloin suhteena (`taytaPuuskaAukot`). */
+  if (!kentat.wind_gusts_10m) {
+    for (const vara of (kohta.varat || [])) {
+      try {
+        const g = await lueHetki(`${S3}/data_spatial/${MALLI}/${vara.pv}/${vara.ajo}/${tiedosto}.om`, true);
+        if (g.wind_gusts_10m) { kentat.wind_gusts_10m = g.wind_gusts_10m; puuskaToisesta++; break; }
+      } catch (e) { /* seuraava vara */ }
+    }
   }
   /* Lähdehila on koko maapallo 0,25°:n välein, rivi 0 etelänavalla ja
      pituusaste kiertää. Tasojen askeleet ovat 0,25°:n monikertoja, joten
@@ -382,6 +404,13 @@ if (puuttuvat) {
   akseli = ecmwfOk.map(i => akseli[i]);
 }
 const ajat = akseli.map(a => a.ms);
+/* Loput puuskan aukot (+93 … +144 h, jota yksikään ajo ei kata) puuska/
+   tuuli-suhteena aukon reunoilta (`taytaPuuskaAukot`, O8). 72 h riittää
+   +90 → +150 h väliin. */
+const puuskaArvio = taytaPuuskaAukot(ecmwf, ajat, 72 * 3600e3);
+console.log(`  puuska: ${puuskaToisesta} hetkeä edellisestä ajosta, ${puuskaArvio.length} hetkeä suhteena `
+  + (puuskaArvio.length ? `(${new Date(ajat[puuskaArvio[0]]).toISOString()} .. `
+    + `${new Date(ajat[puuskaArvio[puuskaArvio.length - 1]]).toISOString()})` : ''));
 
 const luettelo = {
   versio: 1,
@@ -408,6 +437,10 @@ const luettelo = {
   tyhja: TYHJA,
   otsake: OTSAKE,
   puuttuvia: puuttuvat,
+  /* Hetket joiden ECMWF-puuska on ARVIO (puuska/tuuli-suhde aukon
+     reunoilta, O8) eikä mallin oma. Asiakas ei lue tätä; se on
+     varmennusta ja dokumentaatiota varten. */
+  puuskaArvio: puuskaArvio.map(i => ajat[i]),
   /* `tasot` on se lista jota VANHA asiakas lukee: se valitsee siitä
      askeleella eikä tunne painokanavaa. Siksi siinä ovat vain ECMWF ja
      HARMONIEn hienoin taso (joka oli siinä ennenkin, nyt isommalla

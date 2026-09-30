@@ -43,8 +43,11 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   (`api.github.com/repos/Jere-stack/wind/commits/<sha>/status`).
   ES-moduuleja, koska
   `package.json`:ssa on `"type": "module"` — `require()` ei toimi näissä.
-  Alaviivalla alkava tiedosto (`_suoja.js`, `_mellsten.js`, `_laru.js`,
-  `_varasto.js`, `_kamerat.js`, `_gif.js`) on apumoduuli eikä reitti.
+  Alaviivalla alkava tiedosto (`_suoja.js`, `_haku.js`, `_mellsten.js`,
+  `_laru.js`, `_varasto.js`, `_kamerat.js`, `_gif.js`) on apumoduuli eikä
+  reitti. `_haku.js` on FMI-proxyjen yhteinen haku: tila ja
+  ExceptionReport tarkistetaan ja aikaraja on koko haulle — ylävirran
+  virhe on 502, ei `no data` (docs/oikeellisuus.md, O5).
   **Jokainen funktio alkaa `if (!suojaa(req, res)) return;`** eikä
   mikään vastaa `Access-Control-Allow-Origin`illa (docs/julkaisu.md,
   L10): sovellus kutsuu samasta originista, ja jokeri antoi kenen
@@ -71,11 +74,16 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   yhteisiä: `api/_varasto.js`. Samassa ajossa `tools/kamerat.mjs`
   (`continue-on-error`) kirjaa kelikameroiden pikkukuvan ETagin
   (`kamerat/tila.json`), josta `api/laru.js?kamera=1` päättelee onko kamera
-  päällä (docs/data.md, "Larun kelikamera").
+  päällä (docs/data.md, "Larun kelikamera"). Samassa ajossa myös
+  `tools/saaherate.mjs` (lähettää Säädatan kun FMI:llä on varastoa
+  uudempi ajo, O1) ja `tools/varmennus.mjs` (varaston ennuste arkistoon
+  ja havaintoja vasten, `varmennus/`, O11) — docs/oikeellisuus.md.
 - `tools/tiilet.mjs` — säälaattojen rakennus kolmesta mallista: ECMWF
   (AWS Open Data, koko maapallo), FMI:n HARMONIE (Suomi) ja MET Nordic
   (Yr:n data, Pohjoismaat ja Baltia). Ajetaan GitHub Actionsissa neljästi
-  vuorokaudessa (`.github/workflows/`), noin 8–10 min ja 107 MB.
+  vuorokaudessa ajastimella ja lisäksi kun FMI:llä on uudempi ajo
+  (`tools/saaherate.mjs`), noin 8–10 min ja 107 MB. ECMWF-puuskan aukot
+  (analyysihetki, +93 … +144 h) täytetään rakennuksessa (O8).
 - `tools/pyramidi.mjs` — säännöllisestä hilasta suodatettu laattapyramidi
   ja painokanava; kaikki kolme mallia kirjoitetaan sen kautta.
 - `tools/harmonie.mjs` — FMI HARMONIE 2,5 km hilana GRIB2:sta (tasot
@@ -157,7 +165,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit, kaavion venytys** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V10: yksi kaaviomoottori, kortti moduuleina, fonttilattia, laajan valinta, venytys, mallit laajassa) |
 | `docs/sujuvuus.md` | **työpöydän** zoomin ja panoroinnin raskautta, windy.comin arkkitehtuuria, sujuvuusstrategiaa, **MapLibre-siirtoa (C2) ja sen mittauksia** |
 | `docs/julkaisu.md` | **julkaisukelpoisuutta**: UI-parannusten top 25, suositusjärjestys ja logiikan 10 kriittisintä kohtaa (27.9.), ja **osa 4: mitä niistä toteutettiin 28.9. ja mikä jäi auki** (Pages, lisenssit, pohjakartan kieli) — lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
-| `docs/oikeellisuus.md` | **datan oikeellisuutta** (auditointi 29.9.): varasto havaintoja vasten, **varaston tuoreus ja Säädatan ajastin**, kapselin ja partikkelien taso vs lämpökartta, **kapselin puuska**, havaintoverkko ja sen päivitys, proxyjen virheenkäsittely, UiRaS — aukot O1–O11, suositusjärjestys ja sujuvuusvaikutus; lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
+| `docs/oikeellisuus.md` | **datan oikeellisuutta** (auditointi 29.9., toteutus 30.9.): varasto havaintoja vasten, **jatkuva varmennus**, **varaston tuoreus ja Säädatan ajastin**, kapselin ja partikkelien taso vs lämpökartta, **kapselin puuska**, havaintoverkko ja sen päivitys, proxyjen virheenkäsittely, UiRaS — aukot O1–O11, suositusjärjestys ja sujuvuusvaikutus; lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 
 <details>
 <summary>Osioiden nimet tiedostoittain (jos et tiedä mistä etsiä)</summary>
@@ -284,7 +292,8 @@ kokeiltu ja kaadettu mittauksella.
   kapselin puuska, virhe lakkautuksena, havaintoverkko, havaintojen
   päivitys ja ikä, ECMWF-puuskan aukot, UiRaS, keskiarvoistusikkunat,
   jatkuva varmennus) · Suositusjärjestys · Mitä ei kannata tehdä ·
-  Dokumentaatio joka on ristiriidassa mittauksen kanssa · Mittausasetelma
+  Dokumentaatio joka on ristiriidassa mittauksen kanssa · Mittausasetelma ·
+  **Toteutus (30.9.2026)**: mitä tehtiin ja jälkimittaukset O1–O11
 
 </details>
 
@@ -1064,7 +1073,14 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   taas vain valitsee perheen sisältä tason (z10+ 0,05, z9 0,1, z8 0,25,
   z7 0,5, muuten `gridStep`), ja se on ilmaista. Lämpökartta, tähtäin,
   partikkelit (z7+) ja aikajana lukevat `laattaStep`iä, hilapisteet
-  `gridStep`iä.
+  `gridStep`iä. **AINA PYÖRISTETYSTÄ ZOOMISTA** (`laattaStep(Math.round(
+  zoom))`): `WindTexture.build` kutsui sitä pyöristämättä, jolloin
+  vyöhykkeellä n − 0,5 … n kapseli ja partikkelit lukivat karkeampaa
+  tasoa kuin lämpökartta (z 9,7: ka 0,59, max 1,25 m/s eroa). Nyt
+  kapselin solmuhila on lämpökartan solmuhila (sama askel, sama
+  globaalisti kohdistettu origo), ja se rakennetaan uudelleen levossa
+  kun puuttuneet laatat saapuvat (`_taydennaLevossa`) — mitattuna
+  z 7,7 / 8,7 / 9,7 / 10,3: max 0,001 m/s (docs/oikeellisuus.md, O3).
 - **`varmista` LUETTELEE LAATAT TASOITTAIN, EI NÄYTTEISTÄ PISTEITÄ.**
   Asteen välein näytteistetty alue ohitti tason reunalle jäävän
   kaistaleen (l0-laatta 10–15° kattaa vanhan l0-alueen vain 14–15°):
@@ -1756,9 +1772,41 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   ulkopuolella. Hangon spotti näytti Espoo Tapiolaa 112 km päästä vaikka
   samanniminen asema on 2 km päässä. Korjattuna 11/12 spottia sai
   lähemmän aseman. **Älä lisää asemaa vain toiseen paikkaan.**
-  Uusin: Porvoo Kilpilahti satama (FMISID 100683, `Meri`) sekä
-  `FMI_MAP_STATIONS`issa että `api/fmi.js`:ssä. `FMI_SEA_PLACES`
-  johdetaan tagista — se oli oma listansa.
+  Rekisterissä on 21 FMI-asemaa (29.9. lisättiin avomeri- ja
+  rannikkoasemat Kalbådagrund, Orrengrund, Rankki, Haapasaari,
+  Bågaskär, Russarö, Vänö, Fagerholm ja Rajakari; docs/oikeellisuus.md
+  O6), sekä `FMI_MAP_STATIONS`issa että `api/fmi.js`:n `STATIONS`issa,
+  ja **KAIKKI HAETAAN FMISID:LLÄ** — `place=malmi` oli FMI:n
+  paikannimihaku ja palautti `numberMatched="0"`. Koordinaatit ovat
+  FMI:n omasta vastauksesta. `FMI_SEA_PLACES` johdetaan tagista — se
+  oli oma listansa. `tools/varmennus.mjs` lukee saman rekisterin
+  (`STATIONS` viedään `api/fmi.js`:stä, tagit `index.html`:stä).
+- **KARTAN MERKIT OVAT YKSI HAKU: `/api/fmi?asemat=1&hours=48`**
+  (docs/oikeellisuus.md, O6–O7). Yksi multipointcoverage-kysely kaikille
+  21 asemalle, tiivis vastaus (`{t0, dt, n, asemat: {place: {ws, wg,
+  wd} | null}}`, 65 kB / gzip 18 kB), sama osoite kaikille käyttäjille
+  eli CDN-osuma. Ennen 24 kutsua käynnistyksessä ja ei yhtään sen
+  jälkeen. Tuorein lukema on historian viimeinen rivi (tuuli, suunta ja
+  puuska SAMALTA riviltä). Kortit hakevat yhä oman sarjansa (48 h /
+  168 h, `_havHaeSarja`).
+- **HAVAINNOT PÄIVITTYVÄT ISTUNNON AIKANA** (`_havPaivita`, O7): FMI,
+  Kruunuvuorenselkä, Mellsten, Laru, aaltopoijut, UiRaS ja kamerat
+  10 min välein kun sivu näkyy, ja Paluun 5–30 min haarassa heti.
+  Latausfunktiot ovat `_havPaivittajat`-listassa; uusi lähde lisätään
+  sinne eikä omaksi ajastimekseen. Merkit päivitetään `updateIcons()`illa
+  (valittu hetki ja kamera), ei suoralla `setIcon`illa.
+- **HAVAINNON IKÄ LASKETAAN LEIMASTA (`_havIkaMin`, `lastIso`), EI
+  PROXYN `ageMin`ISTA.** `ageMin` on laskettu hakuhetkellä ja vastaus on
+  CDN:ssä 5–10 min: "X min sitten" oli välimuistin iän verran liian
+  pieni ja jäätyi. Uusi ikäteksti lukee `_havIkaMin`iä.
+- **NYT-TIKILLÄ TUOREIN HAVAINTO, MENNEELLÄ TUNNILLA VAIN HISTORIA.**
+  Raja on `Ennuste.nytTunti()` (sama pyöristys kuin `nowIdx`): ennen
+  tunnin alkupuolella pilleri näytti tasatunnin historia-arvon ja
+  kortin "Havainnot nyt" tuoreimman. Menneellä tunnilla ilman
+  historiaa lukema on "—" eikä tuorein havainto, ja "ei signaalia"
+  koskee vain nykytilaa. Historia kattaa aikajanan menneisyyden
+  (`HAV_KARTTA_H` 48). Puuska haetaan SAMALTA HETKELTÄ (`iso`), ei
+  samasta indeksistä — FMI:n puuskasarja ei ole rinnakkain tuulen kanssa.
 - **KOPIO EI OLLUT VAIN PUUTTUVA RIVI VAAN VÄÄRÄ MITTAUS KOODISSA.**
   Spottikortin kommenttiin oli kirjattu "Hangon spoteille lähin on
   107–112 km — eri sääjärjestelmä, tyhjä on rehellisempi kuin väärä".
@@ -1902,14 +1950,44 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   merkkiä paikalleen, ja ilman erottelua yksi katko pyyhkisi
   havaintoasemat kartalta. `error: 'no data'` on proxyn merkintä juuri
   tälle — ensimmäinen versio testasi `!value.error` ja luokitteli
-  siksi tyhjän vastauksen verkkoviaksi.
+  siksi tyhjän vastauksen verkkoviaksi. Karttamerkkien yhteishaussa
+  sama sopimus on `asemat[place] === null` (tyhjä ikkuna → merkki pois,
+  ja se palaa kun data palaa) vs kaatunut haku tai 502 (mitään ei
+  poisteta, aiempi historia jää ja sen ikä ratkaisee tuoreuden).
+  Jos YKSIKÄÄN asema ei vastaa, proxy vastaa 502:lla eikä tyhjällä
+  listalla — kaikkien asemien yhtäaikainen "lakkautus" on FMI:n vika.
+- **YLÄVIRRAN VIRHE ON 502 JA `no-store`, EI `no data`**
+  (`api/_haku.js`, docs/oikeellisuus.md O5). FMI vastaa virheeseen
+  HTTP 400:lla ja `<ExceptionReport>`-rungolla; proxyt jäsensivät sen
+  ennen tyhjäksi ja vastasivat `{error:'no data'}` HTTP 200:lla, eli
+  kiintiön täyttyminen olisi pyyhkinyt havaintoasemat kartalta ja
+  WAM-rivin koko istunnoksi (`Aaltoennuste._tyhjat`). `haeFmi` heittää
+  muulla kuin 200:lla ja ExceptionReportilla; pisteennusteelle (WAM,
+  vedenkorkeus) vain 400 + "No data available" on tyhjä kate
+  (`tyhjaPoikkeuksesta`). Aikaraja on KOKO haulle (`req.setTimeout` on
+  joutoaika: 1,2 s:n raja laukesi 2,4 s:ssa). `Cache-Control`
+  asetetaan vasta onnistuneelle vastaukselle — virhe ei saa jäädä CDN:ään.
+- **KRUUNUVUORENSELÄN NOLLARIVI KESKELLÄ TUULTA ON KATKO**
+  (`api/kruunuvuori.js`, docs/oikeellisuus.md O10). Rivi `0.0, 0.0, 0`
+  (tuuli, puuska, suunta) tuli 14 vrk:ssa viisi kertaa naapureiden
+  1–3 m/s puuskan keskellä; kymmenen minuutin puuska 0,0 tarkoittaa ettei
+  kuppi pyörinyt. Rivi on puuttuva kun viereisen (≤ 30 min) rivin
+  puuska on vähintään 1,5 m/s, muuten se jää tyyneksi. Mellstenin
+  nollarivi on eri asia (ks. Mellsten) — älä yhdistä sääntöjä.
+- **UiRaS-proxyn vuodet tulevat ajon hetkestä (`[vuosi − 1, vuosi]`) ja
+  aikaleimat ovat `toISOString`-muotoa** (api/uiras.js, O9). Lista oli
+  kovakoodattu `[2025, 2026]`, ja lähteen leima on
+  `2026-09-28T20:58:54.348000+0000` (kuusi desimaalia, vyöhyke ilman
+  kaksoispistettä), jota asiakas jäsensi `new Date`llä. Asiakkaan
+  `uiras_latest`-leima normalisoidaan samalla säännöllä (`_isoAika`).
 - **Vuosaaren satamassa EI OLE tuulihavaintoa.** FMISID 151028 lähetti
   viimeksi 18.8.2026 (mitattu puolitushaulla); asema on yhä FMI:n
   asemarekisterissä, joten rekisteri ei kerro sitä. Korvaajaa
   etsittiin viidestä lähteestä eikä sitä ole (FMI 12 km säteellä, HSY,
   Marine Helsinki, Digitraffic, dlarah.org). Älä lisää sitä takaisin
   kovakoodattuna eikä näytä naapuriaseman lukemaa sen kohdalla —
-  merkki palaa itsestään jos FMI jatkaa lähettämistä.
+  merkki palaa itsestään jos FMI jatkaa lähettämistä. Sama koskee
+  Malmia (FMISID 101009), joka lähetti viimeksi 25.9.2026.
 
 **Kelikamera** (Laru; docs/data.md "Larun kelikamera", docs/ui.md
 "Kelikamera: play-kolmio pilleriin ja kamera asemakorttiin")
@@ -1958,7 +2036,7 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kymmenen pyyntoa yhden hinnalla.
 - **Lukema ei ole "nyt" eikä se seuraa aikajanaa.** Viive on mitattuna
   57–117 min, joten tuoreimman ikkuna on 6 h (3 h pudotti yhden aseman
-  kymmenestä pois) ja kortti sanoo aina `ageMin`. Havaintoa
+  kymmenestä pois) ja kortti sanoo aina iän (leimasta, `_havIkaMin`). Havaintoa
   tulevaisuuden tunnista ei ole olemassa.
 - **Kaikki poijut eivät mittaa aaltoja.** Neljä kymmenestä antaa
   aaltokorkeutta 0 %:ssa riveistä mutta lämpötilaa 45–50 %:ssa — ne ovat
@@ -2224,8 +2302,8 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   pyyntö 29.9.). Lähde antaa kuluvalta päivältä tekstinä vain 30 min,
   joten keräin (`tools/havainnot.mjs`) tallettaa lähteen rivit haaraan
   `havainnot` ja täydentää päättyneet päivät lähteen arkistosta
-  (arkiston rivi voittaa kerätyn). Merkki pyytää 24 h ja seuraa
-  aikajanaa, asemakortti 168 h, spottikortti 48 h. Mitattu Windgurua
+  (arkiston rivi voittaa kerätyn). Merkki pyytää 48 h (`HAV_KARTTA_H`)
+  ja seuraa aikajanaa, asemakortti 168 h, spottikortti 48 h. Mitattu Windgurua
   vasten 28 vrk: ero 0,37 kts, harha 0,000, tunnin siirto 1,5 kts ja
   vuorokauden 4,3 kts.
 - **PROXY EI LUOTA KERÄIMEEN** (käyttäjän raportti 29.9.: "apissa on
@@ -2279,6 +2357,25 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   ajastimesta mitään. Älä korvaa herätintä jatkuvasti pyörivällä
   Actions-ajolla (GitHubin ehdot) — ketjun odotus on ympäristön
   ajastimessa ILMAN konetta.
+- **SÄÄDATAN VARSINAINEN HERÄTIN ON HAVAINNOT-AJON ASKEL
+  (`tools/saaherate.mjs`, docs/oikeellisuus.md O1).** Säädatan ajastin
+  myöhästyi 22.–29.9. mediaanina 3,7 h (enintään 5,7 h), ja varasto oli
+  FMI:stä 1–3 ajoa jäljessä. Askel luotaa FMI:n tuoreimman ajon
+  (`harmonieAjot`) ja lähettää Säädatan kun FMI on varastoa edellä tai
+  varasto on yli 6 h vanha. Portit: varasto vähintään 2,5 h vanha,
+  Säädataa ei jonossa tai käynnissä, eikä yhtään Säädata-ajoa (myöskään
+  epäonnistunutta) luotu viimeisen 2 h aikana. Säädata on
+  `cancel-in-progress: false`: päällekkäinen ajastin ei saa perua melkein
+  valmista rakennusta. Jos muutat portteja, testaa yhdeksän tilannetta
+  valerajapintaa vasten kuten ajastinketjussa.
+- **JATKUVA VARMENNUS ON HAVAINNOT-AJON ASKEL (`tools/varmennus.mjs`,
+  O11).** Uuden varaston ennuste arkistoidaan rekisterin asemille
+  (`havainnot`-haara, `varmennus/ennusteet/`, 0–72 h, 4 vrk) ja
+  verrataan tunnin välein FMI:n havaintoihin: harha, MAE, suunta ja
+  puuska perheittäin, iän ja asematyypin mukaan (`varmennus/tulos.json`,
+  hälytykset ajon yhteenvetoon). Näytteistys ja Paras-sekoitus ovat
+  samat kuin `Saalaatat._naytePerhe` / `naytteista`; jos muutat
+  asiakkaan sekoitusta, muuta tätä samassa muutoksessa.
 - **AJASTINKETJU EI SAA KARATA.** Kolme porttia `tools/ajastin.mjs`:ssä:
   ei lenkkiä ilman vähintään 5 min odotusajastinta (luettu
   rajapinnasta), lenkki joka ei odottanut (`lenkki`-syöte = lähetyshetki)
@@ -2312,8 +2409,8 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   S3), joten varasto (`tools/laru.mjs`, `laru/YYYY-MM-DD.txt`) on
   VÄLIMUISTI JA VARMUUSKOPIO eikä historian ainoa lähde kuten
   Mellstenillä — puuttuva päivä haetaan lähteestä, ja ajastimen
-  viive vain siirtää kopiointia. Merkki pyytää 24 h (nyt keskiyön
-  yli), asemakortti 168 h, spottikortti 48 h. Mitattu Windgurun
+  viive vain siirtää kopiointia. Merkki pyytää 48 h (aikajanan
+  menneisyys, `HAV_KARTTA_H`), asemakortti 168 h, spottikortti 48 h. Mitattu Windgurun
   asemaa 47 vasten 7,6 vrk: ero 0,42 kts, harha −0,002 kts, tunnin
   siirto 1,3 kts ja vuorokauden 5,1–5,5 kts.
 - **VARASTOSSA ON VAIN VALMIITA PÄIVIÄ.** Keräin kopioi päivän vasta
@@ -2330,9 +2427,15 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
 - **Keräin on OMA ASKELEENSA** (`continue-on-error`, `timeout-minutes:
   3`, sisäinen 120 s budjetti): Larun vika ei saa estää Mellstenin
   rivien julkaisua samassa ajossa.
-- **Sarjan viimeinen piste on RAAKA tuorein havainto**, ei nipun
-  keskiarvo — muuten kaavion pää ja kortin päälukema olisivat eri
-  luvut samasta hetkestä.
+- **TUOREIN LUKEMA ON 10 MIN JAKSO, JA SARJAN VIIMEINEN PISTE ON SAMA
+  LUKEMA** (`kymmenenMinuuttia`, api/_varasto.js; docs/oikeellisuus.md
+  O10). Larun rivi on noin 1,7 min ja Mellstenin minuutti, ja yksittäinen
+  rivi heiluu 10 min keskiarvon ympärillä p10–p90 −0,43 … +0,45 m/s;
+  FMI-asemien ja ennusteen lukema on 10 min keskiarvo. `latest` on
+  tuoreimpaan riviin päättyvä 10 min jakso (keskiarvo, puuskan maksimi,
+  suunta yksikkövektoreista), ja se korvaa sarjan viimeisen pisteen —
+  muuten kaavion pää ja kortin päälukema olisivat eri luvut samasta
+  hetkestä. Kaavion minuuttirivit eivät muutu.
 
 **Kenttä ja data**
 
@@ -2375,25 +2478,35 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
 - **Kumpi taso on tarkempi EI OLE RATKAISTU.** Viiden asemaparin
   otoksesta vedettiin kerran johtopäätös "aikajana on tarkempi"; 48 h
   otos käänsi järjestyksen, ja siinäkin aikajanan otos oli vain 30
-  paria (spottisarjan menneisyys kattaa ~6 h). Molemmilla on sama
-  systemaattinen harha −1,79 m/s havaintoa vasten. Älä perustele
-  tasojen valintaa tarkkuudella ilman uutta mittausta.
+  paria (spottisarjan menneisyys kattaa ~6 h). Molemmilla oli sama
+  systemaattinen harha −1,79 m/s havaintoa vasten — MUTTA SE MITATTIIN
+  PELKÄN ECMWF-VARASTON AIKAAN. Nykyvarasto 28 asemalla 29.9.
+  (n = 441): FMI +0,02 / MAE 0,94, MET Nordic +0,06 / 0,96, ECMWF 0,25°
+  +0,13 / 1,12 m/s (docs/oikeellisuus.md). Mallien järjestys ratkeaa
+  jatkuvasta varmennuksesta (`varmennus/tulos.json`, O11) eikä
+  yksittäisestä päivästä; älä perustele tasojen valintaa tarkkuudella
+  ilman sitä.
 - **`WindTexture.hila` on kokonaan varastosta, eivätkä spotit ole
   siinä.** Kun se on olemassa, kaikki tähtäimen alla oleva luku tulee
   varastosta riippumatta siitä kuinka lähellä spotti on (mitattu 0,2 km
   päässä olevan spotin vaikutus lukemaan: ei mitään).
-- **VARASTON PUUSKA EI OLE TUNNIN PUUSKA.** Se puuttuu joka toiselta
-  kolmen tunnin askeleelta (mitattu 26/99), ja laattojen rakennus
-  täyttää aukon tuulella (`puu[t] = nop[t]`) — eli suhde on siellä
-  tasan 1,00. Ne askeleet joilla puuska on, ovat kuuden tunnin
-  maksimeja: suhde 1,55–1,77, kun HARMONIEn tuntipuuska samassa
-  pisteessä on 1,25 ja mitattu havainto 1,16. Älä näytä varaston
-  puuskaa lukuna jonka pitää tarkoittaa yhtä tuntia — se vilkkuisi
-  päälle ja pois joka toisella aikajanan askeleella. Kapselin puuska
-  luetaan siksi lähimmästä RAJAPINTApisteestä (`_puuskaPiste`), ja sen
-  etäisyysraja on `3 × step` lattialla 0,5° — TIUKEMPI kuin
-  lähdemerkinnällä eikä siinä ole `LAHDE_RAJA_MIN`-lattiaa, koska
-  puuska on paikan lukema eikä alueen mallin nimi.
+- **VARASTON ECMWF-PUUSKA EI OLE TUNNIN PUUSKA — FMI:N JA MET NORDICIN
+  ON.** ECMWF:n puuska on 3 h (+3 … +90 h) tai 6 h maksimi (+150 h →),
+  suhde 1,4–1,9, ja S3:n tiedostoista se puuttuu analyysihetkeltä ja
+  välillä +93 … +144 h KAIKISSA ajoissa (mitattu 29.9. neljästä
+  ajosta). Rakentaja täyttää nyt analyysihetken edellisen ajon +6 h:sta
+  ja välin +93 … +144 h puuska/tuuli-suhteena aukon reunoilta
+  (`taytaPuuskaAukot`, luettelon `puuskaArvio`; O8), joten "Puuska"-
+  kerros ei enää vilku eikä näytä tuulta puuskana. FMI:n ja MET
+  Nordicin tasoilla puuska on tunnin puuska samasta ajosta kuin tuuli
+  (harha +0,21 / +0,32 m/s havaitun tunnin maksimia vasten), ja
+  **KAPSELIN PUUSKA LUETAAN VARASTOSTA SAMASTA NÄYTTEESTÄ KUIN TUULI kun
+  luku on kokonaan FMI:tä tai MET Nordicia** (pohjan ja mallin oman
+  hilan osuus alle 1 %; `_puuskaVarastosta`, O4). Muualla varatie on
+  lähin RAJAPINTApiste enintään 15 km päässä (`_puuskaPiste`, oli
+  `3 × step` eli z 10:llä 80 km — Turun kohdalla puuska tuli Hanko
+  Silversandista), ja ilman sitä riviä ei ole. Älä näytä varaston
+  ECMWF-puuskaa lukuna jonka pitää tarkoittaa yhtä tuntia.
 - **Lähdemerkintä on VIIDES `_spotIdx`-paikka.** `Lahde.paivita` teki
   `State.currentHourIdx >= pt.wx.harmonie_hours`, eli vertasi aikajanan
   akselia (403 tikkiä, 16,6 vrk) pisteen oman akselin ensimmäisiin
@@ -2408,7 +2521,8 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   sivussa**, ja kahdessa paikassa seitsemästä väärän tunnin puuska
   hylättiin liian pieneksi jolloin koko rivi katosi. Vertailu
   "puuska yli 5 % keskituulesta" tehdään SARJAN SISÄLLÄ, ei kapselin
-  bikuubista varastonäytettä vastaan.
+  bikuubista varastonäytettä vastaan — varastopolulla saman näytteen
+  tuulta vastaan.
 - **Lähdemerkintä kertoo TÄHTÄIMEN lukeman lähteen.** Se luki ennen
   lähimmän ennustepisteen lähteen ja sanoi siksi Helsingissä HARMONIE
   vaikka luku tuli varastosta. Jos muutat kumpaakaan polkua, tarkista
@@ -2441,17 +2555,21 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
 - **PALUU TAUSTALTA ON UUDELLEENLATAUS, EI OSIEN PÄIVITYS** (`Paluu`,
   docs/julkaisu.md L7). ≥ 30 min taustalla → sivu ladataan uudelleen,
   näkymä ja auki ollut spotti säilyvät (sessionStorage) mutta aika
-  palaa nykyhetkeen; 5–30 min → vain nyt-valinta siirtyy uuteen
-  nyt-tuntiin, käyttäjän itse valitsemaa tuntia ei siirretä. Osien
-  päivitys paikallaan olisi viisi polkua (luettelo, havainnot, ennuste,
-  nykyhetki, kortti), joista jokainen voisi jäädä vanhaan.
+  palaa nykyhetkeen; 5–30 min → nyt-valinta siirtyy uuteen
+  nyt-tuntiin (käyttäjän itse valitsemaa tuntia ei siirretä) ja
+  havaintomerkit haetaan uudelleen (`_havPaivita`, joka ajaa muuten
+  10 min välein etualalla). Osien päivitys paikallaan olisi viisi polkua
+  (luettelo, havainnot, ennuste, nykyhetki, kortti), joista jokainen
+  voisi jäädä vanhaan — havainnot ovat poikkeus, koska niillä on yksi
+  latausfunktioiden lista (`_havPaivittajat`).
 - **SELAIMEN VIRHEET MENEVÄT `/api/virhe`:en** (`VirheRaportti`,
   `sendBeacon`): viesti, pinon alku, versio, polku — ei sijaintia eikä
   koordinaatteja, ja Tietoa-näkymän tietosuojateksti sanoo saman. Jos
   lisäät kenttiä, päivitä molemmat.
 - **`/api` ei kuulu service workerin välimuistiin.** Sovelluksella on oma
   ennustevälimuisti joka osaa merkitä datan vanhaksi. Säälaatat ovat eri asia:
-  ne ovat muuttumattomia ja versioituja (`?v=<ajoAika>`).
+  ne ovat muuttumattomia ja versioituja (`?v=<luotu>`, rakennushetki;
+  ks. "LAATTOJEN VERSIOAVAIN ON RAKENNUSHETKI").
 
 **Partikkelit**
 

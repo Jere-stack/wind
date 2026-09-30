@@ -1725,6 +1725,18 @@ Kaksi seurausta:
 Missä puuskan pitää olla tunnin luku, se luetaan rajapintapisteestä.
 Ks. `docs/ui.md`, "Kapselin puuskarivi katosi".
 
+**Päivitys 30.9.2026 (docs/oikeellisuus.md, O4 ja O8).** Tämä osio
+mitattiin pelkän ECMWF-varaston aikaan, ja se pätee vain ECMWF-perheeseen.
+FMI:n ja MET Nordicin tasoilla puuska on tunnin puuska samasta ajosta
+kuin tuuli (harha havaitun tunnin maksimia vasten +0,21 / +0,32 m/s,
+28 asemaa), ja kapselin puuska luetaan nyt varastosta kun luku on
+kokonaan niitä. ECMWF:n aukot selvisivät lähteestä: S3:n tiedostoissa
+puuska on vain +3 … +90 h ja +150 h:sta eteenpäin, ei analyysihetkellä
+eikä välillä +93 … +144 h missään ajossa. Rakentaja täyttää nyt
+analyysihetken edellisen ajon +6 h:sta ja välin puuska/tuuli-suhteena
+aukon reunoilta (`taytaPuuskaAukot`): l0-tasolla puuska puuttui
+26,5 %:sta solmuhetkiä (26/98 hetkeä), täytön jälkeen 0,026 %:sta.
+
 ## Laru (Lauttasaari) — neljäs oma proxy, ja ensimmäinen jolla on historiaa
 
 Käyttäjä pyysi Lauttasaareen saman kuin Mellsteniin. Lähde on
