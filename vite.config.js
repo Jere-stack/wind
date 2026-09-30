@@ -3,6 +3,7 @@ import { pathToFileURL } from 'node:url';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { execSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 
 /* Ajaa api/*.js -serverless-funktiot Viten dev- ja preview-serverissa.
  * Ilman tata frontend joutuisi kutsumaan API:a tuotannosta, jolloin
@@ -79,6 +80,19 @@ function tunnus() {
   return lyhyt + ' · ' + aika + ' UTC';
 }
 
+/* Ikonien osoitteet kantavat sisältöhajautteen (?v=). Selaimen välilehti-
+ * ikoni, kotivalikon kuvake ja jakoesikatselun välimuistit (WhatsApp,
+ * Slack, iMessage) avaimeavat kuvan osoitteella, joten muuttumaton osoite
+ * jätti vanhan merkin näkyviin uuden rinnalle. Hajaute muuttuu vain kun
+ * merkin tiedostot muuttuvat, ei joka deployssa. */
+function ikoniVersio() {
+  const h = createHash('sha1');
+  for (const n of ['icon.svg', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'favicon.ico']) {
+    try { h.update(readFileSync(resolve(process.cwd(), 'public', n))); } catch (e) { /* puuttuu */ }
+  }
+  return h.digest('hex').slice(0, 8);
+}
+
 function versioLeima() {
   let ulos = 'dist';
   return {
@@ -92,9 +106,13 @@ function versioLeima() {
       const t = resolve(process.cwd(), ulos, 'sw.js');
       if (!existsSync(t)) return;
       writeFileSync(t, readFileSync(t, 'utf8').replace(/__BUILD_ID__/g, tunnus()));
+      /* Manifestin ikonit samalla versiolla kuin sivun linkit. */
+      const m = resolve(process.cwd(), ulos, 'manifest.webmanifest');
+      if (existsSync(m)) writeFileSync(m, readFileSync(m, 'utf8').replace(/__IKONI_V__/g, ikoniVersio()));
     },
     transformIndexHtml(html) {
-      return html.replace(/__BUILD_ID__/g, tunnus()).replace(/__SIVU_URL__/g, sivuUrl());
+      return html.replace(/__BUILD_ID__/g, tunnus()).replace(/__SIVU_URL__/g, sivuUrl())
+        .replace(/__IKONI_V__/g, ikoniVersio());
     },
   };
 }

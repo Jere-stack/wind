@@ -16,7 +16,7 @@
  *
  * Ajo:
  *   node tools/ikoni.mjs          -> public/icon.svg
- *   node tools/ikoni.mjs --png    -> myös PNG-sarja (Chromium, ks. docs/pwa.md)
+ *   node tools/ikoni.mjs --png    -> myös PNG-sarja ja favicon.ico (Chromium, ks. docs/pwa.md)
  *   node tools/ikoni.mjs --inline -> latausruudun merkkilähde vakiovirtaan
  *                                    (symbolit, avautumisen geometria ja
  *                                    tuulijuovien värit, ks. latausMerkki)
@@ -243,7 +243,36 @@ async function png() {
     writeFileSync(resolve(JUURI, t.tiedosto), puskuri);
     console.log(t.tiedosto, t.koko + 'px', puskuri.length + ' B');
   }
+  /* favicon.ico: selaimet ja jakoesikatselut pyytävät sitä linkistä
+     riippumatta, ja ilman tiedostoa vercel.json:n catch-all-uudelleenkirjoitus
+     vastaa index.html:llä. PNG-sisältöinen ICO (32 ja 48 px). */
+  const ico = [];
+  for (const koko of [32, 48]) {
+    await sivu.setViewportSize({ width: koko, height: koko });
+    await sivu.setContent(`<body style="margin:0">` + ikoniSvg({ koko }) + `</body>`);
+    ico.push({ koko, puskuri: await sivu.screenshot() });
+  }
+  writeFileSync(resolve(JUURI, 'public/favicon.ico'), icoPaketti(ico));
+  console.log('public/favicon.ico', ico.map(i => i.koko).join('+') + 'px');
   await selain.close();
+}
+
+function icoPaketti(kuvat) {
+  const otsikko = Buffer.alloc(6);
+  otsikko.writeUInt16LE(1, 2);
+  otsikko.writeUInt16LE(kuvat.length, 4);
+  let siirto = 6 + 16 * kuvat.length;
+  const hakemisto = kuvat.map(({ koko, puskuri }) => {
+    const r = Buffer.alloc(16);
+    r[0] = koko; r[1] = koko;
+    r.writeUInt16LE(1, 4);
+    r.writeUInt16LE(32, 6);
+    r.writeUInt32LE(puskuri.length, 8);
+    r.writeUInt32LE(siirto, 12);
+    siirto += puskuri.length;
+    return r;
+  });
+  return Buffer.concat([otsikko, ...hakemisto, ...kuvat.map(k => k.puskuri)]);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

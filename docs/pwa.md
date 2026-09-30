@@ -194,3 +194,15 @@ Jos latausruutu joskus vaihtaa väriä, `background_color` vaihtuu sen
 mukana — ei `theme_color`in. Tilapalkkiin (`black-translucent`, valkoinen
 teksti sisällön päällä) kumpikaan ei vaikuta; tummalla ylälaidalla
 mitattu kontrasti on 19,65:1, ks. `docs/ui.md`.
+
+## Merkki samana kaikkialla: versioidut osoitteet ja favicon.ico (30.9.)
+
+Kaikki kuvatiedostot (`icon.svg`, PNG-sarja) olivat jo uutta merkkiä; vanha
+näkyi, koska osoitteet eivät vaihtuneet: selaimen välilehti-ikoni ja
+jakoesikatselujen (WhatsApp, Slack, iMessage) välimuistit avaimeavat kuvan
+osoitteella. Nyt sivun linkit, `og:image`, `twitter:image` ja manifestin
+ikonit kantavat `?v=<sisältöhajaute>` (`ikoniVersio()`, vite.config.js:
+muuttuu vain kun merkin tiedostot muuttuvat). Lisäksi `public/favicon.ico`
+(32 + 48 px, `tools/ikoni.mjs --png`): ilman sitä catch-all-rewrite vastasi
+`/favicon.ico`-pyyntöön index.html:llä. `og:image:alt` kuvasi vanhaa kaarta.
+Jos merkki muuttuu: aja `tools/ikoni.mjs --png`, hajaute päivittyy itse.
