@@ -239,13 +239,25 @@ function rakennaAikaAkseli(ajot, menneisyysH, dtSek) {
   const alku = Math.floor((Date.now() - menneisyysH * 3600e3) / dtMs) * dtMs;
   /* Ajo -> Set kattamista hetkistä, jotta valinta on O(1). */
   const katteet = ajot.map(a => ({ a, ajat: new Set(a.meta.valid_times.map(Date.parse)) }));
+  const ajoMs = a => Date.parse(`${a.pv.replace(/\//g, '-')}T${a.ajo.slice(0, 2)}:00:00Z`);
   const akseli = [];
   for (let t = alku; t <= loppu; t += dtMs) {
     const osumat = katteet.filter(k => k.ajat.has(t));
+    if (!osumat.length) continue;
     /* `varat` = vanhemmat ajot jotka kattavat saman hetken, tuoreimmasta
        alkaen: niistä haetaan puuska kun valitulla ajolla sitä ei ole
-       (analyysihetki, O8). */
-    if (osumat.length) akseli.push({ ms: t, ajo: osumat[0].a, varat: osumat.slice(1).map(k => k.a) });
+       (analyysihetki, O8).
+       VARA ON ENINTÄÄN 12 h VANHEMPI AJO JA SEN OMA ENNUSTEAIKA ENINTÄÄN
+       +90 h. Ilman rajaa aukko +93 … +144 h täyttyi puolentoista–kahden
+       ja puolen vuorokauden vanhan ajon puuskalla sen 6 h maksimin
+       alueelta, eli toisen ennusteen puuskalla tämän tuulen päälle:
+       mitattuna 1.10. Helsingissä puuska 8,8 m/s kun tuuli oli 11,0
+       (+109 h), ja kolmella hetkellä seitsemästä puuska < tuuli. Aukko
+       täytetään nyt suhteena (`taytaPuuskaAukot`). */
+    const t0 = ajoMs(osumat[0].a);
+    const varat = osumat.slice(1).map(k => k.a)
+      .filter(a => t0 - ajoMs(a) <= 12 * 3600e3 && t - ajoMs(a) <= 90 * 3600e3);
+    akseli.push({ ms: t, ajo: osumat[0].a, varat });
   }
   return akseli;
 }

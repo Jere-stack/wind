@@ -27562,14 +27562,14 @@ const Crosshair = {
    *    tuntipuuska samassa pisteessä on 1,25 ja Harmajan mitattu havainto
    *    1,16. Kapselin puuska on tunnin luku, ei vuorokauden pahin hetki.
    *
-   *    TÄMÄ PÄTEE VAIN VARASTON ECMWF-PERHEESEEN. FMI:n ja MET Nordicin
-   *    tasoilla puuska on tunnin puuska, ja silloin se luetaan
-   *    varastosta (`_puuskaVarastosta`, docs/oikeellisuus.md O4).
+   *    TÄMÄ ON HISTORIAA. Aukot on täytetty rakennuksessa (O8), ja
+   *    3 h maksimi on mitattuna kelpo tunnin puuska (O11), joten puuska
+   *    luetaan nyt AINA varastosta kun kartta lukee sitä — 6 h maksimin
+   *    alueella riviä ei ole (`_puuskaVarastosta`).
    *
-   * Muualla puuska luetaan lähimmästä RAJAPINTApisteestä (enintään
-   * 15 km), jolla on aito tuntikohtainen puuskasarja. Jos sellaista ei
-   * ole (avomeri, ECMWF-alue), riviä ei ole — tyhjä rivi säilyttää
-   * tilansa, joten kapselin korkeus ei hypi.
+   * Vain kun kartta ei lue varastoa, puuska luetaan lähimmästä
+   * RAJAPINTApisteestä (enintään 15 km). Ilman puuskaa rivi on tyhjä ja
+   * säilyttää tilansa, joten kapselin korkeus ei hypi.
    *
    * Vertailu tehdään SARJAN SISÄLLÄ: puuskaa verrataan saman sarjan
    * samaan tuntiin, ei kapselin bikuubiseen varastonäytteeseen. Muuten
@@ -27600,10 +27600,25 @@ const Crosshair = {
      ulkopuolella kapseli sanoi puuskaksi 2,7 × tuuli, kun saman mallin
      suhde samassa pisteessä oli 1,6.
 
-     Ehto: pohjamallin (varaston ECMWF, 3–6 h maksimi ja aukkoinen, O8)
-     JA mallin oman hilan osuus sekoituksessa yhteensä alle 1 %, eli luku
-     on kokonaan FMI:tä tai MET Nordicia. Muuten `undefined`, ja kutsuja
-     käyttää lähintä rajapintapistettä tiukalla rajalla.
+     AINA VARASTOSTA KUN KARTTA LUKEE VARASTOA (1.10., käyttäjän raportti
+     "puuskat eivät päivity kun siirtää karttaa"). Ehto oli ennen "luku on
+     kokonaan FMI:tä tai MET Nordicia", ja muualla puuska tuli lähimmästä
+     SPOTISTA 15 km:n sisältä. Pääkaupunkiseudulla lähes jokainen kohta on
+     15 km:n päässä jostain spotista, joten FMI:n jakson (~66 h) jälkeen
+     puuska oli spotin luku koko alueella eikä muuttunut karttaa
+     siirrettäessä — vain tunnin vaihto muutti sen. Mitattu ennen: +80 h,
+     viisi siirtoa Helsingin edustalla, puuska joka kerta Lauttasaaren 15,0.
+     ECMWF:n 3 h maksimi kelpaa tunnin puuskaksi: jatkuva varmennus
+     (O11, n = 4 845, 0–48 h) antaa sille harhan +0,04 m/s havaitun tunnin
+     maksimia vasten (FMI −0,30), ja puuska/tuuli-suhteen mediaani on
+     +150 h:iin asti 1,41–1,50 (FMI 1,29–1,32; 115 pistettä Suomenlahdelta).
+     6 H MAKSIMI EI KELPAA: varaston akselin 6 h osuudella (yli ~+144 h)
+     suhde on 1,78, joten kun ECMWF:n (pohja tai mallin oman hilan ECMWF)
+     osuus on yli 1 % ja akselin askel on yli 3 h, riviä ei ole (`null`).
+     Samoin kun laatta puuttuu vielä (`_vajaa`): `refresh` laskee uudelleen
+     kun kenttä on rakennettu tulleista laatoista.
+     `undefined` vain kun kartta ei lue varastoa — silloin tuulikin tulee
+     rajapintapisteistä, ja kutsuja lukee lähimmän pisteen.
      Varaston tila (hetki, puuskatila) palautetaan: kutsuja ei saa huomata
      käyntiä, sama sopimus kuin `wxTunneittain`issa. */
   _puuskaVarastosta(center) {
@@ -27614,15 +27629,20 @@ const Crosshair = {
     try {
       if (S._hetkiMs !== State.valittuMs) S.asetaHetki(State.valittuMs);
       S._puuskaTila = false;
-      if (!S.naytteista(center.lat, center.lng, step) || S._vajaa) return undefined;
+      if (!S.naytteista(center.lat, center.lng, step) || S._vajaa) return null;
       const O = S._osuus;
-      let yht = 0, muut = 0;
+      let yht = 0, ecmwf = 0;
       for (let k = 0; k < O.length; k++) {
         yht += O[k];
         const p = S._perheet[k];
-        if (p.pohja || p.dyn) muut += O[k];
+        if (p.pohja || (p.dyn && p.api === 'ecmwf')) ecmwf += O[k];
       }
-      if (!(yht > 0) || muut / yht > 0.01) return undefined;
+      if (!(yht > 0)) return null;
+      if (ecmwf / yht > 0.01) {
+        const ax = S._perus, ts = ax.tsMs;
+        const i = Math.min(ax.ti, ts.length - 2);
+        if (!(ts[i + 1] - ts[i] <= 3 * 3600e3)) return null;
+      }
       const tuuli = Math.hypot(S._nU, S._nV);
       S._puuskaTila = true;
       if (!S.naytteista(center.lat, center.lng, step)) return undefined;
@@ -27633,7 +27653,7 @@ const Crosshair = {
     }
   },
   /* Lähin piste jolla on tuntikohtainen puuskasarja — VARATIE, kun
-     varaston puuska ei ole tunnin puuska (ECMWF-alue, mallin oma hila).
+     kartta ei lue varastoa (varasto rikki, kenttä rajapintapisteistä).
      Laattapisteet ohitetaan (ks. yllä).
      RAJA ON 15 km (docs/oikeellisuus.md, O4). Se oli `3 × step`, lattia
      0,5°: z 10:llä 0,75° ≈ 80 km, ja Turun kohdalla kapseli näytti Hanko
@@ -27659,7 +27679,7 @@ const Crosshair = {
     /* Ensin varasto: sama piste, hetki ja sekoitus kuin tuulella. Vertailu
        SAMAN näytteen tuuleen, ei kapselin bikuubiseen lukuun. */
     const v = this._puuskaVarastosta(center);
-    if (v) return v.puuska > v.tuuli * 1.05 ? v.puuska : null;
+    if (v !== undefined) return v && v.puuska > v.tuuli * 1.05 ? v.puuska : null;
     const pt = this._puuskaPiste(center);
     if (!pt) return null;
     const h = pt.wx.hourly;

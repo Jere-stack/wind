@@ -497,3 +497,61 @@ buildeina omissa porteissaan, vuorotellen, mediaani.
   herättimen yhteenveto kertovat sen ensimmäisten päivien jälkeen.
 - Mallien järjestys ja harhakorjaus: vasta kun varmennuksessa on
   viikkojen ja kovan tuulen otos ("Mitä ei kannata tehdä").
+
+## Jälkitarkistus (1.10.2026): kapselin puuska ja ECMWF-puuskan laina
+
+**Oire (käyttäjä).** Yläpalkin (kapselin) puuska ei päivittynyt karttaa
+siirrettäessä, vain tunnin vaihdossa.
+
+**Syy.** O4:n ehto luki puuskan varastosta vain kun luku oli kokonaan
+FMI:tä tai MET Nordicia. Muualla — FMI:n ja MET Nordicin jakson (~60–66 h)
+jälkeen, ja aina kun ECMWF:n osuus ylitti 1 % — puuska tuli lähimmästä
+rajapintapisteestä 15 km:n sisältä, eli Suomessa spotista.
+Pääkaupunkiseudulla lähes jokainen kohta on 15 km:n päässä jostain
+spotista: +80 h:lla viisi siirtoa Helsingin edustalla antoi joka kerta
+Lauttasaaren 15,0 kts, vaikka varaston puuska samoissa kohdissa oli
+7,8–11,7 m/s.
+
+**ECMWF:n puuska mitattiin uudelleen.** O4:n perustelu ("3–6 h maksimi
+ja aukkoinen") oli kirjattu ennen O8:aa ja O11:tä:
+
+| | 0–24 h | 24–48 h | 48–90 h | 90–150 h | 150 h → |
+|---|---|---|---|---|---|
+| ECMWF puuska/tuuli, mediaani | 1,41 | 1,45 | 1,50 | 1,44 | **1,78** |
+| FMI | 1,29 | 1,32 | 1,32 | — | — |
+| MET Nordic | 1,30 | 1,32 | 1,34 | — | — |
+
+(115 pistettä Suomenlahdelta 59,6–60,6° / 21,5–27°, tuuli ≥ 3 m/s,
+varasto 1.10. klo 17.) Varmennus (`varmennus/tulos.json`, 1.10. 16:29Z,
+n = 4 845, 0–48 h) havaitun tunnin maksimia vasten: ECMWF puuskan harha
++0,04 / MAE 0,98 m/s, FMI −0,30 / 1,00, MET Nordic −0,37 / 0,99. 3 h
+maksimi on siis tunnin puuskana yhtä osuva kuin FMI:n tuntipuuska; 6 h
+maksimi (akselin 6 h osuus) ei ole.
+
+**Löytyi rakentajan vika.** 90–150 h:n lokerossa 229 näytettä 2 050:stä
+oli puuska = tuuli, ja Helsingin solmussa puuska oli kolmella hetkellä
+seitsemästä tuulta PIENEMPI (+109 h: tuuli 11,0, puuska 8,8 m/s).
+Nämä hetket eivät olleet suhteella täytettyjä (`puuskaArvio`) vaan
+lainattuja: `rakennaAikaAkseli` antoi `varat`-listaan KAIKKI vanhemmat
+ajot jotka kattavat hetken, ja aukossa +93 … +144 h puuska tuli 1,5–2,5
+vrk vanhan ajon 6 h maksimin alueelta — toisen ennusteen puuska tämän
+ennusteen tuulen päälle.
+
+**Korjaus.**
+- Rakentaja: vara on enintään 12 h vanhempi ajo ja hetki on sen omalla
+  +0 … +90 h:lla (3 h maksimi). Analyysihetki saa yhä edellisen ajon
+  puuskan; aukko täytetään suhteena. Tarkistettu akselilla: T+0 saa
+  kaksi varaa, +93 … +150 h ei yhtään.
+- Kapseli (`_puuskaVarastosta`): aina varastosta kun kartta lukee
+  varastoa. Kun ECMWF:n (pohja tai mallin oman hilan ECMWF) osuus on yli
+  1 % ja varaston akselin askel yli 3 h, riviä ei ole. Puuttuva laatta →
+  ei riviä, ja `refresh` laskee uudelleen laattojen tultua.
+  Rajapintapiste vain kun kartta ei lue varastoa.
+
+**Jälkimittaus** (työpöytä, z 10, viisi siirtoa, levossa ja kesken):
++0, +30, +80 ja +120 h — puuska vaihtuu joka siirrolla ja on täsmälleen
+varaston saman näytteen puuska (esim. 4,20 / 5,40 m/s = 8,2 / 10,5 kts);
++170 h ei riviä. Kapselin tuuli = varaston näyte (8,2 kts = 4,22 vs
+4,20 m/s, bikuubinen vs bilineaarinen). Varaston vanhat lainatut puuskat
+korjautuvat seuraavassa Säädata-rakennuksessa; siihen asti kapseli
+piilottaa puuskan joka ei ylitä tuulta 5 %:lla.

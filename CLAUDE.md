@@ -2809,13 +2809,22 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   kerros ei enää vilku eikä näytä tuulta puuskana. FMI:n ja MET
   Nordicin tasoilla puuska on tunnin puuska samasta ajosta kuin tuuli
   (harha +0,21 / +0,32 m/s havaitun tunnin maksimia vasten), ja
-  **KAPSELIN PUUSKA LUETAAN VARASTOSTA SAMASTA NÄYTTEESTÄ KUIN TUULI kun
-  luku on kokonaan FMI:tä tai MET Nordicia** (pohjan ja mallin oman
-  hilan osuus alle 1 %; `_puuskaVarastosta`, O4). Muualla varatie on
-  lähin RAJAPINTApiste enintään 15 km päässä (`_puuskaPiste`, oli
-  `3 × step` eli z 10:llä 80 km — Turun kohdalla puuska tuli Hanko
-  Silversandista), ja ilman sitä riviä ei ole. Älä näytä varaston
-  ECMWF-puuskaa lukuna jonka pitää tarkoittaa yhtä tuntia.
+  **KAPSELIN PUUSKA LUETAAN AINA VARASTOSTA SAMASTA NÄYTTEESTÄ KUIN
+  TUULI kun kartta lukee varastoa** (`_puuskaVarastosta`, 1.10.). Ehto
+  oli ennen "kokonaan FMI:tä tai MET Nordicia", ja muualla puuska tuli
+  lähimmästä spotista 15 km:n sisältä — FMI:n jakson jälkeen se oli
+  Helsingin edustalla sama Lauttasaaren luku joka kohdassa eikä
+  muuttunut karttaa siirrettäessä (käyttäjän raportti). ECMWF:n 3 h
+  maksimi kelpaa: varmennus (O11, n = 4 845, 0–48 h) antaa harhan
+  +0,04 m/s havaitun tunnin maksimia vasten (FMI −0,30), suhteen
+  mediaani +150 h:iin 1,41–1,50. **6 H MAKSIMI EI KELPAA** (suhde 1,78):
+  kun ECMWF:n osuus on yli 1 % ja varaston akselin askel yli 3 h,
+  riviä ei ole. Rajapintapiste (`_puuskaPiste`, 15 km) on vain kun
+  kartta ei lue varastoa. **Rakentaja lainaa puuskan vain enintään
+  12 h vanhemmalta ajolta sen omalta +0 … +90 h:lta**
+  (`rakennaAikaAkseli`, `varat`): rajaton laina täytti aukon +93 …
+  +144 h päivien vanhan ajon 6 h maksimilla, ja puuska oli kolmella
+  hetkellä seitsemästä tuulta pienempi (+109 h: tuuli 11,0, puuska 8,8).
 - **Lähdemerkintä on VIIDES `_spotIdx`-paikka.** `Lahde.paivita` teki
   `State.currentHourIdx >= pt.wx.harmonie_hours`, eli vertasi aikajanan
   akselia (403 tikkiä, 16,6 vrk) pisteen oman akselin ensimmäisiin
