@@ -290,7 +290,8 @@ kokeiltu ja kaadettu mittauksella.
   **Aikajana: pilleri jumissa, napautus pysähtyi ja hiiriveto** ·
   **Aallot kartalla: kerros, väri, aallonharjat ja aikajana** ·
   **Sade neljänneksi kerrokseksi: GL-sadekerros ja esikatselukuvat** ·
-  **Yömeri: valikot ja kaaviot kuvakkeen väreihin**
+  **Yömeri: valikot ja kaaviot kuvakkeen väreihin** ·
+  **Yömeri, toinen erä: asetukset, kortit, sääikonit, spottien väistö**
 - **pwa**: PWA — kotivalikkoon ja rannalle · Mitä välimuistiin menee ·
   Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
   Ikoni ja kotivalikko
@@ -600,6 +601,13 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   vaarallinen keli) — käyttäjän päätös 1.10. Nimilappu tai datapiste ei
   ole kumpaakaan; ne ovat mustetta. Aikajanan valintaosoitin ja
   tähtäimen tuulinuoli ovat mustetta (kermaa), eivät aksenttia.
+- **SÄÄIKONIT OVAT HILLITYN VÄRIKKÄITÄ** (`WX_ICONS`, käyttäjän pyyntö
+  1.10.): aurinko kulta `#EFC566`, pilvi `#BAC4D2` kevyellä täytöllä,
+  vesi `#7FB4F2`, lumi `#CFE4F7`, salama `#F2CC5C`, sumu `#A9B2BF` —
+  7,0–11,6:1 tummaa pintaa vasten. Ikoni on yhä viivapiirros; älä vie
+  sävyjä rampin kylläisyyteen, jottei ikoni lue tuulen värinä. Ikoni on
+  kapselissa, tuntisäässä ja spottikortin ilmalaatassa lämpötilan
+  vieressä.
 - **`var()` ei toimi SVG:n esitysattribuuteissa.** Kaavioiden `fill=` tarvitsee
   literaalin; inline-tyyleissä tokenit toimivat.
 
@@ -878,6 +886,19 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   paikassa (`_SULJE_SVG`); staattisten nappien span on tyhjä ja
   täytetään siitä. Älä palauta tekstinappia äläkä kirjoita paneelille
   omaa sulkunappia.
+- **PANEELIN KORTTI ON PINTA, EI KEHYS** (Yömeri, 1.10.): korotettu
+  kortti on `--surface-hi` `--surface`n päällä, 16 px kulma, EI
+  reunaviivaa eikä varjoa (`.sp-card`, `.sh-moduli`, `.sh-laatat .sh-stat`,
+  `.fc-window`…; lohko "PINNAT ILMAN REUNAVIIVOJA" CSS:n lopussa).
+  Ryhmän nimi on kortin ULKOPUOLELLA pienenä versaalina (`.sp-ryhma`,
+  `.sh-ryhma`, 600). Kartan päällä kelluvat (kapseli, opastus, toast,
+  verkkotila, nappien laput) PITÄVÄT reunansa, koska niiden alla on
+  kartta. Valittu segmentti on `--surface-nosto` (`#2B3649`) eikä
+  kermatäyttö: asetusten `.sp-seg`, kortin `.segmentti` ja
+  ennustepaneelin `.fc-rajaus` ovat sama muoto. Useamman kuin neljän
+  vaihtoehdon valinta on LISTA (`.sp-lista`, radio oikealla, alateksti
+  kertoo mistä malli on), ei rivittyvä sirurivi. Uusi asetus käyttää
+  näitä; älä palauta reunaviivaa korttiin.
 - **SEGMENTTIVALITSIN ON YKSI (`.segmentti`)**: jaksot (ennuste,
   havainto, vesi, laaja) ja mallien asettelu. Valittu on korotettu
   pinta ja muste `aria-pressed`ista; kortin ennusteessa oli musta
@@ -2355,6 +2376,22 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   (nyt MapLibren `Marker`-elementti, `Merkki._el`) kantaa
   `translate`-sijainnin eikä liiku väistön mukana — kuoresta mitattu
   peitto valehtelee.
+- **SPOTTIEN VÄISTÖ EI RIIPU TUNNISTA, JA LÄHIZOOMISSA KAIKKI OVAT
+  TÄYSIÄ** (käyttäjän raportti 1.10.: Munkkiniemi ja Otaniemi hyppivät
+  tunnin vaihdossa). Väistö järjesti ennen tunnin pistemäärän mukaan,
+  joten 1,9 km:n päässä olevat spotit vaihtoivat täyttä merkkiä ja
+  pistettä joka askeleella. Nyt järjestys on kiinteä (`_spotJarjestys`:
+  suosikit, sitten `SPOTS`in järjestys), ja zoomista `SPOT_KAIKKI_Z` (10,
+  Leaflet-asteikko) alkaen yksikään spotti ei väisty — päällekkäisestä
+  parista väistyy vain NIMI (`_spotNimetPois`). Mitattu 12 tuntia × z9,
+  z10, z11: jokaisella zoomilla yksi tila koko ajan. Älä palauta
+  pistemäärää väistön järjestykseksi.
+- **KAUKANA ASEMA ON GLYFI, KUTEN AALTOPOIJU** (käyttäjän pyyntö 1.10.).
+  Pilleri-zoomin alla tuuliasema on viiri, vedenlämpö aaltoviiva ja
+  poiju aalto + mitta, kaikki `_kaukoGlyfi`n kautta (13 × 11, opasiteetti
+  .9 / z < 5 .55, hiljainen puolet siitä). Erillistä pientä ruksia ei
+  piirretä z < 8 (`_makeStationIcon` palauttaa tyhjän) — se oli toinen
+  merkki samalle asemalle.
 - **Väistön suunta lukitaan ensimmäisestä osumasta.** Ilman lukitusta se
   työntää ylös yhden ohi, törmää seuraavaan ja työntää takaisin alas:
   nettosiirto 3 px. Pistetilassa väistöä ei ajeta lainkaan.

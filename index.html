@@ -217,6 +217,7 @@ if ('serviceWorker' in navigator) {
   --surface-lo:   #0E141F;   /* upotettu: segmenttiraita, palkin ura  */
   --hairline:     #313D52;   /* erotin — ei koskaan tekstiä           */
   --hairline-soft:#263043;
+  --surface-nosto:#2B3649;   /* valittu segmentti kortin päällä          */
 
   --ink:    #F0E7CE;         /* kuvakkeen siipi: otsikot, arvot  ks. alla */
   --ink-2:  #C3BFB2;         /* kuvaukset, yksiköt                        */
@@ -979,15 +980,18 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
 
 /* ── ASETUSTEN RYHMÄT (UI 22) ─────────────────────────────────────── */
 .sp-ryhma {
-  margin: 26px 0 14px; font-size: 15px; font-weight: 700; color: var(--ink);
-  letter-spacing: -0.005em;
+  /* Yömeri (1.10.): ryhmän nimi on korttien ULKOPUOLELLA pienenä
+     versaalina, kuten järjestelmän asetuksissa — kortti kertoo ryhmän,
+     otsikko vain nimeää sen. */
+  margin: 26px 4px 8px; font-size: var(--fs-11); font-weight: 600; color: var(--ink-3);
+  letter-spacing: .08em; text-transform: uppercase;
 }
 .sp-ryhma:first-child { margin-top: 4px; }
-.sp-asteikko { background: var(--surface-hi); border-radius: 12px; padding: 12px 13px 11px; }
+.sp-asteikko { background: none; border-radius: 0; padding: 0; }
 .sp-linkkirivi {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  width: 100%; min-height: 48px; padding: 0 14px; box-sizing: border-box;
-  background: var(--surface-hi); border: 1px solid var(--hairline-soft); border-radius: 12px;
+  width: 100%; min-height: 52px; padding: 0 14px; box-sizing: border-box;
+  background: none; border: 0; border-radius: 0;
   color: var(--ink); font-size: var(--fs-13); font-weight: 600; text-align: left; cursor: pointer;
 }
 .sp-linkkirivi svg { color: var(--ink-3); flex-shrink: 0; }
@@ -996,7 +1000,7 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
    -nappi poistettiin käyttäjän päätöksellä, ja se avasi saman näkymän. */
 .sp-linkki-sub { display: block; margin-top: 2px; font-size: var(--fs-11); font-weight: 500; color: var(--ink-3); }
 .sp-linkkirivi:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.sp-versio { margin-top: 10px; font-size: var(--fs-11); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.sp-versio { padding: 10px 14px 12px; border-top: 1px solid var(--hairline-soft); font-size: var(--fs-11); color: var(--ink-3); font-variant-numeric: tabular-nums; }
 
 /* ── TIETOA (UI 2 ja L6) — sama laatikko kuin asetuksilla, pinossa sen
    päällä. ─────────────────────────────────────────────────────────── */
@@ -1141,10 +1145,15 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
 /* Ryhmäotsikko. Versaali on iOS:n oma tapa, mutta luettavassa koossa:
    11 px, paino 600, kevyt harvennus — ei 9 px kolmanneksen opasiteetilla. */
 .sp-label {
-  font-size: var(--fs-11); font-weight: 600;
-  color: var(--ink-3); letter-spacing: .06em; text-transform: uppercase;
+  font-size: var(--fs-13); font-weight: 600;
+  color: var(--ink); letter-spacing: 0; text-transform: none;
   margin-bottom: 9px;
 }
+.sp-label-vali { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--hairline-soft); }
+/* Rivi: nimi vasemmalla, segmentti oikealla (kieli). */
+.sp-rivi { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sp-rivi > .sp-label { margin: 0; }
+.sp-rivi > .sp-seg { flex: 0 1 220px; }
 
 /* Sirurivin alle tuleva selitys. Pienempi ja kevyempi kuin ryhmäotsikko:
    se kertoo mitä valinta tekee, eikä sitä lueta joka kerta. */
@@ -1153,16 +1162,54 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
   margin-top: 7px;
 }
 
-/* Lohko on pelkkä ryhmä, ei kortti. Kun kaikki on korostettu, mikään ei ole. */
+/* KORTTI ON RYHMÄ (Yömeri 1.10.). Paperilla lohko oli pelkkä ryhmä ilman
+   pintaa; tummalla korotettu pinta on se mikä erottaa ryhmät toisistaan
+   ilman viivoja tai varjoja. Yksi pinta, yksi säde, sama täyte. */
 .sp-card {
-  padding: 0;
-  margin-bottom: 22px;
-  background: none; border: none;
+  padding: 14px;
+  margin-bottom: 12px;
+  background: var(--surface-hi); border: none; border-radius: 16px;
 }
 .sp-card:last-child { margin-bottom: 0; }
+.sp-card-lista { padding: 0; overflow: hidden; }
 
 /* Valintasirut */
 .sp-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+/* SEGMENTTI: vaihtoehdot yhdellä uralla, valittu on korotettu pinta.
+   Sama muoto kuin kortin `.segmentti`, täysleveänä. */
+.sp-seg {
+  flex-wrap: nowrap; gap: 2px; padding: 3px;
+  background: var(--surface-lo); border-radius: 11px;
+}
+.sp-seg > .sp-chip {
+  flex: 1 1 0; min-width: 0; justify-content: center; height: 32px; padding: 0 8px;
+  border-radius: 8px; background: transparent; color: var(--ink-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sp-seg > .sp-chip.active {
+  background: var(--surface-nosto); color: var(--ink); font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0,0,0,.35), inset 0 1px 0 rgba(240,231,206,.06);
+}
+.sp-seg > .sp-chip:focus-visible { outline-offset: -2px; }
+/* LISTA: valinnat riveinä, valinta on radioympyrä oikealla. */
+.sp-lista { flex-direction: column; flex-wrap: nowrap; gap: 0; margin: -6px 0; }
+.sp-lista > .sp-chip {
+  height: auto; min-height: 50px; padding: 8px 2px; border-radius: 0; background: none;
+  justify-content: space-between; gap: 12px; color: var(--ink);
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.sp-lista > .sp-chip:last-child { border-bottom: 0; }
+.sp-lista > .sp-chip::after {
+  content: ''; flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; box-sizing: border-box;
+  border: 1.5px solid var(--ink-3); transition: border .15s ease, background .15s ease;
+}
+.sp-lista > .sp-chip.active { background: none; color: var(--ink); }
+.sp-lista > .sp-chip.active::after { border: 5.5px solid var(--accent); background: var(--accent-teksti); }
+.sp-lista > .sp-chip:active { transform: none; background: var(--surface-lo); }
+.sp-lista > .sp-chip:focus-visible { outline-offset: -2px; border-radius: 6px; }
+.sp-valinta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sp-valinta-nimi { font-size: 14px; font-weight: 500; }
+.sp-valinta-sub { font-size: var(--fs-11); font-weight: 400; color: var(--ink-3); }
 .sp-chip {
   height: 34px; border-radius: 9px; padding: 0 14px;
   background: var(--surface-lo);
@@ -1221,31 +1268,32 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
 }
 .sp-chip.sp-kerros.active { background: none; color: var(--ink); font-weight: 600; }
 .sp-chip.sp-kerros.active .sp-kerros-kuva {
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink), 0 2px 6px rgba(20, 26, 34, .22);
+  box-shadow: 0 0 0 2px var(--surface-hi), 0 0 0 4px var(--ink), 0 2px 6px rgba(0, 0, 0, .35);
 }
 @media (any-hover: hover) {
   .sp-chip.sp-kerros:not(.active):hover .sp-kerros-kuva { transform: translateY(-1px); }
 }
 .sp-chip.sp-kerros:focus-visible { outline: none; }
 .sp-chip.sp-kerros:focus-visible .sp-kerros-kuva {
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+  box-shadow: 0 0 0 2px var(--surface-hi), 0 0 0 4px var(--accent);
 }
 
 /* Karttatasot: rivit yhtenä korotettuna listana, erottimet vain väleissä. */
 .sp-rows {
-  background: var(--surface-hi);
-  border-radius: 12px;
+  background: none;
+  border-radius: 0;
   overflow: hidden;
 }
 .sp-toggle-row {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 11px 13px;
+  padding: 12px 14px; min-height: 56px; box-sizing: border-box;
   border-bottom: 1px solid var(--hairline-soft);
   cursor: pointer; -webkit-user-select: none; user-select: none;
 }
 .sp-toggle-row:last-child { border-bottom: none; }
 .sp-toggle-row:active { background: var(--surface-lo); }
-.sp-toggle-left { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.sp-toggle-left { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 auto; }
+.sp-toggle-left > div:last-child { min-width: 0; }
 
 /* Selitepiste on kartan merkin väri, ei paneelin väri — siksi se saa ohuen
    musteen reunan, jotta kylläinen sävy erottuu vaalealta paperilta sävynsä
@@ -1262,7 +1310,7 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
 }
 .sp-toggle-dot.toissijainen { color: var(--ink-3); opacity: .6; }
 .sp-toggle-dot svg { display: block; }
-.sp-toggle-name { font-size: 14px; color: var(--ink); }
+.sp-toggle-name { font-size: 14px; font-weight: 500; color: var(--ink); }
 .sp-toggle-sub {
   font-size: var(--fs-12); color: var(--ink-3); margin-top: 1px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -2757,6 +2805,8 @@ button.sh-hero-indeksi:focus-visible { outline: 2px solid var(--accent); outline
 .sh-stat-value small { font-size: 12px; font-weight: 500; color: var(--ink-3); margin-left: 3px; letter-spacing: 0; }
 .sh-laatat .sh-stat-sub { font-size: var(--fs-10); line-height: 1.38; color: var(--ink-2); letter-spacing: 0; overflow-wrap: anywhere; }
 .sh-stat-linkki { cursor: pointer; }
+.sh-saa { display: inline-flex; align-items: center; gap: 7px; }
+.sh-saa .wx-ikoni { flex-shrink: 0; }
 .sh-tiedot { padding-top: 6px; padding-bottom: 8px; }
 .sh-tieto {
   display: grid; grid-template-columns: 7.5em minmax(0, 1fr); gap: 10px;
@@ -4243,11 +4293,13 @@ html[data-tutka="1"] #lahde-merkki {
    (`.segmentti` lukisi yksivalintana). Otsikko + kellonaikaväli, valittu
    on korotettu pinta, muste-reuna ja pieni ruksi; sama kieli kuin
    spottikortin pinnoilla. Ei väriä: väri kuuluu tuulelle. */
-.fc-rajaus { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0 0 10px; }
+/* Sama segmentti kuin asetuksissa: yksi ura, valittu korotettuna. */
+.fc-rajaus { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; margin: 0 0 10px;
+  padding: 3px; background: var(--surface-lo); border-radius: 13px; }
 .fc-rajaus > button {
   position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
   min-height: 48px; padding: 8px 10px; text-align: left; font: inherit; color: var(--ink-2);
-  background: var(--surface-lo); border: 1px solid transparent; border-radius: 10px;
+  background: transparent; border: 1px solid transparent; border-radius: 10px;
   cursor: pointer; -webkit-user-select: none; user-select: none;
   transition: background .15s, border-color .15s, color .15s;
 }
@@ -4255,13 +4307,11 @@ html[data-tutka="1"] #lahde-merkki {
 .fc-rajaus .fc-r-vali { font-size: max(11px, var(--fs-10)); color: var(--ink-3);
   font-variant-numeric: tabular-nums; line-height: 1.2; white-space: nowrap; }
 .fc-rajaus > button[aria-pressed="true"] {
-  background: var(--surface-hi); color: var(--ink); border-color: var(--ink);
+  background: var(--surface-nosto); color: var(--ink); border-color: transparent;
+  box-shadow: 0 1px 3px rgba(0,0,0,.35), inset 0 1px 0 rgba(240,231,206,.06);
 }
 .fc-rajaus > button[aria-pressed="true"] .fc-r-vali { color: var(--ink-2); }
-.fc-rajaus > button[aria-pressed="true"]::after {
-  content: ""; position: absolute; top: 9px; right: 10px; width: 4px; height: 8px;
-  border: solid var(--ink); border-width: 0 2px 2px 0; transform: rotate(45deg);
-}
+.fc-rajaus > button[aria-pressed="true"]::after { content: none; }
 .fc-rajaus > button:active { transform: scale(.98); }
 .fc-rajaus > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 /* Day groups */
@@ -4498,8 +4548,8 @@ h3.fc-day-label { margin: 0; }
    vesi- ja laajan näkymän jaksoissa korotettu), ja nyt kaikki neljä
    ovat tämä yksi (docs/spottikortti.md, V7). */
 .segmentti > button[aria-pressed="true"] {
-  background: var(--surface-hi); color: var(--ink); font-weight: 600;
-  box-shadow: 0 1px 2px rgba(16,26,32,.12);
+  background: var(--surface-nosto); color: var(--ink); font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0,0,0,.35), inset 0 1px 0 rgba(240,231,206,.06);
 }
 .segmentti > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .segmentti-pieni > button { padding: 3px 8px; min-height: 24px; font-size: var(--fs-9); }
@@ -4807,6 +4857,35 @@ html.tyopoyta .en-solu-arvo { font-size: 15px; }
 .hl-lk-ala { font-size: max(12px, var(--fs-85)); }
 html.tyopoyta .hl-nimi { font-size: 20px; }
 html.tyopoyta .hl-lk-arvo { font-size: 19px; }
+
+/* ── YÖMERI: PINNAT ILMAN REUNAVIIVOJA (1.10.) ─────────────────────
+ *
+ * Paperilla korotettu kortti tarvitsi hiusviivan ja varjon erottuakseen
+ * pohjapaperista. Tummalla korotus on itse sävy (`--surface-hi` pohjan
+ * `--surface` päällä), ja viiva + varjo jokaisessa kortissa teki
+ * paneelista laatikkopinon. Sama sääntö kaikissa paneeleissa: kortti on
+ * pinta, ei kehys. Kartan PÄÄLLÄ kelluvat (kapseli, opastus, toast,
+ * verkkotila, karttanappien laput) pitävät reunansa, koska niiden alla
+ * on kartta eikä paneeli. */
+.sh-moduli, .sh-laatat .sh-stat, .fc-window, .sh-cond-card, .sh-stat-water-panel,
+.sh-fmi, .sh-uiras, #pikanappaimet .pn-kortti {
+  border-color: transparent; box-shadow: none;
+}
+.sh-moduli { border-radius: 16px; }
+.fc-window { border-radius: 16px; }
+/* Napit kortin päällä: täyttö, ei kehystä. */
+.sh-nav-btn, .fmi-station-trigger, .en-vertailu-nappi, .hav-vanha {
+  border-color: transparent;
+}
+.paneeli-sulje > span, .ikoninappi > span {
+  background: var(--surface-nosto); border-color: transparent;
+}
+.sh-moduli .ikoninappi > span { background: var(--surface-nosto); }
+/* Ryhmän nimi kaikissa paneeleissa samalla painolla kuin asetuksissa. */
+.sh-ryhma { font-weight: 600; }
+/* Paneelien yläpalkki: viiva vain kun sisältö vierii sen alle olisi
+   parempi, mutta yksinkertaisin selkeä raja on hiusviiva pohjan sävyssä. */
+#sp-header, #fc-handle { border-bottom-color: var(--hairline-soft); }
 </style>
 </head>
 <body>
@@ -5443,9 +5522,9 @@ html.tyopoyta .hl-lk-arvo { font-size: 19px; }
              suomi ja englanti"). Oletus suomi on vasemmalla. Kielten nimet
              ovat omalla kielellään, joten valinnan löytää kummastakin
              kielestä. Vaihto lataa sivun uudelleen (`Kieli.vaihda`). -->
-        <div class="sp-card">
+        <div class="sp-card sp-rivi">
           <div class="sp-label" data-en="Language">Kieli</div>
-          <div class="sp-chips" id="asetus-kieli">
+          <div class="sp-chips sp-seg" id="asetus-kieli">
             <div class="sp-chip active" data-arvo="fi" lang="fi">Suomi</div>
             <div class="sp-chip" data-arvo="en" lang="en">English</div>
           </div>
@@ -5491,7 +5570,7 @@ html.tyopoyta .hl-lk-arvo { font-size: 19px; }
           <div class="sp-label" data-en="Unit">Yksikkö</div>
           <!-- Oletus ensimmäisenä: valinta luetaan vasemmalta, ja
                oletuksen paikka kertoo mikä on lähtötila. -->
-          <div class="sp-chips" id="units">
+          <div class="sp-chips sp-seg" id="units">
             <div class="sp-chip active" data-unit="kts">kts</div>
             <div class="sp-chip" data-unit="ms">m/s</div>
             <div class="sp-chip" data-unit="kmh">km/h</div>
@@ -5500,7 +5579,7 @@ html.tyopoyta .hl-lk-arvo { font-size: 19px; }
           <!-- Väriasteikko yksikön vieressä: sen lukemat seuraavat
                yksikkövalintaa, ja kartalla asteikkoa ei ole (lukittu
                päätös), joten tämä on ainoa paikka jossa se lukee. -->
-          <div class="sp-label" style="margin-top:18px"><span data-en="Wind colour scale">Tuulen väriasteikko</span> (<span id="wind-scale-unit">m/s</span>)</div>
+          <div class="sp-label sp-label-vali"><span data-en="Wind colour scale">Tuulen väriasteikko</span> (<span id="wind-scale-unit">m/s</span>)</div>
           <div class="sp-asteikko">
             <div id="wind-scale-bar" style="height:8px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--chip-line)"></div>
             <!-- Ei inline-asettelua: lukemien sijoitus tulee CSS:stä. -->
@@ -5512,24 +5591,24 @@ html.tyopoyta .hl-lk-arvo { font-size: 19px; }
              localStorage-avaimeen (fs_kartta), ks. Asetukset. -->
         <div class="sp-card">
           <div class="sp-label" data-en="Base map">Pohjakartta</div>
-          <div class="sp-chips" id="asetus-pohja">
+          <div class="sp-chips sp-seg" id="asetus-pohja">
             <div class="sp-chip active" data-arvo="tumma" data-en="Dark">Tumma</div>
             <div class="sp-chip" data-arvo="satelliitti" data-en="Satellite">Satelliitti</div>
           </div>
 
-          <div class="sp-label" style="margin-top:18px" data-en="Heatmap intensity">Lämpökartan voimakkuus</div>
-          <div class="sp-chips" id="asetus-lampo">
+          <div class="sp-label sp-label-vali" data-en="Heatmap intensity">Lämpökartan voimakkuus</div>
+          <div class="sp-chips sp-seg" id="asetus-lampo">
             <div class="sp-chip" data-arvo="hillitty" data-en="Subtle">Hillitty</div>
             <div class="sp-chip active" data-arvo="normaali" data-en="Normal">Normaali</div>
             <div class="sp-chip" data-arvo="voimakas" data-en="Strong">Voimakas</div>
           </div>
 
-          <div class="sp-label" style="margin-top:18px" data-en="Particles">Partikkelit</div>
+          <div class="sp-label sp-label-vali" data-en="Particles">Partikkelit</div>
           <!-- AVAIMET OVAT ENNALLAAN, NIMET VAIHTUIVAT. 'vahan' on nyt
                "Normaali" (ja oletus), 'normaali' on "Paljon". Avainta ei
                saa vaihtaa nimen mukana: jokaisen tallennettu valinta
                putoaisi oletukseen. -->
-          <div class="sp-chips" id="asetus-partikkelit">
+          <div class="sp-chips sp-seg" id="asetus-partikkelit">
             <div class="sp-chip active" data-arvo="vahan" data-en="Normal">Normaali</div>
             <div class="sp-chip" data-arvo="normaali" data-en="Dense">Paljon</div>
             <div class="sp-chip" data-arvo="pois" data-en="Off">Pois</div>
@@ -5543,19 +5622,22 @@ html.tyopoyta .hl-lk-arvo { font-size: 19px; }
              ensimmäisenä, ja valinta EI tallennu (Asetukset.TALLENTAMATTOMAT). -->
         <h3 class="sp-ryhma" data-en="Map forecast model">Kartan malli</h3>
         <div class="sp-card">
-          <div class="sp-chips" id="asetus-malli">
-            <div class="sp-chip active" data-arvo="auto" data-en="Best available">Paras saatavilla</div>
-            <div class="sp-chip" data-arvo="fmi">HARMONIE</div>
-            <div class="sp-chip" data-arvo="metnordic">MET Nordic</div>
-            <div class="sp-chip" data-arvo="ecmwf">ECMWF</div>
-            <div class="sp-chip" data-arvo="icon">ICON</div>
-            <div class="sp-chip" data-arvo="gfs">GFS</div>
+          <!-- Malli on LISTA eikä sirurivi: kuusi sirua rivittyi kahdelle
+               riville eikä yksikään kertonut mistä malli on. Rooli ja
+               nuolet tulevat yhä rakenteesta (.sp-chips/.sp-chip). -->
+          <div class="sp-chips sp-lista" id="asetus-malli">
+            <div class="sp-chip active" data-arvo="auto"><span class="sp-valinta"><span class="sp-valinta-nimi" data-en="Best available">Paras saatavilla</span><span class="sp-valinta-sub">FMI · MET Nordic · ECMWF</span></span></div>
+            <div class="sp-chip" data-arvo="fmi"><span class="sp-valinta"><span class="sp-valinta-nimi">HARMONIE</span><span class="sp-valinta-sub" data-en="Finnish Meteorological Institute · 2.5 km">Ilmatieteen laitos · 2,5 km</span></span></div>
+            <div class="sp-chip" data-arvo="metnordic"><span class="sp-valinta"><span class="sp-valinta-nimi">MET Nordic</span><span class="sp-valinta-sub">MET Norway · 1 km</span></span></div>
+            <div class="sp-chip" data-arvo="ecmwf"><span class="sp-valinta"><span class="sp-valinta-nimi">ECMWF</span><span class="sp-valinta-sub" data-en="Global · 9 km">Maailma · 9 km</span></span></div>
+            <div class="sp-chip" data-arvo="icon"><span class="sp-valinta"><span class="sp-valinta-nimi">ICON</span><span class="sp-valinta-sub">DWD · 7–13 km</span></span></div>
+            <div class="sp-chip" data-arvo="gfs"><span class="sp-valinta"><span class="sp-valinta-nimi">GFS</span><span class="sp-valinta-sub">NOAA · 13 km</span></span></div>
           </div>
           <div class="sp-vihje" id="malli-vihje"></div>
         </div>
 
         <h3 class="sp-ryhma" data-en="Observations on map">Havainnot kartalla</h3>
-        <div class="sp-card">
+        <div class="sp-card sp-card-lista">
           <div class="sp-rows">
           <div class="sp-toggle-row" data-layer-toggle="fmi-sea">
             <div class="sp-toggle-left">
@@ -5615,7 +5697,7 @@ html.tyopoyta .hl-lk-arvo { font-size: 19px; }
         </div>
 
         <h3 class="sp-ryhma" data-en="About">Tietoa</h3>
-        <div class="sp-card">
+        <div class="sp-card sp-card-lista">
           <button type="button" class="sp-linkkirivi" id="sp-tietoa">
             <span><span data-en="About, sources and privacy">Tietoa, lähteet ja tietosuoja</span><span class="sp-linkki-sub" data-en="Base map: Powered by Esri">Pohjakartta: Powered by Esri</span></span>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -16967,13 +17049,14 @@ const SPOT_LABEL_MIN_ZOOM = 10;
    muutosta vaan merkki loksahtaisi suoraan uuteen kokoon. */
 function updateSpotScale(zoom) {
   const scale = spotIconSize(zoom) / SPOT_BASE;
-  const showLbl = zoom >= SPOT_LABEL_MIN_ZOOM;
+  const nimetPois = _spotNimetPois(zoom);
   for (const m of State.markers) {
     const el = m.getElement && m.getElement();
     if (!el) continue;
     const ring = el.querySelector('.spot-ring');
     if (ring) ring.style.transform = 'scale(' + scale.toFixed(3) + ')';
     const lbl = el.querySelector('.spot-lbl');
+    const showLbl = zoom >= SPOT_LABEL_MIN_ZOOM && !(m._spot && nimetPois.has(m._spot));
     if (lbl) {
       lbl.style.opacity = showLbl ? '1' : '0';
       lbl.style.transform = 'translateY(' + (showLbl ? 0 : -2) + 'px)';
@@ -17096,19 +17179,45 @@ function gustIndex(ms, gst) {
  *
  * Kynnys on merkin halkaisija: kaksi merkkiä saa koskettaa mutta ei mennä
  * päällekkäin. */
+/* LÄHIZOOMISSA KAIKKI SPOTIT OVAT TÄYSIÄ, JA VÄISTÖ EI RIIPU TUNNISTA
+ * (käyttäjän raportti 1.10.: "Munkkiniemen ja Otaniemen spotit hyppivät
+ * ja menevät piiloon kun vaihdan tuntia"). Väistö järjesti ennen
+ * pistemäärän mukaan, ja pistemäärä on TUNNIN: kaksi 1,9 km:n päässä
+ * olevaa spottia vaihtoivat täyttä merkkiä ja pistettä joka tunnin
+ * askeleella. Nyt järjestys on kiinteä (suosikit, sitten `SPOTS`in
+ * järjestys), joten sama zoom ja sama näkymä antaa aina saman tuloksen,
+ * ja zoomista `SPOT_KAIKKI_Z` alkaen yksikään spotti ei väisty. Siellä
+ * ainoa päällekkäisyys on Munkkiniemi–Otaniemi z10:llä (renkaat 8 px),
+ * ja siksi vain NIMI väistyy (`_spotNimetPois`), ei merkki. */
+const SPOT_KAIKKI_Z = 10;
+function _spotJarjestys(a, b) {
+  const sa = Suosikit.on(a.spot.name) ? 1 : 0, sb = Suosikit.on(b.spot.name) ? 1 : 0;
+  if (sa !== sb) return sb - sa;
+  return SPOTS.indexOf(a.spot) - SPOTS.indexOf(b.spot);
+}
+function _spotNimetPois(zoom) {
+  const pois = new Set();
+  if (!State.map || zoom < SPOT_LABEL_MIN_ZOOM) return pois;
+  const koko = spotIconSize(zoom), laput = [];
+  const jarjestys = SPOTS.map(spot => ({ spot })).sort(_spotJarjestys);
+  for (const s of jarjestys) {
+    const p = State.map.latLngToContainerPoint([s.spot.lat, s.spot.lng]);
+    /* Nimilappu: enintään 64 px leveä, 14 px korkea, renkaan alla. */
+    const lappu = { x0: p.x - 32, x1: p.x + 32, y0: p.y + koko / 2 + 2, y1: p.y + koko / 2 + 16 };
+    const osuu = laput.some(q => lappu.x0 < q.x1 && lappu.x1 > q.x0 && lappu.y0 < q.y1 && lappu.y1 > q.y0)
+      || jarjestys.some(o => o !== s && (() => { const r = State.map.latLngToContainerPoint([o.spot.lat, o.spot.lng]);
+        return lappu.x0 < r.x + koko / 2 && lappu.x1 > r.x - koko / 2 && lappu.y0 < r.y + koko / 2 && lappu.y1 > r.y - koko / 2; })());
+    if (osuu) pois.add(s.spot); else laput.push(lappu);
+  }
+  return pois;
+}
 function _valitseTaydetSpotit(pisteytetyt, zoom) {
   const taydet = new Set();
-  if (!State.map) { pisteytetyt.forEach(s => taydet.add(s.spot)); return taydet; }
+  if (!State.map || zoom >= SPOT_KAIKKI_Z) { pisteytetyt.forEach(s => taydet.add(s.spot)); return taydet; }
   const kynnys = spotIconSize(zoom);
   const sijoitetut = [];
-  /* Suosikit ensin, sitten paras pistemäärä. Ilman suosikkien etusijaa oma
-     kotispotti voi kadota pisteeksi juuri siksi että naapurilla sattuu
-     olemaan parempi lukema — Helsingin edustalla spotit ovat lähekkäin. */
-  const jarjestys = pisteytetyt.slice().sort(function (a, b) {
-    const sa = Suosikit.on(a.spot.name) ? 1 : 0, sb = Suosikit.on(b.spot.name) ? 1 : 0;
-    if (sa !== sb) return sb - sa;
-    return b.score - a.score;
-  });
+  /* Suosikit ensin, sitten kiinteä järjestys — EI pistemäärä (ks. yllä). */
+  const jarjestys = pisteytetyt.slice().sort(_spotJarjestys);
   for (const s of jarjestys) {
     const p = State.map.latLngToContainerPoint([s.spot.lat, s.spot.lng]);
     let vapaa = true;
@@ -17192,6 +17301,7 @@ function renderSpots(hourIdx) {
   }
   const taydet = _valitseTaydetSpotit(pisteytetyt, zoom);
   State._spotTaydetAvain = _taysienAvain(taydet);
+  const nimetPois = _spotNimetPois(zoom);
 
   for (const { spot, ms, gst, dir, score } of pisteytetyt) {
     const dms = layer === 'gust' ? gst : ms;
@@ -17211,7 +17321,7 @@ function renderSpots(hourIdx) {
         + '<div class="spot-ring" style="transform:scale(' + scale.toFixed(3) + ')">'
         + spotMarkerSVG(score, spot.name, SPOT_BASE)
         + '</div>'
-        + spotNameLabel(spot.name, col, withName)
+        + spotNameLabel(spot.name, col, withName && !nimetPois.has(spot))
         + '</div>'
       );
       iconW = 64; iconH = SPOT_BASE + 14;
@@ -17252,6 +17362,7 @@ function renderSpots(hourIdx) {
         })
         .addTo(State.map)
     );
+    State.markers[State.markers.length - 1]._spot = spot;
   }
 }
 
@@ -18344,19 +18455,6 @@ function _addObsMarkers(map) {
       +'</svg>';
   }
 
-  /* Pieni himmeä ruksi — näkyy kaukaa (z<8). Tuulimerkki on tällä
-   * zoomilla myös pieni piste, joten tämä keskitetään täsmälleen
-   * samaan kohtaan — rauhallinen "ydin" keltaisen pisteen sisällä,
-   * ei kilpaileva erillinen merkki. Paksumpi viiva viewBoxissa, jotta
-   * pienessä koossa jää yhä näkyviin. */
-  function _stationDotSmallSvg(size) {
-    var s = size || 7;
-    return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none"'
-      +' xmlns="http://www.w3.org/2000/svg">'
-      +'<line x1="7"  y1="7"  x2="17" y2="17" stroke="'+C_STATION+'" stroke-width="3.4" stroke-linecap="round" opacity="0.8"/>'
-      +'<line x1="17" y1="7"  x2="7"  y2="17" stroke="'+C_STATION+'" stroke-width="3.4" stroke-linecap="round" opacity="0.8"/>'
-      +'</svg>';
-  }
 
   /* Rakentaa oikean ikonin zoomin mukaan.
    * Lähellä (z>=8): täysi ruksi, siirretty ~9px ylös-vasemmalle
@@ -18372,10 +18470,9 @@ function _addObsMarkers(map) {
         iconSize: [15, 15], iconAnchor: [7.5 + OFF, 7.5 + OFF]
       });
     }
-    return L.divIcon({
-      className: '', html: _stationDotSmallSvg(7),
-      iconSize: [7, 7], iconAnchor: [3.5, 3.5]
-    });
+    /* Kaukana asemamerkki on itse glyfi (`_kaukoGlyfi`), joten erillistä
+       pientä ruksia ei piirretä — se oli toinen merkki samalle asemalle. */
+    return L.divIcon({ className: '', html: '', iconSize: [0, 0], iconAnchor: [0, 0] });
   }
 
   /* Luo pieni kiinteä sijaintimerkki — EI koskaan siirry spottien takia,
@@ -18440,17 +18537,11 @@ function _addObsMarkers(map) {
          Play-kolmio levittää pilleriä 13 px (mitattu 51 → 64). */
       return L.divIcon({ className:'', html:html, iconAnchor:[0, 9], iconSize:[video ? 75 : 62, 18] });
     } else {
-      /* Toissijainen asema on piste samaa mustetta — ero ensisijaiseen on
-         koko ja kirkkaus, ei sävy. */
-      var sz = z < 8 ? 5 : z < 10 ? 7 : 8;
-      return L.divIcon({
-        className:'',
-        html:'<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;'
-          +'background:'+(z < 8 ? INK_3 : INK_2)+';cursor:pointer;'
-          +(hiljainen?'opacity:.45;':'')
-          +'box-shadow:0 0 0 1px rgba(9,13,21,.45)"></div>',
-        iconSize:[sz,sz], iconAnchor:[sz/2,sz/2]
-      });
+      /* KAUKANA ASEMA ON GLYFI, KUTEN AALTOPOIJU (käyttäjän pyyntö 1.10.:
+         "kaikki pienet pisteet samanlaisiksi kuin aaltospoteilla"). Piste
+         ja sen vieressä oleva pieni ruksi olivat kaksi merkkiä yhdelle
+         asemalle, eikä kumpikaan kertonut mitä asema mittaa. */
+      return _kaukoGlyfi(_windVaneSvg(INK_2, 13), z, hiljainen);
     }
   }
 
@@ -18476,17 +18567,10 @@ function _addObsMarkers(map) {
         iconAnchor:[0,9], iconSize:[54,18]
       });
     } else {
-      return L.divIcon({
-        className:'',
-        html:'<div style="cursor:pointer;line-height:0">'
-          +'<svg width="10" height="6" viewBox="0 0 14 8" fill="none"'
-            +' xmlns="http://www.w3.org/2000/svg">'
-            +'<path d="'+wavePath+'" stroke="'+(z < 8 ? INK_3 : INK_2)+'" stroke-width="1.8"'
-              +' stroke-linecap="round" fill="none"/>'
-          +'</svg>'
-          +'</div>',
-        iconAnchor:[5,3], iconSize:[10,6]
-      });
+      return _kaukoGlyfi('<svg width="13" height="11" viewBox="0 0 14 12" fill="none"'
+          +' xmlns="http://www.w3.org/2000/svg" style="display:block">'
+          +'<path d="M0 7 Q2 4 4 7 Q6 10 8 7 Q10 4 12 7 Q13 8.5 14 7" stroke="'+INK_2+'" stroke-width="1.5"'
+          +' stroke-linecap="round" fill="none"/></svg>', z, false);
     }
   }
 
@@ -18555,9 +18639,16 @@ function _addObsMarkers(map) {
         iconAnchor:[0, pieni ? 7 : 9],
         iconSize: pieni ? [44, 14] : [56, 18] });
     }
+    return _kaukoGlyfi(_aaltoGlyfi(INK_2), z, hiljainen);
+  }
+  /* Kaukaisen zoomin asemamerkki: pelkkä glyfi ilman pilleriä, sama koko
+     (13 × 11) ja läpikuultavuus kaikille asematyypeille. Hiljainen
+     (ei signaalia) on himmeämpi. */
+  function _kaukoGlyfi(svg, z, hiljainen) {
+    var op = (z < 5 ? .55 : .9) * (hiljainen ? .5 : 1);
     return L.divIcon({ className:'',
-      html:'<div style="cursor:pointer;line-height:0;opacity:'+(z < 5 ? '.55' : '.9')+'">'
-        + _aaltoGlyfi(INK_2) + '</div>',
+      html:'<div style="cursor:pointer;line-height:0;opacity:'+op.toFixed(2)+';'
+        +'filter:drop-shadow(0 0 1.5px rgba(6,9,18,.9))">' + svg + '</div>',
       iconSize:[13, 11], iconAnchor:[6, 5] });
   }
   function _aaltoIconSig(zoom, hs, hiljainen) {
@@ -18566,7 +18657,7 @@ function _addObsMarkers(map) {
       return 'p' + (z < PILLERI_Z_POIJU_ISO ? 's' : 'l') + '|'
         + (hs != null ? hs.toFixed(1) : '—') + (hiljainen ? '|hlj' : '');
     }
-    return 'd|' + (z < 5 ? 0 : 1);
+    return 'd|' + (z < 5 ? 0 : 1) + (hiljainen ? '|hlj' : '');
   }
 
   /* ── Ikonin allekirjoitus ───────────────────────────────────── */
@@ -18591,8 +18682,8 @@ function _addObsMarkers(map) {
     if (pilleriZ && z >= pilleriZ) {
       return 'p|' + (ws != null ? Units.fmt(ws) : '—') + '|' + Units.label() + hlj + (video ? '|v' : '');
     }
-    /* Piste: koko ja läpinäkyvyys tulevat samoista zoom-kynnyksistä */
-    return 'd|' + (z < 8 ? 0 : z < 10 ? 1 : 2) + hlj;
+    /* Glyfi: läpinäkyvyys tulee samasta kynnyksestä kuin `_kaukoGlyfi`ssa */
+    return 'd|' + (z < 5 ? 0 : 1) + hlj;
   }
   /* Datan saapuessa merkit päivitetään `updateIcons()`illa eikä suoralla
      setIconilla: se lukee kameran tilan (play-kolmio, `|v`) ja VALITUN
@@ -18603,7 +18694,7 @@ function _addObsMarkers(map) {
     if (isPrim && z >= 9 && temp != null) {
       return 'p|' + temp.toFixed(1);
     }
-    return 'd|' + (z < 8 ? 0 : 1);
+    return 'd|' + (z < 5 ? 0 : 1);
   }
 
   /* ── Päivittää ikonit zoom-muutoksessa ──────────────────────── */
@@ -23375,8 +23466,12 @@ function openSheet(spot, hourIdx) {
     if (mm != null && mm >= 0.1) ala.push(_t('sade ', 'rain ') + mm.toFixed(1) + ' mm/h');
     const cc = h.cloudcover && h.cloudcover[idx];
     if (cc != null) ala.push(_t('pilvisyys ', 'cloud cover ') + Math.round(cc) + ' %');
+    /* Sääikoni lämpötilan vieressä, kuten kapselissa: väri kertoo
+       yhdellä silmäyksellä aurinkoa, pilveä vai sadetta. */
+    const wc = h.weather_code && h.weather_code[idx];
+    if (wc != null) ala.unshift(WeatherWidget.kuvaus(wc));
     return '<div class="sh-stat"><span class="sh-stat-label">' + _t('Ilma · ennuste', 'Air · forecast') + '</span>'
-      + '<span class="sh-stat-value">' + Math.round(t) + '<small>°C</small></span>'
+      + '<span class="sh-stat-value sh-saa">' + (wc != null ? wxIconSVG(wc, 24) : '') + '<span>' + Math.round(t) + '<small>°C</small></span></span>'
       + '<span class="sh-stat-sub">' + ala.join('<br>') + '</span></div>';
   };
   const _pukuLaatta = function () {
@@ -27638,32 +27733,40 @@ document.addEventListener('visibilitychange', () => {
    näillä: emoji renderöityy jokaisella laitteella eri tyylillä eikä
    noudata sovelluksen väriä, piirretty ikoni tekee molemmat. */
 const WX_ICONS = (() => {
-  const pilvi = 'M7.6 18.5h8.6a3.9 3.9 0 0 0 .3-7.8 5.4 5.4 0 0 0-10.4 1.1 3.5 3.5 0 0 0 1.5 6.7z';
-  const aurinko = (cx, cy, r) =>
-    `<circle cx="${cx}" cy="${cy}" r="${r}"/>` +
+  /* HILLITYT VÄRIT (käyttäjän pyyntö 1.10.: "hieman värikkäämpiä mutta
+     hillittyjä, että huomaa onko aurinkoista vai sataako"). Jokainen osa
+     on oma sävynsä ja ikoni pysyy viivapiirroksena: aurinko kulta,
+     pilvi viileä harmaa kevyellä täytöllä, vesi sininen, lumi jää ja
+     salama kulta. Sävyt ovat Yömeren pintaa vasten 7,0–11,6:1, eli
+     kirkkaampia kuin tekstin toissijainen muste mutta kaukana rampin
+     kylläisyydestä, jottei ikoni lue tuulen väreinä. */
+  const V = { aurinko: '#EFC566', pilvi: '#BAC4D2', vesi: '#7FB4F2', lumi: '#CFE4F7', salama: '#F2CC5C', sumu: '#A9B2BF' };
+  const g = (vari, sisus, tayte) => `<g stroke="${vari}"${tayte ? ` fill="${tayte}"` : ''}>${sisus}</g>`;
+  const pilviD = 'M7.6 18.5h8.6a3.9 3.9 0 0 0 .3-7.8 5.4 5.4 0 0 0-10.4 1.1 3.5 3.5 0 0 0 1.5 6.7z';
+  const pilvi = g(V.pilvi, `<path d="${pilviD}"/>`, 'rgba(186,196,210,.16)');
+  /* Pilven alle jäävä osa auringosta peitetään pilven omalla täytöllä. */
+  const pilviPeittava = g(V.pilvi, `<path d="${pilviD}"/>`, '#232D3E');
+  const aurinko = (cx, cy, r) => g(V.aurinko,
+    `<circle cx="${cx}" cy="${cy}" r="${r}" fill="rgba(239,197,102,.22)"/>` +
     [0,45,90,135,180,225,270,315].map(a => {
       const t = a * Math.PI / 180;
       const x1 = cx + Math.cos(t) * (r + 2.2), y1 = cy + Math.sin(t) * (r + 2.2);
       const x2 = cx + Math.cos(t) * (r + 4.6), y2 = cy + Math.sin(t) * (r + 4.6);
       return `<path d="M${x1.toFixed(1)} ${y1.toFixed(1)}L${x2.toFixed(1)} ${y2.toFixed(1)}"/>`;
-    }).join('');
-  const pisarat = (ys) => ys.map(([x, y]) =>
-    `<path d="M${x} ${y}l-1.1 2.6"/>`).join('');
+    }).join(''));
+  const pisarat = (ys) => g(V.vesi, ys.map(([x, y]) => `<path d="M${x} ${y}l-1.1 2.6"/>`).join(''));
+  const hiutale = (x) => g(V.lumi, `<path d="M${x} 20.2v2.4M${(x - 1.1).toFixed(1)} 20.8l2.2 1.2M${(x + 1.1).toFixed(1)} 20.8l-2.2 1.2"/>`);
 
   return {
     selkea:   aurinko(12, 12, 4.4),
-    puoli:    aurinko(9, 9.5, 3.3) + `<path d="${pilvi}"/>`,
-    pilvinen: `<path d="${pilvi}"/>`,
-    sumu:     '<path d="M4 9.5h16"/><path d="M6 13.5h13"/><path d="M4.5 17.5h15"/>',
-    sade:     `<path d="${pilvi}"/>` + pisarat([[9.5, 20.4], [13, 20.4], [16.5, 20.4]]),
-    kuuro:    `<path d="${pilvi}"/>` + pisarat([[10.5, 20.4], [15, 20.4]]),
-    lumi:     `<path d="${pilvi}"/>`
-              + '<path d="M9.6 20.2v2.4M8.5 20.8l2.2 1.2M10.7 20.8l-2.2 1.2"/>'
-              + '<path d="M15.4 20.2v2.4M14.3 20.8l2.2 1.2M16.5 20.8l-2.2 1.2"/>',
-    ranta:    `<path d="${pilvi}"/>` + pisarat([[9.8, 20.4]])
-              + '<path d="M15.4 20.2v2.4M14.3 20.8l2.2 1.2M16.5 20.8l-2.2 1.2"/>',
-    ukkonen:  `<path d="${pilvi}"/>`
-              + '<path d="M13.2 19.4l-2.8 3.4h2.4l-1 2.6" stroke-linejoin="round"/>'
+    puoli:    aurinko(9, 9.5, 3.3) + pilviPeittava,
+    pilvinen: pilvi,
+    sumu:     g(V.sumu, '<path d="M4 9.5h16"/><path d="M6 13.5h13"/><path d="M4.5 17.5h15"/>'),
+    sade:     pilvi + pisarat([[9.5, 20.4], [13, 20.4], [16.5, 20.4]]),
+    kuuro:    aurinko(8.6, 8.4, 2.6) + pilviPeittava + pisarat([[10.5, 20.4], [15, 20.4]]),
+    lumi:     pilvi + hiutale(9.6) + hiutale(15.4),
+    ranta:    pilvi + pisarat([[9.8, 20.4]]) + hiutale(15.4),
+    ukkonen:  pilvi + g(V.salama, '<path d="M13.2 19.4l-2.8 3.4h2.4l-1 2.6" stroke-linejoin="round"/>')
   };
 })();
 

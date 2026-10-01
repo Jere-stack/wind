@@ -7832,3 +7832,76 @@ Kartan ramppi, lämpökartta, partikkelit, aikajanan palkit ja lasi,
 latausruutu, kuvake ja manifesti (`#060912`). Aikajanan aikakupla ja
 päiväkiskon pilleri olivat jo kermaa.
 
+## Yömeri, toinen erä: asetukset, kortit, sääikonit, spottien väistö
+
+Käyttäjän pyyntö 1.10.: asetusvalikko ammattimaisemmaksi kuten
+vertailusivun mallissa (ja paremmin), sama muille näkymille, sääikonit
+hillityn värikkäiksi, spottien hyppiminen pois ja kaukaisen zoomin
+asemamerkit aaltopoijun tyylisiksi.
+
+### Asetukset
+
+- Ryhmät ovat KORTTEJA (`.sp-card`: `--surface-hi`, 16 px, täyte 14 px,
+  ei reunaa) ja ryhmän nimi kortin ulkopuolella pienenä versaalina
+  (`.sp-ryhma`). Kortin sisällä nimilappu on tavallista tekstiä
+  (`.sp-label` 13 px/600), ja saman kortin osat erotetaan hiusviivalla
+  (`.sp-label-vali`).
+- Kaksi–neljä vaihtoehtoa on SEGMENTTI (`.sp-seg`): yksi ura
+  (`--surface-lo`), valittu `--surface-nosto` varjolla. Kieli on rivi:
+  nimi vasemmalla, segmentti oikealla (`.sp-rivi`).
+- Kartan malli on LISTA (`.sp-lista`): nimi, alateksti (kuka ja millä
+  hilalla) ja radio oikealla. Kuusi sirua rivittyi kahdelle riville eikä
+  yksikään kertonut mistä malli on. Rakenne on yhä `.sp-chips`/`.sp-chip`,
+  joten radioryhmä, nuolet ja aria tulevat entisestä koneistosta.
+- Kytkinrivit ja Tietoa-rivi ovat reunasta reunaan kortin sisällä
+  (`.sp-card-lista`, rivi vähintään 56 px).
+
+### Muut näkymät
+
+Spottikortin moduulit ja laatat, ennustepaneelin ikkunat, vesi- ja
+asemakortit ja pikanäppäinten kortti menettivät reunaviivan ja varjon
+(CSS:n lopun lohko "PINNAT ILMAN REUNAVIIVOJA"): tummalla korotus on
+sävy. Sulku- ja laajennusnappi ovat `--surface-nosto` ilman kehystä.
+Ennustepaneelin aikarajaus on sama segmentti kuin asetuksissa
+(kermakehys ja väkänen poistuivat). Kartan päällä kelluvat pitävät
+reunansa.
+
+### Sääikonit
+
+`WX_ICONS` piirtää jokaisen osan omalla sävyllään (taulukko CLAUDE.md:ssä),
+aurinko ja pilvi kevyellä täytöllä. Puolipilvisessä pilvi peittää
+auringon omalla täytöllään, ja kuuroissa on pieni aurinko pilven takana.
+Kontrasti tummaa pintaa vasten 7,0–11,6:1. Spottikortin ilmalaattaan
+tuli ikoni lämpötilan eteen ja sään sanallinen kuvaus alariville.
+
+### Spottien hyppiminen
+
+Syy: `_valitseTaydetSpotit` järjesti päällekkäiset spotit TUNNIN
+pistemäärän mukaan, joten Munkkiniemi ja Otaniemi (1,9 km) vaihtoivat
+täyttä merkkiä ja pistettä tunnin askelilla. Korjaus: kiinteä järjestys
+(suosikit, sitten `SPOTS`), ja zoomista 10 kaikki täysiä; vain nimi
+väistyy (`_spotNimetPois`). Mitattu 12 tunnin askeleella (3 h välein)
+Helsingin edustalla:
+
+```
+z9   Munkkiniemi täysi | Otaniemi piste | Lauttasaari täysi | Hietaniemi piste
+z10  kaikki täysiä (nimet väistyvät: renkaat 20–37 px:n päässä)
+z11  kaikki täysiä, nimet paitsi Munkkiniemi (osuisi Otaniemen renkaaseen)
+```
+
+Jokaisella zoomilla yksi tila koko 12 tunnin ajan.
+
+### Kaukaisen zoomin asemat
+
+Pilleri-zoomin alla jokainen asema on oma glyfinsä kuten aaltopoiju
+(`_kaukoGlyfi`): tuuliasema viiri, vedenlämpö aaltoviiva, poiju aalto ja
+mitta. Pieni piste ja sen vieressä oleva ruksi (kaksi merkkiä yhdelle
+asemalle) poistuivat.
+
+### Mitattu
+
+Kontrastimittari suomeksi ja englanniksi: kartta 11, spottikortti 514,
+vertailu auki 521, asetukset 65, ennustepaneeli 99 tekstiä — 0 alle
+rajan. Englanniksi asetuksissa ja kortissa ei suomenkielisiä sanoja
+(alatekstit `data-en`). Savutesti ja graafitesti läpi.
+
