@@ -7290,6 +7290,10 @@ pysäyttävät sen (`_tlLiukuSeis`, joka ajaa silti siivouksen).
 
 ### Päivä vaihtuu liukuen — vain toistossa
 
+> **Korvattu 1.10.:** kisko on nyt jatkuva aika-akseli, joten keskiyön
+> erillistä liukua ei ole — kisko liikkuu joka tunnilla. Ks. *Aikajana:
+> jatkuva päiväkisko, pehmeä valinta ja pilleri ikkunana*.
+
 Kisko hyppää keskiyön yli lapun kerralla, ja sormella se on oikein
 (pehmeä siirtymä laahaisi sormesta). Toistossa sormea ei ole, ja hyppy
 oli liukuvan nauhan alla ainoa nykäys. Nyt päivän viimeinen tunti
@@ -7376,3 +7380,120 @@ to klo 08 (aurinko +3,2°, edellinen tunti −4,2°).
 
 Testit: savutesti (puhelin ja työpöytä, 0 virhettä), graafimittaus
 (96 ok, 0 vikaa), `node --check api/*.js`.
+
+## Aikajana: jatkuva päiväkisko, pehmeä valinta ja pilleri ikkunana (1.10.)
+
+Käyttäjän pyyntö: tunnit ja päivämäärät siirtyvät pehmeästi kun
+klikataan uutta kohtaa; kelikaista ei katkea, vaan jatkuu yhtenäisenä
+jos yöllä tuulee; päiväkisko liikkuu aina kun tunteja siirretään
+("jaettu 24 tuntiin"), ja kiskon vieritys liikuttaa tuntinauhaa samalla
+mutta nopeammin; päivämäärä voi jäädä kahden päivän väliin (yö), ja
+päivän napautus vie klo 12:een.
+
+### Kisko on vuorokauden asteikko
+
+Lapun vasen reuna on keskiyö, keskikohta klo 12 ja oikea reuna seuraava
+keskiyö (`_tlPaivaGeo`: `alut`/`loput`, paikalliset keskiyöt, joten
+kesäajan vaihtopäivä venyy oikein). `_tlKiskoX(frac)` antaa kiskon
+sijainnin jossa osoitin on hetkessä `frac`, ja `_tlKiskoFrac(x)` on sen
+käänteinen. Kaikki kiskon kirjoitukset kulkevat niiden kautta:
+
+| polku | mitä tapahtuu |
+|---|---|
+| tuntinauhan veto | `_tlSeurantaAskel` → `_tlKiskoKeskita(frac)` — kisko seuraa jatkuvasti |
+| kiskon veto | `_kiskoSeuraa`: hetki kiskosta → valinta pyöristetystä tunnista, tuntinauha murtolukuun (`.ohjattu`) |
+| kiskon vedon loppu | `_kiskoLoppu`: lähin tunti `_tlVahvista`lla, molemmat liukuvat sen kohdalle 200 ms |
+| toisto | `_playSijainti` → `_tlNaytaHetki(frac)` — molemmat samaan hetkeen joka ruudussa |
+| napautus, näppäimet, kelihyppy, kaavio | `_tlValitseIdx` → valinta heti, `_tlLiuuta` näytölle |
+
+Mitattu (puhelinkonteksti, `hasTouch`, dpr 3), Chromium ja WebKit:
+
+| tarkistus | Chromium | WebKit |
+|---|---|---|
+| levossa kisko = valittu tunti | 0,00 h | 0,00 h |
+| tuntinauhan veto 30 h: kiskon suurin ero nauhaan | 0,000 h | 0,000 h |
+| kiskon veto 36 px: tunteja / tuntinauhan matka | 14,1 h / 254 px | 14,5 h / 262 px |
+| kiskon veto: nauhan suurin ero kiskoon | 0,000 h | 0,000 h |
+| vedon loppu: valinta kokonaisessa tunnissa, nauhat sen kohdalla | 0,000 / 0,000 | 0,000 / 0,000 |
+| toisto: nauhan ja kiskon suurin ero | 0,000 h | 0,000 h |
+| päivän napautus | klo 12, lappu 0,7 px pillerin keskeltä | klo 12, 0,9 px |
+| "Tänään" | nyt-tunti | nyt-tunti |
+
+### Valinta on heti, näyttö liukuu
+
+`_tlValitseIdx` asettaa valinnan, kortin, merkit ja kentän
+(häivytyksellä) kohteeseen ennen ensimmäistä ruutua, ja `_tlLiuuta`
+liikuttaa vain näyttöä: yksi liuku kerrallaan, joka liikuttaa HETKEÄ
+eikä vierittimiä, joten tuntinauha ja kisko ovat joka ruudussa samassa
+hetkessä (mitattu suurin ero 0,001 h Chromium, 0,005 h WebKit). Kupla
+rullaa kellonajan perille. Kesto `260 + 75·ln(1 + tunnit)` ms, katto
+560 ms, ease-in-out. Liike oli yksisuuntainen ja päättyi tasan
+kohteeseen, snäppäys palautettuna (`ohjattu` pois).
+
+Vanha "hyppy on hyppy" oli oikea vastaus selaimen pehmeälle
+vieritykselle, joka kulki janan kuuntelijoiden kautta ja valitsi
+jokaisen välitunnin. Oma ruutusilmukka ei käy kuuntelijoiden kautta,
+joten se ongelma ei palaa.
+
+**Kontin luvut eivät ole laitteen luvut.** Liu'un kesto oli kontissa
+0,9–2,3 s ja ruutuja 3–6, koska SwiftShader piirtää kartan
+suorittimella ja valinnan kentänrakennus osuu samoihin ruutuihin.
+Laitteella kesto on kaavan mukainen; kentänrakennus (~45 ms) osuu liu'un
+alkuun, jossa ease-in-out liikkuu hitaimmin.
+
+### Ohjattu nauha ei ole sormi — mittaus löysi vian
+
+Ensimmäinen WebKit-ajo antoi päivän napautukselle klo 19 klo 12:n
+sijaan. Syy: tuntinauhan scroll-kuuntelija tunnisti ohjelmallisen
+kirjoituksen `_tlBeginSelfScroll`in 300 ms:n lipulla, ja kontin
+WebKitissä (~3 ruutua/s) liu'un scroll-tapahtuma lähti vasta lipun
+rauettua — se luettiin sormeksi ja valittiin välitunti. Laitteella
+ruudut ovat 16 ms, mutta raskas ruutu voi venyä samaan. Korjaus:
+`.ohjattu` on portti nauhan scroll- ja scrollend-kuuntelijoille (sama
+periaate kuin kiskon `_tlKiskoSormiOllut`: suora signaali, ei
+ajastin). Kosketus, rulla ja hiiri poistavat luokan ennen omaa
+elettään. Korjauksen jälkeen kaikki 20 tarkistusta läpi molemmilla
+moottoreilla.
+
+### Pilleri on ikkuna
+
+Yöllä pilleri on kahden lapun välissä, eikä luokalla vaihdettu
+tekstin väri osaa tummentaa puolikasta sanaa. Pilleri siirtyi kiskon
+sisältöön (`.tl-pilleri`, `position: sticky` kiskon keskellä) ja
+lappujen teksti sekoittuu sen kanssa erotuksena (`mix-blend-mode:
+difference` eristetyssä ryhmässä `.tl-paivat-sisa`): kirjain on tumma
+täsmälleen siltä osin kuin se on pillerin päällä, ja pillerin
+ulkopuolella oma värinsä. Värit ovat pari — teksti `198,201,206` ja
+pilleri `214,224,235`, jolloin |pilleri − teksti| = `16,23,29` eli
+entinen tumma muste. Pilleri on hieman sinertävämpi kuin entinen
+valkoinen .95. Sticky pysyy paikallaan kompositorissa, joten sormella
+vedettäessä teksti ja pilleri eivät ole ruutuakaan eri mieltä; JS:n
+kirjoittama väri olisi iOS:llä ruudun jäljessä. Tarkistettu
+kuvakaappauksin molemmilla moottoreilla klo 12, 07, 21 ja 00.
+
+Sticky tarvitsee sisältölohkon joka on koko sisällön levyinen
+(`width: max-content`): flex-kisko itse on vain ruudun levyinen, ja
+pilleri lakkaisi pysymästä keskellä ensimmäisen ruudullisen jälkeen.
+Kiskon täyte poistui samasta syystä (pillerin paikka lasketaan
+vierityslaatikon reunasta, lappujen paikat kääreen alusta).
+
+### Kelikaista ilman valoisuutta
+
+30.9. versio kertoi kelipainon valoisuudella, jolloin tuulinen yö
+katkaisi juovan kahden kelipäivän väliin. Nyt kaista kertoo tuulesta, ja
+yö luetaan lappujen rajoilta. Tarkistettu synteettisellä sarjalla (kova
+tuuli pe 12 → la 18): juova on yhtenäinen keskiyön yli. Kelihyppy vaatii
+yhä valoisan tunnin (`_tlAurinko`).
+
+### Mitä jäi auki
+
+- **Kontti ei mittaa laitteen sujuvuutta.** Sekoitustila, sticky ja
+  alipikselisiirto on tarkistettu kahdella moottorilla, mutta iOS:n
+  kompositoria ei.
+- **Pitkän vedon yli akselin pään** kisko palaa akselin päähän
+  hyppäämällä liu'un ensimmäisessä ruudussa (liuku interpoloi hetkeä,
+  ja hetki on jo rajattu akseliin). Päätelty koodista, ei mitattu.
+
+Testit: savutesti (0 virhettä), graafimittaus (96 ok, 0 vikaa),
+kiskon mittari (20/20 Chromium ja WebKit), `node --check api/*.js`.
+
