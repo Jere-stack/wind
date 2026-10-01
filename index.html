@@ -1186,6 +1186,45 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
   font-weight: 600;
 }
 
+/* KARTAN KERROS RUUTUINA (Windyn valikon tapaan, 1.10.). Ruutu on yhä
+   `.sp-chip` (radiogroup, nuolet, aria-tila tulevat rakenteesta), mutta
+   valinta on MUSTEKEHYS kuvan ympärillä eikä mustetäyttö: täyttö
+   peittäisi juuri sen kuvan jonka takia ruutu on olemassa. Kuva on
+   kartan pohjaa (tumma), joten se erottuu paperista ilman reunaa. */
+/* `#layers` eikä pelkkä luokka: vanha alapalkin `#layers`-sääntö (flex,
+   5 px) voittaisi id:nä. */
+#layers.sp-kerrokset {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px; flex-wrap: nowrap;
+}
+.sp-chip.sp-kerros {
+  height: auto; padding: 0; background: none; min-width: 0;
+  flex-direction: column; align-items: stretch; gap: 6px;
+  color: var(--ink-2);
+}
+.sp-kerros-kuva {
+  display: block; width: 100%; max-width: 100%; min-width: 0; aspect-ratio: 1 / 1; height: auto;
+  border-radius: 12px;
+  background: #1a222b;
+  box-shadow: 0 0 0 1px var(--hairline-soft), 0 1px 3px rgba(20, 26, 34, .18);
+  transition: box-shadow .15s ease, transform .15s ease;
+}
+.sp-kerros-nimi {
+  text-align: center; font-size: var(--fs-13); line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sp-chip.sp-kerros.active { background: none; color: var(--ink); font-weight: 600; }
+.sp-chip.sp-kerros.active .sp-kerros-kuva {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink), 0 2px 6px rgba(20, 26, 34, .22);
+}
+@media (any-hover: hover) {
+  .sp-chip.sp-kerros:not(.active):hover .sp-kerros-kuva { transform: translateY(-1px); }
+}
+.sp-chip.sp-kerros:focus-visible { outline: none; }
+.sp-chip.sp-kerros:focus-visible .sp-kerros-kuva {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+}
+
 /* Karttatasot: rivit yhtenä korotettuna listana, erottimet vain väleissä. */
 .sp-rows {
   background: var(--surface-hi);
@@ -3155,6 +3194,15 @@ button.sh-hero-indeksi:focus-visible { outline: 2px solid var(--accent); outline
 }
 #tutka-aika { color: var(--tl-teksti-2); text-shadow: var(--tl-halo); }
 #tutka-aika.nakyy { opacity: 1; }
+/* Silmukan paikka: seitsemän pistettä, vanhin vasemmalla. Koriste
+   (`aria-hidden`) — kello sanoo saman tekstinä. */
+#tutka-aika .ta-pisteet { display: inline-flex; gap: 3px; margin-left: 6px; vertical-align: middle; }
+#tutka-aika .ta-pisteet[hidden] { display: none; }
+#tutka-aika .ta-pisteet i {
+  width: 4px; height: 4px; border-radius: 50%;
+  background: currentColor; opacity: .32; transition: opacity .2s ease;
+}
+#tutka-aika .ta-pisteet i.on { opacity: 1; }
 
 /* Kaksi lappua samalla rivillä: lähdemerkintä lyhenee sen verran kuin
    leima vie. Lippu on juuressa eikä `:has()`-valitsimessa, koska sama
@@ -5400,25 +5448,36 @@ html.tyopoyta .hl-lk-arvo { font-size: 19px; }
         <h3 class="sp-ryhma" data-en="Map">Kartta</h3>
 
         <div class="sp-card">
-          <!-- KARTAN KERROS. Aallot on kolmas siru eikä kytkin: kartalla on
+          <!-- KARTAN KERROS: neljä ruutua esikatselukuvineen, Windyn
+               valikon tapaan (käyttäjän pyyntö 1.10.). Kartalla on
                kerrallaan yksi väriasteikko (CLAUDE.md, "Väri"), joten
-               aallot korvaavat tuulen eivätkä tule sen päälle. Sade on yhä
-               kytkin "Havainnot kartalla" -ryhmässä, ja se on aaltojen
-               kanssa toisensa poissulkeva (`_aaltotilaAseta`). -->
+               aallot ja sade korvaavat tuulen eivätkä tule sen päälle.
+               Kuvat piirtää `KerrosKuvat` sovelluksen omilla rampeilla,
+               eli ne näyttävät samat värit kuin kartta. Nimi on omassa
+               spanissaan, koska `data-en` kääntää tekstisisällön. -->
           <div class="sp-label" data-en="Map layer">Kartan kerros</div>
-          <div class="sp-chips" id="layers">
-            <div class="sp-chip active" data-layer="wind" data-en="Wind">Tuuli</div>
-            <div class="sp-chip" data-layer="gust" data-en="Gusts">Puuska</div>
-            <div class="sp-chip" data-layer="aallot" data-en="Waves">Aallot</div>
+          <div class="sp-chips sp-kerrokset" id="layers">
+            <div class="sp-chip sp-kerros active" data-layer="wind"><canvas class="sp-kerros-kuva" data-kuva="wind" aria-hidden="true"></canvas><span class="sp-kerros-nimi" data-en="Wind">Tuuli</span></div>
+            <div class="sp-chip sp-kerros" data-layer="gust"><canvas class="sp-kerros-kuva" data-kuva="gust" aria-hidden="true"></canvas><span class="sp-kerros-nimi" data-en="Gusts">Puuska</span></div>
+            <div class="sp-chip sp-kerros" data-layer="aallot"><canvas class="sp-kerros-kuva" data-kuva="aallot" aria-hidden="true"></canvas><span class="sp-kerros-nimi" data-en="Waves">Aallot</span></div>
+            <div class="sp-chip sp-kerros" data-layer="sade"><canvas class="sp-kerros-kuva" data-kuva="sade" aria-hidden="true"></canvas><span class="sp-kerros-nimi" data-en="Rain">Sade</span></div>
           </div>
           <!-- Aallonkorkeuden asteikko: vain aaltotilassa, koska silloin se
-               on kartan ainoa voimassa oleva asteikko (sama sääntö kuin
-               sateella). -->
+               on kartan ainoa voimassa oleva asteikko. -->
           <div class="sp-sadeasteikko sp-aaltoasteikko" id="aalto-scale" hidden>
             <div class="sp-sadeasteikko-otsikko" data-en="Significant wave height (m)">Merkitsevä aallonkorkeus (m)</div>
             <div id="aalto-scale-bar"></div>
             <div id="aalto-scale-ticks"></div>
             <div class="sp-note" data-en="FMI WAM wave model, about 2.5 days ahead. Moving crests show where the waves are heading; their speed follows the wave period.">FMI:n WAM-aaltomalli, noin 2,5 vrk eteenp&auml;in. Liikkuvat aallonharjat kertovat mihin aallot etenev&auml;t; niiden nopeus seuraa aallon jaksoa.</div>
+          </div>
+          <!-- Sateen asteikko: vain sadetilassa, samasta syystä. Foilaajalle
+               tutka ei ole "sataako" vaan MISSÄ KUUROT OVAT: kuuron reuna on
+               puuskarintama, ja se näkyy tutkassa ennen kuin ennusteessa. -->
+          <div class="sp-sadeasteikko" id="sade-scale" hidden>
+            <div class="sp-sadeasteikko-otsikko" data-en="Rain intensity (mm/h)">Sateen voimakkuus (mm/h)</div>
+            <div id="sade-scale-bar"></div>
+            <div id="sade-scale-ticks"></div>
+            <div class="sp-note" data-en="FMI radar for past hours (a 30-minute loop), HARMONIE forecast ahead. Radar colours are converted to millimetres from FMI’s own legends, so observed and forecast rain share one scale.">FMI:n tutka menneille tunneille (30 minuutin silmukka), HARMONIE-ennuste eteenp&auml;in. Tutkan v&auml;rit on k&auml;&auml;nnetty millimetreiksi FMI:n omista selitteist&auml;, joten havainto ja ennuste ovat samalla asteikolla.</div>
           </div>
         </div>
 
@@ -5512,33 +5571,6 @@ html.tyopoyta .hl-lk-arvo { font-size: 19px; }
               </div>
             </div>
             <div class="sp-toggle on" id="toggle-aallot"></div>
-          </div>
-
-          <!-- Sadetutka. Foilaajalle tutka ei ole "sataako" vaan MISSÄ
-               KUUROT OVAT: kuuron reuna on puuskarintama, ja se näkyy
-               tutkassa ennen kuin se näkyy ennusteessa. -->
-          <div class="sp-toggle-row" data-layer-toggle="tutka">
-            <div class="sp-toggle-left">
-              <div class="sp-toggle-dot"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 6.5 Q4.2 3.6 6.6 3.9 Q7.4 2.2 9.3 2.6 Q11.6 2.9 11.9 5.2 Q13.8 5.5 13.6 7.2 Q13.4 8.8 11.6 8.8 L4.6 8.8 Q2.9 8.7 3 6.5 Z" fill="currentColor" opacity=".55"/><line x1="5.4" y1="10.6" x2="4.4" y2="13.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="8.3" y1="10.6" x2="7.3" y2="14.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="11.2" y1="10.6" x2="10.2" y2="13.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></div>
-              <div>
-                <div class="sp-toggle-name" data-en="Rain">Sade</div>
-                <div class="sp-toggle-sub" data-en="FMI · radar for past hours, HARMONIE forecast ahead">FMI &middot; tutka taaksep&auml;in, HARMONIE eteenp&auml;in</div>
-              </div>
-            </div>
-            <div class="sp-toggle" id="toggle-tutka"></div>
-          </div>
-
-          <!-- Sateen asteikko. ASETUSPANEELISSA, ei kartalla — sama
-               sääntö kuin tuulen väriasteikolla, ja samasta syystä:
-               kartan päällä se olisi pysyvä palkki jota katsotaan
-               kerran. Näkyy vain kun kerros on päällä, koska silloin se
-               on ainoa asteikko joka on voimassa. -->
-          <div class="sp-sadeasteikko" id="sade-scale" hidden>
-            <div class="sp-sadeasteikko-otsikko" data-en="Rain intensity (mm/h)">Sateen voimakkuus (mm/h)</div>
-            <div id="sade-scale-bar"></div>
-            <div id="sade-scale-ticks"></div>
-            <div class="sp-note" data-en="Radar colours are converted to millimetres from FMI’s own legends, so observed and forecast rain share one scale.">Tutkan v&auml;rit on k&auml;&auml;nnetty millimetreiksi FMI:n omista
-              selitteist&auml;, joten havainto ja ennuste ovat samalla asteikolla.</div>
           </div>
 
           <div class="sp-toggle-row" data-layer-toggle="uiras-prim">
@@ -6194,7 +6226,7 @@ const L = (function () {
     return new Point(x, y, pyorista);
   }
 
-  /* Pallomainen Mercator metreinä — WMS-pyyntöjen bbox (ks. TutkaKerros). */
+  /* Pallomainen Mercator metreinä — WMS-pyyntöjen bbox (ks. SadeKerros). */
   const R_MAA = 6378137;
   const CRS = { EPSG3857: {
     project(ll) {
@@ -10732,12 +10764,12 @@ const GL_TARKKUUS_FS = '#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float
 /* ── RUUDUKKOKERROS: canvas-laatat MapLibren GL-ruutuun ──────────
  *
  * `L.GridLayer`in se osa jota sadetutka käyttää, piirrettynä samaan
- * WebGL-ruutuun kuin muu kartta. Laatta on yhä 2D-canvas: TutkaKerros
- * värjää sen itse (maskit, LUT, putImageData), ja tämä kerros vain vie
- * canvasin tekstuuriksi kun se on muuttunut (`laatta._likainen`) ja
- * piirtää sen oikeaan kohtaan joka ruudussa.
+ * WebGL-ruutuun kuin muu kartta. Perusluokan oma piirto vie canvas-
+ * laatan tekstuuriksi kun se on muuttunut (`laatta._likainen`);
+ * `SadeKerros` korvaa piirron (voimakkuustekstuurit ja varjostin) ja
+ * käyttää tästä vain laattajoukon hallinnan.
  *
- * Leafletin semantiikka säilyy siinä mitä TutkaKerros lukee:
+ * Leafletin semantiikka säilyy siinä mitä SadeKerros lukee:
  *   - `_tiles[avain] = { el, coords, current, loaded }`
  *   - `createTile(coords, done)`, jossa coords on KIERRETTY pituuspiirin
  *     ympäri (WMS-bbox) ja avain kiertämätön (sijainti ruudulla)
@@ -10829,7 +10861,10 @@ GLRuudukko.prototype._uudelleen = function () { if (this._map) this._map.ml.trig
 GLRuudukko.prototype._paivitaRuudut = function () {
   const map = this._map;
   if (!map || !map._valmis) return;
-  const zl = map.getZoom(), tz = Math.round(zl);
+  /* `maxNativeZoom`: tätä tarkempaa tasoa ei haeta, vaan sen laatat
+     skaalautuvat (sadekerros pehmentää ne varjostimessa). */
+  const zl = map.getZoom();
+  const tz = Math.min(this.options.maxNativeZoom != null ? this.options.maxNativeZoom : 99, Math.round(zl));
   if (tz !== this._tileZoom) {
     for (const k in this._tiles) this._tiles[k].current = false;
     this._tileZoom = tz;
@@ -13619,14 +13654,12 @@ const AaltoGL = {
  * kartalla tehdään eniten.
  *
  * Sen sijaan YKSI kerros, ja jokainen laatta säilyttää kehyksensä
- * ALFAMASKEINA (Uint8ClampedArray, 1 tavu per pikseli). Väri on vakio,
- * joten muuta ei tarvitse säilyttää:
- *
- *   maskit   7 × 65 536 B = 448 kB / laatta, 12 laatalla 5,4 MB
- *   (samat kehykset ImageDatana olisivat 4× enemmän eli 22 MB)
- *
- * Kehyksen vaihto kirjoittaa vain alfakanavan ja tekee yhden
- * `putImageData`n. RGB kirjoitetaan uudelleen vain jos muste vaihtui.
+ * VOIMAKKUUSTEKSTUUREINA (LUMINANCE, 1 tavu per pikseli) aikaleiman
+ * mukaan (`el._k`), enintään 16 kehystä laattaa kohti. Sateeton
+ * laatta ei saa tekstuuria lainkaan. Väri ja kehysten välinen häivytys
+ * tehdään varjostimessa (`SadeKerros`, 1.10.): ennen kehys vaihtui
+ * kovana leikkauksena 260 ms välein ja jokainen vaihto kirjoitti koko
+ * kerroksen canvasit uudelleen prosessorilla.
  *
  * ── KAKSI ASIAA JOTKA JÄTETÄÄN POIS, TIETOISESTI ──────────────────
  *
@@ -13969,7 +14002,12 @@ const Sadetutka = {
           t -= this.ASKEL_MS;
         }
         return this._uusin;              /* vanha arvo jää voimaan */
-      } finally { this._uusinKesken = null; }
+      } finally {
+        this._uusinKesken = null;
+        /* Luotaus on tehty ainakin kerran: tyhjä tulos tarkoittaa nyt
+           "ei saatavilla" eikä "ladataan" (`SadeKerros._kehys`). */
+        this._luodattu = true; this._luodattuT = Date.now();
+      }
     })();
     return this._uusinKesken;
   },
@@ -14022,12 +14060,15 @@ const Sadetutka = {
  *    juuri liikkeen suunta on se mitä silmukasta luetaan — keksitty
  *    liike valehtelisi enemmän kuin pysäytyskuva. Ennustetunti on
  *    yksi kuva, ja silmukan pysähtyminen on samalla se merkki jolla
- *    käyttäjä huomaa siirtyneensä havainnosta ennusteeseen.
+ *    käyttäjä huomaa siirtyneensä havainnosta ennusteeseen. Kun
+ *    aikajana LIIKKUU (toisto, raahaus), kerros häivyttää kahden tunnin
+ *    välillä voimakkuudessa (`SadeKerros`, käyttäjän pyyntö 1.10.):
+ *    se on sekoitus eikä liike, eikä se väitä kuuron kulkeneen.
  *
  * 2. YKSI HAKU KOKO RUUDULLE, ei laattaa kohti. Hila on pieni
- *    (Helsingin ruutu noin 40 × 22 solua) ja laatat näytteistävät
- *    siitä. Laattakohtainen haku olisi kaksitoista pyyntöä yhden
- *    hinnalla — sama virhe jota aaltopoijuilla varotaan.
+ *    (Helsingin ruutu noin 40 × 22 solua), ja varjostin näytteistää
+ *    sen suoraan B-splinillä. Laattakohtainen haku olisi kaksitoista
+ *    pyyntöä yhden hinnalla — sama virhe jota aaltopoijuilla varotaan.
  *
  * 3. TYHJÄ KATE ON ERI ASIA KUIN VERKKOVIKA. `error: 'no data'`
  *    HTTP 200:lla tarkoittaa "ennuste ei ulotu tähän tuntiin"
@@ -14046,19 +14087,25 @@ const Sadeennuste = {
      soluja. */
   PX_PER_SOLU: 6,
   HILA_MAX: 160,
+  /* TUNTEJA MUISTISSA. Toisto ja raahaus häivyttävät kahden tunnin
+     välillä ja hakevat seuraavat ennakkoon, joten muistissa on oltava
+     useampi tunti kerrallaan (ennen yksi). Hila on 2–68 kB. */
+  MUISTI: 10,
+  /* Rinnakkaisia hakuja enintään. Raahaus pyytää tunteja nopeammin kuin
+     ne ehtivät tulla; jono ei saa paisua, joten ylimääräiset pyynnöt
+     jätetään tekemättä ja seuraava ruutu pyytää uudestaan vain sen mikä
+     on silloin tarpeen. */
+  RINNAKKAIN: 2,
 
-  _hila: null,          /* viimeksi haettu hila */
-  _kesken: null,
-  _avain: null,
-
-  /* Kattaako muistissa oleva hila tämän hetken ja nämä rajat? */
-  kattaa(hila, hetkiIso, b) {
-    if (!hila || hila.time !== hetkiIso) return false;
-    const laN = hila.lat0 + (hila.nj - 1) * hila.dlat;
-    const loE = hila.lon0 + (hila.ni - 1) * hila.dlon;
-    return hila.lat0 <= b.getSouth() && laN >= b.getNorth()
-        && hila.lon0 <= b.getWest()  && loE >= b.getEast();
-  },
+  /* tunnin alku (ms) -> { tila: 'kesken'|'ok'|'tyhja'|'virhe', hila,
+     b: kattama rajaus, versio, lataa, virheT, tex, texVersio } */
+  _m: new Map(),
+  _kesken: 0,
+  /* Poistettujen tuntien GL-tekstuurit. Kerros omistaa GL-kontekstin,
+     joten se myös poistaa ne (`SadeKerros._siivoa`). */
+  _roskat: [],
+  /* Kutsutaan kun jokin tunti saapui: kerros pyytää uuden ruudun. */
+  kunMuuttui: null,
 
   /* Tunnin alku UTC:na — sama avain kuin proxylla, jotta välimuistit
      osuvat samaan. */
@@ -14066,56 +14113,100 @@ const Sadeennuste = {
     return new Date(Math.floor(ms / 3600000) * 3600000).toISOString().slice(0, 19) + 'Z';
   },
 
-  /* Hae hila näille rajoille ja tälle hetkelle. Palauttaa hilan,
-     `'tyhja'`-merkkijonon kun ennuste ei ulotu tähän tuntiin, tai
-     nullin verkkovirheessä. */
-  async hae(bounds, ms, leveysPx, korkeusPx) {
-    const hetkiIso = this.tunti(ms);
-    if (this.kattaa(this._hila, hetkiIso, bounds)) return this._hila;
+  _kattaa(e, b) {
+    return !!e.b && e.b.w <= b.getWest() && e.b.e >= b.getEast()
+        && e.b.s <= b.getSouth() && e.b.n >= b.getNorth();
+  },
 
-    const lev = bounds.getEast() - bounds.getWest();
-    const kor = bounds.getNorth() - bounds.getSouth();
-    const lo1 = bounds.getWest()  - lev * this.REUNUS;
-    const lo2 = bounds.getEast()  + lev * this.REUNUS;
-    const la1 = bounds.getSouth() - kor * this.REUNUS;
-    const la2 = bounds.getNorth() + kor * this.REUNUS;
+  /* Onko tunti valmis tälle näkymälle: hila joka kattaa sen, tieto ettei
+     tunnille ole ennustetta, tai verkkovika (jota ei jäädä odottamaan). */
+  valmis(ms, b) {
+    const e = this._m.get(ms);
+    if (!e) return false;
+    if (e.tila === 'tyhja' || e.tila === 'virhe') return true;
+    return e.tila === 'ok' && this._kattaa(e, b);
+  },
+  tila(ms) { const e = this._m.get(ms); return e ? e.tila : null; },
+  /* Piirrettävä merkintä. Rajaa ei vaadita: panoroinnin aikana vanha
+     hila jää ruudulle siksi aikaa kun uusi haetaan (vanha, ei väärä). */
+  merkinta(ms) { const e = this._m.get(ms); return e && e.hila ? e : null; },
+
+  /* Varmista tunnin hila nykyiselle näkymälle. Ei odota: kutsutaan joka
+     ruudussa niille tunneille jotka ovat näkyvissä tai tulossa. */
+  varmista(ms, map) {
+    if (!map) return;
+    const b = map.getBounds(), nyt = Date.now();
+    let e = this._m.get(ms);
+    if (e) {
+      if (e.tila === 'tyhja' || e.lataa) return;
+      if (e.virheT && nyt - e.virheT < 15000) return;
+      if (e.tila === 'ok' && this._kattaa(e, b)) return;
+    }
+    if (this._kesken >= this.RINNAKKAIN) return;
+    if (!e) {
+      e = { tila: 'kesken', hila: null, b: null, versio: 0, lataa: false, virheT: 0, tex: null, texVersio: -1 };
+      this._m.set(ms, e);
+      this._karsi();
+    }
+    const koko = map.getSize();
+    const lev = b.getEast() - b.getWest(), kor = b.getNorth() - b.getSouth();
+    const lo1 = b.getWest() - lev * this.REUNUS, lo2 = b.getEast() + lev * this.REUNUS;
+    const la1 = b.getSouth() - kor * this.REUNUS, la2 = b.getNorth() + kor * this.REUNUS;
     const ni = Math.max(8, Math.min(this.HILA_MAX,
-      Math.round((leveysPx  || 400) * (1 + 2 * this.REUNUS) / this.PX_PER_SOLU)));
+      Math.round((koko.x || 400) * (1 + 2 * this.REUNUS) / this.PX_PER_SOLU)));
     const nj = Math.max(8, Math.min(this.HILA_MAX,
-      Math.round((korkeusPx || 400) * (1 + 2 * this.REUNUS) / this.PX_PER_SOLU)));
-
-    const avain = hetkiIso + '|' + [lo1, la1, lo2, la2].map(v => v.toFixed(2)).join(',')
-                + '|' + ni + 'x' + nj;
-    if (this._kesken && this._avain === avain) return this._kesken;
-    this._avain = avain;
-    this._kesken = (async () => {
-      try {
-        const r = await fetch(API_BASE + '/sade?bbox='
-          + [lo1, la1, lo2, la2].map(v => v.toFixed(4)).join(',')
-          + '&time=' + encodeURIComponent(hetkiIso)
-          + '&ni=' + ni + '&nj=' + nj);
-        if (!r.ok) return null;
-        const j = await r.json();
-        if (!j || j.error) return 'tyhja';
-        const tavut = atob(j.mmh);
-        const n = j.ni * j.nj;
+      Math.round((koko.y || 400) * (1 + 2 * this.REUNUS) / this.PX_PER_SOLU)));
+    e.lataa = true;
+    this._kesken++;
+    const self = this;
+    fetch(API_BASE + '/sade?bbox=' + [lo1, la1, lo2, la2].map(v => v.toFixed(4)).join(',')
+      + '&time=' + encodeURIComponent(this.tunti(ms)) + '&ni=' + ni + '&nj=' + nj)
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (j) {
+        if (!j || j.error) { e.tila = 'tyhja'; return; }
+        const tavut = atob(j.mmh), n = j.ni * j.nj;
         const arvot = new Uint16Array(n);
-        for (let i = 0; i < n; i++) {
-          arvot[i] = (tavut.charCodeAt(i * 2) << 8) | tavut.charCodeAt(i * 2 + 1);
-        }
-        const hila = { time: j.time, ni: j.ni, nj: j.nj,
-                       lat0: j.lat0, lon0: j.lon0,
-                       dlat: j.dlat, dlon: j.dlon, flip: !!j.flip,
-                       arvot: arvot, max: j.max };
-        this._hila = hila;
-        return hila;
-      } catch (e) {
-        return null;
-      } finally {
-        this._kesken = null;
+        for (let i = 0; i < n; i++) arvot[i] = (tavut.charCodeAt(i * 2) << 8) | tavut.charCodeAt(i * 2 + 1);
+        e.hila = { time: j.time, ni: j.ni, nj: j.nj, lat0: j.lat0, lon0: j.lon0,
+                   dlat: j.dlat, dlon: j.dlon, flip: !!j.flip, arvot: arvot, max: j.max };
+        e.b = { w: lo1, e: lo2, s: la1, n: la2 };
+        e.tila = 'ok'; e.virheT = 0; e.versio++;
+      })
+      .catch(function () {
+        /* VERKKOVIKA. Vanha hila (jos on) jää: se on hetken vanha, ei
+           väärä. Uusi yritys aikaisintaan 15 s:n päästä. */
+        e.virheT = Date.now();
+        if (e.tila !== 'ok') e.tila = 'virhe';
+      })
+      .then(function () {
+        e.lataa = false;
+        self._kesken--;
+        if (self.kunMuuttui) self.kunMuuttui();
+      });
+  },
+
+  _karsi() {
+    if (this._m.size <= this.MUISTI) return;
+    for (const [k, e] of this._m) {
+      if (this._m.size <= this.MUISTI) break;
+      if (e.lataa) continue;
+      if (e.tex) this._roskat.push(e.tex);
+      this._m.delete(k);
+    }
+  },
+
+  /* Hila -> voimakkuustavut (rivi 0 = etelä), sama `Sade.v`-asteikko
+     kuin tutkan maskeilla: yksi esitysmuoto, kaksi lähdettä. */
+  tavut(h) {
+    const u = new Uint8Array(h.ni * h.nj);
+    for (let r = 0; r < h.nj; r++) {
+      const lahde = (h.flip ? (h.nj - 1 - r) : r) * h.ni, rivi = r * h.ni;
+      for (let c = 0; c < h.ni; c++) {
+        const mm = h.arvot[lahde + c] / 100;
+        if (mm > 0) u[rivi + c] = Math.max(1, Math.round(255 * Sade.v(mm)));
       }
-    })();
-    return this._kesken;
+    }
+    return u;
   },
 
   /* Bilineaarinen näyte, mm/h. Hilan ulkopuolella nolla — ei
@@ -14136,57 +14227,312 @@ const Sadeennuste = {
   }
 };
 
-/* Kerros. Ruudukkokerros eikä valmis WMS-laattalähde, koska jokainen
-   laatta on piirrettävä canvasille ja värjättävä uudelleen — ja koska
-   laatan on säilytettävä useampi kehys.
-   Kerros on kartan GL-ruudussa lämpökartan JÄLKEEN ja tavallisella
-   sekoituksella: lämpökartta sekoittuu pohjakarttaan `plus-lighter`illä,
-   eikä tutka saa osallistua siihen summaan — se on oma kuvansa
-   lämpökartan päällä. Merkit ovat DOMina kaiken yllä. */
-const TutkaKerros = GLRuudukko.extend({
-  options: {
-    tileSize: 256,
-    updateWhenIdle: true,
-    updateWhenZooming: false,
-    keepBuffer: 1
-  },
+/* -- SADEKERROS — havainto ja ennuste yhtenä GL-kerroksena ----------
+ *
+ * Kerros on kartan GL-ruudussa lämpökartan JÄLKEEN ja tavallisella
+ * sekoituksella (lämpökartta sekoittuu `plus-lighter`illä, eikä sade saa
+ * osallistua siihen summaan). Merkit ovat DOMina kaiken yllä.
+ *
+ * VOIMAKKUUS KULKEE GPU:LLE, VÄRI SYNTYY VARJOSTIMESSA. Ennen jokainen
+ * laatta oli 2D-canvas, jonka TutkaKerros värjäsi LUTilla prosessorilla
+ * ja jonka kehys vaihtui kovana leikkauksena. Nyt kehys on 8-bittinen
+ * voimakkuustekstuuri (sama `Sade.v`-asteikko kuin ennen), ja varjostin
+ * tekee kolme asiaa joita canvas ei voinut:
+ *
+ *   1. HÄIVYTTÄÄ KAHDEN KEHYKSEN VÄLILLÄ VOIMAKKUUDESSA (`mix`), ei
+ *      värissä eikä peittävyydessä. Kahden kuvan päällekkäinen piirto
+ *      tummuisi puolivälissä; voimakkuuden sekoitus ei.
+ *   2. PEHMENTÄÄ kuutiollisella B-splinillä (neljä bilineaarista hakua).
+ *      Tutka haetaan enintään tasolta 8 (`maxNativeZoom`, noin 300 m
+ *      pikselillä, lähde on 500 m) ja ennuste on 2,5 km:n hila, joten
+ *      lähizoomilla ruudulla oli ennen portaita. Nyt reuna on pehmeä
+ *      kuten Windyssä, ja tason 8 katto vähentää lähizoomin pyyntöjä.
+ *   3. LUKEE VÄRIN LINEAARISESTI SUODATETUSTA LUTista, joten sateen
+ *      reuna liukuu läpinäkyvään eikä katkea pikselirajaan.
+ *
+ * MITÄ RUUDULLA ON — `_paata` ratkaisee joka ruudussa parin (A, B, f):
+ *
+ *   - AIKAJANA LIIKKUU (toisto, sormi nauhalla tai kiskolla): A ja B
+ *     ovat liukuvan hetken ympäröivät tasatunnit ja f tunnin osuus.
+ *     Ennusteessa se on HARMONIEn tunnit, menneisyydessä tutkan
+ *     tasatuntikehykset. Ennustesarja sulaa tunnista toiseen eikä hypi
+ *     (käyttäjän pyyntö 1.10.). Häivytys on sekoitus, ei keksitty
+ *     liike: välikuva ei väitä kuuron kulkeneen mihinkään.
+ *   - AIKAJANA LEVOSSA, HAVAINTO: 30 min silmukka (7 kehystä) joka
+ *     liukuu kehyksestä toiseen jatkuvana häivytyksenä, pysähtyy
+ *     tuoreimpaan ja palaa alkuun häivyttäen. Ennen se hyppi 260 ms
+ *     välein ja leikkasi tuoreimmasta suoraan vanhimpaan.
+ *   - AIKAJANA LEVOSSA, ENNUSTE: valittu tunti.
+ *   - HYPPY (tikin napautus, kelihyppy, kytkentä päälle): uusi kuva
+ *     odotetaan valmiiksi (enintään 2,5 s) ja häivytetään edellisestä
+ *     0,38 s:ssa. Ennen kerros tyhjeni (`redraw`) ja laatat syttyivät
+ *     yksi kerrallaan.
+ *
+ * Puuttuva kehys ei tyhjennä laattaa: se näyttää viimeksi näytettyä
+ * kehystään kunnes uusi on perillä (`el._viime`). */
+const SadeKerros = GLRuudukko.extend({
+  options: { tileSize: 256, keepBuffer: 1, maxNativeZoom: 8 },
 
   initialize: function (options) {
     GLRuudukko.prototype.initialize.call(this, options);
-    this._kehysNyt = 0;
-    /* LÄHDE: 'tutka' = WMS-kehykset, 'ennuste' = HARMONIE-hila,
-       'tyhja' = ei kumpaakaan (aikajana datan ulkopuolella).
-       Kerros on yksi, lähteitä kaksi; kumpi on voimassa ratkeaa
-       valitusta tunnista eikä laatasta, joten se on kerroksen tila.
-
-       'tyhja' on oma arvonsa eikä `'ennuste'` ilman hilaa: muuten
-       panorointi yrittäisi hakea ennustehilan menneelle tunnille joka
-       on tutka-arkiston ulkopuolella — pyyntö johon lähde vastaa aina
-       400:lla. Tila on silloin myös väärä sana sille mitä ruudulla on. */
-    this._lahde = 'tutka';
-    this._hila = null;
-    /* Yksi jaettu raaputuscanvas kaikille laatoille ja kehyksille:
-       maskin poiminta on hetkellinen, joten oma canvas per laatta olisi
-       kaksitoista turhaa puskuria. */
     this._raap = document.createElement('canvas');
     this._raap.width = this._raap.height = 256;
     this._raapCtx = this._raap.getContext('2d', { willReadFrequently: true });
+    this._roskat = [];
+    this.alusta();
   },
 
-  /* Vaihda lähde ja hila. Palauttaa true jos jokin muuttui — kutsuja
-     päättää sen perusteella piirretäänkö uudelleen. */
-  asetaLahde: function (lahde, hila) {
-    const muuttui = (this._lahde !== lahde) || (this._hila !== hila);
-    this._lahde = lahde;
-    this._hila = hila || null;
-    return muuttui;
+  /* Näyttötila alkuun: kerros syttyy häivyttäen tyhjästä. */
+  alusta: function () {
+    this._vakaa = { l: 'tyhja' };
+    this._siirtyma = null;
+    this._odotus = null;
+    this._silmukka = null;
+    this._viimeEnnuste = null;
+    this._leimaNyt = null;
   },
 
-  /* Montako kehystä tällä lähteellä. Ennusteessa YKSI: lähteen askel on
-     tunti, eikä viittä minuuttia saa keksiä (ks. Sadeennuste). */
-  kehyksia: function () {
-    if (this._lahde !== 'tutka') return 1;
-    return Sadetutka.silmukassa() ? Sadetutka.KEHYKSIA : 1;
+  onAdd: function () {
+    const self = this;
+    Sadeennuste.kunMuuttui = function () { self._uudelleen(); };
+  },
+  onRemove: function () {
+    Sadeennuste.kunMuuttui = null;
+    _tutkaLeima(null);
+  },
+
+  _poistaRuutu: function (avain) {
+    const r = this._tiles[avain];
+    if (r && r.el && r.el._k) {
+      for (const e of r.el._k.values()) if (e.tex) this._roskat.push(e.tex);
+    }
+    GLRuudukko.prototype._poistaRuutu.call(this, avain);
+  },
+
+  /* ── KEHYKSET ─────────────────────────────────────────────────── */
+
+  _avain: function (k) { return k ? k.l + ':' + (k.t || 0) : ''; },
+  _sama: function (a, b) { return !!a && !!b && a.l === b.l && (a.t || 0) === (b.t || 0); },
+
+  /* Hetken (tasatunti) kehys. Raja tutkan ja ennusteen välillä on
+     aikajanan NYT-tikki samalla pyöristyksellä kuin `nowIdx`
+     (`_tutkaLahde`). Tutkan kehys katkaistaan tuoreimpaan; tyhjät tilat
+     ovat omia lajejaan, jotta leima voi sanoa miksi kuvaa ei ole. */
+  _kehys: function (t) {
+    const H = 3600e3;
+    if (_tutkaLahde(t) === 'tutka') {
+      const u = Sadetutka._uusin;
+      if (u == null) {
+        /* LUOTAIN VASTA KUN TUTKAA TARVITAAN: tuleva tunti ei kysy sitä,
+           eikä tutkan verkkovika siksi vie ennustetta. Epäonnistunut
+           luotaus uusitaan minuutin välein. */
+        if (!Sadetutka._uusinKesken
+            && (!Sadetutka._luodattu || Date.now() - (Sadetutka._luodattuT || 0) > 60000)) {
+          const self = this;
+          Sadetutka.uusin().then(function () { self._uudelleen(); });
+        }
+        return { l: Sadetutka._luodattu && !Sadetutka._uusinKesken ? 'eitutkaa' : 'odota' };
+      }
+      const k = Math.min(u, Math.floor(t / Sadetutka.ASKEL_MS) * Sadetutka.ASKEL_MS);
+      if (u - k > Sadetutka.ARKISTO_MS) return { l: 'eiarkistoa' };
+      return { l: 'tutka', t: k };
+    }
+    const h = Math.floor(t / H) * H;
+    const tila = Sadeennuste.tila(h);
+    if (tila === 'tyhja') return { l: 'eiennustetta' };
+    if (tila === 'virhe' && !Sadeennuste.merkinta(h)) return { l: 'eiyhteytta' };
+    return { l: 'ennuste', t: h };
+  },
+
+  _tutkaValmis: function (t) {
+    let n = 0;
+    for (const a in this._tiles) {
+      const r = this._tiles[a];
+      if (!r.current || r.coords.z !== this._tileZoom || !r.el) continue;
+      n++;
+      const e = r.el._k.get(t);
+      if (!e || e.tila === 'lataa') return false;
+    }
+    return n > 0;
+  },
+  _valmis: function (k) {
+    if (k.l === 'tutka') return this._tutkaValmis(k.t);
+    if (k.l === 'ennuste') return Sadeennuste.valmis(k.t, this._map.getBounds());
+    return k.l !== 'odota';
+  },
+
+  /* Mitä aikajana pyytää: liukuva hetki tai levossa valittu tunti. */
+  _kohde: function () {
+    const H = 3600e3, liike = _sadeLiike();
+    if (liike) {
+      const hetki = _tlTimeAt(liike.frac);
+      if (hetki != null && !isNaN(hetki)) {
+        const h0 = Math.floor(hetki / H), f = hetki / H - h0;
+        const A = this._kehys(h0 * H), B = this._kehys((h0 + 1) * H);
+        const sama = this._sama(A, B) || f < 1e-3;
+        return { A: A, B: sama ? null : B, f: sama ? 0 : f, liikkuu: true, h0: h0 };
+      }
+    }
+    const hetki = _tutkaHetki();
+    return { A: this._kehys(Math.round(hetki / H) * H), B: null, f: 0, liikkuu: false, h0: Math.round(hetki / H) };
+  },
+
+  /* Joka ruudussa: kohde -> näytettävä (A, B, f). */
+  SIIRTYMA_MS: 380,
+  ODOTUS_MAX_MS: 2500,
+  _paata: function (nyt, k) {
+    if (k.liikkuu) {
+      this._siirtyma = null; this._odotus = null; this._silmukka = null;
+      this._vakaa = (k.B && k.f >= 0.5) ? k.B : k.A;
+      return { A: k.A, B: k.B, f: k.f, liikkuu: true };
+    }
+    const kohde = k.A;
+    if (!this._sama(this._vakaa, kohde)) {
+      const av = this._avain(kohde);
+      if (!this._odotus || this._odotus.avain !== av) this._odotus = { avain: av, t0: nyt };
+      if (this._valmis(kohde) || nyt - this._odotus.t0 > this.ODOTUS_MAX_MS) {
+        const ennen = this._vakaa;
+        this._vakaa = kohde;
+        this._odotus = null;
+        this._silmukka = null;
+        this._siirtyma = _tlVahennaLiiketta() ? null : { from: ennen, t0: nyt };
+      }
+    } else this._odotus = null;
+    const S = this._vakaa;
+    if (this._siirtyma) {
+      const p = (nyt - this._siirtyma.t0) / this.SIIRTYMA_MS;
+      if (p < 1) return { A: this._siirtyma.from, B: S, f: p * p * (3 - 2 * p), anim: true };
+      this._siirtyma = null;
+    }
+    if (S.l === 'tutka' && Sadetutka.silmukassa()) {
+      const L = this._silmukkaKehys(S, nyt);
+      if (L) return L;
+    }
+    return { A: S, B: null, f: 0 };
+  },
+
+  /* SILMUKKA. Pysähdys tuoreimpaan ensin — se on sama kuva joka on jo
+     ruudulla, joten silmukan alku ei hyppää — sitten häivytys
+     vanhimpaan ja kuusi jatkuvaa askelta takaisin tuoreimpaan. Käynnistyy
+     vasta kun kaikki näkyvät laatat osaavat kaikki kehykset: muuten osa
+     ruudusta olisi eri hetkestä kuin muu. */
+  SILMUKKA_ASKEL_MS: 430,
+  SILMUKKA_PYSAHDYS_MS: 1400,
+  SILMUKKA_PALUU_MS: 520,
+  _silmukkaKehys: function (S, nyt) {
+    const N = Sadetutka.KEHYKSIA, D = Sadetutka.ASKEL_MS;
+    if (!this._silmukka || this._silmukka.t !== S.t) {
+      for (let i = 1; i < N; i++) if (!this._tutkaValmis(S.t - i * D)) return null;
+      this._silmukka = { t: S.t, t0: nyt };
+    }
+    const a = this.SILMUKKA_ASKEL_MS, p = this.SILMUKKA_PYSAHDYS_MS, r = this.SILMUKKA_PALUU_MS;
+    let x = (nyt - this._silmukka.t0) % (p + r + (N - 1) * a);
+    const kehys = function (i) { return { l: 'tutka', t: S.t - i * D }; };
+    /* Askel on lähes lineaarinen: jatkuva liike, ei pysähdystä joka
+       kehyksellä. Paluu on pehmeä, koska se on hyppy 30 minuuttia. */
+    const liuku = function (q) { return 0.6 * q + 0.4 * q * q * (3 - 2 * q); };
+    if (x < p) return { A: kehys(0), B: null, f: 0, anim: true, piste: 0 };
+    x -= p;
+    if (x < r) {
+      const q = x / r;
+      return { A: kehys(0), B: kehys(N - 1), f: q * q * (3 - 2 * q), anim: true, piste: q < 0.5 ? 0 : N - 1 };
+    }
+    x -= r;
+    const i = Math.min(N - 2, Math.floor(x / a)), q = Math.min(1, x / a - i);
+    return { A: kehys(N - 1 - i), B: kehys(N - 2 - i), f: liuku(q), anim: true,
+             piste: q < 0.5 ? N - 1 - i : N - 2 - i };
+  },
+
+  /* ── LATAUS ───────────────────────────────────────────────────── */
+
+  /* Mitä tarvitaan nyt ja kohta, tärkein ensin: tutkan kehysajat ja
+     ennusteen tunnit. Toistossa kaksi seuraavaa tuntia haetaan ennakkoon,
+     ja levossa ennusteen naapuritunnit, jotta seuraava tikki on heti
+     valmis. */
+  _tarpeet: function (k, d) {
+    const H = 3600e3, tutka = [], ennuste = [];
+    const lisaa = function (x) {
+      if (!x) return;
+      if (x.l === 'tutka' && tutka.indexOf(x.t) < 0) tutka.push(x.t);
+      if (x.l === 'ennuste' && ennuste.indexOf(x.t) < 0) ennuste.push(x.t);
+    };
+    lisaa(k.A); lisaa(k.B); lisaa(d.A); lisaa(d.B);
+    if (this._siirtyma) lisaa(this._siirtyma.from);
+    if (!k.liikkuu && k.A.l === 'tutka' && Sadetutka.silmukassa()) {
+      for (let i = 1; i < Sadetutka.KEHYKSIA; i++) tutka.push(k.A.t - i * Sadetutka.ASKEL_MS);
+    }
+    if (k.liikkuu && State.isPlaying) {
+      lisaa(this._kehys((k.h0 + 2) * H)); lisaa(this._kehys((k.h0 + 3) * H));
+    }
+    if (!k.liikkuu && k.A.l === 'ennuste') {
+      lisaa(this._kehys((k.h0 + 1) * H)); lisaa(this._kehys((k.h0 - 1) * H));
+    }
+    return { tutka: tutka, ennuste: ennuste };
+  },
+
+  _palvele: function (t) {
+    const halutut = t.tutka, map = this._map;
+    for (const h of t.ennuste) Sadeennuste.varmista(h, map);
+    for (const a in this._tiles) {
+      const r = this._tiles[a], el = r.el;
+      if (!el) continue;
+      /* Kun tutkaa ei tarvita (ennuste), laatta on "valmis" heti, jotta
+         edellisen tason laatat voidaan karsia. */
+      if (!halutut.length && !el._valmis) { el._valmis = true; el._done(); }
+      if (!r.current || r.coords.z !== this._tileZoom) continue;
+      for (const ms of halutut) {
+        if (el._lataa >= 2) break;
+        const e = el._k.get(ms);
+        /* Epäonnistunut kehys yritetään uudelleen puolen minuutin päästä
+           — muuten yksi aikakatkaisu jättäisi laatan reiäksi silmukkaan. */
+        if (e && e.tila === 'virhe' && Date.now() - e.t > 30000) { el._k.delete(ms); }
+        if (!el._k.has(ms)) this._lataa(el, ms);
+      }
+      if (el._k.size > 16) this._karsiLaatta(el, halutut);
+    }
+  },
+
+  /* Laatan kehysmuisti: 16 kehystä, vanhimmat tarpeettomat ensin pois. */
+  _karsiLaatta: function (el, halutut) {
+    for (const [ms, e] of el._k) {
+      if (el._k.size <= 12) break;
+      if (e.tila === 'lataa' || halutut.indexOf(ms) >= 0) continue;
+      if (e.tex) this._roskat.push(e.tex);
+      el._k.delete(ms);
+    }
+  },
+
+  createTile: function (coords, done) {
+    return { _coords: coords, _k: new Map(), _lataa: 0, _valmis: false, _done: done, _viime: null };
+  },
+
+  _lataa: function (el, ms) {
+    const e = { tila: 'lataa', data: null, tex: null, tyhja: false };
+    el._k.set(ms, e);
+    el._lataa++;
+    const self = this, kuva = new Image();
+    kuva.crossOrigin = 'anonymous';
+    let ratkaistu = false;
+    const valmis = function (tila) {
+      if (ratkaistu) return;
+      ratkaistu = true;
+      clearTimeout(aikaraja);
+      el._lataa--;
+      e.tila = tila;
+      e.t = Date.now();
+      if (!el._valmis) { el._valmis = true; el._done(); }
+      self._uudelleen();
+    };
+    kuva.onload = function () {
+      if (el._poistettu) { valmis('virhe'); return; }
+      try { self._maski(kuva, e); valmis('ok'); }
+      catch (err) { valmis('virhe'); }   /* likainen canvas tms. */
+    };
+    /* Palvelin vastaa virhetilanteessa XML:llä joka ei ole kuva. Kehys
+       jää tyhjäksi eikä kartalle tule rikkinäistä ruutua. */
+    kuva.onerror = function () { valmis('virhe'); };
+    const aikaraja = setTimeout(function () { valmis('virhe'); }, 15000);
+    kuva.src = this._url(el._coords, ms);
   },
 
   /* Laatan bbox EPSG:3857:ssä. WMS 1.3.0 käyttää 3857:llä
@@ -14217,105 +14563,30 @@ const TutkaKerros = GLRuudukko.extend({
       + '&time=' + Sadetutka._leima(ms);
   },
 
-  createTile: function (coords, done) {
-    const laatta = document.createElement('canvas');
-    const koko = this.getTileSize();
-    laatta.width = koko.x; laatta.height = koko.y;
-    laatta._ctx = laatta.getContext('2d');
-    laatta._coords = coords;
-    laatta._maskit = new Array(Sadetutka.KEHYKSIA).fill(null);
-    /* Yksi uudelleenkäytettävä ImageData per laatta. Kehyksen vaihto
-       kirjoittaa siihen yhden 32-bittisen sanan pikseliä kohti. */
-    laatta._img = laatta._ctx.createImageData(koko.x, koko.y);
-    laatta._img32 = new Uint32Array(laatta._img.data.buffer);
-
-    if (this._lahde !== 'tutka') {
-      /* Ennustehila on jo muistissa tai sitä ei ole. Kumpikin tapaus
-         ratkeaa synkronisesti — haun tekee kerroksen kutsuja, ei laatta
-         (yksi haku koko ruudulle, ks. Sadeennuste). 'tyhja' kulkee
-         samaa polkua ilman hilaa, eli laatta jää tyhjäksi. */
-      if (this._hila) laatta._maskit[0] = this._ennusteMaski(laatta, coords);
-      this._naytaKehys(laatta, 0);
-      setTimeout(function () { done(null, laatta); }, 0);
-      return laatta;
-    }
-
-    const ajat = Sadetutka._ajat;
-    if (!ajat || !ajat.length) { setTimeout(function () { done(null, laatta); }, 0); return laatta; }
-
-    /* TUOREIN KEHYS ENSIN ja vasta sitten loput. Silmukka on
-       kaksitoista kertaa kalliimpi kuin yksi kuva, eikä käyttäjän pidä
-       katsoa tyhjää sen ajan — ensimmäinen kehys on ruudulla heti ja
-       silmukka käynnistyy kun se on valmis. */
-    this._lataaMaski(laatta, 0, () => {
-      this._naytaKehys(laatta, this._kehysNyt) || this._naytaKehys(laatta, 0);
-      done(null, laatta);
-      /* Ilman silmukkaa vanhoja kehyksiä ei haeta ollenkaan. */
-      if (!Sadetutka.silmukassa()) return;
-      /* Loput taustalla, uusimmasta vanhimpaan. */
-      const jono = this._kehysjarjestys().slice(1);
-      const seuraava = () => {
-        const k = jono.shift();
-        if (k === undefined) return;
-        this._lataaMaski(laatta, k, seuraava);
-      };
-      seuraava();
-    });
-    return laatta;
-  },
-
-  /* Kehysten latausjärjestys: tuorein (0) ensin, sitten taaksepäin.
-     Erillinen funktio jotta järjestys on yhdessä paikassa. */
-  _kehysjarjestys: function () {
-    const j = [];
-    for (let k = 0; k < Sadetutka.KEHYKSIA; k++) j.push(k);
-    return j;
-  },
-
-  _lataaMaski: function (laatta, k, valmis) {
-    const ajat = Sadetutka._ajat;
-    if (!ajat || ajat[k] == null) { valmis && valmis(); return; }
-    const kuva = new Image();
-    kuva.crossOrigin = 'anonymous';
-    const self = this;
-    let ratkaistu = false;
-    const paata = () => { if (!ratkaistu) { ratkaistu = true; valmis && valmis(); } };
-    kuva.onload = function () {
-      try { laatta._maskit[k] = self._maski(kuva); }
-      catch (e) { laatta._maskit[k] = null; }   /* likainen canvas tms. */
-      paata();
-    };
-    /* Palvelin vastaa virhetilanteessa XML:llä joka ei ole kuva. Kehys
-       jää tyhjäksi eikä kartalle tule rikkinäistä ruutua. */
-    kuva.onerror = paata;
-    kuva.src = this._url(laatta._coords, ajat[k]);
-  },
-
   /* Kuva -> VOIMAKKUUSMASKI (ei alfamaski).
    *
    * Tavu on paletin normalisoitu paikka 0..255, eli sama suure jonka
    * `Sade.mmh()` kääntää millimetreiksi. Väri JA peittävyys johdetaan
-   * siitä vasta piirrettäessä. Aiemmin tähän talletettiin valmis alfa,
-   * jolloin voimakkuus katosi eikä kerrosta voinut värittää lainkaan —
-   * ja ennustehila olisi pitänyt kääntää alfaksi omaa käyrää pitkin.
-   * Yksi esitysmuoto, kaksi lähdettä. */
-  _maski: function (kuva) {
+   * siitä vasta varjostimessa. Sateeton laatta (tavallisin) ei saa omaa
+   * tekstuuria lainkaan (`e.tyhja`). */
+  _maski: function (kuva, e) {
     const w = this._raap.width, h = this._raap.height;
     const g = this._raapCtx;
     g.clearRect(0, 0, w, h);
     g.drawImage(kuva, 0, 0, w, h);
     const p = g.getImageData(0, 0, w, h).data;
     const hak = Sadetutka.hakemisto();
-    const ulos = new Uint8ClampedArray(w * h);
+    const ulos = new Uint8Array(w * h);
     /* Hiljaisen pään varatie: canvas tallettaa pikselit esikerrottuina,
        joten matalalla alfalla RGB voi pyöristyä muutaman yksikön ohi
        paletin arvosta eikä hakemistosta löydy osumaa. Juuri ne pikselit
        ovat rampin alapäätä (indeksit 1..19), joten alfasta johdettu pieni
        voimakkuus on niille oikea arvo eikä arvaus. */
     const HILJAINEN = 20 / Sadetutka.RAMPPI_N;
+    let sataa = false;
     for (let i = 0, j = 0; i < p.length; i += 4, j++) {
       const a = p[i + 3];
-      if (a === 0) continue;                 /* ulos on jo nollattu */
+      if (a === 0) continue;
       const r = p[i], gg = p[i + 1], b = p[i + 2];
       /* Katvemaski on neutraali harmaa (204,204,204) eikä rampissa ole
          yhtään neutraalia arvoa (tarkistettu) — testi on yksikäsitteinen. */
@@ -14324,129 +14595,304 @@ const TutkaKerros = GLRuudukko.extend({
       if (v === undefined) v = HILJAINEN * (a / 255);
       /* LÄHTEEN ALFA ON OSA VOIMAKKUUTTA. FMI häivyttää tihkun itse
          nostamalla alfan 0 -> 255 indekseillä 1..19, eli juuri siellä
-         missä sade on alle 0,07 mm/h. Jos alfa jätettäisiin erilliseksi
-         kertoimeksi, voimakkuus väittäisi tihkusta 0,07 mm/h ja
-         häivytys tulisi vasta piirrossa — eli mm/h-luku olisi väärä
-         vaikka kuva näyttäisi oikealta. */
+         missä sade on alle 0,07 mm/h. */
       const t = Math.round(255 * v * (a / 255));
       ulos[j] = t > 0 ? t : 1;
+      sataa = true;
     }
-    return ulos;
+    if (sataa) e.data = ulos; else e.tyhja = true;
   },
 
-  /* Ennustehila -> voimakkuusmaski yhdelle laatalle.
-   *
-   * Rivin leveysaste lasketaan `ymercInv`illä ja sarakkeen pituusaste
-   * lineaarisesti — sama kuin säälaatoilla, koska laatta ON Mercatorissa
-   * ja hila on tasavälinen lat/lon. Jos tämän tekisi lineaarisesti
-   * molemmissa suunnissa, kuuro liukuisi laatan sisällä pohjoiseen. */
-  _ennusteMaski: function (laatta, coords) {
-    const h = this._hila;
-    if (!h) return null;
-    const koko = this.getTileSize();
-    const w = koko.x, hh = koko.y;
-    const nw = this._map.unproject(L.point(coords.x * w, coords.y * hh), coords.z);
-    const se = this._map.unproject(L.point((coords.x + 1) * w, (coords.y + 1) * hh), coords.z);
-    const myMax = ymerc(nw.lat), myMin = ymerc(se.lat);
-    const myStep = (myMax - myMin) / hh;
-    const lngStep = (se.lng - nw.lng) / w;
-    const ulos = new Uint8ClampedArray(w * hh);
-    /* Sarakkeen pituusaste kerran riviä kohti — se ei riipu rivistä. */
-    const lng = new Float64Array(w);
-    for (let c = 0; c < w; c++) lng[c] = nw.lng + (c + 0.5) * lngStep;
-    for (let r = 0; r < hh; r++) {
-      const lat = ymercInv(myMax - (r + 0.5) * myStep);
-      const rivi = r * w;
-      for (let c = 0; c < w; c++) {
-        const mm = Sadeennuste.nayte(h, lat, lng[c]);
-        if (mm <= 0) continue;
-        const t = Math.round(255 * Sade.v(mm));
-        ulos[rivi + c] = t > 0 ? t : 1;
+  /* ── PIIRTO ───────────────────────────────────────────────────── */
+
+  _glAlusta: function (gl) {
+    this._gl = gl;
+    /* Kuutiollinen B-spline neljällä bilineaarisella haulla (GPU Gems 2,
+       luku 20). Pehmentää eikä interpoloi: yksittäisen pikselin huippu
+       madaltuu hieman, ja juuri se poistaa portaat. */
+    const BSPLINE =
+        'vec4 _kuutio(float v){ vec4 n = vec4(1.0, 2.0, 3.0, 4.0) - v; vec4 s = n * n * n;\n'
+      + '  float x = s.x; float y = s.y - 4.0 * s.x; float z = s.z - 4.0 * s.y + 6.0 * s.x;\n'
+      + '  return vec4(x, y, z, 6.0 - x - y - z) * (1.0 / 6.0); }\n'
+      + 'float bspline(sampler2D t, vec2 uv, vec2 k){\n'
+      + '  vec2 p = uv * k - 0.5; vec2 f = fract(p); p -= f;\n'
+      + '  vec4 xc = _kuutio(f.x), yc = _kuutio(f.y);\n'
+      + '  vec4 c = p.xxyy + vec2(-0.5, 1.5).xyxy;\n'
+      + '  vec4 s = vec4(xc.xz + xc.yw, yc.xz + yc.yw);\n'
+      + '  vec4 o = (c + vec4(xc.yw, yc.yw) / s) / k.xxyy;\n'
+      + '  float s0 = texture2D(t, o.xz).r, s1 = texture2D(t, o.yz).r;\n'
+      + '  float s2 = texture2D(t, o.xw).r, s3 = texture2D(t, o.yw).r;\n'
+      + '  float sx = s.x / (s.x + s.y), sy = s.z / (s.z + s.w);\n'
+      + '  return mix(mix(s3, s2, sx), mix(s1, s0, sx), sy); }\n';
+    /* LUT luetaan lineaarisesti indeksin keskeltä: v 0..1 -> 256 solua. */
+    const VARI =
+        'vec4 vari(float v){ vec4 c = texture2D(u_lut, vec2(v * (255.0 / 256.0) + 0.5 / 256.0, 0.5));\n'
+      + '  return vec4(c.rgb * c.a, c.a) * u_w; }\n';
+    this._pLaatta = GLApu.ohjelma(gl,
+      GL_TARKKUUS
+      + 'attribute vec2 a_pos; uniform vec4 u_rect; uniform vec2 u_koko; varying vec2 v_uv;\n'
+      + 'void main(){ vec2 p = u_rect.xy + a_pos * u_rect.zw; vec2 c = p / u_koko * 2.0 - 1.0;\n'
+      + '  gl_Position = vec4(c.x, -c.y, 0.0, 1.0); v_uv = a_pos; }\n',
+      GL_TARKKUUS_FS
+      + 'uniform sampler2D u_a; uniform sampler2D u_b; uniform sampler2D u_lut;\n'
+      + 'uniform float u_f; uniform float u_w; uniform vec2 u_tk; varying vec2 v_uv;\n'
+      + BSPLINE + VARI
+      + 'void main(){ gl_FragColor = vari(mix(bspline(u_a, v_uv, u_tk), bspline(u_b, v_uv, u_tk), u_f)); }\n',
+      ['a_pos'], ['u_rect', 'u_koko', 'u_a', 'u_b', 'u_lut', 'u_f', 'u_w', 'u_tk']);
+    this._pHila = GLApu.ohjelma(gl,
+      GL_TARKKUUS + 'attribute vec2 a_pos;\nvoid main(){ gl_Position = vec4(a_pos * 2.0 - 1.0, 0.0, 1.0); }\n',
+      GL_TARKKUUS_FS
+      + 'uniform sampler2D u_a; uniform sampler2D u_b; uniform sampler2D u_lut;\n'
+      + 'uniform vec4 u_ga; uniform vec4 u_gb; uniform vec2 u_ka; uniform vec2 u_kb;\n'
+      + 'uniform float u_f; uniform float u_w; uniform vec4 u_nx; uniform vec2 u_ruutu;\n'
+      + BSPLINE + VARI
+      /* Hilan reunalla voimakkuus häipyy yhden solun matkalla: kova
+         reuna piirtäisi rajauksen suorakaiteen kartalle. */
+      + 'float kentta(sampler2D t, vec4 g, vec2 k, float lng, float la){\n'
+      + '  vec2 p = vec2((lng - g.y) / g.w, (la - g.x) / g.z);\n'
+      + '  vec2 r = min(p + 0.5, k - 0.5 - p);\n'
+      + '  float reuna = clamp(min(r.x, r.y), 0.0, 1.0);\n'
+      + '  if (reuna <= 0.0) return 0.0;\n'
+      + '  return bspline(t, (p + 0.5) / k, k) * reuna; }\n'
+      + 'void main(){\n'
+      + '  float sx = gl_FragCoord.x / u_ruutu.x, sy = (u_ruutu.y - gl_FragCoord.y) / u_ruutu.x;\n'
+      + '  float lng = u_nx.x + sx * u_nx.y;\n'
+      + '  float la = degrees(2.0 * atan(exp(u_nx.z - sy * u_nx.w)) - 1.5707963267948966);\n'
+      + '  float a = kentta(u_a, u_ga, u_ka, lng, la);\n'
+      + '  float b = u_f > 0.0 ? kentta(u_b, u_gb, u_kb, lng, la) : a;\n'
+      + '  gl_FragColor = vari(mix(a, b, u_f));\n'
+      + '}\n',
+      ['a_pos'], ['u_a', 'u_b', 'u_lut', 'u_ga', 'u_gb', 'u_ka', 'u_kb', 'u_f', 'u_w', 'u_nx', 'u_ruutu']);
+    this._nelio = GLApu.nelio(gl);
+    this._texTyhja = GLApu.tekstuuri(gl, gl.NEAREST);
+    gl.bindTexture(gl.TEXTURE_2D, this._texTyhja);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, 1, 1, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, new Uint8Array(1));
+    this._texLut = GLApu.tekstuuri(gl, gl.LINEAR);
+    this._lutAvain = null;
+  },
+
+  _glPurku: function (gl) {
+    for (const k in this._tiles) {
+      const el = this._tiles[k].el;
+      if (!el || !el._k) continue;
+      /* Kehykset joiden data on jo viety GPU:lle haetaan uudelleen. */
+      for (const [ms, e] of el._k) if (e.tex) { gl.deleteTexture(e.tex); el._k.delete(ms); }
+    }
+    for (const e of Sadeennuste._m.values()) if (e.tex) { gl.deleteTexture(e.tex); e.tex = null; e.texVersio = -1; }
+    this._siivoa(gl);
+    [this._pLaatta, this._pHila].forEach(p => p && gl.deleteProgram(p.o));
+    [this._texTyhja, this._texLut].forEach(t => t && gl.deleteTexture(t));
+    if (this._nelio) gl.deleteBuffer(this._nelio);
+    this._pLaatta = this._pHila = this._nelio = this._texTyhja = this._texLut = null;
+    this._gl = null;
+  },
+
+  _siivoa: function (gl) {
+    while (this._roskat.length) gl.deleteTexture(this._roskat.pop());
+    while (Sadeennuste._roskat.length) gl.deleteTexture(Sadeennuste._roskat.pop());
+  },
+
+  /* Ramppi GPU:lle. Indeksin 0 väri on indeksin 1 väri alfalla nolla:
+     lineaarinen suodatus liukuu silloin läpinäkyvään samassa sävyssä
+     eikä tummu reunalla mustan kautta. */
+  _varmistaLut: function (gl) {
+    const avain = Sadetutka.ramppiAvain();
+    if (this._lutAvain === avain) return;
+    const lut = Sadetutka.lut();
+    const t = new Uint8Array(lut.buffer.slice(0));
+    t[0] = t[4]; t[1] = t[5]; t[2] = t[6]; t[3] = 0;
+    gl.bindTexture(gl.TEXTURE_2D, this._texLut);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, t);
+    this._lutAvain = avain;
+  },
+
+  /* Kehyksen tekstuuri: sateeton ja epäonnistunut ovat yhteinen tyhjä,
+     latautumaton null. */
+  _tex: function (gl, e) {
+    if (!e || e.tila === 'lataa') return null;
+    if (e.tila !== 'ok' || e.tyhja) return this._texTyhja;
+    if (!e.tex && e.data) {
+      e.tex = GLApu.tekstuuri(gl, gl.LINEAR);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, 256, 256, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, e.data);
+      e.data = null;
+    }
+    return e.tex || this._texTyhja;
+  },
+
+  _piirraTutka: function (gl, v, A, B, f, w) {
+    const valmis = this._valmisTaso(), lista = [];
+    for (const k in this._tiles) {
+      const r = this._tiles[k];
+      if (!r.loaded || !r.el) continue;
+      if (r.coords.z !== this._tileZoom) { if (valmis) continue; lista.unshift(r); }
+      else lista.push(r);
+    }
+    if (!lista.length) return;
+    const self = this, p = this._pLaatta, koko = this.options.tileSize;
+    const tA = A.t, tB = B ? B.t : A.t;
+    GLApu.aja(gl, p, this._nelio, function () {
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+      gl.uniform2f(p.u.u_koko, v.w, v.h);
+      gl.uniform2f(p.u.u_tk, koko, koko);
+      gl.uniform1f(p.u.u_w, w);
+      gl.uniform1i(p.u.u_a, 0); gl.uniform1i(p.u.u_b, 1); gl.uniform1i(p.u.u_lut, 2);
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, self._texLut);
+      GLApu.sekoitus(gl, 'normaali');
+      for (const r of lista) {
+        const el = r.el;
+        let a = self._tex(gl, el._k.get(tA)), b = self._tex(gl, el._k.get(tB)), ff = f;
+        if (!a && !b) {
+          /* Kumpaakaan ei vielä ole: viimeksi näytetty kehys pysyy. */
+          a = b = self._tex(gl, el._k.get(el._viime)); ff = 0;
+          if (!a) continue;
+        } else if (!a) { a = b; ff = 0; }
+        else if (!b) { b = a; ff = 0; }
+        else if (w > 0.99) el._viime = f < 0.5 ? tA : tB;
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, a);
+        gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, b);
+        gl.uniform1f(p.u.u_f, ff);
+        const s = Math.pow(2, v.zl - r.coords.z), sivu = koko * s;
+        gl.uniform4f(p.u.u_rect, r.coords.x * sivu - v.x0, r.coords.y * sivu - v.y0, sivu, sivu);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       }
+      gl.activeTexture(gl.TEXTURE0);
+    });
+  },
+
+  _hilaTex: function (gl, e) {
+    if (!e.tex) { e.tex = GLApu.tekstuuri(gl, gl.LINEAR); e.texVersio = -1; }
+    if (e.texVersio !== e.versio) {
+      gl.bindTexture(gl.TEXTURE_2D, e.tex);
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, e.hila.ni, e.hila.nj, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, Sadeennuste.tavut(e.hila));
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+      e.texVersio = e.versio;
     }
-    return ulos;
+    return e.tex;
   },
 
-  /* Kehyksen vaihto yhdelle laatalle. Palauttaa epätoden jos kehystä ei
-     ole vielä ladattu — silloin kutsuja jättää laatan entiseen kuvaansa
-     eikä tyhjennä sitä. Välähtävä tyhjä laatta olisi näkyvämpi vika kuin
-     hetken vanha kehys. */
-  _naytaKehys: function (laatta, k) {
-    const m = laatta._maskit && laatta._maskit[k];
-    if (!m) return false;
-    const d = laatta._img32, lut = Sadetutka.lut();
-    for (let i = 0; i < m.length; i++) d[i] = lut[m[i]];
-    laatta._ctx.putImageData(laatta._img, 0, 0);
-    /* Canvas muuttui: tekstuuri ladataan uudelleen seuraavassa ruudussa. */
-    laatta._likainen = true;
-    this._uudelleen();
-    return true;
-  },
-
-  /* Koko kerros samaan kehykseen. Palauttaa kuinka moni laatta osui —
-     silmukka käynnistetään vasta kun kaikki näkyvät laatat osaavat
-     saman kehyksen, muuten osa kuvasta olisi eri hetkestä kuin muu. */
-  naytaKehys: function (k) {
-    this._kehysNyt = k;
-    let osui = 0, yht = 0;
-    for (const avain in this._tiles) {
-      const t = this._tiles[avain];
-      if (!t || !t.el || !t.current) continue;
-      yht++;
-      if (this._naytaKehys(t.el, k)) osui++;
+  _piirraEnnuste: function (gl, v, A, B, f, w) {
+    let a = Sadeennuste.merkinta(A.t), b = B ? Sadeennuste.merkinta(B.t) : a, ff = f;
+    if (!a && !b) {
+      a = b = (this._viimeEnnuste && this._viimeEnnuste.hila && Sadeennuste._m.get(this._viimeEnnuste.t) === this._viimeEnnuste.e)
+        ? this._viimeEnnuste.e : null;
+      ff = 0;
+      if (!a) return;
+    } else if (!a) { a = b; ff = 0; }
+    else if (!b) { b = a; ff = 0; }
+    else if (w > 0.99) {
+      const e = f < 0.5 ? a : b;
+      this._viimeEnnuste = { t: f < 0.5 ? A.t : (B ? B.t : A.t), e: e, hila: e.hila };
     }
-    return { osui: osui, yhteensa: yht };
+    const texA = this._hilaTex(gl, a), texB = this._hilaTex(gl, b);
+    const pr = this._map.ml.getPixelRatio ? this._map.ml.getPixelRatio() : (window.devicePixelRatio || 1);
+    const self = this, p = this._pHila, ha = a.hila, hb = b.hila;
+    GLApu.aja(gl, p, this._nelio, function () {
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texA);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texB);
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, self._texLut);
+      gl.uniform1i(p.u.u_a, 0); gl.uniform1i(p.u.u_b, 1); gl.uniform1i(p.u.u_lut, 2);
+      gl.uniform4f(p.u.u_ga, ha.lat0, ha.lon0, ha.dlat, ha.dlon);
+      gl.uniform4f(p.u.u_gb, hb.lat0, hb.lon0, hb.dlat, hb.dlon);
+      gl.uniform2f(p.u.u_ka, ha.ni, ha.nj);
+      gl.uniform2f(p.u.u_kb, hb.ni, hb.nj);
+      gl.uniform1f(p.u.u_f, ff);
+      gl.uniform1f(p.u.u_w, w);
+      gl.uniform4f(p.u.u_nx, v.x0 / v.W * 360 - 180, 360 / v.W,
+        (0.5 - v.y0 / v.W) * 2 * Math.PI, 2 * Math.PI / v.W);
+      gl.uniform2f(p.u.u_ruutu, pr, gl.drawingBufferHeight);
+      GLApu.sekoitus(gl, 'normaali');
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      gl.activeTexture(gl.TEXTURE0);
+    });
   },
 
-  /* Onko koko silmukka ladattu näkyville laatoille? */
-  silmukkaValmis: function () {
-    let laattoja = 0;
-    const n = this.kehyksia();
-    for (const avain in this._tiles) {
-      const t = this._tiles[avain];
-      if (!t || !t.el || !t.current) continue;
-      laattoja++;
-      for (let k = 0; k < n; k++) {
-        if (!t.el._maskit || !t.el._maskit[k]) return false;
-      }
+  /* Yksi kehys painolla w. Saman lähteen kaksi kehystä sekoitetaan
+     voimakkuudessa; eri lähteet (tutka <-> ennuste NYT-tikillä,
+     häivytys tyhjään) piirretään päällekkäin painoillaan. */
+  _piirraPari: function (gl, v, A, B, f, w) {
+    if (B && A.l === B.l && (A.l === 'tutka' || A.l === 'ennuste')) {
+      if (A.l === 'tutka') this._piirraTutka(gl, v, A, B, f, w);
+      else this._piirraEnnuste(gl, v, A, B, f, w);
+      return;
     }
-    return laattoja > 0;
-  },
-
-  /* Ennustehila vaihtui tai saapui. Maskit rakennetaan uudelleen
-     KAIKILLE laatoille — myös niille jotka eivät ole näkyvissä, koska
-     ne palaavat näkyviin panoroidessa ja vanhalla hilalla ne
-     näyttäisivät väärää tuntia. */
-  paivitaEnnuste: function () {
-    for (const avain in this._tiles) {
-      const t = this._tiles[avain];
-      if (!t || !t.el) continue;
-      t.el._maskit[0] = this._hila ? this._ennusteMaski(t.el, t.el._coords) : null;
-      for (let k = 1; k < Sadetutka.KEHYKSIA; k++) t.el._maskit[k] = null;
-      if (!this._naytaKehys(t.el, 0)) this._tyhjenna(t.el);
+    const osat = B ? [[A, 1 - f], [B, f]] : [[A, 1]];
+    for (const o of osat) {
+      const k = o[0], ww = o[1] * w;
+      if (ww < 0.004) continue;
+      if (k.l === 'tutka') this._piirraTutka(gl, v, k, null, 0, ww);
+      else if (k.l === 'ennuste') this._piirraEnnuste(gl, v, k, null, 0, ww);
     }
-    this._kehysNyt = 0;
   },
 
-  /* Laatta tyhjäksi. Tarvitaan kun lähde vaihtuu eikä uutta maskia ole:
-     vanha kuva on silloin VÄÄRÄ eikä vain vanha, ja `_naytaKehys`
-     jättäisi sen tarkoituksella paikalleen. */
-  _tyhjenna: function (laatta) {
-    laatta._ctx.clearRect(0, 0, laatta.width, laatta.height);
-    laatta._likainen = true;
-    this._uudelleen();
+  _piirra: function (gl) {
+    const map = this._map;
+    if (!map || !this._pLaatta) return;
+    this._siivoa(gl);
+    const nyt = performance.now();
+    const k = this._kohde();
+    const d = this._paata(nyt, k);
+    this._palvele(this._tarpeet(k, d));
+    this._varmistaLut(gl);
+    this._piirraPari(gl, map._nakyma(), d.A, d.B, d.f, 1);
+    this._paivitaLeima(d, k);
+    /* Uusi ruutu niin kauan kuin jokin liikkuu: silmukka, häivytys,
+       aikajana tai odotus (aikaraja tarkistetaan ruuduissa). */
+    if (d.anim || d.liikkuu || this._odotus) this._uudelleen();
   },
 
-  /* Ramppi vaihtui (pohjakartta tumma <-> paperi). Maskit kelpaavat
-     sellaisinaan — vain väri on kirjoitettava uudelleen, ja se tulee
-     LUTista jonka `_naytaKehys` lukee joka piirrolla. */
-  paivitaMuste: function () {
-    for (const avain in this._tiles) {
-      const t = this._tiles[avain];
-      if (t && t.el) this._naytaKehys(t.el, this._kehysNyt);
+  /* ── AIKALEIMA ────────────────────────────────────────────────── */
+
+  _paivitaLeima: function (d, k) {
+    const nayt = (d.B && d.f >= 0.5) ? d.B : d.A;
+    let teksti, piste = null;
+    switch (nayt.l) {
+      case 'tutka':
+        teksti = _t('Sadetutka ', 'Rain radar ') + _tutkaKello(nayt.t);
+        if (d.piste != null) piste = d.piste;
+        break;
+      case 'ennuste': teksti = _t('Sade-ennuste ', 'Rain forecast ') + _tutkaKello(nayt.t) + ' · HARMONIE'; break;
+      case 'odota': teksti = _t('Sadetutka · ladataan…', 'Rain radar · loading…'); break;
+      case 'eitutkaa': teksti = _t('Sadetutka · ei saatavilla', 'Rain radar · unavailable'); break;
+      case 'eiarkistoa': teksti = _t('Sadetutka · ei arkistoa tälle päivälle', 'Rain radar · no archive for this day'); break;
+      case 'eiennustetta': teksti = _t('Ei sade-ennustetta tälle tunnille', 'No rain forecast for this hour'); break;
+      case 'eiyhteytta': teksti = _t('Sade-ennuste · ei yhteyttä', 'Rain forecast · no connection'); break;
+      default:
+        /* Kerros syttyy: kohde on vielä matkalla. */
+        teksti = k.A.l === 'ennuste' ? _t('Sade-ennuste · ladataan…', 'Rain forecast · loading…')
+          : _t('Sadetutka · ladataan…', 'Rain radar · loading…');
     }
-  }
+    const avain = teksti + '|' + piste;
+    if (avain === this._leimaNyt) return;
+    this._leimaNyt = avain;
+    _tutkaLeima(teksti, piste);
+  },
+
+  /* Ramppi vaihtui (pohjakartta). Voimakkuus on GPU:lla, joten vain
+     LUT ladataan uudelleen. */
+  paivitaMuste: function () { this._lutAvain = null; this._uudelleen(); }
 });
+
+/* AIKAJANAN LIIKE SADEKERROKSELLE. Toisto, sormi nauhalla ja kiskon veto
+   kirjoittavat jatkuvan sijainnin tänne (`_sadeNayttoHetki`), ja kerros
+   lukee siitä liukuvan hetken. Liuku (napautus, kelihyppy) EI ole liikettä:
+   sen valinta on kohteessa heti, ja kerros häivyttää suoraan perille
+   hakematta jokaista välituntia. Liike päättyy 450 ms viimeisestä
+   kirjoituksesta, jolloin kerros palaa valittuun tuntiin ja silmukkaan. */
+function _sadeNayttoHetki(frac) {
+  if (State._tlLiuku) return;
+  State._tlNaytto = { frac: frac, t: performance.now() };
+  if (window._mapLayerState && window._mapLayerState['tutka'] && State.map) State.map.ml.triggerRepaint();
+}
+function _sadeLiike() {
+  const m = State._tlNaytto;
+  if (!m || State._tlLiuku) return null;
+  if (performance.now() - m.t > 450) return null;
+  return m;
+}
 
 /* drawColorField — "kenttä muuttui, piirrä uudelleen".
  *
@@ -25865,6 +26311,9 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
        riittää noin kymmenen rakennusta tuntiaskelta kohti: kenttä sulaa
        yhtä sulavasti mutta työtä on murto-osa. Partikkelit liikkuvat
        joka ruudussa joka tapauksessa. */
+    /* Sadekerros lukee sijainnin JOKA kutsulla, ei kentän kynnyksellä:
+       sen häivytys on varjostimessa ja maksaa saman joka ruudussa. */
+    _sadeNayttoHetki(frac);
     const kynnys = State.isPlaying ? 0.11 : 0.02;
     if (_builtFrac != null && Math.abs(frac - _builtFrac) < kynnys) return;
     if (_fieldBusy) { _pendingFrac = frac; return; }
@@ -26699,7 +27148,11 @@ function _tlVahennaLiiketta() {
  * `kupla` kirjoittaa aikakuplaan osoittimen alla olevan tunnin, jolloin
  * pitkä hyppy rullaa kellonajan perille eikä kupla puhu eri hetkestä
  * kuin nauha sen alla. */
-function _tlNaytaHetki(frac, kupla) {
+function _tlNaytaHetki(frac, kupla, liukuPerilla) {
+  /* Sadekerros häivyttää tuntien välillä tämän jatkuvan sijainnin
+     mukaan. Liuku ohitetaan, myös sen viimeinen ruutu: kerros häivyttää
+     liu'un kohteeseen itse (ks. `_sadeNayttoHetki`). */
+  if (!liukuPerilla) _sadeNayttoHetki(frac);
   const tl = document.getElementById('tl-scroll');
   if (tl) {
     const x = _tlNauhaX(tl, frac);
@@ -26740,7 +27193,7 @@ function _tlLiuuta(alku, kohde, ms, valmis) {
   if (tl) tl.classList.add('ohjattu');
   const siivous = function () { _tlNauhaVapaa(tl); };
   const perilla = function () {
-    _tlNaytaHetki(kohde, true);
+    _tlNaytaHetki(kohde, true, true);
     siivous();
     if (valmis) valmis();
   };
@@ -28057,7 +28510,180 @@ document.getElementById('btn-freespot').addEventListener('click', function() {
   openSheet(freeSpot, hourIdx);
 }, { passive: true });
 
+/* KARTAN KERROKSEN ESIKATSELUKUVAT (asetusten "Kartan kerros", Windyn
+ * valikon tapaan, käyttäjän pyyntö 1.10.).
+ *
+ * Neljä pientä karttaa samasta keksitystä rannikosta (saaristo ylhäällä,
+ * vastaranta alhaalla), ja jokaisen päällä se mitä kerros oikeasti
+ * piirtää — SOVELLUKSEN OMILLA RAMPEILLA: tuuli ja puuska
+ * `WindTexture.pikseliLUT()`illa additiivisesti pohjaan (kuten
+ * lämpökartta) ja partikkelijäljet, aallot `AaltoVari`lla vain merelle ja
+ * harjat paperinvärisinä kaarina, sade `Sade.lut`illa kuuroina. Kuva ei
+ * siis ole kuvitus vaan pienoiskoossa sama värikieli kuin kartta, ja
+ * jos ramppi muuttuu, kuva muuttuu mukana.
+ *
+ * Piirretään kerran, kun asetukset avataan ensimmäisen kerran
+ * (`_openSettings`): neljä 200 × 200 kangasta, noin 160 000 pikseliä,
+ * muutama millisekunti. Lämpökartan voimakkuus vaikuttaa tuulen kuviin,
+ * joten sen vaihto piirtää ne uudelleen (`KerrosKuvat.mitatoi`). */
+const KerrosKuvat = {
+  KOKO: 200,
+  _piirretty: false,
+  mitatoi() { this._piirretty = false; if (document.getElementById('settings-popup').classList.contains('open')) this.piirra(); },
+  piirra() {
+    if (this._piirretty) return;
+    const kuvat = document.querySelectorAll('#layers canvas[data-kuva]');
+    if (!kuvat.length) return;
+    this._piirretty = true;
+    kuvat.forEach((c) => { try { this._kuva(c, c.dataset.kuva); } catch (e) {} });
+  },
+  /* Arvokohina ja sen oktaavisumma: luonnollinen rantaviiva, saaristo
+     ja kenttien rakenne ilman satunnaislukuja (kuva on joka kerta sama). */
+  _hash(i, j, s) { const h = Math.sin(i * 127.1 + j * 311.7 + s * 74.7) * 43758.5453; return h - Math.floor(h); },
+  _vk(x, y, s) {
+    const i = Math.floor(x), j = Math.floor(y), fx = x - i, fy = y - j;
+    const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+    const a = this._hash(i, j, s), b = this._hash(i + 1, j, s), c = this._hash(i, j + 1, s), d = this._hash(i + 1, j + 1, s);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  },
+  _fbm(x, y, s) {
+    let t = 0, amp = 0.5, f = 1, n = 0;
+    for (let o = 0; o < 4; o++) { t += amp * this._vk(x * f, y * f, s + o * 13); n += amp; amp *= 0.5; f *= 2.03; }
+    return t / n;
+  },
+  /* Venytetty 0..1: oktaavisumma kasautuu puolivälin ympärille. */
+  _k(x, y, s, mitta) { return Math.max(0, Math.min(1, (this._fbm(x * mitta, y * mitta, s) - 0.5) * 2.4 + 0.5)); },
+  /* Keksitty rannikko: mantere ylhäällä, saaristo sen edessä,
+     vastaranta oikealla alhaalla. Koordinaatit 0..1. */
+  _maa(x, y) {
+    const ranta = 0.26 + 0.035 * Math.sin(x * 6.3 + 1.3) + 0.09 * (this._fbm(x * 5, 0.7, 3) - 0.5);
+    if (y < ranta) return true;
+    const syv = (y - ranta) / 0.24;
+    if (syv < 1 && this._fbm(x * 9, y * 9, 7) > 0.56 + 0.16 * syv) return true;
+    return y > 0.86 + 0.06 * (this._fbm(x * 4, 2.1, 5) - 0.5) && x > 0.40 + 0.05 * Math.sin(y * 20);
+  },
+  _maski: null,
+  _kuva(kangas, laji) {
+    const N = this.KOKO;
+    kangas.width = N; kangas.height = N;
+    const g = kangas.getContext('2d');
+    const img = g.createImageData(N, N), d = img.data;
+    /* Pohjakartan tumma meri ja maa (mitattu ruudulta: vesi tummempi,
+       maa harmaampi), ja rantaviiva hieman vaaleampana. */
+    const MERI = [27, 33, 41], MAA = [55, 60, 66];
+    const lutT = (laji === 'wind' || laji === 'gust') ? WindTexture.pikseliLUT() : null;
+    const lutS = laji === 'sade' ? Sade.lut(false) : null;
+    if (!this._maski) {
+      const m = new Uint8Array(N * N);
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) m[j * N + i] = this._maa((i + 0.5) / N, (j + 0.5) / N) ? 1 : 0;
+      this._maski = m;
+    }
+    const maski = this._maski;
+    for (let j = 0; j < N; j++) {
+      const y = (j + 0.5) / N;
+      for (let i = 0; i < N; i++) {
+        const x = (i + 0.5) / N, k = j * N + i, p = k * 4;
+        const maa = maski[k];
+        const reuna = maa && ((i > 0 && !maski[k - 1]) || (i < N - 1 && !maski[k + 1])
+          || (j > 0 && !maski[k - N]) || (j < N - 1 && !maski[k + N]));
+        let r = maa ? MAA[0] : MERI[0], gg = maa ? MAA[1] : MERI[1], b = maa ? MAA[2] : MERI[2];
+        if (reuna) { r += 26; gg += 26; b += 26; }
+        if (lutT) {
+          /* Tuuli 3–10 m/s ja puuska 8–17 m/s: lämpökartan pikseli
+             additiivisesti pohjaan, kylläisyys nostettuna kuten
+             varjostimen `saturate`. Rakenne on suurta ja pehmeää, kuten
+             sumennetussa lämpökartassa. */
+          const f = this._k(x, y, laji === 'gust' ? 21 : 4, 1.7);
+          const ms = laji === 'gust' ? 8 + 9 * f : 3 + 7 * f;
+          const w = lutT[Math.min(lutT.length - 1, Math.round(ms * 10))];
+          const cr = w & 255, cg = (w >>> 8) & 255, cb = (w >>> 16) & 255, ca = ((w >>> 24) & 255) / 255;
+          const l = 0.3 * cr + 0.59 * cg + 0.11 * cb, sat = 1.4;
+          r += Math.max(0, l + (cr - l) * sat) * ca;
+          gg += Math.max(0, l + (cg - l) * sat) * ca;
+          b += Math.max(0, l + (cb - l) * sat) * ca;
+        } else if (laji === 'aallot' && !maa) {
+          /* Aallonkorkeus kasvaa ulapalle päin; rannan suojassa matalaa. */
+          const ulappa = Math.max(0, Math.min(1, (y - 0.32) / 0.45));
+          const hs = 0.08 + (0.25 + 1.5 * ulappa) * (0.55 + 0.45 * this._k(x, y, 9, 2.2));
+          const c = AaltoVari.rgba(hs);
+          r = r * (1 - c.a) + c.r * c.a; gg = gg * (1 - c.a) + c.g * c.a; b = b * (1 - c.a) + c.b * c.a;
+        } else if (lutS) {
+          /* Kuurot: oktaavisumman huiput ovat soluja, ja hienompi
+             oktaavi antaa niille tutkakuvan rosoisen reunan. Väliin jää
+             poutaa, kuten oikeassa sadekuvassa. */
+          const v = 0.75 * this._fbm(x * 2.6, y * 2.6, 31) + 0.25 * this._fbm(x * 9, y * 9, 43);
+          const mm = Math.pow(Math.max(0, v - 0.5) * 6.5, 2.2) * 9;
+          if (mm > 0.03) {
+            const w = lutS[Math.max(1, Math.round(255 * Sade.v(mm)))];
+            const cr = w & 255, cg = (w >>> 8) & 255, cb = (w >>> 16) & 255, ca = ((w >>> 24) & 255) / 255;
+            r = r * (1 - ca) + cr * ca; gg = gg * (1 - ca) + cg * ca; b = b * (1 - ca) + cb * ca;
+          }
+        }
+        d[p] = Math.min(255, r); d[p + 1] = Math.min(255, gg); d[p + 2] = Math.min(255, b); d[p + 3] = 255;
+      }
+    }
+    g.putImageData(img, 0, 0);
+    g.lineCap = 'round';
+    if (lutT) this._jaljet(g, N, laji === 'gust');
+    if (laji === 'aallot') this._harjat(g, N, maski);
+  },
+  /* Partikkelijäljet: lyhyitä, kärkeä kohti kirkastuvia viivoja
+     virtausta pitkin (lounaasta, kaareutuen), puuskassa pidempiä,
+     paksumpia ja levottomampia. */
+  _jaljet(g, N, puuska) {
+    let siemen = puuska ? 7 : 3;
+    const satunnainen = () => { siemen = (siemen * 9301 + 49297) % 233280; return siemen / 233280; };
+    const maara = puuska ? 64 : 58, pituus = puuska ? 0.085 : 0.055, OSIA = 7;
+    for (let n = 0; n < maara; n++) {
+      let x = satunnainen() * 1.1 - 0.05, y = satunnainen() * 1.1 - 0.05;
+      const pts = [[x, y]];
+      for (let q = 0; q < OSIA; q++) {
+        const kulma = -0.45 + 0.35 * Math.sin(y * 4.2 + x * 1.5)
+          + (puuska ? 0.3 * (this._vk(x * 6, y * 6, 2) - 0.5) : 0);
+        x += Math.cos(kulma) * pituus / OSIA; y += Math.sin(kulma) * pituus / OSIA;
+        pts.push([x, y]);
+      }
+      for (let q = 1; q < pts.length; q++) {
+        const t = q / (pts.length - 1);
+        g.strokeStyle = 'rgba(255,255,255,' + (0.9 * t * t).toFixed(3) + ')';
+        g.lineWidth = N / 200 * (puuska ? 1.7 : 1.35) * (0.6 + 0.4 * t);
+        g.beginPath();
+        g.moveTo(pts[q - 1][0] * N, pts[q - 1][1] * N);
+        g.lineTo(pts[q][0] * N, pts[q][1] * N);
+        g.stroke();
+      }
+    }
+  },
+  /* Aallonharjat: paperinvärisiä kaaria kohtisuoraan etenemissuuntaan
+     (luoteeseen, kohti rantaa), vain merellä ja ulapalla tiheämpinä. */
+  _harjat(g, N, maski) {
+    let siemen = 11;
+    const satunnainen = () => { siemen = (siemen * 9301 + 49297) % 233280; return siemen / 233280; };
+    const kulma = -2.2, tx = Math.cos(kulma), ty = Math.sin(kulma), nx = -ty, ny = tx;
+    let piirretty = 0;
+    for (let n = 0; n < 200 && piirretty < 30; n++) {
+      const x = satunnainen(), y = 0.3 + 0.7 * satunnainen();
+      const i = Math.floor(x * N), j = Math.floor(y * N);
+      if (i < 2 || j < 2 || i >= N - 2 || j >= N - 2 || maski[j * N + i]) continue;
+      const ulappa = Math.max(0, Math.min(1, (y - 0.32) / 0.45));
+      if (satunnainen() > 0.35 + 0.65 * ulappa) continue;
+      piirretty++;
+      const puoli = (0.022 + 0.022 * ulappa + 0.01 * satunnainen()) * N, kaari = puoli * 0.24;
+      g.strokeStyle = 'rgba(240,231,206,' + (0.4 + 0.4 * ulappa).toFixed(2) + ')';
+      g.lineWidth = N / 200 * 1.3;
+      g.beginPath();
+      for (let q = 0; q <= 8; q++) {
+        const f = q / 4 - 1, etu = kaari * (1 - f * f);
+        const px = x * N + nx * f * puoli + tx * etu, py = y * N + ny * f * puoli + ty * etu;
+        if (q === 0) g.moveTo(px, py); else g.lineTo(px, py);
+      }
+      g.stroke();
+    }
+  }
+};
+
 function _openSettings() {
+  KerrosKuvat.piirra();
   document.getElementById('settings-popup').classList.add('open');
   document.getElementById('settings-overlay').classList.add('open');
   Modaali.avaa(document.getElementById('settings-popup'),
@@ -28317,6 +28943,7 @@ function _merkitseKarttatasot() {
   }
 }
 _merkitseKarttatasot();
+_kerrosSirut();
 
 /* -- ASETUSPANEELIN KONTROLLIT NÄPPÄIMISTÖLLE ---------------------
  *
@@ -28435,53 +29062,33 @@ _merkitseKarttatasot();
   });
 })();
 
-/* SADETUTKAN KERROS JA SEN SILMUKKA.
+/* SADEKERROKSEN KYTKENTÄ JA AIKALEIMA.
  *
  * Kerros luodaan vasta kun se ensi kerran kytketään päälle: pois
- * kytkettynä se ei saa maksaa yhtään pyyntöä eikä yhtään canvasia.
+ * kytkettynä se ei saa maksaa yhtään pyyntöä eikä yhtään tekstuuria.
  * Sama periaate kuin aaltoennusteen kytkimellä — uusi verkkoliikenne on
- * käyttäjän päätös.
+ * käyttäjän päätös. Kytkin on kartan kerroksen neljäs siru "Sade"
+ * (`#layers`, käyttäjän pyyntö 1.10.); tila on yhä `_mapLayerState.tutka`,
+ * jotta tallennettu valinta (`fs_tasot`) säilyy.
  *
- * KEHYSAJAT RATKAISTAAN ENNEN KUIN KERROS LISÄTÄÄN KARTALLE. Leaflet
- * kutsuu `createTile`a heti lisäyksestä, ja ilman aikoja laatat
- * syntyisivät tyhjinä. Luotain kestää mitattuna noin 1,2 s, ja sen ajan
- * aikaleima lukee "ladataan".
- *
- * SILMUKKA KÄYNNISTYY VASTA KUN KAIKKI NÄKYVÄT LAATAT OSAAVAT KAIKKI
- * KEHYKSET. Muuten osa ruudusta olisi eri hetkestä kuin muu — ja juuri
- * liikkeen suunta on se mitä tästä kerroksesta luetaan, joten
- * puolivalmis silmukka valehtelisi enemmän kuin pysäytyskuva.
- *
- * Toisto kulkee VANHIMMASTA UUSIMPAAN ja pysähtyy hetkeksi uusimpaan.
- * Se on sadetutkan vakiintunut kielioppi: silmukka kertoo mistä kuuro
- * tuli, ja pysähdys kertoo missä se nyt on. Ilman pysähdystä katsoja ei
- * tiedä mikä kehyksistä on nykyhetki.
- *
- * `prefers-reduced-motion` pysäyttää silmukan tuoreimpaan kehykseen.
- * Kerros on silloin sama kuin ennen animaatiota — ei mitään puuttuvaa,
- * vain liikkumaton. */
+ * Silmukka, häivytykset ja lähteen valinta ovat `SadeKerros`issa.
+ * Toisto kulkee VANHIMMASTA UUSIMPAAN ja pysähtyy uusimpaan: silmukka
+ * kertoo mistä kuuro tuli, ja pysähdys missä se nyt on. Aikaleiman
+ * pisterivi kertoo missä kohtaa silmukkaa kuva on (vasen = vanhin).
+ * `prefers-reduced-motion` pysäyttää silmukan tuoreimpaan kehykseen. */
 window._tutkaKerros = null;
 window._tutkaAjastin = null;      /* 5 min tuoreutus */
-window._tutkaToisto = null;       /* silmukan seuraava askel */
-window._tutkaKesken = false;
-
-/* Toiston tahti. 260 ms kehystä kohti on noin 4 kehystä sekunnissa:
-   hitaampi näyttäisi diaesitykseltä eikä liikkeeltä, nopeampi ei ehdi
-   erottua 5 min askeleilla. Pysähdys uusimpaan on sen verran pitkä että
-   ehtii lukea sekä kuvan että kellon. */
-const TUTKA_KEHYS_MS = 260;
-const TUTKA_PYSAHDYS_MS = 1500;
 
 function _tutkaKello(ms) {
   const d = new Date(ms);
   return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
 }
 
-/* Aikaleima kartan alalaitaan, lähdemerkinnän yläpuolelle. Se EI ole
+/* Aikaleima kartan alalaitaan, lähdemerkinnän riville. Se EI ole
    valinnainen: liikkuva kuva ilman kelloa ei kerro mitä hetkeä katsoo.
-   Sama asu kuin lähdemerkinnällä — se on jo se kieli jolla kartan päällä
-   sanotaan hiljaisia asioita. */
-function _tutkaLeima(teksti) {
+   `piste` = silmukan kehys (0 tuorein) tai null; pisterivi on koriste
+   (`aria-hidden`), ja kello sanoo saman tekstinä. */
+function _tutkaLeima(teksti, piste) {
   const el = document.getElementById('tutka-aika');
   if (!el) return;
   if (!teksti) {
@@ -28490,60 +29097,26 @@ function _tutkaLeima(teksti) {
     document.documentElement.removeAttribute('data-tutka');
     return;
   }
-  el.textContent = teksti;
+  let tx = el.firstElementChild, pi = tx && tx.nextElementSibling;
+  if (!tx || !tx.classList.contains('ta-teksti') || !pi) {
+    el.textContent = '';
+    tx = document.createElement('span'); tx.className = 'ta-teksti';
+    pi = document.createElement('span'); pi.className = 'ta-pisteet';
+    pi.setAttribute('aria-hidden', 'true');
+    for (let i = 0; i < Sadetutka.KEHYKSIA; i++) pi.appendChild(document.createElement('i'));
+    el.appendChild(tx); el.appendChild(pi);
+  }
+  tx.textContent = teksti;
+  pi.hidden = piste == null;
+  if (piste != null) {
+    const n = pi.children.length;
+    for (let i = 0; i < n; i++) pi.children[i].classList.toggle('on', i === n - 1 - piste);
+  }
   el.classList.add('nakyy');
   /* Lähdemerkintä kaventuu vain kun leima on rivillä. */
   document.documentElement.setAttribute('data-tutka', '1');
 }
 
-function _tutkaPysaytaToisto() {
-  if (window._tutkaToisto) { clearTimeout(window._tutkaToisto); window._tutkaToisto = null; }
-}
-
-/* Silmukan askel. Ajastin ketjutetaan `setTimeout`illa eikä
-   `setInterval`illa, koska uusimman kehyksen pysähdys on eri mittainen
-   kuin muut askeleet. */
-function _tutkaAskel(k) {
-  const kerros = window._tutkaKerros;
-  if (!kerros || !State.map || !State.map.hasLayer(kerros)) { _tutkaPysaytaToisto(); return; }
-  const ajat = Sadetutka._ajat;
-  if (!ajat) { _tutkaPysaytaToisto(); return; }
-
-  kerros.naytaKehys(k);
-  _tutkaLeima(_t('Sadetutka ', 'Rain radar ') + _tutkaKello(ajat[k]));
-
-  /* Indeksi 0 on TUOREIN, joten toisto kulkee suurimmasta nollaan. */
-  const seuraava = k === 0 ? Sadetutka.KEHYKSIA - 1 : k - 1;
-  const viive = k === 0 ? TUTKA_PYSAHDYS_MS : TUTKA_KEHYS_MS;
-  window._tutkaToisto = setTimeout(function () { _tutkaAskel(seuraava); }, viive);
-}
-
-/* Käynnistä silmukka kun se on valmis. Tarkistus on ajastimen takana
-   eikä tapahtuman, koska laattojen valmistuminen ei lähetä mitään
-   sellaista josta tämän ehdon voisi päätellä — `load` tulee jo
-   ensimmäisen kehyksen jälkeen. */
-function _tutkaOdotaSilmukkaa() {
-  const kerros = window._tutkaKerros;
-  if (!kerros || !State.map || !State.map.hasLayer(kerros)) return;
-  const ajat = Sadetutka._ajat;
-  /* ILMAN SILMUKKAA NÄYTETÄÄN TUOREIN, EI VANHIN. Tässä oli vika:
-     toisto käynnistyi aina vanhimmasta kehyksestä ja pysähtyi siihen
-     heti, jolloin `prefers-reduced-motion` näytti PUOLI TUNTIA vanhaa
-     tutkakuvaa nykyhetkenä. Liikkeen vähentäminen ei saa vaihtaa sitä
-     mitä kuva väittää. */
-  if (!Sadetutka.silmukassa()) {
-    _tutkaPysaytaToisto();
-    kerros.naytaKehys(0);
-    if (ajat) _tutkaLeima(_t('Sadetutka ', 'Rain radar ') + _tutkaKello(ajat[0]));
-    return;
-  }
-  if (kerros.silmukkaValmis()) {
-    _tutkaPysaytaToisto();
-    _tutkaAskel(Sadetutka.KEHYKSIA - 1);
-    return;
-  }
-  window._tutkaToisto = setTimeout(_tutkaOdotaSilmukkaa, 700);
-}
 
 /* VALITTU HETKI SADEKERROKSELLE.
  *
@@ -28586,97 +29159,16 @@ function _tutkaLahde(hetki) {
     ? 'tutka' : 'ennuste';
 }
 
-/* KERROKSEN SISÄLTÖ VALITULLE TUNNILLE.
- *
- * Yksi polku molemmille lähteille: tämä ratkaisee kumpi on vuorossa,
- * hakee sen datan, kertoo kerrokselle ja päivittää aikaleiman. Kaksi
- * erillistä polkua ajautuisi erilleen juuri siinä kohdassa jossa ne
- * kohtaavat — nykyhetkessä. */
-async function _tutkaSisalto() {
-  const kerros = window._tutkaKerros;
-  if (!kerros || !State.map || !State.map.hasLayer(kerros)) return;
-  const hetki = _tutkaHetki();
-  const lahde = _tutkaLahde(hetki);
-
-  if (lahde === 'tutka') {
-    const ajat = await Sadetutka.kehykset(hetki);
-    /* Ajo on voinut vanhentua: aikajana liikkui odotuksen aikana. */
-    if (!window._mapLayerState['tutka'] || _tutkaHetki() !== hetki) return;
-    if (!ajat || !ajat.length) {
-      /* Arkiston ulkopuolella (yli 7 vrk) tai luotain ei saanut yhteyttä
-         — kerros tyhjenee ja sanoo kumpi on kyseessä. */
-      _tutkaTyhjenna(Sadetutka._uusin == null
-        ? _t('Sadetutka · ei saatavilla', 'Rain radar · unavailable')
-        : _t('Sadetutka · ei arkistoa tälle päivälle', 'Rain radar · no archive for this day'));
-      return;
-    }
-    _tutkaPysaytaToisto();
-    if (kerros.asetaLahde('tutka', null)) kerros.redraw();
-    else if (kerros._ajatVanha !== ajat[0]) kerros.redraw();
-    kerros._ajatVanha = ajat[0];
-    _tutkaLeima(_t('Sadetutka ', 'Rain radar ') + _tutkaKello(ajat[0]));
-    _tutkaOdotaSilmukkaa();
-    return;
-  }
-
-  /* ENNUSTE. Silmukkaa ei ole: lähteen askel on tunti. */
-  _tutkaPysaytaToisto();
-  const b = State.map.getBounds(), koko = State.map.getSize();
-  const hila = await Sadeennuste.hae(b, hetki, koko.x, koko.y);
-  if (!window._mapLayerState['tutka'] || !State.map || _tutkaHetki() !== hetki) return;
-
-  if (hila === 'tyhja') {
-    /* ENNUSTE LOPPUI. Mitattuna HARMONIE ulottuu 61–62 tuntiin ja
-       aikajana 16,6 vuorokauteen, joten tämä on janan loppupäässä
-       tavallisin tila — ei virhe. Kuva katoaa ja teksti kertoo miksi. */
-    _tutkaTyhjenna(_t('Ei sade-ennustetta tälle tunnille', 'No rain forecast for this hour'));
-    return;
-  }
-  if (!hila) {
-    /* VERKKOVIKA. Vanha kuva jää: se on hetken vanha, ei väärä. */
-    _tutkaLeima(_t('Sade-ennuste · ei yhteyttä', 'Rain forecast · no connection'));
-    return;
-  }
-  kerros.asetaLahde('ennuste', hila);
-  kerros.paivitaEnnuste();
-  _tutkaLeima(_t('Sade-ennuste ', 'Rain forecast ') + _tutkaKello(hetki) + ' · HARMONIE');
-}
-
-/* Kerros tyhjäksi mutta KARTALLA. Poistaminen hävittäisi laatat, ja
-   seuraava tunti maksaisi ne uudelleen; tyhjä kerros palaa kuvaan
-   yhdellä maskinrakennuksella. */
-function _tutkaTyhjenna(teksti) {
-  const kerros = window._tutkaKerros;
-  _tutkaPysaytaToisto();
-  if (kerros) { kerros.asetaLahde('tyhja', null); kerros.paivitaEnnuste(); }
-  _tutkaLeima(teksti);
-}
-
-/* Panorointi ennustetilassa. Hila kattaa näkymän ja puolikkaan
-   reunuksen; sen yli mentäessä haetaan uusi. Tutkatilassa tämä ei tee
-   mitään — `L.GridLayer` hakee uudet laatat itse. */
+/* Panorointi ja aikajanan tikin vaihto: kerros ratkaisee itse joka
+   ruudussa mitä se tarvitsee (ennustehila näkymälle, tutkan laatat,
+   seuraavat tunnit), joten riittää pyytää uusi ruutu. Haut eivät kasaudu:
+   ennusteella on kaksi rinnakkaista hakua ja laatalla kaksi kehystä
+   kerrallaan, ja kumpikin pyytää vain sen mikä on SILLÄ HETKELLÄ tarpeen. */
 function _tutkaEnnusteVarmista() {
   const kerros = window._tutkaKerros;
-  if (!kerros || kerros._lahde !== 'ennuste' || !State.map) return;
-  if (!State.map.hasLayer(kerros)) return;
-  const hetki = _tutkaHetki();
-  if (Sadeennuste.kattaa(kerros._hila, Sadeennuste.tunti(hetki), State.map.getBounds())) return;
-  _tutkaSisalto();
+  if (kerros && State.map && State.map.hasLayer(kerros)) State.map.ml.triggerRepaint();
 }
-
-/* Aikajanan siirto. Raahatessa tämä tulee joka tunnin kohdalla, joten
-   haku on viiveen takana — muuten viikon raahaus olisi 400 pyyntöä.
-   Viive on lyhyt, koska se maksetaan vain kerran eleen lopussa. */
-window._tutkaHetkiAjastin = null;
-function _tutkaHetkiMuuttui() {
-  if (!window._mapLayerState || !window._mapLayerState['tutka']) return;
-  if (!window._tutkaKerros || !State.map || !State.map.hasLayer(window._tutkaKerros)) return;
-  if (window._tutkaHetkiAjastin) clearTimeout(window._tutkaHetkiAjastin);
-  window._tutkaHetkiAjastin = setTimeout(function () {
-    window._tutkaHetkiAjastin = null;
-    _tutkaSisalto();
-  }, 260);
-}
+function _tutkaHetkiMuuttui() { _tutkaEnnusteVarmista(); }
 
 /* TUULIKERROKSET JA SADEKERROS OVAT TOISENSA POISSULKEVAT.
  *
@@ -28782,19 +29274,14 @@ function _aaltotilaAseta(paalla) {
   State.aallot = paalla;
   const el = document.documentElement;
   if (paalla) el.setAttribute('data-aaltokerros', '1'); else el.removeAttribute('data-aaltokerros');
-  const valittu = paalla ? 'aallot' : State.activeLayer;
-  document.querySelectorAll('#layers .sp-chip').forEach(function (b) {
-    b.classList.toggle('active', b.dataset.layer === valittu);
-  });
   const ast = document.getElementById('aalto-scale');
   if (ast) { ast.hidden = !paalla; if (paalla) buildAaltoAsteikko(); }
   if (paalla && window._mapLayerState && window._mapLayerState['tutka']) {
     window._mapLayerState['tutka'] = false;
-    const tog = document.getElementById('toggle-tutka');
-    if (tog) tog.classList.remove('on');
     _tallennaKarttatasot();
     _tutkaPaivita();
   }
+  _kerrosSirut();
   if (typeof resetParticles === 'function') resetParticles();
   AaltoGL._rintamat.length = 0;
   AaltoGL.paivita();
@@ -28811,6 +29298,28 @@ function _aaltotilaAseta(paalla) {
   if (typeof updateTimelineToCenter === 'function') updateTimelineToCenter();
   if (typeof Crosshair !== 'undefined') Crosshair.refresh();
   if (State.map) State.map.ml.triggerRepaint();
+}
+
+/* KARTAN KERROKSEN VALITTU RUUTU TILASTA: sade > aallot > tuulen kenttä.
+   Tiloja on kolme lippua (`_mapLayerState.tutka`, `State.aallot`,
+   `State.activeLayer`), joten valinta luetaan niistä yhdessä paikassa
+   eikä kirjoiteta jokaiseen vaihtopolkuun erikseen. */
+function _kerrosSirut() {
+  const valittu = (window._mapLayerState && window._mapLayerState['tutka']) ? 'sade'
+    : aaltotila() ? 'aallot' : State.activeLayer;
+  document.querySelectorAll('#layers .sp-chip').forEach(function (b) {
+    b.classList.toggle('active', b.dataset.layer === valittu);
+  });
+}
+/* SADETILA PÄÄLLE/POIS — siru "Sade". Tila on yhä `_mapLayerState.tutka`
+   (tallentuu `fs_tasot`iin kuten ennen kytkimenä). */
+function _sadetilaAseta(paalla) {
+  paalla = !!paalla;
+  if (!!window._mapLayerState['tutka'] === paalla) { _kerrosSirut(); return; }
+  window._mapLayerState['tutka'] = paalla;
+  _tallennaKarttatasot();
+  _applyMapLayers();
+  _kerrosSirut();
 }
 
 function _tuulikerroksetNakyvissa(nakyvissa) {
@@ -28844,10 +29353,6 @@ async function _tutkaPaivita() {
   _tuulikerroksetNakyvissa(!paalla);
 
   if (!paalla) {
-    _tutkaPysaytaToisto();
-    if (window._tutkaHetkiAjastin) {
-      clearTimeout(window._tutkaHetkiAjastin); window._tutkaHetkiAjastin = null;
-    }
     if (window._tutkaKerros && State.map.hasLayer(window._tutkaKerros)) {
       State.map.removeLayer(window._tutkaKerros);
     }
@@ -28857,67 +29362,24 @@ async function _tutkaPaivita() {
   }
 
   if (window._tutkaKerros && State.map.hasLayer(window._tutkaKerros)) return;
-  /* Päällekkäiset kytkennät: luotain on käynnissä, älä aloita toista. */
-  if (window._tutkaKesken) return;
-  window._tutkaKesken = true;
+  /* Kerros ratkaisee itse joka ruudussa mitä se näyttää (`SadeKerros`):
+     tuorein kehys luodataan ensimmäisellä piirrolla, ja kuva syttyy
+     häivyttäen kun se on valmis. */
+  if (!window._tutkaKerros) window._tutkaKerros = new SadeKerros();
+  window._tutkaKerros.alusta();
   _tutkaLeima(_t('Sadetutka · ladataan…', 'Rain radar · loading…'));
-  try {
-    const hetki = _tutkaHetki();
-    if (!window._tutkaKerros) window._tutkaKerros = new TutkaKerros();
+  window._tutkaKerros.addTo(State.map);
 
-    /* LÄHDE JA DATA RATKAISTAAN ENNEN KUIN KERROS LISÄTÄÄN KARTALLE.
-       Leaflet kutsuu `createTile`a heti lisäyksestä, ja väärällä
-       lähteellä laatat syntyisivät tyhjinä tai edellisen tunnin
-       kuvasta.
-
-       LUOTAINTA EI AJETA ENNEN LÄHTEEN VALINTAA. Se kysytään vasta
-       tutkahaarassa: tulevaisuuden tunti ei tarvitse tutkaa lainkaan,
-       ja jos luotain epäonnistuisi, "ei saatavilla" piilottaisi myös
-       ennusteen — eli tutkan verkkovika olisi vienyt kerroksen jolla ei
-       ole tutkan kanssa mitään tekemistä. */
-    const lahde = _tutkaLahde(hetki);
-    if (lahde === 'tutka') {
-      const ajat = await Sadetutka.kehykset(hetki);
-      if (!window._mapLayerState['tutka'] || !State.map) { _tutkaLeima(null); return; }
-      if (!ajat || !ajat.length) {
-        window._tutkaKerros.asetaLahde('tyhja', null);
-        window._tutkaKerros.addTo(State.map);
-        _tutkaLeima(Sadetutka._uusin == null
-          ? _t('Sadetutka · ei saatavilla', 'Rain radar · unavailable')
-          : _t('Sadetutka · ei arkistoa tälle päivälle', 'Rain radar · no archive for this day'));
-      } else {
-        window._tutkaKerros.asetaLahde('tutka', null);
-        window._tutkaKerros._ajatVanha = ajat[0];
-        window._tutkaKerros.addTo(State.map);
-        _tutkaLeima(_t('Sadetutka ', 'Rain radar ') + _tutkaKello(ajat[0]));
-        _tutkaOdotaSilmukkaa();
-      }
-    } else {
-      const b = State.map.getBounds(), koko = State.map.getSize();
-      const hila = await Sadeennuste.hae(b, hetki, koko.x, koko.y);
-      if (!window._mapLayerState['tutka'] || !State.map) { _tutkaLeima(null); return; }
-      const kelpo = hila && hila !== 'tyhja';
-      window._tutkaKerros.asetaLahde(kelpo ? 'ennuste' : 'tyhja', kelpo ? hila : null);
-      window._tutkaKerros.addTo(State.map);
-      _tutkaLeima(hila === 'tyhja' ? _t('Ei sade-ennustetta tälle tunnille', 'No rain forecast for this hour')
-        : !hila ? _t('Sade-ennuste · ei yhteyttä', 'Rain forecast · no connection')
-        : _t('Sade-ennuste ', 'Rain forecast ') + _tutkaKello(hetki) + ' · HARMONIE');
-    }
-
-    if (!window._tutkaAjastin) {
-      /* Tuoreutus. Tuorein kehys mitätöidään ensin, muuten `_tutkaSisalto`
-         laskisi saman ankkurin eikä uutta löytyisi koskaan. Tämä koskee
-         VAIN nykyhetkeä: menneisyydessä ja tulevaisuudessa kuva ei
-         vanhene, joten `_tutkaSisalto` hoitaa nekin tapaukset oikein
-         tekemättä mitään. */
-      window._tutkaAjastin = setInterval(function () {
-        if (!window._tutkaKerros || !State.map || !State.map.hasLayer(window._tutkaKerros)) return;
-        Sadetutka._uusin = null; Sadetutka._uusinTs = 0;
-        _tutkaSisalto();
-      }, 5 * 60 * 1000);
-    }
-  } finally {
-    window._tutkaKesken = false;
+  if (!window._tutkaAjastin) {
+    /* Tuoreutus. Tuorein kehys luodataan uudelleen viiden minuutin
+       välein (lähteen askel); vanha arvo jää voimaan jos luotain ei
+       saa yhteyttä. Uusi kehys koskee VAIN nykyhetkeä, ja se häivytetään
+       paikalleen kun sen laatat ovat perillä. */
+    window._tutkaAjastin = setInterval(function () {
+      if (!window._tutkaKerros || !State.map || !State.map.hasLayer(window._tutkaKerros)) return;
+      Sadetutka._uusinTs = 0;
+      Sadetutka.uusin().then(function () { if (State.map) State.map.ml.triggerRepaint(); });
+    }, 5 * 60 * 1000);
   }
 }
 
@@ -28951,9 +29413,6 @@ document.querySelectorAll('.sp-toggle-row').forEach(function(row) {
     tog.classList.toggle('on', isOn);
     window._mapLayerState[id] = isOn;
     _tallennaKarttatasot();
-    /* Sade ja aallot ovat toisensa poissulkevat (yksi väriasteikko
-       kartalla): sateen kytkentä palauttaa tuulen sirun. */
-    if (id === 'tutka' && isOn && aaltotila()) _aaltotilaAseta(false);
     _applyMapLayers();
   });
 });
@@ -29833,6 +30292,8 @@ const KarttaAsetukset = {
 
     } else if (avain === 'lampo') {
       this._piirraLampokartta();
+      /* Tuulen esikatselukuvat ovat lämpökartan pikseleitä. */
+      KerrosKuvat.mitatoi();
 
     } else if (avain === 'malli') {
       /* MALLIN VAIHTO EI SIIRRÄ TUNTIA. Vaihto on vertailua varten
@@ -29863,6 +30324,17 @@ document.getElementById('layers').addEventListener('click', e => {
   /* AALLOT ON KERROS, EI KENTTÄ: `State.activeLayer` jää tuuleen tai
      puuskaan (tuulen koneisto lukee sitä), ja aaltotila on oma lippunsa.
      Paluu tuuleen palauttaa siis sen kentän joka oli ennen aaltoja. */
+  /* SADE ON KERROS KUTEN AALLOT: tuulen kenttä jää taustalle ja palaa
+     kun tuuli tai puuska valitaan. Sade ja aallot ovat toisensa
+     poissulkevat (yksi väriasteikko kartalla). */
+  if (layer === 'sade') {
+    if (window._mapLayerState['tutka']) return;
+    Haptics.light();
+    _closeSettings();
+    if (aaltotila()) _aaltotilaAseta(false);
+    _sadetilaAseta(true);
+    return;
+  }
   if (layer === 'aallot') {
     if (aaltotila()) return;
     Haptics.light();
@@ -29870,15 +30342,15 @@ document.getElementById('layers').addEventListener('click', e => {
     _aaltotilaAseta(true);
     return;
   }
-  if (layer === State.activeLayer && !aaltotila()) return;
+  const sadeOli = !!window._mapLayerState['tutka'];
+  if (layer === State.activeLayer && !aaltotila() && !sadeOli) return;
   Haptics.light();
-  document.querySelectorAll('#layers .sp-chip').forEach(btn => btn.classList.remove('active')); b.classList.add('active');
   _closeSettings();
-  if (aaltotila()) {
-    _aaltotilaAseta(false);
-    if (layer === State.activeLayer) return;
-  }
+  if (sadeOli) _sadetilaAseta(false);
+  if (aaltotila()) _aaltotilaAseta(false);
+  if (layer === State.activeLayer) { _kerrosSirut(); return; }
   State.activeLayer = layer;
+  _kerrosSirut();
   buildLegend();
   buildWindField(State.currentHourIdx).then(() => { drawColorField(); resetParticles(); });
   renderSpots(State.currentHourIdx);
@@ -30457,7 +30929,7 @@ setTimeout(function () { Kaynnistys.jumi(); }, Kaynnistys.JUMI_MS);
       ViewportGrid: ViewportGrid, ColorRamp: ColorRamp, PerfTracker: PerfTracker,
       buildWindField: buildWindField, idw: idw, ForecastPanel: ForecastPanel,
       LampoGL: LampoGL, PartikkeliGL: PartikkeliGL, L: L,
-      Sade: Sade, Sadetutka: Sadetutka, Sadeennuste: Sadeennuste,
+      Sade: Sade, Sadetutka: Sadetutka, Sadeennuste: Sadeennuste, SadeKerros: SadeKerros, KerrosKuvat: KerrosKuvat, _sadeNayttoHetki: _sadeNayttoHetki,
       _tutkaHetki: _tutkaHetki, _tutkaLahde: _tutkaLahde,
       _tlTimeAt: _tlTimeAt, _tlSailytaHetki: _tlSailytaHetki,
       _tlValitseIdx: _tlValitseIdx,

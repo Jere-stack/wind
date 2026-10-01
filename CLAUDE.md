@@ -26,7 +26,7 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   pieni yhteensopivuuskerros (`L.marker`, `L.latLng`, `L.Util`…) ja
   `State.map` on `KarttaGL`, Leafletin muotoinen julkisivu jonka
   `map.ml` on varsinainen MapLibre-kartta. Lämpökartta (`LampoGL`),
-  partikkelit (`PartikkeliGL`) ja sadetutka (`GLRuudukko`) piirtyvät
+  partikkelit (`PartikkeliGL`) ja sadekerros (`SadeKerros`, tutka ja HARMONIE-sade) piirtyvät
   MapLibren omaan WebGL-ruutuun custom layereina.
 - `api/*.js` — Vercelin serverless-funktiot (FMI-havainnot, HARMONIE-ennuste,
   mallin oma hila Open-Meteon S3:sta — ECMWF 9 km, ICON, GFS — kenttänä ja
@@ -169,7 +169,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/eleet.md` | nipistystä, zoomia, zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
 | `docs/data.md` | **aaltoennustetta kartalla (FMI WAM, `a0`–`a3`, `tools/wam.mjs`)**, säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja, **havaintoasemien oma historia (Mellsten ja Laru, `havainnot`-haara)**, **Mellstenin katkot: 4 h kuvaaja, arkistovaratie ja ajastinketju**, **kelikameran tila (YouTube, pikkukuvan ETag)** |
 | `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, MET Nordicia, Open-Meteon S3-malleja** |
-| `docs/ui.md` | **aaltokerrosta: siru, väri, aallonharjat, aikajana, kapseli, poijukaavion ennuste**, paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa (**toiston liuku, jatkuva päiväkisko, pehmeä valinta ja kelikaista**), kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
+| `docs/ui.md` | **kerrosvalitsinta (neljä ruutua esikatselukuvin) ja sadekerroksen GL-piirtoa (silmukka, häivytykset, B-spline)**, **aaltokerrosta: siru, väri, aallonharjat, aikajana, kapseli, poijukaavion ennuste**, paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa (**toiston liuku, jatkuva päiväkisko, pehmeä valinta ja kelikaista**), kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
 | `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit, kaavion venytys** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V10: yksi kaaviomoottori, kortti moduuleina, fonttilattia, laajan valinta, venytys, mallit laajassa) |
@@ -288,7 +288,8 @@ kokeiltu ja kaadettu mittauksella.
   **Aikajana: toisto liukuu, päivä vaihtuu liukuen, kiskoon kelikaista** ·
   **Aikajana: jatkuva päiväkisko, pehmeä valinta ja pilleri ikkunana** ·
   **Aikajana: pilleri jumissa, napautus pysähtyi ja hiiriveto** ·
-  **Aallot kartalla: kerros, väri, aallonharjat ja aikajana**
+  **Aallot kartalla: kerros, väri, aallonharjat ja aikajana** ·
+  **Sade neljänneksi kerrokseksi: GL-sadekerros ja esikatselukuvat**
 - **pwa**: PWA — kotivalikkoon ja rannalle · Mitä välimuistiin menee ·
   Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
   Ikoni ja kotivalikko
@@ -2481,7 +2482,16 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
 - **ENNUSTEESSA EI OLE SILMUKKAA.** HARMONIEn askel on tunti, ei viisi
   minuuttia; seitsemän kehystä olisi kuusi keksittyä välikuvaa. Silmukan
   pysähtyminen on samalla se merkki jolla käyttäjä huomaa siirtyneensä
-  havainnosta ennusteeseen.
+  havainnosta ennusteeseen. **Kun aikajana LIIKKUU (toisto, sormi
+  nauhalla tai kiskolla), kerros häivyttää kahden tasatunnin välillä
+  VOIMAKKUUDESSA** (`SadeKerros._kohde`, käyttäjän pyyntö 1.10.:
+  "smoothisti ennustesarja") — ennusteessa HARMONIEn tunnit, menneessä
+  tutkan tasatuntikehykset. Se on sekoitus eikä liike: välikuva ei väitä
+  kuuron kulkeneen. Liike luetaan `_sadeNayttoHetki`stä (toisto,
+  `_previewField`), ja se päättyy 450 ms viimeisestä sijainnista.
+  LIUKU EI OLE LIIKETTÄ (ei myöskään sen viimeinen ruutu,
+  `liukuPerilla`): napautuksen valinta on kohteessa heti, ja kerros
+  häivyttää suoraan perille hakematta jokaista välituntia.
 - **ENNUSTEHILA HAETAAN KERRAN KOKO RUUDULLE**, ei laattaa kohti, ja
   puolen näkymän reunuksella. Laattakohtainen haku olisi kaksitoista
   pyyntöä yhden hinnalla. Rivin leveysaste on `ymercInv`, sarakkeen
@@ -2503,13 +2513,30 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
 - **`gridsize` LÄHETETÄÄN VAIN KUN SE HARVENTAA.** Mitattuna 64×64
   ylinäytteisti 72×36 hilan ja kasvatti vastauksen 8 279 → 12 979
   tavuun. Proxy leikkaa pyynnön mallin omaan tarkkuuteen.
-- **Tutkakerros piirtyy lämpökartan JÄLKEEN ja tavallisella
-  alfasekoituksella**, koska lämpökartta summautuu pohjakarttaan
-  (`ONE, ONE` = `plus-lighter`) eikä tutka saa osallistua siihen summaan.
-  Se on `GLRuudukko` (Leafletin `GridLayer`in osajoukko GL-ruudussa):
-  laatat ovat yhä kankaita, ja kangas ladataan tekstuuriksi vain kun se
-  on merkitty likaiseksi (`laatta._likainen`). Jos kirjoitat kankaalle
-  merkitsemättä, ruudulla näkyy edellinen kehys.
+- **Sadekerros (`SadeKerros`) piirtyy lämpökartan JÄLKEEN ja
+  tavallisella alfasekoituksella**, koska lämpökartta summautuu
+  pohjakarttaan (`ONE, ONE` = `plus-lighter`) eikä sade saa osallistua
+  siihen summaan. Laattajoukon hallinta on `GLRuudukko`n (Leafletin
+  `GridLayer`in osajoukko), mutta laatta EI ole enää canvas: kehys on
+  8-bittinen VOIMAKKUUSTEKSTUURI (`Sade.v`-asteikko, LUMINANCE) ja väri
+  syntyy varjostimessa lineaarisesti suodatetusta LUTista (indeksin 0
+  väri = indeksin 1 väri alfalla 0, jottei reuna tummu). Ennustehila
+  piirretään suoraan koko ruudun vetona hilatekstuurista, ei laattoina.
+- **KAKSI KEHYSTÄ SEKOITETAAN VOIMAKKUUDESSA (`mix`), EI PÄÄLLEKKÄIN.**
+  Kahden kuvan päällekkäinen piirto painoillaan tummuisi puolivälissä
+  (0,85-alfa → 0,67). Saman lähteen kehykset (silmukka, tunnit,
+  siirtymä) sekoitetaan aina varjostimessa; vain eri lähteet (tutka ↔
+  ennuste NYT-tikillä, häivytys tyhjään) piirretään painoillaan.
+- **PEHMENNYS ON KUUTIOLLINEN B-SPLINE (neljä bilineaarista hakua), JA
+  TUTKA HAETAAN ENINTÄÄN TASOLTA 8** (`maxNativeZoom`, Leafletin
+  asteikko, noin 300 m pikselillä; lähde on 500 m). Tarkemmalla tasolla
+  palvelin vain suurensi samoja pikseleitä portaiksi, ja jokainen taso
+  maksoi omat laattansa. Älä nosta kattoa "tarkkuuden" vuoksi.
+- **HYPPY ODOTTAA KUVAN VALMIIKSI JA HÄIVYTTÄÄ** (`_paata`: enintään
+  2,5 s, häivytys 0,38 s). Ennen kerros tyhjeni (`redraw`) ja laatat
+  syttyivät yksi kerrallaan. Puuttuva kehys ei tyhjennä laattaa: se
+  näyttää viimeksi näytettyä kehystään (`el._viime`), ja ennustehila
+  edellistä hilaansa (`_viimeEnnuste`).
 - **TUTKAN KEHYSAIKA ON NIMENOMAINEN, EI `current`.** Se ratkaisee kaksi
   asiaa kerralla: silmukka tarvitsee tietyt hetket, ja nimetty aika on
   myös oikea välimuistiavain — lähde sanoo `max-age=86400` ja
@@ -2527,22 +2554,41 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   yksi kehys on 18–88 kB ruudullista kohti. 12 kehystä (60 min) olisi
   yli megan juuri silloin kun kerros kytketään päälle. Älä kasvata
   lukua mittaamatta.
-- **YKSI kerros ja alfamaskit, EI seitsemää päällekkäistä kerrosta.**
-  Seitsemän ruudukkokerrosta olisi valmista koneistoa mutta laukaisisi
-  seitsemät laattapyynnöt joka panoroinnilla. Maskit ovat
-  `Uint8ClampedArray` (1 tavu/pikseli), koska väri on vakio: mitattu
-  8,3 MB puhelimen ruudulla ja 16,5 MB työpöydällä — `ImageData`na
-  nelinkertaiset. Kehyksen vaihto on 1,7 ms koko kerrokselle.
+- **YKSI kerros ja voimakkuustekstuurit, EI seitsemää päällekkäistä
+  kerrosta.** Seitsemän ruudukkokerrosta laukaisisi seitsemät
+  laattapyynnöt joka panoroinnilla. Kehykset ovat laatassa AIKALEIMAN
+  mukaan (`el._k`, enintään 16, tarpeettomat vanhimmat ensin pois), joten
+  ankkurin siirto (uusi tuorein kehys, toinen tunti) käyttää jo ladatut
+  uudelleen. Sateeton laatta ei saa tekstuuria (`e.tyhja`, yhteinen
+  tyhjä). Laatalla on enintään kaksi latausta kerrallaan, ja
+  epäonnistunut kehys yritetään uudelleen 30 s:n päästä.
 - **Silmukka käynnistyy vasta kun KAIKKI näkyvät laatat osaavat KAIKKI
   kehykset.** Muuten osa ruudusta olisi eri hetkestä kuin muu, ja juuri
   liikkeen suunta on se mitä kerroksesta luetaan — puolivalmis silmukka
-  valehtelisi enemmän kuin pysäytyskuva.
+  valehtelisi enemmän kuin pysäytyskuva. **Silmukka on jatkuva
+  häivytys** (`_silmukkaKehys`): alkaa pysähdyksellä tuoreimpaan (sama
+  kuva joka on jo ruudulla), häivyttää vanhimpaan 0,52 s ja kulkee kuusi
+  0,43 s:n askelta takaisin; ennen kehys vaihtui kovana leikkauksena
+  260 ms välein ja tuoreimmasta hypättiin suoraan vanhimpaan. Aikaleiman
+  pisterivi kertoo kohdan (vasen = vanhin).
 - **`prefers-reduced-motion` NÄYTTÄÄ TUOREIMMAN, ei vanhinta.** Tässä oli
   vika: toisto käynnistyi vanhimmasta ja pysähtyi siihen heti, jolloin
   asetus näytti puoli tuntia vanhaa tutkakuvaa nykyhetkenä. Päätös on
   yhdessä paikassa (`Sadetutka.silmukassa()`) ja se ratkaisee myös
   latauksen: ilman silmukkaa kuutta vanhaa kehystä ei haeta lainkaan
   (12 pyyntöä 84:n sijaan).
+- **KARTAN KERROS ON NELJÄ RUUTUA ESIKATSELUKUVIN: TUULI, PUUSKA,
+  AALLOT, SADE** (`#layers`, Windyn valikon tapaan, käyttäjän pyyntö
+  1.10.). Sade oli ennen kytkin "Havainnot kartalla" -ryhmässä; tila on
+  yhä `_mapLayerState.tutka` (tallentuu `fs_tasot`iin), ja valittu ruutu
+  luetaan kolmesta lipusta yhdessä paikassa (`_kerrosSirut`: sade >
+  aallot > `State.activeLayer`). Kuvat piirtää `KerrosKuvat`
+  SOVELLUKSEN OMILLA RAMPEILLA (`WindTexture.pikseliLUT`, `AaltoVari`,
+  `Sade.lut`) keksityn rannikon päälle, joten ne näyttävät samat värit
+  kuin kartta; lämpökartan voimakkuuden vaihto piirtää ne uudelleen.
+  Valinta on mustekehys kuvan ympärillä, ei täyttö. Ruutu on yhä
+  `.sp-chip` (radiogroup), ja nimi on omassa spanissaan (`data-en`).
+  Sateen ja aaltojen asteikot ovat samassa kortissa ruutujen alla.
 - **Kehyksen aikaleima ei ole valinnainen.** Liikkuva kuva ilman kelloa
   ei kerro mitä hetkeä katsoo. Se on samalla rivillä lähdemerkinnän
   kanssa mutta vastakkaisessa reunassa — yksi rivi ylempänä se jäi

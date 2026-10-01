@@ -7681,3 +7681,62 @@ rajataan mallin akselin sisään (mitattu 73 tikkiä, 1.10. 00 – 4.10.
 Rajattu sarja muistetaan lähdesarjaa kohti, jotta `_tlMuisti`-vertailu
 ei rakenna janaa joka kerta uudelleen; valittu hetki säilyy
 `valittuMs`:stä.
+
+## Sade neljänneksi kerrokseksi: GL-sadekerros ja esikatselukuvat (1.10.)
+
+Käyttäjän pyyntö: sadetutkasta huoliteltu havainto ja sulavasti
+etenevä ennustesarja samasta FMI:n datasta, painopisteenä visuaalisuus
+ja sujuvuus; sateen valinta Windyn tapaan samaan paikkaan kuin tuuli,
+puuska ja aallot; ja jokaisesta tilasta neliön muotoinen esikatselukuva
+asetuksiin.
+
+**Kerrosvalitsin.** `#layers` on nyt neljä ruutua (`.sp-kerros`): kuva
+ylhäällä, nimi alla, valinta mustekehyksenä kuvan ympärillä (täyttö
+peittäisi kuvan). Ruutu on yhä `.sp-chip`, joten radiogroup, nuolet ja
+aria-tila tulevat rakenteesta kuten ennen. Sade oli kytkin "Havainnot
+kartalla" -ryhmässä; kytkin poistui ja sateen asteikko siirtyi
+ruutujen alle aaltojen asteikon viereen. Tila on yhä
+`_mapLayerState.tutka`, joten tallennettu valinta säilyy, ja valittu
+ruutu luetaan kolmesta lipusta yhdessä paikassa (`_kerrosSirut`).
+Vanha alapalkin `#layers`-sääntö (flex, 5 px) voitti luokkasäännön
+id:nä — siksi valitsin on `#layers.sp-kerrokset`.
+
+**Esikatselukuvat** (`KerrosKuvat`) piirretään kerran kun asetukset
+avataan, 4 × 200 × 200 px. Kaikissa sama keksitty rannikko
+(arvokohinasta: mantere, saaristo, vastaranta) pohjakartan tummilla
+sävyillä, ja päällä kerroksen oma värikieli sovelluksen omista
+rampeista: tuuli 3–10 m/s ja puuska 8–17 m/s `WindTexture.pikseliLUT`
+additiivisesti ja kylläisyys ×1,4 kuten varjostimessa, valkoiset
+partikkelijäljet; aallot `AaltoVari` vain merellä ja paperinväriset
+harjat; sade `Sade.lut` kuuroina joiden väliin jää poutaa. Lämpökartan
+voimakkuuden vaihto piirtää tuulen kuvat uudelleen. Mitattu
+kuvakaappauksesta (390 px puhelin): ruudut 4 × noin 70 px, väli 10 px,
+nimet mahtuvat suomeksi ja englanniksi.
+
+**Sadekerros GL:ksi** (`SadeKerros`, korvaa `TutkaKerros`in). Laatta ei
+ole enää canvas jonka prosessori värjää: kehys on voimakkuustekstuuri,
+ja varjostin (1) sekoittaa kaksi kehystä voimakkuudessa, (2) pehmentää
+kuutiollisella B-splinillä ja (3) värjää lineaarisesta LUTista. Tutka
+haetaan enintään tasolta 8 (noin 300 m pikselillä, lähde 500 m), joten
+lähizoomin portaat ja laattapyynnöt poistuivat. Kuvakaappauksella
+(z 8,6 Etelä-Pohjanmaalla, kuurot) reuna on pehmeä eikä pikseleitä
+erotu.
+
+| tilanne | ennen | nyt |
+|---|---|---|
+| silmukka | kova leikkaus 260 ms välein, tuoreimmasta hyppy vanhimpaan | jatkuva häivytys 0,43 s/kehys, pysähdys 1,4 s, paluu häivyttäen 0,52 s |
+| toisto / raahaus ennusteessa | tunti kerrallaan, haku 260 ms viiveellä, kerros tyhjeni välissä | kahden tunnin sekoitus liukuvan hetken mukaan, kaksi tuntia ennakkoon |
+| toisto / raahaus menneessä | sama | tutkan tasatuntikehykset sekoitettuina |
+| hyppy (napautus, kelihyppy) | `redraw`: laatat tyhjiksi ja syttyivät yksi kerrallaan | uusi kuva odotetaan valmiiksi (≤ 2,5 s) ja häivytetään 0,38 s |
+| kerros päälle | laatat syttyivät yksi kerrallaan | häivytys tyhjästä kun kuva on valmis |
+| tutka ↔ ennuste NYT-tikillä | kova vaihto | painotettu ristihäivytys |
+| aikaleima | kello | kello + silmukan pisterivi (vasen = vanhin) |
+
+Mitattu kontissa (Chromium + SwiftShader, tutka ja pohjakartta
+reititetty curlilla): silmukka kulkee (leima 15:00 → 14:40 → 15:00 →
+14:35 900 ms välein), liukuva hetki tunnin puolivälissä näyttää
+seuraavan tunnin leiman, +36 h ennuste piirtyy HARMONIEn hilasta, ja
+tuuleen palatessa `data-sadekerros` poistuu. Savutesti ja graafitesti
+läpi. Ruutunopeutta ei voi mitata täällä; silmukka ja liike pyytävät
+uuden ruudun joka kehyksellä vain sadetilassa (kuten aallonharjat), ja
+levossa ennusteessa kerros ei piirrä turhaan.
