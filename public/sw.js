@@ -37,7 +37,14 @@ const SAA_LUETTELO = 'saa-luettelo-v1';
    osoite palauttaa eri sisallon kuuden tunnin valein, ja vanha laatta
    tuoreen luettelon kanssa antaisi vaaran aika-akselin. */
 const SAA_ETULIITE = 'saa-';
-let saaViimeVersio = null;
+/* AALTOLAATAT (`a0`–`a3`) OVAT OMA SUKUPOLVENSA. Aaltotila voi hakea
+   luettelon uudelleen kesken istunnon (Aallot.paivita), jolloin
+   aaltolaatat tulevat uudemmasta rakennuksesta kuin tuulen laatat. Yhteinen
+   sukupolvi vuorottelisi silloin kahden version välillä ja poistaisi
+   toisen välimuistin joka haulla. */
+const SAA_AALTO = 'saa-a-';
+const saaViimeVersio = { tuuli: null, aalto: null };
+const onAaltoLaatta = (u) => /\/a[0-3]\/[^/]+\.bin\.gz$/.test(u.pathname);
 
 /* MapLibre tulee samasta originista versioidulla nimellä (vite.config.js,
    `karttakirjasto`). Ennen se oli jsDelivristä, ja CDN:n katko kaatoi
@@ -194,7 +201,8 @@ self.addEventListener('fetch', (e) => {
        osoitteella. Uusi ajo tuo uuden version eli uuden avaimen, ja
        vanhan sukupolven valimuisti poistetaan kokonaan. */
     const versio = u.searchParams.get('v') || 'tuntematon';
-    const nimi = SAA_ETULIITE + versio;
+    const perhe = onAaltoLaatta(u) ? 'aalto' : 'tuuli';
+    const nimi = (perhe === 'aalto' ? SAA_AALTO : SAA_ETULIITE) + versio;
     e.respondWith((async () => {
       const c = await caches.open(nimi);
       const osuma = await c.match(e.request);
@@ -202,7 +210,7 @@ self.addEventListener('fetch', (e) => {
       const r = await fetch(e.request);
       if (r.ok) {
         c.put(e.request, r.clone());
-        if (saaViimeVersio !== versio) { saaViimeVersio = versio; siivoaSaa(nimi); }
+        if (saaViimeVersio[perhe] !== versio) { saaViimeVersio[perhe] = versio; siivoaSaa(nimi, perhe); }
       }
       return r;
     })());
@@ -215,10 +223,10 @@ self.addEventListener('fetch', (e) => {
 /* Vain yksi sukupolvi laattoja kerrallaan. Ilman tata varasto kasvaisi
    uudella noin 30 MB:n kerroksella kuuden tunnin valein, eika vanhoihin
    ole enaa paluuta: luettelo osoittaa aina tuoreimpaan. */
-async function siivoaSaa(pida) {
+async function siivoaSaa(pida, perhe) {
   for (const n of await caches.keys()) {
-    if (n.startsWith(SAA_ETULIITE) && n !== pida && n !== SAA_LUETTELO) {
-      await caches.delete(n);
-    }
+    if (!n.startsWith(SAA_ETULIITE) || n === pida || n === SAA_LUETTELO) continue;
+    const aalto = n.startsWith(SAA_AALTO);
+    if ((perhe === 'aalto') === aalto) await caches.delete(n);
   }
 }

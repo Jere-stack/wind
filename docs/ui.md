@@ -7624,3 +7624,25 @@ docs/data.md, "Aallot kartalle".
   mittausta ja WAM samasta pisteestä katkoviivana NYT-merkin yli.
   Lukemarivi näyttää mittauksen puolella mittauksen ja sen jälkeen
   ennusteen (korkeus, suunta, jakso).
+
+### Ensimmäinen raportti: "kaikki värikerrokset lähtevät pois" (1.10.)
+
+Kaksi syytä, molemmat korjattu:
+
+1. **Istunnon luettelossa ei ollut aaltoja.** Aaltolaatat julkaistiin
+   ensimmäisen kerran klo 18.01 (Säädata-ajo), ja ennen sitä avattu
+   sovellus piti vanhan luettelon. Aaltotila sammutti tuulen värit eikä
+   tilalle tullut mitään. Nyt aaltotila hakee luettelon uudelleen
+   (`Aallot.paivita`) kun aaltoja ei ole tai niiden akseli loppuu alle
+   12 h päästä (enintään kerran 5 min:ssa), ja ottaa sen `aallot`-avaimen
+   omalla versiollaan (`taso._versio`). Service worker pitää
+   aaltolaatat omana sukupolvenaan (`saa-a-<v>`), jottei kahden eri
+   rakennuksen laatat poista toistensa välimuistia vuorotellen.
+   Toistettu testissä: luettelo ilman aaltoja ensimmäisellä haulla →
+   siru → kerros, kapseli 0,21 m ja lähdemerkintä tulevat.
+2. **Asteikon alapää oli liian tumma.** 0,1–0,2 m (tavallinen
+   Suomenlahdella) oli alfalla 0,4 tummaa sinistä tumman pohjan päällä.
+   Alapää vaalennettiin (0 m alfa 0,40, 0,1 m 0,58).
+
+Kapseli ei enää piiloudu aaltotilassa: ilman arvoa siinä on "— m" ja
+syy (ei merta tässä / ladataan / ei ennustetta / ei aaltodataa).

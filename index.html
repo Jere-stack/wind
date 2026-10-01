@@ -7651,8 +7651,12 @@ const Saalaatat = {
     if (this._laatat.has(avain)) return this._laatat.get(avain);
     if (this._kesken.has(avain)) return this._kesken.get(avain);
     const p = (async () => {
+      /* Tasolla voi olla oma versionsa: aaltotila hakee luettelon
+         uudelleen kesken istunnon (`Aallot.paivita`), ja silloin
+         aaltolaatat ovat uudemmasta rakennuksesta kuin tuulen. */
+      const versio = taso._versio || this._versio;
       const url = SAALAATAT_KANTA + avain + '.bin.gz'
-        + (this._versio ? '?v=' + encodeURIComponent(this._versio) : '');
+        + (versio ? '?v=' + encodeURIComponent(versio) : '');
       const r = await fetch(url);
       if (!r.ok) throw new Error('HTTP ' + r.status);
       /* raw.githubusercontent ei aseta content-encodingia binääritiedostolle,
@@ -8532,14 +8536,18 @@ const Saalaatat = {
    metrin meri on kova. Ankkurit [m, r, g, b, alfa]. */
 const AaltoVari = {
   ANKKURIT: [
-    [0.00,  16,  40,  70, 0.22],
-    [0.10,  20,  66, 106, 0.42],
-    [0.25,  26, 104, 146, 0.58],
-    [0.45,  34, 142, 170, 0.68],
-    [0.70,  70, 180, 188, 0.74],
-    [1.00, 132, 210, 206, 0.78],
-    [1.50, 198, 232, 224, 0.82],
-    [2.20, 240, 238, 222, 0.86],
+    /* ALAPÄÄ ON NÄKYVÄ (käyttäjän raportti 1.10.): ensimmäinen versio
+       alkoi tummasta sinisestä alfalla 0,22–0,42, ja 0,1–0,2 m:n päivänä
+       (tavallinen Suomenlahdella) aaltokerros näytti tummalla pohjalla
+       siltä kuin kartalta olisi lähtenyt kaikki värit. */
+    [0.00,  28,  78, 128, 0.40],
+    [0.10,  34, 104, 168, 0.58],
+    [0.25,  38, 140, 196, 0.68],
+    [0.45,  52, 176, 206, 0.74],
+    [0.70,  94, 202, 208, 0.78],
+    [1.00, 152, 224, 216, 0.82],
+    [1.50, 206, 238, 226, 0.85],
+    [2.20, 240, 238, 222, 0.88],
     [3.50, 255, 250, 238, 0.90],
   ],
   /* LUT: indeksi i = Hs / 0,02 m (0 … 5,1 m), sama porras kuin
@@ -8594,19 +8602,53 @@ const Aallot = {
   _hs: 0, _s: 0, _c: 0, _tp: NaN, _w: 0, _vajaa: false,
 
   /* Luettelo ladataan `Saalaatat.alusta`ssa; tämä lukee siitä vain
-     oman avaimensa. Vanha varasto (ilman avainta) = ei aaltoja. */
+     oman avaimensa. Vanha varasto (ilman avainta) = ei aaltoja, kunnes
+     `paivita` löytää uudemman. */
   alusta() {
     if (this._l) return true;
     const L = typeof Saalaatat !== 'undefined' ? Saalaatat._luettelo : null;
-    const a = L && L.aallot;
+    return this._ota(L && L.aallot, null);
+  },
+  _ota(a, versio) {
     if (!a || a.versio !== 1 || !Array.isArray(a.tasot) || !Array.isArray(a.ajat) || a.ajat.length < 2) return false;
+    /* Vanhat aaltolaatat pois muistista: sama avain, eri rakennus. */
+    if (this._l && typeof Saalaatat !== 'undefined') {
+      for (const k of [...Saalaatat._laatat.keys()]) if (/^a\d\//.test(k)) Saalaatat._laatat.delete(k);
+      Saalaatat._nollaaMuisti();
+    }
     this._l = a;
+    this._sarjat.clear();
     this._ax = Saalaatat._teeAkseli(a.ajat);
     this.tasot = a.tasot.map(t => Object.assign({}, t, {
-      _ax: this._ax,
+      _ax: this._ax, _versio: versio || undefined,
       _laatat: new Set((t.laatat || []).map(r => r[0] + '_' + r[1])),
     })).sort((x, y) => x.askel - y.askel);
     return true;
+  },
+  /* LUETTELO UUDELLEEN KESKEN ISTUNNON. Sovellus voi olla auki kun
+     Säädata julkaisee uudet aallot (tai ensimmäiset — käyttäjän raportti
+     1.10.: aaltotila sammutti tuulen värit eikä tilalle tullut mitään,
+     koska istunnon luettelossa ei ollut vielä aaltoja). Haetaan kun
+     aaltoja ei ole tai niiden akseli loppuu alle 12 h päästä, enintään
+     kerran viidessä minuutissa. Palauttaa toden jos aallot vaihtuivat. */
+  _paivitysT: 0, _paivitys: null,
+  paivita() {
+    const loppu = this.loppu();
+    if (this.kaytossa() && loppu != null && loppu > Date.now() + 12 * 3600e3) return Promise.resolve(false);
+    if (this._paivitys) return this._paivitys;
+    if (Date.now() - this._paivitysT < 5 * 60e3 || typeof SAALAATAT_KANTA === 'undefined') return Promise.resolve(false);
+    this._paivitysT = Date.now();
+    const self = this;
+    this._paivitys = fetch(SAALAATAT_KANTA + 'luettelo.json', { cache: 'no-cache' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (l) {
+        const a = l && l.aallot;
+        if (!a || (self._l && a.ajoAika === self._l.ajoAika && a.ajat.length === self._l.ajat.length)) return false;
+        return self._ota(a, String(l.luotu || a.ajoAika || ''));
+      })
+      .catch(function () { return false; })
+      .finally(function () { self._paivitys = null; });
+    return this._paivitys;
   },
   kaytossa() { return this._l ? true : this.alusta(); },
   alku() { return this._l ? this._l.ajat[0] : null; },
@@ -27245,15 +27287,31 @@ const Crosshair = {
   _aaltoUpdate(center) {
     const t = LampoGL._hetki();
     const a = Aallot.arvo(center.lat, center.lng, t, Aallot.askelZoomille(State.map.getZoom()), 0);
+    /* KAPSELI EI PIILOUDU AALTOTILASSA (käyttäjän raportti 1.10.): se on
+       ainoa paikka joka kertoo että kartta näyttää aaltoja. Ilman arvoa
+       luvun paikalla on viiva ja alla syy — maalla, jakson ulkopuolella
+       tai data vielä matkalla. */
+    this._el.classList.remove('hidden');
     if (!a) {
-      this._el.classList.add('hidden');
-      if (Aallot.kaytossa() && Aallot.kattaa(t)) {
-        const self = this;
+      const self = this;
+      let syy;
+      if (!Aallot.kaytossa()) {
+        syy = _t('ei aaltodataa', 'no wave data');
+        Aallot.paivita().then(function (u) { if (u) self._update(); });
+      } else if (!Aallot.kattaa(t)) syy = _t('ei ennustetta', 'no forecast');
+      else {
+        syy = Aallot._vajaa ? _t('ladataan…', 'loading…') : _t('ei merta tässä', 'no sea here');
         Aallot.varmistaPiste(center.lat, center.lng).then(function (n) { if (n > 0) self._update(); }, function () {});
       }
+      this._ms = null; this._dir = null;
+      this._nopeusEl.innerHTML = '<span>—</span><span class="cr-speed-unit">m</span>';
+      this._nuoliEl.style.transform = 'rotate(0deg)';
+      this._nuoliEl.style.color = '';
+      this._suuntaEl.textContent = '—';
+      this._puuskaEl.textContent = syy;
+      this._puuskaEl.classList.remove('hidden');
       return;
     }
-    this._el.classList.remove('hidden');
     this._ms = null;
     this._nopeusEl.innerHTML = '<span>' + _aaltoM(a.hs) + '</span><span class="cr-speed-unit">m</span>';
     this._nuoliEl.style.transform = 'rotate(' + ((a.dir + 180) % 360).toFixed(1) + 'deg)';
@@ -28516,7 +28574,15 @@ function _aaltotilaAseta(paalla) {
   if (typeof resetParticles === 'function') resetParticles();
   AaltoGL._rintamat.length = 0;
   AaltoGL.paivita();
-  if (paalla) AaltoGL._pyydaData(true);
+  if (paalla) {
+    AaltoGL._pyydaData(true);
+    Aallot.paivita().then(function (uusi) {
+      if (!uusi || !aaltotila()) return;
+      AaltoGL.paivita(); AaltoGL._pyydaData(true);
+      State._tlMuisti = null; updateTimelineToCenter();
+      Crosshair.refresh();
+    });
+  }
   State._tlMuisti = null;
   if (typeof updateTimelineToCenter === 'function') updateTimelineToCenter();
   if (typeof Crosshair !== 'undefined') Crosshair.refresh();
