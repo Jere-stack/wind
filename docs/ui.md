@@ -7646,3 +7646,38 @@ Kaksi syytä, molemmat korjattu:
 
 Kapseli ei enää piiloudu aaltotilassa: ilman arvoa siinä on "— m" ja
 syy (ei merta tässä / ladataan / ei ennustetta / ei aaltodataa).
+
+### Rannikko kuten Windyllä, ja aikajana aaltojen jaksoon (1.10.)
+
+Käyttäjän raportti: "Helsingin yllä kartta ja aallokko ei ihan täsmää
+rannikolla." Syy: WAM on noin 1 × 2 km, ja kerroksen rannan piirsi
+mallin oma maski (`kate`), joten aallokko jäi paikoin irti rannasta ja
+valui toisaalla kaupungin päälle.
+
+**Suunnitelma (Windyn malli), toteutettu:**
+
+1. **Ekstrapolointi.** Hilan maasolmut saavat märkien naapuriensa
+   keskiarvon kerros kerrokselta noin 4 km:n matkalle
+   (`AaltoGL._varmistaHila`, 1–4 kierrosta solmuvälin mukaan). Mallin
+   oma kate säilyy kanavassa g.
+2. **Rajaus pohjakartan rantaviivalla** (`Rantamaski`). Esrin tumman
+   pohjan laatoissa vesi on kirkkaudeltaan noin 36 ja maa noin 78 (tiet
+   vaaleampia), joten kynnys 48/60 on yksiselitteinen ja JPEG:n reuna
+   toimii antialiasointina. Maski tehdään samoista laatoista samalla
+   zoomilla (Leafletin zoom pyöristettynä, 256 px:n laatta = CSS-pikseli)
+   yhdeksi kankaaksi näkymän ympäriltä (pehmuste 0,35), joten aallokko
+   loppuu täsmälleen siihen rantaan jonka käyttäjä näkee — myös
+   satelliittipohjalla. Mitattu z12 Helsingissä: 1 024 × 1 536 px, 24
+   laattaa. Lataamaton laatta on vettä (kerros näyttää silloin mallin
+   katteen eikä katoa).
+3. **Kapseli ja harjat lukevat saman kentän ja maskin**
+   (`AaltoGL.arvoKohdassa`): Helsingin edustalla 0,17 m / 150° / 2 s,
+   keskustan päällä "— m · ei merta tässä". Varatienä varaston näyte ja
+   lähin märkä solmu 4 km:n sisältä (sama matka kuin ekstrapolointi).
+
+**Aikajana aaltotilassa = aaltodatan jakso** (`_tlAaltoRajaus`): akseli
+rajataan mallin akselin sisään (mitattu 73 tikkiä, 1.10. 00 – 4.10.
+00 UTC, kun tuulessa 369–397), ja tuuleen palatessa koko akseli palaa.
+Rajattu sarja muistetaan lähdesarjaa kohti, jotta `_tlMuisti`-vertailu
+ei rakenna janaa joka kerta uudelleen; valittu hetki säilyy
+`valittuMs`:stä.

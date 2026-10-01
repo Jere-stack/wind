@@ -2387,6 +2387,16 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   1.10.): WAM samasta pisteestä katkoviivana NYT-merkin yli, pääsarja on
   yhä mittaus. Spottikortin aaltokaaviossa mittausta ei ole (poiju
   mittaa muualla), joten siellä ennuste on pääsarja.
+- **RANTA PIIRRETÄÄN POHJAKARTAN RANTAVIIVALLA, EI MALLIN MASKILLA**
+  (Windyn tapa, käyttäjän raportti 1.10.). Kenttä ekstrapoloidaan maan
+  puolelle (~4 km), ja `Rantamaski` rajaa sen Esrin tumman pohjan
+  laatoista (vesi kirkkaus ≈ 36, maa ≈ 78, kynnys 48/60). Mallin 1 × 2 km
+  maski jätti aallokon irti rannasta ja valutti sen kaupungin päälle.
+  Kapseli lukee saman kentän ja maskin (`AaltoGL.arvoKohdassa`).
+- **AALTOTILASSA AIKAJANA ON AALTODATAN JAKSO** (`_tlAaltoRajaus`,
+  käyttäjän pyyntö 1.10.): ei tyhjiä tunteja mallin jakson ulkopuolella.
+  Rajattu sarja on muistettava lähdesarjaa kohti — uusi olio joka kutsulla
+  rakentaisi janan uudelleen joka kartansiirrolla.
 - **Testissä pohjakartan laatat on reititettävä.** Ilman niitä MapLibren
   `load` ei laukea kontissa eikä yhtään custom-kerrosta lisätä.
 
