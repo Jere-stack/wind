@@ -36,7 +36,7 @@ function merkkiItseisarvo(u) { return (u & 0x8000) ? -(u & 0x7fff) : u; }
 
 /* Yksi GRIB2-sanoma offsetista `alku`. Palauttaa myös sanoman pituuden,
    koska vastaus on monta sanomaa peräkkäin — yksi per kenttä per hetki. */
-function sanoma(buf, alku) {
+export function sanoma(buf, alku) {
   if (buf.length < alku + 16) return null;
   if (buf.toString('latin1', alku, alku + 4) !== 'GRIB') return null;
   const koko = Number(buf.readBigUInt64BE(alku + 8));

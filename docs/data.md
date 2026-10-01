@@ -2468,6 +2468,116 @@ ja etäisyys ovat pakollisia, koska se mittaa muualla.
 
 ---
 
+## Aallot kartalle — WAM säälaattavarastoon (1.10.2026)
+
+Käyttäjän päätös 1.10.: aaltoennuste kartalle omana kerroksenaan,
+aikajanan palkit aallonkorkeudeksi aaltotilassa, keliin aallot eivät
+vaikuta, ja aaltopoijun kaavioon ennuste havainnon jatkoksi.
+
+### Lähde: FMI:n WAM hilana, ei ECMWF WAM
+
+Tallennettu kysely `fmi::forecast::wam::grid` luettelee ajot
+latauspalvelun osoitteina (`producer=wam`). Mitattu 1.10.:
+
+```
+hila           1967 x 800, di 0,017065°, dj 0,01746° (≈ 1 x 2 km)
+alue           53–66,84 N, 2,7–36,2 E (märkää 9,4°:sta itään)
+märkiä         218 154 / 1 573 600 pistettä (14 %)
+yksi tunti     Hs + suunta koko alueelta 1,15 MB (GRIB2, 24 bittiä)
+ajot           6 h välein; julkaistu jakso ajohetki +6 h … +66 h,
+               palvelu pitää kolme viimeisintä
+```
+
+**Jakso ei tule hilana.** `WavePeriod` ja `SigWavePeriodSwell0`
+vastaavat latauspalvelusta HTTP 400 (myös NetCDF:nä), vaikka ne ovat
+kyselyn parametrilistassa. Pistekysely (`multipointcoverage`, useita
+`latlon`-parametreja) antaa sen, ja **kokonaisina sekunteina** (1, 2,
+3, 4 …). Rakentaja ottaa märistä soluista 0,1°:n (Suomenlahti ja
+Saaristomeri) ja 0,25°:n (muu Itämeri) otoksen, 2 340 pistettä 39
+erässä, ja jokainen laatan solmu lukee lähimmän pisteen sarjan
+(enintään 0,4°). Kokonaislukuna ja alueellisesti tasaisena jakso ei
+häviä otoksessa mitään.
+
+GRIB-sanomat: discipline 10, kategoria 0, numero 3 = merkitsevä
+aallonkorkeus, 14 = suunta. Suunta on MISTÄ (tarkistettu jo pistekyselyn
+yhteydessä kuutta poijua vasten, ks. "Aaltoennuste tuotantoon").
+
+### Varasto: `tools/wam.mjs`, tasot a0–a3
+
+```
+a0  0,02°  59,2–66 N, 19–30,4 E   207 laattaa   2,5 MB
+a1  0,05°  koko Itämeri           124 laattaa   2,1 MB
+a2  0,1°                           44 laattaa   0,8 MB
+a3  0,25°                          16 laattaa   0,2 MB
+                                   yht. 5,6 MB, 73 tuntia
+haku 115 MB, rakennus 268 s yhdellä haulla, 107 s kolmella rinnakkain
+```
+
+Laattamuoto on sama kuin tuulella (`kirjoitaLaatta`): taso 1 = Hs
+0,03 m askelin, taso 2 = suunta 2°, taso 3 = jakso 0,1 s. 255 = maa.
+Karkeat tasot ovat laatikkosuodatettuja (märkien keskiarvo, suunta
+yksikkövektoreista). Luettelossa aallot ovat OMANA avaimenaan
+`aallot` — eivät `tasot`- eivätkä `lisatasot`-listassa, koska ne eivät
+ole tuulen perhe eikä niitä saa sekoittaa `naytteista`an. Vanha asiakas
+ei lue avainta. Akseli on tunneittain: jokaiselle tunnille tuorein ajo
+joka sen kattaa (sama sääntö kuin ECMWF:llä), eli menneisyyttä noin
+15 h ja ennustetta noin 58 h rakennushetkestä.
+
+Hienoin taso on vain Suomen rannikolla: aallonkorkeus vaihtuu
+rannikolla kilometrin matkalla, ja muualla 0,05° riittää ruudun
+tiheydelle. Asiakas valitsee tason zoomista (`Aallot.askelZoomille`:
+z9+ 0,02°, z8 0,05°, z7 0,1°, muuten 0,25°) — tuulen `laattaStep`
+antaisi z9:llä 0,1°, jolloin saaristo sulautuisi kahteen solmuun.
+
+### Tarkistus pistekyselyä vasten (sama ajo, 1.10. klo 15 UTC)
+
+```
+spotti          laatta (lähin a0-solmu)    pistekysely
+Lauttasaari     0,12 m  166°  3 s          0,152 m  166°  3 s
+Emäsalo         0,18 m  152°  2 s          0,181 m  152°  2 s
+Otaniemi        0,09 m  162°  3 s          0,081 m  161°  3 s
+Porkkala        0,21 m  156°  3 s          0,211 m  152°  3 s
+Hanko T.        0,42 m  164°  3 s          NaN (Hs)  168°  4 s
+```
+
+Ero on solmu vs interpoloitu piste (≤ 0,03 m). Hangossa pistekysely
+antaa Hs:lle NaN mutta hila arvon — piste on maskin reunalla.
+
+### Sovellus
+
+- `Aallot` (data) lukee laatat `Saalaatat._lataa`lla samasta kodista ja
+  samalla versioavaimella; näyte on bilineaarinen MÄRKIEN solmujen
+  kesken ja kokonaispaino (`_w`) on rannikon alfa. Spottikortti lukee
+  lähimmän märän solmun 2,5 km:n sisältä (kolme spottia on maskin
+  sisällä), aikajana 3 km:n.
+- `AaltoGL` (kartta): solmuhila esikerrottuna märkyydellä RGBA8:aan,
+  lineaarinen suodatus antaa märkien keskiarvon (r/a) ja a on rannikon
+  pehmeä reuna. Väri `AaltoVari`-LUT:sta. Päällä liikkuvat
+  aallonharjat (CPU, Mercator-koordinaateissa, nopeus 5 + 1,8 · jakso
+  px/s, pituus korkeudesta); tyynellä alle 4 cm harjoja ei synny.
+- Kapseli, lähdemerkintä ja aikajanan palkit vaihtuvat aaltotilassa;
+  kelikaista ja kelihyppy lukevat yhä tuulta.
+- Spottikortin aaltolaatta ja uusi aaltokaavio lukevat samaa sarjaa
+  kuin kartta (`_aaltoEnnusteSarja`, varatienä pistekysely).
+- Poijukortin kaavio: 7 vrk mittausta ja WAM samasta pisteestä
+  katkoviivana NYT-merkin yli; päällekkäisellä jaksolla näkee mallin
+  osuvuuden.
+
+Mitattu kontissa (Chromium + SwiftShader, testi reitittää laatat
+paikallisiin tiedostoihin): kapseli 0,21 m / 3 s Lauttasaaren edustalla,
+aikajanalla 64 aaltotuntia 375:stä (loput mallin jakson ulkopuolella),
+spottikortin laatta 0,15 m = kaavion lukema, poijukortti näyttää
+mittauksen ja ennusteen, sade ↔ aallot -vaihto ja paluu tuuleen
+ilman virheitä, `?kieli=en` ilman suomenkielisiä tekstejä.
+
+**Kontin testissä pohjakartan laatat on reititettävä.** Esrin laatat
+eivät latau kontissa (`ERR_TOO_MANY_RETRIES`), jolloin MapLibren
+`load` ei laukea eikä yhtään custom-kerrosta lisätä (`style._order`
+pelkät pohjakerrokset). Aaltokerroksen puuttuminen näytti ensin omalta
+viralta.
+
+---
+
 ## Vedenkorkeus — ja yksikkö joka ei lue vastauksessa
 
 Suomessa ei ole vuorovettä, joten tätä lukua ei ole yhdessäkään

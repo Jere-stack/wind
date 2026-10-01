@@ -96,6 +96,10 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   `h0`–`h3`), ajo kiinnitettynä `origintime`lla.
 - `tools/metnordic.mjs` — MET Nordic 1 km Lambert-hilasta säännölliseksi
   0,05°:n hilaksi (tasot `n0`–`n3`).
+- `tools/wam.mjs` — FMI WAM -aaltoennuste hilana GRIB2:sta (tasot
+  `a0`–`a3`, luettelon OMA avain `aallot`), jakso pistekyselystä.
+  `tiilet.mjs` ajaa sen viimeisenä omassa try/catchissaan (`AALLOT=0`
+  ohittaa); suoraan `node tools/wam.mjs <hakemisto>` mittausta varten.
 - `tools/ikoni.mjs` — sovelluksen merkin (siipi ja spotti) ainoa lähde:
   kirjoittaa `public/icon.svg`:n, `--png` koko PNG-sarjan ja `--inline`
   latausruudun merkkilähteen (`#lr-merkki-lahde`: siiven ja pallon
@@ -163,9 +167,9 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/lampokartta.md` | pohjakarttaa, lämpökarttaa, väriramppia, tekstuurin mitoitusta tai projektiota, kartan asetuksia |
 | `docs/partikkelit.md` | tuulipartikkeleita, jäljen muotoa, tiheyttä tai ruutuaikabudjettia |
 | `docs/eleet.md` | nipistystä, zoomia, zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
-| `docs/data.md` | säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja, **havaintoasemien oma historia (Mellsten ja Laru, `havainnot`-haara)**, **Mellstenin katkot: 4 h kuvaaja, arkistovaratie ja ajastinketju**, **kelikameran tila (YouTube, pikkukuvan ETag)** |
+| `docs/data.md` | **aaltoennustetta kartalla (FMI WAM, `a0`–`a3`, `tools/wam.mjs`)**, säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja, **havaintoasemien oma historia (Mellsten ja Laru, `havainnot`-haara)**, **Mellstenin katkot: 4 h kuvaaja, arkistovaratie ja ajastinketju**, **kelikameran tila (YouTube, pikkukuvan ETag)** |
 | `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, MET Nordicia, Open-Meteon S3-malleja** |
-| `docs/ui.md` | paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa (**toiston liuku, jatkuva päiväkisko, pehmeä valinta ja kelikaista**), kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
+| `docs/ui.md` | **aaltokerrosta: siru, väri, aallonharjat, aikajana, kapseli, poijukaavion ennuste**, paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa (**toiston liuku, jatkuva päiväkisko, pehmeä valinta ja kelikaista**), kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
 | `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit, kaavion venytys** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V10: yksi kaaviomoottori, kortti moduuleina, fonttilattia, laajan valinta, venytys, mallit laajassa) |
@@ -219,7 +223,8 @@ kokeiltu ja kaadettu mittauksella.
   Spottikortin havaintoasema tuli väärästä listasta ·
   "Miksi Helsingin yllä ei tule FMI:tä" — se tulee, mutta ei sanonut sitä ·
   Kartan säämalli valittavaksi · HARMONIE varastoon ja zoomin välkky ·
-  **Larun kelikamera — kuva kertoo, YouTuben live-lippu ei**
+  **Larun kelikamera — kuva kertoo, YouTuben live-lippu ei** ·
+  **Aallot kartalle — WAM säälaattavarastoon**
 - **mallit**: Tiivistelmä · Tavoitteet · Nykytila mitattuna (varaston
   tasot, zoom ja taso, maailmankierros ja paluu, rajojen hyppy, mitä
   S3:ssa on, Windy) · Strategiat S1–S4 · Mihin lukittuihin sääntöihin S1
@@ -282,7 +287,8 @@ kokeiltu ja kaadettu mittauksella.
   **Kieli: suomi ja englanti** ·
   **Aikajana: toisto liukuu, päivä vaihtuu liukuen, kiskoon kelikaista** ·
   **Aikajana: jatkuva päiväkisko, pehmeä valinta ja pilleri ikkunana** ·
-  **Aikajana: pilleri jumissa, napautus pysähtyi ja hiiriveto**
+  **Aikajana: pilleri jumissa, napautus pysähtyi ja hiiriveto** ·
+  **Aallot kartalla: kerros, väri, aallonharjat ja aikajana**
 - **pwa**: PWA — kotivalikkoon ja rannalle · Mitä välimuistiin menee ·
   Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
   Ikoni ja kotivalikko
@@ -465,14 +471,23 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 
 - **Kartalla sävy tarkoittaa tuulennopeutta ja vain sitä.** Kaikki muu kartalla
   on joko tummaa pilleriä (mitattu data) tai paperia (kaikki muu).
-  **Yksi poikkeus, ja se on ehdollinen: sadekerros.** Kun sadetutka on
-  päällä, lämpökartta ja partikkelit sammuvat (`_tuulikerrokset-`
-  `Nakyvissa`), jolloin kartan pinnalla on kerrallaan tasan yksi
-  väriasteikko ja sävy saa tarkoittaa sateen voimakkuutta. Ehto EI ole
-  neuvoteltavissa: jos lämpökartta joskus palautetaan näkyviin
-  sadekerroksen alle, sateen värit on poistettava samassa muutoksessa.
+  **Kaksi poikkeusta, ja ne ovat ehdollisia: sadekerros ja aaltokerros**
+  (jälkimmäinen käyttäjän päätöksellä 1.10.). Kun sadetutka on päällä,
+  lämpökartta ja partikkelit sammuvat (`_tuulikerrokset-`
+  `Nakyvissa`); aaltotilassa (`aaltotila()`, siru "Aallot") samoin
+  (`LampoGL._naytetaan`, `partikkelitPois`). Kartan pinnalla on siis
+  kerrallaan tasan yksi väriasteikko, ja sävy saa tarkoittaa sateen
+  voimakkuutta tai aallonkorkeutta (`AaltoVari`). Sade ja aallot ovat
+  myös keskenään poissulkevat (`_aaltotilaAseta`). Ehto EI ole
+  neuvoteltavissa: jos lämpökartta joskus palautetaan näkyviin sade- tai
+  aaltokerroksen alle, niiden värit on poistettava samassa muutoksessa.
 - **AIKAJANAN PALKIT OVAT `ColorRamp.rgb()` — SAMA RAMPPI KUIN
-  SPOTTIKORTIN KAAVIOSSA JA ASETUSTEN VÄRIASTEIKOSSA.** Käyttäjän
+  SPOTTIKORTIN KAAVIOSSA JA ASETUSTEN VÄRIASTEIKOSSA.** Poikkeus on
+  aaltotila (käyttäjän päätös 1.10.): silloin palkki on aallonkorkeus
+  `AaltoVari`-värillä ja omalla akselillaan (`_tlPalkkiTyyli`,
+  `_tlAaltoOsuus`, `State._tlAallot`), ja mallin jakson ulkopuolella
+  palkkia ei ole. Kelikaista ja kelihyppy lukevat aina tuulta
+  (`State._tlSpeeds`) — aallot eivät vaikuta keliin. Käyttäjän
   päätös: kolme paikkaa, yksi väri samalle nopeudelle. Palkeilla oli
   ennen oma `varjo()` (ramppi sekoitettuna valkoiseen 0,45), joka teki
   niistä pastellin eivätkä ne näyttäneet samoilta kuin kaavio; taulu
@@ -2347,6 +2362,33 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
 - **Välimuistin avain on 0,05° hilalla**, koska mallin solu on ~0,04° ja
   naapurispotit jakavat sen. Kiintiötä säästetään siellä missä se ei
   maksa mitään.
+
+**Aallot kartalla** (docs/data.md "Aallot kartalle", docs/ui.md
+"Aallot kartalla")
+
+- **KARTAN AALLOT TULEVAT VARASTOSTA, LUETTELON OMASTA `aallot`-
+  AVAIMESTA, EIVÄT TUULEN PERHEISTÄ.** `Aallot` lukee laatat
+  `Saalaatat._lataa`lla (sama koti, sama versio, sama LRU), mutta ei
+  koskaan `naytteista`n kautta eikä `tasot`/`lisatasot`-listoista: aalto
+  sekoitettuna tuuleen olisi väärä luku joka ei näytä väärältä.
+- **JAKSO EI OLE HILANA.** Latauspalvelu vastaa `WavePeriod`ille 400;
+  rakentaja hakee sen pistekyselynä märistä soluista (kokonaisina
+  sekunteina). Älä yritä sitä `download`ista uudelleen.
+- **Näyte on märkien solmujen keskiarvo, ja märkyys on alfa.** Maa (255)
+  ei ole nolla-aalto: nollana se vetäisi rannikon arvot alas. GL-kerros
+  kantaa saman esikerrottuna tekstuurina (r/a).
+- **Spotti maskin sisällä lukee lähimmän märän solmun 2,5 km:n
+  sisältä**, ja kortti sanoo etäisyyden kun se on yli kilometrin.
+  Kauempaa luettu aalto olisi toisen paikan aalto.
+- **Kortti, aikajana, kapseli ja kartta lukevat samaa sarjaa**
+  (`Aallot.sarja`/`nayte`, `_aaltoEnnusteSarja`); pistekysely
+  (`api/wam.js`) on vain varatie vanhalle varastolle.
+- **POIJUN KAAVIOSSA ENNUSTE JATKAA MITTAUSTA** (käyttäjän pyyntö
+  1.10.): WAM samasta pisteestä katkoviivana NYT-merkin yli, pääsarja on
+  yhä mittaus. Spottikortin aaltokaaviossa mittausta ei ole (poiju
+  mittaa muualla), joten siellä ennuste on pääsarja.
+- **Testissä pohjakartan laatat on reititettävä.** Ilman niitä MapLibren
+  `load` ei laukea kontissa eikä yhtään custom-kerrosta lisätä.
 
 **Aaltoennuste, vedenkorkeus, sadetutka ja puuskaisuus**
 (mittaukset `docs/data.md`, kartoitus `docs/lisadata.md`)

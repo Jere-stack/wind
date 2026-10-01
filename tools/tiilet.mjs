@@ -41,6 +41,7 @@ import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { haeHarmonie, harmonieAjot } from './harmonie.mjs';
 import * as MetNordic from './metnordic.mjs';
+import { rakennaAallot } from './wam.mjs';
 import {
   N, TYHJA, NOP_ASKEL, SUUNTA_ASKEL, OTSAKE,
   luoPyramidi, uvHilaksi, kirjoitaHetki, tiivistaAika, kirjoitaLaatta, onDataa,
@@ -580,6 +581,19 @@ if (process.env.METNORDIC !== '0') {
       + `${((Date.now() - mnAlkoi) / 1000).toFixed(0)} s`);
   } catch (e) {
     console.warn(`  ! MET Nordic -tasot jäivät pois: ${e.message}`);
+  }
+}
+
+/* ==================================================================
+   FMI WAM — aaltoennuste (`tools/wam.mjs`). Oma luetteloavaimensa
+   (`aallot`), ei tuulen perhe. Omassa try/catchissaan: aaltojen vika ei
+   estä tuulen julkaisua. */
+if (process.env.AALLOT !== '0') {
+  try {
+    console.log('\nFMI WAM (aallot):');
+    luettelo.aallot = await rakennaAallot({ ulos: ULOS, log: (s) => console.log(s) });
+  } catch (e) {
+    console.warn(`  ! aaltotasot jäivät pois: ${e.message}`);
   }
 }
 

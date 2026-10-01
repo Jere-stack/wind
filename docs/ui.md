@@ -7583,3 +7583,44 @@ löysi kaksi asiaa:
 Testit: kiskon mittari 27/27 ja hiirimittari 14/14 Chromium ja WebKit,
 savutesti (0 virhettä), graafimittaus (96 ok, 0 vikaa).
 
+
+## Aallot kartalla: kerros, väri, aallonharjat ja aikajana (1.10.)
+
+Käyttäjän päätökset 1.10.: (1) värisääntöä laajennetaan, (2) aaltotilassa
+aikajanan palkit ovat aallonkorkeutta, (3) aallot eivät vaikuta keliin,
+ja aaltopoijun kaavioon ennuste jatkamaan havaintoa. Data:
+docs/data.md, "Aallot kartalle".
+
+- **Kerros on siru, ei kytkin.** Asetusten "Kartan kerros" (ennen
+  "Tuulikerros"): Tuuli / Puuska / Aallot. Aallot korvaa tuulen
+  (lämpökartta ja partikkelit sammuvat kuten sateen kanssa), ja sade ja
+  aallot ovat toisensa poissulkevat: sateen kytkentä palauttaa tuulen
+  sirun, Aallot-siru sammuttaa sateen (`_aaltotilaAseta`). Valinta ei
+  tallennu, kuten tuuli/puuska.
+- **Väri.** `AaltoVari`: syvä sininen → sinivihreä → vaahdon paperi,
+  kirkkaus kulkee asteikon läpi. Se ei ole tuulen sateenkaari eikä
+  sateen sinivioletti (212–278°). Alfa 0,22 (tyyni) … 0,90. Asteikko
+  näkyy asetuksissa vain aaltotilassa (0–3 m), kuten sateen asteikko.
+- **Aallonharjat.** Paperinväriset kaaret kohtisuoraan etenemissuuntaan
+  (MISTÄ + 180°), nopeus jaksosta, pituus ja peittävyys korkeudesta.
+  Tyynellä (< 4 cm) harjoja ei synny, joten tyyni meri on tasaisen
+  tumma. Määrä ruudun alasta (1 / 1 400 px², 60–700). Vaimennetulla
+  liikkeellä harjat seisovat.
+- **Aikajana.** Palkki on aallonkorkeus `AaltoVari`-värillä,
+  epälineaarisella akselilla (0–0,3 m → 0–30 %, 0,3–0,6 → 30–52 %,
+  0,6–1 → 52–70 %, 1–2 → 70–90 %, 2–4 → 90–100 %). Mallin jakson
+  ulkopuolella ja maalla palkkia ei ole. Kelikaista ja kelihyppy ovat
+  yhä tuulen.
+- **Kapseli.** Korkeus (alle metrin kaksi desimaalia, `_aaltoM`),
+  suunta ja jakso puuskan rivillä. Korkeus on mustetta, ei rampin
+  väriä. Maalla ja jakson ulkopuolella kapseli piiloutuu.
+- **Lähdemerkintä** sanoo "Ilmatieteen laitos · WAM-aaltomalli · ajo …"
+  ja jakson ulkopuolella "ei aaltoennustetta tälle tunnille".
+- **Spottikortti.** Uusi moduuli "Aaltoennuste · FMI WAM" laattojen
+  alla (sama kaaviomoottori), ja "Aallot · ennuste" -laatta lukee saman
+  sarjan. Lähin märkä solmu kauempaa kuin kilometrin päästä sanotaan
+  otsikossa ("1,6 km merelle").
+- **Poijukortti.** "Aallonkorkeus · mittaus ja ennuste": 7 vrk
+  mittausta ja WAM samasta pisteestä katkoviivana NYT-merkin yli.
+  Lukemarivi näyttää mittauksen puolella mittauksen ja sen jälkeen
+  ennusteen (korkeus, suunta, jakso).
