@@ -1766,8 +1766,10 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
   position: relative;
   /* KAIKKI LAPUT OVAT SAMAN LEVYISIÄ: lappu on vuorokausi
      (`_tlKiskoX`), ja pilleri (`.tl-pilleri`) on yhden lapun levyinen.
-     5,4 em mahduttaa "Tänään" ja "Ke 30." väljästi. */
-  flex: 0 0 5.4em;
+     5,4 em mahduttaa "Tänään" ja "Ke 30." väljästi. `width` on
+     pakollinen `flex`in rinnalla: WebKit mitoittaa `max-content`-kääreen
+     lasten SISÄLLÖSTÄ eikä `flex-basis`ista (ks. `.tl-paivat-sisa`). */
+  flex: 0 0 5.4em; width: 5.4em;
   height: 100%;
   display: flex; align-items: center; justify-content: center;
   /* Alatäyte on kelikaistan tila (`.tl-kaista`): teksti ja pilleri
@@ -1818,14 +1820,23 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
  * toista, muuta toista. Sticky pysyy paikallaan kompositorissa, joten
  * sormella vedettäessä teksti ja pilleri eivät ole ruutuakaan eri
  * mieltä — JS:n kirjoittama väri olisi ollut iOS:llä ruudun jäljessä.
- * Halo sekoittuu samoin ja katoaa pillerin päällä. */
+ * Halo sekoittuu samoin ja katoaa pillerin päällä.
+ *
+ * KÄÄRE ON STICKYN SISÄLTÖLOHKO, JA SEN ON OLTAVA KOKO SISÄLLÖN
+ * LEVYINEN. WebKit laskee `width: max-content` -flex-kääreen lasten
+ * sisällöstä eikä `flex-basis`ista: tekstin mittainen lappu ja tyhjä
+ * välike antoivat kääreelle 474 px kun sisältö oli 1 459, ja pilleri
+ * jäi kääreen loppuun eli puhelimella "jumiin" kolmannen päivän
+ * kohdalle (mitattu WebKit: pillerin keskikohta −278 px kiskon
+ * keskeltä 600 px:n vierityksellä, Chromium 0,7 px kaikkialla). Siksi
+ * jokaisella lapsella on `width` `flex`in rinnalla. */
 .tl-paivat-sisa {
   display: flex; height: 100%; width: max-content;
   position: relative; isolation: isolate;
 }
 .tl-pilleri {
   position: sticky; left: 0;
-  flex: 0 0 5.4em; margin-right: -5.4em;
+  flex: 0 0 5.4em; width: 5.4em; margin-right: -5.4em;
   align-self: flex-start; height: 24px; margin-top: 3px;
   font-size: var(--fs-11);
   border-radius: 9px;
@@ -1834,6 +1845,12 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
   pointer-events: none;
 }
 .tl-paiva:active::before { background: var(--tl-lasi); }
+/* Hiirellä kiskoa vedetään kuten tuntinauhaa (ks. `_kiskoHiiri`), joten
+   kursori on sama kuin nauhalla — myös lapun päällä, jossa napautus on
+   yhä valinta. */
+@media (pointer: fine) { #tl-paivat, #tl-paivat .tl-paiva { cursor: grab; } }
+#tl-paivat.hiiriveto, #tl-paivat.hiiriveto .tl-paiva { cursor: grabbing; }
+#tl-paivat.hiiriveto .tl-paiva:active::before { background: none; }
 .tl-paiva-txt {
   position: relative;
   color: rgb(198, 201, 206);
@@ -24405,6 +24422,19 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
           && Math.abs(kisko.scrollLeft - _tlKiskoAlkuScroll) > 6) return;
       const el = e.target.closest && e.target.closest('.tl-paiva');
       if (!el || !el.dataset.pv) return;
+      /* NAPAUTUS PÄÄTTÄÄ KISKON ELEEN — VALINTA EI JÄÄ SEN ALLE.
+         Napautus on myös ele: pointerdown merkitsi sormen kiskolle ja
+         nosto ajasti `_kiskoLoppu`n 140 ms:n päähän. Se laukesi KESKEN
+         napautuksen liu'un, luki kiskolta liu'un välihetken ja vahvisti
+         sen — eli kahden päivän päähän napautettu valinta pysähtyi
+         "vähän eteenpäin" (käyttäjän raportti 1.10.). Myös sormen
+         värinästä tullut scroll olisi jättänyt `_tlKiskoVierii`n päälle,
+         jolloin liuku ei olisi kirjoittanut kiskoa lainkaan. Valinta on
+         nyt liu'un omaisuutta, joten kiskon eleen liput nollataan. */
+      clearTimeout(_kiskoAjastin);
+      clearTimeout(_kiskoPerassa);
+      _tlKiskoVierii = false;
+      _tlKiskoSormiOllut = false;
       _tlValitseIdx(_tlPaivanIdx(Number(el.dataset.pv)));
     });
     /* SORMI KISKOLLA VOITTAA. Kisko seuraa muuten osoitinta joka
@@ -24464,7 +24494,7 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
      * kuten tuntinauhan raahauksessa: täysi rakennus jokaisen tunnin
      * yli olisi kymmeniä 45 ms:n eriä yhdessä heitossa. Täysi tarkkuus
      * tulee vierityksen pysähtyessä (`_kiskoLoppu` → `_tlVahvista`). */
-    let _kiskoAjastin = null, _kiskoViimeksi = 0;
+    let _kiskoAjastin = null, _kiskoViimeksi = 0, _kiskoPerassa = null;
     function _kiskoSeuraa() {
       const f = _tlKiskoNyt(kisko);
       if (f == null) return;
@@ -24486,6 +24516,7 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
        täystarkka kenttä rakennettaisiin kesken raahauksen. */
     function _kiskoLoppu() {
       clearTimeout(_kiskoAjastin);
+      clearTimeout(_kiskoPerassa);
       if (_tlKiskoKosketusOma) return;
       /* SORMI TUNTINAUHALLA PÄÄTTÄÄ KISKON ELEEN MUTTA EI SEURAA SITÄ.
          Portti ei voi olla pelkkä `return`: `_tlKiskoVierii` vaientaa
@@ -24511,6 +24542,10 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
          ohi. Vasta tässä kisko lakkaa olemasta käyttäjän ohjaama — sitä
          ennen lippu kattaa heiton. */
       _tlKiskoSormiOllut = false;
+      /* LIUKU OMISTAA NAUHAT. Jos valinta on jo liukumassa (napautus,
+         näppäin, kelihyppy), kiskon välihetki ei ole valinta: sen
+         vahvistus katkaisisi liu'un ja veisi valinnan matkan varrelle. */
+      if (State._tlLiuku) return;
       /* Lähin tunti vahvistetaan täydellä kentällä, ja molemmat nauhat
          liukuvat sen kohdalle: kisko enintään puolen tunnin verran
          (~1 px), tuntinauha enintään puoli tikkiä. Kisko ei snäppää
@@ -24577,8 +24612,18 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
        * enää ainoa vartija. */
       if (!_tlKiskoKosketusOma && !_tlKiskoSormiOllut) return;
       _tlKiskoVierii = true;
+      /* Kuristus ei saa pudottaa VIIMEISTÄ tapahtumaa: kahden 16 ms:n
+         sisällä tulleen tapahtuman jälkimmäinen jäi ennen ajamatta, ja
+         tuntinauha jäi vedon ajaksi kiskon jälkeen (mitattu hiirivedossa
+         0,17 h). 120 Hz:n näytöllä tapahtumia tulee 8 ms välein, eli joka
+         toinen kuristuu — perään ajetaan siksi vielä kerran. */
       const nyt = Date.now();
+      clearTimeout(_kiskoPerassa);
       if (nyt - _kiskoViimeksi >= 16) { _kiskoViimeksi = nyt; _kiskoSeuraa(); }
+      else _kiskoPerassa = setTimeout(function () {
+        if (!_tlKiskoVierii) return;
+        _kiskoViimeksi = Date.now(); _kiskoSeuraa();
+      }, 16 - (nyt - _kiskoViimeksi));
       /* Ajastin on varmistus KAHDELLE asialle, ei vain vanhoille
          selaimille: `_tlKiskoVierii` vaientaa keskityksen koko eleen
          ajaksi, joten jos `scrollend` jää tulematta, kisko lakkaisi
@@ -24594,6 +24639,57 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
         _kiskoLoppu();
       }, { passive: true });
     }
+
+    /* HIIRELLÄ KISKOA VEDETÄÄN KUTEN SORMELLA — TYÖPÖYTÄ (käyttäjän
+       pyyntö 1.10.). Hiiri ei vieritä `overflow`-säiliötä vetämällä,
+       joten kiskoa sai liikutettua vain rullalla tai napauttamalla.
+       Veto kirjoittaa `scrollLeft`iä suoraan, ja kaikki muu on sormen
+       polkua: yllä oleva pointerdown merkitsi kiskon omaksi
+       (`_tlKiskoKosketusOma`), scroll-käsittelijä valitsee hetken ja
+       vie tuntinauhan mukana, ja ikkunan pointerup päättää eleen
+       (`_kiskoLoppu`: lähin tunti ja liuku). Kirjoitus EI kulje
+       `_tlKiskoAsetaScroll`in kautta, koska silloin se luettaisiin
+       kiskon omaksi vieritykseksi. Alle 4 px:n liike on napautus, ja
+       vedon perään tuleva click nielaistaan. */
+    let _kiskoHiiri = null;
+    kisko.addEventListener('pointerdown', function (e) {
+      if (e.pointerType !== 'mouse' || e.button !== 0) return;
+      _kiskoHiiri = { id: e.pointerId, x: e.clientX, alku: kisko.scrollLeft, liikkui: false, sisa: State._tlKiskoSisa };
+    });
+    window.addEventListener('pointermove', function (e) {
+      const v = _kiskoHiiri;
+      if (!v || e.pointerId !== v.id) return;
+      /* KISKO RAKENNETTIIN UUDELLEEN KESKEN VEDON (akseli vaihtui, esim.
+         varaston saapuessa): vanha alkusijainti on toisen akselin
+         pikseleitä, ja `alku − dx` heittäisi kiskon päiviä sivuun
+         (mitattu kaksi vuorokautta). Veto ankkuroidaan uudelleen siihen
+         mihin rakennus kiskon keskitti. */
+      if (v.sisa !== State._tlKiskoSisa) {
+        v.sisa = State._tlKiskoSisa;
+        v.alku = kisko.scrollLeft + (v.liikkui ? e.clientX - v.x : 0);
+      }
+      const dx = e.clientX - v.x;
+      if (!v.liikkui) {
+        if (Math.abs(dx) < 4) return;
+        v.liikkui = true;
+        kisko.classList.add('hiiriveto');
+        try { kisko.setPointerCapture(e.pointerId); } catch (_) {}
+      }
+      e.preventDefault();
+      kisko.scrollLeft = v.alku - dx;
+    });
+    function _kiskoHiiriLoppu(e) {
+      const v = _kiskoHiiri;
+      if (!v || e.pointerId !== v.id) return;
+      _kiskoHiiri = null;
+      if (!v.liikkui) return;
+      kisko.classList.remove('hiiriveto');
+      const nielaise = function (ev) { ev.stopPropagation(); ev.preventDefault(); };
+      kisko.addEventListener('click', nielaise, { capture: true, once: true });
+      setTimeout(function () { kisko.removeEventListener('click', nielaise, { capture: true }); }, 0);
+    }
+    window.addEventListener('pointerup', _kiskoHiiriLoppu);
+    window.addEventListener('pointercancel', _kiskoHiiriLoppu);
   }
 
   if (tl._tlBound) return;
@@ -25058,7 +25154,7 @@ function _tlRakennaPaivat(times, idx) {
      puolikas luetaan lapulta vasta keskityksessä. */
   const valikeL = document.createElement('div');
   valikeL.className = 'tl-paiva-valike';
-  valikeL.style.cssText = 'flex:0 0 ' + Math.round(window.innerWidth / 2) + 'px';
+  valikeL.style.cssText = 'flex:0 0 ' + Math.round(window.innerWidth / 2) + 'px;width:' + Math.round(window.innerWidth / 2) + 'px';
 
   /* Kelikaista on kiskon SISÄLLÖN osa, jotta se vierii lappujen mukana
      samassa kompositoinnissa — erillinen kerros jota siirrettäisiin
@@ -25111,7 +25207,7 @@ function _tlRakennaPaivat(times, idx) {
 
   const valikeR = document.createElement('div');
   valikeR.className = 'tl-paiva-valike';
-  valikeR.style.cssText = 'flex:0 0 ' + Math.round(window.innerWidth / 2) + 'px';
+  valikeR.style.cssText = valikeL.style.cssText;
   sisa.appendChild(valikeR);
 
   /* KISKO EI SAA JÄÄDÄ NOLLAAN YHDEKSIKÄÄN RUUDUKSI.

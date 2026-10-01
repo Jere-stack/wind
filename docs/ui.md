@@ -7497,3 +7497,89 @@ yhä valoisan tunnin (`_tlAurinko`).
 Testit: savutesti (0 virhettä), graafimittaus (96 ok, 0 vikaa),
 kiskon mittari (20/20 Chromium ja WebKit), `node --check api/*.js`.
 
+## Aikajana: pilleri jumissa, napautus pysähtyi ja hiiriveto (1.10.)
+
+Käyttäjän raportti edellisestä erästä puhelimelta: (1) valkoinen
+pilleri "jumittaa su 4 – ma 5 väliin eikä mene pidemmälle", (2)
+kahden päivän päähän napautettu päivä liikkui "vain vähän eteenpäin"
+eikä klo 12:een, ja (3) toive: tietokoneella kiskoon pitäisi voida
+tarttua ja vierittää sitä kuten puhelimella. Kaksi ensimmäistä olivat
+oikeita vikoja, ja kumpikaan ei näkynyt edellisen erän mittarissa.
+
+### Pilleri: WebKit mitoittaa `max-content`-kääreen sisällöstä
+
+Sticky-pillerin sisältölohko on `.tl-paivat-sisa` (`display: flex;
+width: max-content`). Chromium laskee kääreen leveyden lasten
+`flex-basis`ista, WebKit lasten SISÄLLÖSTÄ: lappu on silloin tekstinsä
+levyinen ja tyhjä välike nolla. Mitattu (puhelin, kisko vieritetty
+kohtiin 0…1 500 px, pillerin keskikohta kiskon keskeltä):
+
+| | kääre / sisältö | pilleri 0 / 300 / 600 / 900 / loppu px |
+|---|---|---|
+| Chromium ennen | 1 340 / 1 340 | 0,7 kaikkialla |
+| WebKit ennen | **474 / 1 459** | 0,7 / 0,7 / **−278 / −578 / −775** |
+| WebKit jälkeen | 1 459 / 1 459 | 0,7 kaikkialla |
+
+Kääreen 474 px loppuu kolmannen päivän kohdalla, eli juuri siellä
+pilleri pysähtyi. Korjaus: jokaisella kääreen lapsella on `width`
+`flex`in rinnalla (laput ja pilleri 5,4 em, välikkeet pikseleinä).
+Edellisen erän mittari luki pillerin paikan vain levossa lähellä
+nykyhetkeä, joten kääreen leveys ei koskaan tullut vastaan; nyt mittari
+vierittää koko kiskon läpi ja vertaa kääreen leveyttä sisältöön.
+
+### Napautus: kiskon eleen loppu laukesi liu'un keskellä
+
+Päivän napautus on myös kiskon ele: pointerdown merkitsee sormen
+kiskolle (`_tlKiskoSormiOllut`) ja nosto ajastaa `_kiskoLoppu`n 140 ms:n
+päähän. Click käynnisti oikean liu'un klo 12:een, mutta 140 ms
+myöhemmin `_kiskoLoppu` luki kiskolta liu'un VÄLIHETKEN, vahvisti sen
+ja liu'utti nauhat sinne. Värisevässä napautuksessa sama polku kulki
+myös scroll-tapahtuman kautta. Edellisen erän mittari kutsui
+`_tlValitseIdx`:ää suoraan eikä napauttanut, joten ajastinta ei ollut.
+
+| napautus La 3. (kohde idx 96), WebKit | ennen | jälkeen |
+|---|---|---|
+| puhdas (`touchscreen.tap`) | idx 49, klo 13 | idx 96, klo 12 |
+| värisevä (2 px kiskon vieritystä) | idx 50, klo 14 | idx 96, klo 12 |
+| nauhat perillä, pilleri keskellä | — | 0,000 h / 0,7 px |
+
+Korjaus kahdessa kohdassa: click nollaa kiskon eleen liput ja
+ajastimet ennen valintaa (valinta on liu'un omaisuutta), ja
+`_kiskoLoppu` ei vahvista mitään liu'un aikana (`State._tlLiuku`).
+Chromiumilla samat tulokset.
+
+### Hiiriveto kiskolla
+
+Hiiri ei vieritä `overflow`-säiliötä vetämällä, joten työpöydällä
+kiskoa sai liikutettua vain rullalla ja napauttamalla. `_kiskoHiiri`
+kirjoittaa `scrollLeft`in suoraan 4 px:n kynnyksen jälkeen; kaikki
+muu on sormen polkua (pointerdown merkitsee kiskon omaksi, scroll
+valitsee hetken ja vie tuntinauhan, nosto päättää eleen ja liu'uttaa
+lähimpään tuntiin). Kursori on `grab` myös lapun päällä, kuten
+tuntinauhalla, ja vedon perään tuleva click nielaistaan. Mittaus
+löysi kaksi asiaa:
+
+- **Kuristus pudotti viimeisen tapahtuman.** Kaksi scroll-tapahtumaa
+  16 ms:n sisällä → jälkimmäinen jäi ajamatta, ja tuntinauha oli vedon
+  ajan 0,17 h kiskon jäljessä. Nyt perään ajetaan vielä kerran
+  (`_kiskoPerassa`). 120 Hz:n näytöllä tapahtumia tulee 8 ms välein,
+  joten tämä koskee myös sormea.
+- **Kiskon uudelleenrakennus kesken vedon.** Varaston saapuessa akseli
+  vaihtuu ja kisko rakennetaan uudelleen; vedon alkusijainti oli
+  vanhan akselin pikseleitä, ja `alku − dx` heitti kiskon kaksi
+  vuorokautta sivuun. Veto ankkuroidaan nyt uudelleen kun kääre
+  vaihtuu (`v.sisa`). Kontrolli ilman ankkurointia, akseli lyhennetty
+  alusta vuorokaudella kesken vedon: seuraava liike +26 h; korjattuna
+  0 h ja sen jälkeen tasan 2,06 h / 6 px.
+
+| hiiriveto, työpöytä 1280 × 800 | Chromium | WebKit |
+|---|---|---|
+| veto −60 px: kisko / odotus (24 h / lappu) | 20,3–20,6 / 20,6 h | 20,3 / 20,6 h |
+| tuntinauhan suurin ero kiskoon vedon aikana | 0,000 h | 0,000 h |
+| nosto: lähin tunti, nauhat sen kohdalla, ei lapun klo 12:ta | ok | ok |
+| klikkaus ilman vetoa → klo 12 | ok | ok |
+| uudelleenrakennus kesken vedon | 0 h hyppy | 0 h hyppy |
+
+Testit: kiskon mittari 27/27 ja hiirimittari 14/14 Chromium ja WebKit,
+savutesti (0 virhettä), graafimittaus (96 ok, 0 vikaa).
+

@@ -281,7 +281,8 @@ kokeiltu ja kaadettu mittauksella.
   **Kelikamera: play-kolmio pilleriin ja kamera asemakorttiin** ·
   **Kieli: suomi ja englanti** ·
   **Aikajana: toisto liukuu, päivä vaihtuu liukuen, kiskoon kelikaista** ·
-  **Aikajana: jatkuva päiväkisko, pehmeä valinta ja pilleri ikkunana**
+  **Aikajana: jatkuva päiväkisko, pehmeä valinta ja pilleri ikkunana** ·
+  **Aikajana: pilleri jumissa, napautus pysähtyi ja hiiriveto**
 - **pwa**: PWA — kotivalikkoon ja rannalle · Mitä välimuistiin menee ·
   Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
   Ikoni ja kotivalikko
@@ -1566,7 +1567,14 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   mieltä (JS:n kirjoittama väri olisi iOS:llä ruudun jäljessä).
   `.valittu` on enää semanttinen. Kaikki laput ovat saman levyisiä
   (5,4 em) ja pilleri yhden lapun levyinen. Älä lisää pillerille
-  `transition`ia.
+  `transition`ia. **JOKAISELLA KÄÄREEN LAPSELLA ON `width` `flex`IN
+  RINNALLA** (laput, pilleri, reunavälikkeet): WebKit laskee
+  `max-content`-flex-kääreen lasten SISÄLLÖSTÄ eikä `flex-basis`ista,
+  jolloin kääre oli 474 px kun sisältö oli 1 459 — ja sticky-pilleri
+  jäi kääreen loppuun eli puhelimella "jumiin" kolmannen päivän
+  kohdalle (käyttäjän raportti 1.10.: "jumittaa su 4 – ma 5 väliin").
+  Chromium mitoittaa basisista, joten vika ei näy siellä — mittaa
+  WebKitillä (kääre = sisältö, pilleri keskellä koko matkan).
 - **LIUKU: VALINTA ON HETI, NÄYTTÖ LIUKUU** (käyttäjän pyyntö 1.10.,
   `_tlLiuuta`). Tikin, päivälapun, näppäimistön, kelihypyn ja
   spottikortin kaavion valinta (`_tlValitseIdx`) asettaa valinnan,
@@ -1665,6 +1673,16 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   KARKEANA, ja eleen päätteeksi (`_kiskoLoppu`) lähin tunti vahvistetaan
   täydellä kentällä (`_tlVahvista`) ja molemmat nauhat liukuvat sen
   kohdalle — akselin päiden yli vedetty kisko palaa akselin päähän.
+  **HIIRELLÄ KISKOA VEDETÄÄN KUTEN SORMELLA** (`_kiskoHiiri`, käyttäjän
+  pyyntö 1.10.): veto kirjoittaa `scrollLeft`in suoraan (EI
+  `_tlKiskoAsetaScroll`illa, joka merkitsisi sen omaksi), ja kaikki
+  muu on sormen polkua. Kursori `grab` myös lapun päällä, kuten
+  tuntinauhalla; 4 px:n kynnys, vedon perään tuleva click nielaistaan.
+  Jos kisko rakennetaan uudelleen kesken vedon (akseli vaihtuu), veto
+  ankkuroidaan uudelleen (`v.sisa`) — ilman sitä kisko heitti 26 h.
+  Scroll-kuristus (16 ms) ajaa perään vielä kerran
+  (`_kiskoPerassa`): pudotettu viimeinen tapahtuma jätti tuntinauhan
+  vedon ajaksi 0,17 h kiskon jälkeen.
 - **PÄIVÄN NAPAUTUS VIE KLO 12:EEN, "TÄNÄÄN" NYKYHETKEEN**
   (`_tlPaivanIdx`, käyttäjän päätös 1.10.). Lapun keskikohta on klo 12,
   joten napautettu päivä asettuu pilleriin keskelle; vajaalla
@@ -1672,7 +1690,15 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kellonajan ("onko lauantaina yhtä kova kuin tänään viideltä") — se
   vertailu tehdään nyt vetämällä kiskoa. "Tänään" on poikkeus, koska se
   on paluu nykyhetkeen (sama kuin Home): klo 12:een se veisi
-  iltapäivällä menneeseen hetkeen.
+  iltapäivällä menneeseen hetkeen. **NAPAUTUS PÄÄTTÄÄ KISKON ELEEN, JA
+  LIUKU OMISTAA NAUHAT:** napautuksen pointerdown merkitsee sormen
+  kiskolle ja nosto ajastaa `_kiskoLoppu`n 140 ms:n päähän — se laukesi
+  kesken napautuksen liu'un, luki kiskolta välihetken ja vahvisti sen
+  (käyttäjän raportti: "menee vain vähän eteenpäin"; mitattu idx 49
+  kun kohde oli 96). Siksi click nollaa kiskon eleen liput ja ajastimet,
+  ja `_kiskoLoppu` ei vahvista mitään liu'un aikana (`State._tlLiuku`).
+  Mittari napauttaa OIKEALLA kosketuksella ja värisevästi —
+  `_tlValitseIdx`:n suora kutsu ei paljastanut tätä.
 - **Päiväkiskon napautus ei saa käyttää `scrollTimelineTo`a.** Kupla ja
   päiväkorostus päivittyivät VIERITYKSEN mukaan, joten pehmeä animaatio
   käveli jokaisen välipäivän läpi (mitattu 15 välitilaa ja 1001 ms
