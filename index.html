@@ -4858,6 +4858,37 @@ html.tyopoyta .en-solu-arvo { font-size: 15px; }
 html.tyopoyta .hl-nimi { font-size: 20px; }
 html.tyopoyta .hl-lk-arvo { font-size: 19px; }
 
+/* ── KARTAN MERKIT: PALLOT, × JA ESIINTULO (1.10.) ─────────────────
+ * Kaukana (alle z10) spotti on 10 px:n väritön pallo ja asema 9 px:n
+ * pallo jossa on ×; rajalta kaikki numerot ja lukemat tulevat näkyviin
+ * yhtä aikaa. Sijainnin × on 5 px eikä ota kosketuksia. */
+.spot-pallo {
+  border-radius: 50%; background: var(--surface-hi); cursor: pointer;
+  box-shadow: 0 0 0 1.5px rgba(240,231,206,.85), 0 1px 4px rgba(6,9,18,.7);
+}
+.kauko-pallo, .sijainti-pallo {
+  width: 9px; height: 9px; border-radius: 50%; cursor: pointer; box-sizing: border-box;
+  background:
+    linear-gradient(45deg, transparent calc(50% - .55px), rgba(240,231,206,.9) calc(50% - .55px), rgba(240,231,206,.9) calc(50% + .55px), transparent calc(50% + .55px)) center / 5px 5px no-repeat,
+    linear-gradient(-45deg, transparent calc(50% - .55px), rgba(240,231,206,.9) calc(50% - .55px), rgba(240,231,206,.9) calc(50% + .55px), transparent calc(50% + .55px)) center / 5px 5px no-repeat,
+    rgba(21,28,41,.92);
+  box-shadow: 0 0 0 1px rgba(240,231,206,.55), 0 1px 3px rgba(6,9,18,.6);
+}
+.sijainti-x {
+  position: absolute; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; pointer-events: none;
+  background:
+    linear-gradient(45deg, transparent calc(50% - .5px), rgba(240,231,206,.72) calc(50% - .5px), rgba(240,231,206,.72) calc(50% + .5px), transparent calc(50% + .5px)),
+    linear-gradient(-45deg, transparent calc(50% - .5px), rgba(240,231,206,.72) calc(50% - .5px), rgba(240,231,206,.72) calc(50% + .5px), transparent calc(50% + .5px));
+  filter: drop-shadow(0 0 1px rgba(6,9,18,.95));
+}
+.sijainti-x.sijainti-pallo { width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; filter: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .merkki-esiin { animation: merkkiEsiin .22s cubic-bezier(.2,.8,.3,1) both; }
+  .spot-ring.merkki-esiin { animation-name: spottiEsiin; }
+}
+@keyframes merkkiEsiin { from { opacity: 0; } to { opacity: 1; } }
+@keyframes spottiEsiin { from { opacity: 0; } to { opacity: 1; } }
+
 /* ── YÖMERI: PINNAT ILMAN REUNAVIIVOJA (1.10.) ─────────────────────
  *
  * Paperilla korotettu kortti tarvitsi hiusviivan ja varjon erottuakseen
@@ -6391,6 +6422,15 @@ function Merkki(ll, asetukset) {
       const siirto = Math.hypot(nyt.x - self._alku.x, nyt.y - self._alku.y);
       self._alku = null;
       if (siirto > MERKKI_KLIKKI_RAJA) return;
+    }
+    /* KAUKAINEN PALLO ZOOMAA, EI AVAA (1.10.). Rajan alla merkit ovat
+       8–10 px:n palloja Helsingin rykelmässä, eikä napautus osu
+       luotettavasti oikeaan; zoomaus rajalle tuo lukemat näkyviin ja
+       sieltä napautus avaa kortin. Sama kuin Apple Mapsin ja Windyn. */
+    const zr = self.options.zoomaaAlle;
+    if (zr && self._map && self._map.getZoom() < zr - 0.01) {
+      self._map.flyTo(self._latlng, zr, { animate: true, duration: 0.5 });
+      return;
     }
     for (const k of self._kuuntelijat.slice()) {
       if (k.tyyppi === 'click') k.fn.call(k.ctx || self, { type: 'click', target: self, originalEvent: e, latlng: self._latlng });
@@ -17211,21 +17251,13 @@ function _spotNimetPois(zoom) {
   }
   return pois;
 }
+/* KAUKANA KAIKKI SPOTIT OVAT PALLOJA, RAJALTA KAIKKI TÄYSIÄ (käyttäjän
+   päätös 1.10.). Väistöä ei enää ole: alle `SPOT_KAIKKI_Z`:n yksikään
+   spotti ei näytä numeroa, ja sen yläpuolella kaikki näyttävät. Pallo on
+   väritön — indeksin väri tulee vasta numeron kanssa. */
 function _valitseTaydetSpotit(pisteytetyt, zoom) {
   const taydet = new Set();
-  if (!State.map || zoom >= SPOT_KAIKKI_Z) { pisteytetyt.forEach(s => taydet.add(s.spot)); return taydet; }
-  const kynnys = spotIconSize(zoom);
-  const sijoitetut = [];
-  /* Suosikit ensin, sitten kiinteä järjestys — EI pistemäärä (ks. yllä). */
-  const jarjestys = pisteytetyt.slice().sort(_spotJarjestys);
-  for (const s of jarjestys) {
-    const p = State.map.latLngToContainerPoint([s.spot.lat, s.spot.lng]);
-    let vapaa = true;
-    for (const q of sijoitetut) {
-      if (Math.hypot(p.x - q.x, p.y - q.y) < kynnys) { vapaa = false; break; }
-    }
-    if (vapaa) { sijoitetut.push(p); taydet.add(s.spot); }
-  }
+  if (!State.map || zoom >= SPOT_KAIKKI_Z) pisteytetyt.forEach(s => taydet.add(s.spot));
   return taydet;
 }
 
@@ -17300,6 +17332,9 @@ function renderSpots(hourIdx) {
     pisteytetyt.push({ spot, ms: l.ms, gst: l.gst, dir: l.dir, score: spotIndex(l.ms, l.dir, spot.bestDirs, l.gst) });
   }
   const taydet = _valitseTaydetSpotit(pisteytetyt, zoom);
+  /* Esiintulo animoidaan vain kun tila VAIHTUU pallosta numeroon — ei
+     joka tunnin askeleella, jolla merkit rakennetaan uudelleen. */
+  const esiin = State._spotTaydetAvain != null && State._spotTaydetAvain !== _taysienAvain(taydet) && taydet.size > 0;
   State._spotTaydetAvain = _taysienAvain(taydet);
   const nimetPois = _spotNimetPois(zoom);
 
@@ -17318,7 +17353,7 @@ function renderSpots(hourIdx) {
       const withName = zoom >= SPOT_LABEL_MIN_ZOOM;
       html = (
         '<div style="display:inline-flex;flex-direction:column;align-items:center;pointer-events:none">'
-        + '<div class="spot-ring" style="transform:scale(' + scale.toFixed(3) + ')">'
+        + '<div class="spot-ring' + (esiin ? ' merkki-esiin' : '') + '" style="transform:scale(' + scale.toFixed(3) + ')">'
         + spotMarkerSVG(score, spot.name, SPOT_BASE)
         + '</div>'
         + spotNameLabel(spot.name, col, withName && !nimetPois.has(spot))
@@ -17331,9 +17366,8 @@ function renderSpots(hourIdx) {
          Paperia sekin, jotta spotti näyttää spotilta myös silloin kun luku
          ei mahdu — rengas kertoo sen olevan sama esine kuin täysi merkki,
          ja se on yhtä lailla napautettava. */
-      const sz = 9;
-      html = `<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:var(--surface-hi);`
-        + `box-shadow:0 0 0 2px ${col},0 1px 3px rgba(6,9,18,.5);cursor:pointer"></div>`;
+      const sz = 10;
+      html = `<div class="spot-pallo" style="width:${sz}px;height:${sz}px"></div>`;
       iconW = sz; iconH = sz;
       anchor = [sz / 2, sz / 2];
       pisteena = true;
@@ -17345,7 +17379,7 @@ function renderSpots(hourIdx) {
          se jäisi puolittain renkaan päälle ja näyttäisi virheeltä — nyt
          rengas peittää sen siististi ja piste näkyy vain siltä osin kuin
          se on renkaan ulkopuolella. */
-      L.marker([spot.lat, spot.lng], { icon, zIndexOffset: pisteena ? -1000 : 0,
+      L.marker([spot.lat, spot.lng], { icon, zIndexOffset: pisteena ? -1000 : 0, zoomaaAlle: SPOT_KAIKKI_Z,
         /* Saavutettava nimi. Ilman tätä ruudunlukija ilmoittaa vain
            "linkki" — mitattuna 7 merkkiä 19:stä oli nimettömiä.
            Merkki JÄÄ fokusoitavaksi, koska spottiin ei pääse muuta
@@ -18360,9 +18394,10 @@ function _addObsMarkers(map) {
   var INK_3     = 'rgba(240,231,206,0.38)';  /* kaukainen piste */
   var PILL_BG   = 'rgba(9,13,21,0.78)';
   var PILL_LINE = 'rgba(240,231,206,0.22)';
-  var C_STATION = INK_2;
+  /* Kaikkien lukemien yhteinen raja (Leaflet-asteikko) = spottien numerot. */
+  var LUKEMA_Z = SPOT_KAIKKI_Z;
   var _obsMarkers = [];
-  var _stationDots = []; /* Pienet ruksi-sijaintimerkit prim-asemille */
+
   /* Havaintolähteiden latausfunktiot, jotka `_havPaivita` ajaa uudelleen
      istunnon aikana (docs/oikeellisuus.md, O7). */
   var _havPaivittajat = [];
@@ -18440,70 +18475,9 @@ function _addObsMarkers(map) {
       +'</div>';
   }
 
-  /* Ruksi-ikoni — merkkaa havaintoaseman TODELLISEN sijainnin
-   * (tuulikortti voi väistyä spottien tieltä, mutta tämä pysyy aina
-   * täsmälleen paikallaan). Ohut läpikuultava risti: karttamainen
-   * "tässä on mittauspiste" -merkki, joka ei kilpaile spottien kanssa. */
-  /* Täysi ruksi — näkyy lähellä (z>=8), samalla kun tuulikorttikin
-   * muuttuu isoksi pilliksi. */
-  function _stationDotFullSvg(size) {
-    var s = size || 15;
-    return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none"'
-      +' xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 1px 2px rgba(0,0,0,.55))">'
-      +'<line x1="6"  y1="6"  x2="18" y2="18" stroke="'+C_STATION+'" stroke-width="1.8" stroke-linecap="round"/>'
-      +'<line x1="18" y1="6"  x2="6"  y2="18" stroke="'+C_STATION+'" stroke-width="1.8" stroke-linecap="round"/>'
-      +'</svg>';
-  }
-
-
-  /* Rakentaa oikean ikonin zoomin mukaan.
-   * Lähellä (z>=8): täysi ruksi, siirretty ~9px ylös-vasemmalle
-   * ankkurista — tuulikortti venyy aina OIKEALLE ankkurista, joten
-   * tämä siirto vie ikonin pois kortin tieltä sen sijaan että peittäisi.
-   * Kaukana (z<8): pieni himmeä ruksi, ei siirtoa (tuulimerkkikin on
-   * tällöin pelkkä piste samassa kohdassa, ei tarvetta väistää). */
-  function _makeStationIcon(zoom) {
-    if (zoom >= 8) {
-      var OFF = 9;
-      return L.divIcon({
-        className: '', html: _stationDotFullSvg(15),
-        iconSize: [15, 15], iconAnchor: [7.5 + OFF, 7.5 + OFF]
-      });
-    }
-    /* Kaukana asemamerkki on itse glyfi (`_kaukoGlyfi`), joten erillistä
-       pientä ruksia ei piirretä — se oli toinen merkki samalle asemalle. */
-    return L.divIcon({ className: '', html: '', iconSize: [0, 0], iconAnchor: [0, 0] });
-  }
-
-  /* Luo pieni kiinteä sijaintimerkki — EI koskaan siirry spottien takia,
-   * toisin kuin tuulikortti joka voi liikkua _avoidSpotOverlap:in takia. */
-  function _addStationDot(lat, lng, onClick) {
-    /* zIndexOffset korkeampi kuin tuulikortin (-50) — sama koordinaatti
-       tarkoittaa samaa Leafletin laskemaa perus-z-indeksiä, joten tämä
-       offset yksin ratkaisee kumpi piirtyy päällimmäisenä. */
-    var dot = L.marker([lat, lng], { icon: _makeStationIcon(map.getZoom()), zIndexOffset: 50,
-      /* Ks. CLAUDE.md: asemamerkit eivät kuulu sarkainkierrokseen. */
-      keyboard: false })
-      .on('click', onClick).addTo(map);
-    _stationDots.push(dot);
-    return dot;
-  }
-
-  /* Vaihda kaikkien sijaintimerkkien ikoni zoomin mukaan — kutsutaan
-   * updateIcons():n yhteydessä, samalla hetkellä kun tuulikortitkin
-   * vaihtavat pilli/piste-tilan välillä. */
-  var _stationDotMode = null;
-  function _updateStationDots() {
-    /* _makeStationIcon haarautuu vain kynnyksestä z>=8, joten ikoni kannattaa
-       vaihtaa vain kun se kynnys ylitetään. Ilman tätä jokainen updateIcons()
-       — myös aikajanan joka askel — luo uudet DOM-elementit kaikille
-       ruksimerkeille turhaan. */
-    var mode = map.getZoom() >= 8;
-    if (mode === _stationDotMode) return;
-    _stationDotMode = mode;
-    var icon = _makeStationIcon(map.getZoom());
-    _stationDots.forEach(function(d) { d.setIcon(icon); });
-  }
+  /* SIJAINNIN × ON MERKIN OMA LAPSI (`_sijoitteleHavainnot`), ei erillinen
+   * merkki: erillinen ruksimerkki oli toinen merkki samalle asemalle,
+   * ja se jäi spotin renkaan alle (Emäsalo 180 m, Laru, Mellsten). */
 
   /* Pikanäkymän tuulikortti.
    *
@@ -18541,7 +18515,7 @@ function _addObsMarkers(map) {
          "kaikki pienet pisteet samanlaisiksi kuin aaltospoteilla"). Piste
          ja sen vieressä oleva pieni ruksi olivat kaksi merkkiä yhdelle
          asemalle, eikä kumpikaan kertonut mitä asema mittaa. */
-      return _kaukoGlyfi(_windVaneSvg(INK_2, 13), z, hiljainen);
+      return _kaukoPallo(z, hiljainen);
     }
   }
 
@@ -18558,7 +18532,7 @@ function _addObsMarkers(map) {
        saman tilan kuin oikea lukema mutta ei kerro mitään — ilman dataa
        asema putoaa takaisin pisteeksi, joka kertoo vain että mittauspiste
        on olemassa. */
-    if (isPrim && z >= 9 && temp != null) {
+    if (isPrim && z >= LUKEMA_Z && temp != null) {
       /* Sama pilleri kuin tuulella. Aiemmin vedenlämpö oli pinnaton
          minttuteksti mustalla varjolla — se luki eri kielellä kuin
          tuulilukema ja katosi vaalean lämpökartan päälle. */
@@ -18567,10 +18541,7 @@ function _addObsMarkers(map) {
         iconAnchor:[0,9], iconSize:[54,18]
       });
     } else {
-      return _kaukoGlyfi('<svg width="13" height="11" viewBox="0 0 14 12" fill="none"'
-          +' xmlns="http://www.w3.org/2000/svg" style="display:block">'
-          +'<path d="M0 7 Q2 4 4 7 Q6 10 8 7 Q10 4 12 7 Q13 8.5 14 7" stroke="'+INK_2+'" stroke-width="1.5"'
-          +' stroke-linecap="round" fill="none"/></svg>', z, false);
+      return _kaukoPallo(z, false);
     }
   }
 
@@ -18627,8 +18598,8 @@ function _addObsMarkers(map) {
    * (pienempi kirjasin, tiukempi tayte), z9:sta ylospain taysikokoinen.
    * Merkki siis kasvaa zoomin mukana sen sijaan etta ilmestyisi tyhjasta,
    * ja laatikkovaisto hoitaa loput. */
-  var PILLERI_Z_POIJU = 8;
-  var PILLERI_Z_POIJU_ISO = 9;
+  var PILLERI_Z_POIJU = LUKEMA_Z;
+  var PILLERI_Z_POIJU_ISO = LUKEMA_Z;
   function mkAaltoIcon(zoom, hs, hiljainen) {
     var z = zoom || 5;
     if (z >= PILLERI_Z_POIJU) {
@@ -18639,17 +18610,17 @@ function _addObsMarkers(map) {
         iconAnchor:[0, pieni ? 7 : 9],
         iconSize: pieni ? [44, 14] : [56, 18] });
     }
-    return _kaukoGlyfi(_aaltoGlyfi(INK_2), z, hiljainen);
+    return _kaukoPallo(z, hiljainen);
   }
-  /* Kaukaisen zoomin asemamerkki: pelkkä glyfi ilman pilleriä, sama koko
-     (13 × 11) ja läpikuultavuus kaikille asematyypeille. Hiljainen
-     (ei signaalia) on himmeämpi. */
-  function _kaukoGlyfi(svg, z, hiljainen) {
-    var op = (z < 5 ? .55 : .9) * (hiljainen ? .5 : 1);
+  /* KAUKANA JOKAINEN ASEMA ON SAMA SIRO PALLO JA × (käyttäjän päätös
+     1.10.): tyyppiä ei kerrota kaukaa, vaan se että mittauspiste on
+     olemassa. Spotin pallo on isompi eikä siinä ole ruksia, joten
+     spotti on ensisijainen merkki. Hiljainen (ei signaalia) on himmeämpi. */
+  function _kaukoPallo(z, hiljainen) {
+    var op = (z < 5 ? .6 : 1) * (hiljainen ? .5 : 1);
     return L.divIcon({ className:'',
-      html:'<div style="cursor:pointer;line-height:0;opacity:'+op.toFixed(2)+';'
-        +'filter:drop-shadow(0 0 1.5px rgba(6,9,18,.9))">' + svg + '</div>',
-      iconSize:[13, 11], iconAnchor:[6, 5] });
+      html:'<div class="kauko-pallo" style="opacity:'+op.toFixed(2)+'"></div>',
+      iconSize:[9, 9], iconAnchor:[4.5, 4.5] });
   }
   function _aaltoIconSig(zoom, hs, hiljainen) {
     var z = zoom || 5;
@@ -18682,7 +18653,7 @@ function _addObsMarkers(map) {
     if (pilleriZ && z >= pilleriZ) {
       return 'p|' + (ws != null ? Units.fmt(ws) : '—') + '|' + Units.label() + hlj + (video ? '|v' : '');
     }
-    /* Glyfi: läpinäkyvyys tulee samasta kynnyksestä kuin `_kaukoGlyfi`ssa */
+    /* Pallo: läpinäkyvyys tulee samasta kynnyksestä kuin `_kaukoPallo`ssa */
     return 'd|' + (z < 5 ? 0 : 1) + hlj;
   }
   /* Datan saapuessa merkit päivitetään `updateIcons()`illa eikä suoralla
@@ -18691,7 +18662,7 @@ function _addObsMarkers(map) {
      väärän tunnin luku seuraavaan aikajanan askeleeseen asti. */
   function _waterIconSig(zoom, temp, isPrim) {
     var z = zoom || 5;
-    if (isPrim && z >= 9 && temp != null) {
+    if (isPrim && z >= LUKEMA_Z && temp != null) {
       return 'p|' + temp.toFixed(1);
     }
     return 'd|' + (z < 5 ? 0 : 1);
@@ -18778,6 +18749,109 @@ function _addObsMarkers(map) {
     } catch (e) { return null; }
   }
 
+  /* Ikonin vaihto. Pallosta lukemaksi (raja ylitetään) lukema tulee
+     näkyviin lyhyellä esiintulolla; muut vaihdot (uusi lukema, tunti)
+     ovat suoria, jottei jokainen aikajanan askel välkähdä. */
+  function _vaihdaIkoni(m, sig, ikoni) {
+    var oliPallo = !m._iconSig || m._iconSig.charAt(0) === 'd';
+    m._iconSig = sig;
+    m.marker.setIcon(ikoni);
+    var inner = m.marker.getElement && m.marker.getElement().firstElementChild;
+    if (inner && oliPallo && m._iconSigNahty && sig.charAt(0) === 'p') inner.classList.add('merkki-esiin');
+    m._iconSigNahty = true;
+  }
+
+  /* LUKEMIEN SIJOITTELU JA SIJAINNIN × (käyttäjän päätös 1.10.).
+   *
+   * Yksi sääntö kaikille asemille; korvaa Kruunuvuorenselän oman
+   * `_avoidSpotOverlap`in ja poijujen `_aaltoVaisto`n. Spottirengas on
+   * aina tarkassa sijainnissaan. Lukemalappu valitsee ensimmäisen
+   * vapaan paikan kiinteästä listasta (oikealle, vasemmalle, ylös, alas,
+   * vinot), ja esteitä ovat spottien renkaat ja nimet sekä jo sijoitetut
+   * laput. Järjestys on kiinteä: meriasema ja poiju, sitten maa-asema,
+   * sitten vedenlämpö, nimen mukaan — EI lukeman mukaan, joten mikään ei
+   * hypi tunnin vaihtuessa (sama oppi kuin spottien väistössä). Lappu
+   * jolle ei löydy paikkaa jää palloksi.
+   *
+   * Aseman tarkka sijainti on pieni × merkin omana lapsena (ei erillistä
+   * merkkiä), ja se jätetään pois jos se osuisi spotin renkaan alle. */
+  var SIJOITUS_RAKO = 5;
+  function _sijoitteleHavainnot() {
+    var z = map.getZoom();
+    var lahi = z >= LUKEMA_Z;
+    var esteet = [];
+    if (typeof SPOTS !== 'undefined') {
+      /* Kaukana este on spotin 10 px:n pallo, lähellä rengas ja nimi. */
+      var koko = lahi ? spotIconSize(z) : 10, nimetPois = lahi ? _spotNimetPois(z) : new Set();
+      SPOTS.forEach(function (sp) {
+        var q = map.latLngToContainerPoint([sp.lat, sp.lng]);
+        esteet.push({ l: q.x - koko / 2 - 2, t: q.y - koko / 2 - 2, r: q.x + koko / 2 + 2, b: q.y + koko / 2 + 2, rengas: true });
+        if (lahi && z >= SPOT_LABEL_MIN_ZOOM && !nimetPois.has(sp)) esteet.push({ l: q.x - 32, t: q.y + koko / 2 + 2, r: q.x + 32, b: q.y + koko / 2 + 16 });
+      });
+    }
+    var spotinAlla = function (p) {
+      return esteet.some(function (e) { return e.rengas && p.x > e.l && p.x < e.r && p.y > e.t && p.y < e.b; });
+    };
+    var arvo = function (m) { return m.type === 'wind-prim' || m.type === 'aalto' ? 0 : m.type === 'wind-dot' ? 1 : 2; };
+    var jono = _obsMarkers.filter(function (m) {
+      var el = m.marker && m.marker._icon;
+      return el && el.style.display !== 'none';
+    }).sort(function (a, b) {
+      return (arvo(a) - arvo(b)) || String(a.stName || '').localeCompare(String(b.stName || ''));
+    });
+    var osuu = function (k) {
+      for (var i = 0; i < esteet.length; i++) {
+        var e = esteet[i];
+        if (k.l < e.r && k.r > e.l && k.t < e.b && k.b > e.t) return true;
+      }
+      return false;
+    };
+    jono.forEach(function (m) {
+      var el = m.marker._icon, inner = el.firstElementChild;
+      var x = el.querySelector(':scope > .sijainti-x');
+      var lappu = lahi && m._iconSig && m._iconSig.charAt(0) === 'p' && inner;
+      if (!lappu) {
+        /* Pallo: ei siirretä (pallo ON sijainti), mutta spotin päältä se
+           jää pois — spotin alla ei ole mitään. */
+        if (x) x.remove();
+        if (inner) {
+          inner.style.transform = '';
+          inner.style.visibility = spotinAlla(map.latLngToContainerPoint(m.marker.getLatLng())) ? 'hidden' : '';
+        }
+        return;
+      }
+      var o = (m.marker.options.icon && m.marker.options.icon.options) || {};
+      var ax = o.iconAnchor ? o.iconAnchor[0] : 0, ay = o.iconAnchor ? o.iconAnchor[1] : 0;
+      var w = o.iconSize ? o.iconSize[0] : 62, h = o.iconSize ? o.iconSize[1] : 18;
+      var p = map.latLngToContainerPoint(m.marker.getLatLng());
+      if (!x) { x = document.createElement('span'); x.className = 'sijainti-x'; x.setAttribute('aria-hidden', 'true'); el.appendChild(x); }
+      x.style.left = ax + 'px'; x.style.top = ay + 'px';
+      var renkaanAlla = spotinAlla(p);
+      var R = SIJOITUS_RAKO;
+      var paikat = [[R, -h / 2], [-R - w, -h / 2], [-w / 2, -h - R], [-w / 2, R],
+                    [R, -h - 3], [R, 3], [-R - w, -h - 3], [-R - w, 3]];
+      var valittu = null;
+      for (var i = 0; i < paikat.length; i++) {
+        var k = { l: p.x + paikat[i][0] - 1, t: p.y + paikat[i][1] - 1, r: p.x + paikat[i][0] + w + 1, b: p.y + paikat[i][1] + h + 1 };
+        if (!osuu(k)) { valittu = paikat[i]; esteet.push(k); break; }
+      }
+      if (valittu) {
+        inner.style.visibility = '';
+        inner.style.transform = 'translate(' + Math.round(valittu[0] + ax) + 'px,' + Math.round(valittu[1] + ay) + 'px)';
+        x.className = 'sijainti-x';
+        x.style.display = renkaanAlla ? 'none' : '';
+      } else {
+        /* Ei tilaa: lappu piiloon, paikalle sama pallo kuin kaukana. */
+        inner.style.visibility = 'hidden';
+        inner.style.transform = '';
+        x.className = 'sijainti-x sijainti-pallo';
+        x.style.display = renkaanAlla ? 'none' : '';
+        esteet.push({ l: p.x - 5, t: p.y - 5, r: p.x + 5, b: p.y + 5 });
+      }
+    });
+  }
+  window._sijoitteleHavainnot = _sijoitteleHavainnot;
+
   function updateIcons(targetTs) {
     var z = map.getZoom();
     /* Leafletin tapahtumakuuntelijat välittävät tapahtumaobjektin ensimmäisenä
@@ -18813,8 +18887,7 @@ function _addObsMarkers(map) {
            lukeman iän. */
         var asig = _aaltoIconSig(z, m.hs, m.hiljainen);
         if (asig !== m._iconSig) {
-          m._iconSig = asig;
-          m.marker.setIcon(mkAaltoIcon(z, m.hs, m.hiljainen));
+          _vaihdaIkoni(m, asig, mkAaltoIcon(z, m.hs, m.hiljainen));
         }
       } else if (m.type === 'wind-prim' || m.type === 'wind-dot') {
         /* Oletuksena uusin havainto */
@@ -18830,27 +18903,17 @@ function _addObsMarkers(map) {
         var video = Kamerat.live(m.place);
         var sig = _windIconSig(z, ws, m.pilleriZ, hlj, video);
         if (sig !== m._iconSig) {
-          m._iconSig = sig;
-          m.marker.setIcon(mkWindIcon(z, ws, m.stName, m.pilleriZ, hlj, video));
+          _vaihdaIkoni(m, sig, mkWindIcon(z, ws, m.stName, m.pilleriZ, hlj, video));
         }
       } else {
         var wsig = _waterIconSig(z, m.temp, m.prim);
         if (wsig !== m._iconSig) {
-          m._iconSig = wsig;
-          m.marker.setIcon(mkWaterIcon(z, m.temp, m.prim));
+          _vaihdaIkoni(m, wsig, mkWaterIcon(z, m.temp, m.prim));
         }
       }
-      /* Jos setIcon() ajettiin, se loi uuden DOM-elementin — jos tällä
-         merkillä on oma väistölogiikka (esim. Kruunuvuorenselkä), sovella se
-         heti samassa framessa. Kutsutaan myös silloin kun setIcon jätettiin
-         väliin: silloin transform on jo oikea eikä sen uudelleenasetus tee
-         mitään, mutta zoomin muuttuminen ilman ikonin vaihtoa (esim. z 10→11
-         pilli-tilassa samalla lukemalla) päivittää väistön etäisyyden. */
-      if (typeof m._avoidOverlap === 'function') m._avoidOverlap();
     });
-    /* Ruksi-sijaintimerkit näkyvät/piiloutuvat samalla zoom-kynnyksellä
-       kuin tuulikorttien pilli-muoto (z>=8) */
-    _updateStationDots();
+    /* Lappujen paikat ja sijainnin ×:t yhdellä säännöllä. */
+    _sijoitteleHavainnot();
   }
   /* Globaali alias yksikön vaihdon päivitystä varten */
   window._updateObsIcons = updateIcons;
@@ -18901,30 +18964,25 @@ function _addObsMarkers(map) {
      ON luettavissa kun kaupunkiin zoomataan — aiemmin se ei ollut
      millään zoomilla, ja Helsingin yllä ei siksi näkynyt yhtään
      FMI-lukemaa. */
-  var PILLERI_Z_MERI = 8, PILLERI_Z_MAA = 10;
+  /* YKSI RAJA (1.10.): kaikki lukemat tulevat näkyviin samalla zoomilla
+     kuin spottien numerot (`SPOT_KAIKKI_Z`). Porrastus (meri 8, poiju 8,
+     vesi 9, maa 10) näytti käyttäjälle satunnaiselta. */
+  var PILLERI_Z_MERI = LUKEMA_Z, PILLERI_Z_MAA = LUKEMA_Z;
   function _fmiMerkki(st) {
     var isPrim = !!window.FMI_SEA_PLACES[st.place];
     var pilleriZ = isPrim ? PILLERI_Z_MERI : PILLERI_Z_MAA;
     var m = L.marker([st.lat, st.lng], { icon: mkWindIcon(map.getZoom(), null, st.name, pilleriZ),
-      zIndexOffset: isPrim ? -50 : -100, keyboard: false })
+      zIndexOffset: isPrim ? -50 : -100, keyboard: false, zoomaaAlle: LUKEMA_Z })
       .on('click', function () { _openObsSheet('fmi', st); }).addTo(map);
     var entry = { marker: m, type: isPrim ? 'wind-prim' : 'wind-dot', pilleriZ: pilleriZ,
       ws: null, wg: null, wsLatest: null, wgLatest: null,
       stName: st.name, layerGroup: isPrim ? 'fmi-sea' : 'fmi-land', place: st.place,
       history: null, _fmi: true };
-    /* Ruksi-sijaintimerkki vain isoille prim-korteille — pieni piste-tila
-       näyttää jo täsmällisen sijainnin sellaisenaan. */
-    if (isPrim) entry.dot = _addStationDot(st.lat, st.lng, function () { _openObsSheet('fmi', st); });
     _obsMarkers.push(entry);
     return entry;
   }
   function _fmiPoista(entry) {
     map.removeLayer(entry.marker);
-    if (entry.dot) {
-      map.removeLayer(entry.dot);
-      var di = _stationDots.indexOf(entry.dot);
-      if (di >= 0) _stationDots.splice(di, 1);
-    }
     var ei = _obsMarkers.indexOf(entry);
     if (ei >= 0) _obsMarkers.splice(ei, 1);
   }
@@ -19012,82 +19070,15 @@ function _addObsMarkers(map) {
        asemalista kaatui (ks. `_fmiStationsSorted`). */
     var KV_STATION = PAIKALLISASEMAT.find(function (s) { return s.lahde === 'kruunuvuori'; });
 
-    var icon = mkWindIcon(map.getZoom(), null, KV_STATION.name, 8);
-    var m = L.marker([KV_STATION.lat, KV_STATION.lng], { icon: icon, zIndexOffset: -50, keyboard: false })
+    var icon = mkWindIcon(map.getZoom(), null, KV_STATION.name, LUKEMA_Z);
+    var m = L.marker([KV_STATION.lat, KV_STATION.lng], { icon: icon, zIndexOffset: -50, keyboard: false, zoomaaAlle: LUKEMA_Z })
       .on('click', function(){ _openObsSheet('kruunuvuori', KV_STATION); }).addTo(map);
     var kvEntry = { marker: m, type: 'wind-prim', ws: null, wg: null,
-      wsLatest: null, wgLatest: null, stName: KV_STATION.name, pilleriZ: 8,
+      wsLatest: null, wgLatest: null, stName: KV_STATION.name, pilleriZ: LUKEMA_Z,
       layerGroup: 'fmi-sea', place: KV_STATION.place, history: null };
     _obsMarkers.push(kvEntry);
     if (typeof _applyMapLayers === 'function') _applyMapLayers();
-    /* Ruksi-sijaintimerkki — pysyy aina täsmälleen paikallaan,
-       vaikka tuulikortti väistyisi lähellä olevan spotin tieltä */
-    _addStationDot(KV_STATION.lat, KV_STATION.lng, function(){ _openObsSheet('kruunuvuori', KV_STATION); });
 
-    /* Törmäyksenvälttely: kortti väistää lähellä olevia wingfoil-spotteja.
-     * Kahden kiinteän koordinaatin pikselietäisyys riippuu VAIN zoomista,
-     * ei panoroinnista. Funktio on liitetty kvEntry._avoidOverlap:iin,
-     * jolloin JAETTU updateIcons() kutsuu sitä aina kun se piirtää tämän
-     * merkin ikonin uudelleen — riippumatta siitä käynnistikö sen zoomend,
-     * yksikön vaihto vai timelinen liu'utus. Aiemmin väistö oli kytketty
-     * VAIN zoomend-tapahtumaan, jolloin se "unohtui" heti kun jokin muu
-     * reitti kutsui setIcon():ia ilman uudelleensovellusta. */
-    function _avoidSpotOverlap() {
-      var el = kvEntry.marker.getElement ? kvEntry.marker.getElement() : null;
-      var inner = el ? el.firstElementChild : null;
-      if (!inner) return;
-
-      /* Väistö koskee vain kortti-tilaa. Pienessä piste-tilassa (z<8) tätä ei
-         tarvita eikä pidä soveltaa — muuten kynnys työntää 5px pistettä
-         satunnaiselta näyttävästi aina kun mikä tahansa spotti sattuu olemaan
-         lähellä. Nollataan transform ja palataan heti jos EI olla korttitilassa. */
-      var z = map.getZoom();
-      var isPillNow = (z >= 8); /* sama kynnys kuin kvEntry.pilleriZ */
-      if (!isPillNow) {
-        inner.style.transform = '';
-        return;
-      }
-
-      var kvPt = map.latLngToContainerPoint([KV_STATION.lat, KV_STATION.lng]);
-      /* Kynnys mitataan kortin todellisesta leveydestä, ei kovakoodattuna —
-         muuten se jää vanhan leveän kortin mittoihin kun korttia kavennetaan.
-         Kortti venyy ankkurista oikealle, joten puolikas leveys + pieni
-         marginaali riittää. */
-      var THRESH = Math.max(40, (inner.offsetWidth || 62) * 0.6 + 18);
-      var minDist = Infinity, pushX = 0, pushY = -1;
-      var spotsList = (typeof SPOTS !== 'undefined') ? SPOTS : [];
-
-      for (var i = 0; i < spotsList.length; i++) {
-        var s = spotsList[i];
-        if (s.lat == null || s.lng == null) continue;
-        var sPt = map.latLngToContainerPoint([s.lat, s.lng]);
-        var dx = kvPt.x - sPt.x, dy = kvPt.y - sPt.y;
-        var d = Math.sqrt(dx * dx + dy * dy);
-        if (d < minDist) { minDist = d; pushX = dx; pushY = dy; }
-      }
-
-      /* Ei transitionia. Elementti voi olla juuri setIcon():in luoma, jolloin
-         sen transform on nolla — transition animoisi silloin joka kerta
-         nollasta lopulliseen kohtaan, eli kortti lähtisi spotin päältä ja
-         liukuisi paikalleen. Väistö on kortin pysyvä sijainti, ei liike, joten
-         se asetetaan kerralla samassa framessa jossa elementti syntyi. */
-      if (minDist < THRESH) {
-        var len = Math.sqrt(pushX * pushX + pushY * pushY);
-        var ux, uy;
-        if (len < 0.5) {
-          ux = 0; uy = -1;
-        } else {
-          ux = pushX / len; uy = pushY / len;
-        }
-        var amount = (THRESH - minDist) + 22;
-        inner.style.transform = 'translate(' + (ux * amount).toFixed(0) + 'px,' + (uy * amount).toFixed(0) + 'px)';
-      } else {
-        inner.style.transform = '';
-      }
-    }
-
-    kvEntry._avoidOverlap = _avoidSpotOverlap; /* jaettu updateIcons() kutsuu tätä aina */
-    _avoidSpotOverlap(); /* alkutila heti kartan latauduttua */
 
     /* Uudelleenajettava (`_havPaivita`), ja historia kattaa aikajanan
        menneisyyden kuten FMI-asemilla (`HAV_KARTTA_H`). Tuoreus lasketaan
@@ -19133,17 +19124,15 @@ function _addObsMarkers(map) {
    * haaraa. */
   (function() {
     var MELL_STATION = PAIKALLISASEMAT.find(function (s) { return s.lahde === 'mellsten'; });
-    var icon = mkWindIcon(map.getZoom(), null, MELL_STATION.name, 8);
+    var icon = mkWindIcon(map.getZoom(), null, MELL_STATION.name, LUKEMA_Z);
     var m = L.marker([MELL_STATION.lat, MELL_STATION.lng],
-      { icon: icon, zIndexOffset: -50, keyboard: false })
+      { icon: icon, zIndexOffset: -50, keyboard: false, zoomaaAlle: LUKEMA_Z })
       .on('click', function(){ _openObsSheet('mellsten', MELL_STATION); }).addTo(map);
     var mEntry = { marker: m, type: 'wind-prim', ws: null, wg: null,
-      wsLatest: null, wgLatest: null, stName: MELL_STATION.name, pilleriZ: 8,
+      wsLatest: null, wgLatest: null, stName: MELL_STATION.name, pilleriZ: LUKEMA_Z,
       layerGroup: 'fmi-sea', place: MELL_STATION.place, history: null };
     _obsMarkers.push(mEntry);
     if (typeof _applyMapLayers === 'function') _applyMapLayers();
-    _addStationDot(MELL_STATION.lat, MELL_STATION.lng,
-      function(){ _openObsSheet('mellsten', MELL_STATION); });
 
     function lataa() {
       return fetch(API_BASE + '/mellsten?history=1&hours=' + HAV_KARTTA_H + '&tz=' + encodeURIComponent(AIKAVYOHYKE))
@@ -19185,17 +19174,15 @@ function _addObsMarkers(map) {
    * aikajanan menneisyyden (`HAV_KARTTA_H`) kuten FMI-asemien merkit. */
   (function() {
     var LARU_STATION = PAIKALLISASEMAT.find(function (s) { return s.lahde === 'laru'; });
-    var icon = mkWindIcon(map.getZoom(), null, LARU_STATION.name, 8);
+    var icon = mkWindIcon(map.getZoom(), null, LARU_STATION.name, LUKEMA_Z);
     var m = L.marker([LARU_STATION.lat, LARU_STATION.lng],
-      { icon: icon, zIndexOffset: -50, keyboard: false })
+      { icon: icon, zIndexOffset: -50, keyboard: false, zoomaaAlle: LUKEMA_Z })
       .on('click', function(){ _openObsSheet('laru', LARU_STATION); }).addTo(map);
     var lEntry = { marker: m, type: 'wind-prim', ws: null, wg: null,
-      wsLatest: null, wgLatest: null, stName: LARU_STATION.name, pilleriZ: 8,
+      wsLatest: null, wgLatest: null, stName: LARU_STATION.name, pilleriZ: LUKEMA_Z,
       layerGroup: 'fmi-sea', place: LARU_STATION.place, history: null };
     _obsMarkers.push(lEntry);
     if (typeof _applyMapLayers === 'function') _applyMapLayers();
-    _addStationDot(LARU_STATION.lat, LARU_STATION.lng,
-      function(){ _openObsSheet('laru', LARU_STATION); });
 
     function lataa() {
       return fetch(API_BASE + '/laru?history=1&hours=' + HAV_KARTTA_H + '&tz=' + encodeURIComponent(AIKAVYOHYKE))
@@ -19221,99 +19208,6 @@ function _addObsMarkers(map) {
     _havPaivittajat.push(lataa);
   })();
 
-  /* AALTOPOIJUN VÄISTÖ.
-   *
-   * Poiju on merellä, ja merellä ovat myös sovelluksen tiheimmät
-   * tuuliasemat: Suomenlinnan poiju on 2,0 km Harmajasta ja 12 km
-   * Itätoukista. Ilman väistöä pillerit peittivät toisensa z7:llä
-   * 100-prosenttisesti (perustaso ilman aaltokerrosta 12 %), eli
-   * napautus poijun kohdalle avasi Harmajan kortin.
-   *
-   * KIINTEÄ SIIRTO EI KELVANNUT — kokeiltiin ja mitattiin: pisteen
-   * yläpuolelle siirretty pilleri vain vaihtoi naapuria (Harmaja ->
-   * Malmi, 100 % z7, 93 % z8), koska Helsinki on tiheä joka suuntaan
-   * noilla zoomeilla.
-   *
-   * Siksi väistö mitataan RUUDULTA eikä koordinaateista: etsitään se
-   * näkyvä merkki jonka kanssa päällekkäisyys on suurin ja siirrytään
-   * sen ohi PYSTYSUUNNASSA. Pysty on halvempi kuin vaaka — pilleri on
-   * 18 px korkea mutta 56–62 px leveä, joten vaakasiirto joutuisi
-   * ylittämään koko naapurin leveyden. Sama ratkaisu kuin
-   * Kruunuvuorenselän `_avoidSpotOverlap`illa, mutta se vertaa
-   * koordinaattietäisyyksiä; tässä verrataan laatikoita, koska
-   * mitattava asia ON laatikoiden leikkaus. */
-  function _aaltoVaisto(entry) {
-    var el = entry.marker.getElement ? entry.marker.getElement() : null;
-    var inner = el ? el.firstElementChild : null;
-    if (!inner) return;
-    /* Mittaus aloitetaan aina siirtämättömästä asennosta, muuten
-       peräkkäiset ajot kasaisivat siirtoa päällekkäin. */
-    inner.style.transform = '';
-
-    /* VÄISTÖ KOSKEE VAIN PILLERITILAA — sama rajaus kuin
-       Kruunuvuorenselällä, ja samasta syystä mitattuna. Pistetilassa
-       (z<9) Helsingin edustalla on kymmenen merkkiä noin viidentoista
-       pikselin kaistalla, eli poijulle ei ole vapaata paikkaa mistään:
-       mitattuna väistö tarvitsi neljä kierrosta ja yli 30 px, minkä
-       jälkeen katto nollasi sen joka tapauksessa. Siirretty piste
-       valehtelisi silloin sijainnistaan kymmeniä kilometrejä eikä silti
-       olisi vapaa. Pistetilassa napautuksen ratkaisee z-järjestys:
-       poiju on tuuliasemien yllä. */
-    if (map.getZoom() < PILLERI_Z_POIJU) return;
-
-    var oma = inner.getBoundingClientRect();
-    if (!oma.width || !oma.height) return;
-
-    function pahinPaalle(laatikko) {
-      var pahin = null, pahinAla = 0;
-      for (var i = 0; i < _obsMarkers.length; i++) {
-        var o = _obsMarkers[i];
-        if (o === entry || o.layerGroup === 'aallot') continue;
-        var oel = o.marker._icon;
-        if (!oel || oel.style.display === 'none') continue;
-        /* MITATTAVA ON SISEMPI ELEMENTTI, ei merkin `_icon`-kuori.
-           Kuori kantaa kartan oman `translate`-sijainnin eikä liiku
-           väistön mukana (Kruunuvuorenselkä siirtää sisintä samoin), joten
-           kuorista mitattu peitto väittää merkkien olevan yhä päällekkäin
-           vaikka ne eivät ruudulla ole. */
-        var oin = oel.firstElementChild || oel;
-        var r = oin.getBoundingClientRect();
-        if (!r.width) continue;
-        var w = Math.min(laatikko.right, r.right) - Math.max(laatikko.left, r.left);
-        var h = Math.min(laatikko.bottom, r.bottom) - Math.max(laatikko.top, r.top);
-        if (w <= 0 || h <= 0) continue;
-        if (w * h > pahinAla) { pahinAla = w * h; pahin = r; }
-      }
-      return pahin;
-    }
-
-    /* SUUNTA LUKITAAN ENSIMMÄISESTÄ OSUMASTA. Ilman lukitusta väistö
-       heiluu: mitattuna se työnsi poijun ylös Harmajan ohi, törmäsi
-       Kruunuvuorenselkään, ja koska sen keskipiste oli nyt naapurin
-       yläpuolella, seuraava kierros työnsi takaisin alas — nettosiirto
-       oli 3 px eli käytännössä ei mitään, vaikka kumpikin kierros
-       laski oman siirtonsa oikein.
-       
-       Neljä kierrosta: Helsingin edustalla merkkejä on päällekkäin
-       useampi, ja yhden ohittaminen paljastaa seuraavan. */
-    var siirto = 0, suunta = 0;
-    for (var kierros = 0; kierros < 4; kierros++) {
-      var nyt = { left: oma.left, right: oma.right,
-        top: oma.top + siirto, bottom: oma.bottom + siirto };
-      var p = pahinPaalle(nyt);
-      if (!p) break;
-      if (!suunta) suunta = ((nyt.top + nyt.bottom) / 2 <= (p.top + p.bottom) / 2) ? -1 : 1;
-      siirto += suunta < 0 ? -(nyt.bottom - p.top + 4) : (p.bottom - nyt.top + 4);
-    }
-    /* KATTO. Siirretty merkki valehtelee sijainnistaan siirron verran,
-       ja uloimmilla zoomeilla 30 px on kymmeniä kilometrejä. Jos tila ei
-       riitä, merkki jää paikalleen: päällekkäisyys uloimmassa näkymässä
-       on kartografiaa, väärään paikkaan siirretty mittauspiste on
-       virhe. Napautuksen ratkaisee silloin z-järjestys, jossa poiju on
-       tuuliasemien yllä. */
-    if (Math.abs(siirto) > 30) siirto = 0;
-    if (siirto) inner.style.transform = 'translate(0,' + Math.round(siirto) + 'px)';
-  }
 
   /* ── Aaltopoijut: yksi haku, merkit vastauksesta ───────────── */
   /* Merkkejä EI luoda etukäteen tyhjänä kuten FMI-asemille. Syy on
@@ -19368,13 +19262,9 @@ function _addObsMarkers(map) {
            tuuliasema, jollaisia samalla alueella on kymmenen. Kortti lukee
            `station.name`; rajapinnan kenttä on `station`. Kortti saa
            merkin TUOREIMMAN aseman (päivitys vaihtaa `asema`n). */
-        entry.marker = L.marker([s.lat, s.lng], { icon: ikoni, zIndexOffset: -40, keyboard: false })
+        entry.marker = L.marker([s.lat, s.lng], { icon: ikoni, zIndexOffset: -40, keyboard: false, zoomaaAlle: LUKEMA_Z })
           .on('click', function() { _openObsSheet('aalto', Object.assign({}, entry.asema, { name: entry.asema.station })); })
           .addTo(map);
-        /* `updateIcons` kutsuu tätä jokaisen merkin kohdalla — myös
-           silloin kun setIcon jätettiin väliin, jolloin transform on jo
-           oikea. Ilman kutsua väistö katoaisi joka ikonin vaihdossa. */
-        entry._avoidOverlap = function () { _aaltoVaisto(entry); };
         _obsMarkers.push(entry);
       });
       _obsMarkers.slice().forEach(function (e) {
@@ -19397,7 +19287,7 @@ function _addObsMarkers(map) {
         var temp=entry&&entry.temp!=null&&entry.temp>-5&&entry.temp<40?entry.temp:null;
         var e=_uirasMerkit[st.id];
         if (e) { e.temp = temp; return; }
-        var m=L.marker([st.lat,st.lng],{icon:mkWaterIcon(map.getZoom(),temp,!!st.prim),zIndexOffset:-200,keyboard:false})
+        var m=L.marker([st.lat,st.lng],{icon:mkWaterIcon(map.getZoom(),temp,!!st.prim),zIndexOffset:-200,keyboard:false,zoomaaAlle:LUKEMA_Z})
           .on('click',function(){ _openObsSheet('uiras',st); }).addTo(map);
         e = _uirasMerkit[st.id] = {marker:m,type:'water',temp:temp,prim:!!st.prim,layerGroup:'uiras'};
         _obsMarkers.push(e);
@@ -19407,7 +19297,7 @@ function _addObsMarkers(map) {
     }).catch(function() {
       UIRAS_STATIONS.forEach(function(st) {
         if (_uirasMerkit[st.id]) return;
-        var m=L.marker([st.lat,st.lng],{icon:mkWaterIcon(map.getZoom(),null,!!st.prim),zIndexOffset:-200,keyboard:false})
+        var m=L.marker([st.lat,st.lng],{icon:mkWaterIcon(map.getZoom(),null,!!st.prim),zIndexOffset:-200,keyboard:false,zoomaaAlle:LUKEMA_Z})
           .on('click',function(){ _openObsSheet('uiras',st); }).addTo(map);
         _uirasMerkit[st.id] = {marker:m,type:'water',temp:null,prim:!!st.prim,layerGroup:'uiras'};
         _obsMarkers.push(_uirasMerkit[st.id]);
@@ -19418,9 +19308,6 @@ function _addObsMarkers(map) {
   _uirasLataa();
   _havPaivittajat.push(_uirasLataa);
 
-  /* Alkutila heti — muuten ruksit näkyisivät hetken liian
-     kaukaa zoomattuna ennen ensimmäistä zoomend-tapahtumaa */
-  _updateStationDots();
 
   /* Kelikamerat: play-kolmio pilleriin kun vastaus tulee
      (Kamerat.lataa kutsuu updateIcons()ia). Mikään ei odota tätä. */
@@ -29551,6 +29438,8 @@ function _applyMapLayers() {
     var el = m.marker._icon || null;
     if (el) el.style.display = show ? '' : 'none';
   });
+  /* Näkyvät merkit vaihtuivat: laput sijoitetaan uudelleen. */
+  if (window._sijoitteleHavainnot) window._sijoitteleHavainnot();
 }
 
 document.querySelectorAll('.sp-toggle-row').forEach(function(row) {

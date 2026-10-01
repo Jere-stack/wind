@@ -7905,3 +7905,47 @@ vertailu auki 521, asetukset 65, ennustepaneeli 99 tekstiä — 0 alle
 rajan. Englanniksi asetuksissa ja kortissa ei suomenkielisiä sanoja
 (alatekstit `data-en`). Savutesti ja graafitesti läpi.
 
+## Kartan merkit: pallot kaukana, yksi raja ja sijoittelu
+
+Käyttäjän päätös 1.10. (suositus hyväksyttiin, muutoksella: kaukaisia
+spotteja ei värjätä).
+
+### Mitä muuttui
+
+- **Kaukana (alle z10, Leaflet-asteikko)** spotti on 10 px:n väritön
+  pallo ja jokainen havaintoasema (tuuli, poiju, vedenlämpö) 9 px:n
+  pallo jossa on ×. Edellisen erän tyyppiglyfit poistuivat.
+- **Yksi raja, z10** (`LUKEMA_Z` = `SPOT_KAIKKI_Z`): spottien numerot ja
+  nimet sekä kaikkien asemien lukemat tulevat näkyviin yhtä aikaa,
+  0,22 s:n häivytyksellä. Ennen meri ja poiju 8, vesi 9, maa 10.
+- **Kaukaisen pallon napautus zoomaa** rajalle (`zoomaaAlle` merkin
+  optiona); vasta sieltä napautus avaa kortin.
+- **Sijoittelu** (`_sijoitteleHavainnot`): spottirengas tarkassa
+  paikassa, aseman lappu ensimmäiseen vapaaseen kiinteään paikkaan
+  sen viereen, tarkka sijainti 5 px:n ×:nä. Mitään ei piirretä spotin
+  alle. Erillinen ruksimerkki, Kruunuvuoren oma väistö ja poijujen
+  laatikkoväistö poistettiin.
+
+### Mitattu (Helsingin edusta, kaikki havaintokerrokset päällä, puhelin)
+
+```
+z     renkaat  spottipallot  laput  palloksi  spotin alla  päällekkäin
+7        0         12          0       0          0            0
+9        0          9          0       0          0            0
+10       8          0          5       1          0            0
+11       5          0          5       1          0            0
+12       3          0          5       0          0            0
+```
+
+Lappujen paikat samat kuudella eri tunnilla (z10 ja z11: 6/6). Ensimmäinen
+ajo väitti 0/6 — mittari vertasi eri joukkoja (näkyvät laput vs kaikki
+lappu-tilaiset), ei sijoittelu. Napautus: spotti- ja asemapallo z8 →
+zoom 10, kortti kiinni; z10,5 → kortti auki. Savutesti, graafitesti ja
+kontrastimittari läpi.
+
+### Mitä jäi
+
+Toissijaiset rantalämpötilat ja rantalämpötilat ilman lukemaa ovat
+palloja myös lähellä (niillä ei ole lappua). Rajan alla tieto siitä,
+missä keli on hyvä, ei näy kartalta — se on käyttäjän valinta.
+

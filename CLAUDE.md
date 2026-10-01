@@ -291,7 +291,8 @@ kokeiltu ja kaadettu mittauksella.
   **Aallot kartalla: kerros, väri, aallonharjat ja aikajana** ·
   **Sade neljänneksi kerrokseksi: GL-sadekerros ja esikatselukuvat** ·
   **Yömeri: valikot ja kaaviot kuvakkeen väreihin** ·
-  **Yömeri, toinen erä: asetukset, kortit, sääikonit, spottien väistö**
+  **Yömeri, toinen erä: asetukset, kortit, sääikonit, spottien väistö** ·
+  **Kartan merkit: pallot kaukana, yksi raja ja sijoittelu**
 - **pwa**: PWA — kotivalikkoon ja rannalle · Mitä välimuistiin menee ·
   Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
   Ikoni ja kotivalikko
@@ -365,7 +366,7 @@ mitä työpöydällä pitikin tapahtua. Kaikki laitekohtainen mittaus vaatii
 kosketussäätö siirtää sen lähimpään maalattuun kohteeseen.
 
 **Leaflet-zoom on MapLibre-zoom + 1 (`ZOOM_ERO`).** Kaikki sovelluksen
-kynnykset (z8 poijut, `REUNUS_MIN_Z`, `laattaStep`, `uloinZoom`) ovat
+kynnykset (`LUKEMA_Z`, `REUNUS_MIN_Z`, `laattaStep`, `uloinZoom`) ovat
 Leaflet-asteikolla, ja `KarttaGL` kääntää rajalla. Jos kutsut `map.ml`:ää
 suoraan, käännä itse — muuten jokainen kynnys osuu tason verran väärin.
 
@@ -2362,13 +2363,16 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   tuuliasteikko; 0,4 m siitä värjättynä sanoisi "0,4 m/s".
 - **Aaltopillerin glyfi ei ole vedenlämmön glyfi.** `_pilleri` antaa saman
   pinnan kaikille, joten glyfi on ainoa mikä kertoo suureen.
-- **Poijun lukema tulee z8:lla, samalla kuin meriaseman** — mutta
-  KAPEANA pillerinä, ja täysikokoisena vasta z9:stä. Kynnys yksin oli
-  väärä ratkaisu: se teki poijusta toisen luokan havainnon
-  (Suomenlahden poiju ilmestyi vasta Harmajan jälkeen). Kiinteä siirto
-  pisteen yläpuolelle kokeiltiin ja se vain vaihtoi naapuria
-  (Harmaja -> Malmi). Mitattu peitto z8:lla 36 % (perustason pari,
-  ei poiju), z9–z12 0 %.
+- **KAIKKI LUKEMAT TULEVAT NÄKYVIIN SAMALLA ZOOMILLA (`LUKEMA_Z` =
+  `SPOT_KAIKKI_Z` = 10, Leaflet-asteikko), käyttäjän päätös 1.10.**
+  Porrastus (meri ja poiju 8, vesi 9, maa 10) näytti satunnaiselta.
+  Rajan alla jokainen asema on sama 9 px:n pallo jossa on ×
+  (`_kaukoPallo`, `.kauko-pallo`) ja spotti 10 px:n VÄRITÖN pallo
+  (`.spot-pallo`) — käyttäjä ei halunnut indeksin väriä kaukaisiin
+  spotteihin. Rajan ylittyessä lukema tulee 0,22 s:n häivytyksellä
+  (`.merkki-esiin`, vain tilan vaihtuessa, ei tunnin askeleella).
+  KAUKAINEN PALLO ZOOMAA RAJALLE EIKÄ AVAA KORTTIA (`Merkki`-optio
+  `zoomaaAlle`); 9–10 px:n kohde ei osu rykelmässä oikeaan.
 - **Aaltokaavio on sama moottori kuin muut** (V8): 7 vrk haetaan
   kerralla (`AALTO_HISTORIA_H`) ja vieritetään, napautettu lukema jää
   lukemariville 4 s:ksi, ja suunta (MISTÄ) piirtyy suuntariville.
@@ -2376,25 +2380,28 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   (nyt MapLibren `Marker`-elementti, `Merkki._el`) kantaa
   `translate`-sijainnin eikä liiku väistön mukana — kuoresta mitattu
   peitto valehtelee.
-- **SPOTTIEN VÄISTÖ EI RIIPU TUNNISTA, JA LÄHIZOOMISSA KAIKKI OVAT
-  TÄYSIÄ** (käyttäjän raportti 1.10.: Munkkiniemi ja Otaniemi hyppivät
-  tunnin vaihdossa). Väistö järjesti ennen tunnin pistemäärän mukaan,
-  joten 1,9 km:n päässä olevat spotit vaihtoivat täyttä merkkiä ja
-  pistettä joka askeleella. Nyt järjestys on kiinteä (`_spotJarjestys`:
-  suosikit, sitten `SPOTS`in järjestys), ja zoomista `SPOT_KAIKKI_Z` (10,
-  Leaflet-asteikko) alkaen yksikään spotti ei väisty — päällekkäisestä
-  parista väistyy vain NIMI (`_spotNimetPois`). Mitattu 12 tuntia × z9,
-  z10, z11: jokaisella zoomilla yksi tila koko ajan. Älä palauta
-  pistemäärää väistön järjestykseksi.
-- **KAUKANA ASEMA ON GLYFI, KUTEN AALTOPOIJU** (käyttäjän pyyntö 1.10.).
-  Pilleri-zoomin alla tuuliasema on viiri, vedenlämpö aaltoviiva ja
-  poiju aalto + mitta, kaikki `_kaukoGlyfi`n kautta (13 × 11, opasiteetti
-  .9 / z < 5 .55, hiljainen puolet siitä). Erillistä pientä ruksia ei
-  piirretä z < 8 (`_makeStationIcon` palauttaa tyhjän) — se oli toinen
-  merkki samalle asemalle.
-- **Väistön suunta lukitaan ensimmäisestä osumasta.** Ilman lukitusta se
-  työntää ylös yhden ohi, törmää seuraavaan ja työntää takaisin alas:
-  nettosiirto 3 px. Pistetilassa väistöä ei ajeta lainkaan.
+- **SPOTEILLA EI OLE VÄISTÖÄ: ALLE z10 KAIKKI OVAT PALLOJA, SIITÄ
+  YLÖS KAIKKI TÄYSIÄ** (käyttäjän raportit ja päätös 1.10.). Väistö
+  järjesti ennen tunnin pistemäärän mukaan, joten 1,9 km:n päässä olevat
+  Munkkiniemi ja Otaniemi vaihtoivat täyttä merkkiä ja pistettä joka
+  askeleella. Päällekkäisestä parista väistyy vain NIMI
+  (`_spotNimetPois`, kiinteä järjestys `_spotJarjestys`: suosikit, sitten
+  `SPOTS`). Älä tee mistään merkin tilasta lukeman funktiota.
+- **ASEMIEN LUKEMAT SIJOITTAA YKSI FUNKTIO (`_sijoitteleHavainnot`)**,
+  joka korvasi Kruunuvuorenselän `_avoidSpotOverlap`in ja poijujen
+  `_aaltoVaisto`n. Spottirengas on aina tarkassa sijainnissaan; lappu
+  ottaa ensimmäisen vapaan paikan kiinteästä listasta (oikea, vasen,
+  ylös, alas, vinot, 5 px:n rako), esteinä spottien renkaat ja nimet
+  ja jo sijoitetut laput. Järjestys on kiinteä (meri ja poiju, maa,
+  vesi; nimen mukaan) — EI lukeman mukaan. Lappu jolle ei ole tilaa jää
+  palloksi. Tarkka sijainti on 5 px:n × merkin omana lapsena
+  (`.sijainti-x`, ei kosketuksia); erillistä ruksimerkkiä
+  (`_addStationDot`) ei enää ole. MITÄÄN EI PIIRRETÄ SPOTIN ALLE: ×
+  ja asemapallo jäävät pois renkaan (tai kaukana spottipallon) päältä.
+  Mitattu Helsingin edustalla z7–z12 kaikki kerrokset päällä:
+  päällekkäisyyksiä 0, spotin alla 0, ja lappujen paikat samat kuudella
+  eri tunnilla (z10 ja z11). Ajetaan uudelleen `_applyMapLayers`issa ja
+  `updateIcons`in lopussa (zoomend).
 - **Spottikortin aaltorivin raja on 60 km**, ja se on aukko mitatussa
   jakaumassa (kymmenen spottia 5–35 km, Hangon kaksi 114 ja 119 km).
   Rivillä on aina poijun nimi ja etäisyys — muuten se väittäisi
