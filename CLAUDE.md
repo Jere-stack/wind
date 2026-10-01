@@ -169,7 +169,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/eleet.md` | nipistystä, zoomia, zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
 | `docs/data.md` | **aaltoennustetta kartalla (FMI WAM, `a0`–`a3`, `tools/wam.mjs`)**, säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja, **havaintoasemien oma historia (Mellsten ja Laru, `havainnot`-haara)**, **Mellstenin katkot: 4 h kuvaaja, arkistovaratie ja ajastinketju**, **kelikameran tila (YouTube, pikkukuvan ETag)** |
 | `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, MET Nordicia, Open-Meteon S3-malleja** |
-| `docs/ui.md` | **kerrosvalitsinta (neljä ruutua esikatselukuvin) ja sadekerroksen GL-piirtoa (silmukka, häivytykset, B-spline)**, **aaltokerrosta: siru, väri, aallonharjat, aikajana, kapseli, poijukaavion ennuste**, paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa (**toiston liuku, jatkuva päiväkisko, pehmeä valinta ja kelikaista**), kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
+| `docs/ui.md` | **väriteemaa (Yömeri: paneelit, tokenit, `Teema`, `ink()`)**, **kerrosvalitsinta (neljä ruutua esikatselukuvin) ja sadekerroksen GL-piirtoa (silmukka, häivytykset, B-spline)**, **aaltokerrosta: siru, väri, aallonharjat, aikajana, kapseli, poijukaavion ennuste**, paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa (**toiston liuku, jatkuva päiväkisko, pehmeä valinta ja kelikaista**), kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
 | `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit, kaavion venytys** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V10: yksi kaaviomoottori, kortti moduuleina, fonttilattia, laajan valinta, venytys, mallit laajassa) |
@@ -289,7 +289,8 @@ kokeiltu ja kaadettu mittauksella.
   **Aikajana: jatkuva päiväkisko, pehmeä valinta ja pilleri ikkunana** ·
   **Aikajana: pilleri jumissa, napautus pysähtyi ja hiiriveto** ·
   **Aallot kartalla: kerros, väri, aallonharjat ja aikajana** ·
-  **Sade neljänneksi kerrokseksi: GL-sadekerros ja esikatselukuvat**
+  **Sade neljänneksi kerrokseksi: GL-sadekerros ja esikatselukuvat** ·
+  **Yömeri: valikot ja kaaviot kuvakkeen väreihin**
 - **pwa**: PWA — kotivalikkoon ja rannalle · Mitä välimuistiin menee ·
   Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
   Ikoni ja kotivalikko
@@ -471,7 +472,8 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 **Väri**
 
 - **Kartalla sävy tarkoittaa tuulennopeutta ja vain sitä.** Kaikki muu kartalla
-  on joko tummaa pilleriä (mitattu data) tai paperia (kaikki muu).
+  on joko tummaa pilleriä (mitattu data) tai yömerta (kaikki muu: kapseli,
+  spottimerkit, karttanapit; ks. "Yömeri" alla).
   **Kaksi poikkeusta, ja ne ovat ehdollisia: sadekerros ja aaltokerros**
   (jälkimmäinen käyttäjän päätöksellä 1.10.). Kun sadetutka on päällä,
   lämpökartta ja partikkelit sammuvat (`_tuulikerrokset-`
@@ -562,9 +564,13 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   täysi mitta on 72 px (`TL_PALKKI_H`). Korkeus on muoto, väri on arvo.
   Älä palauta lineaarista: se antaa 1,38 px/(m/s) ja peräkkäisten
   tuntien tyypillinen ero on 0,2 m/s eli alle puoli pikseliä.
-- **`ColorRamp.rgb()` on kartalle, `ink()` paneeleihin.** Ne kulkevat
-  vastakkaisiin suuntiin kirkkaudessa. Muste ei ole värisokeusturvallinen eikä
-  sen tarvitse olla — paneelissa väri on aina luvun vieressä.
+- **`ColorRamp.rgb()` on kartalle, `ink()` paneeleihin.** Yömeren jälkeen
+  `ink()` on SAMA sävypolku kuin kartalla (`RAMP_KARTTA`), nostettuna kohti
+  valkoista vain sen verran että se on 4,5:1 `--surface-hi`:ta vasten
+  (`_paneeliin`; käytännössä vain 0–3 m/s:n yösininen nousee). `RAMP_INK`
+  (paperille tummennettu polku) jää vain vaalean pohjakartan koneistoon,
+  jota ei käytetä. Muste ei ole värisokeusturvallinen eikä sen tarvitse
+  olla — paneelissa väri on aina luvun vieressä.
 - **Kartan ramppi on kylläinen ja tehty normaalinäköiselle**
   (sininen–syaani–vihreä–keltainen–oranssi–punainen–magenta), ja se on
   AINOA. Värisokeusturvallinen `RAMP_CVD` oli ensin oletus ja sitten
@@ -577,8 +583,23 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   Lämpökartta piirtyy alfalla 0,08–0,71, joten taulukon luvut eivät kerro
   mitä nähdään. Mittari on `varit.mjs`, joka lukee `pikseliLUT()`:n ja
   sekoittaa pohjaan — mittaa siitä, älä rampista.
-- **`--accent` (magenta) on toiminto- ja varoitusväri, ei korostusväri.**
-  Nimilappu tai datapiste ei ole kumpaakaan; ne ovat mustetta.
+- **YÖMERI: VALIKOT OVAT KUVAKKEEN VÄREISSÄ** (käyttäjän päätös 1.10.,
+  docs/ui.md "Yömeri"). Paneelit ja kartan päällä kelluvat ovat kuvakkeen
+  yönsinistä (`--surface` `#151C29`, `-hi` `#1D2636`, `-lo` `#0E141F`),
+  muste on siiven kermaa (`--ink` `#F0E7CE`, `-2` `#C3BFB2`, `-3`
+  `#9CA2AB`), ja valinta on kermatäyttö tummalla tekstillä (`background:
+  var(--ink); color: var(--surface)` — sama sääntö kuin paperilla,
+  kääntyneenä). Kaikki värit ovat `:root`issa; JS lukee ne `Teema`sta
+  (SVG-literaalit) — älä kirjoita sävyä JS:ään lukuna. Paperiteema
+  (Merikartta) on historiaa: älä palauta kermapaneelia ilman käyttäjän
+  pyyntöä.
+- **`--accent` on kuvakkeen hehku (`#96B9EB`) ja TOIMINTOVÄRI**
+  (kytkimet, toiminnot, fokus, `.sh-nyt`); sen päällä teksti on
+  `--accent-teksti`. **MAGENTA ON VAIN VAROITUS** (`--varoitus` `#FF8FC0`:
+  verkkotila, mallien voimakas erimielisyys, äärimmäinen puuskaisuus,
+  vaarallinen keli) — käyttäjän päätös 1.10. Nimilappu tai datapiste ei
+  ole kumpaakaan; ne ovat mustetta. Aikajanan valintaosoitin ja
+  tähtäimen tuulinuoli ovat mustetta (kermaa), eivät aksenttia.
 - **`var()` ei toimi SVG:n esitysattribuuteissa.** Kaavioiden `fill=` tarvitsee
   literaalin; inline-tyyleissä tokenit toimivat.
 
@@ -1914,8 +1935,8 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   `<small>`issa; pienessä kaaviossa (rivi, laaja puhelimen vaakatilassa)
   oli yksi luku, koska 10 kts:n väli oli 21,9 px ja raja 22 px. Nyt
   "vähintään kaksi viivaa kun ne mahtuvat ≥ 18 px:n välein". Foilausrajan
-  (`Keli.AJETTAVA`) luku on ruskea (`.ak-foil`, `#7A6428`; viiva on yhä
-  `#9C8447`), ja sen 11·fs px:n sisällä oleva ruudukon luku jää pois —
+  (`Keli.AJETTAVA`) luku ja viiva ovat `--kaavio-foil` (`#D8B964`,
+  `Teema.foil`), ja sen 11·fs px:n sisällä oleva ruudukon luku jää pois —
   viiva jää. Boforilla ylälaita on kynnys ja foil-luku bofori.
 - **KIRJASINLATTIA: 11 px HTML:ssä, 10,5 px SVG:ssä** (V9-lohko CSS:n
   lopussa, `max(Npx, var(--fs-x))` jotta työpöydän tokenit säilyvät).
@@ -1978,11 +1999,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **FOILAUSRAJA ON VAHVEMPI KUIN RUUDUKKO.** Kun ruudukko tiheni,
   6 m/s raja katosi sen sekaan: molemmat olivat samaa hiekkaa ja ero oli
   vain viivanleveys. Raja on sovelluksen oma päätöskynnys (foilBadge
-  vaihtuu kuudessa), joten se on `#9C8447` ja 1,5·LW, ja ruudukko meni
-  alfaan 0,55. Rajan kohdalta jätetään tavallinen ruudukkoviiva pois,
-  jottei kaksi viivaa paksunna sitä. **FMI-rajamerkki pysyy vaaleassa
-  hiekassa** (`#CDBE9A`) — se on kontekstia eikä päätöskynnys, ja juuri
-  se ero on nyt näkyvissä.
+  vaihtuu kuudessa), joten se on `--kaavio-foil` ja 1,5·LW, ja ruudukko
+  on kermaa alfalla .11. Rajan kohdalta jätetään tavallinen ruudukkoviiva
+  pois, jottei kaksi viivaa paksunna sitä.
 - **KAAVION LUKEMA ON KIINTEÄLLÄ RIVILLÄ (`.en-lukema`, kaikissa
   neljässä kaaviossa) JA OSOITETTAESSA MYÖS KUPLASSA PALLON VIERESSÄ.**
   Rivi on ensisijainen: se näyttää levossa valitun tunnin (havainnossa
@@ -2151,9 +2170,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kuulukaan olla.
 - **Yöharso on täytön PÄÄLLÄ mutta viivojen ALLA** (moottorissa
   `tausta` täyttöryhmän jälkeen). Täytön alla se näkyy vain siellä
-  missä täyttöä ei ole ja lukee korostuslaatikkona. Alfat
-  (.13/.09/.05) ovat aikajanan kalibroinnista, älä säädä niitä
-  erikseen. Vedenlämmössä ja aalloissa harsoa ei ole.
+  missä täyttöä ei ole ja lukee korostuslaatikkona. Yömerellä harso on
+  tummaa (`4,7,14` alfoilla .36/.24/.12): tummalla pinnalla yö on
+  tummempi, ei harmaampi. Vedenlämmössä ja aalloissa harsoa ei ole.
 - **Jakson kovin puuska saa aina lapun.** Se sulki kerran pois juuri
   sen luvun jonka "Kovin puuska" -ruutu sanoo (7 vrk: ruutu 31,9,
   kaavion suurin lappu 29,0). Moottorissa havainnon luvut ovat

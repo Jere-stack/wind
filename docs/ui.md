@@ -8,6 +8,11 @@ ja yksittäiset ominaisuudet kuten puku, osuvuus ja aurinkokaari.
 
 ## Valikoiden ulkoasu — Merikartta
 
+> **Historiaa 1.10.2026 alkaen.** Paneelit eivät ole enää paperia vaan
+> kuvakkeen yönsinistä — ks. *Yömeri: valikot ja kaaviot kuvakkeen
+> väreihin* tiedoston lopussa. Tämä luku kertoo miksi paperi aikanaan
+> valittiin ja mitä siitä mitattiin.
+
 Sovelluksessa on **kolme maailmaa**, ja raja kulkee sen mukaan mitä asia
 on — ei sen mukaan missä se sijaitsee:
 
@@ -7740,3 +7745,90 @@ tuuleen palatessa `data-sadekerros` poistuu. Savutesti ja graafitesti
 läpi. Ruutunopeutta ei voi mitata täällä; silmukka ja liike pyytävät
 uuden ruudun joka kehyksellä vain sadetilassa (kuten aallonharjat), ja
 levossa ennusteessa kerros ei piirrä turhaan.
+
+## Yömeri: valikot ja kaaviot kuvakkeen väreihin
+
+Käyttäjän päätös 1.10.2026 neljän vaihtoehdon vertailusta (A Yömeri, B
+Siipi, C Graniitti, D Kerma+; vertailusivulla piirrettiin jokaisesta
+asetuspaneeli ja tuulikaavio). Valittiin **A**: koko käyttöliittymä on
+kuvakkeen harmahtavaa yönsinistä ja muste siiven kermaa. Samalla
+päätettiin että **magenta jää pelkäksi varoitusväriksi** ja että **myös
+kartan päällä kelluvat** (kapseli, spottimerkit, karttanapit, niiden
+nimilaput) muuttuvat teemaan.
+
+### Miksi
+
+Kuvake, latausruutu, kartta ja aikajana olivat jo yönsinisiä; paneelit
+olivat ainoa vaalea alue ja jokainen avaus oli kirkkaushyppy. Kaaviossa
+tumma pohja antaa tuulen täytölle kartan oman rampin täydellä
+kirkkaudella, kun paperilla se jouduttiin himmentämään. Tiedossa oleva
+hinta: tumma pinta heijastaa kirkkaassa auringossa (ei mitattu laitteella;
+ratkaistaan käytössä).
+
+### Paletti (`:root`, ainoa lähde)
+
+| token | arvo | rooli | `--surface` | `--surface-hi` |
+|---|---|---|---|---|
+| `--surface` | `#151C29` | paneelin pohja | | |
+| `--surface-hi` | `#1D2636` | rivit, kortit, kaaviolaatikot | | |
+| `--surface-lo` | `#0E141F` | segmentin ura, valitsematon siru | | |
+| `--hairline` | `#313D52` | erottimet | | |
+| `--ink` | `#F0E7CE` | otsikot, arvot, valinnan täyttö | 13,84 | 12,31 |
+| `--ink-2` | `#C3BFB2` | kuvaukset | 9,28 | 8,26 |
+| `--ink-3` | `#9CA2AB` | labelit | 6,64 | 5,91 |
+| `--accent` | `#96B9EB` | toiminnot, kytkin, fokus | 8,48 | 7,55 |
+| `--varoitus` | `#FF8FC0` | ainoa magenta | 8,08 | 7,19 |
+| `--info` | `#8DB6FF` | vesi, ennuste havaintokaaviossa | 8,35 | 7,43 |
+| `--kaavio-foil` | `#D8B964` | foilausraja ja sen luku | 8,98 | 7,99 |
+
+Valinta on kermatäyttö yömeren värisellä tekstillä (13,84:1), ja
+toimintovärin päällä teksti on `--accent-teksti` `#0B111C` (9,39:1).
+`--chip` on yömeri lasina (.92), joten kapseli ja karttanapit ovat samaa
+pintaa kuin paneelit.
+
+JS lukee tokenit kerran `Teema`-oliosta (`getComputedStyle`), koska SVG:n
+esitysattribuutit eivät tunne `var()`:ia. `Tuulikaavio.PAPERI/INK*`,
+spottimerkin levy, navigaattori, tuuliruusu ja selitteiden viivat lukevat
+sitä — kahta lukua samalle sävylle ei ole.
+
+### Rampit
+
+- **`ink()` on kartan ramppi nostettuna luettavaksi.** `RAMP_INK` oli
+  paperille tummennettu sävypolku; tummalla pinnalla kartan oma ramppi
+  kelpaa sellaisenaan kaikkialla paitsi hiljaisessa päässä (0 m/s
+  yösininen olisi alle 2:1). `_paneeliin` sekoittaa sävyä kohti valkoista
+  2 %:n askelin kunnes kontrasti `--surface-hi`:ta vasten on 4,6:1. Sävy
+  on siis sama kuin kartalla — paneelin luku ja lämpökartta ovat nyt
+  samaa väriä.
+- **Spotti-indeksi** kulkee samaa polkua kirkkaana (harmaansininen →
+  kulta → vihreä → turkoosi), alin 4,9:1 merkin levyä vasten.
+- **Mallien värit** ovat kirkkaita pastelleja (HARMONIE `#5FD3BE`, MET
+  Nordic `#F2928A`, ECMWF `#8DB6FF`, ICON `#EDBE5A`, GFS `#C6A6F7`),
+  6,69–8,76:1 kaaviopohjaa vasten. Katkoviivat säilyvät, koska pelkkä väri
+  ei erota kaikkia pareja värisokealle.
+- **Yöharso** on tummaa (`4,7,14`, .36/.24/.12), ruudukko kermaa .11,
+  päivärajat kermaa .11–.26, kupla `--kaavio-kupla` `#2A3447`.
+- Huomio-/kelivärit (`.b-*`, `.gi-*`) nostettiin tummalle; vaarallinen ja
+  äärimmäinen ovat `--varoitus`.
+
+### Mitattu
+
+Kontrastimittari (jokainen näkyvä tekstisolmu, tausta ylöspäin
+koostamalla, `opacity` mukaan) puhelimella: kartta 11, spottikortti 513,
+spottikortti vertailu auki 520, asetukset 59, ennustepaneeli 99 tekstiä —
+**0 alle rajan** (4,5:1, iso teksti 3:1). Mittari tarkistettiin
+istuttamalla huono teksti: se löytyi (1,67:1). SVG-tekstit eivät ole
+mittarissa (niiden väri on `fill`), joten ne on laskettu tokeneista
+(taulukko yllä). `tools/savutesti.mjs` ja `tools/graafimittaus.mjs`
+läpi.
+
+MapLibren rasteripiirto heittää kontissa ilman `?perf=1`:tä satunnaisesti
+`Cannot read properties of undefined (reading 'bind')` -virheen; sama
+virhe tulee muutosta edeltävästä buildista, joten se ei ole tämän muutoksen.
+
+### Mitä ei muuttunut
+
+Kartan ramppi, lämpökartta, partikkelit, aikajanan palkit ja lasi,
+latausruutu, kuvake ja manifesti (`#060912`). Aikajanan aikakupla ja
+päiväkiskon pilleri olivat jo kermaa.
+

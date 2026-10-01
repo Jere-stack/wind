@@ -212,32 +212,38 @@ if ('serviceWorker' in navigator) {
      on myös se sävy johon tuuliramppi päättyy 20 m/s kohdalla.
      Kaikki musteet läpäisevät WCAG AA:n kummallakin pinnalla.
      ------------------------------------------------------------ */
-  --surface:      #F0E7CE;   /* paneelin pohja                        */
-  --surface-hi:   #FAF5E7;   /* korotettu: rivit, kaaviolaatikot      */
-  --surface-lo:   #E4D8B8;   /* upotettu: segmenttiraita, palkin ura  */
-  --hairline:     #CDBE9A;   /* erotin — ei koskaan tekstiä           */
-  --hairline-soft:#DFD4B6;
+  --surface:      #151C29;   /* paneelin pohja: kuvakkeen yömeri      */
+  --surface-hi:   #1D2636;   /* korotettu: rivit, kaaviolaatikot      */
+  --surface-lo:   #0E141F;   /* upotettu: segmenttiraita, palkin ura  */
+  --hairline:     #313D52;   /* erotin — ei koskaan tekstiä           */
+  --hairline-soft:#263043;
 
-  --ink:    #101A20;         /* otsikot, arvot, nimet      14.3:1 */
-  --ink-2:  #4C5960;         /* kuvaukset, yksiköt          5.9:1 */
-  --ink-3:  #5F696F;         /* labelit, lähdetiedot        4.6:1 */
+  --ink:    #F0E7CE;         /* kuvakkeen siipi: otsikot, arvot  ks. alla */
+  --ink-2:  #C3BFB2;         /* kuvaukset, yksiköt                        */
+  --ink-3:  #9CA2AB;         /* labelit, lähdetiedot                      */
 
-  --accent: #B4005A;         /* AINOA toimintoväri          5.5:1 */
-  --accent-soft: rgba(180,0,90,0.10);
-  --info:   #1C5C86;         /* vesi, havaintolähde         5.8:1 */
+  --accent: #96B9EB;         /* toimintoväri: kuvakkeen hehku             */
+  --accent-soft: rgba(150,185,235,0.14);
+  --accent-teksti: #0B111C;  /* teksti toimintovärin päällä               */
+  --varoitus: #FF8FC0;       /* AINOA magenta: tila joka vaatii huomiota  */
+  --varoitus-soft: rgba(255,143,192,0.14);
+  --info:   #8DB6FF;         /* vesi, havaintolähde                       */
+  --kaavio-foil:  #D8B964;   /* foilausraja: päätöskynnys, ei ruudukkoa   */
+  --kaavio-kupla: #2A3447;   /* lukeman kupla kaavion päällä              */
+  --kaavio-sade:  #8DB6FF;
 
-  /* Kartan päällä kelluvat sirut: sama paperi, oma varjo. */
-  --chip:      rgba(240,231,206,0.95);
+  /* Kartan päällä kelluvat: sama yömeri lasina, oma varjo. */
+  --chip:      rgba(21,28,41,0.92);
   /* Aikajanalla EI ole uraa. Tumma ura hiottiin kahdesti (13,1:1 ->
      8,3:1) ennen kuin kävi ilmi että vika oli materiaalissa eikä
      sävyssä; hiekkaura poisti rajan (8,97:1 -> 1,05:1) ja päiväkisko
      sai samanlaisen; ja lopulta kaksi identtistä uraa kortin sisällä
      olivat kolme reunaa liikaa. Kortin oma reuna riittää.
      Nyt aikajanalla ei ole alustaa lainkaan; ks. docs/ui.md. */
-  --chip-line: rgba(16,26,32,0.10);
+  --chip-line: rgba(240,231,206,0.12);
 
-  --shadow-1: 0 1px 2px rgba(16,26,32,.10);
-  --shadow-2: 0 4px 14px rgba(6,12,16,.30);
+  --shadow-1: 0 1px 2px rgba(0,0,0,.35);
+  --shadow-2: 0 4px 14px rgba(0,0,0,.45);
   --shadow-3: 0 -8px 34px rgba(4,8,12,.46);
 
   /* Kartta pysyy tummana — nämä eivät ole paneelivärejä. */
@@ -932,7 +938,7 @@ html.tyopoyta #kapseli.vaistyy {
    toimintoväri, kuten asetusten kytkimissä. */
 .op-seuraava {
   min-height: 44px; padding: 0 22px; border: 0; border-radius: 22px;
-  background: var(--accent); color: #fff; font-size: var(--fs-13); font-weight: 600; cursor: pointer;
+  background: var(--accent); color: var(--accent-teksti); font-size: var(--fs-13); font-weight: 600; cursor: pointer;
 }
 .op-seuraava:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
@@ -969,7 +975,7 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
 .av-teksti { flex: 1; font-size: var(--fs-12); line-height: 1.4; color: var(--ink-2); }
 .av-teksti b { color: var(--ink); }
 .av-asenna { min-height: 36px; padding: 0 14px; border: 0; border-radius: 18px;
-  background: var(--accent); color: #fff; font-weight: 600; font-size: var(--fs-12); cursor: pointer; }
+  background: var(--accent); color: var(--accent-teksti); font-weight: 600; font-size: var(--fs-12); cursor: pointer; }
 
 /* ── ASETUSTEN RYHMÄT (UI 22) ─────────────────────────────────────── */
 .sp-ryhma {
@@ -1303,9 +1309,9 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
   content: ''; position: absolute;
   top: 2px; left: 2px;
   width: 20px; height: 20px; border-radius: 50%;
-  background: #fff;
+  background: var(--ink);
   transition: transform .22s cubic-bezier(.4,0,.2,1);
-  box-shadow: 0 1px 3px rgba(16,26,32,.28);
+  box-shadow: 0 1px 3px rgba(0,0,0,.45);
 }
 .sp-toggle.on { background: var(--accent); box-shadow: none; }
 .sp-toggle.on::after { transform: translateX(16px); }
@@ -2152,7 +2158,7 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
   bottom: calc(var(--sab-tl) + 14px + var(--tl-paivat-h) + 6px);
   left: 50%; width: 2px;
   transform: translateX(-50%); pointer-events: none; z-index: 2;
-  background: var(--accent);
+  background: var(--ink);
   border-radius: 1px;
 }
 #tl-time-bubble {
@@ -2216,9 +2222,9 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
    ja 8 m/s on siina vihrea. Luokka jaa paikalleen, koska se on olemassa
    myos muualla, mutta janassa se ei maalaa mitaan. */
 .htick-bar.foilable { }
-.gi-steady  { color: #2A702D; }
-.gi-gusty   { color: #7A5D07; }
-.gi-extreme { color: #992018; }
+.gi-steady  { color: #7FD49A; }
+.gi-gusty   { color: #E8C35A; }
+.gi-extreme { color: var(--varoitus); }
 .spot-trend { font-size: var(--fs-8); color: var(--ink-3); margin-top: 1px; text-align: center; }
 
 /* ============================================================
@@ -2389,7 +2395,7 @@ html.tyopoyta {
 .ch-dot {
   position: absolute; top: 50%; left: 50%;
   width: 5px; height: 5px; border-radius: 50%;
-  background: var(--surface);
+  background: var(--ink);
   transform: translate(-50%, -50%);
   box-shadow: 0 1px 3px rgba(0,0,0,.5);
 }
@@ -2411,7 +2417,7 @@ html.tyopoyta {
   width: 0; height: 0;
   border-left: 4px solid transparent;
   border-right: 4px solid transparent;
-  border-bottom: 7px solid var(--accent);
+  border-bottom: 7px solid var(--ink);
   filter: drop-shadow(0 1px 2px rgba(0,0,0,.55));
 }
 
@@ -3096,12 +3102,12 @@ button.sh-hero-indeksi:focus-visible { outline: 2px solid var(--accent); outline
 .sh-windrose svg { }
 
 /* Badge variants */
-.b-calm    { background: rgba(80,160,255,.06);  color: #1F4FA0;  border-color: rgba(80,160,255,.18); }
-.b-light   { background: rgba(14,115,97,.10);  color: #0E7361;  border-color: rgba(14,115,97,.28); }
-.b-good    { background: rgba(42,112,45,.10); color: #2A702D; border-color: rgba(42,112,45,.28); }
-.b-perfect { background: rgba(240,220,0,.06);  color: #7A5D07;  border-color: rgba(240,220,0,.18); }
-.b-strong  { background: rgba(255,130,50,.06); color: #9A5116; border-color: rgba(255,80,8,.18); }
-.b-danger  { background: rgba(255,90,90,.06);  color: #992018;  border-color: rgba(255,10,10,.18); }
+.b-calm    { background: rgba(141,182,255,.10); color: #A9C6FF; border-color: rgba(141,182,255,.30); }
+.b-light   { background: rgba(95,211,190,.10);  color: #7FE0CC; border-color: rgba(95,211,190,.30); }
+.b-good    { background: rgba(127,212,154,.12); color: #8FE0A8; border-color: rgba(127,212,154,.34); }
+.b-perfect { background: rgba(232,195,90,.12);  color: #EDCB6A; border-color: rgba(232,195,90,.34); }
+.b-strong  { background: rgba(242,163,94,.12);  color: #F4B07A; border-color: rgba(242,163,94,.34); }
+.b-danger  { background: var(--varoitus-soft);  color: var(--varoitus); border-color: rgba(255,143,192,.34); }
 
 /* ============================================================
    ERROR TOAST  z:50
@@ -3227,7 +3233,7 @@ html[data-tutka="1"] #lahde-merkki {
   display: flex; align-items: center; gap: 8px;
   background: var(--surface-hi);
   border: 1px solid var(--hairline);
-  border-left: 3px solid var(--accent);
+  border-left: 3px solid var(--varoitus);
   box-shadow: var(--shadow-2);
   border-radius: 12px; padding: 8px 12px 8px 11px;
   font-size: var(--fs-12); color: var(--ink); white-space: nowrap;
@@ -3245,7 +3251,7 @@ html[data-tutka="1"] #lahde-merkki {
 #nettitila.yritettavissa:active { background: var(--surface); }
 #nettitila-piste {
   width: 7px; height: 7px; border-radius: 50%;
-  background: var(--accent); flex-shrink: 0;
+  background: var(--varoitus); flex-shrink: 0;
 }
 #nettitila-nappi {
   border: none; background: var(--surface-lo); color: var(--ink);
@@ -3261,7 +3267,7 @@ html[data-tutka="1"] #lahde-merkki {
   opacity: 0; pointer-events: none;
   background: var(--surface-hi);
   border: 1px solid var(--hairline);
-  border-left: 3px solid #992018;
+  border-left: 3px solid var(--varoitus);
   box-shadow: var(--shadow-2);
   border-radius: 12px; padding: 10px 18px;
   font-size: var(--fs-12); color: var(--ink);
@@ -4372,7 +4378,7 @@ h3.fc-day-label { margin: 0; }
 /* Valittu on mustetäyttö kuten asetusten sirut — ei aksenttia. */
 .up-option.active { background: var(--ink); }
 .up-option.active .up-label { color: var(--surface-hi); font-weight: 600; }
-.up-option.active .up-value { color: rgba(250,245,231,.76); }
+.up-option.active .up-value { color: rgba(21,28,41,.72); }
 
 /* -- TUNTISÄÄ — paneelin laajan tilan sisältö -------------------- */
 /* #wx-panel poistui: sen sisältö on nyt yläreunan infopaneelin laajassa
@@ -4584,9 +4590,9 @@ html.tyopoyta .en-solu-arvo { font-size: 15px; }
   background: linear-gradient(90deg, var(--ak-tausta, var(--surface-hi)) 0, var(--ak-tausta, var(--surface-hi)) 55%, transparent);
 }
 .ak-akseli span.ak-yks { font-weight: 600; color: var(--ink-2); }
-/* Foilausrajan luku: raja on päätöskynnys, joten sillä on oma sävynsä (tumma versio
-   #9C8447:stä, jotta teksti kestää paperilla). */
-.ak-akseli span.ak-foil { font-weight: 700; color: #7A6428; }
+/* Foilausrajan luku: raja on päätöskynnys, joten sillä on oma sävynsä — sama
+   `--kaavio-foil` kuin viivalla (Yömeri: sama sävy kestää tummalla tekstinäkin). */
+.ak-akseli span.ak-foil { font-weight: 700; color: var(--kaavio-foil); }
 .ak-akseli span {
   position: absolute; left: 6px; transform: translateY(-100%); line-height: 1;
   color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap;
@@ -4624,7 +4630,7 @@ html.tyopoyta .en-solu-arvo { font-size: 15px; }
 .ak-nav-kuva { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .ak-nav-ikkuna {
   position: absolute; top: 0; bottom: 0; min-width: 8px; box-sizing: border-box; cursor: grab;
-  border: 1.5px solid var(--ink-2); border-radius: 5px; background: rgba(16,26,32,.10);
+  border: 1.5px solid var(--ink-2); border-radius: 5px; background: rgba(240,231,206,.08);
 }
 .ak-nav.raahaa, .ak-nav.raahaa .ak-nav-ikkuna { cursor: grabbing; }
 /* TARTTUVA PÄIVÄOTSIKKO (V4): rivi kääreen sisällä, päivä = laatikko,
@@ -4632,14 +4638,14 @@ html.tyopoyta .en-solu-arvo { font-size: 15px; }
    ja työntää sen pois seuraavan alkaessa. Ei osoitintapahtumia: rivi
    on kaavion päällä mutta osoitin kuuluu kaaviolle. */
 .ak-pv-vaippa { position: absolute; left: 0; pointer-events: none; }
-.ak-paivat { position: absolute; left: 0; top: 0; pointer-events: none; color: #101A20; font-weight: 700; }
+.ak-paivat { position: absolute; left: 0; top: 0; pointer-events: none; color: var(--ink); font-weight: 700; }
 .ak-pv { position: absolute; top: 0; bottom: 0; }
 .ak-pv > span {
   position: -webkit-sticky; position: sticky; left: var(--ak-vasen, 4px); display: inline-block; padding: 0 3px; white-space: nowrap;
-  text-shadow: 0 0 3px #FAF5E7, 0 0 3px #FAF5E7, 0 0 2px #FAF5E7;
+  text-shadow: 0 0 3px var(--surface-hi), 0 0 3px var(--surface-hi), 0 0 2px var(--surface-hi);
 }
 /* Viikonloppu: sävy vain otsikkorivillä (piirtoalueella sävy tarkoittaa yötä). */
-.ak-pv-vk { background: rgba(76,89,96,.10); }
+.ak-pv-vk { background: rgba(240,231,206,.06); }
 .en-kaare.venyy .ak-paivat { opacity: 0; }
 /* Asteikon vaihto (V5): lyhyt häivytys, ettei akseli hyppää. */
 .en-kaare.skaalaa svg.tk-svg { animation: ak-haive .2s ease-out; }
@@ -6967,6 +6973,23 @@ const Asetukset = {
 Asetukset.lue();
 
 /* -- COLOUR RAMP ------------------------------------------------ */
+/* TEEMA — YÖMERI (docs/ui.md, "Yömeri"). Värien ainoa lähde on CSS:n
+ * `:root`; tämä lukee ne kerran niille jotka tarvitsevat literaalin
+ * (SVG:n esitysattribuutit eivät tunne `var()`:ia, ks. CLAUDE.md).
+ * Yhdet luvut, kaksi muotoa — älä kirjoita sävyä tänne lukuna. */
+const Teema = (() => {
+  const cs = getComputedStyle(document.documentElement);
+  const v = (n, d) => (cs.getPropertyValue(n).trim() || d);
+  return {
+    pinta: v('--surface', '#151C29'), pintaHi: v('--surface-hi', '#1D2636'),
+    pintaLo: v('--surface-lo', '#0E141F'), viiva: v('--hairline', '#313D52'),
+    ink: v('--ink', '#F0E7CE'), ink2: v('--ink-2', '#C3BFB2'), ink3: v('--ink-3', '#9CA2AB'),
+    accent: v('--accent', '#96B9EB'), varoitus: v('--varoitus', '#FF8FC0'), info: v('--info', '#8DB6FF'),
+    foil: v('--kaavio-foil', '#D8B964'), kupla: v('--kaavio-kupla', '#2A3447'),
+    sade: v('--kaavio-sade', '#8DB6FF'),
+  };
+})();
+
 const ColorRamp = (() => {
   /* Kartan ramppi on tehty NORMAALINÄKÖISELLE ja se on kylläinen.
      Värisokeusturvallinen vaihtoehto (RAMP_CVD, asetus "Väriasteikko")
@@ -7143,6 +7166,28 @@ const ColorRamp = (() => {
    palkkien värit ovat samat kuin spottikortin kaaviossa ja asetusten
    väriasteikossa — kolme paikkaa, yksi ramppi. Taulu poistettiin. */
   const _inkCssLUT = new Array(LUT_SIZE);
+  /* PANEELIN MUSTE ON KARTAN RAMPPI, NOSTETTUNA LUETTAVAKSI (Yömeri).
+     Paneelit ovat tummia, joten kartan oma sävy kelpaa sellaisenaan
+     kaikkialla paitsi hiljaisessa päässä: 0–2 m/s yösininen olisi
+     korotettua pintaa vasten alle 2:1. Sävy sekoitetaan kohti valkoista
+     vain sen verran että kontrasti `--surface-hi`:ta vasten on 4,5:1 —
+     sävypolku on sama kuin kartalla, toisin kuin entisellä RAMP_INKillä. */
+  function _lum(c) {
+    return [c.r, c.g, c.b].map((x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); })
+      .reduce((a, x, k) => a + x * [0.2126, 0.7152, 0.0722][k], 0);
+  }
+  const _pohjaL = (() => {
+    const h = Teema.pintaHi.replace('#', '');
+    return _lum({ r: parseInt(h.substr(0, 2), 16), g: parseInt(h.substr(2, 2), 16), b: parseInt(h.substr(4, 2), 16) });
+  })();
+  function _paneeliin(c) {
+    let o = c;
+    for (let f = 0; f <= 1.0001; f += 0.02) {
+      o = { r: Math.round(c.r + (255 - c.r) * f), g: Math.round(c.g + (255 - c.g) * f), b: Math.round(c.b + (255 - c.b) * f) };
+      if ((_lum(o) + 0.05) / (_pohjaL + 0.05) >= 4.6) return o;
+    }
+    return o;
+  }
 
   /* Taulut täytetään PAIKALLEEN eikä korvata uusilla. Syy on että ne ovat
      const-sidoksia joihin sulkeumat viittaavat; uuden taulukon sijoitus
@@ -7156,7 +7201,7 @@ const ColorRamp = (() => {
       const c = interpolate(kartta, t);
       _rgbLUT[i] = c;
       _cssLUT[i] = 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')';
-      const ci = interpolate(RAMP_INK, t);
+      const ci = _paneeliin(interpolate(RAMP_KARTTA, t));
       _inkLUT[i] = ci;
       const cp = interpolate(RAMP_KARTTA, t);
       _paperiLUT[i] = { r: Math.round(cp.r * PAPERI_K),
@@ -16875,13 +16920,15 @@ function spotIndexInk(score) {
      kontrasti pettää — siksi peräkkäisten 10 pisteen askelten minimi jää
      4.4:ään eikä siitä pääse ylöspäin tällä pohjalla. */
   const stops = [
-    [  0, [106, 100, 131]],
-    [ 25, [ 82,  96, 132]],
-    [ 35, [ 71,  55,  14]],
-    [ 48, [ 67,  72,  26]],
-    [ 60, [  0,  88,  18]],
-    [ 75, [  0, 108,  71]],
-    [100, [  0, 117, 108]],
+    /* Yömeri: sama sävypolku kirkkaana, koska merkin levy on nyt
+       tumma (`--surface-hi`). Alin 4,9:1 levyä vasten. */
+    [  0, [140, 146, 162]],
+    [ 25, [150, 162, 194]],
+    [ 35, [212, 184, 108]],
+    [ 48, [214, 206,  98]],
+    [ 60, [128, 214, 112]],
+    [ 75, [ 88, 216, 168]],
+    [100, [ 72, 226, 218]],
   ];
   const t = Math.max(0, Math.min(100, score));
   let i = 0;
@@ -16962,9 +17009,9 @@ function spotMarkerSVG(score, name, size) {
   return (
     `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">`
     /* Black bg circle */
-    + `<circle cx="${cx}" cy="${cy}" r="${size/2}" fill="#FAF5E7"/>`
-    /* Track ring (dark) */
-    + `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="#E4D8B8" stroke-width="${sw.toFixed(2)}"/>`
+    + `<circle cx="${cx}" cy="${cy}" r="${size/2 - 0.5}" fill="${Teema.pintaHi}" stroke="rgba(240,231,206,.42)" stroke-width="1"/>`
+    /* Track ring */
+    + `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${Teema.viiva}" stroke-width="${sw.toFixed(2)}"/>`
     /* Progress arc */
     + `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${col}" stroke-width="${sw.toFixed(2)}" stroke-linecap="round"`
     + ` stroke-dasharray="${filled} ${gap}" stroke-dashoffset="${circ * 0.25}" transform="rotate(-90 ${cx} ${cy})"/>`
@@ -17946,7 +17993,7 @@ function _uwPiirros(allPts, asu, W0, nakyvaVrk, plotH) {
   var P = { t: t, ms: v };
   var piirros = Tuulikaavio.piirra({
     laji: 'arvo', asu: asu, plotH: plotH || 0, W: W, alku: alku, loppu: loppu,
-    y: { min: min - vali * 0.18, max: max + vali * 0.12 }, vari: '#1C5C86',
+    y: { min: min - vali * 0.18, max: max + vali * 0.12 }, vari: Teema.info,
     luku: function (x) { return x.toFixed(1) + '°'; },
     ruutu: function (x, st) { return (st < 1 ? x.toFixed(1) : String(Math.round(x))) + '°'; },
     nyt: null, paa: P, ikkunaLuvut: true, loppuPiste: true, akseli: 'kiintea', aria: _t('Veden lämpötila', 'Water temperature'),
@@ -18080,7 +18127,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
         +'<span style="font-weight:700;color:var(--ink)">'+st.name+'</span>'
         +'<span class="uw-trigger-km" style="color:var(--ink-3);font-size:var(--fs-8);margin-left:2px">'+st.km.toFixed(1)+' km</span>'
         +'<svg width="12" height="12" viewBox="0 0 12 12" style="flex-shrink:0;margin-left:2px">'
-          +'<polyline points="2,4 6,8 10,4" fill="none" stroke="#5B6770" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+          +'<polyline points="2,4 6,8 10,4" fill="none" stroke="' + Teema.ink3 + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
         +'</svg></button>';
     }
 
@@ -19321,7 +19368,7 @@ function _openObsSheet(type, station) {
      aaltolukemaa selittamatta. */
   var onPoiju=(type==='aalto');
   var poijuLampo=onPoiju && station && station.kind==='lampo';
-  var accent=(isWater||poijuLampo)?'var(--accent)':'#2A702D';
+  var accent=(isWater||poijuLampo)?'var(--accent)':'#8FE0A8';
   var accentFaint='var(--hairline)';
   var accentBorder='var(--hairline)';
   var icon=(isWater||poijuLampo)?vesiIkonSVG(15):(onPoiju?aaltoIkonSVG(15):asemaIkonSVG(15));
@@ -19441,7 +19488,7 @@ function _openObsSheet(type, station) {
         + '<span style="font-size:var(--fs-9);color:var(--ink-3);flex-shrink:0">'+d.km.toFixed(0)+' km</span>'
         + '<span style="margin-left:auto;flex-shrink:0;font-size:15px;font-weight:600;color:'+_havInkCss(d.ws)+'">'+Units.fmt(d.ws)
         + '<span style="font-size:var(--fs-85);font-weight:400;color:var(--ink-3)"> '+Units.label()+'</span></span>'
-        + '<svg width="7" height="11" viewBox="0 0 7 11" style="flex-shrink:0"><polyline points="1,1 6,5.5 1,10" fill="none" stroke="#5F696F" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+        + '<svg width="7" height="11" viewBox="0 0 7 11" style="flex-shrink:0"><polyline points="1,1 6,5.5 1,10" fill="none" stroke="' + Teema.ink3 + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
         + '</button>';
       naapuriEl.firstChild.addEventListener('click', function(){
         _openObsSheet('fmi', d.st);
@@ -19897,7 +19944,7 @@ function _aaltoPiirros(data, lampoVain, asu, W0, nakyvaH, plotH, enn) {
   var nyt = E ? Date.now() : null;
   var piirros = Tuulikaavio.piirra({
     laji: 'arvo', asu: Object.assign({}, asu, onSuunta ? {} : { nuoliH: 0 }), plotH: plotH || 0,
-    W: W, alku: alku, loppu: loppu, y: y, vari: '#1C5C86', yks: lampoVain ? null : 'm',
+    W: W, alku: alku, loppu: loppu, y: y, vari: Teema.info, yks: lampoVain ? null : 'm',
     luku: function (x) { return x.toFixed(1) + (lampoVain ? '°' : ''); },
     ruutu: function (x, st) { return (st < 1 ? x.toFixed(1) : String(Math.round(x))) + (lampoVain ? '°' : ''); },
     nyt: nyt, menneisyys: vainEnnuste ? undefined : false,
@@ -20228,11 +20275,11 @@ const KorttiSarjat = {
      "Mallien erimielisyys"); FMI ja MET Nordic ovat saman kirkkaustason
      tummia jotta ne kestävät paperihalon päällä. */
   MALLIT: [
-    { id: 'fmi',       nimi: 'HARMONIE',   lahde: 'fmi',       vari: '#0B5E52', viiva: '9,2,2,2' },
-    { id: 'metnordic', nimi: 'MET Nordic', lahde: 'metnordic', vari: '#8A2B3E', viiva: '3,2' },
-    { id: 'ecmwf',     nimi: 'ECMWF',      lahde: 'ecmwf9',    vari: '#1C5C86', viiva: '' },
-    { id: 'icon',      nimi: 'ICON',       lahde: 'icon',      vari: '#A15A0E', viiva: '6,3' },
-    { id: 'gfs',       nimi: 'GFS',        lahde: 'gfs',       vari: '#7A2E8F', viiva: '1.5,3' },
+    { id: 'fmi',       nimi: 'HARMONIE',   lahde: 'fmi',       vari: '#5FD3BE', viiva: '9,2,2,2' },
+    { id: 'metnordic', nimi: 'MET Nordic', lahde: 'metnordic', vari: '#F2928A', viiva: '3,2' },
+    { id: 'ecmwf',     nimi: 'ECMWF',      lahde: 'ecmwf9',    vari: '#8DB6FF', viiva: '' },
+    { id: 'icon',      nimi: 'ICON',       lahde: 'icon',      vari: '#EDBE5A', viiva: '6,3' },
+    { id: 'gfs',       nimi: 'GFS',        lahde: 'gfs',       vari: '#C6A6F7', viiva: '1.5,3' },
   ],
   malli(id) { return this.MALLIT.find(m => m.id === id) || null; },
   /* Kortti lukee hienointa tasoa: spotti on piste, ei näkymä. */
@@ -20418,8 +20465,8 @@ const Tuulikaavio = {
   /* Laajan kirjasinkerroin leveydestä: työpöydän koko ruudulla 1,3 teki
      10 px:n rivistä 13 px:n, ja se luki 1440 px:n ruudulla pikkuruisena. */
   laajaFs(w) { return w > 1100 ? 1.5 : (w > 620 ? 1.3 : 1.15); },
-  PAPERI: '#FAF5E7',
-  INK: '#101A20', INK2: '#4C5960', INK3: '#5F696F',
+  PAPERI: Teema.pintaHi,
+  INK: Teema.ink, INK2: Teema.ink2, INK3: Teema.ink3,
   PAIVAT: PV_LYHYT,
 
   _alfa(ms) {
@@ -20681,7 +20728,7 @@ const Tuulikaavio = {
 
     /* ── Yöharso (sama kalibrointi kuin ennen: .13/.09/.05) ── */
     if (o.lat != null && typeof Aurinko !== 'undefined') {
-      const HARSO = { 0: 'rgba(76,89,96,.13)', 0.5: 'rgba(76,89,96,.09)', 1: 'rgba(76,89,96,.05)' };
+      const HARSO = { 0: 'rgba(4,7,14,.36)', 0.5: 'rgba(4,7,14,.24)', 1: 'rgba(4,7,14,.12)' };
       const KULMA = { 0: Aurinko.PIMEA, 0.5: Aurinko.SIVIILI, 1: Aurinko.NOUSU, 2: Aurinko.KULTA };
       const vaihe = (t) => Aurinko.vaihe(Aurinko.korkeus(t, o.lat, o.lng));
       const rajaHae = (a, b, k) => {
@@ -20765,7 +20812,7 @@ const Tuulikaavio = {
       if (y < y0 + 4 || y > pohja - 3) continue;
       if (tuuli && Math.abs(tk.v - Keli.AJETTAVA) * pxPer < 3) continue;   /* foilausraja on oma viivansa */
       ruudukko += '<line x1="0" x2="' + W + '" y1="' + y.toFixed(1) + '" y2="' + y.toFixed(1)
-        + '" stroke="rgba(120,110,85,.30)" stroke-width="' + (0.8 * lw).toFixed(2) + '"/>';
+        + '" stroke="rgba(240,231,206,.11)" stroke-width="' + (0.8 * lw).toFixed(2) + '"/>';
       /* Luku jää pois jos foilausrajan oma luku olisi sen päällä. */
       if (tuuli && fyLuku > y0 + 4 && Math.abs(y - fyLuku) < 11 * fs) continue;
       ruudLaput.push([y, tk.lbl]);
@@ -20778,7 +20825,7 @@ const Tuulikaavio = {
        vahvempi kuin ruudukko. */
     const fy = tuuli ? yOf(Keli.AJETTAVA) : 0;
     const foil = (tuuli && fy > y0 + 4)
-      ? '<line x1="0" x2="' + W + '" y1="' + fy.toFixed(1) + '" y2="' + fy.toFixed(1) + '" stroke="#9C8447" stroke-width="'
+      ? '<line x1="0" x2="' + W + '" y1="' + fy.toFixed(1) + '" y2="' + fy.toFixed(1) + '" stroke="' + Teema.foil + '" stroke-width="'
         + (1.5 * lw).toFixed(2) + '" stroke-dasharray="' + (5 * lw).toFixed(1) + ',' + (3 * lw).toFixed(1) + '"/>'
       : '';
 
@@ -20798,7 +20845,7 @@ const Tuulikaavio = {
            erottuvat loitonnettuna (V4). */
         const tiheaa = 24 * pxH < 90, maanantai = new Date(t).getDay() === 1;
         rajat += '<line x1="' + xOf(t).toFixed(1) + '" x2="' + xOf(t).toFixed(1) + '" y1="' + ylaY
-          + '" y2="' + (otsikot ? paivaY + paivaH : pohja) + '" stroke="rgba(76,89,96,' + (tiheaa ? (maanantai ? '.34' : '.16') : '.35') + ')" stroke-width="' + (0.8 * lw).toFixed(2) + '"/>';
+          + '" y2="' + (otsikot ? paivaY + paivaH : pohja) + '" stroke="rgba(240,231,206,' + (tiheaa ? (maanantai ? '.26' : '.11') : '.24') + ')" stroke-width="' + (0.8 * lw).toFixed(2) + '"/>';
       }
     });
     /* TARTTUVA PÄIVÄOTSIKKO (V4). Päivän nimi oli SVG:ssä päivän keskellä
@@ -20866,7 +20913,7 @@ const Tuulikaavio = {
       if (tuuli) {
         defs += this._gradientti(gT, y0 + ylaVara, pohja, maxV, 1) + this._gradientti(gP, y0 + ylaVara, pohja, maxV, 0.42);
       } else {
-        const c = o.vari || '#1C5C86';
+        const c = o.vari || Teema.info;
         defs += '<linearGradient id="' + gT + '" gradientUnits="userSpaceOnUse" x1="0" y1="' + (y0 + ylaVara).toFixed(1)
           + '" x2="0" y2="' + pohja.toFixed(1) + '"><stop offset="0%" stop-color="' + c + '" stop-opacity=".42"/>'
           + '<stop offset="100%" stop-color="' + c + '" stop-opacity=".10"/></linearGradient>';
@@ -20931,7 +20978,7 @@ const Tuulikaavio = {
       const osat = pistePolku(o.ennuste, (s, i) => s.ms[i], 'monotoninen');
       osat.forEach((os) => {
         vert += '<path d="' + os.d + '" fill="none" stroke="' + this.PAPERI + '" stroke-opacity=".85" stroke-width="' + (4 * lw).toFixed(2) + '" stroke-linecap="round"/>'
-          + '<path d="' + os.d + '" fill="none" stroke="#1C5C86" stroke-width="' + (1.8 * lw).toFixed(2) + '" stroke-dasharray="5,3" stroke-linecap="round"/>';
+          + '<path d="' + os.d + '" fill="none" stroke="' + Teema.info + '" stroke-width="' + (1.8 * lw).toFixed(2) + '" stroke-dasharray="5,3" stroke-linecap="round"/>';
       });
     }
     /* Tyyni (havainnon nipun minimi) katkoviivana, vain jos se erkanee. */
@@ -21180,7 +21227,7 @@ const Tuulikaavio = {
           const h = Math.max(1.5, Math.min(1, Math.sqrt(saa.mm[i] / 4)) * (sadeH - 3));
           const lev = Math.max(1.5, pxH - 1.5);
           sateet += '<rect x="' + (x - lev / 2).toFixed(1) + '" y="' + (sadeY + sadeH - h).toFixed(1) + '" width="' + lev.toFixed(1)
-            + '" height="' + h.toFixed(1) + '" fill="rgba(31,79,160,.72)"/>';
+            + '" height="' + h.toFixed(1) + '" fill="rgba(141,182,255,.70)"/>';
         }
         if (lampoH && saa.lampo && saa.lampo[i] != null && new Date(t).getHours() % (askelH * 2 <= 24 ? askelH * 2 : 24) === 0) {
           lammot += '<text x="' + x.toFixed(1) + '" y="' + (lampoY + lampoH - 5 * fs).toFixed(1) + '" font-size="' + (11 * fs).toFixed(1)
@@ -21191,7 +21238,7 @@ const Tuulikaavio = {
          vierivässä kaaviossa. */
       if (sateet) {
         sateet = '<line x1="0" x2="' + W + '" y1="' + (sadeY + sadeH).toFixed(1) + '" y2="' + (sadeY + sadeH).toFixed(1)
-          + '" stroke="rgba(31,79,160,.25)" stroke-width="1"/>' + sateet;
+          + '" stroke="rgba(141,182,255,.25)" stroke-width="1"/>' + sateet;
         /* Loitonnettuna keskiyöt ovat tiheässä: nimi vain jos edellinen
            on vähintään oman leveytensä ja 30 px päässä. */
         let viimeSade = -1e9;
@@ -21200,7 +21247,7 @@ const Tuulikaavio = {
           if (xk - viimeSade < 58 * fs + 30) return;
           viimeSade = xk;
           sateet += '<text x="' + xk.toFixed(1) + '" y="' + (sadeY + 11 * fs).toFixed(1) + '" font-size="' + (11 * fs).toFixed(1)
-            + '" fill="#1F4FA0"' + this._halo(fs * 0.8) + '>' + _t('sade mm/h', 'rain mm/h') + '</text>';
+            + '" fill="' + Teema.sade + '"' + this._halo(fs * 0.8) + '>' + _t('sade mm/h', 'rain mm/h') + '</text>';
         });
       }
     }
@@ -21272,7 +21319,7 @@ const Tuulikaavio = {
        Kupla asetetaan kursorin sivulle 24 px:n päähän, eli sormen
        (~22 px säde) ohi, ja se kääntyy vasemmalle ruudun oikeassa reunassa.
        Rivit täytetään `Aikakaavio.hover`issa; tässä vain paikat. */
-    let kuplaHtml = '<g data-tk-kupla visibility="hidden"><rect rx="7" fill="' + this.PAPERI + '" fill-opacity=".96" stroke="rgba(76,89,96,.45)" stroke-width="1"/>';
+    let kuplaHtml = '<g data-tk-kupla visibility="hidden"><rect rx="7" fill="' + Teema.kupla + '" fill-opacity=".97" stroke="rgba(240,231,206,.22)" stroke-width="1"/>';
     for (let i = 0; i < 7; i++) kuplaHtml += '<text visibility="hidden"></text>';
     kuplaHtml += '</g>';
     let mdotHtml = '';
@@ -21553,21 +21600,21 @@ const Aikakaavio = {
         if (eka == null) eka = x; vika = x;
       }
       if (d) {
-        sisalto += '<path d="' + d + ' L' + vika.toFixed(1) + ',24 L' + eka.toFixed(1) + ',24 Z" fill="rgba(16,26,32,.16)"/>'
-          + '<path d="' + d + '" fill="none" stroke="rgba(16,26,32,.55)" stroke-width="1.2" vector-effect="non-scaling-stroke"/>';
+        sisalto += '<path d="' + d + ' L' + vika.toFixed(1) + ',24 L' + eka.toFixed(1) + ',24 Z" fill="rgba(240,231,206,.14)"/>'
+          + '<path d="' + d + '" fill="none" stroke="rgba(240,231,206,.55)" stroke-width="1.2" vector-effect="non-scaling-stroke"/>';
       }
     }
     const d0 = new Date(g.alku); d0.setHours(0, 0, 0, 0);
     if (kesto / 864e5 <= 45) {
       for (let t = d0.getTime() + 864e5; t < g.loppu; ) {
         const x = (t - g.alku) / kesto * 1000;
-        sisalto += '<line x1="' + x.toFixed(1) + '" x2="' + x.toFixed(1) + '" y1="18" y2="24" stroke="rgba(16,26,32,.35)" stroke-width="1" vector-effect="non-scaling-stroke"/>';
+        sisalto += '<line x1="' + x.toFixed(1) + '" x2="' + x.toFixed(1) + '" y1="18" y2="24" stroke="rgba(240,231,206,.30)" stroke-width="1" vector-effect="non-scaling-stroke"/>';
         const dd = new Date(t); dd.setDate(dd.getDate() + 1); dd.setHours(0, 0, 0, 0); t = dd.getTime();
       }
     }
     if (g.nyt != null && g.nyt > g.alku && g.nyt < g.loppu) {
       const x = (g.nyt - g.alku) / kesto * 1000;
-      sisalto += '<line x1="' + x.toFixed(1) + '" x2="' + x.toFixed(1) + '" y1="0" y2="24" stroke="#101A20" stroke-width="1.2" stroke-dasharray="2,2" vector-effect="non-scaling-stroke"/>';
+      sisalto += '<line x1="' + x.toFixed(1) + '" x2="' + x.toFixed(1) + '" y1="0" y2="24" stroke="' + Teema.ink + '" stroke-width="1.2" stroke-dasharray="2,2" vector-effect="non-scaling-stroke"/>';
     }
     kuva.innerHTML = sisalto;
     this._navIkkuna(kaare);
@@ -21732,7 +21779,7 @@ const Aikakaavio = {
       const d = mdots[j];
       if (d) { d.setAttribute('cx', x.toFixed(1)); d.setAttribute('cy', g.yOf(q.v).toFixed(1)); d.setAttribute('fill', m.vari); d.setAttribute('visibility', 'visible'); }
     });
-    if (K.ennuste) { const q = g.piste(K.ennuste, t); if (q) rivit.push({ t: K.ennusteNimi + ' ' + K.luku(q.v), v: '#1C5C86' }); }
+    if (K.ennuste) { const q = g.piste(K.ennuste, t); if (q) rivit.push({ t: K.ennusteNimi + ' ' + K.luku(q.v), v: Teema.info }); }
     const texts = kg.querySelectorAll('text');
     if (!rivit.length) { kg.setAttribute('visibility', 'hidden'); texts.forEach((tx) => tx.setAttribute('visibility', 'hidden')); return; }
     const lh = 14 * fs, pad = 7;
@@ -22843,7 +22890,7 @@ function openSheet(spot, hourIdx) {
     const sc    = document.getElementById('sheet-content');
     if (sheet && sc) {
       sc.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:32px;font-variant-numeric:tabular-nums;font-size:var(--fs-11);color:var(--ink-3)">'
-        + '<svg width="18" height="18" viewBox="0 0 18 18" style="animation:spin 1s linear infinite"><circle cx="9" cy="9" r="7" fill="none" stroke="#CDBE9A" stroke-width="1.5"/><path d="M9 2 A7 7 0 0 1 16 9" fill="none" stroke="#E4D8B8" stroke-width="1.5" stroke-linecap="round"/></svg>'
+        + '<svg width="18" height="18" viewBox="0 0 18 18" style="animation:spin 1s linear infinite"><circle cx="9" cy="9" r="7" fill="none" stroke="' + Teema.viiva + '" stroke-width="1.5"/><path d="M9 2 A7 7 0 0 1 16 9" fill="none" stroke="' + Teema.ink2 + '" stroke-width="1.5" stroke-linecap="round"/></svg>'
         + spot.name + '</div>';
       sheet.classList.add('open');
       document.getElementById('sheet-overlay').classList.add('open');
@@ -23863,7 +23910,7 @@ function _liveStatCard(id, spot) {
 function _tempStatCard(id) {
   return '<div id="' + id + '" class="sh-stat">'
     + '<span class="sh-stat-label">' + _t('Lämpötila', 'Temperature') + '</span>'
-    + '<span class="sh-stat-value" style="color:#7A5D07">—</span>'
+    + '<span class="sh-stat-value" style="color:#E8C35A">—</span>'
     + '<span class="sh-stat-sub">°C</span>'
   + '</div>';
 }
@@ -24154,7 +24201,7 @@ function _fmiDropdown(panelEl, stations, selected, onSelect) {
       + '<span class="fmi-station-trigger-name">' + st.name + '</span>'
       + (st.tag ? '<span class="fmi-dropdown-item-tag">' + asemaTagi(st.tag) + '</span>' : '')
       + '<span class="fmi-station-trigger-dist">' + st.km.toFixed(1) + ' km</span>'
-      + '<svg width="10" height="10" viewBox="0 0 10 10" style="flex-shrink:0;margin-left:auto"><polyline points="2,3 5,7 8,3" fill="none" stroke="#5B6770" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      + '<svg width="10" height="10" viewBox="0 0 10 10" style="flex-shrink:0;margin-left:auto"><polyline points="2,3 5,7 8,3" fill="none" stroke="' + Teema.ink3 + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   }
   updateTrigger(selected);
 
@@ -24984,9 +25031,9 @@ function _renderLiveHistory(el, data, wx) {
     var s = function (svg, nimi) { return '<span class="hav-selite-osa">' + svg + nimi + '</span>'; };
     return '<div class="hav-selite">'
       + s('<svg width="15" height="9" viewBox="0 0 15 9" aria-hidden="true"><rect x="1" y="1" width="13" height="7" rx="1.5" fill="#7FCBD0" fill-opacity=".45"/></svg>', _t('Puuska', 'Gust'))
-      + s('<svg width="15" height="9" viewBox="0 0 15 9" aria-hidden="true"><line x1="1" y1="4.5" x2="14" y2="4.5" stroke="#101A20" stroke-width="2.4" stroke-linecap="round"/></svg>', _t('Tuuli', 'Wind'))
-      + (tyyni ? s('<svg width="15" height="9" viewBox="0 0 15 9" aria-hidden="true"><line x1="1" y1="4.5" x2="14" y2="4.5" stroke="#101A20" stroke-opacity=".55" stroke-width="1" stroke-dasharray="3 2.6"/></svg>', _t('Tyyni', 'Lull')) : '')
-      + (ennuste ? s('<svg width="15" height="9" viewBox="0 0 15 9" aria-hidden="true"><line x1="1" y1="4.5" x2="14" y2="4.5" stroke="#1C5C86" stroke-width="1.8" stroke-dasharray="5 3"/></svg>', _t('Ennuste', 'Forecast')) : '')
+      + s('<svg width="15" height="9" viewBox="0 0 15 9" aria-hidden="true"><line x1="1" y1="4.5" x2="14" y2="4.5" stroke="' + Teema.ink + '" stroke-width="2.4" stroke-linecap="round"/></svg>', _t('Tuuli', 'Wind'))
+      + (tyyni ? s('<svg width="15" height="9" viewBox="0 0 15 9" aria-hidden="true"><line x1="1" y1="4.5" x2="14" y2="4.5" stroke="' + Teema.ink + '" stroke-opacity=".55" stroke-width="1" stroke-dasharray="3 2.6"/></svg>', _t('Tyyni', 'Lull')) : '')
+      + (ennuste ? s('<svg width="15" height="9" viewBox="0 0 15 9" aria-hidden="true"><line x1="1" y1="4.5" x2="14" y2="4.5" stroke="' + Teema.info + '" stroke-width="1.8" stroke-dasharray="5 3"/></svg>', _t('Ennuste', 'Forecast')) : '')
       + '<span class="hav-selite-ika">' + (nimiOtsikossa ? '' : (data.station || 'FMI') + (ikaTeksti ? ' · ' : '')) + (ikaTeksti || '') + '</span>'
       + '</div>';
   };
@@ -25005,13 +25052,13 @@ function _renderLiveHistory(el, data, wx) {
         + ' fill="' + _havInkCss(ruusu.ka[ri]) + '" opacity="0.85"/>';
     }
     ruusuSvg = '<svg class="hav-ruusu" viewBox="0 0 ' + (RS * 2) + ' ' + (RS * 2) + '" role="img" aria-label="' + _t('Tuulen suuntajakauma ', 'Wind rose, last ') + HAV_TILASTO_H + ' h">'
-      + '<circle cx="' + cxr + '" cy="' + cyr + '" r="' + rMax + '" fill="none" stroke="#DFD4B6" stroke-width="1"/>'
-      + '<circle cx="' + cxr + '" cy="' + cyr + '" r="' + (rMax * 0.55).toFixed(1) + '" fill="none" stroke="#DFD4B6" stroke-width="1"/>'
+      + '<circle cx="' + cxr + '" cy="' + cyr + '" r="' + rMax + '" fill="none" stroke="' + Teema.viiva + '" stroke-width="1"/>'
+      + '<circle cx="' + cxr + '" cy="' + cyr + '" r="' + (rMax * 0.55).toFixed(1) + '" fill="none" stroke="' + Teema.viiva + '" stroke-width="1"/>'
       + sektorit
-      + '<text x="' + cxr + '" y="9" font-size="11" fill="#5F696F" text-anchor="middle">' + _t('P', 'N') + '</text>'
-      + '<text x="' + cxr + '" y="' + (RS * 2 - 1) + '" font-size="11" fill="#5F696F" text-anchor="middle">' + _t('E', 'S') + '</text>'
-      + '<text x="' + (RS * 2 - 1) + '" y="' + (cyr + 4) + '" font-size="11" fill="#5F696F" text-anchor="end">' + _t('I', 'E') + '</text>'
-      + '<text x="1" y="' + (cyr + 4) + '" font-size="11" fill="#5F696F" text-anchor="start">' + _t('L', 'W') + '</text>'
+      + '<text x="' + cxr + '" y="9" font-size="11" fill="' + Teema.ink3 + '" text-anchor="middle">' + _t('P', 'N') + '</text>'
+      + '<text x="' + cxr + '" y="' + (RS * 2 - 1) + '" font-size="11" fill="' + Teema.ink3 + '" text-anchor="middle">' + _t('E', 'S') + '</text>'
+      + '<text x="' + (RS * 2 - 1) + '" y="' + (cyr + 4) + '" font-size="11" fill="' + Teema.ink3 + '" text-anchor="end">' + _t('I', 'E') + '</text>'
+      + '<text x="1" y="' + (cyr + 4) + '" font-size="11" fill="' + Teema.ink3 + '" text-anchor="start">' + _t('L', 'W') + '</text>'
       + '</svg>';
   }
   var tilasto = function (nimi, arvo, ala) {
