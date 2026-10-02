@@ -17244,14 +17244,17 @@ const SPOT_KAIKKI_Z = 10;
    2.10.): numerot eivät mahdu maan mittakaavaan, ja kaksi numeroa
    kymmenen pisteen keskellä luki satunnaisena. */
 const SPOT_NUMERO_Z = 7;
-/* Väistön rako: kiekot eivät saa koskettaa (z9:llä kosketus luki
-   päällekkäisyytenä). */
-const SPOT_VAISTO_RAKO = 4;
 const SPOT_PISTE_PX = 7;
 function _spotJarjestys(a, b) {
   const sa = Suosikit.on(a.spot.name) ? 1 : 0, sb = Suosikit.on(b.spot.name) ? 1 : 0;
   if (sa !== sb) return sb - sa;
   return SPOTS.indexOf(a.spot) - SPOTS.indexOf(b.spot);
+}
+/* Päällekkäisten spottien kerros: suosikit ja `SPOTS`in alkupää
+   päällimmäisinä, sama järjestys kuin nimien väistössä. */
+function _spotKerros(spot) {
+  const jarj = SPOTS.map(sp => ({ spot: sp })).sort(_spotJarjestys);
+  return 2 * (jarj.length - jarj.findIndex(o => o.spot === spot));
 }
 function _spotNimetPois(zoom) {
   const pois = new Set();
@@ -17279,12 +17282,11 @@ function _valitseTaydetSpotit(pisteytetyt, zoom) {
   const taydet = new Set();
   if (!State.map || zoom >= SPOT_KAIKKI_Z) { pisteytetyt.forEach(s => taydet.add(s.spot)); return taydet; }
   if (zoom < SPOT_NUMERO_Z) return taydet;
-  const kynnys = spotIconSize(zoom) + SPOT_VAISTO_RAKO;
-  const sijoitetut = [];
-  for (const s of pisteytetyt.slice().sort(_spotJarjestys)) {
-    const p = State.map.latLngToContainerPoint([s.spot.lat, s.spot.lng]);
-    if (sijoitetut.every(q => Math.hypot(p.x - q.x, p.y - q.y) >= kynnys)) { sijoitetut.push(p); taydet.add(s.spot); }
-  }
+  /* SPOTIT SAAVAT OLLA PÄÄLLEKKÄIN (käyttäjän päätös 2.10.): kun numerot
+     tulevat näkyviin, ne tulevat KAIKKI. Väistö piilotti z7–z9:llä
+     puolet spoteista pisteiksi. Päällekkäisyyden järjestys on kiinteä
+     (`_spotJarjestys` → `zIndexOffset`), ei tunnin pistemäärä. */
+  pisteytetyt.forEach(s => taydet.add(s.spot));
   return taydet;
 }
 
@@ -17408,7 +17410,7 @@ function renderSpots(hourIdx) {
          se jäisi puolittain renkaan päälle ja näyttäisi virheeltä — nyt
          rengas peittää sen siististi ja piste näkyy vain siltä osin kuin
          se on renkaan ulkopuolella. */
-      L.marker([spot.lat, spot.lng], { icon, zIndexOffset: pisteena ? -30 : 0, zoomaaAlle: pisteena ? SPOT_KAIKKI_Z : 0,
+      L.marker([spot.lat, spot.lng], { icon, zIndexOffset: pisteena ? -30 : _spotKerros(spot), zoomaaAlle: pisteena ? SPOT_KAIKKI_Z : 0,
         /* Saavutettava nimi. Ilman tätä ruudunlukija ilmoittaa vain
            "linkki" — mitattuna 7 merkkiä 19:stä oli nimettömiä.
            Merkki JÄÄ fokusoitavaksi, koska spottiin ei pääse muuta
@@ -17456,7 +17458,8 @@ function isNightHour(iso) {
 
 /* Tunnetut UiRas-asemat PKS:ssa koordinaatteineen */
 const UIRAS_STATIONS = [
-  /* prim:true = näytetään lämpötilalukema markerin vieressä */
+  /* prim:true = ensisijainen asema (oma kerroskytkin). Lukema näkyy
+     kaikilla z9:stä (käyttäjän pyyntö 2.10.: Kallahden asemat ovat sec). */
   { name: 'Hietaniemi',        lat: 60.17590, lng: 24.90640, id: '70B3D57050001AB9', prim: true  },
   { name: 'Lauttasaari',       lat: 60.15370, lng: 24.87120, id: '70B3D57050001A97', prim: true  },
   { name: 'Marjaniemi',        lat: 60.19780, lng: 25.09900, id: '70B3D57050001ADA' },
@@ -18567,7 +18570,7 @@ function _addObsMarkers(map) {
        saman tilan kuin oikea lukema mutta ei kerro mitään — ilman dataa
        asema putoaa takaisin pisteeksi, joka kertoo vain että mittauspiste
        on olemassa. */
-    if (isPrim && z >= LUKEMA_Z_VESI && temp != null) {
+    if (z >= LUKEMA_Z_VESI && temp != null) {
       /* Sama pilleri kuin tuulella. Aiemmin vedenlämpö oli pinnaton
          minttuteksti mustalla varjolla — se luki eri kielellä kuin
          tuulilukema ja katosi vaalean lämpökartan päälle. */
@@ -18702,7 +18705,7 @@ function _addObsMarkers(map) {
      väärän tunnin luku seuraavaan aikajanan askeleeseen asti. */
   function _waterIconSig(zoom, temp, isPrim) {
     var z = zoom || 5;
-    if (isPrim && z >= LUKEMA_Z_VESI && temp != null) {
+    if (z >= LUKEMA_Z_VESI && temp != null) {
       return 'p|' + temp.toFixed(1);
     }
     return 'd|' + _palloPorras(z);
@@ -18869,13 +18872,24 @@ function _addObsMarkers(map) {
       if (!x) { x = document.createElement('span'); x.className = 'sijainti-x'; x.setAttribute('aria-hidden', 'true'); el.appendChild(x); }
       x.style.left = ax + 'px'; x.style.top = ay + 'px';
       var renkaanAlla = spotinAlla(p);
-      var R = SIJOITUS_RAKO;
-      var paikat = [[R, -h / 2], [-R - w, -h / 2], [-w / 2, -h - R], [-w / 2, R],
-                    [R, -h - 3], [R, 3], [-R - w, -h - 3], [-R - w, 3]];
-      var valittu = null;
-      for (var i = 0; i < paikat.length; i++) {
-        var k = { l: p.x + paikat[i][0] - 1, t: p.y + paikat[i][1] - 1, r: p.x + paikat[i][0] + w + 1, b: p.y + paikat[i][1] + h + 1 };
-        if (!osuu(k)) { valittu = paikat[i]; esteet.push(k); break; }
+      /* Paikat porrastetusti kauemmas: ensin 5 px:n rako, sitten 12,
+         20 ja 28 px. Spotin vieressä (Emäsalo 180 m, Kruunuvuorenselkä)
+         lähin kehä on kokonaan renkaan sisällä, ja ennen lappu jäi
+         silloin pisteeksi joka zoomilla. */
+      var paikat = [];
+      [SIJOITUS_RAKO, 12, 20, 28].forEach(function (R) {
+        paikat.push([R, -h / 2], [-R - w, -h / 2], [-w / 2, -h - R], [-w / 2, R],
+                    [R, -h - 3], [R, 3], [-R - w, -h - 3], [-R - w, 3]);
+      });
+      /* Ensin paikat jotka mahtuvat ruudulle, sitten muut: ruudun reunalla
+         ensimmäinen vapaa paikka oli usein reunan yli (Emäsalo z9,8). */
+      var valittu = null, koko = map.getSize();
+      for (var kierros = 0; kierros < 2 && !valittu; kierros++) {
+        for (var i = 0; i < paikat.length; i++) {
+          var k = { l: p.x + paikat[i][0] - 1, t: p.y + paikat[i][1] - 1, r: p.x + paikat[i][0] + w + 1, b: p.y + paikat[i][1] + h + 1 };
+          var ruudulla = k.l >= 0 && k.t >= 0 && k.r <= koko.x && k.b <= koko.y;
+          if ((kierros || ruudulla) && !osuu(k)) { valittu = paikat[i]; esteet.push(k); break; }
+        }
       }
       if (valittu) {
         inner.style.visibility = '';
@@ -18893,6 +18907,8 @@ function _addObsMarkers(map) {
     });
   }
   window._sijoitteleHavainnot = _sijoitteleHavainnot;
+  /* Ruudun reuna on este, joten panorointi voi muuttaa sijoittelua. */
+  map.on('moveend', _sijoitteleHavainnot);
 
   function updateIcons(targetTs) {
     var z = map.getZoom();

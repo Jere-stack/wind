@@ -8022,3 +8022,35 @@ z    renkaat  spottipisteet  laput  pisteeksi  spotin alla  päällekkäin
 
 Suomen koossa (z5, z6) 0 numeroa ja 12 spottipistettä. Tila sama
 kuudella tunnilla z8–z10 (6/6). Savutesti ja graafitesti läpi.
+
+## Kartan merkit, neljäs erä: spotit päällekkäin, Kallahti–Emäsalo luontevaksi
+
+Käyttäjän pyyntö 2.10.: "Spotit voivat olla päällekkäin eli haluan että
+kaikki spotit näkyvät kun ne tulevat ensimmäisen kerran näkyviin", ja
+zoomilla jossa iPhonella näkyvät Emäsalo ja Kallahti (mitattuna
+`fitBounds` 25,10–25,66 E: z 9,81) kaiken datan pitää olla näkyvissä.
+
+- **Spottien väistö poistettu**: z7:stä kaikki numeroina, päällekkäin
+  kiinteässä kerrosjärjestyksessä (`_spotKerros`). Ennen z7:llä 4
+  numeroa ja 6 pistettä, nyt 10/12 numeroa ja 0 pistettä Helsingin
+  edustalla (2 ruudun ulkopuolella).
+- **Emäsalon lukema puuttui joka zoomilla**: asema on 180 m spotista,
+  ja lähin sijoituskehä (5 px) oli kokonaan renkaan sisällä, joten
+  lappu jäi pisteeksi ja piste renkaan alle. Paikat porrastettiin
+  (5, 12, 20, 28 px). Kruunuvuorenselkä sai saman korjauksen (z9:llä
+  lappu, ennen piilossa).
+- **Ruudun reuna on este**: z 9,81:llä Emäsalon lappu sijoittui
+  oikean reunan yli; nyt ruudulle mahtuvat paikat ensin, ja sijoittelu
+  ajetaan myös `moveend`issä.
+- **Vedenlämpö kaikilta UiRaS-asemilta z9:stä**, ei vain `prim`-
+  asemilta: Kallahden ympäristön asemat (Kallahdenniemi, Rastila,
+  Aurinkolahti) ovat ei-prim. (Kontissa UiRaS:n tuorein-syöte ei tule
+  selaimeen, joten lukemaa ei mitattu ruudulta; Kallahdenniemen ja
+  Rastilan tuorein mittaus on lokakuulta 2025, joten ne jäävät
+  pisteiksi kunnes anturi palaa.)
+
+Mitattu Kallahti–Emäsalo-näkymässä (z 9,81): lappuina Itätoukki,
+Emäsalo, Kilpilahti, Kalbådagrund ja Suomenlahden poiju, kaikki ruudun
+sisällä. Helsingin edustalla z6–z11: lappujen päällekkäisyyksiä 0,
+spotin alla 0, tila sama kuudella tunnilla (6/6). Savutesti,
+graafitesti ja pisteiden napautus läpi.

@@ -2383,28 +2383,33 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   (nyt MapLibren `Marker`-elementti, `Merkki._el`) kantaa
   `translate`-sijainnin eikä liiku väistön mukana — kuoresta mitattu
   peitto valehtelee.
-- **KOLME VYÖHYKETTÄ: SUOMEN KOOSSA (alle z7, `SPOT_NUMERO_Z`) KAIKKI
-  OVAT PISTEITÄ, z7:STÄ SPOTIT NUMEROINA JA VÄISTÖ VAIN KUN MERKIT
-  OSUVAT, JA z10:STÄ KAIKKI TÄYSIÄ** (käyttäjän raportit ja päätökset
-  1.–2.10.). Suomen koossa jokainen spotti on 7 px:n harmaa piste
-  (`SPOT_PISTE_PX`) eikä pisteet väistä toisiaan. Väistössä on 4 px:n
-  rako (`SPOT_VAISTO_RAKO`): kosketus luki z9:llä päällekkäisyytenä.
-  Spotin piste on asemien pisteiden PÄÄLLÄ (`zIndexOffset` −30 vs
-  −40…−200), muuten Hangon asema varasti spotin napautuksen.
-  Väistö järjesti ennen tunnin pistemäärän mukaan, joten 1,9 km:n päässä
-  olevat Munkkiniemi ja Otaniemi vaihtoivat täyttä merkkiä ja pistettä
-  joka askeleella. Nyt järjestys on kiinteä (`_spotJarjestys`:
-  suosikit, sitten `SPOTS`), väistynyt spotti on sama 7 px:n piste
-  (napautus zoomaa z10:een), ja z10:stä ylös väistyy vain NIMI
-  (`_spotNimetPois`). Älä tee mistään merkin tilasta lukeman funktiota.
+- **SUOMEN KOOSSA (alle z7, `SPOT_NUMERO_Z`) KAIKKI OVAT PISTEITÄ, JA
+  z7:STÄ KAIKKI SPOTIT OVAT NUMEROINA — PÄÄLLEKKÄIN JOS TARVIS**
+  (käyttäjän päätökset 1.–2.10.: "spotit voivat olla päällekkäin,
+  kaikki spotit näkyvät kun ne tulevat ensimmäisen kerran näkyviin").
+  Spottien väistöä EI OLE: se piilotti z7–z9:llä puolet spoteista
+  pisteiksi. Suomen koossa jokainen spotti on 7 px:n harmaa piste
+  (`SPOT_PISTE_PX`), joka on asemien pisteiden PÄÄLLÄ (`zIndexOffset`
+  −30 vs −40…−200), muuten Hangon asema varasti spotin napautuksen
+  (napautus zoomaa z10:een). Päällekkäisten spottien kerros on kiinteä
+  (`_spotKerros` = `_spotJarjestys`: suosikit, sitten `SPOTS`), ei tunnin
+  pistemäärä — pistemäärällä Munkkiniemi ja Otaniemi vaihtoivat
+  paikkaa joka askeleella. Nimilaput väistävät yhä (`_spotNimetPois`).
+  Älä tee mistään merkin tilasta lukeman funktiota.
 - **ASEMIEN LUKEMAT SIJOITTAA YKSI FUNKTIO (`_sijoitteleHavainnot`)**,
   joka korvasi Kruunuvuorenselän `_avoidSpotOverlap`in ja poijujen
   `_aaltoVaisto`n. Spottirengas on aina tarkassa sijainnissaan; lappu
   ottaa ensimmäisen vapaan paikan kiinteästä listasta (oikea, vasen,
   ylös, alas, vinot, 5 px:n rako), esteinä spottien renkaat ja nimet
-  ja jo sijoitetut laput. Järjestys on kiinteä (meri ja poiju, maa,
-  vesi; nimen mukaan) — EI lukeman mukaan. Lappu jolle ei ole tilaa jää
-  palloksi. Tarkka sijainti on 5 px:n × merkin omana lapsena
+  ja jo sijoitetut laput. Paikat on porrastettu kauemmas (rako 5, 12,
+  20, 28 px), koska spotin vieressä oleva asema (Emäsalo 180 m,
+  Kruunuvuorenselkä) jäi lähimmällä kehällä renkaan alle ja pisteeksi
+  joka zoomilla, ja RUUDULLE MAHTUVAT paikat kokeillaan ensin (lappu
+  meni Kallahti–Emäsalo-näkymässä reunan yli); siksi sijoittelu
+  ajetaan myös `moveend`issä. Järjestys on kiinteä (meri ja poiju,
+  maa, vesi; nimen mukaan) — EI lukeman mukaan. Lappu jolle ei ole
+  tilaa jää palloksi. Vedenlämmön lukema näkyy KAIKILLA UiRaS-
+  asemilla z9:stä (myös ei-`prim`, kuten Kallahden asemat). Tarkka sijainti on 5 px:n × merkin omana lapsena
   (`.sijainti-x`, ei kosketuksia); erillistä ruksimerkkiä
   (`_addStationDot`) ei enää ole. MITÄÄN EI PIIRRETÄ SPOTIN ALLE: ×
   ja asemapallo jäävät pois renkaan (tai kaukana spottipallon) päältä.
