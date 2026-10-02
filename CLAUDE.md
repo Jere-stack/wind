@@ -2383,15 +2383,15 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   (nyt MapLibren `Marker`-elementti, `Merkki._el`) kantaa
   `translate`-sijainnin eikä liiku väistön mukana — kuoresta mitattu
   peitto valehtelee.
-- **SPOTTIMERKKI ON LAATTA** (`spotMarkerSVG`, käyttäjän valinta 2.10.
-  viidestä vaihtoehdosta, "D"): pyöristetty neliö yömerta
-  (`--surface-hi`, kulma 0,3 × koko), numero kermaa (`--ink`, 12,3:1
-  levyä vasten) ja indeksi alareunan palkkina joka täyttyy pistemäärän
-  mukaan `spotIndexInk`-värillä. Sama muoto kartalla, spottikortin
-  heron indeksinä ja ennustepaneelissa. Sijoittelussa täysi spotti on
-  este laatikkona (laatta), piste ympyränä. Hylätyt: kerma kiekolla,
+- **SPOTTIMERKKI ON KERMA KIEKOLLA** (`spotMarkerSVG`, käyttäjän valinta
+  2.10. viidestä vaihtoehdosta, "A"; laatta "D" oli tuotannossa hetken ja
+  vaihdettiin): pyöreä yömeren levy (`--surface-hi`), numero kermaa
+  (`--ink`, 12,3:1 levyä vasten) ja indeksi OHUENA kaarena (0,075 ×
+  koko, ennen 3/36) `spotIndexInk`-värillä — numero ei ole enää indeksin
+  värinen. Sama muoto kartalla, spottikortin heron indeksinä ja
+  ennustepaneelissa. Sijoittelussa spotti on este ympyränä. Hylätyt:
   ontto rengas (kirkkaalla lämpökartalla kerma 1,3–1,9:1 ilman haloa),
-  neula, pallo ja numero.
+  neula, laatta, pallo ja numero.
 - **SUOMEN KOOSSA (alle z7, `SPOT_NUMERO_Z`) KAIKKI OVAT PISTEITÄ, JA
   z7:STÄ KAIKKI SPOTIT OVAT NUMEROINA — PÄÄLLEKKÄIN JOS TARVIS**
   (käyttäjän päätökset 1.–2.10.: "spotit voivat olla päällekkäin,

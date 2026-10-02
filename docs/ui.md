@@ -8126,3 +8126,9 @@ Käyttäjä valitsi D:n.
 - Sijoittelussa täysi spotti on este laatikkona, piste ympyränä.
   Mitattu Helsingin edustalla z6–z11: päällekkäisyyksiä 0, tila sama
   kuudella tunnilla. Savutesti ja graafitesti läpi.
+
+Päivitys samana päivänä: käyttäjä vaihtoi valinnan D:stä A:han ("kerma
+kiekolla"). Pyöreä `--surface-hi`-levy kerman hiusreunalla (.30),
+numero `--ink` 750 (0,44 × koko, 100: 0,38), indeksi ohuena kaarena
+(max(2, 0,075 × koko); ennen 3/36) `spotIndexInk`-värillä ja ura
+`--hairline`. Sijoittelussa spotti on taas este ympyränä.
