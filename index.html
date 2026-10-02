@@ -4858,28 +4858,31 @@ html.tyopoyta .en-solu-arvo { font-size: 15px; }
 html.tyopoyta .hl-nimi { font-size: 20px; }
 html.tyopoyta .hl-lk-arvo { font-size: 19px; }
 
-/* ── KARTAN MERKIT: PALLOT, × JA ESIINTULO (1.10., 2.10.) ──────────
- * Väistynyt spotti on 10 px:n väritön pallo. Asema lukemansa zoomin
- * alla on 8 px:n pallo jossa on ×, ja uloimmalla zoomilla (alle z7)
- * 6 px:n harmaa pallo ilman ruksia. Sijainnin × on 5 px eikä ota
- * kosketuksia. */
+/* ── KARTAN MERKIT: PISTEET, × JA ESIINTULO (1.10., 2.10.) ─────────
+ * Suomen koossa (alle z7) jokainen spotti ja asema on piste. Väistynyt
+ * spotti on 7 px:n harmaa piste, asema lukemansa zoomin alla 5 px:n ja
+ * alle z7 4 px:n himmeä piste. Sijainnin × on 5 px eikä ota kosketuksia. */
+/* PISTEET OVAT NEUTRAALIN HARMAITA, EIVÄT KERMAA (käyttäjän päätös
+ * 2.10.): spotin piste 7 px kirkkaampi, aseman 4–5 px himmeämpi, ja
+ * molemmilla tumma hiusreuna kartan päällä. Osumapinta on pseudo-
+ * elementti, koska piste itse on liian pieni sormelle. */
+.spot-pallo, .kauko-pallo, .sijainti-pallo {
+  position: relative; border-radius: 50%; cursor: pointer; box-sizing: border-box;
+}
 .spot-pallo {
-  border-radius: 50%; background: var(--surface-hi); cursor: pointer;
-  box-shadow: 0 0 0 1.5px rgba(240,231,206,.85), 0 1px 4px rgba(6,9,18,.7);
+  background: #B4BBC6;
+  box-shadow: 0 0 0 1px rgba(6,9,18,.75), 0 1px 3px rgba(6,9,18,.6);
 }
 .kauko-pallo, .sijainti-pallo {
-  width: 9px; height: 9px; border-radius: 50%; cursor: pointer; box-sizing: border-box;
-  background:
-    linear-gradient(45deg, transparent calc(50% - .55px), rgba(240,231,206,.9) calc(50% - .55px), rgba(240,231,206,.9) calc(50% + .55px), transparent calc(50% + .55px)) center / 5px 5px no-repeat,
-    linear-gradient(-45deg, transparent calc(50% - .55px), rgba(240,231,206,.9) calc(50% - .55px), rgba(240,231,206,.9) calc(50% + .55px), transparent calc(50% + .55px)) center / 5px 5px no-repeat,
-    rgba(21,28,41,.92);
-  box-shadow: 0 0 0 1px rgba(240,231,206,.55), 0 1px 3px rgba(6,9,18,.6);
+  width: 5px; height: 5px;
+  background: #8E96A3;
+  box-shadow: 0 0 0 1px rgba(6,9,18,.7);
 }
-.kauko-pallo-pieni {
-  width: 6px; height: 6px;
-  background: rgba(21,28,41,.85);
-  box-shadow: 0 0 0 1px rgba(156,162,171,.55);
+.kauko-pallo-pieni { width: 4px; height: 4px; }
+.spot-pallo::after, .kauko-pallo::after {
+  content: ''; position: absolute; inset: -9px; border-radius: 50%;
 }
+.kauko-pallo::after { inset: -7px; }
 .sijainti-x {
   position: absolute; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; pointer-events: none;
   background:
@@ -4887,7 +4890,8 @@ html.tyopoyta .hl-lk-arvo { font-size: 19px; }
     linear-gradient(-45deg, transparent calc(50% - .5px), rgba(240,231,206,.72) calc(50% - .5px), rgba(240,231,206,.72) calc(50% + .5px), transparent calc(50% + .5px));
   filter: drop-shadow(0 0 1px rgba(6,9,18,.95));
 }
-.sijainti-x.sijainti-pallo { width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; filter: none; }
+.sijainti-x.sijainti-pallo { width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; filter: none;
+  background: #8E96A3; box-shadow: 0 0 0 1px rgba(6,9,18,.7); opacity: .9; }
 @media (prefers-reduced-motion: no-preference) {
   .merkki-esiin { animation: merkkiEsiin .22s cubic-bezier(.2,.8,.3,1) both; }
   .spot-ring.merkki-esiin { animation-name: spottiEsiin; }
@@ -17236,6 +17240,14 @@ function gustIndex(ms, gst) {
  * ainoa päällekkäisyys on Munkkiniemi–Otaniemi z10:llä (renkaat 8 px),
  * ja siksi vain NIMI väistyy (`_spotNimetPois`), ei merkki. */
 const SPOT_KAIKKI_Z = 10;
+/* Suomen koossa (alle z7) spotit ovat pelkkiä pisteitä (käyttäjän päätös
+   2.10.): numerot eivät mahdu maan mittakaavaan, ja kaksi numeroa
+   kymmenen pisteen keskellä luki satunnaisena. */
+const SPOT_NUMERO_Z = 7;
+/* Väistön rako: kiekot eivät saa koskettaa (z9:llä kosketus luki
+   päällekkäisyytenä). */
+const SPOT_VAISTO_RAKO = 4;
+const SPOT_PISTE_PX = 7;
 function _spotJarjestys(a, b) {
   const sa = Suosikit.on(a.spot.name) ? 1 : 0, sb = Suosikit.on(b.spot.name) ? 1 : 0;
   if (sa !== sb) return sb - sa;
@@ -17266,8 +17278,8 @@ function _spotNimetPois(zoom) {
 function _valitseTaydetSpotit(pisteytetyt, zoom) {
   const taydet = new Set();
   if (!State.map || zoom >= SPOT_KAIKKI_Z) { pisteytetyt.forEach(s => taydet.add(s.spot)); return taydet; }
-  if (zoom < 5) return taydet;
-  const kynnys = spotIconSize(zoom);
+  if (zoom < SPOT_NUMERO_Z) return taydet;
+  const kynnys = spotIconSize(zoom) + SPOT_VAISTO_RAKO;
   const sijoitetut = [];
   for (const s of pisteytetyt.slice().sort(_spotJarjestys)) {
     const p = State.map.latLngToContainerPoint([s.spot.lat, s.spot.lng]);
@@ -17359,7 +17371,7 @@ function renderSpots(hourIdx) {
 
     let html, iconW, iconH, anchor, pisteena = false;
 
-    if (zoom >= 5 && taydet.has(spot)) {
+    if (zoom >= SPOT_NUMERO_Z && taydet.has(spot)) {
       /* Merkki piirretään aina SPOT_BASE-kokoisena ja kutistetaan
          transformilla — ulkomitat ja ankkuri pysyvät siis vakiona kaikilla
          zoom-tasoilla, ja koon muutos voidaan animoida ilman että merkki
@@ -17381,7 +17393,7 @@ function renderSpots(hourIdx) {
          Paperia sekin, jotta spotti näyttää spotilta myös silloin kun luku
          ei mahdu — rengas kertoo sen olevan sama esine kuin täysi merkki,
          ja se on yhtä lailla napautettava. */
-      const sz = 10;
+      const sz = SPOT_PISTE_PX;
       html = `<div class="spot-pallo" style="width:${sz}px;height:${sz}px"></div>`;
       iconW = sz; iconH = sz;
       anchor = [sz / 2, sz / 2];
@@ -17390,11 +17402,13 @@ function renderSpots(hourIdx) {
 
     const icon = L.divIcon({ className: '', html, iconSize: [iconW, iconH], iconAnchor: anchor });
     State.markers.push(
-      /* Kasassa hävinnyt piste piirtyy aina voittajan renkaan ALLE. Muuten
+      /* Kasassa hävinnyt piste piirtyy aina voittajan renkaan ALLE mutta
+         asemien pisteiden PÄÄLLE (-30 vs asemat -40…-200): kaukana spotin
+         piste voittaa napautuksen viereiseltä asemalta. Muuten
          se jäisi puolittain renkaan päälle ja näyttäisi virheeltä — nyt
          rengas peittää sen siististi ja piste näkyy vain siltä osin kuin
          se on renkaan ulkopuolella. */
-      L.marker([spot.lat, spot.lng], { icon, zIndexOffset: pisteena ? -1000 : 0, zoomaaAlle: pisteena ? SPOT_KAIKKI_Z : 0,
+      L.marker([spot.lat, spot.lng], { icon, zIndexOffset: pisteena ? -30 : 0, zoomaaAlle: pisteena ? SPOT_KAIKKI_Z : 0,
         /* Saavutettava nimi. Ilman tätä ruudunlukija ilmoittaa vain
            "linkki" — mitattuna 7 merkkiä 19:stä oli nimettömiä.
            Merkki JÄÄ fokusoitavaksi, koska spottiin ei pääse muuta
@@ -18633,20 +18647,19 @@ function _addObsMarkers(map) {
     }
     return _kaukoPallo(z, hiljainen);
   }
-  /* KAUKANA JOKAINEN ASEMA ON SAMA SIRO PALLO JA × (käyttäjän päätös
-     1.10.): tyyppiä ei kerrota kaukaa, vaan se että mittauspiste on
-     olemassa. Spotin pallo on isompi eikä siinä ole ruksia, joten
-     spotti on ensisijainen merkki. Hiljainen (ei signaalia) on himmeämpi. */
-  /* ULOIMMALLA ZOOMILLA PALLO ON PIENEMPI JA HARMAAMPI (käyttäjän pyyntö
-     2.10.): alle z7 6 px:n harmaa pallo, z7:stä lukeman zoomiin 8 px.
-     Asema on silloin taustaa spottien rinnalla. Porras on myös
-     allekirjoituksessa (`_palloPorras`). */
-  function _palloPorras(z) { return z < 5 ? 0 : z < 7 ? 1 : 2; }
+  /* KAUKANA JOKAINEN ASEMA ON SAMA PISTE: tyyppiä ei kerrota kaukaa,
+     vaan se että mittauspiste on olemassa. Spotin piste on isompi ja
+     kirkkaampi, joten spotti on ensisijainen merkki. Hiljainen (ei
+     signaalia) on himmeämpi. Porras on myös allekirjoituksessa. */
+  /* PISTE ILMAN RUKSIA (käyttäjän päätös 2.10.): × pallossa teki
+     Helsingin edustasta z7:llä ruudukon. Suomen koossa (alle
+     `SPOT_NUMERO_Z`) 4 px ja himmeämpi, rannikolla 5 px. */
+  function _palloPorras(z) { return z < SPOT_NUMERO_Z ? 0 : 1; }
   function _kaukoPallo(z, hiljainen) {
-    var porras = _palloPorras(z), koko = porras < 2 ? 6 : 8;
-    var op = [.45, .6, 1][porras] * (hiljainen ? .5 : 1);
+    var porras = _palloPorras(z), koko = porras ? 5 : 4;
+    var op = [.6, .9][porras] * (hiljainen ? .5 : 1);
     return L.divIcon({ className:'',
-      html:'<div class="kauko-pallo' + (porras < 2 ? ' kauko-pallo-pieni' : '') + '" style="opacity:'+op.toFixed(2)+'"></div>',
+      html:'<div class="kauko-pallo' + (porras ? '' : ' kauko-pallo-pieni') + '" style="opacity:'+op.toFixed(2)+'"></div>',
       iconSize:[koko, koko], iconAnchor:[koko / 2, koko / 2] });
   }
   function _aaltoIconSig(zoom, hs, hiljainen) {
@@ -18808,12 +18821,12 @@ function _addObsMarkers(map) {
     var esteet = [];
     if (typeof SPOTS !== 'undefined') {
       /* Este on spotin todellinen merkki: täysi rengas (ja nimi) tai
-         10 px:n pallo, `renderSpots`in viimeisimmän valinnan mukaan. */
+         piste (`SPOT_PISTE_PX`), `renderSpots`in viimeisimmän valinnan mukaan. */
       var taydet = State._spotTaydetAvain || '';
       var rengas = spotIconSize(z), nimetPois = _spotNimetPois(z);
       SPOTS.forEach(function (sp, i) {
         var q = map.latLngToContainerPoint([sp.lat, sp.lng]);
-        var taysi = taydet.charAt(i) === '1', koko = taysi ? rengas : 10;
+        var taysi = taydet.charAt(i) === '1', koko = taysi ? rengas : SPOT_PISTE_PX;
         esteet.push({ l: q.x - koko / 2 - 2, t: q.y - koko / 2 - 2, r: q.x + koko / 2 + 2, b: q.y + koko / 2 + 2, rengas: true });
         if (taysi && z >= SPOT_LABEL_MIN_ZOOM && !nimetPois.has(sp)) esteet.push({ l: q.x - 32, t: q.y + koko / 2 + 2, r: q.x + 32, b: q.y + koko / 2 + 16 });
       });

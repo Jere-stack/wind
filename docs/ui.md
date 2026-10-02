@@ -7983,3 +7983,42 @@ z10:llä (6/6). Napautus: täysi spotti z8 → z10 ja kortti auki,
 asemapallo z6 → z8 (lukeman zoom), kortti kiinni. Savutesti ja
 graafitesti läpi.
 
+
+## Kartan merkit, kolmas erä: Suomen koossa pelkkiä pisteitä
+
+Käyttäjän pyyntö 2.10.: "merkkejä näkyy maksimi määrä mutta aivan
+yläzoomilla esim Suomen koossa merkit ovat vain pisteitä". Ennen
+väripalettia (commit `55afaa4`) asemat olivat kaukaa 5 px:n harmaita
+pisteitä ilman ruksia ja hiljaisempia kuin nykyiset 8 px:n ×-pallot;
+spotit olivat numeroina z5:stä, ja Suomen koossa kaksi tai kolme
+numeroa kymmenen pisteen keskellä luki satunnaisena. Kermapohjaiset
+spottikiekot ja kermapisteet ehdotettiin ja hylättiin (käyttäjän
+päätös) — kaikki pisteet ovat neutraalia harmaata.
+
+- **Alle z7 (`SPOT_NUMERO_Z`)**: jokainen spotti 7 px:n harmaa piste
+  (`#B4BBC6`, tumma hiusreuna), jokainen asema 4 px:n himmeämpi
+  piste (`#8E96A3`, opasiteetti .6). Pisteet eivät väistä toisiaan.
+- **z7–z10**: spotit numeroina, väistö vain osuessa ja 4 px:n raolla
+  (`SPOT_VAISTO_RAKO`); väistynyt on sama 7 px:n piste. Asemat 5 px:n
+  pisteinä lukeman zoomiin asti; lappu jolle ei ole tilaa jää samaksi
+  pisteeksi (`.sijainti-pallo`).
+- **z10:stä** kaikki täysiä, kuten ennen.
+- Pisteen osumapinta on `::after` (spotti 25 px, asema 19 px), ja
+  spotin piste on asemien päällä (`zIndexOffset` −30): ilman sitä
+  Hangon asema otti spotin napautuksen (mitattu: z6 → z8 aseman
+  lukemaan, nyt → z10).
+
+Mitattu Helsingin edustalla, kaikki havaintokerrokset päällä:
+
+```
+z    renkaat  spottipisteet  laput  pisteeksi  spotin alla  päällekkäin
+6       0         12           0        0          0            0
+7       5          7           0        0          0            0
+8       4          6           7        0          0            0
+9       5          4           5        0          0            0
+10      8          0           5        1          0            0
+11      5          0           5        0          0            0
+```
+
+Suomen koossa (z5, z6) 0 numeroa ja 12 spottipistettä. Tila sama
+kuudella tunnilla z8–z10 (6/6). Savutesti ja graafitesti läpi.

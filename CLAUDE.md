@@ -2368,11 +2368,13 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   MAA z10** (`LUKEMA_Z_MERI/VESI/MAA`, Leaflet-asteikko; käyttäjän
   päätös 2.10. — 1.10.:n "yksi raja z10" peruttiin, koska kaukaa ei
   nähnyt mitään). Päällekkäisyyden hoitaa sijoittelu (alla), ei
-  kynnys. Lukeman zoomin alla asema on pallo (`_kaukoPallo`):
-  z7:stä 8 px ja ×, uloimmalla zoomilla (alle z7) 6 px:n HARMAA pallo
-  ilman ruksia ja himmeämpi (`.kauko-pallo-pieni`, porras
-  `_palloPorras` myös allekirjoituksessa). Pallon napautus zoomaa
-  aseman lukeman zoomiin (`Merkki`-optio `zoomaaAlle`). Lukema tulee
+  kynnys. Lukeman zoomin alla asema on HARMAA PISTE ILMAN RUKSIA
+  (`_kaukoPallo`, käyttäjän päätös 2.10.): z7:stä 5 px, Suomen koossa
+  (alle z7) 4 px ja himmeämpi (`.kauko-pallo-pieni`, porras
+  `_palloPorras` myös allekirjoituksessa). × pallossa teki Helsingin
+  edustasta z7:llä ruudukon. Pisteet ovat neutraalia harmaata, EIVÄT
+  kermaa (käyttäjän päätös). Pisteen napautus zoomaa aseman lukeman
+  zoomiin (`Merkki`-optio `zoomaaAlle`; osumapinta `::after`). Lukema tulee
   0,22 s:n häivytyksellä (`.merkki-esiin`, vain tilan vaihtuessa).
 - **Aaltokaavio on sama moottori kuin muut** (V8): 7 vrk haetaan
   kerralla (`AALTO_HISTORIA_H`) ja vieritetään, napautettu lukema jää
@@ -2381,12 +2383,18 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   (nyt MapLibren `Marker`-elementti, `Merkki._el`) kantaa
   `translate`-sijainnin eikä liiku väistön mukana — kuoresta mitattu
   peitto valehtelee.
-- **SPOTIT OVAT NUMEROINA z5:STÄ, VÄISTÖ VAIN KUN MERKIT OSUVAT, JA
-  z10:STÄ KAIKKI TÄYSIÄ** (käyttäjän raportit ja päätökset 1.–2.10.).
+- **KOLME VYÖHYKETTÄ: SUOMEN KOOSSA (alle z7, `SPOT_NUMERO_Z`) KAIKKI
+  OVAT PISTEITÄ, z7:STÄ SPOTIT NUMEROINA JA VÄISTÖ VAIN KUN MERKIT
+  OSUVAT, JA z10:STÄ KAIKKI TÄYSIÄ** (käyttäjän raportit ja päätökset
+  1.–2.10.). Suomen koossa jokainen spotti on 7 px:n harmaa piste
+  (`SPOT_PISTE_PX`) eikä pisteet väistä toisiaan. Väistössä on 4 px:n
+  rako (`SPOT_VAISTO_RAKO`): kosketus luki z9:llä päällekkäisyytenä.
+  Spotin piste on asemien pisteiden PÄÄLLÄ (`zIndexOffset` −30 vs
+  −40…−200), muuten Hangon asema varasti spotin napautuksen.
   Väistö järjesti ennen tunnin pistemäärän mukaan, joten 1,9 km:n päässä
   olevat Munkkiniemi ja Otaniemi vaihtoivat täyttä merkkiä ja pistettä
   joka askeleella. Nyt järjestys on kiinteä (`_spotJarjestys`:
-  suosikit, sitten `SPOTS`), väistynyt spotti on väritön 10 px:n pallo
+  suosikit, sitten `SPOTS`), väistynyt spotti on sama 7 px:n piste
   (napautus zoomaa z10:een), ja z10:stä ylös väistyy vain NIMI
   (`_spotNimetPois`). Älä tee mistään merkin tilasta lukeman funktiota.
 - **ASEMIEN LUKEMAT SIJOITTAA YKSI FUNKTIO (`_sijoitteleHavainnot`)**,
