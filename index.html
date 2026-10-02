@@ -18819,7 +18819,7 @@ function _addObsMarkers(map) {
    *
    * Aseman tarkka sijainti on pieni × merkin omana lapsena (ei erillistä
    * merkkiä), ja se jätetään pois jos se osuisi spotin renkaan alle. */
-  var SIJOITUS_RAKO = 3;
+  var SIJOITUS_RAKO = 3, SIJOITUS_MAX = 44, SIJOITUS_SIETO = 10;
   /* Aseman lapun oma suunta (indeksi paikkalistaan: oikea, vasen, ylös,
      alas, oikea-ylä, oikea-ala, vasen-ylä, vasen-ala). Naapurit ovat
      spotit ja muut asemat 15 km:n sisällä painolla 1/(d + 0,3 km)²;
@@ -18856,32 +18856,85 @@ function _addObsMarkers(map) {
     if (typeof SPOTS !== 'undefined') {
       /* Este on spotin todellinen merkki: täysi rengas (ja nimi) tai
          piste (`SPOT_PISTE_PX`), `renderSpots`in viimeisimmän valinnan mukaan. */
+      /* Rengas on este YMPYRÄNÄ (`ympyra`), ei laatikkona: laatikon
+         kulmat pitivät lappua irti renkaasta vinosuunnissa. Nimen leveys
+         mitataan sen omasta elementistä (enintään 64 px), koska lyhyt nimi
+         ("Otaniemi") varasi saman 64 px kuin pitkä. */
       var taydet = State._spotTaydetAvain || '';
       var rengas = spotIconSize(z), nimetPois = _spotNimetPois(z);
+      var nimiLev = {};
+      (State.markers || []).forEach(function (mk) {
+        var lb = mk._spot && mk.getElement && mk.getElement().querySelector('.spot-lbl');
+        if (lb && lb.offsetWidth) nimiLev[mk._spot.name] = Math.min(64, lb.scrollWidth || lb.offsetWidth);
+      });
       SPOTS.forEach(function (sp, i) {
         var q = map.latLngToContainerPoint([sp.lat, sp.lng]);
-        var taysi = taydet.charAt(i) === '1', koko = taysi ? rengas : SPOT_PISTE_PX;
-        esteet.push({ l: q.x - koko / 2 - 2, t: q.y - koko / 2 - 2, r: q.x + koko / 2 + 2, b: q.y + koko / 2 + 2, rengas: true });
-        if (taysi && z >= SPOT_LABEL_MIN_ZOOM && !nimetPois.has(sp)) esteet.push({ l: q.x - 32, t: q.y + koko / 2 + 2, r: q.x + 32, b: q.y + koko / 2 + 16 });
+        var taysi = taydet.charAt(i) === '1', koko = taysi ? rengas : SPOT_PISTE_PX, sade = koko / 2 + 1.5;
+        esteet.push({ l: q.x - sade, t: q.y - sade, r: q.x + sade, b: q.y + sade, rengas: true, ympyra: true, cx: q.x, cy: q.y, sade: sade });
+        if (taysi && z >= SPOT_LABEL_MIN_ZOOM && !nimetPois.has(sp)) {
+          var nl = (nimiLev[sp.name] || 64) / 2 + 1;
+          esteet.push({ l: q.x - nl, t: q.y + koko / 2 + 2, r: q.x + nl, b: q.y + koko / 2 + 16 });
+        }
       });
     }
     var spotinAlla = function (p) {
-      return esteet.some(function (e) { return e.rengas && p.x > e.l && p.x < e.r && p.y > e.t && p.y < e.b; });
+      return esteet.some(function (e) { return e.rengas && Math.hypot(p.x - e.cx, p.y - e.cy) < e.sade; });
     };
     var arvo = function (m) { return m.type === 'wind-prim' || m.type === 'aalto' ? 0 : m.type === 'wind-dot' ? 1 : 2; };
     var jono = _obsMarkers.filter(function (m) {
       var el = m.marker && m.marker._icon;
       return el && el.style.display !== 'none';
-    }).sort(function (a, b) {
-      return (arvo(a) - arvo(b)) || String(a.stName || '').localeCompare(String(b.stName || ''));
     });
     var osuu = function (k) {
       for (var i = 0; i < esteet.length; i++) {
         var e = esteet[i];
-        if (k.l < e.r && k.r > e.l && k.t < e.b && k.b > e.t) return true;
+        if (!(k.l < e.r && k.r > e.l && k.t < e.b && k.b > e.t)) continue;
+        if (!e.ympyra) return true;
+        var dx = Math.max(k.l - e.cx, 0, e.cx - k.r), dy = Math.max(k.t - e.cy, 0, e.cy - k.b);
+        if (dx * dx + dy * dy < e.sade * e.sade) return true;
       }
       return false;
     };
+    /* Pienin vapaa rako (3…`SIJOITUS_MAX` px) kuhunkin kahdeksaan
+       suuntaan; `ruudulle` = vain ruudulle mahtuvat. */
+    var suunnat = function (R, w, h) {
+      return [[R, -h / 2], [-R - w, -h / 2], [-w / 2, -h - R], [-w / 2, R],
+              [R, -h - 3], [R, 3], [-R - w, -h - 3], [-R - w, 3]];
+    };
+    var koko = map.getSize();
+    var hae = function (p, w, h, ruudulle) {
+      var tulos = [];
+      for (var si = 0; si < 8; si++) {
+        for (var R = SIJOITUS_RAKO; R <= SIJOITUS_MAX; R++) {
+          var q = suunnat(R, w, h)[si];
+          var k = { l: p.x + q[0], t: p.y + q[1], r: p.x + q[0] + w, b: p.y + q[1] + h };
+          if (ruudulle && !(k.l >= 0 && k.t >= 0 && k.r <= koko.x && k.b <= koko.y)) continue;
+          if (!osuu(k)) { tulos[si] = { q: q.concat(si), R: R, k: k }; break; }
+        }
+      }
+      return tulos;
+    };
+    var mitat = function (m) {
+      var o = (m.marker.options.icon && m.marker.options.icon.options) || {};
+      return { ax: o.iconAnchor ? o.iconAnchor[0] : 0, ay: o.iconAnchor ? o.iconAnchor[1] : 0,
+               w: o.iconSize ? o.iconSize[0] : 62, h: o.iconSize ? o.iconSize[1] : 18 };
+    };
+    /* AHTAAT ENSIN (saman arvon sisällä): lappu jolla on pelkkien
+       spottien keskellä enintään kaksi vapaata suuntaa sijoitetaan ensin,
+       muut nimen mukaan. Täysi järjestys vapauden mukaan vaihtui zoomista
+       toiseen ja lisäsi suunnan vaihtoja 14 → 26. Laru z10 on
+       neljän spotin rypäässä, ja aakkosjärjestyksessä Haukilahti vei sen
+       ainoan paikan, jolloin Laru jäi pisteeksi. */
+    var vapaus = function (m) {
+      if (m._vapaus != null) return m._vapaus;
+      if (!(m._iconSig && m._iconSig.charAt(0) === 'p')) return (m._vapaus = 8);
+      var mt = mitat(m);
+      return (m._vapaus = hae(map.latLngToContainerPoint(m.marker.getLatLng()), mt.w, mt.h, true).filter(Boolean).length);
+    };
+    jono.forEach(function (m) { m._vapaus = null; });
+    jono.sort(function (a, b) {
+      return (arvo(a) - arvo(b)) || ((vapaus(a) <= 2 ? 0 : 1) - (vapaus(b) <= 2 ? 0 : 1)) || String(a.stName || '').localeCompare(String(b.stName || ''));
+    });
     jono.forEach(function (m) {
       var el = m.marker._icon, inner = el.firstElementChild;
       var x = el.querySelector(':scope > .sijainti-x');
@@ -18896,43 +18949,34 @@ function _addObsMarkers(map) {
         }
         return;
       }
-      var o = (m.marker.options.icon && m.marker.options.icon.options) || {};
-      var ax = o.iconAnchor ? o.iconAnchor[0] : 0, ay = o.iconAnchor ? o.iconAnchor[1] : 0;
-      var w = o.iconSize ? o.iconSize[0] : 62, h = o.iconSize ? o.iconSize[1] : 18;
+      var mt = mitat(m), ax = mt.ax, ay = mt.ay, w = mt.w, h = mt.h;
       var p = map.latLngToContainerPoint(m.marker.getLatLng());
       if (!x) { x = document.createElement('span'); x.className = 'sijainti-x'; x.setAttribute('aria-hidden', 'true'); el.appendChild(x); }
       x.style.left = ax + 'px'; x.style.top = ay + 'px';
       var renkaanAlla = spotinAlla(p);
-      /* PAIKAT: ASEMAN OMA SUUNTA ENSIN, LÄHELTÄ KAUAS (käyttäjän pyyntö
-         2.10.: "data lähemmäksi x-merkintää" ja "eivät hyppisi zoomatessa").
-         Suunta lasketaan maantieteestä (`_omaSuunta`: poispäin lähimmistä
-         spoteista ja asemista), joten se on sama joka zoomilla ja ennen
-         kaikkea sama kuin edellisellä zoomilla. Järjestys: oma suunta 3 ja
-         9 px:n raolla, muut suunnat samoilla, sitten 16 ja 26 px (spotin
-         viereinen asema: Emäsalo 180 m, Kruunuvuorenselkä). */
-      /* Edellinen suunta ensin: jos se on yhä vapaa, lappu ei liiku
-         (zoomatessa renkaat kasvavat ja oma suunta voi olla hetken
-         varattu — ilman muistia lappu palaisi heti ja hyppisi). */
-      var oma = _omaSuunta(m), ens = m._viimeSuunta != null ? m._viimeSuunta : oma, paikat = [];
-      var jarjestys = [ens].concat(ens !== oma ? [oma] : []);
-      var suunnat = function (R) {
-        return [[R, -h / 2], [-R - w, -h / 2], [-w / 2, -h - R], [-w / 2, R],
-                [R, -h - 3], [R, 3], [-R - w, -h - 3], [-R - w, 3]];
-      };
-      [[SIJOITUS_RAKO, 9], [16], [26]].forEach(function (rakot) {
-        jarjestys.forEach(function (j) { rakot.forEach(function (R) { paikat.push(suunnat(R)[j].concat(j)); }); });
-        rakot.forEach(function (R) { suunnat(R).forEach(function (q, i) { if (jarjestys.indexOf(i) < 0) paikat.push(q.concat(i)); }); });
-      });
-      /* Ensin paikat jotka mahtuvat ruudulle, sitten muut: ruudun reunalla
-         ensimmäinen vapaa paikka oli usein reunan yli (Emäsalo z9,8). */
-      var valittu = null, koko = map.getSize();
+      /* PAIKKA: JOKAISEEN KAHDEKSAAN SUUNTAAN PIENIN VAPAA RAKO PIKSELIN
+         TARKKUUDELLA (käyttäjän pyyntö 2.10.: Haukilahden, Larun ja
+         Kruunuvuorenselän lukemat kauempana kuin muiden). Kiinteät raot
+         3/9/16/26 px hyppäsivät spotin vieressä 16–26 px:iin, vaikka
+         renkaan reunaan oli tilaa jo 5 px:n päässä. Valinta: edellinen
+         suunta (`_viimeSuunta`) jos sen rako on enintään 10 px suurempi
+         kuin paras, sitten oma suunta (`_omaSuunta`: poispäin lähimmistä
+         spoteista ja asemista eli sille puolelle missä asema oikeasti
+         on) samalla toleranssilla, muuten lähin. Ruudulle mahtuvat ensin. */
+      var oma = _omaSuunta(m), ens = m._viimeSuunta != null ? m._viimeSuunta : oma;
+      var valittu = null, valittuK = null;
       for (var kierros = 0; kierros < 2 && !valittu; kierros++) {
-        for (var i = 0; i < paikat.length; i++) {
-          var k = { l: p.x + paikat[i][0] - 1, t: p.y + paikat[i][1] - 1, r: p.x + paikat[i][0] + w + 1, b: p.y + paikat[i][1] + h + 1 };
-          var ruudulla = k.l >= 0 && k.t >= 0 && k.r <= koko.x && k.b <= koko.y;
-          if ((kierros || ruudulla) && !osuu(k)) { valittu = paikat[i]; esteet.push(k); break; }
-        }
+        var tulos = hae(p, w, h, !kierros);
+        var paras = null;
+        tulos.forEach(function (t) { if (t && (!paras || t.R < paras.R)) paras = t; });
+        if (!paras) continue;
+        var ehdokas = [tulos[ens], tulos[oma]].filter(function (t) { return t && t.R <= paras.R + SIJOITUS_SIETO; })[0] || paras;
+        valittu = ehdokas.q; valittuK = ehdokas.k;
       }
+      /* Lappu varaa itselleen 2 px:n reunuksen: laput eivät koske
+         toisiinsa, mutta lappu saa asettua tarkasti renkaan ja nimen
+         viereen (Laru z10: 0,75 px:n reunus vei ainoan vapaan paikan). */
+      if (valittuK) esteet.push({ l: valittuK.l - 2, t: valittuK.t - 2, r: valittuK.r + 2, b: valittuK.b + 2 });
       if (valittu) {
         m._viimeSuunta = valittu[2];
         inner.style.visibility = '';

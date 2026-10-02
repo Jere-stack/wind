@@ -8077,3 +8077,31 @@ Mitattu z8–z11 0,25:n välein Helsingin edustalla ja Kallahti–Emäsalo-
 näkymässä (29 asemaa): suunnan vaihtoja 40 → 14, rako ka 10,3 →
 7,9 px. Päällekkäisyyksiä 0, spotin alla 0, tila sama kuudella
 tunnilla (6/6). Savutesti ja graafitesti läpi.
+
+## Kartan merkit, kuudes erä: Haukilahti, Laru ja Kruunuvuorenselkä kiinni ×:ään
+
+Käyttäjän pyyntö 2.10.: näiden kolmen aseman lukemat viereen sinne missä
+oikea sijainti ja × on, ja lähemmäs ×:ää. Kaikki kolme ovat 0,1–1 km
+spotista, eli × on z9–z11:llä spotin renkaan alla.
+
+Syyt (mitattu `_sijoitteleHavainnot`in sisältä):
+- Kiinteät raot 3/9/16/26 px: renkaan reunaan oli tilaa jo ~5 px:n
+  päässä, mutta lähin vapaa porras oli 16 tai 26.
+- Rengas laatikkona: kulmat estivät vinosuunnat, vaikka ympyrä ei
+  ulottunut niihin.
+- Nimi 64 px:n laatikkona lyhyelläkin nimellä.
+- Laru z10: 75 px:n lappu (play-kolmio) neljän spotin rypäässä; ainoa
+  vapaa paikka (renkaan alla) jäi Haukilahden lapulle aakkosjärjestyksessä,
+  ja toinen kaatui 0,75 px:n reunukseen Kruunuvuorenrannan nimeä vasten.
+
+Korjaus: rako pikselin tarkkuudella joka suuntaan (3…44 px), rengas
+ympyränä, nimi mitattuna, tarkka ehdokaslaatikko ja 2 px:n reunus vain
+lappujen välillä, ahtaat (≤ 2 vapaata suuntaa) ensin, edellisen suunnan
+sieto 10 px. Tulos: Kruunuvuorenselkä renkaan yläpuolella kiinni (ennen
+23–27 px irti), Laru renkaan vieressä z9–z12 (ennen piste z9–z10),
+Haukilahti z11–z12 ×:n vieressä; z10:llä Lauttasaaren rengas on 19 px
+päässä Haukilahden renkaasta, joten lukema asettuu Haukilahti-nimen
+viereen. Lappuja z8 9 → 12, z10 9 → 11; päällekkäisyyksiä 0 (mittarin
+yksi "rengas × lappu 2×6" on renkaan laatikon kulma, ei ympyrä), tila
+sama kuudella tunnilla. Suunnan vaihtoja 22 (ennen 14 vähemmillä
+lapuilla); sieto 3 px antoi 32 ja 14 px 17 isommalla raolla.

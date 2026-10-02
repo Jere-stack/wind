@@ -2408,7 +2408,22 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   Mitattu z8–z11 neljännestasoin kahdessa näkymässä: suunnan vaihtoja
   40 → 14 (29 asemaa), lapun rako ×:ään 10,3 → 7,9 px. Rako on 3 px
   (`SIJOITUS_RAKO`), ja × on 4 px ja harmaa (`156,162,171` .75).
-  Paikat on porrastettu kauemmas (rako 3, 9, 16, 26 px), koska spotin vieressä oleva asema (Emäsalo 180 m,
+  **RAKO HAETAAN PIKSELIN TARKKUUDELLA JOKA SUUNTAAN (3…44 px,
+  `SIJOITUS_MAX`), JA SPOTTIRENGAS ON ESTE YMPYRÄNÄ** (käyttäjän pyyntö
+  2.10.: Haukilahden, Larun ja Kruunuvuorenselän lukemat irti
+  ×:stä). Kiinteät raot 3/9/16/26 ja laatikkorengas pitivät lapun
+  16–26 px irti renkaasta. Valinta: edellinen suunta jos sen rako on
+  enintään `SIJOITUS_SIETO` (10) px suurempi kuin paras, sitten oma,
+  muuten lähin; 3 px:n sieto toi hyppimisen takaisin (32 vaihtoa).
+  Spotin nimi on este mitatulla leveydellä, ei 64 px:llä. Lappujen
+  välinen reunus on 2 px, ehdokkaan oma laatikko on tarkka (Larun
+  ainoa paikka z10:llä jäi 0,75 px:n reunuksen alle). Lappu jolla on
+  pelkkien spottien keskellä enintään kaksi vapaata suuntaa sijoitetaan
+  ensin (Laru z10 neljän spotin rypäässä). Mitattu: Laru näkyy nyt
+  z9–z12 (ennen piste z9–z10), lappuja z8 9 → 12 ja z10 9 → 11;
+  suunnan vaihtoja 22 (30 asemaa, enemmän näkyviä lappuja), loput
+  ruudun reunalla.
+  Paikat on porrastettu kauemmas, koska spotin vieressä oleva asema (Emäsalo 180 m,
   Kruunuvuorenselkä) jäi lähimmällä kehällä renkaan alle ja pisteeksi
   joka zoomilla, ja RUUDULLE MAHTUVAT paikat kokeillaan ensin (lappu
   meni Kallahti–Emäsalo-näkymässä reunan yli); siksi sijoittelu
