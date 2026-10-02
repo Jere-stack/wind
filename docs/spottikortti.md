@@ -865,3 +865,82 @@ transformilla venytetty kuva ja sen korvaava piirros näyttävät
 sormien alla. Playwrightin WebKit ei osaa kahta sormea, joten venytys on
 mitattu Chromiumilla ja napautukset WebKitillä. iOS:n oman sivuzoomin
 esto (`gesturestart`) on pääteltyä eikä mitattua.
+
+### V11 — ennustevalikko, kiinteä lukemarivi ja selkeämpi päiväys (2.10.)
+
+Käyttäjän pyyntö: "varmistetaan että menneessä ajassa myös
+tuuliennustegraafin yläpuolella oleva paneeli ei missään tapauksessa
+kasva pituussuunnassa ja teksti näkyy", "nätti ammattimainen valikko
+josta voi valita mitä ennustetta graafi näyttää", "vasta kun graafi
+avataan isoksi voi valita oletuksen pohjaksi ja lisätä muita käyriä
+päällekkäin", "allekkain-valintaa ei tarvita" ja "selkeämpi päivämäärä
+graafilla" — kaikkiin kaavioihin yhdenmukaisesti.
+
+**Lukemarivi kasvoi menneellä tunnilla.** `.en-lukema` oli
+`flex-wrap: wrap` + `min-height: 48px`. Menneellä tunnilla aikasolu on
+"Mennyt · Pe 2.10." ja tuulisolun nimi "Tuuli · FMI HARMONIE 2,5 km",
+eivätkä ne mahtuneet puhelimen riville: mitattuna 48 → **83 px**, ja
+kaavio hyppäsi alas joka kerta kun valinta siirtyi menneeseen. Nyt rivi
+on `nowrap` ja **kiinteä 54 px** kaikissa neljässä kaaviossa: sivusolut
+(aika, puuska, suunta, jakso…) ovat nimensä levyisiä eivätkä kutistu,
+pääsolu ottaa jäljelle jäävän tilan ja vain SEN nimi (lähde) katkeaa
+kolmeen pisteeseen. Kapealla kortilla (`@container`, moduulin
+sisäleveys ≤ 340 / ≤ 280 px) väli ja pääluku pienenevät. Mitattu
+kaikki rivit 360, 390 (fi, en) ja 320 px leveydellä: korkeus 54 px,
+yhtään solua ei reunan yli eikä yhtään arvoa leikattu. Ensimmäinen
+yritys katkaisi KAIKKIEN sivusolujen nimet arvon levyisiksi, ja
+aaltorivin "Jakso" luki "P…" — siksi vain pääsolun nimi katkeaa.
+
+**Laajan lukemarivi on sama komponentti** (`HavLaaja.rivi` →
+`Aikakaavio.lukemaHtml`). Oma `hl-lk`-rivi rivittyi puhelimen pystyssä
+kolmella päällekkäisellä käyrällä neljälle riville (mitattu 130 px).
+Päällekkäiset käyrät ovat toisella kiinteällä rivillä väripisteellä
+(`.on-mallit`, 80 px), ja levossa niille näytetään sama 48 h keskiarvo
+kuin pääsarjalle, jotta korkeus ei vaihdu levon ja osoittamisen välillä
+(mitattu 88 px laatikkoineen molemmissa suunnissa).
+
+**Ennustevalikko.** "Vertaa kaaviossa" -rivi, kortin mallisirut ja
+Päällekkäin/Allekkain poistuivat. Tilalla on valintakenttä kaavion
+yllä (`.en-pohja`: nimi, alla mistä se on — Parasta valitun tunnin
+lähde), ja se avaa `Valikko`n: kelluva lista (`body`n lapsi, `fixed`,
+koska moduulin `overflow: hidden` leikkaisi sen), rivit
+`role="option"`, nuolet, Enter, Esc (globaalin Esc-listan
+ensimmäinen), ohi napautus ja sarkain sulkevat ja fokus palaa
+kenttään. Vaihtoehdot ovat Paras saatavilla ja viisi mallia
+(`KorttiSarjat.PARAS` + `MALLIT`, alatekstit samat kuin asetusten
+"Kartan malli" -listassa). **Kortilla kaavio näyttää vain valitun
+ennusteen**; laajassa sama kenttä valitsee pohjan ja sen vieressä on
+"Lisää"-sirurivi muille malleille (väri ja viivakuvio ovat käyrän omat,
+joten siru on myös selite), enintään kolme. Tila on yksi
+(`fs_kortti_mallit`: `{ pohja, valitut }`; vanha `asu` ohitetaan), ja
+pohja ei ole koskaan päällekkäinen käyrä. Kartan pakottama malli syttyy
+yhä päällekkäiseksi käyräksi laajassa (P3). Jos valittu malli ei anna
+sarjaa (alueellinen malli tai kaatunut haku), kortti sanoo sen ja
+napautus yrittää uudelleen — toiseen ennusteeseen ei vaihdeta hiljaa,
+ja edellisen ennusteen akseli ja lukemat tyhjennetään.
+
+Allekkain-asu poistui Ennusteesta kokonaan (käyttäjän päätös: "turha").
+Moottorin `Tuulikaavio.ASUT.rivi` jäi, mutta sitä ei käytä enää mikään
+kaavio.
+
+**Selkeämpi päiväys (kaikki kaaviot).** Päiväotsikko on oma kaistansa
+(heikko pohja, `paivaH` 17 → 22, laajassa 20 → 25), ja leveällä
+päivällä viikonpäivä kirjoitetaan kokonaan ja lihavana ("**Torstai**
+1.10.", portaikon uusi ylin porras; muut portaat ennallaan). Tämä päivä
+on kermapilleri ("Tänään 2.10.") — sama muoto kuin NYT-lappu ja
+aikajanan valintapilleri. Päiväraja on vahvempi (.24 → .34, 1 px) ja
+jatkuu kaistan läpi. `tools/graafimittaus.mjs`: kaikki tarkistukset
+läpi (päivämäärä joka vierityskohdassa 0,0 % ilman kaikilla zoomeilla).
+Ensimmäisessä versiossa leveystarkistus laski välilyönnin myös
+pelkälle kirjaimelle, ja 396 h:n zoomilla päivät katosivat — mittari
+huomasi sen.
+
+**Aikajana.** Kuplan oikealle puolelle tuli paluunappi (`#tl-nyt`,
+kuplan lapsi `left: 100%`, joten kupla pysyy osoittimen keskellä):
+sama kermamateriaali kuin kupla, 26 px ja 44 px osumapinta. Näkyy vain
+kun valittu tunti ei ole nyt (`Ennuste.nytTunti`, sama pyöristys kuin
+`nowIdx`), ja vie `_tlValitseIdx(nowIdx)`:iin kuten Home. Kuvake on
+sama `_PALUU_SVG` kuin kaavion Nyt-napissa. Tämän päivän kiskolappu
+sanoo "Nyt" eikä "Tänään", koska sen napautus vie nykyhetkeen.
+Mitattu: nappi näkyy menneellä tunnilla, napautus valitsee nyt-tikin
+ja nappi piiloutuu.

@@ -172,7 +172,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/ui.md` | **väriteemaa (Yömeri: paneelit, tokenit, `Teema`, `ink()`)**, **kerrosvalitsinta (neljä ruutua esikatselukuvin) ja sadekerroksen GL-piirtoa (silmukka, häivytykset, B-spline)**, **aaltokerrosta: siru, väri, aallonharjat, aikajana, kapseli, poijukaavion ennuste**, paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa (**toiston liuku, jatkuva päiväkisko, pehmeä valinta ja kelikaista**), kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
-| `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit, kaavion venytys** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V10: yksi kaaviomoottori, kortti moduuleina, fonttilattia, laajan valinta, venytys, mallit laajassa) |
+| `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit, kaavion venytys** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V11: yksi kaaviomoottori, kortti moduuleina, fonttilattia, laajan valinta, venytys, mallit laajassa, **ennustevalikko, kiinteä lukemarivi ja selkeämpi päiväys**) |
 | `docs/sujuvuus.md` | **työpöydän** zoomin ja panoroinnin raskautta, windy.comin arkkitehtuuria, sujuvuusstrategiaa, **MapLibre-siirtoa (C2) ja sen mittauksia** |
 | `docs/julkaisu.md` | **julkaisukelpoisuutta**: UI-parannusten top 25, suositusjärjestys ja logiikan 10 kriittisintä kohtaa (27.9.), ja **osa 4: mitä niistä toteutettiin 28.9. ja mikä jäi auki** (Pages, lisenssit, pohjakartan kieli) — lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 | `docs/graafit.md` | **kaavioiden vuorovaikutusta ja akseleita** (strategia ja toteutus 30.9., V1–V6): hiiren veto, kosketuksen "pidä ja liu'uta", käyrän pehmennys, x- ja y-akselin tiedot joka zoomilla, asteikko ikkunan mukaan — mittaukset (`tools/graafimittaus.mjs`), päätökset P1–P10, vaiheet ja toteutuksen poikkeamat; lue ennen kuin kosket `Tuulikaavio`on, `Aikakaavio`n osoittimeen tai kaavioiden akseleihin |
@@ -451,7 +451,7 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   puhelin ei tarkoita englanninkielistä käyttäjää). Kielten nimet
   omalla kielellään ja omalla `lang`illaan.
 - **`data-en-kaare`, `data-en-nyt`, `data-en-lukema` ja
-  `data-en-vertailu` ovat ENNUSTEosion koukkuja, eivät käännöksiä.**
+  `data-en-pohja` ovat ENNUSTEosion koukkuja, eivät käännöksiä.**
   Käännöskierros lukee vain edellä luetellut attribuutit.
 - **Spottien englanninkielinen kuvaus on datassa (`descEn`)**, ei
   `_t`-kutsuna: `tools/suunnat.html` lukee `SPOTS`-lohkon pelkkänä
@@ -964,14 +964,24 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   `maps.apple.com`, Androidilla `geo:`, muualla Google Mapsin
   reittiosoite; Waze tekstilinkkinä alla. Kaksi tasavertaista nappia ei
   tarjonnut iPhonella Apple Mapsia lainkaan.
-- **KORTIN MALLIVERTAILU ON AVAUTUVA RIVI** ("Vertaa kaaviossa",
-  `.en-vertailu`, `Ennuste._vertailuAuki`): kuusi sirua ja asettelu
-  olivat kahdella rivillä ennen yhtäkään havaintoa. Otsikko erottaa sen
-  asetusten "Kartan mallista" — sama nimi kahdelle eri vaikutukselle
-  oli UI 12. **PARAS EI OLE SIRU** (se ei ollut nappi eikä sitä voi
-  sammuttaa); rivi sanoo `Paras (lähde)`, ja lähde on VALITUN TUNNIN,
-  koska Parasin malli vaihtuu ajan mukana (V10). Sama sirurivi on
-  laajassa (`lahde.tyokalut`), ja tila on yksi (`Ennuste._muuttui`).
+- **KORTIN ENNUSTE VALITAAN VALIKOSTA, PÄÄLLE LISÄTÄÄN VAIN LAAJASSA**
+  (käyttäjän päätös 2.10., docs/spottikortti.md V11). Kaavion yllä on
+  valintakenttä (`.en-pohja`, `Ennuste._pohjaNappiHtml`): nimi ja alla
+  mistä se on; Parasta VALITUN TUNNIN lähde, koska sen malli vaihtuu
+  ajan mukana (V10). Kenttä avaa `Valikko`n (Paras saatavilla + viisi
+  mallia). **Kortilla kaavio näyttää vain valitun ennusteen.** Laajassa
+  sama kenttä valitsee pohjan, ja sen vieressä on "Lisää"-sirurivi
+  muille malleille (enintään 3) — kaikki samaan kaavioon. Tila on yksi
+  (`fs_kortti_mallit` `{ pohja, valitut }`, `Ennuste._muuttui`), eikä
+  pohja ole koskaan päällekkäinen käyrä. **ALLEKKAIN-ASUA EI OLE**
+  (käyttäjä: "turha"); älä palauta sitä äläkä "Vertaa kaaviossa"
+  -riviä. Malli joka ei anna sarjaa sanotaan kortissa — ei vaihdeta
+  hiljaa toiseen ennusteeseen.
+- **`Valikko` ON AVAUTUVIEN LISTOJEN KOMPONENTTI**: `body`n lapsi ja
+  `position: fixed` (moduulin `overflow: hidden` leikkaisi sen),
+  `role="option"`-rivit, nuolet, ohi napautus ja sarkain sulkevat, ja
+  se on globaalin Esc-listan ENSIMMÄINEN. Uusi pudotusvalikko käyttää
+  tätä.
 - **Tähti ja jakonappi ovat PIIRRETTYJÄ** (`_tahtiSVG`, `_JAKO_SVG`),
   eivät ☆/⇗-merkkejä. Jakonappi avaa kosketuslaitteella järjestelmän
   jakoarkin (`navigator.share`) ja kopioi työpöydällä linkin;
@@ -1661,6 +1671,12 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **Sormi kiskolla voittaa** (`_tlKiskoKosketusOma`). Lippu nollataan
   IKKUNASTA, koska kisko rakennetaan uudelleen kesken eleen ja
   alkuperäinen kohde irtoaa DOM:sta.
+- **KUPLAN VIERESSÄ ON PALUUNAPPI NYKYHETKEEN** (`#tl-nyt`, käyttäjän
+  pyyntö 2.10.): kuplan lapsi `left: 100%` (kupla pysyy osoittimen
+  keskellä), kermaympyrä 26 px, osumapinta 44 px. Näkyy VAIN kun
+  valittu tunti ei ole nyt (`_tlKuplaTeksti`, `Ennuste.nytTunti` =
+  `nowIdx`in pyöristys) ja vie `_tlValitseIdx(nowIdx)`:iin kuten Home.
+  Kuvake on `_PALUU_SVG`, sama kuin kaavion Nyt-napissa.
 - **PÄIVÄKISKO ON ALHAALLA JA AINA NÄKYVISSÄ.** Se piiloutui ennen
   neljän sekunnin levossa, koska paperikortilla se oli 30 px kromia
   128:sta. Liukuvärillä korkeus ei maksa karttaa samalla tavalla —
@@ -1748,9 +1764,10 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   joten napautettu päivä asettuu pilleriin keskelle; vajaalla
   reunapäivällä otetaan päivän lähin tunti. Ennen napautus säilytti
   kellonajan ("onko lauantaina yhtä kova kuin tänään viideltä") — se
-  vertailu tehdään nyt vetämällä kiskoa. "Tänään" on poikkeus, koska se
-  on paluu nykyhetkeen (sama kuin Home): klo 12:een se veisi
-  iltapäivällä menneeseen hetkeen. **NAPAUTUS PÄÄTTÄÄ KISKON ELEEN, JA
+  vertailu tehdään nyt vetämällä kiskoa. Tämän päivän lappu on poikkeus,
+  koska se on paluu nykyhetkeen (sama kuin Home): klo 12:een se veisi
+  iltapäivällä menneeseen hetkeen — ja siksi se SANOO "Nyt"/"Now" eikä
+  "Tänään" (käyttäjän päätös 2.10.). **NAPAUTUS PÄÄTTÄÄ KISKON ELEEN, JA
   LIUKU OMISTAA NAUHAT:** napautuksen pointerdown merkitsee sormen
   kiskolle ja nosto ajastaa `_kiskoLoppu`n 140 ms:n päähän — se laukesi
   kesken napautuksen liu'un, luki kiskolta välihetken ja vahvisti sen
@@ -1798,9 +1815,7 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   päivämäärä ovat siis SUORAAN GRAAFIN ALLA ja nuolet sen yläpuolella;
   ennen tuntirivi oli nuolten ja lähteen välissä ylhäällä. Kuvion
   y-koordinaatit tulevat `g`:stä (`ylaY`, `tuntiY`, `paivaY`, `paivaH`)
-  — älä kirjoita niitä lukuina. Allekkain-asussa (useita rivejä) vain
-  VIIMEISELLÄ rivillä on aika-akseli (`otsikot`), ylemmillä ei tuntiriviä
-  eikä päiviä.
+  — älä kirjoita niitä lukuina.
 - **PÄÄVIIVA ON OHUT: 1,7 px kortilla, 1,3 px kun tunti < 3 px**
   (`juovaW`; oli 2,4 / 1,8). Paksu musta viiva peitti alleen mallien
   viivat ja värjäyksen; paksuutta ei saa palauttaa vaan korostus tulee
@@ -1843,8 +1858,11 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   nyt 0 %. Ei vierityskuuntelijaa, selain hoitaa. Laatikko sävytetään
   lauantaina ja sunnuntaina (`.ak-pv-vk`; vain otsikkorivillä —
   piirtoalueella sävy tarkoittaa yötä). Muotoportaikko päivän leveyden
-  mukaan: "Su 27.9." → "27.9." → "Su 27" → "S 27" → "S"; tänään
-  sanoo "Tänään"/"Today". Rivi piiloutuu venytyksen ajaksi (`.venyy`), koska
+  mukaan: "**Sunnuntai** 27.9." → "Su 27.9." → "27.9." → "Su 27" →
+  "S 27" → "S" (viikonpäivä lihava, päiväys himmeämpi); tänään sanoo
+  "Tänään"/"Today" KERMAPILLERISSÄ. **Päiväotsikko on oma kaistansa**
+  (`paivaH` 22, laajassa 25, heikko pohja) ja päiväraja jatkuu sen läpi
+  (2.10., "selkeämpi päiväys"). Rivi piiloutuu venytyksen ajaksi (`.venyy`), koska
   SVG:tä venytetään transformilla eikä sticky venyisi mukana.
   **TUNTITIKIT**: jokainen tunti jolla ei ole lukua saa tikin (≥ 4 px
   välein, muuten 3/6/12 h); loitonnettuna (`askelH` ≥ 24) tuntirivillä
@@ -2032,6 +2050,14 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   lukema palaa 4 s:n päästä. Laajassa sama tieto menee `laaja.rivi`in.
   Lähde on ennusteen tuulisolun NIMESSÄ, ei omana solunaan (rivitti
   puhelimella).
+  **RIVI EI RIVITY EIKÄ KASVA: YKSI RIVI, 54 px, KAIKISSA KAAVIOISSA**
+  (2.10., käyttäjän pyyntö "ei missään tapauksessa kasva
+  pituussuunnassa ja teksti näkyy"). Menneellä tunnilla rivi rivittyi
+  ja kasvoi 48 → 83 px. Sivusolut eivät kutistu, pääsolu ottaa
+  jäljelle jäävän tilan ja vain SEN nimi (lähde) katkeaa kolmeen
+  pisteeseen; kapealla kortilla väli ja pääluku pienenevät
+  (`@container`). Älä palauta `flex-wrap`iä äläkä `min-height`ia, ja
+  mittaa uusi solu 320, 360 ja 390 px:n leveydellä molemmilla kielillä.
   **RIVIN RAKENNE (30.9., käyttäjän pyyntö "parannetaan lukemaruudut")**
   on `Aikakaavio.lukemaHtml(solut)`: solut ovat `{ nimi, arvo, ala,
   aika?, paa?, malli?, vari? }`. `aika` = hetki (päivä pienellä,
@@ -2055,8 +2081,6 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   reunassa; pystysuunnassa se rajataan plotin sisään. Skrubissa pallo
   kasvaa 1,6× ja kursoriviiva on umpinainen 1,2 px. Kupla peittää
   alleen jääviä huippulappuja osoitettaessa — se on tietoinen hinta.
-  Allekkain-asussa jokaisella rivikaaviolla on oma kuplansa oman
-  mallinsa arvolla.
   **SVG:N `visibility="visible"` LAPSESSA VOITTAA VANHEMMAN
   `hidden`IN.** Hover-ryhmän piilotus ei piilottanut palloa, kuplaa
   eikä mallipisteitä, koska niille oli asetettu `visible` itse; osoitin
@@ -2232,11 +2256,10 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   sulkuele siellä sulkisi näkymän aina kun arvoa luetaan. Sivuttain
   vierivissä (mallirivi, kaavio) veto on sulkuele vasta kun se on
   selvästi alaspäin. Napit ohitetaan `closest('button')`illa.
-- **ALLEKKAIN VAIN JOS SE MAHTUU.** Laajan rivit (70 px + pääkaavio
-  120 px) vuotivat puhelimen vaakaruudussa laatikon yli ja alimmat
-  mallit jäivät piiloon; silloin mallit piirretään päällekkäin ja
-  Allekkain-nappi kertoo syyn.
 - **Laajassa lukema on kiinteällä rivillä JA kuplassa pallon vieressä.**
+  Rivi on SAMA komponentti kuin kortilla (`HavLaaja.rivi` →
+  `Aikakaavio.lukemaHtml`); päällekkäiset käyrät ovat toisella
+  kiinteällä rivillä (`.on-mallit`), myös levossa (48 h keskiarvo).
   Rivillä on levossa jakson tilastot ja raahatessa hetken arvot; kupla
   on samalla 24 px:n etäisyydellä kuin kortilla, joten se ei jää
   sormen alle (aiempi HTML-kupla jäi).
