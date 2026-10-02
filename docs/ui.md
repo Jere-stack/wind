@@ -8105,3 +8105,24 @@ viereen. Lappuja z8 9 → 12, z10 9 → 11; päällekkäisyyksiä 0 (mittarin
 yksi "rengas × lappu 2×6" on renkaan laatikon kulma, ei ympyrä), tila
 sama kuudella tunnilla. Suunnan vaihtoja 22 (ennen 14 vähemmillä
 lapuilla); sieto 3 px antoi 32 ja 14 px 17 isommalla raolla.
+
+## Spottimerkki laataksi
+
+Käyttäjän pyyntö 2.10.: uusi muoto spottimerkille, kerma numeron
+päävärinä, luettavuus säilyy, moderni ja ei välttämättä ympyrä. Viisi
+vaihtoehtoa esitettiin samoissa kolmessa karttakohtauksessa (kolme
+zoomia, rypäs havaintolapun vieressä, kirkas lämpökartta): A kerma
+kiekolla, B ontto rengas, C neula, D laatta, E pallo ja numero.
+Käyttäjä valitsi D:n.
+
+- Pyöristetty neliö `--surface-hi`, hiusreuna kerma .30, kulma 0,3 ×
+  koko. Numero `--ink` 750, 0,42 × koko (100: 0,36). Indeksi on
+  alareunan palkki (paksuus max(2,5, 0,09 × koko), ura `--hairline`),
+  joka täyttyy pistemäärän mukaan `spotIndexInk`-värillä.
+- Kontrasti: kerma levyä vasten 12,3:1 joka pohjalla. Levyttömät B ja E
+  olisivat kirkkaalla lämpökartalla 1,3–1,9:1 ilman haloa.
+- Sama `spotMarkerSVG` piirtää kartan, spottikortin heron indeksin
+  (60 px) ja ennustepaneelin merkit (30 ja 42 px).
+- Sijoittelussa täysi spotti on este laatikkona, piste ympyränä.
+  Mitattu Helsingin edustalla z6–z11: päällekkäisyyksiä 0, tila sama
+  kuudella tunnilla. Savutesti ja graafitesti läpi.

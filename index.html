@@ -17116,7 +17116,7 @@ function updateSpotScale(zoom) {
   }
 }
 
-/* SVG circle marker with arc progress bar + score + name */
+/* Spottimerkki: laatta, kermanumero ja indeksipalkki */
 /* Spottimerkki on PAPERIA myös kartalla. Aiemmin tässä oli kaksi muotoa:
    tumma levy neonvihreällä renkaalla kartalle ja paperinen paneeleihin.
    Sama spotti näytti siis eri asialta riippuen siitä mistä sitä katsoi —
@@ -17125,32 +17125,24 @@ function updateSpotScale(zoom) {
    Nyt muotoja on yksi ja musteramppi asuu paperilla, missä se ei osu
    lämpökartan kanssa yhteen. */
 function spotMarkerSVG(score, name, size) {
+  /* LAATTA (käyttäjän valinta 2.10., vaihtoehto D): pyöristetty neliö
+     yömerta, numero kermaa (`--ink`, 12,3:1 levyä vasten) ja indeksi
+     alareunan palkkina joka täyttyy pistemäärän mukaan indeksin värillä.
+     Ennen numero oli indeksin värinen renkaan sisällä; nyt numero on
+     merkin ainoa raskas asia ja palkki luetaan yhdellä silmäyksellä.
+     Sama muoto kartalla, spottikortin heron indeksinä ja
+     ennustepaneelissa. Mitat suhteessa kokoon (36 px:n piirrosta). */
   const col = spotIndexInk(score);
-  /* Viivanpaksuus, säde ja fonttikoko skaalautuvat halkaisijan mukana —
-     muuten pienennetyssä ympyrässä olisi täysikokoinen rengas ja numero,
-     jotka eivät mahtuisi sisään. Suhdeluvut on johdettu alkuperäisestä
-     36px koosta: 3/36 ja 15/36. */
-  const sw = Math.max(2, size * (3 / 36));
-  const R = size / 2 - sw;         /* arc radius */
-  const cx = size / 2, cy = size / 2;
-  const circ = 2 * Math.PI * R;
-  const filled = circ * (score / 100);
-  const gap = circ - filled;
-
-  const scoreStr = String(score);
-  const fontSize = size * (score >= 100 ? 13 / 36 : 15 / 36);
-
+  const s = size, rr = s * 0.3, pad = Math.max(4, s * 0.17);
+  const bw = s - 2 * pad, bh = Math.max(2.5, s * 0.09), by = s - pad * 0.8 - bh;
+  const tayte = Math.max(bh, bw * Math.max(0, Math.min(100, score)) / 100);
+  const fontSize = s * (score >= 100 ? 0.36 : 0.42);
   return (
-    `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">`
-    /* Black bg circle */
-    + `<circle cx="${cx}" cy="${cy}" r="${size/2 - 0.5}" fill="${Teema.pintaHi}" stroke="rgba(240,231,206,.42)" stroke-width="1"/>`
-    /* Track ring */
-    + `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${Teema.viiva}" stroke-width="${sw.toFixed(2)}"/>`
-    /* Progress arc */
-    + `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${col}" stroke-width="${sw.toFixed(2)}" stroke-linecap="round"`
-    + ` stroke-dasharray="${filled} ${gap}" stroke-dashoffset="${circ * 0.25}" transform="rotate(-90 ${cx} ${cy})"/>`
-    /* Score number */
-    + `<text x="${cx}" y="${cy + fontSize*0.35}" text-anchor="middle" font-size="${fontSize.toFixed(2)}" font-weight="700" fill="${col}">${scoreStr}</text>`
+    `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" xmlns="http://www.w3.org/2000/svg">`
+    + `<rect x=".5" y=".5" width="${s - 1}" height="${s - 1}" rx="${rr.toFixed(2)}" fill="${Teema.pintaHi}" stroke="rgba(240,231,206,.30)" stroke-width="1"/>`
+    + `<rect x="${pad.toFixed(2)}" y="${by.toFixed(2)}" width="${bw.toFixed(2)}" height="${bh.toFixed(2)}" rx="${(bh / 2).toFixed(2)}" fill="${Teema.viiva}"/>`
+    + `<rect x="${pad.toFixed(2)}" y="${by.toFixed(2)}" width="${tayte.toFixed(2)}" height="${bh.toFixed(2)}" rx="${(bh / 2).toFixed(2)}" fill="${col}"/>`
+    + `<text x="${s / 2}" y="${(s / 2 + s * 0.08).toFixed(2)}" text-anchor="middle" font-size="${fontSize.toFixed(2)}" font-weight="750" fill="${Teema.ink}">${score}</text>`
     + `</svg>`
   );
 }
@@ -18869,8 +18861,9 @@ function _addObsMarkers(map) {
       });
       SPOTS.forEach(function (sp, i) {
         var q = map.latLngToContainerPoint([sp.lat, sp.lng]);
+        /* Täysi spotti on laatta (neliö), piste ympyrä. */
         var taysi = taydet.charAt(i) === '1', koko = taysi ? rengas : SPOT_PISTE_PX, sade = koko / 2 + 1.5;
-        esteet.push({ l: q.x - sade, t: q.y - sade, r: q.x + sade, b: q.y + sade, rengas: true, ympyra: true, cx: q.x, cy: q.y, sade: sade });
+        esteet.push({ l: q.x - sade, t: q.y - sade, r: q.x + sade, b: q.y + sade, rengas: true, ympyra: !taysi, cx: q.x, cy: q.y, sade: sade });
         if (taysi && z >= SPOT_LABEL_MIN_ZOOM && !nimetPois.has(sp)) {
           var nl = (nimiLev[sp.name] || 64) / 2 + 1;
           esteet.push({ l: q.x - nl, t: q.y + koko / 2 + 2, r: q.x + nl, b: q.y + koko / 2 + 16 });
@@ -18878,7 +18871,9 @@ function _addObsMarkers(map) {
       });
     }
     var spotinAlla = function (p) {
-      return esteet.some(function (e) { return e.rengas && Math.hypot(p.x - e.cx, p.y - e.cy) < e.sade; });
+      return esteet.some(function (e) {
+        return e.rengas && (e.ympyra ? Math.hypot(p.x - e.cx, p.y - e.cy) < e.sade : p.x > e.l && p.x < e.r && p.y > e.t && p.y < e.b);
+      });
     };
     var arvo = function (m) { return m.type === 'wind-prim' || m.type === 'aalto' ? 0 : m.type === 'wind-dot' ? 1 : 2; };
     var jono = _obsMarkers.filter(function (m) {
