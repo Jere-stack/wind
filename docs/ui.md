@@ -8054,3 +8054,26 @@ Emäsalo, Kilpilahti, Kalbådagrund ja Suomenlahden poiju, kaikki ruudun
 sisällä. Helsingin edustalla z6–z11: lappujen päällekkäisyyksiä 0,
 spotin alla 0, tila sama kuudella tunnilla (6/6). Savutesti,
 graafitesti ja pisteiden napautus läpi.
+
+## Kartan merkit, viides erä: lappu lähemmäs ×:ää, harmaa ×, ei hyppimistä
+
+Käyttäjän pyyntö 2.10.: havaintoaseman data lähemmäksi x-merkintää, ×
+harmaammaksi ja pienemmäksi, ja zoomatessa asemat eivät saa hyppiä
+joka puolelle vaan pysyä hyvin valituissa kohdissa.
+
+- **× on 4 px ja harmaa** (`156,162,171` alfa .75, ennen 5 px kermaa
+  .72), ja lapun rako ×:ään on 3 px (ennen 5).
+- **Oma suunta** (`_omaSuunta`): kahdeksasta paikasta se, jonka
+  suunnassa on vähiten spotteja ja asemia 15 km:n sisällä (paino
+  1/(d + 0,3 km)², kosini suuntaan), oikealle pienin lisähinta.
+  Maantieteestä laskettuna se on sama joka zoomilla. Yksin se vei
+  suunnan vaihdot vain 40 → 36, koska kasvavat spottirenkaat varaavat
+  oman suunnan hetkeksi.
+- **Muisti** (`_viimeSuunta`): edellinen suunta kokeillaan ensin, ja
+  jos se on yhä vapaa, lappu ei liiku. Järjestys raoittain: edellinen,
+  oma, muut — ensin 3 ja 9 px, sitten 16 ja 26 px.
+
+Mitattu z8–z11 0,25:n välein Helsingin edustalla ja Kallahti–Emäsalo-
+näkymässä (29 asemaa): suunnan vaihtoja 40 → 14, rako ka 10,3 →
+7,9 px. Päällekkäisyyksiä 0, spotin alla 0, tila sama kuudella
+tunnilla (6/6). Savutesti ja graafitesti läpi.

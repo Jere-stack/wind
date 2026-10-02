@@ -4861,7 +4861,7 @@ html.tyopoyta .hl-lk-arvo { font-size: 19px; }
 /* ── KARTAN MERKIT: PISTEET, × JA ESIINTULO (1.10., 2.10.) ─────────
  * Suomen koossa (alle z7) jokainen spotti ja asema on piste. Väistynyt
  * spotti on 7 px:n harmaa piste, asema lukemansa zoomin alla 5 px:n ja
- * alle z7 4 px:n himmeä piste. Sijainnin × on 5 px eikä ota kosketuksia. */
+ * alle z7 4 px:n himmeä piste. Sijainnin × on 4 px, harmaa, eikä ota kosketuksia. */
 /* PISTEET OVAT NEUTRAALIN HARMAITA, EIVÄT KERMAA (käyttäjän päätös
  * 2.10.): spotin piste 7 px kirkkaampi, aseman 4–5 px himmeämpi, ja
  * molemmilla tumma hiusreuna kartan päällä. Osumapinta on pseudo-
@@ -4884,11 +4884,12 @@ html.tyopoyta .hl-lk-arvo { font-size: 19px; }
 }
 .kauko-pallo::after { inset: -7px; }
 .sijainti-x {
-  position: absolute; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; pointer-events: none;
+  /* 4 px ja harmaa (käyttäjän pyyntö 2.10.: "ei paista niin paljoa"). */
+  position: absolute; width: 4px; height: 4px; margin: -2px 0 0 -2px; pointer-events: none;
   background:
-    linear-gradient(45deg, transparent calc(50% - .5px), rgba(240,231,206,.72) calc(50% - .5px), rgba(240,231,206,.72) calc(50% + .5px), transparent calc(50% + .5px)),
-    linear-gradient(-45deg, transparent calc(50% - .5px), rgba(240,231,206,.72) calc(50% - .5px), rgba(240,231,206,.72) calc(50% + .5px), transparent calc(50% + .5px));
-  filter: drop-shadow(0 0 1px rgba(6,9,18,.95));
+    linear-gradient(45deg, transparent calc(50% - .5px), rgba(156,162,171,.75) calc(50% - .5px), rgba(156,162,171,.75) calc(50% + .5px), transparent calc(50% + .5px)),
+    linear-gradient(-45deg, transparent calc(50% - .5px), rgba(156,162,171,.75) calc(50% - .5px), rgba(156,162,171,.75) calc(50% + .5px), transparent calc(50% + .5px));
+  filter: drop-shadow(0 0 1px rgba(6,9,18,.9));
 }
 .sijainti-x.sijainti-pallo { width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; filter: none;
   background: #8E96A3; box-shadow: 0 0 0 1px rgba(6,9,18,.7); opacity: .9; }
@@ -18818,7 +18819,37 @@ function _addObsMarkers(map) {
    *
    * Aseman tarkka sijainti on pieni × merkin omana lapsena (ei erillistä
    * merkkiä), ja se jätetään pois jos se osuisi spotin renkaan alle. */
-  var SIJOITUS_RAKO = 5;
+  var SIJOITUS_RAKO = 3;
+  /* Aseman lapun oma suunta (indeksi paikkalistaan: oikea, vasen, ylös,
+     alas, oikea-ylä, oikea-ala, vasen-ylä, vasen-ala). Naapurit ovat
+     spotit ja muut asemat 15 km:n sisällä painolla 1/(d + 0,3 km)²;
+     suunta jossa naapureita on vähiten, oikealle pienin lisähinta
+     (vaakalappu lukee luontevimmin oikealla). Muistetaan merkkiin, koska
+     sijainnit eivät muutu. */
+  var _SUUNNAT = [[1, 0], [-1, 0], [0, -1], [0, 1], [.9, -.45], [.9, .45], [-.9, -.45], [-.9, .45]];
+  var _SUUNTA_HINTA = [0, .05, .15, .15, .08, .08, .12, .12];
+  function _omaSuunta(m) {
+    /* Muisti mitätöityy kun asemia tulee lisää (poijut ja UiRaS saapuvat
+       FMI:n jälkeen), muuten varhain laskettu suunta ei näkisi niitä. */
+    if (m._omaSuunta != null && m._omaSuuntaN === _obsMarkers.length) return m._omaSuunta;
+    m._omaSuuntaN = _obsMarkers.length;
+    var ll = m.marker.getLatLng(), kx = 111.32 * Math.cos(ll.lat * Math.PI / 180), naapurit = [];
+    (typeof SPOTS !== 'undefined' ? SPOTS : []).forEach(function (sp) { naapurit.push([sp.lat, sp.lng]); });
+    _obsMarkers.forEach(function (o) { if (o !== m && o.marker) { var q = o.marker.getLatLng(); naapurit.push([q.lat, q.lng]); } });
+    var pisteet = [0, 0, 0, 0, 0, 0, 0, 0], yht = 0;
+    naapurit.forEach(function (q) {
+      var dx = (q[1] - ll.lng) * kx, dy = -(q[0] - ll.lat) * 110.57, d = Math.hypot(dx, dy);
+      if (d < 0.02 || d > 15) return;
+      var p = 1 / ((d + 0.3) * (d + 0.3)); yht += p;
+      _SUUNNAT.forEach(function (u, i) { pisteet[i] += p * Math.max(0, (u[0] * dx + u[1] * dy) / (Math.hypot(u[0], u[1]) * d)); });
+    });
+    var paras = 0;
+    for (var i = 0; i < 8; i++) {
+      pisteet[i] += _SUUNTA_HINTA[i] * yht;
+      if (pisteet[i] < pisteet[paras] - 1e-9) paras = i;
+    }
+    return (m._omaSuunta = paras);
+  }
   function _sijoitteleHavainnot() {
     var z = map.getZoom();
     var esteet = [];
@@ -18872,14 +18903,25 @@ function _addObsMarkers(map) {
       if (!x) { x = document.createElement('span'); x.className = 'sijainti-x'; x.setAttribute('aria-hidden', 'true'); el.appendChild(x); }
       x.style.left = ax + 'px'; x.style.top = ay + 'px';
       var renkaanAlla = spotinAlla(p);
-      /* Paikat porrastetusti kauemmas: ensin 5 px:n rako, sitten 12,
-         20 ja 28 px. Spotin vieressä (Emäsalo 180 m, Kruunuvuorenselkä)
-         lähin kehä on kokonaan renkaan sisällä, ja ennen lappu jäi
-         silloin pisteeksi joka zoomilla. */
-      var paikat = [];
-      [SIJOITUS_RAKO, 12, 20, 28].forEach(function (R) {
-        paikat.push([R, -h / 2], [-R - w, -h / 2], [-w / 2, -h - R], [-w / 2, R],
-                    [R, -h - 3], [R, 3], [-R - w, -h - 3], [-R - w, 3]);
+      /* PAIKAT: ASEMAN OMA SUUNTA ENSIN, LÄHELTÄ KAUAS (käyttäjän pyyntö
+         2.10.: "data lähemmäksi x-merkintää" ja "eivät hyppisi zoomatessa").
+         Suunta lasketaan maantieteestä (`_omaSuunta`: poispäin lähimmistä
+         spoteista ja asemista), joten se on sama joka zoomilla ja ennen
+         kaikkea sama kuin edellisellä zoomilla. Järjestys: oma suunta 3 ja
+         9 px:n raolla, muut suunnat samoilla, sitten 16 ja 26 px (spotin
+         viereinen asema: Emäsalo 180 m, Kruunuvuorenselkä). */
+      /* Edellinen suunta ensin: jos se on yhä vapaa, lappu ei liiku
+         (zoomatessa renkaat kasvavat ja oma suunta voi olla hetken
+         varattu — ilman muistia lappu palaisi heti ja hyppisi). */
+      var oma = _omaSuunta(m), ens = m._viimeSuunta != null ? m._viimeSuunta : oma, paikat = [];
+      var jarjestys = [ens].concat(ens !== oma ? [oma] : []);
+      var suunnat = function (R) {
+        return [[R, -h / 2], [-R - w, -h / 2], [-w / 2, -h - R], [-w / 2, R],
+                [R, -h - 3], [R, 3], [-R - w, -h - 3], [-R - w, 3]];
+      };
+      [[SIJOITUS_RAKO, 9], [16], [26]].forEach(function (rakot) {
+        jarjestys.forEach(function (j) { rakot.forEach(function (R) { paikat.push(suunnat(R)[j].concat(j)); }); });
+        rakot.forEach(function (R) { suunnat(R).forEach(function (q, i) { if (jarjestys.indexOf(i) < 0) paikat.push(q.concat(i)); }); });
       });
       /* Ensin paikat jotka mahtuvat ruudulle, sitten muut: ruudun reunalla
          ensimmäinen vapaa paikka oli usein reunan yli (Emäsalo z9,8). */
@@ -18892,6 +18934,7 @@ function _addObsMarkers(map) {
         }
       }
       if (valittu) {
+        m._viimeSuunta = valittu[2];
         inner.style.visibility = '';
         inner.style.transform = 'translate(' + Math.round(valittu[0] + ax) + 'px,' + Math.round(valittu[1] + ay) + 'px)';
         x.className = 'sijainti-x';
