@@ -7949,3 +7949,37 @@ Toissijaiset rantalämpötilat ja rantalämpötilat ilman lukemaa ovat
 palloja myös lähellä (niillä ei ole lappua). Rajan alla tieto siitä,
 missä keli on hyvä, ei näy kartalta — se on käyttäjän valinta.
 
+## Kartan merkit, toinen erä: lukemat taas kaukaa
+
+Käyttäjän päätös 2.10.: "otetaan steppi taaksepäin" — spotit ja
+havainnot näkyviin myös ulommalla zoomilla, väistö vasta kun merkit
+osuvat toisiinsa, ja uloimman zoomin asemamerkit pienemmiksi ja
+harmaammiksi.
+
+- **Spotit**: numero z5:stä. Päällekkäinen spotti väistyy väärittömäksi
+  palloksi kiinteässä järjestyksessä (suosikit, `SPOTS`), ei
+  pistemäärän mukaan. z10:stä kaikki täysiä, kuten 1.10.
+- **Asemat**: lukemat taas porrastettuina (meri ja poiju 8, vesi 9,
+  maa 10). `_sijoitteleHavainnot` toimii nyt jokaisella zoomilla ja
+  väistää spottien todellista tilaa; lappu jolle ei ole tilaa jää
+  palloksi.
+- **Pallot**: alle z7 6 px, harmaa, ilman ruksia, opasiteetti .6 (alle
+  z5 .45); z7:stä lukeman zoomiin 8 px ja ×.
+
+Mitattu Helsingin edustalla, kaikki havaintokerrokset päällä:
+
+```
+z    renkaat  spottipallot  laput  palloksi  spotin alla  päällekkäin
+6       3          9           0       0          0            0
+7       5          7           0       0          0            0
+8       4          6           7       0          0            0
+9       6          3           5       0          0            0
+10      8          0           5       1          0            0
+11      5          0           5       1          0            0
+```
+
+Spottien ja lappujen tila sama kuudella tunnilla z8:lla, z9:llä ja
+z10:llä (6/6). Napautus: täysi spotti z8 → z10 ja kortti auki,
+asemapallo z6 → z8 (lukeman zoom), kortti kiinni. Savutesti ja
+graafitesti läpi.
+

@@ -292,7 +292,8 @@ kokeiltu ja kaadettu mittauksella.
   **Sade neljänneksi kerrokseksi: GL-sadekerros ja esikatselukuvat** ·
   **Yömeri: valikot ja kaaviot kuvakkeen väreihin** ·
   **Yömeri, toinen erä: asetukset, kortit, sääikonit, spottien väistö** ·
-  **Kartan merkit: pallot kaukana, yksi raja ja sijoittelu**
+  **Kartan merkit: pallot kaukana, yksi raja ja sijoittelu** ·
+  **Kartan merkit, toinen erä: lukemat taas kaukaa**
 - **pwa**: PWA — kotivalikkoon ja rannalle · Mitä välimuistiin menee ·
   Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
   Ikoni ja kotivalikko
@@ -366,7 +367,7 @@ mitä työpöydällä pitikin tapahtua. Kaikki laitekohtainen mittaus vaatii
 kosketussäätö siirtää sen lähimpään maalattuun kohteeseen.
 
 **Leaflet-zoom on MapLibre-zoom + 1 (`ZOOM_ERO`).** Kaikki sovelluksen
-kynnykset (`LUKEMA_Z`, `REUNUS_MIN_Z`, `laattaStep`, `uloinZoom`) ovat
+kynnykset (`LUKEMA_Z_MERI` ym., `REUNUS_MIN_Z`, `laattaStep`, `uloinZoom`) ovat
 Leaflet-asteikolla, ja `KarttaGL` kääntää rajalla. Jos kutsut `map.ml`:ää
 suoraan, käännä itse — muuten jokainen kynnys osuu tason verran väärin.
 
@@ -2363,16 +2364,16 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   tuuliasteikko; 0,4 m siitä värjättynä sanoisi "0,4 m/s".
 - **Aaltopillerin glyfi ei ole vedenlämmön glyfi.** `_pilleri` antaa saman
   pinnan kaikille, joten glyfi on ainoa mikä kertoo suureen.
-- **KAIKKI LUKEMAT TULEVAT NÄKYVIIN SAMALLA ZOOMILLA (`LUKEMA_Z` =
-  `SPOT_KAIKKI_Z` = 10, Leaflet-asteikko), käyttäjän päätös 1.10.**
-  Porrastus (meri ja poiju 8, vesi 9, maa 10) näytti satunnaiselta.
-  Rajan alla jokainen asema on sama 9 px:n pallo jossa on ×
-  (`_kaukoPallo`, `.kauko-pallo`) ja spotti 10 px:n VÄRITÖN pallo
-  (`.spot-pallo`) — käyttäjä ei halunnut indeksin väriä kaukaisiin
-  spotteihin. Rajan ylittyessä lukema tulee 0,22 s:n häivytyksellä
-  (`.merkki-esiin`, vain tilan vaihtuessa, ei tunnin askeleella).
-  KAUKAINEN PALLO ZOOMAA RAJALLE EIKÄ AVAA KORTTIA (`Merkki`-optio
-  `zoomaaAlle`); 9–10 px:n kohde ei osu rykelmässä oikeaan.
+- **LUKEMAT TULEVAT NÄKYVIIN PORRASTETUSTI: MERI JA POIJU z8, VESI z9,
+  MAA z10** (`LUKEMA_Z_MERI/VESI/MAA`, Leaflet-asteikko; käyttäjän
+  päätös 2.10. — 1.10.:n "yksi raja z10" peruttiin, koska kaukaa ei
+  nähnyt mitään). Päällekkäisyyden hoitaa sijoittelu (alla), ei
+  kynnys. Lukeman zoomin alla asema on pallo (`_kaukoPallo`):
+  z7:stä 8 px ja ×, uloimmalla zoomilla (alle z7) 6 px:n HARMAA pallo
+  ilman ruksia ja himmeämpi (`.kauko-pallo-pieni`, porras
+  `_palloPorras` myös allekirjoituksessa). Pallon napautus zoomaa
+  aseman lukeman zoomiin (`Merkki`-optio `zoomaaAlle`). Lukema tulee
+  0,22 s:n häivytyksellä (`.merkki-esiin`, vain tilan vaihtuessa).
 - **Aaltokaavio on sama moottori kuin muut** (V8): 7 vrk haetaan
   kerralla (`AALTO_HISTORIA_H`) ja vieritetään, napautettu lukema jää
   lukemariville 4 s:ksi, ja suunta (MISTÄ) piirtyy suuntariville.
@@ -2380,13 +2381,14 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   (nyt MapLibren `Marker`-elementti, `Merkki._el`) kantaa
   `translate`-sijainnin eikä liiku väistön mukana — kuoresta mitattu
   peitto valehtelee.
-- **SPOTEILLA EI OLE VÄISTÖÄ: ALLE z10 KAIKKI OVAT PALLOJA, SIITÄ
-  YLÖS KAIKKI TÄYSIÄ** (käyttäjän raportit ja päätös 1.10.). Väistö
-  järjesti ennen tunnin pistemäärän mukaan, joten 1,9 km:n päässä olevat
-  Munkkiniemi ja Otaniemi vaihtoivat täyttä merkkiä ja pistettä joka
-  askeleella. Päällekkäisestä parista väistyy vain NIMI
-  (`_spotNimetPois`, kiinteä järjestys `_spotJarjestys`: suosikit, sitten
-  `SPOTS`). Älä tee mistään merkin tilasta lukeman funktiota.
+- **SPOTIT OVAT NUMEROINA z5:STÄ, VÄISTÖ VAIN KUN MERKIT OSUVAT, JA
+  z10:STÄ KAIKKI TÄYSIÄ** (käyttäjän raportit ja päätökset 1.–2.10.).
+  Väistö järjesti ennen tunnin pistemäärän mukaan, joten 1,9 km:n päässä
+  olevat Munkkiniemi ja Otaniemi vaihtoivat täyttä merkkiä ja pistettä
+  joka askeleella. Nyt järjestys on kiinteä (`_spotJarjestys`:
+  suosikit, sitten `SPOTS`), väistynyt spotti on väritön 10 px:n pallo
+  (napautus zoomaa z10:een), ja z10:stä ylös väistyy vain NIMI
+  (`_spotNimetPois`). Älä tee mistään merkin tilasta lukeman funktiota.
 - **ASEMIEN LUKEMAT SIJOITTAA YKSI FUNKTIO (`_sijoitteleHavainnot`)**,
   joka korvasi Kruunuvuorenselän `_avoidSpotOverlap`in ja poijujen
   `_aaltoVaisto`n. Spottirengas on aina tarkassa sijainnissaan; lappu
@@ -2398,10 +2400,12 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   (`.sijainti-x`, ei kosketuksia); erillistä ruksimerkkiä
   (`_addStationDot`) ei enää ole. MITÄÄN EI PIIRRETÄ SPOTIN ALLE: ×
   ja asemapallo jäävät pois renkaan (tai kaukana spottipallon) päältä.
-  Mitattu Helsingin edustalla z7–z12 kaikki kerrokset päällä:
-  päällekkäisyyksiä 0, spotin alla 0, ja lappujen paikat samat kuudella
-  eri tunnilla (z10 ja z11). Ajetaan uudelleen `_applyMapLayers`issa ja
-  `updateIcons`in lopussa (zoomend).
+  Esteenä on spotin TODELLINEN merkki (rengas vai pallo,
+  `State._spotTaydetAvain`). Mitattu 2.10. Helsingin edustalla z6–z11
+  kaikki kerrokset päällä: päällekkäisyyksiä 0, spotin alla 0, ja
+  spottien ja lappujen tila sama kuudella eri tunnilla (z8, z9, z10).
+  Ajetaan `_applyMapLayers`issa, `updateIcons`in lopussa (zoomend) ja
+  `renderSpots`in lopussa.
 - **Spottikortin aaltorivin raja on 60 km**, ja se on aukko mitatussa
   jakaumassa (kymmenen spottia 5–35 km, Hangon kaksi 114 ja 119 km).
   Rivillä on aina poijun nimi ja etäisyys — muuten se väittäisi
