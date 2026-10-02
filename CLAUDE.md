@@ -2401,15 +2401,21 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   `_aaltoVaisto`n. Spottirengas on aina tarkassa sijainnissaan; lappu
   ottaa ensimmäisen vapaan paikan kiinteästä listasta (oikea, vasen,
   ylös, alas, vinot, 5 px:n rako), esteinä spottien renkaat ja nimet
-  ja jo sijoitetut laput. Paikat on porrastettu kauemmas (rako 5, 12,
-  20, 28 px), koska spotin vieressä oleva asema (Emäsalo 180 m,
+  ja jo sijoitetut laput. LAPPU EI HYPI ZOOMATESSA (käyttäjän pyyntö
+  2.10.): ensin EDELLINEN suunta (`_viimeSuunta`) jos se on yhä vapaa,
+  sitten aseman OMA suunta (`_omaSuunta`: maantieteestä, poispäin
+  lähimmistä spoteista ja asemista, sama joka zoomilla), sitten muut.
+  Mitattu z8–z11 neljännestasoin kahdessa näkymässä: suunnan vaihtoja
+  40 → 14 (29 asemaa), lapun rako ×:ään 10,3 → 7,9 px. Rako on 3 px
+  (`SIJOITUS_RAKO`), ja × on 4 px ja harmaa (`156,162,171` .75).
+  Paikat on porrastettu kauemmas (rako 3, 9, 16, 26 px), koska spotin vieressä oleva asema (Emäsalo 180 m,
   Kruunuvuorenselkä) jäi lähimmällä kehällä renkaan alle ja pisteeksi
   joka zoomilla, ja RUUDULLE MAHTUVAT paikat kokeillaan ensin (lappu
   meni Kallahti–Emäsalo-näkymässä reunan yli); siksi sijoittelu
   ajetaan myös `moveend`issä. Järjestys on kiinteä (meri ja poiju,
   maa, vesi; nimen mukaan) — EI lukeman mukaan. Lappu jolle ei ole
   tilaa jää palloksi. Vedenlämmön lukema näkyy KAIKILLA UiRaS-
-  asemilla z9:stä (myös ei-`prim`, kuten Kallahden asemat). Tarkka sijainti on 5 px:n × merkin omana lapsena
+  asemilla z9:stä (myös ei-`prim`, kuten Kallahden asemat). Tarkka sijainti on 4 px:n harmaa × merkin omana lapsena
   (`.sijainti-x`, ei kosketuksia); erillistä ruksimerkkiä
   (`_addStationDot`) ei enää ole. MITÄÄN EI PIIRRETÄ SPOTIN ALLE: ×
   ja asemapallo jäävät pois renkaan (tai kaukana spottipallon) päältä.
