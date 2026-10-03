@@ -1578,3 +1578,54 @@ joka ajolla. Esimerkiksi hero 375 px:llä oli oikealla datalla neljää
 korkeutta ja istutetulla viittä — vika on sama, ja mittarin luku on
 toistettava.
 
+#### V13 — laaja: Vertaa-valikko, mallit lukemarivillä, kiinteä rivi ja kupla
+
+- **Vertaa-valikko (P12).** "Lisää"-sirurivi poistui. Työkalurivillä on
+  ennustevalikon (nyt yksirivinen) vieressä "Vertaa"-nappi, joka avaa
+  `Valikko`n monivalintana (`moni: true`): rivin edessä käyrän
+  viivanäyte, oikealla valintaruutu, valinta ei sulje valikkoa, ja kun
+  kolme on valittu, muut rivit ovat pois käytöstä ja valikon alarivi
+  sanoo miksi ("Enintään 3 mallia kerrallaan — poista ensin yksi").
+  Napissa on valittujen määrä merkkinä, jonka paikka on varattu, joten
+  nappi ei kasva ensimmäisestä valinnasta. Kartan pakottama malli toimii
+  kuten ennen (sen poisto piilottaa sen istunnoksi), ja `valitut()` on
+  rajattu kolmeen myös pakotuksen kanssa.
+- **Mallit lukemarivin soluina.** Valittu malli on rivillä samanlainen
+  solu kuin tuuli ja puuska (nimi ja viivanäyte ylhäällä, arvo alla,
+  `data-lk-malli`), joten rivi on samalla käyrien selite. Kapeassa
+  laajassa (`.hl-lukema` alle 600 px, `@container`) mallit ovat omalla
+  rivillään, joka on aina olemassa — ilman malleja siinä on "Vertaa
+  malleja ⌄", joka avaa saman valikon (ankkuroituna työkalurivin
+  nappiin, joka säilyy valintojen yli) — ja rivi on 98 px; leveässä
+  mallit ovat samalla rivillä hiusviivan takana ja rivi on 54 px.
+- **Levossa valittu tunti.** 48 h:n keskiarvot ("Keskituuli 48 h",
+  "ECMWF ka") poistuivat: samat solut levossa ja osoittaessa, vain
+  luvut vaihtuvat.
+- **Kiinteät sarakkeet.** Luku on oikealle tasattu kiinteään leveyteen
+  (`.en-luku`, 2,25 em, tasalevyiset numerot), suunta omaan
+  sarakkeeseensa (`.en-suunta`, 3,1 em — 2,7 em ei riittänyt
+  englannin "NW":lle, ja leveä rivi siirtyi 2 px), aikasolun nimi on
+  pisimmän päiväyksen levyinen (5,7 em), ja puuskasolu on aina
+  olemassa ("–"). "Mennyt · " ja tuulisolun lähde poistuivat.
+- **Kupla jää, kiinteän kokoisena** (P11, käyttäjän päätös): rivit ovat
+  kiinteät kaaviota kohti ("–" puuttuvalle), leveys mitataan kerran
+  piirtoa kohti pisimmästä mahdollisesta rivistä
+  (`getComputedTextLength`, sarjan suurin ja pienin arvo ja leveimmät
+  ilmansuunnat), puoli vaihtuu vain kun kupla ei mahdu sille puolelle,
+  ja kupla rajataan näkyvään piirtoalueeseen kiinteän y-akselin
+  oikealle puolelle.
+
+Mitattu (`--osat=laaja`, 12 tapausta; lähtötaso → V13):
+
+| mittari | lähtötaso | V13 |
+|---|---|---|
+| lukemarivi 0–3 mallilla, levossa ja osoittaessa | 62 / 88 px kaikilla | yksi arvo: pysty 106 px (rivi 98 + täyte), vaaka, iPad ja työpöytä 62 px (54 + täyte) |
+| kaavion korkeus | lyheni 26 px ensimmäisestä mallista | yksi arvo (esim. 390 px pysty 611, vaaka 844 247 px) |
+| valittujen mallien solut näkyvissä | 28–80 % | 100 % kaikilla, myös englanniksi 320–360 px:llä |
+| mallien valinta näkyvissä | ICON 0–14 %, GFS 0 % puhelimilla | 100 % (Vertaa-nappi) |
+| lukemarivin solujen paikat | 4–6 asettelua | 1 |
+| kupla | kaksi leveyttä mallimäärää kohti, 320 px:llä 19 px reunan yli | yksi koko (esim. 113 × 41…89 px), aina piirtoalueen sisällä, tekstit kuplan sisällä |
+| puoliksi näkyvät tekstit | 6+ (mallirivi, sirut, kaavio) | 2–6, kaikki kaaviosta: "sade mm/h", lähdekaista, tuntipilleri, lämpörivi — V16 |
+
+`tools/graafimittaus.mjs` ja `tools/savutesti.mjs` läpi.
+

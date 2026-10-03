@@ -2629,10 +2629,11 @@ html.tyopoyta {
    sita, ja kokonaytossa juuri sormen alle jaava kupla oli suurin
    syy siihen ettei lukemaa nahnyt. */
 .hl-lukema { padding: 2px 12px 6px; flex-shrink: 0; }
-.hl-lukema { touch-action: none; }
-/* LAAJAN MALLIRIVI: sama sisältö kuin kortin "Vertaa kaaviossa",
-   mutta yhtenä vieritettävänä rivinä — puhelimen vaakaruudussa kaksi
-   riviä sirujen alla olisi vienyt kaaviolta 40 px lisää. */
+/* Säiliö: vertailumallit ovat leveässä (≥ 600 px) samalla rivillä ja
+   kapeassa omallaan (`.en-lk-mallit`, V13). */
+.hl-lukema { touch-action: none; container-type: inline-size; }
+/* LAAJAN TYÖKALURIVI: kaavion ennuste (valikkokenttä) ja Vertaa-nappi.
+   Otsikkorivillä vaakaruudussa, omana rivinään pystyssä. */
 .hl-tyokalut { flex: 0 1 auto; min-width: 0; max-width: 62%; }
 .hl-tyokalut[hidden] { display: none; }
 /* Zoom-napit hiirilaitteella (docs/graafit.md, V2): kortin työkalurivin vastine. */
@@ -2643,16 +2644,25 @@ html.tyopoyta {
   .hl-yla { flex-wrap: wrap; row-gap: 6px; }
   .hl-tyokalut { order: 10; flex: 1 1 100%; max-width: none; padding-bottom: 2px; }
 }
-.hl-mallit {
-  flex-wrap: nowrap; margin: 0; overflow-x: auto; overflow-y: hidden;
-  scrollbar-width: none; touch-action: pan-x; overscroll-behavior-x: contain;
+.hl-tyokalut:not([hidden]) { display: flex; align-items: center; gap: 6px 8px; flex-wrap: nowrap; }
+/* VERTAA-NAPPI (P12): sama kenttämuoto kuin ennustevalikko vieressään.
+   Lukumäärän paikka on aina varattu (`visibility`), jottei nappi kasva
+   ensimmäisestä valinnasta. */
+.en-vertaa {
+  display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; min-height: 38px; box-sizing: border-box;
+  padding: 3px 10px 3px 12px; border-radius: 12px; cursor: pointer;
+  background: var(--surface-lo); border: 1px solid var(--hairline-soft); color: var(--ink);
+  font-size: 13px; font-weight: 600; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
 }
-.hl-mallit::-webkit-scrollbar { display: none; }
-.hl-mallit .en-siru { flex-shrink: 0; }
-.hl-tyokalut:not([hidden]) { display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; }
-.en-lisaa { display: flex; align-items: center; gap: 8px; flex: 1 1 0; min-width: 0; }
-.hl-tyokalut .en-mallit.hl-mallit { flex: 1 1 0; min-width: 0; flex-wrap: nowrap; margin: 0; }
-@media (orientation: portrait) { .en-lisaa { flex-basis: 100%; } }
+.en-vertaa:hover, .en-vertaa[aria-expanded="true"] { border-color: var(--hairline); background: var(--surface); }
+.en-vertaa:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.en-vertaa[aria-expanded="true"] .en-pohja-nuoli { transform: rotate(180deg); }
+.en-vertaa-n {
+  min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 9px;
+  background: var(--ink); color: var(--surface); font-size: 11px; font-weight: 700; line-height: 18px; text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.en-vertaa-n[hidden] { display: inline-block; visibility: hidden; }
 /* Sivutayte on pieni tarkoituksella: kortin kaavio vuotaa 22 px omaan
    tayteeseensa (`margin-left:-22px`), joten liian leveä täyte tekisi
    LAAJENNETUSTA kaaviosta kapeamman kuin se oli kortilla — mitattuna
@@ -4563,10 +4573,6 @@ h3.fc-day-label { margin: 0; }
 }
 .segmentti > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .segmentti-pieni > button { padding: 3px 8px; min-height: 24px; font-size: var(--fs-9); }
-.en-mallit {
-  display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: var(--v-2) 0 0;
-}
-.en-mallit[hidden] { display: none; }
 /* ENNUSTEVALIKON KENTTÄ (2.10.): nimi ja sen alla mistä se on, nuoli
    oikealla — valintakenttä eikä sirurivi. Sama kenttä kortilla ja
    laajassa (`.en-pohja-laaja` on matalampi). */
@@ -4587,10 +4593,6 @@ h3.fc-day-label { margin: 0; }
 .en-pohja[aria-expanded="true"] .en-pohja-nuoli { transform: rotate(180deg); }
 .en-pohja-laaja { width: auto; max-width: 240px; flex: 0 1 auto; min-height: 38px; padding: 3px 10px; margin: 0; }
 .en-pohja-laaja .en-pohja-nimi { font-size: 13px; }
-.en-mallit-otsikko {
-  flex-shrink: 0; font-size: max(11px, var(--fs-10)); font-weight: 600; color: var(--ink-3);
-  text-transform: uppercase; letter-spacing: .06em; white-space: nowrap;
-}
 /* VALIKKO (`Valikko`): kelluva lista napin alla, Yömeren korotettu
    pinta. Kartan päällä kelluva → reuna ja varjo pysyvät (CLAUDE.md,
    "PANEELIN KORTTI ON PINTA, EI KEHYS" koskee paneelin sisäisiä kortteja). */
@@ -4618,15 +4620,15 @@ h3.fc-day-label { margin: 0; }
 .valikko-nimi { font-size: 14px; font-weight: 500; }
 .valikko-ala { font-size: max(11px, var(--fs-10)); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .valikko-merkki { width: 16px; height: 16px; flex-shrink: 0; color: var(--accent); }
-.en-siru {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: var(--fs-11); color: var(--ink-2); white-space: nowrap;
-  padding: 4px 10px 4px 8px; min-height: 30px; border-radius: 15px;
-  background: transparent; border: 1px solid var(--hairline); cursor: pointer;
-}
-.en-siru[aria-pressed="true"] { background: var(--surface-hi); color: var(--ink); border-color: var(--ink-3); font-weight: 600; }
-.en-siru[aria-pressed="false"] .en-naute { opacity: .45; }
-.en-siru:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* Monivalinta (laajan Vertaa, P12): valintaruutu oikealla, viivanäyte
+   vasemmalla, ja täynnä ollessa valitsemattomat rivit himmenevät ja
+   alarivi kertoo miksi. */
+.valikko-moni .valikko-merkki { width: 18px; height: 18px; }
+.valikko-naute { flex: 0 0 auto; display: inline-flex; width: 20px; justify-content: center; }
+.valikko-rivi[aria-disabled="true"] { cursor: default; }
+.valikko-rivi[aria-disabled="true"] .valikko-teksti, .valikko-rivi[aria-disabled="true"] .valikko-naute { opacity: .45; }
+.valikko-huom { padding: 6px 10px 4px; font-size: max(12px, var(--fs-10)); color: var(--ink-2); line-height: 1.35; }
+.valikko-huom[hidden] { display: none; }
 /* NYT-NAPPI: pieni pilleri otsikkorivissä, näkyy vain kun valinta tai
    näkymä on muualla kuin nykyhetkessä. */
 .en-nyt {
@@ -4660,16 +4662,40 @@ h3.fc-day-label { margin: 0; }
   font-variant-numeric: tabular-nums;
 }
 .en-lukema.osoitettu { background: var(--surface-lo); }
-/* Laajan päällekkäiset käyrät: toinen kiinteä rivi (yhteensä 78 px). */
-.en-lukema.on-mallit { flex-wrap: wrap; align-content: flex-start; height: 80px; }
+/* LAAJAN VERTAILUMALLIT LUKEMARIVILLÄ (V13, P12). Kapeassa (pysty)
+   mallit ovat AINA olemassa olevalla toisella rivillä — ilman malleja
+   siinä on "Vertaa malleja" — joten rivi on 98 px mallien määrästä
+   riippumatta; leveässä (≥ 600 px) ne ovat samalla rivillä hiusviivan
+   takana ja rivi on 54 px kuten muissa kaavioissa. Ennen ensimmäinen
+   malli kasvatti riviä 54 → 80 px ja lyhensi kaaviota saman verran. */
+.en-lukema.on-mallit { flex-wrap: wrap; align-content: flex-start; height: 98px; }
 .en-lk-mallit {
-  flex: 0 0 100%; display: flex; flex-wrap: nowrap; gap: 0 14px; align-items: baseline; overflow: hidden;
-  margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--hairline); height: 17px;
+  flex: 0 0 100%; display: flex; flex-wrap: nowrap; gap: 0 14px; align-items: flex-end;
+  height: 40px; box-sizing: border-box; margin-top: 6px; padding-top: 7px; border-top: 1px solid var(--hairline);
 }
-.en-mallisolu { display: inline-flex; align-items: baseline; gap: 4px; font-size: 13px; white-space: nowrap; flex-shrink: 0; }
-.en-mallisolu i { width: 8px; height: 8px; border-radius: 50%; background: var(--mv); align-self: center; flex: none; }
-.en-mallisolu-nimi { font-weight: 600; color: var(--mv); }
-.en-mallisolu b { color: var(--ink); font-weight: 700; }
+.en-solu-malli .en-solu-nimi { display: inline-flex; align-items: center; gap: 5px; overflow: visible; }
+.en-solu-malli .en-naute { flex: 0 0 auto; }
+.en-lk-tyhja {
+  display: inline-flex; align-items: center; gap: 6px; align-self: stretch; margin: -7px 0 0 -6px; padding: 0 6px;
+  border: 0; background: transparent; color: var(--ink-3); cursor: pointer; font-size: 13px; font-weight: 500;
+  -webkit-tap-highlight-color: transparent;
+}
+.en-lk-tyhja:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 8px; }
+@container (min-width: 600px) {
+  .en-lukema.on-mallit { flex-wrap: nowrap; height: 54px; }
+  /* Pääsolu ei veny: mallit tulevat heti puuskan perään, ja vapaa tila
+     jää rivin loppuun — vertailtavat luvut ovat lähekkäin. */
+  .en-lukema.on-mallit .en-solu-paa { flex: 0 0 auto; }
+  .en-lk-mallit { flex: 0 0 auto; height: auto; align-self: stretch; margin: 0; padding: 0 0 0 14px; border-top: 0; border-left: 1px solid var(--hairline); }
+  .en-lk-tyhja { display: none; }
+}
+/* KIINTEÄT SARAKKEET: luku on oikealle tasattu kiinteään leveyteen
+   (tasalevyiset numerot), suunta omaan sarakkeeseensa ja aikasolun nimi
+   pisimmän päiväyksen levyinen, joten mikään solu ei siirry vaakaan
+   tunnista toiseen ("9.0" vs "14.3", "Ke 3.10." vs "La 31.10."). */
+.en-luku { display: inline-block; min-width: 2.25em; text-align: right; }
+.en-suunta { display: inline-block; min-width: 3.1em; text-align: left; }
+.en-solu-aika > .en-solu-nimi { min-width: 5.7em; }
 /* Laajassa rivi on otsikkorivin alla omana nauhanaan. */
 .hl-lukema .en-lukema { margin: 0; }
 .en-solu { display: inline-flex; flex-direction: column; line-height: 1.2; min-width: 0; flex: 0 1 auto; }
@@ -4921,7 +4947,6 @@ html.tyopoyta .en-solu-arvo { font-size: 15px; }
 .sh-desc, .sh-paatos-selite { font-size: max(12px, var(--fs-11)); }
 .en-solu-nimi { font-size: max(11px, var(--fs-10)); }
 .en-solu-arvo small { font-size: max(11px, var(--fs-10)); }
-.en-siru { font-size: max(12px, var(--fs-11)); }
 .segmentti > button, .segmentti-pieni > button { font-size: max(12px, var(--fs-9)); }
 .sh-laatat .sh-stat-label { font-size: max(11px, var(--fs-10)); }
 .sh-laatat .sh-stat-sub, .sh-aalto-poiju { font-size: max(12px, var(--fs-10)); }
@@ -6179,8 +6204,9 @@ html.tyopoyta .hl-nimi { font-size: 20px; }
  * näyttää `data-nimi`n. Latausruutu ja rikas teksti (Tietoa) ovat
  * `data-kieli`-pareja, jotka CSS valitsee.
  *
- * HUOM: spottikortin `data-en-kaare`, `data-en-nyt`, `data-en-lukema`
- * ja `data-en-pohja` ovat ENNUSTEosion koukkuja eivätkä käännöksiä.
+ * HUOM: spottikortin `data-en-kaare`, `data-en-nyt`, `data-en-lukema`,
+ * `data-en-pohja` ja `data-en-vertaa` ovat ENNUSTEosion koukkuja eivätkä
+ * käännöksiä.
  * Kierros lukee vain yllä luetellut nimet, eikä se koske dynaamiseen
  * HTML:ään (se kulkee `_t`:n kautta). */
 const KIELI = document.documentElement.getAttribute('lang') === 'en' ? 'en' : 'fi';
@@ -20508,22 +20534,55 @@ const Valikko = {
     }
     const self = this;
     const el = document.createElement('div');
-    el.className = 'valikko';
+    el.className = 'valikko' + (o.moni ? ' valikko-moni' : '');
     el.setAttribute('role', 'listbox');
     el.setAttribute('aria-label', o.otsikko || '');
+    /* MONIVALINTA (`o.moni`, laajan vertailumallit, P12): rivi kytkee
+       valinnan päälle ja pois eikä sulje valikkoa, `o.tila()` kertoo
+       valitut, ja enintään `o.max` — sen jälkeen valitsemattomat rivit
+       ovat pois käytöstä ja alarivi kertoo miksi (`o.maxSyy`). Rivin
+       edessä voi olla käyrän viivanäyte (`naute`), jotta valikko on
+       samalla selite. */
     const rasti = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><polyline points="3.5,8.5 6.5,11.5 12.5,4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    const ruutu = (on) => '<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><rect x="1.5" y="1.5" width="15" height="15" rx="4" '
+      + (on ? 'fill="currentColor"/><polyline points="5,9.4 7.8,12 13,6" fill="none" stroke="' + Teema.pintaHi + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+            : 'fill="none" stroke="' + Teema.ink3 + '" stroke-width="1.5"/>') + '</svg>';
+    const merkki = (on) => o.moni ? ruutu(on) : (on ? rasti : '');
+    if (o.moni) el.setAttribute('aria-multiselectable', 'true');
     el.innerHTML = (o.otsikko ? '<div class="valikko-otsikko" aria-hidden="true">' + o.otsikko + '</div>' : '')
       + o.vaihtoehdot.map(v => '<button type="button" role="option" class="valikko-rivi" data-id="' + v.id + '" aria-selected="' + !!v.valittu + '">'
+        + (v.naute ? '<span class="valikko-naute">' + v.naute + '</span>' : '')
         + '<span class="valikko-teksti"><span class="valikko-nimi">' + v.nimi + '</span>'
         + (v.ala ? '<span class="valikko-ala">' + v.ala + '</span>' : '') + '</span>'
-        + '<span class="valikko-merkki">' + (v.valittu ? rasti : '') + '</span></button>').join('');
+        + '<span class="valikko-merkki">' + merkki(!!v.valittu) + '</span></button>').join('')
+      + (o.moni && o.maxSyy ? '<div class="valikko-huom" hidden>' + o.maxSyy + '</div>' : '');
+    const paivita = function () {
+      if (!o.moni) return;
+      const valitut = o.tila ? o.tila() : [];
+      const taysi = o.max != null && valitut.length >= o.max;
+      el.querySelectorAll('[data-id]').forEach(function (b) {
+        const on = valitut.indexOf(b.dataset.id) >= 0;
+        b.setAttribute('aria-selected', String(on));
+        b.setAttribute('aria-disabled', String(!on && taysi));
+        b.querySelector('.valikko-merkki').innerHTML = merkki(on);
+      });
+      const h = el.querySelector('.valikko-huom');
+      if (h) h.hidden = !taysi;
+    };
     document.body.appendChild(el);
     this._el = el; this._nappi = nappi;
     nappi.setAttribute('aria-expanded', 'true');
+    paivita();
     this._sijoita();
     el.addEventListener('click', function (e) {
       const b = e.target.closest('[data-id]');
       if (!b) return;
+      if (o.moni) {
+        if (b.getAttribute('aria-disabled') === 'true') return;
+        o.valitse(b.dataset.id);
+        paivita();
+        return;
+      }
       self.sulje(true);
       o.valitse(b.dataset.id);
     });
@@ -22107,51 +22166,99 @@ const Aikakaavio = {
      värillään ja havainnon päällä ennuste. Tekstit mitataan arviolla
      (merkkejä × leveys), ei `getBBox`illa: hover ajetaan joka
      osoitintapahtumalla. */
+  /* KUPLA ON KIINTEÄN KOKOINEN (P11, käyttäjän päätös 3.10.: kupla jää,
+     mutta ei vaihda kokoaan eikä leikkaudu). Ennen rivejä oli sen mukaan
+     mitä hetkellä oli, leveys arvioitiin merkkimäärästä (111–139 px
+     osoitetun tunnin mukaan), puoli vaihtui keskellä ruutua, ja
+     kapeimmalla puhelimella kupla jäi 19 px reunan yli. Nyt:
+       - rivit ovat kiinteät kaaviota kohti: pääsarja, tuulella puuska ja
+         suunta, jokainen vertailumalli ja havainnon ennuste; puuttuva
+         arvo on "–";
+       - leveys MITATAAN kerran piirtoa kohti (`getComputedTextLength`)
+         pisimmästä mahdollisesta rivistä: sarjan suurin ja pienin arvo
+         ja leveimmät ilmansuunnat;
+       - puoli vaihtuu vain kun kupla ei mahdu sille puolelle (hystereesi,
+         `_akKuplaPuoli`), ja se pysyy näkyvän piirtoalueen sisällä,
+         kiinteän y-akselin oikealla puolella. */
+  _kuplaRivit(g, t, x, mdots) {
+    const K = g.kupla, p = g.piste(g.paa, t), rivit = [];
+    const viiva = '–';
+    rivit.push({ t: (p ? K.luku(p.v) : viiva) + (K.yks ? ' ' + K.yks : ''), l: true });
+    if (K.tuuli) rivit.push({ t: K.puuska + ' ' + (p && p.g != null ? K.luku(p.g) : viiva) + ' · ' + (p && p.dir != null ? _havIlmansuuntaLyhyt(p.dir) : viiva), p: true });
+    K.vertailut.forEach((m, j) => {
+      const q = g.piste(m.s, t);
+      rivit.push({ t: m.nimi + ' ' + (q ? K.luku(q.v) : viiva), v: m.vari });
+      const d = mdots && mdots[j];
+      if (d && q) { d.setAttribute('cx', x.toFixed(1)); d.setAttribute('cy', g.yOf(q.v).toFixed(1)); d.setAttribute('fill', m.vari); d.setAttribute('visibility', 'visible'); }
+    });
+    if (K.ennuste) { const q = g.piste(K.ennuste, t); rivit.push({ t: K.ennusteNimi + ' ' + (q ? K.luku(q.v) : viiva), v: Teema.info }); }
+    return { rivit: rivit, p: p };
+  },
+  _kuplaTyyli(tx, r, fs) {
+    tx.setAttribute('font-size', ((r.l ? 13.5 : (r.p ? 11 : 11.5)) * fs).toFixed(1));
+    tx.setAttribute('font-weight', r.l ? '700' : (r.p ? '400' : '600'));
+  },
+  /* Koko kerran piirtoa kohti: jokaisen rivin pisin mahdollinen teksti
+     mitattuna samalla kirjasimella kuin rivi itse. */
+  _kuplaKoko(g, kg) {
+    if (g._kuplaKoko) return g._kuplaKoko;
+    const K = g.kupla, fs = g.fs || 1, texts = kg.querySelectorAll('text');
+    const aarit = (s) => {
+      let a = Infinity, b = -Infinity;
+      if (s && s.ms) for (let i = 0; i < s.ms.length; i++) { const v = s.ms[i]; if (v != null) { if (v < a) a = v; if (v > b) b = v; } }
+      return isFinite(a) ? [K.luku(a), K.luku(b)] : ['–'];
+    };
+    const pisin = (xs) => xs.reduce((m, x) => (String(x).length > String(m).length ? x : m), '');
+    const ehdokkaat = [];
+    ehdokkaat.push([{ l: true }, aarit(g.paa).map(v => v + (K.yks ? ' ' + K.yks : ''))]);
+    if (K.tuuli) {
+      const gust = g.paa && g.paa.gust ? aarit({ ms: g.paa.gust }) : ['–'];
+      const suunnat = [0, 45, 90, 135, 180, 225, 270, 315].map(d => _havIlmansuuntaLyhyt(d));
+      ehdokkaat.push([{ p: true }, suunnat.map(su => K.puuska + ' ' + pisin(gust.concat(['–'])) + ' · ' + su)]);
+    }
+    K.vertailut.forEach((m) => ehdokkaat.push([{}, aarit(m.s).concat(['–']).map(v => m.nimi + ' ' + v)]));
+    if (K.ennuste) ehdokkaat.push([{}, aarit(K.ennuste).concat(['–']).map(v => K.ennusteNimi + ' ' + v)]);
+    const mitta = texts[0];
+    let lev = 0;
+    ehdokkaat.forEach(([r, xs]) => {
+      this._kuplaTyyli(mitta, r, fs);
+      xs.forEach((s) => { mitta.textContent = s; try { lev = Math.max(lev, mitta.getComputedTextLength()); } catch (e) { lev = Math.max(lev, s.length * 7.7 * fs); } });
+    });
+    const pad = 7, lh = 14 * fs;
+    g._kuplaKoko = { bw: Math.ceil(lev + pad * 2 + 2), bh: Math.ceil(ehdokkaat.length * lh + 8), pad: pad, lh: lh };
+    return g._kuplaKoko;
+  },
   _kupla(kaare, h, g, t, x) {
     const kg = h.querySelector('[data-tk-kupla]'), K = g.kupla;
     const mdots = h.querySelectorAll('[data-tk-mdot]');
     mdots.forEach((m) => m.setAttribute('visibility', 'hidden'));
     if (!kg || !K) return;
-    const fs = g.fs || 1, rivit = [];
-    const p = g.piste(g.paa, t);
-    if (p) {
-      rivit.push({ t: K.luku(p.v) + (K.yks ? ' ' + K.yks : ''), l: true });
-      if (K.tuuli) {
-        const os = [];
-        if (p.g != null && p.g > p.v + 1e-6) os.push(K.puuska + ' ' + K.luku(p.g));
-        if (p.dir != null) os.push(_havIlmansuuntaLyhyt(p.dir));
-        if (os.length) rivit.push({ t: os.join(' · '), p: true });
-      }
-    }
-    K.vertailut.forEach((m, j) => {
-      const q = g.piste(m.s, t);
-      if (!q) return;
-      rivit.push({ t: m.nimi + ' ' + K.luku(q.v), v: m.vari });
-      const d = mdots[j];
-      if (d) { d.setAttribute('cx', x.toFixed(1)); d.setAttribute('cy', g.yOf(q.v).toFixed(1)); d.setAttribute('fill', m.vari); d.setAttribute('visibility', 'visible'); }
-    });
-    if (K.ennuste) { const q = g.piste(K.ennuste, t); if (q) rivit.push({ t: K.ennusteNimi + ' ' + K.luku(q.v), v: Teema.info }); }
-    const texts = kg.querySelectorAll('text');
-    if (!rivit.length) { kg.setAttribute('visibility', 'hidden'); texts.forEach((tx) => tx.setAttribute('visibility', 'hidden')); return; }
-    const lh = 14 * fs, pad = 7;
-    let lev = 0;
-    rivit.forEach((r) => { lev = Math.max(lev, r.t.length * (r.l ? 7.7 : 6) * fs); });
-    const bw = Math.ceil(lev + pad * 2), bh = Math.ceil(rivit.length * lh + 8);
-    const sl = kaare.scrollLeft, w0 = kaare._W0 || kaare.clientWidth;
-    const oikealle = x + 24 + bw <= sl + w0 - 4 || x - 24 - bw < sl + 40;
-    const bx = oikealle ? x + 24 : x - 24 - bw;
+    const fs = g.fs || 1, texts = kg.querySelectorAll('text');
+    const koko = this._kuplaKoko(g, kg);
+    const { rivit, p } = this._kuplaRivit(g, t, x, mdots);
+    const bw = koko.bw, bh = koko.bh, pad = koko.pad, lh = koko.lh;
+    /* Näkyvä alue SVG:n koordinaateissa: vierityksen kohta, kiinteän
+       y-akselin oikea reuna ja kääreen oikea reuna. */
+    const sl = kaare.scrollLeft, w0 = kaare.clientWidth || kaare._W0;
+    const ak = kaare.parentElement && kaare.parentElement.querySelector(':scope > .ak-akseli');
+    const vas = sl + (ak ? ak.offsetWidth : 0) + 3, oik = sl + w0 - 3;
+    const mahtuuO = x + 24 + bw <= oik, mahtuuV = x - 24 - bw >= vas;
+    let puoli = kaare._akKuplaPuoli || 'o';
+    if (puoli === 'o' && !mahtuuO && mahtuuV) puoli = 'v';
+    else if (puoli === 'v' && !mahtuuV && mahtuuO) puoli = 'o';
+    kaare._akKuplaPuoli = puoli;
+    const bx = Math.max(vas, Math.min(oik - bw, puoli === 'o' ? x + 24 : x - 24 - bw));
     const yb = p ? g.yOf(p.v) : (g.y0 + g.pohja) / 2;
     const by = Math.max(g.y0 + 2, Math.min(g.pohja - bh - 2, yb - bh / 2));
     const rect = kg.querySelector('rect');
     rect.setAttribute('x', bx.toFixed(1)); rect.setAttribute('y', by.toFixed(1)); rect.setAttribute('width', bw); rect.setAttribute('height', bh);
     texts.forEach((tx, i) => {
       const r = rivit[i];
-      if (!r) { tx.setAttribute('visibility', 'hidden'); return; }
+      if (!r) { tx.setAttribute('visibility', 'hidden'); tx.textContent = ''; return; }
       tx.textContent = r.t;
       tx.setAttribute('x', (bx + pad).toFixed(1));
       tx.setAttribute('y', (by + 4 + (i + 1) * lh - 3.5 * fs).toFixed(1));
-      tx.setAttribute('font-size', ((r.l ? 13.5 : (r.p ? 11 : 11.5)) * fs).toFixed(1));
-      tx.setAttribute('font-weight', r.l ? '700' : (r.p ? '400' : '600'));
+      this._kuplaTyyli(tx, r, fs);
       tx.setAttribute('fill', r.v || (r.l ? Tuulikaavio.INK : Tuulikaavio.INK3));
       tx.setAttribute('visibility', 'visible');
     });
@@ -22301,15 +22408,27 @@ const Aikakaavio = {
      kortilla ja laajassa (`HavLaaja.rivi` käyttää tätä samaa).
      `malli`-solut (laajan päällekkäiset käyrät) menevät toiselle,
      samoin kiinteälle riville. */
+  /* `luku` = arvo kiinteän levyisessä sarakkeessa (`.en-luku`, oikealle
+     tasattu, tasalevyiset numerot): luku ei siirry vaakaan tunnista
+     toiseen. `suunta` = oma kiinteä sarakkeensa yksikön perässä.
+     `malli` = laajan vertailumalli: viivanäyte nimen edessä, sama solu
+     kuin muilla (nimi ylhäällä, arvo alla), `data-lk-malli`.
+     `mallirivi` = vertailumallien paikka (V13): kapeassa laajassa oma
+     rivinsä joka on aina olemassa — ilman malleja siinä on valikon
+     avaava "Vertaa malleja" — ja leveässä samalla rivillä (CSS,
+     `@container`). Rivin korkeus ei siis riipu mallien määrästä. */
   lukemaHtml(solut) {
-    const mallit = solut.filter(s => s.malli);
-    return solut.filter(s => !s.malli).map((s) => '<span class="en-solu' + (s.aika ? ' en-solu-aika' : '') + (s.paa ? ' en-solu-paa' : '') + '">'
-      + '<span class="en-solu-nimi">' + s.nimi + '</span><span class="en-solu-arvo">' + s.arvo
-      + (s.ala ? ' <small>' + s.ala + '</small>' : '') + '</span></span>').join('')
-      /* Päällekkäiset käyrät (vain laaja) omalla kiinteällä rivillään
-         väripisteellä: pääluvun rivi ei muutu sen mukaan montako on. */
-      + (mallit.length ? '<span class="en-lk-mallit">' + mallit.map(s => '<span class="en-mallisolu" style="--mv:' + s.vari + '"><i></i>'
-        + '<span class="en-mallisolu-nimi">' + s.nimi + '</span><b>' + s.arvo + '</b></span>').join('') + '</span>' : '');
+    const mallit = solut.filter(s => s.malli), rivi = solut.some(s => s.mallirivi);
+    const solu = (s) => '<span class="en-solu' + (s.aika ? ' en-solu-aika' : '') + (s.paa ? ' en-solu-paa' : '') + (s.malli ? ' en-solu-malli' : '') + '"'
+      + (s.malli ? ' data-lk-malli="' + s.id + '"' : '') + '>'
+      + '<span class="en-solu-nimi">' + (s.naute || '') + s.nimi + '</span><span class="en-solu-arvo">'
+      + (s.luku ? '<span class="en-luku">' + s.arvo + '</span>' : s.arvo)
+      + (s.ala ? ' <small>' + s.ala + '</small>' : '')
+      + (s.suunta != null ? ' <small class="en-suunta">' + s.suunta + '</small>' : '') + '</span></span>';
+    return solut.filter(s => !s.malli && !s.mallirivi).map(solu).join('')
+      + ((rivi || mallit.length) ? '<span class="en-lk-mallit">' + (mallit.length ? mallit.map(solu).join('')
+        : '<button type="button" class="en-lk-tyhja" data-en-vertaa-vihje>' + _t('Vertaa malleja', 'Compare models')
+          + '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><polyline points="2,4 6,8 10,4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>') + '</span>' : '');
   },
 
   /* OSOITIN kiinnitetään KERRAN kääreeseen; kääre säilyy piirrosta
@@ -22673,7 +22792,9 @@ const Ennuste = {
     const v = this.asetus().valitut.filter(id => id !== pohja);
     const kartta = (typeof Asetukset !== 'undefined' && Asetukset.arvot) ? Asetukset.arvot.malli : 'auto';
     if (kartta && kartta !== 'auto' && kartta !== pohja && KorttiSarjat.malli(kartta) && v.indexOf(kartta) < 0) v.unshift(kartta);
-    return v;
+    /* Enintään kolme myös kun kartan pakotus tuo neljännen: lukemarivillä
+       on kolmen mallin paikat (P12). */
+    return v.slice(0, this.MAX_VERTAILUT);
   },
   /* Nykyhetken tunti samalla pyöristyksellä kuin aikajanan `nowIdx`
      (lähin tasatunti) — kahta "nyt"-sääntöä ei saa olla. */
@@ -22713,14 +22834,22 @@ const Ennuste = {
     }
     return { nimi: m.nimi, ala: ala };
   },
+  /* Laajassa kenttä on YKSIRIVINEN (V13): alarivi "Tällä tunnilla FMI
+     HARMONIE 2,…" katkesi kolmeen pisteeseen, ja lähdekaista kertoo saman. */
   _pohjaNappiHtml(spot, tMs, laaja) {
     const x = this._pohjaTekstit(spot, tMs);
     return '<button type="button" class="en-pohja' + (laaja ? ' en-pohja-laaja' : '') + '" data-en-pohja aria-haspopup="listbox" aria-expanded="false"'
       + ' aria-label="' + _t('Kaavion ennuste: ', 'Chart forecast: ') + x.nimi + '">'
       + '<span class="en-pohja-teksti"><span class="en-pohja-nimi" data-en-pohja-nimi>' + x.nimi + '</span>'
-      + '<span class="en-pohja-ala" data-en-pohja-ala>' + x.ala + '</span></span>'
-      + '<svg class="en-pohja-nuoli" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><polyline points="2,4 6,8 10,4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-      + '</button>';
+      + (laaja ? '' : '<span class="en-pohja-ala" data-en-pohja-ala>' + x.ala + '</span>') + '</span>'
+      + this._NUOLI_ALAS + '</button>';
+  },
+  _NUOLI_ALAS: '<svg class="en-pohja-nuoli" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><polyline points="2,4 6,8 10,4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  /* Käyrän viivanäyte: sama väri ja kuvio kuin kaaviossa, joten valikon
+     rivi ja lukemarivin solu ovat samalla selite (P12). */
+  _nauteSvg(m) {
+    return '<svg class="en-naute" width="16" height="6" viewBox="0 0 16 6" aria-hidden="true"><line x1="1" x2="15" y1="3" y2="3" stroke="'
+      + m.vari + '" stroke-width="2.2"' + (m.viiva ? ' stroke-dasharray="' + m.viiva + '"' : '') + ' stroke-linecap="round"/></svg>';
   },
   _avaaPohjaValikko(ctx, nappi) {
     const self = this, nyky = this.pohjaId();
@@ -22825,55 +22954,75 @@ const Ennuste = {
   _naytetyt(ctx) {
     return this.valitut().filter(id => id !== ctx.piilotettu);
   },
-  /* LAAJAN PÄÄLLEKKÄISET KÄYRÄT: siru jokaiselle mallille joka ei ole
-     pohja. Väri ja viivakuvio ovat käyrän omat, joten siru on myös
-     selite. Kortilla sirurivejä ei ole (2.10.). */
-  _sirutHtml(valitut) {
-    const pohja = this.pohjaId();
-    return KorttiSarjat.MALLIT.filter(m => m.id !== pohja).map(m => {
-      const on = valitut.indexOf(m.id) >= 0;
-      return '<button type="button" class="en-siru" data-malli="' + m.id + '" aria-pressed="' + on + '">'
-        + '<svg class="en-naute" width="16" height="6" viewBox="0 0 16 6" aria-hidden="true"><line x1="1" x2="15" y1="3" y2="3" stroke="'
-        + m.vari + '" stroke-width="2.2"' + (m.viiva ? ' stroke-dasharray="' + m.viiva + '"' : '') + ' stroke-linecap="round"/></svg>'
-        + m.nimi + '</button>';
-    }).join('');
+  /* LAAJAN PÄÄLLEKKÄISET KÄYRÄT VALITAAN VALIKOSTA (P12, 3.10.). "Lisää"-
+     sirurivi oli yksi sivuttain vierivä rivi ilman merkkiä jatkosta, ja
+     valitut mallit olivat sen lopussa: mitattuna kolmella valitulla
+     GFS näkyi 0 % ja ICON 0–14 % jokaisella puhelimella. Nyt yksi
+     "Vertaa"-nappi avaa monivalinnan (`Valikko`, `moni`), ja valitut
+     ovat lukemarivin soluja viivanäytteineen — rivi on samalla selite.
+     Lukumäärän paikka on varattu, jottei nappi kasva valitessa. */
+  _vertaaNappiHtml(ctx) {
+    const n = this._naytetyt(ctx).length;
+    return '<button type="button" class="en-vertaa" data-en-vertaa aria-haspopup="listbox" aria-expanded="false"'
+      + ' aria-label="' + this._vertaaNimi(n) + '">'
+      + '<span>' + _t('Vertaa', 'Compare') + '</span><span class="en-vertaa-n" data-en-vertaa-n' + (n ? '' : ' hidden') + '>' + (n || 0) + '</span>'
+      + this._NUOLI_ALAS + '</button>';
+  },
+  _vertaaNimi(n) {
+    return _t('Vertaa malleja', 'Compare models') + (n ? _t(', valittuna ' + n, ', ' + n + ' selected') : '');
+  },
+  _paivitaVertaaNappi(el, ctx) {
+    const b = el && el.querySelector('[data-en-vertaa]');
+    if (!b) return;
+    const n = this._naytetyt(ctx).length, c = b.querySelector('[data-en-vertaa-n]');
+    if (c) { c.textContent = String(n || 0); c.hidden = !n; }
+    b.setAttribute('aria-label', this._vertaaNimi(n));
   },
   _laajaTyokalutHtml(ctx) {
-    return this._pohjaNappiHtml(ctx.spot, ctx.valittu, true)
-      + '<div class="en-lisaa"><span class="en-mallit-otsikko" aria-hidden="true">' + _t('Lisää', 'Add') + '</span>'
-      + '<div class="en-mallit hl-mallit" role="group" aria-label="' + _t('Lisää käyrä samaan kaavioon', 'Add a curve to the chart') + '">'
-      + this._sirutHtml(this._naytetyt(ctx)) + '</div></div>';
+    return this._pohjaNappiHtml(ctx.spot, ctx.valittu, true) + this._vertaaNappiHtml(ctx);
+  },
+  _avaaVertaaValikko(ctx, nappi) {
+    const self = this, pohja = this.pohjaId();
+    Valikko.avaa(nappi, {
+      otsikko: _t('Vertaa samassa kaaviossa', 'Compare in the same chart'), moni: true, max: this.MAX_VERTAILUT,
+      maxSyy: _t('Enintään ' + this.MAX_VERTAILUT + ' mallia kerrallaan — poista ensin yksi.', 'Up to ' + this.MAX_VERTAILUT + ' models at a time — remove one first.'),
+      vaihtoehdot: KorttiSarjat.MALLIT.filter(m => m.id !== pohja).map(m => ({ id: m.id, nimi: m.nimi, ala: m.ala, naute: self._nauteSvg(m) })),
+      tila: function () { return self._naytetyt(ctx); },
+      valitse: function (id) { self._vaihdaVertailu(ctx, id); },
+    });
+  },
+  _vaihdaVertailu(ctx, id) {
+    const a = this.asetus(), i = a.valitut.indexOf(id), naytetyt = this._naytetyt(ctx);
+    if (naytetyt.indexOf(id) >= 0 && i < 0) {
+      /* Kartan pakottama malli: sen sammutus on vain tämän näkymän asia,
+         joten se piilotetaan istunnoksi. */
+      ctx.piilotettu = id;
+    } else if (i >= 0) a.valitut.splice(i, 1);
+    else {
+      if (naytetyt.length >= this.MAX_VERTAILUT) return;
+      a.valitut.push(id);
+      if (ctx.piilotettu === id) ctx.piilotettu = null;
+      const self = this;
+      KorttiSarjat.lataa(ctx.spot, id, function () { self._muuttui(ctx, true); });
+    }
+    this.tallenna();
+    this._muuttui(ctx);
+    if (typeof Haptics !== 'undefined') Haptics.light();
   },
   _kytkeLaajaTyokalut(el, ctx) {
     const self = this;
     /* Uudelleenrakennus korvaa kentän: fokus siirtyy uuteen kenttään,
        muuten valikon sulku jättäisi sen irronneeseen nappiin. */
-    const fokus = document.activeElement && el.contains(document.activeElement) && document.activeElement.matches('[data-en-pohja]');
+    const fokus = document.activeElement && el.contains(document.activeElement) && document.activeElement.matches('[data-en-pohja], [data-en-vertaa]')
+      ? (document.activeElement.matches('[data-en-pohja]') ? '[data-en-pohja]' : '[data-en-vertaa]') : null;
     el.innerHTML = this._laajaTyokalutHtml(ctx);
     el._pohja = this.pohjaId();
-    if (fokus) { const u = el.querySelector('[data-en-pohja]'); if (u) { try { u.focus({ preventScroll: true }); } catch (e) {} } }
+    if (fokus) { const u = el.querySelector(fokus); if (u) { try { u.focus({ preventScroll: true }); } catch (e) {} } }
     ctx.laajaSirut = el;
     const pn = el.querySelector('[data-en-pohja]');
     if (pn) pn.addEventListener('click', function () { self._avaaPohjaValikko(ctx, pn); });
-    el.querySelectorAll('[data-malli]').forEach(b => b.addEventListener('click', function () {
-      const a = self.asetus(), id = b.dataset.malli;
-      const i = a.valitut.indexOf(id);
-      const naytetyt = self._naytetyt(ctx);
-      if (naytetyt.indexOf(id) >= 0 && i < 0) {
-        /* Kartan pakottama malli: sen sammutus on vain tämän näkymän
-           asia, joten se piilotetaan istunnoksi. */
-        ctx.piilotettu = id;
-      } else if (i >= 0) a.valitut.splice(i, 1);
-      else {
-        a.valitut.push(id);
-        if (a.valitut.length > self.MAX_VERTAILUT) a.valitut.shift();
-        if (ctx.piilotettu === id) ctx.piilotettu = null;
-        KorttiSarjat.lataa(ctx.spot, id, function () { self._muuttui(ctx, true); });
-      }
-      self.tallenna();
-      self._muuttui(ctx);
-      if (typeof Haptics !== 'undefined') Haptics.light();
-    }));
+    const vn = el.querySelector('[data-en-vertaa]');
+    if (vn) vn.addEventListener('click', function () { self._avaaVertaaValikko(ctx, vn); });
   },
   /* Valinta tai data muuttui: kortti, valikkokenttä ja (jos auki) laaja.
      `vainData` = sarja saapui, valinnat eivät muuttuneet. */
@@ -22885,10 +23034,11 @@ const Ennuste = {
     const laajaOma = typeof HavLaaja !== 'undefined' && HavLaaja.auki() && HavLaaja._lahde && HavLaaja._lahde.enCtx === ctx;
     const ls = laajaOma ? ctx.laajaSirut : null;
     if (!vainData && ls && ls.isConnected) {
-      /* Pohjan vaihto vaihtaa sirujen joukon (pohja ei ole siru); siru
-         itse päivittää vain tilansa, jottei painettu nappi katoa alta. */
+      /* Pohjan vaihto vaihtaa valikon mallijoukon (pohja ei ole vertailu);
+         muuten nappi päivittää vain lukumääränsä, jottei auki oleva
+         valikko menetä ankkuriaan. */
       if (ls._pohja !== this.pohjaId()) this._kytkeLaajaTyokalut(ls, ctx);
-      else { const n = this._naytetyt(ctx); ls.querySelectorAll('[data-malli]').forEach(b => b.setAttribute('aria-pressed', String(n.indexOf(b.dataset.malli) >= 0))); }
+      else this._paivitaVertaaNappi(ls, ctx);
       this._naytetyt(ctx).forEach(id => KorttiSarjat.lataa(ctx.spot, id, () => this._muuttui(ctx, true)));
     }
     if (ctx.piirra) ctx.piirra();
@@ -22912,30 +23062,33 @@ const Ennuste = {
   /* Lukemarivi: valittu tai osoitettu hetki, Paras ja vertailut. Rivi on
      kiinteä eikä kelluva laatikko: allekkain neljä kaaviota tarvitsisi
      neljä laatikkoa, ja kupla jää sormen alle (CLAUDE.md). */
+  /* SOLUT EIVÄT VAIHDU TUNNISTA TOISEEN (V13). Aikasolu, tuuli ja puuska
+     ovat aina paikallaan ("–" kun arvoa ei ole), luvut ovat kiinteän
+     levyisissä sarakkeissa (`.en-luku`, tasalevyiset numerot), eikä
+     tuulisolun nimessä ole lähdettä — se on kaavion lähdekaistassa.
+     Ennen puuskasolu puuttui kun puuskaa ei ollut, ja menneellä tunnilla
+     "Mennyt · La 3.10." siirsi pääluvun 70 → 108 px. `mallit` (laaja):
+     vertailumallit soluina viivanäytteineen ja `mallirivi`, jolla rivi
+     varaa niiden paikan myös kun yhtään ei ole valittu. */
   _solut(ctx, tMs, mallit) {
     const spot = ctx.spot, paa = this.pohjaSarja(spot);
     const solut = [];
     const d = new Date(tMs);
     const nyt = Math.abs(tMs - this.nytTunti()) < 18e5;
-    /* "Mennyt" vasta kun koko tunti on ohi: kuluva tunti ei ole mennyt
-       vaikka sen tasatunti on. */
     const hh = ('0' + d.getHours()).slice(-2);
-    solut.push({ nimi: nyt ? _t('Nyt', 'Now') : (tMs + 36e5 <= Date.now() ? _t('Mennyt · ', 'Past · ') : '') + pvmLyhyt(d),
-                 arvo: _t('klo ' + hh, hh + ':00'), ala: '', aika: true });
+    solut.push({ nimi: nyt ? _t('Nyt', 'Now') : pvmLyhyt(d), arvo: _t('klo ' + hh, hh + ':00'), ala: '', aika: true });
     const a = paa ? KorttiSarjat.arvo(paa, tMs) : null;
-    if (a) {
-      /* Lähde on tuulisolun NIMESSÄ eikä omana solunaan: omana solunaan
-         "FMI HARMONIE 2,5 km" 14 px:n lihavana ei mahtunut puhelimen
-         riville, rivitti ja nosti rivin korkeutta tunnista toiseen. */
-      solut.push({ nimi: _t('Tuuli', 'Wind') + (a.lahde ? ' · ' + (Lahde.LYHYET[a.lahde] || a.lahde) : ''),
-                   arvo: Units.fmt(a.ms), ala: Units.label() + (a.dir != null ? ' ' + suuntaNuoliSVG(a.dir) + ' ' + _havIlmansuuntaLyhyt(a.dir) : ''), paa: true });
-      if (a.gust != null) solut.push({ nimi: _t('Puuska', 'Gust'), arvo: Units.fmt(a.gust), ala: Units.label() });
+    solut.push({ nimi: _t('Tuuli', 'Wind'), arvo: a ? Units.fmt(a.ms) : '–', luku: true, paa: true,
+                 ala: Units.label(), suunta: a && a.dir != null ? suuntaNuoliSVG(a.dir) + ' ' + _havIlmansuuntaLyhyt(a.dir) : '' });
+    solut.push({ nimi: _t('Puuska', 'Gust'), arvo: a && a.gust != null ? Units.fmt(a.gust) : '–', luku: true, ala: Units.label() });
+    if (mallit) {
+      this._naytetyt(ctx).forEach(id => {
+        const s = KorttiSarjat.valmis(spot, id), m = KorttiSarjat.malli(id);
+        const b = s ? KorttiSarjat.arvo(s, tMs) : null;
+        solut.push({ nimi: m.nimi, arvo: b ? Units.fmt(b.ms) : '–', luku: true, malli: true, id: id, naute: this._nauteSvg(m) });
+      });
+      solut.push({ mallirivi: true });
     }
-    if (mallit) this._naytetyt(ctx).forEach(id => {
-      const s = KorttiSarjat.valmis(spot, id), m = KorttiSarjat.malli(id);
-      const b = s ? KorttiSarjat.arvo(s, tMs) : null;
-      solut.push({ nimi: m.nimi, arvo: b ? Units.fmt(b.ms) : '–', ala: b ? Units.label() : '', vari: m.vari, malli: true });
-    });
     return solut;
   },
 
@@ -23129,11 +23282,17 @@ const Ennuste = {
      näyttää juuri tätä osiota. */
   laajaLahde(ctx) {
     const self = this;
-    ctx.laajaValittu = false;
     return { el: ctx.osio, jaksot: '[data-ei-jaksoja]', otsikko: ctx.spot.name, sub: _t('Tuuliennuste', 'Wind forecast'), enCtx: ctx,
              tyokalut: function (el) {
                self._kytkeLaajaTyokalut(el, ctx);
                self._naytetyt(ctx).forEach(id => KorttiSarjat.lataa(ctx.spot, id, function () { self._muuttui(ctx, true); }));
+             },
+             /* Lukemarivin tyhjä mallipaikka: valikko ankkuroidaan
+                työkalurivin nappiin, joka säilyy valintojen yli (rivin
+                oma nappi katoaa ensimmäisestä valinnasta). */
+             vertaa: function () {
+               const n = ctx.laajaSirut && ctx.laajaSirut.querySelector('[data-en-vertaa]');
+               if (n) self._avaaVertaaValikko(ctx, n);
              },
              piirra: function (kaavioEl, laatikko, laaja) { self._piirraLaaja(ctx, kaavioEl, laatikko, laaja); } };
   },
@@ -23181,35 +23340,14 @@ const Ennuste = {
     ctx.laajaKaare = kaare;
     Aikakaavio.aseta(kaare, piirrokset, ctx.valittu);
     Aikakaavio.skaala(kaare, laske);
-    /* Lukemarivi on laajan oma (`laaja.rivi`). Levossa se kertoo
-       yhteenvedon seuraavasta 48 tunnista; kun laajassa on valittu
-       tunti, valitun tunnin luvut (kuten kortin lukemarivi). */
-    const lepo = function () {
-      let max = 0, maxT = null, summa = 0, n = 0;
-      const nyt = Date.now();
-      for (let i = 0; i < paa.t.length; i++) {
-        if (paa.t[i] < nyt - 18e5 || paa.t[i] > nyt + 48 * 36e5 || paa.ms[i] == null) continue;
-        summa += paa.ms[i]; n++;
-        if (paa.ms[i] > max) { max = paa.ms[i]; maxT = paa.t[i]; }
-      }
-      /* Päällekkäisille käyrille sama keskiarvo omalle rivilleen, jotta
-         rivin korkeus ei vaihdu levon ja osoittamisen välillä. */
-      const mallit = self._naytetyt(ctx).map(id => {
-        const s = KorttiSarjat.valmis(spot, id), m = KorttiSarjat.malli(id);
-        let su = 0, k = 0;
-        if (s) for (let i = 0; i < s.t.length; i++) {
-          if (s.t[i] < nyt - 18e5 || s.t[i] > nyt + 48 * 36e5 || s.ms[i] == null) continue;
-          su += s.ms[i]; k++;
-        }
-        return { nimi: m.nimi + _t(' ka', ' mean'), arvo: k ? Units.fmt(su / k) : '–', vari: m.vari, malli: true };
-      });
-      return [{ nimi: _t('Keskituuli 48 h', 'Mean wind 48 h'), arvo: n ? Units.fmt(summa / n) : '–', ala: Units.label(), paa: true },
-              { nimi: _t('Kovin 48 h', 'Strongest 48 h'), arvo: Units.fmt(max), ala: Units.label() + (maxT ? ' ' + Tuulikaavio.PAIVAT[new Date(maxT).getDay()]
-                + _t(' klo ' + Tuulikaavio._kello(maxT), ' ' + Tuulikaavio._kello(maxT) + ':00') : '') }].concat(mallit);
-    };
+    /* Lukemarivi on laajan oma (`laaja.rivi`). LEVOSSA VALITTU TUNTI
+       (V13): ennen lepo kertoi 48 h:n keskiarvot ("Keskituuli 48 h ·
+       Kovin 48 h", mallit "ka"), jolloin solut ja niiden määrä vaihtuivat
+       levon ja osoituksen välillä. Nyt samat solut koko ajan, vain luvut
+       vaihtuvat. */
     ctx.laajaRivi = function () {
       if (kaare._akHoverT != null) return;
-      laaja.rivi(ctx.laajaValittu && ctx.valittu != null ? self._solut(ctx, ctx.valittu, true) : lepo());
+      laaja.rivi(self._solut(ctx, ctx.valittu != null ? ctx.valittu : self.nytTunti(), true));
     };
     ctx.laajaRivi();
     /* NAPAUTUS VALITSEE TUNNIN SAMAA POLKUA KUIN KORTISSA
@@ -23220,10 +23358,9 @@ const Ennuste = {
       pyorista: 36e5,
       valittu: function () { return ctx.valittu; },
       nayta: function (t) { Aikakaavio.hover(kaare, t); if (t == null) ctx.laajaRivi(); else laaja.rivi(self._solut(ctx, t, true)); },
-      napautus: function (t) { ctx.laajaValittu = true; self.valitse(ctx, t); ctx.laajaRivi(); },
+      napautus: function (t) { self.valitse(ctx, t); ctx.laajaRivi(); },
       nappain: function (askel) {
         const lahto = ctx.valittu != null ? ctx.valittu : Date.now();
-        ctx.laajaValittu = true;
         self.valitse(ctx, Math.round(lahto / 36e5) * 36e5 + askel * 36e5);
       },
     });
@@ -24926,6 +25063,13 @@ const HavLaaja = {
        lukemarivi, mallirivi ja kaavion omat päivä- ja tuntirivit.
        Mallirivi ja kaavio vierivät myös sivuttain, joten niissä veto
        tulkitaan sulkueleeksi vasta kun se on selvästi pystysuuntainen. */
+    /* Lukemarivin tyhjä mallipaikka avaa saman Vertaa-valikon kuin
+       työkalurivin nappi (lähteen `vertaa`); rivi kirjoitetaan uudelleen
+       jokaisella osoituksella, joten kuuntelija on rivin säiliössä. */
+    this._lukema.addEventListener('click', (e) => {
+      const b = e.target.closest && e.target.closest('[data-en-vertaa-vihje]');
+      if (b && this._lahde && typeof this._lahde.vertaa === 'function') this._lahde.vertaa();
+    });
     this._liuku(d.querySelector('#hl-kahva'));
     this._liuku(d.querySelector('#hl-ylarivi'));
     this._liuku(this._lukema);
@@ -25075,7 +25219,7 @@ const HavLaaja = {
   rivi(solut) {
     if (!this._lukema) return;
     solut = solut || [];
-    const mallit = solut.some(s => s.malli);
+    const mallit = solut.some(s => s.malli || s.mallirivi);
     const html = '<div class="en-lukema' + (mallit ? ' on-mallit' : '') + '">' + Aikakaavio.lukemaHtml(solut) + '</div>';
     if (this._lukema.innerHTML !== html) this._lukema.innerHTML = html;
   },

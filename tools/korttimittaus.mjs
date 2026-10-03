@@ -57,6 +57,12 @@ const osoite = (argv.find((a) => !a.startsWith('--')) || 'http://localhost:4173'
 const lippu = (n) => { const a = argv.find((x) => x.startsWith('--' + n)); return a ? (a.includes('=') ? a.split('=')[1] : true) : null; };
 const OSAT = (lippu('osat') || 'laaja,tunnit,vaihto,lukema,avaus,teksti,kahdennus,tyyli,regressio').split(',');
 const NOPEA = !!lippu('nopea');
+/* `--laitteet=p390,v844 en` rajaa tapaukset (laite tai "laite kieli"). */
+const LAITTEET_RAJAUS = lippu('laitteet') ? String(lippu('laitteet')).split(',').map((x) => x.trim()) : null;
+const rajaa = (tapaukset) => !LAITTEET_RAJAUS ? tapaukset : tapaukset.filter((t) => {
+  const [laite, kieli] = Array.isArray(t) ? t : [t, ''];
+  return LAITTEET_RAJAUS.includes(laite) || LAITTEET_RAJAUS.includes(laite + (kieli ? ' ' + kieli : ''));
+});
 const KUVAT = lippu('kuvat');
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const fs = await import('node:fs');
@@ -299,7 +305,7 @@ async function osaLaaja() {
   const tapaukset = NOPEA
     ? [['p390', ''], ['p360', 'en'], ['v844', ''], ['tyopoyta', '']]
     : [['p320', ''], ['p360', ''], ['p375', ''], ['p390', ''], ['p390', 'en'], ['p360', 'en'], ['v667', ''], ['v844', ''], ['v844', 'en'], ['ipad', ''], ['tyopoyta', ''], ['tyopoyta', 'en']];
-  for (const [laite, kieli] of tapaukset) {
+  for (const [laite, kieli] of rajaa(tapaukset)) {
     const nimi = laite + (kieli ? ' ' + kieli : '');
     const { kons, sivu } = await avaa(laite, { kieli });
     try {
@@ -388,7 +394,7 @@ async function osaTunnit() {
     ? [['p375', ''], ['p390', 'en']]
     : [['p320', ''], ['p360', ''], ['p375', ''], ['p390', ''], ['p414', ''], ['p430', ''], ['p320', 'en'], ['p390', 'en'], ['tyopoyta', '']];
   const askel = NOPEA ? 3 : 1;
-  for (const [laite, kieli] of tapaukset) {
+  for (const [laite, kieli] of rajaa(tapaukset)) {
     const nimi = laite + (kieli ? ' ' + kieli : '');
     const { kons, sivu } = await avaa(laite, { kieli });
     try {
@@ -419,7 +425,7 @@ async function osaTunnit() {
 /* ── 3. ENNUSTEEN VAIHTO ──────────────────────────────────────────── */
 async function osaVaihto() {
   console.log('\nVAIHTO: ennusteen vaihto valikosta (lataus ja "ei saatu" mukana)');
-  for (const laite of NOPEA ? ['p390'] : ['p390', 'p360', 'tyopoyta']) {
+  for (const laite of rajaa(NOPEA ? ['p390'] : ['p390', 'p360', 'tyopoyta'])) {
     const { kons, sivu } = await avaa(laite);
     try {
       await sivu.evaluate(apurit);
@@ -467,7 +473,7 @@ async function osaVaihto() {
 /* ── 4. LUKEMA: HERO ON KAAVION LUKEMA (P10, P13) ─────────────────── */
 async function osaLukema() {
   console.log('\nLUKEMA: hero lukee kaaviota (P10), seuraa sen ennustetta (P13) ja yläpalkki kertoo sen kun hero ei näy');
-  for (const laite of NOPEA ? ['p390'] : ['p390', 'tyopoyta']) {
+  for (const laite of rajaa(NOPEA ? ['p390'] : ['p390', 'tyopoyta'])) {
     const { kons, sivu } = await avaa(laite);
     try {
       await sivu.evaluate(apurit);
@@ -534,7 +540,7 @@ async function osaLukema() {
 /* ── 5. AVAUS: MODUULIEN PAIKAT 10 s ──────────────────────────────── */
 async function osaAvaus() {
   console.log('\nAVAUS: ensimmäinen avaus, moduulien paikat 10 s ajan');
-  for (const laite of NOPEA ? ['p390'] : ['p390', 'tyopoyta']) {
+  for (const laite of rajaa(NOPEA ? ['p390'] : ['p390', 'tyopoyta'])) {
     const { kons, sivu } = await avaa(laite);
     try {
       const r = await sivu.evaluate(async (nimi) => {
@@ -583,7 +589,7 @@ async function osaAvaus() {
 async function osaTeksti() {
   console.log('\nTEKSTI: puoliksi näkyvät ja kolmeen pisteeseen katkaistut tekstit kortissa');
   const tapaukset = NOPEA ? [['p390', '']] : [['p390', ''], ['p360', 'en'], ['p320', ''], ['tyopoyta', '']];
-  for (const [laite, kieli] of tapaukset) {
+  for (const [laite, kieli] of rajaa(tapaukset)) {
     const nimi = laite + (kieli ? ' ' + kieli : '');
     const { kons, sivu } = await avaa(laite, { kieli });
     try {
@@ -726,7 +732,9 @@ async function osaRegressio() {
     try {
       const r = await sivu.evaluate(async () => {
         const FS = window.FS, s = FS.SPOTS.find((x) => x.name === 'Lauttasaari');
-        if (!FS.Saalaatat.kaytossa()) return { ohita: 'varasto ei käytössä' };
+        /* Varaston luettelo voi tulla latausruudun jälkeen: odotetaan. */
+        for (let i = 0; i < 40 && !FS.Saalaatat.kaytossa(); i++) await new Promise((r) => setTimeout(r, 1000));
+        if (!FS.Saalaatat.kaytossa()) return { ohita: 'varasto ei käytössä 40 s:n jälkeen' };
         FS.State.map.setView([s.lat, s.lng], 11);
         await new Promise((r) => setTimeout(r, 2500));
         const p = await FS.KorttiSarjat.lataa(s, 'paras');

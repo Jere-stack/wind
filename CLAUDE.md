@@ -460,8 +460,8 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   vasemmalla, eikä selaimen kieltä tunnisteta** (englanninkielinen
   puhelin ei tarkoita englanninkielistä käyttäjää). Kielten nimet
   omalla kielellään ja omalla `lang`illaan.
-- **`data-en-kaare`, `data-en-nyt`, `data-en-lukema` ja
-  `data-en-pohja` ovat ENNUSTEosion koukkuja, eivät käännöksiä.**
+- **`data-en-kaare`, `data-en-nyt`, `data-en-lukema`, `data-en-pohja`
+  ja `data-en-vertaa` ovat ENNUSTEosion koukkuja, eivät käännöksiä.**
   Käännöskierros lukee vain edellä luetellut attribuutit.
 - **Spottien englanninkielinen kuvaus on datassa (`descEn`)**, ei
   `_t`-kutsuna: `tools/suunnat.html` lukee `SPOTS`-lohkon pelkkänä
@@ -980,8 +980,13 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   mistä se on; Parasta VALITUN TUNNIN lähde, koska sen malli vaihtuu
   ajan mukana (V10). Kenttä avaa `Valikko`n (Paras saatavilla + viisi
   mallia). **Kortilla kaavio näyttää vain valitun ennusteen.** Laajassa
-  sama kenttä valitsee pohjan, ja sen vieressä on "Lisää"-sirurivi
-  muille malleille (enintään 3) — kaikki samaan kaavioon. Tila on yksi
+  sama kenttä (yksirivisenä, ilman alariviä) valitsee pohjan, ja sen
+  vieressä on **"Vertaa"-nappi**, joka avaa monivalinnan muille malleille
+  (`Valikko` `moni`, enintään 3; neljäs on pois käytöstä ja valikko
+  sanoo miksi) — kaikki samaan kaavioon (P12, 3.10.). "Lisää"-sirurivi
+  POISTETTIIN: se vieri sivuttain ilman merkkiä jatkosta, ja valitut
+  näkyivät puhelimilla 0–14 % (docs/spottikortti.md, 8.2.1). Älä palauta
+  sirurivejä laajaan. Tila on yksi
   (`fs_kortti_mallit` `{ pohja, valitut }`, `Ennuste._muuttui`), eikä
   pohja ole koskaan päällekkäinen käyrä. **ALLEKKAIN-ASUA EI OLE**
   (käyttäjä: "turha"); älä palauta sitä äläkä "Vertaa kaaviossa"
@@ -2065,8 +2070,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   Rivi on ensisijainen: se näyttää levossa valitun tunnin (havainnossa
   tuoreimman lukeman) ja osoittaessa osoitetun; havainnon napautettu
   lukema palaa 4 s:n päästä. Laajassa sama tieto menee `laaja.rivi`in.
-  Lähde on ennusteen tuulisolun NIMESSÄ, ei omana solunaan (rivitti
-  puhelimella).
+  Lähdettä EI ole tuulisolussa (V13): se on kaavion lähdekaistassa, ja
+  solun nimi on pelkkä "Tuuli" — "Tuuli · FMI HARMONIE 2,5 km" katkesi
+  kolmeen pisteeseen.
   **RIVI EI RIVITY EIKÄ KASVA: YKSI RIVI, 54 px, KAIKISSA KAAVIOISSA**
   (2.10., käyttäjän pyyntö "ei missään tapauksessa kasva
   pituussuunnassa ja teksti näkyy"). Menneellä tunnilla rivi rivittyi
@@ -2077,12 +2083,13 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   mittaa uusi solu 320, 360 ja 390 px:n leveydellä molemmilla kielillä.
   **RIVIN RAKENNE (30.9., käyttäjän pyyntö "parannetaan lukemaruudut")**
   on `Aikakaavio.lukemaHtml(solut)`: solut ovat `{ nimi, arvo, ala,
-  aika?, paa?, malli?, vari? }`. `aika` = hetki (päivä pienellä,
-  kellonaika 17 px lihavoituna), `paa` = rivin pääluku (22 px: tuuli,
-  vedenlämpö, aallonkorkeus), ja `malli` = vertailumalli, joka menee
-  OMALLE RIVILLEEN hiusviivan alle väripisteellä ja mallin värillä
-  (`.en-lk-mallit`), jotta pääluvun rivi ei muutu sen mukaan montako
-  mallia on valittu. Päätöstä (keli-chip) EI toisteta rivillä: kortin
+  aika?, paa?, luku?, suunta?, malli?, id?, naute?, mallirivi? }`.
+  `aika` = hetki (päivä pienellä, kellonaika 17 px lihavoituna), `paa` =
+  rivin pääluku (22 px: tuuli, vedenlämpö, aallonkorkeus), `luku` =
+  arvo kiinteän levyisessä sarakkeessa (`.en-luku`), `suunta` = oma
+  sarakkeensa, ja `malli` = laajan vertailumalli samanlaisena soluna
+  viivanäytteen (`naute`) kanssa `.en-lk-mallit`-kääreessä, jonka
+  `mallirivi` varaa myös ilman malleja. Päätöstä (keli-chip) EI toisteta rivillä: kortin
   hero sanoo sen kerran. Skrubissa rivin luvut EIVÄT enää isone
   (`.en-lukema.skrubaa` vaihtaa vain taustan) — pääluku on jo iso.
   **KUPLA PALLON VIERESSÄ (30.9., käyttäjän nimenomainen pyyntö "lukema
@@ -2093,9 +2100,17 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   vertailumalli omalla värillään (`g.kupla.vertailut`), ja mallien
   käyrille väripiste kursorin kohtaan (`data-tk-mdot`, piirretään
   pääpallon PÄÄLLE, koska mallit ovat usein samassa korkeudessa).
+  **KUPLA JÄÄ, MUTTA SE ON KIINTEÄN KOKOINEN** (käyttäjän päätös 3.10.:
+  "ei poisteta kuplaa kaavioista", P11 muuten suosituksen B mukaan):
+  rivit ovat kiinteät kaaviota kohti (puuttuva arvo "–"), leveys
+  MITATAAN kerran piirtoa kohti pisimmästä mahdollisesta rivistä
+  (`_kuplaKoko`, `getComputedTextLength`) eikä arvioida merkkimäärästä,
+  puoli vaihtuu vain kun kupla ei mahdu sille puolelle (`_akKuplaPuoli`),
+  ja kupla pysyy näkyvän piirtoalueen sisällä kiinteän y-akselin
+  oikealla puolella. Ennen leveys vaihteli osoitetun tunnin mukaan
+  (111–139 px) ja kupla jäi 320 px:n puhelimella 19 px reunan yli.
   Kupla asetetaan kursorin sivulle 24 px:n päähän eli sormen (~22 px
-  säde) ohi ja se kääntyy pallon vasemmalle puolelle ruudun oikeassa
-  reunassa; pystysuunnassa se rajataan plotin sisään. Skrubissa pallo
+  säde) ohi; pystysuunnassa se rajataan plotin sisään. Skrubissa pallo
   kasvaa 1,6× ja kursoriviiva on umpinainen 1,2 px. Kupla peittää
   alleen jääviä huippulappuja osoitettaessa — se on tietoinen hinta.
   **SVG:N `visibility="visible"` LAPSESSA VOITTAA VANHEMMAN
@@ -2275,11 +2290,20 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   selvästi alaspäin. Napit ohitetaan `closest('button')`illa.
 - **Laajassa lukema on kiinteällä rivillä JA kuplassa pallon vieressä.**
   Rivi on SAMA komponentti kuin kortilla (`HavLaaja.rivi` →
-  `Aikakaavio.lukemaHtml`); päällekkäiset käyrät ovat toisella
-  kiinteällä rivillä (`.on-mallit`), myös levossa (48 h keskiarvo).
-  Rivillä on levossa jakson tilastot ja raahatessa hetken arvot; kupla
-  on samalla 24 px:n etäisyydellä kuin kortilla, joten se ei jää
-  sormen alle (aiempi HTML-kupla jäi).
+  `Aikakaavio.lukemaHtml`). Tuuliennusteella (V13, 3.10.) **levossa
+  VALITTU TUNTI, osoittaessa osoitettu — samat solut**: aika, tuuli,
+  puuska ("–" kun puuttuu) ja vertailumallit soluina viivanäytteineen
+  (`data-lk-malli`), joten rivi on samalla käyrien selite. Luvut ovat
+  kiinteissä sarakkeissa (`.en-luku`, `.en-suunta`, aikasolun nimen
+  leveys), eikä mikään solu siirry tunnista toiseen. **KORKEUS EI RIIPU
+  MALLIEN MÄÄRÄSTÄ:** kapeassa (`.hl-lukema` alle 600 px, `@container`)
+  mallit ovat aina olemassa olevalla toisella rivillä (98 px; ilman
+  malleja siinä on valikon avaava "Vertaa malleja"), leveässä samalla
+  rivillä hiusviivan takana (54 px). Ennen ensimmäinen malli kasvatti
+  riviä 54 → 80 px ja lyhensi kaaviota, ja levossa rivi kertoi 48 h:n
+  keskiarvot eri soluilla kuin osoittaessa. Kupla on samalla 24 px:n
+  etäisyydellä kuin kortilla, joten se ei jää sormen alle (aiempi
+  HTML-kupla jäi).
 - **Lämpötila on VÄLI eikä käyrä.** Oma y-akseli tuulen rinnalla tekisi
   risteämisistä merkitseviä vaikka ne ovat mittayksikön sattumaa.
 - **KATKO ON KATKO, EI VIIVA** (`HAV_KATKO_MS` 30 min). Havaintokaavion
