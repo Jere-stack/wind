@@ -460,8 +460,8 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   vasemmalla, eikä selaimen kieltä tunnisteta** (englanninkielinen
   puhelin ei tarkoita englanninkielistä käyttäjää). Kielten nimet
   omalla kielellään ja omalla `lang`illaan.
-- **`data-en-kaare`, `data-en-nyt`, `data-en-lukema`, `data-en-pohja`
-  ja `data-en-vertaa` ovat ENNUSTEosion koukkuja, eivät käännöksiä.**
+- **`data-en-kaare`, `data-en-nyt`, `data-en-pohja` ja `data-en-vertaa`
+  ovat ENNUSTEosion koukkuja, eivät käännöksiä.**
   Käännöskierros lukee vain edellä luetellut attribuutit.
 - **Spottien englanninkielinen kuvaus on datassa (`descEn`)**, ei
   `_t`-kutsuna: `tools/suunnat.html` lukee `SPOTS`-lohkon pelkkänä
@@ -976,11 +976,14 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   tarjonnut iPhonella Apple Mapsia lainkaan.
 - **KORTIN ENNUSTE VALITAAN VALIKOSTA, PÄÄLLE LISÄTÄÄN VAIN LAAJASSA**
   (käyttäjän päätös 2.10., docs/spottikortti.md V11). Kaavion yllä on
-  valintakenttä (`.en-pohja`, `Ennuste._pohjaNappiHtml`): nimi ja alla
-  mistä se on; Parasta VALITUN TUNNIN lähde, koska sen malli vaihtuu
-  ajan mukana (V10). Kenttä avaa `Valikko`n (Paras saatavilla + viisi
+  valintakenttä (`.en-pohja`, `Ennuste._pohjaNappiHtml`), ja se on
+  YKSIRIVINEN kortilla ja laajassa (V14): pelkkä nimi, ja jos se ei
+  mahdu, lyhyt nimi (`data-lyhyt`, `_mahdutaPohja`: "Paras"), ei kolmea
+  pistettä. Lähde ja ajo ovat kaavion lähdekaistassa — kentän alarivi
+  ("Tällä tunnilla FMI HARMONIE…", V10) oli kortilla neljäs maininta
+  samasta lähteestä. Kenttä avaa `Valikko`n (Paras saatavilla + viisi
   mallia). **Kortilla kaavio näyttää vain valitun ennusteen.** Laajassa
-  sama kenttä (yksirivisenä, ilman alariviä) valitsee pohjan, ja sen
+  sama kenttä valitsee pohjan, ja sen
   vieressä on **"Vertaa"-nappi**, joka avaa monivalinnan muille malleille
   (`Valikko` `moni`, enintään 3; neljäs on pois käytöstä ja valikko
   sanoo miksi) — kaikki samaan kaavioon (P12, 3.10.). "Lisää"-sirurivi
@@ -1954,21 +1957,61 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kelluva HTML-laatikko; lukeman kupla pallon vieressä on SVG:n
   sisällä (ks. "LUKEMA PALLON VIERESSÄ").
 - **TUNNIN VAIHTO EI RAKENNA SPOTTIKORTTIA UUDELLEEN** (`openSheet`:n
-  päivityspolku, `_oliAuki`): vain `#sh-tunti`, `#sh-laatat-tunti` ja
-  `#sh-tiedot` kirjoitetaan, ja ennusteosio saa `asetaValittu`n, joka
-  siirtää kursoria CSS-transformilla (`.tk-valittu`, 0,22 s). Mitattu:
-  osio ja SVG ovat sama elementti napautusten yli, päivitys 7 ms vs
-  täysi rakennus 17–18 ms. Jos lisäät korttiin tuntiin sidotun osan,
-  lisää se päivityspolkuun — muuten se jää edelliseen tuntiin.
+  päivityspolku, `_oliAuki`): vain `#sh-laatat-tunti` ja `#sh-tiedot`
+  kirjoitetaan, ja ennusteosio saa `asetaValittu`n, joka siirtää kursoria
+  CSS-transformilla (`.tk-valittu`, 0,22 s) ja piirtää heron
+  (`Ennuste._naytaHero` → `Hero.nayta`). Hero piirretään AVAIMELLA
+  (`Hero.avain`: spotti, hetki, osoitus, pohja, sarjojen identiteetti,
+  yksiköt): sama avain = ei kirjoitusta eikä asettelun lukua, joten
+  kortin rakennuksen perään tuleva `kiinnita` ei piirrä sitä toiseen
+  kertaan. Mitattu: osio ja SVG ovat sama elementti napautusten yli,
+  päivitys 7 ms vs täysi rakennus 17–18 ms. Jos lisäät korttiin tuntiin
+  sidotun osan, lisää se päivityspolkuun — muuten se jää edelliseen
+  tuntiin.
 - **SPOTTIKORTTI ON MODUULEJA, JÄRJESTYKSESSÄ NYT → TUNNEITTAIN →
   YKSITYISKOHDAT → TEKSTIT** (V9, Applen Sään rakenne paperille): hero
   (`.sh-moduli`), tuuliennuste, valitun tunnin laatat (`.sh-laatat`),
   "Havainnot nyt" -laatat ja havaintokaaviot, ja alimpana tekstit
   (`#sh-tiedot`). Ryhmät nimetään `.sh-ryhma`lla. Havaintoasemakortti
   käyttää samoja osia. Päätös sanotaan kerran: foil-merkin vieressä on
-  vain se mitä se ei kerro (`spotIndexHuomio`, suunta) — nopeuteen
-  perustuva selite oli ristiriidassa merkin kanssa ("Rajatuuli –
-  kokeile" / "Liian heikko").
+  vain se mitä se ei kerro (`Hero._huomio`, suunta; ennen
+  `spotIndexHuomio`) — nopeuteen perustuva selite oli ristiriidassa
+  merkin kanssa ("Rajatuuli – kokeile" / "Liian heikko").
+- **HERO ON KORTIN TUULIENNUSTEEN LUKEMA** (P10 ja P13, käyttäjän päätös
+  3.10., docs/spottikortti.md 8.10 V14; `Hero`). Levossa se näyttää
+  valitun tunnin ja kaaviota osoitettaessa (hiiri, pito + liu'utus)
+  osoitetun: samat paikat, vain tekstit vaihtuvat ja pohja tummuu
+  (`.osoitettu`). Kortin ennusteella EI OLE omaa lukemariviä — se
+  toisti heron luvut 60 px:n päässä; älä palauta sitä. Luvut tulevat
+  KAAVION ennusteesta (`Hero.lukema`: pohja → Paras → `spot.wx`): kun
+  kaavioon on valittu malli, heron luku, indeksi ja päätös ovat sen
+  mallin, ja aikarivi nimeää sen ("· ICON"); Paras-tilassa hero =
+  aikajana = spottimerkki kuten ennenkin. Ennen kortilla oli samalle
+  tunnille kaksi lukua (hero Paras 6,9 kts, rivi ICON 9,2 kts).
+  **JOKAINEN HERON RIVI ON YKSI RIVI** (`nowrap`): pitkä muoto ensin, ja
+  jos se ei mahdu, lyhyempi (`data-mahdu` + `Hero._muodot`,
+  `_mahduta` kerran kirjoituksen jälkeen) — ei rivity eikä katkea
+  kolmeen pisteeseen. Puuskarivi on aina olemassa ("Puuska –"), ja
+  hajontarivi varaa korkeutensa myös tyhjänä. "Hyvin puuskainen" on
+  päätösrivin varoitus (`.sh-varo`, `--varoitus`), ei puuskarivin sana.
+  Lähde ja ajo EIVÄT ole herossa: ne ovat kaavion lähdekaistassa
+  (`Lahde.ajoTeksti`). Mitattu 127 tunnin yli: hero 180,5 px joka
+  leveydellä 320–430 px molemmilla kielillä (ennen 375 px:llä neljä
+  korkeutta 180–200 px ja 44 muutosta). **Kun hero on vierinyt pois**,
+  yläpalkissa on tiivis lukema (`Tiivis`, `[data-tiivis-lukema]`,
+  `IntersectionObserver` juurena `#sheet-scroll`, raja 45 %), samoista
+  muodoista lyhyempään kuten heron rivit; ruudunlukijalle piilossa.
+- **ENNUSTEOSIO ON KIINTEÄN KORKUINEN** (V14): ryhmän nimi
+  "Tuuliennuste" on kortin ulkopuolella (`.sh-ryhma`), osion yläreunassa
+  YKSI rivi (`.en-yla`: valikko, Nyt ja laajennus; Nyt-napin paikka on
+  varattu piilossakin), sadekaista on kortilla AINA (`sadeAina`,
+  kuivalla jaksolla pohjaviiva), paikanpitäjä ja "ei saatu" ovat kaavion
+  korkuisia (`Tuulikaavio.korkeus`), ennusteen vaihdossa edellinen kaavio
+  jää himmennettynä paikalleen ("Ladataan ICON…", `.lataa`) kunnes uusi
+  on valmis, ja pito-vihje kelluu kaavion päällä (`.ak-vihje`). Mitattu:
+  316 px joka tunnilla ja jokaisessa ennusteen vaihdossa latauksineen
+  (ennen 418–448 px sadekaistan ja latauksen mukaan). Jos lisäät osioon
+  jotain, varaa sen paikka myös silloin kun sitä ei näytetä.
 - **NYKYHETKI: NYT-LAPPU, KATKOVIIVA, MENNEISYYS HARSOLLA JA NYT-NAPPI.**
   Nappi näkyy vain kun valinta tai näkymä on muualla, ja se vie
   `Ennuste.nytTunti()`in — sama pyöristys kuin aikajanan `nowIdx`
@@ -2070,6 +2113,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   Rivi on ensisijainen: se näyttää levossa valitun tunnin (havainnossa
   tuoreimman lukeman) ja osoittaessa osoitetun; havainnon napautettu
   lukema palaa 4 s:n päästä. Laajassa sama tieto menee `laaja.rivi`in.
+  **Kortin tuuliennusteessa kiinteä paikka on HERO, ei rivi** (V14, ks.
+  "HERO ON KORTIN TUULIENNUSTEEN LUKEMA"); havainto-, vedenlämpö- ja
+  aaltokaavion rivit ja laajan rivi jäävät.
   Lähdettä EI ole tuulisolussa (V13): se on kaavion lähdekaistassa, ja
   solun nimi on pelkkä "Tuuli" — "Tuuli · FMI HARMONIE 2,5 km" katkesi
   kolmeen pisteeseen.

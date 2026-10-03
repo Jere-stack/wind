@@ -2748,8 +2748,6 @@ html.tyopoyta .hav-selite, html.tyopoyta .hav-vanha { font-size: 13px; }
   margin-top: 10px; font-size: var(--fs-11); color: var(--ink);
   font-variant-numeric: tabular-nums; font-weight: 600;
 }
-.sh-aikarivi-lahde { font-weight: 400; color: var(--ink-3); }
-.sh-aikarivi-lahde::before { content: '·'; margin-right: 8px; color: var(--ink-3); }
 .sh-nyt {
   font-size: var(--fs-8); font-weight: 700; letter-spacing: .8px;
   color: var(--accent); align-self: center;
@@ -2807,6 +2805,37 @@ button.sh-hero-indeksi:focus-visible { outline: 2px solid var(--accent); outline
   font-size: max(11px, var(--fs-11)); color: var(--ink-2); line-height: 1.45;
 }
 .sh-indeksi-selite[hidden] { display: none; }
+/* HERON RIVIT EIVÄT RIVITY (V14, docs/spottikortti.md 8.4.3). Jokainen
+   rivi on yksi rivi, ja liian pitkä teksti vaihtuu lyhyempään muotoon
+   (`Hero._mahduta`) — mitattuna 375 px:n puhelimella hero oli neljää
+   korkeutta (180–200 px) tunnista riippuen, kun puuska-, aika- ja
+   päätösrivi rivittyivät. Vain spotin hero (`#sh-tunti`): havaintokortin
+   herossa on omat tekstinsä. */
+#sh-tunti .sh-aikarivi, #sh-tunti .sh-paatos { flex-wrap: nowrap; }
+#sh-tunti .sh-aikarivi, #sh-tunti .sh-paatos, #sh-tunti .sh-big-suunta, #sh-tunti .sh-big-gust, #sh-tunti .sh-hajonta {
+  white-space: nowrap; overflow: hidden;
+}
+#sh-tunti .sh-paatos > * { flex-shrink: 0; }
+#sh-tunti .sh-hajonta { height: 1.45em; }
+/* Varoitus päätösrivillä ("hyvin puuskainen"): `--varoitus`, ei aksentti. */
+.sh-varo { color: var(--varoitus); font-weight: 600; }
+/* OSOITTAESSA hero tummuu kuten lukemarivi ennen: samat paikat, osoitetun
+   tunnin luvut. Iso luku ei animoidu: se vaihtuu jokaisella tunnilla ja
+   osoittimen liikkeellä, ja ponnahdus joka kerta oli kortin vilkkain
+   asia. */
+#sh-tunti .sh-hero-moduli { transition: background-color .15s ease; }
+#sh-tunti .sh-hero-moduli.osoitettu { background: var(--surface-lo); }
+#sh-tunti .sh-big-wind { animation: none; }
+/* TIIVIS LUKEMA YLÄPALKISSA (P10, `Tiivis`): näkyy vain kun hero on
+   vierinyt pois. Kahvan viiva on ylempänä (7 px), X oikealla. */
+.sh-tiivis {
+  position: absolute; left: 18px; right: 58px; top: 0; height: 44px;
+  display: flex; align-items: center; gap: 6px; pointer-events: none;
+  font-size: 13px; font-weight: 500; color: var(--ink-2); font-variant-numeric: tabular-nums;
+  white-space: nowrap; overflow: hidden; opacity: 0; transition: opacity .18s ease;
+}
+.sh-tiivis b { color: var(--ink); font-weight: 700; }
+.sh-tiivis.nakyy { opacity: 1; }
 .sh-indeksi-selite p { margin: 0 0 8px; }
 .sh-indeksi-selite dl { margin: 0; }
 .sh-indeksi-selite dt { font-weight: 600; color: var(--ink); margin-top: 6px; }
@@ -4638,7 +4667,12 @@ h3.fc-day-label { margin: 0; }
   font-size: var(--fs-11); font-weight: 600; cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.en-nyt[hidden] { display: none; }
+/* Paikka varataan myös piilossa (V14): osion rivi ei muutu. */
+.en-nyt[hidden] { display: inline-flex; visibility: hidden; }
+/* OSION YLÄRIVI (V14): ennustevalikko (vain nimi), Nyt ja laajennus
+   yhdellä rivillä. Ryhmän nimi on kortin ulkopuolella (`.sh-ryhma`). */
+.en-yla { display: flex; align-items: center; gap: 8px; margin: -2px 0 8px; min-width: 0; }
+.en-yla .en-pohja { flex: 1 1 auto; width: auto; min-width: 0; min-height: 40px; margin: 0; }
 .en-nyt:active { transform: scale(.96); }
 .en-nyt:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* KIINTEÄ LUKEMARIVI kaavion yllä: valittu tunti levossa, osoitettu
@@ -4768,8 +4802,25 @@ html.tyopoyta .en-solu-arvo { font-size: 15px; }
 .en-kaare.skrubaa [data-tk-hover] line { stroke: var(--ink); stroke-width: 1.2px; stroke-dasharray: none; }
 .en-lukema.skrubaa { background: var(--surface-lo); }
 /* Vihje kolmella ensimmäisellä avauksella kosketuslaitteella. */
-.ak-vihje { margin: 6px 0 0; font-size: max(11px, var(--fs-11, 11px)); color: var(--ink-3); text-align: center; }
+/* Vihje KELLUU kaavion päällä (V14): rivinä kaavion alla se katosi 12 s
+   avauksen jälkeen ja kaikki sen alla nousi. */
+.ak-vihje {
+  position: absolute; left: 50%; top: 128px; transform: translateX(-50%); z-index: 3;
+  max-width: calc(100% - 64px); box-sizing: border-box; padding: 6px 12px; border-radius: 12px;
+  background: rgba(14,20,31,.9); border: 1px solid var(--hairline);
+  font-size: max(12px, var(--fs-11, 11px)); line-height: 1.35; color: var(--ink-2); text-align: center; pointer-events: none;
+}
 .ak-vihje[hidden] { display: none; }
+/* LATAUS ENNUSTEEN VAIHDOSSA (V14): edellinen kaavio jää paikalleen
+   himmennettynä ja nimi kelluu sen päällä — paikanpitäjä ei vaihda
+   osion korkeutta. */
+.en-kaare.lataa svg.tk-svg, .en-kaare.lataa .ak-pv-vaippa { opacity: .3; transition: opacity .15s ease; }
+.en-lataus {
+  position: absolute; left: 50%; top: 92px; transform: translateX(-50%); z-index: 3; pointer-events: none;
+  padding: 6px 14px; border-radius: 999px; background: var(--surface); border: 1px solid var(--hairline);
+  font-size: 13px; font-weight: 600; color: var(--ink-2); white-space: nowrap;
+}
+.en-lataus[hidden] { display: none; }
 /* Työkalurivi (hiirilaitteet): zoom-napit ja navigaattori. */
 .ak-tyokalut { display: flex; align-items: center; gap: 4px; padding: 8px var(--moduli-tayte, 14px) 0; }
 .ak-tyokalut[hidden] { display: none; }
@@ -6204,9 +6255,8 @@ html.tyopoyta .hl-nimi { font-size: 20px; }
  * näyttää `data-nimi`n. Latausruutu ja rikas teksti (Tietoa) ovat
  * `data-kieli`-pareja, jotka CSS valitsee.
  *
- * HUOM: spottikortin `data-en-kaare`, `data-en-nyt`, `data-en-lukema`,
- * `data-en-pohja` ja `data-en-vertaa` ovat ENNUSTEosion koukkuja eivätkä
- * käännöksiä.
+ * HUOM: spottikortin `data-en-kaare`, `data-en-nyt`, `data-en-pohja` ja
+ * `data-en-vertaa` ovat ENNUSTEosion koukkuja eivätkä käännöksiä.
  * Kierros lukee vain yllä luetellut nimet, eikä se koske dynaamiseen
  * HTML:ään (se kulkee `_t`:n kautta). */
 const KIELI = document.documentElement.getAttribute('lang') === 'en' ? 'en' : 'fi';
@@ -17149,20 +17199,9 @@ function suunnatTekstina(bestDirs) {
     : d).join(' · ');
 }
 
-/* HERON HUOMIO: vain se mitä foil-merkki ja puuskarivi eivät jo sano.
-   Merkki kertoo nopeuden ja puuskarivi puuskaisuuden, joten niistä
-   johdettu selite olisi toinen, eri sanoin sanottu päätös samasta
-   asiasta — mitattuna heron rivillä luki vierekkäin "Rajatuuli –
-   kokeile" ja "Liian heikko" (4,6 m/s). Jäljelle jää suunta, jota
-   kumpikaan ei kerro. */
-function spotIndexHuomio(osat, ms, bestDirs) {
-  if (ms < 2 || osat.suuntaEro === null) return '';
-  const dirs = suunnatTekstina(bestDirs);
-  if (osat.suuntaEro > 80) return _t('Väärä suunta', 'Wrong direction') + (dirs ? _t(' — paras ', ' — best ') + dirs : '');
-  if (osat.suuntaEro > 40) return Math.round(osat.suuntaEro) + _t('° sivussa parhaasta', '° off the best')
-    + (dirs ? ' (' + dirs + ')' : '');
-  return dirs ? _t('Suunta osuu (', 'Direction fits (') + dirs + ')' : '';
-}
+/* HERON HUOMIO on `Hero._huomio`: vain se mitä foil-merkki ja puuskarivi
+   eivät jo sano, eli suunta — mitattuna heron rivillä luki ennen
+   vierekkäin "Rajatuuli – kokeile" ja "Liian heikko" (4,6 m/s). */
 
 
 /* Smooth gradient color: grey → yellow → light green → green
@@ -19629,6 +19668,8 @@ function _openObsSheet(type, station) {
   var sc=document.getElementById('sheet-content');
   if(!sheet||!sc) return;
   State.sheetSpot=null;
+  /* Havaintokortissa ei ole spotin heroa eikä siis tiivistä lukemaa. */
+  Tiivis.tyhjenna();
 
   var isWater=(type==='uiras');
   /* Aaltopoiju joka mittaa vain lampotilaa on LAMPOASEMA, ei rikkinainen
@@ -20681,7 +20722,7 @@ const KorttiSarjat = {
     { id: 'gfs',       nimi: 'GFS',        lahde: 'gfs',       vari: '#C6A6F7', viiva: '1.5,3', ala: 'NOAA · 13 km' },
   ],
   /* Kaavion pohjaksi valittavat: Paras (sekoitus) ja jokainen malli. */
-  PARAS: { id: 'paras', nimi: _t('Paras saatavilla', 'Best available'), vari: '#F0E7CE', viiva: '', ala: 'FMI · MET Nordic · ECMWF' },
+  PARAS: { id: 'paras', nimi: _t('Paras saatavilla', 'Best available'), lyhyt: _t('Paras', 'Best'), vari: '#F0E7CE', viiva: '', ala: 'FMI · MET Nordic · ECMWF' },
   pohja(id) { return id === 'paras' ? this.PARAS : this.malli(id); },
   malli(id) { return this.MALLIT.find(m => m.id === id) || null; },
   /* Kortti lukee hienointa tasoa: spotti on piste, ei näkymä. */
@@ -20857,7 +20898,10 @@ const Tuulikaavio = {
     /* KIRJASINKOOT (fs = 1): päivä 12 px/700, tunnit ja lähde 11 ja 10,
        luvut 12 px/700, puuska 11, ruudukko 10. Pienin teksti on siis
        10 px kortilla ja 13 px työpöydän laajassa (`laajaFs`). */
-    kortti:   { fs: 1,    paivaH: 22, tuntiH: 16, lahdeH: 14, plotH: 150, nuoliH: 20, sadeH: 18, lampoH: 0,  lw: 1,   lukuVali: 24, ruutuVali: 24, laaja: false },
+    /* Kortilla sadekaista on AINA (V14, `sadeAina`): ennen se piirrettiin
+       vain jos jaksossa satoi, ja ennusteen vaihto muutti osion korkeutta
+       436 → 418 px. */
+    kortti:   { fs: 1,    paivaH: 22, tuntiH: 16, lahdeH: 14, plotH: 150, nuoliH: 20, sadeH: 18, lampoH: 0,  lw: 1,   lukuVali: 24, ruutuVali: 24, laaja: false, sadeAina: true },
     rivi:     { fs: 1,    paivaH: 0,  tuntiH: 0,  lahdeH: 15, plotH: 84,  nuoliH: 16, sadeH: 0,  lampoH: 0,  lw: 1,   lukuVali: 30, ruutuVali: 22, laaja: false },
     havainto: { fs: 1,    paivaH: 22, tuntiH: 16, lahdeH: 0,  plotH: 132, nuoliH: 18, sadeH: 0,  lampoH: 0,  lw: 1,   lukuVali: 24, ruutuVali: 24, laaja: false },
     /* Vedenlämpö ja aallot: päivätaso, ei tuntiriviä. */
@@ -20867,6 +20911,13 @@ const Tuulikaavio = {
   /* Laajan kirjasinkerroin leveydestä: työpöydän koko ruudulla 1,3 teki
      10 px:n rivistä 13 px:n, ja se luki 1440 px:n ruudulla pikkuruisena. */
   laajaFs(w) { return w > 1100 ? 1.5 : (w > 620 ? 1.3 : 1.15); },
+  /* Ennustekaavion kokonaiskorkeus asusta (lähde, nuolet, piirtoalue,
+     tunnit, päivät, sade ja lämpö) — sama summa kuin `piirra`n `TH`.
+     Paikanpitäjä ja "ei saatu" ovat tämän korkuisia (V14). */
+  korkeus(A, plotH) {
+    const sade = A.sadeAina ? A.sadeH : 0;
+    return A.lahdeH + A.nuoliH + (plotH || A.plotH) + A.tuntiH + A.paivaH + sade + (A.lampoH || 0) + (sade || A.lampoH ? 2 : 0);
+  },
   PAPERI: Teema.pintaHi,
   INK: Teema.ink, INK2: Teema.ink2, INK3: Teema.ink3,
   PAIVAT: PV_LYHYT,
@@ -21063,9 +21114,9 @@ const Tuulikaavio = {
     const P = o.paa;
     const lahdeH = (P && P.lahde && A.lahdeH) ? A.lahdeH : (o.nimi ? A.lahdeH : 0);
     const nuoliH = (P && P.dir) ? A.nuoliH : 0;
-    let sadeH = 0, lampoH = 0;
+    let sadeH = A.sadeAina ? A.sadeH : 0, lampoH = 0;
     const saa = o.saa;
-    if (saa && A.sadeH && saa.mm) {
+    if (!sadeH && saa && A.sadeH && saa.mm) {
       for (let i = 0; i < saa.t.length; i++) {
         if (saa.t[i] >= alku - 36e5 && saa.t[i] <= loppu + 36e5 && saa.mm[i] > 0.05) { sadeH = A.sadeH; break; }
       }
@@ -21645,8 +21696,13 @@ const Tuulikaavio = {
         }
       }
       /* Rivillä on nimi joka keskiyön kohdalla, jotta se näkyy myös
-         vierivässä kaaviossa. */
-      if (sateet) {
+         vierivässä kaaviossa. Aina varatulla rivillä (`sadeAina`) pohjaviiva
+         piirretään myös kuivana jaksona: tyhjä kaista ilman viivaa luki
+         reikänä. */
+      if (!sateet && sadeH && A.sadeAina) {
+        sateet = '<line x1="0" x2="' + W + '" y1="' + (sadeY + sadeH).toFixed(1) + '" y2="' + (sadeY + sadeH).toFixed(1)
+          + '" stroke="rgba(141,182,255,.25)" stroke-width="1"/>';
+      } else if (sateet) {
         sateet = '<line x1="0" x2="' + W + '" y1="' + (sadeY + sadeH).toFixed(1) + '" y2="' + (sadeY + sadeH).toFixed(1)
           + '" stroke="rgba(141,182,255,.25)" stroke-width="1"/>' + sateet;
         /* Loitonnettuna keskiyöt ovat tiheässä: nimi vain jos edellinen
@@ -21673,7 +21729,11 @@ const Tuulikaavio = {
         if (avain == null || a == null) return;
         const xa = Math.max(0, xOf(a)), xb = Math.min(W, xOf(b));
         if (xb - xa < 2) return;
-        const nimi = (typeof Lahde !== 'undefined' && Lahde.LYHYET[avain]) || avain;
+        /* Ennusteen ajo nimen perään (`o.ajot`, V14): se oli heron
+           aikarivillä ("FMI HARMONIE 2,5 km · ajo klo 09:00"), ja lähde
+           oli kortilla neljästi (P15, kohta 6). */
+        const ajo = (o.ajot && typeof Lahde !== 'undefined') ? Lahde.ajoTeksti(avain) : '';
+        const nimi = ((typeof Lahde !== 'undefined' && Lahde.LYHYET[avain]) || avain) + (ajo ? ' · ' + ajo : '');
         lahdeRivi += '<line x1="' + xa.toFixed(1) + '" x2="' + xa.toFixed(1) + '" y1="' + (lahdeY + 2) + '" y2="' + (lahdeY + lahdeH - 1)
           + '" stroke="' + this.INK3 + '" stroke-width="1"/>';
         /* Nimi jakson alussa JA jokaisen keskiyön jälkeen, jotta se
@@ -22800,49 +22860,64 @@ const Ennuste = {
      (lähin tasatunti) — kahta "nyt"-sääntöä ei saa olla. */
   nytTunti() { return Math.round(Date.now() / 36e5) * 36e5; },
 
+  /* OSION RAKENNE (V14): ryhmän nimi kortin ulkopuolella kuten muissa
+     ryhmissä, sitten YKSI rivi — ennustevalikko (vain nimi), Nyt ja
+     laajennus — ja kaavio. Kortilla ei ole omaa lukemariviä: hero on
+     kaavion lukema (P10). Nyt-napin paikka on varattu myös piilossa,
+     paikanpitäjä on kaavion korkuinen ja vihje kelluu kaavion päällä,
+     joten osion korkeus ei muutu mistään (mitattuna ennen 406 / 418 /
+     436 px ennusteen vaihdossa). */
   html(spot) {
-    return '<section class="en-osio sh-moduli" data-ennuste="' + spot.name.replace(/"/g, '') + '" aria-label="' + _t('Tuuliennuste', 'Wind forecast') + '">'
-      + '<div class="osio-otsikko-rivi"><h3 class="osio-otsikko">' + _t('Tuuliennuste', 'Wind forecast') + '</h3>'
+    return '<h3 class="sh-ryhma">' + _t('Tuuliennuste', 'Wind forecast') + '</h3>'
+      + '<section class="en-osio sh-moduli" data-ennuste="' + spot.name.replace(/"/g, '') + '" aria-label="' + _t('Tuuliennuste', 'Wind forecast') + '">'
+      + '<div class="en-yla">'
+      /* ENNUSTEVALIKKO (käyttäjän pyyntö 2.10.): kortilla valitaan MITÄ
+         ennustetta kaavio näyttää — yksi kerrallaan. Päälle lisätään
+         muita käyriä vasta laajassa. */
+      + this._pohjaNappiHtml(spot, State.valittuMs)
       /* NYT-NAPPI palauttaa valinnan tämän hetken tuntiin ja vierittää
          kaavion sinne. Se näkyy vain kun valinta tai näkymä on muualla —
-         nappi joka ei tee mitään olisi turha pysäkki. */
+         nappi joka ei tee mitään olisi turha pysäkki — mutta sen paikka
+         on varattu (`visibility`). */
       + '<button type="button" class="en-nyt" data-en-nyt hidden aria-label="' + _t('Palaa nykyhetkeen', 'Back to now') + '">'
       + _PALUU_SVG + _t('Nyt', 'Now') + '</button>'
       + _havLaajennaNappi('ennuste') + '</div>'
-      /* ENNUSTEVALIKKO (käyttäjän pyyntö 2.10.): kortilla valitaan MITÄ
-         ennustetta kaavio näyttää — yksi kerrallaan. Päälle lisätään
-         muita käyriä vasta laajassa. Korvasi "Vertaa kaaviossa" -rivin
-         ja Päällekkäin/Allekkain-valinnan. */
-      + this._pohjaNappiHtml(spot, State.valittuMs)
-      + '<div class="en-lukema" data-en-lukema aria-live="off"></div>'
       /* Kaavio on fokusoitava: nuolet vaihtavat tuntia. */
       + '<div class="ak-kehys"><div class="en-kaare" data-en-kaare tabindex="0" role="group"'
-      + ' aria-label="' + _t('Tuuliennustekaavio. Vieritä sivuttain, napauta tuntia tai pidä ja liu’uta lukeaksesi, nuolinäppäimet vaihtavat tuntia, plus ja miinus zoomaavat.', 'Wind forecast chart. Scroll sideways, tap an hour or touch, hold and slide to read; arrow keys change the hour, plus and minus zoom.') + '"><div class="en-paikka"></div></div></div>'
-      + '<div class="ak-vihje" hidden>' + _t('Pidä sormea kaaviolla ja liu’uta — lukema seuraa sormea', 'Touch and hold the chart, then slide — the reading follows your finger') + '</div>'
+      + ' aria-label="' + _t('Tuuliennustekaavio. Vieritä sivuttain, napauta tuntia tai pidä ja liu’uta lukeaksesi, nuolinäppäimet vaihtavat tuntia, plus ja miinus zoomaavat.', 'Wind forecast chart. Scroll sideways, tap an hour or touch, hold and slide to read; arrow keys change the hour, plus and minus zoom.') + '">'
+      + '<div class="en-paikka" style="height:' + Tuulikaavio.korkeus(Tuulikaavio.ASUT.kortti) + 'px"></div></div>'
+      + '<div class="en-lataus" hidden></div>'
+      + '<div class="ak-vihje" hidden>' + _t('Pidä sormea kaaviolla ja liu’uta — lukema seuraa sormea', 'Touch and hold the chart, then slide — the reading follows your finger') + '</div></div>'
       + '</section>';
   },
 
-  /* Valikkokenttä: nimi ja sen alla mistä se on. Parasta sanotaan
-     VALITUN TUNNIN lähde, koska sen malli vaihtuu ajan mukana (V10). */
-  _pohjaTekstit(spot, tMs) {
+  /* Valikkokentän nimi ja sen lyhyt muoto. Parhaan tunnin lähde ("Tällä
+     tunnilla FMI HARMONIE…", V10) oli kentän alarivillä; nyt se on vain
+     kaavion lähdekaistassa (P15, kohta 6). */
+  _pohjaTekstit() {
     const m = KorttiSarjat.pohja(this.pohjaId());
-    let ala = m.ala;
-    if (m.id === 'paras') {
-      const paa = spot ? KorttiSarjat.valmis(spot, 'paras') : null;
-      const a = paa ? KorttiSarjat.arvo(paa, tMs != null ? tMs : this.nytTunti()) : null;
-      if (a && a.lahde) ala = _t('Tällä tunnilla ', 'This hour ') + (Lahde.LYHYET[a.lahde] || a.lahde);
-    }
-    return { nimi: m.nimi, ala: ala };
+    return { nimi: m.nimi, lyhyt: m.lyhyt || m.nimi };
   },
-  /* Laajassa kenttä on YKSIRIVINEN (V13): alarivi "Tällä tunnilla FMI
-     HARMONIE 2,…" katkesi kolmeen pisteeseen, ja lähdekaista kertoo saman. */
+  /* Kenttä on YKSIRIVINEN kortilla (V14) ja laajassa (V13): alarivi
+     ("Tällä tunnilla FMI HARMONIE 2,…") katkesi laajassa kolmeen
+     pisteeseen, ja sama lähde oli kortilla neljästi. Lähde ja ajo ovat
+     kaavion lähdekaistassa (P15, kohta 6). */
   _pohjaNappiHtml(spot, tMs, laaja) {
-    const x = this._pohjaTekstit(spot, tMs);
+    const x = this._pohjaTekstit();
     return '<button type="button" class="en-pohja' + (laaja ? ' en-pohja-laaja' : '') + '" data-en-pohja aria-haspopup="listbox" aria-expanded="false"'
       + ' aria-label="' + _t('Kaavion ennuste: ', 'Chart forecast: ') + x.nimi + '">'
-      + '<span class="en-pohja-teksti"><span class="en-pohja-nimi" data-en-pohja-nimi>' + x.nimi + '</span>'
-      + (laaja ? '' : '<span class="en-pohja-ala" data-en-pohja-ala>' + x.ala + '</span>') + '</span>'
+      + '<span class="en-pohja-teksti"><span class="en-pohja-nimi" data-en-pohja-nimi data-pitka="' + x.nimi + '" data-lyhyt="' + x.lyhyt + '">' + x.nimi + '</span></span>'
       + this._NUOLI_ALAS + '</button>';
+  },
+  /* Nimi EI KATKEA: jos se ei mahdu (320 px:n puhelin, kortin rivillä
+     myös Nyt ja laajennus), kenttä sanoo lyhyen nimen ("Paras").
+     Lukee asettelun, joten vain kun nimi vaihtuu tai kortti rakennetaan. */
+  _mahdutaPohja(juuri) {
+    if (!juuri) return;
+    juuri.querySelectorAll('[data-en-pohja-nimi][data-lyhyt]').forEach((el) => {
+      if (el.textContent !== el.dataset.pitka) el.textContent = el.dataset.pitka;
+      if (el.dataset.lyhyt !== el.dataset.pitka && el.scrollWidth > el.clientWidth + 1) el.textContent = el.dataset.lyhyt;
+    });
   },
   _NUOLI_ALAS: '<svg class="en-pohja-nuoli" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><polyline points="2,4 6,8 10,4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   /* Käyrän viivanäyte: sama väri ja kuvio kuin kaaviossa, joten valikon
@@ -23045,16 +23120,18 @@ const Ennuste = {
     if (typeof HavLaaja !== 'undefined' && HavLaaja.auki() && HavLaaja._lahde && HavLaaja._lahde.enCtx === ctx) HavLaaja.paivita();
   },
   _paivitaPohjaNappi(ctx) {
-    const x = this._pohjaTekstit(ctx.spot, ctx.valittu);
+    const x = this._pohjaTekstit();
     const juuret = [ctx.osio];
     const laajaOma = typeof HavLaaja !== 'undefined' && HavLaaja.auki() && HavLaaja._lahde && HavLaaja._lahde.enCtx === ctx;
     if (laajaOma && ctx.laajaSirut && ctx.laajaSirut.isConnected) juuret.push(ctx.laajaSirut);
     juuret.forEach(j => {
       const b = j.querySelector('[data-en-pohja]');
       if (!b) return;
-      const n = b.querySelector('[data-en-pohja-nimi]'), al = b.querySelector('[data-en-pohja-ala]');
-      if (n && n.textContent !== x.nimi) n.textContent = x.nimi;
-      if (al && al.textContent !== x.ala) al.textContent = x.ala;
+      const n = b.querySelector('[data-en-pohja-nimi]');
+      if (n && n.dataset.pitka !== x.nimi) {
+        n.dataset.pitka = x.nimi; n.dataset.lyhyt = x.lyhyt; n.textContent = x.nimi;
+        this._mahdutaPohja(b);
+      }
       b.setAttribute('aria-label', _t('Kaavion ennuste: ', 'Chart forecast: ') + x.nimi);
     });
   },
@@ -23092,35 +23169,29 @@ const Ennuste = {
     return solut;
   },
 
-  _hajonta(ctx) {
-    const spot = ctx.spot, t = ctx.valittu;
-    const arvot = [];
-    ['ecmwf', 'icon', 'gfs'].forEach(id => {
-      const s = KorttiSarjat.valmis(spot, id);
-      const a = s ? KorttiSarjat.arvo(s, t) : null;
-      if (a) arvot.push(a.ms);
-    });
-    if (arvot.length < 2) return null;
-    const min = Math.min.apply(null, arvot), max = Math.max.apply(null, arvot);
-    return { hajonta: max - min, n: arvot.length };
-  },
-  hajontaTeksti(h) {
-    if (!h) return '';
+  /* Mallien erimielisyys sanotaan KERRAN, herossa (`Hero.hajonta`): se on
+     päätöksen varmuus eikä kaavion selite. Muodot pisimmästä lyhimpään,
+     koska heron rivi ei rivity (P10). */
+  hajontaMuodot(h) {
+    if (!h) return [''];
     const e = Units.fmt(h.hajonta) + ' ' + Units.label();
-    if (h.hajonta < 1.5) return _t('Mallit yksimielisiä (±', 'Models agree (±') + e + ')';
-    if (h.hajonta < 4) return _t('Malleissa eroa ' + e + ' — ennuste voi vielä muuttua', 'Models differ by ' + e + ' — the forecast may still change');
-    return _t('Mallit eriävät ' + e + ' — ennuste epävarma', 'Models disagree by ' + e + ' — the forecast is uncertain');
+    if (h.hajonta < 1.5) return [_t('Mallit yksimielisiä (±', 'Models agree (±') + e + ')', _t('Mallit yksimielisiä ±', 'Models agree ±') + e];
+    if (h.hajonta < 4) return [_t('Malleissa eroa ' + e + ' — ennuste voi vielä muuttua', 'Models differ by ' + e + ' — the forecast may still change'),
+                               _t('Malleissa eroa ±', 'Models differ ±') + e];
+    return [_t('Mallit eriävät ' + e + ' — ennuste epävarma', 'Models disagree by ' + e + ' — the forecast is uncertain'),
+            _t('Mallit eriävät ±', 'Models disagree ±') + e];
   },
+  /* Voimakas erimielisyys on VAROITUS (`--varoitus`), ei toimintoväri:
+     tämä oli `--accent` ajalta jolloin aksentti oli magenta (8.2.4). */
   hajontaVari(h) {
     if (!h) return 'var(--ink-3)';
-    return h.hajonta < 1.5 ? 'var(--ink-2)' : (h.hajonta < 4 ? 'var(--ink)' : 'var(--accent)');
+    return h.hajonta < 1.5 ? 'var(--ink-2)' : (h.hajonta < 4 ? 'var(--ink)' : 'var(--varoitus)');
   },
-  _paivitaHajonta(ctx) {
-    const haj = this._hajonta(ctx);
-    /* Hajonta sanotaan KERRAN, herossa: se on päätöksen varmuus eikä
-       kaavion selite (se oli molemmissa, 300 px:n päässä toisistaan). */
-    const hero = document.getElementById('sh-hajonta');
-    if (hero && haj) { hero.textContent = this.hajontaTeksti(haj); hero.style.color = this.hajontaVari(haj); }
+  /* Hero (kortin lukema) kaavion hetkellä: osoitettu tai valittu. */
+  _naytaHero(ctx) {
+    if (State.sheetSpot !== ctx.spot) return;
+    const t = ctx.hover != null ? ctx.hover : (ctx.valittu != null ? ctx.valittu : this.nytTunti());
+    Hero.nayta(ctx.spot, t, ctx.hover != null);
   },
   _paivitaNytNappi(ctx) {
     const b = ctx.osio.querySelector('[data-en-nyt]');
@@ -23143,28 +23214,48 @@ const Ennuste = {
     const kaare = osio.querySelector('[data-en-kaare]');
     if (!kaare) return;
     const paa = this.pohjaSarja(spot);
-    this._paivitaHajonta(ctx);
+    /* Hero lukee kaavion ennustetta (P13): pohjan vaihto ja sarjojen
+       saapuminen piirtävät sen uudelleen. */
+    this._naytaHero(ctx);
+    const lataus = osio.querySelector('.en-lataus');
     if (!paa) {
-      /* Ei sarjaa: edellisen ennusteen akseli ja lukemat pois, muuten
-         ne jäisivät valheeksi tyhjän kaavion viereen. */
+      /* LATAUKSEN AJAN EDELLINEN KAAVIO JÄÄ PAIKALLEEN HIMMENNETTYNÄ
+         (V14), kuten sadekerroksen hyppy: paikanpitäjä ("Ladataan…",
+         230 px) kaavion (242 px) tilalla siirsi kaikkea sen alla kahdesti
+         jokaisella ennusteen vaihdolla. */
+      if (!ctx.eiSaatu && kaare._geot && kaare.querySelector('svg.tk-svg')) {
+        kaare.classList.add('lataa');
+        const m = KorttiSarjat.pohja(this.pohjaId());
+        if (lataus) { lataus.textContent = _t('Ladataan ' + m.nimi + '…', 'Loading ' + m.nimi + '…'); lataus.hidden = false; }
+        return;
+      }
+      /* Ei sarjaa eikä edellistä kaaviota: akseli ja lukemat pois, muuten
+         ne jäisivät valheeksi tyhjän kaavion viereen. Paikanpitäjä on
+         KAAVION KORKUINEN (`Tuulikaavio.korkeus`), joten mikään ei siirry
+         kun kaavio tulee. */
       kaare._geot = null;
+      kaare.classList.remove('lataa');
+      if (lataus) lataus.hidden = true;
       const ak = osio.querySelector('.ak-akseli');
       if (ak) ak.innerHTML = '';
-      this._naytaLukema(ctx, ctx.valittu != null ? ctx.valittu : this.nytTunti());
+      const paikka = (teksti, yrita) => '<div class="en-paikka' + (yrita ? ' en-paikka-yrita' : '') + '" style="height:'
+        + Tuulikaavio.korkeus(Tuulikaavio.ASUT.kortti) + 'px">' + teksti + '</div>';
       if (ctx.eiSaatu && this.pohjaId() !== 'paras') {
         /* Alueellinen malli ei kata kaikkia paikkoja, ja haku voi kaatua:
            sanotaan se, eikä vaihdeta hiljaa toiseen ennusteeseen. */
         const m = KorttiSarjat.pohja(this.pohjaId());
-        kaare.innerHTML = '<div class="en-paikka en-paikka-yrita">' + _t(m.nimi + '-ennustetta ei saatu tälle paikalle. Napauta yrittääksesi uudelleen tai valitse toinen ennuste yllä.', 'No ' + m.nimi + ' forecast for this place. Tap to try again or choose another forecast above.') + '</div>';
+        kaare.innerHTML = paikka(_t(m.nimi + '-ennustetta ei saatu tälle paikalle. Napauta yrittääksesi uudelleen tai valitse toinen ennuste yllä.', 'No ' + m.nimi + ' forecast for this place. Tap to try again or choose another forecast above.'), true);
         kaare.firstChild.addEventListener('click', function () { if (ctx.yrita) ctx.yrita(); });
       } else if (ctx.eiSaatu) {
-        kaare.innerHTML = '<div class="en-paikka en-paikka-yrita">' + _t('Ennustetta ei saatu. Napauta yrittääksesi uudelleen.', 'Couldn’t load the forecast. Tap to try again.') + '</div>';
+        kaare.innerHTML = paikka(_t('Ennustetta ei saatu. Napauta yrittääksesi uudelleen.', 'Couldn’t load the forecast. Tap to try again.'), true);
         kaare.firstChild.addEventListener('click', function () { if (ctx.yrita) ctx.yrita(); });
       } else {
-        kaare.innerHTML = '<div class="en-paikka">' + _t('Ladataan ennustetta…', 'Loading forecast…') + '</div>';
+        kaare.innerHTML = paikka(_t('Ladataan ennustetta…', 'Loading forecast…'));
       }
       return;
     }
+    kaare.classList.remove('lataa');
+    if (lataus) lataus.hidden = true;
     this._paivitaPohjaNappi(ctx);
     const ik = this._ikkuna(paa);
     const W0 = Aikakaavio.leveys(kaare, 'kortti');
@@ -23190,15 +23281,15 @@ const Ennuste = {
     const maxV = laske(ikk.a, ikk.b);
     const piirrokset = [Tuulikaavio.piirra({ W: W, alku: ik.alku, loppu: ik.loppu, maxV: maxV, nyt: Date.now(), valittu: ctx.valittu, akseli: 'kiintea',
       lat: spot.lat, lng: spot.lng, bestDirs: spot.bestDirs,
-      asu: Tuulikaavio.ASUT.kortti, paa: paa, vertailut: [], saa: this._saa(spot),
+      asu: Tuulikaavio.ASUT.kortti, paa: paa, vertailut: [], saa: this._saa(spot), ajot: true,
       aria: _t('Tuuliennuste ', 'Wind forecast ') + spot.name })];
     Aikakaavio.aseta(kaare, piirrokset, ctx.valittu);
     Aikakaavio.skaala(kaare, laske);
-    this._naytaLukema(ctx, ctx.hover != null ? ctx.hover : ctx.valittu);
     Aikakaavio.osoitin(kaare, {
       pyorista: 36e5,
       valittu: function () { return ctx.valittu; },
-      nayta: function (t) { ctx.hover = t; Aikakaavio.hover(kaare, t); self._naytaLukema(ctx, t != null ? t : ctx.valittu); },
+      /* Osoitus näkyy HEROSSA (P10): samat paikat, osoitetun tunnin luvut. */
+      nayta: function (t) { ctx.hover = t; Aikakaavio.hover(kaare, t); self._naytaHero(ctx); },
       napautus: function (t) { self.valitse(ctx, t); },
       nappain: function (askel) {
         const lahto = ctx.valittu != null ? ctx.valittu : Date.now();
@@ -23220,18 +23311,11 @@ const Ennuste = {
     this._paivitaNytNappi(ctx);
   },
 
-  _naytaLukema(ctx, tMs) {
-    const el = ctx.osio.querySelector('[data-en-lukema]');
-    if (!el || tMs == null) return;
-    el.innerHTML = Aikakaavio.lukemaHtml(this._solut(ctx, tMs));
-    el.classList.toggle('osoitettu', ctx.hover != null);
-  },
-
   /* VALINTA ILMAN UUDELLEENPIIRTOA. Kursori ja pallo liukuvat uuteen
-     tuntiin CSS-siirtymällä (`.tk-valittu`, 0,22 s), lukemarivi ja
-     hajonta päivittyvät, ja jos tunti on näkyvän alueen ulkopuolella,
-     kaavio vierii sinne pehmeästi. `openSheet` kutsuu tätä tunnin
-     vaihtuessa sen sijaan että rakentaisi osion uudelleen. */
+     tuntiin CSS-siirtymällä (`.tk-valittu`, 0,22 s), hero päivittyy, ja
+     jos tunti on näkyvän alueen ulkopuolella, kaavio vierii sinne
+     pehmeästi. `openSheet` kutsuu tätä tunnin vaihtuessa sen sijaan että
+     rakentaisi osion uudelleen. */
   asetaValittu(ctx, t) {
     if (!ctx) return;
     ctx.valittu = t;
@@ -23249,8 +23333,7 @@ const Ennuste = {
       Aikakaavio.naytaHetki(lk, t, true);
       if (ctx.laajaRivi) ctx.laajaRivi();
     }
-    if (ctx.hover == null) this._naytaLukema(ctx, t);
-    this._paivitaHajonta(ctx);
+    this._naytaHero(ctx);
     this._paivitaNytNappi(ctx);
     this._paivitaPohjaNappi(ctx);
   },
@@ -23329,7 +23412,7 @@ const Ennuste = {
        allekkain-asu oli turha). */
     const piirrokset = [Tuulikaavio.piirra({ W: W, alku: ik.alku, loppu: ik.loppu, maxV: maxV, nyt: Date.now(), valittu: ctx.valittu, akseli: 'kiintea',
       lat: spot.lat, lng: spot.lng, bestDirs: spot.bestDirs,
-      asu: asuL, plotH: plotH, paa: paa, vertailut: vert, saa: this._saa(spot) })];
+      asu: asuL, plotH: plotH, paa: paa, vertailut: vert, saa: this._saa(spot), ajot: true })];
     let kaare = kaavioEl.querySelector('[data-en-kaare]');
     if (!kaare) {
       kaavioEl.innerHTML = '<div class="ak-kehys ak-kehys-laaja"><div class="en-kaare en-kaare-laaja" data-en-kaare tabindex="0" role="group"'
@@ -23405,6 +23488,225 @@ document.addEventListener('click', function (e) {
   if (typeof Haptics !== 'undefined') Haptics.light();
 });
 
+/* -- HERO: KORTIN LUKEMA (docs/spottikortti.md, luku 8: P10 ja P13) --
+ *
+ * HERO ON ENNUSTEKAAVION LUKEMA. Levossa se näyttää valitun tunnin ja
+ * kaaviota osoittaessa (hiiri, pito + liu'utus) osoitetun tunnin: samat
+ * paikat, vain tekstit vaihtuvat, ja pohja tummuu (`.osoitettu`). Kortin
+ * oma lukemarivi poistui — se toisti heron luvut 60 px:n päässä.
+ *
+ * LUVUT TULEVAT KAAVION ENNUSTEESTA (P13). Paras-tilassa sama sekoitus
+ * kuin kartalla, aikajanalla ja spottimerkeillä (kortti vs aikajana
+ * 0,0000 m/s säilyy). Kun kaavioon on valittu malli, heron luku, indeksi
+ * ja päätös ovat sen mallin ja aikarivi nimeää sen ("· ICON"); ennen
+ * hero näytti Parasta ja heti alla oleva rivi ICONia, eli samalle tunnille
+ * kaksi lukua (6,9 vs 9,2 kts). Jos malli ei kata tuntia, luku on Parasta
+ * ja aikarivi sanoo sen.
+ *
+ * KIINTEÄT PAIKAT. Jokainen rivi on yksi rivi (`nowrap`), puuskarivi on
+ * aina olemassa ("–" ilman puuskaa), ja teksti joka ei mahdu vaihtuu
+ * lyhyempään muotoon (`_mahduta`, portaikko kuten kaavion päiväotsikossa)
+ * — ei rivity eikä leikkaudu. Mitattuna 375 px:n puhelimella hero oli
+ * neljää korkeutta (180–200 px) tunnista riippuen. Lähde ja ajo eivät ole
+ * herossa: ne ovat kaavion lähdekaistassa. */
+const Hero = {
+  _muodot: {},
+  /* Piirron avain: hetki, tila, pohja ja sarjojen identiteetti. Sama avain
+     = sama hero, eikä sitä piirretä eikä mitata uudelleen (kortin
+     rakennuksen perään `Ennuste.kiinnita` pyytäisi muuten heti toisen
+     piirron ja pakottaisi juuri rakennetun kortin asettelun). */
+  _ids: new WeakMap(), _n: 0, _avain: null,
+  _id(s) { if (!s) return '-'; let i = this._ids.get(s); if (!i) { i = ++this._n; this._ids.set(s, i); } return i; },
+  avain(spot, tMs, osoitettu) {
+    const pohja = Ennuste.pohjaId();
+    return spot.name + '|' + tMs + '|' + (osoitettu ? 1 : 0) + '|' + pohja + '|'
+      + ['paras', pohja, 'ecmwf', 'icon', 'gfs'].map((id) => this._id(KorttiSarjat.valmis(spot, id))).join(',')
+      + '|' + Units.get() + '|' + Suunta.get() + '|' + (State._indeksiSelite ? 1 : 0) + '|' + (spot.wx ? 1 : 0);
+  },
+  /* Luvut hetkellä `tMs` kaavion pohjasta; varatiet Paras ja spotin oma
+     sarja (kun varasto ei ole kunnossa tai Paras on vielä matkalla). */
+  lukema(spot, tMs) {
+    const pohja = Ennuste.pohjaId();
+    const arvo = (id) => { const s = KorttiSarjat.valmis(spot, id); return s ? KorttiSarjat.arvo(s, tMs) : null; };
+    let a = arvo(pohja), malli = pohja;
+    if (!a && pohja !== 'paras') { a = arvo('paras'); malli = 'paras'; }
+    if (a) return { ms: a.ms, dir: a.dir != null ? a.dir : 0, gst: a.gust, lahde: a.lahde, malli: malli, pohja: pohja };
+    const h = spot.wx && spot.wx.hourly;
+    if (!h || !h.time || !h.time.length) return null;
+    let i = 0, e = Infinity;
+    for (let k = 0; k < h.time.length; k++) { const d = Math.abs(Date.parse(h.time[k]) - tMs); if (d < e) { e = d; i = k; } }
+    const ms = h.windspeed_10m[i] || 0;
+    return { ms: ms, dir: h.winddirection_10m[i] || 0, gst: h.windgusts_10m && h.windgusts_10m[i] != null ? h.windgusts_10m[i] : null,
+             lahde: (spot.wx.harmonie_hours || 0) > i ? 'fmi' : 'om', malli: 'paras', pohja: pohja };
+  },
+  /* Suunnan huomio pisimmästä lyhimpään (viimeinen = ei mitään). */
+  _huomio(osat, ms, bestDirs) {
+    if (ms < 2 || osat.suuntaEro === null) return [''];
+    const dirs = suunnatTekstina(bestDirs);
+    if (osat.suuntaEro > 80) {
+      const v = _t('Väärä suunta', 'Wrong direction');
+      return [v + (dirs ? _t(' — paras ', ' — best ') + dirs : ''), v, ''];
+    }
+    if (osat.suuntaEro > 40) {
+      const n = Math.round(osat.suuntaEro);
+      return [n + _t('° sivussa parhaasta', '° off the best') + (dirs ? ' (' + dirs + ')' : ''), n + _t('° sivussa parhaasta', '° off the best'), n + _t('° sivussa', '° off'), ''];
+    }
+    return dirs ? [_t('Suunta osuu (', 'Direction fits (') + dirs + ')', _t('Suunta osuu', 'Direction fits'), ''] : [''];
+  },
+  /* Mallien erimielisyys samalla tunnilla (ECMWF, ICON, GFS). */
+  hajonta(spot, tMs) {
+    const arvot = [];
+    ['ecmwf', 'icon', 'gfs'].forEach((id) => {
+      const s = KorttiSarjat.valmis(spot, id);
+      const a = s ? KorttiSarjat.arvo(s, tMs) : null;
+      if (a) arvot.push(a.ms);
+    });
+    if (arvot.length < 2) return null;
+    return { hajonta: Math.max.apply(null, arvot) - Math.min.apply(null, arvot), n: arvot.length };
+  },
+  html(spot, tMs, osoitettu) {
+    this._avain = this.avain(spot, tMs, osoitettu);
+    const L = this.lukema(spot, tMs) || { ms: 0, dir: 0, gst: null, malli: 'paras', pohja: 'paras' };
+    const ms = L.ms, dir = L.dir, onPuuska = L.gst != null, gst = onPuuska ? L.gst : ms;
+    const badge = windBadge(ms), gi = gustIndex(ms, gst), osat = spotIndexOsat(ms, dir, spot.bestDirs, gst);
+    const c = ColorRamp.ink(ms), d = new Date(tMs), hh = ('0' + d.getHours()).slice(-2);
+    const nyt = Math.abs(tMs - Ennuste.nytTunti()) < 18e5;
+    /* Aikarivi: hetki, ja kaavion malli kun se ei ole Paras. */
+    const nytLappu = nyt ? '<span class="sh-nyt">' + _t('NYT', 'NOW') + '</span>' : '';
+    const hetki = pvmLyhyt(d) + _t(' klo ' + hh, ' ' + hh + ':00');
+    let malli = ['', ''];
+    if (L.pohja !== 'paras') {
+      malli = L.malli === 'paras'
+        ? [' · ' + KorttiSarjat.PARAS.nimi, ' · ' + _t('Paras', 'Best')]
+        : [' · ' + KorttiSarjat.malli(L.pohja).nimi, ' · ' + KorttiSarjat.malli(L.pohja).nimi];
+    }
+    this._muodot.aika = [nytLappu + '<span>' + hetki + malli[0] + '</span>', nytLappu + '<span>' + hetki + malli[1] + '</span>'];
+    /* Puuska ja suhde. "Hyvin puuskainen" on varoitus päätösrivillä, ei
+       tässä (P15): rivillä on vain luku, ja varoitustasolla suhde on
+       `--varoitus`. */
+    let puuska = _t('Puuska ', 'Gust ') + (onPuuska ? Units.fmt(gst) + ' ' + Units.label() : '–');
+    if (onPuuska && ms >= 1) puuska += ' · <span class="sh-big-gustratio" style="color:' + (gi.cls === 'gi-extreme' ? 'var(--varoitus)' : 'var(--ink-2)') + '">×' + gi.val.toFixed(1) + '</span>';
+    /* Päätösrivi: merkki ja huomio, pisimmästä lyhimpään. */
+    const varo = (onPuuska && ms >= 1 && gi.cls === 'gi-extreme') ? '<span class="sh-varo">' + gi.label + '</span>' : '';
+    const merkki = (b) => '<span class="sh-foil-badge ' + badge.cls + '">' + b + '</span>';
+    const selite = (h) => { const x = [varo, h].filter(Boolean); return x.length ? '<span class="sh-paatos-selite">' + x.join(' · ') + '</span>' : ''; };
+    const huom = this._huomio(osat, ms, spot.bestDirs), lyhyt = badge.text.split(' – ')[0];
+    const paatos = [];
+    huom.forEach((h) => paatos.push(merkki(badge.text) + selite(h)));
+    if (lyhyt !== badge.text) huom.forEach((h) => paatos.push(merkki(lyhyt) + selite(h)));
+    this._muodot.paatos = paatos;
+    /* Mallien erimielisyys: varmuus, sanotaan kerran (herossa). */
+    const haj = this.hajonta(spot, tMs);
+    this._muodot.hajonta = haj ? Ennuste.hajontaMuodot(haj) : [''];
+    /* Tiivis lukema yläpalkkiin (kun hero on vierinyt pois). */
+    const arvo = Units.fmt(ms) + ' ' + Units.label() + ' ' + suuntaNuoliSVG(dir) + ' ' + _havIlmansuuntaLyhyt(dir);
+    const klo = (nyt ? _t('Nyt', 'Now') + ' ' : '') + _t('klo ' + hh, hh + ':00');
+    this._muodot.tiivis = ['<b>' + spot.name + '</b> · ' + klo + ' · ' + arvo, klo + ' · ' + arvo];
+    return '<section class="sh-moduli sh-hero-moduli' + (osoitettu ? ' osoitettu' : '') + '" aria-label="' + (osoitettu ? _t('Osoitettu tunti', 'Pointed hour') : _t('Valittu tunti', 'Selected hour')) + '">'
+      + '<div class="sh-aikarivi" data-mahdu="aika">' + this._muodot.aika[0] + '</div>'
+      + '<div class="sh-hero-rivi">'
+        + '<div class="sh-hero-luku">'
+          + '<div class="sh-big-rivi"><span class="sh-big-wind" style="color:rgb(' + c.r + ',' + c.g + ',' + c.b + ')">' + Units.fmt(ms) + '</span>'
+          + '<span class="sh-big-unit">' + Units.label() + '</span></div>'
+          /* Suunta: nuoli osoittaa MIHIN tuulee, nimi MISTÄ. */
+          + '<div class="sh-big-suunta">' + suuntaNuoliSVG(dir) + ' ' + Suunta.fmt(dir) + (Suunta._muoto === 'nimi' ? '' : ' · ' + Suunta.nimi(dir)) + '</div>'
+          + '<div class="sh-big-gust">' + puuska + '</div>'
+        + '</div>'
+        /* INDEKSI ON NAPPI (docs/julkaisu.md, UI 8): napautus avaa selitteen
+           heron sisään; tila pysyy tunnin vaihdon yli (`State._indeksiSelite`). */
+        + '<button type="button" class="sh-hero-indeksi" data-indeksi-selite aria-controls="sh-indeksi-selite"'
+          + ' aria-expanded="' + (State._indeksiSelite ? 'true' : 'false') + '"'
+          + ' aria-label="' + _t('Spottiindeksi ' + osat.score + ' / 100. Näytä mistä luku tulee.', 'Spot index ' + osat.score + ' / 100. Show how the number is made up.') + '">'
+          + spotMarkerSVG(osat.score, '', 60)
+          + '<span class="sh-hero-indeksi-nimi">' + _t('spottiindeksi', 'spot index') + ' <span aria-hidden="true">ⓘ</span></span>'
+        + '</button>'
+      + '</div>'
+      + '<div class="sh-paatos" data-mahdu="paatos">' + paatos[0] + '</div>'
+      + '<div id="sh-indeksi-selite" class="sh-indeksi-selite"' + (State._indeksiSelite ? '' : ' hidden') + '>' + _indeksiSelite(osat, spot) + '</div>'
+      /* Rivi varaa korkeutensa heti, jotta hero ei hypi kun vertailudata saapuu. */
+      + '<div id="sh-hajonta" class="sh-hajonta" data-mahdu="hajonta"' + (haj ? ' style="color:' + Ennuste.hajontaVari(haj) + '"' : '') + '>' + this._muodot.hajonta[0] + '</div>'
+    + '</section>';
+  },
+  /* Lyhyempi muoto niille riveille jotka eivät mahdu. Lukee asettelun,
+     joten se ajetaan kirjoitusten JÄLKEEN (kerran) — kortin
+     rakennuksessa ruudun jälkeen, koska juuri rakennetun kortin asettelu
+     maksaisi koko kortin (`Aikakaavio.leveys`). */
+  _mahduta(juuri) {
+    if (!juuri) return;
+    juuri.querySelectorAll('[data-mahdu]').forEach((el) => {
+      const m = this._muodot[el.dataset.mahdu];
+      if (!m || m.length < 2) return;
+      for (let i = 1; i < m.length && el.scrollWidth > el.clientWidth + 1; i++) el.innerHTML = m[i];
+    });
+  },
+  /* Hero kortille hetkellä `tMs`. */
+  nayta(spot, tMs, osoitettu) {
+    const el = document.getElementById('sh-tunti');
+    if (!el || State.sheetSpot !== spot || tMs == null) return;
+    if (el.firstChild && this.avain(spot, tMs, osoitettu) === this._avain) return;
+    el.innerHTML = this.html(spot, tMs, osoitettu);
+    this._mahduta(el);
+    Tiivis.aseta(this._muodot.tiivis);
+  },
+};
+
+/* TIIVIS LUKEMA YLÄPALKISSA (P10). Kun hero on vierinyt pois näkyvistä,
+   kortin yläpalkkiin (44 px, tyhjä sulkunapin vasemmalla puolella)
+   häivytetään sama lukema yhdellä rivillä: lukema näkyy myös kun kaavio
+   on vieritetty ruudun yläreunaan — ilman uutta kaistaa. Ruudunlukijalle
+   se on piilossa (hero sanoo saman). */
+const Tiivis = {
+  _io: null, _el: null, _kohde: null, _muodot: null,
+  _elementti() {
+    if (this._el && this._el.isConnected) return this._el;
+    const h = document.getElementById('sheet-handle');
+    if (!h) return null;
+    let e = h.querySelector('[data-tiivis-lukema]');
+    if (!e) {
+      e = document.createElement('div');
+      e.className = 'sh-tiivis';
+      e.setAttribute('data-tiivis-lukema', '');
+      e.setAttribute('aria-hidden', 'true');
+      h.insertBefore(e, h.firstChild);
+    }
+    this._el = e;
+    return e;
+  },
+  seuraa(heroEl) {
+    const el = this._elementti();
+    if (!el || this._kohde === heroEl) return;
+    if (this._io) this._io.disconnect();
+    this._io = null; this._kohde = heroEl;
+    el.classList.remove('nakyy');
+    if (!heroEl || typeof IntersectionObserver === 'undefined') return;
+    const self = this;
+    this._io = new IntersectionObserver(function (es) {
+      const e = es[es.length - 1];
+      el.classList.toggle('nakyy', e.intersectionRatio < 0.45);
+      if (e.intersectionRatio < 0.45) self._mahduta();
+    }, { root: document.getElementById('sheet-scroll'), threshold: [0, 0.45, 1] });
+    this._io.observe(heroEl);
+  },
+  aseta(muodot) {
+    const el = this._elementti();
+    if (!el || !muodot) return;
+    this._muodot = muodot;
+    el.innerHTML = muodot[0];
+    if (el.classList.contains('nakyy')) this._mahduta();
+  },
+  _mahduta() {
+    const el = this._el, m = this._muodot;
+    if (!el || !m) return;
+    el.innerHTML = m[0];
+    for (let i = 1; i < m.length && el.scrollWidth > el.clientWidth + 1; i++) el.innerHTML = m[i];
+  },
+  tyhjenna() {
+    if (this._io) this._io.disconnect();
+    this._io = null; this._kohde = null; this._muodot = null;
+    if (this._el) { this._el.classList.remove('nakyy'); this._el.innerHTML = ''; }
+  },
+};
+
 function openSheet(spot, hourIdx) {
   /* Jos wx puuttuu (vapaa piste), hae Harmonie ensin */
   if (!spot.wx || !spot.wx.hourly) {
@@ -23461,27 +23763,18 @@ function openSheet(spot, hourIdx) {
   const _oliAuki = State.sheetSpot === spot && document.getElementById('sheet').classList.contains('open');
   State.sheetSpot = spot;
   const h = spot.wx.hourly, idx = _spotIdx(h, hourIdx);
-  /* HERO LUKEE SAMAA SARJAA KUIN KAAVIO (docs/spottikortti.md, P2).
-     Kortin iso luku, puuska ja suunta tulevat "Paras"-sekoituksesta
-     valitulla hetkellä — samasta jonka kartta, kapseli ja aikajana
-     näyttävät. Ennen sarjaa (ensimmäinen avaus, varasto kesken)
-     varatie on spotin oma sarja, ja kortti piirretään uudelleen kun
-     Paras tulee (ks. `Ennuste.kiinnita`:n jälkeen). */
+  /* HERO ON KAAVION LUKEMA (luku 8, P10 ja P13): luvut tulevat
+     `Hero.lukema`sta — Paras-tilassa sama sekoitus jonka kartta, kapseli
+     ja aikajana näyttävät, valitulla mallilla sen mallin. Ennen sarjaa
+     (ensimmäinen avaus, varasto kesken) varatie on spotin oma sarja, ja
+     hero piirretään uudelleen kun sarja tulee (`Ennuste._piirra`). Samat
+     luvut ohjaavat pukua ja kortin sävyä. */
   const _hetkiMs = State.valittuMs != null ? State.valittuMs
     : (h.time && h.time[idx] ? Date.parse(h.time[idx]) : Date.now());
   const _paras = KorttiSarjat.valmis(spot, 'paras');
-  const _pa = _paras ? KorttiSarjat.arvo(_paras, _hetkiMs) : null;
-  const ms  = _pa ? _pa.ms : (h.windspeed_10m[idx] || 0);
-  const dir = _pa && _pa.dir != null ? _pa.dir : (h.winddirection_10m[idx] || 0);
-  const _onPuuska = _pa ? _pa.gust != null : (h.windgusts_10m && h.windgusts_10m[idx] != null);
-  const gst = _pa ? (_pa.gust != null ? _pa.gust : ms) : ((h.windgusts_10m && h.windgusts_10m[idx]) || ms);
-  const _heroLahde = _pa && _pa.lahde ? _pa.lahde
-    : ((spot.wx.harmonie_hours || 0) > idx ? 'fmi' : 'om');
+  const _L = Hero.lukema(spot, _hetkiMs) || { ms: 0, dir: 0, gst: null };
+  const ms = _L.ms, dir = _L.dir, gst = _L.gst != null ? _L.gst : ms;
   spot._heroAvain = Units.fmt(ms) + '|' + Units.fmt(gst) + '|' + Math.round(dir);
-  const badge    = windBadge(ms);
-  const gi       = gustIndex(ms, gst);
-  const c        = ColorRamp.ink(ms);
-  const colorStr = 'rgb('+c.r+','+c.g+','+c.b+')';
   /* Validoi vedenlämpö — fallback lähimpään spottiin jolla on arvo */
   const _rawWaterTemp = spot._waterTemp;
   const _validWater   = _rawWaterTemp != null && _rawWaterTemp > -5 && _rawWaterTemp < 40;
@@ -23829,65 +24122,6 @@ function openSheet(spot, hourIdx) {
    * tuntiin sidotut kaksi aluetta vaihtuvat, ja ennustekaavion kursori
    * liukuu uuteen tuntiin (`Ennuste.asetaValittu`). */
   const _osat = spotIndexOsat(ms, dir, spot.bestDirs, gst);
-  const _heroHtml = function () {
-    const d = new Date(_hetkiMs);
-    const nyt = Math.abs(_hetkiMs - Date.now()) < 1800000;
-    const gustRivi = (function () {
-      if (!_onPuuska) return '';
-      let t = _t('Puuska ', 'Gust ') + Units.fmt(gst) + ' ' + Units.label();
-      /* PUUSKAISUUS OMANA LUKUNAAN — suhde lasketaan SARJAN SISÄLLÄ
-         (sama sarja, sama tunti), ja rivi jää pois jos puuskaa ei ole
-         (suhde 1,00 väittäisi tasaista tuulta siellä missä dataa ei ole). */
-      if (ms >= 1) {
-        /* Tasainen ja puuskainen ovat toteamuksia (muste); vain "hyvin
-           puuskainen" on varoitus, ja sovelluksen varoitusväri on
-           `--accent` (UI 13). Vihreä ja punainen olivat kolmas ja neljäs
-           väriasteikko samassa herossa. */
-        const col = gi.cls === 'gi-extreme' ? 'var(--accent)' : 'var(--ink-2)';
-        t += ' <span class="sh-big-gustratio" style="color:' + col + '">×' + gi.val.toFixed(1) + ' ' + gi.label.toLowerCase() + '</span>';
-      }
-      return '<div class="sh-big-gust">' + t + '</div>';
-    })();
-    return '<section class="sh-moduli sh-hero-moduli" aria-label="' + _t('Valittu tunti', 'Selected hour') + '">'
-      /* AIKARIVI: mitä hetkeä ja kenen mallia luku on. */
-      + '<div class="sh-aikarivi">'
-        + (nyt ? '<span class="sh-nyt">' + _t('NYT', 'NOW') + '</span>' : '')
-        + '<span>' + pvmLyhyt(d) + _t(' klo ' + ('0' + d.getHours()).slice(-2), ' ' + ('0' + d.getHours()).slice(-2) + ':00') + '</span>'
-        + '<span class="sh-aikarivi-lahde">' + (Lahde.LYHYET[_heroLahde] || _heroLahde)
-        +   (Lahde.ajoTeksti(_heroLahde) ? ' · ' + Lahde.ajoTeksti(_heroLahde) : '') + '</span>'
-      + '</div>'
-      + '<div class="sh-hero-rivi">'
-        + '<div class="sh-hero-luku">'
-          + '<div><span class="sh-big-wind" style="color:' + colorStr + '">' + Units.fmt(ms) + '</span>'
-          + '<span class="sh-big-unit">' + Units.label() + '</span></div>'
-          /* Suunta: nuoli osoittaa MIHIN tuulee, nimi MISTÄ. */
-          + '<div class="sh-big-suunta">' + suuntaNuoliSVG(dir) + ' ' + Suunta.fmt(dir)
-          +   (Suunta._muoto === 'nimi' ? '' : ' · ' + Suunta.nimi(dir)) + '</div>'
-          + gustRivi
-        + '</div>'
-        /* INDEKSI ON NAPPI (docs/julkaisu.md, UI 8): rengas oli selittämätön
-           luku. Napautus avaa selitteen heron sisään eikä uutta pintaa;
-           tila pysyy tunnin vaihdon yli (`State._indeksiSelite`), koska
-           hero rakennetaan joka askeleella uudelleen. */
-        + '<button type="button" class="sh-hero-indeksi" data-indeksi-selite aria-controls="sh-indeksi-selite"'
-          + ' aria-expanded="' + (State._indeksiSelite ? 'true' : 'false') + '"'
-          + ' aria-label="' + _t('Spottiindeksi ' + _osat.score + ' / 100. Näytä mistä luku tulee.', 'Spot index ' + _osat.score + ' / 100. Show how the number is made up.') + '">'
-          + spotMarkerSVG(_osat.score, '', 60)
-          + '<span class="sh-hero-indeksi-nimi">' + _t('spottiindeksi', 'spot index') + ' <span aria-hidden="true">ⓘ</span></span>'
-        + '</button>'
-      + '</div>'
-      /* PÄÄTÖS SANOTAAN KERRAN: foil-merkki ja indeksin selite yhdellä
-         rivillä. Erittely (nopeus/suunta/puuska) on alempana tiedoissa —
-         se on perustelu, ei päätös. */
-      + '<div class="sh-paatos"><span class="sh-foil-badge ' + badge.cls + '">' + badge.text + '</span>'
-        + '<span class="sh-paatos-selite">' + spotIndexHuomio(_osat, ms, spot.bestDirs) + '</span></div>'
-      + '<div id="sh-indeksi-selite" class="sh-indeksi-selite"' + (State._indeksiSelite ? '' : ' hidden') + '>'
-        + _indeksiSelite(_osat, spot) + '</div>'
-      /* Mallien yksimielisyys täytetään kun vertailudata saapuu. Rivi
-         varaa korkeutensa heti, jotta hero ei hypi. */
-      + '<div id="sh-hajonta" class="sh-hajonta"></div>'
-    + '</section>';
-  };
   /* VALITULLA TUNNILLA — laatat. Ennusteet valitulle tunnille; "nyt"
      -havainnot ovat omassa ryhmässään alempana (ennuste ja havainto
      ovat eri aikaa, CLAUDE.md "Aaltoennuste ja poijuhavainto ovat ERI
@@ -23952,7 +24186,8 @@ function openSheet(spot, hourIdx) {
 
   const _sc = document.getElementById('sheet-content');
   if (_oliAuki && _sc.dataset.spotti === spot.name && _sc.querySelector('#sh-tunti') && _sc.querySelector('[data-ennuste]')) {
-    _sc.querySelector('#sh-tunti').innerHTML = _heroHtml();
+    /* Hero: `Ennuste.asetaValittu` piirtää sen (`_naytaHero`), myös
+       osoittaessa — tässä ei toista kertaa. */
     _sc.querySelector('#sh-laatat-tunti').innerHTML = _laatatHtml();
     _sc.querySelector('#sh-tiedot').innerHTML = _tiedotHtml();
     const _en = _sc.querySelector('[data-ennuste]')._en;
@@ -23974,7 +24209,7 @@ function openSheet(spot, hourIdx) {
       + '</div>'
       + '<div class="sh-desc">' + spot.desc + '</div>'
     + '</div>'
-    + '<div id="sh-tunti">' + _heroHtml() + '</div>'
+    + '<div id="sh-tunti">' + Hero.html(spot, _hetkiMs, false) + '</div>'
     /* Tuuliennuste heti heron jälkeen: se on kortin pääasia. */
     + build24hChart()
     + '<div id="sh-laatat-tunti">' + _laatatHtml() + '</div>'
@@ -24020,6 +24255,19 @@ function openSheet(spot, hourIdx) {
      (`State.valittuMs`), ja sen puuttuessa spotin oma tunti. */
   Ennuste.kiinnita(document.querySelector('#sheet-content [data-ennuste]'), spot,
     State.valittuMs != null ? State.valittuMs : (h.time && h.time[idx] ? Date.parse(h.time[idx]) : Date.now()));
+  /* Heron lyhyet muodot RUUDUN JÄLKEEN (`Hero._mahduta` lukee asettelun,
+     ja juuri rakennetun kortin asettelu maksaisi koko kortin; kortti
+     liukuu silloin vielä sisään), ja yläpalkin tiivis lukema seuraa
+     heroa (P10). */
+  (function () {
+    const heroEl = document.getElementById('sh-tunti');
+    Tiivis.seuraa(heroEl);
+    Tiivis.aseta(Hero._muodot.tiivis);
+    requestAnimationFrame(function () {
+      if (heroEl && heroEl.isConnected) Hero._mahduta(heroEl);
+      Ennuste._mahdutaPohja(document.querySelector('#sheet-content [data-ennuste]'));
+    });
+  })();
   /* Paras tulee myöhemmin kuin kortti (varaston laatat, spotin 9 km
      -sarja). Hero piirretään uudelleen VAIN jos sen luvut muuttuvat —
      Suomessa ensimmäiset ~60 h ovat FMI:tä molemmissa, joten useimmiten
@@ -25760,6 +26008,7 @@ function _sheetAuki(nimi) {
 
 function closeSheet() {
   State.sheetSpot = null;
+  Tiivis.tyhjenna();
   /* Kelikameran video pois: suljettu kortti on vain piilossa, ja soitin
      striimaisi sen alla. */
   _kameraPysayta();

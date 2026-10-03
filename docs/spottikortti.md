@@ -1629,3 +1629,65 @@ Mitattu (`--osat=laaja`, 12 tapausta; lähtötaso → V13):
 
 `tools/graafimittaus.mjs` ja `tools/savutesti.mjs` läpi.
 
+#### V14 — hero kortin lukemaksi ja ennusteosio kiinteäksi
+
+- **Hero on kaavion lukema (P10).** `Hero` piirtää `#sh-tunti`n: levossa
+  valittu tunti, kaaviota osoitettaessa (hiiri, pito + liu'utus,
+  nuolet) osoitettu tunti — samat paikat, vain tekstit vaihtuvat, ja
+  pohja tummuu (`.osoitettu`). Kortin oma lukemarivi poistui. Hero
+  piirretään avaimella (`Hero.avain`: spotti, hetki, osoitus, pohja,
+  sarjojen identiteetti, yksiköt), joten kortin rakennuksen perään
+  tuleva `kiinnita` ei kirjoita eikä mittaa sitä toiseen kertaan.
+- **Hero seuraa kaavion ennustetta (P13).** `Hero.lukema`: pohja → Paras
+  → spotin oma sarja. Aikarivi nimeää mallin ("La 3.10. klo 16 ·
+  ICON"); jos malli ei kata tuntia, luku on Parasta ja aikarivi sanoo
+  "· Paras saatavilla". Paras-tilassa kaikki on kuten ennen.
+- **Jokainen rivi on yksi rivi.** Aika-, päätös- ja hajontarivi ovat
+  `nowrap`, ja kukin kantaa muotonsa pisimmästä lyhimpään
+  (`data-mahdu` + `Hero._muodot`, `Hero._mahduta` kerran kirjoituksen
+  jälkeen): päätösrivi on merkki pitkänä tai lyhyenä ("Rajatuuli –
+  kokeile" → "Rajatuuli") kertaa huomio ("Väärä suunta — paras LO–L" →
+  "Väärä suunta" → ei mitään). Puuskarivi on aina olemassa ("Puuska –"),
+  "hyvin puuskainen" siirtyi päätösrivin varoitukseksi (`.sh-varo`), ja
+  hajontarivi varaa korkeutensa tyhjänäkin. Lähde ja ajo eivät ole
+  herossa.
+- **Yläpalkin tiivis lukema** (`Tiivis`): kun herosta näkyy alle 45 %
+  (`IntersectionObserver`, juurena `#sheet-scroll`), yläpalkkiin
+  häivytetään "Lauttasaari · Nyt klo 16 · 15.0 kts ↗ E", ja ilman nimeä
+  jos se ei mahdu. Ruudunlukijalta piilossa (hero sanoo saman).
+- **Ennusteosio.** Ryhmän nimi "Tuuliennuste" on kortin ulkopuolella
+  kuten muissa ryhmissä, ja osion yläreunassa on yksi rivi: valikkokenttä
+  (pelkkä nimi, 320 px:llä lyhyt "Paras"), Nyt-nappi (paikka varattu
+  piilossakin) ja laajennus. Lähde ja ajo ovat kaavion lähdekaistassa
+  (ensimmäisen nimen perään "· ajo 09", `Lahde.ajoTeksti`). Sadekaista on
+  kortilla aina (`sadeAina`, kuivalla jaksolla pohjaviiva), paikanpitäjä
+  ja "ei saatu" ovat kaavion korkuisia (`Tuulikaavio.korkeus`), ja
+  ennusteen vaihdossa edellinen kaavio jää himmennettynä paikalleen
+  ("Ladataan ICON…") kunnes uusi on valmis. Pito-vihje kelluu kaavion
+  päällä.
+- **Varoitusvärit.** "Hyvin puuskainen" ja "Mallit eriävät" ovat
+  `--varoitus`, eivät `--accent` (8.2.4).
+
+Mitattu (`--osat=tunnit,vaihto,lukema,teksti,kahdennus,regressio`;
+lähtötaso → V14):
+
+| mittari | lähtötaso | V14 |
+|---|---|---|
+| heron korkeus 127 tunnin yli | 320 px 6 arvoa, 360 px 4, 375 px 5, 320 px en 8, työpöytä 7 | 1 arvo kaikilla yhdeksällä: 180,5 px puhelimilla 320–430 px (fi ja en), 189 px työpöydällä |
+| ennusteosion korkeus 127 tunnin yli | 436 tai 448 ↔ 418 px | 316 px puhelimilla, 354 px työpöydällä |
+| kaavion paikka pystysuunnassa | 320 px: 6 arvoa, 16 muutosta | 1 arvo kaikilla |
+| ennusteosio ja hero ennusteen vaihdossa (lataus 700 ms, GFS "ei saatu") | 424 → 436 px | 316 / 316 / 316 (työpöytä 354); hero 180,5 (189) |
+| hero osoittaessa | ei seurannut | osoitettu tunti 3/3 (14.7 / 11.2 / 1.4), korkeus sama |
+| ICON kaaviossa | hero Paras, rivi ICON | hero ICONin luku, aikarivi "· ICON" |
+| kortin lukemarivi, tiivis lukema | rivi on, tiivistä ei | rivi poissa; tiivis näkyy kun hero on vierinyt pois ja piiloutuu kun hero näkyy |
+| kahdennus (390 px, nyt, levossa) | tuuli 2, puuska 2, lähde 4, hetki 3 | tuuli 1, puuska 1, lähde 1, hetki 2 (hero ja laattojen otsikko — V15); asemat 4 ja 5 — V15 |
+| katkaistut tekstit | "Tuuli · FMI HARMONIE 2,5 km" 320 px:llä | 0 |
+| puoliksi näkyvät tekstit | 8–9 levossa, 9–12 vieritettyinä | 6–8, kaikki kaavioista (sade mm/h, lähdekaista, päiväotsikko, ruusun ilmansuunta) — V16 |
+| valitun tunnin laattojen korkeus | 6–11 arvoa | 7–12 arvoa — V15 |
+| regressio | ok | ok: hero = Paras 5/5 tuntia, merkki = heron indeksi, kortin Paras = aikajana oikealla datalla 49 tuntia, ero 0,0000 m/s |
+
+`tools/graafimittaus.mjs` (96 riviä) ja `tools/savutesti.mjs` läpi.
+WebKitiä ei ole kontissa, joten V6:n ja V10:n WebKit-napautus jäi
+mittaamatta; osoitin on sama `Aikakaavio.osoitin` kuin ennen, ja
+graafimittaus ajaa pito + liu'utuksen CDP-kosketuksella.
+
