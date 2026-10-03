@@ -532,6 +532,29 @@ async function osaLukema() {
       });
       tarkista('lukema ' + laite + ': yläpalkin tiivis lukema kun hero ei näy', yla.os >= 0.99 && yla.t.indexOf((yla.luku || '#').trim()) >= 0, yla.t || 'ei elementtiä');
       tarkista('lukema ' + laite + ': yläpalkin lukema piilossa kun hero näkyy', !(yla.jalkeen > 0.02), yla.jalkeen == null ? '' : Math.round(yla.jalkeen * 100) + ' %');
+      /* Aaltomoduulin lukemarivi seuraa valittua tuntia (V15, P15 kohta
+         4). Aaltoennuste tulee verkosta, joten se ohitetaan jos ei tullut. */
+      const aalto = await sivu.evaluate(async () => {
+        const FS = window.FS;
+        const rivi = () => { const e = document.querySelector('#sheet-content .sh-aalto-moduli [data-ak-lukema] .en-solu-aika'); return e ? e.textContent.replace(/\s+/g, ' ').trim() : null; };
+        for (let i = 0; i < 20 && !rivi(); i++) await new Promise((r) => setTimeout(r, 500));
+        if (!rivi()) return { ohita: 'aaltoennuste ei tullut' };
+        const T = FS.State._tlTimes, nyt = Date.now();
+        let i0 = 0, e = Infinity;
+        T.forEach((t, i) => { const d = Math.abs(Date.parse(t) - nyt); if (d < e) { e = d; i0 = i; } });
+        const tulos = [];
+        for (const d of [0, 10, 30]) {
+          FS._tlValitseIdx(i0 + d);
+          await new Promise((r) => setTimeout(r, 400));
+          const h = new Date(FS.State.valittuMs);
+          tulos.push({ odotettu: ('0' + h.getHours()).slice(-2) + ':00', rivi: rivi() });
+        }
+        FS._tlValitseIdx(i0);
+        return { tulos: tulos };
+      });
+      if (aalto.ohita) console.log('  ohitettu lukema ' + laite + ': aaltojen lukemarivi — ' + aalto.ohita);
+      else tarkista('lukema ' + laite + ': aaltojen lukemarivi seuraa valittua tuntia', aalto.tulos.every((x) => x.rivi.indexOf(x.odotettu) >= 0),
+        aalto.tulos.map((x) => x.rivi + ' / ' + x.odotettu).join(' · '));
       if (sivu._virheet.length) tarkista('lukema ' + laite + ': ei sivuvirheitä', false, sivu._virheet.slice(0, 2).join(' | '));
     } finally { await kons.close(); }
   }
@@ -579,7 +602,7 @@ async function osaAvaus() {
         return { muutokset: muutokset, suurin: suurin, summa: siirrot.reduce((a, b) => a + b, 0) };
       }, SPOTTI);
       tarkista('avaus ' + laite + ': moduulit eivät siirry ensimmäisen maalauksen jälkeen', r.muutokset.length === 0,
-        r.muutokset.length + ' muutosta, suurin ' + Math.round(r.suurin) + ' px, layout-shift ' + r.summa.toFixed(3) + (r.muutokset.length ? ' — ' + r.muutokset.slice(0, 4).join(' | ') : ''));
+        r.muutokset.length + ' muutosta, suurin ' + Math.round(r.suurin) + ' px, layout-shift ' + r.summa.toFixed(3) + (r.muutokset.length ? ' — ' + r.muutokset.slice(0, 12).join(' | ') : ''));
       if (sivu._virheet.length) tarkista('avaus ' + laite + ': ei sivuvirheitä', false, sivu._virheet.slice(0, 2).join(' | '));
     } finally { await kons.close(); }
   }
@@ -588,7 +611,7 @@ async function osaAvaus() {
 /* ── 6. TEKSTI: PUOLIKSI NÄKYVÄT JA KATKAISTUT ───────────────────── */
 async function osaTeksti() {
   console.log('\nTEKSTI: puoliksi näkyvät ja kolmeen pisteeseen katkaistut tekstit kortissa');
-  const tapaukset = NOPEA ? [['p390', '']] : [['p390', ''], ['p360', 'en'], ['p320', ''], ['tyopoyta', '']];
+  const tapaukset = NOPEA ? [['p390', '']] : [['p390', ''], ['p360', 'en'], ['p320', ''], ['p320', 'en'], ['tyopoyta', '']];
   for (const [laite, kieli] of rajaa(tapaukset)) {
     const nimi = laite + (kieli ? ' ' + kieli : '');
     const { kons, sivu } = await avaa(laite, { kieli });
@@ -598,6 +621,15 @@ async function osaTeksti() {
       const lepo = await sivu.evaluate(() => window.__km.osittaiset(document.getElementById('sheet')));
       tarkista('teksti ' + nimi + ': ei puoliksi näkyviä tekstejä levossa', lepo.osittain.length === 0, lepo.osittain.length + (lepo.osittain.length ? ': ' + lepo.osittain.slice(0, 6).join(' · ') : ''));
       tarkista('teksti ' + nimi + ': ei katkaistuja tekstejä', lepo.katkaistu.length === 0, lepo.katkaistu.slice(0, 4).join(' · '));
+      /* Kaavioiden ULKOPUOLELLA (V15: laatat, rivit, valitsimet, selitteet):
+         kaavioiden omat tekstit ovat V16:n asia, ja ne peittäisivät
+         muuten kaiken muun listan kuudesta ensimmäisestä. */
+      const ulko = await sivu.evaluate(() => {
+        const km = window.__km, sheet = document.getElementById('sheet');
+        const t = km.tekstit(sheet).filter((x) => !x.el.closest('.en-kaare') && x.os > 0.02 && x.os < 0.98);
+        return t.map((x) => x.t.slice(0, 30) + ' [' + Math.round(x.os * 100) + ' %]');
+      });
+      tarkista('teksti ' + nimi + ': kaavioiden ulkopuolella ei puoliksi näkyviä tekstejä', ulko.length === 0, ulko.length + (ulko.length ? ': ' + ulko.slice(0, 8).join(' · ') : ''));
       /* Jokainen kaavio vieritettynä noin 40 %:iin. */
       const vier = await sivu.evaluate(async () => {
         document.querySelectorAll('#sheet-content .en-kaare').forEach((k) => { const g = k._geot && k._geot[0]; if (g) k.scrollLeft = Math.round((g.W - k.clientWidth) * 0.4) + 7; });
@@ -620,13 +652,18 @@ async function osaKahdennus() {
     const r = await sivu.evaluate(() => {
       const km = window.__km, FS = window.FS, ctx = km.ctx(), s = FS.SPOTS.find((x) => x.name === 'Lauttasaari');
       const paras = FS.KorttiSarjat.valmis(s, 'paras'), a = FS.KorttiSarjat.arvo(paras, ctx.valittu);
-      const nakyvat = km.tekstit(document.getElementById('sheet')).filter((x) => x.os >= 0.5);
+      /* Kortin otsikko (`.sh-yla`) on spotin nimi: Lauttasaaren
+         vedenlämpöasema on myös "Lauttasaari", eikä spotin nimi ole
+         aseman nimen kahdennus. */
+      const nakyvat = km.tekstit(document.getElementById('sheet')).filter((x) => x.os >= 0.5 && !x.el.closest('.sh-yla'));
       const html = nakyvat.filter((x) => !x.svg), kaikki = nakyvat;
       const laske = (lista, f) => lista.filter(f).length;
       const d = new Date(ctx.valittu), hh = ('0' + d.getHours()).slice(-2);
       const lahde = FS.Lahde.LYHYET[a.lahde] || a.lahde;
       const asema = s._currentWx && s._currentWx.station;
-      const vesi = (document.querySelector('[id^="uiras-chart-lbl-"]') || {}).textContent || '';
+      /* Vedenlämpöaseman nimi: V15:stä lähtien vain valitsimessa
+         (`.uw-trigger`), ennen myös moduulin otsikossa. */
+      const vesi = (document.querySelector('#sheet-content .uw-trigger span') || document.querySelector('[id^="uiras-chart-lbl-"]') || {}).textContent || '';
       const vesiAsema = vesi.split('·').pop().trim();
       return {
         tuuli: laske(html, (x) => x.t === Units.fmt(a.ms)),

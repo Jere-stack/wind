@@ -1957,8 +1957,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kelluva HTML-laatikko; lukeman kupla pallon vieressä on SVG:n
   sisällä (ks. "LUKEMA PALLON VIERESSÄ").
 - **TUNNIN VAIHTO EI RAKENNA SPOTTIKORTTIA UUDELLEEN** (`openSheet`:n
-  päivityspolku, `_oliAuki`): vain `#sh-laatat-tunti` ja `#sh-tiedot`
-  kirjoitetaan, ja ennusteosio saa `asetaValittu`n, joka siirtää kursoria
+  päivityspolku, `_oliAuki`): vain `#sh-laatat-tunti` kirjoitetaan
+  (`Laatat.html`), aaltokaavio siirtää kursorinsa ja lukemarivinsä
+  (`kaare._aaltoValitse`), ja ennusteosio saa `asetaValittu`n, joka siirtää kursoria
   CSS-transformilla (`.tk-valittu`, 0,22 s) ja piirtää heron
   (`Ennuste._naytaHero` → `Hero.nayta`). Hero piirretään AVAIMELLA
   (`Hero.avain`: spotti, hetki, osoitus, pohja, sarjojen identiteetti,
@@ -1969,14 +1970,54 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   sidotun osan, lisää se päivityspolkuun — muuten se jää edelliseen
   tuntiin.
 - **SPOTTIKORTTI ON MODUULEJA, JÄRJESTYKSESSÄ NYT → TUNNEITTAIN →
-  YKSITYISKOHDAT → TEKSTIT** (V9, Applen Sään rakenne paperille): hero
+  YKSITYISKOHDAT** (V9, Applen Sään rakenne; V15): hero
   (`.sh-moduli`), tuuliennuste, valitun tunnin laatat (`.sh-laatat`),
-  "Havainnot nyt" -laatat ja havaintokaaviot, ja alimpana tekstit
-  (`#sh-tiedot`). Ryhmät nimetään `.sh-ryhma`lla. Havaintoasemakortti
+  aallot (ennuste valitulle tunnille ja poiju nyt), tuulihavainto ja
+  UiRas-spotilla vedenlämpö — kukin oman `.sh-ryhma`-nimensä alla.
+  "Havainnot nyt" -laatat (tuuli, ilma, vesi, poiju), "Aallot ·
+  ennuste" -laatta ja Spotti-moduuli (`#sh-tiedot`: indeksin erittely,
+  suunnat, lähde) POISTETTIIN kahdennuksina (P15): havainnon luvut ovat
+  kaavioiden lukemariveillä, indeksin erittely ja suunnat ⓘ-selitteessä
+  ja lähde kaavion lähdekaistassa. Älä palauta niitä. Havaintoasemakortti
   käyttää samoja osia. Päätös sanotaan kerran: foil-merkin vieressä on
   vain se mitä se ei kerro (`Hero._huomio`, suunta; ennen
   `spotIndexHuomio`) — nopeuteen perustuva selite oli ristiriidassa
   merkin kanssa ("Rajatuuli – kokeile" / "Liian heikko").
+- **JOKAISEN MODUULIN PAIKKA ON VARATTU ENSIMMÄISESTÄ MAALAUKSESTA**
+  (V15, docs/spottikortti.md 8.10). Myöhään tuleva data täyttää
+  LUURANGON, jolla on lopullinen rakenne ja korkeus: `_havLuuranko`
+  (tuulihavainto), `_uwLuuranko` (vedenlämpö), `_aaltoLuuranko`
+  (aallot) — työkalurivi (`.hav-tyokalut` 32 px), tyhjä lukemarivi,
+  kaavion korkuinen paikanpitäjä (`Tuulikaavio.korkeus`, `min-height: 0`
+  koska `.en-paikka` on muuten 230 px), selite yhdellä rivillä ja
+  havainnon tilastot aina kahden rivin ruudukkona ("–" ilman dataa).
+  Lataus, aseman vaihto ja virhe näkyvät SAMASSA luurangossa (syy
+  kaavion paikalla), eikä moduuli kutistu "Ladataan…"-riviksi.
+  Hiirilaitteella kaavion työkalurivin paikka on varattu
+  (`Aikakaavio.tyokalutPaikka`, ja valmis rivi pitää paikkansa
+  `visibility`llä myös kun sarja mahtuu ruudulle). Aaltomoduulin kate
+  muistetaan ensimmäisestä hausta (`AaltoKate`, `fs_aaltokate`):
+  maamaskissa olevalle spotille kaaviota ei varata, ja tuntematon
+  spotti saa paikan. Mitattu avauksessa 10 s: 0 siirtymää puhelimella
+  ja työpöydällä (ennen 22–24, suurin 985 px). Uusi myöhään tuleva osa
+  tarvitsee luurangon samalla korkeudella — mittaa se
+  `tools/korttimittaus.mjs --osat=avaus`.
+- **VALITUN TUNNIN LAATAT OVAT KIINTEÄ 2 × 2 -RUUDUKKO** (P14, `Laatat`):
+  ilma, puku, vedenkorkeus ja aurinko, ryhmän nimi "Valitulla tunnilla"
+  ilman kellonaikaa (hero tai yläpalkki kertoo hetken). Laatta on aina
+  sama: nimi, arvo yhdellä rivillä (27 px) ja kahden rivin alalaatikko;
+  teksti joka ei mahdu vaihtuu lyhyempään (`_mahdutaMuodot`, arvon
+  viimeinen muoto pienemmällä kirjasimella `.sh-arvo-pieni`). Tunnilta
+  puuttuva arvo on "—" ja syy ("ei ennustetta tälle tunnille"); laattaa
+  ei jätetä pois — "viiva olisi lupaus datasta jota ei ole" koskee
+  spottia, ei yksittäistä tuntia. Ilman laatta lukee spotin oman sarjan
+  rivin AJASTA (`Laatat._rivi`, ±30 min) eikä sarjan päähän rajattua
+  indeksiä. Puku käyttää samaa tuulta kuin hero ja UiRas-spotilla samaa
+  vedenlämpöä kuin vedenlämpökaavio (`Laatat.paivitaPuku`); muilla
+  spoteilla vedenlämpö on puvun alarivillä, koska kortilla ei ole muuta
+  paikkaa sille. Mareografin havainto on vedenkorkeuden alarivillä
+  nimettynä ("nyt +6 cm · Kaivopuisto"). Mitattu 127 tunnin yli: 1
+  korkeus kaikilla leveyksillä (ennen 6–12).
 - **HERO ON KORTIN TUULIENNUSTEEN LUKEMA** (P10 ja P13, käyttäjän päätös
   3.10., docs/spottikortti.md 8.10 V14; `Hero`). Levossa se näyttää
   valitun tunnin ja kaaviota osoitettaessa (hiiri, pito + liu'utus)
@@ -2276,16 +2317,21 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   jäi oikealle — kaksi kohdistusta samalla rivillä. Laajennusnappi
   menee oikealle `margin-left:auto`illa, ja tyhjä paikka poistuu
   virrasta CSS:llä (`.hav-asemavalitsin:empty`), ei JS-lipulla.
-- **ASEMAN NIMI SANOTAAN KERRAN, IKÄ SANOTAAN KERRAN.** Havainto-
-  kortissa otsikko on aseman nimi, joten selite jättää sen pois;
-  SPOTTIKORTISSA otsikko on spotin nimi ja selite on ainoa maininta
-  käyrän lähteestä, joten siellä nimi JÄÄ. Ero luetaan
-  `data-nimi-otsikossa`-lipusta, ja lippu luetaan ELEMENTILTÄ ITSELTÄÄN
-  (`el.dataset`), EI `closest`illä — molemmat kortit asuvat samassa
-  `#sheet-content`issä, ja esivanhempihaku veisi nimen sieltä missä se
-  on välttämätön. Ikä on kuvaajan alla joka kortissa; hero-rivi
-  mainitsee sen VAIN kun lukema on vanha (silloin se on varoitus eikä
-  aikaleima).
+- **ASEMAN NIMI SANOTAAN KERRAN, IKÄ SANOTAAN KERRAN** (V15, P15
+  kohdat 7–8). Havaintokortissa otsikko on aseman nimi; SPOTTIKORTISSA
+  nimi on VAIN asemavalitsimessa — ei moduulin otsikossa, ei
+  selitteessä eikä laatassa (ennen "Helsinki Laru" näkyi neljästi ja
+  vedenlämmön asema viidesti). Vedenlämmön selite sanoo vain lähteen
+  ("UiRas"). Valitsimen nappi ei rivity: jos se ei mahdu, pois jäävät
+  "Asema"-sana, tagi ja etäisyys (`_fmiTriggerMahduta`). Ero
+  havaintokorttiin luetaan `data-nimi-otsikossa`-lipusta ELEMENTILTÄ
+  ITSELTÄÄN (`el.dataset`), EI `closest`illä — molemmat kortit asuvat
+  samassa `#sheet-content`issä. IKÄ SANOTAAN VAIN KUN LUKEMA ON VANHA,
+  ja silloin se on varoitus selitteen lopussa ("⚠︎ Asema ei lähetä · 31 h
+  sitten", `.hav-selite-varo`); tuoreen lukeman hetki on lukemarivillä
+  ("Viimeisin 12:48", ja päiväys kun lukema ei ole tältä päivältä).
+  Erillinen `.hav-vanha`-laatikko poistettiin: se kasvatti moduulia
+  juuri kun asema hiljeni. Hero mainitsee iän samoin vain vanhana.
 - **Spottimerkkiä napauttava mittari on tarkistettava
   `State.sheetSpot`ista.** Lauttasaaressa Larun asemamerkki on spotin
   vieressä, ja kosketussäätö siirtää napautuksen siihen:
@@ -2562,7 +2608,12 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **Spottikortin aaltorivin raja on 60 km**, ja se on aukko mitatussa
   jakaumassa (kymmenen spottia 5–35 km, Hangon kaksi 114 ja 119 km).
   Rivillä on aina poijun nimi ja etäisyys — muuten se väittäisi
-  mittaavansa spottia.
+  mittaavansa spottia. V15:stä lähtien rivi on aaltomoduulin alarivi
+  ("Poiju nyt 0,30 m · Helsinki Suomenlinna 7 km · 65 min sitten", kaksi
+  riviä varattuna, katkeaa vain erottimen jälkeen), ei oma laattansa, ja
+  moduulin lukemarivi on valitun tunnin aaltoennuste (`_aaltoKaavio`n
+  `o.valittu`, solut "Korkeus", "Suunta" ilmansuuntana ja asteina, "Jakso";
+  "–" kun WAM ei kata tuntia).
 - **Aaltokaavion y-akseli alkaa NOLLASTA.** Automaattinen alaraja
   suurentaisi 0,20–0,30 m:n vaihtelun koko kaavion korkuiseksi ja tyyni
   vuorokausi näyttäisi myrskyltä.

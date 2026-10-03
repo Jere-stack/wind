@@ -1691,3 +1691,83 @@ WebKitiä ei ole kontissa, joten V6:n ja V10:n WebKit-napautus jäi
 mittaamatta; osoitin on sama `Aikakaavio.osoitin` kuin ennen, ja
 graafimittaus ajaa pito + liu'utuksen CDP-kosketuksella.
 
+
+#### V15 — kortin alaosa: kahdennukset pois, kiinteät laatat ja varatut moduulit
+
+- **Valitun tunnin laatat (P14).** Kiinteä 2 × 2 -ruudukko: ilma, puku,
+  vedenkorkeus ja aurinko (`Laatat`). Ryhmän nimi on "Valitulla
+  tunnilla" ilman kellonaikaa, ja "· ennuste"-päätteet poistuivat.
+  Laatta on aina sama: nimi, arvo yhdellä 27 px:n rivillä ja kahden
+  rivin alalaatikko; jokainen teksti kantaa lyhyemmät muotonsa
+  (`_mahdutaMuodot`, yhteinen heron kanssa), ja arvon viimeinen muoto on
+  sama teksti 17 px:n kirjasimella — 320 px:n puhelimella laatan
+  sisäleveys on 109 px, eikä "07:30–18:47" mahtunut 21 px:llä. Tunnilta
+  puuttuva arvo on "—" ja syy: ilman laatta lukee spotin oman sarjan
+  rivin ajasta (±30 min) eikä enää sarjan päähän rajattua indeksiä, joka
+  näytti +7 vrk:n tunnille sarjan viimeisen tunnin sään. Puku käyttää
+  heron tuulta; muilla kuin UiRas-spoteilla puvun alarivi kertoo
+  vedenlämmön, koska "Vesi"-laatta poistui. Vedenkorkeuden alarivillä
+  on mareografin havainto nimettynä, ja nimi lyhenee paikaksi
+  ("Kaivopuisto") ennen kuin se jää pois.
+- **"Havainnot nyt" -laatat pois** (P15, kohta 2): tuuli, ilma ja vesi
+  ovat kaavioiden lukemariveillä ("Viimeisin 16:57"), ja poiju on
+  aaltomoduulin alarivi.
+- **Aallot (kohdat 3 ja 4).** Yksi moduuli oman ryhmänsä alla:
+  työkalurivillä lähde ("FMI WAM · 1,2 km merelle"), lukemarivi
+  VALITULLE TUNNILLE (ennen nykyhetki; `_aaltoKaavio`n `o.valittu`,
+  päivitys `kaare._aaltoValitse`), kaavio valinnan kursorilla, ja
+  alimpana "Poiju nyt 0,30 m · Helsinki Suomenlinna 7 km · 65 min
+  sitten" kahden rivin laatikossa (katkeaa vain erottimen jälkeen).
+  Lukemarivin solut ovat "Korkeus", "Suunta" (ilmansuunta ja asteet,
+  kuten tuulihavainnossa) ja "Jakso", ja tunnilla jota WAM ei kata ne
+  ovat "–" eikä lähimmän ennustetunnin arvoja. "Aallot · ennuste"- ja
+  "Aallot · poiju" -laatat poistuivat.
+- **Spotti-moduuli pois** (kohta 5): indeksin erittely ja suunnat ovat
+  ⓘ-selitteessä, lähde kaavion lähdekaistassa.
+- **Asemanimi ja ikä kerran** (kohdat 7–8): tuulihavainnon ja
+  vedenlämmön asema on vain valitsimessa (valitsin ei rivity:
+  `_fmiTriggerMahduta` jättää pois "Asema"-sanan, tagin ja etäisyyden);
+  ryhmän nimi on "Tuulihavainto" tai "Vedenlämpö" ja vedenlämmön
+  selite "UiRas". Ikä sanotaan vain kun lukema on vanha, selitteen
+  lopussa varoitusvärillä — `.hav-vanha`-laatikko poistui, koska se
+  kasvatti moduulia juuri kun asema hiljeni.
+- **Osuvuuden lupausteksti pois** (kohta 10): rivi on vain kun
+  vertailuja on tarpeeksi, ja se päätetään kortin rakennuksessa.
+- **Varatut moduulit.** Tuulihavainnolla, vedenlämmöllä ja aalloilla on
+  luuranko (`_havLuuranko`, `_uwLuuranko`, `_aaltoLuuranko`) jolla on
+  valmiin moduulin rakenne ja korkeus: työkalurivi 32 px, tyhjä
+  lukemarivi, kaavion korkuinen paikanpitäjä, selite yhdellä rivillä
+  ja havainnon tilastot aina kahden rivin ruudukkona. Lataus, aseman
+  vaihto, tyhjä historia ja virhe näkyvät samassa luurangossa.
+  Hiirilaitteella kaavion työkalurivin paikka on varattu
+  (`Aikakaavio.tyokalutPaikka`), ja valmis rivi pitää paikkansa
+  `visibility`llä myös kun sarja mahtuu ruudulle. Aaltomoduulin kate
+  muistetaan ensimmäisestä hausta (`AaltoKate`). Vedenlämmön asu sai
+  `nuoliH: 0` — rivi jäi piirrossa pois mutta `korkeus` laski sen, ja
+  luuranko oli 18 px liian korkea. Havaintokortin tuuliruusun
+  ilmansuunnat leikkautuivat ("E" 81 %); näkymä on nyt reunustettu.
+
+Mitattu (lähtötaso = V14 samalla mittarilla):
+
+| mittari | V14 | V15 |
+|---|---|---|
+| avaus: moduulien siirtymät 10 s ajan | p390 24 (suurin 985 px), työpöytä 24 (1 068 px) | 0 ja 0 |
+| valitun tunnin laattojen korkeus 127 tunnin yli | 7–12 arvoa, 16–26 muutosta | 1 arvo kaikilla yhdeksällä (236 px puhelimilla, 246 työpöydällä) |
+| kahdennus (390 px, nyt, levossa) | hetki 2, havaintoasema 4, vedenlämpöasema 5 | jokainen kerran (tuuli, puuska, lähde, havaintoasema, vedenlämpöasema, hetki) |
+| kaavioiden ulkopuoliset tekstit: puoliksi näkyvät / katkaistut | — | 0 / 0 viidellä laitteella (320 px fi ja en, 360 px en, 390 px, työpöytä) |
+| kortin korkeus 390 px:llä | 2 771 px | 2 229 px (tavoite ≤ 2 300) |
+| aaltojen lukemarivi | nykyhetki | valittu tunti (17:00 → Su 03:00 → Su 23:00) |
+| `?kieli=en` | — | ei suomea kortissa (paikannimiä lukuun ottamatta) |
+
+Ennallaan (V16): kaavioiden omat puoliksi näkyvät tekstit (8–13:
+"sade mm/h", lähdekaista, päiväotsikko, tunti- ja lukuarvot reunoilla),
+28 tekstityyliä, 10 kirjasinkokoa, 8 tekstiväriä, 28 laatikkoa ja
+versaalit laattojen nimissä ja aaltomoduulin lähteessä. Regressio,
+`tools/graafimittaus.mjs` (96 riviä) ja `tools/savutesti.mjs` läpi.
+
+Mittarissa uutta: avauksen siirtymät listataan kahteentoista asti,
+tekstiosiossa on oma rivi kaavioiden ulkopuolisille teksteille (kaavion
+tekstit peittivät muuten kuuden ensimmäisen listan) ja 320 px englanniksi,
+kahdennuksen nimilaskenta ohittaa kortin otsikon (Lauttasaaren
+vedenlämpöasema on myös "Lauttasaari"), ja lukemaosio tarkistaa että
+aaltojen lukemarivi seuraa valittua tuntia.
