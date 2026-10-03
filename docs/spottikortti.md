@@ -21,6 +21,10 @@ jaksovalitsimia, pehmeä tunnin siirto, Nyt-nappi, kaikki kaaviot samalla
 moottorilla, kortti moduuleiksi, havaintoasemakortit samaan tyyliin,
 fontit ja sulkunappi) on osioissa **V8** ja **V9** luvussa 7.
 
+**Uusi strategia 3.10.2026: luku 8, "Rauhallinen ja vakaa kortti"**
+(mallilukemat näkyviin laajassa, ei koon muutoksia, kahdennukset pois).
+Se odottaa käyttäjän päätöstä (P10–P17); siitä ei ole toteutettu mitään.
+
 > Osa FoilSpotin muistiinpanoja. Hakemisto ja säännöt ovat `CLAUDE.md`:ssä.
 > Lue myös `docs/ui.md` (spottikortti, havaintokaavio, laaja näkymä,
 > valikot) ja `docs/mallit.md` (mallit ja niiden sekoitus) ennen kuin
@@ -944,3 +948,555 @@ sama `_PALUU_SVG` kuin kaavion Nyt-napissa. Tämän päivän kiskolappu
 sanoo "Nyt" eikä "Tänään", koska sen napautus vie nykyhetkeen.
 Mitattu: nappi näkyy menneellä tunnilla, napautus valitsee nyt-tikin
 ja nappi piiloutuu.
+
+---
+
+## 8. Rauhallinen ja vakaa kortti — strategia (3.10.2026)
+
+Pyyntö (3.10.2026): *"Lähdetään seuraavaksi tekemään spottikortille
+strategia sen parantamiseksi niin, että siitä tulee mahdollisimman
+ammattimainen. Esimerkiksi kun spottikortin avaa ja sieltä avaa
+ennustekaavion, niin ennustekaavion erilaiset säämallit tulevat
+infoboksiin, jossa nämä boksit tai uudet tekstit ja tuulennopeudet
+menevät hieman pois näkyvistä, jolloin se ei ole täydellinen. Lisäksi en
+halua, että spottikortissa mikään niin kuin koko muuttuu tämmöisillä
+infobokseilla, jos graafia muuttaa, ettei se tule mitään värinää
+korttiin. Tee kokonaisvaltainen parannus spottikortille niin, että siitä
+ei tule liian vilkas. Ehdota jotain dataa, että tarvitseeko poistaa, jos
+siellä esimerkiksi kaksi kertaa jotain dataa. […] tee ensin strategia,
+äläkä koodaa mitään ja tee suositus minulle ja minä päätän."*
+
+**Tila:** strategia, odottaa päätöstä (P10–P17). Koodiin ei ole koskettu.
+
+### 8.1 Tiivistelmä
+
+**Diagnoosi.** Kortin osat ovat yksitellen mitattuja ja hyviä, mutta ne on
+rakennettu eri päivinä eri pyynnöistä, eikä niiden yhteisvaikutusta ole
+mitattu. Nyt mitattuna (puhelin 390 px ellei toisin sanota):
+
+1. **Laajan vertailumallit jäävät piiloon.** "Lisää"-sirurivi on yksi
+   sivuttain vierivä rivi ilman merkkiä jatkosta, ja valitut mallit ovat
+   sen lopussa: kolmella valitulla mallilla **GFS näkyy 0 % ja ICON
+   0–14 % jokaisella puhelimella**, pystyssä ja vaakassa, ECMWF 0–100 %.
+   Englanniksi lukemarivin mallirivi leikkautuu (GFS:n arvo 49 %
+   näkyvissä 360 px:llä). Tämä vastaa pyynnön kuvausta "boksit, tekstit
+   ja tuulennopeudet menevät pois näkyvistä".
+2. **Koko muuttuu.** Laajassa ensimmäinen vertailumalli kasvattaa
+   lukemariviä 54 → 80 px ja lyhentää kaaviota saman verran
+   (vaakaruudussa 247 → 221 px, −11 %). Kortissa ennusteen vaihto
+   valikosta muuttaa ennusteosion korkeutta (418 → 406 → 418 px
+   paikanpitäjän takia, 436 → 418 px sadekaistan takia). 375 px:n
+   puhelimella hero on neljää eri korkeutta tunnista riippuen, ja
+   ennustekaavio hyppää pystysuunnassa **44 kertaa 127 tunnin aikana**;
+   valitun tunnin laatat ovat 7–9 eri korkeutta. Avatessa moduulit
+   asettuvat 8,5 sekunnissa, ja viimeisenä ilmestyvä aaltomoduuli työntää
+   kaiken alla olevan 306 px alemmas.
+3. **Sama tieto 2–5 kertaa.** Valitun tunnin tuuli ja puuska ovat herossa
+   ja heti alla lukemarivillä, lähde "FMI HARMONIE 2,5 km" neljästi,
+   havaintoaseman nimi neljästi, "Havainnot nyt" -laatat toistavat alla
+   olevien kaavioiden lukemat, eikä "Spotti"-moduulissa ole mitään mitä ei
+   olisi muualla. Kun kaavioon valitaan ICON, hero ja lukemarivi näyttävät
+   samalle tunnille **eri luvut** (6,9 vs 9,2 kts).
+4. **Kortti on raskas.** 2 835 px (4,1 ruudullista), 32 tekstityyliä, 10
+   kirjasinkokoa, 10 tekstiväriä ja levossa 15 puoliksi näkyvää
+   kaaviotekstiä.
+
+**Suositus: viisi vaihetta V12–V16, pyynnön näkyvin vika ensin.** Ydin:
+
+- **Yksi lukema, yksi paikka.** Kortilla hero *on* ennustekaavion lukema:
+  levossa valittu tunti, kaaviota osoittaessa osoitettu tunti. Erillinen
+  lukemarivi ja kupla pallon vieressä poistuvat. Laajassa lukemarivi on
+  ainoa lukema, ja vertailumallit ovat sen soluja, joten rivi on samalla
+  käyrien selite.
+- **Kiinteät mitat.** Jokainen alue on samankorkuinen riippumatta
+  tunnista, kielestä, ruudun leveydestä, ladatusta datasta ja mallien
+  määrästä. Teksti joka ei mahdu, vaihtuu lyhyempään muotoon — se ei
+  rivity eikä leikkaudu.
+- **Kahdennukset pois** (lista 8.4.4): "Havainnot nyt" -laatat,
+  aaltoennustelaatta, Spotti-moduuli, lähde herosta ja valikosta, aseman
+  nimi otsikoista.
+- **Rauhallisempi kaavio ja typografia:** kortin kaaviossa vain tuulen
+  luvut, ei puoliksi näkyviä tekstejä, kuusi kirjasinkokoa ja
+  varoitusväri vain varoituksiin.
+
+Päätettävät kohdat P10–P17 ovat luvussa 8.5, jokaisella suositus;
+"mennään suosituksella" riittää vastaukseksi.
+
+### 8.2 Nykytila mitattuna
+
+Asetelma: tuotantobuild (`npm run build` + `vite preview`), Chromium
+(kontissa ei ole WebKitiä) ja oikea data 3.10. klo 12–13, Lauttasaari.
+Puhelin 390 × 844 (`hasTouch`, dpr 3), lisäksi 360 × 780, 375 × 667,
+vaaka 667 × 375 ja 844 × 390, iPad 820 × 1180 ja työpöytä 1440 × 900;
+suomi ja `?kieli=en`. Mittarit ovat istunnon työtiedostoja; pysyvä
+mittari on V12. Kontin kirjasin on Arialin mittainen (Liberation Sans),
+joten iPhonen SF-kirjasimella leveydet poikkeavat muutaman prosentin.
+Alla luetellut leikkautumiset johtuvat rakenteesta (`nowrap` +
+`overflow: hidden` tai vierivä rivi), eivät kirjasimesta.
+
+#### 8.2.1 Laajan vertailumallit ja lukemat
+
+Valittujen mallisirujen näkyvä osuus laajan "Lisää"-rivillä, kun
+valittuina ovat ECMWF, ICON ja GFS (rivillä ennen niitä HARMONIE ja MET
+Nordic):
+
+| laite | ECMWF | ICON | GFS |
+|---|---|---|---|
+| 360 px pysty | 72 % | 0 % | 0 % |
+| 375 px pysty | 89 % | 0 % | 0 % |
+| 390 px pysty, englanti | 100 % | 14 % | 0 % |
+| 667 px vaaka | 0 % | 0 % | 0 % (MET Nordic 3 %) |
+| 844 px vaaka, englanti | 34 % | 0 % | 0 % |
+| iPad, työpöytä | 100 % | 100 % | 100 % |
+
+Rivi vierii sivuttain, mutta mikään ei kerro sitä, ja vaakaruudussa —
+kääntämällä avattu laaja on sen tavallisin käyttötapa — valitut mallit
+eivät näy lainkaan.
+
+- **Lukemarivin mallirivi** (`.en-lk-mallit`, `nowrap` + `overflow:
+  hidden`): englanniksi levossa "GFS mean 11.5" menee 390 px:llä 24 px
+  reunan yli ja näkyy 360 px:llä 49 %. Suomeksi rivi mahtuu, mutta ilman
+  varaa.
+- **Kupla** (`data-tk-kupla`): leveys arvioidaan merkkimäärästä ja
+  vaihtelee osoitetun tunnin mukaan (pystyssä 111–125 px, vaakassa
+  124–139 px), ja kupla vaihtaa puolta. Se näyttää samat luvut kuin
+  lukemarivi: työpöydällä ja vaakaruudussa samat viisi lukua (tuuli,
+  puuska, ECMWF, ICON, GFS) kahdesti, eri järjestyksessä ja eri
+  kokoisina.
+- **Valikkokentän alarivi** katkeaa laajassa ("Tällä tunnilla FMI
+  HARMONIE 2,…").
+- **Kaavion päällekkäisyydet:** NYT-lappu peittää y-akselin
+  "kts"-yksikön kun nykyhetki on vasemmassa reunassa, ja tuntirivin
+  pilleri peittää alleen jäävän tuntiluvun puoliksi ("Ma 10" + "2").
+
+#### 8.2.2 Mikä muuttaa kokoaan
+
+| tilanne | mitä muuttuu | mitattu |
+|---|---|---|
+| laajassa ensimmäinen vertailumalli päälle | lukemarivi 54 → 80 px, kaavio lyhenee | pysty 619 → 593, vaaka 247 → 221 (−11 %), iPad 955 → 929, työpöytä 757 → 731 px |
+| laajan lepo ↔ osoitus | rivin solut ja niiden määrä vaihtuvat (lepo "Keskituuli 48 h · Kovin 48 h", osoitus hetki · tuuli · puuska) | luvut siirtyvät vaakaan |
+| kortin ennusteen vaihto, sarja ei vielä valmis | "Ladataan ennustetta…" (230 px) kaavion (242 px) tilalle | osio 418 → 406 → 418 px; kaikki alla hyppää kahdesti |
+| ennusteen vaihto (ICON) | sadekaista piirretään vain jos jaksossa sataa | osio 436 → 418 px |
+| tunnin vaihto, 375 px | hero 180 / 188 / 196 / 200 px: puuskarivi rivittyy ("×1,6 hyvin puuskainen", 15 → 27 px), aikarivi rivittyy (12 → 28 px), päätösrivi rivittyy ("Rajatuuli – kokeile" + "42° sivussa parhaasta", 20 → 40 px) | kaavio liikkuu pystysuunnassa 44 kertaa 127 tunnissa |
+| 360 px ja työpöydän sivupaneeli | heron aikarivi rivittyi kahdelle riville; sivupaneelissa toinen rivi alkaa irrallisella "·":llä | — |
+| tunnin vaihto, kaikki leveydet | valitun tunnin laatat ilmestyvät ja katoavat (aalto- ja vedenkorkeusennuste eivät kata mennyttä), alarivejä 1–3 | 7–9 eri korkeutta (210–382 px), 20 muutosta / 127 h; kortin kokonaiskorkeus 13–20 eri arvoa |
+| tunnin vaihto ja osoitus kortin kaaviossa | lukemarivin pääluku siirtyy vaakaan 70 ↔ 108 px kun tunti on mennyt ("Mennyt · La 3.10."), puuskasolu 248–271 px | 127 tunnissa 7 eri asettelua (375 px: 13) |
+
+390 px:n puhelimella suomeksi hero pysyi tässä datassa vakaana (180 px
+koko 127 tuntia), mutta samat rivitykset laukeavat siellä pidemmillä
+teksteillä (englanti, pitkä päätösrivi). Vika on rakenteessa, ei yhdessä
+leveydessä.
+
+#### 8.2.3 Avaus: moduulit asettuvat 8,5 sekunnissa
+
+Moduulien yläreuna kortin alusta (px), Lauttasaari, puhelin, ensimmäinen
+avaus, näytteet 40 ms välein:
+
+| moduuli | 0,07 s | 0,24 s | 2,4 s | 3,0–3,2 s | 8,5 s |
+|---|---|---|---|---|---|
+| ennusteosion korkeus | 424 | | 436 | | |
+| valitun tunnin laattojen korkeus | 228 | 257 | | 228 → 257 | |
+| aaltomoduuli | – | | | | ilmestyy, 294 px |
+| tuulihavainto | 1 209 | 1 288 | 1 300 | 1 271 → 1 300 | 1 606 |
+| kortin viimeinen moduuli | 1 424 | 1 915 | 2 147 | 2 119 → 2 147 | 2 453 |
+
+Jos käyttäjä on jo vierittänyt havaintoihin, sisältö siirtyy hänen
+silmiensä edessä seitsemän kertaa, viimeksi 306 px.
+
+#### 8.2.4 Sama tieto moneen kertaan
+
+Puhelin, valittuna nykyhetki, levossa:
+
+| tieto | missä | kertaa |
+|---|---|---|
+| valitun tunnin tuuli, puuska, suunta | hero; ennusteen lukemarivi | 2 (identtiset) |
+| lähde ja ajo ("FMI HARMONIE 2,5 km") | heron aikarivi; valikkokentän alarivi; lukemarivin tuulisolu; kaavion lähdekaista; "Spotti: Ennuste" | 4 + 1 |
+| valittu hetki ("klo 13") | heron aikarivi; lukemarivi; laattojen otsikko "NYT KLO 13" | 3 |
+| sopivat suunnat (159–251°) | heron päätösrivi; Spotti-moduuli; ⓘ-selite | 2–3 |
+| spottiindeksin erittely | ⓘ-selite; Spotti-moduuli | 2 |
+| aaltoennuste valitulle tunnille | "Aallot · ennuste" -laatta; aaltomoduulin lukemarivi | 2 |
+| viimeisin tuulihavainto | "Tuuli · havainto" -laatta; havaintokaavion lukemarivi | 2 |
+| viimeisin vedenlämpö | "Vesi · havainto" -laatta; vedenlämpökaavion lukemarivi | 2 |
+| havaintoaseman nimi (Helsinki Laru) | laatta; moduulin otsikko; asemavalitsin; selite | 4 |
+| vedenlämmön asema (Lauttasaari) | laatta; moduulin otsikko; asemavalitsin; alaviite | 4 |
+| havainnon aika ja ikä | laatan "12:48"; lukemarivin "Viimeisin 12:48"; selitteen "3 min sitten" | 3 |
+
+Kahdennus ei vie vain tilaa — se tuottaa ristiriitoja:
+
+- **Kaavion ennuste ≠ hero.** Kun valikosta valitaan ICON, hero näyttää
+  yhä Parasta (6,9 kts, puuska 11,4, indeksi 24) ja heti alla oleva
+  lukemarivi ICONia (9,2 kts, puuska 14,1) — sama tunti, sama kortti.
+  Valinta tallentuu (`fs_kortti_mallit`), joten ristiriita on pysyvä.
+- Saman aseman etäisyys on "0 km" (laatta) ja "0.4 km" (valitsin), sama
+  hetki "Nyt 13:00" (aallot) ja "Nyt klo 13" (tuuli), ja samalla rivillä
+  on "6.3 kts" ja "2,5 km".
+- "Hyvin puuskainen" ja "Mallit eriävät" piirretään `--accent`illa, joka
+  on toimintoväri. CLAUDE.md:n mukaan varoitus on `--varoitus` — jäänne
+  ajalta ennen Yömerta, jolloin aksentti oli magenta.
+- Osuvuusrivillä on lupausteksti ilman dataa ("…näkyy tässä, kun olet
+  avannut kortin vielä 4 kertaa eri tunteina").
+
+#### 8.2.5 Kuorma
+
+| mittari | arvo |
+|---|---|
+| kortin korkeus (390 px) | 2 835 px; pohjalevy 692 px → 4,1 ruudullista |
+| näkyviä tekstisolmuja (HTML) | 216 |
+| tekstityylejä (koko × paino × väri) | 32 |
+| kirjasinkokoja | 10 (11, 12, 13, 14, 17, 18, 20, 21, 22, 38 px) |
+| tekstivärejä | 10, joista kolme eri rampin sävyä luvuissa |
+| versaalinimiä | 15 |
+| laatikoita (oma tausta tai reuna; kaavioiden päiväsoluja ei laskettu) | 24 |
+| puoliksi näkyviä kaaviotekstejä levossa | 15: ennuste 7, aallot 3, havainto 3, vedenlämpö 2 (esim. "sade mm/h" 5 % ja 32 %, lähdenimi 2 %, "12.9°" 35 %) |
+| ennustekaavion kerroksia | 10: lähdekaista, nuolirivi (24 nuolta / 48 h, umpi tai ontto), 16 lukua / 48 h (tuuli ja puuska), foilausraja ja sen luku, NYT-lappu ja katkoviiva, valitun tunnin kursori ja pallo, yöharso, päiväkaista ja viikonloppusävy, tuntirivi, sadekaista ja sen nimi joka keskiyö |
+
+Ensimmäisessä ruudullisessa (390 × 844) näkyvät hero ja kaavio
+päiväriviin asti; sadekaista jää taitteen alle.
+
+### 8.3 Periaatteet
+
+1. **Yksi tieto, yksi paikka.** Sama luku näkyy kortilla kerran. Kaksi
+   lukua samasta suureesta sallitaan vain kun ne ovat eri aikaa tai eri
+   lähdettä, ja silloin molemmat nimetään (ennuste valitulle tunnille vs.
+   havainto nyt — CLAUDE.md:n "ERI RIVIT" -sääntö).
+2. **Paikka ei muutu sisällön mukana.** Jokaisella alueella on kiinteä
+   korkeus ja jokaisella luvulla kiinteä sarake (tasalevyiset numerot).
+   Teksti joka ei mahdu, vaihtuu lyhyempään muotoon (portaikko, kuten
+   kaavion päiväotsikossa). Tunnin vaihto, datan saapuminen, kieli ja
+   mallien määrä eivät siirrä mitään.
+3. **Ei puoliksi näkyviä tekstejä.** Teksti on kokonaan näkyvissä tai
+   poissa, ja rajat mitataan — niitä ei arvioida merkkimäärästä.
+4. **Lukema on kiinteässä paikassa.** Kaavion osoitin (viiva, pallo,
+   mallien pisteet) näyttää *missä* luetaan; luvut ovat aina samassa
+   paikassa eivätkä kellu sormen vieressä.
+5. **Väri on tieto.** Tuulen ramppi vain tuulen luvuissa ja kaaviossa,
+   `--varoitus` vain varoituksissa, kaikki muu kolmella musteella.
+
+### 8.4 Ehdotukset
+
+#### 8.4.1 Lukema: hero on kortin lukema (P10, P11, P13)
+
+- **Hero lukee kaaviota.** Levossa valittu tunti (kuten nyt); kun
+  kaaviota osoitetaan (hiiri, pito + liu'utus, nuolinäppäimet), samat
+  paikat näyttävät osoitetun tunnin, ja hero saa saman tummemman pohjan
+  kuin lukemarivi nyt osoittaessa. Vaihtuvat vain tekstit: luvut, suunta,
+  puuska, indeksi ja päätös. Kun sormi nousee, tunti valitaan (kuten nyt);
+  ilman valintaa hero palaa valittuun tuntiin.
+- **Ennusteosion oma lukemarivi poistuu** kortilta (54 + 6 px).
+- **Tiivis lukema yläpalkissa.** Kun hero on vierinyt pois näkyvistä,
+  kortin yläpalkkiin (44 px, nyt tyhjä sulkunapin vasemmalla puolella)
+  häivytetään yksi rivi samoista paikoista: "Lauttasaari · klo 13 · 6,3
+  kts ↗ LO". Lukema on silloin näkyvissä myös kun kaavio on vieritetty
+  ruudun yläreunaan — ilman uutta kaistaa.
+- **Kupla pois** (P11). Kursoriviiva, pallo ja vertailukäyrien
+  väripisteet jäävät, ja tuntirivin pilleri ("Su 16") sanoo hetken.
+- **Hero seuraa kaavion ennustetta** (P13). Kun kaavioon on valittu
+  malli, heron luvut, indeksi ja päätös ovat sen mallin, ja aikarivi
+  nimeää mallin ("· ICON"). Paras-tilassa kaikki on kuten nyt: hero =
+  spottimerkki = aikajana (kortti vs aikajana 0,0000 m/s säilyy).
+- **Laajassa** lukemarivi jää ainoaksi lukemaksi, ja levossa se näyttää
+  valitun tunnin eikä 48 h:n keskiarvoja, jotta solut eivät vaihdu levon
+  ja osoituksen välillä.
+
+#### 8.4.2 Laaja: mallit valikkoon, selite lukemariville (P12)
+
+- "Lisää"-sirurivi korvataan yhdellä napilla **"Vertaa ⌄"** (valitut
+  lukumääränä: "Vertaa · 3"). Se avaa `Valikko`n valintaruuduin
+  (monivalinta, enintään kolme; neljäs on pois käytöstä ja kertoo miksi).
+- **Valitut mallit ovat lukemarivin soluja:** viivanäyte samalla värillä
+  ja kuviolla kuin käyrä (identiteetti on aina myös kuviossa), nimi ja
+  arvo. Rivi on samalla selite, eikä sirurivin selitettä tarvita.
+- **Korkeus ei riipu mallien määrästä:** vaakaruudussa (leveys ≥ 600 px)
+  yksi rivi, 54 px, myös kolmella mallilla; pystyssä aina kaksi riviä,
+  80 px (toinen rivi ilman malleja: hiljainen "Vertaa malleja ⌄").
+- **Solut ovat kiinteitä sarakkeita** (leveys pisimmästä mahdollisesta
+  arvosta, tasalevyiset numerot): luku ei siirry vaakaan tunnista toiseen.
+- **Lähde pois tuulisolun nimestä** ("Tuuli · FMI HARMONIE 2,5 km" →
+  "Tuuli"): lähdekaista kertoo sen.
+
+#### 8.4.3 Kiinteät mitat
+
+| alue | nyt | ehdotus |
+|---|---|---|
+| hero | 180–200 px rivitysten mukaan | Kiinteä korkeus; jokainen rivi on yksi rivi. Lähde ja ajo pois aikariviltä (ne ovat lähdekaistassa). Puuskarivi "Puuska 10,1 kts · ×1,6"; sana "hyvin puuskainen" päätösrivillä vain varoituksena. Päätösrivin selite lyhyessä muodossa kun pitkä ei mahdu ("42° sivussa"). |
+| ennusteen otsikko ja valikko | otsikkorivi 48 px + valikkokenttä 50 px (nimi ja alarivi) | Yksi rivi: valikkokenttä (vain nimi) vasemmalla, Nyt ja laajennus oikealla; Nyt-napin paikka varataan myös piilossa. Ryhmän nimi "Tuuliennuste" kortin ulkopuolelle kuten muissa ryhmissä. |
+| kaavio | 222 tai 242 px sadekaistan mukaan; paikanpitäjä 230 px | Sadekaista aina kortilla (18 px). Paikanpitäjä ja "ei saatu" -viesti ovat kaavion korkuisia; ennusteen vaihdossa edellinen kaavio jää himmennettynä paikalleen kunnes uusi on valmis (kuten sadekerroksen hyppy). Vihje "Pidä sormea kaaviolla…" kaavion päälle häivytettynä, ei sen alle. |
+| valitun tunnin laatat | 210–382 px | Kiinteä 2 × 2 -ruudukko (ilma, puku, vedenkorkeus, aurinko), kiinteä laattakorkeus: nimi, arvo ja kaksi varattua alariviä. Laattajoukko päätetään spotin datasta kerran (P14); tunnilta puuttuva arvo on "—" ja syy ("ei ennustetta tälle tunnille"). |
+| myöhään tulevat moduulit | ilmestyvät datan tullessa | Korkeus varataan heti (luuranko lopullisilla mitoilla). Aaltomoduuli vain spoteille joilla WAM on: kolme spottia on mallin maamaskissa, ja se voidaan tietää etukäteen (spottitieto tai ensimmäisen haun muisti). |
+| laajan lukemarivi | 54 tai 80 px mallien mukaan | Kiinteä suunnan mukaan (8.4.2). |
+
+#### 8.4.4 Kahdennukset pois — poistolista (P15)
+
+| # | poistuu | tieto jää |
+|---|---|---|
+| 1 | ennusteosion lukemarivi (P10) | hero, ja yläpalkin tiivis lukema kun hero ei näy |
+| 2 | "Havainnot nyt" -laatat: tuuli, ilma, vesi | havaintokaavion ja vedenlämpökaavion lukemarivit (viimeisin); ilma havaintokaavion rivillä kun asemalla on lämpömittari |
+| 3 | "Aallot · poiju" -laatta | yksi rivi aaltomoduulin alle: "Poiju nyt 0,3 m · Helsinki Suomenlinna 7 km · 81 min sitten" (eri aikaa kuin ennuste, joten eri rivi) |
+| 4 | "Aallot · ennuste" -laatta | aaltomoduulin lukemarivi (valittu tunti) |
+| 5 | "Spotti"-moduuli kokonaan | indeksin erittely ⓘ-selitteessä; sopivat suunnat päätösrivillä ja selitteessä; lähde lähdekaistassa |
+| 6 | lähde heron aikariviltä ja valikkokentän alariviltä | kaavion lähdekaista; ajon aika sen ensimmäisen nimen perään ("HARMONIE 2,5 km · ajo 09") |
+| 7 | havaintoaseman nimi moduulin otsikosta ja selitteestä | asemavalitsin |
+| 8 | vedenlämpöaseman nimi otsikosta ja alaviitteestä | asemavalitsin; alaviitteeseen jää "UiRas" |
+| 9 | laattaryhmän otsikon kellonaika ("NYT KLO 13") ja laattojen "· ennuste" -päätteet | hero tai yläpalkki kertoo hetken; ryhmän nimi "Valitulla tunnilla" |
+| 10 | osuvuuden lupausteksti | rivi näkyy vasta kun dataa on |
+| 11 | "sade mm/h" jokaisen keskiyön kohdalla | kerran kiinteällä akselilla ("mm"), kuten "kts" |
+| 12 | (valinnainen) kortin yläreunan tuulisävy (`_shSavy`), joka vaihtaa väriä joka tunnilla | iso luku on jo tuulen värinen |
+
+Arvio (ei mitattu): kortti 2 835 → noin 2 200 px ja laatikoita 24 →
+noin 15, ja 390 px:n puhelimella hero ja koko kaavio sadekaistoineen
+mahtuvat ensimmäiseen ruudulliseen.
+
+#### 8.4.5 Kaavion keventäminen (P16)
+
+Kortin kaavio on pieni (48 h noin 350 px:llä), ja se on täynnä; laaja on
+yksityiskohtia varten.
+
+- **Kortilla vain tuulen luvut** huipuissa ja laaksoissa; puuskan luvut
+  laajassa. Puuska näkyy kortilla vyöhykkeenä ja herossa lukuna. 16 → 8
+  lukua / 48 h.
+- **Nuolet 3 h välein**, samassa rytmissä lukujen kanssa (24 → 16 /
+  48 h); umpi/ontto-ero (suunta sopii) säilyy.
+- **Lähdekaistan nimet tarttuviksi** kuten päiväotsikko (V4): nimi vain
+  lähteen vaihtuessa, se pysyy näkyvissä koko jakson ajan, ei toistu
+  joka keskiyö eikä leikkaudu reunasta ("N-EU 7 km").
+- **Ei puoliksi näkyviä tekstejä:** y-akselin liuskan alle osuva tai
+  reunan yli menevä luku piilotetaan, tuntirivin pilleri piilottaa alleen
+  jäävän tuntiluvun, ja NYT-lappu väistää akselin yksikköä.
+- Koska moottori on yksi, korjaukset koskevat kaikkia neljää kaaviota ja
+  laajaa (`tools/graafimittaus.mjs` regressiona).
+
+#### 8.4.6 Typografia ja väri
+
+- Kuusi kirjasinkokoa kortissa (11, 13, 15, 17, 22 ja heron 38 px),
+  kolme mustetta (`--ink`, `-2`, `-3`), rampin väri vain tuulen luvuissa
+  ja `--varoitus` vain varoituksissa (korjaa "hyvin puuskainen" ja
+  "Mallit eriävät").
+- Moduulin sisällä ei sisäkkäisiä täytettyjä laatikoita lukemille:
+  lukemarivit (havainto, vesi, aallot, laaja) ovat tekstiä moduulin
+  pinnalla, ja osoituksen tila näkyy aikasolun korostuksena.
+- Versaalit vain ryhmien nimissä.
+- Yksi aikamuoto kaikissa kaavioissa ("klo 13" tai "13:00", valitaan
+  kerran) ja yksi etäisyyden pyöristys.
+- Desimaalierotin yhdeksi (P17).
+
+#### 8.4.7 Tavoitekuva
+
+Puhelin (390 px), kortin alku:
+
+```
+┌────────────────────────────────────────────┐
+│ ▬   Lauttasaari · klo 13 · 6,3 kts ↗ LO   ✕│  yläpalkki: tiivis lukema vain kun
+│                                            │  hero on vierinyt pois näkyvistä
+│ Lauttasaari                          ☆  ⇪  │
+│ Etelä–länsi, helppo pääsy                  │
+│ ┌────────────────────────────────────────┐ │
+│ │ NYT  La 3.10. klo 13           ╭──╮    │ │  HERO = kaavion lukema:
+│ │ 6,3 kts                        │21│    │ │  kiinteä korkeus,
+│ │ ↗ 203° · lounaasta             ╰──╯    │ │  rivit eivät rivity
+│ │ Puuska 10,1 kts · ×1,6   spottiind. ⓘ  │ │
+│ │ [Liian heikko]  Suunta osuu            │ │
+│ │ Mallit yksimielisiä ±1,3 kts           │ │
+│ └────────────────────────────────────────┘ │
+│ TUULIENNUSTE                               │
+│ ┌────────────────────────────────────────┐ │
+│ │ [Paras saatavilla ⌄]       [Nyt]  [⤢]  │ │  yksi rivi
+│ │ HARMONIE 2,5 km · ajo 09 ─ ECMWF 9 km  │ │  tarttuva lähdekaista
+│ │ ↗    ↗    ↗    ↗    ↗    ↗    ↗    ↗   │ │  nuolet 3 h välein
+│ │ (kaavio: tuulen luvut, puuska alueena) │ │
+│ │ 06   12   18   00   06   12   18   00  │ │
+│ │ Tänään 3.10.     │ Sunnuntai 4.10.     │ │
+│ │ mm   ▁▂                                │ │  sadekaista aina
+│ └────────────────────────────────────────┘ │
+│ VALITULLA TUNNILLA                         │
+│ [Ilma 12 °C]          [Puku 4/3 mm]        │  2 × 2, kiinteä korkeus
+│ [Vedenkorkeus +9 cm]  [Aurinko 07:30–18:47]│
+│ AALLOT     lukemarivi · kaavio · poiju nyt │
+│ HAVAINNOT  tuuli: valitsin · rivi · kaavio │
+│            vesi: valitsin · rivi · kaavio  │
+│ [Reittiohje]   Avaa Wazessa                │
+└────────────────────────────────────────────┘
+```
+
+Laaja vaakaruudussa (844 × 390):
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Lauttasaari    [Paras saatavilla ⌄]   [Vertaa · 3 ⌄]                              [−] [+]  ✕   │
+│ Su 4.10. klo 14 │ Tuuli 12,0 kts ↗ LO │ Puuska 17,4 │ ━ ECMWF 12,8 │ ╍ ICON 13,6 │ ┈ GFS 14,2  │
+│ (kaavio: korkeus sama 0–3 mallilla; kursori, pallo ja mallien pisteet osoittavat kohdan)       │
+└────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 8.5 Päätettävät kohdat
+
+**P10 — Kortin lukema.**
+- **A (suositus):** hero on ennustekaavion lukema (8.4.1). Kortin oma
+  lukemarivi poistuu, ja kun hero on vierinyt pois, yläpalkissa on tiivis
+  lukema. Seuraus: ei kahdennusta, 60 px vähemmän, ja osoittaessa vain
+  tekstit vaihtuvat.
+- **B:** lukemarivi jää, mutta levossa se näyttää seuraavan 48 h:n
+  yhteenvedon (kovin tuuli ja milloin, foilattavat tunnit) eikä samaa
+  kuin hero. Ei kahdennusta, mutta kaista jää.
+- **C:** nykyinen.
+
+**P11 — Kupla pallon vieressä** (30.9. pyyntö "lukema voisi näkyä pallon
+vieressä ja myös muilla malleilla").
+- **A (suositus):** pois kortilta ja laajasta. Lukema on kiinteässä
+  paikassa (hero, laajan lukemarivi), ja kursori, pallo ja mallien
+  väripisteet näyttävät kohdan. Pyynnön "myös muilla malleilla" -osa
+  toteutuu laajan lukemarivillä. Kupla toisti rivin luvut, vaihtoi
+  kokoaan ja puoltaan ja peitti käyrät juuri siinä kohdassa jota
+  luetaan.
+- **B:** jää, mutta kiinteän kokoisena (leveys koko sarjan pisimmästä
+  tekstistä, mitattuna), yksirivisenä (vain pääsarjan luku) ja puolen
+  vaihto kynnyksellä.
+
+**P12 — Laajan vertailumallien valinta.**
+- **A (suositus):** "Vertaa ⌄" -valikko, ja valitut mallit lukemarivin
+  soluina (8.4.2).
+- **B:** sirurivi jää, mutta omalle rivilleen ja rivittyvänä joka
+  laitteella. Vie vaakaruudussa kaaviolta 36 px.
+
+**P13 — Mitä hero näyttää kun kaavioon on valittu malli.**
+- **A (suositus):** saman mallin luvut, indeksin ja päätöksen;
+  aikarivillä mallin nimi. Valinta pysyy tallennettuna kuten nyt, ja hero
+  kertoo aina mistä luku on.
+- **B:** hero näyttää aina Parasta. Silloin kaavion lukema tarvitsee oman
+  rivinsä (P10 B tai C), ja kortilla on kaksi lukua samalle tunnille.
+
+**P14 — Valitun tunnin laatat.**
+- **A (suositus):** kiinteä ruudukko; laattajoukko päätetään spotin
+  datasta kerran, ja tunnilta puuttuva arvo on "—" ja syy. Tämä tarkentaa
+  sääntöä "viiva olisi lupaus datasta jota ei ole": laattaa ei näytetä
+  spotille jolle dataa ei ole koskaan, mutta yksittäisen tunnin aukko
+  sanotaan.
+- **B:** laatat piiloutuvat kuten nyt (korkeus vaihtelee tunnista
+  toiseen).
+
+**P15 — Poistolista 8.4.4.** Hyväksy kohdittain. Suositus: kohdat 1–11;
+kohta 12 on makuasia.
+
+**P16 — Kortin kaavion keventäminen (8.4.5).**
+- **A (suositus):** kaikki neljä kohtaa.
+- **B:** vain puoliksi näkyvät tekstit ja tarttuva lähdekaista; luvut ja
+  nuolet ennallaan.
+
+**P17 — Desimaalierotin suomeksi.** Nyt lukemat ovat pisteellä ("6.3
+kts") ja kiinteät nimet pilkulla ("2,5 km").
+- **A (suositus):** pilkku kaikissa suomenkielisissä luvuissa koko
+  sovelluksessa (kortti, kapseli, aikajana, kaaviot), englanniksi piste.
+  Tarkistus DOMin tekstistä samaan tapaan kuin kielen tarkistus.
+- **B:** piste kaikkialla, myös lähdenimissä ("2.5 km").
+- **C:** nykyinen sekoitus.
+
+### 8.6 Vaiheet
+
+Jokainen vaihe on oma committinsa ja viedään oletushaaralle
+(`claude/vite-project-setup-6je1pq`) kun sen mittaukset ovat kunnossa;
+jokainen päivittää tämän luvun mittauksineen ja CLAUDE.md:n säännöt
+päätösten mukaan (8.8).
+
+**V12 — Mittari `tools/korttimittaus.mjs`** (ei näkyvää muutosta). Kortti
+ja laaja puhelimilla 320–430 px pystyssä ja 667/844 px vaakassa,
+iPadilla ja työpöydällä, suomeksi ja englanniksi; mallisarjat
+istutetaan `KorttiSarjat._m`:ään (sääntö "MALLIDATAA EI MITATA
+VERKOSTA"). Jokainen rivi `ok`/`VIKA` kuten graafimittauksessa: puoliksi
+näkyvät ja leikatut tekstit, korkeudet 127 tunnin yli, laajan rivi 0–3
+mallilla levossa ja osoittaessa, avauksen siirtymät 10 s:n ajan,
+kahdennukset hakusanoina ja tyylien määrä. Nykytila (8.2) on lähtötaso.
+*Koko: pieni–keskitaso. Riski: ei.*
+
+**V13 — Laaja** (pyynnön näkyvin vika ensin). Vertaa-valikko (P12),
+mallit lukemarivin soluina viivanäytteineen, kiinteä rivi suunnan
+mukaan, levossa valittu tunti, kupla P11:n mukaan; mallien väripisteet
+jäävät. *Mitataan:* valittujen mallien nimet ja arvot 100 % näkyvissä
+kaikilla laitteilla ja kielillä; lukemarivin ja kaavion korkeus sama 0–3
+mallilla, levossa ja osoittaessa. *Koko: keskitaso. Riski: pieni.*
+
+**V14 — Hero ja ennusteosio.** Heron kiinteät paikat ja lyhyet muodot,
+hero lukee kaaviota (P10) ja seuraa sen ennustetta (P13), yläpalkin
+tiivis lukema, yksirivinen valikkorivi, lähde ja ajo lähdekaistaan,
+kaavion kiinteä korkeus (sadekaista, paikanpitäjä, edellinen kaavio
+himmennettynä), vihje kaavion päälle ja varoitusvärit. *Mitataan:*
+heron ja ennusteosion korkeus sama 127 tunnin, kaikkien leveyksien,
+kielten ja ennustevalintojen yli; kortti vs aikajana 0,0000 m/s ja
+spottimerkki = kortin indeksi Paras-tilassa; WebKit-napautus ja pito +
+liu'utus (V6:n ja V10:n mittarit). *Koko: suuri. Riski: keskitaso*
+(heron päivityspolku ja osoitin).
+
+**V15 — Kortin alaosa.** Poistolista (P15), laattaruudukko (P14), varatut
+korkeudet myöhään tuleville moduuleille, aseman nimi ja ikä kerran,
+Spotti-moduuli ja osuvuuden lupausteksti pois. *Mitataan:* laattojen
+korkeus sama 127 tunnin yli, moduulien paikat eivät muutu ensimmäisen
+maalauksen jälkeen, kahdennusten määrät (8.7). *Koko: keskitaso. Riski:
+pieni.*
+
+**V16 — Kaavio ja typografia.** Kaavion keventäminen (P16) kaikissa
+kaavioissa, kirjasinkoot, värit, sisäkkäiset laatikot, versaalit,
+aikamuoto ja desimaalierotin (P17). *Mitataan:* puoliksi näkyviä
+tekstejä 0, `tools/graafimittaus.mjs` läpi, kontrastimittari kuten
+Yömeressä ja `?kieli=en`-tarkistus. *Koko: keskitaso. Riski:
+pieni–keskitaso* (koskee kaikkia kaavioita).
+
+```
+V12 ─┬─ V13
+     ├─ V14 ── V15
+     └──────── V16
+```
+
+### 8.7 Hyväksymismittarit
+
+| mittari | nyt | tavoite |
+|---|---|---|
+| valittujen mallien nimet ja arvot näkyvissä laajassa (kaikki laitteet, fi/en) | puhelimilla ICON 0–14 %, GFS 0 % | 100 % |
+| laajan lukemarivin korkeus 0–3 mallilla, levossa ja osoittaessa | 54 / 80 px | yksi arvo suuntaa kohti |
+| heron korkeus 127 tunnin yli, 320–430 px, fi/en | 375 px: 4 arvoa, 44 muutosta | 1 arvo |
+| ennusteosion korkeus ennusteen vaihdossa (myös lataus ja "ei saatu") | 406 / 418 / 436 px | 1 arvo |
+| valitun tunnin laattojen korkeus 127 tunnin yli | 7–9 arvoa, 20 muutosta | 1 arvo |
+| moduulien siirtymät ensimmäisen maalauksen jälkeen | 7 siirtoa, suurin 306 px | 0 |
+| puoliksi näkyviä tai leikattuja tekstejä kortissa ja laajassa | 15 kaaviotekstiä + mallirivi | 0 |
+| sama tieto kortilla (lähde, asemanimi, valitun tunnin luvut) | 2–5 kertaa | kerran (eri aika tai lähde nimettynä) |
+| kortin korkeus 390 px:llä | 2 835 px | ≤ 2 300 px |
+| tekstityylejä / kirjasinkokoja / tekstivärejä / laatikoita | 32 / 10 / 10 / 24 | ≤ 14 / 6 / 6 / 15 |
+| ensimmäinen ruudullinen (390 × 844) | hero ja kaavio ilman sadekaistaa | hero ja koko kaavio |
+| regressiot: savutesti, graafimittaus, kortti vs aikajana, merkki = indeksi | läpi | läpi |
+
+### 8.8 CLAUDE.md:n säännöt joihin tämä koskee
+
+- **"KAAVION LUKEMA ON KIINTEÄLLÄ RIVILLÄ … JA OSOITETTAESSA MYÖS
+  KUPLASSA PALLON VIERESSÄ"** — P10 A tekee kortin ennustekaavion
+  lukemaksi heron (kiinteä paikka säilyy, rivi poistuu kortilta), P11 A
+  poistaa kuplan. Havainto-, vedenlämpö- ja aaltokaavioiden rivit jäävät.
+- **"RIVI EI RIVITY EIKÄ KASVA: YKSI RIVI, 54 px"** — säilyy; laajan rivi
+  on kiinteä suunnan mukaan.
+- **"KORTIN ENNUSTE VALITAAN VALIKOSTA, PÄÄLLE LISÄTÄÄN VAIN LAAJASSA"**
+  ja sen "Lisää"-sirurivi — P12 A korvaa sirurivin Vertaa-valikolla;
+  säännön ydin (pohja kortilla, vertailut vain laajassa, enintään kolme)
+  säilyy.
+- **"SPOTTIKORTTI JA SPOTTIMERKIT LUKEVAT SAMAA SEKOITUSTA KUIN KARTTA"**
+  — pätee Paras-tilassa; P13 A:lla hero voi näyttää valitun mallin, ja se
+  nimetään.
+- **"ASEMAN NIMI SANOTAAN KERRAN, IKÄ SANOTAAN KERRAN"** — laajenee koko
+  korttiin (P15).
+- **"Aaltoennuste ja poijuhavainto ovat ERI RIVIT"** — säilyy: poiju on
+  oma rivinsä aaltomoduulissa.
+- **"viiva olisi lupaus datasta jota ei ole"** (aalto- ja vesilaattojen
+  kommentit) — P14 A tarkentaa: koskee spottia, ei yksittäistä tuntia.
+- **"MAGENTA ON VAIN VAROITUS"** — kaksi `--accent`-jäännettä korjataan.
+- **P6 (sadekaista kyllä)** — säilyy, mutta kaista on aina varattu.
+
+### 8.9 Mitä EI ehdoteta
+
+- **Ei uutta dataa eikä uusia osia.** Esimerkiksi "seuraava hyvä keli"
+  -yhteenvetolause olisi hyödyllinen, mutta se on uusi tekstielementti;
+  harkitaan vasta kun kortti on rauhoitettu (P10 B on sen kevyt muoto).
+- **Ei aikajanan muutoksia.** Aikajana on lukittu; kortti mukautuu
+  siihen.
+- **Ei heron ison luvun eikä indeksin poistoa.** Ne ovat päätöksen
+  ankkurit.
+- **Ei aaltokaavion poistoa** (1.10. pyyntö) — vain sen kahdennukset.
+- **Ei leveämpää sivupaneelia** (sääntö: kaikki kolme paneelia 400 px).
+- **Ei avattavia haitareita oletuksena.** Ne vaihtaisivat kortin
+  korkeutta napautuksesta, ja juuri sitä tässä poistetaan.
+- **Ei uutta kaaviomoottoria:** muutokset tehdään yhteiseen moottoriin
+  (`Tuulikaavio`, `Aikakaavio`) ja kortin rakenteeseen.
