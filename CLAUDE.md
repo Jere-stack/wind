@@ -64,6 +64,16 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   CDP:llä: pito + veto) synteettisellä sarjalla, ei verkkoa; jokainen rivi
   `ok`/`VIKA`, poistumiskoodi 1 vialla. CI ajaa sen savutestin perään
   (`Savutesti ja graafitesti`). Ks. docs/graafit.md, luku 7.
+- `tools/korttimittaus.mjs` — spottikortin ja laajan näkymän mittari
+  (docs/spottikortti.md, luku 8): korkeudet 127 tunnin, leveyksien
+  320–430 px, kielten, ennusteiden ja mallimäärien yli, puoliksi näkyvät
+  ja katkaistut tekstit, kupla, avauksen siirtymät, kahdennukset,
+  tyylien määrä ja regressiot (kortti = Paras = aikajana, merkki =
+  indeksi). Mallisarjat ISTUTETAAN (`KorttiSarjat._m`, avain
+  kiinnitetty), joten luvut eivät riipu verkosta eivätkä tunnin
+  vaihtumisesta. Ei CI:ssä: havainnot, aallot ja vedenkorkeus tulevat
+  oikeista palveluista, ja täysi ajo kestää noin 20 min (`--osat=`,
+  `--nopea`).
 - `tools/havainnot.mjs` + `.github/workflows/havainnot.yml` —
   Espoo Haukilahden (Mellsten) historian keräin: joka ajolla lähteen
   30 minuutin tekstirivit JA 4 tunnin kuvaaja (`plot.gif` minuutti-
@@ -172,7 +182,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/ui.md` | **väriteemaa (Yömeri: paneelit, tokenit, `Teema`, `ink()`)**, **kerrosvalitsinta (neljä ruutua esikatselukuvin) ja sadekerroksen GL-piirtoa (silmukka, häivytykset, B-spline)**, **aaltokerrosta: siru, väri, aallonharjat, aikajana, kapseli, poijukaavion ennuste**, paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa (**toiston liuku, jatkuva päiväkisko, pehmeä valinta ja kelikaista**), kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
-| `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit, kaavion venytys** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V11: yksi kaaviomoottori, kortti moduuleina, fonttilattia, laajan valinta, venytys, mallit laajassa, **ennustevalikko, kiinteä lukemarivi ja selkeämpi päiväys**), ja **luku 8: rauhallinen ja vakaa kortti (strategia 3.10., P10–P17 odottavat päätöstä): mallilukemat näkyviin laajassa, ei koon muutoksia, kahdennukset pois — mitattu nykytila** |
+| `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit, kaavion venytys** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V11: yksi kaaviomoottori, kortti moduuleina, fonttilattia, laajan valinta, venytys, mallit laajassa, **ennustevalikko, kiinteä lukemarivi ja selkeämpi päiväys**), ja **luku 8: rauhallinen ja vakaa kortti (strategia 3.10., päätetty suosituksen mukaan — kupla jää kiinteän kokoisena; toteutus V12–V16 ja mittari `tools/korttimittaus.mjs`): mallilukemat näkyviin laajassa, ei koon muutoksia, kahdennukset pois** |
 | `docs/sujuvuus.md` | **työpöydän** zoomin ja panoroinnin raskautta, windy.comin arkkitehtuuria, sujuvuusstrategiaa, **MapLibre-siirtoa (C2) ja sen mittauksia** |
 | `docs/julkaisu.md` | **julkaisukelpoisuutta**: UI-parannusten top 25, suositusjärjestys ja logiikan 10 kriittisintä kohtaa (27.9.), ja **osa 4: mitä niistä toteutettiin 28.9. ja mikä jäi auki** (Pages, lisenssit, pohjakartan kieli) — lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 | `docs/graafit.md` | **kaavioiden vuorovaikutusta ja akseleita** (strategia ja toteutus 30.9., V1–V6): hiiren veto, kosketuksen "pidä ja liu'uta", käyrän pehmennys, x- ja y-akselin tiedot joka zoomilla, asteikko ikkunan mukaan — mittaukset (`tools/graafimittaus.mjs`), päätökset P1–P10, vaiheet ja toteutuksen poikkeamat; lue ennen kuin kosket `Tuulikaavio`on, `Aikakaavio`n osoittimeen tai kaavioiden akseleihin |

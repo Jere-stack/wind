@@ -23,7 +23,9 @@ fontit ja sulkunappi) on osioissa **V8** ja **V9** luvussa 7.
 
 **Uusi strategia 3.10.2026: luku 8, "Rauhallinen ja vakaa kortti"**
 (mallilukemat näkyviin laajassa, ei koon muutoksia, kahdennukset pois).
-Se odottaa käyttäjän päätöstä (P10–P17); siitä ei ole toteutettu mitään.
+Käyttäjän päätös 3.10.: kaikki suosituksen mukaan, paitsi että kupla
+jää kaavioihin (P11). Toteutus vaiheittain V12–V16 ja mittaukset
+luvussa **8.10**.
 
 > Osa FoilSpotin muistiinpanoja. Hakemisto ja säännöt ovat `CLAUDE.md`:ssä.
 > Lue myös `docs/ui.md` (spottikortti, havaintokaavio, laaja näkymä,
@@ -966,7 +968,13 @@ ei tule liian vilkas. Ehdota jotain dataa, että tarvitseeko poistaa, jos
 siellä esimerkiksi kaksi kertaa jotain dataa. […] tee ensin strategia,
 äläkä koodaa mitään ja tee suositus minulle ja minä päätän."*
 
-**Tila:** strategia, odottaa päätöstä (P10–P17). Koodiin ei ole koskettu.
+**Tila:** päätetty 3.10.: *"Tehdään kaikki suosituksen mukaan mutta ei
+poisteta kuplaa kaavioista."* Eli P10 A, P12 A, P13 A, P14 A, P15
+kohdat 1–11 (kohta 12 oli makuasia, eikä sitä tehty), P16 A ja P17 A;
+P11:stä kupla jää, mutta kiinteän kokoisena ja koskaan leikkautumatta
+(suosituksen B kokoehto ilman sen yksirivisyyttä: mallit pysyvät
+kuplassa, koska ne olivat 30.9. pyynnön ydin). Toteutus ja mittaukset
+ovat luvussa 8.10.
 
 ### 8.1 Tiivistelmä
 
@@ -1500,3 +1508,73 @@ V12 ─┬─ V13
   korkeutta napautuksesta, ja juuri sitä tässä poistetaan.
 - **Ei uutta kaaviomoottoria:** muutokset tehdään yhteiseen moottoriin
   (`Tuulikaavio`, `Aikakaavio`) ja kortin rakenteeseen.
+
+### 8.10 Toteutus ja mittaukset (3.10.2026)
+
+Jokainen vaihe on oma committinsa oletushaaralla. Luvut ovat
+`tools/korttimittaus.mjs`:n (V12) rivejä; "lähtötaso" on strategian
+commit `4537c80` samalla mittarilla ja samalla istutetulla datalla.
+
+#### V12 — mittari `tools/korttimittaus.mjs`
+
+Pysyvä mittari kortille ja laajalle, samaan tapaan kuin
+`tools/graafimittaus.mjs`: jokainen rivi `ok`/`VIKA`, poistumiskoodi 1
+vialla, osat valittavissa (`--osat=laaja,tunnit,vaihto,lukema,avaus,
+teksti,kahdennus,tyyli,regressio`, `--nopea`, `--kuvat=kansio`).
+
+**Data istutetaan, ei haeta.** Sääntö "MALLIDATAA EI MITATA VERKOSTA"
+on mitattu syy: sama build antoi peräkkäin 75 ja 0 malliviivaa, ja
+`KorttiSarjat._avain` sisältää tunnin, joten kesken mittauksen
+vaihtuva tunti laski sarjat uudelleen ja mallit olivat hetken "ei
+saatu" (näin kävi strategian mittauksessa klo 13:00). Mittari kirjoittaa
+spotin kuusi sarjaa (`paras`, `fmi`, `metnordic`, `ecmwf`, `icon`,
+`gfs`) `KorttiSarjat._m`:ään, kiinnittää avaimen ja korvaa spotin oman
+sääsarjan (`spot.wx`: sade, lämpö, pilvet). Sarjat ovat synteettisiä
+mutta kattavat kortin tilat: tyyni jakso (+30 h), rajatuuli, hyvä,
+kova ja liian kova (myrsky +100 h, kortin ja laajan oletusikkunan
+ulkopuolella), puuskasuhde 1,15–1,70 ("hyvin puuskainen" mukana),
+suunta kiertää koko kehän noin 50 tunnissa, ja sadetta kahdessa
+jaksossa. Havainnot, aallot ja vedenkorkeus tulevat verkosta — ne ovat
+juuri niitä myöhään saapuvia moduuleita joiden siirtymät avauksessa
+mitataan. Kontin Chromium ei luota välityspalvelimen varmenteeseen,
+joten konteksti on `ignoreHTTPSErrors` (ilman sitä varasto ei
+latautunut ja MapLibre heitti `signal`-virheitä).
+
+**Laitteet:** puhelimet 320, 360, 375, 390, 414 ja 430 px pystyssä,
+667 ja 844 px vaakassa, iPad 820 px ja työpöytä 1 440 px; suomi ja
+`?kieli=en`; kaikissa `hasTouch` paitsi työpöydällä, ja
+`reducedMotion: 'reduce'` (liu'ut eivät ole mitattava asia).
+
+**Miksi ei CI:ssä:** täysi ajo kestää 18 min, ja avauksen mittaus on
+oikeiden palveluiden ajoituksen mittaamista. Regressiorivi "kortin
+Paras = aikajana" ajetaan oikealla datalla ilman istutusta, ja se
+ohitetaan (ei VIKA) jos varasto ei vastaa.
+
+**Lähtötaso** (`4537c80`, 150 VIKAA, 1 089 s):
+
+| osa | lähtötaso |
+|---|---|
+| laaja: lukemarivi 0–3 mallilla | 62 / 88 px kaikilla 12 laitteella (rivi 54 / 80 + täyte) |
+| laaja: kaavio | lyhenee 26 px ensimmäisestä mallista (vaaka 844: 247 → 221 px) |
+| laaja: valittujen mallien solut näkyvissä | 28–80 % (mallirivin 17 px:n laatikko leikkaa, englanniksi GFS 28–50 %) |
+| laaja: mallien valinta (sirut) | puhelimilla ICON 0–14 %, GFS 0 %; vaaka 667 px kaikki 0 % |
+| laaja: lukemarivin solujen paikat | 4–6 asettelua |
+| laaja: kupla | kaksi leveyttä mallimäärää kohti (esim. 118 / 125 px), 320 px:llä 4/20 osoitusta reunan yli (19 px) |
+| tunnit: heron korkeus | 320 px 6 arvoa (188–224 px), 360 px 4, 375 px 5, 320 px en 8, 390 px en 2, työpöytä 7; 390–430 px suomeksi 1 |
+| tunnit: ennusteosio | 436 tai 448 ↔ 418 px (sadekaista), kaikilla |
+| tunnit: valitun tunnin laatat | 6–11 arvoa, 16–26 muutosta |
+| tunnit: kaavion paikka | sama kuin heron vaihtelu (320 px: 6 arvoa, 16 muutosta) |
+| vaihto: ennusteosio | 424 → 436 px latauksessa (paikanpitäjä), "ei saatu" 424 px |
+| lukema | hero ei seuraa osoitusta, ICON-kaavio ei muuta heroa, kortilla oma lukemarivi, ei tiivistä lukemaa |
+| avaus | 22 (puhelin) ja 24 (työpöytä) moduulien siirtymää, suurin 1 077 / 1 123 px |
+| teksti: puoliksi näkyviä | 8–9 levossa, 9–12 kaaviot vieritettyinä; 320 px:llä katkaistu "Tuuli · FMI HARMONIE 2,5 km" |
+| kahdennus | valitun tunnin tuuli 2, puuska 2, lähde 4, havaintoasema 4, vedenlämpöasema 5, hetki 3 kertaa |
+| tyyli | 31 tekstityyliä, 10 kirjasinkokoa, 10 väriä, 31 laatikkoa, 13 versaalia; kortti 2 847 px; ennusteosion alareuna 696 px kun näkyvää on 648 |
+| regressio | ok: hero = Paras (5 tuntia), merkki = heron indeksi, kortti = aikajana 0,0000 m/s oikealla datalla |
+
+Luvut eroavat luvun 8.2 käsin mitatuista, koska data on eri: 8.2 oli
+3.10. klo 12–13 oikea data, mittari istuttaa saman synteettisen datan
+joka ajolla. Esimerkiksi hero 375 px:llä oli oikealla datalla neljää
+korkeutta ja istutetulla viittä — vika on sama, ja mittarin luku on
+toistettava.
+
