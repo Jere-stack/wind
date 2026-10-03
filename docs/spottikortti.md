@@ -1771,3 +1771,77 @@ tekstit peittivät muuten kuuden ensimmäisen listan) ja 320 px englanniksi,
 kahdennuksen nimilaskenta ohittaa kortin otsikon (Lauttasaaren
 vedenlämpöasema on myös "Lauttasaari"), ja lukemaosio tarkistaa että
 aaltojen lukemarivi seuraa valittua tuntia.
+
+#### V16 — kaavion teksti vain kokonaisena, kuusi kirjasinkokoa ja desimaalipilkku
+
+- **Desimaalipilkku (P17 A).** `_desim(x, d)` ja `DESIM` ovat `_t`:n
+  vieressä: suomeksi pilkku, englanniksi piste. `Units.fmt` ja `fmtIn`
+  käyttävät sitä, ja noin 40 näkyvää `toFixed`ia vaihdettiin (kartan
+  pillerit, kapseli, aikajanan kupla, kortti, laaja, havainto-, aalto- ja
+  vedenlämpökaaviot, sade- ja aaltoasteikko, vapaan pisteen
+  koordinaatit). SVG-koordinaatit, CSS, osoitteet ja ikonien
+  allekirjoitukset pysyvät pisteellä. Samalla "ECMWF IFS 0,25 °" →
+  "0,25°" ja `sourceAt`in suomenkielinen "FMI HARMONIE 2.5 km" →
+  pilkulla. Tarkistus DOMista viidellä pinnalla (kartta z10 pillereineen
+  ja kapseleineen, kortti, laaja, asetukset, havaintokortti): suomeksi 0
+  pistelukua (ainoa osuma oli `?perf=1`-paneelin oma nappi), englanniksi
+  0 pilkkulukua.
+- **Kortin kaavio kevyemmäksi (P16 A).** Kortilla ei puuskan lukuja
+  (`ASUT.kortti.puuskaLuvut: false`): 48 h:ssa 16 → 8 lukua, puuska on
+  vyöhykkeenä ja herossa lukuna, luvut laajassa. Nuolet vähintään 3 h
+  välein (`nuoliMin`), lukujen rytmissä: 24 → 16 / 48 h. Havainto pitää
+  puuskalukunsa ja kovimman puuskan lappunsa (se on tilastoruudun luku).
+- **Lähdekaista tarttuvaksi.** Nimi oli SVG:ssä jakson alussa ja
+  jokaisen keskiyön kohdalla, ja reunaan osunut toisto jäi puoliksi
+  akselin alle ("ECMWF IFS 0,25° · ajo klo" 26 %). Nyt jakso on
+  HTML-laatikko kääreessä (`.ak-lahteet`, `.ak-lh`) ja nimi `sticky`
+  kuten päiväotsikossa: kerran, koko jakson ajan. Raja on yhä SVG:n
+  viiva. Kapeassa jaksossa ajo jää pois ja sitten nimi.
+- **"sade mm/h" → "mm" akselille.** Kortin toistetuin teksti (jokaisen
+  keskiyön kohdalla) on nyt kerran kiinteällä akselilla sadekaistan
+  kohdalla, samaa tyyliä kuin "kts" (`.ak-sade`, `g.sadeY`).
+- **Teksti vain kokonaisena** (`Aikakaavio._reunatPaivita`). Jokainen
+  kaavion `<text>` (hover-ryhmää lukuun ottamatta), NYT-lappu
+  (`data-tk-reuna`, rengas ja teksti yhdessä), päiväotsikko ja
+  lähdekaista näkyvät vain kun ne ovat kokonaan näkyvässä ikkunassa
+  (akselin oikealta reunalta kääreen oikeaan reunaan); muuten ne
+  häivytetään 0,12 s:ssa (`.ak-reuna`). SVG:n x-välit mitataan kerran
+  piirtoa kohti ensimmäisellä päivityksellä — `aseta`ssa mittaus olisi
+  pakottanut kortin asettelun rakennuksen keskellä — ja tarttuvan
+  otsikon paikka lasketaan laatikosta ja vierityksestä (sama sääntö kuin
+  selaimella), joten vierityksen aikana ei lueta asettelua. Kuristus on
+  aikaleima (16 ms) ja perään yksi ajo, ei ruutupyyntö (WebKit).
+  Toleranssia ei ole: puolen pikselin leikkaus 16 px:n luvusta on jo
+  3 % (ensimmäinen versio, 0,5 px, jätti "0,3" 97 %:iin). Tuntirivin
+  pilleri piilottaa alleen jäävän tuntiluvun (`data-tk-tunti`), ja se
+  rajataan näkyvään ikkunaan kuten kupla (SVG:n reunoihin rajattuna
+  laajan "Ma 22" jäi 81 %:iin akselin viereen).
+- **Typografia: kuusi kokoa, kolme mustetta.** Lohko "KORTIN
+  TYPOGRAFIA" CSS:n lopussa: 11 (akselit, yksiköt, nimet, lähde —
+  `--ink-3`), 13 (kuvaukset, alarivit, selitteet, päiväotsikko, heron
+  rivit, valitsimet — `--ink-2`, nimi ja päätös lihavana), 15
+  (lukemarivin sivuluku, ennustevalikko), 17 (aikasolu, tilastot), 22
+  (pääluku, laatan arvo, otsikko) ja 38 (hero). Työpöydällä 11 → 12,5 ja
+  13 → 14, jotta `--fs-10`/`--fs-11`-lattia ei pienene. Päätössirun teksti
+  on mustetta ja sävy sen pohjassa ja reunassa (kuudella sirulla oli
+  kuusi tekstiväriä); `--varoitus` jää vaaralliselle. Versaalit pois
+  laattojen nimistä, "FMI WAM" -lähteestä ja "Viimeiset 24 h"
+  -otsikosta. Päiväotsikko 12 → 13 px (merkin leveysarvio 6,6 → 7,2).
+  Lukemarivin kapean kortin `@container`-koot olivat kuollutta koodia
+  (myöhemmät säännöt ohittivat ne aina) ja poistettiin; väli jää.
+- **Laatikot.** Lukemarivi on tekstiä moduulin pinnalla (ei täyttöä,
+  vaakatäyte pois jotta teksti linjautuu moduulin sisältöön), ja
+  osoittaessa korostuu aikasolu. Valitun tunnin laatat ovat yksi pinta
+  (`.sh-laatat`), solut erottaa hiusviiva; arvon rivi 27 → 30 px, koska
+  22 px:n kirjasimen rivilaatikko leikkautui (94 %).
+- **Mittarin tarkennukset (tyyli).** Strategian tavoite oli "ei
+  sisäkkäisiä täytettyjä laatikoita lukemille" ja arvio 24 → 15
+  laatikkoa, mutta V12:n laskenta otti mukaan myös hiusviivajakajat
+  (pelkkä yläreuna), kaavion sisäiset pillerit (päivälaput se ohitti
+  jo), ohimenevän vihjeen ja näkymättömät (opacity 0). Nyt laatikko on
+  täytetty pinta tai joka sivulta reunustettu kehys, eikä kaavion
+  sisältä; lisäksi oma rivi "moduulin sisällä ei täytettyä
+  lukemalaatikkoa". Väreistä käänteinen kermapilleri (tänään-lappu,
+  Nyt-nappi: tumma teksti vaalealla) on komponentti eikä muste — se
+  lasketaan tyyleihin mutta ei mustesävyihin. Vanhalla laskulla V16 on
+  24 laatikkoa (V15 28).

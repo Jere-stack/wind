@@ -182,7 +182,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/ui.md` | **väriteemaa (Yömeri: paneelit, tokenit, `Teema`, `ink()`)**, **kerrosvalitsinta (neljä ruutua esikatselukuvin) ja sadekerroksen GL-piirtoa (silmukka, häivytykset, B-spline)**, **aaltokerrosta: siru, väri, aallonharjat, aikajana, kapseli, poijukaavion ennuste**, paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa (**toiston liuku, jatkuva päiväkisko, pehmeä valinta ja kelikaista**), kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
-| `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit, kaavion venytys** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V11: yksi kaaviomoottori, kortti moduuleina, fonttilattia, laajan valinta, venytys, mallit laajassa, **ennustevalikko, kiinteä lukemarivi ja selkeämpi päiväys**), ja **luku 8: rauhallinen ja vakaa kortti (strategia 3.10., päätetty suosituksen mukaan — kupla jää kiinteän kokoisena; toteutus V12–V16 ja mittari `tools/korttimittaus.mjs`): mallilukemat näkyviin laajassa, ei koon muutoksia, kahdennukset pois** |
+| `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit, kaavion venytys** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V11: yksi kaaviomoottori, kortti moduuleina, fonttilattia, laajan valinta, venytys, mallit laajassa, **ennustevalikko, kiinteä lukemarivi ja selkeämpi päiväys**), ja **luku 8: rauhallinen ja vakaa kortti (strategia 3.10., päätetty suosituksen mukaan — kupla jää kiinteän kokoisena; toteutus V12–V16 ja mittari `tools/korttimittaus.mjs`): mallilukemat näkyviin laajassa, ei koon muutoksia, kahdennukset pois, kaavion teksti vain kokonaisena, kuusi kirjasinkokoa ja desimaalipilkku** |
 | `docs/sujuvuus.md` | **työpöydän** zoomin ja panoroinnin raskautta, windy.comin arkkitehtuuria, sujuvuusstrategiaa, **MapLibre-siirtoa (C2) ja sen mittauksia** |
 | `docs/julkaisu.md` | **julkaisukelpoisuutta**: UI-parannusten top 25, suositusjärjestys ja logiikan 10 kriittisintä kohtaa (27.9.), ja **osa 4: mitä niistä toteutettiin 28.9. ja mikä jäi auki** (Pages, lisenssit, pohjakartan kieli) — lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 | `docs/graafit.md` | **kaavioiden vuorovaikutusta ja akseleita** (strategia ja toteutus 30.9., V1–V6): hiiren veto, kosketuksen "pidä ja liu'uta", käyrän pehmennys, x- ja y-akselin tiedot joka zoomilla, asteikko ikkunan mukaan — mittaukset (`tools/graafimittaus.mjs`), päätökset P1–P10, vaiheet ja toteutuksen poikkeamat; lue ennen kuin kosket `Tuulikaavio`on, `Aikakaavio`n osoittimeen tai kaavioiden akseleihin |
@@ -478,6 +478,15 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   ("southwesterly"), koska se sanoo mistä tuulee. Sanasto on
   docs/ui.md:ssä — käytä samoja termejä (gust, lull, gust factor,
   rideable, spot index).
+- **DESIMAALIEROTIN: SUOMEKSI PILKKU, ENGLANNIKSI PISTE** (P17, V16,
+  docs/spottikortti.md 8.10): "6,3 kts" / "6.3 kts", koko
+  sovelluksessa. Näkyvä luku muotoillaan `_desim(x, d)`:llä (=
+  `x.toFixed(d)` oikealla erottimella, `DESIM`), ja `Units.fmt` /
+  `fmtIn` tekevät sen itse. VAIN näkyvään tekstiin: SVG-koordinaatit,
+  CSS, osoitteet, ikonien allekirjoitukset ja data pysyvät pisteellä.
+  Ennen lukemat olivat pisteellä ja kiinteät nimet pilkulla ("2,5 km")
+  samassa kortissa. Tarkistus DOMin tekstistä kuten kielellä:
+  suomeksi ei `\d.\d`-lukuja, englanniksi ei `\d,\d`-lukuja.
 - **Tarkistus: `?kieli=en` ja DOMin tekstit suomen sanalistaa vasten**,
   jokainen pinta avattuna (docs/ui.md, "Mitattu"). Pelkkä koodihaku ei
   riitä: tekstiä syntyy myös palvelimen datasta.
@@ -900,8 +909,11 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   omaa sulkunappia.
 - **PANEELIN KORTTI ON PINTA, EI KEHYS** (Yömeri, 1.10.): korotettu
   kortti on `--surface-hi` `--surface`n päällä, 16 px kulma, EI
-  reunaviivaa eikä varjoa (`.sp-card`, `.sh-moduli`, `.sh-laatat .sh-stat`,
+  reunaviivaa eikä varjoa (`.sp-card`, `.sh-moduli`, `.sh-laatat`,
   `.fc-window`…; lohko "PINNAT ILMAN REUNAVIIVOJA" CSS:n lopussa).
+  Moduulin SISÄLLÄ ei ole täytettyä laatikkoa lukemille (V16):
+  lukemarivi on tekstiä moduulin pinnalla, ja valitun tunnin laatat
+  ovat yksi pinta jonka solut erottaa hiusviiva.
   Ryhmän nimi on kortin ULKOPUOLELLA pienenä versaalina (`.sp-ryhma`,
   `.sh-ryhma`, 600). Kartan päällä kelluvat (kapseli, opastus, toast,
   verkkotila, nappien laput) PITÄVÄT reunansa, koska niiden alla on
@@ -1834,7 +1846,8 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   VIERESSÄ").
 - **KAAVION GEOMETRIA (30.9., käyttäjän pyyntö): YLHÄÄLLÄ LÄHDE JA
   TUULEN SUUNTA, ALLA AIKA-AKSELI.** Ylhäältä alas: lähderivi
-  (`lahdeH`), nuolirivi (`nuoliH`, tuulen suunta), plotti (`y0`…
+  (`lahdeH`; teksti on tarttuva HTML-rivi `.ak-lahteet`, V16),
+  nuolirivi (`nuoliH`, tuulen suunta), plotti (`y0`…
   `pohja`), tuntirivi (kellonaika, `tuntiY = pohja`), päiväotsikko
   (HTML `.ak-paivat`, `top = g.paivaY`), sade ja lämpö. Kellonaika ja
   päivämäärä ovat siis SUORAAN GRAAFIN ALLA ja nuolet sen yläpuolella;
@@ -1886,7 +1899,8 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   mukaan: "**Sunnuntai** 27.9." → "Su 27.9." → "27.9." → "Su 27" →
   "S 27" → "S" (viikonpäivä lihava, päiväys himmeämpi); tänään sanoo
   "Tänään"/"Today" KERMAPILLERISSÄ. **Päiväotsikko on oma kaistansa**
-  (`paivaH` 22, laajassa 25, heikko pohja) ja päiväraja jatkuu sen läpi
+  (`paivaH` 22, laajassa 25, heikko pohja, kirjasin 13·fs — kortin
+  tekstikoko, V16) ja päiväraja jatkuu sen läpi
   (2.10., "selkeämpi päiväys"). Rivi piiloutuu venytyksen ajaksi (`.venyy`), koska
   SVG:tä venytetään transformilla eikä sticky venyisi mukana.
   **TUNTITIKIT**: jokainen tunti jolla ei ole lukua saa tikin (≥ 4 px
@@ -2005,7 +2019,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **VALITUN TUNNIN LAATAT OVAT KIINTEÄ 2 × 2 -RUUDUKKO** (P14, `Laatat`):
   ilma, puku, vedenkorkeus ja aurinko, ryhmän nimi "Valitulla tunnilla"
   ilman kellonaikaa (hero tai yläpalkki kertoo hetken). Laatta on aina
-  sama: nimi, arvo yhdellä rivillä (27 px) ja kahden rivin alalaatikko;
+  sama: nimi, arvo yhdellä rivillä (30 px; 22 px:n kirjasin leikkautui
+  27 px:n rivissä) ja kahden rivin alalaatikko; laatat ovat YKSI pinta
+  (`.sh-laatat`) ja solut erottaa hiusviiva (V16);
   teksti joka ei mahdu vaihtuu lyhyempään (`_mahdutaMuodot`, arvon
   viimeinen muoto pienemmällä kirjasimella `.sh-arvo-pieni`). Tunnilta
   puuttuva arvo on "—" ja syy ("ei ennustetta tälle tunnille"); laattaa
@@ -2077,6 +2093,26 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **Y-AKSELI ON KIINTEÄ JA KAAVIO VIERII SEN ALTA** (`.ak-akseli`,
   paperiliuku `--ak-tausta`). SVG:hen piirrettyinä vieritetyn kaavion
   reunaluvut leikkautuivat puoliksi.
+- **KAAVION TEKSTI NÄKYY VAIN KOKONAISENA** (V16, P16,
+  `Aikakaavio._reunatPaivita`, `.ak-reuna`): luku, tunti, NYT-lappu
+  (`data-tk-reuna`), päiväotsikko ja lähdekaista häivytetään (0,12 s)
+  kun ne ovat osittain akselin alla tai oikean reunan yli — mitattuna
+  ennen 11 levossa ja 15 vieritettynä 390 px:llä, nyt 0 viidellä
+  laitteella. SVG-tekstien x-väli mitataan kerran piirtoa kohti
+  ensimmäisellä päivityksellä (EI `aseta`ssa, se pakottaisi kortin
+  asettelun), tarttuvien paikka lasketaan laatikosta ja vierityksestä;
+  kuristus on aikaleima 16 ms + perään ajo, EI rAF (WebKit). Tuntirivin
+  pilleri piilottaa alleen jäävän tuntiluvun (`data-tk-tunti`,
+  `.ak-pilleri-alla`). Uusi teksti kaavioon on automaattisesti mukana
+  (kaikki `<text>` paitsi hover-ryhmä); HTML-rivi lisätään
+  `_reunatMittaa`n listaan.
+- **KORTIN KAAVIO ON KEVENNETTY** (P16, V16): kortilla ei puuskan
+  lukuja (`ASUT.kortti.puuskaLuvut: false` — puuska on vyöhykkeenä ja
+  herossa lukuna, luvut laajassa) ja nuolet vähintään 3 h välein
+  lukujen rytmissä (`nuoliMin`, 24 → 16 / 48 h); umpi/ontto-ero säilyy.
+  Sadekaistan nimi on "mm" KERRAN kiinteällä akselilla kuten "kts"
+  (`.ak-sade`, `g.sadeY`), ei "sade mm/h" joka keskiyönä. Havainto
+  pitää puuskalukunsa (ks. "Jakson kovin puuska saa aina lapun").
 - **Y-AKSELILLA ON YKSIKKÖ, VÄHINTÄÄN KAKSI LUKUA JA FOILAUSRAJAN OMA
   LUKU** (V5). Yksikkö (`.ak-yks`, `g.yks`) oli ennen vain lukemarivin
   `<small>`issa; pienessä kaaviossa (rivi, laaja puhelimen vaakatilassa)
@@ -2089,6 +2125,20 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   lopussa, `max(Npx, var(--fs-x))` jotta työpöydän tokenit säilyvät).
   Ennen 22 tekstiluokkaa alle 11 px:n, pienimmät 8 px. Uusi teksti
   korttiin tai kaavioon ei saa alittaa lattiaa.
+- **KORTIN TYPOGRAFIA ON KUUSI KOKOA JA KOLME MUSTETTA** (V16, lohko
+  "KORTIN TYPOGRAFIA" CSS:n lopussa, docs/spottikortti.md 8.10): 11
+  (akselin luvut ja yksiköt, solujen, laattojen ja tilastojen nimet,
+  yksikkö luvun perässä, lähde — `--ink-3`; ryhmän nimi puolilihava
+  versaali), 13 (kuvaukset, alarivit, selitteet, päiväotsikko, heron
+  rivit, valitsimet — `--ink-2`, nimi ja päätös lihavana `--ink`), 15
+  (lukemarivin sivuluku, ennustevalikon nimi), 17 (aikasolu, tilastojen
+  luvut), 22 (pääluku, laatan arvo, kortin otsikko) ja 38 (heron tuuli
+  rampin värillä). Työpöydällä 11 → 12,5 ja 13 → 14 (`--ty-11`,
+  `--ty-13`). `--accent` vain toiminnoissa (NYT, reittiohje),
+  `--varoitus` vain varoituksissa; päätössirun sävy on sen pohjassa ja
+  reunassa, teksti mustetta. Versaalit vain ryhmien nimissä. Mitattu
+  ennen 29 tyyliä, 10 kokoa ja 8 väriä, nyt 13 / 6 / 6. Uusi teksti
+  korttiin valitsee roolin eikä kirjoita omaa kokoa tai väriä.
 - **LAAJA NÄKYMÄ ON KUORI, EI KAAVIO.** `HavLaaja` omistaa otsikon,
   lukemarivin, jaksonapit, liu'utuksen, käännön, turva-alueet ja
   `Modaali`-kytkennän; piirtäminen tulee LÄHTEELTÄ
@@ -2165,8 +2215,11 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   pituussuunnassa ja teksti näkyy"). Menneellä tunnilla rivi rivittyi
   ja kasvoi 48 → 83 px. Sivusolut eivät kutistu, pääsolu ottaa
   jäljelle jäävän tilan ja vain SEN nimi (lähde) katkeaa kolmeen
-  pisteeseen; kapealla kortilla väli ja pääluku pienenevät
-  (`@container`). Älä palauta `flex-wrap`iä äläkä `min-height`ia, ja
+  pisteeseen; kapealla kortilla väli pienenee (`@container`; sen
+  kirjasinkoot olivat kuollutta koodia ja poistettiin V16:ssa). Rivi on
+  TEKSTIÄ MODUULIN PINNALLA (V16): ei täytettyä laatikkoa, ja
+  osoittaessa korostuu aikasolu (`.osoitettu`/`.skrubaa .en-solu-aika`),
+  ei koko rivi. Älä palauta `flex-wrap`iä äläkä `min-height`ia, ja
   mittaa uusi solu 320, 360 ja 390 px:n leveydellä molemmilla kielillä.
   **RIVIN RAKENNE (30.9., käyttäjän pyyntö "parannetaan lukemaruudut")**
   on `Aikakaavio.lukemaHtml(solut)`: solut ovat `{ nimi, arvo, ala,
@@ -3177,6 +3230,12 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   osuus sekoituksessa on suurin (`hourly.lahde`, `Lahde.LYHYET`), ja
   lukemarivi nimeää osoitetun tunnin lähteen. Vertailumalli loppuu
   näkyvästi ("ICON päättyy") eikä jatku hiljaa toisena mallina.
+  **LÄHDEKAISTA ON TARTTUVA HTML-RIVI** (V16, `.ak-lahteet`, sama
+  rakenne kuin päiväotsikolla): jakso on laatikko ja nimi `sticky`,
+  joten nimi näkyy kerran ja koko jakson ajan; raja on SVG:n viiva.
+  SVG:ssä nimi toistettiin joka keskiyönä, ja reunaan osunut toisto
+  jäi puoliksi akselin alle. Kapeassa jaksossa ajo jää pois ja sitten
+  nimi.
 
 - **Interpolointijärjestys: paikassa vektorit, ajassa nopeus ja suunta
   erikseen.** Suuntien aritmeettinen keskiarvo hyppää väärään suuntaan 0/360

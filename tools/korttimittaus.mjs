@@ -698,29 +698,51 @@ async function osaTyyli() {
       const ts = html.map((x) => Object.assign({ t: x.t, el: x.el }, tyyli(x.el)));
       const tyylit = new Set(ts.map((x) => x.koko + '/' + x.paino + '/' + x.vari));
       const koot = [...new Set(ts.map((x) => x.koko))].sort((a, b) => a - b);
-      const varit = new Set(ts.map((x) => x.vari));
+      /* Värit (V16): teksti VAALEALLA täytöllä on käänteinen pilleri
+         (kermapilleri, tumma teksti — tänään-lappu, Nyt-nappi), komponentti
+         eikä muste; se lasketaan tyyleihin mutta ei mustesävyihin. */
+      const tayttoKirkas = (el) => {
+        for (let e = el; e && e !== sc; e = e.parentElement) {
+          const m = getComputedStyle(e).backgroundColor.match(/rgba?\(([\d.]+), ([\d.]+), ([\d.]+)(?:, ([\d.]+))?\)/);
+          if (!m || (m[4] != null && +m[4] < 0.5)) continue;
+          return (0.2126 * m[1] + 0.7152 * m[2] + 0.0722 * m[3]) / 255 > 0.5;
+        }
+        return false;
+      };
+      const varit = new Set(ts.filter((x) => !tayttoKirkas(x.el)).map((x) => x.vari));
       const isot = ts.filter((x) => x.isot && !x.el.closest('.sh-ryhma')).map((x) => x.t);
+      /* Laatikot (V16): täytetty pinta tai joka sivulta reunustettu kehys.
+         EI hiusviivaa (vain yläreuna: jakaja), ei kaavion sisäosia
+         (päiväotsikon tänään-pilleri on kaavion kuten NYT-lappu; päivälaput
+         olivat jo pois), ei ohimenevää vihjettä eikä näkymätöntä
+         (opacity 0, esim. reunan alle häivytetty pilleri). Lisäksi erikseen:
+         moduulin sisällä ei täytettyä lukemalaatikkoa (8.4.6). */
+      const nakyva = (el) => { for (let e = el; e && e !== sc; e = e.parentElement) if (parseFloat(getComputedStyle(e).opacity) < 0.02) return false; return true; };
+      const tyhja = (c) => !c || c === 'rgba(0, 0, 0, 0)' || c === 'transparent';
       let laatikot = 0;
+      const lukemaLaatikot = [];
       sc.querySelectorAll('*').forEach((el) => {
-        if (el.closest('svg')) return;
+        if (el.closest('svg') || el.closest('.en-kaare') || el.closest('.ak-vihje')) return;
         const cs = getComputedStyle(el);
-        if (cs.display === 'none' || cs.visibility === 'hidden' || el.closest('[hidden]')) return;
-        const bg = cs.backgroundColor, bw = parseFloat(cs.borderTopWidth) || 0;
-        if ((bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') || (bw > 0 && cs.borderTopStyle !== 'none' && cs.borderTopColor !== 'rgba(0, 0, 0, 0)')) {
+        if (cs.display === 'none' || cs.visibility === 'hidden' || el.closest('[hidden]') || !nakyva(el)) return;
+        const reuna = ['Top', 'Right', 'Bottom', 'Left'].every((s) => (parseFloat(cs['border' + s + 'Width']) || 0) > 0 && cs['border' + s + 'Style'] !== 'none' && !tyhja(cs['border' + s + 'Color']));
+        if (!tyhja(cs.backgroundColor) || reuna) {
           const rr = el.getBoundingClientRect();
-          if (rr.width > 30 && rr.height > 16 && !el.classList.contains('ak-pv')) laatikot++;
+          if (rr.width > 30 && rr.height > 16) laatikot++;
         }
       });
+      sc.querySelectorAll('.sh-moduli .en-lukema').forEach((el) => { if (!tyhja(getComputedStyle(el).backgroundColor) && nakyva(el)) lukemaLaatikot.push(el.className); });
       const sheet = document.getElementById('sheet-scroll').getBoundingClientRect();
       const en = sc.querySelector('[data-ennuste]');
       document.getElementById('sheet-scroll').scrollTop = 0;
-      return { tyylit: tyylit.size, koot: koot, varit: varit.size, isot: isot, laatikot: laatikot,
+      return { tyylit: tyylit.size, koot: koot, varit: varit.size, isot: isot, laatikot: laatikot, lukemaLaatikot: lukemaLaatikot,
                korkeus: Math.round(sc.getBoundingClientRect().height), ennusteAla: Math.round(en.getBoundingClientRect().bottom - sheet.top), nakyva: Math.round(sheet.height) };
     });
     tarkista('tyyli: tekstityylejä (koko × paino × väri) ≤ 14', r.tyylit <= 14, r.tyylit);
     tarkista('tyyli: kirjasinkokoja ≤ 6', r.koot.length <= 6, r.koot.length + ' (' + r.koot.join(', ') + ')');
     tarkista('tyyli: tekstivärejä ≤ 6', r.varit <= 6, r.varit);
     tarkista('tyyli: laatikoita ≤ 15', r.laatikot <= 15, r.laatikot);
+    tarkista('tyyli: moduulin sisällä ei täytettyä lukemalaatikkoa', r.lukemaLaatikot.length === 0, r.lukemaLaatikot.length + (r.lukemaLaatikot.length ? ': ' + r.lukemaLaatikot.slice(0, 3).join(', ') : ''));
     tarkista('tyyli: versaalit vain ryhmien nimissä', r.isot.length === 0, r.isot.length + (r.isot.length ? ': ' + [...new Set(r.isot)].slice(0, 5).join(', ') : ''));
     tarkista('tyyli: kortin korkeus 390 px:llä ≤ 2 300 px', r.korkeus <= 2300, r.korkeus + ' px');
     tarkista('tyyli: hero ja koko ennustekaavio ensimmäisessä ruudullisessa (390 × 844)', r.ennusteAla <= r.nakyva, 'ennusteosion alareuna ' + r.ennusteAla + ' / näkyvä ' + r.nakyva + ' px');
