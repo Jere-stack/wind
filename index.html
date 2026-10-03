@@ -7633,8 +7633,27 @@ const Saalaatat = {
     return t ? (Date.parse(t.ajoAika) || null) : null;
   },
 
-  async alusta() {
-    if (this._tila !== 'alustamaton') return this._tila === 'ok';
+  /* KESKEN OLEVA ALUSTUS PALAUTTAA SAMAN LUPAUKSEN. Ennen `alusta()`
+     palasi kesken latauksen heti `false`na, ja kartan ensimmäinen
+     siirtotapahtuma (`_scheduleViewportLoad`, 350 ms) ehti ajaa
+     `loadViewport`in ennen luetteloa: ensikäynnillä 15 rajapintaerää ja
+     156 pistettä `/api/harmonie`en (386 kt), joista jokainen CDN-huti on
+     FMI- ja Open-Meteo-kutsu Vercelin IP:stä — vaikka laatat olisivat
+     riittäneet (kustannusarvio 2.10.2026). Nyt lataus odottaa luetteloa
+     (`odotaAlustus`), ja vasta sen epäonnistuminen vie rajapinnalle. */
+  alusta() {
+    if (this._tila === 'lataa' && this._alustaP) return this._alustaP;
+    if (this._tila !== 'alustamaton') return Promise.resolve(this._tila === 'ok');
+    this._alustaP = this._alusta();
+    return this._alustaP;
+  },
+
+  /* Odottaa kesken olevaa alustusta, ei käynnistä uutta. */
+  odotaAlustus() {
+    return this._tila === 'lataa' && this._alustaP ? this._alustaP : Promise.resolve(this._tila === 'ok');
+  },
+
+  async _alusta() {
     this._tila = 'lataa';
     try {
       if (typeof DecompressionStream !== 'function') throw new Error('ei DecompressionStreamia');
@@ -8266,7 +8285,17 @@ const Saalaatat = {
     /* Pohjamallin laatta: se kattaa aina, ja alueelliset ovat sen päällä. */
     const lo = ((lng + 180) % 360 + 360) % 360 - 180;
     const l = this._haePerhe(this._pohja, lat, lo, step);
-    if (!l) return false;
+    /* POHJAN LAATTA PUUTTUU MYÖS SILLOIN KUN SITÄ EI TARVITTU. `varmista`
+       jättää ECMWF-laatan hakematta sieltä missä FMI tai MET Nordic
+       peittää pisteen kokonaan (`_peitetty`), ja pelkkää pohjaa
+       katsova tarkistus lähetti juuri Suomen pisteet rajapinnalle:
+       mitattuna ensikäynnillä 6 erää ja 72 pistettä `/api/harmonie`en
+       vaikka kartta piirsi ne laatoista. Sama ehto kuin `varmista`ssa. */
+    if (!l) {
+      const ylemmat = this._perheet.filter(p => !p.pohja && !p.dyn && !p.pois
+        && (this._hetkiMs == null ? true : p._aikaW >= 1));
+      return ylemmat.length > 0 && this._peitetty(ylemmat, lat, lo, step);
+    }
     let iy = Math.floor((lat - l.la0) / l.askel), ix = Math.floor((lo - l.lo0) / l.askel);
     if (iy < 0) iy = 0; else if (iy > l.ny - 1) iy = l.ny - 1;
     if (ix < 0) ix = 0; else if (ix > l.nx - 1) ix = l.nx - 1;
@@ -9682,6 +9711,7 @@ const ViewportGrid = {
   _ptKey(lat, lng) { return lat.toFixed(2) + ',' + lng.toFixed(2); },
 
   async loadGlobalCoarse(onProgress) {
+    await Saalaatat.odotaAlustus();
     const step = 15;
     const pts = [];
     /* -60..75 eikä -55..70. Vanha alaraja jätti pohjoisimman rivin 65:een,
@@ -9954,6 +9984,10 @@ const ViewportGrid = {
     const abortCtrl = new AbortController();
     this._loadAbort = abortCtrl;
     const myGen = ++this._loadGeneration;
+    /* Luettelo ensin (`Saalaatat.alusta`): kesken latauksen varasto ei
+       ole vielä `kaytossa()`, ja koko näkymä menisi rajapinnalle. */
+    await Saalaatat.odotaAlustus();
+    if (myGen !== this._loadGeneration) return null;
 
     const bounds = map.getBounds(), zoom = map.getZoom();
     const gridPoints = this.getViewportPoints(bounds, zoom);
@@ -18022,7 +18056,8 @@ const UiRas = {
     return map;
   },
 
-  /* Hae historia proxyn kautta — 2025+2026 data */
+  /* Hae historia proxyn kautta — viimeiset 31 vrk aseman tuoreimmasta
+     mittauksesta (api/uiras.js, HISTORIA_VRK; kaavio piirtää 30) */
   async history(id) {
     const key='_uh_'+id, c=window[key];
     if (c&&Date.now()-c.ts<60*60*1000) return c.d; /* 1h cache */

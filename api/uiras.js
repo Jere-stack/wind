@@ -14,6 +14,17 @@ function vuodet() {
   return [y - 1, y];
 }
 
+/* VAIN KAAVION IKKUNA, EI KAHTA VUOTTA. Jokainen vedenlämpökaavio
+   (`_uwPiirros`) piirtää viimeiset `UW_HISTORIA_VRK` = 30 vuorokautta
+   aseman tuoreimmasta mittauksesta taaksepäin, mutta vastaus oli koko
+   kahden vuoden tiedosto: mitattuna 1,2 MB (209 kt brotlilla) joka
+   spottikortille ja 0,75–0,96 s CPU:ta joka CDN-hudille, eli Vercelin
+   suurin siirto- ja CPU-erä (kustannusarvio 2.10.2026). Ikkuna lasketaan
+   aseman OMASTA tuoreimmasta pisteestä kuten kaaviossakin, joten
+   talveksi sammunut anturi näyttää yhä viimeisen kuukautensa. Yksi
+   vuorokausi varaa, jottei reunan nippu jää vajaaksi. */
+const HISTORIA_VRK = 31;
+
 /* AIKALEIMA ISO-MUOTOON, JOKA ON AINA `toISOString()`.
    Lähteen leima on `2026-09-28T20:58:54.348000+0000`: kuusi desimaalia ja
    vyöhyke ilman kaksoispistettä. Chromium ja Node hyväksyvät sen, mutta
@@ -38,22 +49,31 @@ export default async function handler(req, res) {
   }
 
   try {
-    const results = await Promise.allSettled(vuodet().map(function(y) { return fetchYear(y, id); }));
-    var pts = [], onnistui = false;
-    results.forEach(function(r) {
-      if (r.status === 'fulfilled') { pts = pts.concat(r.value); onnistui = true; }
-    });
+    /* Kuluva vuosi ensin. Edellinen haetaan vain jos ikkuna ulottuu sen
+       puolelle (tammikuussa tai kun anturi on ollut kauan hiljaa): vuoden
+       tiedoston purku ja jäsennys on lähes koko funktion CPU-aika. */
+    const [edellinen, kuluva] = vuodet();
+    var pts = [], onnistui = false, virhe = null;
+    try { pts = await fetchYear(kuluva, id); onnistui = true; }
+    catch (e) { virhe = e; }
+    var uusin = 0;
+    for (var i = 0; i < pts.length; i++) { var tm = Date.parse(pts[i].t); if (tm > uusin) uusin = tm; }
+    if (!uusin || uusin - HISTORIA_VRK * 864e5 < Date.UTC(kuluva, 0, 1)) {
+      try { pts = pts.concat(await fetchYear(edellinen, id)); onnistui = true; }
+      catch (e) { virhe = virhe || e; }
+    }
     /* Kumpikaan vuosi ei tullut: se on lähteen vika eikä tyhjä historia.
        Tyhjä 200 jäisi CDN:ään tunniksi. */
     if (!onnistui) {
       res.setHeader('Cache-Control', 'no-store');
-      return res.status(502).json({ error: String(results[0].reason && results[0].reason.message || 'uiras') });
+      return res.status(502).json({ error: String(virhe && virhe.message || 'uiras') });
     }
 
     pts.sort(function(a, b) { return a.t < b.t ? -1 : a.t > b.t ? 1 : 0; });
     var seen = new Set();
+    var raja = pts.length ? Date.parse(pts[pts.length - 1].t) - HISTORIA_VRK * 864e5 : 0;
     pts = pts.filter(function(p) {
-      if (seen.has(p.t)) return false;
+      if (seen.has(p.t) || Date.parse(p.t) < raja) return false;
       seen.add(p.t);
       return true;
     });

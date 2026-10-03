@@ -1189,6 +1189,13 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   globaalisti kohdistettu origo), ja se rakennetaan uudelleen levossa
   kun puuttuneet laatat saapuvat (`_taydennaLevossa`) — mitattuna
   z 7,7 / 8,7 / 9,7 / 10,3: max 0,001 m/s (docs/oikeellisuus.md, O3).
+- **`onLaatta` HYVÄKSYY YLEMMÄN PERHEEN PEITON, JA `loadViewport`
+  ODOTTAA LUETTELOA** (docs/data.md, "Kustannusarvio ja kaksi turhaa
+  hakua"). `varmista` ei hae ECMWF-laattaa FMI:n tai MET Nordicin alta,
+  joten pelkkää pohjaa katsova `onLaatta` lähetti Suomen pisteet
+  `/api/harmonie`en; ja `alusta()` kesken latauksen on sama lupaus
+  (`odotaAlustus`), ei `false`. Kumpikin vika maksoi ensikäynnillä
+  rajapintaeriä joita kartta ei tarvinnut.
 - **`varmista` LUETTELEE LAATAT TASOITTAIN, EI NÄYTTEISTÄ PISTEITÄ.**
   Asteen välein näytteistetty alue ohitti tason reunalle jäävän
   kaistaleen (l0-laatta 10–15° kattaa vanhan l0-alueen vain 14–15°):

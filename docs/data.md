@@ -147,6 +147,39 @@ Ne lähtevät rinnakkain 13 ms:n ikkunassa ja valmistuvat aikaisin, joten ne
 eivät portita käyttövalmiutta — siksi ne jätettiin. Sama erähakukuvio
 kävisi niihin jos pyyntömäärää halutaan pienentää lisää.
 
+## Kustannusarvio ja kaksi turhaa hakua (2.–3.10.2026)
+
+Arvioitiin mitä 15 000 kuukausikäyttäjää maksaisi. Yksi puhelinkäynti
+mitattiin tuotantobuildista (aloitus, kaksi spottikorttia, havaintokortti,
+zoom Suomeen ja Hankoon): 50 laattatiedostoa ja 2,7 MB GitHubista,
+78 Esrin pohjakarttalaattaa, Vercelistä sivu ja MapLibre 464 kt sekä
+42 API-pyyntöä ja 777 kt. Kymmenellä käynnillä käyttäjää kohti Vercel
+ylittäisi Hobbyn CDN-pyyntörajan (1 M) noin viisinkertaisesti, joten
+kulu on käytännössä Pro (~28 $/kk). API-siirrosta 80 % oli kahta vikaa:
+
+- **`/api/uiras` palautti kahden vuoden historian** (1,2 MB, 209 kt
+  brotlilla, 0,75–0,96 s CPU:ta CDN-hudilla), vaikka jokainen
+  vedenlämpökaavio piirtää 30 vrk (`_uwPiirros`, `UW_HISTORIA_VRK`).
+  Nyt proxy palauttaa 31 vrk aseman tuoreimmasta mittauksesta ja hakee
+  edellisen vuoden tiedoston vain jos ikkuna ulottuu sinne: 55 kt
+  (7 kt brotlilla), CPU 0,3–0,44 s.
+- **Ensikäynnillä varatie haki koko näkymän rajapinnasta.** Kaksi syytä
+  peräkkäin. (1) `Saalaatat.alusta()` palasi kesken latauksen heti
+  `false`na, ja kartan ensimmäinen `moveend` (`_scheduleViewportLoad`)
+  ajoi `loadViewport`in ennen luetteloa: 15 erää, 156 pistettä.
+  Nyt `alusta()` palauttaa kesken olevan lupauksen, ja `loadViewport`
+  sekä `loadGlobalCoarse` odottavat sitä (`odotaAlustus`). (2) Sen
+  jälkeenkin 6 erää ja 72 pistettä Suomen päältä: `onLaatta` katsoi vain
+  ECMWF-pohjan laattaa, ja `varmista` jättää sen hakematta sieltä missä
+  FMI tai MET Nordic peittää pisteen (`_peitetty`). Nyt `onLaatta`
+  hyväksyy saman peiton. Jokainen erän CDN-huti oli pisteittäin FMI- ja
+  Open-Meteo-kutsu Vercelin IP:stä, eli ilmaiskiintiötä.
+
+Mitattu jälkeen samalla käynnillä: API 42 → 28 pyyntöä ja 777 → 196 kt
+(`/api/harmonie` 18 → 4 ja 410 → 29 kt: spottien erä ja tähtäimen
+pisteet), laattoja yhä 50 eli kartta ei hakenut mitään lisää. Savutesti
+ja `tools/graafimittaus.mjs` läpi.
+
 ## Säädata koko maailmalle
 
 Kartta toimi Suomessa mutta ei kunnolla muualla, ja ulos zoomatessa se
