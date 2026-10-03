@@ -5130,7 +5130,7 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
 /* 13 — teksti */
 .sh-aikarivi, .sh-big-suunta, .sh-big-gust, .sh-desc, .sh-paatos-selite, .sh-hajonta, .ak-vihje,
 .sh-laatat .sh-stat-sub, .sh-aalto-poiju, .sh-poiju-rivi, .hav-selite, .sh-osuvuus, .sh-lataa, .obs-lahde,
-.sh-ei-havaintoa, .en-lataus, .en-lk-tyhja, .sh-nav-muut a, .fmi-station-trigger {
+.sh-ei-havaintoa, .en-lataus, .en-lk-tyhja, .sh-nav-muut a, .fmi-station-trigger, .en-paikka {
   font-size: var(--ty-13); font-weight: 400; color: var(--ink-2); letter-spacing: 0;
 }
 .sh-big-gustratio { font-size: inherit; font-weight: 400; letter-spacing: 0; }
@@ -23679,6 +23679,10 @@ const Ennuste = {
     const W0 = Math.max(280, Math.round(laatikko.w));
     const fs = Tuulikaavio.laajaFs(W0);
     const asuL = Object.assign({}, Tuulikaavio.ASUT.laaja, { fs: fs });
+    /* Lähderivi kasvaa kirjasimen mukana (V16): työpöydän laajassa
+       11·1,5 = 16,5 px:n nimi oli 16 px:n rivissä, ja kääre leikkasi sen
+       yläreunan (94 % näkyvissä). */
+    asuL.lahdeH = Math.max(asuL.lahdeH, Math.ceil(13 * fs));
     const vert = this._naytetyt(ctx).map(id => KorttiSarjat.valmis(spot, id)).filter(Boolean);
     const W = Math.max(W0, Math.round((ik.loppu - ik.alku) / 36e5 * W0 / Aikakaavio.nakyva('ennuste-laaja', this.NAKYVA_H_LAAJA)));
     const kaareEd = kaavioEl.querySelector('[data-en-kaare]');

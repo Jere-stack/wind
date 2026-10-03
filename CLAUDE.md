@@ -2103,7 +2103,8 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   asettelun), tarttuvien paikka lasketaan laatikosta ja vierityksestä;
   kuristus on aikaleima 16 ms + perään ajo, EI rAF (WebKit). Tuntirivin
   pilleri piilottaa alleen jäävän tuntiluvun (`data-tk-tunti`,
-  `.ak-pilleri-alla`). Uusi teksti kaavioon on automaattisesti mukana
+  `.ak-pilleri-alla`) ja rajataan NÄKYVÄÄN ikkunaan kuten kupla (SVG:n
+  reunoihin rajattuna se jäi laajassa akselin alle). Uusi teksti kaavioon on automaattisesti mukana
   (kaikki `<text>` paitsi hover-ryhmä); HTML-rivi lisätään
   `_reunatMittaa`n listaan.
 - **KORTIN KAAVIO ON KEVENNETTY** (P16, V16): kortilla ei puuskan
@@ -2425,7 +2426,12 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   täytettävä ENNEN mittausta (sen korkeus muuttaa laatikkoa: 645 vs
   625 px), ja avauksen jälkeen on piirrettävä uudestaan 180 ms:n
   kuluttua (kääntämällä avattaessa mitat eivät ole asettuneet: 714×187
-  vs 714×280).
+  vs 714×280). Kaavio ei saa olla laatikkoaan korkeampi (V16): matalassa
+  laatikossa (puhelin vaakatasossa) lämpörivi jää pois ennen kuin
+  piirtoalue painuu alle 120 px:n, ja piirtoalue joustaa 100 px:iin —
+  ylivuoto keskittyi ja leikkasi sekä lähdekaistan että lämpörivin.
+  Lähderivi on vähintään 13·fs (työpöydällä 16,5 px:n nimi ei mahtunut
+  16 px:n riviin).
 - **Liu'utusele alkaa mistä tahansa PIIRTOALUEEN YLÄPUOLELTA**
   (kahva, otsikko, lukemarivi, mallirivin välit, kaavion päivä- ja
   tuntirivit; raja `g.y0`, `_piirtoalueenYlapuolella`), ei

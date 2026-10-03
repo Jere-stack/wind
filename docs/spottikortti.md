@@ -1845,3 +1845,38 @@ aaltojen lukemarivi seuraa valittua tuntia.
   Nyt-nappi: tumma teksti vaalealla) on komponentti eikä muste — se
   lasketaan tyyleihin mutta ei mustesävyihin. Vanhalla laskulla V16 on
   24 laatikkoa (V15 28).
+- **Laajan kolme reunaa** (täysi ajo löysi): tuntirivin pilleri
+  rajataan NÄKYVÄÄN ikkunaan kuten kupla (SVG:n reunoihin rajattuna
+  "Ma 22" jäi akselin viereen 72–98 %:iin); matalassa laatikossa
+  (667 × 375) lämpörivi jää pois ennen kuin piirtoalue painuu alle
+  120 px:n ja piirtoalue joustaa 100 px:iin (ennen lattia 120 ja kaavio
+  19 px laatikkoaan korkeampi: "11°" 9 %); ja lähderivi kasvaa
+  kirjasimen mukana (`max(lahdeH, 13·fs)`: työpöydällä 16,5 px:n nimi
+  16 px:n rivissä, 94 %). Luurangon latausviesti (`.en-paikka`) oli
+  10 px ja näkyi tyylimittarissa vain kun jokin moduuli latautui vielä;
+  nyt 13.
+
+Mitattu (lähtötaso = V15 samalla mittarilla; täysi ajo ja uusinta
+korjausten jälkeen):
+
+| mittari | V15 | V16 |
+|---|---|---|
+| puoliksi näkyvät tekstit kortissa, levossa / kaaviot vieritettyinä | p390 10 / 13, p360 en 11 / 10, p320 9 / 11, p320 en 9 / 9, työpöytä 8 / 9 | 0 / 0 kaikilla viidellä |
+| puoliksi näkyvät tekstit laajassa (12 laitetta ja kieltä, 0–3 mallia, levossa ja osoittaessa) | 8 laitteella pilleri, v667 lämpörivi, työpöytä lähdekaista | 0 |
+| tekstityylejä / kirjasinkokoja / tekstivärejä | 28 / 10 / 8 | 13 / 6 (11, 13, 15, 17, 22, 38) / 6 |
+| laatikoita (tarkennettu lasku; vanhalla) | 28 | 15 (24) |
+| täytetty lukemalaatikko moduulin sisällä | 3 | 0 |
+| versaalit ryhmien nimien ulkopuolella | 6 | 0 |
+| luvut / nuolet kortin kaaviossa 48 h:ssa | 16 / 24 | 8 / 16 |
+| kortin korkeus 390 px:llä | 2 229 px | 2 232 px |
+| ennusteosion alareuna ensimmäisessä ruudullisessa (390 × 844) | 604 / 648 px | 613 / 648 px |
+| desimaalierotin DOMissa, väärät (fi / en) | sekoitus | 0 / 0 |
+| kontrasti, pienin uusi pari | — | `--ink-3` 11 px `--surface-hi`lla 5,91:1; siru 9,47:1 |
+| avaus: siirtymät 10 s | 0 / 0 | 0 / 0 |
+
+Ennallaan läpi: tunnit (127 tuntia, heron, ennusteosion ja laattojen
+korkeus yksi arvo), ennusteen vaihto, lukema, kahdennus (jokainen
+kerran), regressio (hero = Paras, merkki = heron indeksi, kortti =
+aikajana 0,0000 m/s), `tools/graafimittaus.mjs` 96/96 ja
+`tools/savutesti.mjs`. `?kieli=en`: ei suomea kortissa (ainoa osuma on
+paikannimi Kruunuvuorenselkä asemavalikossa).
