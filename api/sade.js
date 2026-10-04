@@ -245,7 +245,20 @@ async function sarja(req, res) {
     + '&storedquery_id=fmi::forecast::harmonie::surface::point::timevaluepair'
     + '&latlon=' + lat + ',' + lon + '&parameters=Precipitation1h&timestep=60'
     + '&starttime=' + tunninAlku(nyt);
-  const [mm, dbz, ennuste] = await Promise.all([
+  /* MET Norwayn nowcast (radar_coverage, 5 min, ~90 min) varatieksi
+     selaimen omalle advektiolle. Vaatii User-Agentin; CC BY 4.0. */
+  const metUrl = 'https://api.met.no/weatherapi/nowcast/2.0/complete?lat=' + lat.toFixed(2) + '&lon=' + lon.toFixed(2);
+  const metHaku = haeTeksti(metUrl, { aikaraja: 6000, otsakkeet: { 'User-Agent': 'FoilSpot/7 github.com/Jere-stack/wind' } })
+    .then(function (v) {
+      if (v.tila !== 200) return [];
+      const j = JSON.parse(v.runko);
+      if (!j.properties || j.properties.meta.radar_coverage !== 'ok') return [];
+      return j.properties.timeseries.map(function (x) {
+        const r = x.data && x.data.instant && x.data.instant.details ? x.data.instant.details.precipitation_rate : null;
+        return [Date.parse(x.time), typeof r === 'number' ? r : null];
+      }).filter(function (x) { return x[1] != null; });
+    }, function () { return []; });
+  const [mm, dbz, ennuste, met] = await Promise.all([
     rinnakkain(tunnit.map(function (t) { return function () { return gfi('radar_finland_cappi_acrr1h', lat, lon, t); }; }), 16),
     rinnakkain(vartit.map(function (t) { return function () { return gfi('radar_finland_cappi_dbzh', lat, lon, t); }; }), 12),
     haeFmi(ennusteUrl, { aikaraja: 8000, tyhjaPoikkeuksesta: true }).then(function (xml) {
@@ -256,7 +269,8 @@ async function sarja(req, res) {
         if (isFinite(v)) ulos.push([Date.parse(m[1]), Math.round(v * 100) / 100]);
       }
       return ulos;
-    }, function () { return null; })
+    }, function () { return null; }),
+    metHaku
   ]);
   /* Kertymän puuttuva arvo on −1 (ODIM nodata) tai katvealue. */
   const T = tunnit.map(function (t, i) {
@@ -274,7 +288,7 @@ async function sarja(req, res) {
     return res.status(502).json({ error: 'radar and forecast unavailable' });
   }
   res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=120');
-  return res.status(200).json({ lat: lat, lon: lon, luotu: nyt, tunnit: T, vartit: Q, ennuste: ennuste || [] });
+  return res.status(200).json({ lat: lat, lon: lon, luotu: nyt, tunnit: T, vartit: Q, ennuste: ennuste || [], met: met || [] });
 }
 
 export default async function handler(req, res) {

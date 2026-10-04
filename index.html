@@ -11330,7 +11330,11 @@ GLRuudukko.prototype._paivitaRuudut = function () {
   const puoliX = map._koko.x / 2 * s, puoliY = map._koko.y / 2 * s;
   const x0 = Math.floor((c.x - puoliX) / koko), x1 = Math.floor((c.x + puoliX) / koko);
   const y0 = Math.max(0, Math.floor((c.y - puoliY) / koko)), y1 = Math.min(n - 1, Math.floor((c.y + puoliY) / koko));
-  const pusk = this.options.keepBuffer || 0;
+  /* `reuna`: yhden laattarenkaan verran laattoja näkymän ULKOPUOLELTA
+     (`t.reuna`, ei `current`). Sadekerros hakee niihin vain nowcastin
+     tarvitsemat kehykset: tuleva sade on tänään vielä ruudun ulkopuolella. */
+  const rengas = this.options.reuna || 0;
+  const pusk = Math.max(this.options.keepBuffer || 0, rengas);
   /* Nykyisen tason laatat alueen ulkopuolella (puskuri mukaan) pois. */
   for (const k in this._tiles) {
     const t = this._tiles[k];
@@ -11344,7 +11348,7 @@ GLRuudukko.prototype._paivitaRuudut = function () {
   for (let y = y0; y <= y1; y++) {
     for (let x = x0; x <= x1; x++) {
       const avain = x + ':' + y + ':' + tz;
-      if (this._tiles[avain]) { this._tiles[avain].current = true; continue; }
+      if (this._tiles[avain]) { this._tiles[avain].current = true; this._tiles[avain].reuna = false; continue; }
       const coords = L.point(x, y); coords.z = tz;
       const kierretty = L.point(((x % n) + n) % n, y); kierretty.z = tz;
       const t = { coords: coords, current: true, loaded: false, el: null, tex: null };
@@ -11357,6 +11361,24 @@ GLRuudukko.prototype._paivitaRuudut = function () {
         self._uudelleen();
       });
       if (t.el) t.el._likainen = true;
+    }
+  }
+  if (rengas) {
+    for (let y = Math.max(0, y0 - rengas); y <= Math.min(n - 1, y1 + rengas); y++) {
+      for (let x = x0 - rengas; x <= x1 + rengas; x++) {
+        if (x >= x0 && x <= x1 && y >= y0 && y <= y1) continue;
+        const avain = x + ':' + y + ':' + tz;
+        if (this._tiles[avain]) { this._tiles[avain].reuna = true; continue; }
+        const coords = L.point(x, y); coords.z = tz;
+        const kierretty = L.point(((x % n) + n) % n, y); kierretty.z = tz;
+        const t = { coords: coords, current: false, reuna: true, loaded: false, el: null, tex: null };
+        this._tiles[avain] = t;
+        t.el = this.createTile(kierretty, function () {
+          if (self._tiles[avain] !== t) return;
+          t.loaded = true;
+          self._uudelleen();
+        });
+      }
     }
   }
   this._karsi();
@@ -14585,7 +14607,11 @@ const SadeSarja = {
     for (const x of j.tunnit) if (x[1] != null) { tunnit.set(x[0], x[1]); tutkaLoppu = Math.max(tutkaLoppu, x[0]); }
     for (const x of j.ennuste) { ennuste.set(x[0], x[1]); ennusteLoppu = Math.max(ennusteLoppu, x[0]); }
     for (const x of j.vartit) if (x[1] != null) vartit.set(x[0], x[1] > 0 ? Sade.mmhDbz(x[1]) : 0);
-    return { tunnit: tunnit, ennuste: ennuste, vartit: vartit, tutkaLoppu: tutkaLoppu, ennusteLoppu: ennusteLoppu };
+    /* MET Norwayn nowcast pisteessä (5 min, mm/h): varatie omalle
+       advektiolle kun laattoja ei vielä ole (`Nowcast._met`). */
+    const met = new Map();
+    for (const x of (j.met || [])) met.set(x[0], x[1]);
+    return { tunnit: tunnit, ennuste: ennuste, vartit: vartit, met: met, tutkaLoppu: tutkaLoppu, ennusteLoppu: ennusteLoppu };
   },
   /* Sarja aikajanan akselille: { mm, lahde: 'tutka'|'nowcast'|'ennuste', q } tai null.
      `q` = neljän vartin intensiteetit (mm/h) tunnin sisältä kun ne ovat
@@ -14769,6 +14795,459 @@ const Sadeennuste = {
   }
 };
 
+/* LIIKEKENTTÄ JA NOWCAST (docs/sadetutka.md, V4–V5).
+ *
+ * KAKSI KÄYTTÖÄ, YKSI KENTTÄ.
+ *
+ *   1. Liikekompensoitu interpolointi kahden oikean 5 min kehyksen
+ *      välissä: kuuro LIIKKUU kehyksestä toiseen eikä häivy (varjostin,
+ *      `u_fl`). Siirtymä on enintään muutama kilometri ja se on mitattu
+ *      kahdesta havainnosta — interpolointia, ei keksittyä liikettä (ks.
+ *      docs/data.md "Ennusteessa ei ole silmukkaa", joka koskee
+ *      HARMONIEn TUNTIaskelta eikä tätä).
+ *   2. Nowcast 0–120 min: tuoreinta kehystä siirretään kentän mukaan
+ *      (puoli-Lagrangen advektio taaksepäin), voimakkuus vaimenee ja
+ *      sumenee johtoajan mukana, ja se sekoittuu HARMONIEen painolla
+ *      1 → 0 välillä +30 … +120 min (`painoNowcast`).
+ *
+ * KENTTÄ LOHKOHAUSTA. Kahden kehyksen (T − 15 min, T) karkeat
+ * pienennökset (32 solua laattaa kohti, 2,4 km tasolla 9) kootaan
+ * mosaiikiksi, ja 8 × 8 solun lohkoille haetaan siirtymä joka minimoi
+ * absoluuttisen erotuksen (SAD) ±R solun ikkunassa, alipikseli
+ * paraabelisovituksella. Lohko kelpaa kun siinä sataa (≥ 8 solua yli
+ * tihkun) ja paras SAD on selvästi parempi kuin siirtymättä; muut
+ * täytetään kelvollisten painotetulla keskiarvolla ja kenttä tasoitetaan.
+ * Yksikkö on maailmapikseliä (laattatason `tz` Leaflet-pikseli) viidessä
+ * minuutissa. Ei optista virtausta pikselitasolla eikä ensembleä: ne
+ * maksaisivat puhelimen pääsäikeellä kymmeniä millisekunteja kehystä
+ * kohti, ja sateen siirtymä laajassa näkymässä on lähes yhtenäinen.
+ *
+ * NOWCAST ON KARKEA HILA, EI LAATTOJA. 120 minuutissa kuuro kulkee
+ * 60–120 km eli enemmän kuin laatan (78 km tasolla 9), joten advektio
+ * tehdään mosaiikissa (`pieni`, 128 solua laattaa kohti) näkymän ja
+ * yhden laattarenkaan yli (`reuna: 1`) ja piirretään yhtenä nelikulmiona
+ * samalla varjostimella kuin laatat. */
+const SadeLiike = {
+  SOLU_K: 32, SOLU_P: 256, LOHKO: 8, KEHYSMUISTI: 8,
+  NOWCAST_MS: 120 * 60000,
+  _kentat: new Map(),          /* T -> kenttä */
+  _nc: null,                   /* nowcastin ketju: { avain, uusin, kentta, mos, kehykset: Map(tau -> {data, tex}) } */
+  _roskat: [],
+
+  painoNowcast(tau) {
+    const m = tau / 60000;
+    if (m <= 30) return 1;
+    return Math.max(0, 1 - (m - 30) / 90);
+  },
+
+  /* Laattojen rajaus mosaiikille: kaikki nykyisen tason laatat (näkymä
+     ja rengas). */
+  _rajaus(kerros, vainNakyma) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const lista = [];
+    for (const a in kerros._tiles) {
+      const r = kerros._tiles[a];
+      if (r.coords.z !== kerros._tileZoom || !r.el) continue;
+      if (vainNakyma && !r.current) continue;
+      if (!r.current && !r.reuna) continue;
+      lista.push(r);
+      x0 = Math.min(x0, r.coords.x); y0 = Math.min(y0, r.coords.y);
+      x1 = Math.max(x1, r.coords.x); y1 = Math.max(y1, r.coords.y);
+    }
+    if (!lista.length) return null;
+    return { x0: x0, y0: y0, nx: x1 - x0 + 1, ny: y1 - y0 + 1, z: kerros._tileZoom, lista: lista,
+             avain: kerros._tileZoom + ':' + x0 + ':' + y0 + ':' + (x1 - x0 + 1) + ':' + (y1 - y0 + 1) };
+  },
+
+  /* Mosaiikki kehykselle `t`: { d: Uint8Array, tunnettu: Uint8Array, w, h }.
+     `laji` 'karkea' tai 'pieni'. Puuttuva laatta on tuntematon, ei kuiva. */
+  _mosaiikki(kerros, R, t, laji) {
+    const S = laji === 'pieni' ? this.SOLU_P : this.SOLU_K;
+    const w = R.nx * S, h = R.ny * S;
+    const d = new Uint8Array(w * h), tunnettu = new Uint8Array(w * h);
+    let laattoja = 0;
+    for (const r of R.lista) {
+      const e = r.el._k.get(t);
+      if (!e || e.tila !== 'ok') continue;
+      laattoja++;
+      const ox = (r.coords.x - R.x0) * S, oy = (r.coords.y - R.y0) * S;
+      const lahde = e.tyhja ? null : e[laji];
+      for (let y = 0; y < S; y++) {
+        const rivi = (oy + y) * w + ox;
+        tunnettu.fill(1, rivi, rivi + S);
+        if (lahde) d.set(lahde.subarray(y * S, y * S + S), rivi);
+      }
+    }
+    return laattoja ? { d: d, tunnettu: tunnettu, w: w, h: h, laattoja: laattoja } : null;
+  },
+
+  /* LOHKOHAKU. M0 = kehys T − 15 min, M1 = kehys T. Palauttaa kentän
+     { bx, by, vx, vy (Float32Array, maailmapx / 5 min), R, kelpo }. */
+  _laske(M0, M1, R) {
+    const B = this.LOHKO, w = M1.w, h = M1.h;
+    const bx = Math.floor(w / B), by = Math.floor(h / B);
+    const H = R.z >= 9 ? 8 : 6;               /* hakusäde soluina */
+    const vx = new Float32Array(bx * by), vy = new Float32Array(bx * by), ok = new Uint8Array(bx * by);
+    const KYNNYS = 30;                          /* ~0,1 mm/h */
+    let kelpo = 0;
+    const sad = new Float32Array((2 * H + 1) * (2 * H + 1));
+    for (let j = 0; j < by; j++) for (let i = 0; i < bx; i++) {
+      const x0 = i * B, y0 = j * B;
+      let sataa = 0, tunnettu = true;
+      for (let y = y0; y < y0 + B; y++) for (let x = x0; x < x0 + B; x++) {
+        const k = y * w + x;
+        if (!M1.tunnettu[k]) tunnettu = false;
+        if (M1.d[k] > KYNNYS) sataa++;
+      }
+      if (!tunnettu || sataa < 8) continue;
+      let paras = Infinity, pdx = 0, pdy = 0;
+      for (let dy = -H; dy <= H; dy++) for (let dx = -H; dx <= H; dx++) {
+        let s = 0, n = 0;
+        for (let y = y0; y < y0 + B; y++) {
+          const yy = y - dy;
+          if (yy < 0 || yy >= h) continue;
+          for (let x = x0; x < x0 + B; x++) {
+            const xx = x - dx;
+            if (xx < 0 || xx >= w) continue;
+            const k0 = yy * w + xx;
+            if (!M0.tunnettu[k0]) continue;
+            s += Math.abs(M1.d[y * w + x] - M0.d[k0]); n++;
+          }
+        }
+        const v = n >= B * B * 0.6 ? s / n : Infinity;
+        sad[(dy + H) * (2 * H + 1) + dx + H] = v;
+        if (v < paras) { paras = v; pdx = dx; pdy = dy; }
+      }
+      const nolla = sad[H * (2 * H + 1) + H];
+      if (!(paras < Infinity) || (nolla < Infinity && paras > nolla * 0.97 && (pdx || pdy))) continue;
+      /* Alipikseli: paraabeli parhaan ympärille kummassakin suunnassa. */
+      const S = function (dx, dy) {
+        if (Math.abs(dx) > H || Math.abs(dy) > H) return Infinity;
+        return sad[(dy + H) * (2 * H + 1) + dx + H];
+      };
+      const para = function (a, b, c) {
+        if (!(a < Infinity && c < Infinity)) return 0;
+        const n = a - 2 * b + c;
+        return n > 0 ? Math.max(-0.5, Math.min(0.5, (a - c) / (2 * n))) : 0;
+      };
+      const k = j * bx + i;
+      vx[k] = pdx + para(S(pdx - 1, pdy), paras, S(pdx + 1, pdy));
+      vy[k] = pdy + para(S(pdx, pdy - 1), paras, S(pdx, pdy + 1));
+      ok[k] = 1; kelpo++;
+    }
+    /* Ei tarpeeksi sadetta suunnan mittaamiseen: nollakenttä, eli
+       nowcast on pysyvyys (kuiva pysyy kuivana). */
+    if (kelpo < 2) return { bx: bx, by: by, vx: new Float32Array(bx * by), vy: new Float32Array(bx * by), kelpo: 0, R: R };
+    /* Puuttuvat lohkot kelvollisten etäisyyspainotetulla keskiarvolla. */
+    const kel = [];
+    for (let k = 0; k < bx * by; k++) if (ok[k]) kel.push(k);
+    for (let k = 0; k < bx * by; k++) {
+      if (ok[k]) continue;
+      const i = k % bx, j = (k / bx) | 0;
+      let sx = 0, sy = 0, sw = 0;
+      for (const q of kel) {
+        const di = q % bx - i, dj = ((q / bx) | 0) - j;
+        const p = 1 / (1 + di * di + dj * dj);
+        sx += vx[q] * p; sy += vy[q] * p; sw += p;
+      }
+      vx[k] = sx / sw; vy[k] = sy / sw;
+    }
+    /* Tasoitus: kaksi kierrosta 3 × 3 keskiarvoa. */
+    for (let kierros = 0; kierros < 2; kierros++) {
+      const ux = vx.slice(), uy = vy.slice();
+      for (let j = 0; j < by; j++) for (let i = 0; i < bx; i++) {
+        let sx = 0, sy = 0, n = 0;
+        for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+          const ii = i + di, jj = j + dj;
+          if (ii < 0 || jj < 0 || ii >= bx || jj >= by) continue;
+          sx += ux[jj * bx + ii]; sy += uy[jj * bx + ii]; n++;
+        }
+        vx[j * bx + i] = sx / n; vy[j * bx + i] = sy / n;
+      }
+    }
+    /* Soluista maailmapikseleiksi viidessä minuutissa: karkea solu on
+       laatan koko / 32 maailmapikseliä, ja pari on 15 min. */
+    const solu = 512 / this.SOLU_K;
+    for (let k = 0; k < bx * by; k++) { vx[k] *= solu / 3; vy[k] *= solu / 3; }
+    return { bx: bx, by: by, vx: vx, vy: vy, kelpo: kelpo, R: R };
+  },
+
+  /* Kenttä hetkelle T (15 min kerrannainen) näkymän laatoista, tai null
+     jos kehykset puuttuvat. Laskee enintään yhden kentän kutsua kohti. */
+  kentta(kerros, T, laske) {
+    /* Renkaan laatoilla on vain tuoreimmat kehykset (nowcast), joten
+       menneen hetken kenttä lasketaan näkymän laatoista. */
+    const R = this._rajaus(kerros, T !== Sadetutka._uusin);
+    if (!R) return null;
+    const avain = T + '|' + R.avain;
+    const vanha = this._kentat.get(avain);
+    if (vanha !== undefined) return vanha;
+    if (!laske) return undefined;
+    const M1 = this._mosaiikki(kerros, R, T, 'karkea');
+    const M0 = this._mosaiikki(kerros, R, T - 15 * 60000, 'karkea');
+    if (!M1 || !M0 || M1.laattoja < R.lista.length * 0.5 || M0.laattoja < R.lista.length * 0.5) return undefined;
+    const k = this._laske(M0, M1, R);
+    this._kentat.set(avain, k);
+    if (this._kentat.size > 24) {
+      const vanhin = this._kentat.keys().next().value;
+      const kv = this._kentat.get(vanhin);
+      if (kv && kv.tex) this._roskat.push(kv.tex);
+      this._kentat.delete(vanhin);
+    }
+    return k;
+  },
+
+  /* Kentän bilineaarinen arvo maailmapikselissä (taso R.z). */
+  nayte(k, X, Y) {
+    const B = this.LOHKO * 512 / this.SOLU_K;
+    const fx = (X - k.R.x0 * 512) / B - 0.5, fy = (Y - k.R.y0 * 512) / B - 0.5;
+    const i0 = Math.max(0, Math.min(k.bx - 1, Math.floor(fx))), j0 = Math.max(0, Math.min(k.by - 1, Math.floor(fy)));
+    const i1 = Math.min(k.bx - 1, i0 + 1), j1 = Math.min(k.by - 1, j0 + 1);
+    const ax = Math.max(0, Math.min(1, fx - i0)), ay = Math.max(0, Math.min(1, fy - j0));
+    const v = function (a) {
+      return (a[j0 * k.bx + i0] * (1 - ax) + a[j0 * k.bx + i1] * ax) * (1 - ay)
+           + (a[j1 * k.bx + i0] * (1 - ax) + a[j1 * k.bx + i1] * ax) * ay;
+    };
+    return { x: v(k.vx), y: v(k.vy) };
+  },
+
+  /* Kenttä GPU:lle: bx × by RGBA, R/G = 128 + siirtymä / 0,5 px. */
+  tex(gl, k) {
+    if (k.tex) return k.tex;
+    const n = k.bx * k.by, t = new Uint8Array(n * 4);
+    for (let q = 0; q < n; q++) {
+      t[q * 4] = Math.max(0, Math.min(255, Math.round(128 + k.vx[q] * 2)));
+      t[q * 4 + 1] = Math.max(0, Math.min(255, Math.round(128 + k.vy[q] * 2)));
+      t[q * 4 + 3] = 255;
+    }
+    k.tex = GLApu.tekstuuri(gl, gl.LINEAR);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, k.bx, k.by, 0, gl.RGBA, gl.UNSIGNED_BYTE, t);
+    return k.tex;
+  },
+
+  /* ── NOWCAST ─────────────────────────────────────────────────────── */
+
+  /* Ketju tuoreimmalle kehykselle: kenttä (uusin − 15, uusin) ja
+     mosaiikki näkymästä ja renkaasta. Uusi ketju kun tuorein kehys tai
+     laattarajaus vaihtuu. */
+  _ketju(kerros) {
+    const u = Sadetutka._uusin;
+    if (u == null) return null;
+    const R = this._rajaus(kerros, false);
+    if (!R) return null;
+    /* Avaimessa myös valmiiden laattojen määrä: renkaan laatat tulevat
+       ketjun jälkeen, ja niiden saapuessa ketju rakennetaan uudelleen. */
+    let valmiita = 0;
+    for (const r of R.lista) { const e = r.el._k.get(u); if (e && e.tila === 'ok') valmiita++; }
+    const avain = u + '|' + R.avain + '|' + valmiita;
+    if (this._nc && this._nc.avain === avain) return this._nc;
+    if (this._nc && this._nc.yritetty === avain) return null;
+    const k = this.kentta(kerros, u, true);
+    if (!k) { if (k === null && this._nc) this._nc.yritetty = avain; return null; }
+    const mos = this._mosaiikki(kerros, R, u, 'pieni');
+    if (!mos || mos.laattoja < R.lista.length * 0.6) return null;
+    if (this._nc) for (const f of this._nc.kehykset.values()) if (f.tex) this._roskat.push(f.tex);
+    /* Siirtymä karkean hilan soluissa (32/laatta), kumulatiivinen. */
+    this._nc = { avain: avain, uusin: u, R: R, kentta: k, mos: mos, kehykset: new Map(), siirto: [null], versio: 0 };
+    Nowcast.versio++;
+    return this._nc;
+  },
+
+  /* Nowcast-kehys johtoajalle tau (5 min kerrannainen, 5…120 min):
+     { data (Uint8, pieni-hila), w, h, R } tai null. */
+  kehys(kerros, tau, laske) {
+    const c = this._ketju(kerros);
+    if (!c) return null;
+    const n = Math.round(tau / 300000);
+    if (n < 1 || n > 24) return null;
+    /* VAIN NÄKYMÄ (+15 %): mosaiikki kattaa renkaan, ja koko mosaiikin
+       advektio maksoi kontissa 80 ms kehystä kohti; näkymän osa noin
+       kolmanneksen siitä. Talletettu kehys kelpaa niin kauan kuin se
+       kattaa näkymän. */
+    const ik = this._ikkuna(c);
+    const vanha = c.kehykset.get(n);
+    if (vanha && vanha.ox <= ik.x0 && vanha.oy <= ik.y0 && vanha.ox + vanha.w >= ik.x1 && vanha.oy + vanha.h >= ik.y1) {
+      c.kehykset.delete(n); c.kehykset.set(n, vanha); return vanha;
+    }
+    if (!laske) return vanha || null;
+    if (vanha) { if (vanha.tex) this._roskat.push(vanha.tex); c.kehykset.delete(n); }
+    /* Kehykset lasketaan vain näytettäviksi (aikajana ja kapseli lukevat
+       pisteen arvon suoraan, `arvo`), ja muisti on 8 kehystä. */
+    while (c.kehykset.size >= this.KEHYSMUISTI) {
+      const vanhin = c.kehykset.keys().next().value;
+      const fv = c.kehykset.get(vanhin);
+      if (fv.tex) this._roskat.push(fv.tex);
+      c.kehykset.delete(vanhin);
+    }
+    const K = this.SOLU_K, kx = c.R.nx * K, ky = c.R.ny * K;
+    const solu = 512 / K;
+    /* Taaksepäin kulkeva siirtymä: D_n(x) = D_{n−1}(x) + v(x − D_{n−1}(x)). */
+    for (let m = c.siirto.length; m <= n; m++) {
+      const ed = c.siirto[m - 1], D = new Float32Array(kx * ky * 2);
+      for (let y = 0; y < ky; y++) for (let x = 0; x < kx; x++) {
+        const q = (y * kx + x) * 2;
+        const dx = ed ? ed[q] : 0, dy = ed ? ed[q + 1] : 0;
+        const X = (c.R.x0 * K + x + 0.5 - dx) * solu, Y = (c.R.y0 * K + y + 0.5 - dy) * solu;
+        const v = this.nayte(c.kentta, X, Y);
+        D[q] = dx + v.x / solu; D[q + 1] = dy + v.y / solu;
+      }
+      c.siirto[m] = D;
+    }
+    const D = c.siirto[n], P = this.SOLU_P, W = c.mos.w, H = c.mos.h, f = P / K;
+    const lahde = c.mos.d, tunnettu = c.mos.tunnettu;
+    const ox = ik.x0, oy = ik.y0, w = ik.x1 - ik.x0, h = ik.y1 - ik.y0;
+    let ulos = new Float32Array(w * h);
+    /* Vaimennus mm/h:ssa: −25 % kahdessa tunnissa. */
+    const vaim = 1 - 0.25 * (n * 5) / 120;
+    const lut = new Float32Array(256);
+    for (let b = 1; b < 256; b++) lut[b] = Sade.v(Sade.mmh(b / 255) * vaim) * 255;
+    for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) {
+      const x = xx + ox, y = yy + oy;
+      /* Siirtymä karkealta hilalta bilineaarisesti. */
+      const gx = (x + 0.5) / f - 0.5, gy = (y + 0.5) / f - 0.5;
+      const i0 = Math.max(0, Math.min(kx - 1, Math.floor(gx))), j0 = Math.max(0, Math.min(ky - 1, Math.floor(gy)));
+      const i1 = Math.min(kx - 1, i0 + 1), j1 = Math.min(ky - 1, j0 + 1);
+      const ax = Math.max(0, Math.min(1, gx - i0)), ay = Math.max(0, Math.min(1, gy - j0));
+      const q00 = (j0 * kx + i0) * 2, q10 = (j0 * kx + i1) * 2, q01 = (j1 * kx + i0) * 2, q11 = (j1 * kx + i1) * 2;
+      const dx = ((D[q00] * (1 - ax) + D[q10] * ax) * (1 - ay) + (D[q01] * (1 - ax) + D[q11] * ax) * ay) * f;
+      const dy = ((D[q00 + 1] * (1 - ax) + D[q10 + 1] * ax) * (1 - ay) + (D[q01 + 1] * (1 - ax) + D[q11 + 1] * ax) * ay) * f;
+      const sx = x - dx, sy = y - dy;
+      const x0 = Math.floor(sx), y0 = Math.floor(sy);
+      if (x0 < 0 || y0 < 0 || x0 + 1 >= W || y0 + 1 >= H) continue;
+      const bx = sx - x0, by = sy - y0, k = y0 * W + x0;
+      if (!tunnettu[k]) continue;
+      const v = (lahde[k] * (1 - bx) + lahde[k + 1] * bx) * (1 - by) + (lahde[k + W] * (1 - bx) + lahde[k + W + 1] * bx) * by;
+      ulos[yy * w + xx] = lut[Math.round(v)];
+    }
+    /* Sumennus kasvaa johtoajan mukana: σ = 0,02 km/min (15 min 0,3 km eli
+       ei sumennusta, 45 min 0,9 km, 120 min 2,4 km). Ensimmäiset versiot
+       (0,5 + 0,04 ja 0,3 + 0,02) hävittivät kuurojen rakenteen jo
+       vartissa, ja raja tutka → lähiennuste näkyi tarkkuuden hyppynä. */
+    const soluKm = this.soluKm(c.R.z);
+    const sigma = (0.02 * n * 5) / Math.max(0.05, soluKm);
+    if (sigma > 0.7) ulos = this._sumenna(ulos, w, h, sigma);
+    const data = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) data[i] = ulos[i] < 1 ? 0 : Math.min(255, Math.round(ulos[i]));
+    const tulos = { data: data, w: w, h: h, ox: ox, oy: oy, W: W, H: H, R: c.R, tau: n * 300000 };
+    c.kehykset.set(n, tulos);
+    return tulos;
+  },
+
+  /* Näkymä + 15 % mosaiikin soluina (leikattu mosaiikkiin). */
+  _ikkuna(c) {
+    const b = State.map.getBounds(), z = c.R.z, solu = 512 / this.SOLU_P;
+    const a = State.map.project(b.getNorthWest(), z), d = State.map.project(b.getSouthEast(), z);
+    const mx = (d.x - a.x) * 0.15, my = (d.y - a.y) * 0.15;
+    const cx = function (X) { return Math.max(0, Math.min(c.mos.w, Math.round(X / solu - c.R.x0 * 256))); };
+    const cy = function (Y) { return Math.max(0, Math.min(c.mos.h, Math.round(Y / solu - c.R.y0 * 256))); };
+    let x0 = cx(a.x - mx), x1 = cx(d.x + mx), y0 = cy(a.y - my), y1 = cy(d.y + my);
+    if (x1 - x0 < 2) { x0 = 0; x1 = c.mos.w; }
+    if (y1 - y0 < 2) { y0 = 0; y1 = c.mos.h; }
+    return { x0: x0, y0: y0, x1: x1, y1: y1 };
+  },
+
+  /* Nowcast-solu kilometreinä: 512/256 = 2 maailmapikseliä tasolla z,
+     156,543 km · cos φ / 2^z kutakin (φ ≈ 61°). */
+  soluKm(z) { return (512 / this.SOLU_P) * 156.543 * Math.cos(61 * Math.PI / 180) / Math.pow(2, z); },
+
+  /* Kolme laatikkosumennusta ≈ Gauss (σ soluina). */
+  _sumenna(a, w, h, sigma) {
+    const r = Math.max(1, Math.round(Math.sqrt(4 * sigma * sigma / 3 + 1) - 0.5));
+    let b = new Float32Array(a.length);
+    for (let kerta = 0; kerta < 3; kerta++) {
+      for (let y = 0; y < h; y++) {
+        let s = 0; const rv = y * w;
+        for (let x = -r; x <= r; x++) s += a[rv + Math.max(0, Math.min(w - 1, x))];
+        for (let x = 0; x < w; x++) {
+          b[rv + x] = s / (2 * r + 1);
+          s += a[rv + Math.min(w - 1, x + r + 1)] - a[rv + Math.max(0, x - r)];
+        }
+      }
+      for (let x = 0; x < w; x++) {
+        let s = 0;
+        for (let y = -r; y <= r; y++) s += b[Math.max(0, Math.min(h - 1, y)) * w + x];
+        for (let y = 0; y < h; y++) {
+          a[y * w + x] = s / (2 * r + 1);
+          s += b[Math.min(h - 1, y + r + 1) * w + x] - b[Math.max(0, y - r) * w + x];
+        }
+      }
+    }
+    return a;
+  },
+
+  /* NOWCASTIN ARVO PISTEESSÄ (mm/h) ilman kehystä: taaksepäin kulkeva
+     rata kentässä viiden minuutin askelin ja lähtömosaiikin keskiarvo
+     sumennuksen säteellä, vaimennettuna kuten kehyksissä. Aikajanan
+     palkit ja kapseli lukevat tätä, joten 24 kehystä ei tarvitse laskea
+     taustalla. */
+  arvo(lat, lng, tau) {
+    const c = this._nc;
+    if (!c || !State.map) return null;
+    const n = Math.round(tau / 300000);
+    if (n < 1 || n > 24) return null;
+    const p = State.map.project(L.latLng(lat, lng), c.R.z);
+    let X = p.x, Y = p.y;
+    for (let m = 0; m < n; m++) { const v = this.nayte(c.kentta, X, Y); X -= v.x; Y -= v.y; }
+    const solu = 512 / this.SOLU_P, mos = c.mos;
+    const cx = Math.floor(X / solu - c.R.x0 * this.SOLU_P), cy = Math.floor(Y / solu - c.R.y0 * this.SOLU_P);
+    const r = Math.max(1, Math.round((0.02 * n * 5) / this.soluKm(c.R.z)));
+    let s = 0, k = 0;
+    for (let y = cy - r; y <= cy + r; y++) for (let x = cx - r; x <= cx + r; x++) {
+      if (x < 0 || y < 0 || x >= mos.w || y >= mos.h) continue;
+      const q = y * mos.w + x;
+      if (!mos.tunnettu[q]) continue;
+      s += Sade.mmh(mos.d[q] / 255); k++;
+    }
+    if (!k) return null;
+    return (s / k) * (1 - 0.25 * (n * 5) / 120);
+  }
+};
+
+/* NOWCASTIN LUKIJA aikajanalle ja kapselille: kartan keskipisteen arvo
+ * samasta ketjusta kuin kartta, varatienä MET Norwayn pistesarja
+ * (`/api/sade?sarja=1`, `met`). Arvo on intensiteetti mm/h; tunti on
+ * neljän vartin keskiarvo sekoitettuna HARMONIEen samalla painolla kuin
+ * kartalla. */
+const Nowcast = {
+  versio: 0,
+  _keski() { return State.map ? State.map.getCenter() : null; },
+  _met(t) {
+    const c = this._keski(); if (!c) return null;
+    const d = SadeSarja.hae(c.lat, c.lng);
+    if (!d || !d.met || !d.met.size) return null;
+    const k = Math.round(t / 300000) * 300000;
+    return d.met.has(k) ? d.met.get(k) : null;
+  },
+  vartti(t) {
+    const u = Sadetutka._uusin;
+    if (u == null || t <= u + 150000 || t > u + SadeLiike.NOWCAST_MS) return null;
+    const c = this._keski(); if (!c) return null;
+    let v = SadeLiike.arvo(c.lat, c.lng, t - u);
+    if (v == null) v = this._met(t);
+    if (v == null) return null;
+    const w = SadeLiike.painoNowcast(t - u);
+    if (w >= 1) return v;
+    const d = SadeSarja.hae(c.lat, c.lng), H = 3600e3, th = Math.ceil(t / H) * H;
+    const h = d && d.ennuste.has(th) ? d.ennuste.get(th) : null;
+    return h == null ? v : v * w + h * (1 - w);
+  },
+  tunti(T) {
+    const u = Sadetutka._uusin, V = SADE_VARTTI_MS;
+    if (u == null || T <= u || T - 3600e3 >= u + SadeLiike.NOWCAST_MS) return null;
+    const c = this._keski(); if (!c) return null;
+    const d = SadeSarja.hae(c.lat, c.lng);
+    let s = 0;
+    for (let k = 0; k < 4; k++) {
+      const t = T - (3 - k) * V;
+      let v = t <= u ? (d && d.vartit.has(t) ? d.vartit.get(t) : null) : this.vartti(t);
+      if (v == null && t > u + SadeLiike.NOWCAST_MS && d && d.ennuste.has(T)) v = d.ennuste.get(T);
+      if (v == null) return null;
+      s += v;
+    }
+    return Math.round(s / 4 * 100) / 100;
+  }
+};
+
 /* -- SADEKERROS — havainto ja ennuste yhtenä GL-kerroksena ----------
  *
  * Kerros on kartan GL-ruudussa lämpökartan JÄLKEEN ja tavallisella
@@ -14815,7 +15294,7 @@ const Sadeennuste = {
 const SadeKerros = GLRuudukko.extend({
   /* 512 px laatta tasolta 9 = 153 m/px Helsingin leveydellä (250 m lähde),
      ja laattoja on yhtä monta kuin ennen 256 px:llä tasolta 8. */
-  options: { tileSize: 512, keepBuffer: 1, maxNativeZoom: 9 },
+  options: { tileSize: 512, keepBuffer: 1, maxNativeZoom: 9, reuna: 1 },
 
   initialize: function (options) {
     GLRuudukko.prototype.initialize.call(this, options);
@@ -14880,6 +15359,10 @@ const SadeKerros = GLRuudukko.extend({
       if (u - k > Sadetutka.ARKISTO_MS) return { l: 'eiarkistoa' };
       return { l: 'tutka', t: k };
     }
+    if (_tutkaLahde(t) === 'nowcast') {
+      const u = Sadetutka._uusin, D = Sadetutka.ASKEL_MS;
+      return { l: 'nowcast', t: u + Math.max(D, Math.round((t - u) / D) * D) };
+    }
     const h = Math.floor(t / H) * H;
     const tila = Sadeennuste.tila(h);
     if (tila === 'tyhja') return { l: 'eiennustetta' };
@@ -14900,6 +15383,13 @@ const SadeKerros = GLRuudukko.extend({
   },
   _valmis: function (k) {
     if (k.l === 'tutka') return this._tutkaValmis(k.t);
+    if (k.l === 'nowcast') {
+      /* Kehys lasketaan odotuksen aikana (enintään yksi ruutua kohti),
+         jotta vaihto ei näytä hetkeä pelkkää HARMONIEa. */
+      const f = SadeLiike.kehys(this, k.t - Sadetutka._uusin, !this._laskettu);
+      if (!f) { this._laskettu = true; this._uudelleen(); }
+      return !!f;
+    }
     if (k.l === 'ennuste') return Sadeennuste.valmis(k.t, this._map.getBounds());
     return k.l !== 'odota';
   },
@@ -14973,8 +15463,15 @@ const SadeKerros = GLRuudukko.extend({
       if (!x) return;
       if (x.l === 'tutka' && tutka.indexOf(x.t) < 0) tutka.push(x.t);
       if (x.l === 'ennuste' && ennuste.indexOf(x.t) < 0) ennuste.push(x.t);
+      /* Nowcast sekoittuu HARMONIEn tuntiin. */
+      if (x.l === 'nowcast') { const h = Math.round(x.t / H) * H; if (ennuste.indexOf(h) < 0) ennuste.push(h); }
     };
     lisaa(k.A); lisaa(k.B); lisaa(d.A); lisaa(d.B);
+    /* Liikekenttä ja nowcast tarvitsevat tuoreimman kehyksen ja vartin
+       takaisen — näkymän laatoille ja renkaalle (`_reunaAjat`). */
+    const u = Sadetutka._uusin;
+    this._reunaAjat = u != null ? [u, u - SADE_VARTTI_MS] : [];
+    if (u != null) { if (tutka.indexOf(u) < 0) tutka.push(u); if (tutka.indexOf(u - SADE_VARTTI_MS) < 0) tutka.push(u - SADE_VARTTI_MS); }
     if (this._siirtyma) lisaa(this._siirtyma.from);
     if (k.liikkuu && State.isPlaying) {
       const a0 = Math.floor(k.t / k.askel) * k.askel;
@@ -14997,8 +15494,10 @@ const SadeKerros = GLRuudukko.extend({
       /* Kun tutkaa ei tarvita (ennuste), laatta on "valmis" heti, jotta
          edellisen tason laatat voidaan karsia. */
       if (!halutut.length && !el._valmis) { el._valmis = true; el._done(); }
-      if (!r.current || r.coords.z !== this._tileZoom) continue;
-      for (const ms of halutut) {
+      if (r.coords.z !== this._tileZoom) continue;
+      const lista = r.current ? halutut : (r.reuna ? (this._reunaAjat || []) : null);
+      if (!lista) continue;
+      for (const ms of lista) {
         if (el._lataa >= 2) break;
         const e = el._k.get(ms);
         /* Epäonnistunut kehys yritetään uudelleen puolen minuutin päästä
@@ -15006,7 +15505,7 @@ const SadeKerros = GLRuudukko.extend({
         if (e && e.tila === 'virhe' && Date.now() - e.t > 30000) { el._k.delete(ms); }
         if (!el._k.has(ms)) this._lataa(el, ms);
       }
-      if (el._k.size > 28) this._karsiLaatta(el, halutut);
+      if (el._k.size > 28) this._karsiLaatta(el, lista);
     }
   },
 
@@ -15026,7 +15525,7 @@ const SadeKerros = GLRuudukko.extend({
   },
 
   _lataa: function (el, ms) {
-    const e = { tila: 'lataa', data: null, tex: null, tyhja: false };
+    const e = { tila: 'lataa', data: null, tex: null, tyhja: false, ms: ms };
     el._k.set(ms, e);
     el._lataa++;
     const self = this, kuva = new Image();
@@ -15116,7 +15615,31 @@ const SadeKerros = GLRuudukko.extend({
       ulos[j] = t > 0 ? t : 1;
       sataa = true;
     }
-    if (sataa) e.data = ulos; else e.tyhja = true;
+    if (sataa) { e.data = ulos; this._pienennos(ulos, w, e); } else e.tyhja = true;
+  },
+
+  /* PIENENNÖKSET LIIKKEELLE JA NOWCASTILLE (docs/sadetutka.md, V4–V5).
+     Täysi kehys viedään GPU:lle ja vapautetaan, joten prosessorille jää
+     keskiarvoistettu kopio: `karkea` 32² (liikekentän lohkohaku, 2,4 km
+     tasolla 9, 1 kB) jokaiselle kehykselle ja `pieni` 256² (nowcastin
+     lähtö, 0,3 km) vain tuoreimmalle. */
+  _pienennos: function (d, w, e) {
+    const P = 256, k = w / P, pieni = new Uint8Array(P * P);
+    for (let y = 0; y < P; y++) for (let x = 0; x < P; x++) {
+      let s = 0;
+      for (let yy = 0; yy < k; yy++) { const r = (y * k + yy) * w + x * k; for (let xx = 0; xx < k; xx++) s += d[r + xx]; }
+      pieni[y * P + x] = Math.round(s / (k * k));
+    }
+    const K = 32, kk = P / K, karkea = new Uint8Array(K * K);
+    for (let y = 0; y < K; y++) for (let x = 0; x < K; x++) {
+      let s = 0;
+      for (let yy = 0; yy < kk; yy++) for (let xx = 0; xx < kk; xx++) s += pieni[(y * kk + yy) * P + x * kk + xx];
+      karkea[y * K + x] = Math.round(s / (kk * kk));
+    }
+    e.karkea = karkea;
+    /* 256² vain tuoreimmalle kehykselle (nowcastin lähtö): 64 kB laattaa
+       kohti, eikä sitä pidetä vanhoille kehyksille. */
+    if (Sadetutka._uusin != null && e.ms >= Sadetutka._uusin) e.pieni = pieni;
   },
 
   /* ── PIIRTO ───────────────────────────────────────────────────── */
@@ -15146,15 +15669,35 @@ const SadeKerros = GLRuudukko.extend({
       + '  return vec4(c.rgb * c.a, c.a) * u_w; }\n';
     this._pLaatta = GLApu.ohjelma(gl,
       GL_TARKKUUS
-      + 'attribute vec2 a_pos; uniform vec4 u_rect; uniform vec2 u_koko; varying vec2 v_uv;\n'
-      + 'void main(){ vec2 p = u_rect.xy + a_pos * u_rect.zw; vec2 c = p / u_koko * 2.0 - 1.0;\n'
-      + '  gl_Position = vec4(c.x, -c.y, 0.0, 1.0); v_uv = a_pos; }\n',
+      /* `u_laaj`: nelikulmio laajennetaan laatan yli (uv −m … 1 + m), jotta
+         siirretty kehys piirtyy myös naapurilaatan alueelle (`u_s` = 1). */
+      + 'attribute vec2 a_pos; uniform vec4 u_rect; uniform vec2 u_koko; uniform float u_laaj; varying vec2 v_uv;\n'
+      + 'void main(){ vec2 q = a_pos * (1.0 + 2.0 * u_laaj) - u_laaj; vec2 p = u_rect.xy + q * u_rect.zw; vec2 c = p / u_koko * 2.0 - 1.0;\n'
+      + '  gl_Position = vec4(c.x, -c.y, 0.0, 1.0); v_uv = q; }\n',
       GL_TARKKUUS_FS
-      + 'uniform sampler2D u_a; uniform sampler2D u_b; uniform sampler2D u_lut;\n'
-      + 'uniform float u_f; uniform float u_w; uniform vec2 u_tk; varying vec2 v_uv;\n'
+      + 'uniform sampler2D u_a; uniform sampler2D u_b; uniform sampler2D u_lut; uniform sampler2D u_fl;\n'
+      + 'uniform float u_f; uniform float u_w; uniform vec2 u_tk; uniform vec4 u_flr; uniform vec2 u_dk; uniform float u_s; varying vec2 v_uv;\n'
       + BSPLINE + VARI
-      + 'void main(){ gl_FragColor = vari(mix(bspline(u_a, v_uv, u_tk), bspline(u_b, v_uv, u_tk), u_f)); }\n',
-      ['a_pos'], ['u_rect', 'u_koko', 'u_a', 'u_b', 'u_lut', 'u_f', 'u_w', 'u_tk']);
+      /* LIIKEKOMPENSOITU SEKOITUS (V4): kenttä `u_fl` antaa siirtymän
+         maailmapikseleinä viidessä minuutissa (R/G = 128 + 2·px), ja
+         `u_dk` kääntää sen tämän nelikulmion uv-yksiköiksi koko A→B-välille.
+         Piirre kohdassa x kehyksessä A on kohdassa x + d kehyksessä B, joten
+         välihetki f lukee A:sta kohdasta x − f·d ja B:stä x + (1 − f)·d.
+         Laatan ulkopuolelle osuva näyte luetaan siirtämättä (reunalla
+         sekoitus palaa ristihäivytykseksi eikä venytä reunapikseliä). */
+      + 'bool ulkona(vec2 p){ return p.x < 0.0 || p.y < 0.0 || p.x > 1.0 || p.y > 1.0; }\n'
+      + 'void main(){\n'
+      + '  vec2 d = (texture2D(u_fl, u_flr.xy + v_uv * u_flr.zw).rg * 255.0 - 128.0) * 0.5 * u_dk;\n'
+      /* `u_s` = 1: tuorein tutkakehys siirrettynä nowcastin alkuun (A = B). */
+      + '  vec2 ua = v_uv - (u_f + u_s) * d; vec2 ub = v_uv + (1.0 - u_f - u_s) * d;\n'
+      /* Siirrossa (`u_s` = 1) pikselin piirtää se laatta jonka sisällä
+         sen LÄHDE on: laajennetut nelikulmiot peittävät tason ja lähteet
+         jakavat sen, joten jokainen pikseli piirtyy tasan kerran eikä
+         laattarajalle jää saumaa. */
+      + '  if (u_s > 0.5) { if (ulkona(ua)) discard; }\n'
+      + '  else { if (ulkona(v_uv)) discard; if (ulkona(ua)) ua = v_uv; if (ulkona(ub)) ub = v_uv; }\n'
+      + '  gl_FragColor = vari(mix(bspline(u_a, ua, u_tk), bspline(u_b, ub, u_tk), u_f)); }\n',
+      ['a_pos'], ['u_rect', 'u_koko', 'u_a', 'u_b', 'u_lut', 'u_f', 'u_w', 'u_tk', 'u_fl', 'u_flr', 'u_dk', 'u_s', 'u_laaj']);
     this._pHila = GLApu.ohjelma(gl,
       GL_TARKKUUS + 'attribute vec2 a_pos;\nvoid main(){ gl_Position = vec4(a_pos * 2.0 - 1.0, 0.0, 1.0); }\n',
       GL_TARKKUUS_FS
@@ -15185,6 +15728,9 @@ const SadeKerros = GLRuudukko.extend({
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, 1, 1, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, new Uint8Array(1));
     this._texLut = GLApu.tekstuuri(gl, gl.LINEAR);
     this._lutAvain = null;
+    /* Tyhjä liikekenttä: siirtymä 0. */
+    this._texFlNolla = GLApu.tekstuuri(gl, gl.NEAREST);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([128, 128, 0, 255]));
   },
 
   _glPurku: function (gl) {
@@ -15197,7 +15743,9 @@ const SadeKerros = GLRuudukko.extend({
     for (const e of Sadeennuste._m.values()) if (e.tex) { gl.deleteTexture(e.tex); e.tex = null; e.texVersio = -1; }
     this._siivoa(gl);
     [this._pLaatta, this._pHila].forEach(p => p && gl.deleteProgram(p.o));
-    [this._texTyhja, this._texLut].forEach(t => t && gl.deleteTexture(t));
+    [this._texTyhja, this._texLut, this._texFlNolla].forEach(t => t && gl.deleteTexture(t));
+    for (const k of SadeLiike._kentat.values()) if (k && k.tex) { gl.deleteTexture(k.tex); k.tex = null; }
+    if (SadeLiike._nc) for (const f of SadeLiike._nc.kehykset.values()) if (f.tex) { gl.deleteTexture(f.tex); f.tex = null; }
     if (this._nelio) gl.deleteBuffer(this._nelio);
     this._pLaatta = this._pHila = this._nelio = this._texTyhja = this._texLut = null;
     this._gl = null;
@@ -15205,6 +15753,7 @@ const SadeKerros = GLRuudukko.extend({
 
   _siivoa: function (gl) {
     while (this._roskat.length) gl.deleteTexture(this._roskat.pop());
+    while (SadeLiike._roskat.length) gl.deleteTexture(SadeLiike._roskat.pop());
     while (Sadeennuste._roskat.length) gl.deleteTexture(Sadeennuste._roskat.pop());
   },
 
@@ -15236,7 +15785,20 @@ const SadeKerros = GLRuudukko.extend({
     return e.tex || this._texTyhja;
   },
 
-  _piirraTutka: function (gl, v, A, B, f, w) {
+  _piirraTutka: function (gl, v, A, B, f, w, siirtoTau) {
+    /* Liikekenttä parille: vartin raja B:n kohdalla tai sen jälkeen
+       (T − 15 → T kattaa A→B-välin), varalla naapurivartit. Uusi kenttä
+       lasketaan enintään kerran ruutua kohti (`_laskettu`).
+       `siirtoTau`: tuorein kehys siirrettynä τ eteenpäin nowcastin
+       ketjun kentällä (nowcastin ensimmäiset 15 min). */
+    let kentta = null;
+    if (siirtoTau) kentta = SadeLiike._nc ? SadeLiike._nc.kentta : null;
+    else if (B && B.t !== A.t && !_tlVahennaLiiketta()) {
+      const V = SADE_VARTTI_MS, T = Math.ceil(B.t / V) * V;
+      kentta = SadeLiike.kentta(this, T, !this._laskettu);
+      if (kentta === undefined) this._laskettu = true;
+      if (!kentta) kentta = SadeLiike.kentta(this, T + V, false) || SadeLiike.kentta(this, T - V, false) || null;
+    }
     const valmis = this._valmisTaso(), lista = [];
     for (const k in this._tiles) {
       const r = this._tiles[k];
@@ -15253,8 +15815,13 @@ const SadeKerros = GLRuudukko.extend({
       gl.uniform2f(p.u.u_koko, v.w, v.h);
       gl.uniform2f(p.u.u_tk, koko, koko);
       gl.uniform1f(p.u.u_w, w);
-      gl.uniform1i(p.u.u_a, 0); gl.uniform1i(p.u.u_b, 1); gl.uniform1i(p.u.u_lut, 2);
+      gl.uniform1i(p.u.u_a, 0); gl.uniform1i(p.u.u_b, 1); gl.uniform1i(p.u.u_lut, 2); gl.uniform1i(p.u.u_fl, 3);
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, self._texLut);
+      gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, kentta ? SadeLiike.tex(gl, kentta) : self._texFlNolla);
+      const dk = kentta ? (siirtoTau || (tB - tA)) / Sadetutka.ASKEL_MS / koko : 0;
+      gl.uniform2f(p.u.u_dk, dk, dk);
+      gl.uniform1f(p.u.u_s, siirtoTau ? 1 : 0);
+      gl.uniform1f(p.u.u_laaj, siirtoTau ? 0.25 : 0);
       GLApu.sekoitus(gl, 'normaali');
       for (const r of lista) {
         const el = r.el;
@@ -15269,6 +15836,10 @@ const SadeKerros = GLRuudukko.extend({
         gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, a);
         gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, b);
         gl.uniform1f(p.u.u_f, ff);
+        if (kentta && r.coords.z === kentta.R.z) {
+          const R = kentta.R;
+          gl.uniform4f(p.u.u_flr, (r.coords.x - R.x0) / R.nx, (r.coords.y - R.y0) / R.ny, 1 / R.nx, 1 / R.ny);
+        } else gl.uniform4f(p.u.u_flr, 0, 0, 0, 0);
         const s = Math.pow(2, v.zl - r.coords.z), sivu = koko * s;
         gl.uniform4f(p.u.u_rect, r.coords.x * sivu - v.x0, r.coords.y * sivu - v.y0, sivu, sivu);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -15327,12 +15898,77 @@ const SadeKerros = GLRuudukko.extend({
     });
   },
 
+  /* NOWCAST: advektoitu mosaiikki yhtenä nelikulmiona samalla
+     varjostimella kuin laatat, ja sen alla HARMONIEn tunti painolla
+     1 − painoNowcast(τ). Kahden nowcast-kehyksen välissä sekoitus on
+     liikekompensoitu samalla kentällä jolla kehykset on advektoitu. */
+  _piirraNowcast: function (gl, v, A, B, f, w) {
+    const u = Sadetutka._uusin;
+    if (u == null) return;
+    const H = 3600e3, tau = (B && f >= 0.5 ? B.t : A.t) - u;
+    const fa = SadeLiike.kehys(this, A.t - u, !this._laskettu);
+    if (!fa) { this._laskettu = true; if (SadeLiike._nc) this._uudelleen(); }
+    const fb = B ? SadeLiike.kehys(this, B.t - u, false) : null;
+    const wn = fa ? SadeLiike.painoNowcast(tau) : 0;
+    if (wn < 0.999) {
+      const h = Math.round((B && f >= 0.5 ? B.t : A.t) / H) * H;
+      this._piirraEnnuste(gl, v, { l: 'ennuste', t: h }, null, 0, w * (1 - wn));
+    }
+    if (!fa || wn < 0.004) return;
+    const tex = function (fr) {
+      if (!fr.tex) {
+        fr.tex = GLApu.tekstuuri(gl, gl.LINEAR);
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, fr.w, fr.h, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, fr.data);
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+      }
+      return fr.tex;
+    };
+    const sama = fb && fb.R === fa.R && fb.ox === fa.ox && fb.oy === fa.oy && fb.w === fa.w && fb.h === fa.h;
+    const ta = tex(fa), tb = sama ? tex(fb) : ta, ff = sama ? f : 0;
+    const self = this, p = this._pLaatta, R = fa.R, c = SadeLiike._nc;
+    GLApu.aja(gl, p, this._nelio, function () {
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+      gl.uniform2f(p.u.u_koko, v.w, v.h);
+      gl.uniform2f(p.u.u_tk, fa.w, fa.h);
+      gl.uniform1f(p.u.u_w, w * wn);
+      gl.uniform1i(p.u.u_a, 0); gl.uniform1i(p.u.u_b, 1); gl.uniform1i(p.u.u_lut, 2); gl.uniform1i(p.u.u_fl, 3);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, ta);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, tb);
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, self._texLut);
+      const k = c && c.kentta;
+      gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, k ? SadeLiike.tex(gl, k) : self._texFlNolla);
+      gl.uniform4f(p.u.u_flr, fa.ox / fa.W, fa.oy / fa.H, fa.w / fa.W, fa.h / fa.H);
+      gl.uniform1f(p.u.u_s, 0);
+      gl.uniform1f(p.u.u_laaj, 0);
+      const solu = 512 / SadeLiike.SOLU_P;
+      const dk = k && sama ? (fb.tau - fa.tau) / Sadetutka.ASKEL_MS : 0;
+      gl.uniform2f(p.u.u_dk, dk / (fa.w * solu), dk / (fa.h * solu));
+      gl.uniform1f(p.u.u_f, ff);
+      const s = Math.pow(2, v.zl - R.z);
+      gl.uniform4f(p.u.u_rect, (R.x0 * 512 + fa.ox * solu) * s - v.x0, (R.y0 * 512 + fa.oy * solu) * s - v.y0, fa.w * solu * s, fa.h * solu * s);
+      GLApu.sekoitus(gl, 'normaali');
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      gl.activeTexture(gl.TEXTURE0);
+    });
+    /* ENSIMMÄISET 15 MIN: tuorein tutkakehys täydellä tarkkuudella
+       siirrettynä kentän mukana, häivyttäen mosaiikkiin. Ilman tätä raja
+       tutka → lähiennuste olisi tarkkuuden hyppy (250 m → 0,3–1,2 km). */
+    const vartti = SADE_VARTTI_MS;
+    if (tau < vartti && SadeLiike._nc) {
+      const wr = 1 - tau / vartti;
+      this._piirraTutka(gl, v, { l: 'tutka', t: u }, null, 0, w * wr, Math.max(1, tau));
+    }
+  },
+
   /* Yksi kehys painolla w. Saman lähteen kaksi kehystä sekoitetaan
      voimakkuudessa; eri lähteet (tutka <-> ennuste NYT-tikillä,
      häivytys tyhjään) piirretään päällekkäin painoillaan. */
   _piirraPari: function (gl, v, A, B, f, w) {
-    if (B && A.l === B.l && (A.l === 'tutka' || A.l === 'ennuste')) {
+    if (B && A.l === B.l && (A.l === 'tutka' || A.l === 'ennuste' || A.l === 'nowcast')) {
       if (A.l === 'tutka') this._piirraTutka(gl, v, A, B, f, w);
+      else if (A.l === 'nowcast') this._piirraNowcast(gl, v, A, B, f, w);
       else this._piirraEnnuste(gl, v, A, B, f, w);
       return;
     }
@@ -15342,6 +15978,7 @@ const SadeKerros = GLRuudukko.extend({
       if (ww < 0.004) continue;
       if (k.l === 'tutka') this._piirraTutka(gl, v, k, null, 0, ww);
       else if (k.l === 'ennuste') this._piirraEnnuste(gl, v, k, null, 0, ww);
+      else if (k.l === 'nowcast') this._piirraNowcast(gl, v, k, null, 0, ww);
     }
   },
 
@@ -15350,12 +15987,17 @@ const SadeKerros = GLRuudukko.extend({
     if (!map || !this._pLaatta) return;
     this._siivoa(gl);
     const nyt = performance.now();
+    this._laskettu = false;
     const k = this._kohde();
     const d = this._paata(nyt, k);
     this._palvele(this._tarpeet(k, d));
     this._varmistaLut(gl);
     this._piirraPari(gl, map._nakyma(), d.A, d.B, d.f, 1);
     this._paivitaLeima(d, k);
+    /* Nowcastin ketju (kenttä ja lähtömosaiikki) heti kun kehykset ovat
+       perillä: aikajanan palkit ja kapseli lukevat siitä pisteen arvon. */
+    if (!this._laskettu) SadeLiike._ketju(this);
+    if (Nowcast.versio !== this._ncVersio) { this._ncVersio = Nowcast.versio; _sadeNowcastMuuttui(); }
     /* Uusi ruutu niin kauan kuin jokin liikkuu: silmukka, häivytys,
        aikajana tai odotus (aikaraja tarkistetaan ruuduissa). */
     if (d.anim || d.liikkuu || this._odotus) this._uudelleen();
@@ -15371,6 +16013,7 @@ const SadeKerros = GLRuudukko.extend({
         teksti = _t('Sadetutka ', 'Rain radar ') + _tutkaKello(nayt.t);
         break;
       case 'ennuste': teksti = _t('Sade-ennuste ', 'Rain forecast ') + _tutkaKello(nayt.t) + ' · HARMONIE'; break;
+      case 'nowcast': teksti = _t('Lähiennuste ', 'Nowcast ') + _tutkaKello(nayt.t) + _t(' · tutka + HARMONIE', ' · radar + HARMONIE'); break;
       case 'odota': teksti = _t('Sadetutka · ladataan…', 'Rain radar · loading…'); break;
       case 'eitutkaa': teksti = _t('Sadetutka · ei saatavilla', 'Rain radar · unavailable'); break;
       case 'eiarkistoa': teksti = _t('Sadetutka · ei arkistoa tälle päivälle', 'Rain radar · no archive for this day'); break;
@@ -30347,9 +30990,33 @@ function _sadeVarttiAseta(v) {
  * Tuorein kehys ei katoa mihinkään — se ratkaisee yhä KEHYSTEN
  * ANKKURIN (`kehykset()` katkaisee siihen), eli nyt-tikin kuva on se
  * 21:55 ja aikaleima sanoo sen ääneen. */
+/* NOWCASTIN JÄLKEEN (V5, 4.10.) RAJA ON TUOREIN KEHYS ITSE, ei tunnin
+   pyöristys: hetki ≤ tuorein kehys (+2,5 min) on tutkaa, sitä seuraavat
+   120 min lähiennustetta (`SadeLiike.NOWCAST_MS`) ja sen jälkeen
+   HARMONIEa. Vanha virhe (tunnin pyöristys putosi tutkan viiveen takia
+   ennusteeseen) ei toistu, koska raja ON kehyksen aika. Ennen ensimmäistä
+   luotausta pätee vanha sääntö, jotta NYT-tikki kysyy luotaimen
+   (`_kehys`) eikä tuleva tunti silti vaadi sitä. */
 function _tutkaLahde(hetki) {
-  return Math.round(hetki / 3600000) <= Math.round(Date.now() / 3600000)
-    ? 'tutka' : 'ennuste';
+  const u = Sadetutka._uusin;
+  if (u == null) {
+    return Math.round(hetki / 3600000) <= Math.round(Date.now() / 3600000) ? 'tutka' : 'ennuste';
+  }
+  if (hetki <= u + 150000) return 'tutka';
+  if (hetki <= u + SadeLiike.NOWCAST_MS) return 'nowcast';
+  return 'ennuste';
+}
+
+/* Nowcast täydentyi tai vaihtui: aikajanan palkit ja kapseli (kuristettu,
+   kehyksiä tulee 24 peräkkäin). */
+let _sadeNcAjastin = 0;
+function _sadeNowcastMuuttui() {
+  clearTimeout(_sadeNcAjastin);
+  _sadeNcAjastin = setTimeout(function () {
+    if (!_sadetila()) return;
+    if (!State._tlTouching && !State.isPlaying) { State._tlMuisti = null; updateTimelineToCenter(); }
+    if (typeof Crosshair !== 'undefined' && Crosshair._el) Crosshair._update();
+  }, 400);
 }
 
 /* Panorointi ja aikajanan tikin vaihto: kerros ratkaisee itse joka
