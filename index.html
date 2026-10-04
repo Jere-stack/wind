@@ -685,7 +685,18 @@ html:has(#sheet.open) #kapseli { opacity: 0; pointer-events: none; }
   width: 14px; height: 14px; display: block; flex-shrink: 0;
   transition: transform .35s cubic-bezier(.32,.72,.24,1);
 }
-.kap-suunta { font-size: var(--fs-13); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.kap-suunta { font-size: var(--fs-13); color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Vasen osa aaltoina: korkeus ylhäällä musteella (ei rampin väriä —
+   ramppi on tuulen nopeus), arvioitu suurin aalto alla harmaana kuten
+   puuska keskiosassa. Tuulen suuntana toinen rivi on poissa virrasta. */
+.kap-vasen-teksti { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.kap-aaltomax {
+  display: none;
+  font-size: var(--fs-105); line-height: 1;
+  color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.kap-suunta-osa.aalto .kap-suunta { font-size: 15px; font-weight: 600; line-height: 1; color: var(--ink); }
+.kap-suunta-osa.aalto .kap-aaltomax { display: block; }
 
 /* Tuuli. Keskiosa on kaksirivinen: lukema ylhäällä, puuska sen alla
    pienempänä ja harmaana. Puuska EI ole rampin väreissä vaikka se on
@@ -4462,7 +4473,15 @@ h3.fc-day-label { margin: 0; }
 #units-picker { width: 152px; }
 /* Suuntakortti on leveämpi, koska ilmansuunta on sana eikä luku:
    pisin ("pohjoisesta") vie 68 px arvosarakkeessa. */
-#suunta-picker { width: 176px; }
+#suunta-picker { width: 196px; }
+/* Ryhmän nimi pienenä versaalina kuten paneeleissa (`.sh-ryhma`). */
+.up-otsikko {
+  font-size: var(--fs-11); font-weight: 600; color: var(--ink-3);
+  text-transform: uppercase; letter-spacing: .04em;
+  padding: 8px 10px 4px;
+}
+.up-ryhma .up-otsikko:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--hairline); padding-top: 10px; }
+#suunta-picker.ei-vasen .up-ryhma { display: none; }
 .up-option {
   display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
   width: 100%; border: 0; background: transparent; text-align: left; font: inherit; color: inherit;
@@ -5729,16 +5748,21 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
 
 
   <!-- Yläreunan kapseli: yksi kelluva rivi kartan päällä. Kolme osaa
-       vasemmalta oikealle — suunta, tuuli, sää. Tuuliosa avaa
-       yksikkövalitsimen, sääosa tuntisään. -->
+       vasemmalta oikealle — vasen lukema, tuuli, sää. Vasen osa on
+       oletuksena aallot (merkitsevä aallonkorkeus, suunta nuolena ja
+       arvioitu suurin aalto) ja valikosta tuulen suunta (`KapVasen`).
+       Tuuliosa avaa yksikkövalitsimen, sääosa tuntisään. -->
   <div id="kapseli" class="hidden">
-    <button class="kap-osa kap-suunta-osa" type="button" aria-label="Vaihda suunnan esitystapa" data-en-aria-label="Change direction format">
+    <button class="kap-osa kap-suunta-osa" type="button" aria-label="Valitse vasen lukema" data-en-aria-label="Choose the left reading">
       <svg class="ts-arrow" id="kap-nuoli" viewBox="0 0 24 24" aria-hidden="true">
         <path d="M12 2.6 V21.4 M5.9 9.4 L12 2.6 L18.1 9.4"
               fill="none" stroke="currentColor" stroke-width="2.2"
               stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-      <span class="kap-suunta" id="kap-suunta">--&deg;</span>
+      <span class="kap-vasen-teksti">
+        <span class="kap-suunta" id="kap-suunta">--&deg;</span>
+        <span class="kap-aaltomax" id="kap-aaltomax"></span>
+      </span>
     </button>
     <span class="kap-jako"></span>
     <button class="kap-osa kap-tuuli" type="button" aria-label="Vaihda yksikk&ouml;" data-en-aria-label="Change unit">
@@ -5794,9 +5818,18 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
     <button type="button" class="up-option" data-unit="bft" aria-pressed="false"><span class="up-label">bft</span><span class="up-value"></span></button>
   </div>
 
-  <!-- Suunnan esitystapa. Arvosarake näyttää nykyisen suunnan kummassakin
-       muodossa, joten valinta ei ole arvailua. -->
+  <!-- Kapselin vasen lukema ja suunnan esitystapa. Ylempi ryhmä valitsee
+       mitä vasen osa näyttää (aallot vai tuulen suunta); aaltotilassa se
+       on piilossa, koska silloin koko kapseli on aaltoa. Arvosarake
+       näyttää nykyisen lukeman kussakin muodossa, joten valinta ei ole
+       arvailua. -->
   <div id="suunta-picker" class="valintakortti">
+    <div class="up-ryhma" id="kap-vasen-ryhma">
+      <div class="up-otsikko" data-en="Show">Näytä</div>
+      <button type="button" class="up-option" data-vasen="aallot" aria-pressed="false"><span class="up-label" data-en="Waves">Aallot</span><span class="up-value"></span></button>
+      <button type="button" class="up-option" data-vasen="tuuli" aria-pressed="false"><span class="up-label" data-en="Wind direction">Tuulen suunta</span><span class="up-value"></span></button>
+      <div class="up-otsikko" data-en="Direction">Suunta</div>
+    </div>
     <button type="button" class="up-option" data-suunta="asteet" aria-pressed="false"><span class="up-label" data-en="Degrees">Asteet</span><span class="up-value"></span></button>
     <button type="button" class="up-option" data-suunta="nimi" aria-pressed="false"><span class="up-label" data-en="Compass">Ilmansuunta</span><span class="up-value"></span></button>
   </div>
@@ -7173,10 +7206,40 @@ const Suunta = {
   fmt(deg) { return this._muoto === 'nimi' ? this.nimi(deg) : Math.round(deg) + '°'; },
   fmtIn(deg, muoto) { return muoto === 'nimi' ? this.nimi(deg) : Math.round(deg) + '°'; },
   _syncChips() {
-    document.querySelectorAll('#suunta-picker .up-option').forEach(el =>
+    document.querySelectorAll('#suunta-picker .up-option[data-suunta]').forEach(el =>
       el.classList.toggle('active', el.dataset.suunta === this._muoto));
   }
 };
+
+/* KAPSELIN VASEN LUKEMA (käyttäjän pyyntö 4.10.): oletuksena AALLOT —
+   merkitsevä aallonkorkeus tähtäimen kohdassa, sen suunta nuolena ja
+   arvioitu suurin yksittäinen aalto — ja valikosta takaisin tuulen
+   suunnaksi. Tuulen suunta ei katoa aaltojen alle: tähtäimen rengas
+   (`#ch-wind-arrow`) näyttää sen yhä, ja maalla tai mallin jakson
+   ulkopuolella (ei aaltoa) vasen osa näyttää tuulen suunnan itse.
+   Koskee vain tuulikerrosta: aaltotilassa koko kapseli on aaltoa ja
+   sadetilassa sadetta, kuten ennenkin. Tallentuu kuten suuntamuoto. */
+const KapVasen = {
+  _arvo: 'aallot',
+  init() {
+    try {
+      const s = localStorage.getItem('fs_kapseli_vasen');
+      if (s === 'aallot' || s === 'tuuli') this._arvo = s;
+    } catch(e) {}
+  },
+  get() { return this._arvo; },
+  set(arvo) {
+    if (arvo !== 'aallot' && arvo !== 'tuuli') return;
+    this._arvo = arvo;
+    try { localStorage.setItem('fs_kapseli_vasen', arvo); } catch(e) {}
+  },
+};
+/* SUURIN AALTO ON ARVIO, EI MALLIN SUURE: WAM antaa vain merkitsevän
+   aallonkorkeuden (Hs, korkeimman kolmanneksen keskiarvo). Yksittäinen
+   aalto voi olla lähes kaksi kertaa Hs (FMI:n oma ohje; Rayleigh-jakauma
+   antaa ~1 000 aallolle 1,86 × Hs), joten kapseli sanoo "maks. ~" eikä
+   esitä lukua mittauksena. */
+const AALTO_MAKS_KERROIN = 1.9;
 
 const Units = {
   /* Oletusyksikkö on solmu: sovellus on wingfoilaajille, ja kalusto
@@ -29960,11 +30023,14 @@ const Crosshair = {
   _chEl: null, _windArrow: null, _updateTimer: null,
   _ms: null,   /* viimeisin tuuli m/s — yksikkövalitsin näyttää sen muunnokset */
   _dir: null,  /* viimeisin suunta asteina — suuntavalitsin näyttää sen muodot */
+  _aalto: null, /* vasemman osan aalto { hs, dir, tp } tuulikerroksella, tai null */
   init() {
     this._el = document.getElementById('kapseli');
     this._nopeusEl = document.getElementById('kap-nopeus');
     this._nuoliEl = document.getElementById('kap-nuoli');
     this._suuntaEl = document.getElementById('kap-suunta');
+    this._aaltoMaxEl = document.getElementById('kap-aaltomax');
+    this._vasenEl = document.querySelector('.kap-suunta-osa');
     this._puuskaEl = document.getElementById('kap-puuska');
     this._chEl = document.getElementById('crosshair');
     this._windArrow = document.getElementById('ch-wind-arrow');
@@ -29985,6 +30051,10 @@ const Crosshair = {
        Ennen varhaisia paluita: merkintä on voimassa vaikka kapseli
        piiloutuisi tyynellä. */
     Lahde.paivita(center);
+    /* Vasemman osan aaltoasu on vain tuulikerroksen; aalto- ja
+       sadetila kirjoittavat osan itse. */
+    if (this._vasenEl) this._vasenEl.classList.remove('aalto');
+    this._aalto = null;
     if (aaltotila()) { this._aaltoUpdate(center); return; }
     if (this._nuoliEl) this._nuoliEl.style.visibility = '';
     if (_sadetila()) { this._sadeUpdate(center); return; }
@@ -30005,10 +30075,12 @@ const Crosshair = {
        josta tuulee, joten nuoli kääntyy dir + 180. Aiemmin tässä oli
        merkkifontin nuoli kahdeksassa portaassa: 194° näytti samalta kuin
        180°. Piirretty nuoli kääntyy asteen tarkkuudella. */
-    this._nuoliEl.style.transform = 'rotate(' + ((dir + 180) % 360).toFixed(1) + 'deg)';
-    this._nuoliEl.style.color = colorStr;
     this._dir = dir;
-    this._suuntaEl.textContent = Suunta.fmt(dir);
+    if (!this._vasenAalto(center)) {
+      this._nuoliEl.style.transform = 'rotate(' + ((dir + 180) % 360).toFixed(1) + 'deg)';
+      this._nuoliEl.style.color = colorStr;
+      this._suuntaEl.textContent = Suunta.fmt(dir);
+    }
     if (this._windArrow) this._windArrow.style.transform = 'rotate(' + Math.round(dir) + 'deg)';
 
     /* Puuska on harmaa eikä rampin värinen, vaikka se on tuulitieto: jos
@@ -30024,6 +30096,50 @@ const Crosshair = {
     } else {
       this._puuskaEl.classList.add('hidden');
     }
+  },
+  /* VASEN OSA AALTOINA tuulikerroksella (`KapVasen`). Sama näyte kuin
+     aaltotilan kapselissa ja kartalla (`Aallot.arvo`, sama hetki ja
+     zoomin taso), mutta ilman rantamaskia: se luetaan pohjakartan
+     laatoista vasta aaltotilassa, eikä tuulikerros saa maksaa niitä.
+     Märkyysraja 0,5 on silloin mallin oma ranta. Palauttaa toden jos
+     osa kirjoitettiin; muuten kutsuja kirjoittaa tuulen suunnan (maa,
+     mallin jakson ulkopuoli, data matkalla) — tyhjä "— m" sisämaassa
+     olisi pysyvä viiva kapselissa. Nuoli on mustetta, koska rampin väri
+     kertoisi tuulen nopeuden; tuulen suunta näkyy tähtäimen renkaassa. */
+  _aaltoHaettu: '',
+  _vasenAalto(center) {
+    this._aalto = null;
+    if (KapVasen.get() !== 'aallot') return false;
+    if (!Aallot.kaytossa()) {
+      /* Luettelo vielä matkalla: kentän rakennus kutsuu `refresh`iä kun
+         se tulee. Luettelo ilman aaltoja: haetaan uudempi (enintään kerran
+         viidessä minuutissa, kuten aaltotilassa). */
+      const self = this;
+      if (Saalaatat._luettelo) Aallot.paivita().then(function (u) { if (u) self._update(); });
+      return false;
+    }
+    const t = LampoGL._hetki();
+    if (!Aallot.kattaa(t)) return false;
+    const a = Aallot.arvo(center.lat, center.lng, t, Aallot.askelZoomille(State.map.getZoom()), 0);
+    /* Puuttuva laatta haetaan kerran paikkaa ja tasoa kohti — `_update`
+       ajetaan sormen alla 60 ms välein, eikä kaatunut haku saa toistua
+       joka kerta. */
+    if (!a || Aallot._vajaa) {
+      const avain = center.lat.toFixed(2) + ',' + center.lng.toFixed(2) + '|' + Math.round(State.map.getZoom());
+      if (avain !== this._aaltoHaettu) {
+        this._aaltoHaettu = avain;
+        const self = this;
+        Aallot.varmistaPiste(center.lat, center.lng).then(function (n) { if (n > 0) self._update(); }, function () {});
+      }
+    }
+    if (!a) return false;
+    this._aalto = a;
+    this._vasenEl.classList.add('aalto');
+    this._nuoliEl.style.transform = 'rotate(' + ((a.dir + 180) % 360).toFixed(1) + 'deg)';
+    this._nuoliEl.style.color = '';
+    this._suuntaEl.textContent = _aaltoM(a.hs) + ' m';
+    this._aaltoMaxEl.textContent = _t('maks. ~', 'max ~') + _aaltoM(a.hs * AALTO_MAKS_KERROIN) + ' m';
+    return true;
   },
   /* SADETILASSA KAPSELI ON SADE (docs/sadetutka.md, P3): intensiteetti
      keskipisteen solussa valitulla hetkellä (vartti kun se on tiedossa,
@@ -32044,8 +32160,23 @@ const UnitsPicker = Valitsin('units-picker', '.kap-tuuli', (kortti) => {
 });
 
 const SuuntaPicker = Valitsin('suunta-picker', '.kap-suunta-osa', (kortti) => {
-  const m = Suunta.get(), dir = Crosshair._dir;
-  kortti.querySelectorAll('.up-option').forEach(el => {
+  /* Vasemman lukeman valinta vain tuulikerroksella: aalto- ja sadetilassa
+     kapseli on kokonaan sitä kerrosta. Suunta on aallon suunta kun vasen
+     osa näyttää aaltoa, muuten tuulen. */
+  const vasenValittavissa = !aaltotila() && !_sadetila();
+  kortti.classList.toggle('ei-vasen', !vasenValittavissa);
+  const v = KapVasen.get(), aa = Crosshair._aalto;
+  kortti.querySelectorAll('.up-option[data-vasen]').forEach(el => {
+    el.classList.toggle('active', el.dataset.vasen === v);
+    el.setAttribute('aria-pressed', String(el.dataset.vasen === v));
+    const arvo = el.querySelector('.up-value');
+    if (!arvo) return;
+    if (el.dataset.vasen === 'aallot') arvo.textContent = aa ? _aaltoM(aa.hs) + ' m' : '–';
+    else arvo.textContent = Crosshair._ms != null && Crosshair._dir != null ? Suunta.fmtIn(Crosshair._dir, 'asteet') : '';
+  });
+  const m = Suunta.get();
+  const dir = aa && vasenValittavissa ? aa.dir : Crosshair._dir;
+  kortti.querySelectorAll('.up-option[data-suunta]').forEach(el => {
     el.classList.toggle('active', el.dataset.suunta === m);
     el.setAttribute('aria-pressed', String(el.dataset.suunta === m));
     const v = el.querySelector('.up-value');
@@ -32059,7 +32190,13 @@ Valitsin._kaikki = [UnitsPicker, SuuntaPicker];
 document.getElementById('suunta-picker').addEventListener('click', e => {
   const opt = e.target.closest('.up-option');
   if (!opt) return;
-  if (opt.dataset.suunta !== Suunta.get()) {
+  if (opt.dataset.vasen) {
+    if (opt.dataset.vasen !== KapVasen.get()) {
+      Haptics.selection();
+      KapVasen.set(opt.dataset.vasen);
+      Crosshair.refresh();
+    }
+  } else if (opt.dataset.suunta !== Suunta.get()) {
     Haptics.selection();
     Suunta.set(opt.dataset.suunta);
     Crosshair.refresh();
@@ -32945,7 +33082,7 @@ function _avaaLinkista(linkki) {
    promisensa, joten odotus ei viivytä kartan piirtoa. */
 async function main() {
   buildLegend(); initMap(); initCanvases();
-  Crosshair.init(); WeatherWidget.init(); Units.init(); Suunta.init();
+  KapVasen.init(); Crosshair.init(); WeatherWidget.init(); Units.init(); Suunta.init();
   /* Kartan asetukset vasta initCanvasesin jälkeen: partikkelikanvas on
      silloin olemassa ja "Pois" osaa piilottaa sen heti. */
   KarttaAsetukset.alusta();

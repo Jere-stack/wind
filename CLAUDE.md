@@ -312,7 +312,8 @@ kokeiltu ja kaadettu mittauksella.
   **Yömeri: valikot ja kaaviot kuvakkeen väreihin** ·
   **Yömeri, toinen erä: asetukset, kortit, sääikonit, spottien väistö** ·
   **Kartan merkit: pallot kaukana, yksi raja ja sijoittelu** ·
-  **Kartan merkit, toinen erä: lukemat taas kaukaa**
+  **Kartan merkit, toinen erä: lukemat taas kaukaa** ·
+  **Kapselin vasen lukema: aallot oletuksena**
 - **pwa**: PWA — kotivalikkoon ja rannalle · Mitä välimuistiin menee ·
   Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
   Ikoni ja kotivalikko
@@ -989,6 +990,16 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   syy oli ettei näkymässä ollut spotteja. "Nyt"-lista on nykyhetken
   tunnilta (`Ennuste.nytTunti()`), ei aikajanan valinnasta, suosikit
   ensin.
+- **KAPSELIN VASEN OSA ON OLETUKSENA AALLOT** (käyttäjän pyyntö 4.10.,
+  docs/ui.md "Kapselin vasen lukema"): tuulikerroksella merkitsevä
+  aallonkorkeus, suunta nuolena (mustetta, ei rampin väriä) ja arvioitu
+  suurin aalto (`AALTO_MAKS_KERROIN` 1,9 × Hs, teksti "maks. ~" — WAM ei
+  anna suurinta aaltoa). Valikko (`#suunta-picker`, ryhmä "Näytä",
+  `KapVasen`, `fs_kapseli_vasen`) palauttaa tuulen suunnan. Missä aaltoa
+  ei ole (maa, jakson ulkopuoli, data matkalla) osa on tuulen suunta.
+  Ei rantamaskia tuulikerroksella (se on aaltotilan kustannus). AALTO- JA
+  SADETILA EIVÄT MUUTU: niissä koko kapseli on sitä kerrosta, ja valikon
+  "Näytä"-ryhmä on piilossa.
 - **KAPSELI VÄISTYY KUN SPOTTIKORTTI ON AUKI**
   (`html:has(#sheet.open) #kapseli`). Kapseli lukee kartan keskipisteen
   ja kortti spotin: mitattuna 2,6 ja 6,9 kts yhtä aikaa samalla

@@ -8132,3 +8132,50 @@ kiekolla"). Pyöreä `--surface-hi`-levy kerman hiusreunalla (.30),
 numero `--ink` 750 (0,44 × koko, 100: 0,38), indeksi ohuena kaarena
 (max(2, 0,075 × koko); ennen 3/36) `spotIndexInk`-värillä ja ura
 `--hairline`. Sijoittelussa spotti on taas este ympyränä.
+
+## Kapselin vasen lukema: aallot oletuksena (4.10.)
+
+Käyttäjän pyyntö: kapselin vasemman osan tuulen suunnan tilalle
+oletuksena aallonkorkeus ja suunta ja/tai suurin aalto tähtäimen
+kohdassa, ja osaa napauttamalla valikosta takaisin tuulen suunnaksi.
+
+**Mitä tehtiin.** Tuulikerroksella vasen osa (`.kap-suunta-osa`)
+näyttää nyt kaksi riviä: merkitsevä aallonkorkeus (15 px/600, muste)
+ja alla arvioitu suurin aalto (`maks. ~1,5 m` / `max ~1.5 m`, 10,5 px
+`--ink-3`, kuten puuska keskiosassa). Nuoli osoittaa aallon
+etenemissuunnan (MISTÄ + 180°, kuten tuulella) ja on mustetta eikä
+rampin väriä — ramppi on tuulen nopeus. Tuulen suunta ei katoa:
+tähtäimen renkaan nuoli (`#ch-wind-arrow`) näyttää sen yhä.
+
+**Valinta.** Suuntavalitsin (`#suunta-picker`) sai ylemmän ryhmän
+"Näytä": Aallot / Tuulen suunta (`KapVasen`, `fs_kapseli_vasen`,
+tallentuu; oletus aallot). Alempi ryhmä "Suunta" on entinen
+asteet/ilmansuunta. Arvosarake näyttää lukeman kussakin muodossa.
+
+**Suurin aalto on arvio.** WAM antaa vain Hs:n. Yksittäinen aalto on
+FMI:n ohjeen mukaan lähes kaksi kertaa Hs (Rayleigh ~1 000 aallolle
+1,86), joten kerroin on 1,9 (`AALTO_MAKS_KERROIN`) ja teksti sanoo
+"~". Älä esitä sitä mallin suureena.
+
+**Missä aaltoa ei ole, osa on tuulen suunta.** Maalla, mallin jakson
+ulkopuolella ja datan ollessa matkalla (`Aallot.arvo` ilman arvoa)
+osa näyttää tuulen suunnan kuten ennen — "— m" sisämaassa olisi
+pysyvä viiva kapselissa. Näyte on sama kuin aaltotilan kapselissa ja
+kartalla (`Aallot.arvo`, `LampoGL._hetki()`, `askelZoomille`), mutta
+ILMAN rantamaskia: `Rantamaski` lukee pohjakartan laattoja ja on
+aaltotilan kustannus, joten raja on mallin oma märkyys ≥ 0,5. Puuttuva
+laatta haetaan kerran paikkaa (0,01°) ja zoomia kohti
+(`Crosshair._aaltoHaettu`), koska `_update` ajetaan sormen alla 60 ms
+välein. Laatat ovat samaa varastoa (ei kiintiötä).
+
+**Aaltotila ja sadetila eivät muuttuneet.** Aaltotilassa koko kapseli
+on aaltoa (vasen = aallon suunta, keskellä korkeus, alla jakso) ja
+sadetilassa sadetta; vasemman osan aaltoasu (`.aalto`) poistetaan
+ennen niiden haaraa, ja valikon "Näytä"-ryhmä on piilossa
+(`.ei-vasen`), koska valinnalla ei ole niissä merkitystä.
+
+Mitattu (Chromium, 375 px, `?kieli=fi|en`): Helsingin edusta z10
+"0,80 m | maks. ~1,5 m", kapseli 280 / 272 px; valinta "Tuulen suunta"
+→ "274°"; sisämaa (Tampere) → tuulen suunta; aaltotila ennallaan
+("224° | 0,80 m | jakso 5 s"), valikossa vain asteet/ilmansuunta;
+savutesti läpi, ei `pageerror`ia.
