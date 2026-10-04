@@ -14579,14 +14579,31 @@ const SadeSarja = {
     const k = this.avain(lat, lng), e = this._m.get(k), nyt = Date.now();
     if (e && e.data && nyt - e.t < this.TUORE_MS) return e.data;
     if (!e || (!e.kesken && nyt - e.t > (e.data ? this.TUORE_MS : 60000))) {
-      const uusi = { t: nyt, data: e ? e.data : null, kesken: true };
+      const uusi = { t: nyt, data: e ? e.data : null, kesken: true, ec: e ? e.ec : null };
       this._m.set(k, uusi);
-      const self = this;
-      fetch(API_BASE + '/sade?sarja=1&lat=' + k.split(',')[0] + '&lon=' + k.split(',')[1])
+      const self = this, la = k.split(',')[0], lo = k.split(',')[1];
+      /* Jatko HARMONIEn jälkeen: ECMWF 9 km:n sademäärä pisteessä
+         (`/api/malli?tila=sarja&muuttuja=sade`, docs/sadetutka.md V6).
+         Haetaan rinnakkain, ja kumpi tahansa voi tulla ensin. */
+      fetch(API_BASE + '/malli?tila=sarja&muuttuja=sade&lat=' + la + '&lng=' + lo)
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) {
+          if (!j || !j.mm) return;
+          const m = new Map();
+          let loppu = 0;
+          j.mm.forEach(function (v, i) { if (v != null) { const t = j.t0 + i * 3600e3; m.set(t, v); loppu = t; } });
+          uusi.ec = { mm: m, loppu: loppu };
+          if (uusi.data) { uusi.data.ecmwf = m; uusi.data.ecmwfLoppu = loppu; if (self.kunValmis) self.kunValmis(); }
+        }, function () {});
+      fetch(API_BASE + '/sade?sarja=1&lat=' + la + '&lon=' + lo)
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (j) {
           uusi.kesken = false; uusi.t = Date.now();
-          if (j && j.tunnit) { uusi.data = SadeSarja._valmistele(j); if (self.kunValmis) self.kunValmis(); }
+          if (j && j.tunnit) {
+            uusi.data = SadeSarja._valmistele(j);
+            if (uusi.ec) { uusi.data.ecmwf = uusi.ec.mm; uusi.data.ecmwfLoppu = uusi.ec.loppu; }
+            if (self.kunValmis) self.kunValmis();
+          }
         }, function () { uusi.kesken = false; uusi.t = Date.now(); });
       if (this._m.size > 40) this._m.delete(this._m.keys().next().value);
     }
@@ -14595,6 +14612,13 @@ const SadeSarja = {
   /* Sade-ennusteen loppu: pisin tiedossa oleva HARMONIE-sarja, ennen
      ensimmäistä hakua 60 h (mitattu 61–62 h, docs/data.md). */
   loppu() {
+    let b = 0;
+    for (const e of this._m.values()) if (e.data) b = Math.max(b, e.data.ennusteLoppu || 0, e.data.ecmwfLoppu || 0);
+    return b || Math.floor(Date.now() / 3600e3) * 3600e3 + 60 * 3600e3;
+  },
+  /* HARMONIEn sade-ennusteen loppu: sen jälkeen kartta ja palkit
+     lukevat ECMWF:ää (V6). */
+  harmonieLoppu() {
     let b = 0;
     for (const e of this._m.values()) if (e.data && e.data.ennusteLoppu > b) b = e.data.ennusteLoppu;
     return b || Math.floor(Date.now() / 3600e3) * 3600e3 + 60 * 3600e3;
@@ -14628,6 +14652,7 @@ const SadeSarja = {
         const nc = typeof Nowcast !== 'undefined' ? Nowcast.tunti(t) : null;
         if (nc != null) { mm = nc; lahde = 'nowcast'; }
         else if (d.ennuste.has(t)) { mm = d.ennuste.get(t); lahde = 'ennuste'; }
+        else if (d.ecmwf && t > d.ennusteLoppu && d.ecmwf.has(t)) { mm = d.ecmwf.get(t); lahde = 'ecmwf'; }
       }
       if (mm == null) { out[i] = null; continue; }
       let q = null;
@@ -14727,11 +14752,22 @@ const Sadeennuste = {
     e.lataa = true;
     this._kesken++;
     const self = this;
-    fetch(API_BASE + '/sade?bbox=' + [lo1, la1, lo2, la2].map(v => v.toFixed(4)).join(',')
-      + '&time=' + encodeURIComponent(this.tunti(ms)) + '&ni=' + ni + '&nj=' + nj)
+    /* HARMONIEn jakson jälkeen (tai kun se vastaa tulevalle tunnille
+       tyhjää) hila tulee ECMWF 9 km:stä samassa muodossa (V6). */
+    const ec = e.ecmwf || ms > SadeSarja.harmonieLoppu();
+    const osoite = ec
+      ? API_BASE + '/malli?muuttuja=sade&t=' + ms + '&s=' + la1.toFixed(4) + '&n=' + la2.toFixed(4)
+        + '&w=' + lo1.toFixed(4) + '&e=' + lo2.toFixed(4)
+      : API_BASE + '/sade?bbox=' + [lo1, la1, lo2, la2].map(v => v.toFixed(4)).join(',')
+        + '&time=' + encodeURIComponent(this.tunti(ms)) + '&ni=' + ni + '&nj=' + nj;
+    fetch(osoite)
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function (j) {
-        if (!j || j.error) { e.tila = 'tyhja'; return; }
+        if (!j || j.error) {
+          if (!ec && ms > Date.now()) { e.ecmwf = true; e.tila = 'kesken'; return; }
+          e.tila = 'tyhja'; return;
+        }
+        e.lahde = j.lahde === 'ecmwf' ? 'ecmwf' : 'harmonie';
         const tavut = atob(j.mmh), n = j.ni * j.nj;
         const arvot = new Uint16Array(n);
         for (let i = 0; i < n; i++) arvot[i] = (tavut.charCodeAt(i * 2) << 8) | tavut.charCodeAt(i * 2 + 1);
@@ -16012,7 +16048,12 @@ const SadeKerros = GLRuudukko.extend({
       case 'tutka':
         teksti = _t('Sadetutka ', 'Rain radar ') + _tutkaKello(nayt.t);
         break;
-      case 'ennuste': teksti = _t('Sade-ennuste ', 'Rain forecast ') + _tutkaKello(nayt.t) + ' · HARMONIE'; break;
+      case 'ennuste': {
+        const m = Sadeennuste.merkinta(nayt.t);
+        teksti = _t('Sade-ennuste ', 'Rain forecast ') + _tutkaKello(nayt.t)
+          + (m && m.lahde === 'ecmwf' ? _t(' · ECMWF 9 km, karkea', ' · ECMWF 9 km, coarse') : ' · HARMONIE');
+        break;
+      }
       case 'nowcast': teksti = _t('Lähiennuste ', 'Nowcast ') + _tutkaKello(nayt.t) + _t(' · tutka + HARMONIE', ' · radar + HARMONIE'); break;
       case 'odota': teksti = _t('Sadetutka · ladataan…', 'Rain radar · loading…'); break;
       case 'eitutkaa': teksti = _t('Sadetutka · ei saatavilla', 'Rain radar · unavailable'); break;
@@ -29720,7 +29761,8 @@ const Crosshair = {
       const th = Math.ceil(hetki / H) * H;
       tunti = d.tunnit.has(th) && th <= d.tutkaLoppu ? d.tunnit.get(th)
         : (typeof Nowcast !== 'undefined' && Nowcast.tunti(th) != null) ? Nowcast.tunti(th)
-        : d.ennuste.has(th) ? d.ennuste.get(th) : null;
+        : d.ennuste.has(th) ? d.ennuste.get(th)
+        : (d.ecmwf && d.ecmwf.has(th)) ? d.ecmwf.get(th) : null;
       if (mmh == null) mmh = tunti;
     }
     if (mmh == null) {
@@ -29735,7 +29777,8 @@ const Crosshair = {
     this._nopeusEl.innerHTML = '<span' + (c ? ' style="color:' + c + '"' : '') + '>' + luku
       + '</span><span class="cr-speed-unit">mm/h</span>';
     this._suuntaEl.textContent = lahde === 'tutka' ? _t('tutka', 'radar')
-      : lahde === 'nowcast' ? _t('lähiennuste', 'nowcast') : 'HARMONIE';
+      : lahde === 'nowcast' ? _t('lähiennuste', 'nowcast')
+      : (d && hetki > d.ennusteLoppu ? 'ECMWF' : 'HARMONIE');
     if (tunti != null && tunti >= 0.05) {
       this._puuskaEl.textContent = _t('tunnissa ', 'in the hour ') + _desim(tunti, 1) + ' mm';
       this._puuskaEl.classList.remove('hidden');

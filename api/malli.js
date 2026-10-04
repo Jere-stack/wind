@@ -273,9 +273,9 @@ async function etsiAjo(L, tMs) {
     if (!ajat || !ajat.length || tMs < ajat[0] || tMs > ajat[ajat.length - 1]) continue;
     const i = ajat.findIndex((t) => t >= tMs);
     const url = (t) => `${S3}/data_spatial/${L.id}/${ajoPolku(a)}/${tiedosto(t)}.om`;
-    if (ajat[i] === tMs) return { ajo: a, A: url(tMs), B: null, f: 0 };
+    if (ajat[i] === tMs) return { ajo: a, A: url(tMs), B: null, f: 0, askelA: i > 0 ? ajat[i] - ajat[i - 1] : H };
     const tA = ajat[i - 1], tB = ajat[i];
-    return { ajo: a, A: url(tA), B: url(tB), f: (tMs - tA) / (tB - tA) };
+    return { ajo: a, A: url(tA), B: url(tB), f: (tMs - tA) / (tB - tA), askelB: tB - tA };
   }
   return null;
 }
@@ -308,7 +308,9 @@ class Esiluku {
    kerrallaan, jolloin suurin osa tiedostoista on samoja. Häädetty
    lukija vapautetaan vasta minuutin päästä, koska rinnakkainen kutsu voi
    yhä lukea sitä (funktion katto on 30 s). */
-const TUULI_NIMET = new Set(['wind_u_component_10m', 'wind_v_component_10m', 'wind_gusts_10m']);
+/* Pidettävät muuttujat: tuuli ja (sadetilan jatkoennuste, `muuttuja=sade`)
+   ECMWF:n sademäärä. */
+const TUULI_NIMET = new Set(['wind_u_component_10m', 'wind_v_component_10m', 'wind_gusts_10m', 'precipitation']);
 const avoimet = new Map();
 function avaa(url) {
   const vanha = avoimet.get(url);
@@ -617,7 +619,27 @@ async function lueSarja(L, nimi, avaimet, alkuH, loppuH) {
  * kanssa sarja palautetaan pisteen ympäröivän solmuruudun neljälle
  * kulmalle — samoille solmuille joihin kenttä on laskettu — ja sovellus
  * interpoloi niiden välissä samalla säännöllä kuin kartta. */
+/* Sademäärän sarja pisteessä (sadetilan aikajana HARMONIEn jälkeen):
+   Open-Meteon aikasarjavarasto jakaa 3 ja 6 h kertymät tunneille, joten
+   arvo on mm tunnissa. Tarkistettu 4.10. Open-Meteon rajapintaa vasten
+   (+98…+100 h: 0,10 mm/h kukin, kenttä 0,24 mm / 3 h). */
+async function sadeSarja(q) {
+  const L = LAHTEET.ecmwf_ifs, la = Number(q.lat), lo = Number(q.lng);
+  if (!Number.isFinite(la) || !Number.isFinite(lo)) throw new Error('virheellinen piste');
+  const nyt = Math.floor(Date.now() / H), alkuH = nyt, loppuH = nyt + 10 * 24;
+  const nn = L.hila.naapurit(la, lo);
+  const arvot = await lueSarja(L, 'precipitation', [...new Set(nn.map(([k]) => k))], alkuH, loppuH);
+  const mm = [];
+  for (let t = 0; t <= loppuH - alkuH; t++) {
+    const v = skalaari(nn, (k) => arvot.get(k)[t]);
+    mm.push(Number.isFinite(v) ? Math.round(Math.max(0, v) * 100) / 100 : null);
+  }
+  while (mm.length && mm[mm.length - 1] == null) mm.pop();
+  return { tila: 'sarja', muuttuja: 'sade', malli: 'ecmwf', t0: alkuH * H, dtSek: 3600, n: mm.length, mm };
+}
+
 async function sarja(q) {
+  if (q.muuttuja === 'sade') return sadeSarja(q);
   const osat = mallinOsat(q.malli);
   if (!osat) throw new Error('tuntematon malli');
   const la = Number(q.lat), lo = Number(q.lng);
@@ -692,11 +714,50 @@ async function sarja(q) {
   return a ? { ...yhteiset, la0, lo0, askel: a, solmut } : { ...yhteiset, ...solmut[0] };
 }
 
+/* -- SADE (sadetilan jatko HARMONIEn jälkeen, docs/sadetutka.md V6) ------
+ *
+ * ECMWF IFS 9 km `precipitation` tunnille t samassa muodossa kuin
+ * api/sade.js:n HARMONIE-hila (mm/h × 100, uint16, rivit etelästä), jotta
+ * sovelluksen sadekerros piirtää sen samalla polulla. Tiedoston arvo on
+ * kertymä edeltävältä mallin askeleelta (1 h, +90 h:sta 3 h ja +144 h:sta
+ * 6 h); tunnin t intensiteetti = askeleen kertymä / askeleen tunnit.
+ * Karkea (9 km) — sovellus sanoo sen leimassa. */
+async function sadeKentta(q) {
+  const L = LAHTEET.ecmwf_ifs;
+  const t = Math.round(Number(q.t) / H) * H;
+  const s = Number(q.s), n = Number(q.n), w = Number(q.w), e = Number(q.e);
+  if (![t, s, n, w, e].every(Number.isFinite) || n <= s || e <= w) throw new Error('virheellinen rajaus');
+  if (e - w > 60 || n - s > 30 || w < -180 || e > 180) throw new Error('liian laaja rajaus');
+  const askel = Math.max(0.05, (e - w) / 160, (n - s) / 160);
+  const la0 = Math.floor(s / askel) * askel, lo0 = Math.floor(w / askel) * askel;
+  const nj = Math.round((n - la0) / askel) + 2, ni = Math.round((e - lo0) / askel) + 2;
+  const aj = await etsiAjo(L, t);
+  if (!aj) return { error: 'no data', time: new Date(t).toISOString() };
+  const url = aj.B || aj.A, tunteja = (aj.B ? aj.askelB : aj.askelA) / H;
+  const ikkuna = L.hila.ikkuna(la0, la0 + (nj - 1) * askel, lo0, lo0 + (ni - 1) * askel);
+  if (!ikkuna) return { error: 'no data', time: new Date(t).toISOString() };
+  const T = await lueTiedosto(url, ['precipitation'], ikkuna.ranges);
+  const P = T.precipitation;
+  if (!P) return { error: 'no data', time: new Date(t).toISOString() };
+  const tavut = Buffer.alloc(ni * nj * 2);
+  let suurin = 0;
+  for (let j = 0; j < nj; j++) for (let i = 0; i < ni; i++) {
+    const nn = L.hila.naapurit(la0 + j * askel, lo0 + i * askel).map(([a, p]) => [ikkuna.paikka(a), p]).filter(([a]) => a >= 0);
+    const v = skalaari(nn, (a) => P[a]);
+    const mmh = Number.isFinite(v) && v > 0 ? v / Math.max(1, tunteja) : 0;
+    if (mmh > suurin) suurin = mmh;
+    tavut.writeUInt16BE(Math.min(65535, Math.round(mmh * 100)), (j * ni + i) * 2);
+  }
+  return { time: new Date(t).toISOString().slice(0, 19) + 'Z', lahde: 'ecmwf', ajo: aj.ajo, askelH: tunteja,
+           ni, nj, lat0: +la0.toFixed(4), lon0: +lo0.toFixed(4), dlat: askel, dlon: askel, flip: false,
+           mmh: tavut.toString('base64'), max: Math.round(suurin * 100) / 100 };
+}
+
 export default async function handler(req, res) {
   if (!suojaa(req, res)) return;
   const q = req.query || {};
   try {
-    const tulos = q.tila === 'sarja' ? await sarja(q) : await kentta(q);
+    const tulos = q.tila === 'sarja' ? await sarja(q) : q.muuttuja === 'sade' ? await sadeKentta(q) : await kentta(q);
     /* Sama osoite antaa saman ajon vastauksen tunnin ajan; uusi ajo
        tulee 3–6 tunnin välein. */
     res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=1800');
