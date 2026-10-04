@@ -58,6 +58,7 @@
  */
 import https from 'https';
 import { suojaa } from './_suoja.js';
+import { haeTeksti, haeFmi } from './_haku.js';
 
 const DL = 'https://opendata.fmi.fi/download'
   + '?producer=harmonie_scandinavia_surface'
@@ -185,8 +186,100 @@ function tunninAlku(ms) {
   return new Date(Math.floor(ms / 3600000) * 3600000).toISOString().slice(0, 19) + 'Z';
 }
 
+/* ── SADESARJA PISTEESSÄ (`?sarja=1&lat=&lon=`) ────────────────────────
+ *
+ * Aikajanan sadepalkit sadetilassa (docs/sadetutka.md, V3). Tila tässä
+ * funktiossa eikä uusi tiedosto: Vercelin Hobby-tason katto on 12
+ * funktiota (CLAUDE.md).
+ *
+ *   tunnit   48 h tutkan tuntikertymää: FMI `radar_finland_cappi_acrr1h`
+ *            (1 km, liukuva 1 h summa, PT5M) tasatunneilla GetFeatureInfolla.
+ *            Arvo tunnilla T = sade välillä (T − 1 h, T], sama käytäntö
+ *            kuin HARMONIEn `Precipitation1h`. Mitattu 4.10.: piste
+ *            61,0 / 27,7 klo 13 UTC = 0,117 mm.
+ *   vartit   3 h heijastuvuutta vartin välein (`radar_finland_cappi_dbzh`,
+ *            250 m) dBZ:nä — asiakas kääntää sen millimetreiksi SAMALLA
+ *            taulukolla kuin kartan (`Sade.mmhDbz`), joten käännöksiä on yksi.
+ *   ennuste  HARMONIE `Precipitation1h` pistekyselynä, 61–62 h.
+ *
+ * GetFeatureInfo palauttaa YHDEN arvon per pyyntö myös aikavälille
+ * (mitattu: väli antoi vain yhden arvon), joten tunnit haetaan
+ * rinnakkain enintään 16 kerrallaan. Vastaus on sama kaikille saman
+ * 0,05°:n pisteen kysyjille, joten CDN kantaa sen viisi minuuttia. */
+const WMS = 'https://openwms.fmi.fi/geoserver/Radar/wms';
+function gfiUrl(kerros, lat, lon, ms) {
+  return WMS + '?service=WMS&version=1.3.0&request=GetFeatureInfo&layers=' + kerros
+    + '&query_layers=' + kerros + '&styles=raster&crs=EPSG:4326'
+    + '&bbox=' + (lat - 0.01).toFixed(4) + ',' + (lon - 0.01).toFixed(4) + ',' + (lat + 0.01).toFixed(4) + ',' + (lon + 0.01).toFixed(4)
+    + '&width=3&height=3&i=1&j=1&info_format=application/json'
+    + '&time=' + new Date(ms).toISOString().slice(0, 19) + 'Z';
+}
+async function gfi(kerros, lat, lon, ms) {
+  try {
+    const v = await haeTeksti(gfiUrl(kerros, lat, lon, ms), { aikaraja: 6000 });
+    if (v.tila !== 200) return null;
+    const j = JSON.parse(v.runko);
+    const x = j && j.features && j.features[0] && j.features[0].properties
+      ? j.features[0].properties.GRAY_INDEX : null;
+    return typeof x === 'number' && isFinite(x) ? x : null;
+  } catch (e) { return null; }
+}
+async function rinnakkain(tehtavat, n) {
+  const ulos = new Array(tehtavat.length);
+  let i = 0;
+  async function tyolainen() { while (i < tehtavat.length) { const k = i++; ulos[k] = await tehtavat[k](); } }
+  await Promise.all(Array.from({ length: Math.min(n, tehtavat.length) }, tyolainen));
+  return ulos;
+}
+async function sarja(req, res) {
+  const lat = Math.round(parseFloat(req.query.lat) * 20) / 20;
+  const lon = Math.round(parseFloat(req.query.lon) * 20) / 20;
+  if (!isFinite(lat) || !isFinite(lon)) return res.status(400).json({ error: 'lat, lon required' });
+  const H = 3600000, V = 900000, nyt = Date.now();
+  /* Tutkan viive on alle 5 – noin 7 min (docs/data.md); 10 min varmuus. */
+  const tuorein = nyt - 10 * 60000;
+  const tunnit = [], vartit = [];
+  for (let t = Math.floor(tuorein / H) * H, k = 0; k < 48; k++, t -= H) tunnit.push(t);
+  for (let t = Math.floor(tuorein / V) * V, k = 0; k < 12; k++, t -= V) vartit.push(t);
+  const ennusteUrl = 'https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
+    + '&storedquery_id=fmi::forecast::harmonie::surface::point::timevaluepair'
+    + '&latlon=' + lat + ',' + lon + '&parameters=Precipitation1h&timestep=60'
+    + '&starttime=' + tunninAlku(nyt);
+  const [mm, dbz, ennuste] = await Promise.all([
+    rinnakkain(tunnit.map(function (t) { return function () { return gfi('radar_finland_cappi_acrr1h', lat, lon, t); }; }), 16),
+    rinnakkain(vartit.map(function (t) { return function () { return gfi('radar_finland_cappi_dbzh', lat, lon, t); }; }), 12),
+    haeFmi(ennusteUrl, { aikaraja: 8000, tyhjaPoikkeuksesta: true }).then(function (xml) {
+      const ulos = [], re = /<wml2:time>([^<]+)<\/wml2:time>\s*<wml2:value>([^<]*)<\/wml2:value>/g;
+      let m;
+      while ((m = re.exec(xml))) {
+        const v = parseFloat(m[2]);
+        if (isFinite(v)) ulos.push([Date.parse(m[1]), Math.round(v * 100) / 100]);
+      }
+      return ulos;
+    }, function () { return null; })
+  ]);
+  /* Kertymän puuttuva arvo on −1 (ODIM nodata) tai katvealue. */
+  const T = tunnit.map(function (t, i) {
+    const v = mm[i];
+    return [t, v == null || v < 0 || v > 500 ? null : Math.round(v * 100) / 100];
+  }).reverse();
+  /* dBZ: alle 5 = ei kaikua (0), yli 70 = katve tai ei dataa (null). */
+  const Q = vartit.map(function (t, i) {
+    const v = dbz[i];
+    return [t, v == null || v > 70 ? null : (v < 5 ? 0 : Math.round(v * 10) / 10)];
+  }).reverse();
+  const onnistui = T.some(function (x) { return x[1] != null; }) || Q.some(function (x) { return x[1] != null; }) || (ennuste && ennuste.length);
+  if (!onnistui) {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(502).json({ error: 'radar and forecast unavailable' });
+  }
+  res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=120');
+  return res.status(200).json({ lat: lat, lon: lon, luotu: nyt, tunnit: T, vartit: Q, ennuste: ennuste || [] });
+}
+
 export default async function handler(req, res) {
   if (!suojaa(req, res)) return;
+  if (req.query.sarja) return sarja(req, res);
   /* HARMONIE ajetaan neljasti vuorokaudessa. Puolen tunnin valimuisti on
      kayttajalle huomaamaton ja leikkaa aikajanan raahauksen toistuvat
      osumat — sama tunti ja sama rajaus haetaan raahatessa monta kertaa. */

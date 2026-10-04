@@ -2244,6 +2244,9 @@ html[data-sadekerros="1"] .tl-vartti::after {
  * kuplaan siksi, että viisi vuorokautta erottuisivat toisistaan, mutta
  * se on konteksti eikä lukema. Sama korkeus, sama rivi, eri paino. */
 .tl-kupla-pv { font-weight: 500; opacity: .62; margin-right: 1px; }
+/* Sadetilassa kupla sanoo mitä lähdettä katsotaan (vertailukuvan
+   "Observation"): Havainto, Lähiennuste tai Ennuste. */
+.tl-kupla-laji { font-weight: 600; font-size: .78em; opacity: .72; margin-left: 6px; letter-spacing: .02em; }
 #tl-time-bubble::after {
   content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
   border: 5px solid transparent; border-top-color: var(--ink);
@@ -6195,7 +6198,7 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
       <div id="tl-paivat"></div>
       <!-- Paluunappi on kuplan lapsi (kulkee sen leveyden mukana) ja
            näkyy vain kun valittu hetki ei ole nyt: ks. .tl-nyt. -->
-      <div id="tl-indicator"><div id="tl-time-bubble"><span class="tl-kupla-pv"></span><span class="tl-kupla-aika">--:--</span><button type="button" class="tl-nyt" id="tl-nyt" hidden
+      <div id="tl-indicator"><div id="tl-time-bubble"><span class="tl-kupla-pv"></span><span class="tl-kupla-aika">--:--</span><span class="tl-kupla-laji" hidden></span><button type="button" class="tl-nyt" id="tl-nyt" hidden
            aria-label="Palaa nykyhetkeen" title="Palaa nykyhetkeen (Home)"
            data-en-aria-label="Back to now" data-en-title="Back to now (Home)"><span aria-hidden="true"></span></button></div></div>
       <div id="tl-scroll"></div>
@@ -14535,6 +14538,84 @@ const Sadetutka = {
  *    HTTP 200:lla tarkoittaa "ennuste ei ulotu tähän tuntiin"
  *    (mitattu: 61–62 h), ja silloin kerros TYHJENEE ja sanoo sen.
  *    Verkkovirheellä vanha kuva jää — se on hetken vanha, ei väärä. */
+/* SADESARJA PISTEESSÄ — aikajanan sadepalkit (docs/sadetutka.md, V3).
+ *
+ * `/api/sade?sarja=1` antaa kartan keskipisteen 0,05°:n solulle 48 h
+ * tutkan tuntikertymää (FMI acrr1h), 3 h heijastuvuutta vartin välein ja
+ * HARMONIEn `Precipitation1h`:n. Muisti on solua kohti viisi minuuttia —
+ * sama kuin proxyn CDN-välimuisti, joten panorointi takaisin ei maksa
+ * mitään. Arvo tunnilla T on sade välillä (T − 1 h, T]. */
+const SadeSarja = {
+  TUORE_MS: 5 * 60000,
+  _m: new Map(),
+  kunValmis: null,
+  avain(lat, lng) { return (Math.round(lat * 20) / 20).toFixed(2) + ',' + (Math.round(lng * 20) / 20).toFixed(2); },
+  /* Data tai null; puuttuva tai vanha haetaan taustalla ja `kunValmis`
+     kutsutaan sen saapuessa. Epäonnistunut haku yritetään uudelleen
+     minuutin päästä, eikä vanhaa dataa heitetä pois sitä ennen. */
+  hae(lat, lng) {
+    const k = this.avain(lat, lng), e = this._m.get(k), nyt = Date.now();
+    if (e && e.data && nyt - e.t < this.TUORE_MS) return e.data;
+    if (!e || (!e.kesken && nyt - e.t > (e.data ? this.TUORE_MS : 60000))) {
+      const uusi = { t: nyt, data: e ? e.data : null, kesken: true };
+      this._m.set(k, uusi);
+      const self = this;
+      fetch(API_BASE + '/sade?sarja=1&lat=' + k.split(',')[0] + '&lon=' + k.split(',')[1])
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) {
+          uusi.kesken = false; uusi.t = Date.now();
+          if (j && j.tunnit) { uusi.data = SadeSarja._valmistele(j); if (self.kunValmis) self.kunValmis(); }
+        }, function () { uusi.kesken = false; uusi.t = Date.now(); });
+      if (this._m.size > 40) this._m.delete(this._m.keys().next().value);
+    }
+    return e ? e.data : null;
+  },
+  /* Sade-ennusteen loppu: pisin tiedossa oleva HARMONIE-sarja, ennen
+     ensimmäistä hakua 60 h (mitattu 61–62 h, docs/data.md). */
+  loppu() {
+    let b = 0;
+    for (const e of this._m.values()) if (e.data && e.data.ennusteLoppu > b) b = e.data.ennusteLoppu;
+    return b || Math.floor(Date.now() / 3600e3) * 3600e3 + 60 * 3600e3;
+  },
+  /* Ajat hakutauluiksi; vartin dBZ millimetreiksi kartan omalla
+     käännöksellä (`Sade.mmhDbz`). */
+  _valmistele(j) {
+    const tunnit = new Map(), ennuste = new Map(), vartit = new Map();
+    let tutkaLoppu = 0, ennusteLoppu = 0;
+    for (const x of j.tunnit) if (x[1] != null) { tunnit.set(x[0], x[1]); tutkaLoppu = Math.max(tutkaLoppu, x[0]); }
+    for (const x of j.ennuste) { ennuste.set(x[0], x[1]); ennusteLoppu = Math.max(ennusteLoppu, x[0]); }
+    for (const x of j.vartit) if (x[1] != null) vartit.set(x[0], x[1] > 0 ? Sade.mmhDbz(x[1]) : 0);
+    return { tunnit: tunnit, ennuste: ennuste, vartit: vartit, tutkaLoppu: tutkaLoppu, ennusteLoppu: ennusteLoppu };
+  },
+  /* Sarja aikajanan akselille: { mm, lahde: 'tutka'|'nowcast'|'ennuste', q } tai null.
+     `q` = neljän vartin intensiteetit (mm/h) tunnin sisältä kun ne ovat
+     tiedossa. */
+  akselille(d, times) {
+    if (!d || !times) return null;
+    const ts = _ts({ time: times }), out = new Array(ts.length);
+    const V = 900000;
+    for (let i = 0; i < ts.length; i++) {
+      const t = ts[i];
+      let mm = null, lahde = null;
+      if (t <= d.tutkaLoppu && d.tunnit.has(t)) { mm = d.tunnit.get(t); lahde = 'tutka'; }
+      else {
+        const nc = typeof Nowcast !== 'undefined' ? Nowcast.tunti(t) : null;
+        if (nc != null) { mm = nc; lahde = 'nowcast'; }
+        else if (d.ennuste.has(t)) { mm = d.ennuste.get(t); lahde = 'ennuste'; }
+      }
+      if (mm == null) { out[i] = null; continue; }
+      let q = null;
+      const a = [t - 3 * V, t - 2 * V, t - V, t].map(function (u) {
+        if (d.vartit.has(u)) return d.vartit.get(u);
+        return typeof Nowcast !== 'undefined' ? Nowcast.vartti(u) : null;
+      });
+      if (a.every(function (x) { return x != null; })) q = a;
+      out[i] = { mm: mm, lahde: lahde, q: q };
+    }
+    return out;
+  }
+};
+
 const Sadeennuste = {
   /* Reunus haettavaan rajaukseen, osuutena näkymästä. Ilman sitä
      pienikin panorointi osuisi hilan ulkopuolelle ja laukaisisi uuden
@@ -26334,8 +26415,18 @@ function aikajananLahde() {
    palaa. */
 const _tlRajausMuisti = new WeakMap();
 function _tlAaltoRajaus(h) {
-  if (!aaltotila() || !h || !h.time || !Aallot.kaytossa()) return h;
-  const a = Aallot.alku() - 1800e3, b = Aallot.loppu() + 1800e3;
+  if (!h || !h.time) return h;
+  let a, b;
+  if (_sadetila()) {
+    /* SADETILASSA AIKAJANA ON SATEEN JAKSO (docs/sadetutka.md, V3):
+       48 h tutkaa ja HARMONIEn sade-ennusteen loppuun (~61 h); sen
+       jälkeen ei ole sadetta näytettäväksi (V6: ECMWF jatkaa). */
+    const nyt = Date.now();
+    a = Math.floor(nyt / 3600e3) * 3600e3 - 48 * 3600e3 - 1800e3;
+    b = SadeSarja.loppu() + 1800e3;
+  } else if (aaltotila() && Aallot.kaytossa()) {
+    a = Aallot.alku() - 1800e3; b = Aallot.loppu() + 1800e3;
+  } else return h;
   const vanha = _tlRajausMuisti.get(h);
   if (vanha && vanha.a === a && vanha.b === b) return vanha.h;
   const ts = _ts(h);
@@ -26381,7 +26472,8 @@ function updateTimelineToCenter() {
      ei siis erottaisi kahta eri paikassa olevaa laattapistettä. */
   if (m && m.times === h.time && m.speeds === sp && m.dirs === h.winddirection_10m
       && m.activeIdx === idx && m.lat === p.lat && m.lng === p.lng
-      && m.aallot === _tlAaltoArvot(h.time, p.lat, p.lng)) return;
+      && m.aallot === _tlAaltoArvot(h.time, p.lat, p.lng)
+      && m.sade === _tlSadeArvot(h.time, p.lat, p.lng)) return;
   renderTimeline(h.time, sp, h.winddirection_10m, idx,
     { lat: p.lat, lng: p.lng });
 }
@@ -26662,7 +26754,39 @@ function _tlAaltoOsuus(hs) {
   if (m <= 2)   return 0.70 + (m - 1) * 0.20;
   return Math.min(1, 0.90 + (m - 2) / 2 * 0.10);
 }
+/* SADETILASSA PALKKI ON SATEEN MÄÄRÄ (docs/sadetutka.md, V3): tunnin
+   kertymä keskipisteessä, väri kartan sateen rampista (`Sade.lut`) ja
+   korkeus logaritmisesti 0,05 → 50 mm (0,1 mm 10 %, 1 mm 43 %, 10 mm
+   77 %). Kuiva tunti on 2 px:n hiljainen pohja, jotta akseli näkyy;
+   datan ulkopuolella palkkia ei ole. Tutkan ja nowcastin jaksolla
+   palkki on neljä vartin siivua samalla asteikolla (intensiteetti
+   mm/h), kuten vertailukuvan vartin aikajanassa. */
+function _tlSadeOsuus(mm) {
+  if (!(mm >= 0.05)) return 0;
+  return Math.min(1, Math.log(mm / 0.05) / Math.log(1000));
+}
+function _tlSadeVari(mm) {
+  const sana = Sade.lut(false)[Math.max(1, Math.round(255 * Sade.v(Math.max(mm, 0.07))))];
+  return 'rgb(' + (sana & 255) + ',' + ((sana >>> 8) & 255) + ',' + ((sana >>> 16) & 255) + ')';
+}
+function _tlSadePalkki(v) {
+  if (!v) return { h: '0px', c: 'transparent', f: false };
+  if (!v.q) {
+    if (!(v.mm >= 0.05)) return { h: '2px', c: 'rgba(214,224,235,.22)', f: false };
+    return { h: Math.max(3, _tlSadeOsuus(v.mm) * TL_PALKKI_H).toFixed(1) + 'px', c: _tlSadeVari(v.mm), f: false };
+  }
+  const korkein = Math.max(v.mm, v.q[0], v.q[1], v.q[2], v.q[3]);
+  if (!(korkein >= 0.05)) return { h: '2px', c: 'rgba(214,224,235,.22)', f: false };
+  const H = Math.max(3, _tlSadeOsuus(korkein) * TL_PALKKI_H);
+  const osat = v.q.map(function (q, k) {
+    const h = q >= 0.05 ? Math.max(2, _tlSadeOsuus(q) * TL_PALKKI_H) : 1;
+    const c = q >= 0.05 ? _tlSadeVari(q) : 'rgba(214,224,235,.22)';
+    return 'linear-gradient(' + c + ',' + c + ') ' + (k * 3) + 'px 100%/3px ' + h.toFixed(1) + 'px no-repeat';
+  });
+  return { h: H.toFixed(1) + 'px', c: osat.join(',') + ',transparent', f: false, q: true };
+}
 function _tlPalkkiTyyli(i, speeds) {
+  if (State._tlSade) return _tlSadePalkki(State._tlSade[i]);
   const A = State._tlAallot;
   if (A) {
     const hs = A[i];
@@ -26690,6 +26814,25 @@ function _tlAaltoArvot(times, lat, lng) {
   _tlAaltoKehe = { avain: avain, sarja: sarja, times: times, arvot: arvot };
   return arvot;
 }
+/* Sadesarja aikajanan akselille kartan keskeltä, muistettuna kuten
+   aallot (sama viite kun mikään ei muuttunut). */
+let _tlSadeKehe = { avain: '', arvot: null };
+function _tlSadeArvot(times, lat, lng) {
+  if (!_sadetila() || !times || !times.length || lat == null) return null;
+  const d = SadeSarja.hae(lat, lng);
+  const nc = typeof Nowcast !== 'undefined' ? Nowcast.versio : 0;
+  const avain = times.length + '|' + times[0] + '|' + SadeSarja.avain(lat, lng) + '|' + nc;
+  if (_tlSadeKehe.avain === avain && _tlSadeKehe.d === d && _tlSadeKehe.times === times) return _tlSadeKehe.arvot;
+  const arvot = SadeSarja.akselille(d, times);
+  _tlSadeKehe = { avain: avain, d: d, times: times, arvot: arvot };
+  return arvot;
+}
+SadeSarja.kunValmis = function () {
+  if (!_sadetila()) return;
+  if (!State._tlTouching) { State._tlMuisti = null; updateTimelineToCenter(); }
+  if (typeof Crosshair !== 'undefined' && Crosshair._el) Crosshair._update();
+};
+
 /* Eleen jättämä velka: loput palkit samasta sarjasta. Jos sarja on
    ehtinyt vaihtua, uusi päivitys on jo kirjoittanut omansa. */
 function _tlPalkitLoppuun() {
@@ -26722,9 +26865,11 @@ function _tlVarttiTikki(times, i) {
 function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
   /* Aaltotilassa palkit ovat aallonkorkeutta samasta paikasta. */
   State._tlAallot = lisa ? _tlAaltoArvot(times, lisa.lat, lisa.lng) : null;
+  /* Sadetilassa palkit ovat sadetta samasta paikasta. */
+  State._tlSade = lisa ? _tlSadeArvot(times, lisa.lat, lisa.lng) : null;
   /* Mitä ruudulla nyt on — ks. updateTimelineToCenter. */
   State._tlMuisti = { times: times, speeds: speeds, dirs: dirs, activeIdx: activeIdx,
-    lat: lisa ? lisa.lat : null, lng: lisa ? lisa.lng : null, aallot: State._tlAallot };
+    lat: lisa ? lisa.lat : null, lng: lisa ? lisa.lng : null, aallot: State._tlAallot, sade: State._tlSade };
   const tl = document.getElementById('tl-scroll');
   /* Nopea tie: sama rakenne kuin ruudulla jo on. Ehtoihin kuuluu myös
      NYT-indeksi, koska "mennyt"-tila on sidottu siihen ja se siirtyy
@@ -28308,6 +28453,17 @@ function _tlKuplaTeksti(d) {
    * osoitinta, eivät vierekkäin kuten aikanaan. Paino erottaa ne —
    * päiväys on kuplassa kevyt ja himmeä, kellonaika on lukema. */
   pv.textContent = TL_KUPLA_PV[d.getDay()] + ' ' + d.getDate() + _t('. ', ' ');
+  const laji = bubble.querySelector('.tl-kupla-laji');
+  if (laji) {
+    const nayta = _sadetila();
+    if (laji.hidden === nayta) laji.hidden = !nayta;
+    if (nayta) {
+      const l = _tutkaLahde(d.getTime());
+      const tx = l === 'tutka' ? _t('Havainto', 'Observation')
+        : l === 'nowcast' ? _t('Lähiennuste', 'Nowcast') : _t('Ennuste', 'Forecast');
+      if (laji.textContent !== tx) laji.textContent = tx;
+    }
+  }
   ai.textContent = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
 }
 
@@ -28860,6 +29016,8 @@ const Crosshair = {
        piiloutuisi tyynellä. */
     Lahde.paivita(center);
     if (aaltotila()) { this._aaltoUpdate(center); return; }
+    if (this._nuoliEl) this._nuoliEl.style.visibility = '';
+    if (_sadetila()) { this._sadeUpdate(center); return; }
     let w;
     if (WindTexture.msData) w = WindTexture.sampleWind(center.lat, center.lng);
     else if (State.windField.length) w = idw(center.lat, center.lng);
@@ -28896,6 +29054,49 @@ const Crosshair = {
     } else {
       this._puuskaEl.classList.add('hidden');
     }
+  },
+  /* SADETILASSA KAPSELI ON SADE (docs/sadetutka.md, P3): intensiteetti
+     keskipisteen solussa valitulla hetkellä (vartti kun se on tiedossa,
+     muuten tunnin kertymä = tunnin keskimääräinen intensiteetti), väri
+     kartan sateen rampista, toisella rivillä lähde ja kolmannella
+     tunnin kertymä. Tuulen nuoli piilossa: kartalla ei ole tuulta.
+     Pysyvää väriliuskaa kartalle ei tule (sääntö "asteikko vain
+     asetuksissa"); kapseli on se paikka josta luku luetaan. */
+  _sadeUpdate(center) {
+    this._el.classList.remove('hidden');
+    this._ms = null; this._dir = null;
+    if (this._nuoliEl) { this._nuoliEl.style.visibility = 'hidden'; this._nuoliEl.style.transform = ''; }
+    const d = SadeSarja.hae(center.lat, center.lng);
+    const hetki = _tutkaHetki(), V = SADE_VARTTI_MS, H = 3600e3;
+    const lahde = _tutkaLahde(hetki);
+    let mmh = null, tunti = null;
+    if (d) {
+      const v = Math.round(hetki / V) * V;
+      if (lahde === 'tutka' && d.vartit.has(v)) mmh = d.vartit.get(v);
+      if (mmh == null && lahde === 'nowcast' && typeof Nowcast !== 'undefined') mmh = Nowcast.vartti(v);
+      const th = Math.ceil(hetki / H) * H;
+      tunti = d.tunnit.has(th) && th <= d.tutkaLoppu ? d.tunnit.get(th)
+        : (typeof Nowcast !== 'undefined' && Nowcast.tunti(th) != null) ? Nowcast.tunti(th)
+        : d.ennuste.has(th) ? d.ennuste.get(th) : null;
+      if (mmh == null) mmh = tunti;
+    }
+    if (mmh == null) {
+      this._nopeusEl.innerHTML = '<span>—</span><span class="cr-speed-unit">mm/h</span>';
+      this._suuntaEl.textContent = d ? _t('ei dataa', 'no data') : _t('ladataan…', 'loading…');
+      this._puuskaEl.classList.add('hidden');
+      return;
+    }
+    const kuiva = mmh < 0.05;
+    const c = kuiva ? null : _tlSadeVari(mmh);
+    const luku = kuiva ? '0' : _desim(mmh, mmh < 10 ? 1 : 0);
+    this._nopeusEl.innerHTML = '<span' + (c ? ' style="color:' + c + '"' : '') + '>' + luku
+      + '</span><span class="cr-speed-unit">mm/h</span>';
+    this._suuntaEl.textContent = lahde === 'tutka' ? _t('tutka', 'radar')
+      : lahde === 'nowcast' ? _t('lähiennuste', 'nowcast') : 'HARMONIE';
+    if (tunti != null && tunti >= 0.05) {
+      this._puuskaEl.textContent = _t('tunnissa ', 'in the hour ') + _desim(tunti, 1) + ' mm';
+      this._puuskaEl.classList.remove('hidden');
+    } else this._puuskaEl.classList.add('hidden');
   },
   /* AALTOTILASSA KAPSELI ON AALTO: korkeus, suunta (MISTÄ, nuoli
      etenemissuuntaan kuten tuulella) ja jakso puuskan rivillä. Sama
@@ -30160,7 +30361,10 @@ function _tutkaEnnusteVarmista() {
   const kerros = window._tutkaKerros;
   if (kerros && State.map && State.map.hasLayer(kerros)) State.map.ml.triggerRepaint();
 }
-function _tutkaHetkiMuuttui() { _tutkaEnnusteVarmista(); }
+function _tutkaHetkiMuuttui() {
+  _tutkaEnnusteVarmista();
+  if (_sadetila() && typeof Crosshair !== 'undefined' && Crosshair._el) Crosshair._update();
+}
 
 /* TUULIKERROKSET JA SADEKERROS OVAT TOISENSA POISSULKEVAT.
  *
@@ -30313,6 +30517,12 @@ function _sadetilaAseta(paalla) {
   _tallennaKarttatasot();
   _applyMapLayers();
   _kerrosSirut();
+  /* Aikajanan palkit ja jakso vaihtuvat sateeseen ja takaisin. */
+  State.sadeVartti = 0;
+  State._tlMuisti = null;
+  if (typeof updateTimelineToCenter === 'function') updateTimelineToCenter();
+  if (typeof Crosshair !== 'undefined') Crosshair.refresh();
+  _tlKuplaTeksti();
 }
 
 function _tuulikerroksetNakyvissa(nakyvissa) {
