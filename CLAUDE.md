@@ -994,12 +994,17 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   docs/ui.md "Kapselin vasen lukema"): tuulikerroksella merkitsevä
   aallonkorkeus, suunta nuolena (mustetta, ei rampin väriä) ja arvioitu
   suurin aalto (`AALTO_MAKS_KERROIN` 1,9 × Hs, teksti "maks. ~" — WAM ei
-  anna suurinta aaltoa). Valikko (`#suunta-picker`, ryhmä "Näytä",
-  `KapVasen`, `fs_kapseli_vasen`) palauttaa tuulen suunnan. Missä aaltoa
-  ei ole (maa, jakson ulkopuoli, data matkalla) osa on tuulen suunta.
-  Ei rantamaskia tuulikerroksella (se on aaltotilan kustannus). AALTO- JA
-  SADETILA EIVÄT MUUTU: niissä koko kapseli on sitä kerrosta, ja valikon
-  "Näytä"-ryhmä on piilossa.
+  anna suurinta aaltoa). Valikossa on VAIN KAKSI riviä (`#suunta-picker`:
+  Aallot / Tuulen suunta, `KapVasen`, `fs_kapseli_vasen`), ja kapselin
+  suunta on aina asteina — sanallinen muoto poistettiin valikosta. Missä
+  aaltoa ei ole (maa, jakson ulkopuoli, data matkalla) osa on tuulen
+  suunta. Ei rantamaskia tuulikerroksella (se on aaltotilan kustannus).
+  Aalto- ja sadetilassa vasen osa on pelkkä lukema eikä avaa valikkoa.
+  **AALLONKORKEUDEN LUKU ON `AaltoVari`N VÄRI** (`AaltoVari.teksti`,
+  nostettu 4,5:1:een `--surface`a vasten) kapselissa molemmissa
+  tiloissa, ja aaltotilassa pääluvun edessä on aaltomerkki
+  (`kapseliAaltoSVG`, sääikonien veden sävy). Sääntö "aallonkorkeus on
+  mustetta" koskee tuulen ramppia, ei aaltojen omaa asteikkoa.
 - **KAPSELI VÄISTYY KUN SPOTTIKORTTI ON AUKI**
   (`html:has(#sheet.open) #kapseli`). Kapseli lukee kartan keskipisteen
   ja kortti spotin: mitattuna 2,6 ja 6,9 kts yhtä aikaa samalla

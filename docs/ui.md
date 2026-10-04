@@ -8179,3 +8179,37 @@ Mitattu (Chromium, 375 px, `?kieli=fi|en`): Helsingin edusta z10
 → "274°"; sisämaa (Tampere) → tuulen suunta; aaltotila ennallaan
 ("224° | 0,80 m | jakso 5 s"), valikossa vain asteet/ilmansuunta;
 savutesti läpi, ei `pageerror`ia.
+
+### Toinen erä (4.10.): kaksi valintaa, aaltomerkki ja aaltojen väri
+
+Käyttäjän pyyntö: valikossa vain aallot ja tuulen suunta asteina, ja
+aaltonäkymään kapseliin aallokkoa kuvaava merkki ja aallonkorkeuden
+luku samaan väriasteikkoon kuin aaltokerros.
+
+- **Valikossa on kaksi riviä** (Aallot / Tuulen suunta). Asteet/
+  ilmansuunta-ryhmä poistettiin, ja kapselin suunta on aina asteina:
+  `Suunta.init` ei enää lue `fs_suuntamuoto`a (tallennettu "nimi"
+  ohitetaan). Spottikortin "245° · lounaasta" kutsuu `Suunta.nimi`ä
+  itse ja pysyy.
+- **Valikko aukeaa vain tuulikerroksella.** Aalto- ja sadetilassa
+  vasen osa on pelkkä lukema (`.lukema`, kursori oletus, napautus ei
+  avaa mitään) — valinnalla ei olisi niissä vaikutusta.
+- **Aaltotilan merkki** (`kapseliAaltoSVG`, `#kap-aalto-ikoni`) on
+  pääluvun edessä vain aaltotilassa (`#kapseli.aaltotila`):
+  sääikonien piirtotapa (viiva 1,9) ja niiden veden sävy `#7FB4F2`,
+  murtuva harja ja aaltoviiva.
+- **Aallonkorkeuden luku on `AaltoVari`n väri** sekä aaltotilan
+  pääluvussa että tuulikerroksen vasemmassa osassa
+  (`AaltoVari.teksti`): sama sävy kuin kartalla, nostettuna kohti
+  valkoista vain kun kontrasti `--surface`a vasten jäisi alle 4,5:1
+  (sama sääntö kuin tuulen `ink()`). Nousee vain alapää: 0 m
+  `28,78,128` → `105,138,171` (4,74:1), 0,1 m → `83,137,187` (4,60),
+  0,25 m lähes ennallaan (4,69). Tämä on poikkeus säännöstä
+  "aallonkorkeus on mustetta": se koski tuulen rampilla värjäämistä
+  (`ink()` sanoisi 0,4 m:stä 0,4 m/s); aaltojen oma asteikko on eri
+  sävypolku, ja kapselissa sitä käyttää vain aallonkorkeus.
+
+Mitattu (Chromium 375 px, fi/en): tuulikerros "0,60 m | maks. ~1,1 m"
+väri `77,192,207`, valikko "Aallot 0,60 m | Tuulen suunta 272°";
+aaltotila "226° | [merkki] 0,60 m | jakso 5 s", sama väri, valikko ei
+aukea; savutesti läpi, ei `pageerror`ia.

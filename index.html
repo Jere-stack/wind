@@ -696,6 +696,16 @@ html:has(#sheet.open) #kapseli { opacity: 0; pointer-events: none; }
   color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .kap-suunta-osa.aalto .kap-suunta { font-size: 15px; font-weight: 600; line-height: 1; color: var(--ink); }
+/* Aalto- ja sadetilassa vasen osa on pelkkä lukema, ei valikon nappi. */
+.kap-suunta-osa.lukema { cursor: default; }
+.kap-suunta-osa.lukema:active { background: none; }
+/* AALTOTILAN MERKKI kapselin pääluvun edessä (käyttäjän pyyntö 4.10.):
+   sääikonien perhettä — viivapiirros, 1,9 px, sama hillitty vesi
+   (#7FB4F2) kuin sadepisaroissa —, joten se kertoo että kapseli lukee nyt
+   aaltoja eikä tuulta. Tuulikerroksella sitä ei ole. */
+.kap-aalto-ikoni { display: none; align-self: center; margin-right: 2px; }
+#kapseli.aaltotila .kap-aalto-ikoni { display: flex; }
+.kap-aalto-ikoni svg { display: block; }
 .kap-suunta-osa.aalto .kap-aaltomax { display: block; }
 
 /* Tuuli. Keskiosa on kaksirivinen: lukema ylhäällä, puuska sen alla
@@ -4474,14 +4484,6 @@ h3.fc-day-label { margin: 0; }
 /* Suuntakortti on leveämpi, koska ilmansuunta on sana eikä luku:
    pisin ("pohjoisesta") vie 68 px arvosarakkeessa. */
 #suunta-picker { width: 196px; }
-/* Ryhmän nimi pienenä versaalina kuten paneeleissa (`.sh-ryhma`). */
-.up-otsikko {
-  font-size: var(--fs-11); font-weight: 600; color: var(--ink-3);
-  text-transform: uppercase; letter-spacing: .04em;
-  padding: 8px 10px 4px;
-}
-.up-ryhma .up-otsikko:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--hairline); padding-top: 10px; }
-#suunta-picker.ei-vasen .up-ryhma { display: none; }
 .up-option {
   display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
   width: 100%; border: 0; background: transparent; text-align: left; font: inherit; color: inherit;
@@ -5767,6 +5769,7 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
     <span class="kap-jako"></span>
     <button class="kap-osa kap-tuuli" type="button" aria-label="Vaihda yksikk&ouml;" data-en-aria-label="Change unit">
       <span class="kap-rivi">
+        <span class="kap-aalto-ikoni" id="kap-aalto-ikoni" aria-hidden="true"></span>
         <span class="cr-speed" id="kap-nopeus">--<span class="cr-speed-unit">m/s</span></span>
       </span>
       <span class="kap-puuska hidden" id="kap-puuska"></span>
@@ -5818,20 +5821,14 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
     <button type="button" class="up-option" data-unit="bft" aria-pressed="false"><span class="up-label">bft</span><span class="up-value"></span></button>
   </div>
 
-  <!-- Kapselin vasen lukema ja suunnan esitystapa. Ylempi ryhmä valitsee
-       mitä vasen osa näyttää (aallot vai tuulen suunta); aaltotilassa se
-       on piilossa, koska silloin koko kapseli on aaltoa. Arvosarake
-       näyttää nykyisen lukeman kussakin muodossa, joten valinta ei ole
-       arvailua. -->
+  <!-- Kapselin vasen lukema: kaksi valintaa, aallot tai tuulen suunta
+       asteina (käyttäjän päätös 4.10.: sanallista suuntaa ei tarvita).
+       Arvosarake näyttää nykyisen lukeman kummassakin muodossa. Valikko
+       aukeaa vain tuulikerroksella: aalto- ja sadetilassa koko kapseli
+       on sitä kerrosta. -->
   <div id="suunta-picker" class="valintakortti">
-    <div class="up-ryhma" id="kap-vasen-ryhma">
-      <div class="up-otsikko" data-en="Show">Näytä</div>
-      <button type="button" class="up-option" data-vasen="aallot" aria-pressed="false"><span class="up-label" data-en="Waves">Aallot</span><span class="up-value"></span></button>
-      <button type="button" class="up-option" data-vasen="tuuli" aria-pressed="false"><span class="up-label" data-en="Wind direction">Tuulen suunta</span><span class="up-value"></span></button>
-      <div class="up-otsikko" data-en="Direction">Suunta</div>
-    </div>
-    <button type="button" class="up-option" data-suunta="asteet" aria-pressed="false"><span class="up-label" data-en="Degrees">Asteet</span><span class="up-value"></span></button>
-    <button type="button" class="up-option" data-suunta="nimi" aria-pressed="false"><span class="up-label" data-en="Compass">Ilmansuunta</span><span class="up-value"></span></button>
+    <button type="button" class="up-option" data-vasen="aallot" aria-pressed="false"><span class="up-label" data-en="Waves">Aallot</span><span class="up-value"></span></button>
+    <button type="button" class="up-option" data-vasen="tuuli" aria-pressed="false"><span class="up-label" data-en="Wind direction">Tuulen suunta</span><span class="up-value"></span></button>
   </div>
 
   <!-- Settings overlay (tummentaa taustan) -->
@@ -7188,27 +7185,20 @@ const SUUNTA_NIMET = _t(['pohjoisesta','koillisesta','idästä','kaakosta',
                          'southerly','southwesterly','westerly','northwesterly']);
 const Suunta = {
   _muoto: 'asteet',
-  init() {
-    try {
-      const s = localStorage.getItem('fs_suuntamuoto');
-      if (s === 'asteet' || s === 'nimi') this._muoto = s;
-    } catch(e) {}
-    this._syncChips();
-  },
+  /* KAPSELIN SUUNTA ON AINA ASTEINA (käyttäjän päätös 4.10.): sanallinen
+     muoto ja sen valinta poistettiin kapselin valikosta. Tallennettu
+     `fs_suuntamuoto` ohitetaan; sanallinen nimi elää yhä niissä paikoissa
+     jotka kutsuvat `nimi()`ä itse (spottikortti). */
+  init() {},
   get() { return this._muoto; },
   set(muoto) {
     if (muoto !== 'asteet' && muoto !== 'nimi') return;
     this._muoto = muoto;
-    try { localStorage.setItem('fs_suuntamuoto', muoto); } catch(e) {}
-    this._syncChips();
   },
   nimi(deg) { return SUUNTA_NIMET[Math.round(((deg % 360) + 360) % 360 / 45) % 8]; },
   fmt(deg) { return this._muoto === 'nimi' ? this.nimi(deg) : Math.round(deg) + '°'; },
   fmtIn(deg, muoto) { return muoto === 'nimi' ? this.nimi(deg) : Math.round(deg) + '°'; },
-  _syncChips() {
-    document.querySelectorAll('#suunta-picker .up-option[data-suunta]').forEach(el =>
-      el.classList.toggle('active', el.dataset.suunta === this._muoto));
-  }
+  _syncChips() {}
 };
 
 /* KAPSELIN VASEN LUKEMA (käyttäjän pyyntö 4.10.): oletuksena AALLOT —
@@ -9146,6 +9136,30 @@ const AaltoVari = {
     return { r: z[1], g: z[2], b: z[3], a: z[4] };
   },
   css(hs) { const c = this.rgba(hs); return 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')'; },
+  /* LUKU KAPSELISSA ON SAMAN ASTEIKON VÄRI KUIN KARTALLA (käyttäjän pyyntö
+     4.10.), nostettuna kohti valkoista vain sen verran että kontrasti
+     kapselin pintaa (`--surface`) vasten on 4,5:1 — sama sääntö kuin
+     tuulen `ink()`:llä. Käytännössä vain alapään syvä sininen (alle
+     ~0,3 m) nousee; sävypolku pysyy aaltojen. */
+  _tekstiMuisti: new Map(),
+  teksti(hs) {
+    const k = Math.max(0, Math.min(255, Math.round((hs > 0 ? hs : 0) / this.LUT_ASKEL)));
+    let v = this._tekstiMuisti.get(k);
+    if (v) return v;
+    const lum = (c) => [c.r, c.g, c.b].map((x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); })
+      .reduce((a, x, i) => a + x * [0.2126, 0.7152, 0.0722][i], 0);
+    const h = Teema.pinta.replace('#', '');
+    const pL = lum({ r: parseInt(h.substr(0, 2), 16), g: parseInt(h.substr(2, 2), 16), b: parseInt(h.substr(4, 2), 16) });
+    const c = this.rgba(k * this.LUT_ASKEL);
+    let o = c;
+    for (let f = 0; f <= 1.0001; f += 0.02) {
+      o = { r: Math.round(c.r + (255 - c.r) * f), g: Math.round(c.g + (255 - c.g) * f), b: Math.round(c.b + (255 - c.b) * f) };
+      if ((lum(o) + 0.05) / (pL + 0.05) >= 4.6) break;
+    }
+    v = 'rgb(' + o.r + ',' + o.g + ',' + o.b + ')';
+    this._tekstiMuisti.set(k, v);
+    return v;
+  },
   _lut: null,
   lut() {
     if (this._lut) return this._lut;
@@ -29810,6 +29824,16 @@ function aaltoIkonSVG(koko) {
     + '<path d="M9 16.5c2.2-6.5 5-6.5 7.2 0 1.2 3.4 3 3.4 5.3.6"/></svg>';
 }
 
+/* Kapselin aaltotilan merkki: murtuva harja ja kaksi aaltoviivaa sen
+   alla, sääikonien piirtotavalla ja niiden veden sävyllä. */
+function kapseliAaltoSVG(koko) {
+  return '<svg width="' + koko + '" height="' + koko + '" viewBox="0 0 24 24" fill="none" '
+    + 'stroke="#7FB4F2" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    + '<path d="M2.5 14.5c2.6 0 4-1.6 5.2-4.2 1.4-3 3.4-5 6.3-5 2.3 0 3.9 1.4 4.2 3.2-1.6-.9-3.6-.4-4.3 1.3-.7 1.7.2 3.7 2.4 4.4 1.7.5 3.2.2 5.2-.4"/>'
+    + '<path d="M2.5 19.2c1.6 0 2.4-1 3.6-1s2 1 3.6 1 2.4-1 3.6-1 2 1 3.6 1 2.4-1 3.6-1" stroke-opacity=".7"/>'
+    + '</svg>';
+}
+
 /* WMO-koodi -> ikonin avain. Sama jako kuin sanallisessa kuvauksessa. */
 function wxIconKey(code) {
   if (code === 0) return 'selkea';
@@ -30031,6 +30055,8 @@ const Crosshair = {
     this._suuntaEl = document.getElementById('kap-suunta');
     this._aaltoMaxEl = document.getElementById('kap-aaltomax');
     this._vasenEl = document.querySelector('.kap-suunta-osa');
+    const ikoni = document.getElementById('kap-aalto-ikoni');
+    if (ikoni) ikoni.innerHTML = kapseliAaltoSVG(20);
     this._puuskaEl = document.getElementById('kap-puuska');
     this._chEl = document.getElementById('crosshair');
     this._windArrow = document.getElementById('ch-wind-arrow');
@@ -30055,7 +30081,10 @@ const Crosshair = {
        sadetila kirjoittavat osan itse. */
     if (this._vasenEl) this._vasenEl.classList.remove('aalto');
     this._aalto = null;
-    if (aaltotila()) { this._aaltoUpdate(center); return; }
+    const aallot = aaltotila();
+    this._el.classList.toggle('aaltotila', aallot);
+    if (this._vasenEl) this._vasenEl.classList.toggle('lukema', aallot || _sadetila());
+    if (aallot) { this._aaltoUpdate(center); return; }
     if (this._nuoliEl) this._nuoliEl.style.visibility = '';
     if (_sadetila()) { this._sadeUpdate(center); return; }
     let w;
@@ -30137,7 +30166,7 @@ const Crosshair = {
     this._vasenEl.classList.add('aalto');
     this._nuoliEl.style.transform = 'rotate(' + ((a.dir + 180) % 360).toFixed(1) + 'deg)';
     this._nuoliEl.style.color = '';
-    this._suuntaEl.textContent = _aaltoM(a.hs) + ' m';
+    this._suuntaEl.innerHTML = '<span style="color:' + AaltoVari.teksti(a.hs) + '">' + _aaltoM(a.hs) + '</span> m';
     this._aaltoMaxEl.textContent = _t('maks. ~', 'max ~') + _aaltoM(a.hs * AALTO_MAKS_KERROIN) + ' m';
     return true;
   },
@@ -30232,7 +30261,7 @@ const Crosshair = {
       return;
     }
     this._ms = null;
-    this._nopeusEl.innerHTML = '<span>' + _aaltoM(a.hs) + '</span><span class="cr-speed-unit">m</span>';
+    this._nopeusEl.innerHTML = '<span style="color:' + AaltoVari.teksti(a.hs) + '">' + _aaltoM(a.hs) + '</span><span class="cr-speed-unit">m</span>';
     this._nuoliEl.style.transform = 'rotate(' + ((a.dir + 180) % 360).toFixed(1) + 'deg)';
     this._nuoliEl.style.color = '';
     this._dir = a.dir;
@@ -32160,11 +32189,6 @@ const UnitsPicker = Valitsin('units-picker', '.kap-tuuli', (kortti) => {
 });
 
 const SuuntaPicker = Valitsin('suunta-picker', '.kap-suunta-osa', (kortti) => {
-  /* Vasemman lukeman valinta vain tuulikerroksella: aalto- ja sadetilassa
-     kapseli on kokonaan sitä kerrosta. Suunta on aallon suunta kun vasen
-     osa näyttää aaltoa, muuten tuulen. */
-  const vasenValittavissa = !aaltotila() && !_sadetila();
-  kortti.classList.toggle('ei-vasen', !vasenValittavissa);
   const v = KapVasen.get(), aa = Crosshair._aalto;
   kortti.querySelectorAll('.up-option[data-vasen]').forEach(el => {
     el.classList.toggle('active', el.dataset.vasen === v);
@@ -32174,44 +32198,32 @@ const SuuntaPicker = Valitsin('suunta-picker', '.kap-suunta-osa', (kortti) => {
     if (el.dataset.vasen === 'aallot') arvo.textContent = aa ? _aaltoM(aa.hs) + ' m' : '–';
     else arvo.textContent = Crosshair._ms != null && Crosshair._dir != null ? Suunta.fmtIn(Crosshair._dir, 'asteet') : '';
   });
-  const m = Suunta.get();
-  const dir = aa && vasenValittavissa ? aa.dir : Crosshair._dir;
-  kortti.querySelectorAll('.up-option[data-suunta]').forEach(el => {
-    el.classList.toggle('active', el.dataset.suunta === m);
-    el.setAttribute('aria-pressed', String(el.dataset.suunta === m));
-    const v = el.querySelector('.up-value');
-    if (v) v.textContent = (dir != null) ? Suunta.fmtIn(dir, el.dataset.suunta) : '';
-  });
 });
 Valitsin._kaikki = [UnitsPicker, SuuntaPicker];
 
-/* Suuntamuoto valittu — lukema päivittyy heti eikä vasta seuraavassa
+/* Vasen lukema valittu — kapseli päivittyy heti eikä vasta seuraavassa
    kartan liikkeessä. */
 document.getElementById('suunta-picker').addEventListener('click', e => {
   const opt = e.target.closest('.up-option');
   if (!opt) return;
-  if (opt.dataset.vasen) {
-    if (opt.dataset.vasen !== KapVasen.get()) {
-      Haptics.selection();
-      KapVasen.set(opt.dataset.vasen);
-      Crosshair.refresh();
-    }
-  } else if (opt.dataset.suunta !== Suunta.get()) {
+  if (opt.dataset.vasen && opt.dataset.vasen !== KapVasen.get()) {
     Haptics.selection();
-    Suunta.set(opt.dataset.suunta);
+    KapVasen.set(opt.dataset.vasen);
     Crosshair.refresh();
   }
   SuuntaPicker.close();
 }, { passive: true });
 
-/* Suuntaosa avaa suuntavalitsimen. */
+/* Vasen osa avaa valikon — vain tuulikerroksella. Aalto- ja sadetilassa
+   koko kapseli on sitä kerrosta, eikä valinnalla olisi siellä vaikutusta
+   (osa on silloin pelkkä lukema, `.ei-valikkoa`). */
 (function () {
   const el = document.querySelector('.kap-suunta-osa');
   if (!el) return;
-  el.style.cursor = 'pointer';
   el.addEventListener('click', (e) => {
     e.stopPropagation();
     WxPanel.close();
+    if (aaltotila() || _sadetila()) { SuuntaPicker.close(); return; }
     SuuntaPicker.toggle();
   }, { passive: false });
 })();
