@@ -1002,7 +1002,8 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   Aalto- ja sadetilassa vasen osa on pelkkä lukema eikä avaa valikkoa.
   **AALLONKORKEUDEN LUKU ON `AaltoVari`N VÄRI** (`AaltoVari.teksti`,
   nostettu 4,5:1:een `--surface`a vasten) kapselissa molemmissa
-  tiloissa, ja aaltotilassa pääluvun edessä on aaltomerkki
+  tiloissa, ja sen edessä on aaltomerkki (aaltotilassa pääluvussa,
+  tuulinäkymässä vasemmassa osassa)
   (`kapseliAaltoSVG`, sääikonien veden sävy). Sääntö "aallonkorkeus on
   mustetta" koskee tuulen ramppia, ei aaltojen omaa asteikkoa.
 - **KAPSELI VÄISTYY KUN SPOTTIKORTTI ON AUKI**

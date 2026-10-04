@@ -707,6 +707,13 @@ html:has(#sheet.open) #kapseli { opacity: 0; pointer-events: none; }
 #kapseli.aaltotila .kap-aalto-ikoni { display: flex; }
 .kap-aalto-ikoni svg { display: block; }
 .kap-suunta-osa.aalto .kap-aaltomax { display: block; }
+/* Sama aaltomerkki kuin aaltotilan pääluvussa (`kapseliAaltoSVG`), tässä
+   korkeuden rivillä ja sen kirjasimen mittaisena: kertoo että vasen
+   lukema on aaltoa eikä tuulta. Tuulen suuntana merkkiä ei ole. */
+.kap-vasen-rivi { display: flex; align-items: center; gap: 4px; }
+.kap-vasen-ikoni { display: none; }
+.kap-vasen-ikoni svg { display: block; }
+.kap-suunta-osa.aalto .kap-vasen-ikoni { display: flex; }
 
 /* Tuuli. Keskiosa on kaksirivinen: lukema ylhäällä, puuska sen alla
    pienempänä ja harmaana. Puuska EI ole rampin väreissä vaikka se on
@@ -5762,7 +5769,10 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
               stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <span class="kap-vasen-teksti">
-        <span class="kap-suunta" id="kap-suunta">--&deg;</span>
+        <span class="kap-vasen-rivi">
+          <span class="kap-vasen-ikoni" id="kap-vasen-ikoni" aria-hidden="true"></span>
+          <span class="kap-suunta" id="kap-suunta">--&deg;</span>
+        </span>
         <span class="kap-aaltomax" id="kap-aaltomax"></span>
       </span>
     </button>
@@ -30057,6 +30067,8 @@ const Crosshair = {
     this._vasenEl = document.querySelector('.kap-suunta-osa');
     const ikoni = document.getElementById('kap-aalto-ikoni');
     if (ikoni) ikoni.innerHTML = kapseliAaltoSVG(20);
+    const vIkoni = document.getElementById('kap-vasen-ikoni');
+    if (vIkoni) vIkoni.innerHTML = kapseliAaltoSVG(16);
     this._puuskaEl = document.getElementById('kap-puuska');
     this._chEl = document.getElementById('crosshair');
     this._windArrow = document.getElementById('ch-wind-arrow');

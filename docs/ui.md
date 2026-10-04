@@ -8213,3 +8213,14 @@ Mitattu (Chromium 375 px, fi/en): tuulikerros "0,60 m | maks. ~1,1 m"
 väri `77,192,207`, valikko "Aallot 0,60 m | Tuulen suunta 272°";
 aaltotila "226° | [merkki] 0,60 m | jakso 5 s", sama väri, valikko ei
 aukea; savutesti läpi, ei `pageerror`ia.
+
+### Kolmas erä (4.10.): aaltomerkki myös tuulinäkymän vasempaan osaan
+
+Käyttäjän pyyntö: sama aaltomerkki aallonkorkeuden viereen myös
+tuulinäkymässä. `#kap-vasen-ikoni` on korkeuden rivillä (`.kap-vasen-rivi`)
+16 px:n kokoisena (aaltotilan pääluvussa 20 px, koska luku on 23 px),
+ja se näkyy vain kun vasen osa näyttää aaltoa (`.kap-suunta-osa.aalto`);
+tuulen suuntana ja sisämaassa merkkiä ei ole. Nuoli jää vasemmalle
+kertomaan suunnan. Mitattu (Chromium, fi/en): kapseli 284 px 375 px:n
+ja 257–259 px 320 px:n ruudulla, ei ylivuotoa, korkeus yhdellä rivillä;
+savutesti läpi.
