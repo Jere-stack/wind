@@ -346,15 +346,21 @@ export default async function handler(req, res) {
        palettia varten. Kaksi kayraa samalle asialle ajautuisi erilleen. */
     const n = g.ni * g.nj;
     const tavut = Buffer.allocUnsafe(n * 2);
-    let suurin = 0, markia = 0;
+    /* `puuttuva=1` (sovellus 4.10.): mallin alueen ulkopuoli (NaN) on
+       65535 eikä nolla, jotta asiakas erottaa poudan katteen reunasta ja
+       voi jatkaa sitä ECMWF:llä (docs/sadetutka.md, luku 11). Vanha
+       asiakas ei pyydä sitä ja saa nollan kuten ennen. */
+    const puuttuva = req.query.puuttuva === '1';
+    let suurin = 0, markia = 0, puuttuvia = 0;
     for (let i = 0; i < n; i++) {
       const v = g.arvot[i];
       let q = 0;
+      if (puuttuva && !isFinite(v)) { tavut.writeUInt16BE(65535, i * 2); puuttuvia++; continue; }
       if (isFinite(v) && v > 0) {
         const mmh = v * 3600;
         if (mmh > suurin) suurin = mmh;
         if (mmh > 0.05) markia++;
-        q = Math.min(65535, Math.round(mmh * 100));
+        q = Math.min(puuttuva ? 65534 : 65535, Math.round(mmh * 100));
       }
       tavut.writeUInt16BE(q, i * 2);
     }
@@ -366,12 +372,14 @@ export default async function handler(req, res) {
          Skannaus on mitattu 64:ksi eli rivi 0 on etelaisin; jos lahde
          joskus vaihtaa sen, `flip` kertoo sen asiakkaalle eika jata
          kuvaa ylosalaisin ilman etta kukaan huomaa. */
-      lat0: g.la1, lon0: g.lo1, dlat: g.dj, dlon: g.di,
+      /* GRIB kertoo pituusasteen 0..360; länsi on siis 350 eikä −10. */
+      lat0: g.la1, lon0: g.lo1 > 180 ? g.lo1 - 360 : g.lo1, dlat: g.dj, dlon: g.di,
       flip: (g.skannaus & 0x40) === 0,
       /* mm/h x 100, uint16 big-endian, rivi kerrallaan etelasta pohjoiseen. */
       mmh: tavut.toString('base64'),
       max: Math.round(suurin * 100) / 100,
-      markia: markia
+      markia: markia,
+      puuttuvia: puuttuvia
     });
   } catch (err) {
     if (err && err.message === EI_DATAA) {

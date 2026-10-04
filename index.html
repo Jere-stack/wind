@@ -1266,6 +1266,12 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
   text-align: center; font-size: var(--fs-13); line-height: 1.2;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* Sadekerros on beta (4.10.): merkintä pienempänä ja himmeämpänä nimen
+   perässä, jotta nimi pysyy kerroksen nimenä eikä kahden sanan lappuna. */
+.sp-kerros-beta { font-size: 11px; font-weight: 400; color: var(--ink-3); }
+/* Nimi + beta ei mahdu 320–390 px:n puhelimella ruudun levyyn: se saa
+   ulottua ruutujen väliin (8 px kummallekin puolelle) eikä katkea. */
+.sp-kerros-nimi:has(.sp-kerros-beta) { overflow: visible; text-overflow: clip; margin: 0 -8px; }
 .sp-chip.sp-kerros.active { background: none; color: var(--ink); font-weight: 600; }
 .sp-chip.sp-kerros.active .sp-kerros-kuva {
   box-shadow: 0 0 0 2px var(--surface-hi), 0 0 0 4px var(--ink), 0 2px 6px rgba(0, 0, 0, .35);
@@ -3310,6 +3316,12 @@ button.sh-hero-indeksi:focus-visible { outline: 2px solid var(--accent); outline
 html[data-tutka="1"] #lahde-merkki {
   max-width: calc(100vw - var(--sal) - var(--sar) - 36px - 100px);
 }
+/* SADETILASSA TUULEN LÄHDEMERKINTÄ VÄISTYY (4.10.): se kertoo tuulen
+   mallin, jota kartalla ei silloin ole, ja sateen leima kertoo nyt myös
+   mallin ("· muualla ECMWF 9 km") — yhdessä ne menivät päällekkäin.
+   Leima saa koko rivin. */
+html[data-sadekerros="1"] #lahde-merkki { display: none; }
+html[data-sadekerros="1"] #tutka-aika { max-width: calc(100vw - var(--sal) - var(--sar) - 36px); }
 
 
 /* Verkkotila. Sama paperisiru kuin muut kartan päällä kelluvat esineet.
@@ -5839,7 +5851,7 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
             <div class="sp-chip sp-kerros active" data-layer="wind"><canvas class="sp-kerros-kuva" data-kuva="wind" aria-hidden="true"></canvas><span class="sp-kerros-nimi" data-en="Wind">Tuuli</span></div>
             <div class="sp-chip sp-kerros" data-layer="gust"><canvas class="sp-kerros-kuva" data-kuva="gust" aria-hidden="true"></canvas><span class="sp-kerros-nimi" data-en="Gusts">Puuska</span></div>
             <div class="sp-chip sp-kerros" data-layer="aallot"><canvas class="sp-kerros-kuva" data-kuva="aallot" aria-hidden="true"></canvas><span class="sp-kerros-nimi" data-en="Waves">Aallot</span></div>
-            <div class="sp-chip sp-kerros" data-layer="sade"><canvas class="sp-kerros-kuva" data-kuva="sade" aria-hidden="true"></canvas><span class="sp-kerros-nimi" data-en="Rain">Sade</span></div>
+            <div class="sp-chip sp-kerros" data-layer="sade"><canvas class="sp-kerros-kuva" data-kuva="sade" aria-hidden="true"></canvas><span class="sp-kerros-nimi"><span data-en="Rain">Sade</span> <span class="sp-kerros-beta" data-en="(beta)">(beta)</span></span></div>
           </div>
           <!-- Aallonkorkeuden asteikko: vain aaltotilassa, koska silloin se
                on kartan ainoa voimassa oleva asteikko. -->
@@ -5856,7 +5868,7 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
             <div class="sp-sadeasteikko-otsikko" data-en="Rain intensity (mm/h)">Sateen voimakkuus (mm/h)</div>
             <div id="sade-scale-bar"></div>
             <div id="sade-scale-ticks"></div>
-            <div class="sp-note" data-en="FMI radar for past hours (a 30-minute loop), HARMONIE forecast ahead. Radar colours are converted to millimetres from FMI’s own legends, so observed and forecast rain share one scale.">FMI:n tutka menneille tunneille (30 minuutin silmukka), HARMONIE-ennuste eteenp&auml;in. Tutkan v&auml;rit on k&auml;&auml;nnetty millimetreiksi FMI:n omista selitteist&auml;, joten havainto ja ennuste ovat samalla asteikolla.</div>
+            <div class="sp-note" data-en="Beta. In Finland: FMI radar every 5 minutes for past hours, a radar nowcast for the next two hours, then the HARMONIE forecast. Elsewhere in the world the best available model: HARMONIE in the Nordic and Baltic countries, ECMWF 9 km everywhere else and after HARMONIE ends. Radar colours are converted to millimetres from FMI’s own legends, so observed and forecast rain share one scale.">Beta. Suomessa FMI:n tutka 5 minuutin v&auml;lein menneille tunneille, tutkasta laskettu l&auml;hiennuste kahdeksi tunniksi ja sitten HARMONIE-ennuste. Muualla maailmassa paras saatavilla oleva malli: HARMONIE Pohjoismaissa ja Baltiassa, ECMWF 9 km muualla ja HARMONIEn jakson j&auml;lkeen. Tutkan v&auml;rit on k&auml;&auml;nnetty millimetreiksi FMI:n omista selitteist&auml;, joten havainto ja ennuste ovat samalla asteikolla.</div>
           </div>
         </div>
 
@@ -11349,6 +11361,9 @@ GLRuudukko.prototype._paivitaRuudut = function () {
     for (let x = x0; x <= x1; x++) {
       const avain = x + ':' + y + ':' + tz;
       if (this._tiles[avain]) { this._tiles[avain].current = true; this._tiles[avain].reuna = false; continue; }
+      /* `_laattaOk`: kerros voi rajata laatat datan katteeseen (sadetutka
+         vain Suomen tutkien ympäriltä, ei maailmankartan joka laattaa). */
+      if (this._laattaOk && !this._laattaOk(x, y, tz)) continue;
       const coords = L.point(x, y); coords.z = tz;
       const kierretty = L.point(((x % n) + n) % n, y); kierretty.z = tz;
       const t = { coords: coords, current: true, loaded: false, el: null, tex: null };
@@ -11369,6 +11384,7 @@ GLRuudukko.prototype._paivitaRuudut = function () {
         if (x >= x0 && x <= x1 && y >= y0 && y <= y1) continue;
         const avain = x + ':' + y + ':' + tz;
         if (this._tiles[avain]) { this._tiles[avain].reuna = true; continue; }
+        if (this._laattaOk && !this._laattaOk(x, y, tz)) continue;
         const coords = L.point(x, y); coords.z = tz;
         const kierretty = L.point(((x % n) + n) % n, y); kierretty.z = tz;
         const t = { coords: coords, current: false, reuna: true, loaded: false, el: null, tex: null };
@@ -14582,6 +14598,15 @@ const SadeSarja = {
       const uusi = { t: nyt, data: e ? e.data : null, kesken: true, ec: e ? e.ec : null };
       this._m.set(k, uusi);
       const self = this, la = k.split(',')[0], lo = k.split(',')[1];
+      /* Tutkan katteen ulkopuolella (koko maailma, 4.10.) sarjassa on vain
+         malli: tutkan ja nowcastin rivit ohitetaan (`akselille`). */
+      const kate = TutkaKate.kate(+la, +lo);
+      const tyhja = function () {
+        const d = SadeSarja._valmistele({ tunnit: [], ennuste: [], vartit: [] });
+        d.kate = kate;
+        if (uusi.ec) { d.ecmwf = uusi.ec.mm; d.ecmwfLoppu = uusi.ec.loppu; }
+        return d;
+      };
       /* Jatko HARMONIEn jälkeen: ECMWF 9 km:n sademäärä pisteessä
          (`/api/malli?tila=sarja&muuttuja=sade`, docs/sadetutka.md V6).
          Haetaan rinnakkain, ja kumpi tahansa voi tulla ensin. */
@@ -14593,6 +14618,7 @@ const SadeSarja = {
           let loppu = 0;
           j.mm.forEach(function (v, i) { if (v != null) { const t = j.t0 + i * 3600e3; m.set(t, v); loppu = t; } });
           uusi.ec = { mm: m, loppu: loppu };
+          if (!uusi.data && !uusi.kesken) uusi.data = tyhja();
           if (uusi.data) { uusi.data.ecmwf = m; uusi.data.ecmwfLoppu = loppu; if (self.kunValmis) self.kunValmis(); }
         }, function () {});
       fetch(API_BASE + '/sade?sarja=1&lat=' + la + '&lon=' + lo)
@@ -14601,10 +14627,15 @@ const SadeSarja = {
           uusi.kesken = false; uusi.t = Date.now();
           if (j && j.tunnit) {
             uusi.data = SadeSarja._valmistele(j);
+            uusi.data.kate = kate;
             if (uusi.ec) { uusi.data.ecmwf = uusi.ec.mm; uusi.data.ecmwfLoppu = uusi.ec.loppu; }
             if (self.kunValmis) self.kunValmis();
-          }
-        }, function () { uusi.kesken = false; uusi.t = Date.now(); });
+          } else if (uusi.ec && !uusi.data) { uusi.data = tyhja(); if (self.kunValmis) self.kunValmis(); }
+        }, function () {
+          uusi.kesken = false; uusi.t = Date.now();
+          /* FMI:n sarja ei vastannut (esim. 502 kaukana Suomesta): ECMWF yksin. */
+          if (uusi.ec && !uusi.data) { uusi.data = tyhja(); if (self.kunValmis) self.kunValmis(); }
+        });
       if (this._m.size > 40) this._m.delete(this._m.keys().next().value);
     }
     return e ? e.data : null;
@@ -14647,20 +14678,23 @@ const SadeSarja = {
     for (let i = 0; i < ts.length; i++) {
       const t = ts[i];
       let mm = null, lahde = null;
-      if (t <= d.tutkaLoppu && d.tunnit.has(t)) { mm = d.tunnit.get(t); lahde = 'tutka'; }
+      const tutkaa = d.kate == null || d.kate >= 0.5;
+      if (tutkaa && t <= d.tutkaLoppu && d.tunnit.has(t)) { mm = d.tunnit.get(t); lahde = 'tutka'; }
       else {
-        const nc = typeof Nowcast !== 'undefined' ? Nowcast.tunti(t) : null;
+        const nc = tutkaa && typeof Nowcast !== 'undefined' ? Nowcast.tunti(t) : null;
         if (nc != null) { mm = nc; lahde = 'nowcast'; }
         else if (d.ennuste.has(t)) { mm = d.ennuste.get(t); lahde = 'ennuste'; }
-        else if (d.ecmwf && t > d.ennusteLoppu && d.ecmwf.has(t)) { mm = d.ecmwf.get(t); lahde = 'ecmwf'; }
+        else if (d.ecmwf && d.ecmwf.has(t)) { mm = d.ecmwf.get(t); lahde = 'ecmwf'; }
       }
       if (mm == null) { out[i] = null; continue; }
       let q = null;
+      if (tutkaa) {
       const a = [t - 3 * V, t - 2 * V, t - V, t].map(function (u) {
         if (d.vartit.has(u)) return d.vartit.get(u);
         return typeof Nowcast !== 'undefined' ? Nowcast.vartti(u) : null;
       });
       if (a.every(function (x) { return x != null; })) q = a;
+      }
       out[i] = { mm: mm, lahde: lahde, q: q };
     }
     return out;
@@ -14688,10 +14722,19 @@ const Sadeennuste = {
      ne ehtivät tulla; jono ei saa paisua, joten ylimääräiset pyynnöt
      jätetään tekemättä ja seuraava ruutu pyytää uudestaan vain sen mikä
      on silloin tarpeen. */
-  RINNAKKAIN: 2,
+  RINNAKKAIN: 3,
 
-  /* tunnin alku (ms) -> { tila: 'kesken'|'ok'|'tyhja'|'virhe', hila,
-     b: kattama rajaus, versio, lataa, virheT, tex, texVersio } */
+  /* PARAS PAIKALLINEN MALLI JOKA PAIKASSA (4.10., docs/sadetutka.md
+     luku 11). Tunnilla on kaksi hilaa: HARMONIE (`ha`, FMI:n MEPS-alue
+     eli Pohjoismaat ja Baltia) ja ECMWF 9 km (`ec`, koko maailma), ja
+     varjostin sekoittaa ne HARMONIEn katteen painolla — sama periaate kuin
+     tuulen Paras-sekoituksessa (FMI > … > ECMWF, 50 km:n reuna). ECMWF
+     haetaan vasta kun HARMONIE ei kata näkymää kokonaan (tai sen jakso
+     on loppu), joten Suomessa pyyntöjä ei tule lisää.
+
+     tunnin alku (ms) -> { ha: osa, ec: osa, haTarve, ecTarve }
+     osa = { tila: 'kesken'|'ok'|'tyhja'|'virhe', hila, b, versio, lataa,
+             virheT, tex, texVersio, taysi } */
   _m: new Map(),
   _kesken: 0,
   /* Poistettujen tuntien GL-tekstuurit. Kerros omistaa GL-kontekstin,
@@ -14699,6 +14742,9 @@ const Sadeennuste = {
   _roskat: [],
   /* Kutsutaan kun jokin tunti saapui: kerros pyytää uuden ruudun. */
   kunMuuttui: null,
+  /* HARMONIEn (MEPS) alue karkeasti: vain tämän kanssa leikkaava näkymä
+     kysyy sitä. Tarkka raja tulee vastauksen puuttuvista soluista. */
+  HA_ALUE: { s: 50, n: 76, w: -15, e: 60 },
 
   /* Tunnin alku UTC:na — sama avain kuin proxylla, jotta välimuistit
      osuvat samaan. */
@@ -14706,128 +14752,283 @@ const Sadeennuste = {
     return new Date(Math.floor(ms / 3600000) * 3600000).toISOString().slice(0, 19) + 'Z';
   },
 
-  _kattaa(e, b) {
-    return !!e.b && e.b.w <= b.getWest() && e.b.e >= b.getEast()
-        && e.b.s <= b.getSouth() && e.b.n >= b.getNorth();
+  _kattaa(o, b) {
+    return !!o && !!o.b && o.b.w <= b.getWest() && o.b.e >= Math.min(180, b.getEast())
+        && o.b.s <= Math.max(-85, b.getSouth()) && o.b.n >= Math.min(85, b.getNorth());
   },
+  _asettunut(o) { return !!o && (o.tila === 'tyhja' || o.tila === 'virhe' || o.tila === 'ok') && !o.lataa; },
 
-  /* Onko tunti valmis tälle näkymälle: hila joka kattaa sen, tieto ettei
-     tunnille ole ennustetta, tai verkkovika (jota ei jäädä odottamaan). */
+  /* Onko tunti valmis tälle näkymälle: tarvittavat hilat perillä (tai
+     tieto ettei niitä ole, tai verkkovika jota ei jäädä odottamaan). */
   valmis(ms, b) {
     const e = this._m.get(ms);
     if (!e) return false;
-    if (e.tila === 'tyhja' || e.tila === 'virhe') return true;
-    return e.tila === 'ok' && this._kattaa(e, b);
+    if (e.haTarve && !this._asettunut(e.ha)) return false;
+    if (e.ha && e.ha.tila === 'ok' && e.ha.taysi && this._kattaa(e.ha, b)) return true;
+    if (!e.ecTarve) return !e.haTarve ? false : (e.ha && e.ha.tila !== 'ok');
+    if (!this._asettunut(e.ec)) return false;
+    return e.ec.tila !== 'ok' || this._kattaa(e.ec, b);
   },
-  tila(ms) { const e = this._m.get(ms); return e ? e.tila : null; },
+  /* 'tyhja' vain kun KUMPAAKAAN ei ole tälle tunnille (ECMWF ulottuu 10
+     vrk:een), 'virhe' kun mitään piirrettävää ei ole ja haku kaatui. */
+  tila(ms) {
+    const e = this._m.get(ms);
+    if (!e) return null;
+    const ha = e.ha ? e.ha.tila : null, ec = e.ec ? e.ec.tila : null;
+    if (ha === 'ok' || ec === 'ok') return 'ok';
+    if ((!e.haTarve || ha === 'tyhja') && ec === 'tyhja') return 'tyhja';
+    if ((!e.haTarve || ha === 'virhe' || ha === 'tyhja') && ec === 'virhe') return 'virhe';
+    return 'kesken';
+  },
   /* Piirrettävä merkintä. Rajaa ei vaadita: panoroinnin aikana vanha
      hila jää ruudulle siksi aikaa kun uusi haetaan (vanha, ei väärä). */
-  merkinta(ms) { const e = this._m.get(ms); return e && e.hila ? e : null; },
+  merkinta(ms) {
+    const e = this._m.get(ms);
+    return e && ((e.ha && e.ha.hila) || (e.ec && e.ec.hila)) ? e : null;
+  },
+  /* Mikä malli näkymässä on: 'harmonie', 'ecmwf' tai 'molemmat'. */
+  lahde(e) {
+    if (!e) return null;
+    const ha = e.ha && e.ha.hila, ec = e.ec && e.ec.hila;
+    if (ha && (e.ha.taysi || !ec)) return 'harmonie';
+    return ha ? 'molemmat' : 'ecmwf';
+  },
 
-  /* Varmista tunnin hila nykyiselle näkymälle. Ei odota: kutsutaan joka
+  /* Pyydettävä rajaus: näkymä puolen näkymän reunuksella, rajattuna
+     maapalloon. ECMWF:n rajaus pyöristetään ulospäin 1/16 osaan omasta
+     koostaan, jotta pieni panorointi osuu samaan osoitteeseen (CDN). */
+  _rajaus(b, pyorista) {
+    const lev = Math.min(360, b.getEast() - b.getWest()), kor = b.getNorth() - b.getSouth();
+    let w = b.getWest() - lev * this.REUNUS, e = b.getEast() + lev * this.REUNUS;
+    let s = b.getSouth() - kor * this.REUNUS, n = b.getNorth() + kor * this.REUNUS;
+    if (pyorista) {
+      const q = Math.max(0.25, Math.pow(2, Math.ceil(Math.log2(Math.max(e - w, n - s) / 16))));
+      w = Math.floor(w / q) * q; e = Math.ceil(e / q) * q; s = Math.floor(s / q) * q; n = Math.ceil(n / q) * q;
+    }
+    w = Math.max(-180, w); e = Math.min(180, e); s = Math.max(-85, s); n = Math.min(85, n);
+    if (e - w > 359) { w = -180; e = 180; }
+    return { w: w, e: e, s: s, n: n };
+  },
+
+  /* Varmista tunnin hilat nykyiselle näkymälle. Ei odota: kutsutaan joka
      ruudussa niille tunneille jotka ovat näkyvissä tai tulossa. */
   varmista(ms, map) {
     if (!map) return;
-    const b = map.getBounds(), nyt = Date.now();
+    const b = map.getBounds();
     let e = this._m.get(ms);
-    if (e) {
-      if (e.tila === 'tyhja' || e.lataa) return;
-      if (e.virheT && nyt - e.virheT < 15000) return;
-      if (e.tila === 'ok' && this._kattaa(e, b)) return;
-    }
-    if (this._kesken >= this.RINNAKKAIN) return;
     if (!e) {
-      e = { tila: 'kesken', hila: null, b: null, versio: 0, lataa: false, virheT: 0, tex: null, texVersio: -1 };
+      e = { ha: null, ec: null, haTarve: false, ecTarve: false };
       this._m.set(ms, e);
       this._karsi();
     }
-    const koko = map.getSize();
-    const lev = b.getEast() - b.getWest(), kor = b.getNorth() - b.getSouth();
-    const lo1 = b.getWest() - lev * this.REUNUS, lo2 = b.getEast() + lev * this.REUNUS;
-    const la1 = b.getSouth() - kor * this.REUNUS, la2 = b.getNorth() + kor * this.REUNUS;
-    const ni = Math.max(8, Math.min(this.HILA_MAX,
-      Math.round((koko.x || 400) * (1 + 2 * this.REUNUS) / this.PX_PER_SOLU)));
-    const nj = Math.max(8, Math.min(this.HILA_MAX,
-      Math.round((koko.y || 400) * (1 + 2 * this.REUNUS) / this.PX_PER_SOLU)));
-    e.lataa = true;
+    const A = this.HA_ALUE;
+    e.haTarve = ms <= SadeSarja.harmonieLoppu()
+      && b.getSouth() < A.n && b.getNorth() > A.s && b.getWest() < A.e && b.getEast() > A.w;
+    if (e.haTarve) {
+      this._hae(e, 'ha', ms, map, b);
+      if (!this._asettunut(e.ha)) { e.ecTarve = false; return; }
+    }
+    e.ecTarve = !(e.haTarve && e.ha.tila === 'ok' && e.ha.taysi && this._kattaa(e.ha, b));
+    if (e.ecTarve) this._hae(e, 'ec', ms, map, b);
+  },
+
+  _hae(e, laji, ms, map, b) {
+    const nyt = Date.now();
+    let o = e[laji];
+    if (o) {
+      if (o.tila === 'tyhja' || o.lataa) return;
+      if (o.virheT && nyt - o.virheT < 15000) return;
+      if (o.tila === 'ok' && this._kattaa(o, b)) return;
+    }
+    if (this._kesken >= this.RINNAKKAIN) return;
+    if (!o) o = e[laji] = { tila: 'kesken', hila: null, b: null, versio: 0, lataa: false, virheT: 0, tex: null, texVersio: -1, taysi: false };
+    const r = this._rajaus(b, laji === 'ec');
+    let osoite;
+    if (laji === 'ec') {
+      osoite = API_BASE + '/malli?muuttuja=sade&t=' + ms + '&s=' + r.s.toFixed(4) + '&n=' + r.n.toFixed(4)
+        + '&w=' + r.w.toFixed(4) + '&e=' + r.e.toFixed(4);
+    } else {
+      const koko = map.getSize();
+      const ni = Math.max(8, Math.min(this.HILA_MAX, Math.round((koko.x || 400) * (1 + 2 * this.REUNUS) / this.PX_PER_SOLU)));
+      const nj = Math.max(8, Math.min(this.HILA_MAX, Math.round((koko.y || 400) * (1 + 2 * this.REUNUS) / this.PX_PER_SOLU)));
+      osoite = API_BASE + '/sade?bbox=' + [r.w, r.s, r.e, r.n].map(v => v.toFixed(4)).join(',')
+        + '&time=' + encodeURIComponent(this.tunti(ms)) + '&ni=' + ni + '&nj=' + nj + '&puuttuva=1';
+    }
+    o.lataa = true;
     this._kesken++;
     const self = this;
-    /* HARMONIEn jakson jälkeen (tai kun se vastaa tulevalle tunnille
-       tyhjää) hila tulee ECMWF 9 km:stä samassa muodossa (V6). */
-    const ec = e.ecmwf || ms > SadeSarja.harmonieLoppu();
-    const osoite = ec
-      ? API_BASE + '/malli?muuttuja=sade&t=' + ms + '&s=' + la1.toFixed(4) + '&n=' + la2.toFixed(4)
-        + '&w=' + lo1.toFixed(4) + '&e=' + lo2.toFixed(4)
-      : API_BASE + '/sade?bbox=' + [lo1, la1, lo2, la2].map(v => v.toFixed(4)).join(',')
-        + '&time=' + encodeURIComponent(this.tunti(ms)) + '&ni=' + ni + '&nj=' + nj;
     fetch(osoite)
-      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (v) { if (!v.ok) throw new Error('HTTP ' + v.status); return v.json(); })
       .then(function (j) {
-        if (!j || j.error) {
-          if (!ec && ms > Date.now()) { e.ecmwf = true; e.tila = 'kesken'; return; }
-          e.tila = 'tyhja'; return;
-        }
-        e.lahde = j.lahde === 'ecmwf' ? 'ecmwf' : 'harmonie';
+        if (!j || j.error) { o.tila = 'tyhja'; return; }
         const tavut = atob(j.mmh), n = j.ni * j.nj;
         const arvot = new Uint16Array(n);
-        for (let i = 0; i < n; i++) arvot[i] = (tavut.charCodeAt(i * 2) << 8) | tavut.charCodeAt(i * 2 + 1);
-        e.hila = { time: j.time, ni: j.ni, nj: j.nj, lat0: j.lat0, lon0: j.lon0,
-                   dlat: j.dlat, dlon: j.dlon, flip: !!j.flip, arvot: arvot, max: j.max };
-        e.b = { w: lo1, e: lo2, s: la1, n: la2 };
-        e.tila = 'ok'; e.virheT = 0; e.versio++;
+        let puuttuu = 0;
+        for (let i = 0; i < n; i++) {
+          const x = (tavut.charCodeAt(i * 2) << 8) | tavut.charCodeAt(i * 2 + 1);
+          arvot[i] = x;
+          if (x === 65535) puuttuu++;
+        }
+        /* Koko rajaus mallin alueen ulkopuolella: ei HARMONIEa täällä. */
+        if (puuttuu === n) { o.tila = 'tyhja'; return; }
+        o.hila = { time: j.time, ni: j.ni, nj: j.nj, lat0: j.lat0, lon0: j.lon0 > 180 ? j.lon0 - 360 : j.lon0,
+                   dlat: j.dlat, dlon: j.dlon, flip: !!j.flip, arvot: arvot, max: j.max, puuttuu: puuttuu };
+        o.b = r;
+        o.taysi = laji === 'ec' || self._kattaaKokonaan(o.hila, b);
+        o.tila = 'ok'; o.virheT = 0; o.versio++;
       })
       .catch(function () {
         /* VERKKOVIKA. Vanha hila (jos on) jää: se on hetken vanha, ei
            väärä. Uusi yritys aikaisintaan 15 s:n päästä. */
-        e.virheT = Date.now();
-        if (e.tila !== 'ok') e.tila = 'virhe';
+        o.virheT = Date.now();
+        if (o.tila !== 'ok') o.tila = 'virhe';
       })
       .then(function () {
-        e.lataa = false;
+        o.lataa = false;
         self._kesken--;
         if (self.kunMuuttui) self.kunMuuttui();
       });
+  },
+
+  /* Kattaako HARMONIE näkymän kokonaan (7 × 7 näytettä täydellä painolla):
+     silloin ECMWF:ää ei tarvita lainkaan. */
+  _kattaaKokonaan(h, b) {
+    if (!h.puuttuu) return true;
+    for (let j = 0; j <= 6; j++) for (let i = 0; i <= 6; i++) {
+      const la = b.getSouth() + (b.getNorth() - b.getSouth()) * j / 6;
+      const lo = b.getWest() + (b.getEast() - b.getWest()) * i / 6;
+      if (this._kate(h, la, lo) < 0.999) return false;
+    }
+    return true;
+  },
+  /* Mallin katteen paino pisteessä hilan omasta maskista (`_maski`). */
+  _kate(h, la, lo) {
+    const m = this._maski(h);
+    const fx = (lo - h.lon0) / h.dlon, fy = (la - h.lat0) / h.dlat;
+    const i = Math.round(fx), j = Math.round(h.flip ? h.nj - 1 - fy : fy);
+    if (i < 0 || j < 0 || i >= h.ni || j >= h.nj) return 0;
+    return m[j * h.ni + i] / 255;
   },
 
   _karsi() {
     if (this._m.size <= this.MUISTI) return;
     for (const [k, e] of this._m) {
       if (this._m.size <= this.MUISTI) break;
-      if (e.lataa) continue;
-      if (e.tex) this._roskat.push(e.tex);
+      if ((e.ha && e.ha.lataa) || (e.ec && e.ec.lataa)) continue;
+      if (e.ha && e.ha.tex) this._roskat.push(e.ha.tex);
+      if (e.ec && e.ec.tex) this._roskat.push(e.ec.tex);
       this._m.delete(k);
     }
   },
 
-  /* Hila -> voimakkuustavut (rivi 0 = etelä), sama `Sade.v`-asteikko
-     kuin tutkan maskeilla: yksi esitysmuoto, kaksi lähdettä. */
+  /* KATTEEN MASKI (rivi 0 = etelä samoin kuin tavuissa): 255 sisällä,
+     0 mallin alueen ulkopuolella, ja reunalla pehmeä 50 km:n siirtymä
+     kuten tuulen painokanavassa. Etäisyys puuttuvaan soluun lasketaan
+     kahden kierroksen chamfer-muunnoksella. */
+  _maski(h) {
+    if (h._maski) return h._maski;
+    const ni = h.ni, nj = h.nj, n = ni * nj, m = new Uint8Array(n);
+    if (!h.puuttuu) { m.fill(255); return (h._maski = m); }
+    const d = new Float32Array(n);
+    for (let r = 0; r < nj; r++) {
+      const lahde = (h.flip ? (nj - 1 - r) : r) * ni;
+      for (let c = 0; c < ni; c++) d[r * ni + c] = h.arvot[lahde + c] === 65535 ? 0 : 1e9;
+    }
+    const D = Math.SQRT2;
+    for (let r = 0; r < nj; r++) for (let c = 0; c < ni; c++) {
+      const k = r * ni + c; let v = d[k];
+      if (c > 0) v = Math.min(v, d[k - 1] + 1);
+      if (r > 0) { v = Math.min(v, d[k - ni] + 1); if (c > 0) v = Math.min(v, d[k - ni - 1] + D); if (c < ni - 1) v = Math.min(v, d[k - ni + 1] + D); }
+      d[k] = v;
+    }
+    for (let r = nj - 1; r >= 0; r--) for (let c = ni - 1; c >= 0; c--) {
+      const k = r * ni + c; let v = d[k];
+      if (c < ni - 1) v = Math.min(v, d[k + 1] + 1);
+      if (r < nj - 1) { v = Math.min(v, d[k + ni] + 1); if (c < ni - 1) v = Math.min(v, d[k + ni + 1] + D); if (c > 0) v = Math.min(v, d[k + ni - 1] + D); }
+      d[k] = v;
+    }
+    /* 50 km soluina (leveysasteen suunnassa), vähintään yksi solu. */
+    const F = Math.max(1, 0.45 / h.dlat);
+    for (let k = 0; k < n; k++) {
+      const x = Math.min(1, Math.max(0, (d[k] - 0.5) / F));
+      m[k] = Math.round(255 * x * x * (3 - 2 * x));
+    }
+    return (h._maski = m);
+  },
+
+  /* Hila -> [voimakkuus, kate] -tavupareina (LUMINANCE_ALPHA, rivi 0 =
+     etelä), sama `Sade.v`-asteikko kuin tutkan maskeilla: yksi
+     esitysmuoto, kolme lähdettä. */
   tavut(h) {
-    const u = new Uint8Array(h.ni * h.nj);
+    const u = new Uint8Array(h.ni * h.nj * 2), m = this._maski(h);
     for (let r = 0; r < h.nj; r++) {
       const lahde = (h.flip ? (h.nj - 1 - r) : r) * h.ni, rivi = r * h.ni;
       for (let c = 0; c < h.ni; c++) {
-        const mm = h.arvot[lahde + c] / 100;
-        if (mm > 0) u[rivi + c] = Math.max(1, Math.round(255 * Sade.v(mm)));
+        const x = h.arvot[lahde + c];
+        const mm = x === 65535 ? 0 : x / 100;
+        const k = (rivi + c) * 2;
+        if (mm > 0) u[k] = Math.max(1, Math.round(255 * Sade.v(mm)));
+        u[k + 1] = m[rivi + c];
       }
     }
     return u;
-  },
+  }
+};
 
-  /* Bilineaarinen näyte, mm/h. Hilan ulkopuolella nolla — ei
-     reunimmaisen solun toistoa, joka levittäisi rannikon kuuron
-     ulkomerelle asti. */
-  nayte(h, lat, lng) {
-    const fx = (lng - h.lon0) / h.dlon;
-    const fyRaaka = (lat - h.lat0) / h.dlat;
-    const fy = h.flip ? (h.nj - 1 - fyRaaka) : fyRaaka;
-    if (fx < 0 || fy < 0 || fx > h.ni - 1 || fy > h.nj - 1) return 0;
-    const i0 = Math.min(h.ni - 2, Math.floor(fx)), j0 = Math.min(h.nj - 2, Math.floor(fy));
-    const tx = fx - i0, ty = fy - j0;
-    const a = h.arvot;
-    const p = j0 * h.ni + i0;
-    const v = a[p] * (1 - tx) * (1 - ty) + a[p + 1] * tx * (1 - ty)
-            + a[p + h.ni] * (1 - tx) * ty + a[p + h.ni + 1] * tx * ty;
-    return v / 100;
+/* TUTKAN KATE (4.10., docs/sadetutka.md luku 11). FMI:n FINRAD-komposiitti
+ * kattaa noin 250 km kunkin tutkan ympäriltä; sen ulkopuolella WMS on
+ * läpinäkyvä samoin kuin poudalla, joten kate ei näy datasta ja se
+ * lasketaan asemista. Katteen ulkopuolella sadekerros näyttää mallin
+ * (HARMONIE tai ECMWF) myös menneille tunneille ja nowcastin jaksolla,
+ * ja reunalla 40 km:n siirtymä. Asemat: FMI:n tutkaverkko 2026. */
+const TutkaKate = {
+  ASEMAT: [
+    [60.9039, 27.1081], [61.7673, 23.0764], [61.9070, 29.7977], [60.1285, 21.6434],
+    [62.8626, 27.3815], [67.1391, 26.8969], [63.8378, 29.4489], [62.3045, 25.4401],
+    [64.7749, 26.3189], [60.2706, 24.8690], [63.1048, 23.8209], [60.3881, 25.1127]
+  ],
+  R_KM: 250, F_KM: 40,
+  /* Asemien ympyröiden yhteinen rajaus (laattojen karsinta). */
+  RAJAT: { s: 57.8, n: 69.5, w: 17.0, e: 34.7 },
+  kate(la, lo) {
+    let c = 0;
+    for (const a of this.ASEMAT) {
+      const dx = (lo - a[1]) * 111.32 * Math.cos(a[0] * Math.PI / 180), dy = (la - a[0]) * 110.57;
+      const x = Math.max(0, Math.min(1, (this.R_KM - Math.sqrt(dx * dx + dy * dy)) / this.F_KM));
+      const s = x * x * (3 - 2 * x);
+      if (s > c) c = s;
+    }
+    return c;
+  },
+  /* Näkymän kate: 'kaikki' (tutka riittää), 'osa' tai 'ei'. Muistetaan
+     rajojen mukaan, koska sitä kysytään joka ruudussa. */
+  _avain: null, _arvo: null,
+  nakyma(map) {
+    const b = map.getBounds();
+    const avain = [b.getWest(), b.getEast(), b.getSouth(), b.getNorth()].map(v => v.toFixed(3)).join(',');
+    if (avain === this._avain) return this._arvo;
+    let mi = 1, ma = 0;
+    const R = this.RAJAT;
+    if (b.getSouth() > R.n || b.getNorth() < R.s || b.getWest() > R.e || b.getEast() < R.w) mi = ma = 0;
+    else {
+      for (let j = 0; j <= 8; j++) for (let i = 0; i <= 8; i++) {
+        const k = this.kate(b.getSouth() + (b.getNorth() - b.getSouth()) * j / 8, b.getWest() + (b.getEast() - b.getWest()) * i / 8);
+        if (k < mi) mi = k; if (k > ma) ma = k;
+      }
+    }
+    this._avain = avain;
+    this._arvo = mi >= 0.999 ? 'kaikki' : ma <= 0.001 ? 'ei' : 'osa';
+    return this._arvo;
+  },
+  /* Leikkaako laatta (laattatason x, y, z; Leaflet-asteikon taso, jolla
+     maailma on 256·2^z px) katteen rajauksen. */
+  laatta(x, y, z, koko) {
+    const n = Math.pow(2, z) * 256 / (koko || 256), R = this.RAJAT;
+    const lo1 = x / n * 360 - 180, lo2 = (x + 1) / n * 360 - 180;
+    const la = (yy) => Math.atan(Math.sinh(Math.PI * (1 - 2 * yy / n))) * 180 / Math.PI;
+    const la1 = la(y + 1), la2 = la(y);
+    const lo = ((lo1 + 180) % 360 + 360) % 360 - 180, loE = lo + (lo2 - lo1);
+    return !(la1 > R.n || la2 < R.s || lo > R.e || loE < R.w);
   }
 };
 
@@ -15331,6 +15532,9 @@ const SadeKerros = GLRuudukko.extend({
   /* 512 px laatta tasolta 9 = 153 m/px Helsingin leveydellä (250 m lähde),
      ja laattoja on yhtä monta kuin ennen 256 px:llä tasolta 8. */
   options: { tileSize: 512, keepBuffer: 1, maxNativeZoom: 9, reuna: 1 },
+  /* Tutkalaatat vain katteen rajauksesta: muualla WMS antaisi tyhjän
+     kuvan, ja maailmankartalla niitä olisi kymmeniä (`TutkaKate`). */
+  _laattaOk: function (x, y, z) { return TutkaKate.laatta(x, y, z, this.options.tileSize); },
 
   initialize: function (options) {
     GLRuudukko.prototype.initialize.call(this, options);
@@ -15389,10 +15593,10 @@ const SadeKerros = GLRuudukko.extend({
           const self = this;
           Sadetutka.uusin().then(function () { self._uudelleen(); });
         }
-        return { l: Sadetutka._luodattu && !Sadetutka._uusinKesken ? 'eitutkaa' : 'odota' };
+        return Sadetutka._luodattu && !Sadetutka._uusinKesken ? { l: 'eitutkaa', t: t } : { l: 'odota' };
       }
       const k = Math.min(u, Math.floor(t / Sadetutka.ASKEL_MS) * Sadetutka.ASKEL_MS);
-      if (u - k > Sadetutka.ARKISTO_MS) return { l: 'eiarkistoa' };
+      if (u - k > Sadetutka.ARKISTO_MS) return { l: 'eiarkistoa', t: t };
       return { l: 'tutka', t: k };
     }
     if (_tutkaLahde(t) === 'nowcast') {
@@ -15415,7 +15619,9 @@ const SadeKerros = GLRuudukko.extend({
       const e = r.el._k.get(t);
       if (!e || e.tila === 'lataa') return false;
     }
-    return n > 0;
+    /* Ei yhtään tutkalaattaa näkymässä (katteen ulkopuolella): tutkaa ei
+       odoteta, ja kuva on mallin (`_piirraTausta`). */
+    return n > 0 || TutkaKate.nakyma(this._map) === 'ei';
   },
   _valmis: function (k) {
     if (k.l === 'tutka') return this._tutkaValmis(k.t);
@@ -15501,7 +15707,15 @@ const SadeKerros = GLRuudukko.extend({
       if (x.l === 'ennuste' && ennuste.indexOf(x.t) < 0) ennuste.push(x.t);
       /* Nowcast sekoittuu HARMONIEn tuntiin. */
       if (x.l === 'nowcast') { const h = Math.round(x.t / H) * H; if (ennuste.indexOf(h) < 0) ennuste.push(h); }
+      /* Tutkan katteen ulkopuolella myös tutkan ja nowcastin hetkillä
+         piirretään malli (`_piirraTausta`): sen kaksi tasatuntia. */
+      if (tausta && x.t != null && (x.l === 'tutka' || x.l === 'nowcast' || x.l === 'eitutkaa' || x.l === 'eiarkistoa')) {
+        const h0 = Math.floor(x.t / H) * H;
+        if (ennuste.indexOf(h0) < 0) ennuste.push(h0);
+        if (x.t > h0 && ennuste.indexOf(h0 + H) < 0) ennuste.push(h0 + H);
+      }
     };
+    const tausta = TutkaKate.nakyma(this._map) !== 'kaikki';
     lisaa(k.A); lisaa(k.B); lisaa(d.A); lisaa(d.B);
     /* Liikekenttä ja nowcast tarvitsevat tuoreimman kehyksen ja vartin
        takaisen — näkymän laatoille ja renkaalle (`_reunaAjat`). */
@@ -15734,30 +15948,52 @@ const SadeKerros = GLRuudukko.extend({
       + '  else { if (ulkona(v_uv)) discard; if (ulkona(ua)) ua = v_uv; if (ulkona(ub)) ub = v_uv; }\n'
       + '  gl_FragColor = vari(mix(bspline(u_a, ua, u_tk), bspline(u_b, ub, u_tk), u_f)); }\n',
       ['a_pos'], ['u_rect', 'u_koko', 'u_a', 'u_b', 'u_lut', 'u_f', 'u_w', 'u_tk', 'u_fl', 'u_flr', 'u_dk', 'u_s', 'u_laaj']);
+    /* ENNUSTEHILA: HARMONIE (u_a/u_b, tunnit A ja B) ja ECMWF (u_c/u_d)
+       samassa vedossa. Tekstuuri on LUMINANCE_ALPHA: voimakkuus ja mallin
+       kate (`Sadeennuste._maski`, 50 km:n reuna). Voimakkuudet
+       sekoitetaan HARMONIEn katteella — paras paikallinen malli siellä
+       missä se on, ECMWF muualla, ilman kovaa rajaa. `u_kat`: tutkan
+       katteen paino (`TutkaKate`), jolla malli väistyy tutkan alta. */
+    const KATE = 'uniform vec2 u_as[' + TutkaKate.ASEMAT.length + '];\n'
+      + 'float tutkaKate(float lng, float la){ float c = 0.0;\n'
+      + '  for (int i = 0; i < ' + TutkaKate.ASEMAT.length + '; i++) { vec2 s = u_as[i];\n'
+      + '    float dx = (lng - s.y) * 111.32 * cos(radians(s.x)), dy = (la - s.x) * 110.57;\n'
+      + '    c = max(c, smoothstep(0.0, 1.0, (' + TutkaKate.R_KM.toFixed(1) + ' - sqrt(dx * dx + dy * dy)) / ' + TutkaKate.F_KM.toFixed(1) + ')); }\n'
+      + '  return c; }\n';
     this._pHila = GLApu.ohjelma(gl,
       GL_TARKKUUS + 'attribute vec2 a_pos;\nvoid main(){ gl_Position = vec4(a_pos * 2.0 - 1.0, 0.0, 1.0); }\n',
       GL_TARKKUUS_FS
-      + 'uniform sampler2D u_a; uniform sampler2D u_b; uniform sampler2D u_lut;\n'
-      + 'uniform vec4 u_ga; uniform vec4 u_gb; uniform vec2 u_ka; uniform vec2 u_kb;\n'
-      + 'uniform float u_f; uniform float u_w; uniform vec4 u_nx; uniform vec2 u_ruutu;\n'
-      + BSPLINE + VARI
+      + 'uniform sampler2D u_a; uniform sampler2D u_b; uniform sampler2D u_c; uniform sampler2D u_d; uniform sampler2D u_lut;\n'
+      + 'uniform vec4 u_ga; uniform vec4 u_gb; uniform vec4 u_gc; uniform vec4 u_gd;\n'
+      + 'uniform vec2 u_ka; uniform vec2 u_kb; uniform vec2 u_kc; uniform vec2 u_kd;\n'
+      + 'uniform float u_f; uniform float u_w; uniform vec4 u_nx; uniform vec2 u_ruutu; uniform vec2 u_on; uniform float u_kat;\n'
+      + BSPLINE + VARI + KATE
       /* Hilan reunalla voimakkuus häipyy yhden solun matkalla: kova
-         reuna piirtäisi rajauksen suorakaiteen kartalle. */
-      + 'float kentta(sampler2D t, vec4 g, vec2 k, float lng, float la){\n'
-      + '  vec2 p = vec2((lng - g.y) / g.w, (la - g.x) / g.z);\n'
+         reuna piirtäisi rajauksen suorakaiteen kartalle. Pituusaste
+         kierretään hilan alkuun, jotta maailman kopiot osuvat samaan
+         hilaan. Palauttaa (voimakkuus, kate). */
+      + 'vec2 kentta(sampler2D t, vec4 g, vec2 k, float lng, float la){\n'
+      + '  float l = g.y + mod(lng - g.y, 360.0);\n'
+      + '  vec2 p = vec2((l - g.y) / g.w, (la - g.x) / g.z);\n'
       + '  vec2 r = min(p + 0.5, k - 0.5 - p);\n'
       + '  float reuna = clamp(min(r.x, r.y), 0.0, 1.0);\n'
-      + '  if (reuna <= 0.0) return 0.0;\n'
-      + '  return bspline(t, (p + 0.5) / k, k) * reuna; }\n'
+      + '  if (reuna <= 0.0) return vec2(0.0);\n'
+      + '  vec2 uv = (p + 0.5) / k;\n'
+      + '  return vec2(bspline(t, uv, k), texture2D(t, uv).a * reuna); }\n'
       + 'void main(){\n'
       + '  float sx = gl_FragCoord.x / u_ruutu.x, sy = (u_ruutu.y - gl_FragCoord.y) / u_ruutu.x;\n'
       + '  float lng = u_nx.x + sx * u_nx.y;\n'
       + '  float la = degrees(2.0 * atan(exp(u_nx.z - sy * u_nx.w)) - 1.5707963267948966);\n'
-      + '  float a = kentta(u_a, u_ga, u_ka, lng, la);\n'
-      + '  float b = u_f > 0.0 ? kentta(u_b, u_gb, u_kb, lng, la) : a;\n'
-      + '  gl_FragColor = vari(mix(a, b, u_f));\n'
+      + '  vec2 ha = vec2(0.0), ec = vec2(0.0);\n'
+      + '  if (u_on.x > 0.5) { vec2 a = kentta(u_a, u_ga, u_ka, lng, la); ha = u_f > 0.0 ? mix(a, kentta(u_b, u_gb, u_kb, lng, la), u_f) : a; }\n'
+      + '  if (u_on.y > 0.5) { vec2 c = kentta(u_c, u_gc, u_kc, lng, la); ec = u_f > 0.0 ? mix(c, kentta(u_d, u_gd, u_kd, lng, la), u_f) : c; }\n'
+      + '  float v = u_on.y > 0.5 ? mix(ec.x * ec.y, ha.x, ha.y) : ha.x * ha.y;\n'
+      + '  float pois = u_kat > 0.0 ? 1.0 - u_kat * tutkaKate(lng, la) : 1.0;\n'
+      + '  gl_FragColor = vari(v) * pois;\n'
       + '}\n',
-      ['a_pos'], ['u_a', 'u_b', 'u_lut', 'u_ga', 'u_gb', 'u_ka', 'u_kb', 'u_f', 'u_w', 'u_nx', 'u_ruutu']);
+      ['a_pos'], ['u_a', 'u_b', 'u_c', 'u_d', 'u_lut', 'u_ga', 'u_gb', 'u_gc', 'u_gd', 'u_ka', 'u_kb', 'u_kc', 'u_kd',
+                  'u_f', 'u_w', 'u_nx', 'u_ruutu', 'u_on', 'u_kat', 'u_as']);
+    this._asemat = new Float32Array([].concat.apply([], TutkaKate.ASEMAT));
     this._nelio = GLApu.nelio(gl);
     this._texTyhja = GLApu.tekstuuri(gl, gl.NEAREST);
     gl.bindTexture(gl.TEXTURE_2D, this._texTyhja);
@@ -15776,7 +16012,7 @@ const SadeKerros = GLRuudukko.extend({
       /* Kehykset joiden data on jo viety GPU:lle haetaan uudelleen. */
       for (const [ms, e] of el._k) if (e.tex) { gl.deleteTexture(e.tex); el._k.delete(ms); }
     }
-    for (const e of Sadeennuste._m.values()) if (e.tex) { gl.deleteTexture(e.tex); e.tex = null; e.texVersio = -1; }
+    for (const e of Sadeennuste._m.values()) for (const o of [e.ha, e.ec]) if (o && o.tex) { gl.deleteTexture(o.tex); o.tex = null; o.texVersio = -1; }
     this._siivoa(gl);
     [this._pLaatta, this._pHila].forEach(p => p && gl.deleteProgram(p.o));
     [this._texTyhja, this._texLut, this._texFlNolla].forEach(t => t && gl.deleteTexture(t));
@@ -15889,40 +16125,60 @@ const SadeKerros = GLRuudukko.extend({
     if (e.texVersio !== e.versio) {
       gl.bindTexture(gl.TEXTURE_2D, e.tex);
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, e.hila.ni, e.hila.nj, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, Sadeennuste.tavut(e.hila));
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE_ALPHA, e.hila.ni, e.hila.nj, 0, gl.LUMINANCE_ALPHA, gl.UNSIGNED_BYTE, Sadeennuste.tavut(e.hila));
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
       e.texVersio = e.versio;
     }
     return e.tex;
   },
 
-  _piirraEnnuste: function (gl, v, A, B, f, w) {
+  /* Ennustehila painolla w. `kat` > 0: malli väistyy tutkan katteen
+     alta painolla kat (tutkan tausta 1, nowcastin alla nowcastin paino).
+     `eiVanhaa`: taustana ei näytetä edellistä hilaa toiselta tunnilta. */
+  _piirraEnnuste: function (gl, v, A, B, f, w, kat, eiVanhaa) {
     let a = Sadeennuste.merkinta(A.t), b = B ? Sadeennuste.merkinta(B.t) : a, ff = f;
     if (!a && !b) {
-      a = b = (this._viimeEnnuste && this._viimeEnnuste.hila && Sadeennuste._m.get(this._viimeEnnuste.t) === this._viimeEnnuste.e)
+      if (eiVanhaa) return;
+      a = b = (this._viimeEnnuste && Sadeennuste._m.get(this._viimeEnnuste.t) === this._viimeEnnuste.e)
         ? this._viimeEnnuste.e : null;
       ff = 0;
       if (!a) return;
     } else if (!a) { a = b; ff = 0; }
     else if (!b) { b = a; ff = 0; }
-    else if (w > 0.99) {
+    else if (w > 0.99 && !kat) {
       const e = f < 0.5 ? a : b;
-      this._viimeEnnuste = { t: f < 0.5 ? A.t : (B ? B.t : A.t), e: e, hila: e.hila };
+      this._viimeEnnuste = { t: f < 0.5 ? A.t : (B ? B.t : A.t), e: e };
     }
-    const texA = this._hilaTex(gl, a), texB = this._hilaTex(gl, b);
+    /* Kumpikin malli erikseen: puuttuva tunti korvataan toisella. */
+    const pari = function (laji) {
+      const x = a[laji] && a[laji].hila ? a[laji] : null, y = b[laji] && b[laji].hila ? b[laji] : null;
+      return x || y ? [x || y, y || x] : null;
+    };
+    const ha = pari('ha'), ec = pari('ec');
+    if (!ha && !ec) return;
+    const tyhja = { hila: { lat0: 0, lon0: 0, dlat: 1, dlon: 1, ni: 1, nj: 1 } };
+    const self = this, p = this._pHila;
+    const tex = function (o) { return o === tyhja ? self._texTyhja : self._hilaTex(gl, o); };
+    const H = [ha ? ha[0] : tyhja, ha ? ha[1] : tyhja, ec ? ec[0] : tyhja, ec ? ec[1] : tyhja];
+    const T = H.map(tex);
     const pr = this._map.ml.getPixelRatio ? this._map.ml.getPixelRatio() : (window.devicePixelRatio || 1);
-    const self = this, p = this._pHila, ha = a.hila, hb = b.hila;
     GLApu.aja(gl, p, this._nelio, function () {
       gl.enableVertexAttribArray(0);
       gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texA);
-      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texB);
-      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, self._texLut);
-      gl.uniform1i(p.u.u_a, 0); gl.uniform1i(p.u.u_b, 1); gl.uniform1i(p.u.u_lut, 2);
-      gl.uniform4f(p.u.u_ga, ha.lat0, ha.lon0, ha.dlat, ha.dlon);
-      gl.uniform4f(p.u.u_gb, hb.lat0, hb.lon0, hb.dlat, hb.dlon);
-      gl.uniform2f(p.u.u_ka, ha.ni, ha.nj);
-      gl.uniform2f(p.u.u_kb, hb.ni, hb.nj);
+      ['u_a', 'u_b', 'u_c', 'u_d'].forEach(function (n, i) {
+        gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, T[i]);
+        gl.uniform1i(p.u[n], i);
+      });
+      gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, self._texLut);
+      gl.uniform1i(p.u.u_lut, 4);
+      ['a', 'b', 'c', 'd'].forEach(function (n, i) {
+        const h = H[i].hila;
+        gl.uniform4f(p.u['u_g' + n], h.lat0, h.lon0, h.dlat, h.dlon);
+        gl.uniform2f(p.u['u_k' + n], h.ni, h.nj);
+      });
+      gl.uniform2f(p.u.u_on, ha ? 1 : 0, ec ? 1 : 0);
+      gl.uniform1f(p.u.u_kat, kat || 0);
+      gl.uniform2fv(p.u.u_as, self._asemat);
       gl.uniform1f(p.u.u_f, ff);
       gl.uniform1f(p.u.u_w, w);
       gl.uniform4f(p.u.u_nx, v.x0 / v.W * 360 - 180, 360 / v.W,
@@ -15932,6 +16188,16 @@ const SadeKerros = GLRuudukko.extend({
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       gl.activeTexture(gl.TEXTURE0);
     });
+  },
+
+  /* TUTKAN TAUSTA (4.10.): katteen ulkopuolella hetken malli — kaksi
+     tasatuntia sekoitettuna hetken osuudella, ja tutkan alla ei mitään
+     (`kat` 1). Katteen sisällä olevassa näkymässä ei piirretä mitään. */
+  _piirraTausta: function (gl, v, t, w, kat) {
+    if (t == null || (kat && TutkaKate.nakyma(this._map) === 'kaikki')) return false;
+    const H = 3600e3, h0 = Math.floor(t / H) * H, f = (t - h0) / H;
+    this._piirraEnnuste(gl, v, { l: 'ennuste', t: h0 }, f > 1e-3 ? { l: 'ennuste', t: h0 + H } : null, f > 1e-3 ? f : 0, w, kat, true);
+    return !!(Sadeennuste.merkinta(h0) || Sadeennuste.merkinta(h0 + H));
   },
 
   /* NOWCAST: advektoitu mosaiikki yhtenä nelikulmiona samalla
@@ -15946,9 +16212,11 @@ const SadeKerros = GLRuudukko.extend({
     if (!fa) { this._laskettu = true; if (SadeLiike._nc) this._uudelleen(); }
     const fb = B ? SadeLiike.kehys(this, B.t - u, false) : null;
     const wn = fa ? SadeLiike.painoNowcast(tau) : 0;
-    if (wn < 0.999) {
+    {
       const h = Math.round((B && f >= 0.5 ? B.t : A.t) / H) * H;
-      this._piirraEnnuste(gl, v, { l: 'ennuste', t: h }, null, 0, w * (1 - wn));
+      /* Tutkan katteen ulkopuolella nowcastia ei ole: malli täydellä
+         painolla, katteen alla 1 − wn kuten ennen (`kat` = wn). */
+      this._piirraEnnuste(gl, v, { l: 'ennuste', t: h }, null, 0, w, wn, true);
     }
     if (!fa || wn < 0.004) return;
     const tex = function (fr) {
@@ -16003,7 +16271,10 @@ const SadeKerros = GLRuudukko.extend({
      häivytys tyhjään) piirretään päällekkäin painoillaan. */
   _piirraPari: function (gl, v, A, B, f, w) {
     if (B && A.l === B.l && (A.l === 'tutka' || A.l === 'ennuste' || A.l === 'nowcast')) {
-      if (A.l === 'tutka') this._piirraTutka(gl, v, A, B, f, w);
+      if (A.l === 'tutka') {
+        this._tausta = this._piirraTausta(gl, v, A.t + (B.t - A.t) * f, w, 1);
+        this._piirraTutka(gl, v, A, B, f, w);
+      }
       else if (A.l === 'nowcast') this._piirraNowcast(gl, v, A, B, f, w);
       else this._piirraEnnuste(gl, v, A, B, f, w);
       return;
@@ -16012,7 +16283,8 @@ const SadeKerros = GLRuudukko.extend({
     for (const o of osat) {
       const k = o[0], ww = o[1] * w;
       if (ww < 0.004) continue;
-      if (k.l === 'tutka') this._piirraTutka(gl, v, k, null, 0, ww);
+      if (k.l === 'tutka') { this._tausta = this._piirraTausta(gl, v, k.t, ww, 1); this._piirraTutka(gl, v, k, null, 0, ww); }
+      else if (k.l === 'eitutkaa' || k.l === 'eiarkistoa') this._tausta = this._piirraTausta(gl, v, k.t, ww, 0);
       else if (k.l === 'ennuste') this._piirraEnnuste(gl, v, k, null, 0, ww);
       else if (k.l === 'nowcast') this._piirraNowcast(gl, v, k, null, 0, ww);
     }
@@ -16028,6 +16300,7 @@ const SadeKerros = GLRuudukko.extend({
     const d = this._paata(nyt, k);
     this._palvele(this._tarpeet(k, d));
     this._varmistaLut(gl);
+    this._tausta = false;
     this._piirraPari(gl, map._nakyma(), d.A, d.B, d.f, 1);
     this._paivitaLeima(d, k);
     /* Nowcastin ketju (kenttä ja lähtömosaiikki) heti kun kehykset ovat
@@ -16043,20 +16316,32 @@ const SadeKerros = GLRuudukko.extend({
 
   _paivitaLeima: function (d, k) {
     const nayt = (d.B && d.f >= 0.5) ? d.B : d.A;
+    const H = 3600e3;
+    /* Mallin nimi leimaan: mikä hila näkymässä on (`Sadeennuste.lahde`). */
+    const malli = function (t) {
+      const l = Sadeennuste.lahde(Sadeennuste.merkinta(Math.floor(t / H) * H) || Sadeennuste.merkinta(Math.ceil(t / H) * H));
+      return l === 'ecmwf' ? _t('ECMWF 9 km, karkea', 'ECMWF 9 km, coarse')
+        : l === 'molemmat' ? 'HARMONIE + ECMWF 9 km' : 'HARMONIE';
+    };
+    const vain = TutkaKate.nakyma(this._map) === 'ei';
     let teksti;
     switch (nayt.l) {
       case 'tutka':
-        teksti = _t('Sadetutka ', 'Rain radar ') + _tutkaKello(nayt.t);
+        /* Katteen ulkopuolella näkyvä malli sanotaan: tutka on vain Suomesta. */
+        teksti = vain && this._tausta ? _t('Sade-ennuste ', 'Rain forecast ') + _tutkaKello(nayt.t) + ' · ' + malli(nayt.t)
+          : _t('Sadetutka ', 'Rain radar ') + _tutkaKello(nayt.t)
+            + (this._tausta ? _t(' · muualla ', ' · elsewhere ') + malli(nayt.t) : '');
         break;
-      case 'ennuste': {
-        const m = Sadeennuste.merkinta(nayt.t);
-        teksti = _t('Sade-ennuste ', 'Rain forecast ') + _tutkaKello(nayt.t)
-          + (m && m.lahde === 'ecmwf' ? _t(' · ECMWF 9 km, karkea', ' · ECMWF 9 km, coarse') : ' · HARMONIE');
+      case 'ennuste':
+        teksti = _t('Sade-ennuste ', 'Rain forecast ') + _tutkaKello(nayt.t) + ' · ' + malli(nayt.t);
         break;
-      }
-      case 'nowcast': teksti = _t('Lähiennuste ', 'Nowcast ') + _tutkaKello(nayt.t) + _t(' · tutka + HARMONIE', ' · radar + HARMONIE'); break;
+      case 'nowcast':
+        teksti = vain ? _t('Sade-ennuste ', 'Rain forecast ') + _tutkaKello(nayt.t) + ' · ' + malli(nayt.t)
+          : _t('Lähiennuste ', 'Nowcast ') + _tutkaKello(nayt.t) + _t(' · tutka + ', ' · radar + ') + malli(nayt.t);
+        break;
       case 'odota': teksti = _t('Sadetutka · ladataan…', 'Rain radar · loading…'); break;
-      case 'eitutkaa': teksti = _t('Sadetutka · ei saatavilla', 'Rain radar · unavailable'); break;
+      case 'eitutkaa': teksti = this._tausta ? _t('Sadetutka ei saatavilla · ', 'Rain radar unavailable · ') + malli(nayt.t)
+        : _t('Sadetutka · ei saatavilla', 'Rain radar · unavailable'); break;
       case 'eiarkistoa': teksti = _t('Sadetutka · ei arkistoa tälle päivälle', 'Rain radar · no archive for this day'); break;
       case 'eiennustetta': teksti = _t('Ei sade-ennustetta tälle tunnille', 'No rain forecast for this hour'); break;
       case 'eiyhteytta': teksti = _t('Sade-ennuste · ei yhteyttä', 'Rain forecast · no connection'); break;
@@ -29142,7 +29427,8 @@ function _tlKuplaTeksti(d) {
     const nayta = _sadetila();
     if (laji.hidden === nayta) laji.hidden = !nayta;
     if (nayta) {
-      const l = _tutkaLahde(d.getTime());
+      let l = _tutkaLahde(d.getTime());
+      if (l !== 'ennuste' && State.map) { const c = State.map.getCenter(); if (TutkaKate.kate(c.lat, c.lng) < 0.5) l = 'ennuste'; }
       const tx = l === 'tutka' ? _t('Havainto', 'Observation')
         : l === 'nowcast' ? _t('Lähiennuste', 'Nowcast') : _t('Ennuste', 'Forecast');
       if (laji.textContent !== tx) laji.textContent = tx;
@@ -29752,17 +30038,19 @@ const Crosshair = {
     if (this._nuoliEl) { this._nuoliEl.style.visibility = 'hidden'; this._nuoliEl.style.transform = ''; }
     const d = SadeSarja.hae(center.lat, center.lng);
     const hetki = _tutkaHetki(), V = SADE_VARTTI_MS, H = 3600e3;
-    const lahde = _tutkaLahde(hetki);
-    let mmh = null, tunti = null;
+    /* Tutkan katteen ulkopuolella lukema on mallin, myös menneellä tunnilla. */
+    const tutkaa = TutkaKate.kate(center.lat, center.lng) >= 0.5;
+    let lahde = tutkaa ? _tutkaLahde(hetki) : 'ennuste';
+    let mmh = null, tunti = null, malli = 'HARMONIE';
     if (d) {
       const v = Math.round(hetki / V) * V;
       if (lahde === 'tutka' && d.vartit.has(v)) mmh = d.vartit.get(v);
       if (mmh == null && lahde === 'nowcast' && typeof Nowcast !== 'undefined') mmh = Nowcast.vartti(v);
       const th = Math.ceil(hetki / H) * H;
-      tunti = d.tunnit.has(th) && th <= d.tutkaLoppu ? d.tunnit.get(th)
-        : (typeof Nowcast !== 'undefined' && Nowcast.tunti(th) != null) ? Nowcast.tunti(th)
-        : d.ennuste.has(th) ? d.ennuste.get(th)
-        : (d.ecmwf && d.ecmwf.has(th)) ? d.ecmwf.get(th) : null;
+      if (tutkaa && d.tunnit.has(th) && th <= d.tutkaLoppu) tunti = d.tunnit.get(th);
+      else if (tutkaa && typeof Nowcast !== 'undefined' && Nowcast.tunti(th) != null) tunti = Nowcast.tunti(th);
+      else if (d.ennuste.has(th)) tunti = d.ennuste.get(th);
+      else if (d.ecmwf && d.ecmwf.has(th)) { tunti = d.ecmwf.get(th); malli = 'ECMWF'; }
       if (mmh == null) mmh = tunti;
     }
     if (mmh == null) {
@@ -29778,7 +30066,7 @@ const Crosshair = {
       + '</span><span class="cr-speed-unit">mm/h</span>';
     this._suuntaEl.textContent = lahde === 'tutka' ? _t('tutka', 'radar')
       : lahde === 'nowcast' ? _t('lähiennuste', 'nowcast')
-      : (d && hetki > d.ennusteLoppu ? 'ECMWF' : 'HARMONIE');
+      : malli;
     if (tunti != null && tunti >= 0.05) {
       this._puuskaEl.textContent = _t('tunnissa ', 'in the hour ') + _desim(tunti, 1) + ' mm';
       this._puuskaEl.classList.remove('hidden');
@@ -30468,9 +30756,14 @@ const KerrosKuvat = {
         } else if (lutS) {
           /* Kuurot: oktaavisumman huiput ovat soluja, ja hienompi
              oktaavi antaa niille tutkakuvan rosoisen reunan. Väliin jää
-             poutaa, kuten oikeassa sadekuvassa. */
+             poutaa, kuten oikeassa sadekuvassa. Voimakkuus on
+             logaritminen kuten oikeassa sadealueessa (4.10., klassinen
+             tutkaväri): laaja heikko sade sinisenä ja vihreänä, keltainen
+             ja oranssi kuuroissa, ja punainen vain ytimissä — ennen
+             lineaarinen käyrä teki kuvasta lähes kokonaan punaisen. */
           const v = 0.75 * this._fbm(x * 2.6, y * 2.6, 31) + 0.25 * this._fbm(x * 9, y * 9, 43);
-          const mm = Math.pow(Math.max(0, v - 0.5) * 6.5, 2.2) * 9;
+          const tt = (v - 0.47) / 0.27;
+          const mm = tt > 0 ? 0.06 * Math.pow(220, Math.pow(Math.min(1.15, tt), 1.5)) : 0;
           if (mm > 0.03) {
             const w = lutS[Math.max(1, Math.round(255 * Sade.v(mm)))];
             const cr = w & 255, cg = (w >>> 8) & 255, cb = (w >>> 16) & 255, ca = ((w >>> 24) & 255) / 255;

@@ -626,7 +626,9 @@ async function lueSarja(L, nimi, avaimet, alkuH, loppuH) {
 async function sadeSarja(q) {
   const L = LAHTEET.ecmwf_ifs, la = Number(q.lat), lo = Number(q.lng);
   if (!Number.isFinite(la) || !Number.isFinite(lo)) throw new Error('virheellinen piste');
-  const nyt = Math.floor(Date.now() / H), alkuH = nyt, loppuH = nyt + 10 * 24;
+  /* Menneisyys mukana (50 h, kuten tuulen sarjalla): tutkan ulkopuolella
+     aikajanan menneet tunnit ovat mallin sadetta. */
+  const nyt = Math.floor(Date.now() / H), alkuH = nyt - 50, loppuH = nyt + 10 * 24;
   const nn = L.hila.naapurit(la, lo);
   const arvot = await lueSarja(L, 'precipitation', [...new Set(nn.map(([k]) => k))], alkuH, loppuH);
   const mm = [];
@@ -727,7 +729,10 @@ async function sadeKentta(q) {
   const t = Math.round(Number(q.t) / H) * H;
   const s = Number(q.s), n = Number(q.n), w = Number(q.w), e = Number(q.e);
   if (![t, s, n, w, e].every(Number.isFinite) || n <= s || e <= w) throw new Error('virheellinen rajaus');
-  if (e - w > 60 || n - s > 30 || w < -180 || e > 180) throw new Error('liian laaja rajaus');
+  /* Koko maailma käy (sadetila jatkuu tutkan ja HARMONIEn ulkopuolelle,
+     4.10.): hila on silloinkin enintään 160 × 160 solua, ja askel
+     karkenee rajauksen mukana. */
+  if (w < -180.001 || e > 180.001 || s < -90 || n > 90) throw new Error('virheellinen rajaus');
   const askel = Math.max(0.05, (e - w) / 160, (n - s) / 160);
   const la0 = Math.floor(s / askel) * askel, lo0 = Math.floor(w / askel) * askel;
   const nj = Math.round((n - la0) / askel) + 2, ni = Math.round((e - lo0) / askel) + 2;

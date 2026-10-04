@@ -194,7 +194,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/sujuvuus.md` | **työpöydän** zoomin ja panoroinnin raskautta, windy.comin arkkitehtuuria, sujuvuusstrategiaa, **MapLibre-siirtoa (C2) ja sen mittauksia** |
 | `docs/julkaisu.md` | **julkaisukelpoisuutta**: UI-parannusten top 25, suositusjärjestys ja logiikan 10 kriittisintä kohtaa (27.9.), ja **osa 4: mitä niistä toteutettiin 28.9. ja mikä jäi auki** (Pages, lisenssit, pohjakartan kieli) — lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 | `docs/graafit.md` | **kaavioiden vuorovaikutusta ja akseleita** (strategia ja toteutus 30.9., V1–V6): hiiren veto, kosketuksen "pidä ja liu'uta", käyrän pehmennys, x- ja y-akselin tiedot joka zoomilla, asteikko ikkunan mukaan — mittaukset (`tools/graafimittaus.mjs`), päätökset P1–P10, vaiheet ja toteutuksen poikkeamat; lue ennen kuin kosket `Tuulikaavio`on, `Aikakaavio`n osoittimeen tai kaavioiden akseleihin |
-| `docs/sadetutka.md` | **sadetutkaa ja sadetilaa (strategia ja toteutus 4.10.)**: 250 m FINRAD-lähde ja paletti, klassinen tutkaväri, 5 min kehykset, vartit aikajanalla, sadepalkit ja kapseli, liikekenttä (`SadeLiike`) ja nowcast, ECMWF-jatko — mitattu data (FMI WMS ja S3, MET Norway), päätökset P1–P9, toteutus luvussa 10 ja mittaukset (`tools/sadeliike.mjs`); lue ennen kuin kosket `SadeKerros`iin, `Sadetutka`an, `SadeLiike`en tai sadetilan aikajanaan |
+| `docs/sadetutka.md` | **sadetutkaa ja sadetilaa (strategia ja toteutus 4.10.; luku 11: koko maailma ja paras paikallinen malli, beta)**: 250 m FINRAD-lähde ja paletti, klassinen tutkaväri, 5 min kehykset, vartit aikajanalla, sadepalkit ja kapseli, liikekenttä (`SadeLiike`) ja nowcast, ECMWF-jatko — mitattu data (FMI WMS ja S3, MET Norway), päätökset P1–P9, toteutus luvussa 10 ja mittaukset (`tools/sadeliike.mjs`); lue ennen kuin kosket `SadeKerros`iin, `Sadetutka`an, `SadeLiike`en tai sadetilan aikajanaan |
 | `docs/oikeellisuus.md` | **datan oikeellisuutta** (auditointi 29.9., toteutus 30.9.): varasto havaintoja vasten, **jatkuva varmennus**, **varaston tuoreus ja Säädatan ajastin**, kapselin ja partikkelien taso vs lämpökartta, **kapselin puuska**, havaintoverkko ja sen päivitys, proxyjen virheenkäsittely, UiRaS — aukot O1–O11, suositusjärjestys ja sujuvuusvaikutus; lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 
 <details>
@@ -2921,8 +2921,8 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   sateessa (mitattu 4.10.). `prefers-reduced-motion`: ei liukua eikä
   liikekompensaatiota (`_tlVahennaLiiketta`).
 - **KARTAN KERROS ON NELJÄ RUUTUA ESIKATSELUKUVIN: TUULI, PUUSKA,
-  AALLOT, SADE** (`#layers`, Windyn valikon tapaan, käyttäjän pyyntö
-  1.10.). Sade oli ennen kytkin "Havainnot kartalla" -ryhmässä; tila on
+  AALLOT, SADE (BETA)** (`#layers`, Windyn valikon tapaan, käyttäjän pyyntö
+  1.10.; "(beta)" omana pienempänä spaninaan 4.10.). Sade oli ennen kytkin "Havainnot kartalla" -ryhmässä; tila on
   yhä `_mapLayerState.tutka` (tallentuu `fs_tasot`iin), ja valittu ruutu
   luetaan kolmesta lipusta yhdessä paikassa (`_kerrosSirut`: sade >
   aallot > `State.activeLayer`). Kuvat piirtää `KerrosKuvat`
@@ -2941,6 +2941,18 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   Lähiennuste / Ennuste, `.tl-kupla-laji`), ja kapseli näyttää sateen
   intensiteetin keskipisteessä (`Crosshair._sadeUpdate`) — pysyvää
   väriliuskaa kartalle ei tule.
+- **SADETILA ON KOKO MAAILMAN, JA LÄHDE ON PARAS PAIKALLINEN** (4.10.,
+  beta, docs/sadetutka.md luku 11): tutka ja nowcast tutkan katteessa
+  (`TutkaKate`, asemista laskettu 250 km — WMS:n läpinäkyvyys ei erota
+  katetta poudasta), HARMONIE MEPS-alueella (`puuttuva=1` → 65535 alueen
+  ulkopuolella, kate `Sadeennuste._maski` 50 km:n reunalla), ECMWF 9 km
+  muualla, menneillä tunneilla ja HARMONIEn jälkeen. Varjostin sekoittaa
+  HARMONIEn ja ECMWF:n samassa vedossa katteen painolla, ja tutkan
+  hetkillä malli piirretään katteen ulkopuolelle taustaksi
+  (`_piirraTausta`). ECMWF haetaan vain kun HARMONIE ei kata näkymää.
+  Tutkalaatat vain katteen rajauksesta (`_laattaOk`). Sadetilassa tuulen
+  lähdemerkintä on piilossa ja leima sanoo mallin. Jos muutat katetta,
+  muuta `TutkaKate` (yksi paikka: varjostin, laatat, sarja, kapseli).
 - **SADE JATKUU ECMWF 9 km:LLÄ HARMONIEN JÄLKEEN** (V6,
   `api/malli.js?muuttuja=sade`, pisteen sarja `tila=sarja&muuttuja=sade`):
   tiedoston arvo on mallin askeleen kertymä (1/3/6 h), joten intensiteetti

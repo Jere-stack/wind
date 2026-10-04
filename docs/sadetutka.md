@@ -708,3 +708,60 @@ coarse", "in the hour"), ei `pageerror`ia.
 - Renkaan ulkopuolelta tuleva sade (yli ~80 min tasolla 9) puuttuu
   nowcastista; HARMONIE-sekoitus peittää sen +30 min jälkeen osittain.
 - Lumi (talvityyli) ja värisokeusvaihtoehto (`_cvdopt`).
+
+## 11. Koko maailma ja paras paikallinen malli (4.10.2026, beta)
+
+Käyttäjän pyyntö: sadenäkymä samalla tavalla koko maailmalle kuin
+tuulinäkymä, paras paikallinen malli aina käytössä; asetusten
+esikatselukuva uuteen (klassiseen) väriin ja nimen perään "(beta)".
+
+**Lähteiden järjestys joka pisteessä ja hetkessä** (sama periaate kuin
+tuulen Paras-sekoituksessa):
+
+1. **FMI:n tutka** (menneet hetket) ja **nowcast** (+0 … +120 min)
+   tutkan katteen sisällä. Kate ei näy datasta — WMS on katteen
+   ulkopuolella läpinäkyvä kuten poudalla — joten se lasketaan
+   tutka-asemista (`TutkaKate`: 12 asemaa, 250 km, reunalla 40 km:n
+   siirtymä). Samaa funktiota käyttävät varjostin (`tutkaKate`),
+   laattojen karsinta (`_laattaOk`: tutkalaattoja ei haeta katteen
+   rajauksen ulkopuolelta), aikajanan pistesarja ja kapseli.
+2. **HARMONIE** (MEPS-alue: Pohjoismaat ja Baltia) jaksonsa loppuun.
+   `api/sade.js?puuttuva=1` merkitsee alueen ulkopuolen 65535:ksi (NaN
+   ennen nollana oli sama kuin pouta), ja asiakas laskee hilasta katteen
+   maskin (`Sadeennuste._maski`, chamfer-etäisyys, 50 km:n smoothstep).
+   GRIBin pituusaste 0–360 käännetään −180…180:ksi (länsi oli 350).
+3. **ECMWF 9 km** kaikkialla muualla ja HARMONIEn jälkeen, myös
+   menneillä tunneilla (vanhojen ajojen alkutunnit, `etsiAjo` 96 h;
+   pistesarja nyt −50 h … +10 vrk). `malli.js?muuttuja=sade` hyväksyy
+   koko maapallon; hila on silloinkin enintään 160 × 160 (2,25°).
+
+**Piirto.** Ennustehila on LUMINANCE_ALPHA (voimakkuus, kate) ja
+varjostin lukee tunnista HARMONIEn ja ECMWF:n (A ja B -tunnit, neljä
+tekstuuria) ja sekoittaa voimakkuudet HARMONIEn katteella. Tutkan
+hetkillä katteen ulkopuolelle piirretään sama malli taustaksi (kaksi
+tasatuntia hetken osuudella, `_piirraTausta`, `u_kat` = 1 → malli
+väistyy tutkan alta), ja nowcastin alla malli on painolla
+1 − wn·kate (katteen ulkopuolella täysi). ECMWF haetaan vasta kun
+HARMONIE ei kata näkymää kokonaan, joten Suomessa pyyntöjä ei tule
+lisää; ECMWF:n rajaus pyöristetään 1/16:aan omasta koostaan (CDN).
+
+**Mitattu (kontti, tuotantobuild):** ECMWF-hila Suomi 1,2 s, Eurooppa
+1,5 s, koko maailma 3,3 s. Biskajanlahdella aikajanan 289 tuntia ovat
+kaikki ECMWF:ää (myös menneet), Helsingissä tutka 48 h, nowcast,
+HARMONIE 48 h ja ECMWF 191 h. Leima kertoo mallin ("Sadetutka 22:00 ·
+muualla ECMWF 9 km", "Sade-ennuste 18:00 · HARMONIE + ECMWF 9 km"), ja
+sadetilassa tuulen lähdemerkintä väistyy, jottei kaksi lappua mene
+päällekkäin. Savutesti ja graafitesti läpi, ei `pageerror`ia
+kummallakaan kielellä.
+
+**Esikatselukuva** käyttää logaritmista voimakkuutta (laaja heikko
+sininen–vihreä, keltainen ja oranssi kuuroissa, punainen ytimissä);
+lineaarinen käyrä teki klassisella rampilla kuvasta lähes kokonaan
+punaisen. Nimi on "Sade (beta)" / "Rain (beta)", beta pienempänä ja
+himmeämpänä, ja se saa ulottua ruutujen väliin 320 px:n puhelimella.
+
+**Auki:** tutkan kate on laskettu eikä mitattu (FMI:n komposiitin
+todellinen reuna voi olla lähempänä etenkin Ruotsin puolella);
+ICON-EU olisi Keski-Euroopassa ECMWF:ää tarkempi, mutta tuulen
+Paras-sekoitus käyttää samaa järjestystä (FMI > ECMWF), ja yksi
+järjestys on pidetty molemmille.
