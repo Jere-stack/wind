@@ -31,7 +31,9 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
 - `api/*.js` — Vercelin serverless-funktiot (FMI-havainnot, HARMONIE-ennuste,
   mallin oma hila Open-Meteon S3:sta — ECMWF 9 km, ICON, GFS — kenttänä ja
   sarjana (`malli.js`),
-  aaltoennuste, vedenkorkeus, sade-ennuste GRIB2:sta,
+  aaltoennuste, vedenkorkeus, sade-ennuste GRIB2:sta ja sadetilan
+  pistesarja (`sade.js?sarja=1`: tutkan tuntikertymä, vartit, HARMONIE,
+  MET Norwayn nowcast), ECMWF:n sade jatkoksi (`malli.js?muuttuja=sade`),
   FMI:n aaltopoijut, Kruunuvuorenselän, Mellstenin, Larun ja Uiraan
   mittausdata-proxyt (Larun proxy kertoo myös kelikameran tilan,
   `laru.js?kamera=1`), selaimen virheraportit `virhe.js`).
@@ -74,6 +76,12 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   vaihtumisesta. Ei CI:ssä: havainnot, aallot ja vedenkorkeus tulevat
   oikeista palveluista, ja täysi ajo kestää noin 20 min (`--osat=`,
   `--nopea`).
+- `tools/sademittaus.mjs` ja `tools/sadeliike.mjs` — sadetutkan mittarit
+  (docs/sadetutka.md, luku 10): kuvakaappaus ja FMI:n oma 250 m kuva
+  vertailuun, laattapyynnöt, FMI:n vastausten tallennus/toisto; ja
+  liikekompensoitu interpolointi ja nowcast oikeita tutkakehyksiä vasten
+  (MAE, CSI, FSS). Ei CI:ssä (oikea tutkadata). Kontin Chromium tarvitsee
+  `--ignore-certificate-errors`in, muuten openwms-kuvat kaatuvat.
 - `tools/havainnot.mjs` + `.github/workflows/havainnot.yml` —
   Espoo Haukilahden (Mellsten) historian keräin: joka ajolla lähteen
   30 minuutin tekstirivit JA 4 tunnin kuvaaja (`plot.gif` minuutti-
@@ -179,14 +187,14 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/eleet.md` | nipistystä, zoomia, zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
 | `docs/data.md` | **aaltoennustetta kartalla (FMI WAM, `a0`–`a3`, `tools/wam.mjs`)**, säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja, **havaintoasemien oma historia (Mellsten ja Laru, `havainnot`-haara)**, **Mellstenin katkot: 4 h kuvaaja, arkistovaratie ja ajastinketju**, **kelikameran tila (YouTube, pikkukuvan ETag)** |
 | `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, MET Nordicia, Open-Meteon S3-malleja** |
-| `docs/ui.md` | **väriteemaa (Yömeri: paneelit, tokenit, `Teema`, `ink()`)**, **kerrosvalitsinta (neljä ruutua esikatselukuvin) ja sadekerroksen GL-piirtoa (silmukka, häivytykset, B-spline)**, **aaltokerrosta: siru, väri, aallonharjat, aikajana, kapseli, poijukaavion ennuste**, paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa (**toiston liuku, jatkuva päiväkisko, pehmeä valinta ja kelikaista**), kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
+| `docs/ui.md` | **väriteemaa (Yömeri: paneelit, tokenit, `Teema`, `ink()`)**, **kerrosvalitsinta (neljä ruutua esikatselukuvin) ja sadekerroksen GL-piirtoa (häivytykset, B-spline; silmukka on historiaa, ks. docs/sadetutka.md)**, **aaltokerrosta: siru, väri, aallonharjat, aikajana, kapseli, poijukaavion ennuste**, paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa (**toiston liuku, jatkuva päiväkisko, pehmeä valinta ja kelikaista**), kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
 | `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit, kaavion venytys** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V11: yksi kaaviomoottori, kortti moduuleina, fonttilattia, laajan valinta, venytys, mallit laajassa, **ennustevalikko, kiinteä lukemarivi ja selkeämpi päiväys**), ja **luku 8: rauhallinen ja vakaa kortti (strategia 3.10., päätetty suosituksen mukaan — kupla jää kiinteän kokoisena; toteutus V12–V16 ja mittari `tools/korttimittaus.mjs`): mallilukemat näkyviin laajassa, ei koon muutoksia, kahdennukset pois, kaavion teksti vain kokonaisena, kuusi kirjasinkokoa ja desimaalipilkku** |
 | `docs/sujuvuus.md` | **työpöydän** zoomin ja panoroinnin raskautta, windy.comin arkkitehtuuria, sujuvuusstrategiaa, **MapLibre-siirtoa (C2) ja sen mittauksia** |
 | `docs/julkaisu.md` | **julkaisukelpoisuutta**: UI-parannusten top 25, suositusjärjestys ja logiikan 10 kriittisintä kohtaa (27.9.), ja **osa 4: mitä niistä toteutettiin 28.9. ja mikä jäi auki** (Pages, lisenssit, pohjakartan kieli) — lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 | `docs/graafit.md` | **kaavioiden vuorovaikutusta ja akseleita** (strategia ja toteutus 30.9., V1–V6): hiiren veto, kosketuksen "pidä ja liu'uta", käyrän pehmennys, x- ja y-akselin tiedot joka zoomilla, asteikko ikkunan mukaan — mittaukset (`tools/graafimittaus.mjs`), päätökset P1–P10, vaiheet ja toteutuksen poikkeamat; lue ennen kuin kosket `Tuulikaavio`on, `Aikakaavio`n osoittimeen tai kaavioiden akseleihin |
-| `docs/sadetutka.md` | **sadetutkan uudistusta (strategia 4.10., ei vielä toteutettu)**: 250 m lähde, 5 min kehykset ja vartit aikajanalla, sadepalkit, liikekenttä ja nowcast, ennusteen jatko — mitattu data (FMI WMS ja S3, MET Norway), päätökset P1–P9 ja vaiheet V0–V7; lue ennen kuin kosket `SadeKerros`iin, `Sadetutka`an tai sadetilan aikajanaan |
+| `docs/sadetutka.md` | **sadetutkaa ja sadetilaa (strategia ja toteutus 4.10.)**: 250 m FINRAD-lähde ja paletti, klassinen tutkaväri, 5 min kehykset, vartit aikajanalla, sadepalkit ja kapseli, liikekenttä (`SadeLiike`) ja nowcast, ECMWF-jatko — mitattu data (FMI WMS ja S3, MET Norway), päätökset P1–P9, toteutus luvussa 10 ja mittaukset (`tools/sadeliike.mjs`); lue ennen kuin kosket `SadeKerros`iin, `Sadetutka`an, `SadeLiike`en tai sadetilan aikajanaan |
 | `docs/oikeellisuus.md` | **datan oikeellisuutta** (auditointi 29.9., toteutus 30.9.): varasto havaintoja vasten, **jatkuva varmennus**, **varaston tuoreus ja Säädatan ajastin**, kapselin ja partikkelien taso vs lämpökartta, **kapselin puuska**, havaintoverkko ja sen päivitys, proxyjen virheenkäsittely, UiRaS — aukot O1–O11, suositusjärjestys ja sujuvuusvaikutus; lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 
 <details>
@@ -508,8 +516,10 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   neuvoteltavissa: jos lämpökartta joskus palautetaan näkyviin sade- tai
   aaltokerroksen alle, niiden värit on poistettava samassa muutoksessa.
 - **AIKAJANAN PALKIT OVAT `ColorRamp.rgb()` — SAMA RAMPPI KUIN
-  SPOTTIKORTIN KAAVIOSSA JA ASETUSTEN VÄRIASTEIKOSSA.** Poikkeus on
-  aaltotila (käyttäjän päätös 1.10.): silloin palkki on aallonkorkeus
+  SPOTTIKORTIN KAAVIOSSA JA ASETUSTEN VÄRIASTEIKOSSA.** Poikkeukset ovat
+  sadetila (4.10., docs/sadetutka.md: palkki = tunnin sade logaritmisella
+  korkeudella 0,05 → 50 mm ja sateen rampin värillä, tutkan ja nowcastin
+  jaksolla neljä vartin siivua, `_tlSadePalkki`) ja aaltotila (käyttäjän päätös 1.10.): silloin palkki on aallonkorkeus
   `AaltoVari`-värillä ja omalla akselillaan (`_tlPalkkiTyyli`,
   `_tlAaltoOsuus`, `State._tlAallot`), ja mallin jakson ulkopuolella
   palkkia ei ole. Kelikaista ja kelihyppy lukevat aina tuulta
@@ -1329,7 +1339,15 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   vieritys- ja `scrollend`-käsittelijät ohittavat 400 ms ikkunan
   (`_tlRakennusKesken`) ellei sormi ole nauhalla. Mitattu jälkeen 3/3
   kierrosta ilman siirtymää, ja rullavieritys valitsee yhä.
-- **Älä tihennä aikajanaa tuntia pienemmäksi.** Mitattu: varastoaskelen
+- **Älä tihennä aikajanaa tuntia pienemmäksi — paitsi sadetilan vartit.**
+  Sadetilassa tutkan ja nowcastin jaksolla valinta napsahtaa varttiin
+  (`State.sadeVartti` tunnin indeksin rinnalla, `.tl-vartti`-snäppäyskohdat
+  vain `html[data-sadekerros="1"]`; käyttäjän päätös 4.10.,
+  docs/sadetutka.md V2): tutkassa on oikea 5 min data. `currentHourIdx`
+  pysyy lähimpänä tasatuntina, joten tuuli, kortti ja merkit eivät tiedä
+  vartista; sen lukevat vain `_tutkaHetki` ja kupla. Uusi tunnin valinta
+  nollaa sen (`_tlValitseHetki`). Snäppäyskohta on 1 × 1 px — 0 × 0 px
+  ohitettiin ja vieritys palasi tasatuntiin. Tuulen perustelu: varastoaskelen
   sisällä tuntipisteet ovat SUORALLA (poikkeama 0 m/s, 10 640 kolmikkoa),
   muutos minuutissa on 0,0033 m/s eli 150× alle sovelluksen oman
   0,5 m/s rajan, ja 94 % minuuteista renderöityisi identtisesti.
@@ -2761,25 +2779,27 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
 - **WAMin `WaveDirection` on MISTÄ**, sama kuin poijun `ModalWDi` ja
   tuuli. Tarkistettu kuudessa pisteessä: poikkeamat 1–40°, käänteiseen
   140–179°.
-- **SADETUTKA EI SAA KÄYTTÄÄ FMI:N OMAA PALETTIA SELLAISENAAN.** Se on
-  lähes sama sävyketju kuin tuuliramppi (syaani–vihreä–keltainen–
-  oranssi–punainen–magenta), eli magenta väittäisi kartalla 20 m/s kun
-  se tarkoittaa rankkasadetta. Kaksi ilmeistä korjausta on mitattu
-  vääriksi: `styles=raster` on alfaltaan 255 kaikkialla ja sen harmaat
-  1–109 ovat palettityylin läpinäkyvää kohinaa, ja `grayscale(1)` antaa
-  kirkkauden joka poukkoilee (214 askeleesta 65 ylös, 139 alas).
-  Ratkaisu on paletin taulukointi ja käännös takaisin voimakkuudeksi.
-  Paletti on tavulleen sama pyynnöstä toiseen (tarkistettu).
-- **PALETTI KÄÄNNETÄÄN MILLIMETREIKSI FMI:N OMISTA SELITTEISTÄ, ei
-  Marshall–Palmerin kaavasta.** `suomi_dbz_eureffin` ja
-  `suomi_rr_eureffin` ovat sama komposiitti kahtena tuotteena ja niillä
-  on sama väriketju; `GetLegendGraphic&format=application/json` antaa
-  molemmille värin ja raaka-arvon, ja rr:n raaka-arvo on mm/h
-  sadasosina. Yhdeksän ankkuria osuu palettiin TARKALLEEN (dE 0,0) ja
-  indeksit ovat tasan 21 välein. Väliin interpoloidaan LOGARITMISESTI
-  (suhteet 1,8–2,5; lineaarinen antaisi 0,86:n ja 2,16:n puoliväliin
-  1,51 kun oikea on 1,36). `Z = 303·R^1,5` on vain ristiintarkistus —
-  älä korvaa taulukkoa sillä, ne eroavat alapäässä.
+- **TUTKA ON FINRAD 250 m (`radar_finland_cappi_dbzh`, `qc`), JA SEN
+  PALETTI KÄÄNNETÄÄN VOIMAKKUUDEKSI** (docs/sadetutka.md V1): 252 väriä
+  (`RADAR_PALETTI`, sama MD5 eri laatoilla ja ajoilla), indeksi → dBZ
+  selitteen katkoista (`Sadetutka.DBZ_KATKOT`, 25 indeksin välein),
+  dBZ → mm/h `Sade.mmhDbz`. Väriä ei näytetä sellaisenaan: kartan väri
+  tulee voimakkuudesta varjostimessa. `raster`-tyyli on venytetty harmaa
+  eikä raaka tavu, ja `grayscale(1)` poukkoilee — molemmat mitattu
+  vääriksi. **KARTAN SATEEN RAMPPI ON KLASSINEN TUTKAVÄRI** (sininen–
+  turkoosi–vihreä–keltainen–oranssi–punainen–pinkki, FMI:n summer-tyylin
+  sävyin, peittävyys 0,80–0,88; käyttäjän päätös 4.10.). Se on sallittu
+  VAIN koska sadetilassa ruudulla ei ole tuulen ramppia: lämpökartta ja
+  partikkelit sammuvat ja aikajanan palkit ovat sadetta. Jos palkit joskus
+  palaavat sadetilassa tuuleen, ramppi on palautettava kapeaksi (30.9. sini–
+  violetti, dE-mittaus docs/ui.md "Sateen värit").
+- **dBZ KÄÄNNETÄÄN MILLIMETREIKSI FMI:N OMISTA SELITTEISTÄ, ei
+  Marshall–Palmerin kaavasta** (`Sade.DBZ_MMH`: 8 … 52 dBZ = 0,07 …
+  63,13 mm/h, mitattu `suomi_dbz`- ja `suomi_rr`-selitteiden väreistä).
+  Väliin interpoloidaan LOGARITMISESTI (lineaarinen antaisi 0,86:n ja
+  2,16:n puoliväliin 1,51 kun oikea on 1,36). `Z = 303·R^1,5` on vain
+  ristiintarkistus. Sama taulukko kääntää palvelimen vartti-dBZ:n
+  (`SadeSarja`), joten käännöksiä on yksi.
 - **MASKI ON VOIMAKKUUTTA, EI ALFAA.** Tavu on paletin normalisoitu
   paikka; väri JA peittävyys johdetaan siitä piirrettäessä. Valmis alfa
   hävittäisi voimakkuuden, ja ennustehila tarvitsisi oman käyränsä —
@@ -2788,21 +2808,20 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   mm/h-luku olisi väärä vaikka kuva näyttäisi oikealta.
 - **SADEKERROS SEURAA AIKAJANAA, ja ankkuri on VALITTU HETKI.** Kehykset
   laskettiin ennen `Date.now()`:sta, jolloin sama sade näkyi joka
-  tunnilla. Hetki luetaan AJASTA (`_tutkaHetki` → `_tlTimeAt`), ei
-  indeksistä. Arkisto on mitattu 7 vrk (PT5M) ja aikajanan menneisyys
-  48 h, joten kate riittää; sen ulkopuolella kerros TYHJENEE ja sanoo
-  sen. Luotain (`uusin()`) on eri asia kuin kehyslista — muuten jokainen
-  tunnin askel maksaisi luotaimen.
-- **RAJA TUTKAN JA ENNUSTEEN VÄLILLÄ ON AIKAJANAN NYT-TIKKI**, ja se
-  haetaan SAMALLA pyöristyksellä kuin `nowIdx` (lähin tasatunti, ei
-  kuluva). Kaksi virhettä samassa kohdassa: "tuorein kehys + askel"
-  putosi tutkan 5–7 min viiveen takia ennusteeseen kello 22:02, ja
-  "kuluva tunti" unohti että nyt-tikki on puolenvälin jälkeen jo
-  SEURAAVA tunti (mitattu 18:33 UTC → tikki 19:00). Kahta sääntöä
-  samalle "nyt"-käsitteelle ei saa olla. Tuorein kehys ratkaisee yhä
-  KEHYSTEN ANKKURIN — siksi nyt-tikistä taaksepäin siirryttäessä
-  kehykset liikkuvat VÄHEMMÄN kuin jana (5,50 h vs 6,00 h), ja siirron
-  mittaus on tehtävä kahden MENNEEN tunnin välillä.
+  tunnilla. Hetki luetaan AJASTA (`_tutkaHetki` → `_tlTimeAt` + vartti),
+  ei indeksistä. FINRAD-arkisto on 14 vrk (PT5M) ja aikajanan menneisyys
+  48 h; sen ulkopuolella kerros TYHJENEE ja sanoo sen. Luotain (`uusin()`)
+  ajetaan kerran viidessä minuutissa.
+- **RAJA ON TUOREIN TUTKAKEHYS ITSE: tutka ≤ kehys + 2,5 min,
+  lähiennuste (nowcast) ≤ + 120 min, sitten ennuste** (`_tutkaLahde`,
+  4.10., docs/sadetutka.md V5). Ennen raja oli aikajanan NYT-tikki
+  lähimmällä tasatunnilla, koska kaksi aiempaa virhettä tulivat tunnin
+  pyöristyksestä ("tuorein kehys + askel" putosi tutkan viiveen takia
+  ennusteeseen klo 22:02, ja "kuluva tunti" unohti että NYT-tikki on
+  puolenvälin jälkeen seuraava tunti). Nowcast täyttää juuri sen raon,
+  ja raja on kehyksen aika eikä pyöristys, joten kumpikaan virhe ei
+  toistu. ENNEN ENSIMMÄISTÄ LUOTAUSTA pätee vanha NYT-tikin sääntö, jotta
+  NYT-tikki kysyy luotaimen eikä tuleva tunti silti vaadi sitä.
 - **TYHJÄ TILA ON OMA LÄHTEENSÄ (`'tyhja'`), ei hilaton `'ennuste'`.**
   Muuten panorointi yrittäisi hakea ennustehilan menneelle tunnille joka
   on tutka-arkiston ulkopuolella — pyyntö johon lähde vastaa aina 400:lla.
@@ -2810,19 +2829,34 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   tarvitse tutkaa lainkaan, ja luotaimen epäonnistuessa "ei saatavilla"
   piilottaisi myös ennusteen — tutkan verkkovika veisi kerroksen jolla ei
   ole tutkan kanssa mitään tekemistä.
-- **ENNUSTEESSA EI OLE SILMUKKAA.** HARMONIEn askel on tunti, ei viisi
-  minuuttia; seitsemän kehystä olisi kuusi keksittyä välikuvaa. Silmukan
-  pysähtyminen on samalla se merkki jolla käyttäjä huomaa siirtyneensä
-  havainnosta ennusteeseen. **Kun aikajana LIIKKUU (toisto, sormi
-  nauhalla tai kiskolla), kerros häivyttää kahden tasatunnin välillä
-  VOIMAKKUUDESSA** (`SadeKerros._kohde`, käyttäjän pyyntö 1.10.:
-  "smoothisti ennustesarja") — ennusteessa HARMONIEn tunnit, menneessä
-  tutkan tasatuntikehykset. Se on sekoitus eikä liike: välikuva ei väitä
-  kuuron kulkeneen. Liike luetaan `_sadeNayttoHetki`stä (toisto,
-  `_previewField`), ja se päättyy 450 ms viimeisestä sijainnista.
-  LIUKU EI OLE LIIKETTÄ (ei myöskään sen viimeinen ruutu,
-  `liukuPerilla`): napautuksen valinta on kohteessa heti, ja kerros
-  häivyttää suoraan perille hakematta jokaista välituntia.
+- **SILMUKKAA EI OLE, LIIKE ON AIKAJANAN TOISTO** (P8, 4.10.): 30 min
+  silmukka levossa oli toinen aika ruudulla kuplan rinnalla. **Kun aikajana
+  LIIKKUU (toisto, sormi nauhalla tai kiskolla), tutkan ja nowcastin
+  jaksolla A ja B ovat VIEREKKÄISET 5 MIN KEHYKSET ja ne sekoitetaan
+  LIIKEKOMPENSOITUNA** (`SadeKerros._kohde`, `SadeLiike`, varjostimen
+  `u_fl`): kuuro liikkuu eikä häivy. Siirtymä on ≤ 5 min ja mitattu
+  kahdesta havainnosta, joten se on interpolointia eikä keksittyä liikettä
+  (mitattu: MAE 0,264 → 0,103 mm/h, CSI 0,57 → 0,88). HARMONIEn tunnit
+  sekoitetaan voimakkuudessa ilman liikettä: tunnissa kuuro siirtyy
+  30–50 km, ja siellä välikuva olisi arvaus. Toisto kulkee tutkan ja
+  nowcastin jaksolla kolmasosanopeudella. Liike luetaan
+  `_sadeNayttoHetki`stä ja päättyy 450 ms viimeisestä sijainnista. LIUKU
+  EI OLE LIIKETTÄ (`liukuPerilla`): napautuksen valinta on kohteessa heti.
+- **NOWCAST ON OMA ADVEKTIO SELAIMESSA** (`SadeLiike`, docs/sadetutka.md
+  V5): kenttä lohkohaulla (T − 15, T) karkeista 32²-pienennöksistä,
+  taaksepäin kulkeva siirtymä viiden minuutin askelin, lähtö tuoreimman
+  kehyksen 256²-mosaiikista näkymän ja YHDEN LAATTARENKAAN yli
+  (`GLRuudukko` `reuna`: renkaan laatat hakevat vain tuoreimman ja vartin
+  takaisen kehyksen), sumennus 0,02 km/min, vaimennus 25 % / 2 h,
+  sekoitus HARMONIEen painolla 1 → 0 välillä +30 … +120 min. Kehys
+  lasketaan vain näkymälle +15 % ja muistissa on 8. Ensimmäiset 15 min
+  tuorein tutkakehys täydellä tarkkuudella siirrettynä (`u_s`) — pikselin
+  piirtää laatta jonka sisällä sen LÄHDE on (laajennettu nelikulmio),
+  muuten laattarajalle jää sauma. Aikajana ja kapseli lukevat pisteen
+  radan (`SadeLiike.arvo` → `Nowcast`), eivät kehyksiä; MET Norwayn
+  pistesarja on varatie. Mitattu 60 min: FSS 1 mm/h 0,11 → 0,94
+  pysyvyyteen nähden. Älä siirrä laskentaa palvelimelle tai Actionsiin:
+  tutka päivittyy 5 min välein ja ajastin myöhästyy tunteja.
 - **ENNUSTEHILA HAETAAN KERRAN KOKO RUUDULLE**, ei laattaa kohti, ja
   puolen näkymän reunuksella. Laattakohtainen haku olisi kaksitoista
   pyyntöä yhden hinnalla. Rivin leveysaste on `ymercInv`, sarakkeen
@@ -2859,10 +2893,11 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   siirtymä) sekoitetaan aina varjostimessa; vain eri lähteet (tutka ↔
   ennuste NYT-tikillä, häivytys tyhjään) piirretään painoillaan.
 - **PEHMENNYS ON KUUTIOLLINEN B-SPLINE (neljä bilineaarista hakua), JA
-  TUTKA HAETAAN ENINTÄÄN TASOLTA 8** (`maxNativeZoom`, Leafletin
-  asteikko, noin 300 m pikselillä; lähde on 500 m). Tarkemmalla tasolla
-  palvelin vain suurensi samoja pikseleitä portaiksi, ja jokainen taso
-  maksoi omat laattansa. Älä nosta kattoa "tarkkuuden" vuoksi.
+  TUTKA HAETAAN 512 px:N LAATTOINA ENINTÄÄN TASOLTA 9** (`tileSize: 512`,
+  `maxNativeZoom: 9`, Leafletin asteikko, 153 m pikselillä; lähde 250 m).
+  Laattoja on yhtä monta kuin 256 px:llä tasolta 8 (vanha 500 m lähde).
+  Älä nosta kattoa tasolle 10: se nelinkertaistaisi pyynnöt ilman uutta
+  dataa.
 - **HYPPY ODOTTAA KUVAN VALMIIKSI JA HÄIVYTTÄÄ** (`_paata`: enintään
   2,5 s, häivytys 0,38 s). Ennen kerros tyhjeni (`redraw`) ja laatat
   syttyivät yksi kerrallaan. Puuttuva kehys ei tyhjennä laattaa: se
@@ -2880,34 +2915,11 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   taaksepäin 1×1 GetMapilla: virheellinen aika palauttaa XML:ää eikä
   kuvaa, ja `Image`in `onerror` erottaa ne ilman jäsennystä. Luotain on
   1 107 B ja viive mitattuna alle 5 – noin 7 min eli 1–2 luotainta.
-- **Silmukka on SEITSEMÄN kehystä (30 min), ja luku tulee
-  latausbudjetista.** Laatta on 1,5 kB kuivana ja 3–11 kB sateessa, eli
-  yksi kehys on 18–88 kB ruudullista kohti. 12 kehystä (60 min) olisi
-  yli megan juuri silloin kun kerros kytketään päälle. Älä kasvata
-  lukua mittaamatta.
-- **YKSI kerros ja voimakkuustekstuurit, EI seitsemää päällekkäistä
-  kerrosta.** Seitsemän ruudukkokerrosta laukaisisi seitsemät
-  laattapyynnöt joka panoroinnilla. Kehykset ovat laatassa AIKALEIMAN
-  mukaan (`el._k`, enintään 16, tarpeettomat vanhimmat ensin pois), joten
-  ankkurin siirto (uusi tuorein kehys, toinen tunti) käyttää jo ladatut
-  uudelleen. Sateeton laatta ei saa tekstuuria (`e.tyhja`, yhteinen
-  tyhjä). Laatalla on enintään kaksi latausta kerrallaan, ja
-  epäonnistunut kehys yritetään uudelleen 30 s:n päästä.
-- **Silmukka käynnistyy vasta kun KAIKKI näkyvät laatat osaavat KAIKKI
-  kehykset.** Muuten osa ruudusta olisi eri hetkestä kuin muu, ja juuri
-  liikkeen suunta on se mitä kerroksesta luetaan — puolivalmis silmukka
-  valehtelisi enemmän kuin pysäytyskuva. **Silmukka on jatkuva
-  häivytys** (`_silmukkaKehys`): alkaa pysähdyksellä tuoreimpaan (sama
-  kuva joka on jo ruudulla), häivyttää vanhimpaan 0,52 s ja kulkee kuusi
-  0,43 s:n askelta takaisin; ennen kehys vaihtui kovana leikkauksena
-  260 ms välein ja tuoreimmasta hypättiin suoraan vanhimpaan. Aikaleiman
-  pisterivi kertoo kohdan (vasen = vanhin).
-- **`prefers-reduced-motion` NÄYTTÄÄ TUOREIMMAN, ei vanhinta.** Tässä oli
-  vika: toisto käynnistyi vanhimmasta ja pysähtyi siihen heti, jolloin
-  asetus näytti puoli tuntia vanhaa tutkakuvaa nykyhetkenä. Päätös on
-  yhdessä paikassa (`Sadetutka.silmukassa()`) ja se ratkaisee myös
-  latauksen: ilman silmukkaa kuutta vanhaa kehystä ei haeta lainkaan
-  (12 pyyntöä 84:n sijaan).
+- **Esilataus on budjetti, ei kaikki kerralla**: levossa tutkan jaksolla
+  ±1 h vartin välein, toistossa kolme askelta eteenpäin, ja laatalla on
+  enintään kaksi latausta kerrallaan. Laatta on 512 px:nä 12–20 kB
+  sateessa (mitattu 4.10.). `prefers-reduced-motion`: ei liukua eikä
+  liikekompensaatiota (`_tlVahennaLiiketta`).
 - **KARTAN KERROS ON NELJÄ RUUTUA ESIKATSELUKUVIN: TUULI, PUUSKA,
   AALLOT, SADE** (`#layers`, Windyn valikon tapaan, käyttäjän pyyntö
   1.10.). Sade oli ennen kytkin "Havainnot kartalla" -ryhmässä; tila on
@@ -2924,8 +2936,16 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   ei kerro mitä hetkeä katsoo. Se on samalla rivillä lähdemerkinnän
   kanssa mutta vastakkaisessa reunassa — yksi rivi ylempänä se jäi
   aikajanan kortin taakse (mitattu: leima y 825–833, kortti alkaa
-  y 756). `aria-live` on POIS: silmukka vaihtaa tekstin neljästi
-  sekunnissa.
+  y 756). `aria-live` on POIS: toisto vaihtaa tekstin viidesti
+  sekunnissa. Sadetilassa myös kupla sanoo lähteen (Havainto /
+  Lähiennuste / Ennuste, `.tl-kupla-laji`), ja kapseli näyttää sateen
+  intensiteetin keskipisteessä (`Crosshair._sadeUpdate`) — pysyvää
+  väriliuskaa kartalle ei tule.
+- **SADE JATKUU ECMWF 9 km:LLÄ HARMONIEN JÄLKEEN** (V6,
+  `api/malli.js?muuttuja=sade`, pisteen sarja `tila=sarja&muuttuja=sade`):
+  tiedoston arvo on mallin askeleen kertymä (1/3/6 h), joten intensiteetti
+  = kertymä / askeleen tunnit. Leima sanoo "ECMWF 9 km, karkea". ECMWF
+  0,25° on yhä hylätty (kolme solua ruudulle).
 - **Tutkan muste luetaan `Asetukset.paperi()`:sta**, samasta
   kysymyksestä kuin lämpökartan sekoitustila. Jos pohjakartta vaihtuu,
   kerros on piirrettävä uudelleen — mikään ei tee sitä itsestään.

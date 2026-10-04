@@ -1,8 +1,9 @@
 # Sadetutka 2 — strategia ja roadmap (4.10.2026)
 
-Tämä on strategia, ei toteutus. Mikään alla ei ole vielä koodissa;
-mittaukset luvussa 3 on tehty tätä dokumenttia varten 4.10.2026 noin klo
-13:30 UTC suoraan FMI:n palveluista. Päätettävät kohdat ovat luvussa 6
+Luvut 1–9 ovat strategia ja luku 10 sen toteutus (4.10.2026, kaikki
+vaiheet suosituksen mukaan — lue luku 10 ennen kuin kosket sadekerrokseen).
+Mittaukset luvussa 3 on tehty 4.10.2026 noin klo 13:30 UTC suoraan FMI:n
+palveluista. Päätettävät kohdat ovat luvussa 6
 (P1–P9), ja vaiheet luvussa 7 (V0–V7). Lue ennen tätä `docs/data.md`
 ("Sadetutka — miksi se ei ole `L.TileLayer.WMS`" … "Sateen asteikko") ja
 `docs/ui.md` ("Sateen värit", "Sade neljänneksi kerrokseksi").
@@ -533,3 +534,177 @@ voi mitata kontissa.
 - Lämpökarttaa tai partikkeleita sadekerroksen alle.
 - Pysteps-ensembleä tai muuta palvelinpuolen Python-laskentaa.
 - Kartalle pysyvää väriliuskaa ilman P3:n päätöstä.
+
+---
+
+## 10. Toteutus (4.10.2026) — kaikki vaiheet suosituksen mukaan
+
+Käyttäjän päätös 4.10.: "Tehdään kaikki vaiheet suosituksen mukaan" eli
+P1–P9 luvun 6 suositussarakkeen mukaan. Commitit `7a7857d` (V1),
+`f9db8ce` (V2), `2737b9c` (V3), `0aaeb61` (V4+V5), `e215e27` (V6) ja
+viimeistely.
+
+### V0 — mittarit
+
+- `tools/sademittaus.mjs`: kuvakaappaus sadetilasta annetussa näkymässä
+  ja hetkessä, FMI:n oma 250 m kuva samasta rajauksesta vertailuun,
+  tutkalaattojen pyynnöt ja tavut, `--tallenna`/`--toista` FMI:n
+  vastauksille.
+- `tools/sadeliike.mjs`: liikekompensoitu interpolointi ja nowcast oikeita
+  tutkakehyksiä vasten (luku "Mitattu" alla).
+- **Kontin Chromium tarvitsee `--ignore-certificate-errors`in**
+  (välityspalvelimen CA): ilman sitä jokainen openwms-kuva kaatui
+  `ERR_CERT_AUTHORITY_INVALID`iin ja kerros jäi "ladataan"-tilaan —
+  mittari olisi väittänyt tutkan rikki.
+
+### V1 — 250 m ja klassinen väri
+
+- `Sadetutka.KERROS` = `radar_finland_cappi_dbzh` (FINRAD, `qc`).
+  Paletti on 252 RGB + 252 alfaa (`RADAR_PALETTI`, sama MD5 eri laatoilla
+  ja ajoilla). Indeksi → dBZ on GeoServerin ramppi selitteen katkoista
+  (`DBZ_KATKOT` 5, 8, 12, 18, 24, 30, 34, 40, 50, 68,8 dBZ, 25 indeksin
+  välein), ristiintarkistettu `raster`-tyyliä vasten (idx 25/50/75/100 =
+  raaka 80/88/100/112 = 8/12/18/24 dBZ). dBZ → mm/h `Sade.mmhDbz`
+  (`DBZ_MMH`, samat FMI:n selitteet kuin ennen). Indeksit 1–24 ovat FMI:n
+  oma häivytys (alfa < 255): niille dBZ alfasta, 5 + 3·a/255.
+  `raster`-tyyli EI kelpaa suoraan: se on venytetty harmaa (1,75·raaka +
+  3), ei raaka tavu.
+- `SadeKerros`: `tileSize: 512`, `maxNativeZoom: 9` = 153 m/px
+  Helsingin leveydellä, laattoja yhtä monta kuin ennen 256 px:llä tasolta
+  8. B-spline jäi: 153 m:n tekseleillä sen pehmennys on alle lähteen
+  250 m:n, ja se peittää WMS:n lähimmän naapurin portaat.
+- `Sade.RAMPPI_TUMMA` FMI:n summer-tyylin sävyin samoissa dBZ-katkoissa,
+  peittävyys 0,80 → 0,88 (`Sade.alfa`, tihku syttyy 0,015 → 0,09 mm/h).
+  Asetusten asteikon luvut 0,1 · 1 · 10 · 25.
+
+### V2 — 5 min ja vartit
+
+- Liikkeessä (toisto, veto) tutkan ja nowcastin jaksolla A ja B ovat
+  vierekkäiset 5 min kehykset (`_kohde`), ennusteessa tunnit.
+- **Vartit**: `State.sadeVartti` (−30 … +30 min) tunnin indeksin rinnalla;
+  `currentHourIdx` on lähin tasatunti, joten tuuli, kortti ja merkit eivät
+  muuttuneet. `.tl-vartti`-snäppäyskohdat (+15/+30/+45 min eli 4,5 px:n
+  välein) tutkan ja nowcastin jakson tikeissä, `scroll-snap-align` vain
+  `html[data-sadekerros="1"]`. **Snäppäyskohta ei saa olla 0 × 0 px:n
+  laatikko**: Chromium ohitti sen, ja vierityksen loppu veti aina
+  tasatuntiin (mitattu: +2 näppäinaskelta palasi 0:aan); 1 × 1 px toimii.
+  Asettavat vain eleen, toiston ja näppäimen päätteet (`_sadeVarttiFrac`,
+  `_sadeVarttiAseta`); `_tlValitseHetki` nollaa. Näppäin `,`/`.` on
+  sadetilassa vartti (Shift ja PgUp/PgDn tunteja). Kupla hh:mm.
+- Toisto kulkee tutkan ja nowcastin jaksolla kolmasosanopeudella (5 min
+  kehys 200 ms välein).
+- 30 min silmukka, sen pisterivi, `Sadetutka.KEHYKSIA`, `silmukassa()` ja
+  `kehykset()` poistettiin (P8). Esilataus levossa ±1 h vartein,
+  toistossa kolme askelta eteenpäin; kehysmuisti 28.
+
+### V3 — palkit, lappu, kapseli
+
+- `api/sade.js?sarja=1&lat&lon`: 48 h `radar_finland_cappi_acrr1h`
+  tasatunneilla (GetFeatureInfo, 16 rinnakkain), 12 vartin dBZ
+  (`radar_finland_cappi_dbzh`), HARMONIE `Precipitation1h` pisteenä ja
+  MET Norwayn nowcast (V5). Mitattu 1,4 s; CDN 5 min. GetFeatureInfo
+  aikavälille palauttaa vain yhden arvon, siksi rinnakkain.
+- Sadetilassa palkki = tunnin kertymä (T − 1 h, T] logaritmisella
+  korkeudella 0,05 → 50 mm ja sateen rampin värillä (`_tlSadePalkki`);
+  kuiva tunti on 2 px:n hiljainen pohja, tutkan ja nowcastin jaksolla
+  neljä vartin siivua. Aikajana rajataan sateen jaksoon (48 h tutkaa →
+  ECMWF:n sarjan loppu, `_tlAaltoRajaus`).
+- Kupla: Havainto / Lähiennuste / Ennuste (`.tl-kupla-laji`). Kapseli
+  (`Crosshair._sadeUpdate`): intensiteetti mm/h rampin värillä, lähde ja
+  tunnin kertymä; tuulen nuoli piilossa.
+
+### V4–V5 — liikekenttä ja nowcast (`SadeLiike`, `Nowcast`)
+
+- Laatan kehyksestä talletetaan `karkea` 32² (kaikille) ja `pieni` 256²
+  (vain tuoreimmalle). Kenttä: lohkohaku 8 × 8 solua, SAD ±6 tai ±8
+  solua, alipikseli paraabelilla, täyttö ja kaksi tasoitusta; yksikkö
+  maailmapikseliä viidessä minuutissa. Ei tarpeeksi sadetta → nollakenttä
+  (pysyvyys).
+- Varjostin (`_pLaatta`) lukee kentän tekstuurista ja sekoittaa A:n
+  kohdasta x − f·d ja B:n kohdasta x + (1 − f)·d.
+- Nowcast: taaksepäin kulkeva siirtymä karkealla hilalla viiden minuutin
+  askelin, lähtö 256²-mosaiikista näkymän ja laattarenkaan yli
+  (`GLRuudukko`n uusi `reuna`-optio: renkaan laatat hakevat vain
+  tuoreimman ja vartin takaisen kehyksen). Sumennus σ = 0,02 km/min,
+  vaimennus 25 % / 2 h. Kehys lasketaan vain näkymälle +15 %
+  (mitattuna 80 → 14–20 ms kontissa) ja muisti on 8 kehystä.
+  Ensimmäiset 15 min tuorein tutkakehys täydellä tarkkuudella siirrettynä
+  kentän mukana (`u_s`), häivyttäen mosaiikkiin; **saumaton, koska
+  laajennettu nelikulmio piirtää pikselin sen laatan tekstuurista jonka
+  sisällä LÄHDE on** (ensimmäinen versio käytti siirtämätöntä näytettä
+  laatan ulkopuolella ja jätti laattarajalle näkyvän sauman).
+- Sekoitus HARMONIEen: paino 1 → 0 välillä +30 … +120 min
+  (`painoNowcast`). Raja: hetki ≤ tuorein kehys + 2,5 min = tutka,
+  ≤ + 120 min = lähiennuste, sitten ennuste (`_tutkaLahde`); ennen
+  ensimmäistä luotausta vanha tunnin sääntö.
+- Aikajana ja kapseli lukevat nowcastin pisteen radasta (`SadeLiike.arvo`
+  → `Nowcast.vartti`/`tunti`), eivät kehyksistä; varatienä MET Norwayn
+  pistesarja.
+- Ensimmäinen versio laski kaikki 24 kehystä taustalla koko mosaiikille
+  ja näytti +40 min kohdalla pelkkää HARMONIEa, koska kehys jäi
+  laskematta (`_laskettu`) eikä uutta ruutua pyydetty. Nyt odotus
+  laskee kehyksen ja pyytää ruudun.
+
+### V6 — ECMWF:n jatko
+
+- `api/malli.js?muuttuja=sade&t&s&n&w&e`: ECMWF IFS 9 km `precipitation`
+  samassa muodossa kuin HARMONIE-hila; tiedoston arvo on askeleen kertymä
+  (1/3/6 h), intensiteetti = kertymä / askeleen tunnit.
+  `tila=sarja&muuttuja=sade`: pisteen tuntisarja 10 vrk (Open-Meteon
+  aikasarjavarasto jakaa kertymät tunneille). Tarkistettu Open-Meteon
+  rajapintaa vasten 8.10. klo 16–18 UTC: rajapinta 0,10 mm/h kukin,
+  kenttä 0,08 mm/h (0,24 mm / 3 h; eri solmu).
+- `Sadeennuste.varmista` hakee ECMWF:n kun tunti on HARMONIEn jakson
+  jälkeen tai HARMONIE vastaa tulevalle tunnille tyhjää; leima "ECMWF
+  9 km, karkea".
+
+### Mitattu
+
+Kontti, Chromium + SwiftShader, 4.10. klo 14–15 UTC, sateinen Savo
+(61,6 / 27,5), taso 9, karkea hila 2,4 km.
+
+```
+T2 interpolointi (t, t+20 min -> t+10 min)   MAE mm/h        CSI 0,5 mm/h
+hetki  kelpo-lohkoja                 risti   liike     risti   liike
+14:00      54                        0,276   0,110     0,584   0,877
+13:45      49                        0,285   0,103     0,582   0,899
+13:30      52                        0,263   0,091     0,568   0,893
+13:15      47                        0,264   0,105     0,564   0,853
+13:00      49                        0,245   0,095     0,571   0,845
+mediaani                             0,264   0,103     0,571   0,877
+
+T5 nowcast 60 min          FSS 1 mm/h (30 km)   FSS 5 mm/h       CSI 0,5
+hetki  kelpo               pysyv.  advekt.      pysyv.  advekt.  pysyv. advekt.
+14:35    49                0,169   0,936        0,062   0,502    0,053  0,507
+14:20    46                0,130   0,958        0,006   0,841    0,035  0,512
+14:05    46                0,108   0,942        0,001   0,758    0,023  0,472
+13:50    47                0,081   0,918        0,000   0,585    0,029  0,477
+13:35    46                0,053   0,555        0,000   0,015    0,013  0,229
+mediaani                   0,108   0,936        0,001   0,585    0,029  0,477
+```
+
+Liikekompensoitu interpolointi puolitti virheen ja nosti sadealan
+osuvuuden 0,57 → 0,88; nowcast 60 min oli moninkertaisesti pysyvyyttä
+parempi (nopeasti liikkuva rintama, jolloin pysyvyys on heikko vertailu).
+HARMONIEa vasten nowcastia ei ole mitattu (eri hila ja projektio) —
+sekoituksen painot ovat suosituksen eivätkä mittauksen.
+
+Hinta (kontti, puhelinkonteksti): kenttä 9–37 ms (mediaani ~18 ms),
+nowcast-kehys 14–20 ms, kapselin ja aikajanan 24 pisteen arvo 0,1 ms.
+Ruutunopeutta ei voi mitata täällä (CLAUDE.md) — **laitetesti iPhonella
+on tekemättä**.
+
+Muut tarkistukset: savutesti ja graafitesti läpi, `?kieli=en` sadetilassa
+(Observation / Nowcast / Forecast, "radar + HARMONIE", "ECMWF 9 km,
+coarse", "in the hour"), ei `pageerror`ia.
+
+### Mitä jäi auki
+
+- Laitetesti (iPhone, WebKit): toiston sujuvuus tutkan jaksolla ja
+  nowcastin laskennan hinta pääsäikeellä.
+- Interpolointi laattarajalla: kahden kehyksen sekoituksessa laatan
+  ulkopuolelle osuva näyte luetaan siirtämättä (siirto on ≤ 5 min eli
+  pieni), joten liikkeen aikana rajalla voi näkyä heikko epäjatkuvuus.
+- Renkaan ulkopuolelta tuleva sade (yli ~80 min tasolla 9) puuttuu
+  nowcastista; HARMONIE-sekoitus peittää sen +30 min jälkeen osittain.
+- Lumi (talvityyli) ja värisokeusvaihtoehto (`_cvdopt`).
