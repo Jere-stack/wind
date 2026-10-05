@@ -37,7 +37,9 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   MET Norwayn nowcast), ECMWF:n sade jatkoksi (`malli.js?muuttuja=sade`),
   FMI:n aaltopoijut, Kruunuvuorenselän, Mellstenin, Larun ja Uiraan
   mittausdata-proxyt (Larun proxy kertoo myös kelikameran tilan,
-  `laru.js?kamera=1`), selaimen virheraportit `virhe.js`).
+  `laru.js?kamera=1`), Euroopan havainnot MeteoGate E-SOH:sta
+  (`fmi.js?eu=laatta|sarja`, apumoduuli `_esoh.js`, docs/eurooppa.md
+  luku 14), selaimen virheraportit `virhe.js`).
   **FUNKTIOITA ON 12, JA SE ON VERCELIN HOBBY-TASON KATTO DEPLOYTA
   KOHTI**: kolmastoista (`api/kamera.js`) kaatoi tuotantodeployn
   ("Deployment has failed") eikä mikään muuttunut tuotannossa. Uusi
@@ -47,8 +49,8 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   ES-moduuleja, koska
   `package.json`:ssa on `"type": "module"` — `require()` ei toimi näissä.
   Alaviivalla alkava tiedosto (`_suoja.js`, `_haku.js`, `_mellsten.js`,
-  `_laru.js`, `_varasto.js`, `_kamerat.js`, `_gif.js`) on apumoduuli eikä
-  reitti. `_haku.js` on FMI-proxyjen yhteinen haku: tila ja
+  `_laru.js`, `_varasto.js`, `_kamerat.js`, `_gif.js`, `_esoh.js`) on
+  apumoduuli eikä reitti. `_haku.js` on FMI-proxyjen yhteinen haku: tila ja
   ExceptionReport tarkistetaan ja aikaraja on koko haulle — ylävirran
   virhe on 502, ei `no data` (docs/oikeellisuus.md, O5).
   **Jokainen funktio alkaa `if (!suojaa(req, res)) return;`** eikä
@@ -102,7 +104,12 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   päällä (docs/data.md, "Larun kelikamera"). Samassa ajossa myös
   `tools/saaherate.mjs` (lähettää Säädatan kun FMI:llä on varastoa
   uudempi ajo, O1) ja `tools/varmennus.mjs` (varaston ennuste arkistoon
-  ja havaintoja vasten, `varmennus/`, O11) — docs/oikeellisuus.md.
+  ja havaintoja vasten, `varmennus/`, O11) — docs/oikeellisuus.md. Ja
+  `tools/esoh.mjs` (`continue-on-error`): Euroopan asemien tasatunnit
+  (`esoh/<päivä>/<x>_<y>.json`, 8 vrk), koska MeteoGate E-SOH säilyttää
+  vain vuorokauden (docs/eurooppa.md luku 14). Julkaisu tekee orvon
+  commitin noudetun kloonin päälle (`julkaisu:havainnot`), joten push
+  siirtää vain muuttuneet tiedostot.
 - `tools/tiilet.mjs` — säälaattojen rakennus: ECMWF (AWS Open Data, koko
   maapallo), FMI:n HARMONIE (Suomi), MET Nordic (Yr:n data, Pohjoismaat
   ja Baltia) ja Euroopan kymmenen kansallista 1–2,5 km mallia
@@ -180,7 +187,8 @@ päälle — siihen asti raw hoitaa kaiken ja konsoliin tulee yksi
 CORS-virhe, joka ei ole vika.
 
 Havaintoasemien oma historia on orpossa `havainnot`-haarassa (sama
-malli: yksi committi, pakkopäivitys, kymmenen minuutin välein). Vercel
+malli: yksi committi, pakkopäivitys, kymmenen minuutin välein; myös
+Euroopan tasatunnit `esoh/`). Vercel
 (`git.deploymentEnabled`) ja Tarkistus (`branches-ignore`) ohittavat
 molemmat datahaarat — jos lisäät kolmannen, lisää se molempiin.
 
@@ -208,7 +216,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/julkaisu.md` | **julkaisukelpoisuutta**: UI-parannusten top 25, suositusjärjestys ja logiikan 10 kriittisintä kohtaa (27.9.), ja **osa 4: mitä niistä toteutettiin 28.9. ja mikä jäi auki** (Pages, lisenssit, pohjakartan kieli) — lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 | `docs/graafit.md` | **kaavioiden vuorovaikutusta ja akseleita** (strategia ja toteutus 30.9., V1–V6): hiiren veto, kosketuksen "pidä ja liu'uta", käyrän pehmennys, x- ja y-akselin tiedot joka zoomilla, asteikko ikkunan mukaan — mittaukset (`tools/graafimittaus.mjs`), päätökset P1–P10, vaiheet ja toteutuksen poikkeamat; lue ennen kuin kosket `Tuulikaavio`on, `Aikakaavio`n osoittimeen tai kaavioiden akseleihin |
 | `docs/sadetutka.md` | **sadetutkaa ja sadetilaa (strategia ja toteutus 4.10.; luku 11: koko maailma ja paras paikallinen malli, beta)**: 250 m FINRAD-lähde ja paletti, klassinen tutkaväri, 5 min kehykset, vartit aikajanalla, sadepalkit ja kapseli, liikekenttä (`SadeLiike`) ja nowcast, ECMWF-jatko — mitattu data (FMI WMS ja S3, MET Norway), päätökset P1–P9, toteutus luvussa 10 ja mittaukset (`tools/sadeliike.mjs`); lue ennen kuin kosket `SadeKerros`iin, `Sadetutka`an, `SadeLiike`en tai sadetilan aikajanaan |
-| `docs/eurooppa.md` | **Euroopan laajennusta ja paikallisia lähteitä** (strategia ja roadmap 4.10., V1 ja V2 toteutettu): Euroopan kansalliset 1–2,5 km mallit varastoon ja niiden **etusija ja käyttöalueet** (`tools/alueelliset.mjs`), **lähizoomin natiivihila ja spotin natiivisarja** (`Natiivi`, `api/malli.js?malli=<perhe>`, luku 13), hilat ja projektiot totuutta vasten, havaintoverkot (MeteoGate E-SOH, kansalliset, OpenWindMap), meri, aukot, infra (Pages, Vercel, Actions), lisenssit (UKV on CC BY-SA), roadmap V1–V9 ja päätökset P1–P7; lue ennen kuin lisäät mallin, havaintolähteen tai spotteja Suomen ulkopuolelle |
+| `docs/eurooppa.md` | **Euroopan laajennusta ja paikallisia lähteitä** (strategia ja roadmap 4.10., V1, V2 ja V3:n E-SOH toteutettu): Euroopan kansalliset 1–2,5 km mallit varastoon ja niiden **etusija ja käyttöalueet** (`tools/alueelliset.mjs`), **lähizoomin natiivihila ja spotin natiivisarja** (`Natiivi`, `api/malli.js?malli=<perhe>`, luku 13), **Euroopan havainnot kartalla ja korteissa (MeteoGate E-SOH, `EuAsemat`, `api/fmi.js?eu=`, `tools/esoh.mjs`, luku 14; OpenWindMap odottaa lisenssipäätöstä)**, hilat ja projektiot totuutta vasten, havaintoverkot (MeteoGate E-SOH, kansalliset, OpenWindMap), meri, aukot, infra (Pages, Vercel, Actions), lisenssit (UKV on CC BY-SA), roadmap V1–V9 ja päätökset P1–P7; lue ennen kuin lisäät mallin, havaintolähteen tai spotteja Suomen ulkopuolelle |
 | `docs/oikeellisuus.md` | **datan oikeellisuutta** (auditointi 29.9., toteutus 30.9.): varasto havaintoja vasten, **jatkuva varmennus**, **varaston tuoreus ja Säädatan ajastin**, kapselin ja partikkelien taso vs lämpökartta, **kapselin puuska**, havaintoverkko ja sen päivitys, proxyjen virheenkäsittely, UiRaS — aukot O1–O11, suositusjärjestys ja sujuvuusvaikutus; lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 
 <details>
@@ -356,7 +364,11 @@ kokeiltu ja kaadettu mittauksella.
   V1–V9 · Päätettävät P1–P7 · Riskit · **Toteutus (V1, 4.–5.10.)**:
   poikkeamat, rakennus, laatat rajapintaa vasten, selaimessa, Actionsissa,
   mitä jäi · **Toteutus (V2, 5.10.): lähizoomin natiivihila ja spotin
-  natiivisarja** — rakenne, poikkeamat, mitattu, hinta, mitä jäi
+  natiivisarja** — rakenne, poikkeamat, mitattu, hinta, mitä jäi ·
+  **Toteutus (V3, 5.10.): Euroopan havainnot (MeteoGate E-SOH)** —
+  rakenne, päätökset (OpenWindMapin lisenssi, rannikko maarasterista,
+  kahdennukset, parametrien etusija, katkosääntö, julkaisu), mitattu,
+  mitä jäi
 - **oikeellisuus**: Tiivistelmä · Kunnossa — mitattu, ei toimenpiteitä ·
   Aukot O1–O11 (varaston tuoreus, kaksi ennustetta, kapselin taso,
   kapselin puuska, virhe lakkautuksena, havaintoverkko, havaintojen
@@ -2423,6 +2435,37 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   FMI:n omasta vastauksesta. `FMI_SEA_PLACES` johdetaan tagista — se
   oli oma listansa. `tools/varmennus.mjs` lukee saman rekisterin
   (`STATIONS` viedään `api/fmi.js`:stä, tagit `index.html`:stä).
+- **EUROOPAN ASEMAT OVAT REKISTERIN KOLMAS OSA, DATANA (`EuAsemat`,
+  MeteoGate E-SOH, docs/eurooppa.md luku 14).** Ne tulevat laatoittain
+  (`/api/fmi?eu=laatta`, 4° × 4°: asemat, 48 h tasatunnit, tuorein
+  rivi), ja `_fmiStationsSorted` lukee ladatut laatat Suomen rekisterin
+  rinnalla — älä kirjoita Euroopan asemille omaa lähimmän aseman polkua.
+  Suomen rekisteri on ennallaan, ja E-SOH:n kopiot sen asemista
+  (`0-246-0-<FMISID>`) palvelin jättää pois: jos lisäät aseman
+  rekisteriin, se poistuu Euroopan laatasta itsestään (`REKISTERISSA`).
+  Merkit vain näkymän (+ 25 %) asemille ja vain päällä oleville
+  kerroksille, rannikko zoomista 8 ja sisämaa zoomista 9 — mitattuna
+  Beneluxissa zoomilla 8 työpöydällä 571 merkkiä ennen rajausta. Kortit
+  hakevat pisteen ympäristön laatat itse (`EuAsemat.varmista`), eikä
+  "ei asemaa lähellä" päätellä ennen kuin ympäristö on ladattu
+  (`kattaa`). Nimi on ylävirran dataa: escapoi se HTML:ään (`escHtml`).
+- **E-SOH SÄILYTTÄÄ VUOROKAUDEN, VARASTO LOPUT** (`tools/esoh.mjs`,
+  `havainnot`-haaran `esoh/`). Laatta yhdistää varaston tunnit (48–24 h)
+  ja lähteen (24 h), sarja varaston tunnit ja lähteen täyden tarkkuuden.
+  Keräin ja proxy käyttävät SAMAA tunnin näytettä ja samaa
+  parametrisääntöä (`tunninNayte`, `asemanRivit`; mitattu 99,6 % samoja):
+  jos muutat toista, muuta molempia. Tuuli on yksi parametri koko
+  sarjalle (etusijalta ensimmäinen jolla on vähintään puolet suurimmasta
+  määrästä), puuska, suunta ja lämpö täydentyvät hetkittäin, puuska
+  10 min ensin. Kelvoton arvo (−273 °C) pudotetaan jäsennyksessä, ja
+  saman aseman kaksi tunnusta (Met Office, 146 paria alle 50 m)
+  yhdistetään laatassa. Rannikkotagi (`Meri`) tulee maarasterista 3 km:n
+  säteellä (kalibroitu Suomen rekisteriä vasten 20/21), `Avomeri`a ei
+  anneta, ja järvet ovat maata.
+- **OPENWINDMAP ON ULKONA LISENSSIN TAKIA.** Sen Community Licensen
+  jakamisehto vaatii kaikki muut integroidut anturit avoimiksi, eikä
+  Mellstenin ja Larun ehtoja ole julkaistu. Älä lisää sitä ennen kuin
+  käyttäjä on päättänyt (docs/eurooppa.md 14.2).
 - **KARTAN MERKIT OVAT YKSI HAKU: `/api/fmi?asemat=1&hours=48`**
   (docs/oikeellisuus.md, O6–O7). Yksi multipointcoverage-kysely kaikille
   21 asemalle, tiivis vastaus (`{t0, dt, n, asemat: {place: {ws, wg,
@@ -2595,7 +2638,11 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   havaintoa 31 h · viimeinen ennen · jatkui") eikä reunan lukemaa.
   Mellsten sammuu pilvisellä säällä tunneiksi, ja lukumääräniputus veti
   ennen suoran viivan tyhjän yli. 30 min ei katkaise FMI:n 10 min
-  sarjaa yhden tai kahden puuttuvan näytteen takia.
+  sarjaa yhden tai kahden puuttuvan näytteen takia. **Euroopan
+  sarjoissa (`mukautuvaKatko`, `_havKatko`) katko on lisäksi yli
+  2,5 × naapurivälien suurempi**: tuntiasemalla ja varaston tunneilla
+  kiinteä 30 min katkaisi jokaisen välin ja kortissa oli pelkkiä
+  irtopisteitä. Suomen lähteiden sääntö on ennallaan.
 - **`wsMin` EI OLE lähteen tyyni vaan nipun sisäinen minimi.** Kun
   nippuun osuu yksi näyte, se on sama luku kuin keskiarvo — mitattuna
   katkoviiva piirtyi 0,00 yksikön päähän keskituulesta koko laajassa

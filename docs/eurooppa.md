@@ -98,9 +98,11 @@ koko Euroopassa, luku 9), sitten V2 (lähizoomin natiivihila ja spotin
 natiivisarja) ja V3 (MeteoGate-havainnot kartalle ja kortteihin).
 Spottitietokanta, meri ja aukkojen paikkaus tulevat niiden jälkeen.
 
-**Tila 5.10.2026:** V1 (luku 12) ja V2 (luku 13) on toteutettu ja
-mitattu. V2 kytkeytyy päälle vasta kun luettelossa on tasojen
-`natiivi`-kenttä, eli ensimmäisestä V2-rakentajan Säädata-ajosta.
+**Tila 5.10.2026:** V1 (luku 12), V2 (luku 13) ja V3:n E-SOH-osa
+(luku 14) on toteutettu ja mitattu. V2 kytkeytyy päälle vasta kun
+luettelossa on tasojen `natiivi`-kenttä, eli ensimmäisestä
+V2-rakentajan Säädata-ajosta. V3:n OpenWindMap odottaa
+lisenssipäätöstä (14.2).
 **V1 toteutettiin samassa erässä** — tulokset ovat luvussa 12.
 
 ---
@@ -614,7 +616,7 @@ OSM maailmanlaajuisesti.
 |---|---|---|---|
 | **V1** | **Alueelliset mallit varastoon**: yleinen projektiolukija, paino datan reunasta, käyttöalueet, 10 uutta perhettä, järjestys luettelosta, asiakas lukee järjestyksen, lähdenimet ja kortin Paras kaikista perheistä — **toteutettu 4.–5.10. (luku 12)** | L | — |
 | **V2** | **Lähizoomin natiivihila** (`malli=<perhe>`, paino varastosta) **ja spotin natiivisarja** (`tila=sarja&malli=<perhe>`), yhteinen taulukko rakentajan kanssa — **toteutettu 5.10. (luku 13)** | L | V1 |
-| V3 | Havainnot: MeteoGate E-SOH + OpenWindMap kartalle ja kortteihin, dynaaminen rekisteri, historia `havainnot`-haaraan | L | — |
+| **V3** | **Havainnot: MeteoGate E-SOH** + OpenWindMap kartalle ja kortteihin, dynaaminen rekisteri, historia `havainnot`-haaraan — **E-SOH toteutettu 5.10. (luku 14); OpenWindMap odottaa lisenssipäätöstä (14.2)** | L | — |
 | V4 | Varmennus Eurooppaan (E-SOH), järjestys datasta | M | V1, V3 |
 | V5 | Spotit: OSM-siemen, kuratointi, käyttäjän spotit, suunnat rantaviivasta, haku | L | V3 |
 | V6 | Meri: EWAM/MFWAM varastoon, vuorovesi, virrat, merihavainnot (EMODnet) | L | V5 |
@@ -1079,6 +1081,192 @@ omalla jäljittimellä (`@vercel/nft`): `tools/alueelliset.mjs`,
   natiivisolu vai varaston keskiarvo. Rannoilla natiivisolu on joko
   meri- tai maasolu, ja varmennuksen on kerrottava kumpi vastaa
   havaintoa — tämä on mitattava eikä oletettava.
+
+---
+
+## 14. Toteutus (V3, 5.10.2026): Euroopan havainnot (MeteoGate E-SOH)
+
+Euroopan sääpalvelujen asemat ovat kartalla, asemakortissa,
+spottikortin asemavalitsimessa ja vapaan pisteen kortissa samalla
+koneistolla kuin Suomen asemat. Lähde on EUMETNETin MeteoGate E-SOH
+(luku 4.1, CC BY 4.0, ei avainta).
+
+### 14.1 Rakenne
+
+**Palvelin: tilat olemassa olevassa funktiossa** (12 funktion katto).
+`api/_esoh.js` on apumoduuli, ja `api/fmi.js` sai kaksi tilaa:
+
+- `?eu=laatta&x=<0..89>&y=<0..44>` — laatta 4° × 4°. Kolme hakua
+  rinnakkain: `/locations?bbox` (asemat ja nimet, muistissa
+  vuorokauden), `/area` viimeiset 24 h (tuuliparametrit) ja oman
+  varaston päivätiedostot jaksolle 48–24 h sitten. Vastaus: asemat
+  (`id` = WIGOS, `nimi`, `lat`, `lng`, `tagi`, `maa`, `tahti`), 49
+  tasatunnin näytettä (`ws`, `wg`, `wd`) ja tuorein rivi `v`. CDN 5 min
+  (+ SWR 10 min), tyhjä laatta (avomeri) 15 min, ylävirran virhe 502 ja
+  `no-store` (O5).
+- `?eu=sarja&id=<WIGOS>&lat&lng&hours=<1..168>` — asemakortin sarja:
+  `locations/{id}` 24 h täydellä tarkkuudella ja varaston tunnit sitä
+  vanhemmat. Muoto on `api/fmi.js`:n historian (`{ws:[{t,v,d,iso}],
+  wg, ta}`) + `latest`, `lampomittari` ja `tahtiMin`, joten
+  `_renderLiveHistory` piirtää sen ilman omaa haaraa.
+
+**Rekisteri: kolmas osa, datana.** Suomen rekisteri
+(`FMI_MAP_STATIONS` + `PAIKALLISASEMAT`) on ennallaan (S5), ja E-SOH:n
+kopiot sen asemista (`0-246-0-<FMISID>`) jätetään laatasta pois — muuten
+Harmaja olisi kartalla kahdesti. Asiakkaan `EuAsemat` pitää ladatut
+laatat ja antaa niiden asemat rekisterin muodossa (`lahde: 'eu'`), ja
+`_fmiStationsSorted` lukee kaikki kolme. Spottikortin asemavalitsin,
+asemakortin naapurit ja vapaan pisteen kortti näkevät siis Euroopan
+asemat ilman omaa polkuaan.
+
+**Kartta.** `_addObsMarkers`in Eurooppa-lohko luo merkit näkymän
+(+ 25 % reunus) laattojen asemista, vain päällä oleville kerroksille,
+ja poistaa ne kun näkymä siirtyy. Zoomista 8 rannikkoasemat (lukema
+z8:sta kuten meriasemilla) ja zoomista 9 sisämaan asemat (lukema z10:stä)
+kun "sisämaa"-kerros on päällä. Pilleri, sijoittelu
+(`_sijoitteleHavainnot`), aikajana (`_histValueAt`) ja istunnon aikainen
+päivitys (`_havPaivittajat`) ovat samat kuin FMI:n asemilla.
+
+**Kortti.** `_openObsSheet('eu')` kulkee FMI:n polkua (`_havHaeSarja`
+`lahde: 'eu'`). Otsikkorivillä on maa käyttöliittymän kielellä
+(`Intl.DisplayNames`) ja välittäjä ("Tuulihavainto · Ranska ·
+EUMETNET E-SOH"): kansallinen laitos ei kulje vastauksessa
+(WMO-numeroidun aseman julkaisija on 20000), joten sitä ei arvata.
+Alarivillä lähde ja lisenssi, ja Tietoa-näkymässä lähdemerkintä.
+
+**Historia.** `tools/esoh.mjs` on Havainnot-työnkulun askel: tasatunnit
+jotka ovat 3–24 h vanhoja ja puuttuvat varastosta, vanhin ensin, yksi
+koko Euroopan kysely tuntia kohti, tallennus
+`esoh/<UTC-päivä>/<x>_<y>.json` (`{ wigos: { "HH": [ws, wg, wd] } }`),
+säilytys 8 vrk. Väliin jäänyt ajo ei jätä aukkoa niin kauan kuin jokin
+ajo osuu vuorokauden sisään.
+
+**Kerroskytkimet** olivat "FMI · Meri" ja "FMI · Maa"; nyt "Tuuliasemat ·
+rannikko" ja "Tuuliasemat · sisämaa", koska ne ohjaavat myös Euroopan
+asemia. Avaimet (`fmi-sea`, `fmi-land`) ovat ennallaan, joten tallennetut
+valinnat säilyvät, ja sisämaa on yhä oletuksena pois.
+
+### 14.2 Päätökset ja poikkeamat suunnitelmasta (S5)
+
+- **OpenWindMap EI OLE MUKANA — LISENSSI ON PÄÄTETTÄVÄ ENSIN.**
+  Community Licensen jakamisehto ("Sharing clause") vaatii, että KAIKKI
+  muu sovellukseen integroitu anturidata on avointa: julkista,
+  maksutonta, uudelleenkäytettävää myös kaupallisesti, heikentämätöntä ja
+  viivästämätöntä, ja arkisto saatavilla. FMI, E-SOH ja UiRaS täyttävät
+  sen, mutta Mellstenin (Surfing ry) ja Larun (dlarah.org) ehtoja ei ole
+  julkaistu. Vaihtoehdot: lähteiden ehtojen selvitys, Extended License
+  (sopimus), tai OpenWindMap pois. Mitattu tekninen osa (747 asemaa,
+  `live/all`, 4 min arkisto) on luvussa 4.3.
+- **Kansalliset 10 min lähteet eivät ole V3:ssa.** E-SOH kattaa kaikki
+  maat yhdellä rajapinnalla; Hollanti (14) ja Tanska (7) ovat ohuita
+  (luku 4.1), ja niiden kansalliset rajapinnat ovat seuraava askel.
+- **Laatta eikä koko rekisteri selaimeen.** Koko Euroopan rekisteri
+  olisi 170 kB (noin 55 kB pakattuna) jokaiselle käyttäjälle, ja
+  `/locations` on lähteessä 4,5 MB ja 6,9 s. Laatta tuo nimet mukanaan,
+  ja puhelin hakee käynnistyksessä nolla laattaa (zoom 7,2 < 8).
+- **Rannikko maarasterista** (`tools/maat.json`, 0,05°): merta 3 km:n
+  sisällä = `Meri`. Säde kalibroitiin Suomen käsin tagattua rekisteriä
+  vasten: 3 km antaa 20/21 asemalle saman meri/maa-luokan (ainoa ero
+  Kaisaniemi, 2,8 km rasterin merestä), 5 km 19/21 (myös Tapiola).
+  Euroopassa 564 rannikkoasemaa 3 428:sta. `Avomeri`-tagia ei anneta:
+  rasterin solmuväli tekisi satamasta "avomeren". Lentoasema tunnistetaan
+  nimestä (`Lento`).
+- **Kartalle tunnin näyte, ei 10 min sarjaa.** Pilleri lukee valitun
+  tunnin (`_histValueAt`, lähin hetki tunnin sisällä) ja tuoreen lukeman
+  erikseen; 10 min sarja olisi kuusinkertainen eikä näkyisi kartalla.
+  Näyte on rivi välillä [H − 10 min, H + 5 min], lähinnä H:ta
+  (tuntiasemat raportoivat tasatunnilla: 1 847 / 1 866 hetkeä).
+- **Tuoreus kuten FMI:llä (90 min), mutta harva asema ei ole "ei
+  signaalia".** Kolmen tunnin synop-asema olisi muuten katkoviivalla
+  kaksi tuntia kolmesta. Lukeman ollessa 90 min – max(3 h, 1,5 × tahti)
+  vanha pilleri on "—" (ei lukemaa tälle tunnille), vasta sen jälkeen
+  "ei signaalia".
+- **Sama asema kahdella tunnuksella.** Luettelossa on 170 tuuliasemaparia
+  alle kilometrin päässä toisistaan, joista 146 alle 50 m: Met Office
+  julkaisee aseman sekä WMO-numerolla (tunneittain) että omalla
+  tunnuksellaan (10 min). Laatassa alle 100 m:n päässä toisistaan
+  olevista jää se jonka lukema on tuorein. Satojen metrien päässä olevat
+  ovat eri mittareita (tiesääasema ja synop) ja jäävät.
+- **Kelvoton arvo on puuttuva.** Ranskalaisen aseman
+  `air_temperature:2.0:point:PT10M` oli koko vuorokauden −273 °C (0 K),
+  ja kortti näytti sen. Rajojen ulkopuolinen arvo (tuuli 0–75 m/s, suunta
+  0–360°, lämpö −80…60 °C) pudotetaan jäsennyksessä, jolloin seuraava
+  parametri voittaa.
+- **Tuulen parametri on yksi koko sarjalle; puuska, suunta ja lämpö
+  täydentyvät hetkittäin.** Tuuleksi etusijalta ensimmäinen jolla on
+  vähintään puolet suurimmasta määrästä: "eniten arvoja" valitsi Suomen
+  asemalle vuorokaudessa kahden minuutin keskiarvon (142 vs 141 arvoa) ja
+  keräimen tunnin ikkunassa kymmenen minuutin. Puuska on 10 min puuska
+  kuten FMI:llä ja tunnin puuska vain kun sitä ei ole: DWD:n
+  tuntiasemalla tunnin puuska puuttuu synop-tunneilta (16 / 24), ja
+  tahdin mukainen järjestys antoi keräimelle ja proxylle eri puuskan.
+- **Kaavion katkosääntö mukautuu E-SOH:n sarjoissa** (`_havKatko`,
+  `mukautuvaKatko`): tuntiasemalla kiinteä 30 min katkaisi jokaisen
+  välin, ja kortin kaaviossa oli pelkkiä irtopisteitä. Katko on väli joka
+  on yli 30 min ja yli 2,5 × naapurivälien suurempi. Suomen lähteiden
+  sääntö on ennallaan.
+- **Julkaisu siirtää vain muutoksen.** Havainnot-työnkulku poisti
+  kloonin `.git`in ja lähetti koko haaran joka ajolla; nyt orpo committi
+  tehdään kloonin päälle (`julkaisu:havainnot`). Mitattu paikallisesti:
+  yhden tiedoston muutos 2,86 MiB → 584 tavua. Kolme polkua testattu
+  paikallista paljasta repoa vasten (ei haaraa, muutos ja lisäys,
+  poisto): haarassa aina yksi committi.
+
+### 14.3 Mitattu (5.10.2026)
+
+**Rajapinta.** Laatta 4° × 4° ja 24 h: 0,2–1,2 s ja 0,1–0,9 MB; koko
+Euroopan yksi hetki 3,5 s, 7 MB, 2 993 asemaa. Tyhjä alue ja asema ilman
+dataa 404, tuntematon parametri 400 ("Unknown parameter-name"), yli
+vuorokauden vanha jakso 404, koko maailman monikulmio 500.
+
+**Proxy.** Laatta 0,7–2,9 s (kylmä instanssi ja maarasterin luku
+mukana), 18–33 kB, pakattuna 3,1–4,5 kB; asemakortin sarja 4–17 kB.
+
+**Keräin.** 10 tuntia 33–38 s:ssa, 2 289–2 984 asemaa tunnissa; 10 tuntia
+on 99 laattatiedostoa ja 581 kB, eli noin 1,4 MB vuorokaudessa ja 11 MB
+kahdeksassa.
+
+**Varasto proxya vasten** (sama tunti molemmista, 9 laattaa): ennen
+korjauksia 96,4 % identtisiä, puuskan järjestyksen jälkeen 98,1 %,
+tuulen parametrin säännön jälkeen **99,6 %** (2 287 tuntia). Loput ovat
+Met Officen jälkikäteen korjaamia rivejä.
+
+**Selaimessa** (tuotantobuild, Chromium, E-SOH oikea):
+
+| tilanne | tulos |
+|---|---|
+| käynnistys Helsingissä, työpöytä (z 9,3) | 2 laattaa, 2 Euroopan merkkiä (Inkoo Jakobramsjö, Pakri); rekisterin asemat eivät kahdennu |
+| käynnistys puhelimella (z 7,2, `hasTouch`) | ei yhtään Euroopan pyyntöä |
+| Bretagne z9 | 11 rannikkoasemaa (puhelimella 6), lukemia 6, "ei signaalia" 4; sijoittelu 4–5 ms |
+| sama, merkit koko laatalle (ennen rajausta) | 22 merkkiä, puolet näkymän ulkopuolella |
+| Benelux z8, sisämaa päällä | ennen 571 merkkiä (DOM 633), nyt 0 sisämaan + 9 rannikon |
+| Benelux z9, sisämaa päällä | 26 merkkiä, sijoittelu 3 ms |
+| asemakortti (Ouessant Stiff) | otsikko, "Tuulihavainto · Ranska · EUMETNET E-SOH", lukema, 24 h kaavio, CC BY 4.0 |
+| aikajana 5 h sitten | 6 / 11 pilleriä historian lukemalla (loput tuntiasemia ilman sitä tuntia) |
+| aikajana 30 h sitten | "—" kaikissa (varasto vielä tyhjä; täyttyy keräimen ajoista) |
+| vapaa piste Quiberonin edustalla | lähin asema Belle Ile Le Talut 21,9 km, kaavio |
+| zoom 7 | Euroopan merkit pois |
+| englanniksi | kaikki uudet tekstit, desimaalipiste |
+
+Savutesti ja graafimittaus läpi; sivuvirheitä 0.
+
+### 14.4 Mitä jäi
+
+- **OpenWindMap** (lisenssipäätös, 14.2), kansalliset 10 min lähteet
+  (DE, NL, DK, CH, AT, BE, SE, PL), Météo-France 6 min (avain, P6) ja
+  Holfuy (sopimus).
+- **Järvet ovat maata.** Gardan, Silvaplanan ja Neusiedlin asemat ovat
+  "sisämaa"-kerroksessa (oletuksena pois) ja lukema tulee z10:stä.
+  Järvirasteri (Natural Earth lakes) maarasterin rinnalle korjaisi sen.
+- **Suomen rekisterin ulkopuoliset asemat** tulevat E-SOH:sta
+  englanninkielisin tarkentein ("Jomala Maarianhamina airport") ja
+  vuorokauden historialla; FMI:n oma rajapinta antaisi niille suomenkielisen
+  nimen ja 7 vrk.
+- **Varasto täyttyy ajoista.** Aikajanan 24–48 h ja kortin yli
+  vuorokauden tunnit tulevat vasta kun keräin on ajanut; ensimmäinen ajo
+  hakee kymmenen tuntia ja loput seuraavat.
+- **Varmennus E-SOH:ta vasten** (V4) ja spottien laajennus Eurooppaan
+  (V5): spottikortin lähin asema Euroopassa toimii jo vapaassa pisteessä.
 
 ---
 

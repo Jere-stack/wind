@@ -7203,7 +7203,7 @@ päiväykset ovat en-GB:tä. Kellonaika on 24-tuntinen molemmilla kielillä.
 | Kartan malli, Paras saatavilla | Map forecast model, Best available | |
 | raja-alue (mallien sekoitus) | blend zone | |
 | Vertaa kaaviossa, Päällekkäin / Allekkain | Compare in chart, Overlaid / Stacked | |
-| Havainnot kartalla, FMI · Meri / Maa | Observations on map, FMI · Marine / Land | |
+| Havainnot kartalla, Tuuliasemat · rannikko / sisämaa | Observations on map, Wind stations · coast / inland | 5.10. alkaen (ennen "FMI · Meri / Maa"), koska kytkimet ohjaavat myös Euroopan asemia (docs/eurooppa.md 14) |
 | Ilmatieteen laitos | Finnish Meteorological Institute (FMI) | |
 | Merellinen Helsinki | Marine Helsinki | |
 | Ei laske / Ei nouse (aurinko) | Midnight sun / Polar night | |

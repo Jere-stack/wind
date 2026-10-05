@@ -23,11 +23,23 @@
 # rekisterin asemille arkistoon ja havaintoja vasten tunnin välein
 # (docs/oikeellisuus.md, O11).
 #
+# Ja Euroopan havainnot (tools/esoh.mjs, docs/eurooppa.md 14): MeteoGate
+# E-SOH säilyttää vuorokauden, joten tasatuntien lukemat kerätään
+# talteen aikajanan 48 h:lle ja asemakortin 168 h:lle.
+#
 # ORPO HAARA JA PAKKOPÄIVITYS kuten `saadata`: haarassa on aina tasan
 # yksi committi, joten satakin ajoa vuorokaudessa ei kasvata repoa.
 # Varasto on noin 3,6 MB (31 vrk: Mellsten 2,4 MB minuutin riveinä,
-# Laru 1,2 MB) ja varmennuksen arkisto noin 75 kB rakennusta kohti
-# (4 vrk säilytys, enintään noin 2,5 MB).
+# Laru 1,2 MB), varmennuksen arkisto noin 75 kB rakennusta kohti
+# (4 vrk säilytys, enintään noin 2,5 MB) ja Euroopan tunnit noin
+# 1,4 MB vuorokaudessa (8 vrk, noin 11 MB).
+#
+# JULKAISU SIIRTÄÄ VAIN MUUTOKSEN. Noudettu klooni pidetään (`.git`
+# jää), ja uusi orpo committi tehdään sen päälle: GitHub tuntee
+# edellisen commitin oliot, joten push lähettää vain muuttuneet
+# tiedostot. Ennen klooni poistettiin ja koko haara lähetettiin joka
+# ajolla (mitattu paikallisesti: 2,86 MiB vs 584 tavua yhden
+# tiedoston muutokselle).
 #
 # KOLME HERÄTINTÄ, KOSKA GITHUBIN AJASTIN EI RIITÄ — MITATTU. Tämän
 # työnkulun ajastin ei käynnistänyt yhtään ajoa kuuteen tuntiin (29.9.
@@ -116,8 +128,9 @@ jobs:
           rc=$?
           set -e
           if [ "$rc" -eq 0 ]; then
+            # `.git` jää: julkaisu tekee orvon commitin sen päälle, jolloin
+            # push lähettää vain muuttuneet tiedostot.
             git clone -q --depth 1 --branch havainnot "$URL" varasto
-            rm -rf varasto/.git
           elif [ "$rc" -eq 2 ]; then
             echo "Haaraa havainnot ei vielä ole — aloitetaan tyhjästä (arkisto täyttää historian)."
             mkdir -p varasto
@@ -157,6 +170,17 @@ jobs:
         timeout-minutes: 3
         run: node tools/varmennus.mjs varasto >> "$GITHUB_STEP_SUMMARY"
 
+      # EUROOPAN HAVAINNOT (tools/esoh.mjs, docs/eurooppa.md 14): MeteoGate
+      # E-SOH säilyttää vuorokauden, joten 3–24 h vanhat tasatunnit
+      # talletetaan (yksi koko Euroopan kysely tuntia kohti, ~3,5 s).
+      # `continue-on-error`: lähteen vika ei saa estää Mellstenin rivien
+      # julkaisua, ja väliin jäänyt tunti haetaan seuraavalla ajolla —
+      # se on lähteessä vielä vuorokauden.
+      - name: Euroopan havainnot
+        continue-on-error: true
+        timeout-minutes: 4
+        run: node tools/esoh.mjs varasto >> "$GITHUB_STEP_SUMMARY"
+
       - name: Julkaise haaraan havainnot
         env:
           URL: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}
@@ -168,13 +192,14 @@ jobs:
           # (ks. saadata.yml).
           printf '%s\n' '{ "git": { "deploymentEnabled": { "havainnot": false } } }' > varasto/vercel.json
           cd varasto
-          git init -q
-          git checkout -q --orphan havainnot
+          # Klooni on olemassa jos haara oli; ensimmäisellä kerralla ei.
+          if [ ! -d .git ]; then git init -q; fi
+          git checkout -q --orphan julkaisu
           git add -A
           git -c user.name='FoilSpot data' \
               -c user.email='data@foilspot.invalid' \
               commit -q -m "Havainnot $(date -u +%Y-%m-%dT%H:%MZ)"
-          git push -q --force "$URL" havainnot
+          git push -q --force "$URL" julkaisu:havainnot
 
       # SÄÄDATAN HERÄTIN (tools/saaherate.mjs, docs/oikeellisuus.md O1).
       # Säädatan oma ajastin myöhästyy tunteja, ja varasto jäi 1–3 ajoa

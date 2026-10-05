@@ -1,5 +1,6 @@
 import { suojaa } from './_suoja.js';
 import { haeFmi } from './_haku.js';
+import { rakennaLaatta, rakennaSarja, kelpoTunnus, LAATTA_X, LAATTA_Y } from './_esoh.js';
 
 /* ASEMAREKISTERI (docs/oikeellisuus.md, O6). Sama lista kuin index.html:n
  * `FMI_MAP_STATIONS` — ÄLÄ LISÄÄ ASEMAA VAIN TOISEEN (CLAUDE.md).
@@ -41,6 +42,12 @@ export const STATIONS = [
   { place: 'fagerholm',    name: 'Parainen Fagerholm',       lat: 60.11163, lng: 21.69828, fmisid: '100924' },
   { place: 'rajakari',     name: 'Turku Rajakari',           lat: 60.37788, lng: 22.09640, fmisid: '100947' },
 ];
+
+/* Rekisterin asemat E-SOH:n tunnuksina (FMI julkaisee FMISID:n
+   paikallisena osana: 0-246-0-<fmisid>). Ne tulevat tämän proxyn
+   FMI-haaroista 7 vrk:n historialla, joten Euroopan laatta jättää ne
+   pois — muuten sama asema olisi kartalla kahtena merkkinä. */
+const REKISTERISSA = new Set(STATIONS.map(function (s) { return '0-246-0-' + s.fmisid; }));
 
 function km(a,b,c,d){var R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;return R*2*Math.asin(Math.sqrt(Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2));}
 function nearest(lat,lng){return STATIONS.slice().sort(function(a,b){return km(lat,lng,a.lat,a.lng)-km(lat,lng,b.lat,b.lng);})[0];}
@@ -157,6 +164,10 @@ export default async function handler(req,res){
   }
 
   var tz=kelpoTz(req.query.tz)||'Europe/Helsinki';
+
+  /* EUROOPAN HAVAINNOT (docs/eurooppa.md, luku 14): MeteoGate E-SOH
+     tilana tässä funktiossa eikä omana tiedostonaan (12 funktion katto). */
+  if(req.query.eu) return euHaara(req,res,tz);
 
   /* KAIKKI ASEMAT YHDELLÄ KYSELYLLÄ (docs/oikeellisuus.md, O6).
      Karttamerkit tekivät ennen kaksi pyyntöä asemaa kohti (tuorein +
@@ -340,6 +351,54 @@ export async function kaikkiAsemat(hours,aikaraja){
   });
   if(!yksikin)return null;
   return {t0:t0,dt:DT_MS,n:n,asemat:asemat};
+}
+
+/* ── Eurooppa: MeteoGate E-SOH (api/_esoh.js) ───────────────────
+ *
+ *   ?eu=laatta&x=<0..89>&y=<0..44>   kartan laatta 4° × 4°: asemat,
+ *                                    48 h tunnin näytteet, tuorein lukema
+ *   ?eu=sarja&id=<WIGOS>&lat&lng&hours=<1..168>
+ *                                    asemakortin sarja (FMI:n historian
+ *                                    muodossa), 24 h täydellä tarkkuudella
+ *
+ * Sama virhesopimus kuin FMI-haaroilla (O5): ylävirran virhe on 502 ja
+ * `no-store`, eikä sitä tarjoilla tyhjänä — tyhjä vastaus poistaisi
+ * merkit kartalta. Tyhjä laatta (avomeri) on 200 ja CDN:ssä 15 min. */
+async function euHaara(req,res,tz){
+  var tila=req.query.eu;
+  if(tila==='laatta'){
+    var x=parseInt(req.query.x,10),y=parseInt(req.query.y,10);
+    if(!(x>=0&&x<LAATTA_X&&y>=0&&y<LAATTA_Y)){
+      res.setHeader('Cache-Control','no-store');
+      return res.status(400).json({error:'laatta'});
+    }
+    try{
+      var l=await rakennaLaatta(x,y,REKISTERISSA);
+      res.setHeader('Cache-Control',l.asemat.length?'public, s-maxage=300, stale-while-revalidate=600':'public, s-maxage=900');
+      return res.status(200).json(l);
+    }catch(err){
+      res.setHeader('Cache-Control','no-store');
+      return res.status(502).json({error:err.message});
+    }
+  }
+  if(tila==='sarja'){
+    var id=String(req.query.id||''),lat=parseFloat(req.query.lat),lng=parseFloat(req.query.lng);
+    if(!kelpoTunnus(id)||!isFinite(lat)||!isFinite(lng)||Math.abs(lat)>90||Math.abs(lng)>180){
+      res.setHeader('Cache-Control','no-store');
+      return res.status(400).json({error:'asema'});
+    }
+    var tunnit=Math.max(1,Math.min(168,parseInt(req.query.hours,10)||24));
+    try{
+      var s=await rakennaSarja(id,lat,lng,tunnit,tz);
+      res.setHeader('Cache-Control','public, s-maxage=300, stale-while-revalidate=120');
+      return res.status(200).json(s);
+    }catch(err){
+      res.setHeader('Cache-Control','no-store');
+      return res.status(502).json({error:err.message});
+    }
+  }
+  res.setHeader('Cache-Control','no-store');
+  return res.status(400).json({error:'tila'});
 }
 
 /* ── Kehitystyökalut (FS_DEBUG=1) ─────────────────────────────── */
