@@ -19366,8 +19366,10 @@ const EuAsemat = {
     if (l.kesken) return l.kesken;
     const ika = Date.now() - (l.t || 0);
     if (l.data && ika < this.TTL) return Promise.resolve(l.data);
-    if (!l.data && l.virhe && Date.now() - l.virhe < this.VIRHE_MS) return Promise.resolve(null);
     if (l.data && !uusi && ika < 3 * this.TTL) return Promise.resolve(l.data);
+    /* Tauko myös silloin kun vanha data on muistissa: muuten jokainen
+       kartansiirto toistaisi kaatuvan haun. */
+    if (l.virhe && Date.now() - l.virhe < this.VIRHE_MS) return Promise.resolve(l.data || null);
     const xy = avain.split('_');
     this._laatat.set(avain, l);
     l.kesken = fetch(API_BASE + '/fmi?eu=laatta&x=' + xy[0] + '&y=' + xy[1])
@@ -21424,8 +21426,11 @@ function _addObsMarkers(map) {
         e.hiljainen = !tuore && !harva;
       });
     });
-    _euMerkit.forEach(function (e, id) { if (!nahty[id]) _euPoista(e); });
-    updateIcons();
+    var poistettu = 0;
+    _euMerkit.forEach(function (e, id) { if (!nahty[id]) { _euPoista(e); poistettu++; } });
+    /* Ilman Euroopan merkkejä (Suomi, kaukainen zoom) ei turhaa kierrosta:
+       siirron sijoittelu ajetaan jo `moveend`issä. */
+    if (_euMerkit.size || poistettu) updateIcons();
   }
   /* Näkymän laatat. Kevyt (vain avainten laskenta ja välimuisti), joten
      se ajetaan jokaisen liikkeen päätteeksi; haku käynnistyy vain

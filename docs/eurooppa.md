@@ -1226,6 +1226,14 @@ mukana), 18–33 kB, pakattuna 3,1–4,5 kB; asemakortin sarja 4–17 kB.
 on 99 laattatiedostoa ja 581 kB, eli noin 1,4 MB vuorokaudessa ja 11 MB
 kahdeksassa.
 
+**Actionsissa** (Havainnot-ajo 37300880952, ajastinketjun lenkki,
+5.10. klo 11.27 UTC, ensimmäinen ajo uudella työnkululla): "Euroopan
+havainnot" 97 s kymmenelle tunnille, eli GitHubin koneelta noin 10 s
+tuntia kohti (kontista 3,5 s) — aikabudjetti 150 s ja askeleen katto
+4 min riittävät. Julkaisu 1,4 s. Haarassa yksi committi, Mellsten
+2,3 MB ja Laru 1,2 MB ennallaan, `esoh/` 808 kB (99 laattaa, 2 971
+asemaa), ja proxy lukee tiedostot raw-osoitteesta (200).
+
 **Varasto proxya vasten** (sama tunti molemmista, 9 laattaa): ennen
 korjauksia 96,4 % identtisiä, puuskan järjestyksen jälkeen 98,1 %,
 tuulen parametrin säännön jälkeen **99,6 %** (2 287 tuntia). Loput ovat

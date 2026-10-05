@@ -1923,6 +1923,16 @@ Tyhjästä aloitetaan vain jos haaraa ei ole (`ls-remote --exit-code` =
 pyyhkisi kuluvan päivän kerätyt rivit, eli juuri ne joita lähteessä ei
 ole.
 
+**Julkaisu siirtää vain muutoksen (5.10.).** Noudetun kloonin `.git`
+poistettiin ennen, ja uusi repo lähetti koko haaran joka ajolla. Nyt
+klooni jää, ja orpo committi tehdään sen päälle (`git checkout
+--orphan julkaisu`, `push julkaisu:havainnot`): haarassa on yhä tasan
+yksi committi, mutta GitHub tuntee edellisen commitin oliot, joten
+siirtoon menevät vain muuttuneet tiedostot (mitattu paikallisesti
+yhden tiedoston muutokselle 2,86 MiB → 584 tavua). Syy oli Euroopan
+tuntivarasto (`esoh/`, noin 11 MB, docs/eurooppa.md luku 14), joka olisi
+muuten lähetetty kokonaan joka kymmenes minuutti.
+
 **Proxy** lukee varaston päivätiedostot (raw.githubusercontent.com,
 rinnakkain) ja lähteen `weather.txt`:n, ja lähteen rivi voittaa saman
 minuutin varastorivin. Lähteen arkistoa proxy EI hae: se olisi jopa
