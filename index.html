@@ -232,6 +232,10 @@ if ('serviceWorker' in navigator) {
   --kaavio-foil:  #D8B964;   /* foilausraja: päätöskynnys, ei ruudukkoa   */
   --kaavio-kupla: #2A3447;   /* lukeman kupla kaavion päällä              */
   --kaavio-sade:  #8DB6FF;
+  /* Aseman piste lukeman zoomin alla (DOM `.kauko-pallo` ja Euroopan
+     asemien GL-pisteet, `Teema.asemaPiste`): neutraali harmaa, ei kermaa. */
+  --asema-piste: #8E96A3;
+  --asema-piste-reuna: rgba(6,9,18,.7);
 
   /* Kartan päällä kelluvat: sama yömeri lasina, oma varjo. */
   --chip:      rgba(21,28,41,0.92);
@@ -5085,8 +5089,8 @@ html.tyopoyta .hl-nimi { font-size: 20px; }
 }
 .kauko-pallo, .sijainti-pallo {
   width: 5px; height: 5px;
-  background: #8E96A3;
-  box-shadow: 0 0 0 1px rgba(6,9,18,.7);
+  background: var(--asema-piste);
+  box-shadow: 0 0 0 1px var(--asema-piste-reuna);
 }
 .kauko-pallo-pieni { width: 4px; height: 4px; }
 .spot-pallo::after, .kauko-pallo::after {
@@ -5102,7 +5106,7 @@ html.tyopoyta .hl-nimi { font-size: 20px; }
   filter: drop-shadow(0 0 1px rgba(6,9,18,.9));
 }
 .sijainti-x.sijainti-pallo { width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; filter: none;
-  background: #8E96A3; box-shadow: 0 0 0 1px rgba(6,9,18,.7); opacity: .9; }
+  background: var(--asema-piste); box-shadow: 0 0 0 1px var(--asema-piste-reuna); opacity: .9; }
 @media (prefers-reduced-motion: no-preference) {
   .merkki-esiin { animation: merkkiEsiin .22s cubic-bezier(.2,.8,.3,1) both; }
   .spot-ring.merkki-esiin { animation-name: spottiEsiin; }
@@ -7467,6 +7471,7 @@ const Teema = (() => {
     ink: v('--ink', '#F0E7CE'), ink2: v('--ink-2', '#C3BFB2'), ink3: v('--ink-3', '#9CA2AB'),
     accent: v('--accent', '#96B9EB'), varoitus: v('--varoitus', '#FF8FC0'), info: v('--info', '#8DB6FF'),
     foil: v('--kaavio-foil', '#D8B964'), kupla: v('--kaavio-kupla', '#2A3447'),
+    asemaPiste: v('--asema-piste', '#8E96A3'), asemaPisteReuna: v('--asema-piste-reuna', 'rgba(6,9,18,.7)'),
     sade: v('--kaavio-sade', '#8DB6FF'),
   };
 })();
@@ -9123,6 +9128,13 @@ const Saalaatat = {
     const nop = new Array(n), suu = new Array(n), puu = new Array(n);
     const keraa = !!(opts && opts.lahteet);
     const lahde = keraa ? new Array(n) : null, pohjaOs = keraa ? new Array(n) : null;
+    /* Tähtäimen sarjalle (`Tahtain`): toiseksi suurin lähde ja osuudet
+       lähdemerkintää varten (raja-alue), ECMWF:n osuus (varaston pohja ja
+       mallin oman hilan ECMWF) ja pohja-akselin askel tunteina kapselin
+       puuskasäännölle (O4: 6 h maksimi ei kelpaa tunnin puuskaksi). */
+    const lahde2 = keraa ? new Array(n) : null, osuus1 = keraa ? new Array(n) : null;
+    const osuus2 = keraa ? new Array(n) : null, ecmwfOs = keraa ? new Array(n) : null;
+    const akseliH = keraa ? new Array(n) : null;
     const pohjaI = this._perheet.indexOf(this._pohja);
     let kelpoja = 0;
     const palauta = opts ? this._perheetTilapaisesti(opts) : null;
@@ -9135,7 +9147,10 @@ const Saalaatat = {
         this._puuskaTila = false;
         if (!this.naytteista(lat, lo, step)) {
           nop[i] = null; suu[i] = null; puu[i] = null;
-          if (keraa) { lahde[i] = null; pohjaOs[i] = 0; }
+          if (keraa) {
+            lahde[i] = null; pohjaOs[i] = 0;
+            lahde2[i] = null; osuus1[i] = 0; osuus2[i] = 0; ecmwfOs[i] = 0; akseliH[i] = null;
+          }
           continue;
         }
         const u = this._nU, v = this._nV;
@@ -9143,11 +9158,24 @@ const Saalaatat = {
         suu[i] = (Math.atan2(-u, -v) * 180 / Math.PI + 360) % 360;
         if (keraa) {
           const O = this._osuus;
-          let yht = 0, suurin = -1;
-          for (let k = 0; k < O.length; k++) { yht += O[k]; if (suurin < 0 || O[k] > O[suurin]) suurin = k; }
+          let yht = 0, suurin = -1, toinen = -1, ec = 0;
+          for (let k = 0; k < O.length; k++) {
+            yht += O[k];
+            if (suurin < 0 || O[k] > O[suurin]) { toinen = suurin; suurin = k; }
+            else if (toinen < 0 || O[k] > O[toinen]) toinen = k;
+            const pk = this._perheet[k];
+            if (pk.pohja || (pk.dyn && pk.api === 'ecmwf')) ec += O[k];
+          }
           const p = this._perheet[suurin];
           lahde[i] = p.dyn ? this._dynMalli(p, lat, lo) : p.malli;
           pohjaOs[i] = yht > 0 && pohjaI >= 0 ? O[pohjaI] / yht : 0;
+          osuus1[i] = yht > 0 ? O[suurin] / yht : 0;
+          const p2 = toinen >= 0 && O[toinen] > 0.001 ? this._perheet[toinen] : null;
+          lahde2[i] = p2 ? (p2.dyn ? this._dynMalli(p2, lat, lo) : p2.malli) : null;
+          osuus2[i] = p2 && yht > 0 ? O[toinen] / yht : 0;
+          ecmwfOs[i] = yht > 0 ? ec / yht : 0;
+          const ax = this._perus, axTs = ax.tsMs, ai = Math.min(ax.ti, axTs.length - 2);
+          akseliH[i] = ai >= 0 ? (axTs[ai + 1] - axTs[ai]) / 3600e3 : null;
         }
         /* Puuska samasta sekoituksesta. Varaston ECMWF-puuska puuttuu joka
            toiselta askeleelta, ja silloin `_paikassa` antaa tuulen — sama
@@ -9169,7 +9197,11 @@ const Saalaatat = {
       winddirection_10m: suu,
       windgusts_10m: puu,
     };
-    if (keraa) { hourly.lahde = lahde; hourly.pohjaOsuus = pohjaOs; }
+    if (keraa) {
+      hourly.lahde = lahde; hourly.pohjaOsuus = pohjaOs;
+      hourly.lahde2 = lahde2; hourly.osuus1 = osuus1; hourly.osuus2 = osuus2;
+      hourly.ecmwfOsuus = ecmwfOs; hourly.akseliH = akseliH;
+    }
     return { hourly: hourly, lahde: 'laatta' };
   },
 
@@ -9972,10 +10004,13 @@ const MalliHila = {
    * hakua eikä päinvastoin. Samanaikaiset pyynnöt samasta sarjasta
    * yhdistetään (`_skortti`). */
   _skortti: new Map(),
-  pisteenSarja(api, lat, lng) {
+  /* `kiintea` = solmuruudun askel kutsujalta. Tähtäimen sarja (`Tahtain`)
+     ei saa riippua zoomista, joten se antaa askeleen itse; ilman sitä
+     askel on kartan nykyisen zoomin (ICON ja GFS), kuten ennen. */
+  pisteenSarja(api, lat, lng, kiintea) {
     if (!Saalaatat._tunnit() || !Saalaatat._tsMsH || !Saalaatat._tsMsH.length) return Promise.resolve(null);
     const z = State.map ? State.map.getZoom() : 10;
-    const askel = this._sarjaAskel(api, z);
+    const askel = kiintea || this._sarjaAskel(api, z);
     const lo0 = ((lng + 180) % 360 + 360) % 360 - 180;
     const la = +(Math.floor(lat / askel + 1e-9) * askel).toFixed(4);
     const lo = +(Math.floor(lo0 / askel + 1e-9) * askel).toFixed(4);
@@ -10267,6 +10302,171 @@ const Natiivi = {
   },
 };
 
+/* -- TÄHTÄIMEN SARJA --------------------------------------------------
+ *
+ * LUKEMA ON PAIKAN JA HETKEN, EI NÄKYMÄN (käyttäjän raportti 5.10.:
+ * "tähtäimen tuulilukema muuttuu kun zoomaan, data ei tunnu
+ * luotettavalta"; docs/oikeellisuus.md, O12).
+ *
+ * Kapseli luki lämpökartan solmuhilaa (O3), ja hila on NÄKYMÄN esitys:
+ * sen askel ja varaston taso vaihtuvat zoomin mukana (`laattaStep`
+ * 1,25° → 0,05°), mallin oma ECMWF 9 km tulee mukaan zoomista 8
+ * (`MalliHila`) ja alueellisten mallien natiivihila zoomista 10
+ * (`Natiivi`). Sama paikka ja sama tunti antoi siksi eri luvun eri
+ * zoomilla. Aikajana luki saman tason (`laattaStep(round(zoom))`).
+ *
+ * Nyt kapseli, aikajana ja lähdemerkintä lukevat TÄTÄ: kartan keskipisteen
+ * sarja hienoimmalla datalla, sama lasku kuin spottikortin Paras
+ * (`KorttiSarjat.lataa`) — varaston hienoin taso (0,05°), mallin oman
+ * hilan pistesarja (ECMWF 9 km, pakotettuna ICON tai GFS) ja alueellisten
+ * mallien natiivisarja pisteen solusta. Mikään osa ei riipu zoomista, ja
+ * kartan mallitila (pakotus) on mukana kuten kartalla. Lämpökartta ja
+ * partikkelit ovat yhä näkymän esitys: kaukaa ne ovat tasoitetumpia kuin
+ * piste, mutta luku ei ole.
+ *
+ * Sarja lasketaan kun kartta pysähtyy (`moveend`). Liikkeen aikana, ja
+ * siihen asti kunnes uuden paikan sarja on valmis, kapseli lukee kenttää
+ * kuten ennen. Kosketuszoom pitää tähtäimen paikallaan (`initMap`:
+ * nipistys ja tuplanapautus keskipisteen ympäri), joten zoomatessa sarja
+ * pysyy voimassa eikä luku muutu lainkaan. */
+const Tahtain = {
+  ASKEL: 0.05,            /* varaston hienoin taso, kuten spottikortilla */
+  PAKETTI_ASKEL: 0.05,    /* ICONin ja GFS:n solmuruutu; ECMWF:llä MalliHilan oma 0,1 */
+  UUSINTA_MS: 15000,      /* puuttunut mallin sarja haetaan uudelleen */
+  _s: null,               /* { vk, lat, lng, wx, vajaa, t } */
+  _laskee: '',
+  _ajastin: 0,
+
+  _pituus(lng) { return ((lng + 180) % 360 + 360) % 360 - 180; },
+  /* Versioavain: varaston rakennus ja mallitila. Uusi rakennus tai
+     pakotettu malli on uusi sarja samassa paikassa. */
+  _vk() {
+    return typeof Saalaatat === 'undefined' ? '' : (Saalaatat._versio || '') + '|' + Saalaatat._malliTila;
+  },
+  /* Sama piste: 2e-6° on alle 0,25 m. Keskipisteen ympäri zoomattaessa
+     MapLibre pitää keskipisteen liukulukutarkkuudella paikallaan. */
+  _sama(s, lat, lng) {
+    return !!s && Math.abs(s.lat - lat) < 2e-6 && Math.abs(s.lng - this._pituus(lng)) < 2e-6;
+  },
+  voimassa(c) { return !!c && this._sama(this._s, c.lat, c.lng) && this._s.vk === this._vk(); },
+
+  /* Sarja kartan keskipisteelle, tai null jos sitä ei vielä ole (laskenta
+     ajastetaan). Aikajana kutsuu tätä (`aikajananLahde`). */
+  sarja(c) {
+    if (this.voimassa(c)) {
+      const s = this._s;
+      if (s.vajaa && Date.now() - s.t > this.UUSINTA_MS) this.ajasta();
+      return s;
+    }
+    this.ajasta();
+    return null;
+  },
+
+  /* Liikkeen aikana ei lasketa: keskipiste on jo muualla kun tulos
+     valmistuu. Ehto luetaan vasta ajastimessa, koska `moveend`in
+     kuuntelijoista tämä voi ajaa ennen sitä joka nollaa
+     `State.liikkeessa`n; `moveend` ajastaa aina uudelleen
+     (`LampoGL.kiinnita`). */
+  ajasta(viive) {
+    clearTimeout(this._ajastin);
+    const self = this;
+    this._ajastin = setTimeout(function () {
+      if (State.liikkeessa) return;
+      self._laske().catch(function () {});
+    }, viive == null ? 60 : viive);
+  },
+
+  async _laske() {
+    const S = typeof Saalaatat !== 'undefined' ? Saalaatat : null, map = State.map;
+    if (!S || !map || !S.kaytossa() || !S._tunnit()) return;
+    const c = map.getCenter(), lat = c.lat, lng = this._pituus(c.lng), vk = this._vk();
+    const tunniste = vk + '|' + lat + ',' + lng;
+    if (this._laskee === tunniste) return;
+    const vanha = this._s;
+    if (vanha && vanha.vk === vk && this._sama(vanha, lat, lng) && !(vanha.vajaa && Date.now() - vanha.t > this.UUSINTA_MS)) return;
+    this._laskee = tunniste;
+    const self = this, A = this.ASKEL;
+    const yha = function () {
+      if (!State.map || self._vk() !== vk) return false;
+      const k = State.map.getCenter();
+      return self._sama({ lat: lat, lng: lng }, k.lat, k.lng);
+    };
+    try {
+      await S.varmistaPiste(lat, lng, A);
+      if (!yha()) return;
+      const T = S.TILAT[S._malliTila] || S.TILAT.auto;
+      /* Ensin varaston sekoitus: sen tunneittaisista lähteistä ne perheet
+         joilla on natiivihila (sama sääntö kuin spottikortilla). */
+      const ensin = S.wxTunneittain(lat, lng, A, { dyn: null, natiivi: null, lahteet: true });
+      if (!ensin) return;
+      const tulos = await Promise.all([
+        T.dyn ? MalliHila.pisteenSarja(T.dyn, lat, lng, MalliHila._paketti(T.dyn) ? this.PAKETTI_ASKEL : undefined) : null,
+        Natiivi.pisteenSarjat(lat, lng, ensin.hourly.lahde)
+      ]);
+      if (!yha()) return;
+      const sa = tulos[0], nat = tulos[1];
+      const wx = S.wxTunneittain(lat, lng, A, { dyn: sa ? { api: T.dyn, sarja: sa } : null, natiivi: nat, lahteet: true });
+      if (!wx) return;
+      this._s = { vk: vk, lat: lat, lng: lng, wx: wx, vajaa: !!(T.dyn && !sa), t: Date.now() };
+      this._julkaise();
+    } finally {
+      if (this._laskee === tunniste) this._laskee = '';
+    }
+  },
+
+  _julkaise() {
+    if (typeof updateTimelineToCenter === 'function' && !State._tlTouching) updateTimelineToCenter();
+    if (typeof Crosshair !== 'undefined' && Crosshair._el) Crosshair._update();
+  },
+
+  /* Puuska kelpaa kapselin riville samalla säännöllä kuin ennen (O4):
+     ECMWF:n 6 h maksimi ei ole tunnin puuska. */
+  _puuska(h, i) {
+    const g = h.windgusts_10m[i];
+    if (g == null) return null;
+    if (h.ecmwfOsuus && h.ecmwfOsuus[i] > 0.01 && !(h.akseliH[i] <= 3)) return null;
+    return g;
+  },
+
+  /* Arvo hetkellä `t` (murtoluku toistossa ja raahauksessa): nopeus
+     lineaarisesti, suunta lyhintä kaarta — sama ajan sääntö kuin
+     `naytteista`ssa. Palauttaa { ms, dir, puuska, puuskaRaaka, i } tai
+     null, jos sarja ei ole tämän pisteen tai ei kata hetkeä. */
+  arvo(c, t) {
+    if (t == null || !isFinite(t) || !this.voimassa(c)) return null;
+    const h = this._s.wx.hourly, ts = _ts(h), n = ts.length;
+    if (n < 1 || t < ts[0] - 60e3 || t > ts[n - 1] + 60e3) return null;
+    let lo = 0, hi = n - 1;
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (ts[m] <= t) lo = m; else hi = m - 1; }
+    const i = lo, j = i < n - 1 ? i + 1 : i;
+    let f = j > i ? (t - ts[i]) / (ts[j] - ts[i]) : 0;
+    f = f < 0 ? 0 : (f > 1 ? 1 : f);
+    const N = h.windspeed_10m, D = h.winddirection_10m, G = h.windgusts_10m;
+    let a = i, b = j;
+    if (N[a] == null || D[a] == null) { if (f < 0.5 || N[b] == null) return null; a = b; f = 0; }
+    if (N[b] == null || D[b] == null) { b = a; f = 0; }
+    const ms = N[a] + (N[b] - N[a]) * f;
+    const dd = ((D[b] - D[a]) % 360 + 540) % 360 - 180;
+    const dir = ((D[a] + dd * f) % 360 + 360) % 360;
+    const ga = this._puuska(h, a), gb = this._puuska(h, b);
+    const puuska = ga != null && gb != null ? ga + (gb - ga) * f : null;
+    const ra = G[a] != null ? G[a] : N[a], rb = G[b] != null ? G[b] : N[b];
+    return { ms: ms, dir: dir, puuska: puuska, puuskaRaaka: ra + (rb - ra) * f, i: f < 0.5 ? a : b };
+  },
+
+  /* Lähdemerkinnälle: sarjan tunnin kaksi suurinta lähdettä osuuksineen,
+     samassa muodossa kuin `Saalaatat.malliKohdassa`. */
+  lahteet(c, t) {
+    const v = this.arvo(c, t);
+    if (!v) return null;
+    const h = this._s.wx.hourly, i = v.i;
+    if (!h.lahde || !h.lahde[i]) return null;
+    const o = [{ malli: h.lahde[i], osuus: h.osuus1[i] }];
+    if (h.lahde2 && h.lahde2[i] && h.osuus2[i] > 0.001) o.push({ malli: h.lahde2[i], osuus: h.osuus2[i] });
+    return o;
+  },
+};
+
 /* -- VIEWPORT GRID ---------------------------------------------- */
 const ViewportGrid = {
   _points: new Map(),
@@ -10338,14 +10538,37 @@ const ViewportGrid = {
     if (zoom >= 7) return 0.5;
     return this.gridStep(zoom);
   },
-  /* SOLMUHILAN VÄLI (lämpökartta, kapseli ja partikkelit — sama hila,
-     docs/oikeellisuus.md O3). Sama kuin `laattaStep`, paitsi kun
-     lähizoomissa on mallin natiivihila (`Natiivi`, docs/eurooppa.md V2):
-     silloin solmut tihenevät 0,025 / 0,02 / 0,01°:een (z10 / z11 / z12+),
-     jotta 1–2 km mallin rantaerot näkyvät. Varaston TASO valitaan yhä
-     `laattaStep`illä (`kokoaHila`n `step`). */
+  /* KAUKAA SOLMUT DATAN OMALLA TARKKUUDELLA (käyttäjän pyyntö 5.10.:
+     "uudet mallit näkymään ja laattoihin mahdollisimman tarkasti myös ylös
+     zoomatussa kartassa, Windyn tyyliin"; docs/mallit.md, "Kaukaa datan
+     omalla tarkkuudella"). Solmuväli oli z < 7 `gridStep` eli 1,0–1,25°,
+     ja se alinäytteisti datan jonka varasto jo lähetti: alueellisten
+     mallien karkein taso on 0,5° ja se ladataan näillä zoomeilla, mutta
+     solmu otettiin vain joka toisesta (z ≤ 4 joka toisesta tai
+     kolmannesta). Nyt solmut ovat z5–6:lla 0,5° ja z4:llä 1,0°.
+     TASO EI MUUTU (`laattaStep`): laattoja ja tavuja on yhtä paljon kuin
+     ennen, ja ECMWF luetaan yhä 1°:n tasolta bilineaarisesti. 0,5°:n
+     ECMWF-taso (l1) kokeiltiin: tarkkuus ei parantunut mittauspisteissä
+     lainkaan, ja näkymä maksoi 2–4 MB enemmän laattoja (docs/mallit.md).
+     TOISTON JA RAAHAUKSEN AJAN SOLMUT OVAT ENTISET: hila kootaan jokaiselle
+     hetkelle, ja työpöydän Eurooppa-näkymässä tiheä hila maksoi 18–31 ms
+     kokoamista kohti (ennen 4–7 ms). Sama periaate kuin natiivihilalla:
+     liikkeessä kartta on karkeampi, levossa tarkka. */
+  kaukoSolmu(zoom) {
+    if (zoom >= 7 || State.isPlaying || State._tlTouching) return Infinity;
+    if (zoom >= 5) return 0.5;
+    if (zoom >= 4) return 1.0;
+    return Infinity;
+  },
+  /* SOLMUHILAN VÄLI (lämpökartta ja partikkelit — sama hila,
+     docs/oikeellisuus.md O3; kapselin luku on tähtäimen sarjasta, O12).
+     Sama kuin `laattaStep`, paitsi kaukana (`kaukoSolmu`: datan oma 0,5° /
+     1,0°) ja kun lähizoomissa on mallin natiivihila (`Natiivi`,
+     docs/eurooppa.md V2): silloin solmut tihenevät 0,025 / 0,02 / 0,01°:een
+     (z10 / z11 / z12+), jotta 1–2 km mallin rantaerot näkyvät. Varaston
+     TASO valitaan yhä `laattaStep`illä (`kokoaHila`n `step`). */
   solmuStep(zoom) {
-    const d = this.laattaStep(zoom);
+    const d = Math.min(this.laattaStep(zoom), this.kaukoSolmu(zoom));
     return typeof Natiivi !== 'undefined' && Natiivi.kaytossa(zoom) ? Math.min(d, Natiivi.askel(zoom)) : d;
   },
   _tileKey(lat, lng) {
@@ -11980,6 +12203,25 @@ function initMap() {
   State.map = map;
   ml.touchZoomRotate.disableRotation();
   ml.keyboard.disableRotation();
+  /* KOSKETUSZOOM PITÄÄ TÄHTÄIMEN PAIKALLAAN (käyttäjän raportti 5.10.,
+     docs/oikeellisuus.md O12). Kapseli lukee kartan keskipisteen, ja
+     MapLibren nipistys zoomaa sormien välin ympäri ja tuplanapautus
+     napautuskohdan ympäri: keskipiste siirtyi joka zoomilla, ja tähtäimen
+     alla oli eri paikka — luku vaihtui vaikka käyttäjä vain zoomasi.
+     Nipistys keskipisteen ympäri on MapLibren oma asetus. Tuplanapautus
+     (+1) ja kahden sormen napautus (−1) ovat `TapZoomHandler`in
+     `easeTo`-kutsuja, joille ei ole asetusta: kosketuksen (`touchend`)
+     laukaisemasta kutsusta poistetaan `around`. Hiiren tuplaklikkaus ja
+     rulla zoomaavat yhä kursorin ympäri (osoitin on tarkka "tässä"), ja
+     tuplanapauta-ja-vedä on jo keskipisteen ympäri (`TapDragZoomHandler`
+     ei anna `around`ia). */
+  ml.touchZoomRotate.enable({ around: 'center' });
+  const _easeTo = ml.easeTo;
+  ml.easeTo = function (o, data) {
+    const e = data && data.originalEvent;
+    if (o && o.around && e && e.type === 'touchend') { o = Object.assign({}, o); delete o.around; }
+    return _easeTo.call(this, o, data);
+  };
   /* Tuplaklikkaus: MapLibre zoomaa kokonaisen tason (Shift ulos), mikä on
      sama kuin Leafletin työpöytä-asetus. Kosketuksella tuplanapautus
      zoomaa sisään ja tuplanapauta-ja-vedä zoomaa portaattomasti — sama
@@ -13060,12 +13302,21 @@ const WindTexture = {
            eli uloimmalla zoomilla oltiin pysyvästi rakentamassa uutta.
            Osuutena näkymästä (0,30) marginaali on noin 190 px, eli
            pelivaraa on saman verran kuin peittotarkistus vaatii. */
+        /* LAAJA PEHMUSTE VAIN KARTAN ELEESSÄ (5.10.). Karkea askel tulee
+           myös aikajanan raahauksesta ja toistosta (`_previewField`), jolloin
+           kartta on paikallaan eikä 3,4-kertaista aluetta tarvita — mutta
+           sen puuttuvat laatat haettiin (`varmista` alla): mitattuna
+           työpöydän Eurooppa-näkymässä yksi esikatselu haki 90 kpl 1°:n
+           laattoja (noin 8 MB) koko pallon leveydeltä. Varastolla
+           lämpökartta on oma hilansa (`LampoGL`), ja tämä tekstuuri on vain
+           partikkeleille ja kapselin varatielle. */
         const ele = STEP > this.COARSE_STEP;
-        const P = ele ? this.PEHMUSTE_ELE : this.PEHMUSTE;
+        const laaja = ele && (typeof Saalaatat === 'undefined' || !Saalaatat.kartallaKaytossa() || State.liikkeessa);
+        const P = laaja ? this.PEHMUSTE_ELE : this.PEHMUSTE;
         const pLat = ase && ase.pLat != null ? ase.pLat
-          : (ele ? Math.max(2, vLat * P) : (zoom <= 5 ? Math.max(2, vLat * 0.30) : vLat * P));
+          : (laaja ? Math.max(2, vLat * P) : (zoom <= 5 ? Math.max(2, vLat * 0.30) : vLat * P));
         const pLng = ase && ase.pLng != null ? ase.pLng
-          : (ele ? Math.max(2, vLng * P) : (zoom <= 5 ? Math.max(2, vLng * 0.30) : vLng * P));
+          : (laaja ? Math.max(2, vLng * P) : (zoom <= 5 ? Math.max(2, vLng * 0.30) : vLng * P));
         laMin = Math.max(-85, viewportBounds.getSouth() - pLat);
         laMax = Math.min(85, viewportBounds.getNorth() + pLat);
         loMin = viewportBounds.getWest() - pLng;
@@ -13503,7 +13754,10 @@ const LampoGL = {
     /* Esilataus: koko pehmustettu alue heti kun kartta pysähtyy, jotta
        seuraava siirto ei odota yhtään laattaa. Kuristus SIIRTÄÄ eikä
        pudota (ks. CLAUDE.md "ESILATAUKSEN KURISTUS SIIRTÄÄ"). */
-    map.ml.on('moveend', function () { self._esilataa(); MalliHila.ajasta(); Natiivi.ajasta(); });
+    map.ml.on('moveend', function () {
+      self._esilataa(); MalliHila.ajasta(); Natiivi.ajasta(); Tahtain.ajasta();
+      if (Saalaatat.kartallaKaytossa()) KorttiSarjat.esilataaAjasta();
+    });
     this.esilataaKunValmis();
   },
 
@@ -16935,7 +17189,42 @@ function nParticlesBase() {
   /* Asetuspaneelin kerroin (1 / 0.45 / 0) tulee VASTA alarajan jälkeen.
      Toisin päin 60:n alaraja söisi "vähän"-asetuksen kokonaan pienellä
      ruudulla, ja "pois" palauttaisi 60 partikkelia. */
-  return Math.round(perus * Asetukset.partikkeliKerroin() * partikkeliZoomKerroin());
+  const k = Asetukset.partikkeliKerroin();
+  const lahi = perus * partikkeliZoomKerroin() * k;
+  return Math.round(Math.max(lahi, partikkeliKaukoMaara(ala, lahi, k)));
+}
+/* KAUKAA KATSOTTUNA WINDYN MÄÄRÄ (käyttäjän pyyntö 5.10.: "partikkelien
+ * määrä kasvaa lähes samaan kuin Windyssä kun ollaan zoomattuna todella
+ * ylös — lähi- ja keskizoom ovat hyviä"; docs/partikkelit.md, "Kaukaa
+ * Windyn tiheys").
+ *
+ * Windyn oma kaava (`gl-particles.js`, v51, `getAmount`): leveys × korkeus
+ * / (50 · 1,6^(z − 2)), katto 15 000, ja muualla kuin työpöydällä puolet.
+ * Puhelimen 390 × 844 -ruudulla se on z4:llä 1 286 ja z3,5:llä 1 629, kun
+ * meillä oli alle z7:n koko ajan 148 (oletus Normaali; Paljon 329):
+ * Euroopan yllä heikko tuuli ei näkynyt mihinkään suuntaan. Käyrä otetaan sellaisenaan z ≤ 4:ssä ja liu'utetaan
+ * omaan määräämme z4–5:llä, joten z ≥ 5 (puhelimen Suomi-näkymä ja kaikki
+ * lähempää) on ennallaan.
+ *
+ * OLETUSASETUKSELLA WINDYN MÄÄRÄ. Asetus "Normaali" on avaimeltaan
+ * `vahan` ja kertoimeltaan 0,45 (ks. `Asetukset.partikkeliKerroin`), joten
+ * kaukomäärä suhteutetaan siihen: Normaali = Windy, Paljon = Windy / 0,45
+ * (katto vastaan), Pois = 0. Ilman suhteutusta oletus jäisi kaukana 45
+ * %:iin Windystä (puhelimella z3,7: 666 vs 1 480).
+ *
+ * Katto on meidän, ei Windyn: partikkelit ovat suorittimella (Windyllä
+ * GPU:lla), ja mitattuna JS-aika on noin 1,4 µs partikkelia kohti ruudussa
+ * (kontti: 1 600 → 2,4 ms, 3 200 → 4,4 ms, 6 400 → 9,0 ms). Kosketuslaite
+ * 2 000, työpöytä 4 000. `PerfTracker` pudottaa määrää yhä jos ruutunopeus
+ * ei riitä, joten katto on tavoite eikä lupaus. */
+const PARTIKKELI_KAUKO = { z0: 4, z1: 5, katto: TYOPOYTA ? 4000 : 2000, kerroin: TYOPOYTA ? 1 : 0.5, normaali: 0.45 };
+function partikkeliKaukoMaara(ala, lahi, k) {
+  const z = State.map ? State.map.getZoom() : 6, K = PARTIKKELI_KAUKO;
+  if (!(z < K.z1) || !(k > 0)) return 0;
+  const windy = Math.min(K.katto, ala / (50 * Math.pow(1.6, z - 2)) * K.kerroin * k / K.normaali);
+  let s = (K.z1 - z) / (K.z1 - K.z0);
+  s = s >= 1 ? 1 : s * s * (3 - 2 * s);
+  return lahi + (windy - lahi) * s;
 }
 /* Tiheys ZOOMIN mukaan — ja tämä on tietoinen poikkeus siihen sääntöön
    että partikkelimäärä on ruudun pinta-alasta eikä zoomista.
@@ -21431,6 +21720,8 @@ function _addObsMarkers(map) {
     /* Ilman Euroopan merkkejä (Suomi, kaukainen zoom) ei turhaa kierrosta:
        siirron sijoittelu ajetaan jo `moveend`issä. */
     if (_euMerkit.size || poistettu) updateIcons();
+    /* Kaukopiste väistyy oman merkkinsä tieltä (ja palaa sen poistuessa). */
+    _euPisteetPaivita();
   }
   /* Näkymän laatat. Kevyt (vain avainten laskenta ja välimuisti), joten
      se ajetaan jokaisen liikkeen päätteeksi; haku käynnistyy vain
@@ -21454,8 +21745,105 @@ function _addObsMarkers(map) {
   }
   window._euSynkronoi = function () { clearTimeout(_euAjastin); _euAjastin = setTimeout(_euSynkronoi, 150); };
   map.on('moveend', window._euSynkronoi);
+
+  /* ── KAUKOPISTEET (docs/eurooppa.md, luku 15) ──────────────────────
+   *
+   * SAMA NÄKYMÄ KUIN HELSINGIN ASEMILLA (käyttäjän pyyntö 5.10.). Suomen
+   * asemat näkyvät jokaisella zoomilla: kaukaa harmaana pisteenä
+   * (`_kaukoPallo`), lukeman zoomissa pillerinä. Euroopan asemat syntyivät
+   * vasta zoomista 8 (rannikko) tai 9 (sisämaa), eli kaukaa niitä ei ollut
+   * kartalla lainkaan. Nyt jokainen Euroopan asema on piste kunnes sen oma
+   * merkki on kartalla (`_euMerkit`, suodatin).
+   *
+   * GL EIKÄ DOM: asemia on yli 3 000, ja DOM-merkki maksaa siirron joka
+   * ruudussa; GL-piste piirtyy samassa vedossa kuin kartta. Ulkoasu on
+   * `_kaukoPallo`n: alle z7 (`SPOT_NUMERO_Z`) 4 px ja .6, muuten 5 px ja
+   * .9, väri ja hiusreuna `Teema`sta. Napautus 12 px:n säteellä zoomaa
+   * aseman lukeman zoomiin kuten DOM-pisteellä (`zoomaaAlle`).
+   *
+   * Luettelo on yksi vastaus (`/api/fmi?eu=asemat`: keräimen tiedosto, CDN
+   * 30 min), ja se haetaan uudelleen kun se on tuntia vanhempi.
+   * Kerrokset ovat samat kuin merkeillä (`fmi-sea` / `fmi-land`). */
+  var EU_PISTE_LAHDE = 'eu-asemat', EU_PISTE_KERROS = 'eu-asemapisteet';
+  var _euPisteet = { data: null, t: 0, kesken: null, kerros: false, suodatin: '' };
+  function _euPisteSuodatin() {
+    var meri = !!window._mapLayerState['fmi-sea'], maa = !!window._mapLayerState['fmi-land'];
+    var dom = Array.from(_euMerkit.keys()).sort();
+    var avain = (meri ? 1 : 0) + '|' + (maa ? 1 : 0) + '|' + dom.join(',');
+    if (avain === _euPisteet.suodatin) return null;
+    _euPisteet.suodatin = avain;
+    return ['all',
+      ['any', ['all', ['==', ['get', 'm'], 1], meri], ['all', ['==', ['get', 'm'], 0], maa]],
+      ['!', ['in', ['get', 'id'], ['literal', dom]]]];
+  }
+  function _euPisteetGeo() {
+    return { type: 'FeatureCollection', features: _euPisteet.data.map(function (a) {
+      return { type: 'Feature', geometry: { type: 'Point', coordinates: [a[2], a[1]] }, properties: { id: a[0], m: a[3] ? 1 : 0 } };
+    }) };
+  }
+  function _euPisteetAsenna() {
+    var ml = map.ml;
+    if (!_euPisteet.data) return;
+    if (!_euPisteet.kerros) {
+      var p = SPOT_NUMERO_Z - ZOOM_ERO;
+      ml.addSource(EU_PISTE_LAHDE, { type: 'geojson', data: _euPisteetGeo() });
+      ml.addLayer({ id: EU_PISTE_KERROS, type: 'circle', source: EU_PISTE_LAHDE, paint: {
+        'circle-radius': ['step', ['zoom'], 2, p, 2.5],
+        'circle-color': Teema.asemaPiste,
+        'circle-opacity': ['step', ['zoom'], 0.6, p, 0.9],
+        'circle-stroke-width': 1,
+        'circle-stroke-color': Teema.asemaPisteReuna,
+        'circle-stroke-opacity': ['step', ['zoom'], 0.6, p, 0.9]
+      } });
+      _euPisteet.kerros = true;
+      _euPisteet.suodatin = '';
+      ml.on('mouseenter', EU_PISTE_KERROS, function () { ml.getCanvas().style.cursor = 'pointer'; });
+      ml.on('mouseleave', EU_PISTE_KERROS, function () { ml.getCanvas().style.cursor = ''; });
+    } else {
+      ml.getSource(EU_PISTE_LAHDE).setData(_euPisteetGeo());
+    }
+    _euPisteetPaivita();
+  }
+  function _euPisteetPaivita() {
+    if (!_euPisteet || !_euPisteet.kerros) return;
+    var f = _euPisteSuodatin();
+    if (f) map.ml.setFilter(EU_PISTE_KERROS, f);
+  }
+  function _euPisteetLataa() {
+    if (_euPisteet.kesken || (_euPisteet.data && Date.now() - _euPisteet.t < 60 * 60e3)) return;
+    _euPisteet.kesken = fetch(API_BASE + '/fmi?eu=asemat')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d || !Array.isArray(d.asemat) || !d.asemat.length) return;
+        _euPisteet.data = d.asemat; _euPisteet.t = Date.now();
+        map._kunValmis(_euPisteetAsenna);
+      })
+      .catch(function () { /* verkkovika: pisteet ennallaan, uusi yritys seuraavalla kierroksella */ })
+      .finally(function () { _euPisteet.kesken = null; });
+  }
+  /* Napautus pisteen lähellä: lähin piste 12 px:n säteellä (piste on
+     4–5 px, sormi ei osu siihen). DOM-merkin napautus ei kuulu tänne. */
+  map.ml.on('click', function (e) {
+    if (!_euPisteet.kerros || !e.point) return;
+    var kohde = e.originalEvent && e.originalEvent.target;
+    if (kohde && kohde.closest && kohde.closest('.maplibregl-marker')) return;
+    var p = e.point, r = 12, ml = map.ml;
+    var osumat = ml.queryRenderedFeatures([[p.x - r, p.y - r], [p.x + r, p.y + r]], { layers: [EU_PISTE_KERROS] });
+    if (!osumat.length) return;
+    var paras = null, pd = Infinity;
+    osumat.forEach(function (f) {
+      var q = ml.project(f.geometry.coordinates), d = Math.hypot(q.x - p.x, q.y - p.y);
+      if (d < pd) { pd = d; paras = f; }
+    });
+    if (!paras || pd > r) return;
+    var c = paras.geometry.coordinates;
+    map.flyTo([c[1], c[0]], paras.properties.m === 1 ? PILLERI_Z_MERI : PILLERI_Z_MAA, { animate: true, duration: 0.5 });
+  });
+  /* Käynnistyksen kriittiset haut ensin (sama viive kuin spottien sarjoilla). */
+  setTimeout(_euPisteetLataa, 2500);
+
   _euSynkronoi();
-  _havPaivittajat.push(function () { _euSynkronoi(true); });
+  _havPaivittajat.push(function () { _euSynkronoi(true); _euPisteetLataa(); });
 
   /* ── UiRas: hae vedenlämpö, luo markerit ───────────────────── */
   /* Päivitys vaihtaa vain lukeman: asemat ovat kiinteä lista. */
@@ -22769,9 +23157,33 @@ const KorttiSarjat = {
      -sarja on palvelinkutsu, ja lähekkäiset spotit jakavat 0,1°:n
      ruudun ja siis saman sarjan). Merkit piirretään uudelleen kun
      sarjoja on tullut — kerran erää kohti, ei spottia kohti. */
-  _esiKesken: false,
+  /* NÄKYMÄN YMPÄRISTÖ, LÄHIN ENSIN (5.10., docs/eurooppa.md luku 15).
+     Spotit ovat yksi lista koko maailmalle, ja Euroopan spotit tulevat
+     samaan listaan: kaikkien sarjat käynnistyksessä olisivat satoja
+     pyyntöjä joista käyttäjä näkee muutaman. Jono on näkymä ja sen
+     ympäristö (näkymän verran joka suuntaan tai 300 km), lähin ensin, ja
+     kartan pysähtyminen täydentää sen (`esilataaAjasta`). Suomen spotit
+     ovat toistensa 300 km:n sisällä, joten niillä mikään ei muutu. */
+  ESI_KM: 300,
+  _esiKesken: false, _esiUudelleen: false, _esiAjastin: 0,
+  _esiJono() {
+    const map = State.map, puuttuu = (sp) => { const v = this.valmis(sp, 'paras'); return !v || v.kesken; };
+    if (!map) return SPOTS.filter(puuttuu);
+    const b = map.getBounds(), c = map.getCenter();
+    const dLa = b.getNorth() - b.getSouth(), dLo = b.getEast() - b.getWest();
+    const km = (sp) => _kmValilla(c.lat, c.lng, sp.lat, sp.lng);
+    return SPOTS.filter((sp) => puuttuu(sp) && (km(sp) <= this.ESI_KM
+        || (sp.lat >= b.getSouth() - dLa && sp.lat <= b.getNorth() + dLa && sp.lng >= b.getWest() - dLo && sp.lng <= b.getEast() + dLo)))
+      .sort((p, q) => km(p) - km(q));
+  },
+  esilataaAjasta() {
+    clearTimeout(this._esiAjastin);
+    const self = this;
+    this._esiAjastin = setTimeout(function () { self.esilataaSpotit(); }, 1200);
+  },
   async esilataaSpotit() {
-    if (this._esiKesken || typeof Saalaatat === 'undefined' || !Saalaatat.kaytossa()) return;
+    if (typeof Saalaatat === 'undefined' || !Saalaatat.kaytossa()) return;
+    if (this._esiKesken) { this._esiUudelleen = true; return; }
     this._esiKesken = true;
     let uusia = 0;
     const piirra = function () {
@@ -22783,12 +23195,15 @@ const KorttiSarjat = {
       }
     };
     try {
-      for (const spot of SPOTS) {
-        if (this.valmis(spot, 'paras') && !this.valmis(spot, 'paras').kesken) continue;
-        const s = await this.lataa(spot, 'paras');
-        if (s) uusia++;
-        if (uusia >= 4) piirra();
-      }
+      do {
+        this._esiUudelleen = false;
+        for (const spot of this._esiJono()) {
+          if (this.valmis(spot, 'paras') && !this.valmis(spot, 'paras').kesken) continue;
+          const s = await this.lataa(spot, 'paras');
+          if (s) uusia++;
+          if (uusia >= 4) piirra();
+        }
+      } while (this._esiUudelleen);
     } finally {
       this._esiKesken = false;
       piirra();
@@ -28147,9 +28562,16 @@ function nearestPointToCenter() {
 function aikajananLahde() {
   if (typeof Saalaatat !== 'undefined' && Saalaatat.kaytossa() && State.map) {
     const c = State.map.getCenter();
-    /* Sama askel kuin lämpökartalla (`LampoGL`: `laattaStep` pyöristetyllä
-       zoomilla), jolloin sarja lukee samoja laattoja ja samaa tasoa kuin
-       kartta keskellä. */
+    /* TÄHTÄIMEN SARJA (`Tahtain`, docs/oikeellisuus.md O12): sama luku
+       kuin kapselissa, hienoimmalla datalla ja zoomista riippumatta.
+       Palkki ei muutu zoomatessa, eikä sen tunnin luku ole eri kuin
+       kapselin. */
+    const s = Tahtain.sarja(c);
+    if (s) return { lat: s.lat, lng: s.lng, wx: s.wx, varastosta: true };
+    /* Siihen asti kunnes uuden paikan sarja on valmis: kartan oma sekoitus
+       samalla askeleella kuin lämpökartalla (`LampoGL`: `laattaStep`
+       pyöristetyllä zoomilla), jolloin sarja lukee samoja laattoja ja samaa
+       tasoa kuin kartta keskellä. */
     const step = (typeof ViewportGrid !== 'undefined')
       ? ViewportGrid.laattaStep(Math.round(State.map.getZoom())) : 0.25;
     const wx = Saalaatat.wxTunneittain(c.lat, c.lng, step);
@@ -30798,8 +31220,16 @@ const Crosshair = {
     if (aallot) { this._aaltoUpdate(center); return; }
     if (this._nuoliEl) this._nuoliEl.style.visibility = '';
     if (_sadetila()) { this._sadeUpdate(center); return; }
+    /* TÄHTÄIMEN SARJA ENSIN (`Tahtain`, O12): sama paikka ja hetki antaa
+       saman luvun joka zoomilla. Kenttä (näkymän esitys) vain liikkeen
+       aikana ja siihen asti kunnes uuden paikan sarja on valmis. */
+    const tv = Tahtain.arvo(center, LampoGL._hetki());
     let w;
-    if (WindTexture.msData) w = WindTexture.sampleWind(center.lat, center.lng);
+    if (tv) {
+      const ms = State.activeLayer === 'gust' ? tv.puuskaRaaka : tv.ms, r = tv.dir * Math.PI / 180;
+      w = { ms: ms, u: -ms * Math.sin(r), v: -ms * Math.cos(r) };
+    }
+    else if (WindTexture.msData) w = WindTexture.sampleWind(center.lat, center.lng);
     else if (State.windField.length) w = idw(center.lat, center.lng);
     else { this._el.classList.add('hidden'); return; }
     if (w.ms < 0.05) { this._el.classList.add('hidden'); return; }
@@ -30807,7 +31237,9 @@ const Crosshair = {
     const c = ColorRamp.ink(w.ms);
     const colorStr = 'rgb('+c.r+','+c.g+','+c.b+')';
     this._ms = w.ms;
-    const gust = this._puuska(center);
+    /* Puuskarivi samasta sarjasta ja samalla säännöllä (O4): 6 h maksimi
+       ei kelpaa, ja rivi näkyy vain kun puuska on yli 5 % tuulesta. */
+    const gust = tv ? (tv.puuska != null && tv.puuska > tv.ms * 1.05 ? tv.puuska : null) : this._puuska(center);
     this._nopeusEl.innerHTML =
       '<span style="color:'+colorStr+'">'+Units.fmt(w.ms)+'</span><span class="cr-speed-unit">'+Units.label()+'</span>';
     const dir = (Math.atan2(-w.u, -w.v) * 180 / Math.PI + 360) % 360;
@@ -31368,7 +31800,14 @@ const Lahde = {
      * kapselin luku (7,8 / 8,3 / 8,5 m/s) tuli varastosta — eli merkintä
      * nimesi lähteen josta viereinen luku ei ollut peräisin. Sen oma
      * sopimus on päinvastainen: se kertoo mitä RUUDULLA on. */
-    if (typeof WindTexture !== 'undefined' && WindTexture.hila) {
+    /* Kun kapseli lukee tähtäimen sarjaa (`Tahtain`, O12), nimi tulee
+       samasta sarjasta — myös sen hetken kun kentän solmuhilaa ei ole
+       (rakennus kesken): muuten merkintä putosi alla olevaan
+       ennustepisteen haaraan ja sanoi hetken lähimmän spotin lähteen ilman
+       ajoa, vaikka kapselin luku tuli sarjasta. */
+    const sarjanLahteet = typeof Saalaatat !== 'undefined' && Saalaatat.kartallaKaytossa()
+      ? Tahtain.lahteet(c, LampoGL._hetki()) : null;
+    if (sarjanLahteet || (typeof WindTexture !== 'undefined' && WindTexture.hila)) {
       /* VARASTOSSA ON KOLME MALLIA, ja raja-alueella kaksi niistä
          sekoittuu. Nimi luetaan SAMASTA laskusta jolla kartta piirretään
          (`Saalaatat.malliKohdassa` -> `naytteista`): sama paikka, sama
@@ -31382,7 +31821,9 @@ const Lahde = {
          hetkeksi toista mallia. */
       let varasto = this.NIMET.laatta;
       if (typeof Saalaatat !== 'undefined' && Saalaatat.kartallaKaytossa()) {
-        const o = Saalaatat.malliKohdassa(c.lat, c.lng,
+        /* Sarja ensin: muuten merkintä kertoisi zoomin tason mallin eikä
+           sen jonka luku kapselissa on. */
+        const o = sarjanLahteet || Saalaatat.malliKohdassa(c.lat, c.lng,
           ViewportGrid.laattaStep(Math.round(State.map.getZoom())), LampoGL._hetki());
         if (!o) { if (this._el.textContent) { this._el.classList.add('nakyy'); return; } }
         else {
@@ -34043,7 +34484,8 @@ setTimeout(function () { Kaynnistys.jumi(); }, Kaynnistys.JUMI_MS);
    * Tämä on saman ?perf=1-portin takana kuin koko paneeli, joten
    * tuotantopolussa globaaliin nimiavaruuteen ei viedä mitään. */
   try {
-    window.FS = { State: State, WindTexture: WindTexture, Saalaatat: Saalaatat, MalliHila: MalliHila, Natiivi: Natiivi, EuAsemat: EuAsemat,
+    window.FS = { State: State, WindTexture: WindTexture, Saalaatat: Saalaatat, MalliHila: MalliHila, Natiivi: Natiivi, EuAsemat: EuAsemat, Tahtain: Tahtain,
+      Crosshair: Crosshair, partikkeliZoomKerroin: partikkeliZoomKerroin, nParticlesBase: nParticlesBase,
       ViewportGrid: ViewportGrid, ColorRamp: ColorRamp, PerfTracker: PerfTracker,
       buildWindField: buildWindField, idw: idw, ForecastPanel: ForecastPanel,
       LampoGL: LampoGL, PartikkeliGL: PartikkeliGL, L: L,

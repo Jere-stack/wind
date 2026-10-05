@@ -1931,7 +1931,10 @@ yksi committi, mutta GitHub tuntee edellisen commitin oliot, joten
 siirtoon menevät vain muuttuneet tiedostot (mitattu paikallisesti
 yhden tiedoston muutokselle 2,86 MiB → 584 tavua). Syy oli Euroopan
 tuntivarasto (`esoh/`, noin 11 MB, docs/eurooppa.md luku 14), joka olisi
-muuten lähetetty kokonaan joka kymmenes minuutti.
+muuten lähetetty kokonaan joka kymmenes minuutti. Samassa hakemistossa on
+5.10. alkaen kaukopisteiden luettelo `esoh/asemat.json` (~140 kB,
+`/api/fmi?eu=asemat`, docs/eurooppa.md luku 15); se muuttuu kerran
+päivässä, koska aseman viimeisin näkemä on päivä eikä tunti.
 
 **Proxy** lukee varaston päivätiedostot (raw.githubusercontent.com,
 rinnakkain) ja lähteen `weather.txt`:n, ja lähteen rivi voittaa saman

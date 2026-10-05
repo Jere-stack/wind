@@ -758,6 +758,70 @@ kartta hakee 9 km:n kentän ja ero on 0,01–0,05 m/s (+59, +70, +79,
 GFS:lle (`T._dyn.api !== 'ecmwf'`) raportoi tämän virheenä — se on
 mittarin ansa, ei sovelluksen.
 
+### Kaukaa datan omalla tarkkuudella (5.10.)
+
+**Pyyntö (käyttäjä):** "Varmistetaan, että uudet lisätyt kartat ja niiden
+data on ajettu näkymään ja laattoihin mahdollisimman tarkasti myös ylös
+zoomatussa kartassa Windyn tyyliin."
+
+**Mitä oli.** Alueelliset mallit OLIVAT kaukanakin kartalla: niiden
+karkein taso on 0,5° (`<id>3`), ja `_perheenTaso` valitsee sen
+askeleilla 1,0–1,25 (taso hylätään vasta kun se on yli neljä kertaa
+askelta hienompi). Mutta lämpökartan ja partikkelien **solmuväli** oli
+alle z7:n `gridStep` eli 1,0° (z5–6) ja 1,25° (z ≤ 4), joten varaston jo
+lähettämästä 0,5°:n datasta otettiin vain joka toinen solmu (z ≤ 4
+joka toinen tai kolmas). Solmu oli z5:llä 23 px ja z6:lla 45 px.
+
+**Muutos (`ViewportGrid.kaukoSolmu`, `solmuStep`).** Solmut datan omalla
+tarkkuudella: z5–6 0,5° (11–23 px), z4 1,0°. **Taso ei muutu**
+(`laattaStep` ennallaan), joten laattoja ja tavuja on tasan yhtä paljon
+kuin ennen; ECMWF luetaan yhä 1°:n tasolta (l2) bilineaarisesti 0,5°:n
+solmuihin. Toiston ja raahauksen aikana solmut ovat entiset (hila
+kootaan jokaiselle hetkelle, ks. hinta), ja levossa tiheät.
+
+**Mitattu** (tuotantobuild, vanha ja uusi rinnakkain vuorotellen;
+tarkkuus = kentän arvo 5 × 5 pisteessä vs hienoin varastodata samassa
+pisteessä ja hetkessä, `naytteista` askeleella 0,05):
+
+| näkymä | RMS ennen → jälkeen (puhelin) | RMS (työpöytä 1 440 × 900) | max (puhelin) |
+|---|---|---|---|
+| Eurooppa z4 | 0,80 → 0,64 m/s | 1,18 → 0,88 | 2,91 → 1,51 |
+| Eurooppa z5 | 1,12 → 0,59 | 0,69 → 0,63 | 2,49 → 1,48 |
+| Ranska z5,5 | 1,20 → 0,61 | 1,01 → 0,74 | 3,86 → 1,40 |
+| Itämeri z6 | 1,32 → 0,69 | 1,02 → 0,80 | 3,79 → 1,75 |
+| Alpit z6 | 0,71 → 0,53 | 1,04 → 0,72 | 1,81 → 1,58 |
+
+| näkymä | solmuja ennen → jälkeen | kokoaminen (lämpökartta) |
+|---|---|---|
+| puhelin Eurooppa z5 | 1 452 → 5 063 | 1,5 → 3,7–4,5 ms |
+| puhelin Itämeri z6 | 675 → 2 064 | 0,8 → 1,9–2,1 ms |
+| työpöytä Eurooppa z5 | 5 029 → 18 392 | 6,8 → 18,2 ms (kenttä 4,2 → 30,7) |
+| työpöytä Alpit z6 | 2 700 → 9 570 | 2,9 → 8,2 ms |
+
+Siksi toisto ja raahaus pitävät entiset solmut: hila kootaan jokaiselle
+hetkelle, ja työpöydän 18–31 ms jokaisella askeleella olisi näkyvää.
+
+**Kokeiltu ja hylätty: 0,5°:n ECMWF-taso (l1) z5–6:lla** (`laattaStep`
+0,5). Tarkkuus oli mittauspisteissä SAMA kuin pelkällä solmujen
+tihennyksellä (Eurooppa z5 0,59 / 0,59, Itämeri 0,68 / 0,69, Alpit 0,53 /
+0,53) — hyöty tuli alueellisten mallien 0,5°:n tason lukemisesta omalla
+tarkkuudellaan — mutta näkymä maksoi enemmän laattoja (puhelin Eurooppa
+z5 3,4 → 5,8 MB, Ranska z5,5 2,6 → 5,6 MB, työpöytä Suomi z5,5 4,1 →
+7,0 MB; l1:n laatta on 21 × 21 solmua × ~100 hetkeä, 70–90 kB).
+
+**Samalla löytyi tavuvuoto: aikajanan esikatselu haki laatat 3,4-kertaiselle
+alueelle.** `WindTexture.build` käytti karkealla askeleella eleen
+pehmustetta (`PEHMUSTE_ELE` 1,2 näkymää joka laidalla) myös aikajanan
+raahauksessa ja toistossa, vaikka kartta on silloin paikallaan, ja haki
+puuttuvat laatat koko alueelle. Työpöydän Eurooppa-näkymässä yksi
+esikatselu haki 90 kpl 1°:n laattoja (~8 MB) lähes koko pallon
+leveydeltä; sama tapahtui satunnaisesti käynnistyksessä (aikajanan
+vieritys luettiin raahaukseksi 1/3 ajoista, myös vanhassa versiossa).
+Nyt laaja pehmuste on vain kartan eleessä (`State.liikkeessa`) tai kun
+varasto ei ole kartan käytössä. Mitattuna työpöydän Eurooppa-näkymä
+(z4,4) puhtaalta pöydältä: vanha versio, jossa käynnistyksen esikatselu
+osui, 255 laattaa ja 16,2 MB; korjattu 132 laattaa ja 6,9 MB.
+
 ### Mitä jäi
 
 Tuntuma laitteella: ICON:n ja GFS:n paketin viive (kontissa 1,5–2 s)

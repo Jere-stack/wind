@@ -25,7 +25,36 @@ suurin osa tämän tiedoston koneistosta poistui koodista sellaisenaan:
 Mitkä päätökset jäivät: kierto ja kallistus pois, uloin näkymä
 leveysasteista (`uloinZoom`), avausnäkymä `uloin + 1,6` työpöydällä,
 heiton katto zoomin mukaan (`dragPan.maxSpeed` 900 / 1500 px/s),
-kosketuskohteet ja pseudoelementtien osumapinta (alla).
+kosketuskohteet ja pseudoelementtien osumapinta (alla), ja 5.10. alkaen
+**kosketuszoom tähtäimen ympäri** (alla).
+
+## Kosketuszoom tähtäimen ympäri (5.10.)
+
+Kapseli lukee kartan keskipisteen, eli tähtäin on tämän kartan "tässä".
+MapLibren nipistys zoomaa sormien välin ympäri ja tuplanapautus
+napautuskohdan ympäri, joten keskipiste siirtyi joka zoomilla ja kapselin
+luku vaihtui vaikka käyttäjä vain zoomasi (käyttäjän raportti iPhonelta;
+docs/oikeellisuus.md O12). Napautus 100 px tähtäimestä z8:lla siirsi
+lukukohtaa noin 15 km.
+
+- **Nipistys**: `touchZoomRotate.enable({ around: 'center' })` —
+  MapLibren oma asetus. Inertia jatkuu saman keskipisteen ympäri.
+- **Tuplanapautus (+1) ja kahden sormen napautus (−1)**:
+  `TapZoomHandler` kutsuu `easeTo`a `around`-kohdalla eikä sille ole
+  asetusta. `initMap` käärii karttaolion `easeTo`n: kosketuksen
+  (`originalEvent.type === 'touchend'`) laukaisemasta kutsusta poistetaan
+  `around`. Muut `easeTo`-kutsut (hiiren tuplaklikkaus, näppäimet,
+  ohjelma) kulkevat ennallaan.
+- **Tuplanapauta-ja-vedä** (`TapDragZoomHandler`) antaa pelkän
+  `zoomDelta`n, joten se oli jo keskipisteen ympäri.
+- **Hiiri ennallaan**: rulla ja tuplaklikkaus zoomaavat kursorin ympäri.
+  Osoitin on tarkka "tässä", ja se on työpöydän vakiintunut tapa.
+
+Mitattu CDP-kosketuksella (puhelin, hasTouch): tuplanapautus ~190 px
+tähtäimestä z8 → z9, keskipiste siirtyi 0,00 m; nipistys yläkulmassa
+z9 → z10,4, 0,00 m. Kapselin teksti pysyi samana molemmissa. Tuntuma
+laitteella on arvioitava: sisältö ei enää pysy sormien alla nipistäessä,
+vaan kartta laajenee tähtäimestä.
 
 **Nipistyksen värinää ei ole mitattu MapLibrella.** Leaflet-version
 One Euro -suodin oli mitattu tarpeelliseksi (nurkan suunnanvaihdot 9/s →

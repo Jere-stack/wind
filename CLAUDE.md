@@ -38,8 +38,8 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   FMI:n aaltopoijut, Kruunuvuorenselän, Mellstenin, Larun ja Uiraan
   mittausdata-proxyt (Larun proxy kertoo myös kelikameran tilan,
   `laru.js?kamera=1`), Euroopan havainnot MeteoGate E-SOH:sta
-  (`fmi.js?eu=laatta|sarja`, apumoduuli `_esoh.js`, docs/eurooppa.md
-  luku 14), selaimen virheraportit `virhe.js`).
+  (`fmi.js?eu=laatta|sarja|asemat`, apumoduuli `_esoh.js`,
+  docs/eurooppa.md luvut 14–15), selaimen virheraportit `virhe.js`).
   **FUNKTIOITA ON 12, JA SE ON VERCELIN HOBBY-TASON KATTO DEPLOYTA
   KOHTI**: kolmastoista (`api/kamera.js`) kaatoi tuotantodeployn
   ("Deployment has failed") eikä mikään muuttunut tuotannossa. Uusi
@@ -107,7 +107,8 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   ja havaintoja vasten, `varmennus/`, O11) — docs/oikeellisuus.md. Ja
   `tools/esoh.mjs` (`continue-on-error`): Euroopan asemien tasatunnit
   (`esoh/<päivä>/<x>_<y>.json`, 8 vrk), koska MeteoGate E-SOH säilyttää
-  vain vuorokauden (docs/eurooppa.md luku 14). Julkaisu tekee orvon
+  vain vuorokauden (docs/eurooppa.md luku 14), ja kaukopisteiden
+  luettelo `esoh/asemat.json` (luku 15). Julkaisu tekee orvon
   commitin noudetun kloonin päälle (`julkaisu:havainnot`), joten push
   siirtää vain muuttuneet tiedostot.
 - `tools/tiilet.mjs` — säälaattojen rakennus: ECMWF (AWS Open Data, koko
@@ -204,10 +205,10 @@ kokeiltu ja kaadettu mittauksella.
 | tiedosto | lue kun työ koskee |
 |---|---|
 | `docs/lampokartta.md` | pohjakarttaa, lämpökarttaa, väriramppia, tekstuurin mitoitusta tai projektiota, kartan asetuksia |
-| `docs/partikkelit.md` | tuulipartikkeleita, jäljen muotoa, tiheyttä tai ruutuaikabudjettia |
-| `docs/eleet.md` | nipistystä, zoomia, zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
+| `docs/partikkelit.md` | tuulipartikkeleita, jäljen muotoa, tiheyttä (**kaukaa Windyn tiheys**) tai ruutuaikabudjettia |
+| `docs/eleet.md` | nipistystä, zoomia (**kosketuszoom tähtäimen ympäri**), zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
 | `docs/data.md` | **aaltoennustetta kartalla (FMI WAM, `a0`–`a3`, `tools/wam.mjs`)**, säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja, **havaintoasemien oma historia (Mellsten ja Laru, `havainnot`-haara)**, **Mellstenin katkot: 4 h kuvaaja, arkistovaratie ja ajastinketju**, **kelikameran tila (YouTube, pikkukuvan ETag)** |
-| `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, MET Nordicia, Open-Meteon S3-malleja** |
+| `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, MET Nordicia, Open-Meteon S3-malleja, kaukaisen zoomin solmuväliä (`kaukoSolmu`)** |
 | `docs/ui.md` | **väriteemaa (Yömeri: paneelit, tokenit, `Teema`, `ink()`)**, **kerrosvalitsinta (neljä ruutua esikatselukuvin) ja sadekerroksen GL-piirtoa (häivytykset, B-spline; silmukka on historiaa, ks. docs/sadetutka.md)**, **aaltokerrosta: siru, väri, aallonharjat, aikajana, kapseli, poijukaavion ennuste**, paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa (**toiston liuku, jatkuva päiväkisko, pehmeä valinta ja kelikaista**), kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
@@ -216,8 +217,8 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/julkaisu.md` | **julkaisukelpoisuutta**: UI-parannusten top 25, suositusjärjestys ja logiikan 10 kriittisintä kohtaa (27.9.), ja **osa 4: mitä niistä toteutettiin 28.9. ja mikä jäi auki** (Pages, lisenssit, pohjakartan kieli) — lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 | `docs/graafit.md` | **kaavioiden vuorovaikutusta ja akseleita** (strategia ja toteutus 30.9., V1–V6): hiiren veto, kosketuksen "pidä ja liu'uta", käyrän pehmennys, x- ja y-akselin tiedot joka zoomilla, asteikko ikkunan mukaan — mittaukset (`tools/graafimittaus.mjs`), päätökset P1–P10, vaiheet ja toteutuksen poikkeamat; lue ennen kuin kosket `Tuulikaavio`on, `Aikakaavio`n osoittimeen tai kaavioiden akseleihin |
 | `docs/sadetutka.md` | **sadetutkaa ja sadetilaa (strategia ja toteutus 4.10.; luku 11: koko maailma ja paras paikallinen malli, beta)**: 250 m FINRAD-lähde ja paletti, klassinen tutkaväri, 5 min kehykset, vartit aikajanalla, sadepalkit ja kapseli, liikekenttä (`SadeLiike`) ja nowcast, ECMWF-jatko — mitattu data (FMI WMS ja S3, MET Norway), päätökset P1–P9, toteutus luvussa 10 ja mittaukset (`tools/sadeliike.mjs`); lue ennen kuin kosket `SadeKerros`iin, `Sadetutka`an, `SadeLiike`en tai sadetilan aikajanaan |
-| `docs/eurooppa.md` | **Euroopan laajennusta ja paikallisia lähteitä** (strategia ja roadmap 4.10., V1, V2 ja V3:n E-SOH toteutettu): Euroopan kansalliset 1–2,5 km mallit varastoon ja niiden **etusija ja käyttöalueet** (`tools/alueelliset.mjs`), **lähizoomin natiivihila ja spotin natiivisarja** (`Natiivi`, `api/malli.js?malli=<perhe>`, luku 13), **Euroopan havainnot kartalla ja korteissa (MeteoGate E-SOH, `EuAsemat`, `api/fmi.js?eu=`, `tools/esoh.mjs`, luku 14; OpenWindMap odottaa lisenssipäätöstä)**, hilat ja projektiot totuutta vasten, havaintoverkot (MeteoGate E-SOH, kansalliset, OpenWindMap), meri, aukot, infra (Pages, Vercel, Actions), lisenssit (UKV on CC BY-SA), roadmap V1–V9 ja päätökset P1–P7; lue ennen kuin lisäät mallin, havaintolähteen tai spotteja Suomen ulkopuolelle |
-| `docs/oikeellisuus.md` | **datan oikeellisuutta** (auditointi 29.9., toteutus 30.9.): varasto havaintoja vasten, **jatkuva varmennus**, **varaston tuoreus ja Säädatan ajastin**, kapselin ja partikkelien taso vs lämpökartta, **kapselin puuska**, havaintoverkko ja sen päivitys, proxyjen virheenkäsittely, UiRaS — aukot O1–O11, suositusjärjestys ja sujuvuusvaikutus; lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
+| `docs/eurooppa.md` | **Euroopan laajennusta ja paikallisia lähteitä** (strategia ja roadmap 4.10., V1, V2 ja V3:n E-SOH toteutettu): Euroopan kansalliset 1–2,5 km mallit varastoon ja niiden **etusija ja käyttöalueet** (`tools/alueelliset.mjs`), **lähizoomin natiivihila ja spotin natiivisarja** (`Natiivi`, `api/malli.js?malli=<perhe>`, luku 13), **Euroopan havainnot kartalla ja korteissa (MeteoGate E-SOH, `EuAsemat`, `api/fmi.js?eu=`, `tools/esoh.mjs`, luku 14; OpenWindMap odottaa lisenssipäätöstä)**, **Euroopan asemat kaukaa GL-pisteinä ja spottien esilataus näkymän mukaan (luku 15)**, hilat ja projektiot totuutta vasten, havaintoverkot (MeteoGate E-SOH, kansalliset, OpenWindMap), meri, aukot, infra (Pages, Vercel, Actions), lisenssit (UKV on CC BY-SA), roadmap V1–V9 ja päätökset P1–P7; lue ennen kuin lisäät mallin, havaintolähteen tai spotteja Suomen ulkopuolelle |
+| `docs/oikeellisuus.md` | **datan oikeellisuutta** (auditointi 29.9., toteutus 30.9.): varasto havaintoja vasten, **jatkuva varmennus**, **varaston tuoreus ja Säädatan ajastin**, kapselin ja partikkelien taso vs lämpökartta, **tähtäimen lukema ja zoom (O12, 5.10.)**, **kapselin puuska**, havaintoverkko ja sen päivitys, proxyjen virheenkäsittely, UiRaS — aukot O1–O11, suositusjärjestys ja sujuvuusvaikutus; lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 
 <details>
 <summary>Osioiden nimet tiedostoittain (jos et tiedä mistä etsiä)</summary>
@@ -234,9 +235,10 @@ kokeiltu ja kaadettu mittauksella.
   maa/vesi-rajaus kokeiltiin ja poistettiin · Rakeisuus oli kahta eri vikaa ·
   Kolme jatkokorjausta: heitto, lähizoomin terävyys, tiheys ·
   Jälki lyhennettiin puoleen — raja puree, aikapituus ei ·
-  Liike ajasta, pää ei sahaa, syntymä ja kuolema häivytetään
+  Liike ajasta, pää ei sahaa, syntymä ja kuolema häivytetään ·
+  **Kaukaa Windyn tiheys (5.10.)**
 - **eleet**: Kartta on MapLibre GL — mikä tästä tiedostosta on historiaa ·
-  Kosketuskohteet ja pseudoelementtien osumapinta · Zoom-alue ·
+  **Kosketuszoom tähtäimen ympäri (5.10.)** · Kosketuskohteet ja pseudoelementtien osumapinta · Zoom-alue ·
   Nipistyszoomin pehmennys · Eleen loppu ja tuntuma — kolme asiaa Apple Mapsista ·
   Kaksi kokeilua jotka eivät jääneet · Yhden sormen zoom oli rikki — neljä eri
   vikaa · Uloin näkymä rajattiin — ja se muutti kaiken muun · Lämpökartan
@@ -276,7 +278,8 @@ kokeiltu ja kaadettu mittauksella.
   Tarkistukset lähteitä vasten · V5 ECMWF 9 km (O1280,
   aikasarjavarasto, kaksi ansaa, mittaukset) · V6 pakotettu malli
   perheinä ja mallin omana hilana (tilat, ICON ja GFS, tuntipaketti,
-  kolme ansaa, mittaukset) · Mitä jäi
+  kolme ansaa, mittaukset) · **Kaukaa datan omalla tarkkuudella (5.10.:
+  solmuväli, l1 hylätty, esikatselun tavuvuoto)** · Mitä jäi
 - **lisadata**: Mistä sovellus lukee nyt · TOP 10 — data · TOP 10 — lähteet ·
   Mitattu ja hylätty (MEPS on HARMONIE · hydrodyn 2/12 spottia · vuorovesi ·
   Holfuy · ilmanlaatu) · Toinen kerros — kontekstia, ei päätöstä ·
@@ -368,14 +371,19 @@ kokeiltu ja kaadettu mittauksella.
   **Toteutus (V3, 5.10.): Euroopan havainnot (MeteoGate E-SOH)** —
   rakenne, päätökset (OpenWindMapin lisenssi, rannikko maarasterista,
   kahdennukset, parametrien etusija, katkosääntö, julkaisu), mitattu,
-  mitä jäi
+  mitä jäi · **Toteutus (5.10.): Euroopan asemat kaukaa ja spotit
+  Euroopassa** — mikä erosi, rakenne (keräimen luettelo, `?eu=asemat`,
+  GL-pisteet, spottien esilataus), mitattu, mitä jäi
 - **oikeellisuus**: Tiivistelmä · Kunnossa — mitattu, ei toimenpiteitä ·
   Aukot O1–O11 (varaston tuoreus, kaksi ennustetta, kapselin taso,
   kapselin puuska, virhe lakkautuksena, havaintoverkko, havaintojen
   päivitys ja ikä, ECMWF-puuskan aukot, UiRaS, keskiarvoistusikkunat,
   jatkuva varmennus) · Suositusjärjestys · Mitä ei kannata tehdä ·
   Dokumentaatio joka on ristiriidassa mittauksen kanssa · Mittausasetelma ·
-  **Toteutus (30.9.2026)**: mitä tehtiin ja jälkimittaukset O1–O11
+  **Toteutus (30.9.2026)**: mitä tehtiin ja jälkimittaukset O1–O11 ·
+  Jälkitarkistus (1.10.): kapselin puuska · **O12 (5.10.): tähtäimen
+  lukema riippui zoomista** (tähtäimen sarja, kosketuszoom keskipisteen
+  ympäri)
 
 </details>
 
@@ -1215,8 +1223,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   luku 13). Zoomista 10 kartta hakee näkymän enintään kolmen alueellisen
   perheen OMAN hilan palvelimelta (`api/malli.js?malli=<perhe>`; askel
   0,025 / 0,02 / 0,01° zoomeilla 10 / 11 / 12+, ei mallin omaa
-  tarkkuutta tiheämmin) valitulle TASATUNNILLE, ja aikajana saa kartan
-  keskipisteen solmuruudun sarjan samalla askeleella. `naytteista`
+  tarkkuutta tiheämmin) valitulle TASATUNNILLE. Aikajana ja kapseli
+  saavat tähtäimen pisteen natiivisarjan mallin hienoimmalla askeleella
+  zoomista riippumatta (`Tahtain`, ks. "TÄHTÄIMEN LUKEMA"). `naytteista`
   korvaa perheen ARVON natiivihilan arvolla mutta pitää varaston laatan
   PAINON: järjestys, käyttöalueet ja rajojen pehmennys pysyvät yhtenä
   sääntönä. Palvelimella ei ole omaa sekoitusta (`malli=paras`
@@ -1233,22 +1242,39 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   aikajana jäi ilman natiivisarjaa seuraavaan liikkeeseen asti (mitattu
   tuotannon varastolla 5.10.).
 - **SOLMUVÄLI (`ViewportGrid.solmuStep`) EI OLE VARASTON TASO
-  (`laattaStep`).** Lämpökartan ja kapselin/partikkelien solmuhila
-  tihenee natiivihilan mukana, mutta `kokoaHila`n `step` ja `varmista`
-  valitsevat varaston tason yhä `laattaStep`illä — 0,01°:n taso ei ole
-  olemassa. Tihennys on voimassa vain kun natiivikenttä kattaa kartan
-  keskipisteen valitulla hetkellä (`Natiivi.kaytossa`): edellisen
-  paikan kenttä jää muistiin, eikä se saa tihentää hilaa paikassa jota
-  se ei kata.
+  (`laattaStep`).** Lämpökartan ja partikkelien solmuhila tihenee
+  natiivihilan mukana ja kaukana datan omaan tarkkuuteen, mutta
+  `kokoaHila`n `step` ja `varmista` valitsevat varaston tason yhä
+  `laattaStep`illä — 0,01°:n taso ei ole olemassa. Natiivitihennys on
+  voimassa vain kun natiivikenttä kattaa kartan keskipisteen valitulla
+  hetkellä (`Natiivi.kaytossa`): edellisen paikan kenttä jää muistiin,
+  eikä se saa tihentää hilaa paikassa jota se ei kata.
+  **KAUKANA SOLMUT OVAT DATAN OMALLA TARKKUUDELLA** (`kaukoSolmu`,
+  käyttäjän pyyntö 5.10., docs/mallit.md "Kaukaa datan omalla
+  tarkkuudella"): z5–6 0,5°, z4 1,0°. Varasto lähetti näillä zoomeilla jo
+  alueellisten mallien 0,5°:n tason, mutta solmu otettiin joka toisesta
+  (1,0–1,25°); mitattuna kentän RMS-ero hienoimpaan dataan pieneni
+  puhelimella 20–49 % (esim. Itämeri z6 1,32 → 0,69 m/s) ja työpöydällä
+  9–31 %. TASO EI MUUTU, joten laattoja on
+  yhtä paljon; 0,5°:n ECMWF-taso (l1) kokeiltiin ja hylättiin (sama
+  tarkkuus, 2–4 MB enemmän laattoja näkymää kohti). **Toiston ja
+  raahauksen ajan solmut ovat entiset**: hila kootaan jokaiselle
+  hetkelle, ja työpöydällä tiheä hila maksoi 18–31 ms kokoamista kohti.
 - **KORTIN PARAS LUKEE SPOTIN OMAN SOLUN** (`Natiivi.pisteenSarjat`):
   varaston sekoituksen tunneittaisista lähteistä (`hourly.lahde`) ne
   perheet joilla on natiivihila haetaan spotin solusta mallin
   hienoimmalla askeleella, ja paino on yhä varastosta. Suomen spoteilla
   se koskee MET Nordicin menneitä tunteja (mitattu Lauttasaaressa 40
   tuntia, ero varaston sekoitukseen ka 0,15 ja enintään 1,01 m/s), ja
-  `esilataaSpotit` hakee siksi käynnistyksessä natiivisarjan jokaiselle
-  spotille. Osoite on solmuruudun ja varaston akselin, eli sama kaikille
-  käyttäjille saman rakennuksen ajan (CDN 30 min).
+  `esilataaSpotit` hakee siksi natiivisarjan spoteille taustalla.
+  **ESILATAUS ON NÄKYMÄN YMPÄRISTÖ, LÄHIN ENSIN** (5.10.,
+  docs/eurooppa.md luku 15): näkymä ja sen verran joka suuntaan tai
+  300 km (`ESI_KM`), ja kartan pysähtyminen täydentää jonon
+  (`esilataaAjasta`). Euroopan spotit tulevat samaan `SPOTS`-listaan, ja
+  kaikkien sarjat käynnistyksessä olisivat satoja pyyntöjä. Suomen
+  spotit ovat toistensa 300 km:n sisällä, joten niillä mikään ei
+  muuttunut. Osoite on solmuruudun ja varaston akselin, eli sama
+  kaikille käyttäjille saman rakennuksen ajan (CDN 30 min).
 - **`Saalaatat.taso()` ON VAIN POHJAMALLI.** Se valitsi ennen kaikkien
   tasojen joukosta askeleella, jolloin HARMONIE oli kartalla vasta
   zoomista 10 ja lämpökartta ja lähdemerkintä olivat z9,6:lla eri
@@ -1295,9 +1321,12 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   **Mallin jakson loppu tulee KAUIMMAS YLTÄVÄSTÄ AJOSTA** (`mallinLoppu`),
   ei `data_end_time`sta: ICON-EU:n välimallit ulottuvat 30 tuntiin, ja
   tuoreimman ajon loppu häivytti ICON-EU:n jo +24 h:ssa (mitattu 6,8 vs
-  7,58 m/s). **Aikajanan sarja on KENTÄN SOLMURUUDUN NELJÄ KULMAA**
-  (`askel`, `solmut`), ei pyöristetty piste: 0,05°:n piste antoi
-  Helsingissä 0,7–0,9 m/s eri luvun kuin kartta; kulmista 0,02–0,09.
+  7,58 m/s). **Pistesarja on SOLMURUUDUN NELJÄ KULMAA** (`askel`,
+  `solmut`), ei pyöristetty piste: 0,05°:n piste antoi Helsingissä
+  0,7–0,9 m/s eri luvun kuin kartta; kulmista 0,02–0,09. Tähtäimen
+  sarja (`Tahtain`) pyytää sen KIINTEÄLLÄ askeleella (ECMWF 0,1°, ICON
+  ja GFS 0,05°, `pisteenSarja`n `kiintea`), jottei luku vaihdu zoomin
+  mukana (O12).
   **S3-luvulla on AINA aikaraja** (6 s + kaksi uusintaa, sovelluksessa
   12 s): ilman sitä yksi kutsu seitsemästä jäi tuotannossa odottamaan
   funktion 30 s kattoon asti. Mallin jakson ulkopuolinen tunti ("ei
@@ -1329,31 +1358,61 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   lakkasi hakemasta laattoja ja aikajana menetti 51 tuntia
   menneisyyttään (54,6 h -> 3,5 h, 403 -> 372 tikkiä) — ja sadetutkan
   mennyt kuva menetti kantamansa samalla. Älä yhdistä niitä takaisin.
-- **AIKAJANA ON KARTAN SEKOITUS, TUNTI KERRALLAAN.** `wxTunneittain`
-  laskee jokaisen tunnin samalla `naytteista`lla kuin kartta (mitattu
-  ero kartan näytteeseen 400 tunnissa 0,0000 m/s, 1,6 ms sarjaa kohti),
-  askeleella `laattaStep(round(zoom))` kuten lämpökartta. Akseli on
-  yhä pohjamallin, joten se ei vaihdu kartan liikkuessa ja menneisyys
-  säilyy (Suomessa se on MET Nordicia). Keskipisteen KAIKKIEN perheiden
-  laatat haetaan erikseen (`varmistaPiste`), koska `varmista` jättää
-  alemmat perheet hakematta täyden ylemmän alle — ilman sitä janan päät
-  jäisivät tyhjiksi.
+- **AIKAJANA ON KARTAN SEKOITUS, TUNTI KERRALLAAN — HIENOIMMALLA
+  DATALLA, EI NÄKYMÄN TASOLLA.** `wxTunneittain` laskee jokaisen tunnin
+  samalla `naytteista`lla kuin kartta (mitattu ero kartan näytteeseen
+  400 tunnissa 0,0000 m/s, 1,6 ms sarjaa kohti). Sarja on tähtäimen
+  sarja (`Tahtain`, ks. "TÄHTÄIMEN LUKEMA"): askel 0,05° zoomista
+  riippumatta, mallitilan oma pistesarja ja natiivisarja mukana; vain
+  sen valmistumista odotellessa jana lukee näkymän tasoa
+  (`laattaStep(round(zoom))`). Akseli on yhä pohjamallin, joten se ei
+  vaihdu kartan liikkuessa ja menneisyys säilyy (Suomessa se on MET
+  Nordicia). Keskipisteen KAIKKIEN perheiden laatat haetaan erikseen
+  (`varmistaPiste`), koska `varmista` jättää alemmat perheet hakematta
+  täyden ylemmän alle — ilman sitä janan päät jäisivät tyhjiksi.
+- **TÄHTÄIMEN LUKEMA ON PAIKAN JA HETKEN, EI NÄKYMÄN** (`Tahtain`,
+  käyttäjän raportti 5.10.: "lukema muuttuu kun zoomaan, data ei tunnu
+  luotettavalta"; docs/oikeellisuus.md O12). Kapseli, aikajana ja
+  lähdemerkintä lukevat kartan keskipisteen sarjaa samalla laskulla
+  kuin kortin Paras: varaston hienoin taso 0,05°, mallitilan oma
+  pistesarja (`MalliHila.pisteenSarja` kiinteällä askeleella) ja
+  natiivisarja (`Natiivi.pisteenSarjat`). Ennen kapseli luki lämpökartan
+  solmuhilaa, jonka taso, `MalliHila` (z8+) ja `Natiivi` (z10+)
+  vaihtuvat zoomin mukana: mitattuna sama paikka ja hetki z4–z12 antoi
+  0,28–2,92 m/s eri lukuja, nyt 0,00. Sarja lasketaan kun kartta
+  pysähtyy (`Tahtain.ajasta` `moveend`issä, ei liikkeen aikana); sitä
+  odotellessa ja eleen aikana kapseli lukee kenttää kuten ennen
+  (kontissa 1,3–2,4 s siirron jälkeen). Puuskarivi tulee samasta
+  sarjasta O4:n säännöllä (`ecmwfOsuus`, `akseliH`: 6 h maksimi ei
+  kelpaa), ja lähdemerkintä sarjan tunnin kahdesta suurimmasta
+  lähteestä (`lahde`/`lahde2`, `osuus1`/`osuus2`). Lämpökartta ja
+  partikkelit ovat yhä näkymän esitys — kaukaa kapselin luku voi poiketa
+  värin sävystä, ja se on hinta jonka käyttäjä pyysi. Älä palauta
+  kapselia lukemaan solmuhilaa levossa, äläkä anna sarjan askeleen
+  riippua zoomista.
 - **`gridStep` ON RAJAPINTAHILAN VÄLI, `laattaStep` PYRAMIDIN.**
   Ne EIVÄT saa olla sama funktio: `gridStep` synnyttää
   `getViewportPoints`in pistelistan, ja jokainen piste on Open-Meteon
   laskutuksessa oma kutsunsa — 0,05 asteen rajapintahila z12:ssa olisi
   juuri se kiintiö jonka takia koko varasto rakennettiin. `laattaStep`
   taas vain valitsee perheen sisältä tason (z10+ 0,05, z9 0,1, z8 0,25,
-  z7 0,5, muuten `gridStep`), ja se on ilmaista. Lämpökartta, tähtäin,
-  partikkelit (z7+) ja aikajana lukevat `laattaStep`iä, hilapisteet
-  `gridStep`iä. **AINA PYÖRISTETYSTÄ ZOOMISTA** (`laattaStep(Math.round(
-  zoom))`): `WindTexture.build` kutsui sitä pyöristämättä, jolloin
-  vyöhykkeellä n − 0,5 … n kapseli ja partikkelit lukivat karkeampaa
-  tasoa kuin lämpökartta (z 9,7: ka 0,59, max 1,25 m/s eroa). Nyt
-  kapselin solmuhila on lämpökartan solmuhila (sama askel, sama
-  globaalisti kohdistettu origo), ja se rakennetaan uudelleen levossa
-  kun puuttuneet laatat saapuvat (`_taydennaLevossa`) — mitattuna
-  z 7,7 / 8,7 / 9,7 / 10,3: max 0,001 m/s (docs/oikeellisuus.md, O3).
+  z7 0,5, muuten `gridStep`), ja se on ilmaista. Lämpökartta ja
+  partikkelit (z7+) lukevat `laattaStep`iä, hilapisteet `gridStep`iä;
+  tähtäin ja aikajana lukevat levossa 0,05°:n tasoa (`Tahtain`, O12) ja
+  `laattaStep`iä vain liikkeen aikana ja sarjaa odotellessa. **AINA
+  PYÖRISTETYSTÄ ZOOMISTA** (`laattaStep(Math.round(zoom))`):
+  `WindTexture.build` kutsui sitä pyöristämättä, jolloin vyöhykkeellä
+  n − 0,5 … n kapseli ja partikkelit lukivat karkeampaa tasoa kuin
+  lämpökartta (z 9,7: ka 0,59, max 1,25 m/s eroa). Nyt partikkelien (ja
+  liikkeen aikana kapselin) solmuhila on lämpökartan solmuhila (sama
+  askel, sama globaalisti kohdistettu origo), ja se rakennetaan
+  uudelleen levossa kun puuttuneet laatat saapuvat (`_taydennaLevossa`)
+  — mitattuna z 7,7 / 8,7 / 9,7 / 10,3: max 0,001 m/s
+  (docs/oikeellisuus.md, O3). **Raahauksen esikatselun (`_previewField`)
+  pehmuste on näkymän oma, ei eleen** (`WindTexture.build`, `laaja`
+  vain kartan eleen aikana): eleen leveä pehmuste haki käynnistyksessä
+  joka kolmannella kerralla 255 laattaa (16,2 MB) 132:n (6,9 MB)
+  sijaan (docs/mallit.md "Kaukaa datan omalla tarkkuudella").
 - **`onLaatta` HYVÄKSYY YLEMMÄN PERHEEN PEITON, JA `loadViewport`
   ODOTTAA LUETTELOA** (docs/data.md, "Kustannusarvio ja kaksi turhaa
   hakua"). `varmista` ei hae ECMWF-laattaa FMI:n tai MET Nordicin alta,
@@ -1911,9 +1970,13 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **KAPSELI SEURAA SORMEA `_previewField`istä, EI TIKIN VAIHDOSTA.**
   `buildWindField` ohittaa `Crosshair`in ja `WeatherWidget`in
   `scrub`-lipulla, joten päivitys on siinä kohdassa jossa karkea kenttä
-  juuri valmistui — kapseli lukee sitä kenttää. Tikin kohdalla luku
-  olisi vielä edellisestä kentästä. Play käyttää samaa `_previewField`iä
-  (`State._esikatsele`), joten sillä ei ole enää omaa kutsuparia.
+  juuri valmistui — kapseli lukee sen HETKEN (`LampoGL._hetki()`). Tikin
+  kohdalla luku olisi vielä edellisestä kentästä. Kartan ollessa
+  paikallaan arvo tulee tähtäimen sarjasta tuolta hetkeltä (`Tahtain.arvo`,
+  murtotunti interpoloituna), ei karkeasta kentästä: raahattu luku on
+  sama kuin palkki ja sama kuin levossa (O12). Play käyttää samaa
+  `_previewField`iä (`State._esikatsele`), joten sillä ei ole enää omaa
+  kutsuparia.
 - **PÄIVÄKISKO ON RAAHATTAVA VALITSIN, EI NAPPIRIVI.** Kiskon vieritys
   valitsee osoittimen alla olevan HETKEN jatkuvasti (`_tlKiskoNyt` →
   pyöristetty tunti), myös sormen ollessa kiinni, ja vie tuntinauhan
@@ -2449,6 +2512,20 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   hakevat pisteen ympäristön laatat itse (`EuAsemat.varmista`), eikä
   "ei asemaa lähellä" päätellä ennen kuin ympäristö on ladattu
   (`kattaa`). Nimi on ylävirran dataa: escapoi se HTML:ään (`escHtml`).
+  **KAUKAA EUROOPAN ASEMAT OVAT GL-PISTEITÄ, SAMAN NÄKÖISINÄ KUIN
+  SUOMEN `_kaukoPallo`** (käyttäjän pyyntö 5.10., docs/eurooppa.md
+  luku 15): MapLibren circle-kerros `eu-asemapisteet` (GL-pinon ylin),
+  koko ja peittävyys samasta z7:n portaasta, väri ja hiusreuna
+  `--asema-piste`-tokeneista `Teema`n kautta. Sijainnit tulevat
+  luettelosta `/api/fmi?eu=asemat` (keräimen `esoh/asemat.json`; CDN
+  30 min, puuttuva tiedosto on tyhjä luettelo), EI laatoista: Euroopan
+  näkymän laatat olisivat ~150 pyyntöä. DOM-merkkeinä yli 3 000 asemaa
+  maksaisi siirron joka ruudussa. Suodatin noudattaa kerroskytkimiä ja
+  jättää pois aseman jolla on oma merkki (`_euMerkit`), joten piste ja
+  merkki eivät ole koskaan yhtä aikaa ja piste ei katoa ennen kuin merkki
+  on syntynyt. Napautus (12 px) lentää aseman lukeman zoomiin kuten
+  `zoomaaAlle`. Jos muutat Suomen pisteen asua, muuta tokenit ja tämän
+  kerroksen portaat samassa muutoksessa.
 - **E-SOH SÄILYTTÄÄ VUOROKAUDEN, VARASTO LOPUT** (`tools/esoh.mjs`,
   `havainnot`-haaran `esoh/`). Laatta yhdistää varaston tunnit (48–24 h)
   ja lähteen (24 h), sarja varaston tunnit ja lähteen täyden tarkkuuden.
@@ -2766,7 +2843,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   (alle z7) 4 px ja himmeämpi (`.kauko-pallo-pieni`, porras
   `_palloPorras` myös allekirjoituksessa). × pallossa teki Helsingin
   edustasta z7:llä ruudukon. Pisteet ovat neutraalia harmaata, EIVÄT
-  kermaa (käyttäjän päätös). Pisteen napautus zoomaa aseman lukeman
+  kermaa (käyttäjän päätös); sävy on `--asema-piste` ja hiusreuna
+  `--asema-piste-reuna`, ja Euroopan asemien GL-pisteet lukevat samat
+  (`Teema.asemaPiste`, ks. "EUROOPAN ASEMAT"). Pisteen napautus zoomaa aseman lukeman
   zoomiin (`Merkki`-optio `zoomaaAlle`; osumapinta `::after`). Lukema tulee
   0,22 s:n häivytyksellä (`.merkki-esiin`, vain tilan vaihtuessa).
 - **Aaltokaavio on sama moottori kuin muut** (V8): 7 vrk haetaan
@@ -3345,9 +3424,11 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   (`aikajananLahde`). Valinta tehtiin YHTENÄISYYDEN perusteella, ei
   tarkkuuden — älä purkaa sitä tarkkuudella ilman uutta mittausta.
   Mitattu jälkeen: aikajana on varaston sarja (4 764 vertailua, max ero
-  0,000000). Kapselia vasten jää 0,24 m/s (max 0,73), ja se on
-  INTERPOLOINTI eikä data: kapseli on bikuubinen solmuhila, aikajana
-  bilineaarinen laattanäyte.
+  0,000000). Kapselia vasten jäi 0,24 m/s (max 0,73), ja se oli
+  INTERPOLOINTI eikä data: kapseli oli bikuubinen solmuhila, aikajana
+  bilineaarinen laattanäyte. 5.10. lähtien levossa molemmat lukevat
+  tähtäimen sarjaa (`Tahtain`, O12), ja ero on mitattuna alle
+  0,01 m/s; eleen aikana kapseli lukee yhä solmuhilaa.
 - **AIKAJANAN INDEKSI EI OLE SPOTIN INDEKSI.** Akselit eivät ala
   samasta hetkestä. Merkit lukevat spotin lukeman `_spotLukema`sta
   (Paras AJASTA, varatie `_spotIdx`), `openSheet` valitusta hetkestä
@@ -3387,8 +3468,12 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   +0,04 m/s havaitun tunnin maksimia vasten (FMI −0,30), suhteen
   mediaani +150 h:iin 1,41–1,50. **6 H MAKSIMI EI KELPAA** (suhde 1,78):
   kun ECMWF:n osuus on yli 1 % ja varaston akselin askel yli 3 h,
-  riviä ei ole. Rajapintapiste (`_puuskaPiste`, 15 km) on vain kun
-  kartta ei lue varastoa. **Rakentaja lainaa puuskan vain enintään
+  riviä ei ole. Levossa sama sääntö luetaan tähtäimen sarjasta
+  (`Tahtain._puuska`: sarjan `ecmwfOsuus` ja `akseliH` tunneittain, O12),
+  joten puuska ja tuuli ovat samaa sarjaa ja samaa näytettä;
+  `_puuskaVarastosta` on liikkeen ja sarjan odotuksen polku.
+  Rajapintapiste (`_puuskaPiste`, 15 km) on vain kun kartta ei lue
+  varastoa. **Rakentaja lainaa puuskan vain enintään
   12 h vanhemmalta ajolta sen omalta +0 … +90 h:lta**
   (`rakennaAikaAkseli`, `varat`): rajaton laina täytti aukon +93 …
   +144 h päivien vanhan ajon 6 h maksimilla, ja puuska oli kolmella
@@ -3412,7 +3497,10 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
 - **Lähdemerkintä kertoo TÄHTÄIMEN lukeman lähteen.** Se luki ennen
   lähimmän ennustepisteen lähteen ja sanoi siksi Helsingissä HARMONIE
   vaikka luku tuli varastosta. Jos muutat kumpaakaan polkua, tarkista
-  että merkintä seuraa sitä polkua josta luku oikeasti tulee.
+  että merkintä seuraa sitä polkua josta luku oikeasti tulee. Levossa
+  se on tähtäimen sarjan tunnin kaksi suurinta lähdettä
+  (`Tahtain.lahteet`), muuten `malliKohdassa` — sama jako kuin kapselin
+  luvulla.
 - **LÄHTEEN NIMI ON YHDESSÄ REKISTERISSÄ: `Lahde.NIMET` (pitkä, kartan
   merkintä) ja `Lahde.LYHYET` (kaavion selite ja työkaluvihje).**
   Spottikortin kaaviolla oli oma `modelNames`-taulukko, ja se ajautui
@@ -3524,6 +3612,20 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   käyttäjän pyynnöstä — ero luki kartalta häiritsevänä.
 - **Leveys ja määrä on viritetty yhdessä.** Jos muutat toista yksin, mustemäärä
   muuttuu eikä pyyhkäisyn tulos enää päde.
+- **KAUKAA MÄÄRÄ ON WINDYN** (`partikkeliKaukoMaara`,
+  `PARTIKKELI_KAUKO`, käyttäjän pyyntö 5.10., docs/partikkelit.md
+  "Kaukaa Windyn tiheys"): alle z4 Windyn oma kaava `leveys × korkeus /
+  (50 · 1,6^(z − 2))` (muualla kuin työpöydällä puolet), z4–z5 liukuen
+  omaan määrään, ja z ≥ 5 ENNALLAAN — käyttäjä: lähellä ja keskitasolla
+  määrä on hyvä, siihen ei kosketa. Ennen määrä oli alle z7:n zoomista
+  riippumaton, ja Euroopan yllä ruudulla oli noin kymmenesosa Windyn
+  jäljistä (puhelin z3,7: 148 → 1 480). Normaali = Windy (`normaali`
+  0,45 suhteuttaa oletuksen), Paljon enemmän, Pois 0. Katto on meidän
+  (kosketus 2 000, työpöytä 4 000), koska partikkelit ovat suorittimella:
+  noin 1,4 µs partikkelia kohti ruudussa (`PartikkeliGL.render`).
+  Leveyttä ei muutettu — jäljet ovat jo Windyn kaukaisen zoomin
+  levyisiä. Ruutunopeus 1 500–2 000 partikkelilla puhelimella on
+  laitteella mittaamatta; jos se ei riitä, vipu on katto, ei kaava.
 - **Älä jäädytä partikkeleita eleen ajaksi.** Toteutettu, mittarit olivat
   erinomaiset, ja se peruttiin käyttökokemuksen perusteella.
 
@@ -3550,6 +3652,19 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   (`setMinZoom`); zoom ei napsahda tasoihin. MapLibre kiinnittää zoomin
   `minZoom`iin myös nipistyksessä — Leafletin jousto päästi mitattuna
   3,46 tasoa ali, eikä sitä tarvitse enää rajata erikseen.
+- **KOSKETUSZOOM PITÄÄ TÄHTÄIMEN PAIKALLAAN** (käyttäjän raportti 5.10.,
+  docs/eleet.md "Kosketuszoom tähtäimen ympäri", O12). Nipistys on
+  `touchZoomRotate.enable({ around: 'center' })`, ja tuplanapautuksen
+  (+1) ja kahden sormen napautuksen (−1) `easeTo`-kutsusta poistetaan
+  `around` kun sen laukaisi `touchend` (`initMap`, `ml.easeTo`-kääre —
+  `TapZoomHandler`illa ei ole asetusta). Tuplanapauta-ja-vedä oli jo
+  keskipisteen ympäri. Kapseli lukee keskipistettä, joten napautuskohdan
+  ympäri zoomattuna luettu paikka siirtyi joka zoomilla (100 px z8:lla
+  noin 15 km). Hiiren tuplaklikkaus ja rulla zoomaavat yhä kursorin
+  ympäri: osoitin on tarkka "tässä". Mitattu: tuplanapautus ~190 px
+  tähtäimestä ja nipistys yläkulmassa siirtävät keskipistettä 0,00 m.
+  Kääre nojaa siihen että MapLibre antaa `easeTo`lle `{ originalEvent }`
+  — jos päivität MapLibren, mittaa tämä uudelleen.
 - **Älä yritä neljättä derivaattapohjaista suodinta.** Lead compensation, Holt ja
   nollaviiveinen FIR kaatuivat kaikki samaan asiaan: näillä nopeuksilla
   derivaatta on lähes pelkkää vapinaa. Nipistys on nyt MapLibren oma eikä

@@ -102,7 +102,8 @@ Spottitietokanta, meri ja aukkojen paikkaus tulevat niiden jälkeen.
 (luku 14) on toteutettu ja mitattu. V2 kytkeytyy päälle vasta kun
 luettelossa on tasojen `natiivi`-kenttä, eli ensimmäisestä
 V2-rakentajan Säädata-ajosta. V3:n OpenWindMap odottaa
-lisenssipäätöstä (14.2).
+lisenssipäätöstä (14.2). Luku 15: Euroopan asemat kaukaa pisteinä kuten
+Suomen asemat, ja spottien sarjojen esilataus näkymän mukaan (5.10.).
 **V1 toteutettiin samassa erässä** — tulokset ovat luvussa 12.
 
 ---
@@ -1275,6 +1276,87 @@ Savutesti ja graafimittaus läpi; sivuvirheitä 0.
   hakee kymmenen tuntia ja loput seuraavat.
 - **Varmennus E-SOH:ta vasten** (V4) ja spottien laajennus Eurooppaan
   (V5): spottikortin lähin asema Euroopassa toimii jo vapaassa pisteessä.
+
+
+## 15. Toteutus (5.10.2026): Euroopan asemat kaukaa ja spotit Euroopassa
+
+Pyyntö (5.10.): *"Lisätään nyt kaikille lisätyille datapisteille
+samanlainen näkymä kuin Helsingin ympärillä olevilla tuulipisteillä
+havaintoasemilla. Ja myös spoteille samanlainen näkymä, mikäli niitä
+lisätään myöhemmin karttaan."*
+
+### 15.1 Mikä erosi
+
+Suomen asemat näkyvät jokaisella zoomilla: lukeman zoomin alla
+(`LUKEMA_Z_MERI` 8, `_MAA` 10) harmaana pisteenä (`_kaukoPallo`, alle z7
+4 px ja .6, muuten 5 px ja .9), sen jälkeen pillerinä. Euroopan asemat
+(luku 14) syntyivät DOM-merkeiksi vasta zoomista 8 (rannikko) tai 9
+(sisämaa) ja vain näkymän laatoista, eli kaukaa niitä ei ollut kartalla
+lainkaan — Suomen naapureissa kartta näytti tyhjältä siellä missä
+asemia on eniten.
+
+### 15.2 Rakenne
+
+- **Luettelo keräimestä.** Kaukopisteisiin tarvitaan vain sijainti ja
+  kerros, mutta laatat (48 h tunnit) ovat raskaita: Euroopan näkymä z4:llä
+  olisi ~150 laattapyyntöä, ja koko Euroopan `/locations` on lähteessä
+  4,4 MB ja 12,5 s (mitattu). Keräin (`tools/esoh.mjs`) näkee joka ajolla
+  koko Euroopan, joten se kirjoittaa `havainnot`-haaraan
+  `esoh/asemat.json`: `{ wigos: [lat, lng, meri, UTC-päivä] }`, rannikko
+  samasta maarasterista kuin laatan tagi (`asemanTiedot`), päivä eikä
+  tunti, jotta tiedosto muuttuu kerran päivässä eikä joka ajolla. Yli
+  neljä päivää näkymättömät poistuvat.
+- **`/api/fmi?eu=asemat`** (tila olemassa olevassa funktiossa, ei uusi
+  reitti): luettelo ilman Suomen rekisterin kopioita, kahta päivää
+  vanhempia ja saman aseman toista tunnusta (alle 100 m, sama sääntö
+  kuin `kahdennuksetPois`, ruudukolla). `[[wigos, lat, lng, meri], …]`,
+  CDN 30 min + vanha kelpaa vuorokauden; puuttuva tiedosto on tyhjä
+  luettelo (5 min), ei virhe.
+- **Kartalla GL-pisteinä** (`eu-asemapisteet`, MapLibren circle-kerros,
+  GL-pinon ylin): DOM-merkki maksaa siirron joka ruudussa, ja asemia on
+  yli 3 000. Ulkoasu on `_kaukoPallo`n (koko, peittävyys z7:n porras,
+  väri ja hiusreuna `--asema-piste`-tokeneista `Teema`n kautta).
+  Suodatin: kerroskytkimet (`fmi-sea` / `fmi-land`) ja **ei asemaa jolla on
+  oma merkki** (`_euMerkit`): piste väistyy kun DOM-merkki syntyy ja
+  palaa kun se poistuu, joten lukeman zoomissa laatan latauksen aikana
+  piste ei katoa tyhjään. Napautus 12 px:n säteellä (piste on 4–5 px)
+  lentää aseman lukeman zoomiin kuten DOM-pisteen `zoomaaAlle`;
+  DOM-merkin napautus ei kuulu tänne. Työpöydällä kursori on osoitin
+  pisteen päällä.
+- **Spotit.** Merkki, kortti, Paras-sekoitus, lähin asema ja reittiohje
+  ovat jo spotista riippumattomia, joten Euroopan spotti saa saman näkymän
+  kun se lisätään `SPOTS`iin (`descEn` ja suunnat dataan). Yksi kohta ei
+  skaalautunut: `KorttiSarjat.esilataaSpotit` laski käynnistyksessä
+  KAIKKIEN spottien Paras-sarjat (laatat ja kaksi palvelinkutsua per
+  spotti). Nyt jono on näkymä ja sen ympäristö (näkymän verran joka
+  suuntaan tai 300 km, `ESI_KM`), lähin ensin, ja kartan pysähtyminen
+  täydentää sen (`esilataaAjasta`). Suomen 12 spottia ovat toistensa
+  300 km:n sisällä, joten niillä mikään ei muutu.
+
+### 15.3 Mitattu (5.10.2026, paikallinen varasto ja tuotantobuild)
+
+| | |
+|---|---|
+| keräimen ajo (10 tuntia) | 138,6 s, luettelossa 3 281 asemaa (546 rannikolla), 139 kB |
+| `?eu=asemat` | 3 116 asemaa (503 rannikolla, 131 Suomen rekisterin ulkopuolista FMI-asemaa), 114 kB JSON, 22 ms |
+| puhelin Eurooppa z4 | 352 rannikkopistettä, sisämaan kytkimellä 2 589 |
+| Bretagne z8 | 10 DOM-merkkiä, piste ja merkki samalle asemalle 0 kertaa |
+| pisteen napautus z6 (Saksan rannikko) | lento z8:aan, keskipiste aseman kohdalla (0,00 km) |
+| kerrosjärjestys | pisteet GL-pinon päällimmäisinä (partikkelien päällä) |
+
+Savutesti ja graafimittaus läpi, sivuvirheitä 0.
+
+### 15.4 Mitä jäi
+
+- **Hiljainen asema kaukaa.** Suomen pisteellä on hiljaisen aseman
+  himmeämpi asu; luettelo kertoo vain päivän, joten Euroopan piste on
+  aina tavallinen ja hiljaisuus näkyy vasta merkissä (lukeman zoomissa).
+- **Ensimmäinen ajo.** Luettelo syntyy ensimmäisestä keräimen ajosta
+  tämän muutoksen jälkeen; siihen asti `?eu=asemat` on tyhjä ja kaukaa ei
+  näy pisteitä (lähempää merkit kuten ennen).
+- **Spottimerkit ovat DOMia** ja ne luodaan kaikille spoteille. Kymmenillä
+  spoteilla se on kevyt; jos spotteja tulee satoja, merkit kannattaa luoda
+  näkymän mukaan kuten Euroopan asemamerkit.
 
 ---
 

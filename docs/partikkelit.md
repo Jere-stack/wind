@@ -1333,3 +1333,65 @@ tuulen jälki lyhenevät yhdessä. 19 px on hieman talon 20 px:n
 pilkkurajan alla; raja on mitattu vanhoilla porrastetuilla jäljillä, ja
 pituus on käyttäjän arvio laitteelta. Mitattu mediaani ja p90 19,0 px,
 pää kulkee yhä kärjen tahtia (p50 ja p90 1,00).
+
+## Kaukaa Windyn tiheys (5.10.)
+
+**Pyyntö (käyttäjä):** "Partikkelien määrä kasvaa lähes samaan
+lukumäärään kuin Windyssä, kun ollaan zoomattuna todella ylös. Lähellä
+olevat ja keskitason zoomaukset ovat hyviä. Nyt on todella vaikea nähdä
+tuulta ja sen suuntaa jos on pieni tuuli ja partikkeleita ei kulje
+esimerkiksi Euroopan yllä."
+
+**Windyn oma kaava** (`plugins/gl-particles.js`, v51, `getAmount`):
+`leveys × korkeus / (50 · 1,6^(z − 2))` (z Leafletin asteikolla), katto
+15 000, ja muualla kuin työpöydällä puolet. Puhelimen 390 × 844 -ruudulla:
+
+| z | Windy (mobiili) | meillä ennen (Normaali) |
+|---|---|---|
+| 3,5 | 1 629 | 148 |
+| 4 | 1 286 | 148 |
+| 5 | 804 | 148 |
+| 6 | 502 | 148 |
+| 7 | 314 | 126 |
+
+Meidän määrämme oli zoomista riippumaton alle z7:n, ja oletusasetus
+"Normaali" (avain `vahan`) on 0,45 × perusmäärä. Kaukaa Euroopan yllä
+ruudulla oli siis noin kymmenesosa Windyn jäljistä, ja heikon tuulen
+alueilla (jälki himmeä ja lyhyt) suunta ei erottunut lainkaan.
+
+**Muutos (`partikkeliKaukoMaara`).** Alle z4 Windyn määrä sellaisenaan,
+z4–z5 liukuen (smoothstep) omaan määräämme, ja z ≥ 5 ennallaan —
+puhelimen Suomi-näkymä (z5) ja kaikki lähempää ovat kuten ennen.
+Asetus suhteutetaan oletukseen: **Normaali = Windy**, Paljon = Windy /
+0,45 kattoon asti, Pois = 0. Ilman suhteutusta oletus jäisi 45 %:iin
+Windystä (z3,7 puhelimella 666 vs 1 480).
+
+**Katto on meidän eikä Windyn**: kosketuslaite 2 000, työpöytä 4 000.
+Windyn partikkelit ovat GPU:lla (tila tekstuurissa), meidän suorittimella
+(liike ja nauhan geometria JS:ssä). Mitattu `PartikkeliGL.render`in
+JS-aika (kontti, jäljet täysimittaisia, mediaani):
+
+| partikkeleita | puhelin | työpöytä |
+|---|---|---|
+| 400 | 0,70 ms | — |
+| 800 | 1,20 ms | 1,30 ms |
+| 1 600 | 2,40 ms | 2,30 ms |
+| 3 200 | 4,40 ms | 4,40 ms |
+| 6 400 | — | 9,00 ms |
+
+eli noin 1,4 µs partikkelia kohti ruudussa. `PerfTracker` pudottaa
+määrää yhä jos ruutunopeus jää alle 24 fps:n, ja `moveend` palauttaa
+tavoitteen uuteen perusmäärään (`PerfTracker.reset`), joten ulos
+zoomatessa määrä kasvaa heti eikä 15 % kolmen sekunnin välein.
+
+**Mitattu jälkeen** (Normaali, perusmäärä tavoitteena): puhelin z3,7
+148 → 1 480, z4,5 148 → 582 (liu'ussa), z5 148 → 148 ja z7 126 → 126;
+työpöytä 1 440 × 900 z4,2 360 → 3 621. Kuvakaappauksissa (SwiftShader) heikon tuulen tummansinisillä
+alueilla jäljet näkyvät ja kaartuvat kentän mukana, kun ennen alueella oli
+muutama irrallinen viiva. Leveyttä, väriä ja nopeutta ei muutettu
+(Windy hidastaa ja ohentaa kaukana, mutta meidän jälkemme ovat jo Windyn
+kaukaisen zoomin levyisiä, 1,3–2,8 px).
+
+**Laitteella mittaamatta:** ruutunopeus 1 500–2 000 partikkelilla
+puhelimella. Jos se ei riitä, `PerfTracker` leikkaa määrää; jos leikkaus
+tuntuu, katto (`PARTIKKELI_KAUKO.katto`) on oikea vipu, ei kaava.

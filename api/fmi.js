@@ -1,6 +1,6 @@
 import { suojaa } from './_suoja.js';
 import { haeFmi } from './_haku.js';
-import { rakennaLaatta, rakennaSarja, kelpoTunnus, LAATTA_X, LAATTA_Y } from './_esoh.js';
+import { rakennaLaatta, rakennaSarja, asemaluettelo, kelpoTunnus, LAATTA_X, LAATTA_Y } from './_esoh.js';
 
 /* ASEMAREKISTERI (docs/oikeellisuus.md, O6). Sama lista kuin index.html:n
  * `FMI_MAP_STATIONS` — ÄLÄ LISÄÄ ASEMAA VAIN TOISEEN (CLAUDE.md).
@@ -376,6 +376,19 @@ async function euHaara(req,res,tz){
       var l=await rakennaLaatta(x,y,REKISTERISSA);
       res.setHeader('Cache-Control',l.asemat.length?'public, s-maxage=300, stale-while-revalidate=600':'public, s-maxage=900');
       return res.status(200).json(l);
+    }catch(err){
+      res.setHeader('Cache-Control','no-store');
+      return res.status(502).json({error:err.message});
+    }
+  }
+  /* KAUKOPISTEET: koko Euroopan asemat yhtenä vastauksena (keräimen
+     luettelo, docs/eurooppa.md luku 15). Sama osoite kaikille, joten CDN
+     palvelee sen; luettelo muuttuu kerran päivässä. */
+  if(tila==='asemat'){
+    try{
+      var lu=await asemaluettelo(REKISTERISSA);
+      res.setHeader('Cache-Control',lu.asemat.length?'public, s-maxage=1800, stale-while-revalidate=86400':'public, s-maxage=300');
+      return res.status(200).json(lu);
     }catch(err){
       res.setHeader('Cache-Control','no-store');
       return res.status(502).json({error:err.message});

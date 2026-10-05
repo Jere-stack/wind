@@ -373,6 +373,66 @@ export async function laatanAsemat(x, y, aikaraja) {
   return asemat;
 }
 
+/* ── Kaukopisteiden asemaluettelo (`esoh/asemat.json`) ────────────────
+ *
+ * KARTAN KAUKAINEN ZOOM NÄYTTÄÄ EUROOPAN ASEMAT PISTEINÄ kuten Suomen
+ * asemat (docs/eurooppa.md, luku 15). Laatat (48 h tunnit) ovat siihen
+ * liian raskaita: Euroopan näkymä olisi satoja laattapyyntöjä, ja koko
+ * Euroopan `/locations` on lähteessä 4,4 MB ja 12,5 s (mitattu 5.10.).
+ * Keräin (`tools/esoh.mjs`) näkee jo joka ajolla koko Euroopan, joten se
+ * kirjoittaa luettelon: `{ paivitetty, asemat: { wigos: [lat, lng, meri,
+ * päivä] } }`, päivä = viimeisin UTC-päivä jolloin asemalla oli tunnin
+ * näyte (päivä eikä tunti, jotta tiedosto ei muutu joka ajolla).
+ *
+ * Proxy jättää pois Suomen rekisterin kopiot (`pois`, kuten laatassa),
+ * asemat joita ei ole nähty kahteen päivään, ja saman aseman toisen
+ * tunnuksen (alle 100 m, sama sääntö kuin `kahdennuksetPois`). */
+export const ASEMALUETTELO = 'esoh/asemat.json';
+const _asemaluettelo = { t: 0, data: null };
+export async function asemaluettelo(pois, nytMs) {
+  const nyt = nytMs || Date.now();
+  if (!_asemaluettelo.data || nyt - _asemaluettelo.t > 10 * 60e3) {
+    try {
+      const teksti = /^https?:/.test(VARASTO)
+        ? (await haeVarastosta(VARASTO + ASEMALUETTELO, { 'user-agent': UA }, 4000)).teksti
+        : await readFile(join(VARASTO, ASEMALUETTELO), 'utf8');
+      _asemaluettelo.data = JSON.parse(teksti);
+    } catch (e) {
+      /* Puuttuva tiedosto = keräin ei ole vielä kirjoittanut sitä: tyhjä
+         luettelo, ei virhe. Muu virhe: vanha luettelo kelpaa. */
+      if (e.status === 404 || e.code === 'ENOENT') _asemaluettelo.data = { asemat: {} };
+      else if (!_asemaluettelo.data) throw e;
+    }
+    _asemaluettelo.t = nyt;
+  }
+  const data = _asemaluettelo.data, raja = Math.floor(nyt / 864e5) - 2;
+  const lista = [];
+  for (const id of Object.keys(data.asemat || {})) {
+    const a = data.asemat[id];
+    if (!Array.isArray(a) || (pois && pois.has(id)) || !(a[3] >= raja)) continue;
+    lista.push({ id: id, lat: +a[0], lng: +a[1], meri: a[2] ? 1 : 0, pv: a[3] });
+  }
+  /* Kahdennukset ruudukolla (0,01°): naapuriruudut riittävät 100 m:n
+     säteelle. Tuorein ensin, tasapelissä tunnus aakkosjärjestyksessä,
+     jotta vastaus on sama joka kerta. */
+  lista.sort((p, q) => (q.pv - p.pv) || (p.id < q.id ? -1 : p.id > q.id ? 1 : 0));
+  const ruudut = new Map(), ulos = [];
+  for (const a of lista) {
+    const ry = Math.floor(a.lat * 100), rx = Math.floor(a.lng * 100), kx = 111.2 * Math.cos(a.lat * Math.PI / 180);
+    let sama = false;
+    for (let dy = -1; dy <= 1 && !sama; dy++) for (let dx = -1; dx <= 1 && !sama; dx++) {
+      for (const b of ruudut.get((ry + dy) + '_' + (rx + dx)) || []) {
+        if (Math.hypot((a.lng - b.lng) * kx, (a.lat - b.lat) * 111.2) < 0.1) { sama = true; break; }
+      }
+    }
+    if (sama) continue;
+    const k = ry + '_' + rx;
+    (ruudut.get(k) || ruudut.set(k, []).get(k)).push(a);
+    ulos.push([a.id, a.lat, a.lng, a.meri]);
+  }
+  return { paivitetty: data.paivitetty || null, asemat: ulos };
+}
+
 /* Nimi muistista, jos jokin laatta sen jo tuntee (asemakortin sarja). */
 export function tunnettuAsema(id) {
   for (const m of _luettelot.values()) { const a = m.asemat.get(id); if (a) return a; }

@@ -37,6 +37,8 @@
  *   esoh/<UTC-päivä>/<x>_<y>.json   laatta 4° × 4° (sama jako kuin
  *                                   `?eu=laatta`): { wigos: { "HH": [ws, wg, wd] } }
  *   esoh/tila.json                  käsitellyt tunnit ja viimeisin ajo
+ *   esoh/asemat.json                kaukopisteiden luettelo (`?eu=asemat`):
+ *                                   { wigos: [lat, lng, meri, UTC-päivä] }
  *
  * Kaikki asemat talletetaan, myös Suomen rekisterin kopiot: proxy jättää
  * ne pois laatasta, ja varasto pysyy riippumattomana rekisteristä.
@@ -44,7 +46,7 @@
  * Vain Noden omia moduuleita: työnkulku ei aja `npm ci`:tä. */
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { haeAlue, jasenna, asemanRivit, tunninNayte, laattaKohdassa, laatanAvain, TUULI_PARAMETRIT, r1, r0 } from '../api/_esoh.js';
+import { haeAlue, jasenna, asemanRivit, tunninNayte, laattaKohdassa, laatanAvain, asemanTiedot, ASEMALUETTELO, TUULI_PARAMETRIT, r1, r0 } from '../api/_esoh.js';
 
 /* Euroopan rajaus. Koko maailman monikulmio vastaa 500:lla (mitattu),
    ja luettelon asemista 3 428 / 3 516 on tämän sisällä. */
@@ -75,6 +77,23 @@ const H1 = Math.floor((alku - VALMIS_H * 36e5) / 36e5) * 36e5;
 const H0 = Math.ceil((alku - 24 * 36e5 + 20 * 60e3) / 36e5) * 36e5;
 const puuttuvat = [];
 for (let H = H0; H <= H1; H += 36e5) if (!tehdyt.has(iso(H))) puuttuvat.push(H);
+
+/* KAUKOPISTEIDEN LUETTELO (docs/eurooppa.md, luku 15). Jokainen asema
+   jolla tunnilla oli näyte: sijainti, rannikko (sama maarasteri kuin
+   laatan tagilla) ja viimeisin UTC-päivä. Päivä eikä tunti, jotta
+   tiedosto muuttuu kerran päivässä eikä joka ajolla (julkaisu siirtää
+   vain muuttuneet tiedostot). Yli neljä päivää näkymättömät pois. */
+const LUETTELO_POLKU = join(hakemisto, ASEMALUETTELO);
+let luettelo = {};
+try { luettelo = JSON.parse(readFileSync(LUETTELO_POLKU, 'utf8')).asemat || {}; } catch (e) { luettelo = {}; }
+const luetteloAlussa = JSON.stringify(luettelo);
+const r4 = (x) => Math.round(x * 1e4) / 1e4;
+function merkitse(a, H) {
+  const pv = Math.floor(H / 864e5), lat = r4(a.lat), lng = r4(a.lng), v = luettelo[a.id];
+  if (v && v[0] === lat && v[1] === lng) { if (pv > v[3]) v[3] = pv; return; }
+  const t = asemanTiedot(a.lat, a.lng, null);
+  luettelo[a.id] = [lat, lng, t.tagi === 'Meri' ? 1 : 0, Math.max(pv, v ? v[3] : 0)];
+}
 
 /* Päivätiedostot muistissa ajon ajan; kirjoitetaan lopuksi. */
 const tiedostot = new Map();
@@ -112,6 +131,7 @@ for (const H of puuttuvat.slice(0, MAX_TUNTEJA)) {
     const { x, y } = laattaKohdassa(a.lat, a.lng);
     const t = tiedosto(paiva, x, y);
     (t.data[a.id] || (t.data[a.id] = {}))[hh] = [r1(r.ws), r1(r.wg), r0(r.wd)];
+    merkitse(a, H);
     n++;
   }
   /* 404 (null) on tyhjä tunti, ei vika: tunti merkitään tehdyksi, jottei
@@ -125,6 +145,14 @@ for (const H of puuttuvat.slice(0, MAX_TUNTEJA)) {
 for (const t of tiedostot.values()) {
   mkdirSync(join(juuri, t.paiva), { recursive: true });
   writeFileSync(t.polku, JSON.stringify(t.data));
+}
+
+/* Luettelo: vanhat pois, kirjoitus vain muuttuneena. */
+const pvRaja = Math.floor(alku / 864e5) - 4;
+for (const id of Object.keys(luettelo)) if (!(luettelo[id][3] >= pvRaja)) delete luettelo[id];
+const luetteloMuuttui = JSON.stringify(luettelo) !== luetteloAlussa;
+if (luetteloMuuttui || !existsSync(LUETTELO_POLKU)) {
+  writeFileSync(LUETTELO_POLKU, JSON.stringify({ paivitetty: new Date().toISOString(), asemat: luettelo }));
 }
 
 /* Säilytys: päivähakemistot ja tila. */
@@ -147,6 +175,7 @@ console.log('');
 console.log('- tunteja talteen: ' + tunteja + ' / puuttui ' + puuttuvat.length
   + (poistettu ? ', poistettiin ' + poistettu + ' vanhaa päivää' : '')
   + ', ' + ((Date.now() - alku) / 1000).toFixed(1) + ' s');
+console.log('- kaukopisteiden luettelo: ' + Object.keys(luettelo).length + ' asemaa' + (luetteloMuuttui ? ' (päivitetty)' : ''));
 for (const r of rivit) console.log(r);
 if (virhe) {
   console.log('- **lähde ei vastannut**: ' + virhe);

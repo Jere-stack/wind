@@ -149,6 +149,10 @@ varateillä.
 
 ### O3 — Kapseli ja partikkelit lukevat eri tasoa kuin lämpökartta
 
+> **5.10.: kapselin osalta tämän korvaa O12** (lopussa): kapseli lukee nyt
+> tähtäimen sarjaa hienoimmalla datalla eikä lämpökartan hilaa, koska
+> hila riippuu zoomista. Partikkelit lukevat yhä lämpökartan hilaa.
+
 **Syy.** `WindTexture.build` kutsuu `ViewportGrid.laattaStep(zoom)`
 pyöristämättä (solmuväli `dStep`), kun LampoGL, aikajana ja
 lähdemerkintä käyttävät `laattaStep(Math.round(zoom))`. Vyöhykkeellä
@@ -555,3 +559,77 @@ varaston saman näytteen puuska (esim. 4,20 / 5,40 m/s = 8,2 / 10,5 kts);
 4,20 m/s, bikuubinen vs bilineaarinen). Varaston vanhat lainatut puuskat
 korjautuvat seuraavassa Säädata-rakennuksessa; siihen asti kapseli
 piilottaa puuskan joka ei ylitä tuulta 5 %:lla.
+
+## O12 (5.10.2026): tähtäimen lukema riippui zoomista
+
+**Oire (käyttäjä, iPhone).** "Tuplanapautuksella ja zoomatessa ylös
+tähtäimen kohdalla olevaa tuulta esittävä lukema muuttuu, jolloin data
+ei tunnu luotettavalta."
+
+**Kaksi syytä, ja kumpikin riitti yksin.**
+
+1. *Luku oli näkymän esitys.* Kapseli luki lämpökartan solmuhilaa (O3:n
+   korjaus teki niistä saman), ja hila on näkymän esitys: askel ja
+   varaston taso vaihtuvat zoomin mukana (`laattaStep` 1,25° → 0,05°),
+   ECMWF 9 km (`MalliHila`) tulee mukaan zoomista 8 ja alueellisten
+   mallien natiivihila (`Natiivi`) zoomista 10. Aikajana luki saman
+   tason. Mitattu ennen korjausta (puhelin, sama paikka ja hetki, z4–z12
+   kokonaisin tasoin, keskipiste paikallaan):
+
+   | paikka | kapselin (kentän) vaihtelu zoomin yli |
+   |---|---|
+   | Helsinki, Harmajan edusta | **2,92 m/s** |
+   | Gardajärvi (ICON-CH1) | 1,43 m/s |
+   | Bretagne (AROME) | 0,71 m/s |
+   | Atlantti (ECMWF) | 0,33 m/s |
+   | Pohjanmeri (AROME) | 0,28 m/s |
+
+2. *Tähtäimen paikka siirtyi.* MapLibren tuplanapautus zoomaa
+   napautuskohdan ympäri ja nipistys sormien välin ympäri, joten
+   keskipiste — ja kapselin lukema paikka — siirtyi joka zoomilla:
+   napautus 100 px tähtäimestä z8:lla siirtää sitä noin 15 km.
+
+**Korjaus.**
+
+- *Tähtäimen sarja (`Tahtain`).* Kapseli, aikajana ja lähdemerkintä
+  lukevat kartan keskipisteen sarjaa hienoimmalla datalla — sama lasku
+  kuin spottikortin Paras: varaston hienoin taso (0,05°), mallitilan
+  oman hilan pistesarja (ECMWF 9 km, pakotettuna ICON tai GFS 0,05°:n
+  ruudulla) ja alueellisten mallien natiivisarja pisteen solusta
+  (`Natiivi.pisteenSarjat`). Mikään osa ei riipu zoomista. Sarja
+  lasketaan kun kartta pysähtyy; liikkeen aikana ja siihen asti kunnes
+  uuden paikan sarja on valmis kapseli lukee kenttää kuten ennen.
+  Puuskarivi tulee samasta sarjasta O4:n säännöllä (6 h maksimi ei
+  kelpaa; ECMWF:n osuus ja pohja-akselin askel tunneittain sarjassa,
+  `ecmwfOsuus`, `akseliH`), ja lähdemerkintä sarjan tunnin kahdesta
+  suurimmasta lähteestä (`lahde`, `lahde2`, `osuus1`, `osuus2`) — myös
+  sen hetken kun kentän solmuhilaa ei ole (rakennus kesken). Ennen
+  merkintä putosi silloin lähimmän ennustepisteen haaraan: jälkimittauksen
+  ensimmäisellä ajolla Helsingin z4-rivi sanoi "HARMONIE 2,5 km" ilman
+  ajoa kun muut kahdeksan zoomia sanoivat "· ajo klo 15:00".
+- *Kosketuszoom tähtäimen ympäri.* Nipistys on MapLibren oma asetus
+  (`touchZoomRotate.enable({ around: 'center' })`). Tuplanapautus (+1)
+  ja kahden sormen napautus (−1) ovat `TapZoomHandler`in `easeTo`-
+  kutsuja, joille ei ole asetusta: kosketuksen (`touchend`) laukaisemasta
+  kutsusta poistetaan `around` (`initMap`). Tuplanapauta-ja-vedä oli jo
+  keskipisteen ympäri. Hiiren tuplaklikkaus ja rulla zoomaavat yhä
+  kursorin ympäri: osoitin on tarkka "tässä", ja se on työpöydän
+  vakiintunut tapa.
+
+**Hinta.** Lämpökartta ja partikkelit ovat yhä näkymän esitys, joten
+kaukaa kapselin luku voi poiketa sen alla olevasta väristä (kenttä on
+tasoitetumpi kuin piste; kaukaisen zoomin tarkkuutta parannettiin
+samalla, docs/mallit.md "Kaukaa datan omalla tarkkuudella"). Siirron
+jälkeen sarja valmistuu kontissa 1,3–2,4 s:ssa (seitsemän hyppyä
+Suomessa ja Euroopassa; mallin pistesarjat ovat palvelinkutsuja), ja
+sen ajan kapseli näyttää kentän luvun.
+
+**Jälkimittaus** (`kapseli.mjs`, tuotantobuild, puhelin hasTouch ja
+työpöytä, samat viisi paikkaa, z4–z12):
+
+| | ennen | jälkeen |
+|---|---|---|
+| luvun vaihtelu zoomin yli | 0,28–2,92 m/s | **0,00 m/s**, kapselin teksti sama joka zoomilla |
+| aikajanan palkki vs kapseli | eri taso | sama luku (ero < 0,01 m/s) |
+| tuplanapautus ~190 px tähtäimestä | keskipiste siirtyy | 0,00 m, z +1,00 |
+| nipistys yläkulmassa | keskipiste siirtyy | 0,00 m, z +1,38 |
