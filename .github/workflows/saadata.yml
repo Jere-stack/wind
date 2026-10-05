@@ -5,20 +5,24 @@
 # raw.githubusercontent.comin kautta (CORS on siellä auki ja välimuisti
 # 5 minuuttia — juuri sopiva kolmen tunnin välein päivittyvälle datalle).
 #
-# MIKSI ORVOKSI JA PAKOLLA. Laatat ovat noin 106 MB kierrokselta
-# (mitattu 23.9.2026: ECMWF 28 MB, FMI HARMONIE 14 MB, MET Nordic 65 MB;
-# ks. docs/mallit.md). Jos ne kasautuisivat historiaan, repo kasvaisi
-# 420 MB vuorokaudessa. `git checkout --orphan` + `push --force`
+# MIKSI ORVOKSI JA PAKOLLA. Laatat ovat noin 267 MB kierrokselta
+# (mitattu 4.10.2026: ECMWF 40 MB, FMI HARMONIE 13 MB, MET Nordic 46 MB,
+# Euroopan kymmenen alueellista mallia 163 MB, aallot 6 MB; ks.
+# docs/eurooppa.md, luku 12). Ennen Eurooppaa 106 MB. Jos ne kasautuisivat
+# historiaan, repo kasvaisi gigatavun vuorokaudessa. `git checkout --orphan` + `push --force`
 # tarkoittaa että haarassa on aina täsmälleen yksi committi: nykyinen
 # tilanne, ei mitään muuta. GitHub siivoaa pudotetut versiot: kuukauden
 # neljästi päivässä pakkopäivitetyn varaston jälkeen repon koko oli
 # 31,8 MB.
 #
 # Julkisessa reposessa Actions-minuutit ovat rajattomat, joten tämä on
-# ilmaista. Ajo kestää noin kymmenen minuuttia (mitattu kontissa 622 s):
-# ECMWF noin neljä, FMI:n HARMONIE-hila kahdesta ajosta noin kaksi
-# (55 MB GRIB2:ta) ja MET Nordic noin neljä (104 tuntia, 7 MB tiedostoa
-# kohti joista luetaan kolme kenttää). Muistia kuluu enimmillään 0,85 GB.
+# ilmaista. Ajo kestää noin 26 minuuttia (mitattu kontissa 1 550 s
+# 4.10.2026): ECMWF noin neljä, FMI:n HARMONIE-hila kahdesta ajosta noin
+# kaksi (55 MB GRIB2:ta), MET Nordic noin viisi (105 tuntia) ja Euroopan
+# alueelliset mallit 13,4 (805 s; AROME 160 s, DINI 185 s, ALADIN CE
+# 116 s, UKV 109 s). Muistia kuluu enimmillään 1,31 GB (ennen 0,85).
+# Aikaraja on 60 min: 45 min jätti Euroopan jälkeen vain 19 min varaa
+# hitaalle S3-päivälle, ja aikakatkaisu menettäisi koko rakennuksen.
 
 name: Säädata
 
@@ -55,7 +59,7 @@ permissions:
 jobs:
   laatat:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -151,6 +155,14 @@ jobs:
                   + new Date(n0.ajat[0]).toISOString() + " … "
                   + new Date(n0.ajat[n0.nt-1]).toISOString()
                 : "EI MUKANA") + " |");
+              for (const p of (l.perheet || [])) {
+                if (["fmi", "metnordic", "ecmwf"].includes(p)) continue;
+                const t0 = (l.lisatasot || []).filter(t => t.perhe === p).sort((a, b) => a.askel - b.askel)[0];
+                console.log("| " + p + " | " + (t0
+                  ? t0.laatat.length + " laattaa (" + t0.id + "), " + t0.nt + " tuntia, "
+                    + new Date(t0.ajat[0]).toISOString() + " … " + new Date(t0.ajat[t0.nt-1]).toISOString()
+                  : "EI MUKANA") + " |");
+              }
               console.log("| Lisätasot | " + (l.lisatasot || []).map(t => t.id + " " + t.laatat.length).join(", ") + " |");
               const a = l.aallot;
               console.log("| Aallot (WAM) | " + (a

@@ -102,14 +102,23 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   `tools/saaherate.mjs` (lähettää Säädatan kun FMI:llä on varastoa
   uudempi ajo, O1) ja `tools/varmennus.mjs` (varaston ennuste arkistoon
   ja havaintoja vasten, `varmennus/`, O11) — docs/oikeellisuus.md.
-- `tools/tiilet.mjs` — säälaattojen rakennus kolmesta mallista: ECMWF
-  (AWS Open Data, koko maapallo), FMI:n HARMONIE (Suomi) ja MET Nordic
-  (Yr:n data, Pohjoismaat ja Baltia). Ajetaan GitHub Actionsissa neljästi
+- `tools/tiilet.mjs` — säälaattojen rakennus: ECMWF (AWS Open Data, koko
+  maapallo), FMI:n HARMONIE (Suomi), MET Nordic (Yr:n data, Pohjoismaat
+  ja Baltia) ja Euroopan kymmenen kansallista 1–2,5 km mallia
+  (`tools/alueelliset.mjs`). Ajetaan GitHub Actionsissa neljästi
   vuorokaudessa ajastimella ja lisäksi kun FMI:llä on uudempi ajo
-  (`tools/saaherate.mjs`), noin 8–10 min ja 107 MB. ECMWF-puuskan aukot
+  (`tools/saaherate.mjs`), noin 26 min ja 267 MB (ennen Eurooppaa
+  10 min ja 107 MB; aikaraja 60 min). ECMWF-puuskan aukot
   (analyysihetki, +93 … +144 h) täytetään rakennuksessa (O8).
+- `tools/alueelliset.mjs` — Euroopan alueelliset mallit (AROME, ICON-D2,
+  UKV, DINI, ICON-CH1/CH2, ICON-2I, AROME Itävalta, ALADIN CE/CZ)
+  Open-Meteon S3:sta: YKSI TAULUKKO (`ALUEELLISET`) omistaa järjestyksen,
+  käyttöalueet, projektiot ja reunojen pehmennyksen; tasot
+  `<id>0`–`<id>3`. `tools/maat.mjs` kirjoittaa käyttöalueiden
+  maarasterin `tools/maat.json` (Natural Earth, ajetaan käsin).
+  docs/eurooppa.md.
 - `tools/pyramidi.mjs` — säännöllisestä hilasta suodatettu laattapyramidi
-  ja painokanava; kaikki kolme mallia kirjoitetaan sen kautta.
+  ja painokanava; kaikki mallit kirjoitetaan sen kautta.
 - `tools/harmonie.mjs` — FMI HARMONIE 2,5 km hilana GRIB2:sta (tasot
   `h0`–`h3`), ajo kiinnitettynä `origintime`lla.
 - `tools/metnordic.mjs` — MET Nordic 1 km Lambert-hilasta säännölliseksi
@@ -195,6 +204,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/julkaisu.md` | **julkaisukelpoisuutta**: UI-parannusten top 25, suositusjärjestys ja logiikan 10 kriittisintä kohtaa (27.9.), ja **osa 4: mitä niistä toteutettiin 28.9. ja mikä jäi auki** (Pages, lisenssit, pohjakartan kieli) — lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 | `docs/graafit.md` | **kaavioiden vuorovaikutusta ja akseleita** (strategia ja toteutus 30.9., V1–V6): hiiren veto, kosketuksen "pidä ja liu'uta", käyrän pehmennys, x- ja y-akselin tiedot joka zoomilla, asteikko ikkunan mukaan — mittaukset (`tools/graafimittaus.mjs`), päätökset P1–P10, vaiheet ja toteutuksen poikkeamat; lue ennen kuin kosket `Tuulikaavio`on, `Aikakaavio`n osoittimeen tai kaavioiden akseleihin |
 | `docs/sadetutka.md` | **sadetutkaa ja sadetilaa (strategia ja toteutus 4.10.; luku 11: koko maailma ja paras paikallinen malli, beta)**: 250 m FINRAD-lähde ja paletti, klassinen tutkaväri, 5 min kehykset, vartit aikajanalla, sadepalkit ja kapseli, liikekenttä (`SadeLiike`) ja nowcast, ECMWF-jatko — mitattu data (FMI WMS ja S3, MET Norway), päätökset P1–P9, toteutus luvussa 10 ja mittaukset (`tools/sadeliike.mjs`); lue ennen kuin kosket `SadeKerros`iin, `Sadetutka`an, `SadeLiike`en tai sadetilan aikajanaan |
+| `docs/eurooppa.md` | **Euroopan laajennusta ja paikallisia lähteitä** (strategia ja roadmap 4.10., V1 toteutettu): Euroopan kansalliset 1–2,5 km mallit varastoon ja niiden **etusija ja käyttöalueet** (`tools/alueelliset.mjs`), hilat ja projektiot totuutta vasten, havaintoverkot (MeteoGate E-SOH, kansalliset, OpenWindMap), meri, aukot, infra (Pages, Vercel, Actions), lisenssit (UKV on CC BY-SA), roadmap V1–V9 ja päätökset P1–P7; lue ennen kuin lisäät mallin, havaintolähteen tai spotteja Suomen ulkopuolelle |
 | `docs/oikeellisuus.md` | **datan oikeellisuutta** (auditointi 29.9., toteutus 30.9.): varasto havaintoja vasten, **jatkuva varmennus**, **varaston tuoreus ja Säädatan ajastin**, kapselin ja partikkelien taso vs lämpökartta, **kapselin puuska**, havaintoverkko ja sen päivitys, proxyjen virheenkäsittely, UiRaS — aukot O1–O11, suositusjärjestys ja sujuvuusvaikutus; lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 
 <details>
@@ -334,6 +344,13 @@ kokeiltu ja kaadettu mittauksella.
   osa-alueittain (työpöytä, puhelin, x-akseli, y-akseli, käyrät ja
   pehmennys, laitematriisi) · Päätettävät kohdat P1–P10 · Vaiheet V0–V7 ·
   Mittauspohja · CLAUDE.md:n säännöt jotka tämä koskee · Mitä EI ehdoteta
+- **eurooppa**: Tiivistelmä · Periaatteet P-a–P-g · Nykytila · Säämallit
+  Euroopassa (S3:n mallit, hilat totuutta vasten, spottien kate,
+  kansalliset lähteet S3:n ulkopuolella) · Havainnot (E-SOH, kansalliset,
+  yhteisöverkot, meri, tutka ja varoitukset) · Aallot ja vuorovesi ·
+  Vastaavat sovellukset ja foorumit · Aukot · Strategia S1–S10 · Roadmap
+  V1–V9 · Päätettävät P1–P7 · Riskit · **Toteutus (V1, 4.–5.10.)**:
+  poikkeamat, rakennus, laatat rajapintaa vasten, selaimessa, mitä jäi
 - **oikeellisuus**: Tiivistelmä · Kunnossa — mitattu, ei toimenpiteitä ·
   Aukot O1–O11 (varaston tuoreus, kaksi ennustetta, kapselin taso,
   kapselin puuska, virhe lakkautuksena, havaintoverkko, havaintojen
@@ -1120,9 +1137,10 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 **Asetukset**
 
 - **"AUTOMAATTINEN" TARKOITTAA PARASTA SAATAVILLA, JA PARAS TULEE
-  VARASTOSTA.** Varastossa on kolme mallia omina pyramideinaan (FMI
-  HARMONIE `h0`–`h3`, MET Nordic `n0`–`n3`, ECMWF `l0`–`l4`), ja niiden
-  päällä ECMWF 9 km palvelimelta (`MalliHila`, zoomista 8).
+  VARASTOSTA.** Varastossa on mallit omina pyramideinaan (FMI
+  HARMONIE `h0`–`h3`, MET Nordic `n0`–`n3`, Euroopan kymmenen alueellista
+  `<id>0`–`<id>3`, ECMWF `l0`–`l4`), ja niiden päällä ECMWF 9 km
+  palvelimelta (`MalliHila`, zoomista 8).
   `kartanMalli()` palauttaa aina varaston. Valinnan tekee
   `Saalaatat.naytteista`: malli tulee PAIKASTA JA HETKESTÄ, zoom valitsee
   vain tarkkuuden saman mallin sisällä (docs/mallit.md). Älä palauta
@@ -1130,8 +1148,10 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   ja sen hinta on mitattu (panorointi Suomessa 6,1 s ja 44 pyyntöä,
   käynnistys 22 s vastaan 3 s).
 - **MALLIT SEKOITETAAN PAINOKANAVALLA, TÄRKEIN ENSIN.** Etusija on
-  FMI > MET Nordic > mallin oma hila (`dyn`) > ECMWF (`Saalaatat.PERHEET`
-  ja `_dyn`). Alueellisen mallin
+  luettelon `perheet` (FMI > ALADIN CZ > ICON-CH1 > UKV > AROME > MET
+  Nordic > DINI > ICON-CH2 > ICON-D2 > ICON-2I > AROME AT > ALADIN CE) >
+  mallin oma hila (`dyn`) > ECMWF (ks. "EUROOPAN ALUEELLISET MALLIT"
+  alla). Alueellisen mallin
   laatassa on neljäs tavutaso, paino 0..1 = smoothstep etäisyydestä
   mallin alueen reunaan 50 km matkalla; ajassa sama smoothstep akselin
   alussa 2 h ja lopussa 6 h. Perhe peittää alemmat painonsa verran, ja
@@ -1142,6 +1162,33 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   samaa luokkaa kuin mallin sisällä. Älä kirjoita toista
   valintasääntöä: lämpökartta, partikkelit, kapseli, aikajana ja
   lähdemerkintä (`malliKohdassa`) lukevat kaikki `naytteista`a.
+- **EUROOPAN ALUEELLISET MALLIT OVAT VARASTON PERHEITÄ, JA ETUSIJA
+  TULEE LUETTELOSTA** (docs/eurooppa.md, S1 ja luku 12). Järjestyksen,
+  käyttöalueet ja reunojen pehmennyksen omistaa `tools/alueelliset.mjs`
+  (`ALUEELLISET`); rakentaja kirjoittaa järjestyksen luettelon
+  `perheet`-kenttään ja asiakas (`Saalaatat._alusta`) lukee sen —
+  `Saalaatat.PERHEET` on vain vanhan luettelon varatie, ja pohja on aina
+  viimeisenä. "Paras saatavilla" (`TILAT.auto`, `perheet: null`) ja
+  kortin Paras ovat KAIKKI alueelliset (`Saalaatat.alueelliset()`), ja
+  "onko tämä varaston alueellinen" kysytään `onAlueellinen`ilta: älä
+  kirjoita perheiden listaa käyttöpaikkaan (`['fmi', 'metnordic']` oli
+  kolmessa paikassa). Sääntö on TIHEIN NATIIVIHILA ENSIN, KANSALLINEN
+  TASAPELISSÄ, JA JOKAISELLA LAAJALLA MALLILLA KÄYTTÖALUE: pelkkä tiheys
+  antaisi UKV:n Osloon ja DINI:n Helsinkiin. Paino = DATAN reuna
+  (ensimmäisen hetken NaN-maski, chamfer km — AROMEn ja ICON-D2:n
+  suorakaiteesta 17 % on tyhjää) × käyttöalue (`tools/maat.json`, meri
+  lähimmälle rannikkomaalle 150 km:iin, häivytys 30 km). Uusi malli on
+  rivi taulukkoon + nimi `Lahde.NIMET`/`LYHYET`iin + lisenssi
+  Tietoa-näkymään.
+- **LISENSSI TARKISTETAAN LÄHTEESTÄ, EI OLETETA CC BY:KSI.** Met Officen
+  UKV on **CC BY-SA 4.0**: siitä johdetut laatat jaetaan samalla
+  lisenssillä, ja Tietoa-näkymä sanoo sen. Météo-France on Licence
+  Ouverte 2.0, muut Euroopan mallit CC BY 4.0 (docs/eurooppa.md 12.2).
+- **UKV:N TIEDOSTOSSA ON KAKSI SAMANNIMISTÄ LASTA** (`wind_speed_10m`,
+  `wind_direction_10m`), ja rajapinta käyttää JÄLKIMMÄISTÄ (ero
+  0,1–0,8 m/s): `viimeinen: true`. Alueellisesta mallista luetaan vain
+  rajaukseen osuva ikkuna (`geometria().ikkuna`; DINI 66 %, ICON-D2 31 %
+  hilasta).
 - **`Saalaatat.taso()` ON VAIN POHJAMALLI.** Se valitsi ennen kaikkien
   tasojen joukosta askeleella, jolloin HARMONIE oli kartalla vasta
   zoomista 10 ja lämpökartta ja lähdemerkintä olivat z9,6:lla eri

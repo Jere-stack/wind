@@ -6120,7 +6120,9 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
           <dt>ECMWF</dt>
           <dd data-en="IFS forecast (wind and, after HARMONIE, rain), open data. CC BY 4.0. Source: ECMWF.">IFS-ennuste (tuuli ja HARMONIEn jälkeen sade), avoin data. CC BY 4.0. Lähde: ECMWF.</dd>
           <dt>Deutscher Wetterdienst</dt>
-          <dd data-en="ICON forecast, open data.">ICON-ennuste, avoin data.</dd>
+          <dd data-en="ICON and ICON-D2 (2.2 km) forecasts, open data. CC BY 4.0.">ICON- ja ICON-D2 (2,2 km) -ennusteet, avoin data. CC BY 4.0.</dd>
+          <dt data-en="European weather services">Euroopan sääpalvelut</dt>
+          <dd data-en="National 1–2.5 km forecasts: Météo-France (AROME 1.3 km, Licence Ouverte 2.0), Met Office (UKV 2 km, CC BY-SA 4.0 — the weather tiles derived from it are shared under the same licence), DMI (HARMONIE DINI 2 km), MeteoSwiss (ICON-CH1 1 km and ICON-CH2 2 km), ItaliaMeteo-ARPAE (ICON-2I 2.2 km), GeoSphere Austria (AROME 2.5 km) and ČHMÚ (ALADIN 1 km and 2.3 km), CC BY 4.0. Distributed by Open-Meteo / AWS Open Data.">Kansalliset 1–2,5 km ennusteet: Météo-France (AROME 1,3 km, Licence Ouverte 2.0), Met Office (UKV 2 km, CC BY-SA 4.0 — siitä johdetut säälaatat jaetaan samalla lisenssillä), DMI (HARMONIE DINI 2 km), MeteoSwiss (ICON-CH1 1 km ja ICON-CH2 2 km), ItaliaMeteo-ARPAE (ICON-2I 2,2 km), GeoSphere Austria (AROME 2,5 km) ja ČHMÚ (ALADIN 1 km ja 2,3 km), CC BY 4.0. Jakelu Open-Meteo / AWS Open Data.</dd>
           <dt>NOAA</dt>
           <dd data-en="GFS forecast (US federal public-domain data).">GFS-ennuste (Yhdysvaltain liittovaltion julkista dataa).</dd>
           <dt>Open-Meteo</dt>
@@ -7795,9 +7797,20 @@ const Saalaatat = {
   _perheet: null,
   _pohja: null,
   /* Järjestys on etusija: ensimmäinen perhe jolla on painoa peittää
-     alemmat painonsa verran. FMI Suomessa, MET Nordic (Yr:n data)
-     Pohjoismaissa ja Baltiassa, ECMWF kaikkialla. */
+     alemmat painonsa verran. ETUSIJA TULEE LUETTELOSTA (`perheet`,
+     docs/eurooppa.md S1): rakentajan taulukko (`tools/alueelliset.mjs`)
+     omistaa Euroopan mallien järjestyksen ja käyttöalueet, ja asiakas
+     lukee sen. Tämä lista on vain vanhan luettelon varatie — FMI
+     Suomessa, MET Nordic (Yr:n data) Pohjoismaissa ja Baltiassa, ECMWF
+     kaikkialla. */
   PERHEET: ['fmi', 'metnordic', 'ecmwf'],
+  /* Varaston alueelliset perheet järjestyksessä (kaikki paitsi pohja),
+     `_alusta` täyttää. "Paras saatavilla" on nämä kaikki. */
+  _alueelliset: [],
+  alueelliset() { return this._alueelliset.slice(); },
+  /* Onko lähde varaston alueellinen perhe (tunneittainen oma akseli)?
+     Kaavio piirtää niiden jokaiselle tunnille oman pisteen. */
+  onAlueellinen(id) { return this._alueelliset.indexOf(id) >= 0; },
   /* AIKARAJAN PEHMENNYS. Alueellinen malli sekoittuu alempaan akselinsa
      alussa kahden ja lopussa kuuden tunnin matkalla — sama smoothstep
      kuin paikassa. Ilman sitä aikajanan raahaus hyppäisi mallista
@@ -7957,7 +7970,12 @@ const Saalaatat = {
         perheet.get(pid).push(t);
       }
       this._perheet = [];
-      for (const pid of this.PERHEET) {
+      /* Pohja on aina viimeisenä, vaikka luettelo sanoisi muuta: sen on
+         katettava kaikki. Perhe jota luettelon järjestys ei mainitse
+         ohitetaan, kuten ennenkin tuntematon perhe. */
+      const jarjestys = (Array.isArray(l.perheet) && l.perheet.length ? l.perheet : this.PERHEET)
+        .filter(pid => pid !== 'ecmwf').concat(['ecmwf']);
+      for (const pid of jarjestys) {
         const tasot = perheet.get(pid);
         if (!tasot || !tasot.length) continue;
         tasot.sort((a, b) => a.askel - b.askel);
@@ -7967,11 +7985,12 @@ const Saalaatat = {
              `malli`-kenttää; sen nimi on rekisterissä `laatta`. */
           malli: tasot[0].malli || (pid === 'ecmwf' ? 'laatta' : pid),
           _aikaW: 1,
-          _m: { laatta: null, la0: 0, lo0: 0, span: 0, step: -1 },
+          _m: { laatta: null, tyhja: false, la0: 0, lo0: 0, span: 0, step: -1 },
         });
       }
       this._pohja = this._perheet.find(p => p.pohja) || null;
       if (!this._pohja) throw new Error('luettelossa ei ole pohjamallia');
+      this._alueelliset = this._perheet.filter(p => !p.pohja).map(p => p.id);
       /* MALLIN OMA HILA (`MalliHila`): dynaaminen perhe ilman luettelon
          tasoja, alueellisten alla ja varaston ECMWF:n päällä. Laatan
          (näkymän alue, yksi tai useampi tunti) ja sarjan (kartan
@@ -8083,7 +8102,9 @@ const Saalaatat = {
    * Nyt jokainen tila on sama varasto ja sama `naytteista`, vain eri
    * perheet päällä:
    *
-   *   auto       FMI > MET Nordic > ECMWF 9 km > ECMWF 0,25–5°
+   *   auto       kaikki alueelliset luettelon järjestyksessä (FMI > …
+   *              Euroopan mallit … > MET Nordic …) > ECMWF 9 km >
+   *              ECMWF 0,25–5°
    *   fmi        FMI > ECMWF 9 km > ECMWF
    *   metnordic  MET Nordic > ECMWF 9 km > ECMWF
    *   ecmwf      ECMWF 9 km > ECMWF
@@ -8098,7 +8119,8 @@ const Saalaatat = {
    * rikki eikä "pakotettu" (ks. CLAUDE.md, "PAKOTETTU FMI EI OLE PELKKÄ
    * FMI"). */
   TILAT: {
-    auto:      { perheet: ['fmi', 'metnordic'], dyn: 'ecmwf' },
+    /* `null` = kaikki varaston alueelliset perheet (`_alueelliset`). */
+    auto:      { perheet: null,                 dyn: 'ecmwf' },
     fmi:       { perheet: ['fmi'],              dyn: 'ecmwf' },
     metnordic: { perheet: ['metnordic'],        dyn: 'ecmwf' },
     ecmwf:     { perheet: [],                   dyn: 'ecmwf' },
@@ -8120,7 +8142,7 @@ const Saalaatat = {
         }
         continue;
       }
-      p.pois = T.perheet.indexOf(p.id) < 0;
+      p.pois = T.perheet ? T.perheet.indexOf(p.id) < 0 : false;
     }
     for (const p of this._perheet) p._aikaW = this._hetkiMs == null ? (p.pois ? 0 : 1) : this._aikaPaino(p, this._hetkiMs);
     this._nollaaMuisti();
@@ -8486,13 +8508,22 @@ const Saalaatat = {
   _vajaa: false,
   _haePerhe(p, lat, lo, step) {
     const m = p._m;
-    if (m.laatta && step === m.step
+    /* Muisti kattaa myös PUUTTUVAN laatan (`tyhja`): Euroopassa näytteen
+       kohdalla on usein monta perhettä joilla ei ole siellä laattaa
+       (käyttöalueen ulkopuolella, docs/eurooppa.md), ja jokainen niistä
+       maksoi tason valinnan, ruudun ja merkkijonoavaimen joka näytteelle.
+       Laatan olemassaolo ei muutu luettelon aikana, ja `_nollaaMuisti`
+       mitätöi tämänkin (`step`). */
+    if ((m.laatta || m.tyhja) && step === m.step
         && lat >= m.la0 && lat < m.la0 + m.span
         && lo  >= m.lo0 && lo  < m.lo0 + m.span) return m.laatta;
     const taso = this._perheenTaso(p, lat, lo, step);
     if (!taso) return null;
     const r = this._ruutu(taso, lat, lo);
-    if (!this._onOlemassa(taso, r.la0, r.lo0)) return null;
+    if (!this._onOlemassa(taso, r.la0, r.lo0)) {
+      m.laatta = null; m.tyhja = true; m.la0 = r.la0; m.lo0 = r.lo0; m.span = taso.span; m.step = step;
+      return null;
+    }
     const avain = this._avain(taso, r.la0, r.lo0);
     const laatta = this._laatat.get(avain);
     /* Vanhentunut laatta: eri ajon aika-akseli kuin luettelossa. Osoitteet
@@ -8502,7 +8533,7 @@ const Saalaatat = {
        laatassa on 67 hetkeä ja ECMWF:n laatassa 99. */
     if (laatta && laatta.nt === (laatta._ax || this._perus).tsMs.length) {
       this._kosketa(avain, laatta);
-      m.laatta = laatta; m.la0 = r.la0; m.lo0 = r.lo0; m.span = taso.span; m.step = step;
+      m.laatta = laatta; m.tyhja = false; m.la0 = r.la0; m.lo0 = r.lo0; m.span = taso.span; m.step = step;
       return laatta;
     }
     this._vajaa = true;
@@ -8967,7 +8998,8 @@ const Saalaatat = {
    *             sarja loppuu mallin jakson päässä eikä jatku hiljaa
    *             ECMWF:nä.
    *
-   *   opts.perheet  varaston perheet (`fmi`, `metnordic`) jotka ovat
+   *   opts.perheet  varaston perheet (`fmi`, `metnordic`, Euroopan
+   *                 mallit; "Paras" = `alueelliset()`) jotka ovat
    *                 mukana; muut pois. Puuttuva = kartan tila.
    *   opts.dyn      `{ api, sarja }` mallin omalle hilalle, `null` = pois.
    *   opts.pohja    false = varaston ECMWF pois.
@@ -9710,7 +9742,8 @@ const MalliHila = {
       && w >= nyk.lo0 - 1e-6 && e <= nyk.lo1 + 1e-6 && Math.abs(nyk.askel - askel) < 1e-9;
     if (kattaaAlueen && (paketti ? this._riittaa(nyk, hetki) : nyk.t === hetki)) return;
     if (!paketti) {
-      /* Peittääkö FMI tai MET Nordic koko NÄKYVÄN alueen tälle hetkelle?
+      /* Peittääkö varaston alueellinen malli (FMI, MET Nordic, Euroopan
+         mallit) koko NÄKYVÄN alueen tälle hetkelle?
          Näkyvä eikä pehmustettu: pehmusteen laatat eivät ole vielä
          muistissa kun tämä ajetaan, ja tuntematon luetaan peittämättömäksi
          (mitattu: Helsingin z10-näkymä haki kentän turhaan). Näkymän
@@ -9723,7 +9756,7 @@ const MalliHila = {
       for (const fy of [0.02, 0.5, 0.98]) for (const fx of [0.02, 0.5, 0.98]) {
         if (!peitetty) break;
         const o = Saalaatat.malliKohdassa(b.getSouth() + vLat * fy, b.getWest() + vLng * fx, st2, hetki);
-        if (!o || !o.length || (o[0].perhe !== 'fmi' && o[0].perhe !== 'metnordic') || o[0].osuus < 0.999) peitetty = false;
+        if (!o || !o.length || !Saalaatat.onAlueellinen(o[0].perhe) || o[0].osuus < 0.999) peitetty = false;
       }
       if (peitetty) { this.tilasto.ohitettu++; return; }
     }
@@ -22010,7 +22043,10 @@ const KorttiSarjat = {
     { id: 'gfs',       nimi: 'GFS',        lahde: 'gfs',       vari: '#C6A6F7', viiva: '1.5,3', ala: 'NOAA · 13 km' },
   ],
   /* Kaavion pohjaksi valittavat: Paras (sekoitus) ja jokainen malli. */
-  PARAS: { id: 'paras', nimi: _t('Paras saatavilla', 'Best available'), lyhyt: _t('Paras', 'Best'), vari: '#F0E7CE', viiva: '', ala: 'FMI · MET Nordic · ECMWF' },
+  /* Alarivi ei luettele malleja: Euroopassa paikan malli vaihtelee
+     (AROME, ICON-D2, UKV, DINI …), ja kaavion lähdekaista kertoo
+     tunneittain mistä luku tulee. */
+  PARAS: { id: 'paras', nimi: _t('Paras saatavilla', 'Best available'), lyhyt: _t('Paras', 'Best'), vari: '#F0E7CE', viiva: '', ala: _t('Paikan tarkin malli tunneittain', 'Most detailed local model, hour by hour') },
   pohja(id) { return id === 'paras' ? this.PARAS : this.malli(id); },
   malli(id) { return this.MALLIT.find(m => m.id === id) || null; },
   /* Kortti lukee hienointa tasoa: spotti on piste, ei näkymä. */
@@ -22088,12 +22124,12 @@ const KorttiSarjat = {
       lupaus = Promise.resolve(id === 'paras' ? valmis(this._spotista(spot)) : null);
     } else if (id === 'paras') {
       lupaus = Saalaatat.varmistaPiste(lat, lng, A, true).then(function () {
-        const ensin = Saalaatat.wxTunneittain(lat, lng, A, { perheet: ['fmi', 'metnordic'], dyn: null, lahteet: true });
+        const ensin = Saalaatat.wxTunneittain(lat, lng, A, { perheet: Saalaatat.alueelliset(), dyn: null, lahteet: true });
         if (ensin) { const s = self._varastosta('paras', ensin); s.kesken = true; valmis(s); }
         return MalliHila.pisteenSarja('ecmwf', lat, lng);
       }).then(function (sa) {
         const wx = Saalaatat.wxTunneittain(lat, lng, A,
-          { perheet: ['fmi', 'metnordic'], dyn: sa ? { api: 'ecmwf', sarja: sa } : null, lahteet: true });
+          { perheet: Saalaatat.alueelliset(), dyn: sa ? { api: 'ecmwf', sarja: sa } : null, lahteet: true });
         return valmis(wx ? self._varastosta('paras', wx) : self._spotista(spot));
       });
     } else {
@@ -22286,14 +22322,16 @@ const Tuulikaavio = {
   },
   /* Onko hetki lähteen OMA solmu (ei tuntiin interpoloitu)? Lähizoomissa
    * vain omat solmut saavat pisteen. Tunneittaiset lähteet (FMI, MET
-   * Nordic, Open-Meteo) ovat aina; ECMWF tunneittain noin +90 h asti,
+   * Nordic, Euroopan alueelliset mallit, Open-Meteo) ovat aina; ECMWF
+   * tunneittain noin +90 h asti,
    * sitten 3 h ja +144 h:sta 6 h (docs/mallit.md, V5). Ajon alkua ei
    * tunneta, joten rajat luetaan nyt-hetkestä (ajo alkaa 0–12 h
    * aiemmin): raja-alueella piste voi olla tunnin–kaksi väärässä
    * paikassa, mutta ei koskaan koristeena keksitty. Solmut ovat UTC-
    * tunnin monikertoja (ajot 00/06/12/18Z). */
   _natiivi(lahde, t, nyt) {
-    if (lahde == null || lahde === 'fmi' || lahde === 'metnordic' || lahde === 'om') return true;
+    if (lahde == null || lahde === 'fmi' || lahde === 'metnordic' || lahde === 'om'
+        || Saalaatat.onAlueellinen(lahde)) return true;
     const dh = (t - nyt) / 36e5, utc = new Date(t).getUTCHours();
     if (lahde === 'laatta') return dh < 138 ? utc % 3 === 0 : utc % 6 === 0;
     /* ecmwf9, icon, icon_eu, gfs */
@@ -23029,7 +23067,7 @@ const Tuulikaavio = {
            aikarivillä ("FMI HARMONIE 2,5 km · ajo klo 09:00"), ja lähde
            oli kortilla neljästi (P15, kohta 6). */
         const ajo = (o.ajot && typeof Lahde !== 'undefined') ? Lahde.ajoTeksti(avain) : '';
-        const nimi = (typeof Lahde !== 'undefined' && Lahde.LYHYET[avain]) || avain;
+        const nimi = (typeof Lahde !== 'undefined' && Lahde.lyhyt(avain)) || avain;
         lahdeRivi += '<line x1="' + xa.toFixed(1) + '" x2="' + xa.toFixed(1) + '" y1="' + (lahdeY + 2) + '" y2="' + (lahdeY + lahdeH - 1)
           + '" stroke="' + this.INK3 + '" stroke-width="1"/>';
         const muodot = ajo ? [nimi + ' · ' + ajo, nimi] : [nimi];
@@ -30548,7 +30586,20 @@ const Lahde = {
     ecmwf9: 'ECMWF IFS 9 km',
     icon_eu: 'DWD ICON-EU 7 km',
     icon: 'DWD ICON 13 km',
-    gfs: 'NOAA GFS 13 km'
+    gfs: 'NOAA GFS 13 km',
+    /* Euroopan kansalliset mallit varastossa (docs/eurooppa.md, S1).
+       Avain on rakentajan perhe (`tools/alueelliset.mjs`). Mallien ja
+       laitosten nimiä ei käännetä, vain desimaalierotin. */
+    aladin_cz: 'ČHMÚ · ALADIN 1 km',
+    icon_ch1: 'MeteoSwiss · ICON-CH1 1 km',
+    ukv: 'Met Office · UKV 2 km',
+    arome_hd: _t('Météo-France · AROME 1,3 km', 'Météo-France · AROME 1.3 km'),
+    dini: 'DMI · HARMONIE DINI 2 km',
+    icon_ch2: 'MeteoSwiss · ICON-CH2 2 km',
+    icon_d2: _t('DWD · ICON-D2 2,2 km', 'DWD · ICON-D2 2.2 km'),
+    icon_2i: _t('ItaliaMeteo · ICON-2I 2,2 km', 'ItaliaMeteo · ICON-2I 2.2 km'),
+    arome_at: _t('GeoSphere Austria · AROME 2,5 km', 'GeoSphere Austria · AROME 2.5 km'),
+    aladin_ce: _t('ČHMÚ · ALADIN 2,3 km', 'ČHMÚ · ALADIN 2.3 km')
   },
   /* SAMAT LÄHTEET LYHYESSÄ MUODOSSA — samasta objektista, ei omasta
      taulukostaan. Kaavion selite ja työkaluvihje eivät mahduta
@@ -30564,7 +30615,31 @@ const Lahde = {
     ecmwf9: 'ECMWF 9 km',
     icon_eu: 'ICON-EU 7 km',
     icon: 'ICON 13 km',
-    gfs: 'GFS 13 km'
+    gfs: 'GFS 13 km',
+    aladin_cz: 'ALADIN 1 km',
+    icon_ch1: 'ICON-CH1 1 km',
+    ukv: 'UKV 2 km',
+    arome_hd: _t('AROME 1,3 km', 'AROME 1.3 km'),
+    dini: 'DINI 2 km',
+    icon_ch2: 'ICON-CH2 2 km',
+    icon_d2: _t('ICON-D2 2,2 km', 'ICON-D2 2.2 km'),
+    icon_2i: _t('ICON-2I 2,2 km', 'ICON-2I 2.2 km'),
+    arome_at: _t('AROME AT 2,5 km', 'AROME AT 2.5 km'),
+    aladin_ce: _t('ALADIN 2,3 km', 'ALADIN 2.3 km')
+  },
+  /* Perhe jota rekisteri ei vielä tunne (uudempi varasto kuin sivu):
+     nimi luettelon tason `lahde`sta ilman jakelutietoja, ettei merkintä
+     sano sen kohdalla ECMWF:ää. */
+  nimi(malli) {
+    if (this.NIMET[malli]) return this.NIMET[malli];
+    const l = typeof Saalaatat !== 'undefined' && Saalaatat._luettelo;
+    const t = l && l.lisatasot && l.lisatasot.find(x => x.malli === malli && x.lahde);
+    return t ? t.lahde.split(' · ').slice(0, 2).join(' · ') : (malli || this.NIMET.laatta);
+  },
+  lyhyt(malli) {
+    if (this.LYHYET[malli]) return this.LYHYET[malli];
+    const n = this.nimi(malli), i = n.indexOf(' · ');
+    return i > 0 ? n.slice(i + 3) : n;
   },
   alusta() {
     this._el = document.getElementById('lahde-merkki');
@@ -30589,8 +30664,8 @@ const Lahde = {
      selitteessä, jossa lähde vaihtuu kesken sarjan. */
   nimiOsuuksista(o) {
     const a = o[0], b = o[1];
-    if (!b || a.osuus >= 0.95) return this.NIMET[a.malli] || this.NIMET.laatta;
-    return (this.LYHYET[a.malli] || a.malli) + ' → ' + (this.LYHYET[b.malli] || b.malli) + _t(' (raja-alue)', ' (blend zone)');
+    if (!b || a.osuus >= 0.95) return this.nimi(a.malli);
+    return this.lyhyt(a.malli) + ' → ' + this.lyhyt(b.malli) + _t(' (raja-alue)', ' (blend zone)');
   },
   paivita(center) {
     if (!this._el || !State.map) return;
@@ -32509,6 +32584,8 @@ const KarttaAsetukset = {
   MALLI_KUVAUS: _t({
     auto: 'Tarkin malli kussakin paikassa: FMI HARMONIE Suomessa noin kolme '
       + 'vuorokautta eteenpäin, MET Nordic (Yr) Pohjoismaissa ja Baltiassa, '
+      + 'muualla Euroopassa maan oma 1–2,5 km malli (esimerkiksi AROME Ranskassa, '
+      + 'ICON-D2 Saksassa, UKV Brittein saarilla, DINI Tanskassa ja Hollannissa), '
       + 'muualla ja pidemmälle ECMWF.',
     fmi: 'Ilmatieteen laitoksen HARMONIE, 2,5 km. Suomi ja lähialueet noin '
       + 'kolme vuorokautta; sen ulkopuolella ECMWF.',
@@ -32522,7 +32599,9 @@ const KarttaAsetukset = {
   }, {
     auto: 'The most accurate model in each place: FMI HARMONIE in Finland about three '
       + 'days ahead, MET Nordic (Yr) in the Nordics and the Baltics, '
-      + 'ECMWF elsewhere and further ahead.',
+      + 'elsewhere in Europe the country’s own 1–2.5 km model (for example AROME in '
+      + 'France, ICON-D2 in Germany, UKV in the British Isles, DINI in Denmark and the '
+      + 'Netherlands), ECMWF elsewhere and further ahead.',
     fmi: 'The Finnish Meteorological Institute’s HARMONIE, 2.5 km. Finland and nearby '
       + 'areas for about three days; ECMWF beyond that.',
     metnordic: 'MET Nordic (Yr), 1 km, corrected with observations. The Nordics and '

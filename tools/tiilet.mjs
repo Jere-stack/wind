@@ -5,12 +5,16 @@
    (s3://openmeteo, CC BY 4.0, ei tunnistautumista, ei kiintiötä) ja
    kirjoittaa siitä laatat joita sovellus lataa suoraan.
 
-   KOLME MALLIA, JOKAINEN OMANA PYRAMIDINAAN (docs/mallit.md):
+   MALLIT, JOKAINEN OMANA PYRAMIDINAAN (docs/mallit.md, docs/eurooppa.md):
    - ECMWF IFS 0,25° koko maapallolle (tasot l0–l4) — pohja joka on aina.
    - FMI HARMONIE 2,5 km Suomeen ja sen ympärille (h0–h3,
      `tools/harmonie.mjs`).
    - MET Nordic 1 km eli Yr:n data Pohjoismaihin ja Baltiaan, myös
      menneisyyteen (n0–n3, `tools/metnordic.mjs`).
+   - Euroopan kymmenen kansallista 1–2,5 km mallia (AROME, ICON-D2, UKV,
+     DINI, ICON-CH1/CH2, ICON-2I, AROME Itävalta, ALADIN CE/CZ), kukin
+     käyttöalueellaan (`tools/alueelliset.mjs`, tasot `<id>0`–`<id>3`).
+   Järjestys on luettelon `perheet`-listassa, ja asiakas lukee sen sieltä.
    Alueellisilla malleilla on OMA tuntiakselinsa ja laatoissa PAINOKANAVA,
    jolla asiakas sekoittaa ne alempaan malliin pehmeästi
    (`tools/pyramidi.mjs`). Karkeat tasot ovat kaikissa suodatettuja
@@ -41,6 +45,7 @@ import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { haeHarmonie, harmonieAjot } from './harmonie.mjs';
 import * as MetNordic from './metnordic.mjs';
+import * as Alueelliset from './alueelliset.mjs';
 import { rakennaAallot } from './wam.mjs';
 import {
   N, TYHJA, NOP_ASKEL, SUUNTA_ASKEL, OTSAKE,
@@ -82,11 +87,13 @@ const SRC = { lat0: -90, lng0: -180, step: 0.25, ny: 721, nx: 1440 };
    yksi laatta) ja kallis kaukana. Siksi oikea kysymys ei ole "paljonko
    tilaa on" vaan "mitä tarkkuutta mikin zoom oikeasti käyttää".
 
-   l0 KATTAA MET NORDICIN YMPÄRISTÖN, ei vain Suomea. MET Nordic
-   sekoittuu reunoillaan ECMWF:ään, ja sekoitusvyöhykkeellä ECMWF:n pitää
-   olla sen hienoin taso — muuten raja-alue olisi 0,5 asteen kenttää 1 km
-   mallin vieressä. Alue on MET Nordicin lat/lon-rajaus (52–74°,
-   −12…42°) pyöristettynä laattoihin.
+   l0 KATTAA ALUEELLISTEN MALLIEN YMPÄRISTÖN, ei vain Suomea. Alueellinen
+   malli sekoittuu reunoillaan ECMWF:ään, ja sekoitusvyöhykkeellä ECMWF:n
+   pitää olla sen hienoin taso — muuten raja-alue olisi 0,5 asteen
+   kenttää 1 km mallin vieressä. Alue oli MET Nordicin lat/lon-rajaus
+   (50–75°, −15…45°, 60 laattaa); Euroopan malleille (docs/eurooppa.md)
+   se on koko Eurooppa Kanariansaarista ja Azoreilta Islantiin (25–75°,
+   −35…45°, 160 laattaa).
 
    Sen sijaan ULOIN näkymä näyttää aina ison siivun maailmaa, ja siellä
    hilaväli on 1,25° eli taso l2. Siksi **l2 on nyt globaali**: se on se
@@ -99,7 +106,7 @@ const SRC = { lat0: -90, lng0: -180, step: 0.25, ny: 721, nx: 1440 };
    13 %, aikadelta 6 % ja molemmat yhdessä 13 %. Data on jo lähellä
    entropiaansa, koska arvot on kvantisoitu tavuun.                     */
 const TASOT = [
-  { id: 'l0', askel: 0.25, lat: [50, 75],  lng: [-15, 45]  },  /* Pohjoismaat + Baltia */
+  { id: 'l0', askel: 0.25, lat: [25, 75],  lng: [-35, 45]  },  /* Eurooppa             */
   { id: 'l1', askel: 0.5,  lat: [28, 80],  lng: [-45, 65]  },  /* Eurooppa + Atlantti */
   { id: 'l2', askel: 1.0,  lat: [-90, 90], lng: [-180, 180]},  /* koko maailma        */
   { id: 'l3', askel: 2.5,  lat: [-90, 90], lng: [-180, 180]},  /* koko maailma        */
@@ -314,6 +321,13 @@ const MENNEISYYS_H = +(process.env.MENNEISYYS_H || 48);
    (mitattu 6 s / hetki), joten rinnakkaisuus on ECMWF:ää pienempi:
    jokainen lukija pitää kolmea 4,2 M pisteen kenttää muistissa. */
 const MN_RINNAKKAIN = +(process.env.MN_RINNAKKAIN || 4);
+/* EUROOPAN ALUEELLISET MALLIT (docs/eurooppa.md, V1). Menneisyys on
+   24 h eikä 48 (päätös P2: puolet koosta); FMI ja MET Nordic kattavat
+   Suomen menneisyyden kuten ennenkin. `EU_MALLIT=arome_hd,dini` rajaa
+   perheet (mittausta varten), `EUROOPPA=0` ohittaa kaikki. */
+const EU_MENNEISYYS_H = +(process.env.EU_MENNEISYYS_H || 24);
+const EU_RINNAKKAIN = +(process.env.EU_RINNAKKAIN || RINNAKKAIN);
+const EU_MAX_ASKELTA = +(process.env.EU_MAX_ASKELTA || MAX_ASKELTA);
 
 rmSync(ULOS, { recursive: true, force: true });
 mkdirSync(ULOS, { recursive: true });
@@ -561,8 +575,18 @@ if (process.env.METNORDIC !== '0') {
     if (MAX_ASKELTA > 0) hetket = hetket.slice(0, MAX_ASKELTA);
     console.log(`  ajo ${new Date(ax.ajo).toISOString()}, ${hetket.length} hetkeä`);
     const geom = MetNordic.saannollinenHila(MN_HILA_ASKEL);
+    /* KÄYTTÖALUE (docs/eurooppa.md, S1): Lambert-alue ulottuu Tanskaan,
+       Pohjois-Saksaan, Puolaan ja Britannian itärannikolle, joissa on nyt
+       oma kansallinen mallinsa. Paino = hilan reuna × käyttöalue. */
+    const mnRivi = Alueelliset.ALUEELLISET.find(m => m.perhe === 'metnordic');
+    let mnPaino = MetNordic.paino;
+    if (mnRivi && mnRivi.alue && process.env.EUROOPPA !== '0') {
+      const wK = Alueelliset.kayttoPaino(geom, mnRivi.alue, mnRivi.avomeri);
+      const fK = Alueelliset.painoFunktio(geom, wK);
+      mnPaino = (lat, lng) => MetNordic.paino(lat, lng) * fK(lat, lng);
+    }
     const tasotMN = MN_TASOT_POHJA.map((askel, i) => ({
-      id: 'n' + i, askel, lat: geom.lat, lng: geom.lng, paino: MetNordic.paino,
+      id: 'n' + i, askel, lat: geom.lat, lng: geom.lng, paino: mnPaino,
     }));
     const mn = luoPyramidi(tasotMN, hetket.length);
     const ok = [];
@@ -597,6 +621,92 @@ if (process.env.METNORDIC !== '0') {
 }
 
 /* ==================================================================
+   Euroopan alueelliset mallit (`tools/alueelliset.mjs`).
+
+   Jokainen omassa try/catchissaan kuten FMI ja MET Nordic: yhden mallin
+   vika (Open-Meteon peili, muuttunut hila) ei estä muiden julkaisua, ja
+   asiakas sekoittaa sen paikalle seuraavan perheen järjestyksessä.
+
+   PAINO = DATAN REUNA × KÄYTTÖALUE. Datan reuna luetaan ensimmäisen
+   onnistuneen hetken kentästä (AROMEn ja ICON-D2:n säännöllisen hilan
+   kulmat ovat NaN:ia), joten se luetaan ennen pyramidin luontia ja muut
+   hetket sen jälkeen rinnakkain. */
+const euTilasto = [];
+if (process.env.EUROOPPA !== '0') {
+  const vain = process.env.EU_MALLIT ? new Set(process.env.EU_MALLIT.split(',')) : null;
+  for (const m of Alueelliset.ALUEELLISET) {
+    if (m.erillinen || (vain && !vain.has(m.perhe))) continue;
+    const alkoi = Date.now();
+    try {
+      console.log(`\n${m.perhe} (${m.s3}):`);
+      const ax = await Alueelliset.akseli(m, EU_MENNEISYYS_H);
+      let hetket = ax.hetket;
+      if (EU_MAX_ASKELTA > 0) hetket = hetket.slice(0, EU_MAX_ASKELTA);
+      const g = Alueelliset.geometria(m);
+      const ik = g.ikkuna;
+      console.log(`  ajo ${new Date(ax.ajo).toISOString()}, ${hetket.length} hetkeä, `
+        + `rajaus ${g.lat.join('…')} N ${g.lng.join('…')} E, ikkuna ${ik.i1 - ik.i0} x ${ik.j1 - ik.j0}`
+        + ` / ${m.hila.nx} x ${m.hila.ny}`);
+      let ensin = -1, k0 = null;
+      for (let i = 0; i < Math.min(3, hetket.length) && !k0; i++) {
+        try { k0 = await Alueelliset.lueHetki(m, g, hetket[i]); ensin = i; }
+        catch (e) { console.warn(`  ! ${new Date(hetket[i].ms).toISOString()}: ${e.message}`); }
+      }
+      if (!k0) throw new Error('kolme ensimmäistä hetkeä epäonnistui');
+      const wR = Alueelliset.reunaPaino(m, g, Alueelliset.nopeus(m, k0));
+      const wK = Alueelliset.kayttoPaino(g, m.alue, m.avomeri);
+      const w = new Float32Array(wR.length);
+      for (let s = 0; s < w.length; s++) w[s] = wR[s] * wK[s];
+      const pf = Alueelliset.painoFunktio(g, w);
+      const pyr = luoPyramidi(Alueelliset.TASOT_POHJA.map((askel, i) => ({
+        id: m.id + i, askel, lat: g.lat, lng: g.lng, paino: pf,
+      })), hetket.length);
+      kirjoitaHetki(pyr, ensin, Alueelliset.hilaksi(m, g, k0));
+      const ok = [ensin];
+      let n = 1;
+      const loput = hetket.map((h, i) => i).filter(i => i !== ensin);
+      await rinnakkain(loput, EU_RINNAKKAIN, async (ti) => {
+        let k;
+        try { k = await Alueelliset.lueHetki(m, g, hetket[ti]); }
+        catch (e) { console.warn(`  ! ${new Date(hetket[ti].ms).toISOString()}: ${e.message}`); return; }
+        kirjoitaHetki(pyr, ti, Alueelliset.hilaksi(m, g, k));
+        ok.push(ti);
+        if (++n % 24 === 0) console.log(`  ${n}/${hetket.length} hetkeä  ${aika()}`);
+      });
+      if (ok.length < 6) throw new Error(`vain ${ok.length} hetkeä luettiin`);
+      ok.sort((a, b) => a - b);
+      if (ok.length < hetket.length) tiivistaAika(pyr, ok);
+      const eAjat = ok.map(i => hetket[i].ms);
+      const ennen = tavujaPakattu;
+      let laattoja = 0;
+      for (const taso of pyr) {
+        const laatat = kirjoitaTaso(taso, eAjat.length, eAjat[0], 3600);
+        if (!laatat.length) continue;
+        laattoja += laatat.length;
+        luettelo.lisatasot.push(rivi(taso, laatat, {
+          ajat: eAjat, nt: eAjat.length, t0: eAjat[0], dtSek: 3600,
+          malli: m.perhe, perhe: m.perhe, lahde: m.lahde,
+          ajoAika: new Date(ax.ajo).toISOString(),
+          paino: true, vainKartta: true,
+        }));
+      }
+      const s = (Date.now() - alkoi) / 1000;
+      euTilasto.push({ perhe: m.perhe, hetkia: ok.length, kaikkiaan: hetket.length, laattoja,
+                       mb: (tavujaPakattu - ennen) / 1e6, s });
+      console.log(`  ${ok.length}/${hetket.length} hetkeä  ${new Date(eAjat[0]).toISOString()} .. `
+        + `${new Date(eAjat[eAjat.length - 1]).toISOString()}  ${s.toFixed(0)} s`);
+    } catch (e) {
+      euTilasto.push({ perhe: m.perhe, virhe: e.message, s: (Date.now() - alkoi) / 1000 });
+      console.warn(`  ! ${m.perhe}-tasot jäivät pois: ${e.message}`);
+    }
+  }
+}
+/* JÄRJESTYS LUETTELOON: asiakas lukee perheiden etusijan tästä
+   (`Saalaatat._alusta`), ja vanha asiakas joka ei tunne kenttää käyttää
+   omaa listaansa ja ohittaa tuntemattomat perheet. */
+luettelo.perheet = Alueelliset.JARJESTYS;
+
+/* ==================================================================
    FMI WAM — aaltoennuste (`tools/wam.mjs`). Oma luetteloavaimensa
    (`aallot`), ei tuulen perhe. Omassa try/catchissaan: aaltojen vika ei
    estä tuulen julkaisua. */
@@ -614,4 +724,8 @@ console.log(`\nvalmis: ${laattojaYht} laattaa`);
 console.log(`  raaka   ${(tavujaRaaka/1e6).toFixed(2)} MB`);
 console.log(`  gzip    ${(tavujaPakattu/1e6).toFixed(2)} MB  (${(100*tavujaPakattu/tavujaRaaka).toFixed(0)} %)`);
 console.log(`  ECMWF-hetkiä  ${ecmwfOk.length}/${ecmwfOk.length + puuttuvat}${puuttuvat ? ` (${puuttuvat} puuttui)` : ''}`);
+for (const t of euTilasto) {
+  console.log(`  ${t.perhe.padEnd(10)} ` + (t.virhe ? `POIS: ${t.virhe}`
+    : `${t.hetkia}/${t.kaikkiaan} h, ${t.laattoja} laattaa, ${t.mb.toFixed(1)} MB, ${t.s.toFixed(0)} s`));
+}
 console.log(`  aika    ${aika()}`);
