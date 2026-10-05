@@ -17,6 +17,13 @@
  *   gfs    NOAA GFS 13 km. Tuuli on `ncep_gfs013`:ssa (Gaussin N768-hila)
  *          mutta puuska vain `ncep_gfs025`:ssä (0,25°), joten puuska
  *          luetaan eri hilasta.
+ *   <perhe>  Euroopan alueellinen malli OMALLA HILALLAAN (`arome_hd`,
+ *          `icon_d2`, `ukv`, `dini`, …, `metnordic`; docs/eurooppa.md V2):
+ *          lähizoomin natiivikenttä (askel 0,01–0,025°) ja sen sarja.
+ *          Taulukko, projektiot ja tarkkuudet ovat samat kuin varaston
+ *          rakentajalla (`tools/alueelliset.mjs`), joten natiivikenttä on
+ *          varaston perheen saman mallin tarkempi näyte. Paino (datan reuna
+ *          ja käyttöalue) tulee sovelluksessa varaston laatoista, ei täältä.
  *
  * KAKSI LÄHDETTÄ, KAKSI MUOTOA:
  *   kenttä  `data_spatial/<lähde>/<ajo>/<hetki>.om` — yksi tiedosto per
@@ -32,6 +39,7 @@
 
 import { OmFileReader, OmHttpBackend, OmDataType } from '@openmeteo/file-reader';
 import { suojaa } from './_suoja.js';
+import { ALUEELLISET, hilanIndeksi } from '../tools/alueelliset.mjs';
 
 const S3 = 'https://openmeteo.s3.amazonaws.com';
 const NOP_ASKEL = 0.2, SUUNTA_ASKEL = 2, TYHJA = 255;
@@ -167,6 +175,65 @@ function saannollinen({ la0, dy, lo0, dx, ny, nx, gauss, globaali }) {
   };
 }
 
+/* Alueellisen mallin hila (`tools/alueelliset.mjs`): säännöllinen tai
+ * projektio (Lambert, LAEA, kierretty napa). Murtoindeksi käänteisestä
+ * projektiosta (`hilanIndeksi`), bilineaarinen indeksiavaruudessa, ja
+ * ikkuna rajauksen reunoilta näytteistettynä (Lambert-hilan rivit ovat
+ * kaarevia, joten pelkät kulmat eivät riitä). Alueen ulkopuoli on tyhjä,
+ * eikä reunaa painoteta täällä: sovellus kertoo arvon varaston laatan
+ * painolla. */
+function projektioHila(spec) {
+  const idx = hilanIndeksi(spec), nx = spec.nx, ny = spec.ny;
+  const paikkaFn = (r0, r1, c0, c1) => {
+    const wc = c1 - c0 + 1;
+    return (a) => {
+      const r = Math.floor(a / nx), c = a - r * nx;
+      return r < r0 || r > r1 || c < c0 || c > c1 ? -1 : (r - r0) * wc + (c - c0);
+    };
+  };
+  return {
+    naapurit(la, lo) {
+      const [fi, fj] = idx(la, lo);
+      if (!(fi >= 0 && fj >= 0 && fi <= nx - 1 && fj <= ny - 1)) return [];
+      const c0 = Math.min(nx - 2, Math.floor(fi)), r0 = Math.min(ny - 2, Math.floor(fj));
+      const fx = fi - c0, fy = fj - r0, out = [];
+      for (const [r, wy] of [[r0, 1 - fy], [r0 + 1, fy]]) {
+        if (wy <= 0) continue;
+        for (const [c, wx] of [[c0, 1 - fx], [c0 + 1, fx]]) if (wx > 0) out.push([r * nx + c, wy * wx]);
+      }
+      return out;
+    },
+    ikkuna(s, n, w, e) {
+      let r0 = Infinity, r1 = -Infinity, c0 = Infinity, c1 = -Infinity;
+      const N = 32;
+      for (let k = 0; k <= N; k++) {
+        const f = k / N;
+        for (const [la, lo] of [[s, w + (e - w) * f], [n, w + (e - w) * f], [s + (n - s) * f, w], [s + (n - s) * f, e]]) {
+          const [fi, fj] = idx(la, lo);
+          if (fi < c0) c0 = fi; if (fi > c1) c1 = fi;
+          if (fj < r0) r0 = fj; if (fj > r1) r1 = fj;
+        }
+      }
+      if (c1 < -1 || r1 < -1 || c0 > nx || r0 > ny) return null;
+      r0 = Math.max(0, Math.floor(r0) - 1); r1 = Math.min(ny - 1, Math.ceil(r1) + 1);
+      c0 = Math.max(0, Math.floor(c0) - 1); c1 = Math.min(nx - 1, Math.ceil(c1) + 1);
+      if (r1 < r0 || c1 < c0) return null;
+      return { ranges: [{ start: r0, end: r1 + 1 }, { start: c0, end: c1 + 1 }],
+               avain: r0 + '_' + r1 + '_' + c0 + '_' + c1, paikka: paikkaFn(r0, r1, c0, c1) };
+    },
+    lohkot(avaimet) {
+      if (!avaimet.length) return [];
+      let r0 = ny, r1 = -1, c0 = nx, c1 = -1;
+      for (const a of avaimet) {
+        const r = Math.floor(a / nx), c = a - r * nx;
+        r0 = Math.min(r0, r); r1 = Math.max(r1, r); c0 = Math.min(c0, c); c1 = Math.max(c1, c);
+      }
+      return [{ ranges: [{ start: r0, end: r1 + 1 }, { start: c0, end: c1 + 1 }], paikka: paikkaFn(r0, r1, c0, c1) }];
+    },
+    alue: null,
+  };
+}
+
 /* -- LÄHTEET ----------------------------------------------------------
  *
  * `ajoVali` on ajojen väli tunteina: ICON-EU:lla kolme, koska sen
@@ -194,6 +261,27 @@ const MALLIT = {
   icon:  [{ lahde: 'dwd_icon_eu' }, { lahde: 'dwd_icon' }],
   gfs:   [{ lahde: 'ncep_gfs013', puuska: 'ncep_gfs025' }],
 };
+
+/* EUROOPAN ALUEELLISET MALLIT OMALLA HILALLAAN (docs/eurooppa.md, V2).
+   `sd`-malleilla tiedostossa on nopeus ja suunta eikä u/v (UKV, DINI,
+   ICON-2I, AROME Itävalta, ALADIN, MET Nordic; mitattu S3:sta 5.10.), ja
+   lukija kääntää ne vektoreiksi (`uv`). Kenttä ja sarja ovat yksiosaisia:
+   painon antaa sovellus. `NATIIVI` = perhe -> pienin sallittu askel. */
+const NATIIVI = new Map();
+for (const m of ALUEELLISET) {
+  if (!m.s3 || !m.hila || !m.sarjaTunnit) continue;
+  const sd = m.kentat === 'sd';
+  LAHTEET[m.s3] = { id: m.s3, hila: projektioHila(m.hila), ajoVali: m.ajoVali, sarjaTunnit: m.sarjaTunnit,
+                    u: sd ? 'wind_speed_10m' : U, v: sd ? 'wind_direction_10m' : V, g: G, sd };
+  MALLIT[m.perhe] = [{ lahde: m.s3 }];
+  NATIIVI.set(m.perhe, m.natiivi || 0.02);
+}
+/* Tiedoston kaksi lukua tuulivektoriksi: u/v sellaisenaan, nopeus ja
+   suunta (MISTÄ) meteorologisesti: u = −s·sin d, v = −s·cos d. */
+function uv(L, p, q) {
+  if (!Number.isFinite(p) || !Number.isFinite(q)) return null;
+  return L.sd ? { u: -p * Math.sin(q * RAD), v: -p * Math.cos(q * RAD) } : { u: p, v: q };
+}
 
 /* -- AJOT --------------------------------------------------------------
  *
@@ -310,7 +398,8 @@ class Esiluku {
    yhä lukea sitä (funktion katto on 30 s). */
 /* Pidettävät muuttujat: tuuli ja (sadetilan jatkoennuste, `muuttuja=sade`)
    ECMWF:n sademäärä. */
-const TUULI_NIMET = new Set(['wind_u_component_10m', 'wind_v_component_10m', 'wind_gusts_10m', 'precipitation']);
+const TUULI_NIMET = new Set(['wind_u_component_10m', 'wind_v_component_10m', 'wind_gusts_10m', 'precipitation',
+  'wind_speed_10m', 'wind_direction_10m']);
 const avoimet = new Map();
 function avaa(url) {
   const vanha = avoimet.get(url);
@@ -327,9 +416,15 @@ function avaa(url) {
     if (hi > lo && hi - lo < 4e6) await B.esilataa(lo, hi - lo);
     const kaikki = await Promise.all(Array.from({ length: n }, (_, i) => reader.getChild(i)));
     const lapset = {};
+    /* Saman nimen lapsista JÄLKIMMÄINEN: UKV:n tiedostossa nopeus ja
+       suunta ovat kahdesti, ja rajapinta käyttää jälkimmäistä
+       (docs/eurooppa.md 3.2, `viimeinen`). Muilla nimet ovat yksilöllisiä. */
     for (const c of kaikki) {
       if (!c) continue;
-      if (TUULI_NIMET.has(c.getName())) lapset[c.getName()] = c; else c.dispose();
+      const nimi = c.getName();
+      if (!TUULI_NIMET.has(nimi)) { c.dispose(); continue; }
+      if (lapset[nimi]) lapset[nimi].dispose();
+      lapset[nimi] = c;
     }
     B.alue = null;
     return { reader, lapset };
@@ -448,7 +543,8 @@ async function kentta(q) {
   const ennen = kokonaisluku(q.ennen, 0, 6, 0), jalkeen = kokonaisluku(q.jalkeen, 0, 6, 0);
   const s = Math.max(-89.9, Number(q.s)), n = Math.min(89.9, Number(q.n));
   const w = Number(q.w), e = Number(q.e);
-  const askel = Math.min(1, Math.max(0.05, Number(q.askel) || 0.1));
+  const natiivi = NATIIVI.has(q.malli);
+  const askel = Math.min(1, Math.max(natiivi ? 0.01 : 0.05, Number(q.askel) || 0.1));
   if (![tKeski, s, n, w, e].every(Number.isFinite) || n <= s || e <= w) throw new Error('virheellinen rajaus');
   if (e - w > 120 || n - s > 60) throw new Error('liian laaja rajaus');
   if (w < -180 || e > 180) throw new Error('päivämääräraja');
@@ -457,6 +553,8 @@ async function kentta(q) {
   const nj = Math.round((Math.ceil(n / askel) * askel - la0) / askel) + 1;
   const ni = Math.round((Math.ceil(e / askel) * askel - lo0) / askel) + 1;
   const la1 = la0 + (nj - 1) * askel, lo1 = lo0 + (ni - 1) * askel;
+  /* Natiivikenttä on lähizoomin näkymä: solmuja enintään 250 × 250. */
+  if (natiivi && ni * nj > 62500) throw new Error('liian laaja rajaus');
   const t0 = Date.now();
 
   /* Kutsun oma tiedostomuisti: sama tiedosto (kolmen tunnin askelen
@@ -526,10 +624,7 @@ async function kentta(q) {
         const V_ = x.tu.V, wAlue = V_.paino[k] * x.aikaW;
         if (wAlue <= 0 || !V_.nn[k].length) return null;
         const nn = V_.nn[k], L = x.L;
-        const lukija = (T) => (a) => {
-          const u = T[L.u][a], v = T[L.v][a];
-          return Number.isFinite(u) && Number.isFinite(v) ? { u, v } : null;
-        };
+        const lukija = (T) => (a) => uv(L, T[L.u][a], T[L.v][a]);
         const tuA = tuuli(nn, lukija(x.tu.A));
         const t = x.tu.B ? ajassa(tuA, tuuli(nn, lukija(x.tu.B)), x.tu.f) : tuA;
         if (!t) return null;
@@ -652,7 +747,7 @@ async function sarja(q) {
   if (!Number.isFinite(la) || !Number.isFinite(lo) || loppuH <= alkuH || loppuH - alkuH > 30 * 24) {
     throw new Error('virheellinen piste tai jakso');
   }
-  const a = Number(q.askel) > 0 ? Math.min(1, Math.max(0.05, Number(q.askel))) : null;
+  const a = Number(q.askel) > 0 ? Math.min(1, Math.max(NATIIVI.has(q.malli) ? 0.01 : 0.05, Number(q.askel))) : null;
   const pyor = (x) => +x.toFixed(4);
   const la0 = a ? pyor(Math.floor(la / a + 1e-9) * a) : la, lo0 = a ? pyor(Math.floor(lo / a + 1e-9) * a) : lo;
   const pisteet = a
@@ -678,10 +773,7 @@ async function sarja(q) {
       const arvot = new Array(nH);
       let viimeinen = -1;
       for (let t = 0; t < nH; t++) {
-        const tt = tuuli(nn, (k) => {
-          const u = Us.get(k)[t], v = Vs.get(k)[t];
-          return Number.isFinite(u) && Number.isFinite(v) ? { u, v } : null;
-        });
+        const tt = tuuli(nn, (k) => uv(L, Us.get(k)[t], Vs.get(k)[t]));
         if (!tt) { arvot[t] = null; continue; }
         arvot[t] = { ms: tt.ms, dir: tt.dir, g: Gs ? skalaari(gnn, (k) => Gs.get(k)[t]) : NaN };
         viimeinen = t;

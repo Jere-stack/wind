@@ -609,6 +609,7 @@ if (process.env.METNORDIC !== '0') {
       luettelo.lisatasot.push(rivi(taso, laatat, {
         ajat: mAjat, nt: mAjat.length, t0: mAjat[0], dtSek: 3600,
         ...MN_MALLI, ajoAika: new Date(ax.ajo).toISOString(),
+        natiivi: mnRivi && process.env.EUROOPPA !== '0' ? mnRivi.natiivi : undefined,
         paino: true, vainKartta: true,
       }));
     }
@@ -687,6 +688,9 @@ if (process.env.EUROOPPA !== '0') {
           ajat: eAjat, nt: eAjat.length, t0: eAjat[0], dtSek: 3600,
           malli: m.perhe, perhe: m.perhe, lahde: m.lahde,
           ajoAika: new Date(ax.ajo).toISOString(),
+          /* Lähizoomin natiivihilan askel (`api/malli.js?malli=<perhe>`,
+             docs/eurooppa.md V2); asiakas lukee sen tästä. */
+          natiivi: m.natiivi,
           paino: true, vainKartta: true,
         }));
       }

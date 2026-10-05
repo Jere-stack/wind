@@ -97,6 +97,10 @@ hylkäys säästää enemmän työtä kuin ehdotus.
 koko Euroopassa, luku 9), sitten V2 (lähizoomin natiivihila ja spotin
 natiivisarja) ja V3 (MeteoGate-havainnot kartalle ja kortteihin).
 Spottitietokanta, meri ja aukkojen paikkaus tulevat niiden jälkeen.
+
+**Tila 5.10.2026:** V1 (luku 12) ja V2 (luku 13) on toteutettu ja
+mitattu. V2 kytkeytyy päälle vasta kun luettelossa on tasojen
+`natiivi`-kenttä, eli ensimmäisestä V2-rakentajan Säädata-ajosta.
 **V1 toteutettiin samassa erässä** — tulokset ovat luvussa 12.
 
 ---
@@ -513,6 +517,10 @@ varasto 267 MB, rakennus 26 min kontissa (Euroopan osuus 13,4 min).
 - Mitattava ennen päätöstä: kentän koko ja kesto (AROMEn 0,01°
   näkymälle z11: noin 1° × 0,6° eli 6 000 solmua, arvio 30–60 kt),
   CDN-osumat ja palvelimen CPU (Hobby 4 CPU-tuntia/kk).
+- **Toteutettu toisin** (luku 13.2): palvelin palauttaa yhden perheen
+  oman hilan (`malli=<perhe>`), ja sekoitus tehdään asiakkaassa
+  varaston painoilla — yksi sekoitussääntö, ei toista palvelimella.
+  Mitattu kenttä 1,2–2,0 s ja 1,6–6,6 kt (ei 30–60 kt).
 
 ### S3 — Spotin natiivisarja
 
@@ -522,6 +530,9 @@ varasto 267 MB, rakennus 26 min kontissa (Euroopan osuus 13,4 min).
 - Sääntö "kortti = aikajana = merkki" pysyy: aikajana lukee kartan
   keskipisteen sarjaa samasta funktiosta kun zoom on natiivihilan
   alueella (sama kuin nyt ECMWF 9 km:llä).
+- **Toteutettu perheittäin** (`tila=sarja&malli=<perhe>`, luku 13):
+  kortti hakee spotin solusta ne perheet jotka ovat varaston
+  Paras-sarjan lähteitä, ja paino tulee varastosta.
 
 ### S4 — Aukot
 
@@ -601,8 +612,8 @@ OSM maailmanlaajuisesti.
 
 | vaihe | sisältö | koko | riippuvuus |
 |---|---|---|---|
-| **V1** | **Alueelliset mallit varastoon**: yleinen projektiolukija, paino datan reunasta, käyttöalueet, 10 uutta perhettä, järjestys luettelosta, asiakas lukee järjestyksen, lähdenimet ja kortin Paras kaikista perheistä | L | — |
-| V2 | Lähizoomin natiivihila (`malli=paras`) ja spotin natiivisarja (`tila=sarja&malli=paras`), yhteinen järjestysmoduuli | L | V1 |
+| **V1** | **Alueelliset mallit varastoon**: yleinen projektiolukija, paino datan reunasta, käyttöalueet, 10 uutta perhettä, järjestys luettelosta, asiakas lukee järjestyksen, lähdenimet ja kortin Paras kaikista perheistä — **toteutettu 4.–5.10. (luku 12)** | L | — |
+| **V2** | **Lähizoomin natiivihila** (`malli=<perhe>`, paino varastosta) **ja spotin natiivisarja** (`tila=sarja&malli=<perhe>`), yhteinen taulukko rakentajan kanssa — **toteutettu 5.10. (luku 13)** | L | V1 |
 | V3 | Havainnot: MeteoGate E-SOH + OpenWindMap kartalle ja kortteihin, dynaaminen rekisteri, historia `havainnot`-haaraan | L | — |
 | V4 | Varmennus Eurooppaan (E-SOH), järjestys datasta | M | V1, V3 |
 | V5 | Spotit: OSM-siemen, kuratointi, käyttäjän spotit, suunnat rantaviivasta, haku | L | V3 |
@@ -822,10 +833,49 @@ NYKYISTÄ varastoa vasten: ilman luettelon `perheet`-kenttää asiakas
 käyttää omaa listaansa, eli uusi sivu toimii myös ennen ensimmäistä
 uutta rakennusta.
 
-### 12.6 Mitä jäi
+### 12.6 Actionsissa (Säädata #186, 5.10.2026 klo 04.57–05.25 UTC)
 
-- **Lähizoomin natiivihila ja spotin natiivisarja (V2)** — rantojen ja
-  järvien harhat yllä.
+Ensimmäinen V1-rakennus Actionsissa: rakennusaskel 1 635 s (27 min
+15 s; kontissa 26 min), koko työ 28 min, 4 342 laattaa, raaka 497 MB,
+gzip **260 MB**. ECMWF 97/97 hetkeä, FMI 70 hetkeä, MET Nordic 97/102
+(viisi menneisyyden tuntia puuttui S3:sta kuten ennenkin). Euroopan
+perheet:
+
+| perhe | hetkiä | laattoja | MB | aika |
+|---|---|---|---|---|
+| ALADIN CZ | — | — | — | **pois** |
+| ICON-CH1 | 56/56 | 181 | 7,4 | 36 s |
+| UKV | 74/74 | 267 | 13,8 | 112 s |
+| AROME HD | 71/71 | 639 | 31,9 | 165 s |
+| DINI | 79/79 | 449 | 22,4 | 178 s |
+| ICON-CH2 | 140/140 | 181 | 18,7 | 38 s |
+| ICON-D2 | 71/71 | 126 | 6,6 | 65 s |
+| ICON-2I | 92/92 | 253 | 17,7 | 55 s |
+| AROME AT | 80/80 | 40 | 2,5 | 39 s |
+| ALADIN CE | 92/92 | 697 | 43,2 | 128 s |
+
+**ALADIN CZ jäi pois yhteysvirheeseen**: sen ensimmäinen haku
+(`latest.json`) kaatui 8 ms MET Nordicin viimeisen luvun jälkeen pelkkään
+"fetch failed" -viestiin, ja muut kymmenen perhettä onnistuivat samassa
+ajossa. Välitön kaatuminen on yhteysvirhe eikä puuttuva tiedosto
+(luultavimmin palvelimen jo sulkema keep-alive-yhteys). Korjaus:
+`alueelliset.mjs`:n `haeJson` uusii verkkovirheen ja aikarajan kahdesti
+(1 s ja 3 s), HTTP-vastausta (404 = ajoa ei ole) ei, ja virheviestiin
+kirjoitetaan syy (`e.cause.code`). Tarkistettu: ALADIN CZ:n akseli
+0,74 s (116 hetkeä), olematon malli kaatuu 404:ään 85 ms:ssa ilman
+uusintaa. Lukujen omat uusinnat (`OmHttpBackend`, `retries: 2`) olivat
+jo olemassa.
+
+Julkaistussa luettelossa järjestys (`perheet`) ja l0:n Eurooppa
+(160 laattaa) olivat oikein. GitHub Pagesin julkaisu kaatui 404:ään
+("Ensure GitHub Pages has been enabled") kuten ennenkin
+(`continue-on-error`): Pages ei ole päällä, ja sovellus lukee varaston
+`raw.githubusercontent.com`:sta.
+
+### 12.7 Mitä jäi
+
+- **Lähizoomin natiivihila ja spotin natiivisarja (V2)** — toteutettu,
+  luku 13.
 - **Vanha sivu välimuistissa** ei tunne Euroopan perheitä: niiden
   alueella se näyttää ECMWF:ää, ja Tanskassa, Pohjois-Saksassa ja
   Puolassa myös MET Nordicin tilalla (MET Nordicin paino rajattiin
@@ -836,6 +886,151 @@ uutta rakennusta.
   ECMWF:ää.
 - **Aukot** (Tarifa, Lissabon, Egeanmeri, Mustameri, Kanariansaaret) ovat
   ECMWF:ää kuten ennen (V7).
+
+---
+
+## 13. Toteutus (V2, 5.10.2026): lähizoomin natiivihila ja spotin natiivisarja
+
+Pyynnön toinen puolisko: *"kun spotin säädatoja katsoo, automaattisesti
+on valittu paras ja tihein verkko sille spotille, jotta paikalliset erot
+rannan lähettyvillä näkyvät lähelle zoomattuna."* V1:n varasto on
+0,05°:n solmuina 3–6 km, ja luvun 12.4 suurimmat harhat olivat rannoilla
+ja järvillä (Garda −1,02 m/s, Hel −0,81, Klitmøller −0,75): solmu on
+mallin solujen keskiarvo ja sekoittaa vettä ja maata.
+
+### 13.1 Rakenne
+
+- **Palvelin** (`api/malli.js`, ei uutta funktiota — 12/12): jokainen
+  `ALUEELLISET`-taulukon perhe on oma mallinsa, hila ja projektio
+  samasta taulukosta kuin rakentajalla (`hilanIndeksi` = käänteinen
+  projektio murtoindeksiksi; ikkuna rajauksen reunoilta näytteistettynä,
+  koska Lambert-hilan rivit ovat kaarevia).
+  - kenttä `?malli=<perhe>&t=&s=&n=&w=&e=&askel=` — askel vähintään
+    0,01°, enintään 250 × 250 solmua; `ajotiedosto` (`data_spatial`)
+    tuoreimmasta ajosta joka kattaa tunnin
+  - sarja `?tila=sarja&malli=<perhe>&askel=&lat=&lng=&alku=&loppu=` —
+    solmuruudun neljä kulmaa aikasarjavarastosta (`data/`), sarjan
+    pituus `sarjaTunnit`
+  - nopeus/suunta-mallit (`kentat: 'sd'`: UKV, DINI, ICON-2I, AROME AT,
+    ALADIN, MET Nordic) käännetään vektoreiksi (`uv`), ja UKV:n kahdesta
+    samannimisestä lapsesta luetaan jälkimmäinen kuten rakentajassa.
+- **Rakentaja** kirjoittaa luettelon tasoille `natiivi` = perheen pienin
+  askel (ALADIN CZ, ICON-CH1, AROME HD, MET Nordic 0,01°; UKV, DINI,
+  ICON-CH2, ICON-D2, ICON-2I, ALADIN CE 0,02°; AROME AT 0,025°).
+  Asiakas kytkee natiivihilan vain perheille joilla kenttä on: vanha
+  luettelo = ei pyyntöjä.
+- **Asiakas** (`Natiivi`): zoomista 10 (Leaflet-asteikko, P4) kartan
+  pysähtyessä valitulle TASATUNNILLE haetaan näkymän perheet (sama
+  `malliKohdassa` kuin lähdemerkinnällä, 5 × 5 pistettä, enintään kolme
+  suurimman osuuden perhettä), kenttä näkymän 0,6:n pehmusteella ja
+  10 askeleeseen pyöristettynä (sama osoite naapurinäkymille = CDN-osuma).
+  Aikajana saa kartan keskipisteen solmuruudun sarjan samalla askeleella.
+  Askel 0,025° (z10), 0,02° (z11), 0,01° (z12+), mutta ei mallin omaa
+  tarkkuutta tiheämmin.
+- **Yksi sekoitussääntö** (`Saalaatat._natNayte` `naytteista`ssa):
+  perheen ARVO tulee natiivihilasta, PAINO varaston laatasta. Järjestys,
+  käyttöalueet ja rajojen pehmennys pysyvät siis samoina, ja natiivihila
+  on saman sekoituksen tarkempi näyte. Kentän pehmusteen reunassa
+  (8 %) arvo liukuu varaston arvoon, ettei panoroitaessa näy saumaa.
+- **Solmuväli** (`ViewportGrid.solmuStep`) tihenee natiivihilan mukana
+  lämpökartassa ja kapselin/partikkelien hilassa (sama hila, O3), mutta
+  varaston taso valitaan yhä `laattaStep`illä.
+- **Kortti** (`KorttiSarjat` Paras): ensin varaston sekoitus, ja sen
+  tunneittaisista lähteistä (`hourly.lahde`) ne perheet joilla on
+  natiivihila haetaan spotin omasta solusta mallin hienoimmalla
+  askeleella (`Natiivi.pisteenSarjat`); FMI- ja MET Nordic -vertailu
+  samoin.
+
+### 13.2 Poikkeamat suunnitelmasta (S2–S3)
+
+1. **Ei `malli=paras`-sekoitusta palvelimella.** Palvelin palauttaa
+   yhden perheen oman hilan, ja sekoitus tehdään asiakkaassa. Syyt:
+   (a) yksi sekoitussääntö (`naytteista`) — palvelimen oma olisi toinen,
+   ja ne ajautuisivat erilleen; (b) paino tarvitsee käyttöalueen
+   maarasterin ja datan reunan ensimmäisen hetken NaN-maskista, jotka
+   rakentaja on jo laskenut laattoihin — palvelin joutuisi laskemaan ne
+   joka kutsulla; (c) välimuistiavain on perheen ja näkymän, ei koko
+   sekoituksen.
+2. **Askel ei ole aina 0,01°**: zoomin mukaan 0,025 / 0,02 / 0,01°, ja
+   mallin oma tarkkuus on alaraja (2 km:n mallia ei näytteistetä
+   0,01°:een).
+3. **Vain tasatunnit ja levossa.** Kartta käyttää natiivikenttää vain
+   sille tunnille jolle se haettiin; vartit, toiston välihetket ja
+   raahaus ovat varastoa kuten ECMWF 9 km:llä (`MalliHila`).
+4. **MET Nordic sai natiivihilan** (1 km, Pohjoismaat ja Baltia), vaikka
+   S2 puhui Euroopan malleista: Suomen spottien kortin menneet tunnit
+   tulevat nyt spotin omasta solusta.
+
+### 13.3 Mitattu (5.10.2026 klo 05.30–05.45 UTC)
+
+**Palvelin suoraan** (`api/malli.js` kontissa, kenttä 3 h päähän):
+
+| malli | paikka | kenttä | askel | kesto | koko | sarja 73 h |
+|---|---|---|---|---|---|---|
+| AROME HD | Quiberon | 46 × 28 | 0,01° | 1,97 s | 5,5 kt | 1,32 s |
+| UKV | Hayling | 24 × 14 | 0,02° | 1,75 s | 1,6 kt | 1,03 s |
+| DINI | Klitmøller | 21 × 16 | 0,02° | 1,44 s | 1,6 kt | 1,14 s |
+| MET Nordic | Göteborg | 51 × 31 | 0,01° | 1,43 s | 6,6 kt | 1,06 s |
+| ICON-CH1 | Garda | 41 × 36 | 0,01° | 1,21 s | 6,2 kt | 1,06 s |
+
+**Kenttä ja sarja ovat sama data**: samoissa neljässä solmussa hetkillä
+−3, +2, +12 ja +24 h (AROME HD, UKV, DINI, MET Nordic, ICON-D2, ALADIN
+CE) suurin ero on 0,10 m/s ja 1° — kvantisoinnin puolikas (0,2 m/s ja
+2°). Kenttä tulee ajotiedostosta ja sarja aikasarjavarastosta, joten
+aikajana ja kartta näyttävät saman luvun.
+
+**Selaimessa** (tuotantobuild, paikallinen varasto, pohjakartta
+reititettynä, kartan keskellä, 81 näkymän pistettä natiivi vs varasto):
+
+| paikka | zoom | perhe | solmuja | kenttä | sarja | natiivi − varasto mediaani / suurin | aikajana: suurin ero varastoon (403 h) |
+|---|---|---|---|---|---|---|---|
+| Quiberon | 12 | AROME HD 0,01° | 6 771 | 1,6 s | 0,99 s | 0,17 / −1,42 m/s | 2,03 m/s |
+| Klitmøller | 11 | DINI 0,02° | 4 551 | 1,4 s | 1,32 s | 0,36 / +1,72 m/s | 1,25 m/s |
+| Garda | 12 | ICON-CH1 0,01° | 6 161 | 1,2 s | 1,01 s | 0,30 / +3,58 m/s | 4,95 m/s |
+
+Solmuväli tiheni 0,05 → 0,01° (Quiberon, Garda) ja 0,02° (Klitmøller)
+sekä lämpökartassa että kapselin ja partikkelien hilassa. Kolmeen
+paikkaan 18 natiivipyyntöä, sivuvirheitä 0. Gardan pohjoispään
+tuulikanava (ICON-CH1 1 km) näkyy natiivihilassa ja puuttuu varastosta:
+kapseli samassa kohdassa 6,2 kts natiivina, 4,3 kts varastona.
+
+**Kortti, Lauttasaari** (Paras lähteittäin ECMWF 9 km → MET Nordic →
+FMI → ECMWF 9 km): MET Nordicin 40 menneen tunnin arvot tulevat nyt
+spotin omasta 1 km solusta — ero varaston 0,05°:n sekoitukseen
+keskimäärin 0,15 m/s, enintään 1,01 m/s. FMI-tunnit eivät muuttuneet
+(FMI:llä ei ole natiivihilaa). Yksi natiivisarjan pyyntö spottia kohti.
+
+Savutesti läpi (puhelin 18,0 s, työpöytä 11,2 s, virheitä 0) ja
+graafitesti 96/96.
+
+### 13.4 Hinta
+
+- **Pyynnöt:** lähizoomissa kartan pysähtyessä enintään kolme kenttää
+  ja keskipisteen sarjat; kenttä on pyöristetty 10 askeleeseen ja sarja
+  solmuruutuun, ja vastaus on CDN:ssä 30 min (`s-maxage=1800`), joten
+  saman alueen käyttäjät osuvat välimuistiin. Käynnistyksessä
+  `esilataaSpotit` hakee jokaisen spotin natiivisarjan (Suomessa MET
+  Nordic, 12 pyyntöä samaan aikaan kuin ECMWF 9 km -sarjat); osoite
+  riippuu vain solmuruudusta ja varaston akselista, eli se on sama
+  kaikille saman rakennuksen ajan.
+- **Palvelimen aika:** 1,2–2,0 s kenttää ja 1,0–1,3 s sarjaa kohti
+  kontissa, ja siitä suurin osa on S3-lukua; funktion CPU-aikaa ei
+  mitattu.
+- **Selaimen hila:** solmuja lähizoomissa 4 551–6 771 (yllä) eli samaa
+  luokkaa kuin V1:n mittauksen 80 × 50 = 4 000 solmun hila (2,8–7,6 ms,
+  luku 12.5); natiivihilan kokoamisaikaa ei mitattu erikseen.
+
+### 13.5 Mitä jäi
+
+- **Natiivihila tulee voimaan vasta V2-rakentajan ensimmäisestä
+  Säädata-ajosta** (luettelon `natiivi`); siihen asti sovellus toimii
+  kuten V1.
+- **Natiivihila ei kata vartteja eikä toistoa**: liikkuva kartta on
+  varastoa, ja pysähtynyt tasatunti tarkentuu 1–2 s:ssa.
+- **Varmennus** (S8, V4) ratkaisee, kumpi on oikeammin spotin kohdalla:
+  natiivisolu vai varaston keskiarvo. Rannoilla natiivisolu on joko
+  meri- tai maasolu, ja varmennuksen on kerrottava kumpi vastaa
+  havaintoa — tämä on mitattava eikä oletettava.
 
 ---
 

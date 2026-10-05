@@ -29,8 +29,9 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   partikkelit (`PartikkeliGL`) ja sadekerros (`SadeKerros`, tutka ja HARMONIE-sade) piirtyvät
   MapLibren omaan WebGL-ruutuun custom layereina.
 - `api/*.js` — Vercelin serverless-funktiot (FMI-havainnot, HARMONIE-ennuste,
-  mallin oma hila Open-Meteon S3:sta — ECMWF 9 km, ICON, GFS — kenttänä ja
-  sarjana (`malli.js`),
+  mallin oma hila Open-Meteon S3:sta — ECMWF 9 km, ICON, GFS ja Euroopan
+  alueelliset mallit lähizoomin natiivihilana (`?malli=<perhe>`, taulukko
+  `tools/alueelliset.mjs`:stä) — kenttänä ja sarjana (`malli.js`),
   aaltoennuste, vedenkorkeus, sade-ennuste GRIB2:sta ja sadetilan
   pistesarja (`sade.js?sarja=1`: tutkan tuntikertymä, vartit, HARMONIE,
   MET Norwayn nowcast), ECMWF:n sade jatkoksi (`malli.js?muuttuja=sade`),
@@ -114,9 +115,12 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   UKV, DINI, ICON-CH1/CH2, ICON-2I, AROME Itävalta, ALADIN CE/CZ)
   Open-Meteon S3:sta: YKSI TAULUKKO (`ALUEELLISET`) omistaa järjestyksen,
   käyttöalueet, projektiot ja reunojen pehmennyksen; tasot
-  `<id>0`–`<id>3`. `tools/maat.mjs` kirjoittaa käyttöalueiden
-  maarasterin `tools/maat.json` (Natural Earth, ajetaan käsin).
-  docs/eurooppa.md.
+  `<id>0`–`<id>3`. Saman taulukon lukee `api/malli.js` (hila,
+  `hilanIndeksi`, natiiviaskel `natiivi`, sarjan pituus `sarjaTunnit`),
+  joten moduulissa ei saa olla tuontihetken sivuvaikutuksia (maarasteri
+  luetaan vasta `kayttoPaino`ssa). `tools/maat.mjs` kirjoittaa
+  käyttöalueiden maarasterin `tools/maat.json` (Natural Earth, ajetaan
+  käsin). docs/eurooppa.md.
 - `tools/pyramidi.mjs` — säännöllisestä hilasta suodatettu laattapyramidi
   ja painokanava; kaikki mallit kirjoitetaan sen kautta.
 - `tools/harmonie.mjs` — FMI HARMONIE 2,5 km hilana GRIB2:sta (tasot
@@ -204,7 +208,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/julkaisu.md` | **julkaisukelpoisuutta**: UI-parannusten top 25, suositusjärjestys ja logiikan 10 kriittisintä kohtaa (27.9.), ja **osa 4: mitä niistä toteutettiin 28.9. ja mikä jäi auki** (Pages, lisenssit, pohjakartan kieli) — lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 | `docs/graafit.md` | **kaavioiden vuorovaikutusta ja akseleita** (strategia ja toteutus 30.9., V1–V6): hiiren veto, kosketuksen "pidä ja liu'uta", käyrän pehmennys, x- ja y-akselin tiedot joka zoomilla, asteikko ikkunan mukaan — mittaukset (`tools/graafimittaus.mjs`), päätökset P1–P10, vaiheet ja toteutuksen poikkeamat; lue ennen kuin kosket `Tuulikaavio`on, `Aikakaavio`n osoittimeen tai kaavioiden akseleihin |
 | `docs/sadetutka.md` | **sadetutkaa ja sadetilaa (strategia ja toteutus 4.10.; luku 11: koko maailma ja paras paikallinen malli, beta)**: 250 m FINRAD-lähde ja paletti, klassinen tutkaväri, 5 min kehykset, vartit aikajanalla, sadepalkit ja kapseli, liikekenttä (`SadeLiike`) ja nowcast, ECMWF-jatko — mitattu data (FMI WMS ja S3, MET Norway), päätökset P1–P9, toteutus luvussa 10 ja mittaukset (`tools/sadeliike.mjs`); lue ennen kuin kosket `SadeKerros`iin, `Sadetutka`an, `SadeLiike`en tai sadetilan aikajanaan |
-| `docs/eurooppa.md` | **Euroopan laajennusta ja paikallisia lähteitä** (strategia ja roadmap 4.10., V1 toteutettu): Euroopan kansalliset 1–2,5 km mallit varastoon ja niiden **etusija ja käyttöalueet** (`tools/alueelliset.mjs`), hilat ja projektiot totuutta vasten, havaintoverkot (MeteoGate E-SOH, kansalliset, OpenWindMap), meri, aukot, infra (Pages, Vercel, Actions), lisenssit (UKV on CC BY-SA), roadmap V1–V9 ja päätökset P1–P7; lue ennen kuin lisäät mallin, havaintolähteen tai spotteja Suomen ulkopuolelle |
+| `docs/eurooppa.md` | **Euroopan laajennusta ja paikallisia lähteitä** (strategia ja roadmap 4.10., V1 ja V2 toteutettu): Euroopan kansalliset 1–2,5 km mallit varastoon ja niiden **etusija ja käyttöalueet** (`tools/alueelliset.mjs`), **lähizoomin natiivihila ja spotin natiivisarja** (`Natiivi`, `api/malli.js?malli=<perhe>`, luku 13), hilat ja projektiot totuutta vasten, havaintoverkot (MeteoGate E-SOH, kansalliset, OpenWindMap), meri, aukot, infra (Pages, Vercel, Actions), lisenssit (UKV on CC BY-SA), roadmap V1–V9 ja päätökset P1–P7; lue ennen kuin lisäät mallin, havaintolähteen tai spotteja Suomen ulkopuolelle |
 | `docs/oikeellisuus.md` | **datan oikeellisuutta** (auditointi 29.9., toteutus 30.9.): varasto havaintoja vasten, **jatkuva varmennus**, **varaston tuoreus ja Säädatan ajastin**, kapselin ja partikkelien taso vs lämpökartta, **kapselin puuska**, havaintoverkko ja sen päivitys, proxyjen virheenkäsittely, UiRaS — aukot O1–O11, suositusjärjestys ja sujuvuusvaikutus; lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 
 <details>
@@ -350,7 +354,9 @@ kokeiltu ja kaadettu mittauksella.
   yhteisöverkot, meri, tutka ja varoitukset) · Aallot ja vuorovesi ·
   Vastaavat sovellukset ja foorumit · Aukot · Strategia S1–S10 · Roadmap
   V1–V9 · Päätettävät P1–P7 · Riskit · **Toteutus (V1, 4.–5.10.)**:
-  poikkeamat, rakennus, laatat rajapintaa vasten, selaimessa, mitä jäi
+  poikkeamat, rakennus, laatat rajapintaa vasten, selaimessa, Actionsissa,
+  mitä jäi · **Toteutus (V2, 5.10.): lähizoomin natiivihila ja spotin
+  natiivisarja** — rakenne, poikkeamat, mitattu, hinta, mitä jäi
 - **oikeellisuus**: Tiivistelmä · Kunnossa — mitattu, ei toimenpiteitä ·
   Aukot O1–O11 (varaston tuoreus, kaksi ennustetta, kapselin taso,
   kapselin puuska, virhe lakkautuksena, havaintoverkko, havaintojen
@@ -1140,7 +1146,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   VARASTOSTA.** Varastossa on mallit omina pyramideinaan (FMI
   HARMONIE `h0`–`h3`, MET Nordic `n0`–`n3`, Euroopan kymmenen alueellista
   `<id>0`–`<id>3`, ECMWF `l0`–`l4`), ja niiden päällä ECMWF 9 km
-  palvelimelta (`MalliHila`, zoomista 8).
+  palvelimelta (`MalliHila`, zoomista 8) ja lähizoomissa alueellisten
+  mallien oma hila (`Natiivi`, zoomista 10; ks. "LÄHIZOOMIN
+  NATIIVIHILA").
   `kartanMalli()` palauttaa aina varaston. Valinnan tekee
   `Saalaatat.naytteista`: malli tulee PAIKASTA JA HETKESTÄ, zoom valitsee
   vain tarkkuuden saman mallin sisällä (docs/mallit.md). Älä palauta
@@ -1188,7 +1196,41 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   `wind_direction_10m`), ja rajapinta käyttää JÄLKIMMÄISTÄ (ero
   0,1–0,8 m/s): `viimeinen: true`. Alueellisesta mallista luetaan vain
   rajaukseen osuva ikkuna (`geometria().ikkuna`; DINI 66 %, ICON-D2 31 %
-  hilasta).
+  hilasta). `api/malli.js` ottaa samannimisistä lapsista myös
+  jälkimmäisen.
+- **LÄHIZOOMIN NATIIVIHILA: ARVO MALLIN OMASTA HILASTA, PAINO
+  VARASTOSTA** (`Natiivi`, `Saalaatat._natNayte`, docs/eurooppa.md
+  luku 13). Zoomista 10 kartta hakee näkymän enintään kolmen alueellisen
+  perheen OMAN hilan palvelimelta (`api/malli.js?malli=<perhe>`; askel
+  0,025 / 0,02 / 0,01° zoomeilla 10 / 11 / 12+, ei mallin omaa
+  tarkkuutta tiheämmin) valitulle TASATUNNILLE, ja aikajana saa kartan
+  keskipisteen solmuruudun sarjan samalla askeleella. `naytteista`
+  korvaa perheen ARVON natiivihilan arvolla mutta pitää varaston laatan
+  PAINON: järjestys, käyttöalueet ja rajojen pehmennys pysyvät yhtenä
+  sääntönä. Palvelimella ei ole omaa sekoitusta (`malli=paras`
+  suunniteltiin ja hylättiin, luku 13.2) — älä kirjoita sellaista.
+  Natiivikenttä on kartalla vain sille tunnille jolle se haettiin;
+  raahauksen, toiston ja vartin aikana kartta on varastoa (kuten
+  `MalliHila`). FMI:llä ja ECMWF:llä ei ole natiivihilaa (FMI 2,5 km on
+  varastossa jo 0,05°:na, ECMWF:llä on 9 km). Kytkin on luettelon tason
+  `natiivi`-kenttä: vanhalla luettelolla mitään ei haeta.
+- **SOLMUVÄLI (`ViewportGrid.solmuStep`) EI OLE VARASTON TASO
+  (`laattaStep`).** Lämpökartan ja kapselin/partikkelien solmuhila
+  tihenee natiivihilan mukana, mutta `kokoaHila`n `step` ja `varmista`
+  valitsevat varaston tason yhä `laattaStep`illä — 0,01°:n taso ei ole
+  olemassa. Tihennys on voimassa vain kun natiivikenttä kattaa kartan
+  keskipisteen valitulla hetkellä (`Natiivi.kaytossa`): edellisen
+  paikan kenttä jää muistiin, eikä se saa tihentää hilaa paikassa jota
+  se ei kata.
+- **KORTIN PARAS LUKEE SPOTIN OMAN SOLUN** (`Natiivi.pisteenSarjat`):
+  varaston sekoituksen tunneittaisista lähteistä (`hourly.lahde`) ne
+  perheet joilla on natiivihila haetaan spotin solusta mallin
+  hienoimmalla askeleella, ja paino on yhä varastosta. Suomen spoteilla
+  se koskee MET Nordicin menneitä tunteja (mitattu Lauttasaaressa 40
+  tuntia, ero varaston sekoitukseen ka 0,15 ja enintään 1,01 m/s), ja
+  `esilataaSpotit` hakee siksi käynnistyksessä natiivisarjan jokaiselle
+  spotille. Osoite on solmuruudun ja varaston akselin, eli sama kaikille
+  käyttäjille saman rakennuksen ajan (CDN 30 min).
 - **`Saalaatat.taso()` ON VAIN POHJAMALLI.** Se valitsi ennen kaikkien
   tasojen joukosta askeleella, jolloin HARMONIE oli kartalla vasta
   zoomista 10 ja lämpökartta ja lähdemerkintä olivat z9,6:lla eri

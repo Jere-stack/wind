@@ -114,14 +114,39 @@ function kierretty({ lat, lon }) {
    etelästä pohjoiseen, sarakkeet lännestä itään (Open-Meteon
    RegularGrid). `projektio`: origo projektion koordinaateissa ja askel
    metreinä tai kierretyinä asteina (ProjectionGrid). */
-function hilanPaikka(h) {
+/* Projektiohilan origo ja askel. `vastakulma` (MET Nordic): askel
+   johdetaan kulmista eikä kirjoiteta lukuna — 1 000,03 × 1 000,05 m on se
+   mikä kulmista tulee, ja pyöreä 1 000 siirtäisi vastakkaisen reunan
+   60 m sivuun (`tools/metnordic.mjs`). */
+function projektioOf(h) {
+  const P = h.proj === 'lcc' ? lcc(h.p) : h.proj === 'laea' ? laea(h.p) : kierretty(h.p);
+  let x0 = h.x0, y0 = h.y0, dx = h.dx, dy = h.dy;
+  if (h.origo) [x0, y0] = P.eteen(h.origo[0], h.origo[1]);
+  if (h.vastakulma) {
+    const [x1, y1] = P.eteen(h.vastakulma[0], h.vastakulma[1]);
+    dx = (x1 - x0) / (h.nx - 1); dy = (y1 - y0) / (h.ny - 1);
+  }
+  return { P, x0, y0, dx, dy };
+}
+export function hilanPaikka(h) {
   if (h.tyyppi === 'saannollinen') {
     return (i, j) => [h.la0 + j * h.dy, h.lo0 + i * h.dx];
   }
-  const P = h.proj === 'lcc' ? lcc(h.p) : h.proj === 'laea' ? laea(h.p) : kierretty(h.p);
-  let x0 = h.x0, y0 = h.y0;
-  if (h.origo) [x0, y0] = P.eteen(h.origo[0], h.origo[1]);
-  return (i, j) => P.taakse(x0 + i * h.dx, y0 + j * h.dy);
+  const { P, x0, y0, dx, dy } = projektioOf(h);
+  return (i, j) => P.taakse(x0 + i * dx, y0 + j * dy);
+}
+/* Käänteinen: paikka -> lähdehilan murtoindeksi [i, j] (sarake, rivi).
+   Palvelimen natiivikenttä (`api/malli.js`, docs/eurooppa.md V2) näytteistää
+   tällä mallin oman hilan bilineaarisesti. */
+export function hilanIndeksi(h) {
+  if (h.tyyppi === 'saannollinen') {
+    return (lat, lng) => [(lng - h.lo0) / h.dx, (lat - h.la0) / h.dy];
+  }
+  const { P, x0, y0, dx, dy } = projektioOf(h);
+  return (lat, lng) => {
+    const [x, y] = P.eteen(lat, lng);
+    return [(x - x0) / dx, (y - y0) / dy];
+  };
 }
 
 /* -- MALLIT, JÄRJESTYKSESSÄ (docs/eurooppa.md, S1) --------------------
@@ -136,21 +161,27 @@ function hilanPaikka(h) {
  *   alueen (+ häivytys) leikkaus (`rajausOf`).
  * `reunaKm`: pehmennyksen matka datan reunasta.
  * `viimeinen`: saman nimen lapsista luetaan viimeinen (UKV:ssä on kaksi
- *   `wind_speed_10m`-lasta, ja rajapinta käyttää jälkimmäistä). */
+ *   `wind_speed_10m`-lasta, ja rajapinta käyttää jälkimmäistä).
+ * `natiivi`: lähizoomin solmuväli asteina (mallin oma tarkkuus,
+ *   docs/eurooppa.md V2); `sarjaTunnit`: aikasarjavaraston lohkon pituus
+ *   (`data/<s3>/static/meta.json`, `chunk_time_length`, mitattu 5.10.). */
 const PAIKKA = (o) => o;
 export const ALUEELLISET = [
   PAIKKA({
     perhe: 'aladin_cz', s3: 'chmi_aladin_cz_1km', id: 'cz', kentat: 'sd', ajoVali: 6, reunaKm: 30, alue: null,
+    natiivi: 0.01, sarjaTunnit: 120,
     hila: { tyyppi: 'saannollinen', la0: 48.5, lo0: 12.0, dy: (51.098 - 48.5) / 289, dx: (18.995 - 12.0) / 500, nx: 501, ny: 290 },
     lahde: 'ČHMÚ · ALADIN 1 km · Open-Meteo / AWS Open Data · CC BY 4.0',
   }),
   PAIKKA({
     perhe: 'icon_ch1', s3: 'meteoswiss_icon_ch1', id: 'c1', kentat: 'uv', ajoVali: 3, reunaKm: 100, alue: null,
+    natiivi: 0.01, sarjaTunnit: 48,
     hila: { tyyppi: 'projektio', proj: 'kierretty', p: { lat: 43.0, lon: 190.0 }, x0: -6.46, y0: -4.06, dx: 0.01, dy: 0.01, nx: 1089, ny: 705 },
     lahde: 'MeteoSwiss · ICON-CH1 1 km · Open-Meteo / AWS Open Data · CC BY 4.0',
   }),
   PAIKKA({
     perhe: 'ukv', s3: 'ukmo_uk_deterministic_2km', id: 'uk', kentat: 'sd', viimeinen: true, ajoVali: 1, reunaKm: 50,
+    natiivi: 0.02, sarjaTunnit: 79,
     alue: ['GB', 'IE', 'IM', 'JE', 'GG'],
     hila: { tyyppi: 'projektio', proj: 'laea', p: { lon0: -2.5, lat1: 54.9, R: 6371229 }, x0: -1158000, y0: -1036000, dx: 2000, dy: 2000, nx: 1042, ny: 970 },
     /* MET OFFICEN DATA ON CC BY-SA 4.0 (Open-Meteon lisenssisivu, 4.10.2026):
@@ -159,48 +190,61 @@ export const ALUEELLISET = [
   }),
   PAIKKA({
     perhe: 'arome_hd', s3: 'meteofrance_arome_france_hd', id: 'ah', kentat: 'uv', ajoVali: 3, reunaKm: 80, alue: null,
+    natiivi: 0.01, sarjaTunnit: 108,
     hila: { tyyppi: 'saannollinen', la0: 37.5, lo0: -12.0, dy: 0.01, dx: 0.01, nx: 2801, ny: 1791 },
     lahde: 'Météo-France · AROME 1,3 km · Open-Meteo / AWS Open Data · Licence Ouverte 2.0',
   }),
-  /* MET Nordic on taulukossa vain järjestyksen ja käyttöalueen vuoksi:
-     sen lukija on `tools/metnordic.mjs`, ja `tiilet.mjs` kirjoittaa sen
-     kuten ennenkin. Käyttöalue rajaa sen MEPS-maihin. Venäjä on mukana,
-     koska Luoteis-Venäjällä (Karjala, Kuola) muuta alueellista mallia ei
-     ole ja MET Nordic kattoi sen ennenkin; Kaliningrad tulee samalla. */
-  PAIKKA({ perhe: 'metnordic', erillinen: true, alue: ['NO', 'SE', 'FI', 'AX', 'EE', 'LV', 'LT', 'SJ', 'RU'] }),
+  /* MET Nordic on taulukossa järjestyksen, käyttöalueen ja lähizoomin
+     natiivihilan vuoksi: varaston lukija on `tools/metnordic.mjs`
+     (`erillinen`), ja `tiilet.mjs` kirjoittaa sen kuten ennenkin.
+     Käyttöalue rajaa sen MEPS-maihin. Venäjä on mukana, koska
+     Luoteis-Venäjällä (Karjala, Kuola) muuta alueellista mallia ei ole ja
+     MET Nordic kattoi sen ennenkin; Kaliningrad tulee samalla. Hila on
+     `tools/metnordic.mjs`:n Lambert (pallo, 63°, 15°, kulmat). */
+  PAIKKA({ perhe: 'metnordic', erillinen: true, s3: 'metno_nordic_pp', kentat: 'sd', ajoVali: 1,
+    alue: ['NO', 'SE', 'FI', 'AX', 'EE', 'LV', 'LT', 'SJ', 'RU'],
+    natiivi: 0.01, sarjaTunnit: 112,
+    hila: { tyyppi: 'projektio', proj: 'lcc', p: { lon0: 15, lat0: 63, lat1: 63, R: 6371229 },
+            origo: [52.302723, 1.918457], vastakulma: [72.18527, 41.764282], nx: 1796, ny: 2321 } }),
   /* DINI on UWC-Westin yhteinen malli: Tanskan, Hollannin, Irlannin ja
      Islannin kansallinen (ja Färsaarten, jotka DMI kattaa). Avomeri vain
      Pohjanmeren keskellä, jottei Britannian ja Tanskan väliin jää ECMWF:n
      kaistaa; Atlantin avomerelle se ei kirjoita laattoja. */
   PAIKKA({
     perhe: 'dini', s3: 'dmi_harmonie_arome_europe', id: 'dn', kentat: 'sd', ajoVali: 3, reunaKm: 50,
+    natiivi: 0.02, sarjaTunnit: 90,
     alue: ['DK', 'NL', 'BE', 'IE', 'IS', 'FO'], avomeri: { lat: [53.0, 59.5], lng: [-2.0, 9.0] },
     hila: { tyyppi: 'projektio', proj: 'lcc', p: { lon0: 352, lat0: 55.5, lat1: 55.5, R: 6371229 }, origo: [39.671, -25.421997], dx: 2000, dy: 2000, nx: 1906, ny: 1606 },
     lahde: 'DMI · HARMONIE DINI 2 km · Open-Meteo / AWS Open Data · CC BY 4.0',
   }),
   PAIKKA({
     perhe: 'icon_ch2', s3: 'meteoswiss_icon_ch2', id: 'c2', kentat: 'uv', ajoVali: 6, reunaKm: 100, alue: null,
+    natiivi: 0.02, sarjaTunnit: 144,
     hila: { tyyppi: 'projektio', proj: 'kierretty', p: { lat: 43.0, lon: 190.0 }, x0: -6.46, y0: -4.06, dx: 0.02, dy: 0.02, nx: 545, ny: 353 },
     lahde: 'MeteoSwiss · ICON-CH2 2 km · Open-Meteo / AWS Open Data · CC BY 4.0',
   }),
   PAIKKA({
     perhe: 'icon_d2', s3: 'dwd_icon_d2', id: 'd2', kentat: 'uv', ajoVali: 3, reunaKm: 50, alue: ['DE'],
+    natiivi: 0.02, sarjaTunnit: 121,
     hila: { tyyppi: 'saannollinen', la0: 43.18, lo0: -3.94, dy: 0.02, dx: 0.02, nx: 1215, ny: 746 },
     lahde: 'DWD · ICON-D2 2,2 km · Open-Meteo / AWS Open Data · CC BY 4.0',
   }),
   PAIKKA({
     perhe: 'icon_2i', s3: 'italia_meteo_arpae_icon_2i', id: 'it', kentat: 'sd', ajoVali: 12, reunaKm: 50,
+    natiivi: 0.02, sarjaTunnit: 96,
     alue: ['IT', 'SM', 'VA', 'MT', 'ME', 'AL', 'GR', 'TN'],
     hila: { tyyppi: 'saannollinen', la0: 33.7, lo0: 3.0, dy: 0.02, dx: 0.025, nx: 761, ny: 761 },
     lahde: 'ItaliaMeteo · ICON-2I 2,2 km · Open-Meteo / AWS Open Data · CC BY 4.0',
   }),
   PAIKKA({
     perhe: 'arome_at', s3: 'geosphere_arome_austria', id: 'at', kentat: 'sd', ajoVali: 3, reunaKm: 50, alue: ['AT'],
+    natiivi: 0.025, sarjaTunnit: 108,
     hila: { tyyppi: 'saannollinen', la0: 42.981, lo0: 5.498, dy: 0.018, dx: 0.028, nx: 594, ny: 492 },
     lahde: 'GeoSphere Austria · AROME 2,5 km · Open-Meteo / AWS Open Data · CC BY 4.0',
   }),
   PAIKKA({
     perhe: 'aladin_ce', s3: 'chmi_aladin_central_europe_2km', id: 'ce', kentat: 'sd', ajoVali: 6, reunaKm: 50, alue: null,
+    natiivi: 0.02, sarjaTunnit: 120,
     hila: { tyyppi: 'projektio', proj: 'lcc', p: { lon0: 17, lat0: 46.244, lat1: 46.244, R: 6371229 }, origo: [38.599, 1.334], dx: 2325, dy: 2325, nx: 1053, ny: 837 },
     /* Läntinen osa (Ranska, Benelux) on AROMEn ja ICON-D2:n alla: rajaus
        idästä 5 E:stä, joka säästää neljänneksen laatoista. */
@@ -422,10 +466,28 @@ const ajoPolku = (ms) => {
 };
 const tiedosto = (ms) => new Date(ms).toISOString().slice(0, 16).replace(':', '');
 
+/* VERKKOVIRHE UUSITAAN, HTTP-VASTAUS EI. Säädata-ajossa 5.10. ALADIN CZ:n
+   ensimmäinen haku (`latest.json`) kaatui 8 ms MET Nordicin lukujen
+   jälkeen pelkkään "fetch failed" -viestiin, ja koko perhe jäi varastosta
+   pois; muut kymmenen onnistuivat samassa ajossa. Välitön kaatuminen on
+   yhteysvirhe (luultavimmin palvelimen jo sulkema keep-alive-yhteys), ei
+   puuttuva tiedosto. 404 tarkoittaa että ajoa ei ole, joten sitä ei
+   uusita. Syy (`e.cause.code`) kirjoitetaan viestiin — pelkkä "fetch
+   failed" ei kerro mitään. */
 async function haeJson(url) {
-  const r = await fetch(url, { signal: AbortSignal.timeout(20000) });
-  if (!r.ok) throw new Error(`HTTP ${r.status} ${url}`);
-  return r.json();
+  for (let yritys = 0; ; yritys++) {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(20000) });
+      if (!r.ok) throw Object.assign(new Error(`HTTP ${r.status} ${url}`), { vastaus: true });
+      return await r.json();
+    } catch (e) {
+      if (e.vastaus || yritys >= 2) {
+        const syy = e.cause && (e.cause.code || e.cause.message);
+        throw syy && !e.vastaus ? new Error(`${e.message} (${syy}) ${url}`) : e;
+      }
+      await new Promise((ok) => setTimeout(ok, 1000 + 2000 * yritys));
+    }
+  }
 }
 
 export async function akseli(m, menneisyysH) {
