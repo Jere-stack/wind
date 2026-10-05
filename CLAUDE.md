@@ -1213,7 +1213,13 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   raahauksen, toiston ja vartin aikana kartta on varastoa (kuten
   `MalliHila`). FMI:llä ja ECMWF:llä ei ole natiivihilaa (FMI 2,5 km on
   varastossa jo 0,05°:na, ECMWF:llä on 9 km). Kytkin on luettelon tason
-  `natiivi`-kenttä: vanhalla luettelolla mitään ei haeta.
+  `natiivi`-kenttä: vanhalla luettelolla mitään ei haeta. **YHDISTETTY
+  HAKU EI KUULU KUTSUJALLE** (`Natiivi._sarja`, kuten
+  `MalliHila.pisteenSarja`): sillä on oma aikarajansa, ja keskeytetty
+  kutsuja vain jättää tuloksen käyttämättä. Kutsujan keskeytykseen
+  sidottuna perässä tullut kierros sai saman keskeytetyn lupauksen, ja
+  aikajana jäi ilman natiivisarjaa seuraavaan liikkeeseen asti (mitattu
+  tuotannon varastolla 5.10.).
 - **SOLMUVÄLI (`ViewportGrid.solmuStep`) EI OLE VARASTON TASO
   (`laattaStep`).** Lämpökartan ja kapselin/partikkelien solmuhila
   tihenee natiivihilan mukana, mutta `kokoaHila`n `step` ja `varmista`

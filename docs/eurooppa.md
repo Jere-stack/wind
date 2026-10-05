@@ -872,6 +872,13 @@ Julkaistussa luettelossa järjestys (`perheet`) ja l0:n Eurooppa
 (`continue-on-error`): Pages ei ole päällä, ja sovellus lukee varaston
 `raw.githubusercontent.com`:sta.
 
+**Säädata #187 (V2-rakentaja, 5.10. klo 05.40–06.02 UTC):** kaikki
+kaksitoista alueellista perhettä mukana, ALADIN CZ 92/92 h (42 laattaa,
+2,0 MB, 16 s). Rakennusaskel 1 242 s (20 min 42 s), 4 384 laattaa, raaka
+506 MB, gzip **264 MB**. Luettelossa tasojen `natiivi` (MET Nordic,
+ALADIN CZ, ICON-CH1 ja AROME HD 0,01°; AROME AT 0,025°; muut 0,02°;
+FMI:llä ja ECMWF:llä ei kenttää).
+
 ### 12.7 Mitä jäi
 
 - **Lähizoomin natiivihila ja spotin natiivisarja (V2)** — toteutettu,
@@ -906,7 +913,7 @@ mallin solujen keskiarvo ja sekoittaa vettä ja maata.
   projektio murtoindeksiksi; ikkuna rajauksen reunoilta näytteistettynä,
   koska Lambert-hilan rivit ovat kaarevia).
   - kenttä `?malli=<perhe>&t=&s=&n=&w=&e=&askel=` — askel vähintään
-    0,01°, enintään 250 × 250 solmua; `ajotiedosto` (`data_spatial`)
+    0,01°, enintään 250 × 250 solmua; ajotiedostosta (`data_spatial`),
     tuoreimmasta ajosta joka kattaa tunnin
   - sarja `?tila=sarja&malli=<perhe>&askel=&lat=&lng=&alku=&loppu=` —
     solmuruudun neljä kulmaa aikasarjavarastosta (`data/`), sarjan
@@ -922,8 +929,9 @@ mallin solujen keskiarvo ja sekoittaa vettä ja maata.
 - **Asiakas** (`Natiivi`): zoomista 10 (Leaflet-asteikko, P4) kartan
   pysähtyessä valitulle TASATUNNILLE haetaan näkymän perheet (sama
   `malliKohdassa` kuin lähdemerkinnällä, 5 × 5 pistettä, enintään kolme
-  suurimman osuuden perhettä), kenttä näkymän 0,6:n pehmusteella ja
-  10 askeleeseen pyöristettynä (sama osoite naapurinäkymille = CDN-osuma).
+  suurimman osuuden perhettä), kenttä näkymän 0,6:n pehmusteella
+  (`MalliHila._alue`, sama kuin ECMWF 9 km:llä) ja 10 askeleeseen
+  pyöristettynä (sama osoite naapurinäkymille = CDN-osuma).
   Aikajana saa kartan keskipisteen solmuruudun sarjan samalla askeleella.
   Askel 0,025° (z10), 0,02° (z11), 0,01° (z12+), mutta ei mallin omaa
   tarkkuutta tiheämmin.
@@ -1003,6 +1011,45 @@ keskimäärin 0,15 m/s, enintään 1,01 m/s. FMI-tunnit eivät muuttuneet
 Savutesti läpi (puhelin 18,0 s, työpöytä 11,2 s, virheitä 0) ja
 graafitesti 96/96.
 
+**Tuotannon varastoa vasten** (Säädata #187, sama sivu tuotantobuildina,
+natiivihila paikallisesta `api/malli.js`:stä, 5.10. klo 06.20–06.30
+UTC): luettelon perheet ja natiiviaskeleet luettiin oikein, ja kuudessa
+paikassa kenttä, aikajanan sarja ja tihennetty solmuväli olivat valmiit
+2,8–4,0 s kartan siirrosta:
+
+| paikka | zoom | kartalla keskellä | natiivihila | kenttä |
+|---|---|---|---|---|
+| Quiberon | 12 | AROME HD 100 % | 0,01° | 1,6 s |
+| Garda | 12 | ICON-CH1 100 % | 0,01° | 1,3 s |
+| Lipno | 11 | ALADIN CZ 58 %, ICON-CH1 42 % | 0,02° | 1,5 s |
+| Göteborg | 12 | MET Nordic 100 % | 0,01° | 1,2 s |
+| Hayling | 11 | UKV 100 % | 0,02° | 1,7 s |
+| Hel | 11 | ALADIN CE 100 % | 0,02° | 1,8 s |
+
+Natiivipyyntöjä 27, kaikki 200, sivuvirheitä 0; kortti (Lauttasaari)
+38 MET Nordicin tuntia spotin omasta solusta. Gardassa (z11, oikea
+pohjakartta) kapseli samassa kohdassa 10,9 kts natiivina ja 7,3 kts
+varastona, ja järven tuulikanava näkyy vain natiivihilassa. Kontrolli
+vanhalla (V1) luettelolla: 0 natiivipyyntöä, sivu kuten V1.
+
+**Korjattu mittauksessa: yhdistetty sarjahaku kuului ensimmäiselle
+kutsujalle.** `Natiivi._sarja` yhdisti samanaikaiset pyynnöt, mutta haku
+oli sidottu kutsujan keskeytykseen: kun uusi kierros (`_hae`, kartan
+liike tai tunnin vaihto) keskeytti edellisen kesken sarjan haun, perässä
+tullut kierros sai saman keskeytetyn lupauksen ja tyhjän sarjan, eikä
+sarjaa haettu uudelleen ennen seuraavaa liikettä. Toistettu viivästetyllä
+vastauksella (kenttä tuli, sarja ei 15 s:ssa); korjattuna sarja tuli
+1,1 s toisen kierroksen jälkeen. Nyt yhdistetyllä haulla on oma
+aikarajansa, ja kutsuja vain jättää tuloksen käyttämättä jos se itse on
+keskeytetty (kuten `MalliHila.pisteenSarja`ssa jo oli).
+
+Tuotannon funktiota ei voitu kutsua kontista: `wind-delta.vercel.app`
+vastasi 5.10. `DEPLOYMENT_NOT_FOUND` (Vercel, `x-vercel-error`), vaikka
+commitin tuotantodeploy oli valmis, ja deployn omat osoitteet vaativat
+Vercel-kirjautumisen. Funktion paketin sisältö tarkistettiin Vercelin
+omalla jäljittimellä (`@vercel/nft`): `tools/alueelliset.mjs`,
+`tools/pyramidi.mjs` ja `tools/maat.json` ovat mukana.
+
 ### 13.4 Hinta
 
 - **Pyynnöt:** lähizoomissa kartan pysähtyessä enintään kolme kenttää
@@ -1022,9 +1069,10 @@ graafitesti 96/96.
 
 ### 13.5 Mitä jäi
 
-- **Natiivihila tulee voimaan vasta V2-rakentajan ensimmäisestä
-  Säädata-ajosta** (luettelon `natiivi`); siihen asti sovellus toimii
-  kuten V1.
+- **Natiivihila on voimassa Säädata #187:stä** (5.10., luettelon
+  `natiivi`); sivu joka saa vanhan luettelon toimii kuten V1.
+- **Tuotanto-osoite** (`wind-delta.vercel.app`) on tarkistettava Vercelin
+  projektin Domains-asetuksista (yllä).
 - **Natiivihila ei kata vartteja eikä toistoa**: liikkuva kartta on
   varastoa, ja pysähtynyt tasatunti tarkentuu 1–2 s:ssa.
 - **Varmennus** (S8, V4) ratkaisee, kumpi on oikeammin spotin kohdalla:

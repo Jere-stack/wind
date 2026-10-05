@@ -10038,7 +10038,6 @@ const MalliHila = {
 const Natiivi = {
   MIN_Z: 10,
   AIKARAJA_MS: 12000,
-  PEHMUSTE: 0.6,
   MAX_PERHEITA: 3,
   _kentat: new Map(),      /* osoite -> kenttä (tai null = ei dataa) */
   _sarjat: new Map(),      /* osoite -> sarja */
@@ -10150,8 +10149,9 @@ const Natiivi = {
     }
   },
 
-  /* Näkymän pehmustettu alue pyöristettynä 10 askeleeseen (sama osoite
-     naapurinäkymille, eli CDN-osuma). */
+  /* Näkymän pehmustettu alue (`MalliHila._alue`: 0,6 näkymää joka
+     laidalla, sama kuin ECMWF 9 km:llä) pyöristettynä 10 askeleeseen
+     (sama osoite naapurinäkymille, eli CDN-osuma). */
   _osoite(perhe, hetki, a, map) {
     const A = MalliHila._alue(map, 10 * a);
     if (!A) return null;
@@ -10198,13 +10198,18 @@ const Natiivi = {
     return { la0: o.la0, lo0: o.lo0, askel: o.askel, t0: o.t0, n: o.n, solmut: o.solmut, kelpaa: kelpaa, haettu: Date.now() };
   },
   /* Yksi sarja, muistista tai palvelimelta; samat samanaikaiset pyynnöt
-     yhdistetään. Tuoreus 30 min kuten `MalliHila`lla. */
-  _sarja(url, ac) {
+     yhdistetään. Tuoreus 30 min kuten `MalliHila`lla. YHDISTETTY HAKU EI
+     KUULU KUTSUJALLE: sillä on oma aikarajansa, eikä kutsujan keskeytys
+     pysäytä sitä. `_hae` keskeyttää edellisen kierroksensa, ja kun haku
+     oli sen, perässä tullut kierros sai saman keskeytetyn lupauksen ja
+     tyhjän sarjan — eikä sarjaa haettu uudelleen ennen seuraavaa liikettä
+     (toistettu tuotannon varastolla: kenttä tuli, aikajanan sarja ei). */
+  _sarja(url) {
     const sa = this._sarjat.get(url);
     if (sa && Date.now() - sa.haettu <= 30 * 60e3) return Promise.resolve(sa);
     if (this._skortti.has(url)) return this._skortti.get(url);
-    const self = this, oma = ac || new AbortController();
-    const lupaus = this._json(url, oma).then(function (o) {
+    const self = this;
+    const lupaus = this._json(url, new AbortController()).then(function (o) {
       const uusi = self._sarjaksi(o);
       if (uusi) self._muista(self._sarjat, url, uusi, 24);
       return uusi;
@@ -10225,7 +10230,7 @@ const Natiivi = {
     const sarjat = await Promise.all(perheet.map(p => {
       if (!keskella.has(p.id)) return null;
       const url = this._sarjanOsoite(p.id, Math.max(this.askel(z), p.natiivi), c.lat, c.lng);
-      return url ? this._sarja(url, ac) : null;
+      return url ? this._sarja(url) : null;
     }));
     if (ac && ac.signal.aborted) return;
     let muuttui = false;
