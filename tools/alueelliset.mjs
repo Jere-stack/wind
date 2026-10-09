@@ -45,7 +45,7 @@ const S3 = 'https://openmeteo.s3.amazonaws.com';
 const RAD = Math.PI / 180;
 const H = 3600e3;
 export const ASKEL = 0.05;
-export const TASOT_POHJA = [0.05, 0.1, 0.25, 0.5];
+export const TASOT_POHJA = [0.05, 0.1, 0.25, 0.5, 1.0];
 const KAYTTO_KM = 30;
 
 /* -- PROJEKTIOT (Open-Meteon Projectable, Float64:nä) ------------------ */

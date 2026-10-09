@@ -8237,14 +8237,13 @@ const Saalaatat = {
      pyydettyä hienompi: vanhassa luettelossa HARMONIElla on vain
      0,05°:n taso, ja sillä maailmannäkymä vaatisi satoja laattoja.
 
-     POHJAMALLIN 0,5°:N TASO OHITETAAN: 0,5°:n pyyntö lukee ECMWF:n 1°:n
-     tasoa. Mitattu kahdesti: solmuvälin kokeessa (5.10.) 0,5°:n taso ei
-     parantanut tarkkuutta mittauspisteissä lainkaan, ja näyttötarkkuuden
-     tasolla (6.10.) se oli z4–5-näkymän tavuista 2,0 Mt 2,1:stä
-     (docs/mallit.md). ECMWF:n oma hila on 0,25° (l0), ja sitä luetaan
-     zoomista 6. */
+     POHJAMALLIN 0,5°:N TASO (l1) ON KÄYTÖSSÄ z4:llä (9.10.). Se ohitettiin
+     5.–9.10., koska Suomenlahden mittauspisteissä se ei parantanut mitään
+     (siellä kenttä on alueellisten mallien) ja maksoi tavuja. Avomerellä,
+     jossa kenttä on pelkkää ECMWF:ää, se puolittaa virheen näytön
+     ihanteeseen (z4 0,31 → 0,15, z4,45 0,36 → 0,17 m/s), ja palat ajassa
+     maksavat sen (docs/mallit.md "Kaukaa kuin läheltä"). */
   _perheenTaso(p, lat, lo, step) {
-    if (p.pohja && step >= 0.5 - 1e-9 && step < 1) step = 1;
     let paras = null, hienoin = null;
     for (const t of p.tasot) {
       if (lat < t.lat[0] || lat > t.lat[1]) continue;
@@ -10757,10 +10756,18 @@ const ViewportGrid = {
    * <= tämä, tai hienoin olemassa oleva), ja siellä tiheämpi askel on
    * ilmainen kyselyissä — se maksaa vain laattoja.
    *
-   * TASO ON KARKEIN JONKA SOLMUVÄLI RUUDULLA ON ENINTÄÄN NOIN 12 CSS px
-   * PITUUSASTEESSA (60°N:ssa ~23 px leveysasteessa): z ≤ 3 1,0°, z4–5
-   * 0,5°, z6 0,25°, z7 0,1° ja z8:sta 0,05° eli varaston hienoin
-   * (käyttäjän raportti 6.10.: "sama paikka ja tunti, zoomattu
+   * TASO ON KARKEIN JONKA SOLMUVÄLI RUUDULLA ON ENINTÄÄN NOIN 6 CSS px
+   * PITUUSASTEESSA kokonaisluvulla (9.10.): z ≤ 3 1,0°, z4 0,5°, z5
+   * 0,25°, z6 0,1° ja z7:stä 0,05° eli varaston hienoin. Käyttäjän
+   * pyyntö 9.10.: "kaukaisella zoomilla kartta samaksi kuin lähellä
+   * mahdollisimman hyvin". 6.10. taulukko (z4–5 0,5°, z6 0,25°, z7
+   * 0,1°, z8:sta 0,05°) jätti solmuväliksi 9–11 px, ja mitattuna virhe
+   * näytön ihanteeseen tuli siitä eikä suotimen muodosta: Suomenlahdella
+   * z5 1,03 → 0,36, z6 0,52 → 0,14 ja z7 0,20 → 0,05 m/s, Biskajalla
+   * z5–7 0,15–0,04 (docs/mallit.md "Kaukaa kuin läheltä"). Hinta on
+   * solmuissa (noin nelinkertaiset zoomeilla 5–7) ja laatoissa.
+   *
+   * 6.10. muutoksen syy (käyttäjän raportti: "sama paikka ja tunti, zoomattu
    * marginaalisesti, ja lämpökartta muuttuu selvästi"; docs/mallit.md
    * "Näyttötarkkuuden taso"). Karkea taso on hienon laatikkokeskiarvo
    * (`tools/pyramidi.mjs`), joten kun laatikko on ruudulla lämpökartan
@@ -10774,17 +10781,16 @@ const ViewportGrid = {
    * 1,9–2,1 m/s sivussa (harha −1,2). Laattoja näkymää kohti on nyt sama
    * määrä joka zoomilla, ja tavut pidetään kurissa kahdella kerroksella
    * (`ennakkoStep`, `LampoGL.varmistaAlue`). ECMWF:n (pohja) 0,5°:n taso
-   * ohitetaan (`Saalaatat._perheenTaso`): se ei tuonut tarkkuutta ja maksoi
-   * z5-näkymässä 2 Mt.
+   * l1 on 9.10. lähtien z4:n taso (`Saalaatat._perheenTaso`).
    *
    * ERILLINEN FUNKTIO EIKÄ `gridStep`IN MUUTOS. Yhteinen askel olisi
    * tarkoittanut z12:ssa 0,05 asteen rajapintahilaa, eli kymmeniä kertoja
    * enemmän pisteitä varaston ulkopuolella — juuri se kiintiö jonka takia
    * koko varasto rakennettiin. */
   laattaStep(zoom) {
-    if (zoom >= 8) return 0.05;
-    if (zoom >= 7) return 0.1;
-    if (zoom >= 6) return 0.25;
+    if (zoom >= 7) return 0.05;
+    if (zoom >= 6) return 0.1;
+    if (zoom >= 5) return 0.25;
     if (zoom >= 4) return 0.5;
     return 1.0;
   },

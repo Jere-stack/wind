@@ -146,7 +146,7 @@ const TASOT = [
    spottikorttiin, koska ne tarvitsevat 16,6 vuorokauden sarjan ja tämä
    kattaa noin 70 tuntia.                                              */
 const FMI_ALUE = { lat: [58, 71], lng: [17, 33] };
-const FMI_TASOT = [0.05, 0.1, 0.25, 0.5].map((askel, i) => ({
+const FMI_TASOT = [0.05, 0.1, 0.25, 0.5, 1.0].map((askel, i) => ({
   id: 'h' + i, askel, lat: FMI_ALUE.lat, lng: FMI_ALUE.lng,
   paino: (lat, lng) => suorakaidePaino(lat, lng, FMI_ALUE),
 }));
@@ -169,7 +169,7 @@ const FMI_MALLI = { malli: 'fmi', perhe: 'fmi',
 /* MET Nordic: sama porrastus, oma alue (Lambert-hilan lat/lon-rajaus).
    Paino tulee Lambert-hilan omasta reunasta, ei suorakaiteesta. */
 const MN_HILA_ASKEL = 0.05;
-const MN_TASOT_POHJA = [0.05, 0.1, 0.25, 0.5];
+const MN_TASOT_POHJA = [0.05, 0.1, 0.25, 0.5, 1.0];
 const MN_MALLI = { malli: 'metnordic', perhe: 'metnordic',
   lahde: 'MET Norway · MET Nordic 1 km (Yr) · Open-Meteo / AWS Open Data · CC BY 4.0' };
 

@@ -691,8 +691,8 @@ käyttöliittymän laajennus jonka data tulee V1–V3:sta.
   Meri kuuluu lähimmälle maalle 150 km:iin (rannikkomerta 334 367 solmua,
   avomerta 528 795). Ajetaan käsin; tiedosto on repossa.
 - **`tools/tiilet.mjs`** — Euroopan silmukka MET Nordicin jälkeen, kukin
-  malli omassa try/catchissaan; tasot `<id>0`–`<id>3` (0,05 / 0,1 / 0,25 /
-  0,5°) `lisatasot`-listaan omalla tuntiakselillaan ja painokanavallaan;
+  malli omassa try/catchissaan; tasot `<id>0`–`<id>4` (0,05 / 0,1 / 0,25 /
+  0,5 / 1,0°; 1,0° lisättiin 9.10., docs/mallit.md "Kaukaa kuin läheltä") `lisatasot`-listaan omalla tuntiakselillaan ja painokanavallaan;
   luettelon `perheet` = järjestys. MET Nordicin paino = Lambert-reuna ×
   käyttöalue. ECMWF:n l0 (0,25°) laajeni Pohjoismaista koko Eurooppaan
   (25–75 N, 35 W–45 E; 60 → 160 laattaa), jotta sekoitusvyöhykkeillä

@@ -127,7 +127,7 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   UKV, DINI, ICON-CH1/CH2, ICON-2I, AROME Itävalta, ALADIN CE/CZ)
   Open-Meteon S3:sta: YKSI TAULUKKO (`ALUEELLISET`) omistaa järjestyksen,
   käyttöalueet, projektiot ja reunojen pehmennyksen; tasot
-  `<id>0`–`<id>3`. Saman taulukon lukee `api/malli.js` (hila,
+  `<id>0`–`<id>4` (0,05 … 1,0°). Saman taulukon lukee `api/malli.js` (hila,
   `hilanIndeksi`, natiiviaskel `natiivi`, sarjan pituus `sarjaTunnit`),
   joten moduulissa ei saa olla tuontihetken sivuvaikutuksia (maarasteri
   luetaan vasta `kayttoPaino`ssa). `tools/maat.mjs` kirjoittaa
@@ -136,9 +136,9 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
 - `tools/pyramidi.mjs` — säännöllisestä hilasta suodatettu laattapyramidi
   ja painokanava; kaikki mallit kirjoitetaan sen kautta.
 - `tools/harmonie.mjs` — FMI HARMONIE 2,5 km hilana GRIB2:sta (tasot
-  `h0`–`h3`), ajo kiinnitettynä `origintime`lla.
+  `h0`–`h4`), ajo kiinnitettynä `origintime`lla.
 - `tools/metnordic.mjs` — MET Nordic 1 km Lambert-hilasta säännölliseksi
-  0,05°:n hilaksi (tasot `n0`–`n3`).
+  0,05°:n hilaksi (tasot `n0`–`n4`).
 - `tools/wam.mjs` — FMI WAM -aaltoennuste hilana GRIB2:sta (tasot
   `a0`–`a3`, luettelon OMA avain `aallot`), jakso pistekyselystä.
   `tiilet.mjs` ajaa sen viimeisenä omassa try/catchissaan (`AALLOT=0`
@@ -1178,8 +1178,8 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 
 - **"AUTOMAATTINEN" TARKOITTAA PARASTA SAATAVILLA, JA PARAS TULEE
   VARASTOSTA.** Varastossa on mallit omina pyramideinaan (FMI
-  HARMONIE `h0`–`h3`, MET Nordic `n0`–`n3`, Euroopan kymmenen alueellista
-  `<id>0`–`<id>3`, ECMWF `l0`–`l4`), ja niiden päällä ECMWF 9 km
+  HARMONIE `h0`–`h4`, MET Nordic `n0`–`n4`, Euroopan kymmenen alueellista
+  `<id>0`–`<id>4`, ECMWF `l0`–`l4`), ja niiden päällä ECMWF 9 km
   palvelimelta (`MalliHila`, zoomista 8) ja lähizoomissa alueellisten
   mallien oma hila (`Natiivi`, zoomista 10; ks. "LÄHIZOOMIN
   NATIIVIHILA").
