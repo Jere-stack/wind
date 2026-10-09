@@ -1184,8 +1184,9 @@ Suomenlahti FMI, Norja MET Nordic, Ranska AROME, Biskaja ECMWF):
 | työpöytä Suomenlahti | 4–8 | | sama kuin ennen (budjetti) |
 
 Zoomeilla 3,5–4,5 Suomen edustalla virhe on yhä 0,7–1,2 m/s
-(alueellisen 1,0°:n tason vaikutus näkyy vasta seuraavan Säädata-ajon
-jälkeen), ja z4:n 0,5°:n tasoa tiheämpi nelinkertaistaisi solmut.
+(alueellinen 1,0°:n taso tuli varastoon Säädata-ajossa 9.10. klo 14:38
+UTC; selaimessa tarkistettu, että z3,5:n karkea hila lukee `h4`/`n4`/
+`<id>4`-laattoja ja näkyvissä ei puutu solmuja), ja z4:n 0,5°:n tasoa tiheämpi nelinkertaistaisi solmut.
 
 **Hinta** (kontti, puhelin 390 × 844):
 
