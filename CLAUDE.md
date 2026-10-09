@@ -223,6 +223,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/sadetutka.md` | **sadetutkaa ja sadetilaa (strategia ja toteutus 4.10.; luku 11: koko maailma ja paras paikallinen malli, beta)**: 250 m FINRAD-lähde ja paletti, klassinen tutkaväri, 5 min kehykset, vartit aikajanalla, sadepalkit ja kapseli, liikekenttä (`SadeLiike`) ja nowcast, ECMWF-jatko — mitattu data (FMI WMS ja S3, MET Norway), päätökset P1–P9, toteutus luvussa 10 ja mittaukset (`tools/sadeliike.mjs`); lue ennen kuin kosket `SadeKerros`iin, `Sadetutka`an, `SadeLiike`en tai sadetilan aikajanaan |
 | `docs/eurooppa.md` | **Euroopan laajennusta ja paikallisia lähteitä** (strategia ja roadmap 4.10., V1, V2 ja V3:n E-SOH toteutettu): Euroopan kansalliset 1–2,5 km mallit varastoon ja niiden **etusija ja käyttöalueet** (`tools/alueelliset.mjs`), **lähizoomin natiivihila ja spotin natiivisarja** (`Natiivi`, `api/malli.js?malli=<perhe>`, luku 13), **Euroopan havainnot kartalla ja korteissa (MeteoGate E-SOH, `EuAsemat`, `api/fmi.js?eu=`, `tools/esoh.mjs`, luku 14; OpenWindMap odottaa lisenssipäätöstä)**, **Euroopan asemat kaukaa GL-pisteinä ja spottien esilataus näkymän mukaan (luku 15)**, hilat ja projektiot totuutta vasten, havaintoverkot (MeteoGate E-SOH, kansalliset, OpenWindMap), meri, aukot, infra (Pages, Vercel, Actions), lisenssit (UKV on CC BY-SA), roadmap V1–V9 ja päätökset P1–P7; lue ennen kuin lisäät mallin, havaintolähteen tai spotteja Suomen ulkopuolelle |
 | `docs/oikeellisuus.md` | **datan oikeellisuutta** (auditointi 29.9., toteutus 30.9.): varasto havaintoja vasten, **jatkuva varmennus**, **varaston tuoreus ja Säädatan ajastin**, kapselin ja partikkelien taso vs lämpökartta, **tähtäimen lukema ja zoom (O12, 5.10.)**, **kapselin puuska**, havaintoverkko ja sen päivitys, proxyjen virheenkäsittely, UiRaS — aukot O1–O11, suositusjärjestys ja sujuvuusvaikutus; lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
+| `docs/aikahyppy.md` | **aikahypyn latausta** (strategia 9.10., ei vielä toteutettu): miksi kartta latautuu hetken kun aikajanalla hypätään historiaan tai kauas tulevaisuuteen — mitattu viive laitteittain ja zoomeittain, **perheet haetaan peräkkäin (12 kierrosta Euroopan näkymässä)**, koko akselin esilatauksen hinta, vaihtoehdot S1–S8, vaiheet V1–V5 ja hyväksymismittarit; lue ennen kuin kosket `Saalaatat.varmista`an, esilataukseen tai hypyn odotukseen (`_odottava`) |
 
 <details>
 <summary>Osioiden nimet tiedostoittain (jos et tiedä mistä etsiä)</summary>
@@ -385,6 +386,10 @@ kokeiltu ja kaadettu mittauksella.
   mitä jäi · **Toteutus (5.10.): Euroopan asemat kaukaa ja spotit
   Euroopassa** — mikä erosi, rakenne (keräimen luettelo, `?eu=asemat`,
   GL-pisteet, spottien esilataus), mitattu, mitä jäi
+- **aikahyppy**: Tiivistelmä · Mitä mitattiin (hypyn viive, miksi +24 h
+  laajalla zoomilla on hidas, mitä ruudulla on odotuksen aikana, koko
+  akselin hinta) · Käyttäjän ehdotus arvioituna · Vaihtoehdot S1–S8 ·
+  Suositus ja vaiheet V1–V5 · Hyväksymismittarit · Päätettävät P1–P5
 - **oikeellisuus**: Tiivistelmä · Kunnossa — mitattu, ei toimenpiteitä ·
   Aukot O1–O11 (varaston tuoreus, kaksi ennustetta, kapselin taso,
   kapselin puuska, virhe lakkautuksena, havaintoverkko, havaintojen
