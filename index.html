@@ -8425,6 +8425,7 @@ const Saalaatat = {
      uudelleen. */
   _kunUusia(taso, la0, lo0) {
     if (!taso || !taso._tuuli) return;
+    this._saapuneet = (this._saapuneet || 0) + 1;   /* `kokoaHila`n muistin avain */
     const s = taso.span;
     const osuu = (h, d) => {
       if (!h) return false;
@@ -9066,7 +9067,51 @@ const Saalaatat = {
      karkeammasta tasosta, koska oikea laatta ei ollut vielä muistissa.
      Maskissa ne ovat 2 — dataa, mutta ei vielä lopullista. */
   _vajaat: 0,
+  /* SAMA HILA KOOTAAN KERRAN (9.10.). Tunnin vaihdossa partikkelikenttä
+     (`WindTexture.build`) kokoaa ensin oman ja karkean hilan, ja sen
+     valmistuminen likaa lämpökartan (`LampoGL.paivita`), joka kokoaa
+     SAMAT hilat samoihin solmuihin samalla hetkellä uudelleen (O3: ne
+     ovat tarkoituksella sama hila). Näyttötarkkuuden tiheämmällä tasolla
+     tämä kaksinkertainen työ oli puhelimella 28 500 solmua kahdesti.
+     Tulos muistetaan avaimella joka kattaa kaiken mistä `naytteista`
+     riippuu: pyyntö, hetki, kenttä, saapuneet tuulen laatat (`_saapuneet`) ja
+     muistin koko, sekä jokaisen perheen tila (pois, natiivikenttä,
+     mallin oma laatta, aikapaino). Keskeytetty kokoaminen
+     (`kattoPuuttuu`) ei jää muistiin. */
+  _kooste: [],
+  _koosteAvain(laMin, loMin, latAskel, lngAskel, gc, gr, step) {
+    let a = laMin + '|' + loMin + '|' + latAskel + '|' + lngAskel + '|' + gc + '|' + gr + '|' + step + '|'
+      + this._hetkiMs + '|' + this._puuskaTila + '|' + (this._saapuneet || 0) + '|' + this._laatat.size;
+    if (this._perheet) for (const p of this._perheet) a += '|' + (p.pois ? 1 : 0) + (p._aikaW != null ? p._aikaW : '');
+    return a;
+  },
+  _koosteSama(k) {
+    const P = this._perheet;
+    if (k.perheet !== P) return false;
+    for (let i = 0; i < P.length; i++) if (k.nat[i] !== P[i]._nat || k.dyn[i] !== P[i]._laatta) return false;
+    return true;
+  },
   kokoaHila(laMin, loMin, latAskel, lngAskel, gc, gr, gu, gv, step, kattoPuuttuu, maski) {
+    const n = gc * gr, avain = this._koosteAvain(laMin, loMin, latAskel, lngAskel, gc, gr, step);
+    for (const k of this._kooste) {
+      if (k.avain !== avain || !this._koosteSama(k)) continue;
+      if (kattoPuuttuu !== undefined && k.puuttuu > kattoPuuttuu) break;
+      gu.set(k.gu.subarray(0, n)); gv.set(k.gv.subarray(0, n));
+      if (maski) maski.set(k.maski.subarray(0, n));
+      this._vajaat = k.vajaat;
+      return k.puuttuu;
+    }
+    const m = maski || new Uint8Array(n);
+    const puuttuu = this._kokoaHila(laMin, loMin, latAskel, lngAskel, gc, gr, gu, gv, step, kattoPuuttuu, m);
+    if (kattoPuuttuu === undefined || puuttuu <= kattoPuuttuu) {
+      const P = this._perheet || [];
+      this._kooste.unshift({ avain, perheet: this._perheet, nat: P.map(p => p._nat), dyn: P.map(p => p._laatta),
+        gu: gu.slice(0, n), gv: gv.slice(0, n), maski: m.slice(0, n), puuttuu, vajaat: this._vajaat });
+      if (this._kooste.length > 4) this._kooste.length = 4;
+    }
+    return puuttuu;
+  },
+  _kokoaHila(laMin, loMin, latAskel, lngAskel, gc, gr, gu, gv, step, kattoPuuttuu, maski) {
     let puuttuu = 0, vajaat = 0;
     this._vajaat = 0;
     /* Keskeytys kun on selvää ettei tästä tule mitään.
@@ -10788,11 +10833,30 @@ const ViewportGrid = {
    * enemmän pisteitä varaston ulkopuolella — juuri se kiintiö jonka takia
    * koko varasto rakennettiin. */
   laattaStep(zoom) {
-    if (zoom >= 7) return 0.05;
-    if (zoom >= 6) return 0.1;
-    if (zoom >= 5) return 0.25;
-    if (zoom >= 4) return 0.5;
-    return 1.0;
+    const s = zoom >= 7 ? 0.05 : zoom >= 6 ? 0.1 : zoom >= 5 ? 0.25 : zoom >= 4 ? 0.5 : 1.0;
+    if (this._nakymaSolmut(s, zoom) <= this.SOLMUBUDJETTI) return s;
+    return zoom >= 8 ? 0.05 : zoom >= 7 ? 0.1 : zoom >= 6 ? 0.25 : zoom >= 4 ? 0.5 : 1.0;
+  },
+  /* SOLMUBUDJETTI (9.10.): tiheä taulukko vain kun näkymän solmuja on
+     enintään tämän verran tason tiheimmässä kohdassa (zoom − 0,5), muuten
+     6.10. taulukko. Tunnin vaihto kokoaa lämpökartan ja partikkelien
+     hilat näkymälle, ja hinta on solmuissa: tiheällä taulukolla
+     työpöydän näkymä oli z4,5:llä 110 000 solmua ja tunnin vaihto 729 ms
+     (kontti; ennen 28 700 ja 89 ms), puhelimella 28 500 ja noin 90 ms.
+     Laskelma on näytön koosta eikä paikasta (leveysaste 55°), jotta taso
+     ei vaihdu karttaa panoroitaessa. Puhelimet (≈ 11 700–22 200) saavat
+     tiheän taulukon, tabletit ja työpöytä (≈ 46 000–78 000) entisen. */
+  SOLMUBUDJETTI: 24000,
+  _nakymaSolmut(s, zoom) {
+    let a = this._ala;
+    if (!a) {
+      const el = State.map && State.map.ml ? State.map.ml.getContainer() : null;
+      const w = el && el.clientWidth ? el.clientWidth : (typeof innerWidth !== 'undefined' ? innerWidth : 390);
+      const h = el && el.clientHeight ? el.clientHeight : (typeof innerHeight !== 'undefined' ? innerHeight : 844);
+      a = this._ala = { w, h };
+    }
+    const p = s * 256 * Math.pow(2, zoom - 0.5) / 360;
+    return (a.w / p) * (a.h * 0.574 / p);
   },
   /* TASOJEN SEKOITUS ZOOMIN MUKAAN (kuten näytönohjaimen mipmap).
      Pyöristetyn zoomin `tz` kenttä on oman tason L(tz) ja edellisen tason
@@ -11851,7 +11915,7 @@ function KarttaGL(ml) {
   const c = ml.getContainer();
   this._koko = L.point(c.clientWidth, c.clientHeight);
   const self = this;
-  ml.on('resize', function () { self._koko = L.point(c.clientWidth, c.clientHeight); });
+  ml.on('resize', function () { self._koko = L.point(c.clientWidth, c.clientHeight); if (typeof ViewportGrid !== 'undefined') ViewportGrid._ala = null; });
   /* Merkkien pinoamisjärjestys riippuu vain zoomista, ks. Merkki. */
   ml.on('zoomend', function () { const z = self.getZoom(); self._merkit.forEach(m => m._paivitaZ(z)); });
   ml.on('load', function () {
