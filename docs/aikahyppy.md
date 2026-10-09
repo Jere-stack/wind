@@ -5,9 +5,9 @@ tulevaisuuteen, kartta latautuu hetken. Ehdotus: kun peruskartta on
 ladattu nykyhetkelle, sovellus lataisi historian ja pitkän tulevaisuuden
 karttalaatat, lämpölaatat ja partikkelit valmiiksi.
 
-Tämä on strategia, ei toteutus. Luvut on mitattu 9.10. tuotannon
-varastoa vasten (luettelo `luotu` 2026-10-09T17:28Z, tuotantobuild
-`4245b3f`). Toteutus vaatii käyttäjän päätöksen (luku 7).
+Luvut 1–7 ovat strategia, mitattu 9.10. tuotannon varastoa vasten
+(luettelo `luotu` 2026-10-09T17:28Z, tuotantobuild `4245b3f`).
+Käyttäjän päätökset ja toteutus ovat luvussa 8.
 
 ## 1. Tiivistelmä
 
@@ -360,3 +360,112 @@ raakaluvut näkyvissä:
 - **P4. Wi-Fi-tila (S6)**: automaattinen vai asetus? Suositus:
   automaattinen, ei uutta asetusta.
 - **P5. Pages päälle** repon asetuksista (käyttäjän toimenpide).
+
+## 8. Päätökset ja toteutus (9.10.)
+
+### 8.1 Käyttäjän päätökset
+
+- **P1**: oikea data heti; sumennus sallittu jos se auttaa.
+- **P2**: latausmerkki hyväksytty — jäi tekemättä, koska mitattuna
+  hyppy on esilatauksen jälkeen 0,1–0,45 s eikä odotettavaa ole (ks.
+  "Mitä jäi").
+- **P3 ja P4**: ei verkkobudjettia eikä Wi-Fi/mobiili-eroa. Suomessa
+  mobiilidata on rajaton, joten esilataus on aina koko akseli.
+- **P5**: Pages päälle (käyttäjän toimenpide repon asetuksissa).
+
+### 8.2 Mitä tehtiin
+
+1. **Perheet rinnakkain (S1)**: `Saalaatat.varmista` hakee kaikki perheet
+   yhdellä kierroksella. Alempi perhe lykätään toiselle kierrokselle
+   vain jos jokin sen pisteistä voi jäädä ylemmän TÄYDEN laatan alle,
+   jota ei vielä ole muistissa (`_peitto` 1). Suomen sisämaassa
+   ECMWF ja MET Nordic odottavat siis yhä FMI:n laatan; muualla kaikki
+   tulee kerralla.
+2. **Muun hetken pala ei kokoa kenttää** (`_kunUusia(taso, la0, lo0, c)`):
+   vain kartan hetken tai sarjan laskennan hetken pala laskee
+   `_saapuneet`, pyytää lämpökartalta kokoamista ja täydentää
+   partikkelikentän. Muu pala pudottaa vain muiden hetkien
+   kokoamismuistin (`_kooste`, rivillä nyt `hetki`). Ilman tätä
+   esilatauksen jokainen pala olisi koonnut kentän uudelleen.
+3. **Hypyn odotus (S2)**: `LampoGL._varmistaOma` pitää vanhaa hilaa
+   hetken vaihdossa enintään `ODOTUS_HYPPY_MS` 0,4 s, ja jos uuden
+   hilan näkyvistä solmuista yli 10 % on TYHJIÄ (`tyhjaOsuus`, maski 0),
+   enintään `ODOTUS_HYPPY_MAX_MS` 2 s. Vajaa solmu (alempi malli tai
+   toinen taso, maski 2) on oikeaa tuntia ja kelpaa. Saman hetken
+   tarkkuuden vaihdossa raja on yhä `ODOTUS_MS` 6 s.
+4. **Koko akselin esilataus (S3, S6 käyttäjän päätöksellä)**:
+   `AikaEsilataus` + `Saalaatat.esilatausTehtavat` / `esiPeittyy`.
+   Levossa (1,2 s `moveend`istä, 0,3 s hypystä, 3 s käynnistyksen
+   varaston valmistumisesta) näkymän tasot — oma taso näkymälle ja
+   karkeampi 0,25:n reunukselle, kuten `varmistaAlue` — kaikille
+   paloille, lähin aika ensin (menneisyys kertoimella 1,3), 6 hakua
+   kerrallaan matalalla prioriteetilla (`_lataa(…, matala)`).
+   Liike keskeyttää jonon, hyppy järjestää sen uudelleen. Alempi perhe
+   ohitetaan kun ylempi täysi laatta peittää sen koko palan ajan
+   (ylemmän akselin täysi paino: alusta 2 h, lopusta 6 h). Laattojen
+   MÄÄRÄ ei kasva, koska palat täyttävät samat laattaoliot; jos muisti
+   on silti täynnä, uusia laattoja ei luoda.
+5. **Palvelinhilan viereiset tunnit (S7 b)**: `MalliHila._esiHae`
+   (ECMWF 9 km) ja `Natiivi._esiHae` hakevat valitun tunnin edellisen
+   ja seuraavan tunnin samalle alueelle muistiin matalalla
+   prioriteetilla, eivät toistossa. Ei koko akselia: jokainen tunti on
+   palvelinkutsu (enintään 2 + 6 kutsua tunnin vaihtoa kohti).
+6. **Pages (S8)**: sovellus muistaa toimivan kodin, joten raw'ta
+   käyttänyt ei olisi koskaan kokeillut Pagesia uudelleen.
+   `Saalaatat._kokeileEnsisijainen` hakee 20 s käynnistyksestä Pagesin
+   luettelon taustalla, ja jos se on yhtä tuore, SEURAAVA käynnistys
+   alkaa Pagesista. Saman istunnon laatat pysyvät kodissaan.
+
+### 8.3 Mitattu
+
+Sama asetelma kuin luvussa 2 (`hyppy.mjs`, rajaton verkko), vanha =
+`4245b3f`, uusi = tämä muutos, sama varasto.
+
+| tapaus | vanha | uusi ilman esilatausta | uusi |
+|---|---|---|---|
+| puhelin z5 +24 h, täysi | 9,4–12,1 s (12 kierrosta, 54–57 kokoamista) | **0,99–1,95 s** (1 kierros, 9 kokoamista) | **0,44 s** |
+| puhelin z5, kaikki hypyt | 0,4–12,1 s | — | **0,20–0,44 s** |
+| työpöytä z5, kaikki hypyt | 0,1–11,6 s | — | **0,12 s** (paluu nyt-tuntiin 0,92 s) |
+| natiivihila z10 tunnin askel (Kiel) | 2,75–3,19 s | — | **0,65–0,87 s** |
+
+Uusi tunti ruudulla: ennen kuluttiin 5,7–6,4 s vanhassa tunnissa ja
+sitten nähtiin vajaa kenttä (2 097–3 173 solmua ilman dataa); nyt
+tyhjiä 0 % jokaisessa hypyssä.
+
+Ensimmäinen täysi näkymä navigoinnista (kolme ajoa vuorotellen):
+
+| näkymä | vanha | uusi |
+|---|---|---|
+| puhelin z5 | 14,6 / 17,7 / 16,5 s | **6,9 / 8,3 / 6,2 s** |
+| työpöytä z7,5 | 9,4 / 10,2 / 9,0 s | 8,4 / 11,5 / 5,7 s |
+| puhelin z10 (Kiel) | 6,2 / 4,9 / 7,6 s | **3,8 / 4,1 / 4,8 s** |
+
+Esilataus ei siis hidasta ensimmäistä näkymää, ja rinnakkaiset perheet
+nopeuttavat sitä. Savutestin latausruutu poistui puhelimella 16,4 →
+15,0 s ja työpöydällä 16,7 → 13,7 s.
+
+Oikeellisuus (`oikein.mjs`): ruudulla oleva lämpökartan hila verrattuna
+samoihin solmuihin juuri koottuun kenttään hyppyjen −48 / +24 / +72 /
++1 / +2 h, panoroinnin, zoomin ja uuden näkymän hypyn jälkeen: suurin
+ero 0,0014 m/s (16-bittinen kvantisointi), 0 solmua yli 0,01 m/s.
+
+Tavut: käynnistys + 15 s puhelin z5 4,7 → 9,3 MB (koko akseli), puhelin
+z7,5 4,0 → 5,0 MB, työpöytä z5 5,2 → 9,9 MB. Jokainen uusi näkymä
+lataa omansa (luku 2.4: 1,9–5,3 MB).
+
+### 8.4 Mitä jäi
+
+- **Latausmerkki (P2)**: ei tehty. Esilatauksen jälkeen ei ole
+  odotettavaa; jos se joskus tarvitaan (esim. hyppy heti panoroinnin
+  jälkeen ennen esilatausta), paikka on aikajanan kupla ja ehto
+  `LampoGL._odottava`.
+- **Pagesin vaikutusta ei ole mitattu**: se on pois päältä. Kun se on
+  kytketty, mittaa sama `hyppy.mjs` reitittämättä Pagesia 404:ksi.
+- **Eleen aikomus (S5)**: ei tehty, koska koko akseli on jo muistissa
+  levossa. Hyppy heti panoroinnin jälkeen hakee yhä verkosta (nyt yhdellä
+  kierroksella).
+- **Oikealla laitteella mittaamatta**: kontti ei mittaa ruutuaikaa, ja
+  esilatauksen purku (`DecompressionStream`) ja kokoaminen ovat
+  pääsäikeessä. Jos puhelimella tuntuu nykimistä esilatauksen aikana,
+  vipu on `AikaEsilataus.RINNAKKAIN` ja viive, ei koko akselin
+  luopuminen.

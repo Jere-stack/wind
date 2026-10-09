@@ -7903,10 +7903,29 @@ const Saalaatat = {
         if (loppu < Date.now() + 12 * 3600e3) throw new Error('varasto vanhentunut');
         SAALAATAT_KANTA = kanta;
         try { localStorage.setItem('fs_saakanta', kanta); } catch (e) {}
+        if (kanta !== SAALAATAT_KANNAT[0]) this._kokeileEnsisijainen(l);
         return l;
       } catch (e) { viimeVirhe = e; }
     }
     throw viimeVirhe || new Error('ei luetteloa');
+  },
+
+  /* Ensisijainen koti (Pages) taustalla kerran istunnossa: muistettu
+     koti tulee ensin, joten ilman tätä Pagesin kytkeminen päälle ei
+     koskaan siirtäisi vanhoja käyttäjiä sinne. Jos Pages vastaa yhtä
+     tuoreella luettelolla, SEURAAVA käynnistys alkaa siitä; tämän
+     istunnon laatat pysyvät nykyisessä kodissa (kaikki laatat haetaan
+     siitä kodista josta luettelo tuli). */
+  _kokeileEnsisijainen(l) {
+    setTimeout(function () {
+      fetch(SAALAATAT_KANNAT[0] + 'luettelo.json', { cache: 'no-cache', priority: 'low' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (p) {
+          if (p && p.luotu && l.luotu && p.luotu >= l.luotu) {
+            try { localStorage.setItem('fs_saakanta', SAALAATAT_KANNAT[0]); } catch (e) {}
+          }
+        }).catch(function () {});
+    }, 20000);
   },
 
   /* Mallin ajohetki luettelosta (docs/julkaisu.md, UI 10): ECMWF:n on
@@ -8322,7 +8341,7 @@ const Saalaatat = {
     const l = this._laatat.get(avain);
     return !!l && (!l.palat || l.palat[c] === 1);
   },
-  async _lataa(taso, la0, lo0, pala) {
+  async _lataa(taso, la0, lo0, pala, matala) {
     const avain = this._avain(taso, la0, lo0);
     const K = taso.pala > 0 ? taso.pala : 0;
     const c = K ? Math.min(this._palaMaara(taso) - 1, Math.max(0, pala || 0)) : -1;
@@ -8337,7 +8356,9 @@ const Saalaatat = {
       const versio = taso._versio || this._versio;
       const url = SAALAATAT_KANTA + avain + (K ? '.p' + c : '') + '.bin.gz'
         + (versio ? '?v=' + encodeURIComponent(versio) : '');
-      const r = await fetch(url);
+      /* Taustaesilataus (`AikaEsilataus`) matalalla prioriteetilla, jotta
+         näkymän oma haku menee sen ohi. */
+      const r = await fetch(url, matala ? { priority: 'low' } : undefined);
       if (!r.ok) throw new Error('HTTP ' + r.status);
       /* raw.githubusercontent ei aseta content-encodingia binääritiedostolle,
          joten gzip puretaan itse. DecompressionStream on Safari 16.4+, sama
@@ -8408,7 +8429,7 @@ const Saalaatat = {
          (`_haePerhe`, `m.vara`) tai palatonta laattaa: seuraava näyte
          lukee nyt oikean. */
       this._nollaaMuisti();
-      this._kunUusia(taso, la0, lo0);
+      this._kunUusia(taso, la0, lo0, c);
       return laatta;
     })().finally(() => this._kesken.delete(kAvain));
     this._kesken.set(kAvain, p);
@@ -8426,8 +8447,24 @@ const Saalaatat = {
      totta, ja ilman rajausta jokainen aaltolaatta (`Aallot`, sama `_lataa`)
      ja spottien esilatauksen laatta 300 km:n päässä koottaisi kentän
      uudelleen. */
-  _kunUusia(taso, la0, lo0) {
+  _kunUusia(taso, la0, lo0, c) {
     if (!taso || !taso._tuuli) return;
+    /* MUUN HETKEN PALA EI KOSKE RUUDULLA OLEVAA KENTTÄÄ (9.10.).
+       Taustaesilataus (`AikaEsilataus`) tuo koko akselin palat, ja jos
+       jokainen niistä pyytäisi kokoamista, lämpökartta ja partikkelit
+       koottaisiin uudelleen koko esilatauksen ajan (hila on pehmusteessa
+       usein pysyvästi vajaa). Kartan hetken pala ja sarjan laskennan
+       hetken pala ovat ainoat jotka muuttavat näytettä; muiden hetkien
+       muistiin jääneet kokoamiset pudotetaan, koska tämä pala voi koskea
+       niitä. */
+    if (c != null && c >= 0 && taso.pala > 0) {
+      const kartta = typeof LampoGL !== 'undefined' && LampoGL._map ? LampoGL._hetki() : null;
+      const osuuPalaan = (t) => t != null && this._palaIndeksi(taso, this._indeksiHetkelle(taso, t)) === c;
+      if (!osuuPalaan(kartta) && !osuuPalaan(this._hetkiMs)) {
+        if (this._kooste.length) this._kooste = this._kooste.filter(k => k.hetki === kartta);
+        return;
+      }
+    }
     this._saapuneet = (this._saapuneet || 0) + 1;   /* `kokoaHila`n muistin avain */
     const s = taso.span;
     const osuu = (h, d) => {
@@ -8512,12 +8549,11 @@ const Saalaatat = {
      jo olevia ei lasketa) — kutsujat rakentavat uudelleen vain jos jotain
      tuli.
 
-     PERHE KERRALLAAN, TÄRKEIN ENSIN. Alemman perheen laattaa ei haeta
-     sinne missä ylempi peittää sen kokonaan (laatta `taysi` ja hetki
-     akselin sisällä): Suomen sisämaassa FMI:n alla ei tarvita MET
-     Nordicia eikä ECMWF:ää. Raja-alueella ja akselin päissä haetaan
-     kaikki, koska `naytteista` sekoittaa ne. Hinta on kierros per perhe
-     raja-alueella; muualla kierroksia on yksi. */
+     Alemman perheen laattaa ei haeta sinne missä ylempi peittää sen
+     kokonaan (laatta `taysi` ja hetki akselin sisällä): Suomen
+     sisämaassa FMI:n alla ei tarvita MET Nordicia eikä ECMWF:ää.
+     Raja-alueella ja akselin päissä haetaan kaikki, koska `naytteista`
+     sekoittaa ne. Kierroksia on enintään kaksi (ks. alla). */
   async varmista(bounds, step, tMs) {
     if (!this.kaytossa()) return 0;
     /* Palat KARTAN hetkelle (`LampoGL._hetki`), ei `_hetkiMs`:lle: sarjan
@@ -8539,27 +8575,117 @@ const Saalaatat = {
     const pad = step * 2;
     const s = Math.max(-90, bounds.getSouth() - pad), n = Math.min(90, bounds.getNorth() + pad);
     const valit = this._lngValit(bounds.getWest() - pad, bounds.getEast() + pad);
-    let onnistui = 0;
+    /* KAIKKI PERHEET YHDELLÄ KIERROKSELLA, PEITON ALLE JÄÄVÄT TOISELLA
+       (9.10., docs/aikahyppy.md S1). Ennen perheet haettiin peräkkäin
+       jotta ylemmän täysi laatta tiedettiin ennen alempaa, ja Euroopan
+       näkymässä se oli 12 kierrosta: puhelin z5, hyppy +24 h, 9–12 s.
+       Nyt alempi lykätään vain jos jokin sen pisteistä voi jäädä
+       ylemmän alle laatan takia jota ei ole vielä muistissa (`_peitto`
+       1); muuten se haetaan heti. Suomen sisämaassa ECMWF ja MET Nordic
+       FMI:n alla odottavat siis edelleen ensimmäisen kierroksen, ja
+       muualla kaikki tulee kerralla. */
+    const heti = [], lykatty = [];
     const ylemmat = [];
     for (const p of this._perheet) {
       if (p.dyn || p.pois) continue;     /* mallin oman hilan hakee `MalliHila` */
       const aikaW = this._hetkiMs == null ? 1 : p._aikaW;
       if (!p.pohja && aikaW <= 0) continue;
-      const tarvitaan = [];
+      const yl = ylemmat.slice();
       for (const [avain, t] of this._perheenLaatat(p, s, n, valit, step)) {
         const puuttuvat = palatNyt(t.taso).filter(c => !(c < 0 ? this._laatat.has(avain) : this._onPala(t.taso, avain, c)));
         if (!puuttuvat.length) continue;
-        if (ylemmat.length && t.pts.every(([y, x]) => this._peitetty(ylemmat, y, x, step))) continue;
-        for (const c of puuttuvat) tarvitaan.push({ taso: t.taso, la0: t.la0, lo0: t.lo0, pala: c });
-      }
-      if (tarvitaan.length) {
-        const tulokset = await Promise.allSettled(tarvitaan.map(t => this._lataa(t.taso, t.la0, t.lo0, t.pala)));
-        onnistui += tulokset.filter(t => t.status === 'fulfilled').length;
+        let kaikki = 2;
+        if (yl.length) for (const [y, x] of t.pts) { kaikki = Math.min(kaikki, this._peitto(yl, y, x, step)); if (!kaikki) break; }
+        else kaikki = 0;
+        if (kaikki === 2) continue;
+        for (const c of puuttuvat) (kaikki === 1 ? lykatty : heti).push({ taso: t.taso, la0: t.la0, lo0: t.lo0, pala: c, yl, pts: t.pts });
       }
       if (p.pohja) break;
       if (aikaW >= 1) ylemmat.push(p);
     }
+    let onnistui = 0;
+    const lataa = async (lista) => {
+      if (!lista.length) return;
+      const tulokset = await Promise.allSettled(lista.map(t => this._lataa(t.taso, t.la0, t.lo0, t.pala)));
+      onnistui += tulokset.filter(t => t.status === 'fulfilled').length;
+    };
+    await lataa(heti);
+    await lataa(lykatty.filter(t => !t.pts.every(([y, x]) => this._peitetty(t.yl, y, x, step))));
     return onnistui;
+  },
+
+  /* Pisteen peitto ylemmillä perheillä: 2 = täysi laatta muistissa,
+     1 = jonkin ylemmän laatta kattaa pisteen mutta ei ole vielä
+     muistissa (ratkeaa ensimmäisellä kierroksella), 0 = ei peittoa. */
+  _peitto(ylemmat, y, x, step) {
+    let tuntematon = false;
+    for (const u of ylemmat) {
+      const L = this._perheenTaso(u, y, x, step);
+      if (!L) continue;
+      const r = this._ruutu(L, y, x);
+      const l = this._laatat.get(this._avain(L, r.la0, r.lo0));
+      if (l) { if (l.taysi) return 2; }
+      else if (this._onOlemassa(L, r.la0, r.lo0)) tuntematon = true;
+    }
+    return tuntematon ? 1 : 0;
+  },
+
+  /* KOKO AKSELIN PALAT ALUEELLE (`AikaEsilataus`, docs/aikahyppy.md S3).
+     Samat laatat kuin `varmista` valitsisi tälle tasolle, mutta kaikki
+     perheet (myös ne jotka eivät ole valitulla hetkellä käytössä) ja
+     kaikki muistista puuttuvat palat. Järjestys: lähin aika ensin
+     (menneisyys hieman myöhemmin, `MENNYT_KERROIN`), perheen etusija
+     tasapelissä. Peitto ratkaistaan vasta haettaessa (`esiPeittyy`),
+     koska ylemmän laatta voi tulla jonossa edellä. */
+  MENNYT_KERROIN: 1.3,
+  esilatausTehtavat(bounds, step, tMs) {
+    if (!this.kaytossa() || !this._perheet) return [];
+    const pad = step * 2;
+    const s = Math.max(-90, bounds.getSouth() - pad), n = Math.min(90, bounds.getNorth() + pad);
+    const valit = this._lngValit(bounds.getWest() - pad, bounds.getEast() + pad);
+    const ulos = [];
+    this._perheet.forEach((p, pi) => {
+      if (p.dyn || p.pois) return;
+      for (const [avain, t] of this._perheenLaatat(p, s, n, valit, step)) {
+        const L = t.taso;
+        if (!(L.pala > 0)) continue;
+        const ts = (L._ax || this._perus).tsMs;
+        if (!ts || !ts.length) continue;
+        const M = this._palaMaara(L);
+        for (let c = 0; c < M; c++) {
+          if (this._onPala(L, avain, c)) continue;
+          const t0 = ts[c * L.pala], t1 = ts[Math.min(ts.length - 1, c * L.pala + L.pala)];
+          const eta = tMs >= t0 && tMs <= t1 ? 0
+            : tMs < t0 ? t0 - tMs : (tMs - t1) * this.MENNYT_KERROIN;
+          ulos.push({ taso: L, la0: t.la0, lo0: t.lo0, pala: c, pts: t.pts, p, pi, t0, t1, eta, avain, step });
+        }
+      }
+    });
+    ulos.sort((a, b) => a.eta - b.eta || a.pi - b.pi);
+    return ulos;
+  },
+  /* Peittääkö ylempi perhe tehtävän koko palan ajan? 2 = kyllä (ohita),
+     1 = ylemmän laatta ei vielä muistissa, 0 = ei. Ylempi peittää vain
+     jakson jolla sen aikapaino on täysi (akselin alussa 2 h ja lopussa
+     6 h häivytys, kuten `asetaHetki`). */
+  esiPeittyy(t, step) {
+    let tulos = 2;
+    for (const [y, x] of t.pts) {
+      let piste = 0;
+      for (let i = 0; i < t.pi; i++) {
+        const u = this._perheet[i];
+        if (u.dyn || u.pois || u.pohja) continue;
+        const ax = u.tasot && u.tasot[0] && (u.tasot[0]._ax || this._perus);
+        const uts = ax && ax.tsMs;
+        if (!uts || !uts.length || t.t0 < uts[0] + 2 * 3600e3 || t.t1 > uts[uts.length - 1] - 6 * 3600e3) continue;
+        const v = this._peitto([u], y, x, step);
+        if (v > piste) piste = v;
+        if (piste === 2) break;
+      }
+      if (piste < tulos) tulos = piste;
+      if (!tulos) return 0;
+    }
+    return tulos;
   },
 
   /* -- YHDEN HETKEN NÄYTE ----------------------------------------
@@ -9108,7 +9234,7 @@ const Saalaatat = {
     const puuttuu = this._kokoaHila(laMin, loMin, latAskel, lngAskel, gc, gr, gu, gv, step, kattoPuuttuu, m);
     if (kattoPuuttuu === undefined || puuttuu <= kattoPuuttuu) {
       const P = this._perheet || [];
-      this._kooste.unshift({ avain, perheet: this._perheet, nat: P.map(p => p._nat), dyn: P.map(p => p._laatta),
+      this._kooste.unshift({ avain, hetki: this._hetkiMs, perheet: this._perheet, nat: P.map(p => p._nat), dyn: P.map(p => p._laatta),
         gu: gu.slice(0, n), gv: gv.slice(0, n), maski: m.slice(0, n), puuttuu, vajaat: this._vajaat });
       if (this._kooste.length > 4) this._kooste.length = 4;
     }
@@ -10224,6 +10350,28 @@ const MalliHila = {
     dyn._laatta = laatta;
     Saalaatat.paivitaDyn();
     this._paivitaKartta();
+    if (!paketti && !State.isPlaying) this._esiHae(url, tunti);
+  },
+
+  /* VIEREISET TUNNIT TAUSTALLA (9.10., docs/aikahyppy.md S7): ECMWF 9 km
+     haetaan tunti kerrallaan, ja hypyn jälkeen kartta tarkentui
+     1,4–3,4 s myöhemmin. Edellinen ja seuraava tunti samalle alueelle
+     muistiin (`_kentat`) matalalla prioriteetilla, jolloin askel
+     tunnilla on muistista. Ei koko akselia: jokainen tunti on
+     palvelinkutsu. */
+  _esiKesken: new Set(),
+  _esiHae(url, tunti) {
+    const H = 3600e3, self = this;
+    for (const d of [1, -1]) {
+      const u = url.replace('&t=' + tunti + '&', '&t=' + (tunti + d * H) + '&');
+      if (u === url || this._kentat.has(u) || this._esiKesken.has(u)) continue;
+      this._esiKesken.add(u);
+      fetch(u, { priority: 'low' }).then(function (r) { return r.text(); }).then(function (t) {
+        const o = JSON.parse(t);
+        if (o.error) { if (/ei ajoa/.test(o.error)) self._muista(self._kentat, u, null, 16); return; }
+        if (!self._kentat.has(u)) self._muista(self._kentat, u, self._laatta(o, 0), 16);
+      }).catch(function () {}).finally(function () { self._esiKesken.delete(u); });
+    }
   },
 
   /* AIKAJANAN SARJA KENTÄN SOLMUISTA: sama solmuväli kuin kentällä ja
@@ -10471,6 +10619,7 @@ const Natiivi = {
         if (p._nat !== uusi) { p._nat = uusi; muuttui = true; }
       }
       if (muuttui) { Saalaatat._nollaaMuisti(); MalliHila._paivitaKartta(); }
+      if (!State.isPlaying) this._esiHae(map, z, hetki, valitut);
       await this._haeSarja(map, z, ac);
     } finally {
       if (this._kesken === ac) this._kesken = null;
@@ -10507,6 +10656,29 @@ const Natiivi = {
                             solmuja: o.ni * o.nj, askel: a };
     this._muista(this._kentat, url, k, 24);
     return k;
+  },
+
+  /* Viereiset tunnit taustalla, kuten `MalliHila._esiHae` (docs/aikahyppy.md
+     S7): askel tunnilla tulee muistista. Oma keskeytin, jotta uusi
+     näkymä ei peru niitä eikä niiden hidas vastaus pidä näkymän hakua. */
+  _esiKesken: new Set(),
+  _esiHae(map, z, hetki, valitut) {
+    const self = this;
+    for (const p of valitut) {
+      const a = Math.max(this.askel(z), p.natiivi);
+      for (const d of [1, -1]) {
+        const url = this._osoite(p.id, hetki + d * 3600e3, a, map);
+        if (!url || this._kentat.has(url) || this._esiKesken.has(url)) continue;
+        this._esiKesken.add(url);
+        fetch(url, { priority: 'low' }).then(function (r) { return r.json(); }).then(function (o) {
+          if (!o || o.error) { if (o && /ei ajoa|rajaus/.test(o.error)) self._muista(self._kentat, url, null, 24); return; }
+          if (self._kentat.has(url)) return;
+          const k = MalliHila._laatta(o, 0);
+          k.nopAskel = o.nopAskel || 0.2; k.suuntaAskel = o.suuntaAskel || 2;
+          self._muista(self._kentat, url, k, 24);
+        }).catch(function () {}).finally(function () { self._esiKesken.delete(url); });
+      }
+    }
   },
 
   /* Sarjan osoite solmuruudulle: ruudun keskipiste, jotta palvelimen oma
@@ -14137,6 +14309,76 @@ const WindTexture = {
  * (enintään 6 s) — muuten tason vaihto zoomatessa (esim. z9,5 → z10,
  * ECMWF → HARMONIE) tyhjentäisi kartan hetkeksi. Se oli "kartta
  * välkkyy zoomatessa" (ks. `_tasoVuoro`n historia docs/lampokartta.md). */
+/* AIKAESILATAUS (9.10., docs/aikahyppy.md S3 ja luku 8). Kun kartta on
+ * levossa, näkymän laatat haetaan taustalla KOKO AKSELILLE — samat tasot
+ * kuin `LampoGL.varmistaAlue` hakee valitulle hetkelle (näkymän oma taso
+ * näkymälle, karkeampi 0,25:n reunukselle), mutta kaikki palat, lähin
+ * aika ensin. Silloin hyppy mihin tahansa tuntiin kokoaa hilan muistista
+ * (mitattu ennen: 0,1–0,4 s muistista vs 1–12 s verkosta).
+ *
+ * Käyttäjän päätös 9.10.: ei verkkobudjettia eikä Wi-Fi/mobiili-eroa
+ * (Suomessa mobiilidata on rajaton), vaan aina koko akseli. Hinta
+ * mitattiin: koko akseli yhdelle näkymälle 1,9 MB (puhelin z7,5), 4,5 MB
+ * (puhelin z5), 5,3 MB (työpöytä z7,5). Laattojen MÄÄRÄ ei kasva: palat
+ * täyttävät samat laattaoliot (`_lataa`), joten muistikatto on sama.
+ *
+ * Säännöt: matala prioriteetti ja enintään `RINNAKKAIN` (6) hakua; kartan
+ * liike keskeyttää jonon ja `moveend` rakentaa uuden (sukupolvi); hetken
+ * vaihto järjestää jonon uudelleen; peitetyt alemmat perheet ohitetaan
+ * (`esiPeittyy`); jos laattamuisti on täynnä, uusia laattoja ei luoda —
+ * esilataus ei saa pudottaa näkymän omia laattoja. */
+const AikaEsilataus = {
+  RINNAKKAIN: 6, VIIVE_MS: 1200, HYPPY_VIIVE_MS: 300,
+  _sp: 0, _jono: [], _kaynnissa: 0, _ajastin: null, _haettu: 0, _tavut: 0,
+  ajasta(viive) {
+    this._sp++;
+    this._jono = [];
+    clearTimeout(this._ajastin);
+    const self = this;
+    this._ajastin = setTimeout(function () { self._ajastin = null; self._aloita(); }, viive == null ? this.VIIVE_MS : viive);
+  },
+  _aloita() {
+    const map = LampoGL._map;
+    if (!map || !map.ml || typeof Saalaatat === 'undefined' || !Saalaatat.kartallaKaytossa()) return;
+    if (State.liikkeessa) { this.ajasta(); return; }
+    try {
+      const b = map.getBounds(), tz = Math.round(map.getZoom());
+      const st = ViewportGrid.laattaStep(tz), sk = ViewportGrid.ennakkoStep(tz);
+      const tMs = LampoGL._hetki();
+      if (tMs == null) return;
+      const vLat = b.getNorth() - b.getSouth(), vLng = b.getEast() - b.getWest(), R = LampoGL.ENNAKKO_REUNUS;
+      const ra = L.latLngBounds(L.latLng(Math.max(-85, b.getSouth() - vLat * R), b.getWest() - vLng * R),
+        L.latLng(Math.min(85, b.getNorth() + vLat * R), b.getEast() + vLng * R));
+      const lista = sk === st ? Saalaatat.esilatausTehtavat(ra, sk, tMs)
+        : Saalaatat.esilatausTehtavat(b, st, tMs).concat(Saalaatat.esilatausTehtavat(ra, sk, tMs));
+      /* Saman laatan sama pala kerran, lähin aika ensin. */
+      const nahty = new Set();
+      this._jono = lista.sort((a, c) => a.eta - c.eta || a.pi - c.pi).filter(t => {
+        const k = t.avain + '#' + t.pala;
+        if (nahty.has(k)) return false;
+        nahty.add(k); return true;
+      });
+      this._pumppaa(this._sp);
+    } catch (e) {}
+  },
+  _pumppaa(sp) {
+    const S = Saalaatat, self = this;
+    while (sp === this._sp && this._kaynnissa < this.RINNAKKAIN && this._jono.length) {
+      if (State.liikkeessa) { this.ajasta(); return; }
+      const t = this._jono.shift();
+      if (S._onPala(t.taso, t.avain, t.pala)) continue;
+      const peitto = S.esiPeittyy(t, t.step);
+      if (peitto === 2) continue;
+      if (peitto === 1 && !t.lykatty) { t.lykatty = true; this._jono.push(t); continue; }
+      if (!S._laatat.has(t.avain) && S._laatat.size >= S._MAX_LAATTAA - 24) continue;
+      this._kaynnissa++;
+      S._lataa(t.taso, t.la0, t.lo0, t.pala, true)
+        .then(function () { self._haettu++; }, function () {})
+        .finally(function () { self._kaynnissa--; self._pumppaa(self._sp); });
+    }
+  },
+};
+
 const LampoGL = {
   id: 'lampokartta', type: 'custom', renderingMode: '2d',
   /* Hilan pehmuste osuutena näkymästä joka laidalla. Lähizoomissa sama
@@ -14145,6 +14387,7 @@ const LampoGL = {
      perustelu, mitattu 1,3 MB uloimmalle näkymälle). */
   REUNUS: 0.6, REUNUS_ULKO: 0.3, REUNUS_MIN_Z: 6,
   ODOTUS_MS: 6000,
+  ODOTUS_HYPPY_MS: 400, ODOTUS_HYPPY_MAX_MS: 2000,
   /* Saman hetken tarkkuuden vaihdon häivytys (tason raja, toisto,
      näkymän tason saapuminen), ks. `prerender`. */
   TASO_HAIVYTYS_MS: 300,
@@ -14164,7 +14407,7 @@ const LampoGL = {
        seuraava siirto ei odota yhtään laattaa. Kuristus SIIRTÄÄ eikä
        pudota (ks. CLAUDE.md "ESILATAUKSEN KURISTUS SIIRTÄÄ"). */
     map.ml.on('moveend', function () {
-      self._esilataa(); MalliHila.ajasta(); Natiivi.ajasta(); Tahtain.ajasta();
+      self._esilataa(); MalliHila.ajasta(); Natiivi.ajasta(); Tahtain.ajasta(); AikaEsilataus.ajasta();
       if (Saalaatat.kartallaKaytossa()) KorttiSarjat.esilataaAjasta();
     });
     this.esilataaKunValmis();
@@ -14258,15 +14501,20 @@ const LampoGL = {
     }
     /* Puuttuuko NÄKYVÄLTÄ alueelta? Solmu yli reunan mukaan, koska
        kuubinen ydin lukee senkin. */
-    let nakyvissa = 0;
+    let nakyvissa = 0, tyhjat = 0, nakyvat = 1;
     if (puuttuu || vajaat) {
       const i0 = Math.max(0, Math.floor((b.getWest() - lo0) / d) - 1), i1 = Math.min(gc - 1, Math.ceil((b.getEast() - lo0) / d) + 1);
       const j0 = Math.max(0, Math.floor((b.getSouth() - la0) / d) - 1), j1 = Math.min(gr - 1, Math.ceil((b.getNorth() - la0) / d) + 1);
-      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) if (maski[j * gc + i] !== 1) nakyvissa++;
+      nakyvat = Math.max(1, (i1 - i0 + 1) * (j1 - j0 + 1));
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+        const m = maski[j * gc + i];
+        if (m !== 1) { nakyvissa++; if (!m) tyhjat++; }
+      }
     }
     return {
       gc: gc, gr: gr, la0: la0, lo0: lo0, d: d, st: st, tz: tz, hetki: hetki, kentta: kentta,
-      tavut: tavut, kate: kate, puuttuu: puuttuu + vajaat, puuttuuNakyvissa: nakyvissa, kaikki: n,
+      tavut: tavut, kate: kate, puuttuu: puuttuu + vajaat, puuttuuNakyvissa: nakyvissa,
+      tyhjaOsuus: tyhjat / nakyvat, kaikki: n,
       kLoW: lo0 + d, kLoE: lo0 + (gc - 2) * d, kLaS: la0 + d, kLaN: la0 + (gr - 2) * d
     };
   },
@@ -14336,6 +14584,7 @@ const LampoGL = {
     const n = yritys || 0, self = this;
     if (typeof Saalaatat !== 'undefined' && Saalaatat.kartallaKaytossa()) {
       this._esilataa();
+      AikaEsilataus.ajasta(3000);
       /* Spottimerkit lukevat samaa Paras-sarjaa kuin spottikortti
          (`_spotLukema`), joten sarjat lasketaan taustalla heti kun
          varasto on kartan käytössä. */
@@ -14494,12 +14743,22 @@ const LampoGL = {
        kokoamista: mitattu 9.10. työpöydällä yhden näkymän siirron jälkeen
        40 s ruudulla hila jonka näkyvistä solmuista 3 178 oli ilman omaa
        tasoaan, vaikka valmis odotti vieressä. */
+    /* HETKEN VAIHDOSSA ODOTUS ON LYHYT (`ODOTUS_HYPPY_MS`, 9.10.,
+       docs/aikahyppy.md S2): vanha hila on silloin VÄÄRÄN TUNNIN kenttä,
+       ja se oli mitattuna 1–6 s ruudulla samalla kun partikkelit, kapseli
+       ja kupla olivat jo uudessa tunnissa. Lyhyt odotus antaa yhden
+       hakukierroksen ajan (perheet rinnakkain), ja sen jälkeen uusi
+       tunti näkyy vajaanakin: puuttuva on läpinäkyvää, ja karkea hila
+       on sen taustana. Saman hetken tarkkuuden vaihdossa (zoom) vanha on
+       oikeaa dataa, joten siellä raja on yhä `ODOTUS_MS`. */
+    const raja = !(o ? o.hetki !== (h && h.hetki) : (h && h.hetki !== hetki)) ? this.ODOTUS_MS
+      : o && o.tyhjaOsuus > 0.1 ? this.ODOTUS_HYPPY_MAX_MS : this.ODOTUS_HYPPY_MS;
     const tarve = this._likainen || !h || h.d !== d || h.st !== st || h.hetki !== hetki || h.kentta !== kentta || !this._kattaa(h, b)
-      || !!(o && nyt - o.t0 >= this.ODOTUS_MS);
+      || !!(o && nyt - o.t0 >= raja);
     if (!tarve) return;
     const sama = o && o.d === d && o.hetki === hetki && o.kentta === kentta;
     /* Odotetaan dataa: älä rakenna samaa uudelleen joka ruudussa. */
-    if (sama && !this._likainen && this._kattaa(o, b) && nyt - o.t0 < this.ODOTUS_MS) return;
+    if (sama && !this._likainen && this._kattaa(o, b) && nyt - o.t0 < raja) return;
     /* Zoomin laskiessa rajan yli uusi oma taso on edellinen karkea — myös
        eleen aikana, koska juuri se pitää kentän jatkuvana rajan yli
        (vajaat solmut täydentyvät kun laatat tulevat, `_uusia`). */
@@ -14542,12 +14801,19 @@ const LampoGL = {
        malli, sitten oikea), ei sitä varten että vajaa jää täydemmän tieltä. */
     if (uusi.puuttuuNakyvissa > 0) {
       uusi.t0 = sama ? o.t0 : nyt;
-      if (h && this._kattaa(h, b) && h.puuttuuNakyvissa < uusi.puuttuuNakyvissa && nyt - uusi.t0 < this.ODOTUS_MS) {
+      /* Hypyssä: uusi tunti ruudulle 0,4 s:ssa jos sen näkyvä alue on
+         piirrettävissä (vajaa solmu lukee alemman mallin tai toisen
+         tason, ja se on oikeaa tuntia); jos yli kymmenesosa näkyvistä
+         solmuista on TYHJIÄ, odotetaan enintään `ODOTUS_HYPPY_MAX_MS` —
+         läpinäkyvä kartta ei ole oikea data vaan sen puute. */
+      const hyppy = h && h.hetki !== uusi.hetki;
+      const raja2 = !hyppy ? this.ODOTUS_MS : uusi.tyhjaOsuus > 0.1 ? this.ODOTUS_HYPPY_MAX_MS : this.ODOTUS_HYPPY_MS;
+      if (h && this._kattaa(h, b) && h.puuttuuNakyvissa < uusi.puuttuuNakyvissa && nyt - uusi.t0 < raja2) {
         this._odottava = uusi;
         /* Odotuksen raja tarvitsee ruudun: levossa ilman partikkeleita
            (asetus "Pois") seuraavaa ruutua ei tule ennen kuin jokin muu
            pyytää sitä, ja vanha hila jäisi ruudulle rajan ohi. */
-        if (!sama) setTimeout(function () { if (map.ml) map.ml.triggerRepaint(); }, this.ODOTUS_MS - (nyt - uusi.t0) + 30);
+        if (!sama) setTimeout(function () { if (map.ml) map.ml.triggerRepaint(); }, raja2 - (nyt - uusi.t0) + 30);
         return;
       }
     }
@@ -30443,6 +30709,8 @@ function _tlValitseIdx(idx, vartti) {
   if (vartti) _sadeVarttiAseta(vartti);
   Haivytys.pyyda();
   buildWindField(idx).then(function () { drawColorField(); resetParticles(); });
+  /* Jäljellä oleva esilataus uuden hetken ympäriltä ensin. */
+  AikaEsilataus.ajasta(AikaEsilataus.HYPPY_VIIVE_MS);
   /* Liuku VIIMEISENÄ: `_tlSeuraaHetkea`n keskitys ehti viedä kiskon
      kohteeseen, ja liu'un ensimmäinen kirjoitus palauttaa sen alkuun
      samassa suorituksessa — ruudulle ei piirry kumpikaan väliasento. */
@@ -35141,7 +35409,7 @@ setTimeout(function () { Kaynnistys.jumi(); }, Kaynnistys.JUMI_MS);
       Crosshair: Crosshair, partikkeliZoomKerroin: partikkeliZoomKerroin, nParticlesBase: nParticlesBase,
       ViewportGrid: ViewportGrid, ColorRamp: ColorRamp, PerfTracker: PerfTracker,
       buildWindField: buildWindField, idw: idw, ForecastPanel: ForecastPanel,
-      LampoGL: LampoGL, PartikkeliGL: PartikkeliGL, L: L,
+      LampoGL: LampoGL, PartikkeliGL: PartikkeliGL, L: L, AikaEsilataus: AikaEsilataus,
       Sade: Sade, Sadetutka: Sadetutka, Sadeennuste: Sadeennuste, SadeKerros: SadeKerros, KerrosKuvat: KerrosKuvat, _sadeNayttoHetki: _sadeNayttoHetki,
       _tutkaHetki: _tutkaHetki, _tutkaLahde: _tutkaLahde,
       _tlTimeAt: _tlTimeAt, _tlSailytaHetki: _tlSailytaHetki,

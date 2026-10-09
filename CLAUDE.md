@@ -189,7 +189,10 @@ kokeilee ensin Pagesia (`jere-stack.github.io/wind/`) ja sitten
 siitä kodista josta luettelo tuli, ja toimiva koti muistetaan
 (`fs_saakanta`). Pages on 404 kunnes se kytketään repon asetuksista
 päälle — siihen asti raw hoitaa kaiken ja konsoliin tulee yksi
-CORS-virhe, joka ei ole vika.
+CORS-virhe, joka ei ole vika. Muistettu koti tulee ensin, joten
+sovellus kokeilee Pagesia taustalla 20 s käynnistyksestä
+(`_kokeileEnsisijainen`) ja siirtää SEURAAVAN käynnistyksen sinne kun
+se vastaa yhtä tuoreella luettelolla.
 
 Havaintoasemien oma historia on orpossa `havainnot`-haarassa (sama
 malli: yksi committi, pakkopäivitys, kymmenen minuutin välein; myös
@@ -223,7 +226,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/sadetutka.md` | **sadetutkaa ja sadetilaa (strategia ja toteutus 4.10.; luku 11: koko maailma ja paras paikallinen malli, beta)**: 250 m FINRAD-lähde ja paletti, klassinen tutkaväri, 5 min kehykset, vartit aikajanalla, sadepalkit ja kapseli, liikekenttä (`SadeLiike`) ja nowcast, ECMWF-jatko — mitattu data (FMI WMS ja S3, MET Norway), päätökset P1–P9, toteutus luvussa 10 ja mittaukset (`tools/sadeliike.mjs`); lue ennen kuin kosket `SadeKerros`iin, `Sadetutka`an, `SadeLiike`en tai sadetilan aikajanaan |
 | `docs/eurooppa.md` | **Euroopan laajennusta ja paikallisia lähteitä** (strategia ja roadmap 4.10., V1, V2 ja V3:n E-SOH toteutettu): Euroopan kansalliset 1–2,5 km mallit varastoon ja niiden **etusija ja käyttöalueet** (`tools/alueelliset.mjs`), **lähizoomin natiivihila ja spotin natiivisarja** (`Natiivi`, `api/malli.js?malli=<perhe>`, luku 13), **Euroopan havainnot kartalla ja korteissa (MeteoGate E-SOH, `EuAsemat`, `api/fmi.js?eu=`, `tools/esoh.mjs`, luku 14; OpenWindMap odottaa lisenssipäätöstä)**, **Euroopan asemat kaukaa GL-pisteinä ja spottien esilataus näkymän mukaan (luku 15)**, hilat ja projektiot totuutta vasten, havaintoverkot (MeteoGate E-SOH, kansalliset, OpenWindMap), meri, aukot, infra (Pages, Vercel, Actions), lisenssit (UKV on CC BY-SA), roadmap V1–V9 ja päätökset P1–P7; lue ennen kuin lisäät mallin, havaintolähteen tai spotteja Suomen ulkopuolelle |
 | `docs/oikeellisuus.md` | **datan oikeellisuutta** (auditointi 29.9., toteutus 30.9.): varasto havaintoja vasten, **jatkuva varmennus**, **varaston tuoreus ja Säädatan ajastin**, kapselin ja partikkelien taso vs lämpökartta, **tähtäimen lukema ja zoom (O12, 5.10.)**, **kapselin puuska**, havaintoverkko ja sen päivitys, proxyjen virheenkäsittely, UiRaS — aukot O1–O11, suositusjärjestys ja sujuvuusvaikutus; lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
-| `docs/aikahyppy.md` | **aikahypyn latausta** (strategia 9.10., ei vielä toteutettu): miksi kartta latautuu hetken kun aikajanalla hypätään historiaan tai kauas tulevaisuuteen — mitattu viive laitteittain ja zoomeittain, **perheet haetaan peräkkäin (12 kierrosta Euroopan näkymässä)**, koko akselin esilatauksen hinta, vaihtoehdot S1–S8, vaiheet V1–V5 ja hyväksymismittarit; lue ennen kuin kosket `Saalaatat.varmista`an, esilataukseen tai hypyn odotukseen (`_odottava`) |
+| `docs/aikahyppy.md` | **aikahypyn latausta** (strategia ja toteutus 9.10.): **koko akselin taustaesilataus (`AikaEsilataus`)**, **perheet rinnakkain**, **hypyn odotus 0,4 s**, palvelinhilan viereiset tunnit, Pages-koti; miksi kartta latautuu hetken kun aikajanalla hypätään historiaan tai kauas tulevaisuuteen — mitattu viive laitteittain ja zoomeittain, **perheet haetaan peräkkäin (12 kierrosta Euroopan näkymässä)**, koko akselin esilatauksen hinta, vaihtoehdot S1–S8, vaiheet V1–V5 ja hyväksymismittarit; lue ennen kuin kosket `Saalaatat.varmista`an, esilataukseen tai hypyn odotukseen (`_odottava`) |
 
 <details>
 <summary>Osioiden nimet tiedostoittain (jos et tiedä mistä etsiä)</summary>
@@ -389,7 +392,8 @@ kokeiltu ja kaadettu mittauksella.
 - **aikahyppy**: Tiivistelmä · Mitä mitattiin (hypyn viive, miksi +24 h
   laajalla zoomilla on hidas, mitä ruudulla on odotuksen aikana, koko
   akselin hinta) · Käyttäjän ehdotus arvioituna · Vaihtoehdot S1–S8 ·
-  Suositus ja vaiheet V1–V5 · Hyväksymismittarit · Päätettävät P1–P5
+  Suositus ja vaiheet V1–V5 · Hyväksymismittarit · Päätettävät P1–P5 ·
+  **Päätökset ja toteutus (9.10.): mitä tehtiin, mitattu, mitä jäi**
 - **oikeellisuus**: Tiivistelmä · Kunnossa — mitattu, ei toimenpiteitä ·
   Aukot O1–O11 (varaston tuoreus, kaksi ennustetta, kapselin taso,
   kapselin puuska, virhe lakkautuksena, havaintoverkko, havaintojen
@@ -3809,6 +3813,32 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   vieressä. Mittari: siirron ja asettumisen jälkeen ruudulla oleva hila
   vs. samoihin solmuihin juuri koottu kenttä (ero 0 = ajan tasalla; nyt
   16-bittisen kvantisoinnin 0,0006 m/s, puhelin ja työpöytä, z6,3–8,6).
+- **HETKEN VAIHDOSSA ODOTUS ON 0,4 s, EI 6 s** (`ODOTUS_HYPPY_MS`,
+  käyttäjän päätös 9.10.: "oikea data heti", docs/aikahyppy.md 8.2):
+  vanha hila on silloin VÄÄRÄN TUNNIN kenttä, ja se oli mitattuna
+  5,7–6,4 s ruudulla partikkelien ja kapselin jo ollessa uudessa
+  tunnissa. Vajaa solmu (maski 2, alempi malli tai toinen taso) on
+  oikeaa tuntia ja kelpaa; jos yli 10 % näkyvistä solmuista on TYHJIÄ
+  (`tyhjaOsuus`), raja on 2 s (`ODOTUS_HYPPY_MAX_MS`). Saman hetken
+  tarkkuuden vaihdossa (zoom) raja on yhä `ODOTUS_MS`.
+- **KOKO AKSELI LADATAAN TAUSTALLA NÄKYMÄLLE, AINA** (`AikaEsilataus`,
+  käyttäjän päätös 9.10.: ei verkkobudjettia eikä Wi-Fi/mobiili-eroa,
+  koska mobiilidata on Suomessa rajaton; docs/aikahyppy.md). Levossa
+  näkymän tasot (oma + karkea reunus, kuten `varmistaAlue`) kaikille
+  paloille lähin aika ensin, 6 kerrallaan matalalla prioriteetilla;
+  liike keskeyttää, hyppy järjestää uudelleen, peitetty alempi perhe
+  ohitetaan (`esiPeittyy`), eikä täyteen laattamuistiin luoda uusia
+  laattoja. Mitattu: jokainen hyppy 0,1–0,45 s (ennen 0,4–12 s), 1,9–5,3
+  MB näkymää kohti. Älä lisää budjettia tai verkkoehtoa ilman käyttäjän
+  pyyntöä. **MUUN HETKEN PALA EI KOKOA KENTTÄÄ** (`_kunUusia`:n `c`):
+  ilman sitä esilataus kokoaisi lämpökartan ja partikkelit uudelleen
+  jokaisesta palasta; jos lisäät `_lataa`-kutsun, välitä pala.
+- **`varmista` HAKEE PERHEET YHDELLÄ KIERROKSELLA** (9.10.): alempi
+  lykätään toiselle kierrokselle vain jos ylemmän täysi laatta voi
+  peittää sen eikä sitä ole vielä muistissa (`_peitto`). Peräkkäiset
+  perheet olivat Euroopan näkymässä 12 kierrosta (puhelin z5 +24 h
+  9–12 s → 1–2 s ilman esilatausta). Älä palauta perhe kerrallaan
+  -silmukkaa.
 - **LAATTARAJALLA OLEVA SOLMU LUKEE EDELLISEN LAATAN REUNARIVIN** kun
   alaspäin pyöristetty laatta puuttuu (`Saalaatat._rajaRuutu`): ECMWF:n
   0,25°:n tason (−35…45°E) sarake tasan 45°E:ssä jäi ilman dataa, koska
