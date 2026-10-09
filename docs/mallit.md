@@ -897,7 +897,8 @@ työpöytä 0,005–0,050 m/s, partikkelit 0–0,14.
 **Ratkaisu.**
 
 1. **Taso näyttötarkkuuden mukaan** (`ViewportGrid.laattaStep`): z ≤ 3
-   1,0°, z4–5 0,5°, z6 0,25°, z7 0,1°, z8:sta 0,05°. Kokonaislukuzoomilla
+   1,0°, z4–5 0,5°, z6 0,25°, z7 0,1°, z8:sta 0,05° (9.10. yhtä tiheämpi
+   puhelimilla, ks. "Kaukaa kuin läheltä"). Kokonaislukuzoomilla
    solmuväli on 6–11 px pituussuunnassa. Taso on yhä laatikkokeskiarvo,
    mutta laatikko on lämpökartan oman sumennuksen kokoluokkaa, joten
    karkeampi taso on sama kenttä pehmeämpänä eikä eri kenttä.
@@ -939,7 +940,8 @@ työpöytä 0,005–0,050 m/s, partikkelit 0–0,14.
    oma hila palaa 0,3 s:n häivytyksellä (`TASO_HAIVYTYS_MS`). Kartan eleen
    aikana oma hila odottaa lepoa kun karkea kattaa näkymän (työpöydällä
    oma hila on 30–50 ms).
-9. **ECMWF:n 0,5°:n taso (l1) ohitetaan** 0,5°:n pyynnöllä
+9. **ECMWF:n 0,5°:n taso (l1) ohitetaan** (9.10. lähtien taas käytössä,
+   ks. "Kaukaa kuin läheltä") 0,5°:n pyynnöllä
    (`_perheenTaso`). Näyttötarkkuudella mitattuna l1 oli l0:sta RMS
    0,09–0,39 ja l2 0,16–0,74 m/s (max 4,3), mutta z4–5-näkymässä l1 olisi
    ollut 2,0 Mt 2,1:stä. l0 zoomista 6, l2 z ≤ 5.
@@ -1003,8 +1005,8 @@ näkyvissä 0 solmua ilman omaa tasoaan.
 - **Kaukana (z ≤ 5) kenttä on yhä varaston karkeimpien tasojen varassa**
   (alueelliset 0,5°, ECMWF 1,0°): näytön ihanteesta 1,7–2,7 m/s RMS
   hetken mukaan. Tarkempi kaukaa maksaisi tavuja. Laatat on sittemmin
-  pilkottu ajassa (ks. seuraava luku), ja sillä säästöllä tason voisi
-  tihentää myös kaukana — sitä ei ole vielä tehty.
+  pilkottu ajassa (ks. "Laatat ajassa paloina"), ja säästö käytettiin
+  tason tihentämiseen kaukana ("Kaukaa kuin läheltä").
 - Tavuja on 1,2–2-kertaisesti (taulukko yllä).
 - Tunnin askel työpöydällä tason rajan yläpuolella jopa ~70 ms
   kontissa; laitteella mittaamatta.
@@ -1110,6 +1112,105 @@ palojen `nt`:n summa täsmää ja `t0` osuu akselille.
 rajapintapolulle (`Saalaatat.pois()`), kunnes sivu ladataan uudelleen.
 Service worker hakee uuden buildin, ja `Paluu` lataa sivun uudelleen
 30 minuutin taustan jälkeen. Siirtymä kestää siis yhden avauksen.
+
+### Kaukaa kuin läheltä (9.10.)
+
+**Pyyntö (käyttäjä):** "Tarkennetaan kaukaisella zoomilla kartta samaksi
+kuin lähellä mahdollisimman hyvin."
+
+**Mistä ero tuli — mitattu ennen kuin muutettiin.** Offline-laskuri
+(perheen hienoin taso nopeutena, sumennettuna σ = 3 CSS px, vs tason
+solmut Catmull-Romilla ja samalla sumennuksella; neljä aluetta:
+Suomenlahti FMI, Norja MET Nordic, Ranska AROME, Biskaja ECMWF):
+
+- **Suotimen muoto ei ratkaise.** Laatikko, Gauss σ = 0,25 / 0,35 /
+  0,5 askelta ja pisteotanta antoivat 0,25°:n ja 0,5°:n tasolle saman
+  virheen ±0,05 m/s:n sisällä; pisteotanta oli huonoin (laskostuma).
+- **Solmuväli ratkaisee.** Virhe kasvaa tason solmuvälin mukana
+  ruudulla: esim. FMI 0,25° z4 0,12 → z5 0,27 → z6 0,41 m/s; ECMWF l2
+  (1°) z4 0,56, l1 (0,5°) 0,20. 6.10. taulukossa solmuväli oli z5–7
+  9–11 px.
+- **Kaukaisimmassa näkymässä alueellinen malli luettiin laskostuneena**:
+  karkein taso oli 0,5°, ja 1,0°:n pyyntö luki sitä 1,0°:n solmuin eli
+  joka toisen solmun (Suomenlahti z3,5 1,22 m/s).
+
+**Muutos.**
+
+1. **Tiheämpi taso** (`ViewportGrid.laattaStep`): z ≤ 3 1,0°, z4 0,5°,
+   z5 0,25°, z6 0,1° ja z7:stä 0,05° — solmuväli kokonaisluvulla noin
+   4,6–5,7 px (ennen 9–11 px zoomeilla 5–7).
+2. **Solmubudjetti** (`SOLMUBUDJETTI` 24 000, `_nakymaSolmut`): tiheä
+   taulukko vain kun näkymän solmuja on tason tiheimmässä kohdassa
+   (zoom − 0,5) enintään budjetin verran, muuten 6.10. taulukko.
+   Laskelma on näytön koosta (leveysaste 55°), ei paikasta, joten taso
+   ei vaihdu panoroitaessa. Puhelimet (11 700–22 200) saavat tiheän,
+   tabletit ja työpöytä (46 000–78 000) entisen: työpöydällä tiheä
+   taulukko oli z4,5:llä 110 000 solmua ja tunnin vaihto 729 ms
+   (kontti; ennen 28 700 ja 89 ms).
+3. **ECMWF:n 0,5°:n taso (l1) käyttöön z4:llä.** Se ohitettiin 5.–9.10.,
+   koska Suomenlahdella (alueellisten mallien alla) se ei muuttanut
+   mitään. Avomerellä (Atlantti 41–49 N, 28–16 W, pelkkää ECMWF:ää)
+   puhelimella z4 0,31 → 0,15 ja z4,45 0,36 → 0,17 m/s.
+4. **Alueellisille malleille 1,0°:n taso** (`h4`, `n4`, `<id>4`;
+   `tools/tiilet.mjs`, `tools/alueelliset.mjs` `TASOT_POHJA`). Offline
+   z3: FMI 0,65 → 0,48, MET Nordic 0,42 → 0,29, AROME 0,27 → 0,23 m/s,
+   ja kaukaisimman näkymän laattoja on neljännes entisestä. Laatta on
+   20° leveä (FMI:llä neljä). Tarkistettu vähennetyllä rakennuksella:
+   solmu 2,80 m/s vs 0,05°:n laatikkokeskiarvo 2,73 (kvantisointi 0,2).
+   Vanha luettelo ilman sitä toimii: 1,0°:n pyyntö lukee silloin 0,5°:n.
+5. **Sama hila kootaan kerran** (`Saalaatat.kokoaHila`, muisti
+   `_kooste`, neljä viimeistä). Tunnin vaihdossa partikkelikenttä kokoaa
+   oman ja karkean hilan, ja sen valmistuminen likaa lämpökartan, joka
+   kokosi samat hilat samoihin solmuihin uudelleen. Avain kattaa
+   pyynnön, hetken, kentän, jokaisen saapuneen tuulen laatan
+   (`_saapuneet`), muistin koon ja perheiden tilan (pois, aikapaino,
+   natiivikenttä, mallin oma laatta); keskeytetty kokoaminen ei jää
+   muistiin. Tulos on bitilleen sama (tarkkuusmittauksen jokainen luku
+   sama muistin kanssa ja ilman).
+
+**Mitattu** (tuotantobuild, varasto jäädytettynä levylle, sama hetki
+10.10. 02 UTC, lämpökartta RMS näytön ihanteeseen m/s):
+
+| näkymä | z | ennen | jälkeen |
+|---|---|---|---|
+| puhelin Suomenlahti | 5 | 1,03 | 0,36 |
+| | 5,45 | 1,12 | 0,44 |
+| | 6 | 0,52 | 0,14 |
+| | 6,45 | 0,58 | 0,18 |
+| | 7 | 0,20 | 0,05 |
+| | 7,45 | 0,24 | 0,06 |
+| puhelin Ranska (AROME) | 5 / 6 / 7 | — | 0,15–0,20 / 0,07 / 0,04 |
+| puhelin Atlantti (ECMWF) | 4 / 4,45 | 0,31 / 0,36 | 0,15 / 0,17 |
+| työpöytä Suomenlahti | 4–8 | | sama kuin ennen (budjetti) |
+
+Zoomeilla 3,5–4,5 Suomen edustalla virhe on yhä 0,7–1,2 m/s
+(alueellisen 1,0°:n tason vaikutus näkyy vasta seuraavan Säädata-ajon
+jälkeen), ja z4:n 0,5°:n tasoa tiheämpi nelinkertaistaisi solmut.
+
+**Hinta** (kontti, puhelin 390 × 844):
+
+- **Tunnin vaihto** (lämpökartta + partikkelikenttä, mediaani viidestä):
+  ennen 5–17 ms, tiheällä tasolla ilman muistia 21–108 ms, muistin
+  kanssa 35–40 ms (z4,6 / 5,75 / 6,75: 67 → 40, 66 → 34, 54 → 37).
+  Työpöytä on budjetin takia ennallaan (20–126 ms). Laitteella
+  mittaamatta.
+- **Ensimmäisen näkymän tavut** (Suomenlahti, puhelin, kB):
+
+  | z | 4 | 4,5 | 5 | 5,5 | 6 | 6,5 | 7 | 7,5 | 8 |
+  |---|---|---|---|---|---|---|---|---|---|
+  | ennen | 2 808 | 2 201 | 1 662 | 2 543 | 1 750 | 1 989 | 1 264 | 1 636 | 1 199 |
+  | jälkeen | 3 220 | 5 833 | 3 305 | 5 038 | 3 249 | 3 511 | 1 883 | 1 293 | 1 204 |
+
+  Pahin kohta on n,5, jossa näkymän oma taso on tiheimmillään mutta
+  karkean paino on 1; zoomin keskellä hinta on noin kaksinkertainen, ja
+  se on suunnilleen se minkä ajassa pilkotut laatat säästivät.
+- **Työpöytä** (budjetti, tiheä taso ei käytössä): ensimmäinen näkymä
+  z4,5 3 139 → 4 409 kB ja z5 2 716 → 3 332 kB — ero on ECMWF:n l1
+  (1,0–1,4 Mt), z6 2 747 → 3 881 kB. Tarkkuus Suomenlahdella sama kuin
+  ennen (alueellisten alla l1 ei vaikuta).
+- **Laattamuisti 240 → 320** (`Saalaatat._MAX_LAATTAA`): puhelimen
+  z4,5-näkymä on yksin 227 laattaa (z5,5 174, z6,5 136), ja 240:n katolla
+  panorointi olisi pudottanut näkymän omia laattoja. Noin 40 Mt.
 
 ### Mitä jäi
 

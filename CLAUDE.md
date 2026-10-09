@@ -212,7 +212,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/partikkelit.md` | tuulipartikkeleita, jäljen muotoa, tiheyttä (**kaukaa Windyn tiheys**), ruutuaikabudjettia tai **partikkelien kenttää tasojen välissä (sama sekoitus kuin lämpökartalla)** |
 | `docs/eleet.md` | nipistystä, zoomia (**kosketuszoom tähtäimen ympäri**), zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
 | `docs/data.md` | **aaltoennustetta kartalla (FMI WAM, `a0`–`a3`, `tools/wam.mjs`)**, säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja, **havaintoasemien oma historia (Mellsten ja Laru, `havainnot`-haara)**, **Mellstenin katkot: 4 h kuvaaja, arkistovaratie ja ajastinketju**, **kelikameran tila (YouTube, pikkukuvan ETag)** |
-| `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, MET Nordicia, Open-Meteon S3-malleja, näyttötarkkuuden tasoa: tason valinta zoomista, tasojen sekoitus (`karkeaPaino`), lämpökartan kaksi hilaa ja laattojen kaksi kerrosta — miksi lämpökartta ei enää hyppää zoomatessa**, **laatat ajassa paloina (24 askelta, `_palaValmis`)** |
+| `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, MET Nordicia, Open-Meteon S3-malleja, näyttötarkkuuden tasoa: tason valinta zoomista, tasojen sekoitus (`karkeaPaino`), lämpökartan kaksi hilaa ja laattojen kaksi kerrosta — miksi lämpökartta ei enää hyppää zoomatessa**, **laatat ajassa paloina (24 askelta, `_palaValmis`)**, **kaukaa kuin läheltä: tiheämpi taso puhelimella, solmubudjetti, l1, alueellinen 1,0° ja `kokoaHila`n muisti** |
 | `docs/ui.md` | **väriteemaa (Yömeri: paneelit, tokenit, `Teema`, `ink()`)**, **kerrosvalitsinta (neljä ruutua esikatselukuvin) ja sadekerroksen GL-piirtoa (häivytykset, B-spline; silmukka on historiaa, ks. docs/sadetutka.md)**, **aaltokerrosta: siru, väri, aallonharjat, aikajana, kapseli, poijukaavion ennuste**, paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa (**toiston liuku, jatkuva päiväkisko, pehmeä valinta ja kelikaista**), kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
@@ -288,7 +288,9 @@ kokeiltu ja kaadettu mittauksella.
   taso (6.–9.10.: syy hyppyyn, tasot, sekoitus, kaksi hilaa, laattojen
   kaksi kerrosta, toisto, mittaukset, panoroinnin kaksi vikaa)** ·
   **Laatat ajassa paloina (9.10.: rakenne, tavut, oikeellisuus, kaksi
-  vikaa, siirtymä)** · Mitä jäi
+  vikaa, siirtymä)** · **Kaukaa kuin läheltä (9.10.: mistä ero tuli,
+  tiheämpi taso, solmubudjetti, l1, alueellinen 1,0°, kokoamisen
+  muisti, mitattu, hinta)** · Mitä jäi
 - **lisadata**: Mistä sovellus lukee nyt · TOP 10 — data · TOP 10 — lähteet ·
   Mitattu ja hylätty (MEPS on HARMONIE · hydrodyn 2/12 spottia · vuorovesi ·
   Holfuy · ilmanlaatu) · Toinen kerros — kontekstia, ei päätöstä ·
@@ -1258,9 +1260,15 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **VARASTON TASO ON NÄYTTÖTARKKUUDEN TASO, JA VIEREKKÄISET TASOT
   SEKOITETAAN ZOOMIN MUKAAN** (käyttäjän raportti 6.10.: "sama paikka ja
   tunti, zoomattu marginaalisesti, ja lämpökartta muuttuu selvästi";
-  docs/mallit.md "Näyttötarkkuuden taso"). `laattaStep`: z ≤ 3 1,0°,
-  z4–5 0,5°, z6 0,25°, z7 0,1° ja z8:sta 0,05° — solmuväli ruudulla z3–8
-  noin 6–11 px pituussuunnassa, ja z9:stä varaston hienoin taso. Ennen
+  docs/mallit.md "Näyttötarkkuuden taso" ja "Kaukaa kuin läheltä").
+  `laattaStep`: z ≤ 3 1,0°, z4 0,5°, z5 0,25°, z6 0,1° ja z7:stä 0,05° —
+  solmuväli kokonaisluvulla noin 5 px (käyttäjän pyyntö 9.10.: "kaukaisella
+  zoomilla kartta samaksi kuin lähellä"; puhelimella Suomenlahti z5
+  1,03 → 0,36, z6 0,52 → 0,14, z7 0,20 → 0,05 m/s). **SOLMUBUDJETTI**
+  (`SOLMUBUDJETTI` 24 000, näytön koosta eikä paikasta): kun näkymän
+  solmuja tulisi enemmän, taso on 6.10. taulukon (z4–5 0,5°, z6 0,25°,
+  z7 0,1°, z8:sta 0,05°) — puhelimet saavat tiheän, tabletit ja työpöytä
+  entisen, koska tiheällä työpöydän tunnin vaihto oli 729 ms. Ennen
   tasot olivat z6–9 26–64 px:n laatikkokeskiarvoja (1,0–0,1°), ja
   pyöristetyn zoomin rajalla kenttä vaihtui kerralla: puhelimella
   z 7,45 → 7,55 lämpökartta muuttui samoissa pisteissä RMS 1,59 m/s (max
@@ -1287,10 +1295,19 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   `solmuStep` = `laattaStep(zoom − 1)`, solmuja enintään `TOISTO_SOLMUT`
   9 000), koska hila kootaan jokaiselle hetkelle; levossa oma hila palaa
   häivytettynä (`TASO_HAIVYTYS_MS` 0,3 s). Kartan eleen aikana oma hila
-  odottaa lepoa kun karkea kattaa näkymän. **ECMWF:N 0,5°:N TASO (l1)
-  OHITETAAN** 0,5°:n pyynnöllä (`_perheenTaso`): se ei tuonut tarkkuutta
-  ja maksoi z5-näkymässä 2 Mt. ECMWF luetaan z ≤ 5 1,0°:sta (l2) ja z6:sta
-  0,25°:sta (l0; sen alueen ulkopuolella 0,5°).
+  odottaa lepoa kun karkea kattaa näkymän. **ECMWF:N 0,5°:N TASO (l1) ON
+  z4:N TASO** (9.10.; se ohitettiin 5.–9.10., koska Suomenlahdella
+  alueellisten alla se ei muuttanut mitään — avomerellä se puolittaa
+  virheen, z4 0,31 → 0,15 m/s). **ALUEELLISILLA MALLEILLA ON 1,0°:N
+  TASO** (`h4`, `n4`, `<id>4`): 1,0°:n pyyntö luki ennen 0,5°:n tasoa
+  joka toisesta solmusta (laskostuma). **SAMA HILA KOOTAAN KERRAN**
+  (`Saalaatat.kokoaHila`, muisti `_kooste`): partikkelikenttä ja
+  lämpökartta kokoavat tunnin vaihdossa saman hilan, ja toinen tulee
+  muistista; avain kattaa hetken, kentän, jokaisen saapuneen tuulen
+  laatan (`_saapuneet`) ja perheiden tilan. Jos lisäät `naytteista`an
+  uuden riippuvuuden, lisää se avaimeen (`_koosteAvain`/`_koosteSama`),
+  muuten muisti antaa vanhan kentän. Puhelimen tunnin vaihto 35–40 ms
+  (ennen 5–17, ilman muistia 54–68).
 - **SOLMUVÄLI (`ViewportGrid.solmuStep`) EI OLE VARASTON TASO
   (`tasoStep`).** Lämpökartan ja partikkelien solmuhila tihenee
   natiivihilan mukana, mutta `kokoaHila`n `step` ja `varmista` valitsevat
@@ -1456,8 +1473,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   `getViewportPoints`in pistelistan, ja jokainen piste on Open-Meteon
   laskutuksessa oma kutsunsa — 0,05 asteen rajapintahila z12:ssa olisi
   juuri se kiintiö jonka takia koko varasto rakennettiin. `laattaStep`
-  taas vain valitsee perheen sisältä tason (z8+ 0,05, z7 0,1, z6 0,25,
-  z4–5 0,5, muuten 1,0; ks. "VARASTON TASO ON NÄYTTÖTARKKUUDEN TASO"), ja
+  taas vain valitsee perheen sisältä tason (z7+ 0,05, z6 0,1, z5 0,25,
+  z4 0,5, muuten 1,0, budjetin yli 6.10. taulukko; ks. "VARASTON TASO ON
+  NÄYTTÖTARKKUUDEN TASO"), ja
   se on kyselyissä ilmaista — hinta on laattoja. Lämpökartta ja
   partikkelit lukevat `laattaStep`iä, hilapisteet `gridStep`iä;
   tähtäin ja aikajana lukevat levossa 0,05°:n tasoa (`Tahtain`, O12) ja
@@ -1487,13 +1505,14 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kaistaleen (l0-laatta 10–15° kattaa vanhan l0-alueen vain 14–15°):
   mitattuna 120 solmua 3 600:sta jäi ilman laattaansa. Nyt jokaisen
   tason laatat leikataan alueen kanssa ja testataan kulmista.
-- **LAATTAMUISTI ON KÄYTTÖJÄRJESTYKSESSÄ, 240 LAATTAA.** Katto oli 40
+- **LAATTAMUISTI ON KÄYTTÖJÄRJESTYKSESSÄ, 320 LAATTAA.** Katto oli 40
   lisäysjärjestyksessä, ja maailmankierros pudotti Suomen laatat joka
   kerta. Mitattu jälkeen: Helsinki on paluussa FMI:tä 2,5–5 s:ssa ja
   valittu hetki pysyy. 160 → 240 näyttötarkkuuden tason myötä (6.10.):
   näkymä vaatii saman määrän laattoja joka zoomilla, työpöydällä Suomen
   rannikolla noin sata, ja 160:n katto olisi pudottanut saman näkymän
-  laattoja toistensa alta (noin 28 Mt).
+  laattoja toistensa alta (noin 28 Mt). 240 → 320 tiheämmän tason myötä
+  (9.10.): puhelimen z4,5-näkymä vaatii yksin 227 laattaa (noin 40 Mt).
 - **RAJAPINTAPOLKU ON `Saalaatat.pois()`, EI `?laatat=0` — JA SE ON
   VAIN VARATIE.** Mallin pakotus kulki tätä kautta V6:een asti; nyt
   pakotus on perhevalinta, ja `pois()` jää rikkinäisen varaston
