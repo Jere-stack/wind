@@ -1416,3 +1416,47 @@ rakennushetken zoomilla. Mitattu jälkeen: 7,45 → 7,55 0,016 m/s,
 Toistossa ja raahauksessa kenttä on kokonaan karkea (solmuja enintään
 9 000, sama kuin lämpökartan toistohilalla), joten partikkelit ja väri
 lukevat silloinkin samaa tasoa.
+
+## Kaukaa rauhallisempi (9.10.)
+
+**Pyyntö (käyttäjä):** uloimmilla zoomeilla partikkelit menevät
+punaisilla (kovan tuulen) alueilla liian lujaa; hitaammiksi, pienemmiksi
+ja kaikkien suhteellista nopeutta hieman alas, jotta kartta on vähemmän
+busy. Lähi- ja keskizoom ovat hyviä, ja muutos suhteutetaan niihin ja
+liukuu zoomin läpi.
+
+**Toteutus.** Yksi paino `partikkeliKauko(z)` (Leaflet-asteikko): 0 kun
+z ≥ 6, 1 kun z ≤ 3,5, välissä smoothstep (`PARTIKKELI_RAUHA`). Painolla 1:
+
+- nopeus × 0,8 kaikille, ja 10 m/s:n yli lisäksi × (10/ms)^0,4 — ruudun
+  nopeus kasvaa yhä tuulen mukana, mutta kova pää puristuu
+  (15 m/s 0,68, 20 m/s 0,61, 30 m/s 0,52 entisestä);
+- jäljen pituusraja ja viivan leveys × 0,8 (19 → 15,2 px);
+- Windyn kaukomäärä × 0,8.
+
+Kerroin kohdistuu tavoitenopeuteen (`p.u · kx · nk`), joten hitaus
+(`INERTIA`) pehmentää painon muutoksen zoomatessa. Aikapituus on
+ennallaan, eli heikon tuulen jälki lyhenee vain nopeuden verran.
+`?perf=1` vie `PARTIKKELI_RAUHA`n ja `partikkeliKauko`n, joten luvut voi
+pyyhkäistä ilman buildia.
+
+**Mitattu** (kontti, puhelin 390 × 844, Atlantti 55°N 10°W, 6 s
+asettumisen jälkeen; nopeus px/s mediaani, kova = tuuli > 15 m/s):
+
+```
+          vanha                          uusi
+z     n     kaikki  kova   jälki     n     kaikki  kova   jälki  paino
+2,5  1603   44,7     –     19,0    1283   35,0     –     15,2   1,00
+3,5  1603   53,9   129,9   19,0    1283   42,9    85,0   15,2   1,00
+4,5   582   68,0   129,2   19,0     516   54,4    99,3   16,5   0,65
+5      80   63,3   127,1   19,0      80   55,0   106,3   17,7   0,35
+5,5   148   70,9   125,0   19,0     148   70,9   127,7   18,6   0,10
+6      80   81,6   126,7   19,0      80   80,9   122,0   19,0   0
+7     126  103,7   121,4   19,0     126  102,3   124,5   19,0   0
+9      80   78,3    84,2   19,0      80   79,2    84,6   19,0   0
+```
+
+z ≥ 6 on sama vaihtelun rajoissa (otos on satunnainen). Määrät z5–9 ovat
+kontin `PerfTracker`in pudottamia ja samat molemmissa buildeissa.
+Ruutunopeutta ei voi mitata täällä; kauempana partikkeleita on 20 %
+vähemmän, joten ruutu ei ainakaan raskastu.

@@ -247,7 +247,7 @@ kokeiltu ja kaadettu mittauksella.
   Jälki lyhennettiin puoleen — raja puree, aikapituus ei ·
   Liike ajasta, pää ei sahaa, syntymä ja kuolema häivytetään ·
   **Kaukaa Windyn tiheys (5.10.)** · **Kenttä on lämpökartan kenttä myös
-  tasojen välissä (6.10.)**
+  tasojen välissä (6.10.)** · **Kaukaa rauhallisempi (9.10.)**
 - **eleet**: Kartta on MapLibre GL — mikä tästä tiedostosta on historiaa ·
   **Kosketuszoom tähtäimen ympäri (5.10.)** · Kosketuskohteet ja pseudoelementtien osumapinta · Zoom-alue ·
   Nipistyszoomin pehmennys · Eleen loppu ja tuntuma — kolme asiaa Apple Mapsista ·
@@ -3732,7 +3732,10 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   (kosketus 2 000, työpöytä 4 000), koska partikkelit ovat suorittimella:
   noin 1,4 µs partikkelia kohti ruudussa (`PartikkeliGL.render`).
   Leveyttä ei muutettu — jäljet ovat jo Windyn kaukaisen zoomin
-  levyisiä. Ruutunopeus 1 500–2 000 partikkelilla puhelimella on
+  levyisiä. **KAUKAA RAUHALLISEMPI** (käyttäjän pyyntö 9.10.,
+  `partikkeliKauko`, `PARTIKKELI_RAUHA`): z ≤ 3,5 nopeus × 0,8 ja 10 m/s:n
+  yli lisäksi × (10/ms)^0,4, jälki ja leveys × 0,8, Windyn määrä × 0,8;
+  z ≥ 6 ennallaan, välissä smoothstep. Lähi- ja keskizoomiin ei kosketa. Ruutunopeus 1 500–2 000 partikkelilla puhelimella on
   laitteella mittaamatta; jos se ei riitä, vipu on katto, ei kaava.
 - **Älä jäädytä partikkeleita eleen ajaksi.** Toteutettu, mittarit olivat
   erinomaiset, ja se peruttiin käyttökokemuksen perusteella.
@@ -3762,7 +3765,11 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   3,46 tasoa ali, eikä sitä tarvitse enää rajata erikseen.
 - **KOSKETUSZOOM PITÄÄ TÄHTÄIMEN PAIKALLAAN** (käyttäjän raportti 5.10.,
   docs/eleet.md "Kosketuszoom tähtäimen ympäri", O12). Nipistys on
-  `touchZoomRotate.enable({ around: 'center' })`, ja tuplanapautuksen
+  `touchZoomRotate.enable({ around: 'center' })` — ja sormien
+  keskipisteen siirtymä panoroi nipistyksen aikana (9.10., käyttäjän
+  pyyntö "kuten Google ja Apple Maps": `cameraHelper.handleMapControlsPan`
+  -kääre, joka kytkeytyy myös MapLibren vaihtamaan apuolioon; ilman sitä
+  `around: 'center'` söi vedon kokonaan), ja tuplanapautuksen
   (+1) ja kahden sormen napautuksen (−1) `easeTo`-kutsusta poistetaan
   `around` kun sen laukaisi `touchend` (`initMap`, `ml.easeTo`-kääre —
   `TapZoomHandler`illa ei ole asetusta). Tuplanapauta-ja-vedä oli jo

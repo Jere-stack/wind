@@ -12744,6 +12744,46 @@ function initMap() {
      tuplanapauta-ja-vedä on jo keskipisteen ympäri (`TapDragZoomHandler`
      ei anna `around`ia). */
   ml.touchZoomRotate.enable({ around: 'center' });
+  /* NIPISTYS MYÖS PANOROI (käyttäjän pyyntö 9.10.: "kuten Google Maps ja
+     Apple Maps — kartta seuraa sormia nipistäessä"). MapLibren
+     `TouchPanHandler` antaa sormien keskipisteen siirtymän nipistyksenkin
+     aikana, mutta `around: 'center'` -tilassa kamera ohittaa sen:
+     `handleMapControlsPan` palaa heti kun `around` on keskipiste (ja
+     `preZoomAroundLoc` on silloin `tr.center` ilman siirtymää). Siirtymä
+     ajetaan tässä itse ZOOMIN JÄLKEEN: skaala pysyy tähtäimen ympäri (O12
+     — pelkkä nipistys ei siirrä luettua paikkaa), ja sormien liike vie
+     karttaa. Yhden sormen veto ei käy tätä polkua (`around` on sormi).
+     Inertia: lopun `easeTo` on `touchend`in, joten kääre alla poistaa
+     `around`in ja heitto jatkaa sekä panorointia että zoomia keskipisteen
+     ympäri. Jos päivität MapLibren, tarkista että `cameraHelper` ja
+     `handleMapControlsPan(deltas, tr, loc)` ovat yhä tämän muotoisia. */
+  /* MapLibre VAIHTAA `cameraHelper`in kun tyylin projektio asetetaan
+     (latauksen jälkeen), joten kääre kytketään sijoitukseen eikä
+     pelkästään nykyiseen olioon — ensimmäinen versio kääri alkuperäisen,
+     ja nipistys ajoi mitattuna yhä kirjaston oman polun. */
+  (function () {
+    function kaari(ch) {
+      if (!ch || ch._nipistysPanoroi || typeof ch.handleMapControlsPan !== 'function') return ch;
+      const _pan = ch.handleMapControlsPan;
+      ch.handleMapControlsPan = function (d, tr, loc) {
+        const pd = d && d.panDelta;
+        if (pd && (pd.x || pd.y) && d.around && d.around.distSqr(tr.centerPoint) < 1e-2) {
+          const c = tr.centerPoint;
+          tr.setLocationAtPoint(tr.screenPointToLocation(c.sub(pd)), c);
+          return;
+        }
+        return _pan.call(this, d, tr, loc);
+      };
+      ch._nipistysPanoroi = true;
+      return ch;
+    }
+    let ch = kaari(ml.cameraHelper);
+    Object.defineProperty(ml, 'cameraHelper', {
+      configurable: true,
+      get() { return ch; },
+      set(v) { ch = kaari(v); }
+    });
+  })();
   const _easeTo = ml.easeTo;
   ml.easeTo = function (o, data) {
     const e = data && data.originalEvent;
@@ -18149,10 +18189,37 @@ const PARTIKKELI_KAUKO = { z0: 4, z1: 5, katto: TYOPOYTA ? 4000 : 2000, kerroin:
 function partikkeliKaukoMaara(ala, lahi, k) {
   const z = State.map ? State.map.getZoom() : 6, K = PARTIKKELI_KAUKO;
   if (!(z < K.z1) || !(k > 0)) return 0;
-  const windy = Math.min(K.katto, ala / (50 * Math.pow(1.6, z - 2)) * K.kerroin * k / K.normaali);
+  const windy = Math.min(K.katto, ala / (50 * Math.pow(1.6, z - 2)) * K.kerroin * k / K.normaali)
+    * (1 - partikkeliKauko(z) * (1 - PARTIKKELI_RAUHA.maara));
   let s = (K.z1 - z) / (K.z1 - K.z0);
   s = s >= 1 ? 1 : s * s * (3 - 2 * s);
   return lahi + (windy - lahi) * s;
+}
+/* KAUKAA RAUHALLISEMPI (käyttäjän pyyntö 9.10.: "uloimmilla zoomeilla
+ * partikkelit menevät punaisilla alueilla liian lujaa — hitaammiksi,
+ * pienemmiksi ja vähemmän busy; lähi- ja keskizoom ovat hyviä, suhteutetaan
+ * niihin"; docs/partikkelit.md "Kaukaa rauhallisempi").
+ *
+ * Yksi paino `partikkeliKauko(z)`: 0 kun z ≥ `z1` (6, eli lähi- ja
+ * keskizoom täsmälleen ennallaan), 1 kun z ≤ `z0` (3,5), välissä
+ * smoothstep — muutos liukuu zoomin mukana eikä hyppää millään rajalla.
+ * Painolla 1:
+ *   - nopeus × `nopeus` (0,8) kaikille, ja `puristusMs`:n (10 m/s) yli
+ *     lisäksi × (10/ms)^`eksponentti` (0,4): 15 m/s 0,68, 20 m/s 0,61,
+ *     30 m/s 0,52 entisestä. Ruudun nopeus on yhä nopeuden kasvava
+ *     funktio (järjestys säilyy), mutta myrskyalue ei enää viuhu.
+ *   - jäljen pituusraja ja leveys × `koko` (0,8): 19 → 15 px. Heikon
+ *     tuulen jälki lyhenee nopeuden mukana samassa suhteessa (aikapituus
+ *     ennallaan), joten pilkkuja ei synny enempää kuin hitaus tuo.
+ *   - Windyn kaukomäärä × `maara` (0,8).
+ * Puhelimen Suomi-näkymä z5 saa painon 0,35. */
+const PARTIKKELI_RAUHA = { z0: 3.5, z1: 6, nopeus: 0.8, puristusMs: 10, eksponentti: 0.4, koko: 0.8, maara: 0.8 };
+function partikkeliKauko(z) {
+  const R = PARTIKKELI_RAUHA;
+  if (!(z < R.z1)) return 0;
+  let s = (R.z1 - z) / (R.z1 - R.z0);
+  if (s >= 1) return 1;
+  return s * s * (3 - 2 * s);
 }
 /* Tiheys ZOOMIN mukaan — ja tämä on tietoinen poikkeus siihen sääntöön
    että partikkelimäärä on ruudun pinta-alasta eikä zoomista.
@@ -19032,7 +19099,12 @@ function partikkelitAskel() {
   if (talleta) State._jalkiKello = Math.min(ASKEL_MS, State._jalkiKello - ASKEL_MS);
   /* Reunalla partikkeli saa jatkaa kunnes sen jälkikin on ulkona —
      muuten jälki katkeaisi ruudun reunaan kerralla. */
-  const M = JalkiViritys.maxPx + 4;
+  /* Kaukaa rauhallisempi (`partikkeliKauko`): paino 0 = ennallaan. */
+  const R = PARTIKKELI_RAUHA, kk = partikkeliKauko(zoom);
+  const kKoko = 1 - kk * (1 - R.koko);
+  const maxPx = JalkiViritys.maxPx * kKoko;
+  State._pKoko = kKoko;
+  const M = maxPx + 4;
   /* Aikapituus 60 Hz:n ruutuina: jälki on enintään tämän ajan liike. */
   const aikaRuutua = JALKI * ASKEL;
 
@@ -19043,8 +19115,13 @@ function partikkelitAskel() {
     p.age += f;
     if (p.age > Config.MAX_AGE) { respawn(p); continue; }
     if (p.ms < 0.3) continue;
-    p.vx = p.vx * hitaus + p.u * kx * uutta;
-    p.vy = p.vy * hitaus + p.v * ky * uutta;
+    let nk = 1;
+    if (kk > 0) {
+      nk = p.ms > R.puristusMs ? R.nopeus * Math.pow(R.puristusMs / p.ms, R.eksponentti) : R.nopeus;
+      nk = 1 - kk * (1 - nk);
+    }
+    p.vx = p.vx * hitaus + p.u * kx * nk * uutta;
+    p.vy = p.vy * hitaus + p.v * ky * nk * uutta;
     p.x += p.vx * f; p.y += p.vy * f;
     if (p.x < alue.x0 - M || p.x > alue.x1 + M ||
         p.y < alue.y0 - M || p.y > alue.y1 + M) { respawn(p); continue; }
@@ -19065,7 +19142,7 @@ function partikkelitAskel() {
     /* Jäljen pituus pikseleinä: aikapituuden liike, rajattuna. Liukuluku
        eikä pistemäärä — `nauha` leikkaa kaaren tähän kohtaan. */
     const pit = Math.sqrt(p.vx * p.vx + p.vy * p.vy) * aikaRuutua;
-    p.pit = pit < JalkiViritys.maxPx ? pit : JalkiViritys.maxPx;
+    p.pit = pit < maxPx ? pit : maxPx;
   }
   return true;
 }
@@ -19118,7 +19195,7 @@ const PartikkeliGL = {
     if (!partikkelitAskel()) return;
     const map = State.map, particles = State.particles;
     const pr = map.ml.getPixelRatio ? map.ml.getPixelRatio() : (window.devicePixelRatio || 1);
-    const laaj = 1 / pr;
+    const laaj = 1 / pr, kKoko = State._pKoko || 1;
     _pN = 0;
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];
@@ -19126,7 +19203,7 @@ const PartikkeliGL = {
       _pA = _pAlfa(p);
       if (_pA < 0.01) continue;
       const ni = Math.min(NIPUT - 2, p.nippu | 0), nfr = p.nippu - ni;
-      const lev = Nippu.leveys[ni] + (Nippu.leveys[ni + 1] - Nippu.leveys[ni]) * nfr;
+      const lev = (Nippu.leveys[ni] + (Nippu.leveys[ni + 1] - Nippu.leveys[ni]) * nfr) * kKoko;
       nauha(p, p.pit, lev, p.nippu, laaj);
     }
     if (_pN < 3) return;
@@ -35609,7 +35686,8 @@ setTimeout(function () { Kaynnistys.jumi(); }, Kaynnistys.JUMI_MS);
          kommentti), mutta se ei ollut viedyissä — eli pyyhkäisy vaati
          buildin per arvo. Aikapituus (JALKI x ASKEL) tarvitaan samassa
          mittauksessa, koska heikossa tuulessa se on se joka sitoo. */
-      JalkiViritys: JalkiViritys, JALKI: JALKI, ASKEL: ASKEL };
+      JalkiViritys: JalkiViritys, JALKI: JALKI, ASKEL: ASKEL,
+      PARTIKKELI_RAUHA: PARTIKKELI_RAUHA, partikkeliKauko: partikkeliKauko };
   } catch (e) {}
 
   var worstEver = 0;

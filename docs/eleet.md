@@ -56,6 +56,47 @@ z9 → z10,4, 0,00 m. Kapselin teksti pysyi samana molemmissa. Tuntuma
 laitteella on arvioitava: sisältö ei enää pysy sormien alla nipistäessä,
 vaan kartta laajenee tähtäimestä.
 
+**Nipistys myös panoroi (9.10., käyttäjän pyyntö "kuten Google Maps ja
+Apple Maps").** `around: 'center'` -tilassa MapLibre ohitti sormien
+keskipisteen siirtymän kokonaan: `TouchPanHandler` antaa `panDelta`n
+nipistyksenkin aikana, mutta `handleMapControlsPan` palaa heti kun
+`around` on keskipiste (ja `preZoomAroundLoc` on silloin `tr.center`).
+`initMap` käärii kameran apuolion metodin: kun `around` on keskipiste ja
+siirtymä on olemassa, paikka `C − panDelta` asetetaan keskelle ZOOMIN
+JÄLKEEN. Skaala pysyy siis tähtäimen ympäri (O12), ja sormien liike vie
+karttaa. MapLibre VAIHTAA `cameraHelper`-olion tyylin projektion
+asettuessa — ensimmäinen versio kääri alkuperäisen, ja mitattuna nipistys
+ajoi yhä kirjaston polkua; kääre on nyt sijoituksessa (`defineProperty`).
+Heitto: lopun `easeTo` on `touchend`in, ja yllä oleva kääre poistaa
+`around`in, joten heitto jatkaa panorointia ja zoomia keskipisteen
+ympäri.
+
+Mitattu CDP-kosketuksella (puhelin, hasTouch), sama ele uutta ja vanhaa
+buildia vasten:
+
+```
+                                       vanha            uusi
+symmetrinen nipistys sivussa, dz 0,75  keskusta 0 px    0 px
+nipistys + keskipiste (+80, +40), dz 0,87
+  vanha keskusta ruudulla              (+6, +3)         (+107, +53)
+yhden sormen veto (−100, +50)          (−100, +50)      (−100, +50)
+nipistys + heitto, dz 0,92             (0, 0)           (+131, +52)
+```
+
+Vanhan buildin +6 px on kynnystä edeltävä veto (ennen kuin zoom
+aktivoituu, `around` on sormien keskipiste). Uuden siirtymä on sormien
+80 px:ää suurempi, koska jokainen veto tehdään sen hetken zoomilla ja
+myöhempi zoom keskipisteen ympäri suurentaa sitä: se on "zoomi
+tähtäimen ympäri + veto" -mallin luonne. Täysi Google-malli (zoomi
+sormien ympäri, sisältö pysyy sormien alla) olisi `enable()` ilman
+`around`ia — ja rikkoisi O12:n, koska pelkkä epäkeskinen nipistys
+siirtäisi luettua paikkaa.
+
+Sivuhuomio, ei tästä muutoksesta: kontin Chromium syntetisoi kahdesta
+CDP-napautuksesta joskus hiiren `dblclick`in, ja MapLibren
+`ClickZoomHandler` zoomaa silloin napautuskohdan ympäri (167,7 px
+siirtymä, sama vanhassa buildissa). Laitteella tämä on tarkistamatta.
+
 **Nipistyksen värinää ei ole mitattu MapLibrella.** Leaflet-version
 One Euro -suodin oli mitattu tarpeelliseksi (nurkan suunnanvaihdot 9/s →
 0). MapLibren nipistys on suodattamaton; jos laitteella näkyy nurkan
