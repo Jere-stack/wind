@@ -34,7 +34,9 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   `tools/alueelliset.mjs`:stä) — kenttänä ja sarjana (`malli.js`),
   aaltoennuste, vedenkorkeus, sade-ennuste GRIB2:sta ja sadetilan
   pistesarja (`sade.js?sarja=1`: tutkan tuntikertymä, vartit, HARMONIE,
-  MET Norwayn nowcast), ECMWF:n sade jatkoksi (`malli.js?muuttuja=sade`),
+  MET Norwayn nowcast), kapselin sää (`harmonie.js?saa=1&malli=<perhe>`:
+  FMI HARMONIE + kartan kansallinen malli Open-Meteosta −48 h … +16 vrk,
+  docs/ui.md "Kapselin sää seuraa aikajanaa"), ECMWF:n sade jatkoksi (`malli.js?muuttuja=sade`),
   FMI:n aaltopoijut, Kruunuvuorenselän, Mellstenin, Larun ja Uiraan
   mittausdata-proxyt (Larun proxy kertoo myös kelikameran tilan,
   `laru.js?kamera=1`), Euroopan havainnot MeteoGate E-SOH:sta
@@ -216,7 +218,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/eleet.md` | nipistystä, zoomia (**kosketuszoom tähtäimen ympäri**), zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
 | `docs/data.md` | **aaltoennustetta kartalla (FMI WAM, `a0`–`a3`, `tools/wam.mjs`)**, säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja, **havaintoasemien oma historia (Mellsten ja Laru, `havainnot`-haara)**, **Mellstenin katkot: 4 h kuvaaja, arkistovaratie ja ajastinketju**, **kelikameran tila (YouTube, pikkukuvan ETag)** |
 | `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, MET Nordicia, Open-Meteon S3-malleja, näyttötarkkuuden tasoa: tason valinta zoomista, tasojen sekoitus (`karkeaPaino`), lämpökartan kaksi hilaa ja laattojen kaksi kerrosta — miksi lämpökartta ei enää hyppää zoomatessa**, **laatat ajassa paloina (24 askelta, `_palaValmis`)**, **kaukaa kuin läheltä: tiheämpi taso puhelimella, solmubudjetti, l1, alueellinen 1,0° ja `kokoaHila`n muisti** |
-| `docs/ui.md` | **väriteemaa (Yömeri: paneelit, tokenit, `Teema`, `ink()`)**, **kerrosvalitsinta (neljä ruutua esikatselukuvin) ja sadekerroksen GL-piirtoa (häivytykset, B-spline; silmukka on historiaa, ks. docs/sadetutka.md)**, **aaltokerrosta: siru, väri, aallonharjat, aikajana, kapseli, poijukaavion ennuste**, paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa (**toiston liuku, jatkuva päiväkisko, pehmeä valinta ja kelikaista**), kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
+| `docs/ui.md` | **väriteemaa (Yömeri: paneelit, tokenit, `Teema`, `ink()`)**, **kerrosvalitsinta (neljä ruutua esikatselukuvin) ja sadekerroksen GL-piirtoa (häivytykset, B-spline; silmukka on historiaa, ks. docs/sadetutka.md)**, **aaltokerrosta: siru, väri, aallonharjat, aikajana, kapseli, poijukaavion ennuste**, paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa (**toiston liuku, jatkuva päiväkisko, pehmeä valinta ja kelikaista**), kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kapselin säätä ja tuntisäätä (valittu hetki, paikallinen lähde)**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
 | `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit, kaavion venytys** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V11: yksi kaaviomoottori, kortti moduuleina, fonttilattia, laajan valinta, venytys, mallit laajassa, **ennustevalikko, kiinteä lukemarivi ja selkeämpi päiväys**), ja **luku 8: rauhallinen ja vakaa kortti (strategia 3.10., päätetty suosituksen mukaan — kupla jää kiinteän kokoisena; toteutus V12–V16 ja mittari `tools/korttimittaus.mjs`): mallilukemat näkyviin laajassa, ei koon muutoksia, kahdennukset pois, kaavion teksti vain kokonaisena, kuusi kirjasinkokoa ja desimaalipilkku** |
@@ -353,7 +355,8 @@ kokeiltu ja kaadettu mittauksella.
   **Yömeri, toinen erä: asetukset, kortit, sääikonit, spottien väistö** ·
   **Kartan merkit: pallot kaukana, yksi raja ja sijoittelu** ·
   **Kartan merkit, toinen erä: lukemat taas kaukaa** ·
-  **Kapselin vasen lukema: aallot oletuksena**
+  **Kapselin vasen lukema: aallot oletuksena** ·
+  **Kapselin sää seuraa aikajanaa**
 - **pwa**: PWA — kotivalikkoon ja rannalle · Mitä välimuistiin menee ·
   Kaksi asiaa jotka pitää muistaa · Mitattu · Testaamisen sudenkuoppa ·
   Ikoni ja kotivalikko
@@ -1074,6 +1077,16 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   tuulinäkymässä vasemmassa osassa)
   (`kapseliAaltoSVG`, sääikonien veden sävy). Sääntö "aallonkorkeus on
   mustetta" koskee tuulen ramppia, ei aaltojen omaa asteikkoa.
+- **KAPSELIN SÄÄ ON VALITUN HETKEN, JA LÄHDE ON PAIKALLINEN** (käyttäjän
+  raportti 9.10., docs/ui.md "Kapselin sää seuraa aikajanaa"). Hetki on
+  `State.valittuMs`, tunti hylätään yli 90 min päästä (`indeksi`), ja
+  sarja on `api/harmonie?saa=1`: FMI HARMONIE > kartan perheen
+  kansallinen malli Open-Meteosta (`SAA_MALLIT`, perhe tähtäimen sarjan
+  yleisimmästä alueellisesta lähteestä) > `best_match`, −48 h … +16 vrk.
+  Tuulipolun vastausta EI saa käyttää säähän: sen FMI-osa alkaa
+  tuoreimman ajon analyysihetkestä, ja menneet tunnit näyttivät
+  nykyhetkeä. Tuntisää on valittu −6 … +24 h, valittu solu korostettuna,
+  napautus valitsee tunnin (`_tlValitseIdx`) ja tuuli on tähtäimen sarja.
 - **KAPSELI VÄISTYY KUN SPOTTIKORTTI ON AUKI**
   (`html:has(#sheet.open) #kapseli`). Kapseli lukee kartan keskipisteen
   ja kortti spotin: mitattuna 2,6 ja 6,9 kts yhtä aikaa samalla

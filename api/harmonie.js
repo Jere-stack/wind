@@ -301,15 +301,16 @@ const MUISTI = new Map();
 const KESKEN = new Map();
 const MUISTI_MS = 30 * 60e3;
 const MUISTI_MAX = 2000;
-function haePisteMuistista(lat, lng, tz) {
-  const k = lat.toFixed(4) + ',' + lng.toFixed(4) + '|' + tz;
+function haePisteMuistista(lat, lng, tz, saaPerhe) {
+  const saa = saaPerhe != null;
+  const k = lat.toFixed(4) + ',' + lng.toFixed(4) + '|' + tz + (saa ? '|saa:' + saaPerhe : '');
   const m = MUISTI.get(k);
   if (m && Date.now() - m.t < MUISTI_MS) {
     MUISTI.delete(k); MUISTI.set(k, m);   /* käyttöjärjestys */
     return Promise.resolve(m.r);
   }
   if (KESKEN.has(k)) return KESKEN.get(k);
-  const p = haePiste(lat, lng, tz).then(function (r) {
+  const p = (saa ? haeSaa(lat, lng, tz, saaPerhe) : haePiste(lat, lng, tz)).then(function (r) {
     if (r && r._status === 200 && r.body && !r.body.error) {
       MUISTI.set(k, { t: Date.now(), r: r });
       while (MUISTI.size > MUISTI_MAX) MUISTI.delete(MUISTI.keys().next().value);
@@ -335,6 +336,180 @@ async function poolMap(lista, raja, fn) {
   }
   await Promise.all(Array.from({ length: Math.min(raja, lista.length) }, tyontekija));
   return ulos;
+}
+
+/* ── KAPSELIN SÄÄ (`?saa=1`) ─────────────────────────────────────────
+ *
+ * Kapselin lämpötila ja sääikoni seuraavat AIKAJANAN tuntia, myös
+ * mennyttä (docs/ui.md, "Kapselin sää seuraa aikajanaa"). Tuulipolun
+ * vastaus ei riitä siihen: FMI:n HARMONIE-kysely antaa vain tuoreimman
+ * ajon (origintime ohitetaan, mitattu 9.10.), joten sarja alkoi ajon
+ * analyysihetkestä ja jokainen mennyt tunti näytti sen ensimmäistä
+ * tuntia — eli nykyhetkeä. Siksi:
+ *
+ *   1. pohja on Open-Meteon PAIKALLINEN malli 2 vrk taaksepäin ja 16 vrk
+ *      eteenpäin (`past_days=2`). Malli tulee asiakkaalta (`malli=` =
+ *      kartan perhe tähtäimen kohdalla, sama etusija kuin kartalla) ja
+ *      käännetään Open-Meteon kansalliseksi ("seamless") malliksi; sen
+ *      jakson jälkeen ja muualla maailmassa sarja on `best_match`.
+ *   2. FMI HARMONIE korvaa ne tunnit jotka sillä on, kun piste on FMI:n
+ *      aluetta (`malli=fmi`) tai perhettä ei tiedetä.
+ *
+ * Tuntikohtainen lähde (`lahde`) kertoo kumpi kunkin tunnin antoi.
+ * Tuulta ei palauteta: kapseli lukee tuulen kartan sekoituksesta. */
+const SAA_MALLIT = {
+  fmi: 'metno_seamless', metnordic: 'metno_seamless',
+  arome_hd: 'meteofrance_seamless', ukv: 'ukmo_seamless', dini: 'dmi_seamless',
+  icon_d2: 'icon_seamless', arome_at: 'icon_seamless', aladin_cz: 'icon_seamless',
+  aladin_ce: 'icon_seamless',
+  icon_ch1: 'meteoswiss_icon_seamless', icon_ch2: 'meteoswiss_icon_seamless',
+  icon_2i: 'italia_meteo_arpae_icon_2i'
+};
+
+function haeJson(url) {
+  return new Promise(function (resolve, reject) {
+    var req = https.get(url, function (res) {
+      var body = '';
+      res.on('data', function (c) { body += c; });
+      res.on('error', reject);
+      res.on('end', function () {
+        try { resolve({ status: res.statusCode, json: JSON.parse(body) }); }
+        catch (e) { reject(new Error('Open-Meteo: ' + String(body).slice(0, 120))); }
+      });
+    }).on('error', reject);
+    req.setTimeout(AIKARAJA_MS, function () { req.destroy(new Error('aikakatkaisu')); });
+  });
+}
+
+/* Open-Meteon sarja yhdellä tai kahdella mallilla. Kahdella mallilla
+   (`malli,best_match`) vastauksen kentät saavat mallin nimen loppuun, ja
+   ensimmäisen mallin aukot täytetään toisesta. */
+async function haeOmSaa(lat, lng, tz, malli) {
+  /* Kansallisten mallien "seamless" päättyy 4–7 vuorokauteen (mitattu
+     9.10.: Météo-France 166 h, UKMO 220 h, ICON 244 h, ICON-2I 136 h), joten
+     jatko tulee aina best_matchista samassa kutsussa. */
+  var mallit = malli === 'best_match' ? ['best_match'] : [malli, 'best_match'];
+  var url = OM_URL + '?latitude=' + lat + '&longitude=' + lng
+    + '&hourly=temperature_2m,weather_code,cloud_cover,precipitation'
+    + '&models=' + mallit.join(',')
+    + '&timezone=' + encodeURIComponent(tz) + '&past_days=2&forecast_days=16';
+  var r = await haeJson(url);
+  if (r.status !== 200 || !r.json || !r.json.hourly || !r.json.hourly.time) {
+    throw new Error((r.json && r.json.reason) || ('HTTP ' + r.status));
+  }
+  var h = r.json.hourly, n = h.time.length;
+  function kentta(nimi, m) {
+    return mallit.length > 1 ? (h[nimi + '_' + m] || null) : (h[nimi] || null);
+  }
+  var ulos = { time: h.time.map(function (t) { return t.slice(0, 16); }),
+    temperature_2m: [], weather_code: [], cloudcover: [], precipitation: [], lahde: [] };
+  for (var i = 0; i < n; i++) {
+    var valittu = null;
+    for (var k = 0; k < mallit.length; k++) {
+      var T = kentta('temperature_2m', mallit[k]);
+      if (T && T[i] != null) { valittu = mallit[k]; break; }
+    }
+    var m = valittu || mallit[0];
+    var Tm = kentta('temperature_2m', m), W = kentta('weather_code', m),
+        C = kentta('cloud_cover', m), P = kentta('precipitation', m);
+    ulos.temperature_2m.push(Tm ? Tm[i] : null);
+    ulos.weather_code.push(W ? W[i] : null);
+    ulos.cloudcover.push(C ? C[i] : null);
+    ulos.precipitation.push(P ? P[i] : null);
+    ulos.lahde.push(valittu);
+  }
+  /* Malli joka ei anna tähän pisteeseen mitään (alueen ulkopuolella
+     ilman globaalia jatkoa) ei kelpaa pohjaksi. */
+  if (!ulos.lahde.some(function (l) { return l; })) throw new Error('ei dataa: ' + malli);
+  ulos.malli = malli;
+  return ulos;
+}
+
+function fetchHarmonieSaa(lat, lng) {
+  return new Promise(function (resolve, reject) {
+    var now = Date.now();
+    var url = 'https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0'
+      + '&request=getFeature'
+      + '&storedquery_id=fmi::forecast::harmonie::surface::point::timevaluepair'
+      + '&latlon=' + lat + ',' + lng
+      + '&parameters=Temperature,WeatherSymbol3,TotalCloudCover,Precipitation1h'
+      + '&timestep=60'
+      + '&starttime=' + new Date(now - 6 * 3600e3).toISOString().slice(0, 13) + ':00Z'
+      + '&endtime=' + new Date(now + 72 * 3600e3).toISOString().slice(0, 13) + ':00Z';
+    var req = https.get(url, function (res) {
+      var body = '';
+      res.on('data', function (c) { body += c; });
+      res.on('error', reject);
+      res.on('end', function () { resolve(res.statusCode === 200 ? body : ''); });
+    }).on('error', reject);
+    req.setTimeout(AIKARAJA_MS, function () { req.destroy(new Error('aikakatkaisu')); });
+  });
+}
+
+async function haeSaa(lat, lng, tz, perhe) {
+  var omMalli = SAA_MALLIT[perhe] || 'best_match';
+  /* FMI vain sen omalla alueella: perhe on fmi, tai perhettä ei tiedetä
+     ja piste on HARMONIEn hilalla (FMI vastaa muualla poikkeuksella,
+     mitattu noin lat 50–75 / lng −15…50, ks. `_omVastaus`). */
+  var fmi = perhe === 'fmi' || (!perhe && lat >= 50 && lat <= 75 && lng >= -15 && lng <= 50);
+  var tulos = await Promise.allSettled([
+    haeOmSaa(lat.toFixed(4), lng.toFixed(4), tz, omMalli).catch(function (e) {
+      /* Paikallinen malli ei vastannut (nimi, alue tai kiintiö): yleinen. */
+      if (omMalli === 'best_match') throw e;
+      return haeOmSaa(lat.toFixed(4), lng.toFixed(4), tz, 'best_match');
+    }),
+    fmi ? fetchHarmonieSaa(lat.toFixed(4), lng.toFixed(4)) : Promise.resolve('')
+  ]);
+  var om = tulos[0].status === 'fulfilled' ? tulos[0].value : null;
+  var xml = tulos[1].status === 'fulfilled' ? tulos[1].value : '';
+
+  /* HARMONIEn tunnit paikallisaikana. Symboli muunnetaan WMO:ksi kuten
+     tuulipolulla; analyysihetkellä symbolia ei ole (null), ja silloin
+     Open-Meteon saman tunnin koodi jää voimaan. */
+  var fmiRivit = {};
+  if (xml && xml.length > 500) {
+    var s = parseHarmonie(xml), keys = Object.keys(s);
+    var kT = keys.find(function (k) { return k.includes('temperature'); });
+    var kW = keys.find(function (k) { return k.includes('weathersymbol'); });
+    var kC = keys.find(function (k) { return k.includes('totalcloudcover'); });
+    var kP = keys.find(function (k) { return k.includes('precipitation1h'); });
+    if (kT) {
+      s[kT].times.forEach(function (t) {
+        var v = s[kT].map[t];
+        if (v == null) return;
+        fmiRivit[toLocal(t, tz)] = {
+          t: v,
+          w: kW ? fmiSymbolToWmo(s[kW].map[t]) : null,
+          c: kC && s[kC].map[t] != null ? s[kC].map[t] : null,
+          p: kP && s[kP].map[t] != null ? s[kP].map[t] : null
+        };
+      });
+    }
+  }
+  var fmiAjat = Object.keys(fmiRivit).sort();
+  if (!om && !fmiAjat.length) return _vastaus(502, { error: 'both sources failed' });
+
+  var h = om || { time: [], temperature_2m: [], weather_code: [], cloudcover: [], precipitation: [], lahde: [] };
+  if (!om) {
+    fmiAjat.forEach(function (t) {
+      h.time.push(t); h.temperature_2m.push(null); h.weather_code.push(null);
+      h.cloudcover.push(null); h.precipitation.push(null); h.lahde.push(null);
+    });
+  }
+  var fmiTunteja = 0;
+  for (var i = 0; i < h.time.length; i++) {
+    var f = fmiRivit[h.time[i]];
+    if (!f) continue;
+    fmiTunteja++;
+    h.temperature_2m[i] = f.t;
+    if (f.w != null) h.weather_code[i] = f.w;
+    if (f.c != null) h.cloudcover[i] = f.c;
+    if (f.p != null) h.precipitation[i] = f.p;
+    h.lahde[i] = 'fmi';
+  }
+  var malli = h.malli || null;
+  delete h.malli;
+  return _vastaus(200, { saa: 1, malli: malli, fmi_tunteja: fmiTunteja, hourly: h });
 }
 
 /* Enintaan nain monta pistetta yhdessa pyynnossa. Yksi piste on noin 16 kt,
@@ -382,8 +557,17 @@ export default async function handler(req, res) {
   if (!isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
     return res.status(400).json({ error: 'lat/lng required' });
   }
+  /* Kapselin sää: tunnit −48 h … +16 vrk, paikallinen malli ja FMI.
+     Perhe on kartan avain (`tools/alueelliset.mjs`), tuntematon = ''. */
+  var saaPerhe = null;
+  if (req.query.saa) {
+    saaPerhe = String(req.query.malli || '');
+    if (!/^[a-z0-9_]{0,24}$/.test(saaPerhe)) saaPerhe = '';
+  }
   try {
-    const r = await haePisteMuistista(lat, lng, tz);
+    const r = await haePisteMuistista(lat, lng, tz, saaPerhe);
+    if (r._status !== 200) res.setHeader('Cache-Control', 'no-store');
+    else if (saaPerhe != null) res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=300');
     return res.status(r._status).json(r.body);
   } catch (err) {
     return res.status(500).json({ error: err.message });

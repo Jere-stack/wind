@@ -4524,12 +4524,23 @@ h3.fc-day-label { margin: 0; }
    järjestelmäfontilla kuten muukin käyttöliittymä. */
 .wx-hour {
   display: flex; flex-direction: column; align-items: center; gap: 3px;
-  min-width: 56px; padding: 9px 5px; border-radius: 12px;
-  flex-shrink: 0; transition: background .12s;
+  min-width: 56px; padding: 7px 5px 9px; border-radius: 12px;
+  flex-shrink: 0; transition: background .12s, box-shadow .12s;
   background: var(--surface-hi);
+  border: none; color: inherit; cursor: pointer; font: inherit;
+  -webkit-tap-highlight-color: transparent;
 }
 .wx-hour.now { background: var(--surface-lo); }
+/* Valittu tunti (aikajanan valinta): korotettu pinta ja mustekehys —
+   sama valinnan kieli kuin kerrosvalitsimen kuvissa. */
+.wx-hour.valittu { background: var(--surface-nosto); box-shadow: inset 0 0 0 1.5px var(--ink); }
+.wx-hour:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.wx-hour-pv { font-size: var(--fs-10); color: var(--ink-3); font-weight: 600; white-space: nowrap; line-height: 1.1; }
 .wx-hour-time { font-variant-numeric: tabular-nums; font-size: var(--fs-10); color: var(--ink-3); font-weight: 600; }
+.wx-hour.now .wx-hour-time { color: var(--accent); }
+.wx-hour.valittu .wx-hour-time, .wx-hour.valittu .wx-hour-pv { color: var(--ink); }
+.wx-hour-yks { opacity: .6; font-size: var(--fs-8); }
+.wx-tyhja { padding: 20px; color: var(--ink-3); font-size: var(--fs-11); text-align: center; flex: 1; }
 .wx-hour-icon { line-height: 1; color: var(--ink-2); }
 .wx-hour-temp { font-variant-numeric: tabular-nums; font-size: 15px; font-weight: 600; color: var(--ink); letter-spacing: -.02em; }
 .wx-hour-wind { font-variant-numeric: tabular-nums; font-size: var(--fs-11); font-weight: 600; }
@@ -5797,7 +5808,7 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
 
   <!-- Laaja tila: tuntisää liukuu esiin koko leveydeltä ja kapseli väistyy. -->
   <div id="hourly-sheet">
-    <div class="hs-title" data-en="Hourly weather · at the crosshair">Tuntisää · tähtäimen kohta</div>
+    <div class="hs-title" id="wx-panel-title" data-en="Hourly weather">Tuntisää</div>
     <div id="wx-panel-scroll"></div>
     <button class="ts-handle" id="ts-handle" type="button" aria-expanded="false"
             aria-label="Piilota tuntisää" data-en-aria-label="Hide hourly weather"><span></span></button>
@@ -10876,6 +10887,8 @@ const Tahtain = {
   _julkaise() {
     if (typeof updateTimelineToCenter === 'function' && !State._tlTouching) updateTimelineToCenter();
     if (typeof Crosshair !== 'undefined' && Crosshair._el) Crosshair._update();
+    /* Kapselin sää valitsee mallinsa tästä sarjasta. */
+    if (typeof WeatherWidget !== 'undefined') WeatherWidget.refresh();
   },
 
   /* Puuska kelpaa kapselin riville samalla säännöllä kuin ennen (O4):
@@ -30662,6 +30675,9 @@ function _tlSeuraaHetkea(idx) {
   _tlUpdateNow(idx);
   renderSpots(idx);
   if (State.sheetSpot) openSheet(State.sheetSpot, idx);
+  /* Kapselin sää ja tuntisää seuraavat valittua tuntia heti, ei vasta
+     kentän valmistuttua (haku muistista, ei verkkoa). */
+  if (typeof WeatherWidget !== 'undefined') WeatherWidget.refresh();
   return true;
 }
 
@@ -31974,7 +31990,8 @@ const WeatherWidget = {
       const nyt = Date.now();
       Object.keys(data).forEach(k => {
         const e = data[k];
-        if (e && e.ts && e.data && nyt - e.ts < this.SAA_TTL) this._cache[k] = e;
+        /* `saa` = kapselin oma sarja (−48 h …); vanha tuulipolun muoto ei kelpaa. */
+        if (e && e.ts && e.data && e.data.saa && nyt - e.ts < this.SAA_TTL) this._cache[k] = e;
       });
     } catch (e) { /* rikkinäinen tallennus: haetaan verkosta */ }
   },
@@ -32000,90 +32017,202 @@ const WeatherWidget = {
     this._ikoniEl = document.getElementById('kap-saa-ikoni');
     this._tempEl = document.getElementById('kap-lampo');
     this._lueValimuisti();
+    /* Paikka vaihtuu kartan pysähtyessä; vanhentunut sarja haetaan
+       uudelleen etualalla (TTL 30 min). */
+    if (State.map) State.map.on('moveend', () => this.refresh());
+    setInterval(() => { if (!document.hidden) this.refresh(); }, 5 * 60e3);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) this.refresh(); });
   },
-  scheduleUpdate() {
+  scheduleUpdate(viive) {
     clearTimeout(this._fetchTimer);
-    this._fetchTimer = setTimeout(() => this._update(), 500);
+    this._fetchTimer = setTimeout(() => this._update(), viive == null ? 500 : viive);
   },
-  /* Saatiedot FMI HARMONIE 2.5km -mallista saman proxyn kautta jota
-     tuulikarttakin kayttaa. Proxy palauttaa lampotilan, saasymbolin ja
-     pilvisyyden, ja jatkaa Open-Meteolla HARMONIE:n ennustejakson jalkeen.
-     Jos proxy ei vastaa lainkaan, pudotaan suoraan Open-Meteoon, jottei
-     widget jaa tyhjaksi. */
+
+  /* KAPSELIN SÄÄ SEURAA AIKAJANAA, JA LÄHDE ON PAIKALLINEN (docs/ui.md,
+     "Kapselin sää seuraa aikajanaa"). Ennen sää tuli tuulipolun vastauksesta,
+     jonka FMI-osa alkaa tuoreimman ajon analyysihetkestä: jokainen mennyt
+     tunti osui sarjan ensimmäiseen tuntiin eli nykyhetkeen. Nyt
+     `api/harmonie?saa=1` antaa tunnit −48 h … +16 vrk:
+     FMI HARMONIE (Suomi) > kartan alueellinen malli Open-Meteosta
+     (MET Nordic, AROME, UKV, DINI, ICON…) > best_match muualla.
+
+     Malli on kartan perhe tähtäimen kohdalla: tähtäimen sarjan tunneittain
+     yleisin alueellinen lähde (`Tahtain`, sama etusija kuin kartalla).
+     Sarjaa odotetaan hetki (`MALLI_ODOTUS`), ettei ensin haeta yleistä ja
+     heti perään paikallista. */
+  MALLI_ODOTUS: 10,         /* yritystä × 600 ms */
+  _odotus: 0,
+  _perhe(c) {
+    if (typeof Tahtain === 'undefined' || typeof Saalaatat === 'undefined') return '';
+    /* Varasto latautuu vielä: odotetaan. Rikki tai pois: ei perhettä. */
+    if (Saalaatat._tila === 'lataa' || Saalaatat._tila === 'alustamaton') return null;
+    if (!Saalaatat.kaytossa()) return '';
+    if (!Tahtain.voimassa(c)) return null;            /* ei vielä tiedossa */
+    const h = Tahtain._s.wx.hourly;
+    if (!h || !h.lahde) return '';
+    const ts = _ts(h), nyt = Date.now(), laskut = {};
+    for (let i = 0; i < h.lahde.length; i++) {
+      const l = h.lahde[i];
+      if (!l || ts[i] < nyt - 24 * 3600e3 || ts[i] > nyt + 72 * 3600e3) continue;
+      if (!(l === 'fmi' || l === 'metnordic' || Saalaatat.onAlueellinen(l))) continue;
+      laskut[l] = (laskut[l] || 0) + 1;
+    }
+    let paras = '', n = 0;
+    Object.keys(laskut).forEach(l => { if (laskut[l] > n) { n = laskut[l]; paras = l; } });
+    return paras;
+  },
   async _update() {
     if (!State.map || !this._tempEl) return;
     const c = State.map.getCenter();
     const key = this._key(c);
-    if (this._cache[key] && Date.now() - this._cache[key].ts < this.SAA_TTL) {
-      this._render(this._cache[key].data, State.currentHourIdx); return;
+    let perhe = this._perhe(c);
+    if (perhe === null) {
+      if (this._odotus++ < this.MALLI_ODOTUS) { this.scheduleUpdate(600); return; }
+      perhe = '';
     }
+    this._odotus = 0;
+    const e = this._cache[key];
+    if (e && Date.now() - e.ts < this.SAA_TTL && (e.perhe === perhe || !perhe)) {
+      this._render(e.data); return;
+    }
+    if (this._haussa === key + '|' + perhe) return;
+    this._haussa = key + '|' + perhe;
     const [lat, lng] = key.split(',');
     try {
-      const r = await fetch(HARMONIE_BASE + '?lat=' + lat + '&lng=' + lng
-        + '&tz=' + encodeURIComponent(AIKAVYOHYKE));
+      const r = await fetch(HARMONIE_BASE + '?saa=1&lat=' + lat + '&lng=' + lng
+        + '&malli=' + encodeURIComponent(perhe) + '&tz=' + encodeURIComponent(AIKAVYOHYKE));
       if (r.ok) {
         const data = await r.json();
-        /* cloudcover toimii myos version tunnisteena: vain se proxy-versio
-           joka palauttaa pilvisyyden osaa muuntaa FMI:n WeatherSymbol3:n
-           WMO-koodeiksi. Vanhemmalta versiolta saatu vastaus sisaltaisi
-           kahta eri koodiasteikkoa sekaisin, joten siita pudotaan
-           mieluummin Open-Meteoon kuin naytetaan vaaria symboleja. */
-        if (data && data.hourly && data.hourly.temperature_2m && data.hourly.cloudcover) {
-          this._cache[key] = { ts: Date.now(), data };
-          this._tallennaValimuisti();
-          this._render(data, State.currentHourIdx);
+        if (data && data.saa && data.hourly && data.hourly.time && data.hourly.time.length) {
+          this._tallenna(key, perhe, data);
           return;
         }
       }
-    } catch(e) {}
+    } catch (err) { /* varatie alla */ }
+    finally { this._haussa = ''; }
+    /* Proxy ei vastannut: Open-Meteo suoraan, sama jakso. */
     try {
       const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lng
-        + '&hourly=temperature_2m,weather_code,cloud_cover&forecast_days=5' + TZ_PARAM;
+        + '&hourly=temperature_2m,weather_code,cloud_cover&past_days=2&forecast_days=16' + TZ_PARAM;
       const r = await fetch(url);
-      if (!r.ok) return;
-      const data = await r.json();
-      if (data && data.hourly) {
-        if (data.hourly.cloud_cover && !data.hourly.cloudcover) data.hourly.cloudcover = data.hourly.cloud_cover;
-        data.source = 'Open-Meteo'; data.harmonie_hours = 0;
-        this._cache[key] = { ts: Date.now(), data };
-        this._tallennaValimuisti();
-        this._render(data, State.currentHourIdx);
+      const data = r.ok ? await r.json() : null;
+      if (data && data.hourly && data.hourly.time) {
+        const h = data.hourly;
+        h.time = h.time.map(t => t.slice(0, 16));
+        h.cloudcover = h.cloud_cover || null;
+        h.lahde = h.time.map(() => 'best_match');
+        this._tallenna(key, perhe, { saa: 1, malli: 'best_match', hourly: h });
+        return;
       }
-    } catch(e) {}
+    } catch (err) {}
+    /* Kumpikaan ei vastannut (ylävirran kiintiö tai katko): uusi yritys
+       puolen minuutin päästä, ei vasta seuraavasta liikkeestä. */
+    this.scheduleUpdate(30000);
   },
-  _render(data, hourIdx) {
-    if (!data || !data.hourly) return;
-    const h = data.hourly;
-    let idx = Math.min(hourIdx, (h.temperature_2m || []).length - 1);
-    if (State._tlTimes && State._tlTimes[hourIdx] && h.time) {
-      const target = new Date(State._tlTimes[hourIdx]).getTime();
-      const ts = _ts(h);
-      let bestDiff = Infinity;
-      for (let j = 0; j < ts.length; j++) {
-        const diff = Math.abs(ts[j] - target);
-        if (diff < bestDiff) { bestDiff = diff; idx = j; }
-      }
+  _etaKm(a, b) {
+    const p = a.split(',').map(Number), q = b.split(',').map(Number);
+    const dy = (p[0] - q[0]) * 111, dx = (p[1] - q[1]) * 111 * Math.cos(p[0] * Math.PI / 180);
+    return Math.sqrt(dx * dx + dy * dy);
+  },
+  _tallenna(key, perhe, data) {
+    this._cache[key] = { ts: Date.now(), data, perhe };
+    /* Vastaus voi tulla vasta kun kartta on jo muualla. */
+    const c = State.map ? State.map.getCenter() : null;
+    if (c && this._key(c) !== key) { this._tallennaValimuisti(); return; }
+    this._paikka = key;
+    this._tallennaValimuisti();
+    this._render(data);
+    if (typeof WxPanel !== 'undefined' && WxPanel._open) WxPanel.render();
+  },
+  /* Valittu hetki: `State.valittuMs` (totuus, CLAUDE.md), toistossa ja
+     raahauksessa sama, koska `_tlSeuraaHetkea` kirjoittaa sen. */
+  _hetki() {
+    if (isFinite(State.valittuMs)) return State.valittuMs;
+    const T = State._tlTimes, i = State.currentHourIdx;
+    return T && T[i] ? new Date(T[i]).getTime() : Date.now();
+  },
+  /* Sarjan aikaleimat ilman että sarjaan kirjoitetaan mitään (`_ts`
+     liittäisi `__ts`:n, ja se menisi levylle JSONina). */
+  _ajat(h) {
+    let a = _tsMuisti.get(h.time);
+    if (!a || a.length !== h.time.length) {
+      a = new Float64Array(h.time.length);
+      for (let i = 0; i < a.length; i++) a[i] = new Date(h.time[i]).getTime();
+      _tsMuisti.set(h.time, a);
     }
-    const temp = h.temperature_2m ? h.temperature_2m[idx] : null;
-    const code = h.weather_code ? h.weather_code[idx] : 0;
-    const cc = h.cloudcover ? h.cloudcover[idx] : null;
+    return a;
+  },
+  /* Hetken tunti sarjassa, tai -1 jos sarja ei kata sitä (yli 90 min
+     lähimmästä). Ennen lähin tunti hyväksyttiin aina, ja sarjan ulkopuolinen
+     hetki näytti sen päätytunnin. */
+  indeksi(h, t) {
+    const ts = this._ajat(h);
+    let lo = 0, hi = ts.length - 1;
+    if (hi < 0) return -1;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (ts[m] < t) lo = m + 1; else hi = m; }
+    let i = lo;
+    if (i > 0 && Math.abs(ts[i - 1] - t) <= Math.abs(ts[i] - t)) i--;
+    return Math.abs(ts[i] - t) <= 90 * 60e3 ? i : -1;
+  },
+  /* Sääkoodi tunnille: analyysihetkellä tai mallin rajalla koodi voi
+     puuttua, ja silloin lähin enintään 2 h päästä. */
+  koodi(h, i) {
+    const W = h.weather_code;
+    if (!W || i < 0) return null;
+    for (let d = 0; d <= 2; d++) {
+      if (W[i - d] != null && i - d >= 0) return W[i - d];
+      if (W[i + d] != null) return W[i + d];
+    }
+    return null;
+  },
+  _render(data) {
+    if (!data || !data.hourly || !data.hourly.time) return;
+    const h = data.hourly;
+    const i = this.indeksi(h, this._hetki());
+    const temp = i >= 0 && h.temperature_2m ? h.temperature_2m[i] : null;
+    const code = this.koodi(h, i);
+    const avain = (temp == null ? '-' : Math.round(temp)) + '|' + code;
+    if (avain === this._piirretty) return;
+    this._piirretty = avain;
     /* Emoji korvattiin piirretyllä ikonilla: emoji renderöityy jokaisella
        laitteella eri tyylillä eikä noudata sovelluksen väriä. */
-    if (this._ikoniEl) this._ikoniEl.innerHTML = wxIconSVG(code, 18);
+    if (this._ikoniEl) this._ikoniEl.innerHTML = code != null ? wxIconSVG(code, 18) : '';
     if (this._tempEl) this._tempEl.textContent = temp != null ? Math.round(temp) + '°' : '--°';
   },
-  /* Onko naytetty tunti FMI HARMONIE:a vai Open-Meteo-jatkoa */
+  /* Tunnin lähde näkyvänä nimenä. Kansallinen malli tulee Open-Meteosta,
+     ja nimi sanoo molemmat. */
+  LAHTEET: {
+    fmi: _t('Ilmatieteen laitos · HARMONIE 2,5 km', 'FMI · HARMONIE 2.5 km'),
+    metno_seamless: 'MET Norway · MET Nordic (Open-Meteo)',
+    meteofrance_seamless: 'Météo-France · AROME (Open-Meteo)',
+    ukmo_seamless: 'Met Office · UKV (Open-Meteo)',
+    dmi_seamless: 'DMI · HARMONIE (Open-Meteo)',
+    icon_seamless: 'DWD · ICON (Open-Meteo)',
+    meteoswiss_icon_seamless: 'MeteoSwiss · ICON-CH (Open-Meteo)',
+    italia_meteo_arpae_icon_2i: 'ItaliaMeteo · ICON-2I (Open-Meteo)',
+    best_match: _t('Open-Meteo · paras saatavilla', 'Open-Meteo · best available')
+  },
   sourceAt(data, idx) {
-    if (!data) return '';
-    const n = data.harmonie_hours || 0;
-    if (n > 0 && idx < n) return _t('FMI HARMONIE 2,5 km', 'FMI HARMONIE 2.5 km');
-    return data.source === 'Open-Meteo' ? 'Open-Meteo' : _t('Open-Meteo (HARMONIE-jakson jälkeen)', 'Open-Meteo (after the HARMONIE range)');
+    if (!data || !data.hourly) return '';
+    const l = data.hourly.lahde && data.hourly.lahde[idx];
+    return this.LAHTEET[l] || (l ? l : '');
   },
   refresh() {
     const c = State.map ? State.map.getCenter() : null; if (!c) return;
-    const key = this._key(c);
-    if (this._cache[key]) this._render(this._cache[key].data, State.currentHourIdx);
-    else this.scheduleUpdate();
+    const key = this._key(c), e = this._cache[key];
+    if (e) { this._render(e.data); this._paikka = key; }
+    else if (this._paikka && this._etaKm(this._paikka, key) > 30) {
+      /* Kaukana edellisestä: vanha luku olisi toisen paikan sää. Viereisen
+         0,1°:n ruudun luku saa jäädä siksi aikaa kun uusi haetaan. */
+      this._paikka = null; this._piirretty = null;
+      if (this._tempEl) this._tempEl.textContent = '--°';
+      if (this._ikoniEl) this._ikoniEl.innerHTML = '';
+    }
+    /* Vanha tai toisen mallin sarja haetaan uudelleen; ruudulla pysyy
+       edellinen kunnes uusi tulee. */
+    const perhe = this._perhe(c);
+    if (!e || Date.now() - e.ts >= this.SAA_TTL || (perhe && perhe !== e.perhe)) this.scheduleUpdate();
+    if (typeof WxPanel !== 'undefined' && WxPanel._open) WxPanel.paivita();
   }
 };
 
@@ -34420,68 +34549,115 @@ const WxPanel = {
     const h = document.getElementById('ts-handle');
     if (h) h.setAttribute('aria-expanded', 'false');
   },
-  render() {
-    if (!State.map) return;
+  /* TUNTISÄÄ ON VALITUN TUNNIN YMPÄRISTÖ, JA VALITTU TUNTI ON KOROSTETTU
+     (docs/ui.md, "Kapselin sää seuraa aikajanaa"). Ennen paneeli alkoi aina
+     kuluvasta tunnista eikä tiennyt aikajanasta mitään, ja tuuli luettiin
+     lähimmän spotin sarjasta AIKAJANAN indeksillä (eri akseli, CLAUDE.md).
+     Nyt: valittu −6 h … +24 h, valittu solu mustekehyksellä, nykyhetki
+     sanoo "Nyt", päivä vaihtuu solun yläriviltä, solun napautus valitsee
+     tunnin aikajanalta (`_tlValitseIdx`), ja tuuli on tähtäimen sarja
+     (`Tahtain.arvo`) — sama luku kuin kapselissa. */
+  ENNEN_H: 6, JALKEEN_H: 24,
+  _avain: '',
+  paivita() {
+    const e = this._tiedot();
+    const avain = e ? (e.ts + '|' + e.i + '|' + (Tahtain._s ? Tahtain._s.t : 0) + '|' + Units.label()) : '';
+    if (avain !== this._avain) this.render();
+  },
+  _tiedot() {
+    if (!State.map) return null;
     const c = State.map.getCenter();
-    /* Sama avain kuin WeatherWidgetilla, jotta paneeli osuu samaan
-       valimuistiin eika laukaise ylimaaraista hakua */
-    const key = WeatherWidget._key(c);
-    const cached = WeatherWidget._cache[key];
+    const e = WeatherWidget._cache[WeatherWidget._key(c)];
+    if (!e || !e.data || !e.data.hourly || !e.data.hourly.time) return null;
+    const h = e.data.hourly, t = WeatherWidget._hetki();
+    let i = WeatherWidget.indeksi(h, t);
+    return { c, e, h, t, i, ts: e.ts };
+  },
+  render() {
     const scroll = document.getElementById('wx-panel-scroll');
-    if (!cached || !cached.data || !cached.data.hourly) {
-      scroll.innerHTML = '<div style="padding:20px;color:var(--ink-3);font-variant-numeric:tabular-nums;font-size:var(--fs-11);text-align:center">' + _t('Ladataan säätietoja…', 'Loading weather…') + '</div>';
+    if (!scroll) return;
+    const tt = this._tiedot();
+    const titleEl = document.getElementById('wx-panel-title');
+    if (!tt) {
+      this._avain = '';
+      scroll.innerHTML = '<div class="wx-tyhja">' + _t('Ladataan säätietoja…', 'Loading weather…') + '</div>';
+      if (titleEl) titleEl.textContent = _t('Tuntisää', 'Hourly weather');
       WeatherWidget.scheduleUpdate();
       return;
     }
-    const h = cached.data.hourly;
-    const now = Date.now();
-    /* Show from current hour, up to 24h ahead */
-    let startIdx = 0;
-    for (let i = 0; i < h.time.length; i++) {
-      if (new Date(h.time[i]).getTime() >= now - 3600000) { startIdx = i; break; }
-    }
-    const endIdx = Math.min(startIdx + 24, h.time.length);
-    /* Find nearest spot for wind data */
-    const nearestSpot = nearestPointToCenter();
-    scroll.innerHTML = Array.from({length: endIdx - startIdx}, (_, k) => {
-      const i = startIdx + k;
-      const d = new Date(h.time[i]);
-      const hh = ('0' + d.getHours()).slice(-2);
-      const code = h.weather_code ? h.weather_code[i] : 0;
-      const temp = h.temperature_2m ? Math.round(h.temperature_2m[i]) : '--';
-      const isNow = Math.abs(d.getTime() - now) < 3600000;
-      /* Wind from nearest spot hourly if available */
-      let windStr = '';
-      if (nearestSpot && nearestSpot.wx && nearestSpot.wx.hourly) {
-        const sh = nearestSpot.wx.hourly;
-        const sIdx = Math.min(State.currentHourIdx + k, sh.windspeed_10m.length - 1);
-        const ms = sh.windspeed_10m[sIdx] || 0;
-        const cRamp = ColorRamp.ink(ms);
-        windStr = '<div class="wx-hour-wind" style="color:rgb('+cRamp.r+','+cRamp.g+','+cRamp.b+')">'
-          + Units.fmt(ms) + '<span style="opacity:.6;font-size:var(--fs-8)"> '+Units.label()+'</span></div>';
+    const { c, e, h, i } = tt;
+    this._avain = e.ts + '|' + i + '|' + (Tahtain._s ? Tahtain._s.t : 0) + '|' + Units.label();
+    const ts = WeatherWidget._ajat(h), n = ts.length;
+    /* Hetki sarjan ulkopuolella (yli 16 vrk): lähin pää näkyviin ilman
+       korostusta, ja otsikko sanoo ettei valitulle tunnille ole säätä. */
+    const keski = i >= 0 ? i : (WeatherWidget._hetki() < ts[0] ? 0 : n - 1);
+    const alku = Math.max(0, keski - this.ENNEN_H);
+    const loppu = Math.min(n, keski + this.JALKEEN_H + 1);
+    const nyt = Date.now();
+    let solut = '';
+    for (let k = alku; k < loppu; k++) {
+      const d = new Date(ts[k]);
+      const code = WeatherWidget.koodi(h, k);
+      const temp = h.temperature_2m && h.temperature_2m[k] != null ? Math.round(h.temperature_2m[k]) : null;
+      const onNyt = nyt >= ts[k] - 30 * 60e3 && nyt < ts[k] + 30 * 60e3;
+      const valittu = k === i;
+      /* Lyhyt päivä ("La 10." / "Sat 10"), jottei solu levene. */
+      const pv = (k === alku || d.getHours() === 0) ? PV_LYHYT[d.getDay()] + ' ' + d.getDate() + _t('.', '') : '';
+      const kello = ('0' + d.getHours()).slice(-2) + ':00';
+      let tuuli = '';
+      const v = typeof Tahtain !== 'undefined' ? Tahtain.arvo(c, ts[k]) : null;
+      if (v) {
+        const r = ColorRamp.ink(v.ms);
+        tuuli = '<span class="wx-hour-wind" style="color:rgb(' + r.r + ',' + r.g + ',' + r.b + ')">'
+          + Units.fmt(v.ms) + '<span class="wx-hour-yks"> ' + Units.label() + '</span></span>';
       }
-      const cc = h.cloudcover ? h.cloudcover[i] : null;
-      const ccStr = cc != null
-        ? '<div class="wx-hour-cloud">' + Math.round(cc) + '%</div>' : '';
-      return '<div class="wx-hour' + (isNow ? ' now' : '') + '">'
-        + '<div class="wx-hour-time">' + hh + ':00</div>'
-        + '<div class="wx-hour-icon" title="' + WeatherWidget.kuvaus(code) + '"'
-        + ' aria-label="' + WeatherWidget.kuvaus(code) + '" role="img">' + wxIconSVG(code, 22) + '</div>'
-        + '<div class="wx-hour-temp">' + temp + '°</div>'
-        + ccStr
-        + windStr
-        + '</div>';
-    }).join('');
-    /* Nayta mista lahteesta nakyva jakso tulee */
-    const titleEl = document.getElementById('wx-panel-title');
-    if (titleEl) titleEl.textContent = _t('Tuntisää · ', 'Hourly weather · ') + WeatherWidget.sourceAt(cached.data, startIdx);
-    /* Scroll to now */
-    setTimeout(() => {
-      const nowEl = scroll.querySelector('.now');
-      if (nowEl) nowEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-    }, 50);
+      const cc = h.cloudcover ? h.cloudcover[k] : null;
+      const kuvaus = code != null ? WeatherWidget.kuvaus(code) : _t('Ei säätietoa', 'No weather data');
+      solut += '<button type="button" class="wx-hour' + (onNyt ? ' now' : '') + (valittu ? ' valittu' : '') + '"'
+        + ' data-t="' + ts[k] + '" aria-pressed="' + valittu + '"'
+        + ' aria-label="' + (pv || pvmLyhyt(d)) + ' ' + kello + ', ' + kuvaus + (temp != null ? ', ' + temp + '°' : '') + '">'
+        + '<span class="wx-hour-pv">' + (pv || '&nbsp;') + '</span>'
+        + '<span class="wx-hour-time">' + (onNyt ? _t('Nyt', 'Now') : kello) + '</span>'
+        + '<span class="wx-hour-icon" aria-hidden="true">' + (code != null ? wxIconSVG(code, 22) : '') + '</span>'
+        + '<span class="wx-hour-temp">' + (temp != null ? temp : '–') + '°</span>'
+        + '<span class="wx-hour-cloud">' + (cc != null ? Math.round(cc) + '%' : '&nbsp;') + '</span>'
+        + tuuli
+        + '</button>';
+    }
+    scroll.innerHTML = solut;
+    /* Otsikko: valitun tunnin lähde. */
+    if (titleEl) {
+      titleEl.textContent = i >= 0
+        ? _t('Tuntisää · ', 'Hourly weather · ') + WeatherWidget.sourceAt(e.data, i)
+        : _t('Tuntisää · ei säätä valitulle tunnille', 'Hourly weather · no data for the selected hour');
+    }
+    const sel = scroll.querySelector('.valittu') || scroll.querySelector('.now');
+    if (sel) {
+      const liike = State._tlTouching || State.isPlaying || _tlVahennaLiiketta() ? 'auto' : 'smooth';
+      const x = sel.offsetLeft - (scroll.clientWidth - sel.offsetWidth) / 2;
+      scroll.scrollTo({ left: Math.max(0, x), behavior: liike });
+    }
   }
 };
+
+/* Solun napautus valitsee tunnin aikajanalta (sama polku kuin tikillä). */
+(function () {
+  const scroll = document.getElementById('wx-panel-scroll');
+  if (!scroll) return;
+  scroll.addEventListener('click', (e) => {
+    const b = e.target.closest('.wx-hour');
+    if (!b) return;
+    e.stopPropagation();
+    const t = +b.dataset.t, T = State._tlTimes;
+    if (!T || !T.length || !isFinite(t)) return;
+    let paras = -1, ero = Infinity;
+    for (let j = 0; j < T.length; j++) {
+      const d = Math.abs(new Date(T[j]).getTime() - t);
+      if (d < ero) { ero = d; paras = j; }
+    }
+    if (paras >= 0 && ero <= 30 * 60e3) _tlValitseIdx(paras);
+  });
+})();
 
 /* Kapselin sääosa avaa tuntisään. */
 (function () {

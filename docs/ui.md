@@ -8224,3 +8224,98 @@ tuulen suuntana ja sisämaassa merkkiä ei ole. Nuoli jää vasemmalle
 kertomaan suunnan. Mitattu (Chromium, fi/en): kapseli 284 px 375 px:n
 ja 257–259 px 320 px:n ruudulla, ei ylivuotoa, korkeus yhdellä rivillä;
 savutesti läpi.
+
+## Kapselin sää seuraa aikajanaa (9.10.)
+
+Käyttäjän raportti: "kapselin sää näyttää aina nykyhetken säätä, vaikka sen
+pitäisi täsmätä aikajanan tuntiin". Pyyntö samalla: valittu tunti
+korostettuna tuntisäässä, data paikkansapitävää ja tuoretta, FMI:n tai
+paikallista aina, ja toimimaan joka maailmankolkassa (Euroopassa
+paikalliset lähteet, muualla yleinen).
+
+### Syy — mitattu
+
+Kapseli luki `api/harmonie`n tuulipolun vastausta. Sen FMI-osa on
+HARMONIEn TUOREIN AJO, ja FMI:n pistekysely ei anna vanhempaa ajoa
+(`origintime` ohitetaan, mitattu kolmella arvolla: sama 15Z-ajo joka
+kerta) — sarja alkoi ajon analyysihetkestä (klo 22:27 mitattuna 18:00
+paikallista). `_render` otti hetkeä lähimmän tunnin, joten **jokainen
+mennyt tunti osui sarjan ensimmäiseen tuntiin eli nykyhetkeen**:
+−20 h kohdalla kapseli sanoi 12° (nyt) ja tuleville tunneille oikein
+(+10 h 7°, +30 h 10°, +80 h 8°). Lisäksi analyysihetken sääsymboli oli
+null ja piirtyi aurinkona, `refresh` ei hakenut vanhentunutta (30 min)
+sarjaa koskaan uudelleen vaan näytti sitä koko istunnon, ja kapseli
+päivittyi paikan vaihtuessa vain kentän rakennuksen kautta.
+
+Tuntisää alkoi aina kuluvasta tunnista eikä tiennyt aikajanasta, sen
+tuuli luettiin lähimmän spotin sarjasta AIKAJANAN indeksillä (eri
+akseli), ja otsikon lähdeteksti kirjoitettiin elementtiin jota ei ollut
+(`wx-panel-title`).
+
+### Ratkaisu
+
+**Palvelin: `api/harmonie?saa=1&malli=<perhe>`** (ei uutta funktiota —
+12 on Vercelin katto). Tunnit −48 h … +16 vrk:
+
+1. pohja on Open-Meteon KANSALLINEN malli `past_days=2`:lla. Perhe on
+   kartan perhe (`tools/alueelliset.mjs`) ja käännetään Open-Meteon
+   malliksi (`SAA_MALLIT`): fmi ja metnordic → `metno_seamless` (MET
+   Nordic, sama kuin kartan menneisyys Suomessa), arome_hd →
+   `meteofrance_seamless`, ukv → `ukmo_seamless`, dini → `dmi_seamless`,
+   icon_d2 / arome_at / aladin_cz / aladin_ce → `icon_seamless`,
+   icon_ch1/2 → `meteoswiss_icon_seamless`, icon_2i →
+   `italia_meteo_arpae_icon_2i`. Kansalliset päättyvät 4–7 vrk:een
+   (mitattu: Météo-France 166 h, UKMO 220 h, ICON 244 h, ICON-2I 136 h),
+   joten samassa kutsussa on aina `best_match` jatkona ja aukkojen
+   täyttönä. Tuntematon perhe ja muu maailma: pelkkä `best_match`. Jos
+   paikallinen malli ei vastaa (nimi, alue, kiintiö), yleinen.
+2. FMI HARMONIE korvaa omat tuntinsa (lämpö, symboli WMO:ksi,
+   pilvisyys, sade) kun perhe on `fmi` tai perhettä ei tiedetä ja piste on
+   HARMONIEn hilalla. Puuttuva symboli jättää Open-Meteon koodin.
+3. Tunnin lähde on vastauksessa (`hourly.lahde`), ja tuntisään otsikko
+   sanoo valitun tunnin lähteen.
+
+**Asiakas (`WeatherWidget`)**: hetki on `State.valittuMs` (totuus), tunti
+haetaan puolitushaulla ja hylätään jos lähin on yli 90 min päässä
+(`indeksi`; ennen sarjan pää kelpasi mihin tahansa hetkeen). Puuttuva
+koodi lähimmästä ±2 h:sta (`koodi`). Perhe on tähtäimen sarjan
+(`Tahtain`) yleisin alueellinen lähde −24 … +72 h; sitä odotetaan
+enintään 6 s, jottei ensin haeta yleistä ja sitten paikallista
+(mitattu: ilman odotusta käynnistys teki kaksi hakua, nyt yhden).
+Päivitys: `_tlSeuraaHetkea` (jokainen tunnin vaihto, myös raahaus ja
+toisto), `moveend`, `Tahtain._julkaise`, 5 min ajastin ja paluu
+etualalle; vanhentunut (30 min) tai toisen perheen sarja haetaan
+uudelleen ja vanha jää ruudulle siksi aikaa (yli 30 km:n siirrossa "--°"),
+ja kaatunut haku yritetään uudelleen 30 s:n päästä. Levyvälimuisti hyväksyy
+vain uuden muodon (`data.saa`).
+
+**Tuntisää (`WxPanel`)**: valittu −6 h … +24 h, valittu solu
+`--surface-nosto` ja mustekehys (kerrosvalitsimen valinnan kieli) ja
+keskitettynä, nykyhetken solu sanoo "Nyt" aksentilla, päivä solun
+ylärivillä keskiyöllä ja ensimmäisessä solussa. Solu on `<button>`, ja
+napautus valitsee tunnin aikajanalta (`_tlValitseIdx`); paneeli seuraa
+valintaa auki ollessaan (`paivita`, avain: sarja, tunti, tähtäimen sarja,
+yksikkö). Tuuli on tähtäimen sarjasta (`Tahtain.arvo`) eli sama luku kuin
+kapselissa.
+
+### Mitattu (Chromium, puhelin, Helsinki, klo 22–23)
+
+- Kapseli ja sarja samalla hetkellä: −30 h 13° (MET Nordic), −3 h 11°
+  (FMI), +20 h 8° (FMI), +200 h 7° ja +380 h 9° (MET Nordic seamless).
+- Paikat (z9, `setView`): Pariisi ICON-CH (kartan perhe Pariisissa on
+  ICON-CH1 — sama etusija kuin kartalla), Lontoo UKV, Kööpenhamina DINI,
+  Garda ICON-CH, New York ja Sydney best_match, Helsinki FMI. Yksi
+  haku paikkaa kohti.
+- Paneeli: valittu solu keskellä (151–207 px 390 px:n ruudulla), solun
+  napautus +3 h siirsi aikajanan ja korostuksen samaan tuntiin; fi/en,
+  desimaalipilkku/-piste oikein.
+- Savutesti läpi, graafimittaus 0 VIKA.
+
+### Mitä jäi
+
+- Mennyt tunti Suomessa on MET Nordicin analyysia (havainnoilla
+  korjattu), ei FMI:n havaintoa. Lähimmän FMI-aseman lämpötila
+  "Nyt"-tunnille vaatisi `api/fmi?asemat=1`:n vastaukseen lämpötilan.
+- Open-Meteon mallinimet `geosphere`- ja `chmi`-perheille eivät
+  varmistuneet (kontin kiintiö loppui mittauksen aikana), joten ne ovat
+  ICONilla; paikallisen mallin virhe putoaa `best_match`iin.
