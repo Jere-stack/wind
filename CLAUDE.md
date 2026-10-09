@@ -1086,7 +1086,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   Tuulipolun vastausta EI saa käyttää säähän: sen FMI-osa alkaa
   tuoreimman ajon analyysihetkestä, ja menneet tunnit näyttivät
   nykyhetkeä. Tuntisää on valittu −6 … +24 h, valittu solu korostettuna,
-  napautus valitsee tunnin (`_tlValitseIdx`) ja tuuli on tähtäimen sarja.
+  napautus valitsee tunnin (`_tlValitseIdx`), tuuli on tähtäimen sarja, ja
+  lämpötilan alla on tunnin sademäärä (ei pilvisyyttä, joka oli lähes aina
+  100 % ja toisti ikonin).
 - **KAPSELI VÄISTYY KUN SPOTTIKORTTI ON AUKI**
   (`html:has(#sheet.open) #kapseli`). Kapseli lukee kartan keskipisteen
   ja kortti spotin: mitattuna 2,6 ja 6,9 kts yhtä aikaa samalla

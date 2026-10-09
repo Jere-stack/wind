@@ -8319,3 +8319,15 @@ kapselissa.
 - Open-Meteon mallinimet `geosphere`- ja `chmi`-perheille eivät
   varmistuneet (kontin kiintiö loppui mittauksen aikana), joten ne ovat
   ICONilla; paikallisen mallin virhe putoaa `best_match`iin.
+
+### Pilvisyys pois, sademäärä tilalle (9.10.)
+
+Solun lämpötilan alla oli pilvisyys (%). Käyttäjä: "se on melkein aina
+100 %". Syksyn Suomessa se pitää mallissa paikkansa, mutta se toistaa
+ikonin eikä kerro mitään lisää. Tilalla on tunnin SADEMÄÄRÄ (FMI
+`Precipitation1h`, Open-Meteo `precipitation`; sama vastaus, ei uusia
+hakuja): ikoni kertoo että sataa, määrä kertoo onko se tihkua vai
+kaatosadetta. Alle 0,05 mm on kuiva ja näkyy himmeänä viivana, sade
+sääikonien veden sävyllä (`#7FB4F2`) ja lihavana, yksi desimaali alle
+10 mm. Määrä on myös solun `aria-label`issa. Mitattu: solun korkeus
+121 px joka solussa (ennen ja jälkeen sama), fi "0,4 mm" / en "0.4 mm".

@@ -4544,7 +4544,9 @@ h3.fc-day-label { margin: 0; }
 .wx-hour-icon { line-height: 1; color: var(--ink-2); }
 .wx-hour-temp { font-variant-numeric: tabular-nums; font-size: 15px; font-weight: 600; color: var(--ink); letter-spacing: -.02em; }
 .wx-hour-wind { font-variant-numeric: tabular-nums; font-size: var(--fs-11); font-weight: 600; }
-.wx-hour-cloud { font-variant-numeric: tabular-nums; font-size: var(--fs-10); color: var(--ink-3); }
+.wx-hour-sade { font-variant-numeric: tabular-nums; font-size: var(--fs-10); color: var(--ink-3); white-space: nowrap; }
+/* Sateen määrä sääikonien veden sävyllä (WX_ICONS), kuiva tunti himmeä viiva. */
+.wx-hour-sade.sataa { color: #7FB4F2; font-weight: 600; }
 
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
@@ -32093,7 +32095,7 @@ const WeatherWidget = {
     /* Proxy ei vastannut: Open-Meteo suoraan, sama jakso. */
     try {
       const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lng
-        + '&hourly=temperature_2m,weather_code,cloud_cover&past_days=2&forecast_days=16' + TZ_PARAM;
+        + '&hourly=temperature_2m,weather_code,cloud_cover,precipitation&past_days=2&forecast_days=16' + TZ_PARAM;
       const r = await fetch(url);
       const data = r.ok ? await r.json() : null;
       if (data && data.hourly && data.hourly.time) {
@@ -34611,16 +34613,23 @@ const WxPanel = {
         tuuli = '<span class="wx-hour-wind" style="color:rgb(' + r.r + ',' + r.g + ',' + r.b + ')">'
           + Units.fmt(v.ms) + '<span class="wx-hour-yks"> ' + Units.label() + '</span></span>';
       }
-      const cc = h.cloudcover ? h.cloudcover[k] : null;
+      /* SADEMÄÄRÄ, EI PILVISYYS (käyttäjän pyyntö 9.10.). Pilvisyys oli
+         syksyllä mallissa lähes aina 100 % ja toisti ikonin; ikoni kertoo
+         että sataa, määrä kertoo onko se tihkua vai kaatosadetta. Tunnin
+         kertymä (FMI Precipitation1h, Open-Meteo precipitation), alle
+         0,05 mm = kuiva. */
+      const pr = h.precipitation ? h.precipitation[k] : null;
+      const sataa = pr != null && pr >= 0.05;
+      const sadeTxt = pr == null ? '' : (sataa ? _desim(pr, pr < 10 ? 1 : 0) + ' mm' : '–');
       const kuvaus = code != null ? WeatherWidget.kuvaus(code) : _t('Ei säätietoa', 'No weather data');
       solut += '<button type="button" class="wx-hour' + (onNyt ? ' now' : '') + (valittu ? ' valittu' : '') + '"'
         + ' data-t="' + ts[k] + '" aria-pressed="' + valittu + '"'
-        + ' aria-label="' + (pv || pvmLyhyt(d)) + ' ' + kello + ', ' + kuvaus + (temp != null ? ', ' + temp + '°' : '') + '">'
+        + ' aria-label="' + (pv || pvmLyhyt(d)) + ' ' + kello + ', ' + kuvaus + (temp != null ? ', ' + temp + '°' : '') + (sataa ? ', ' + _t('sadetta ', 'precipitation ') + sadeTxt : '') + '">'
         + '<span class="wx-hour-pv">' + (pv || '&nbsp;') + '</span>'
         + '<span class="wx-hour-time">' + (onNyt ? _t('Nyt', 'Now') : kello) + '</span>'
         + '<span class="wx-hour-icon" aria-hidden="true">' + (code != null ? wxIconSVG(code, 22) : '') + '</span>'
         + '<span class="wx-hour-temp">' + (temp != null ? temp : '–') + '°</span>'
-        + '<span class="wx-hour-cloud">' + (cc != null ? Math.round(cc) + '%' : '&nbsp;') + '</span>'
+        + '<span class="wx-hour-sade' + (sataa ? ' sataa' : '') + '">' + (sadeTxt || '&nbsp;') + '</span>'
         + tuuli
         + '</button>';
     }
