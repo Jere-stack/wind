@@ -241,8 +241,10 @@ export function taytaPuuskaAukot(pyramidi, ajatMs, maxValiMs) {
    tavutasoa järjestyksessä [aika][y][x] ja painollisella tasolla vielä
    yksi aikariippumaton N×N-taso. Vanha asiakas lukee vain kolme
    ensimmäistä (siirtymät otsakkeen nt:stä), joten lisätaso ei riko sitä. */
-export function kirjoitaLaatta(taso, ruutu, nt, t0Ms, dt) {
-  const koko = nt * N * N;
+/* `i0`: ensimmäinen aika-askel ruudun taulukoista (aikapala, ks.
+   `tools/tiilet.mjs` "LAATAT AJASSA PALOINA"); `nt` askelta siitä. */
+export function kirjoitaLaatta(taso, ruutu, nt, t0Ms, dt, i0 = 0) {
+  const koko = nt * N * N, o = i0 * N * N;
   const runko = new Uint8Array(OTSAKE + 3 * koko + (ruutu.paino ? N * N : 0));
   const dv = new DataView(runko.buffer);
   runko.set(new TextEncoder().encode('FSTILE\0'), 0);
@@ -257,9 +259,9 @@ export function kirjoitaLaatta(taso, ruutu, nt, t0Ms, dt) {
   dv.setUint32(34, dt, true);
   dv.setUint8(38, TYHJA);
   dv.setUint8(39, ruutu.paino ? 1 : 0);        /* liput: bitti 0 = painotaso */
-  runko.set(ruutu.nop.subarray(0, koko), OTSAKE);
-  runko.set(ruutu.suunta.subarray(0, koko), OTSAKE + koko);
-  runko.set(ruutu.puuska.subarray(0, koko), OTSAKE + 2 * koko);
+  runko.set(ruutu.nop.subarray(o, o + koko), OTSAKE);
+  runko.set(ruutu.suunta.subarray(o, o + koko), OTSAKE + koko);
+  runko.set(ruutu.puuska.subarray(o, o + koko), OTSAKE + 2 * koko);
   if (ruutu.paino) runko.set(ruutu.paino, OTSAKE + 3 * koko);
   return runko;
 }

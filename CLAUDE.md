@@ -119,6 +119,10 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   (`tools/saaherate.mjs`), noin 26 min ja 267 MB (ennen Eurooppaa
   10 min ja 107 MB; aikaraja 60 min). ECMWF-puuskan aukot
   (analyysihetki, +93 … +144 h) täytetään rakennuksessa (O8).
+  Tuulilaatat kirjoitetaan AJASSA PALOINA (`<la>_<lo>.p<c>.bin.gz`,
+  24 askelta, yhden askeleen päällekkäisyys, luettelo `versio` 2;
+  `PALAT=0` = vanha muoto); aallot ovat kokonaisia (docs/mallit.md
+  "Laatat ajassa paloina").
 - `tools/alueelliset.mjs` — Euroopan alueelliset mallit (AROME, ICON-D2,
   UKV, DINI, ICON-CH1/CH2, ICON-2I, AROME Itävalta, ALADIN CE/CZ)
   Open-Meteon S3:sta: YKSI TAULUKKO (`ALUEELLISET`) omistaa järjestyksen,
@@ -208,7 +212,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/partikkelit.md` | tuulipartikkeleita, jäljen muotoa, tiheyttä (**kaukaa Windyn tiheys**), ruutuaikabudjettia tai **partikkelien kenttää tasojen välissä (sama sekoitus kuin lämpökartalla)** |
 | `docs/eleet.md` | nipistystä, zoomia (**kosketuszoom tähtäimen ympäri**), zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
 | `docs/data.md` | **aaltoennustetta kartalla (FMI WAM, `a0`–`a3`, `tools/wam.mjs`)**, säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja, **havaintoasemien oma historia (Mellsten ja Laru, `havainnot`-haara)**, **Mellstenin katkot: 4 h kuvaaja, arkistovaratie ja ajastinketju**, **kelikameran tila (YouTube, pikkukuvan ETag)** |
-| `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, MET Nordicia, Open-Meteon S3-malleja, näyttötarkkuuden tasoa: tason valinta zoomista, tasojen sekoitus (`karkeaPaino`), lämpökartan kaksi hilaa ja laattojen kaksi kerrosta — miksi lämpökartta ei enää hyppää zoomatessa** |
+| `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, MET Nordicia, Open-Meteon S3-malleja, näyttötarkkuuden tasoa: tason valinta zoomista, tasojen sekoitus (`karkeaPaino`), lämpökartan kaksi hilaa ja laattojen kaksi kerrosta — miksi lämpökartta ei enää hyppää zoomatessa**, **laatat ajassa paloina (24 askelta, `_palaValmis`)** |
 | `docs/ui.md` | **väriteemaa (Yömeri: paneelit, tokenit, `Teema`, `ink()`)**, **kerrosvalitsinta (neljä ruutua esikatselukuvin) ja sadekerroksen GL-piirtoa (häivytykset, B-spline; silmukka on historiaa, ks. docs/sadetutka.md)**, **aaltokerrosta: siru, väri, aallonharjat, aikajana, kapseli, poijukaavion ennuste**, paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa (**toiston liuku, jatkuva päiväkisko, pehmeä valinta ja kelikaista**), kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
@@ -282,8 +286,9 @@ kokeiltu ja kaadettu mittauksella.
   kolme ansaa, mittaukset) · Kaukaa datan omalla tarkkuudella (5.10.:
   solmuväli, l1 hylätty, esikatselun tavuvuoto) · **Näyttötarkkuuden
   taso (6.–9.10.: syy hyppyyn, tasot, sekoitus, kaksi hilaa, laattojen
-  kaksi kerrosta, toisto, mittaukset, panoroinnin kaksi vikaa)** · Mitä
-  jäi
+  kaksi kerrosta, toisto, mittaukset, panoroinnin kaksi vikaa)** ·
+  **Laatat ajassa paloina (9.10.: rakenne, tavut, oikeellisuus, kaksi
+  vikaa, siirtymä)** · Mitä jäi
 - **lisadata**: Mistä sovellus lukee nyt · TOP 10 — data · TOP 10 — lähteet ·
   Mitattu ja hylätty (MEPS on HARMONIE · hydrodyn 2/12 spottia · vuorovesi ·
   Holfuy · ilmanlaatu) · Toinen kerros — kontekstia, ei päätöstä ·
@@ -1319,9 +1324,27 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   `n0`–`n3`) ovat luettelon `lisatasot`-listassa, koska vanha asiakas
   valitsee askeleella eikä tunne painokanavaa — se piirtäisi MET
   Nordicin kovalla reunalla. `tasot`issa ovat ECMWF ja `h0`, kuten
-  ennenkin. Luettelon `versio` pysyy 1:nä: vanha asiakas hylkää muut.
-  Mitattu molempiin suuntiin: uusi asiakas vanhalla varastolla ja
-  vanha asiakas uudella, ei virheitä.
+  ennenkin. Mitattu aikanaan molempiin suuntiin: uusi asiakas vanhalla
+  varastolla ja vanha asiakas uudella, ei virheitä. **Palojen myötä
+  (9.10.) luettelo on `versio` 2**: versio 1 -asiakas ei osaa koota
+  paloja, joten se hylkää luettelon ja on rajapintapolulla
+  (`Saalaatat.pois()`) seuraavaan latauskertaan asti. Uusi asiakas lukee
+  molemmat versiot (rivi ilman `pala`a = kokonainen laatta).
+- **LAATAT OVAT AJASSA PALOINA, JA ASIAKAS KOKOAA NE KOKO AKSELIN
+  OLIOKSI** (docs/mallit.md "Laatat ajassa paloina"). Pala c kattaa
+  askeleet c·24 … c·24 + 24 eli YHDEN ASKELEEN PÄÄLLEKKÄIN seuraavan
+  kanssa — kahden hetken välin interpolointi ei koskaan tarvitse kahta
+  palaa; älä poista päällekkäisyyttä. `Saalaatat._lataa` täyttää olion
+  tyhjällä (255) ja merkitsee saapuneet palat (`palat`), joten
+  `naytteista`, `kokoaHila` ja `wxTunneittain` eivät tiedä paloista.
+  Kartta (`varmista`) hakee vain valitun hetken palan (toistossa ja
+  raahauksessa myös seuraavan palan lopun lähellä); aikajana ja kortit
+  (`varmistaPiste`) hakevat kaikki. **Laatta on valmis vain jos sen
+  hetken pala on muistissa** (`_palaValmis`): `_haePerhe`n valmis-ehto ja
+  muistin varatie vaativat sen — muuten tyhjä pala luettaisiin
+  dataksi. Mitattu: ensimmäinen näkymä 28–55 % vähemmän tavuja ja sama
+  kenttä, partikkelit ja aikajana tiivisteelleen. `tools/varmennus.mjs`
+  kokoaa palat samoin; jos muutat muotoa, muuta molempia.
 - **LAATTOJEN VERSIOAVAIN ON RAKENNUSHETKI (`luotu`), EI ECMWF:N
   AJOAIKA.** Kaksi rakennusta voi käyttää samaa ECMWF-ajoa ja eri
   FMI-ajoa, ja ajoaika avaimena antoi välimuistista edellisen

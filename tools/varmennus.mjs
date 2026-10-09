@@ -80,19 +80,39 @@ async function haeJson(url) {
   return r.json();
 }
 const _laatat = new Map();
-async function laatta(L, taso, la0, lo0) {
-  const nimi = taso.id + '/' + la0 + '_' + lo0 + '.bin.gz';
-  if (_laatat.has(nimi)) return _laatat.get(nimi);
+async function haeTiedosto(L, nimi) {
   const r = await fetch(KANTA + nimi + '?v=' + encodeURIComponent(L.luotu), { signal: AbortSignal.timeout(20000) });
+  if (!r.ok) return null;
+  const b = gunzipSync(Buffer.from(await r.arrayBuffer()));
+  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  const nx = dv.getUint16(20, true), ny = dv.getUint16(22, true), nt = dv.getUint16(24, true);
+  const koko = nt * nx * ny, O = 40;
+  return { askel: dv.getFloat32(8, true), la0: dv.getFloat32(12, true), lo0: dv.getFloat32(16, true), nx, ny, nt,
+    nop: b.subarray(O, O + koko), suunta: b.subarray(O + koko, O + 2 * koko), puuska: b.subarray(O + 2 * koko, O + 3 * koko),
+    paino: (dv.getUint8(39) & 1) ? b.subarray(O + 3 * koko, O + 3 * koko + nx * ny) : null };
+}
+/* Laatta koko akselilla. Luettelon versio 2: laatta on ajassa paloina
+   (`pala` askelta, yksi päällekkäin; `tools/tiilet.mjs`), ja palat
+   kootaan samaan muotoon kuin kokonainen laatta. */
+async function laatta(L, taso, la0, lo0) {
+  const nimi = taso.id + '/' + la0 + '_' + lo0;
+  if (_laatat.has(nimi)) return _laatat.get(nimi);
   let l = null;
-  if (r.ok) {
-    const b = gunzipSync(Buffer.from(await r.arrayBuffer()));
-    const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
-    const nx = dv.getUint16(20, true), ny = dv.getUint16(22, true), nt = dv.getUint16(24, true);
-    const koko = nt * nx * ny, O = 40;
-    l = { askel: dv.getFloat32(8, true), la0: dv.getFloat32(12, true), lo0: dv.getFloat32(16, true), nx, ny, nt,
-      nop: b.subarray(O, O + koko), suunta: b.subarray(O + koko, O + 2 * koko), puuska: b.subarray(O + 2 * koko, O + 3 * koko),
-      paino: (dv.getUint8(39) & 1) ? b.subarray(O + 3 * koko, O + 3 * koko + nx * ny) : null };
+  if (taso.pala > 0) {
+    const nt = (Array.isArray(taso.ajat) ? taso.ajat : L.ajat).length;
+    const P = Math.max(1, Math.ceil((nt - 1) / taso.pala));
+    const palat = await Promise.all(Array.from({ length: P }, (_, c) => haeTiedosto(L, nimi + '.p' + c + '.bin.gz')));
+    if (palat.every(Boolean)) {
+      const a = palat[0], n2 = a.nx * a.ny;
+      const uusi = () => new Uint8Array(nt * n2).fill(L.tyhja);
+      l = { askel: a.askel, la0: a.la0, lo0: a.lo0, nx: a.nx, ny: a.ny, nt, nop: uusi(), suunta: uusi(), puuska: uusi(), paino: a.paino };
+      palat.forEach((p, c) => {
+        const o = c * taso.pala * n2, n = Math.min(p.nop.length, l.nop.length - o);
+        l.nop.set(p.nop.subarray(0, n), o); l.suunta.set(p.suunta.subarray(0, n), o); l.puuska.set(p.puuska.subarray(0, n), o);
+      });
+    }
+  } else {
+    l = await haeTiedosto(L, nimi + '.bin.gz');
   }
   _laatat.set(nimi, l);
   return l;

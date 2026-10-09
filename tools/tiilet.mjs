@@ -336,30 +336,52 @@ const alkoi = Date.now();
 let tavujaRaaka = 0, tavujaPakattu = 0, laattojaYht = 0;
 const aika = () => `${((Date.now() - alkoi) / 1000).toFixed(0)} s`;
 
+/* LAATAT AJASSA PALOINA (docs/mallit.md, "Laatat ajassa paloina").
+   Laatta kantoi koko 67–104 hetken akselin, vaikka kartta näyttää yhtä
+   hetkeä: ensimmäinen näkymä latasi 4–16 vuorokautta dataa jokaista
+   ruutua kohti. Nyt jokainen laatta kirjoitetaan `PALA` askeleen
+   paloina (`<lat>_<lng>.p<c>.bin.gz`), ja pala c kattaa askeleet
+   c·PALA … c·PALA + PALA YHDEN ASKELEEN PÄÄLLEKKÄIN seuraavan kanssa:
+   kahden hetken välinen interpolointi löytää molemmat askeleet aina
+   samasta palasta. Kartta hakee vain valitun hetken palan; aikajana ja
+   kortit (`varmistaPiste`) koko akselin, eli sama tavumäärä kuin ennen.
+   Luettelo kertoo palan koon (`pala`) ja on versio 2: vanha asiakas
+   hylkää sen ja käyttää rajapintaa kunnes sivu päivittyy, ja uusi
+   asiakas lukee yhä version 1 kokonaisia laattoja. `PALAT=0` kirjoittaa
+   kokonaiset laatat (vertailua varten). */
+const PALA = process.env.PALAT === '0' ? 0 : +(process.env.PALA || 24);
+function palat(nt) { return PALA > 0 ? Math.max(1, Math.ceil((nt - 1) / PALA)) : 1; }
+
 /* Tason laatat levylle. Palauttaa kirjoitettujen laattojen listan —
    tyhjät jätetään pois (`onDataa`), ja luettelo kertoo asiakkaalle mitkä
-   ovat olemassa. */
-function kirjoitaTaso(taso, nt, t0Ms, dtSek) {
+   ovat olemassa. `ajatMs` = tason aika-akseli (palan otsakkeen t0). */
+function kirjoitaTaso(taso, ajatMs, dtSek) {
   mkdirSync(join(ULOS, taso.id), { recursive: true });
+  const nt = ajatMs.length, P = palat(nt);
   const laatat = [];
   let tavut = 0;
   for (const ruutu of taso.ruudut) {
     if (!onDataa(ruutu)) continue;
-    const raaka = kirjoitaLaatta(taso, ruutu, nt, t0Ms, dtSek);
-    const pakattu = gzipSync(raaka, { level: 9 });
-    writeFileSync(join(ULOS, taso.id, `${ruutu.lat0}_${ruutu.lng0}.bin.gz`), pakattu);
-    tavujaRaaka += raaka.length; tavujaPakattu += pakattu.length; tavut += pakattu.length;
+    for (let c = 0; c < P; c++) {
+      const i0 = PALA > 0 ? c * PALA : 0;
+      const n = PALA > 0 ? Math.min(i0 + PALA, nt - 1) - i0 + 1 : nt;
+      const raaka = kirjoitaLaatta(taso, ruutu, n, ajatMs[i0], dtSek, i0);
+      const pakattu = gzipSync(raaka, { level: 9 });
+      const nimi = PALA > 0 ? `${ruutu.lat0}_${ruutu.lng0}.p${c}.bin.gz` : `${ruutu.lat0}_${ruutu.lng0}.bin.gz`;
+      writeFileSync(join(ULOS, taso.id, nimi), pakattu);
+      tavujaRaaka += raaka.length; tavujaPakattu += pakattu.length; tavut += pakattu.length;
+    }
     laatat.push([ruutu.lat0, ruutu.lng0]);
   }
   laattojaYht += laatat.length;
-  console.log(`  ${taso.id}: askel ${taso.askel}°, ${laatat.length}/${taso.ruudut.length} laattaa, `
-    + `${(tavut / 1e6).toFixed(1)} MB`);
+  console.log(`  ${taso.id}: askel ${taso.askel}°, ${laatat.length}/${taso.ruudut.length} laattaa`
+    + (PALA > 0 ? ` × ${P} palaa` : '') + `, ${(tavut / 1e6).toFixed(1)} MB`);
   return laatat;
 }
 
 function rivi(taso, laatat, lisat) {
   return { id: taso.id, askel: taso.askel, span: (N - 1) * taso.askel,
-           lat: taso.lat, lng: taso.lng, laatat, ...lisat };
+           lat: taso.lat, lng: taso.lng, laatat, ...(PALA > 0 ? { pala: PALA } : {}), ...lisat };
 }
 
 /* ==================================================================
@@ -440,7 +462,7 @@ console.log(`  puuska: ${puuskaToisesta} hetkeä edellisestä ajosta, ${puuskaAr
     + `${new Date(ajat[puuskaArvio[puuskaArvio.length - 1]]).toISOString()})` : ''));
 
 const luettelo = {
-  versio: 1,
+  versio: PALA > 0 ? 2 : 1,
   malli: MALLI,
   lahde: 'Open-Meteo / ECMWF IFS 0.25° · AWS Open Data · CC BY 4.0',
   ajoAika: ajot[0].meta.reference_time,
@@ -481,7 +503,7 @@ const luettelo = {
 
 console.log('\nECMWF-laatat:');
 for (const taso of ecmwf) {
-  const laatat = kirjoitaTaso(taso, ajat.length, ajat[0], dtSek);
+  const laatat = kirjoitaTaso(taso, ajat, dtSek);
   luettelo.tasot.push(rivi(taso, laatat, { perhe: 'ecmwf' }));
 }
 
@@ -545,7 +567,7 @@ if (process.env.HARMONIE !== '0') {
 
     const hAjat = hetket.map(x => x.t);
     for (const taso of fmi) {
-      const laatat = kirjoitaTaso(taso, hAjat.length, hAjat[0], 3600);
+      const laatat = kirjoitaTaso(taso, hAjat, 3600);
       const r = rivi(taso, laatat, {
         /* TASON OMA AIKA-AKSELI. Asiakas lukee tämän eikä luettelon
            yhteistä `ajat`-taulukkoa, ja `taso()` ohittaa tason kokonaan
@@ -605,7 +627,7 @@ if (process.env.METNORDIC !== '0') {
     if (ok.length < hetket.length) tiivistaAika(mn, ok);
     const mAjat = ok.map(i => hetket[i].ms);
     for (const taso of mn) {
-      const laatat = kirjoitaTaso(taso, mAjat.length, mAjat[0], 3600);
+      const laatat = kirjoitaTaso(taso, mAjat, 3600);
       luettelo.lisatasot.push(rivi(taso, laatat, {
         ajat: mAjat, nt: mAjat.length, t0: mAjat[0], dtSek: 3600,
         ...MN_MALLI, ajoAika: new Date(ax.ajo).toISOString(),
@@ -681,7 +703,7 @@ if (process.env.EUROOPPA !== '0') {
       const ennen = tavujaPakattu;
       let laattoja = 0;
       for (const taso of pyr) {
-        const laatat = kirjoitaTaso(taso, eAjat.length, eAjat[0], 3600);
+        const laatat = kirjoitaTaso(taso, eAjat, 3600);
         if (!laatat.length) continue;
         laattoja += laatat.length;
         luettelo.lisatasot.push(rivi(taso, laatat, {

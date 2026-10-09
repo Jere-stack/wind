@@ -428,7 +428,7 @@ rinnakkaista hetkeä luettiin 8,7 s:ssa. Uudelleenhilaus on
 aluekeskiarvo: jokainen 1 km:n piste lasketaan kerran lähimpään 0,05°:n
 solmuun (10–30 pistettä solmua kohti).
 
-**Luettelo.** `versio` pysyy 1:nä. `tasot` on vanhan asiakkaan lista
+**Luettelo.** `versio` pysyi 1:nä (9.10. alkaen 2, ks. "Laatat ajassa paloina"). `tasot` on vanhan asiakkaan lista
 (ECMWF ja h0); uudet tasot ovat `lisatasot`issa ja niillä on `perhe`,
 `malli`, `paino: true`, oma `ajat` ja `ajoAika`. Tyhjiä laattoja ei
 kirjoiteta, ja `laatat` kertoo mitkä ovat olemassa.
@@ -1002,14 +1002,114 @@ näkyvissä 0 solmua ilman omaa tasoaan.
 
 - **Kaukana (z ≤ 5) kenttä on yhä varaston karkeimpien tasojen varassa**
   (alueelliset 0,5°, ECMWF 1,0°): näytön ihanteesta 1,7–2,7 m/s RMS
-  hetken mukaan. Tarkempi kaukaa maksaisi tavuja, ja se on oikea paikka
-  seuraavalle askeleelle: laatta kantaa koko 70–104 hetken akselin,
-  vaikka ruudulla on yksi hetki. Ajassa pilkotut laatat (esim. 24 h)
-  pienentäisivät ensimmäisen näkymän tavut noin kolmannekseen, ja sillä
-  hinnalla tason voisi tihentää myös kaukana.
+  hetken mukaan. Tarkempi kaukaa maksaisi tavuja. Laatat on sittemmin
+  pilkottu ajassa (ks. seuraava luku), ja sillä säästöllä tason voisi
+  tihentää myös kaukana — sitä ei ole vielä tehty.
 - Tavuja on 1,2–2-kertaisesti (taulukko yllä).
 - Tunnin askel työpöydällä tason rajan yläpuolella jopa ~70 ms
   kontissa; laitteella mittaamatta.
+
+### Laatat ajassa paloina (9.10.)
+
+**Syy.** Varaston laatta kantoi koko akselin (ECMWF 70–104 hetkeä,
+alueelliset omansa), vaikka kartalla on kerrallaan yksi hetki. Näkymän
+tavuista valtaosa oli siis tunteja joita kukaan ei katsonut.
+
+**Rakenne.**
+
+- Rakentaja (`tools/tiilet.mjs`, `kirjoitaTaso`) kirjoittaa jokaisen
+  tuulitason laatan `PALA` = 24 askeleen paloina:
+  `<taso>/<la>_<lo>.p<c>.bin.gz`. Pala c kattaa askeleet
+  c·24 … min(c·24 + 24, nt − 1), eli **paloilla on yhden askeleen
+  päällekkäisyys**. Siksi kahden hetken interpolointi ei koskaan tarvitse
+  kahta palaa. Palojen määrä on max(1, ceil((nt − 1)/24)).
+- Jokainen pala on tavallinen laatta: sama otsake, `nt` on palan
+  askeleet ja `t0` sen ensimmäinen hetki. `kirjoitaLaatta` saa
+  aikasiirtymän (`i0`).
+- Luettelon riveillä on `pala: 24` ja luettelon `versio` on 2.
+  `PALAT=0` rakentaa vanhan muodon (versio 1).
+- Aallot (`tools/wam.mjs`) ovat yhä kokonaisia laattoja.
+- Asiakas kokoaa palat yhdeksi koko akselin laattaolioksi
+  (`Saalaatat._lataa`). Olio luodaan ensimmäisestä saapuneesta palasta
+  tyhjällä (255) täytettynä, ja `palat`-liput kertovat mitkä palat ovat
+  muistissa. Kaikki lukijat (`naytteista`, `kokoaHila`,
+  `wxTunneittain`) näkevät siis saman muodon kuin ennen.
+- Kartta (`varmista`) hakee vain valitun hetken palan
+  (`_palaIndeksi`). Toistossa tai raahauksessa haetaan myös seuraava
+  pala, kun palan loppuun on alle kuusi askelta.
+- Aikajana ja kortit (`varmistaPiste`) hakevat pisteensä kaikki palat,
+  koska ne lukevat koko akselin.
+- Valmiiksi lasketaan laatta jonka hetken pala on muistissa
+  (`_palaValmis`): `_haePerhe`n valmis-ehto ja muistin varatie
+  (`_varaMuistiin`) vaativat sen.
+- `_pyydaData`n avaimessa on 6 tunnin lokero, jotta uuden hetken
+  puuttuvat palat pyydetään.
+- `tools/varmennus.mjs` kokoaa palat samalla tavalla.
+
+**Mitattu.** Sama build ja sama data (tuotannon kokonaiset laatat
+pilkottuina reitityksessä rakentajan omalla `kirjoitaLaatta`lla).
+Ensimmäinen näkymä, kokonaiset → palat:
+
+```
+laite      z     kokonaiset          palat
+puhelin    5     3 122 kB / 56       1 970 kB / 129
+puhelin    6,3   1 952 kB / 33       1 171 kB / 70
+puhelin    7,3   1 955 kB            1 176 kB
+puhelin    8,3   1 697–1 778 kB      914 kB / 51
+puhelin    10      930–1 118 kB      606–810 kB
+työpöytä   6,3   4 001 kB / 68       2 312 kB / 141
+työpöytä   7,3   5 371 kB / 88       2 697 kB / 154
+työpöytä   8,3   3 186 kB / 55       1 611 kB / 88
+```
+
+- Tavut putosivat 28–55 %, ja pyyntöjä on noin kaksinkertaisesti.
+- Jäljelle jäävästä valtaosa on keskipisteen laattoja, joista aikajana
+  tarvitsee koko akselin. Puhelimella z7,3 se on noin 430 kB 1 176:sta.
+- Työpöydän z5 ei asettunut kummallakaan ajolla, joten sitä ei verrattu.
+- Hyppy +3 vrk maksaa 2–18 uutta palaa (43–491 kB). Kokonaisilla
+  laatoilla hyppy maksoi 116–1 473 kB, koska näkymää oli ennen hyppyä
+  ehditty laajentaa.
+- Asettumisaika näytti paloilla pidemmältä, mutta se on mittarin oma
+  hinta: reititys pakkaa palat gzip 9:llä lennossa.
+
+**Oikeellisuus.** Kokonaiset ja palat on verrattu tiivisteillä nyt ja
++3 vrk:n hypyn jälkeen. Molemmilla laitteilla ja zoomeilla 5–10 seuraavat
+ovat identtisiä:
+
+- lämpökartan oma hila
+- partikkelikenttä
+- aikajanan 400 tuntia
+
+Karkea hila on identtinen näkymässä, ja juuri koottua vasten ero on
+näkymässä 0 molemmissa muodoissa.
+
+Eroja jäi vain pehmusteeseen, ja ne ovat suunniteltuja. Pehmusteen
+loppu luetaan muistin varalta, ja varalaatasta voi puuttua tämän hetken
+pala (puhelin z10, +3 vrk: 12 näkymän ulkopuolista solmua). Solmut
+tarkentuvat kun ne tulevat näkyviin.
+
+**Vähennetty rakennusajo** (`MAX_ASKELTA=30`, `HARMONIE_H=30`, ilman
+MET Nordicia, Eurooppaa ja aaltoja): palarajat 265/265 tavulleen samat,
+palojen `nt`:n summa täsmää ja `t0` osuu akselille.
+
+**Kaksi vikaa löytyi matkalla, ja ne korjattiin.**
+
+- *Partikkelikenttä jäi tyhjäksi hypyn jälkeen.* Kun kentästä puuttui
+  liikaa, `WindTexture.build` hylkäsi sen, eikä laattojen saapuminen
+  rakentanut sitä uudelleen (työpöytä z6,3 +3 vrk: partikkelit 0).
+  Kokonaisilla laatoilla dataa oli aina valmiina, joten vika ei näkynyt.
+  Nyt hylkäys merkitään (`WindTexture._hilaHylatty`), ja `_kunUusia`
+  rakentaa kentän levossa uudelleen.
+- *Karkea hila jäi vanhaksi kun `MalliHila` tai natiivihila saapui.*
+  Nämä kentät eivät kulje `_kunUusia`n kautta. Työpöydällä 1 452
+  näkyvää solmua erosi juuri kootusta. Vika oli vanha eikä paloista
+  johtuva. Nyt `LampoGL.paivita()` merkitsee myös karkean likaiseksi
+  (`_karkeaLikainen`), ja se kootaan levossa uudelleen.
+
+**Siirtymä.** Vanha asiakas hylkää luettelon version 2 ja putoaa
+rajapintapolulle (`Saalaatat.pois()`), kunnes sivu ladataan uudelleen.
+Service worker hakee uuden buildin, ja `Paluu` lataa sivun uudelleen
+30 minuutin taustan jälkeen. Siirtymä kestää siis yhden avauksen.
 
 ### Mitä jäi
 

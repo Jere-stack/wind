@@ -7892,7 +7892,8 @@ const Saalaatat = {
         clearTimeout(ajastin);
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const l = await r.json();
-        if (!l || l.versio !== 1 || !Array.isArray(l.tasot)) throw new Error('tuntematon luettelo');
+        /* Versio 2 = laatat ajassa paloina (`pala`, `_lataa`); 1 = kokonaiset. */
+        if (!l || (l.versio !== 1 && l.versio !== 2) || !Array.isArray(l.tasot)) throw new Error('tuntematon luettelo');
         const loppu = Array.isArray(l.ajat) && l.ajat.length
           ? l.ajat[l.ajat.length - 1]
           : l.t0 + (l.nt - 1) * l.dtSek * 1000;
@@ -8279,16 +8280,60 @@ const Saalaatat = {
 
   _avain(taso, la0, lo0) { return taso.id + '/' + la0 + '_' + lo0; },
 
-  async _lataa(taso, la0, lo0) {
+  /* LAATAT AJASSA PALOINA (luettelon versio 2, `pala`; docs/mallit.md
+     "Laatat ajassa paloina"). Pala c kattaa tason akselin askeleet
+     c·K … c·K + K (yksi askel päällekkäin seuraavan kanssa), ja se
+     kirjoitetaan SAMAAN koko akselin laattaan: laatta luodaan
+     ensimmäisestä palasta täynnä tyhjää (`tyhja`), ja `palat[c]` kertoo
+     mitkä ovat perillä. Kaikki lukijat (`naytteista`, `wx`, sarjat)
+     lukevat siis yhä yhtä laattaa samoilla indekseillä; `_haePerhe`
+     tarkistaa vain että hetken pala on perillä (`_palaValmis`). Kartta
+     hakee valitun hetken palan (`varmista`), aikajana ja kortit kaikki
+     (`varmistaPiste`). Ilman `pala`-kenttää (versio 1, aallot) laatta on
+     kokonainen kuten ennen. */
+  _palaMaara(taso) {
+    return taso.pala > 0 ? Math.max(1, Math.ceil(((taso._ax || this._perus).tsMs.length - 1) / taso.pala)) : 1;
+  },
+  _palaIndeksi(taso, ti) {
+    return taso.pala > 0 ? Math.min(this._palaMaara(taso) - 1, Math.max(0, Math.floor(ti / taso.pala))) : 0;
+  },
+  /* Tason akselin indeksi hetkelle muuttamatta akselin tilaa (`varmista`
+     kysyy kartan hetkeä, vaikka sarjan laskenta olisi siirtänyt akselit). */
+  _indeksiHetkelle(taso, tMs) {
+    const ts = (taso._ax || this._perus).tsMs;
+    if (!ts || !ts.length || tMs == null) return 0;
+    let lo = 0, hi = ts.length - 1;
+    if (tMs <= ts[0]) return 0;
+    if (tMs >= ts[hi]) return hi;
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (ts[m] <= tMs) lo = m; else hi = m - 1; }
+    return lo;
+  },
+  /* Onko laatan nykyhetken pala perillä? Akselin ulkopuolinen hetki ei
+     tarvitse palaa (`_naytePerhe` hylkää sen joka tapauksessa). */
+  _palaValmis(l) {
+    if (!l.palat) return true;
+    const ax = l._ax || this._perus;
+    if (!ax.ok) return true;
+    return l.palat[this._palaIndeksi(l._taso, ax.ti)] === 1;
+  },
+  _onPala(taso, avain, c) {
+    const l = this._laatat.get(avain);
+    return !!l && (!l.palat || l.palat[c] === 1);
+  },
+  async _lataa(taso, la0, lo0, pala) {
     const avain = this._avain(taso, la0, lo0);
-    if (this._laatat.has(avain)) return this._laatat.get(avain);
-    if (this._kesken.has(avain)) return this._kesken.get(avain);
+    const K = taso.pala > 0 ? taso.pala : 0;
+    const c = K ? Math.min(this._palaMaara(taso) - 1, Math.max(0, pala || 0)) : -1;
+    const olemassa = this._laatat.get(avain);
+    if (olemassa && (!K || (olemassa.palat && olemassa.palat[c]))) return olemassa;
+    const kAvain = K ? avain + '#' + c : avain;
+    if (this._kesken.has(kAvain)) return this._kesken.get(kAvain);
     const p = (async () => {
       /* Tasolla voi olla oma versionsa: aaltotila hakee luettelon
          uudelleen kesken istunnon (`Aallot.paivita`), ja silloin
          aaltolaatat ovat uudemmasta rakennuksesta kuin tuulen. */
       const versio = taso._versio || this._versio;
-      const url = SAALAATAT_KANTA + avain + '.bin.gz'
+      const url = SAALAATAT_KANTA + avain + (K ? '.p' + c : '') + '.bin.gz'
         + (versio ? '?v=' + encodeURIComponent(versio) : '');
       const r = await fetch(url);
       if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -8314,37 +8359,57 @@ const Saalaatat = {
         ? tavut.subarray(ot + 3 * koko, ot + 3 * koko + ny * nx) : null;
       let taysi = true;
       if (paino) for (let i = 0; i < paino.length; i++) if (paino[i] !== 255) { taysi = false; break; }
-      const laatta = {
-        askel: dv.getFloat32(8, true),
-        la0: dv.getFloat32(12, true), lo0: dv.getFloat32(16, true),
-        ny, nx, nt,
-        /* Laatta kantaa TASONSA aika-akselin. `naytteista` näkee vain
-           laatan, ei tasoa, ja indeksi on akselikohtainen. */
-        _ax: taso._ax || this._perus,
-        _taso: taso,
-        nop: tavut.subarray(ot, ot + koko),
-        suunta: tavut.subarray(ot + koko, ot + 2 * koko),
-        puuska: tavut.subarray(ot + 2 * koko, ot + 3 * koko),
-        paino, taysi,
-      };
-      /* Muistikatto: pudotetaan vähiten äskettäin käytetty. Map säilyttää
-         lisäysjärjestyksen ja `_kosketa` siirtää käytetyn loppuun, joten
-         ensimmäinen avain on se jota on käytetty viimeksi kauimmin sitten. */
-      while (this._laatat.size >= this._MAX_LAATTAA) {
-        this._laatat.delete(this._laatat.keys().next().value);
-        /* Hakumuisti pitää viittausta laattaan. Ilman nollausta häädetty
-           laatta jäisi siihen kiinni: data olisi yhä kelvollista, mutta
-           muisti ei vapautuisi vaikka LRU luulee vapauttaneensa sen. */
-        this._nollaaMuisti();
+      const nop = tavut.subarray(ot, ot + koko), suunta = tavut.subarray(ot + koko, ot + 2 * koko),
+        puuska = tavut.subarray(ot + 2 * koko, ot + 3 * koko);
+      let laatta = this._laatat.get(avain);
+      if (!laatta || (K && !laatta.palat)) {
+        const ax = taso._ax || this._perus;
+        const ntKoko = K ? ax.tsMs.length : nt, kokoK = ntKoko * ny * nx;
+        laatta = {
+          askel: dv.getFloat32(8, true),
+          la0: dv.getFloat32(12, true), lo0: dv.getFloat32(16, true),
+          ny, nx, nt: ntKoko,
+          /* Laatta kantaa TASONSA aika-akselin. `naytteista` näkee vain
+             laatan, ei tasoa, ja indeksi on akselikohtainen. */
+          _ax: ax,
+          _taso: taso,
+          nop: K ? new Uint8Array(kokoK).fill(this._luettelo.tyhja) : nop,
+          suunta: K ? new Uint8Array(kokoK).fill(this._luettelo.tyhja) : suunta,
+          puuska: K ? new Uint8Array(kokoK).fill(this._luettelo.tyhja) : puuska,
+          paino, taysi,
+          palat: K ? new Uint8Array(this._palaMaara(taso)) : null,
+        };
+        /* Muistikatto: pudotetaan vähiten äskettäin käytetty. Map säilyttää
+           lisäysjärjestyksen ja `_kosketa` siirtää käytetyn loppuun, joten
+           ensimmäinen avain on se jota on käytetty viimeksi kauimmin sitten. */
+        while (this._laatat.size >= this._MAX_LAATTAA) {
+          this._laatat.delete(this._laatat.keys().next().value);
+          /* Hakumuisti pitää viittausta laattaan. Ilman nollausta häädetty
+             laatta jäisi siihen kiinni: data olisi yhä kelvollista, mutta
+             muisti ei vapautuisi vaikka LRU luulee vapauttaneensa sen. */
+          this._nollaaMuisti();
+        }
+        this._laatat.set(avain, laatta);
       }
-      this._laatat.set(avain, laatta);
+      if (K) {
+        /* Pala paikalleen koko akselin taulukoihin. Palan pituus tulee sen
+           otsakkeesta; akselin ulkopuolelle ei kirjoiteta. */
+        const o = c * K * ny * nx, n = Math.min(koko, laatta.nop.length - o);
+        if (n > 0) {
+          laatta.nop.set(nop.subarray(0, n), o);
+          laatta.suunta.set(suunta.subarray(0, n), o);
+          laatta.puuska.set(puuska.subarray(0, n), o);
+        }
+        laatta.palat[c] = 1;
+      }
       /* Hakumuisti voi pitää tämän ruudun kohdalla varalaattaa
-         (`_haePerhe`, `m.vara`): seuraava näyte lukee nyt oikean. */
+         (`_haePerhe`, `m.vara`) tai palatonta laattaa: seuraava näyte
+         lukee nyt oikean. */
       this._nollaaMuisti();
       this._kunUusia(taso, la0, lo0);
       return laatta;
-    })().finally(() => this._kesken.delete(avain));
-    this._kesken.set(avain, p);
+    })().finally(() => this._kesken.delete(kAvain));
+    this._kesken.set(kAvain, p);
     return p;
   },
 
@@ -8379,7 +8444,7 @@ const Saalaatat = {
       }
     }
     const W = typeof WindTexture !== 'undefined' ? WindTexture.hila : null;
-    if (W && W.vajaa && osuu(W, W.dStep)) WindTexture._taydennaLevossa();
+    if (W ? (W.vajaa && osuu(W, W.dStep)) : (typeof WindTexture !== 'undefined' && WindTexture._hilaHylatty)) WindTexture._taydennaLevossa();
   },
 
   /* Pituusasteväli normalisoituna, tarvittaessa kahtena palana
@@ -8450,8 +8515,20 @@ const Saalaatat = {
      Nordicia eikä ECMWF:ää. Raja-alueella ja akselin päissä haetaan
      kaikki, koska `naytteista` sekoittaa ne. Hinta on kierros per perhe
      raja-alueella; muualla kierroksia on yksi. */
-  async varmista(bounds, step) {
+  async varmista(bounds, step, tMs) {
     if (!this.kaytossa()) return 0;
+    /* Palat KARTAN hetkelle (`LampoGL._hetki`), ei `_hetkiMs`:lle: sarjan
+       laskenta siirtää akseleita tunti kerrallaan, ja varmistus sen
+       perään hakisi väärän palan. Toistossa ja raahauksessa myös seuraava
+       pala kun hetki on sen kynnyksellä, jotta kenttä ei putoa varalle
+       palan vaihtuessa. */
+    if (tMs == null) tMs = typeof LampoGL !== 'undefined' && LampoGL._map ? LampoGL._hetki() : this._hetkiMs;
+    const liike = typeof State !== 'undefined' && (State.isPlaying || State._tlTouching);
+    const palatNyt = (taso) => {
+      if (!(taso.pala > 0)) return [-1];
+      const ti = this._indeksiHetkelle(taso, tMs), c = this._palaIndeksi(taso, ti);
+      return liike && ti >= (c + 1) * taso.pala - 6 && c + 1 < this._palaMaara(taso) ? [c, c + 1] : [c];
+    };
     /* Sama pehmuste kuin getViewportPoints():lla (step * 2). Ilman sitä
        reunapisteet putoavat naapurilaatalle jota ei ole ladattu, ja ne
        menevät rajapintaan vaikka data on olemassa. Mitattuna Sydneyn
@@ -8467,12 +8544,13 @@ const Saalaatat = {
       if (!p.pohja && aikaW <= 0) continue;
       const tarvitaan = [];
       for (const [avain, t] of this._perheenLaatat(p, s, n, valit, step)) {
-        if (this._laatat.has(avain)) continue;
+        const puuttuvat = palatNyt(t.taso).filter(c => !(c < 0 ? this._laatat.has(avain) : this._onPala(t.taso, avain, c)));
+        if (!puuttuvat.length) continue;
         if (ylemmat.length && t.pts.every(([y, x]) => this._peitetty(ylemmat, y, x, step))) continue;
-        tarvitaan.push(t);
+        for (const c of puuttuvat) tarvitaan.push({ taso: t.taso, la0: t.la0, lo0: t.lo0, pala: c });
       }
       if (tarvitaan.length) {
-        const tulokset = await Promise.allSettled(tarvitaan.map(t => this._lataa(t.taso, t.la0, t.lo0)));
+        const tulokset = await Promise.allSettled(tarvitaan.map(t => this._lataa(t.taso, t.la0, t.lo0, t.pala)));
         onnistui += tulokset.filter(t => t.status === 'fulfilled').length;
       }
       if (p.pohja) break;
@@ -8623,7 +8701,7 @@ const Saalaatat = {
        hiljainen väärä aika on pahin mahdollinen lopputulos.
        Vertailu on TASON akselia vastaan, ei luettelon yhteistä: HARMONIEn
        laatassa on 67 hetkeä ja ECMWF:n laatassa 99. */
-    if (laatta && laatta.nt === (laatta._ax || this._perus).tsMs.length) {
+    if (laatta && laatta.nt === (laatta._ax || this._perus).tsMs.length && this._palaValmis(laatta)) {
       this._kosketa(avain, laatta);
       m.laatta = laatta; m.tyhja = false; m.vara = false; m.step = step;
       this._muistinAlue(m, taso, r.la0, r.lo0, taso.span);
@@ -8667,7 +8745,7 @@ const Saalaatat = {
     if ((t.lng[0] > -180 || t.lng[1] < 180) && (lo < t.lng[0] || lo > t.lng[1])) return null;
     const r2 = this._ruutu(t, lat, lo);
     const l2 = this._laatat.get(this._avain(t, r2.la0, r2.lo0));
-    if (!l2 || l2.nt !== (l2._ax || this._perus).tsMs.length) return null;
+    if (!l2 || l2.nt !== (l2._ax || this._perus).tsMs.length || !this._palaValmis(l2)) return null;
     m.laatta = l2; m.tyhja = false; m.vara = true; m.step = step;
     this._muistinAlue(m, taso, r.la0, r.lo0, taso.span);
     m.la0 = Math.max(m.la0, r2.la0, t.lat[0]); m.la1 = Math.min(m.la1, r2.la0 + t.span, t.lat[1]);
@@ -8722,7 +8800,10 @@ const Saalaatat = {
     let iy = Math.floor((lat - l.la0) / l.askel), ix = Math.floor((lo - l.lo0) / l.askel);
     if (iy < 0) iy = 0; else if (iy > l.ny - 1) iy = l.ny - 1;
     if (ix < 0) ix = 0; else if (ix > l.nx - 1) ix = l.nx - 1;
-    return l.nop[iy * l.nx + ix] !== this._luettelo.tyhja;
+    /* Paloittaisessa laatassa ensimmäinen PERILLÄ oleva pala: muiden
+       askeleet ovat tyhjää kunnes ne tulevat. */
+    const t0 = l.palat ? Math.max(0, l.palat.indexOf(1)) * l._taso.pala : 0;
+    return l.nop[t0 * l.ny * l.nx + iy * l.nx + ix] !== this._luettelo.tyhja;
   },
 
   /* Yhden hetken näyte. Interpolointijärjestys on TÄSMÄLLEEN sama kuin
@@ -9367,10 +9448,15 @@ const Saalaatat = {
       if (!L) continue;
       const r = this._ruutu(L, lat, lo);
       if (!this._onOlemassa(L, r.la0, r.lo0)) continue;
-      if (!this._laatat.has(this._avain(L, r.la0, r.lo0))) tarvitaan.push([L, r]);
+      /* Koko akseli: aikajana ja kortit lukevat jokaisen hetken, joten
+         kaikki palat (sama tavumäärä kuin kokonainen laatta). */
+      const avain = this._avain(L, r.la0, r.lo0);
+      if (L.pala > 0) {
+        for (let c = 0; c < this._palaMaara(L); c++) if (!this._onPala(L, avain, c)) tarvitaan.push([L, r, c]);
+      } else if (!this._laatat.has(avain)) tarvitaan.push([L, r, -1]);
     }
     if (!tarvitaan.length) return 0;
-    const t = await Promise.allSettled(tarvitaan.map(([L, r]) => this._lataa(L, r.la0, r.lo0)));
+    const t = await Promise.allSettled(tarvitaan.map(([L, r, c]) => this._lataa(L, r.la0, r.lo0, c)));
     return t.filter(x => x.status === 'fulfilled').length;
   },
 };
@@ -13777,6 +13863,11 @@ const WindTexture = {
             } catch (e) {}
           }
         }
+        /* Liian vajaa kenttä hylätään, ja se kootaan uudelleen kun laattoja
+           tulee (`Saalaatat._kunUusia`): hyppy hetkeen jonka aikapalaa ei
+           ole vielä haettu jätti partikkelit muuten tyhjiksi, koska
+           tyhjällä hilalla ei ole aluetta johon uusi laatta osuisi. */
+        WindTexture._hilaHylatty = puuttuu > raja && Saalaatat.kartallaKaytossa();
         if (puuttuu > raja) return null;
         return { gu, gv, gc, gr, la0, lo0, dStep, vajaa };
       })();
@@ -14010,7 +14101,13 @@ const LampoGL = {
      uudelleen seuraavassa ruudussa, ei tässä — tänne tullaan useasti
      peräkkäin samassa tehtävässä. */
   paivita() {
+    /* Myös karkea: mallin oma hila (`MalliHila`) ja natiivihila tulevat
+       palvelimelta kenttänä, eivät laattoina, eikä `_kunUusia` näe niitä.
+       Ilman tätä matkalla olleen hilan aikaan koottu karkea jäi
+       ruudulle (mitattu 9.10. z 8,3:lla hypyn jälkeen 1 452 näkyvää
+       solmua eri kuin juuri koottu). */
     this._likainen = true;
+    this._karkeaLikainen = true;
     if (this._map) this._map.ml.triggerRepaint();
   },
 
@@ -14140,7 +14237,10 @@ const LampoGL = {
   },
 
   _pyydaData(h) {
-    const avain = h.d + '|' + h.st + '|' + h.la0.toFixed(3) + '|' + h.lo0.toFixed(3) + '|' + h.gc + '|' + h.gr;
+    /* Hetki mukana 6 h:n tarkkuudella: uusi hetki voi tarvita uuden
+       aikapalan (`Saalaatat._lataa`), eikä sama geometria saa estää sitä. */
+    const avain = h.d + '|' + h.st + '|' + h.la0.toFixed(3) + '|' + h.lo0.toFixed(3) + '|' + h.gc + '|' + h.gr
+      + '|' + Math.floor((h.hetki || 0) / 216e5);
     const nyt = performance.now();
     if (avain === this._pyyntoAvain && nyt - (this._pyyntoT || 0) < 1500) return;
     this._pyyntoAvain = avain; this._pyyntoT = nyt;
@@ -14280,9 +14380,13 @@ const LampoGL = {
     const tuli = k && k.puuttuu > 0 && Saalaatat._uusia !== this._kRakUusia;
     if (tuli && nyt - (this._kRakT || 0) <= 250) map.ml.triggerRepaint();
     const kelpaa = (x) => x && x.d === d && x.st === d && x.hetki === hetki && x.kentta === kentta && this._kattaa(x, b);
-    if (kelpaa(k) && !(tuli && nyt - (this._kRakT || 0) > 250)) return;
+    /* Likaisuus odottaa lepoa: eleen aikana karkea on oman hilan tausta,
+       ja sen kokoaminen jokaisen esikatselukentän perään olisi turhaa. */
+    const likainen = this._karkeaLikainen && !State.liikkeessa;
+    if (kelpaa(k) && !likainen && !(tuli && nyt - (this._kRakT || 0) > 250)) return;
     const h = vanhaH;
-    if (h && h !== k && kelpaa(h)) { this._karkea = h; this._karkeaVersio++; return; }
+    if (!likainen && h && h !== k && kelpaa(h)) { this._karkea = h; this._karkeaVersio++; return; }
+    this._karkeaLikainen = false;
     this._kRakUusia = Saalaatat._uusia; this._kRakT = nyt;
     /* Toistossa ja raahauksessa karkea kootaan joka hetkelle, ja kartta on
        paikallaan: näkymä ja 0,25 reunus riittää (työpöydällä 19 500 →
