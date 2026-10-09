@@ -7801,8 +7801,16 @@ const Saalaatat = {
      LISÄYSjärjestyksessä: maailmankierroksen jälkeen Suomen laatat olivat
      aina poissa, ja paluussa kartta ja aikajana näyttivät hetken toista
      mallia (docs/mallit.md, "Maailmankierros ja paluu"). Nyt jokainen
-     osuma siirtää laatan jonon hännille (`_kosketa`). */
-  _MAX_LAATTAA: 160,
+     osuma siirtää laatan jonon hännille (`_kosketa`).
+     240 eikä 160 näyttötarkkuuden tason jälkeen (`ViewportGrid.laattaStep`,
+     docs/mallit.md): näkymä vaatii saman määrän laattoja joka zoomilla,
+     työpöydällä Suomen rannikolla noin sata, ja 160:n katto olisi
+     pudottanut saman näkymän laattoja toistensa alta. Noin 28 Mt. */
+  _MAX_LAATTAA: 240,
+  /* Laskuri tuulen laatoille jotka osuivat lämpökartan vajaaseen hilaan
+     (`_kunUusia`): lämpökartta rakentaa hilansa uudelleen kun näkymän
+     tarkka taso saapuu panoroinnin jälkeen (`LampoGL`). */
+  _uusia: 0,
   /* MALLIPERHEET, TÄRKEIN ENSIN (`alusta`). Kukin on oma pyramidinsa;
      `_pohja` on se joka kattaa aina kaiken (ECMWF). */
   _perheet: null,
@@ -7990,7 +7998,19 @@ const Saalaatat = {
         const tasot = perheet.get(pid);
         if (!tasot || !tasot.length) continue;
         tasot.sort((a, b) => a.askel - b.askel);
+        /* Perheen kattama alue (tasojen yhdiste): `naytteista` ohittaa
+           perheen neljällä vertailulla siellä minne mikään sen taso ei
+           ulotu. Ilman tätä jokainen solmu etsi tason kaikilta neljältätoista
+           perheeltä, vaikka Euroopassa pisteessä on tavallisesti 2–4. */
+        const bb = [Infinity, -Infinity, Infinity, -Infinity];
+        for (const t of tasot) {
+          t._tuuli = true;              /* `_kunUusia`: aaltolaatat ohitetaan */
+          bb[0] = Math.min(bb[0], t.lat[0]); bb[1] = Math.max(bb[1], t.lat[1]);
+          const kaikki = !(t.lng[0] > -180 || t.lng[1] < 180);
+          bb[2] = Math.min(bb[2], kaikki ? -Infinity : t.lng[0]); bb[3] = Math.max(bb[3], kaikki ? Infinity : t.lng[1]);
+        }
         this._perheet.push({
+          _bb: bb,
           id: pid, tasot: tasot, pohja: pid === 'ecmwf', pois: false,
           /* Lähderekisterin avain (`Lahde.NIMET`). ECMWF:n tasoilla ei ole
              `malli`-kenttää; sen nimi on rekisterissä `laatta`. */
@@ -7999,7 +8019,7 @@ const Saalaatat = {
              0 = perheellä ei ole natiivihilaa palvelimella (FMI, ECMWF). */
           natiivi: tasot[0].natiivi || 0, _nat: null, _natSarja: null,
           _aikaW: 1,
-          _m: { laatta: null, tyhja: false, la0: 0, lo0: 0, span: 0, step: -1 },
+          _m: { laatta: null, tyhja: false, vara: false, la0: 0, la1: 0, lo0: 0, lo1: 0, step: -1 },
         });
       }
       this._pohja = this._perheet.find(p => p.pohja) || null;
@@ -8015,7 +8035,7 @@ const Saalaatat = {
       this._dyn = { id: 'dyn', dyn: true, tasot: [], pohja: false, pois: false,
                     api: 'ecmwf', malli: 'ecmwf9',
                     _aikaW: 0, _laatta: null, _sarja: null,
-                    _m: { laatta: null, la0: 0, lo0: 0, span: 0, step: -1 } };
+                    _m: { laatta: null, tyhja: false, vara: false, la0: 0, la1: 0, lo0: 0, lo1: 0, step: -1 } };
       this._perheet.splice(this._perheet.indexOf(this._pohja), 0, this._dyn);
       this._osuus = new Float64Array(this._perheet.length);
       this.asetaTila(this._malliTila);
@@ -8214,8 +8234,16 @@ const Saalaatat = {
 
      Alueellinen perhe ohitetaan jos valittu taso on yli neljä kertaa
      pyydettyä hienompi: vanhassa luettelossa HARMONIElla on vain
-     0,05°:n taso, ja sillä maailmannäkymä vaatisi satoja laattoja. */
+     0,05°:n taso, ja sillä maailmannäkymä vaatisi satoja laattoja.
+
+     POHJAMALLIN 0,5°:N TASO OHITETAAN: 0,5°:n pyyntö lukee ECMWF:n 1°:n
+     tasoa. Mitattu kahdesti: solmuvälin kokeessa (5.10.) 0,5°:n taso ei
+     parantanut tarkkuutta mittauspisteissä lainkaan, ja näyttötarkkuuden
+     tasolla (6.10.) se oli z4–5-näkymän tavuista 2,0 Mt 2,1:stä
+     (docs/mallit.md). ECMWF:n oma hila on 0,25° (l0), ja sitä luetaan
+     zoomista 6. */
   _perheenTaso(p, lat, lo, step) {
+    if (p.pohja && step >= 0.5 - 1e-9 && step < 1) step = 1;
     let paras = null, hienoin = null;
     for (const t of p.tasot) {
       if (lat < t.lat[0] || lat > t.lat[1]) continue;
@@ -8310,10 +8338,48 @@ const Saalaatat = {
         this._nollaaMuisti();
       }
       this._laatat.set(avain, laatta);
+      /* Hakumuisti voi pitää tämän ruudun kohdalla varalaattaa
+         (`_haePerhe`, `m.vara`): seuraava näyte lukee nyt oikean. */
+      this._nollaaMuisti();
+      this._kunUusia(taso, la0, lo0);
       return laatta;
     })().finally(() => this._kesken.delete(avain));
     this._kesken.set(avain, p);
     return p;
+  },
+
+  /* Laatta tuli: ruudulla oleva lämpökartta tai partikkelikenttä joka
+     luki varalta (pehmusteen ennakkotaso, karkeampi taso tai alempi malli)
+     kootaan uudelleen. Panoroinnin jälkeen näkymän oma taso tulee usein
+     jonkun muun haulla (esilataus, aikajana, kortti), joten kytkentä on
+     tässä eikä hakijoissa. Lämpökartalle vain ruutupyyntö (`_varmistaHila`
+     päättää ja kuristaa), partikkeleille viivästetty rakennus.
+     VAIN TUULEN LAATTA JOKA OSUU HILAAN: hilan pehmuste luetaan levossa
+     tavallisesti varalta, joten "hilasta puuttuu jotain" on usein pysyvästi
+     totta, ja ilman rajausta jokainen aaltolaatta (`Aallot`, sama `_lataa`)
+     ja spottien esilatauksen laatta 300 km:n päässä koottaisi kentän
+     uudelleen. */
+  _kunUusia(taso, la0, lo0) {
+    if (!taso || !taso._tuuli) return;
+    const s = taso.span;
+    const osuu = (h, d) => {
+      if (!h) return false;
+      const ha1 = h.la0 + (h.gr - 1) * d, ho1 = h.lo0 + (h.gc - 1) * d;
+      if (la0 > ha1 + 1e-6 || la0 + s < h.la0 - 1e-6) return false;
+      for (let k = -1; k <= 1; k++) {
+        if (lo0 + 360 * k <= ho1 + 1e-6 && lo0 + 360 * k + s >= h.lo0 - 1e-6) return true;
+      }
+      return false;
+    };
+    if (typeof LampoGL !== 'undefined' && LampoGL._map) {
+      const o = LampoGL._odottava, h = LampoGL._hila, k = LampoGL._karkea;
+      if ((o && osuu(o, o.d)) || (h && h.puuttuu > 0 && osuu(h, h.d)) || (k && k.puuttuu > 0 && osuu(k, k.d))) {
+        this._uusia++;
+        LampoGL._map.ml.triggerRepaint();
+      }
+    }
+    const W = typeof WindTexture !== 'undefined' ? WindTexture.hila : null;
+    if (W && W.vajaa && osuu(W, W.dStep)) WindTexture._taydennaLevossa();
   },
 
   /* Pituusasteväli normalisoituna, tarvittaessa kahtena palana
@@ -8517,8 +8583,15 @@ const Saalaatat = {
 
      KARKEAMPI VARALLA. Kun hieno laatta ei ole vielä tullut, saman
      perheen karkeampi ladattu taso kelpaa: kenttä on sama malli
-     harvempana, ja zoomatessa se TARKENTUU eikä vaihda mallia. Varalaattaa
-     ei laiteta muistiin, jotta seuraava näyte kokeilee taas hienoa. */
+     harvempana, ja zoomatessa se TARKENTUU eikä vaihda mallia. Jos
+     karkeampaa ei ole, hienompi ladattu kelpaa (ulos zoomatessa edellisen
+     zoomin taso), ennen kuin luovutaan alemmalle mallille.
+
+     VARALAATTA ON MUISTISSA (`m.vara`) ja nostaa `_vajaa`n myös muistista
+     luettuna. Hilan pehmuste luetaan nyt tavallisesti varalta
+     (`ViewportGrid.ennakkoStep`): ilman muistia jokainen pehmusteen solmu
+     maksoi tason valinnan ja merkkijonoavaimen. Uusi laatta mitätöi muistin
+     (`_lataa`), joten seuraava näyte kokeilee taas hienoa. */
   _vajaa: false,
   _haePerhe(p, lat, lo, step) {
     const m = p._m;
@@ -8529,13 +8602,18 @@ const Saalaatat = {
        Laatan olemassaolo ei muutu luettelon aikana, ja `_nollaaMuisti`
        mitätöi tämänkin (`step`). */
     if ((m.laatta || m.tyhja) && step === m.step
-        && lat >= m.la0 && lat < m.la0 + m.span
-        && lo  >= m.lo0 && lo  < m.lo0 + m.span) return m.laatta;
+        && lat >= m.la0 && lat < m.la1
+        && lo  >= m.lo0 && lo  < m.lo1) {
+      if (m.vara) this._vajaa = true;
+      return m.laatta;
+    }
     const taso = this._perheenTaso(p, lat, lo, step);
     if (!taso) return null;
-    const r = this._ruutu(taso, lat, lo);
+    let r = this._ruutu(taso, lat, lo);
+    if (!this._onOlemassa(taso, r.la0, r.lo0)) r = this._rajaRuutu(taso, lat, lo, r) || r;
     if (!this._onOlemassa(taso, r.la0, r.lo0)) {
-      m.laatta = null; m.tyhja = true; m.la0 = r.la0; m.lo0 = r.lo0; m.span = taso.span; m.step = step;
+      m.laatta = null; m.tyhja = true; m.vara = false; m.step = step;
+      this._muistinAlue(m, taso, r.la0, r.lo0, taso.span);
       return null;
     }
     const avain = this._avain(taso, r.la0, r.lo0);
@@ -8547,19 +8625,67 @@ const Saalaatat = {
        laatassa on 67 hetkeä ja ECMWF:n laatassa 99. */
     if (laatta && laatta.nt === (laatta._ax || this._perus).tsMs.length) {
       this._kosketa(avain, laatta);
-      m.laatta = laatta; m.tyhja = false; m.la0 = r.la0; m.lo0 = r.lo0; m.span = taso.span; m.step = step;
+      m.laatta = laatta; m.tyhja = false; m.vara = false; m.step = step;
+      this._muistinAlue(m, taso, r.la0, r.lo0, taso.span);
       return laatta;
     }
     this._vajaa = true;
-    for (const t of p.tasot) {
-      if (t.askel <= taso.askel) continue;
-      if (lat < t.lat[0] || lat > t.lat[1]) continue;
-      if ((t.lng[0] > -180 || t.lng[1] < 180) && (lo < t.lng[0] || lo > t.lng[1])) continue;
-      const r2 = this._ruutu(t, lat, lo);
-      const l2 = this._laatat.get(this._avain(t, r2.la0, r2.lo0));
-      if (l2 && l2.nt === (l2._ax || this._perus).tsMs.length) return l2;
+    /* Karkeampi ensin (tasot ovat hienoimmasta karkeimpaan), sitten
+       hienompi lähimmästä alkaen. Muistin alue on pyydetyn ruudun ja
+       varalaatan leikkaus: 2°:n ruutu voi olla kahden 5°:n laatan
+       rajalla, ja hienompi varalaatta kattaa vain osan ruudusta. */
+    const k0 = p.tasot.indexOf(taso);
+    for (let k = k0 + 1; k < p.tasot.length; k++) {
+      const v = this._varaMuistiin(m, p.tasot[k], lat, lo, r, taso, step);
+      if (v) return v;
+    }
+    for (let k = k0 - 1; k >= 0; k--) {
+      const v = this._varaMuistiin(m, p.tasot[k], lat, lo, r, taso, step);
+      if (v) return v;
     }
     return null;
+  },
+  /* LAATTARAJALLA OLEVA PISTE KUULUU KAHTEEN LAATTAAN: laatan viimeinen
+     rivi ja sarake ovat seuraavan ensimmäiset (21 solmua, 20 askelta).
+     Kun alaspäin pyöristetty laatta puuttuu, edellinen kattaa pisteen
+     reunarivillään. Ilman tätä ECMWF:n 0,25°:n tason (−35…45°E) solmusarake
+     tasan 45°E:ssä jäi ilman dataa — taso kattaa pisteen, mutta laattaa
+     45–50°E ei ole — ja lämpökarttaan tuli läpinäkyvä juova kaikilla
+     zoomeilla joilla taso on l0 (mitattu 9.10. työpöydällä z7: 47 näkyvää
+     solmua; hilan origo on kohdistettu, joten 45,0 on aina solmu). */
+  _rajaRuutu(taso, lat, lo, r) {
+    const e = 1e-9, sp = taso.span;
+    const yy = lat - r.la0 < e ? [r.la0, +(r.la0 - sp).toFixed(4)] : [r.la0];
+    const xx = lo - r.lo0 < e ? [r.lo0, +(r.lo0 - sp).toFixed(4)] : [r.lo0];
+    for (const la0 of yy) for (const lo0 of xx) {
+      if ((la0 !== r.la0 || lo0 !== r.lo0) && this._onOlemassa(taso, la0, lo0)) return { la0, lo0 };
+    }
+    return null;
+  },
+  _varaMuistiin(m, t, lat, lo, r, taso, step) {
+    if (lat < t.lat[0] || lat > t.lat[1]) return null;
+    if ((t.lng[0] > -180 || t.lng[1] < 180) && (lo < t.lng[0] || lo > t.lng[1])) return null;
+    const r2 = this._ruutu(t, lat, lo);
+    const l2 = this._laatat.get(this._avain(t, r2.la0, r2.lo0));
+    if (!l2 || l2.nt !== (l2._ax || this._perus).tsMs.length) return null;
+    m.laatta = l2; m.tyhja = false; m.vara = true; m.step = step;
+    this._muistinAlue(m, taso, r.la0, r.lo0, taso.span);
+    m.la0 = Math.max(m.la0, r2.la0, t.lat[0]); m.la1 = Math.min(m.la1, r2.la0 + t.span, t.lat[1]);
+    if (t.lng[0] > -180 || t.lng[1] < 180) { m.lo0 = Math.max(m.lo0, t.lng[0]); m.lo1 = Math.min(m.lo1, t.lng[1]); }
+    m.lo0 = Math.max(m.lo0, r2.lo0); m.lo1 = Math.min(m.lo1, r2.lo0 + t.span);
+    return l2;
+  },
+  /* Muistin alue on ruutu RAJATTUNA TASON ALUEESEEN: alueellisen mallin
+     ruutu jatkuu usein mallin rajan yli (AROME 5°:n ruutu 15–20°E, alue
+     päättyy 16°E:hen), ja rajan takana `_perheenTaso` antaa perheelle
+     nullin. Ilman rajausta muisti palautti rajan takana ruudun laatan —
+     varalaattana se nosti `_vajaa`n pisteissä joihin perhe ei osallistu,
+     ja lämpökartta odotti laattaa jota ei koskaan haeta (mitattu z 5,55:
+     70 näkyvää solmua Puolassa). */
+  _muistinAlue(m, taso, la0, lo0, span) {
+    m.la0 = Math.max(la0, taso.lat[0]); m.la1 = Math.min(la0 + span, taso.lat[1]);
+    m.lo0 = lo0; m.lo1 = lo0 + span;
+    if (taso.lng[0] > -180 || taso.lng[1] < 180) { m.lo0 = Math.max(m.lo0, taso.lng[0]); m.lo1 = Math.min(m.lo1, taso.lng[1]); }
   },
 
 
@@ -8618,11 +8744,27 @@ const Saalaatat = {
    *
    * Tulos jää kenttiin `_nU`/`_nV`; mitään ei varata. */
   _sMs: 0, _sDir: 0,
+  /* SUUNNAN SIN JA COS TAULUKOSTA: suunta on kvantisoitu (`suuntaAskel`,
+     2°), joten arvoja on 180. Näyttötarkkuuden hilassa (docs/mallit.md)
+     solmuja on kymmeniä tuhansia ja jokainen näyte teki 16 sin/cos-kutsua;
+     taulukko lyhensi kokoamista 20 % (0,81 → 0,65 µs solmulta), tulos
+     bitilleen sama. (`wx()`:ssä sama kokeilu ei auttanut, koska siellä
+     hinta oli varauksissa.) */
+  _sinT: null, _cosT: null, _sinTA: 0,
+  _suuntaTaulu() {
+    const dA = this._luettelo.suuntaAskel;
+    if (this._sinT && this._sinTA === dA) return;
+    const S = new Float64Array(256), C = new Float64Array(256);
+    for (let d = 0; d < 256; d++) { const r = d * dA * Math.PI / 180; S[d] = Math.sin(r); C[d] = Math.cos(r); }
+    this._sinT = S; this._cosT = C; this._sinTA = dA;
+  },
   /* Yhden aikatason paikkainterpolointi neljästä kulmasta. Sama sääntö
      kuin `wx()`:n sisäsilmukassa, mukaan lukien tyhjien käsittely. */
   _paikassa(l, pohja, k0, k1, k2, k3, w0, w1, w2, w3) {
     const tyhja = this._luettelo.tyhja;
-    const nAskel = this._luettelo.nopAskel, dAskel = this._luettelo.suuntaAskel;
+    const nAskel = this._luettelo.nopAskel;
+    if (this._sinTA !== this._luettelo.suuntaAskel) this._suuntaTaulu();
+    const SIN = this._sinT, COS = this._cosT;
     const NOP = l.nop, SUU = l.suunta, PUU = this._puuskaTila ? l.puuska : null;
     let sN = 0, wN = 0, sG = 0, wG = 0, sSin = 0, sCos = 0, wD = 0;
     for (let c = 0; c < 4; c++) {
@@ -8633,10 +8775,7 @@ const Saalaatat = {
       if (v === tyhja) continue;
       sN += v * w; wN += w;
       const d = SUU[k];
-      if (d !== tyhja) {
-        const r = d * dAskel * Math.PI / 180;
-        sSin += Math.sin(r) * w; sCos += Math.cos(r) * w; wD += w;
-      }
+      if (d !== tyhja) { sSin += SIN[d] * w; sCos += COS[d] * w; wD += w; }
       if (PUU) { const g = PUU[k]; if (g !== tyhja) { sG += g * w; wG += w; } }
     }
     if (!wN) return false;
@@ -8784,6 +8923,11 @@ const Saalaatat = {
       if (p.dyn) {
         if (!this._dynNayte(p, lat, lo)) continue;
       } else {
+        const bb = p._bb;
+        if (lat < bb[0] || lat > bb[1] || lo < bb[2] || lo > bb[3]) {
+          if (p.pohja) { if (!sW) return false; this._vajaa = true; }
+          continue;
+        }
         const l = this._haePerhe(p, lat, lo, step);
         if (!l || !this._naytePerhe(l, lat, lo)) {
           if (p.pohja) { if (!sW) return false; this._vajaa = true; }
@@ -9696,9 +9840,21 @@ const MalliHila = {
   PEHMUSTE: 0.6,
   AIKARAJA_MS: 12000,
   /* Paketin koko solmumäärän mukaan: sama alue useammalle tunnille maksaa
-     vastauksessa tunnit kertaa solmut. Laattaaskel harvenee zoomin
-     mukana, joten tavallisesti solmuja on alle 3 000 ja paketti ±3 h. */
-  pakettiPuoli(solmuja) { return solmuja <= 3000 ? 3 : solmuja <= 6000 ? 2 : solmuja <= 12000 ? 1 : 0; },
+     vastauksessa tunnit kertaa solmut. Näyttötarkkuuden askeleella
+     (`ViewportGrid.laattaStep`, docs/mallit.md) puhelimen näkymässä on
+     noin 7 000–11 000 solmua joka zoomilla, ja paketti on silloin ±3 h
+     (enintään noin 80 000 arvoa, ~230 kt); työpöydän nelinkertainen
+     näkymä saa ±1 h. Ennen raja oli 3 000, koska askel harveni zoomin
+     mukana (z7 0,5°) ja tavallinen näkymä oli satoja solmuja. */
+  pakettiPuoli(solmuja) { return solmuja <= 14000 ? 3 : solmuja <= 20000 ? 2 : 1; },
+  /* Mallin oma tarkkuus: tiheämpi askel ei tuo dataa, vain tavuja.
+     ICON-EU on 0,0625°:n säännöllinen hila (ICON 0,125°), GFS:n tuuli
+     noin 13 km (N768, `api/malli.js`). */
+  OMA_ASKEL: { icon: 0.0625, gfs: 0.1 },
+  _askel(api, z) {
+    return this._paketti(api)
+      ? Math.min(1, Math.max(this.OMA_ASKEL[api] || 0.05, ViewportGrid.laattaStep(Math.round(z)))) : 0.1;
+  },
   _kentat: new Map(),      /* osoite -> laatta, käyttöjärjestyksessä */
   _sarjat: new Map(),      /* avain -> sarja */
   _ajastin: 0,
@@ -9845,7 +10001,7 @@ const MalliHila = {
   async _haeKentta(map, z, hetki, dyn) {
     const api = dyn.api, paketti = this._paketti(api);
     const st = ViewportGrid.laattaStep(Math.round(z));
-    const askel = paketti ? Math.min(1, Math.max(0.05, st)) : 0.1;
+    const askel = this._askel(api, z);
     const A = this._alue(map, paketti && st >= 0.5 ? 2 : 0.5);
     if (!A) return;
     const { b, s, n, w, e, vLat, vLng } = A;
@@ -9943,9 +10099,7 @@ const MalliHila = {
      kuin kartta laatasta, joten aikajana ja kartta näyttävät saman luvun
      (0,05°:een pyöristetty piste antoi Helsingissä 0,7–0,9 m/s eri luvun).
      Uusi haku vain kun keskipiste siirtyy toiseen ruutuun. */
-  _sarjaAskel(api, z) {
-    return this._paketti(api) ? Math.min(1, Math.max(0.05, ViewportGrid.laattaStep(Math.round(z)))) : 0.1;
-  },
+  _sarjaAskel(api, z) { return this._askel(api, z); },
   async _haeSarja(map, dyn) {
     const api = dyn.api;
     const c = map.getCenter(), askel = this._sarjaAskel(api, map.getZoom());
@@ -10508,67 +10662,95 @@ const ViewportGrid = {
     return 0.25;                 /* paikallinen — l0, ECMWF:n oma hila */
   },
 
-  /* ── LAATTAPYRAMIDIN OMA ASKEL ────────────────────────────────────
+  /* ── LAATTAPYRAMIDIN OMA ASKEL: NÄYTTÖTARKKUUDEN TASO ─────────────
    *
    * `gridStep` on RAJAPINTAHILAN väli: siitä syntyy `getViewportPoints`in
    * pistelista, ja jokainen piste on Open-Meteon laskutuksessa oma
-   * kutsunsa. Se ei siis saa tihentyä.
+   * kutsunsa. Se ei siis saa tihentyä. Laattapyramidi ei kysy pisteitä
+   * vaan valitsee VARASTON TASON (`_perheenTaso`: suurin askel joka on
+   * <= tämä, tai hienoin olemassa oleva), ja siellä tiheämpi askel on
+   * ilmainen kyselyissä — se maksaa vain laattoja.
    *
-   * Laattapyramidi ei kysy pisteitä vaan valitsee VARASTON TASON, ja
-   * siellä tiheämpi askel on ilmainen — se vain ohjaa `taso()`:n
-   * hienompaan laattaan jos sellainen on olemassa. Jos ei ole, `taso()`
-   * palauttaa hienoimman mitä alueella on, eli täsmälleen saman kuin
-   * ennen.
-   *
-   * Askeleet ovat alueellisten pyramidien tasot (FMI h0–h3, MET Nordic
-   * n0–n3: 0,05 / 0,1 / 0,25 / 0,5). Zoom valitsee vain tarkkuuden, ja
-   * jokaisella zoomilla on nyt oma tasonsa — ennen z8–9 olivat 0,5
-   * asteessa, jolloin rannikon kenttä oli 180 px:n solmuväliä. Siellä
-   * missä hienompaa tasoa ei ole (ECMWF: 0,25° on mallin oma hila),
-   * `_perheenTaso` ottaa hienoimman olemassa olevan.
+   * TASO ON KARKEIN JONKA SOLMUVÄLI RUUDULLA ON ENINTÄÄN NOIN 12 CSS px
+   * PITUUSASTEESSA (60°N:ssa ~23 px leveysasteessa): z ≤ 3 1,0°, z4–5
+   * 0,5°, z6 0,25°, z7 0,1° ja z8:sta 0,05° eli varaston hienoin
+   * (käyttäjän raportti 6.10.: "sama paikka ja tunti, zoomattu
+   * marginaalisesti, ja lämpökartta muuttuu selvästi"; docs/mallit.md
+   * "Näyttötarkkuuden taso"). Karkea taso on hienon laatikkokeskiarvo
+   * (`tools/pyramidi.mjs`), joten kun laatikko on ruudulla lämpökartan
+   * sumennuksen (σ 3 px) kokoluokkaa, karkeampi taso on sama kenttä
+   * pehmeämpänä, ja vierekkäiset tasot sekoitetaan zoomin mukaan
+   * (`karkeaPaino`). Ennen taso oli z5–7 0,5–1,0° ja z8 0,25° eli
+   * 45–91 px:n laatikko: Suomenlahden kova tuulivyö (≈ 40 km) latistui
+   * siinä, ja rajan yli kenttä vaihtui. Mitattu puhelimella samoissa
+   * pisteissä: z 7,45 → 7,55 muutti lämpökarttaa ka 1,59 m/s (max 2,76) ja
+   * 28 % pikseleistä selvästi, ja z5–7,4 kenttä oli hienoimmasta datasta
+   * 1,9–2,1 m/s sivussa (harha −1,2). Laattoja näkymää kohti on nyt sama
+   * määrä joka zoomilla, ja tavut pidetään kurissa kahdella kerroksella
+   * (`ennakkoStep`, `LampoGL.varmistaAlue`). ECMWF:n (pohja) 0,5°:n taso
+   * ohitetaan (`Saalaatat._perheenTaso`): se ei tuonut tarkkuutta ja maksoi
+   * z5-näkymässä 2 Mt.
    *
    * ERILLINEN FUNKTIO EIKÄ `gridStep`IN MUUTOS. Yhteinen askel olisi
    * tarkoittanut z12:ssa 0,05 asteen rajapintahilaa, eli kymmeniä kertoja
    * enemmän pisteitä varaston ulkopuolella — juuri se kiintiö jonka takia
    * koko varasto rakennettiin. */
   laattaStep(zoom) {
-    if (zoom >= 10) return 0.05;
-    if (zoom >= 9) return 0.1;
-    if (zoom >= 8) return 0.25;
-    if (zoom >= 7) return 0.5;
-    return this.gridStep(zoom);
+    if (zoom >= 8) return 0.05;
+    if (zoom >= 7) return 0.1;
+    if (zoom >= 6) return 0.25;
+    if (zoom >= 4) return 0.5;
+    return 1.0;
   },
-  /* KAUKAA SOLMUT DATAN OMALLA TARKKUUDELLA (käyttäjän pyyntö 5.10.:
-     "uudet mallit näkymään ja laattoihin mahdollisimman tarkasti myös ylös
-     zoomatussa kartassa, Windyn tyyliin"; docs/mallit.md, "Kaukaa datan
-     omalla tarkkuudella"). Solmuväli oli z < 7 `gridStep` eli 1,0–1,25°,
-     ja se alinäytteisti datan jonka varasto jo lähetti: alueellisten
-     mallien karkein taso on 0,5° ja se ladataan näillä zoomeilla, mutta
-     solmu otettiin vain joka toisesta (z ≤ 4 joka toisesta tai
-     kolmannesta). Nyt solmut ovat z5–6:lla 0,5° ja z4:llä 1,0°.
-     TASO EI MUUTU (`laattaStep`): laattoja ja tavuja on yhtä paljon kuin
-     ennen, ja ECMWF luetaan yhä 1°:n tasolta bilineaarisesti. 0,5°:n
-     ECMWF-taso (l1) kokeiltiin: tarkkuus ei parantunut mittauspisteissä
-     lainkaan, ja näkymä maksoi 2–4 MB enemmän laattoja (docs/mallit.md).
-     TOISTON JA RAAHAUKSEN AJAN SOLMUT OVAT ENTISET: hila kootaan jokaiselle
-     hetkelle, ja työpöydän Eurooppa-näkymässä tiheä hila maksoi 18–31 ms
-     kokoamista kohti (ennen 4–7 ms). Sama periaate kuin natiivihilalla:
-     liikkeessä kartta on karkeampi, levossa tarkka. */
-  kaukoSolmu(zoom) {
-    if (zoom >= 7 || State.isPlaying || State._tlTouching) return Infinity;
-    if (zoom >= 5) return 0.5;
-    if (zoom >= 4) return 1.0;
-    return Infinity;
+  /* TASOJEN SEKOITUS ZOOMIN MUKAAN (kuten näytönohjaimen mipmap).
+     Pyöristetyn zoomin `tz` kenttä on oman tason L(tz) ja edellisen tason
+     L(tz − 1) sekoitus, jossa karkean paino on 1 heti rajan yli
+     (z = tz − 0,5) ja 0 kokonaisluvulla (z = tz) ja siitä ylöspäin:
+     rajan kummallakin puolella ruudulla on silloin sama L(tz − 1), ja
+     kenttä muuttuu zoomin mukana jatkuvasti eikä rajalla kerralla.
+     Molemmat tasot ovat jo muistissa: oma taso näkymälle ja karkea
+     pehmusteen ennakkotasona (`ennakkoStep`). Mitattu ilman sekoitusta:
+     rajan yli lämpökartta muuttui samoissa pisteissä 0,5–2,6 m/s (RMS)
+     kun rajan sisällä sama zoomin muutos muutti alle 0,02 (docs/mallit.md
+     "Näyttötarkkuuden taso"). Paino on 0 kun tasot ovat samat (z ≥ 9,
+     z5) — silloin natiivihila ei häivy zoomin mukana. Toistossa ja
+     raahauksessa kenttä on kokonaan karkea (`tasoStep`). */
+  karkeaPaino(zoom) {
+    if (State.isPlaying || State._tlTouching) return 1;
+    const tz = Math.round(zoom);
+    if (this.laattaStep(tz - 1) === this.laattaStep(tz)) return 0;
+    const x = Math.min(1, Math.max(0, 2 * (tz - zoom)));
+    return x * x * (3 - 2 * x);
   },
+  /* Lämpökartan ja partikkelien solmuhilan TASO: `laattaStep`, paitsi
+     toiston ja raahauksen ajan yhden zoomin karkeampi (ks. `solmuStep`).
+     Taso seuraa solmuväliä, jotta harvempi solmu lukee laatikkosuodatettua
+     tasoa eikä hienon tason joka toista solmua (laskostuma), ja se taso on
+     jo muistissa pehmusteen ennakkotasona. */
+  tasoStep(zoom) {
+    return State.isPlaying || State._tlTouching ? this.laattaStep(zoom - 1) : this.laattaStep(zoom);
+  },
+  /* ENNAKKOTASO: yhden zoomin karkeampi taso. Se on tasojen sekoituksen
+     karkea puoli (`karkeaPaino`), toiston ja raahauksen kenttä
+     (`tasoStep`), ja kun zoomataan tason verran ulos, se on sen zoomin oma
+     taso. Haetaan näkymälle reunuksineen (`LampoGL.varmistaAlue`). */
+  ennakkoStep(zoom) { return this.laattaStep(zoom - 1); },
   /* SOLMUHILAN VÄLI (lämpökartta ja partikkelit — sama hila,
      docs/oikeellisuus.md O3; kapselin luku on tähtäimen sarjasta, O12).
-     Sama kuin `laattaStep`, paitsi kaukana (`kaukoSolmu`: datan oma 0,5° /
-     1,0°) ja kun lähizoomissa on mallin natiivihila (`Natiivi`,
-     docs/eurooppa.md V2): silloin solmut tihenevät 0,025 / 0,02 / 0,01°:een
-     (z10 / z11 / z12+), jotta 1–2 km mallin rantaerot näkyvät. Varaston
-     TASO valitaan yhä `laattaStep`illä (`kokoaHila`n `step`). */
+     Sama kuin `laattaStep`, paitsi:
+       - lähizoomissa mallin natiivihilan kanssa (`Natiivi`, docs/eurooppa.md
+         V2) solmut tihenevät 0,025 / 0,02 / 0,01°:een (z10 / z11 / z12+),
+         jotta 1–2 km mallin rantaerot näkyvät;
+       - TOISTON JA RAAHAUKSEN AJAN solmuväli on yhden zoomin karkeampi
+         (`laattaStep(zoom − 1)`, noin neljännes solmuista): hila kootaan
+         jokaiselle hetkelle, ja näyttötarkkuuden hila maksaisi
+         puhelimellakin ~10 ms ruutua kohti. Taso seuraa (`tasoStep`), ja
+         sen laatat ovat jo muistissa pehmusteen ennakkotasona; levossa
+         hila on taas täysi, ja vaihto häivytetään (`LampoGL`).
+     Varaston TASO on `tasoStep` (`kokoaHila`n `step`). */
   solmuStep(zoom) {
-    const d = Math.min(this.laattaStep(zoom), this.kaukoSolmu(zoom));
+    if (State.isPlaying || State._tlTouching) return this.laattaStep(zoom - 1);
+    const d = this.laattaStep(zoom);
     return typeof Natiivi !== 'undefined' && Natiivi.kaytossa(zoom) ? Math.min(d, Natiivi.askel(zoom)) : d;
   },
   _tileKey(lat, lng) {
@@ -12991,9 +13173,13 @@ const Haivytys = {
     const t = this[avain]; this[avain] = 0;
     return t > 0 && performance.now() - t < 7000;
   },
-  /* Vanhan kentän paino: 1 → 0, pehmeä molemmista päistä. */
-  paino(alku) {
-    const x = (performance.now() - alku) / this.MS;
+  vahennetty() {
+    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+  },
+  /* Vanhan kentän paino: 1 → 0, pehmeä molemmista päistä. `ms` = kesto
+     (oletus `MS`; lämpökartan tason vaihto on lyhyempi, `LampoGL`). */
+  paino(alku, ms) {
+    const x = (performance.now() - alku) / (ms || this.MS);
     if (x >= 1) return 0;
     if (x <= 0) return 1;
     return 1 - x * x * (3 - 2 * x);
@@ -13226,6 +13412,8 @@ const WindTexture = {
       /* Harvennusaskel luetaan TÄSSÄ eikä mitoituksen jälkeen, koska se
          ohjaa hilapolussa myös tekstuurin kokoa (ks. alempaa). */
       const STEP = Math.max(1, Math.round(coarseStep || WindTexture.COARSE_STEP));
+      /* Karkea rakennus: eleen kiinniotto tai raahauksen/toiston esikatselu. */
+      const karkeaRak = STEP > WindTexture.COARSE_STEP;
 
       /* Voiko hilapolku ylipaataan ajaa? Tama on halpa ennakkotarkistus
          (ei kosketa laattoihin), ja se tarvitaan ENNEN mitoitusta, koska
@@ -13312,7 +13500,13 @@ const WindTexture = {
            partikkeleille ja kapselin varatielle. */
         const ele = STEP > this.COARSE_STEP;
         const laaja = ele && (typeof Saalaatat === 'undefined' || !Saalaatat.kartallaKaytossa() || State.liikkeessa);
-        const P = laaja ? this.PEHMUSTE_ELE : this.PEHMUSTE;
+        /* Levossa varaston kanssa pehmuste on lämpökartan oman hilan
+           (`LampoGL._pehmusteOma`): partikkelit ovat ruudulla, ja
+           näyttötarkkuuden solmuja 0,6:n pehmusteella olisi työpöydällä
+           75 000 (~100 ms). Eleen aikana `laaja` kuten ennen, solmut
+           budjetin mukaan (alla). */
+        const P = laaja ? this.PEHMUSTE_ELE
+          : (typeof LampoGL !== 'undefined' && Saalaatat.kartallaKaytossa() ? LampoGL._pehmusteOma(zoom, Math.round(zoom)) : this.PEHMUSTE);
         const pLat = ase && ase.pLat != null ? ase.pLat
           : (laaja ? Math.max(2, vLat * P) : (zoom <= 5 ? Math.max(2, vLat * 0.30) : vLat * P));
         const pLng = ase && ase.pLng != null ? ase.pLng
@@ -13453,16 +13647,10 @@ const WindTexture = {
       const hilaPolku = (function () {
         if (!hilaMahdollinen) return null;
         Saalaatat.asetaKentta(State.activeLayer);
-        /* Solmuväli on `kaytettyStep` kuten ennen — paitsi zoomista 7
-           ylöspäin, jossa varastossa on alueellisten mallien hienompia
-           tasoja (`laattaStep`: 0,5 / 0,25 / 0,1 / 0,05). Ilman tätä
-           solmuhila jäisi `gridStep`in väliin ja hienon tason tarkkuus
-           menisi hukkaan juuri siellä missä sitä katsotaan: solmuhilasta
-           lukevat sekä partikkelit että kapseli. Sama askel kuin
-           lämpökartalla, joten molemmat näyttävät samaa tasoa.
-           Ehto voi vain TIHENTÄÄ (min), koska leveässä näkymässä
-           `kaytettyStep` on tarkoituksella suurempi kuin `gridStep` — se
-           pitää laattamäärän kurissa. */
+        /* Solmuväli ja taso ovat lämpökartan (`solmuStep`, `tasoStep`):
+           näyttötarkkuuden taso joka zoomilla (docs/mallit.md
+           "Näyttötarkkuuden taso"). Solmuhilasta lukevat partikkelit ja
+           kapseli liikkeen aikana, joten ne näyttävät samaa tasoa kuin väri. */
         /* SAMA TASO JA SAMAT SOLMUT KUIN LÄMPÖKARTALLA (docs/oikeellisuus.md,
            O3). Askel on `laattaStep(round(zoom))` kuten `LampoGL._rakenna`ssa,
            aikajanassa ja lähdemerkinnässä: pyöristämättä vyöhykkeellä
@@ -13476,13 +13664,30 @@ const WindTexture = {
         const tz = Math.round(zoom);
         const M = 2;
         let dStep = (typeof ViewportGrid !== 'undefined') ? ViewportGrid.solmuStep(tz) : 0.25;
-        /* Varaston taso (`kokoaHila`n `step`) on `laattaStep`, vaikka
-           solmuväli tihenisi natiivihilan kanssa (`solmuStep`). */
-        const tasoStep = (typeof ViewportGrid !== 'undefined') ? ViewportGrid.laattaStep(tz) : dStep;
+        /* Varaston taso (`kokoaHila`n `step`) on `tasoStep` kuten
+           lämpökartalla, vaikka solmuväli tihenisi natiivihilan kanssa
+           (`solmuStep`); toistossa molemmat ovat yhden zoomin karkeammat. */
+        let tasoStep = (typeof ViewportGrid !== 'undefined') ? ViewportGrid.tasoStep(tz) : dStep;
         const solmut = (d) => (Math.ceil((loMax - (Math.floor(loMin / d) - M) * d) / d) + 1 + M)
           * (Math.ceil((laMax - (Math.floor(laMin / d) - M) * d) / d) + 1 + M);
+        /* KARKEA RAKENNUS (eleen kiinniotto, raahauksen ja toiston
+           esikatselu) SOLMUBUDJETILLA: taso harvenee zoomi kerrallaan kunnes
+           solmuja on enintään `LampoGL.TOISTO_SOLMUT` (9 000; sama budjetti
+           kuin lämpökartan toistohilalla, joten toistossa partikkelit ja
+           lämpökartta lukevat samaa tasoa). Eleen laaja pehmuste (3,4 näkymää)
+           näyttötarkkuuden tasolla olisi työpöydällä 180 000 solmua eli
+           ~250 ms keskellä elettä; ennen tasot olivat neljä kertaa
+           karkeampia ja sama rakennus noin 7 000 solmua. Tarkka kenttä
+           kootaan levossa. */
+        if (karkeaRak && typeof ViewportGrid !== 'undefined') {
+          for (let k = 1; k <= 4 && solmut(dStep) > LampoGL.TOISTO_SOLMUT; k++) {
+            const d2 = ViewportGrid.laattaStep(tz - k);
+            if (d2 > dStep) { dStep = d2; tasoStep = Math.max(tasoStep, d2); }
+          }
+        }
         if (solmut(dStep) > 400000 && typeof ViewportGrid !== 'undefined') {
           dStep = Math.max(dStep, ViewportGrid.kaytettyStep(zoom));
+          tasoStep = Math.max(dStep, tasoStep);
         }
         /* Solmuhila kattaa tekstuurin ja kaksi solmua yli kummallakin
            reunalla, koska kuubinen ydin lukee j−1 … j+2. */
@@ -13495,7 +13700,40 @@ const WindTexture = {
            ja sironnut polku osaa yhä käyttää sen mitä on. Raja annetaan
            kokoaHilalle, joka keskeyttää heti sen ylityttyä. */
         const raja = Math.floor(gc * gr * (ase && ase.reikaOsuus ? ase.reikaOsuus : 0.5));
-        const puuttuu = Saalaatat.kokoaHila(la0, lo0, dStep, dStep, gc, gr, gu, gv, Math.max(dStep, tasoStep), raja);
+        const puuttuu = Saalaatat.kokoaHila(la0, lo0, dStep, dStep, gc, gr, gu, gv, tasoStep, raja);
+        let vajaa = puuttuu > 0 || Saalaatat._vajaat > 0;
+        /* SAMA TASOJEN SEKOITUS KUIN LÄMPÖKARTALLA (`ViewportGrid.karkeaPaino`,
+           `LampoGL._varmistaHila`): partikkelin nopeus, reitti ja väri ovat
+           sen kentän joka on niiden alla. Karkea taso luetaan samoihin
+           solmuihin ja sekoitetaan vektoreina rakennushetken zoomilla;
+           toistossa kenttä on jo kokonaan karkea (`tasoStep`). */
+        const kw = typeof ViewportGrid !== 'undefined' ? ViewportGrid.karkeaPaino(zoom) : 0;
+        const stK = kw > 0 && typeof ViewportGrid !== 'undefined' ? ViewportGrid.laattaStep(tz - 1) : tasoStep;
+        if (kw > 0 && !karkeaRak && stK !== tasoStep && puuttuu <= raja) {
+          /* Karkea hila SAMOIHIN solmuihin kuin lämpökartan karkea
+             (globaalisti kohdistettu, väli = taso) ja siitä Catmull-Rom
+             tämän hilan solmuihin, kuten varjostin sen lukee. Karkean tason
+             bilineaarinen näyte hienoihin solmuihin erosi siitä rajalla
+             0,13–0,33 m/s. */
+          const la0K = (Math.floor(laMin / stK) - M) * stK, lo0K = (Math.floor(loMin / stK) - M) * stK;
+          const gcK = Math.ceil((loMax - lo0K) / stK) + 1 + M, grK = Math.ceil((laMax - la0K) / stK) + 1 + M;
+          const nK = gcK * grK;
+          const ku = WindTexture._kU && WindTexture._kU.length >= nK ? WindTexture._kU : (WindTexture._kU = new Float32Array(nK));
+          const kv = WindTexture._kV && WindTexture._kV.length >= nK ? WindTexture._kV : (WindTexture._kV = new Float32Array(nK));
+          const rajaK = Math.floor(nK * (ase && ase.reikaOsuus ? ase.reikaOsuus : 0.5));
+          const p2 = Saalaatat.kokoaHila(la0K, lo0K, stK, stK, gcK, grK, ku, kv, stK, rajaK);
+          if (p2 <= rajaK) {
+            if (p2 > 0 || Saalaatat._vajaat > 0) vajaa = true;
+            const K = { gu: ku, gv: kv, gc: gcK, gr: grK, la0: la0K, lo0: lo0K, dStep: stK };
+            for (let j = 0; j < gr; j++) {
+              const la = la0 + j * dStep;
+              for (let i = 0; i < gc; i++) {
+                const k = j * gc + i, s = WindTexture.sampleWindHilasta(la, lo0 + i * dStep, K);
+                gu[k] += (s.u - gu[k]) * kw; gv[k] += (s.v - gv[k]) * kw;
+              }
+            }
+          }
+        }
         /* PUUTTUVAT LAATAT HAETAAN, EI VAIN PAIKATA.
          *
          * Reiät täytetään reunan jatkeella, jotta kuvaan ei tule mustaa —
@@ -13513,15 +13751,18 @@ const WindTexture = {
          *
          * Kuristus on pakollinen: rakennuksia tulee tiheään, ja jokainen
          * haravoi laatat uudelleen. */
-        if ((puuttuu > 0 || Saalaatat._vajaat > 0) && Saalaatat.kartallaKaytossa()) {
+        if (vajaa && Saalaatat.kartallaKaytossa()) {
           const nyt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
           if (nyt - (WindTexture._laattaHakuT || 0) > 700) {
             WindTexture._laattaHakuT = nyt;
             try {
-              Saalaatat.varmista(L.latLngBounds(
+              /* Kaksi kerrosta kuten lämpökartalla (`LampoGL.varmistaAlue`):
+                 näkymän oma taso näkymälle, ennakkotaso koko alueelle. */
+              const v = LampoGL.varmistaAlue(L.latLngBounds(
                 L.latLng(Math.max(-85, la0), lo0),
                 L.latLng(Math.min(85, la0 + (gr - 1) * dStep), lo0 + (gc - 1) * dStep)
-              ), Math.max(dStep, tasoStep)).then(function (uusia) {
+              ), tz, viewportBounds);
+              Promise.all([v.tarkka, v.ennakko]).then(function (r) {
                 /* LEVOSSA SEURAAVAA RAKENNUSTA EI TULE, joten se pyydetään
                    kun puuttuneita laattoja saapui (docs/oikeellisuus.md, O3).
                    Ilman tätä kapseli ja partikkelit jäivät karkeammalle
@@ -13529,14 +13770,15 @@ const WindTexture = {
                    oikeat laatat (`_odottava`): mitattuna z 8,7:llä saman
                    solmuvälin hilat erosivat ka 0,27 m/s, max 0,96. Vain
                    UUSISTA laatoista, joten pysyvästi puuttuva laatta ei
-                   käynnistä kierrettä. */
-                if (uusia > 0) WindTexture._taydennaLevossa();
+                   käynnistä kierrettä. (Muiden hakemat laatat tuovat tänne
+                   `Saalaatat._kunUusia`n kautta.) */
+                if (r[0] + r[1] > 0) WindTexture._taydennaLevossa();
               }).catch(function () {});
             } catch (e) {}
           }
         }
         if (puuttuu > raja) return null;
-        return { gu, gv, gc, gr, la0, lo0, dStep };
+        return { gu, gv, gc, gr, la0, lo0, dStep, vajaa };
       })();
       /* Pohjakerros kattaa mannerten mittakaavan. Sironnut polku
          levittäisi sinne näkymän omat kymmenet pisteet — se ei ole
@@ -13739,6 +13981,9 @@ const LampoGL = {
      perustelu, mitattu 1,3 MB uloimmalle näkymälle). */
   REUNUS: 0.6, REUNUS_ULKO: 0.3, REUNUS_MIN_Z: 6,
   ODOTUS_MS: 6000,
+  /* Saman hetken tarkkuuden vaihdon häivytys (tason raja, toisto,
+     näkymän tason saapuminen), ks. `prerender`. */
+  TASO_HAIVYTYS_MS: 300,
   _map: null, _gl: null,
   _hila: null, _odottava: null, _hilaVersio: 0, _ladattu: -1,
   _likainen: true, _kuvaLadattu: -1, _kuvaRajat: null,
@@ -13777,6 +14022,21 @@ const LampoGL = {
   },
 
   _pehmuste(zoom) { return zoom >= this.REUNUS_MIN_Z ? this.REUNUS : this.REUNUS_ULKO; },
+  /* OMAN HILAN PEHMUSTE KUN KARKEA HILA ON TAUSTANA: 0,25 näkymää (z ≥ 6).
+     Näyttötarkkuuden tasolla solmuja on näkymää kohti saman verran joka
+     zoomilla, ja työpöydällä 0,6:n pehmuste oli 75 000 solmua ja 90–130 ms
+     kokoamista (kontti, 1,4 µs solmulta) — joka tunnin askeleella. Oman
+     tason laatat haetaan joka tapauksessa vain näkymälle
+     (`varmistaAlue`), joten pehmusteen solmut olisivat lukeneet karkeaa
+     varaa. Karkea hila (neljännes solmuista) kattaa koko 0,6:n
+     pehmusteen, ja varjostin lukee sitä siellä minne oma ei ulotu.
+     Kun tasot ovat samat (z ≥ 9, z5), karkeaa ei ole ja oma hila saa
+     koko pehmusteen kuten ennen. */
+  OMA_REUNUS: 0.25,
+  _karkeaKaytossa(tz) { return ViewportGrid.laattaStep(tz - 1) !== ViewportGrid.laattaStep(tz); },
+  _pehmusteOma(zoom, tz) {
+    return this._karkeaKaytossa(tz) && zoom >= this.REUNUS_MIN_Z ? this.OMA_REUNUS : this._pehmuste(zoom);
+  },
 
   /* Kattaako hila näkymän? Vaatimus on näkymä itse eikä pehmuste: hila
      rakennetaan pehmusteella, joten uusi tarvitaan vasta kun siirto on
@@ -13790,9 +14050,9 @@ const LampoGL = {
 
   _hetki() { return WindTexture.hetki != null ? WindTexture.hetki : _tlTimeAt(State.currentHourIdx); },
 
-  _rakenna(map, b, tz, d, hetki, kentta) {
+  _rakenna(map, b, tz, d, hetki, kentta, stAnnettu, Pannettu) {
     const vLat = b.getNorth() - b.getSouth(), vLng = b.getEast() - b.getWest();
-    const P = this._pehmuste(map.getZoom());
+    const P = Pannettu != null ? Pannettu : this._pehmuste(map.getZoom());
     const laS = Math.max(-85, b.getSouth() - vLat * P), laN = Math.min(85, b.getNorth() + vLat * P);
     const loW = b.getWest() - vLng * P, loE = b.getEast() + vLng * P;
     const M = 2;                       /* kuubinen ydin lukee j−1 … j+2 */
@@ -13807,8 +14067,9 @@ const LampoGL = {
       this._gu = new Float32Array(n); this._gv = new Float32Array(n); this._maski = new Uint8Array(n);
     }
     const gu = this._gu, gv = this._gv, maski = this._maski;
-    /* Solmuväli `d` (tihenee natiivihilan kanssa), varaston taso `st`. */
-    const st = ViewportGrid.laattaStep(tz);
+    /* Solmuväli `d` (tihenee natiivihilan kanssa), varaston taso `st`
+       (karkealle hilalle annettu, muuten `ViewportGrid.tasoStep`). */
+    const st = stAnnettu || ViewportGrid.tasoStep(tz);
     const puuttuu = Saalaatat.kokoaHila(la0, lo0, d, d, gc, gr, gu, gv, st, undefined, maski);
     /* Vajaa solmu (maski 2) on piirrettävissä, mutta sen oikea malli on
        vielä tulossa: se lasketaan puuttuvaksi odotusta varten, jottei
@@ -13840,18 +14101,56 @@ const LampoGL = {
     };
   },
 
+  /* KAKSI KERROSTA LAATTOJA (docs/mallit.md "Näyttötarkkuuden taso").
+     Näyttötarkkuuden taso (`ViewportGrid.laattaStep`) vaatii laattoja
+     näkymää kohti saman määrän joka zoomilla, ja hilan pehmuste (0,6
+     näkymää joka laidalla, 4,8-kertainen ala) olisi suurin osa tavuista.
+     Siksi näkymän oma taso haetaan vain näkymälle (`TARKKA_REUNUS`), ja
+     yhden zoomin karkeampi taso (`ennakkoStep`) näkymälle ja
+     `ENNAKKO_REUNUS`in reunukselle: se on tasojen sekoituksen karkea
+     puoli (`ViewportGrid.karkeaPaino`, sekoitusikkunan näkymä on
+     enintään 1,41-kertainen) ja tason verran ulos zoomatessa sen zoomin
+     oma taso. Pehmusteen loppuosa luetaan muistissa olevista tasoista
+     (`Saalaatat._haePerhe`: karkeampi tai hienompi vara), ja reuna
+     tarkentuu kun se tulee näkyviin: esilataus hakee uuden näkymän tasot,
+     `Saalaatat._kunUusia` pyytää uuden kokoamisen, ja vaihto häivytetään
+     — kuten Windyn laatat panoroitaessa. Kun tasot ovat samat (z ≥ 9),
+     sama reunus yhdellä tasolla. Mitattu ensimmäinen näkymä Suomenlahdella
+     (docs/mallit.md): koko pehmusteella työpöytä 5,6–8,7 Mt z6–8, ennen
+     näyttötarkkuutta 2,6–4,2 Mt.
+     Palauttaa lupaukset { tarkka, ennakko } uusien laattojen määrästä. */
+  TARKKA_REUNUS: 0,
+  ENNAKKO_REUNUS: 0.25,
+  varmistaAlue(alue, tz, nakyma) {
+    const S = Saalaatat, b = nakyma || (this._map && this._map.getBounds());
+    const st = ViewportGrid.laattaStep(tz), sk = ViewportGrid.ennakkoStep(tz);
+    if (!b) return { tarkka: Promise.resolve(0), ennakko: S.varmista(alue, sk) };
+    const vLat = b.getNorth() - b.getSouth(), vLng = b.getEast() - b.getWest();
+    const rajaa = (R) => {
+      const s = Math.max(alue.getSouth(), b.getSouth() - vLat * R), n = Math.min(alue.getNorth(), b.getNorth() + vLat * R);
+      const w = Math.max(alue.getWest(), b.getWest() - vLng * R), e = Math.min(alue.getEast(), b.getEast() + vLng * R);
+      return n > s && e > w ? L.latLngBounds(L.latLng(s, w), L.latLng(n, e)) : null;
+    };
+    const ra = rajaa(this.ENNAKKO_REUNUS), rt = sk === st ? null : rajaa(this.TARKKA_REUNUS);
+    /* Karkea ensin: se kattaa näkymän neljänneksellä tavuista ja on
+       ruudulla kunnes oma taso tulee. */
+    const ennakko = ra ? S.varmista(ra, sk) : Promise.resolve(0);
+    const tarkka = rt ? S.varmista(rt, st) : Promise.resolve(0);
+    return { tarkka: tarkka, ennakko: ennakko };
+  },
+
   _pyydaData(h) {
-    const avain = h.d + '|' + h.la0.toFixed(3) + '|' + h.lo0.toFixed(3) + '|' + h.gc + '|' + h.gr;
+    const avain = h.d + '|' + h.st + '|' + h.la0.toFixed(3) + '|' + h.lo0.toFixed(3) + '|' + h.gc + '|' + h.gr;
     const nyt = performance.now();
     if (avain === this._pyyntoAvain && nyt - (this._pyyntoT || 0) < 1500) return;
     this._pyyntoAvain = avain; this._pyyntoT = nyt;
-    const self = this;
     try {
-      Saalaatat.varmista(L.latLngBounds(
+      /* Tulleet laatat näkyvät: `_varmistaHila` rakentaa uudelleen kun
+         `Saalaatat._uusia` muuttuu ja hilasta puuttui jotain. */
+      const p = this.varmistaAlue(L.latLngBounds(
         L.latLng(Math.max(-85, h.la0), h.lo0),
-        L.latLng(Math.min(85, h.la0 + (h.gr - 1) * h.d), h.lo0 + (h.gc - 1) * h.d)), h.st || h.d)
-        .then(function (n) { if (n > 0) { self._likainen = true; if (self._map) self._map.ml.triggerRepaint(); } },
-              function () {});
+        L.latLng(Math.min(85, h.la0 + (h.gr - 1) * h.d), h.lo0 + (h.gc - 1) * h.d)), h.tz);
+      p.tarkka.catch(function () {}); p.ennakko.catch(function () {});
     } catch (e) {}
   },
 
@@ -13888,15 +14187,15 @@ const LampoGL = {
     try {
       const b = map.getBounds(), P = this._pehmuste(map.getZoom());
       const p = b.pad(P), c = map.getCenter();
-      const st = ViewportGrid.laattaStep(Math.round(map.getZoom()));
-      /* Keskipisteen kaikki perheet erikseen: aikajana lukee niistä koko
-         akselin (`Saalaatat.varmistaPiste`). */
-      Promise.all([
-        Saalaatat.varmista(L.latLngBounds(
-          L.latLng(Math.max(-85, p.getSouth()), p.getWest()),
-          L.latLng(Math.min(85, p.getNorth()), p.getEast())), st),
-        Saalaatat.varmistaPiste(c.lat, c.lng, st),
-      ]).then(function (r) { return r[0] + r[1]; })
+      const tz = Math.round(map.getZoom()), st = ViewportGrid.laattaStep(tz);
+      /* Näkymän oma taso näkymälle, ennakkotaso pehmusteelle
+         (`varmistaAlue`). Keskipisteen kaikki perheet erikseen: aikajana
+         lukee niistä koko akselin (`Saalaatat.varmistaPiste`). */
+      const v = this.varmistaAlue(L.latLngBounds(
+        L.latLng(Math.max(-85, p.getSouth()), p.getWest()),
+        L.latLng(Math.min(85, p.getNorth()), p.getEast())), tz, b);
+      Promise.all([v.tarkka, v.ennakko, Saalaatat.varmistaPiste(c.lat, c.lng, st)])
+        .then(function (r) { return r[0] + r[1] + r[2]; })
         .then(function (n) {
           /* AIKAJANA LUKEE VARASTOA KARTAN KESKELTÄ (`aikajananLahde`), ja
              jos keskilaatta ei ollut vielä muistissa kun jana rakennettiin,
@@ -13911,27 +14210,141 @@ const LampoGL = {
     } catch (e) {}
   },
 
-  /* Pitääkö hila rakentaa uudelleen, ja kelpaako uusi? Ajetaan joka
-     ruudussa, mutta rakennus vain kun jokin muuttui. */
+  /* Pitääkö hilat rakentaa uudelleen, ja kelpaako uusi? Ajetaan joka
+     ruudussa, mutta rakennus vain kun jokin muuttui.
+
+     KAKSI HILAA (docs/mallit.md "Näyttötarkkuuden taso"): oma `_hila`
+     pyöristetyn zoomin tasolla L(tz) ja karkea `_karkea` edellisellä
+     tasolla L(tz − 1), ja varjostin sekoittaa ne painolla `_kwNyt`
+     (`ViewportGrid.karkeaPaino`, kuten mipmap). Karkea rakennetaan vain
+     kun sen paino on yli nollan, ja sen solmuja on neljännes. Toiston ja
+     raahauksen ajan kenttä on kokonaan karkea: vain se kootaan jokaiselle
+     hetkelle, ja oma hila odottaa lepoa. Painon hyppy toiston alussa ja
+     lopussa liu'utetaan (`TASO_HAIVYTYS_MS`); zoomin mukana paino muuttuu
+     itsestään jatkuvasti. */
+  _kwNyt: 0, _kwEd: 0, _kwAlku: 0, _kwAika: 0, _edToisto: false,
+  _karkea: null, _karkeaVersio: 0, _karkeaLadattu: -1,
   _varmistaHila() {
     const map = this._map;
-    if (!Saalaatat.kartallaKaytossa()) { if (this._hila) { this._hila = null; this._hilaVersio++; } return; }
-    const b = map.getBounds();
-    const tz = Math.round(map.getZoom()), d = ViewportGrid.solmuStep(tz);
+    if (!Saalaatat.kartallaKaytossa()) {
+      if (this._hila) { this._hila = null; this._hilaVersio++; }
+      if (this._karkea) { this._karkea = null; this._karkeaVersio++; }
+      return;
+    }
+    const b = map.getBounds(), z = map.getZoom();
+    const tz = Math.round(z);
     const hetki = this._hetki(), kentta = State.activeLayer;
     /* Mallin oma hila on tuntikohtainen: uusi hetki voi tarvita uuden
        haun (`MalliHila.hetkiMuuttui` päättää milloin). */
     if (hetki !== this._mhHetki) { this._mhHetki = hetki; MalliHila.hetkiMuuttui(hetki); Natiivi.hetkiMuuttui(hetki); }
-    const h = this._hila;
-    const tarve = this._likainen || !h || h.d !== d || h.hetki !== hetki || h.kentta !== kentta || !this._kattaa(h, b);
-    if (!tarve) return;
     const nyt = performance.now();
+    const toisto = !!(State.isPlaying || State._tlTouching);
+    const tavoite = ViewportGrid.karkeaPaino(z);
+    this._kwEd = this._kwNyt;
+    if (toisto !== this._edToisto) { this._edToisto = toisto; this._kwAlku = this._kwNyt; this._kwAika = nyt; }
+    const t = (nyt - this._kwAika) / this.TASO_HAIVYTYS_MS;
+    if (t >= 1 || Haivytys.vahennetty()) this._kwNyt = tavoite;
+    else {
+      const s = t <= 0 ? 0 : t * t * (3 - 2 * t);
+      this._kwNyt = this._kwAlku + (tavoite - this._kwAlku) * s;
+      map.ml.triggerRepaint();
+    }
+    /* Karkea hila on oman hilan TAUSTA (oma kattaa vain 0,25 näkymää
+       yli reunan, `_pehmusteOma`) ja sekoituksen karkea puoli, joten se
+       pidetään aina kun tasot eroavat — ja toistossa, jossa se on koko
+       kenttä. */
+    /* Vanhat hilat talteen ENNEN kumpaakaan vaihtoa: zoomin noustessa
+       rajan yli uusi karkea on vanha oma, laskiessa uusi oma on vanha
+       karkea — kumpi tahansa järjestys hukkaisi toisen. */
+    const vanhaH = this._hila, vanhaK = this._karkea;
+    if (this._karkeaKaytossa(tz) || toisto || this._kwNyt > 0) this._varmistaKarkea(map, b, tz, hetki, kentta, nyt, vanhaH);
+    else if (this._karkea) { this._karkea = null; this._karkeaVersio++; }
+    if (!toisto) this._varmistaOma(map, b, tz, hetki, kentta, nyt, vanhaK);
+  },
+
+  /* Karkea hila: L(tz − 1) sekä solmuvälinä että tasona. Zoomin noustessa
+     rajan yli se on sama kuin edellinen oma hila, joka kelpaa sellaisenaan
+     (rajan kummallakin puolella ruudulla on silloin sama kenttä). */
+  TOISTO_SOLMUT: 9000,
+  _varmistaKarkea(map, b, tz, hetki, kentta, nyt, vanhaH) {
+    let d = ViewportGrid.laattaStep(tz - 1);
+    /* TOISTON SOLMUBUDJETTI: karkea kootaan toistossa joka ruudulle, ja
+       työpöydän näkymässä L(tz − 1) oli 14 000 solmua (12,6 ms, ennen
+       näyttötarkkuutta 2 700 / 3,4 ms). Yli budjetin taso harvenee vielä
+       zoomin verran; puhelimen näkymä (≈ 4 000) ei muutu. */
+    if (State.isPlaying || State._tlTouching) {
+      const vLat = b.getNorth() - b.getSouth(), vLng = b.getEast() - b.getWest(), k = 1 + 2 * this.OMA_REUNUS;
+      for (let n = 2; n <= 4 && (vLat * k / d) * (vLng * k / d) > this.TOISTO_SOLMUT; n++) d = Math.max(d, ViewportGrid.laattaStep(tz - n));
+    }
+    const k = this._karkea;
+    const tuli = k && k.puuttuu > 0 && Saalaatat._uusia !== this._kRakUusia;
+    if (tuli && nyt - (this._kRakT || 0) <= 250) map.ml.triggerRepaint();
+    const kelpaa = (x) => x && x.d === d && x.st === d && x.hetki === hetki && x.kentta === kentta && this._kattaa(x, b);
+    if (kelpaa(k) && !(tuli && nyt - (this._kRakT || 0) > 250)) return;
+    const h = vanhaH;
+    if (h && h !== k && kelpaa(h)) { this._karkea = h; this._karkeaVersio++; return; }
+    this._kRakUusia = Saalaatat._uusia; this._kRakT = nyt;
+    /* Toistossa ja raahauksessa karkea kootaan joka hetkelle, ja kartta on
+       paikallaan: näkymä ja 0,25 reunus riittää (työpöydällä 19 500 →
+       9 000 solmua ruutua kohti). Levossa koko pehmuste, koska se on oman
+       hilan tausta panoroitaessa. */
+    const toisto = State.isPlaying || State._tlTouching;
+    const uusi = this._rakenna(map, b, tz, d, hetki, kentta, d, toisto ? this.OMA_REUNUS : this._pehmuste(map.getZoom()));
+    if (!uusi || uusi.tyhja) { if (this._karkea) { this._karkea = null; this._karkeaVersio++; } return; }
+    if (uusi.puuttuu > 0) this._pyydaData(uusi);
+    this._karkea = uusi;
+    this._karkeaVersio++;
+  },
+
+  /* Oma hila: L(tz), solmut `solmuStep` (natiivihilan kanssa tiheämmät),
+     pehmuste `_pehmusteOma`. */
+  _varmistaOma(map, b, tz, hetki, kentta, nyt, vanhaK) {
+    const d = ViewportGrid.solmuStep(tz), st = ViewportGrid.tasoStep(tz);
+    const h = this._hila;
+    /* LAATTOJA TULI sen jälkeen kun hila koottiin, ja siitä puuttui jotain
+       tai se luki varalta (pehmusteen ennakkotaso, karkeampi taso, alempi
+       malli): uusi kokoaminen, enintään neljästi sekunnissa. Ennen vain
+       oma pyyntö (`_pyydaData`) toi tänne — nyt näkymän oma taso tulee
+       panoroinnin jälkeen esilatauksesta (`varmistaAlue`). */
     const o = this._odottava;
+    if (Saalaatat._uusia !== this._rakUusia && ((h && h.puuttuu > 0) || o)) {
+      if (nyt - (this._rakT || 0) > 250) this._likainen = true;
+      else map.ml.triggerRepaint();
+    }
+    /* ODOTTAVA HILA RUUDULLE VIIMEISTÄÄN RAJALLA (`ODOTUS_MS`), vaikka vanha
+       kattaisi näkymän. Panoroinnin jälkeen vanha on usein sama näkymä
+       vajaana (koottu ennen laattoja), eikä mikään muu pyytänyt uutta
+       kokoamista: mitattu 9.10. työpöydällä yhden näkymän siirron jälkeen
+       40 s ruudulla hila jonka näkyvistä solmuista 3 178 oli ilman omaa
+       tasoaan, vaikka valmis odotti vieressä. */
+    const tarve = this._likainen || !h || h.d !== d || h.st !== st || h.hetki !== hetki || h.kentta !== kentta || !this._kattaa(h, b)
+      || !!(o && nyt - o.t0 >= this.ODOTUS_MS);
+    if (!tarve) return;
     const sama = o && o.d === d && o.hetki === hetki && o.kentta === kentta;
     /* Odotetaan dataa: älä rakenna samaa uudelleen joka ruudussa. */
     if (sama && !this._likainen && this._kattaa(o, b) && nyt - o.t0 < this.ODOTUS_MS) return;
+    /* Zoomin laskiessa rajan yli uusi oma taso on edellinen karkea — myös
+       eleen aikana, koska juuri se pitää kentän jatkuvana rajan yli
+       (vajaat solmut täydentyvät kun laatat tulevat, `_uusia`). */
+    const k = vanhaK;
+    if (!this._likainen && k && k !== h && k.d === d && k.st === st && k.hetki === hetki && k.kentta === kentta
+        && this._kattaa(k, b)) {
+      this._odottava = null; this._tyhja = false;
+      this._hila = k; this._hilaVersio++;
+      try { Lahde.paivita(); } catch (e) {}
+      return;
+    }
+    /* ELEEN AIKANA oma hila odottaa kun syy on vain kattavuus tai taso:
+       karkea hila kattaa näkymän (varjostin lukee sitä missä oma ei ole),
+       ja oma kootaan kun kartta pysähtyy. Työpöydällä oma hila on
+       20 000–35 000 solmua eli 30–50 ms — eleen keskellä se olisi nykäys
+       joka tason rajalla. Zoomin noustessa rajan yli vanha oma on uuden
+       karkea, joten ruudulla on sama kenttä. */
+    if (State.liikkeessa && h && !this._likainen && h.hetki === hetki && h.kentta === kentta
+        && this._karkeaKaytossa(tz) && this._karkea && this._kattaa(this._karkea, b)) return;
     this._likainen = false;
-    const uusi = this._rakenna(map, b, tz, d, hetki, kentta);
+    this._rakUusia = Saalaatat._uusia; this._rakT = nyt;
+    const uusi = this._rakenna(map, b, tz, d, hetki, kentta, st, this._pehmusteOma(map.getZoom(), tz));
     if (!uusi) return;
     if (uusi.tyhja) {
       /* Varasto ei kata tätä hetkeä: kerros tyhjäksi. Laattakerros teki
@@ -13943,9 +14356,23 @@ const LampoGL = {
     }
     this._tyhja = false;
     if (uusi.puuttuu > 0) this._pyydaData(uusi);
+    /* Odotus vain jos vanha hila peittää näkymän (tason vaihto zoomatessa
+       sisään, hetken vaihto): muuten vanha jättäisi näkymän reunaan tyhjän,
+       ja varalta luettu kenttä on parempi kuin ei mitään. Ennen pehmuste
+       haettiin kokonaan näkymän tasolla, joten panoroinnissa reunalta ei
+       puuttunut mitään. JA VAIN JOS VANHA ON UUTTA TÄYDEMPI: odotus on sitä
+       varten ettei valmiin kentän tilalle vaihdu hetkeksi vajaa (alempi
+       malli, sitten oikea), ei sitä varten että vajaa jää täydemmän tieltä. */
     if (uusi.puuttuuNakyvissa > 0) {
       uusi.t0 = sama ? o.t0 : nyt;
-      if (h && nyt - uusi.t0 < this.ODOTUS_MS) { this._odottava = uusi; return; }
+      if (h && this._kattaa(h, b) && h.puuttuuNakyvissa < uusi.puuttuuNakyvissa && nyt - uusi.t0 < this.ODOTUS_MS) {
+        this._odottava = uusi;
+        /* Odotuksen raja tarvitsee ruudun: levossa ilman partikkeleita
+           (asetus "Pois") seuraavaa ruutua ei tule ennen kuin jokin muu
+           pyytää sitä, ja vanha hila jäisi ruudulle rajan ohi. */
+        if (!sama) setTimeout(function () { if (map.ml) map.ml.triggerRepaint(); }, this.ODOTUS_MS - (nyt - uusi.t0) + 30);
+        return;
+      }
     }
     this._odottava = null;
     this._hila = uusi;
@@ -13977,6 +14404,7 @@ const LampoGL = {
       + 'uniform sampler2D u_hila; uniform sampler2D u_kate; uniform sampler2D u_lut;\n'
       + 'uniform vec2 u_hk; uniform vec3 u_hg; uniform vec4 u_nx; uniform vec2 u_mh;\n'
       + 'uniform sampler2D u_vhila; uniform sampler2D u_vkate; uniform vec2 u_vk; uniform vec3 u_vg; uniform float u_vw;\n'
+      + 'uniform sampler2D u_khila; uniform sampler2D u_kkate; uniform vec2 u_kk; uniform vec3 u_kg; uniform float u_kw; uniform float u_kon;\n'
       + 'vec4 cr(float t){ float t2 = t*t, t3 = t2*t;\n'
       + '  return 0.5 * vec4(-t + 2.0*t2 - t3, 2.0 - 5.0*t2 + 3.0*t3, t + 4.0*t2 - 3.0*t3, -t2 + t3); }\n'
       + 'vec2 solmu(sampler2D t, vec2 hk, float i, float j){ vec4 c = texture2D(t, (vec2(i, j) + 0.5) / hk);\n'
@@ -13995,9 +14423,15 @@ const LampoGL = {
       + '  float la = degrees(2.0 * atan(exp(u_nx.z - sy * u_nx.w)) - 1.5707963267948966);\n'
       + '  float fx = (lng - u_hg.y) / u_hg.z, fy = (la - u_hg.x) / u_hg.z;\n'
       + '  float ms = 0.0, k = 0.0;\n'
-      + '  if (fx >= 1.0 && fy >= 1.0 && fx <= u_hk.x - 2.0 && fy <= u_hk.y - 2.0) {\n'
+      + '  if (u_kw < 1.0 && fx >= 1.0 && fy >= 1.0 && fx <= u_hk.x - 2.0 && fy <= u_hk.y - 2.0) {\n'
       + '    ms = nopeus(u_hila, u_hk, fx, fy);\n'
       + '    k = texture2D(u_kate, (vec2(fx, fy) + 0.5) / u_hk).r; }\n'
+      + '  if (u_kon > 0.5 && (u_kw > 0.0 || k <= 0.0)) {\n'
+      + '    float cx = (lng - u_kg.y) / u_kg.z, cy = (la - u_kg.x) / u_kg.z;\n'
+      + '    if (cx >= 1.0 && cy >= 1.0 && cx <= u_kk.x - 2.0 && cy <= u_kk.y - 2.0) {\n'
+      + '      float kk = texture2D(u_kkate, (vec2(cx, cy) + 0.5) / u_kk).r;\n'
+      + '      if (kk > 0.0) { float mk = nopeus(u_khila, u_kk, cx, cy);\n'
+      + '        if (k > 0.0) { ms = mix(ms, mk, u_kw); k = mix(k, kk, u_kw); } else { ms = mk; k = kk; } } } }\n'
       + '  if (u_vw > 0.0) {\n'
       + '    float gx = (lng - u_vg.y) / u_vg.z, gy = (la - u_vg.x) / u_vg.z;\n'
       + '    float ko = 0.0;\n'
@@ -14011,7 +14445,8 @@ const LampoGL = {
       + '  gl_FragColor = vec4(c.rgb * c.a, c.a) * k;\n'
       + '}\n',
       ['a_pos'], ['u_hila', 'u_kate', 'u_lut', 'u_hk', 'u_hg', 'u_nx', 'u_mh',
-                  'u_vhila', 'u_vkate', 'u_vk', 'u_vg', 'u_vw']);
+                  'u_vhila', 'u_vkate', 'u_vk', 'u_vg', 'u_vw',
+                  'u_khila', 'u_kkate', 'u_kk', 'u_kg', 'u_kw', 'u_kon']);
     /* Varatie ilman varastoa: valmis RGBA-kuva WindTexturesta, rivit
        tasavälein Mercator-y:ssä. Esikerrottu latauksessa. */
     this._pKuva = GLApu.ohjelma(gl, VS, GL_TARKKUUS_FS
@@ -14067,6 +14502,9 @@ const LampoGL = {
     this._texKuva = GLApu.tekstuuri(gl, gl.LINEAR);
     this._texVHila = GLApu.tekstuuri(gl, gl.NEAREST);
     this._texVKate = GLApu.tekstuuri(gl, gl.LINEAR);
+    this._texKHila = GLApu.tekstuuri(gl, gl.NEAREST);
+    this._texKKate = GLApu.tekstuuri(gl, gl.LINEAR);
+    this._karkeaLadattu = -1;
     this._ladattuHila = null; this._vanha = null;
     this._ladattu = -1; this._kuvaLadattu = -1; this._lutLahde = null; this._allekirjoitus = '';
     this._fbo = [null, null, null];
@@ -14074,7 +14512,8 @@ const LampoGL = {
 
   onRemove(ml, gl) {
     [this._pHila, this._pKuva, this._pSumea, this._pKopio].forEach(p => p && gl.deleteProgram(p.o));
-    [this._texHila, this._texKate, this._texLut, this._texKuva, this._texVHila, this._texVKate].forEach(t => t && gl.deleteTexture(t));
+    [this._texHila, this._texKate, this._texLut, this._texKuva, this._texVHila, this._texVKate,
+     this._texKHila, this._texKKate].forEach(t => t && gl.deleteTexture(t));
     (this._fbo || []).forEach(f => GLApu.poistaFbo(gl, f));
     if (this._nelio) gl.deleteBuffer(this._nelio);
     this._gl = null; this._fbo = [null, null, null];
@@ -14131,7 +14570,7 @@ const LampoGL = {
     if (!map || !this._pHila || !this._naytetaan()) return;
     this._varmistaHila();
     const T = WindTexture;
-    this._tila = this._hila ? 'hila'
+    this._tila = (this._hila || this._karkea) ? 'hila'
       : (!Saalaatat.kartallaKaytossa() && T.canvas && T.kuvaRajat ? 'kuva' : null);
     if (!this._tila) return;
     const v = map._nakyma();
@@ -14147,11 +14586,15 @@ const LampoGL = {
     if (this._tila !== 'hila') this._vanha = null;
     let vw = 0;
     if (this._vanha) {
-      vw = Haivytys.paino(this._haivAlku);
+      vw = Haivytys.paino(this._haivAlku, this._haivMs);
       if (vw <= 0) { vw = 0; this._vanha = null; }
     }
-    const alle = 'v' + vw.toFixed(3) + '|' + this._tila + '|' + v.x0 + '|' + v.y0 + '|' + v.zl + '|' + W + '|' + H + '|' + m + '|'
-      + this._hilaVersio + '|' + (this._tila === 'kuva' ? T.kuvaVersio : 0) + '|' + sat + '|' + sigma;
+    /* Karkean hilan paino (`_varmistaHila`): ilman omaa hilaa kenttä on
+       kokonaan karkea, ilman karkeaa kokonaan oma. */
+    const kh = this._tila === 'hila' ? this._karkea : null;
+    const kw = !kh ? 0 : (!this._hila ? 1 : this._kwNyt);
+    const alle = 'v' + vw.toFixed(3) + '|k' + kw.toFixed(3) + '|' + this._tila + '|' + v.x0 + '|' + v.y0 + '|' + v.zl + '|' + W + '|' + H + '|' + m + '|'
+      + this._hilaVersio + '|' + (kh ? this._karkeaVersio : -1) + '|' + (this._tila === 'kuva' ? T.kuvaVersio : 0) + '|' + sat + '|' + sigma;
     if (alle === this._allekirjoitus && lut === this._lutLahde) { this._valmis = true; return; }
 
     /* Lataukset: ramppi, hila ja kate, tai varatien kuva. */
@@ -14164,19 +14607,30 @@ const LampoGL = {
       this._lutLahde = lut;
     }
     const h = this._hila;
-    if (this._tila === 'hila' && this._ladattu !== this._hilaVersio) {
+    if (this._tila === 'hila' && h && this._ladattu !== this._hilaVersio) {
       /* Uusi HETKI tekstuuriin: jos hyppy pyysi häivytystä, ladattu hila
          siirtyy vanhaksi vaihtamalla tekstuurit (ei kopiota), ja uusi
          ladataan vapautuneeseen. Saman hetken uusi versio (laatat
          tulivat, näkymä siirtyi) ei koske vanhaan. */
       const ed = this._ladattuHila;
+      const vaihda = (ms) => {
+        let t = this._texHila; this._texHila = this._texVHila; this._texVHila = t;
+        t = this._texKate; this._texKate = this._texVKate; this._texVKate = t;
+        this._vanha = ed; this._haivAlku = performance.now(); this._haivMs = ms;
+        vw = 1;
+      };
       if (ed && ed.hetki !== h.hetki) {
-        if (ed.kentta === h.kentta && Haivytys.ota('_lampo')) {
-          let t = this._texHila; this._texHila = this._texVHila; this._texVHila = t;
-          t = this._texKate; this._texKate = this._texVKate; this._texVKate = t;
-          this._vanha = ed; this._haivAlku = performance.now();
-          vw = 1;
-        } else { this._vanha = null; vw = 0; }
+        if (ed.kentta === h.kentta && Haivytys.ota('_lampo')) vaihda(Haivytys.MS);
+        else { this._vanha = null; vw = 0; }
+      } else if (ed && ed !== h && ed.kentta === h.kentta && this._kwEd < 0.99
+                 && (ed.st !== h.st || ed.d !== h.d || ed.puuttuuNakyvissa > 0) && !Haivytys.vahennetty()) {
+        /* SAMA HETKI, ERI TARKKUUS NÄKYVÄSSÄ OMASSA HILASSA: näkymän oman
+           tason saapuminen varan tilalle, tai natiivihilan tulo ja lähtö
+           (z9,5). MapLibre häivyttää rasterilaattansa samasta syystä
+           (300 ms). Tason vaihto zoomin rajalla EI tule tänne: silloin
+           vanha oma hila oli piilossa karkean alla (`_kwEd` ≈ 1) tai se on
+           uuden karkea, eli sekoitus hoitaa jatkuvuuden (`karkeaPaino`). */
+        vaihda(this.TASO_HAIVYTYS_MS);
       }
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
       gl.bindTexture(gl.TEXTURE_2D, this._texHila);
@@ -14186,6 +14640,15 @@ const LampoGL = {
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
       this._ladattu = this._hilaVersio;
       this._ladattuHila = h;
+    }
+    if (kh && this._karkeaLadattu !== this._karkeaVersio) {
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+      gl.bindTexture(gl.TEXTURE_2D, this._texKHila);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, kh.gc, kh.gr, 0, gl.RGBA, gl.UNSIGNED_BYTE, kh.tavut);
+      gl.bindTexture(gl.TEXTURE_2D, this._texKKate);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, kh.gc, kh.gr, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, kh.kate);
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+      this._karkeaLadattu = this._karkeaVersio;
     }
     if (this._tila === 'kuva' && this._kuvaLadattu !== T.kuvaVersio) {
       gl.bindTexture(gl.TEXTURE_2D, this._texKuva);
@@ -14222,8 +14685,15 @@ const LampoGL = {
         gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, self._texKate);
         gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, self._texLut);
         gl.uniform1i(p.u.u_hila, 0); gl.uniform1i(p.u.u_kate, 1); gl.uniform1i(p.u.u_lut, 2);
-        gl.uniform2f(p.u.u_hk, h.gc, h.gr);
-        gl.uniform3f(p.u.u_hg, h.la0, h.lo0, h.d);
+        gl.uniform2f(p.u.u_hk, h ? h.gc : 4, h ? h.gr : 4);
+        gl.uniform3f(p.u.u_hg, h ? h.la0 : 0, h ? h.lo0 : 0, h ? h.d : 1);
+        gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, self._texKHila);
+        gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, self._texKKate);
+        gl.uniform1i(p.u.u_khila, 5); gl.uniform1i(p.u.u_kkate, 6);
+        gl.uniform2f(p.u.u_kk, kh ? kh.gc : 4, kh ? kh.gr : 4);
+        gl.uniform3f(p.u.u_kg, kh ? kh.la0 : 0, kh ? kh.lo0 : 0, kh ? kh.d : 1);
+        gl.uniform1f(p.u.u_kw, kw);
+        gl.uniform1f(p.u.u_kon, kh ? 1 : 0);
         gl.uniform4f(p.u.u_nx, nx0, nx1, ny0, ny1);
         gl.uniform2f(p.u.u_mh, m, H);
         const vh = self._vanha;
@@ -31292,12 +31762,20 @@ const Crosshair = {
     }
     const t = LampoGL._hetki();
     if (!Aallot.kattaa(t)) return false;
-    const a = Aallot.arvo(center.lat, center.lng, t, Aallot.askelZoomille(State.map.getZoom()), 0);
-    /* Puuttuva laatta haetaan kerran paikkaa ja tasoa kohti — `_update`
-       ajetaan sormen alla 60 ms välein, eikä kaatunut haku saa toistua
-       joka kerta. */
+    /* HIENOIN TASO ZOOMISTA RIIPPUMATTA (askel 0 = hienoin kattava), kuten
+       tuulen luku (`Tahtain`, O12): tuulikerroksella aaltoja ei piirretä,
+       joten kapselin ei tarvitse olla kartan tason kanssa samaa mieltä, ja
+       zoomin taso antoi samalle paikalle eri luvun (käyttäjän kuvat 6.10.:
+       "maks. ~3,9" ja "~4,0" marginaalisesti eri zoomilla). Aaltotilassa
+       kapseli lukee kartan kentän (`_aaltoUpdate`), koska siellä luku ja
+       väri tähtäimen alla ovat sama asia. `varmistaPiste` hakee juuri
+       hienoimman kattavan laatan; sitä odotellessa karkeampi kelpaa. */
+    const a = Aallot.arvo(center.lat, center.lng, t, 0, 0);
+    /* Puuttuva laatta haetaan kerran paikkaa kohti — `_update` ajetaan
+       sormen alla 60 ms välein, eikä kaatunut haku saa toistua joka
+       kerta. */
     if (!a || Aallot._vajaa) {
-      const avain = center.lat.toFixed(2) + ',' + center.lng.toFixed(2) + '|' + Math.round(State.map.getZoom());
+      const avain = center.lat.toFixed(2) + ',' + center.lng.toFixed(2);
       if (avain !== this._aaltoHaettu) {
         this._aaltoHaettu = avain;
         const self = this;
@@ -33789,11 +34267,9 @@ const KarttaAsetukset = {
          niitä itsekin (`_odottava`), mutta kenttä, kapseli ja aikajana
          rakennetaan tässä heti. */
       if (State.map && Saalaatat.kartallaKaytossa()) {
-        const z = State.map.getZoom(), st = ViewportGrid.laattaStep(Math.round(z)), c = State.map.getCenter();
-        await Promise.all([
-          Saalaatat.varmista(State.map.getBounds().pad(LampoGL._pehmuste(z)), st),
-          Saalaatat.varmistaPiste(c.lat, c.lng, st),
-        ]);
+        const z = State.map.getZoom(), tz = Math.round(z), st = ViewportGrid.laattaStep(tz), c = State.map.getCenter();
+        const v = LampoGL.varmistaAlue(State.map.getBounds().pad(LampoGL._pehmuste(z)), tz);
+        await Promise.all([v.tarkka, v.ennakko, Saalaatat.varmistaPiste(c.lat, c.lng, st)]);
       }
       await buildWindField(State.currentHourIdx);
       drawColorField();

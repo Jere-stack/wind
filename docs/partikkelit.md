@@ -1395,3 +1395,24 @@ kaukaisen zoomin levyisiä, 1,3–2,8 px).
 **Laitteella mittaamatta:** ruutunopeus 1 500–2 000 partikkelilla
 puhelimella. Jos se ei riitä, `PerfTracker` leikkaa määrää; jos leikkaus
 tuntuu, katto (`PARTIKKELI_KAUKO.katto`) on oikea vipu, ei kaava.
+
+## Kenttä on lämpökartan kenttä myös tasojen välissä (6.10.)
+
+Käyttäjän raportti: lämpökartta muuttui kun zoomasi marginaalisesti, ja
+pyyntö "partikkelit menevät oikeaa reittiä ja oikealla nopeudella ja
+värillä". Partikkelit lukevat `WindTexture.hila`a, jonka taso ja solmut
+ovat lämpökartan (O3), joten tason vaihto zoomin pyöristysrajalla
+hyppäsi niissä yhtä paljon: puhelimella z 7,45 → 7,55 samoissa
+pisteissä RMS 1,60 m/s, z 4,45 → 4,55 2,82.
+
+Nyt taso seuraa näyttötarkkuutta ja vierekkäiset tasot sekoitetaan
+zoomin mukaan (docs/mallit.md, "Näyttötarkkuuden taso"), ja
+partikkelikenttä tekee saman sekoituksen: karkea hila samoihin
+globaalisti kohdistettuihin solmuihin kuin lämpökartan karkea, siitä
+Catmull-Rom partikkelikentän solmuihin kuten varjostin sen lukee, ja
+vektorit sekoitetaan samalla painolla (`ViewportGrid.karkeaPaino`)
+rakennushetken zoomilla. Mitattu jälkeen: 7,45 → 7,55 0,016 m/s,
+4,45 → 4,55 0, 8,45 → 8,55 0 (uusinta 9.10. eri hetkellä 0–0,14).
+Toistossa ja raahauksessa kenttä on kokonaan karkea (solmuja enintään
+9 000, sama kuin lämpökartan toistohilalla), joten partikkelit ja väri
+lukevat silloinkin samaa tasoa.

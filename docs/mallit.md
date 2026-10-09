@@ -21,7 +21,8 @@ Toteutus etenee vaiheittain, ja jokainen vaihe on oma osionsa lopussa.
 **Tila:** V1–V6 toteutettu (valittu hetki, kolme pyramidia ja
 painokanava, yksi valintasääntö, aikajana samaan malliin, ECMWF 9 km
 "Paras saatavilla" -tilaan, pakotetut mallit perheinä ja mallin omana
-hilana). Nykytila- ja strategiaosiot ovat päätöksen pohjana olleet
+hilana), ja lopussa 5.10. kaukaisen zoomin tarkkuus ja 6.–9.10.
+näyttötarkkuuden taso (lämpökartta ei hyppää zoomatessa). Nykytila- ja strategiaosiot ovat päätöksen pohjana olleet
 mittaukset ajalta ennen toteutusta; voimassa oleva kuvaus on osiossa
 *Toteutus*.
 
@@ -821,6 +822,194 @@ Nyt laaja pehmuste on vain kartan eleessä (`State.liikkeessa`) tai kun
 varasto ei ole kartan käytössä. Mitattuna työpöydän Eurooppa-näkymä
 (z4,4) puhtaalta pöydältä: vanha versio, jossa käynnistyksen esikatselu
 osui, 255 laattaa ja 16,2 MB; korjattu 132 laattaa ja 6,9 MB.
+
+**Korvattu 6.10.** `kaukoSolmu` poistui, kun taso itse seuraa
+näyttötarkkuutta (seuraava osio): solmut ovat taas tason solmut, ja
+taso on kaukanakin tiheämpi kuin tämän osion solmut.
+
+### Näyttötarkkuuden taso (6.–9.10.)
+
+**Raportti (käyttäjä, kaksi iPhone-kuvaa samasta paikasta ja tunnista,
+ma 5.10. klo 21):** "Ainut niiden ero on, että toinen on zoomattu hieman
+ylemmäksi, ihan marginaalisesti, mutta huomaat kuvasta, että selvästi
+lämpökartta muuttuu ja päivittyy. ... mahdollisimman tarkka data, mikä on
+lähizoomissa, näkyy myös kaukozoomissa. Tarkasti, jotta partikkelit
+menevät oikeaan reittiä ja oikealla nopeudella ja värillä." Kuvissa
+Suomenlahden oranssi tuulivyö oli toisessa vihreä.
+
+**Syy.** Varaston taso valittiin pyöristetystä zoomista
+(`laattaStep(round(zoom))`), ja karkea taso on hienon
+laatikkokeskiarvo (`tools/pyramidi.mjs`). Tasot z6–9 (1,0 / 0,5 / 0,25 /
+0,1°) olivat ruudulla 26–64 px:n laatikoita pituussuunnassa (60°N:ssa
+leveyssuunnassa kaksinkertaiset), eli paljon lämpökartan omaa sumennusta
+(σ 3 px) leveämpiä. Noin 40 km leveä kova vyö latistui laatikkoon, ja kun
+zoom ylitti n,5:n, taso vaihtui kerralla toiseen keskiarvoon. Partikkelit
+lukivat saman kentän, joten niiden nopeus, reitti ja väri hyppäsivät yhtä
+paljon.
+
+**Mittausasetelma.** Tuotantobuild ennen ja jälkeen rinnakkain
+(`vite preview`), oikea varasto Noden kautta, pohjakartta reititetty,
+puhelin (390 × 844, `hasTouch`, dpr 3) ja työpöytä (1 440 × 900). Samat
+maantieteelliset pisteet Suomenlahdella (keskipiste 59,8 N 24,45 E),
+sama hetki (varasto 6.10. 04 UTC, hetki 6.10. 20 UTC — seuraavien 45
+tunnin hetkistä se jolla kentässä oli eniten vaihtelua). Totuus on
+NÄYTÖN IHANNE: varaston hienoin taso 0,05° sumennettuna samalla σ =
+3 CSS px kuin lämpökartta, eli tarkin kenttä jonka ruutu voi näyttää.
+Lämpökartta = `LampoGL`:n solmuhila Catmull-Romilla kuten varjostin,
+samalla sumennuksella; partikkelit = `WindTexture.hila` sellaisenaan.
+Hyppy = sama mittaus zoomeilla n,45 ja n,55 (rajan yli), kontrollina
+n,35 → n,45 (rajan sisällä), ja pikseliero kuvakaappauksista lämpökartta
+yksin (pohjakartta ja merkit piilossa).
+
+**Tarkkuus näytön ihanteeseen** (puhelin, lämpökartta RMS / harha m/s):
+
+| zoom | ennen: taso | ennen | jälkeen: taso | jälkeen |
+|---|---|---|---|---|
+| 4,45 | 1,25° | 3,96 / −2,45 | 0,5° | 1,69 / −1,05 |
+| 5,45 | 1,0° (solmu 0,5) | 1,96 / −1,15 | 0,5° | 1,96 / −1,15 |
+| 6,45 | 1,0° (solmu 0,5) | 2,08 / −1,18 | 0,25° | 0,84 / −0,18 |
+| 7,45 | 0,5° | 2,13 / −1,20 | 0,1° | 0,41 / −0,04 |
+| 8,45 | 0,25° | 0,96 / −0,19 | 0,05° | 0,06 / +0,01 |
+| 9,45 | 0,1° | 0,55 / −0,05 | 0,05° | 0,06 / +0,01 (mitattu z 8,55:llä, sama taso) |
+
+z5 on ennallaan: alueellisten mallien karkein taso on 0,5° ja se luettiin
+jo ennen (ECMWF 1,0° molemmissa).
+
+**Hyppy rajan yli** (sama paikka ja hetki, zoom n,45 → n,55; lämpökartta
+RMS / max m/s, pikseleistä yli 12 tason ero):
+
+| raja | ennen | jälkeen |
+|---|---|---|
+| 4,45 → 4,55 | 2,64 / 6,61 · 10,2 % | 0,025 / 0,06 · 0,3 % |
+| 5,45 → 5,55 | 0,007 / 0,02 · 0,1 % | 0,047 / 0,08 · 0,1 % |
+| 6,45 → 6,55 | 0,002 / 0,01 · 0 % | 0,021 / 0,06 · 0 % |
+| 7,45 → 7,55 | **1,59 / 2,76 · 27,9 %** | 0,015 / 0,06 · 0 % |
+| 8,45 → 8,55 | 0,71 / 2,17 · 14,4 % | 0,004 / 0,02 · 0 % |
+| 9,45 → 9,55 | 0,59 / 2,17 · 7,5 % | (sama taso, ei rajaa) |
+
+Kontrolli rajan sisällä molemmissa 0,001–0,03 m/s. Partikkelit: 7,45 →
+7,55 1,60 → 0,016, 4,45 → 4,55 2,82 → 0, 8,45 → 8,55 0,72 → 0.
+Työpöytä: 7,45 → 7,55 1,59 → 0,015, 8,45 → 8,55 0,73 → 0,003.
+Uusintamittaus 9.10. lopullisella buildilla eri hetkellä (varasto 9.10.
+11 UTC, hetki 11.10. 04 UTC, vaihtelevampi kenttä): rajan yli puhelin ja
+työpöytä 0,005–0,050 m/s, partikkelit 0–0,14.
+
+**Ratkaisu.**
+
+1. **Taso näyttötarkkuuden mukaan** (`ViewportGrid.laattaStep`): z ≤ 3
+   1,0°, z4–5 0,5°, z6 0,25°, z7 0,1°, z8:sta 0,05°. Kokonaislukuzoomilla
+   solmuväli on 6–11 px pituussuunnassa. Taso on yhä laatikkokeskiarvo,
+   mutta laatikko on lämpökartan oman sumennuksen kokoluokkaa, joten
+   karkeampi taso on sama kenttä pehmeämpänä eikä eri kenttä.
+2. **Tasojen sekoitus kuten mipmap** (`karkeaPaino`): pyöristetyn zoomin
+   tz kenttä on L(tz):n ja L(tz − 1):n sekoitus. Karkean paino on 1 heti
+   rajan yli (z = tz − 0,5) ja 0 kokonaisluvulla ja siitä ylöspäin
+   (smoothstep), joten rajan kummallakin puolella ruudulla on sama
+   L(tz − 1), ja kenttä muuttuu zoomin mukana jatkuvasti. Paino on 0 kun
+   tasot ovat samat (z5, z ≥ 9) — natiivihila ei häivy zoomin mukana.
+3. **Lämpökartalla kaksi hilaa** (`LampoGL._hila`, `_karkea`): varjostin
+   lukee molemmat ja sekoittaa nopeuden (`u_kw`); karkea on myös oman
+   hilan tausta pehmusteessa. Zoomatessa sisään rajan yli uusi karkea on
+   vanha oma ja ulos uusi oma on vanha karkea — molemmat otetaan talteen
+   ennen vaihtoa, joten rajalla ei koota mitään uudelleen.
+4. **Partikkelit samasta sekoituksesta** (`WindTexture.build`): karkea
+   hila samoihin globaalisti kohdistettuihin solmuihin kuin lämpökartan
+   karkea, siitä Catmull-Rom partikkelikentän solmuihin (bilineaarinen
+   näyte erosi rajalla 0,13–0,33 m/s) ja vektorien sekoitus samalla
+   painolla.
+5. **Laatat kahtena kerroksena** (`LampoGL.varmistaAlue`): oma taso vain
+   näkymälle, karkea näkymälle ja 0,25:n reunukselle. Pehmusteen loppu
+   luetaan muistissa olevista tasoista (`_haePerhe`: saman perheen
+   karkeampi, sitten hienompi; varalaatta on muistissa `m.vara`, jottei
+   jokainen pehmusteen solmu maksa tason valintaa ja avainta), ja laatan
+   saapuminen kokoaa osuneet hilat uudelleen (`Saalaatat._kunUusia`,
+   enintään neljästi sekunnissa). Koko pehmuste näkymän tasolla oli
+   työpöydällä 5,6–8,7 Mt z6–8.
+6. **Oman hilan pehmuste 0,25** (`_pehmusteOma`) kun karkea on sen
+   taustana: 0,6:lla työpöydän oma hila oli 75 000 solmua ja 90–130 ms
+   joka tunnin askeleella.
+7. **Kokoaminen nopeammaksi**: perheen alue (`_bb`) ohittaa perheen
+   neljällä vertailulla (Euroopassa pisteessä on tavallisesti 2–4
+   perhettä neljästätoista), ja suunnan sin/cos tulee taulukosta (suunta
+   on kvantisoitu 2°:een, tulos bitilleen sama). Solmulta 1,51 → 0,81 →
+   0,65 µs; ennen koko muutosta 0,72.
+8. **Toisto ja raahaus**: kenttä kokonaan karkea (`tasoStep`,
+   `solmuStep` = `laattaStep(zoom − 1)`), solmuja enintään
+   `TOISTO_SOLMUT` 9 000, koska hila kootaan jokaiselle hetkelle; levossa
+   oma hila palaa 0,3 s:n häivytyksellä (`TASO_HAIVYTYS_MS`). Kartan eleen
+   aikana oma hila odottaa lepoa kun karkea kattaa näkymän (työpöydällä
+   oma hila on 30–50 ms).
+9. **ECMWF:n 0,5°:n taso (l1) ohitetaan** 0,5°:n pyynnöllä
+   (`_perheenTaso`). Näyttötarkkuudella mitattuna l1 oli l0:sta RMS
+   0,09–0,39 ja l2 0,16–0,74 m/s (max 4,3), mutta z4–5-näkymässä l1 olisi
+   ollut 2,0 Mt 2,1:stä. l0 zoomista 6, l2 z ≤ 5.
+10. **Mallin oma hila** (`MalliHila`, ICON ja GFS): askel on
+    näyttötarkkuuden taso, mutta ei mallin omaa hilaa tiheämpi
+    (`OMA_ASKEL` ICON 0,0625°, GFS 0,1°); paketin pituus solmumäärästä
+    (`pakettiPuoli`, puhelin ±3 h, työpöytä ±1 h).
+11. **Kapselin aalto** tuulikerroksella hienoimmalta kattavalta tasolta
+    zoomista riippumatta (käyttäjän kuvissa "maks. ~3,9" ja "~4,0").
+12. **Laattamuisti 160 → 240**: näkymä vaatii saman määrän laattoja joka
+    zoomilla.
+
+**Hinta.** Ensimmäinen näkymä puhtaalta pöydältä (laattojen Mt):
+
+| zoom | puhelin ennen → jälkeen | työpöytä ennen → jälkeen |
+|---|---|---|
+| 6 | 2,1 → 2,7 | 3,9 → 6,4 |
+| 7 | 1,5 → 2,2 | 2,8 → 5,7 |
+| 7,5 | 1,1 → 2,9 | 4,2 → 7,7 |
+| 8 | 1,1 → 2,0 | 2,6 → 4,8 |
+| 9 | 1,1 → 1,3 | 1,4 → 2,0 |
+| 10 | 1,0 → 0,9 | — |
+
+Tunnin askel (kontti, lämpökartta + partikkelikenttä): puhelin 2–19 ms
+(ennen 1–2), työpöytä 6–72 ms (ennen 3–8); pahin heti tason rajan
+yläpuolella, jossa molemmat hilat ja partikkelikentän sekoitus kootaan.
+Toisto ruutua kohti työpöydällä 4,9 ms (ennen 3,4), puhelimella 3,1 ms.
+Laitteella mittaamatta.
+
+**Kaksi vikaa panoroinnissa (9.10.).** Mittari: siirto näkymän verran
+(itään, koilliseen, takaisin), asettumisen jälkeen ruudulla oleva hila
+vs. samoihin solmuihin juuri koottu kenttä. Puhelin oli kunnossa,
+työpöydällä yhden näkymän siirto itään jäi 40 s:ksi ruudulle hilaan jonka
+näkyvistä solmuista 3 178 oli ilman omaa tasoaan (ero juuri koottuun
+RMS 0,45, max 2,09 m/s). Syitä oli kaksi:
+
+- *Odottava hila jäi odottamaan pysyvästi.* Siirron jälkeen koottu hila
+  oli näkymälle vajaa, ja kun laatat tulivat, uusi parempi meni
+  odottamaan (`_odottava`), koska vanha kattoi näkymän. Mikään ei
+  pyytänyt uutta kokoamista, joten odotuksen raja ei koskaan lauennut.
+  Nyt odotus vain kun vanha on uutta täydempi, ja rajalla odottava nousee
+  ruudulle aina.
+- *ECMWF:n l0-tason reunasarake 45°E oli ilman dataa.* Taso kattaa
+  välin −35…45°E suljettuna, mutta alaspäin pyöristetty laatta 45–50°E
+  ei ole olemassa, joten tasan 45°E:n solmut (hilan origo on kohdistettu,
+  eli 45,0 on aina solmu) jäivät tyhjiksi — läpinäkyvä juova kaikilla
+  zoomeilla joilla taso on l0, myös ennen tätä muutosta z8:sta. Nyt
+  rajalla oleva piste lukee edellisen laatan reunarivin
+  (`_rajaRuutu`).
+
+Samalla laattojen saapumiskytkin rajattiin tuulen laattoihin jotka
+osuvat vajaaseen hilaan: aaltolaatat (sama `_lataa`) ja spottien
+esilataus 300 km:n päässä kokosivat muuten kentän turhaan uudelleen.
+Mitattu jälkeen puhelimella ja työpöydällä z6,3 / 7,2 / 7,8 / 8,6,
+kolme siirtoa kullakin: hila asettuu kontissa 2,0–7,8 s:ssa, ja sen
+jälkeen ero juuri koottuun on 0,0006 m/s (16-bittinen kvantisointi) ja
+näkyvissä 0 solmua ilman omaa tasoaan.
+
+**Mitä jäi.**
+
+- **Kaukana (z ≤ 5) kenttä on yhä varaston karkeimpien tasojen varassa**
+  (alueelliset 0,5°, ECMWF 1,0°): näytön ihanteesta 1,7–2,7 m/s RMS
+  hetken mukaan. Tarkempi kaukaa maksaisi tavuja, ja se on oikea paikka
+  seuraavalle askeleelle: laatta kantaa koko 70–104 hetken akselin,
+  vaikka ruudulla on yksi hetki. Ajassa pilkotut laatat (esim. 24 h)
+  pienentäisivät ensimmäisen näkymän tavut noin kolmannekseen, ja sillä
+  hinnalla tason voisi tihentää myös kaukana.
+- Tavuja on 1,2–2-kertaisesti (taulukko yllä).
+- Tunnin askel työpöydällä tason rajan yläpuolella jopa ~70 ms
+  kontissa; laitteella mittaamatta.
 
 ### Mitä jäi
 

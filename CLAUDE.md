@@ -205,10 +205,10 @@ kokeiltu ja kaadettu mittauksella.
 | tiedosto | lue kun työ koskee |
 |---|---|
 | `docs/lampokartta.md` | pohjakarttaa, lämpökarttaa, väriramppia, tekstuurin mitoitusta tai projektiota, kartan asetuksia |
-| `docs/partikkelit.md` | tuulipartikkeleita, jäljen muotoa, tiheyttä (**kaukaa Windyn tiheys**) tai ruutuaikabudjettia |
+| `docs/partikkelit.md` | tuulipartikkeleita, jäljen muotoa, tiheyttä (**kaukaa Windyn tiheys**), ruutuaikabudjettia tai **partikkelien kenttää tasojen välissä (sama sekoitus kuin lämpökartalla)** |
 | `docs/eleet.md` | nipistystä, zoomia (**kosketuszoom tähtäimen ympäri**), zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
 | `docs/data.md` | **aaltoennustetta kartalla (FMI WAM, `a0`–`a3`, `tools/wam.mjs`)**, säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja, **havaintoasemien oma historia (Mellsten ja Laru, `havainnot`-haara)**, **Mellstenin katkot: 4 h kuvaaja, arkistovaratie ja ajastinketju**, **kelikameran tila (YouTube, pikkukuvan ETag)** |
-| `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, MET Nordicia, Open-Meteon S3-malleja, kaukaisen zoomin solmuväliä (`kaukoSolmu`)** |
+| `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, MET Nordicia, Open-Meteon S3-malleja, näyttötarkkuuden tasoa: tason valinta zoomista, tasojen sekoitus (`karkeaPaino`), lämpökartan kaksi hilaa ja laattojen kaksi kerrosta — miksi lämpökartta ei enää hyppää zoomatessa** |
 | `docs/ui.md` | **väriteemaa (Yömeri: paneelit, tokenit, `Teema`, `ink()`)**, **kerrosvalitsinta (neljä ruutua esikatselukuvin) ja sadekerroksen GL-piirtoa (häivytykset, B-spline; silmukka on historiaa, ks. docs/sadetutka.md)**, **aaltokerrosta: siru, väri, aallonharjat, aikajana, kapseli, poijukaavion ennuste**, paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa (**toiston liuku, jatkuva päiväkisko, pehmeä valinta ja kelikaista**), kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
@@ -236,7 +236,8 @@ kokeiltu ja kaadettu mittauksella.
   Kolme jatkokorjausta: heitto, lähizoomin terävyys, tiheys ·
   Jälki lyhennettiin puoleen — raja puree, aikapituus ei ·
   Liike ajasta, pää ei sahaa, syntymä ja kuolema häivytetään ·
-  **Kaukaa Windyn tiheys (5.10.)**
+  **Kaukaa Windyn tiheys (5.10.)** · **Kenttä on lämpökartan kenttä myös
+  tasojen välissä (6.10.)**
 - **eleet**: Kartta on MapLibre GL — mikä tästä tiedostosta on historiaa ·
   **Kosketuszoom tähtäimen ympäri (5.10.)** · Kosketuskohteet ja pseudoelementtien osumapinta · Zoom-alue ·
   Nipistyszoomin pehmennys · Eleen loppu ja tuntuma — kolme asiaa Apple Mapsista ·
@@ -278,8 +279,11 @@ kokeiltu ja kaadettu mittauksella.
   Tarkistukset lähteitä vasten · V5 ECMWF 9 km (O1280,
   aikasarjavarasto, kaksi ansaa, mittaukset) · V6 pakotettu malli
   perheinä ja mallin omana hilana (tilat, ICON ja GFS, tuntipaketti,
-  kolme ansaa, mittaukset) · **Kaukaa datan omalla tarkkuudella (5.10.:
-  solmuväli, l1 hylätty, esikatselun tavuvuoto)** · Mitä jäi
+  kolme ansaa, mittaukset) · Kaukaa datan omalla tarkkuudella (5.10.:
+  solmuväli, l1 hylätty, esikatselun tavuvuoto) · **Näyttötarkkuuden
+  taso (6.–9.10.: syy hyppyyn, tasot, sekoitus, kaksi hilaa, laattojen
+  kaksi kerrosta, toisto, mittaukset, panoroinnin kaksi vikaa)** · Mitä
+  jäi
 - **lisadata**: Mistä sovellus lukee nyt · TOP 10 — data · TOP 10 — lähteet ·
   Mitattu ja hylätty (MEPS on HARMONIE · hydrodyn 2/12 spottia · vuorovesi ·
   Holfuy · ilmanlaatu) · Toinen kerros — kontekstia, ei päätöstä ·
@@ -1042,6 +1046,11 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   suunta on aina asteina — sanallinen muoto poistettiin valikosta. Missä
   aaltoa ei ole (maa, jakson ulkopuoli, data matkalla) osa on tuulen
   suunta. Ei rantamaskia tuulikerroksella (se on aaltotilan kustannus).
+  Tuulikerroksella aalto luetaan HIENOIMMALTA KATTAVALTA TASOLTA zoomista
+  riippumatta (`Aallot.arvo(…, 0)`, kuten tuulen tähtäin O12): zoomin
+  taso antoi samalle paikalle eri luvun (käyttäjän kuvat 6.10.: "maks.
+  ~3,9" ja "~4,0"); aaltotilassa kapseli lukee kartan kentän, koska siellä
+  luku ja väri ovat sama asia.
   Aalto- ja sadetilassa vasen osa on pelkkä lukema eikä avaa valikkoa.
   **AALLONKORKEUDEN LUKU ON `AaltoVari`N VÄRI** (`AaltoVari.teksti`,
   nostettu 4,5:1:een `--surface`a vasten) kapselissa molemmissa
@@ -1241,25 +1250,51 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   sidottuna perässä tullut kierros sai saman keskeytetyn lupauksen, ja
   aikajana jäi ilman natiivisarjaa seuraavaan liikkeeseen asti (mitattu
   tuotannon varastolla 5.10.).
+- **VARASTON TASO ON NÄYTTÖTARKKUUDEN TASO, JA VIEREKKÄISET TASOT
+  SEKOITETAAN ZOOMIN MUKAAN** (käyttäjän raportti 6.10.: "sama paikka ja
+  tunti, zoomattu marginaalisesti, ja lämpökartta muuttuu selvästi";
+  docs/mallit.md "Näyttötarkkuuden taso"). `laattaStep`: z ≤ 3 1,0°,
+  z4–5 0,5°, z6 0,25°, z7 0,1° ja z8:sta 0,05° — solmuväli ruudulla z3–8
+  noin 6–11 px pituussuunnassa, ja z9:stä varaston hienoin taso. Ennen
+  tasot olivat z6–9 26–64 px:n laatikkokeskiarvoja (1,0–0,1°), ja
+  pyöristetyn zoomin rajalla kenttä vaihtui kerralla: puhelimella
+  z 7,45 → 7,55 lämpökartta muuttui samoissa pisteissä RMS 1,59 m/s (max
+  2,76) ja 28 %:ssa pikseleistä selvästi, ja z5–7 kenttä oli hienoimmasta
+  datasta 1,9–2,1 m/s sivussa (harha −1,2). Nyt rajan yli 0,004–0,05 m/s
+  eli samaa luokkaa kuin rajan sisällä, ja z7 0,4 m/s (harha −0,04).
+  Kenttä on L(tz):n ja L(tz − 1):n sekoitus (`karkeaPaino`, kuten mipmap:
+  karkean paino 1 heti rajan yli ja 0 kokonaisluvulla), ja SAMA SEKOITUS
+  ON PARTIKKELIEN KENTÄSSÄ: niiden reitti, nopeus ja väri ovat sen kentän
+  joka niiden alla näkyy. Älä palauta pyöristettyä tasoa ilman sekoitusta
+  äläkä harvempia tasoja — kumpikin on se hyppy jonka käyttäjä näki.
+  **LÄMPÖKARTALLA ON KAKSI HILAA** (`LampoGL._hila` = L(tz), `_karkea` =
+  L(tz − 1)), ja varjostin sekoittaa ne; karkea on myös oman hilan tausta
+  pehmusteessa (oma `OMA_REUNUS` 0,25, karkea 0,6 näkymää). **LAATAT
+  KAHTENA KERROKSENA** (`LampoGL.varmistaAlue`): näkymän oma taso vain
+  näkymälle, karkeampi näkymälle ja 0,25:n reunukselle — koko pehmuste
+  näkymän tasolla oli työpöydällä 5,6–8,7 Mt z6–8. Pehmusteen loppu
+  luetaan muistin varalta (`_haePerhe`: saman perheen karkeampi tai
+  hienompi taso, `m.vara`), ja laatan saapuminen kokoaa osuneet hilat
+  uudelleen (`Saalaatat._kunUusia`: vain tuulen laatta joka osuu vajaaseen
+  hilaan). Hinta on tavuissa: ensimmäinen näkymä puhelimella
+  1,0–2,1 → 0,9–2,9 Mt ja työpöydällä 1,4–4,2 → 2,0–7,7 Mt.
+  **TOISTON JA RAAHAUKSEN AJAN KENTTÄ ON KOKONAAN KARKEA** (`tasoStep` ja
+  `solmuStep` = `laattaStep(zoom − 1)`, solmuja enintään `TOISTO_SOLMUT`
+  9 000), koska hila kootaan jokaiselle hetkelle; levossa oma hila palaa
+  häivytettynä (`TASO_HAIVYTYS_MS` 0,3 s). Kartan eleen aikana oma hila
+  odottaa lepoa kun karkea kattaa näkymän. **ECMWF:N 0,5°:N TASO (l1)
+  OHITETAAN** 0,5°:n pyynnöllä (`_perheenTaso`): se ei tuonut tarkkuutta
+  ja maksoi z5-näkymässä 2 Mt. ECMWF luetaan z ≤ 5 1,0°:sta (l2) ja z6:sta
+  0,25°:sta (l0; sen alueen ulkopuolella 0,5°).
 - **SOLMUVÄLI (`ViewportGrid.solmuStep`) EI OLE VARASTON TASO
-  (`laattaStep`).** Lämpökartan ja partikkelien solmuhila tihenee
-  natiivihilan mukana ja kaukana datan omaan tarkkuuteen, mutta
-  `kokoaHila`n `step` ja `varmista` valitsevat varaston tason yhä
-  `laattaStep`illä — 0,01°:n taso ei ole olemassa. Natiivitihennys on
-  voimassa vain kun natiivikenttä kattaa kartan keskipisteen valitulla
-  hetkellä (`Natiivi.kaytossa`): edellisen paikan kenttä jää muistiin,
-  eikä se saa tihentää hilaa paikassa jota se ei kata.
-  **KAUKANA SOLMUT OVAT DATAN OMALLA TARKKUUDELLA** (`kaukoSolmu`,
-  käyttäjän pyyntö 5.10., docs/mallit.md "Kaukaa datan omalla
-  tarkkuudella"): z5–6 0,5°, z4 1,0°. Varasto lähetti näillä zoomeilla jo
-  alueellisten mallien 0,5°:n tason, mutta solmu otettiin joka toisesta
-  (1,0–1,25°); mitattuna kentän RMS-ero hienoimpaan dataan pieneni
-  puhelimella 20–49 % (esim. Itämeri z6 1,32 → 0,69 m/s) ja työpöydällä
-  9–31 %. TASO EI MUUTU, joten laattoja on
-  yhtä paljon; 0,5°:n ECMWF-taso (l1) kokeiltiin ja hylättiin (sama
-  tarkkuus, 2–4 MB enemmän laattoja näkymää kohti). **Toiston ja
-  raahauksen ajan solmut ovat entiset**: hila kootaan jokaiselle
-  hetkelle, ja työpöydällä tiheä hila maksoi 18–31 ms kokoamista kohti.
+  (`tasoStep`).** Lämpökartan ja partikkelien solmuhila tihenee
+  natiivihilan mukana, mutta `kokoaHila`n `step` ja `varmista` valitsevat
+  varaston tason `tasoStep`illä (levossa = `laattaStep`) — 0,01°:n tasoa
+  ei ole olemassa. Natiivitihennys on voimassa vain kun natiivikenttä
+  kattaa kartan keskipisteen valitulla hetkellä (`Natiivi.kaytossa`):
+  edellisen paikan kenttä jää muistiin, eikä se saa tihentää hilaa
+  paikassa jota se ei kata. (5.10.:n `kaukoSolmu` — kaukana solmut
+  tasoa tiheämmiksi — korvautui 6.10. näyttötarkkuuden tasolla.)
 - **KORTIN PARAS LUKEE SPOTIN OMAN SOLUN** (`Natiivi.pisteenSarjat`):
   varaston sekoituksen tunneittaisista lähteistä (`hourly.lahde`) ne
   perheet joilla on natiivihila haetaan spotin solusta mallin
@@ -1313,7 +1348,10 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   jokaisella zoomilla TUNTIPAKETTINA (±3 h, vähintään ±1 h), koska alla
   on eri malli: laatalla on oma aika-akseli ja tuntien väli interpoloidaan
   kuten varastossa; toistossa paketti jatkuu eteenpäin ja seuraava
-  haetaan ennen reunaa. Lukija (`@openmeteo/file-reader`, GPL-2.0)
+  haetaan ennen reunaa. Paketin askel on näyttötarkkuuden taso, mutta ei
+  mallin omaa hilaa tiheämpi (`MalliHila.OMA_ASKEL`: ICON 0,0625°, GFS
+  0,1°), ja paketin pituus tulee solmumäärästä (`pakettiPuoli`: puhelimen
+  näkymä ±3 h, työpöydän ±1 h). Lukija (`@openmeteo/file-reader`, GPL-2.0)
   ajetaan VAIN palvelimella — älä tuo sitä selaimeen.
   **Muuttujien otsakkeet haetaan YHTENÄ ALUEENA** (`Esiluku`): lukija
   hakee muuten jokaisen lapsen omalla pyynnöllään, ja ICON-tiedostossa
@@ -1395,9 +1433,10 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   `getViewportPoints`in pistelistan, ja jokainen piste on Open-Meteon
   laskutuksessa oma kutsunsa — 0,05 asteen rajapintahila z12:ssa olisi
   juuri se kiintiö jonka takia koko varasto rakennettiin. `laattaStep`
-  taas vain valitsee perheen sisältä tason (z10+ 0,05, z9 0,1, z8 0,25,
-  z7 0,5, muuten `gridStep`), ja se on ilmaista. Lämpökartta ja
-  partikkelit (z7+) lukevat `laattaStep`iä, hilapisteet `gridStep`iä;
+  taas vain valitsee perheen sisältä tason (z8+ 0,05, z7 0,1, z6 0,25,
+  z4–5 0,5, muuten 1,0; ks. "VARASTON TASO ON NÄYTTÖTARKKUUDEN TASO"), ja
+  se on kyselyissä ilmaista — hinta on laattoja. Lämpökartta ja
+  partikkelit lukevat `laattaStep`iä, hilapisteet `gridStep`iä;
   tähtäin ja aikajana lukevat levossa 0,05°:n tasoa (`Tahtain`, O12) ja
   `laattaStep`iä vain liikkeen aikana ja sarjaa odotellessa. **AINA
   PYÖRISTETYSTÄ ZOOMISTA** (`laattaStep(Math.round(zoom))`):
@@ -1425,10 +1464,13 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kaistaleen (l0-laatta 10–15° kattaa vanhan l0-alueen vain 14–15°):
   mitattuna 120 solmua 3 600:sta jäi ilman laattaansa. Nyt jokaisen
   tason laatat leikataan alueen kanssa ja testataan kulmista.
-- **LAATTAMUISTI ON KÄYTTÖJÄRJESTYKSESSÄ, 160 LAATTAA.** Katto oli 40
+- **LAATTAMUISTI ON KÄYTTÖJÄRJESTYKSESSÄ, 240 LAATTAA.** Katto oli 40
   lisäysjärjestyksessä, ja maailmankierros pudotti Suomen laatat joka
   kerta. Mitattu jälkeen: Helsinki on paluussa FMI:tä 2,5–5 s:ssa ja
-  valittu hetki pysyy.
+  valittu hetki pysyy. 160 → 240 näyttötarkkuuden tason myötä (6.10.):
+  näkymä vaatii saman määrän laattoja joka zoomilla, työpöydällä Suomen
+  rannikolla noin sata, ja 160:n katto olisi pudottanut saman näkymän
+  laattoja toistensa alta (noin 28 Mt).
 - **RAJAPINTAPOLKU ON `Saalaatat.pois()`, EI `?laatat=0` — JA SE ON
   VAIN VARATIE.** Mallin pakotus kulki tätä kautta V6:een asti; nyt
   pakotus on perhevalinta, ja `pois()` jää rikkinäisen varaston
@@ -3669,10 +3711,13 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   nollaviiveinen FIR kaatuivat kaikki samaan asiaan: näillä nopeuksilla
   derivaatta on lähes pelkkää vapinaa. Nipistys on nyt MapLibren oma eikä
   sitä suodateta; sen tuntumaa ei ole mitattu laitteella.
-- **LÄMPÖKARTTA ON YKSI HILA JA YKSI VARJOSTIN (`LampoGL`), EI
+- **LÄMPÖKARTTA ON SOLMUHILA JA YKSI VARJOSTIN (`LampoGL`), EI
   LAATTAPYRAMIDI.** Kenttä piirretään JOKA RUUDUSSA solmuhilasta
-  (`Saalaatat.kokoaHila`, solmuväli `laattaStep(round(zoom))`) samaan
-  WebGL-ruutuun pohjakartan kanssa. Hila on maantieteessä kiinni, joten
+  (`Saalaatat.kokoaHila`, solmuväli `solmuStep(round(zoom))`) samaan
+  WebGL-ruutuun pohjakartan kanssa. Hiloja on kaksi, oma ja yhden tason
+  karkeampi, ja varjostin sekoittaa ne zoomin mukaan (6.10., ks.
+  "VARASTON TASO ON NÄYTTÖTARKKUUDEN TASO") — se on mipmap kahdesta
+  solmuhilasta, ei pyramidi. Hila on maantieteessä kiinni, joten
   veto tai zoom ei maalaa mitään uudelleen — Leaflet-versio maalasi
   1920×1080:lla 308 laattaa vedon perään ja 494–1722 zoomin perään.
   Vaiheet: Catmull-Rom + `pikseliLUT()` 1 näytteellä CSS-pikseliä kohti
@@ -3709,8 +3754,24 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   tason laatat haetaan — se oli "kartta välkkyy zoomatessa". Tyhjä
   HETKI on eri asia: jos varasto ei kata valittua tuntia, kerros
   tyhjenee heti, koska väärän tunnin kenttä olisi pahempi kuin ei mitään.
+  **ODOTUS VAIN KUN VANHA ON UUTTA TÄYDEMPI, JA RAJALLA ODOTTAVA NOUSEE
+  RUUDULLE AINA** (9.10.): panoroinnin jälkeen vanha hila oli sama
+  näkymä ennen laattoja koottuna, se kattoi näkymän, eikä mikään pyytänyt
+  uutta kokoamista — työpöydällä 40 s ruudulla hila jonka näkyvistä
+  solmuista 3 178 oli ilman omaa tasoaan, vaikka valmiimpi odotti
+  vieressä. Mittari: siirron ja asettumisen jälkeen ruudulla oleva hila
+  vs. samoihin solmuihin juuri koottu kenttä (ero 0 = ajan tasalla; nyt
+  16-bittisen kvantisoinnin 0,0006 m/s, puhelin ja työpöytä, z6,3–8,6).
+- **LAATTARAJALLA OLEVA SOLMU LUKEE EDELLISEN LAATAN REUNARIVIN** kun
+  alaspäin pyöristetty laatta puuttuu (`Saalaatat._rajaRuutu`): ECMWF:n
+  0,25°:n tason (−35…45°E) sarake tasan 45°E:ssä jäi ilman dataa, koska
+  taso kattaa pisteen mutta laattaa 45–50°E ei ole — läpinäkyvä juova
+  kaikilla zoomeilla joilla taso on l0. Hilan origo on kohdistettu, joten
+  rajan pituusaste on aina solmu.
 - **HILAN PEHMUSTE ON 0,6 NÄKYMÄÄ JOKA LAIDALLA (z ≥ `REUNUS_MIN_Z` 6),
-  ULOMPANA 0,3.** Luku on pyramidin REUNUS ja tulee samasta
+  ULOMPANA 0,3** — karkealla hilalla; oma hila saa 0,25 kun karkea on
+  sen taustana (`_pehmusteOma`: työpöydällä 0,6:n pehmuste olisi 75 000
+  solmua ja 90–130 ms joka tunnin askeleella). Luku on pyramidin REUNUS ja tulee samasta
   geometriasta: yhden tason ulos-zoomi tarvitsee puoli ruutua joka
   laidalle, ja 0,6 eikä 0,5 koska tuplanapautus zoomaa napautetun
   pisteen ympäri. Hila rakennetaan uudelleen vasta kun näkymä karkaa sen
@@ -3720,7 +3781,11 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
 - **ESILATAUS KATTAA SAMAN PEHMUSTETUN ALAN KUIN HILA**
   (`_esilataa`: `getBounds().pad(P)`), ei paljasta näkymää. Muuten
   pehmusteen laatat haettaisiin vasta kun hila niitä tarvitsee, ja
-  `_odottava` pitäisi vanhaa hilaa ruudulla sen ajan.
+  `_odottava` pitäisi vanhaa hilaa ruudulla sen ajan. Ala rajataan
+  KAHTEEN KERROKSEEN (`LampoGL.varmistaAlue`, 6.10.): näkymän oma taso
+  vain näkymälle, karkeampi näkymälle ja 0,25:n reunukselle; pehmusteen
+  loppu luetaan muistissa olevista tasoista ja tarkentuu kun se tulee
+  näkyviin.
 - **ESILATAUKSEN KURISTUS SIIRTÄÄ, EI PUDOTA.** Kaksi zoomia mahtuu
   helposti samaan puoleen sekuntiin: mitattuna (Leaflet-versiossa) kaksi
   zoomia 250 ms välein tuotti YHDEN esilatauksen kahden sijaan, eli

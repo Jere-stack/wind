@@ -25,7 +25,16 @@ vuoronvaihto, reunahäivytyksen maski, liu'un aikaiset jäädytykset ja
 | solmuväli `laattaStep(laatan z)` | sama: `laattaStep(round(zoom))`, origo globaalisti kohdistettu — uudelleenrakennus ei siirrä kenttää pikseliäkään |
 | varjostin laattaan + `drawImage` 2D-kankaalle | varjostin suoraan ruudun ulkopuoliseen puskuriin, 1 näyte / CSS px |
 | CSS `blur(3px) saturate(1.4/1.6)` + `mix-blend-mode` | Gaussin σ 3 px kahtena vaiheena (13 hakua per vaihe, ks. alla), sama saturate-matriisi esikertomattomalle värille, `blendFunc` |
-| `_tasoVuoro`: uusi taso näkyviin vasta valmiina | `_odottava`: uusi hila ruudulle vasta kun sen näkyvältä alueelta ei puutu dataa (enintään 6 s) |
+| `_tasoVuoro`: uusi taso näkyviin vasta valmiina | `_odottava`: uusi hila ruudulle vasta kun sen näkyvältä alueelta ei puutu dataa (enintään 6 s; 9.10. lähtien vain jos vanha on uutta täydempi) |
+
+**6.10. lähtien hiloja on kaksi** (docs/mallit.md, "Näyttötarkkuuden
+taso"): oma hila näyttötarkkuuden tasolla L(tz) ja yhden tason
+karkeampi L(tz − 1), jotka varjostin sekoittaa zoomin mukaan kuten
+mipmap (`ViewportGrid.karkeaPaino`). Oman hilan pehmuste on silloin 0,25
+näkymää ja karkean 0,6; taulukon "yksi solmuhila" ja
+`laattaStep(round(zoom))` ovat siis nykyään kaksi hilaa ja kaksi tasoa.
+Syy oli zoomin pyöristysrajalla kerralla vaihtunut taso: z 7,45 → 7,55
+muutti lämpökarttaa samoissa pisteissä RMS 1,59 m/s, nyt 0,015.
 | vajaa laatta jätetään läpinäkyväksi | solmukohtainen kate (`kokoaHila`n `maski`) alfaksi: puuttuva data on läpinäkyvää, ei reunan jatketta |
 | pohjakartan `filter: contrast()/brightness()` | sama `--pohja-suodin`-token käännettynä `raster-contrast`/`-brightness-*`-arvoiksi (`pohjanMaali`) |
 
