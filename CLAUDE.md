@@ -241,6 +241,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/eurooppa.md` | **Euroopan laajennusta ja paikallisia lähteitä** (strategia ja roadmap 4.10., V1, V2 ja V3:n E-SOH toteutettu): Euroopan kansalliset 1–2,5 km mallit varastoon ja niiden **etusija ja käyttöalueet** (`tools/alueelliset.mjs`), **lähizoomin natiivihila ja spotin natiivisarja** (`Natiivi`, `api/malli.js?malli=<perhe>`, luku 13), **Euroopan havainnot kartalla ja korteissa (MeteoGate E-SOH, `EuAsemat`, `api/fmi.js?eu=`, `tools/esoh.mjs`, luku 14; OpenWindMap odottaa lisenssipäätöstä)**, **Euroopan asemat kaukaa GL-pisteinä ja spottien esilataus näkymän mukaan (luku 15)**, hilat ja projektiot totuutta vasten, havaintoverkot (MeteoGate E-SOH, kansalliset, OpenWindMap), meri, aukot, infra (Pages, Vercel, Actions), lisenssit (UKV on CC BY-SA), roadmap V1–V9 ja päätökset P1–P7; lue ennen kuin lisäät mallin, havaintolähteen tai spotteja Suomen ulkopuolelle |
 | `docs/oikeellisuus.md` | **datan oikeellisuutta** (auditointi 29.9., toteutus 30.9.): varasto havaintoja vasten, **jatkuva varmennus**, **varaston tuoreus ja Säädatan ajastin**, kapselin ja partikkelien taso vs lämpökartta, **tähtäimen lukema ja zoom (O12, 5.10.)**, **kapselin puuska**, havaintoverkko ja sen päivitys, proxyjen virheenkäsittely, UiRaS — aukot O1–O11, suositusjärjestys ja sujuvuusvaikutus; lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 | `docs/aikahyppy.md` | **aikahypyn latausta** (strategia ja toteutus 9.10.): **koko akselin taustaesilataus (`AikaEsilataus`)**, **perheet rinnakkain**, **hypyn odotus 0,4 s**, palvelinhilan viereiset tunnit, Pages-koti; miksi kartta latautuu hetken kun aikajanalla hypätään historiaan tai kauas tulevaisuuteen — mitattu viive laitteittain ja zoomeittain, **perheet haetaan peräkkäin (12 kierrosta Euroopan näkymässä)**, koko akselin esilatauksen hinta, vaihtoehdot S1–S8, vaiheet V1–V5 ja hyväksymismittarit; lue ennen kuin kosket `Saalaatat.varmista`an, esilataukseen tai hypyn odotukseen (`_odottava`) |
+| `docs/asetukset.md` | **asetuspaneelia paikan mukaan** (strategia 10.10., ei vielä toteutettu): miksi Ranskassa paneelin mallit ja havaintokytkimet eivät osu paikalliseen dataan, katerekisteri (`Kate`) datasta, vaihtoehdot A–E, suositus C (piilotus + "Muualla saatavilla", mallilista luettelosta, alueellisen mallin pakotus), vaiheet V1–V5, mittari ja päätettävät P1–P6; lue ennen kuin kosket `#settings-popup`iin, `Saalaatat.TILAT`iin tai kortin mallivalikkoon |
 
 <details>
 <summary>Osioiden nimet tiedostoittain (jos et tiedä mistä etsiä)</summary>
@@ -407,6 +408,10 @@ kokeiltu ja kaadettu mittauksella.
   mitä jäi · **Toteutus (5.10.): Euroopan asemat kaukaa ja spotit
   Euroopassa** — mikä erosi, rakenne (keräimen luettelo, `?eu=asemat`,
   GL-pisteet, spottien esilataus), mitattu, mitä jäi
+- **asetukset**: Tiivistelmä · Periaatteet P-a–P-f · Nykytila (mitä
+  paneeli tekee Ranskassa) · Mistä kate saadaan · Vaihtoehdot A–E ·
+  Suositus C tarkemmin (rekisteri, havainnot, malli, kerrokset, mitä ei
+  tehdä) · Vaiheet V1–V5 · Hyväksymismittari · Päätettävät P1–P6
 - **aikahyppy**: Tiivistelmä · Mitä mitattiin (hypyn viive, miksi +24 h
   laajalla zoomilla on hidas, mitä ruudulla on odotuksen aikana, koko
   akselin hinta) · Käyttäjän ehdotus arvioituna · Vaihtoehdot S1–S8 ·
