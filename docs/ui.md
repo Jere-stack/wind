@@ -8331,3 +8331,30 @@ kaatosadetta. Alle 0,05 mm on kuiva ja näkyy himmeänä viivana, sade
 sääikonien veden sävyllä (`#7FB4F2`) ja lihavana, yksi desimaali alle
 10 mm. Määrä on myös solun `aria-label`issa. Mitattu: solun korkeus
 121 px joka solussa (ennen ja jälkeen sama), fi "0,4 mm" / en "0.4 mm".
+
+## Päiväkisko: pito kesken vedon ja pillerin kärki (10.10.)
+
+**Vika (käyttäjän raportti):** kiskoa vedettiin seuraavaan päivään, sormi
+pidettiin paikallaan, ja sen jälkeen jatkoveto ei enää liikuttanut
+valintaa. Syy: selain lähettää `pointercancel`in heti kun natiivi vieritys
+alkaa, ja ikkunan nostokuuntelija luki sen sormen nostoksi
+(`_tlKiskoKosketusOma = false`). Kun sormi pysähtyi, 400 ms:n ajastin ajoi
+`_kiskoLoppu`n sormen alla: vahvistus, liuku ja liput nollaan, jolloin
+jatkovedon scroll-tapahtumat hylättiin portilla ja kiskon keskitys veti
+kiskon takaisin. Korjaus: kosketuksen nosto luetaan vain
+`touchend`/`touchcancel`ista (kosketuksen `pointerup`/`pointercancel`
+ohitetaan kun kosketustapahtumat ovat olemassa), kiskolla ja tuntinauhan
+`_tlTouching`issa, jolla oli sama ansa piilevänä.
+
+Mitattu CDP-kosketuksella (Chromium, puhelin), veto 100 px → pito 1,5 s →
+veto 100 px: ennen tunti 67 → 67 (kisko vieri 105 px, valinta ei), nyt
+83 → 126 ja nosto vahvistaa. Tuntinauhan sama ele ennen ja jälkeen sama.
+
+**Pillerin kärki** (käyttäjän valinta kolmesta: A kärki, B valintaviiva
+pillerin takaa kaistan läpi, C rengas kaistalla): `.tl-pilleri::after`,
+4 px:n kolmio pillerin alareunasta, samaa väriä kuin pilleri ja kevyt
+varjo. Kertoo kohdan kelikaistalla myös silloin kun pilleri on kahden
+päivän välissä. Mitattu: kärjen keskikohta 0,7 px osoittimesta (pillerin
+alipikselisiirto), kärki y 827 kun juovan keskiviiva on 825,5 — sama
+kolmella eri hetkellä. WebKitillä ei mitattu (ei asennettuna kontissa);
+kärki on stickyn pillerin lapsi eikä tarvitse omaa sijoitusta.

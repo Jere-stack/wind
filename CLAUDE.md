@@ -1985,7 +1985,10 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   mieltä (JS:n kirjoittama väri olisi iOS:llä ruudun jäljessä).
   `.valittu` on enää semanttinen. Kaikki laput ovat saman levyisiä
   (5,4 em) ja pilleri yhden lapun levyinen. Älä lisää pillerille
-  `transition`ia. **JOKAISELLA KÄÄREEN LAPSELLA ON `width` `flex`IN
+  `transition`ia. **PILLERIN KÄRKI OSOITTAA KELIKAISTAA** (`.tl-pilleri::after`,
+  käyttäjän valinta 10.10. kolmesta: kärki / viiva läpi / helmi kaistalla):
+  4 px:n kolmio pillerin alareunasta juovan keskelle, kuten kuplan kärki
+  tuntinauhaan. Väli pillerin ja juovan keskiviivan välissä on 2,5 px. **JOKAISELLA KÄÄREEN LAPSELLA ON `width` `flex`IN
   RINNALLA** (laput, pilleri, reunavälikkeet): WebKit laskee
   `max-content`-flex-kääreen lasten SISÄLLÖSTÄ eikä `flex-basis`ista,
   jolloin kääre oli 474 px kun sisältö oli 1 459 — ja sticky-pilleri
