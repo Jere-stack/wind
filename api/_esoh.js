@@ -44,13 +44,26 @@ import { VARASTO, haeTeksti as haeVarastosta, hhmm } from './_varasto.js';
 export const ESOH = 'https://observations.meteogate.eu/collections/observations';
 const UA = 'FoilSpot/1.0 (+https://github.com/Jere-stack/wind)';
 
+/* HOLLANTI (KNMI) ON OMILLA NIMILLÄÄN (10.10., docs/eurooppa.md luku 16):
+   koko KNMI:n verkko (61 asemaa, mm. Muiden, Schiphol, Houtribdijk)
+   julkaisee tuulen korkeudella "2.0" eikä 10.0, ja ne jäivät siksi pois
+   laatoista — Hollannissa oli kartalla 14 asemaa. Mitattu KNMI:n omaa
+   10 min tiedostoa vasten (10.10. klo 20.40–21.20 UTC, viisi asemaa):
+   `wind_speed_of_gust:2.0:maximum:PT0S` on TASAN KNMI:n `gff` (10 min
+   puuska 10 m:ssä) ja suunta `dd`, mutta `wind_speed:2.0:point:PT0S` EI
+   ole `ff` (10 min keskituuli) vaan LIUKUVA TUNNIN KESKIARVO: kuuden
+   viimeisen `ff`:n keskiarvo (Houtribdijk 21.10 9,28 = 9,28 ja 21.20
+   8,32 = 8,32, Muiden 7,85 / 7,86, Schiphol 7,33 / 7,34, Lelystad 6,82 /
+   6,83; IJmuiden ei täsmää), ja `maximum:PT0S` on tunnin suurin `ff`. Siksi se on listan viimeinen, tunnin keskiarvon jälkeen:
+   se valitaan vain asemalle jolla muuta tuulta ei ole. */
 export const NOPEUS = ['wind_speed:10.0:mean:PT10M', 'wind_speed:10.0:point:PT10M', 'wind_speed:10.0:point:PT0S',
-  'wind_speed:10.0:mean:PT2M', 'wind_speed:10.0:mean:PT1M', 'wind_speed:10.0:mean:PT1H'];
+  'wind_speed:10.0:mean:PT2M', 'wind_speed:10.0:mean:PT1M', 'wind_speed:10.0:mean:PT1H', 'wind_speed:2.0:point:PT0S'];
 export const SUUNTA = ['wind_from_direction:10.0:mean:PT10M', 'wind_from_direction:10.0:point:PT10M',
   'wind_from_direction:10.0:point:PT0S', 'wind_from_direction:10.0:mean:PT2M', 'wind_from_direction:10.0:mean:PT1M',
   'wind_from_direction:10.0:mean:PT1H'];
 export const PUUSKA = ['wind_speed_of_gust:10.0:maximum:PT10M', 'wind_speed_of_gust:10.0:point:PT10M',
-  'wind_speed_of_gust:10.0:point:PT30M', 'wind_speed_of_gust:10.0:maximum:PT1H', 'wind_speed_of_gust:10.0:point:PT1H'];
+  'wind_speed_of_gust:10.0:point:PT30M', 'wind_speed_of_gust:10.0:maximum:PT1H', 'wind_speed_of_gust:10.0:point:PT1H',
+  'wind_speed_of_gust:2.0:maximum:PT0S'];
 /* Lämpö: Suomen asemat julkaisevat sen vain minuutin ja tunnin
    keskiarvona (`mean:PT1M` 188 asemaa, `mean:PT1H`), muut hetkenä. */
 export const LAMPO = ['air_temperature:2.0:point:PT10M', 'air_temperature:2.0:point:PT0S',
@@ -282,14 +295,47 @@ function maat() {
    rannikon spotille (`pref`).
      Meri   merta 3 km:n sisällä (rannikko, satama, saari, majakka)
      Lento  sisämaan lentoasema nimen perusteella
+     Jarvi  järveä 3 km:n sisällä (ei lentoasema), ks. `jarvenRannalla`
    SÄDE ON MITATTU SUOMEN REKISTERIÄ VASTEN: 3 km antaa 20/21 asemalle
    saman meri/maa-luokan kuin käsin kirjoitettu tagi (ainoa ero
    Kaisaniemi, 2,8 km rasterin merestä), 5 km 19/21 (myös Tapiola
    rannikoksi). Koko Euroopassa 564 rannikkoasemaa 3 428:sta.
    `Avomeri`a ei anneta: rasterin solmuväli on 0,05° (5,6 km
    pohjoiseen), ja sataman asema jonka lähin solmu osuu veteen olisi
-   valitsimessa "avomeri". Järvet ovat maarasterissa maata, joten järven
-   rannan asema on maa-asema (docs/eurooppa.md 14: "mitä jäi"). */
+   valitsimessa "avomeri". Järvet ovat maarasterissa maata, ja niille on
+   oma rasteri (`Jarvi`, alla). */
+/* JÄRVI ON VETTÄ (10.10., docs/eurooppa.md luku 16). Maarasterissa
+   järvet ovat maata, joten IJsselmeerin, Bodenjärven ja Geneven rannan
+   asemat olivat sisämaata: oletuksena piilossa, lukema vasta z10:stä, ja
+   spottikortti ohitti ne 40 km:n päässä olevalla meriasemalla (Pampus:
+   IJmuiden 40 km eikä Muiden 6 km). `Jarvi` käyttäytyy kuin `Meri`
+   (kerros, lukeman zoom, `pref`), mutta sen nimi on "Järvi". Sama
+   3 km:n säde, ja oma rasteri (`tools/jarvet.json`, Natural Earth
+   1:10m lakes), koska maarasteri omistaa mallien käyttöalueet. */
+let _jarvet = null;
+function jarvenRannalla(lat, lng) {
+  try {
+    if (!_jarvet) {
+      const J = JSON.parse(readFileSync(new URL('../tools/jarvet.json', import.meta.url), 'utf8'));
+      J.b = gunzipSync(Buffer.from(J.data, 'base64'));
+      _jarvet = J;
+    }
+    const J = _jarvet;
+    const i0 = Math.round((lng - J.lo0) / J.askel), j0 = Math.round((lat - J.la0) / J.askel);
+    const kx = 111.2 * Math.cos(lat * Math.PI / 180), ky = 111.2, r2 = RANTA_KM * RANTA_KM;
+    const ri = Math.ceil(RANTA_KM / (kx * J.askel)), rj = Math.ceil(RANTA_KM / (ky * J.askel));
+    for (let j = Math.max(0, j0 - rj); j <= Math.min(J.nj - 1, j0 + rj); j++) {
+      for (let i = Math.max(0, i0 - ri); i <= Math.min(J.ni - 1, i0 + ri); i++) {
+        const s = j * J.ni + i;
+        if (!(J.b[s >> 3] & (1 << (s & 7)))) continue;
+        const dx = (J.lo0 + i * J.askel - lng) * kx, dy = (J.la0 + j * J.askel - lat) * ky;
+        if (dx * dx + dy * dy <= r2) return true;
+      }
+    }
+  } catch (e) { /* rasteri puuttuu: ei järveä */ }
+  return false;
+}
+
 const LENTO = /AIRPORT|AIRFIELD|AERODROME|AIR BASE|LUFTHAVN|FLYPLASS|FLYGPLATS|AEROPORT|AÉROPORT|AEROPUERTO|AEROPORTO|FLUGHAFEN|FLUGPLATZ|LOTNISKO|LETIŠT|LENTOASEMA|LENTOKENTT|REPÜLŐ|ZRAČNA LUKA|AERODROM/i;
 export const RANTA_KM = 3;
 export function asemanTiedot(lat, lng, nimi) {
@@ -313,6 +359,11 @@ export function asemanTiedot(lat, lng, nimi) {
       if (meri) tagi = 'Meri';
     }
   } catch (e) { /* rasteri puuttuu: ei tagia */ }
+  /* Järvi ennen lentoasemaa, koska vesi luetaan SIJAINNISTA: keräin
+     (`tools/esoh.mjs`) ei tunne nimiä, ja nimen mukaan eri tagi antaisi
+     kaukopisteelle ja merkille eri kerroksen (Kuopion ja Kajaanin kentät
+     ovat järven rannalla). */
+  if (!tagi && jarvenRannalla(lat, lng)) tagi = 'Jarvi';
   if (!tagi && LENTO.test(nimi || '')) tagi = 'Lento';
   return { tagi: tagi, maa: maa };
 }
@@ -360,7 +411,7 @@ export async function laatanAsemat(x, y, aikaraja) {
      päiväksi (CDN pitää tyhjän laatan vastauksen 15 min). */
   for (const f of (fc && fc.features) || []) {
     const ps = (f.properties && f.properties['parameter-name']) || [];
-    if (!ps.some((p) => /^wind_speed:10\.0:/.test(p))) continue;
+    if (!ps.some((p) => /^wind_speed:10\.0:/.test(p) || NOPEUS.indexOf(p) >= 0)) continue;
     const c = f.geometry && f.geometry.coordinates;
     if (!c || !isFinite(c[0]) || !isFinite(c[1])) continue;
     const lat = +c[1], lng = +c[0];

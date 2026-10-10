@@ -90,9 +90,13 @@ const luetteloAlussa = JSON.stringify(luettelo);
 const r4 = (x) => Math.round(x * 1e4) / 1e4;
 function merkitse(a, H) {
   const pv = Math.floor(H / 864e5), lat = r4(a.lat), lng = r4(a.lng), v = luettelo[a.id];
-  if (v && v[0] === lat && v[1] === lng) { if (pv > v[3]) v[3] = pv; return; }
-  const t = asemanTiedot(a.lat, a.lng, null);
-  luettelo[a.id] = [lat, lng, t.tagi === 'Meri' ? 1 : 0, Math.max(pv, v ? v[3] : 0)];
+  /* Vesi = meri tai järvi (`Jarvi`, 10.10.). Lasketaan joka kerta eikä
+     vain uudelle asemalle, jotta säännön muutos päivittää myös
+     luettelossa jo olevat asemat (kahden rasterin luku, mitattu
+     30 000 kutsua 22 ms). */
+  const t = asemanTiedot(a.lat, a.lng, null), vesi = t.tagi === 'Meri' || t.tagi === 'Jarvi' ? 1 : 0;
+  if (v && v[0] === lat && v[1] === lng && v[2] === vesi) { if (pv > v[3]) v[3] = pv; return; }
+  luettelo[a.id] = [lat, lng, vesi, Math.max(pv, v ? v[3] : 0)];
 }
 
 /* Päivätiedostot muistissa ajon ajan; kirjoitetaan lopuksi. */

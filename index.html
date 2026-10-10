@@ -7197,7 +7197,16 @@ const SPOTS = [
      tarkistettu pohjakartalta: aseman kohdalla on niemen viimeinen maapala
      ja sen eteläpuolella avautuu Suomenlahti. Spotti on siis vedessä eikä
      asemamerkin päällä, jolloin kumpikin merkki pysyy luettavana. */
-  { name: 'Emäsalo',           lat: 60.20220, lng: 25.62546, desc: 'Emäsalon kärki – avomeri', descEn: 'Tip of Emäsalo – open sea',       bestDirs: [[76,250]]          }
+  { name: 'Emäsalo',           lat: 60.20220, lng: 25.62546, desc: 'Emäsalon kärki – avomeri', descEn: 'Tip of Emäsalo – open sea',       bestDirs: [[76,250]]          },
+  /* Pampus (Hollanti): Almeren Pampushavenin laskupaikka Oostvaardersdijkin
+     padolla (52.3839, 5.1324, wake-style.com:n spottiopas), spotti ~180 m
+     luoteeseen aallonmurtajien suojaamassa altaassa — tarkistettu
+     satelliittikuvasta. Pato kulkee koillinen–lounas ja vesi on luoteessa,
+     joten itä ja kaakko ovat maatuulta (oppaan mukaan "ei suositella"); S,
+     SW, W, NW, N ja NE käyvät. Lähin tuulimittari on KNMI Muiden 6 km
+     (E-SOH, docs/eurooppa.md luku 16). Kesä–syyskuussa altaassa on
+     vesikasveja. */
+  { name: 'Pampus',            lat: 52.3850,  lng: 5.1305,   desc: 'Almeren Pampushaven – IJmeer, suojaisa allas', descEn: 'Pampushaven, Almere – IJmeer, sheltered basin', bestDirs: [[168,67]] }
 ];
 /* Englanninkielinen kuvaus on datassa (`descEn`) eikä `_t`-kutsuna:
    tools/suunnat.html lukee tämän lohkon pelkkänä literaalina, eikä
@@ -20071,8 +20080,14 @@ const FMI_MAP_STATIONS = [
 ];
 /* Tagi on AVAIN (`pref`, `FMI_SEA_PLACES`) eikä sitä käännetä; asemavalitsin
    näyttää sen nimen tästä. */
-const ASEMA_TAGIT = { Meri: _t('Meri', 'Sea'), Avomeri: _t('Avomeri', 'Open sea'), Lento: _t('Lento', 'Airport') };
+const ASEMA_TAGIT = { Meri: _t('Meri', 'Sea'), Avomeri: _t('Avomeri', 'Open sea'), Lento: _t('Lento', 'Airport'),
+  Jarvi: _t('Järvi', 'Lake') };
 function asemaTagi(tag) { return ASEMA_TAGIT[tag] || tag; }
+/* VESIASEMA = meri, avomeri tai järvi. `Jarvi` tulee vain Euroopan
+   asemille (`api/_esoh.js`, järvirasteri, 10.10.): IJsselmeerin ja
+   Bodenjärven rannan asema on spotille sama asia kuin meriasema —
+   kerros "rannikko", lukema z8 ja etusija valitsimessa. */
+function vesiTagi(tag) { return tag === 'Meri' || tag === 'Avomeri' || tag === 'Jarvi'; }
 /* Maan nimi käyttöliittymän kielellä (Euroopan asemakortti). Selaimen
    oma luettelo, joten nimiä ei käännetä käsin; varalla koodi (Natural
    Earthin `CYN` ei ole kelvollinen aluekoodi). */
@@ -22180,7 +22195,7 @@ function _addObsMarkers(map) {
              latest: { ws: vika.ws, wg: vika.wg, wd: vika.wd } };
   }
   function _euMerkki(st) {
-    var meri = st.tag === 'Meri';
+    var meri = vesiTagi(st.tag);
     var pilleriZ = meri ? PILLERI_Z_MERI : PILLERI_Z_MAA;
     var m = L.marker([st.lat, st.lng], { icon: mkWindIcon(map.getZoom(), null, st.name, pilleriZ),
       zIndexOffset: meri ? -50 : -100, keyboard: false, zoomaaAlle: pilleriZ })
@@ -22213,7 +22228,7 @@ function _addObsMarkers(map) {
       if (!d) return;
       d.asemat.forEach(function (a, k) {
         var st = d._rek[k];
-        if (st.tag === 'Meri' ? !meriPaalla : !maaPaalla) return;
+        if (vesiTagi(st.tag) ? !meriPaalla : !maaPaalla) return;
         /* Vain näkymä ja sen reunus, ei koko 4° laattaa: puhelimen
            näkymä zoomilla 10 on kymmenesosa laatasta. */
         if (!r || st.lat < r.s || st.lat > r.n || st.lng < r.w || st.lng > r.e) return;
@@ -27541,9 +27556,9 @@ function _kmValilla(a, b, c, d) {
  *   Munkkiniemi        harmaja  12 km  ->  laru       5 km
  *   Puuskaniemi       vuosaari   7 km  ->  kruunuv.   5 km
  *
- * `pref` JOHDETAAN TAGISTA eikä kirjoiteta erikseen: meriasema on se
- * jolla on tag 'Meri' tai 'Avomeri'. Erillinen lippu olisi ollut
- * kahdestoista paikka joka ajautuu erilleen. */
+ * `pref` JOHDETAAN TAGISTA eikä kirjoiteta erikseen: vesiasema on se
+ * jolla on tag 'Meri', 'Avomeri' tai (Euroopassa) 'Jarvi' (`vesiTagi`).
+ * Erillinen lippu olisi ollut kahdestoista paikka joka ajautuu erilleen. */
 function _fmiStationsSorted(spotLat, spotLng) {
   /* Euroopan asemat (`EuAsemat`) ovat rekisterin kolmas osa: ladatuista
      laatoista ne jotka ovat 150 km:n sisällä (valitsin näyttää kuusi
@@ -27556,7 +27571,7 @@ function _fmiStationsSorted(spotLat, spotLng) {
   return ALL.map(function(s){
       return Object.assign({}, s, {
         km: km(spotLat, spotLng, s.lat, s.lng),
-        pref: s.tag === 'Meri' || s.tag === 'Avomeri'
+        pref: vesiTagi(s.tag)
       });
     })
     .sort(function(a,b){

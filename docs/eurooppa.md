@@ -1358,6 +1358,126 @@ Savutesti ja graafimittaus läpi, sivuvirheitä 0.
   spoteilla se on kevyt; jos spotteja tulee satoja, merkit kannattaa luoda
   näkymän mukaan kuten Euroopan asemamerkit.
 
+
+## 16. Pampus (10.10.2026): ensimmäinen spotti Suomen ulkopuolella, KNMI ja järvet
+
+Pyyntö (10.10.): *"Pampus Hollannissa! Lisäpä sinne tota, paikallinen
+sääasema mittari ja katso, että ei mitään puutu muuta sieltä paikalta."*
+
+### 16.1 Spotti
+
+`Pampus` (`SPOTS`): Almeren Pampushavenin laskupaikka Oostvaardersdijkin
+padolla (52,3839 / 5,1324, wake-style.com:n spottiopas), spotti 52,3850 /
+5,1305 eli ~180 m luoteeseen aallonmurtajien suojaamassa altaassa —
+tarkistettu Esrin satelliittikuvasta (laskupaikka on padon päällä, vesi
+luoteessa). Suunnat `[[168, 67]]`: oppaan mukaan S, SW, W, NW, N ja NE
+käyvät, itä ja kaakko ovat maatuulta. Opas varoittaa vesikasveista
+kesäkuun puolivälistä syyskuun loppuun.
+
+### 16.2 Paikallinen mittari: Pampuksella ei ole omaa
+
+- **Rijkswaterstaatin `pampus.oost` / `.west` / `.noord`** (DD-API 2.0,
+  `ddapi20-waterwebservices.rijkswaterstaat.nl`; vanha
+  `waterwebservices…/METADATASERVICES_DBO` vastaa 503 ja uusi polku
+  ohjaa siirtosivulle) ovat näytteenottopisteitä: viimeisin tuuli
+  2012, 2018 ja 2022 (käsimittaus), vedenlämpö 14.9.2026. Ei mittari.
+  Markermeerin meetpaal 42:n viimeisin tuuli on 2019.
+- **Windfinder sanoo saman**: "no live weather station available" sekä
+  Pampus Portille että Fort Pampus Islandille. Paikalliset oppaat
+  lukevat "Pampus Islandin" ja Trintelhavenin (Houtribdijk) lukemia
+  ActueleWind.nl:stä.
+- **KNMI Muiden (06236, 52,3353 / 5,0922) on lähin oikea mittari,
+  6,1 km**, 10 min tahti, tuuli, puuska, suunta. Se on E-SOH:ssa
+  (`0-528-0-06236`) — mutta sovellus ei nähnyt sitä (alla).
+
+### 16.3 Koko KNMI:n verkko puuttui
+
+E-SOH julkaisee KNMI:n asemien tuulen korkeudella **2.0** eikä 10.0
+(`wind_speed:2.0:point:PT0S`, `wind_speed_of_gust:2.0:maximum:PT0S`;
+suunta on 10.0). Laatan luettelo hyväksyi vain `wind_speed:10.0:`-
+parametrit, ja `NOPEUS`/`PUUSKA` tunsivat vain ne. Mitattu E-SOH:n
+koko luettelosta: **66 asemaa käyttää 2.0-nimeä, kaikki KNMI:n**
+(`0-20000-0-062xx/063xx` ja `0-528-0-…`, myös Pohjanmeren lautat), eikä
+yhdelläkään ole 10 m:n tuulta. Luvun 4.1 "Hollanti 14" olivat
+Belgian ja Saksan raja-asemia.
+
+**Mitä parametrit ovat, mitattu KNMI:n omaa 10 min NetCDF:ää vasten**
+(Data Platform, anonyymi avain, 10.10. klo 20.20–21.20 UTC, viisi
+asemaa):
+
+| E-SOH | KNMI | tulos |
+|---|---|---|
+| `wind_speed_of_gust:2.0:maximum:PT0S` | `gff` (10 min puuska 10 m) | tasan sama, 5/5 |
+| `wind_from_direction:10.0:point:PT0S` | `dd` | tasan sama, 5/5 |
+| `wind_speed:2.0:point:PT0S` | `ff` (10 min keskituuli) | **EI** — se on kuuden viimeisen `ff`:n keskiarvo |
+| `wind_speed:2.0:maximum:PT0S` | tunnin suurin `ff` | |
+
+Liukuva tunti: Houtribdijk 21.10 E-SOH 9,28 / ka(ff) 9,28 ja 21.20
+8,32 / 8,32, Muiden 7,85 / 7,86, Schiphol 7,33 / 7,34, Lelystad 6,82 /
+6,83 (IJmuiden ei täsmää). KNMI:n oma havaintosivu näyttää `ff`:n
+(Schiphol 4,37, Houtribdijk 5,81 klo 21.20), eli tuulen muuttuessa
+sovelluksen luku on tunnin jäljessä.
+
+**Päätös:** parametrit lisättiin listojen VIIMEISIKSI (`api/_esoh.js`),
+jolloin ne valitaan vain asemalle jolla muuta tuulta ei ole, ja laatan
+luettelo hyväksyy aseman jolla on mikä tahansa `NOPEUS`-parametri.
+Tunnin keskiarvo on samaa lajia kuin muiden maiden `mean:PT1H`, joka oli
+jo listalla; puuska ja suunta ovat 10 min arvoja. Laatan kokeilu
+(x 46, y 35): 83 asemaa, joista KNMI:n kaikilla 24 tuntia ja tuorein
+lukema.
+
+### 16.4 Järvi on vettä
+
+Muiden olisi silti jäänyt näkymättömiin: maarasterissa (`tools/maat.json`,
+Natural Earth 1:50m) IJsselmeer on maata, joten asema oli "sisämaa"
+(oletuksena pois, lukema z10:stä) ja Pampuksen kortti valitsi
+meriasemaksi IJmuidenin 40,0 km:n päästä Muidenin (6,1 km) sijaan.
+
+- `tools/jarvet.mjs` → `tools/jarvet.json`: Natural Earth **1:10m**
+  lakes (1:50m ei tunne Gardaa eikä Comoa) samassa 0,05°:n ruudukossa,
+  bittikarttana: 234 järveä, 8 738 solmua, 6,7 kt. Erillinen tiedosto,
+  koska maarasteri omistaa alueellisten mallien käyttöalueet eikä aseman
+  tagi saa muuttaa niitä.
+- `asemanTiedot`: järveä 3 km:n sisällä → tagi **`Jarvi`** (sama säde
+  kuin meri), ja se tulee ennen lentoasemaa, koska keräin ei tunne nimiä
+  ja kaukopisteen ja merkin kerros on luettava samasta säännöstä.
+  Asiakkaassa `vesiTagi` (Meri, Avomeri, Jarvi): kerros "rannikko",
+  lukema z8, etusija valitsimessa; nimi "Järvi" / "Lake".
+- Keräin laskee vesilipun joka kerta (`merkitse`), joten
+  `esoh/asemat.json`in vanhat asemat päivittyvät seuraavalla ajolla.
+- Euroopan tuuliasemista 41 sai `Jarvi`-tagin (Houtribdijk, Stavoren,
+  Muiden, Vevey, Pully, Konstanz, Ohrid, Ruotsin ja Suomen järviasemia).
+  Gardan ja Wijdenesin (Markermeerin ranta) asemat jäävät sisämaaksi:
+  0,05°:n solmu ei osu 3 km:n säteelle kapean järven tai rannan kohdalla.
+
+### 16.5 Selaimessa (tuotantobuild, Chromium, oikea E-SOH)
+
+| | |
+|---|---|
+| Pampuksen kortti, asemavalitsin | Muiden · Järvi · 6,1 km ✓, sitten Houtribdijk (Järvi 34,5), IJmuiden (Meri 40,0) |
+| tuulihavainto | Muiden, tuorein 10 min sitten, 24 h kaavio, ei virheitä |
+| ennuste | Paras = AROME 1,3 km (+ ECMWF); natiivisarjat AROME ja DINI |
+| kartta z8 Pampuksen ympärillä | 24 KNMI-merkkiä rannikko- ja järvikerroksessa (ennen 0), Muiden mukana |
+| englanniksi | "Lake", desimaalipiste, kuvaus `descEn` |
+
+### 16.6 Mitä Pampukselta yhä puuttuu
+
+- **Tuulen 10 min keskiarvo.** Oikea `ff` on vain KNMI Data Platformin
+  10 min tiedostossa (NetCDF4/HDF5, avain; EDR-rajapinta ei hyväksy
+  anonyymia avainta). Se vaatii maksuttoman avaimen Vercelin
+  ympäristöön ja HDF5-lukijan proxyyn (tila olemassa olevaan
+  funktioon, 12 funktion katto) — käyttäjän päätös.
+- **Vedenlämpö** ("Puku: ei vedenlämpöä"): RWS:n IJmeerin lämpö on
+  näytteenottoa (viimeisin 14.9.), ei jatkuvaa.
+- **Aallot**: WAM kattaa vain Itämeren; IJmeerillä aallokko on lyhyttä
+  tuuliaallokkoa eikä EWAM/MFWAM (luku 5.1) ylety altaaseen.
+- **Vedenkorkeus**: FMI:n palvelu; Markermeer on säännöstelty järvi,
+  joten luku ei ole foilaajalle olennainen.
+- **Sadetutka**: FINRAD vain Suomessa (OPERA, luku 4.5, on seuraava
+  askel); sadetila näyttää AROMEn/ECMWF:n.
+- Kortti kutsuu yhä `api/vesi` ja `api/wam` Hollannin pisteelle (tyhjä
+  vastaus FMI:ltä). Ei vika, mutta turha kutsu Suomen ulkopuolella.
+
 ---
 
 ## Lähteet
