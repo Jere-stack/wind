@@ -8457,3 +8457,94 @@ koska oikea ajastin ehti poistaa luokan kesken sarjan.
   oikealla ruudulla (WebKit, 120 Hz) on vielä käyttäjän arvioitava.
 - Jaetulla spottilinkillä kortti aukeaa yleensä vasta lähdön jälkeen,
   joten spotti lentää tähtäimeen ja kortti liukuu sen päälle.
+
+## Latausruutu: maapallo (10.10.)
+
+Käyttäjä: latausruudusta geneerisempi maailmanlaajuiseen sovellukseen —
+Helsingin siluetti pois ja merkki ylälaitaan kuten useimmissa
+sovelluksissa. Kolmesta vaihtoehdosta (A taivaanranta ja otsake, B
+maapallo, C pelkkä tuuli) käyttäjä valitsi B:n ("tehdään huolella").
+Edellisen luvun lähtö (spotti tähtäimeksi, palkki kelikaistaksi) jäi.
+
+### Näkymä
+- **Ylhäällä** merkki (128 px, ennen 150), nimi, alanimi, tilarivi ja
+  palkki, `padding-top` turva-alue + 8vh (matalalla ruudulla 4vh).
+- **Alhaalla** puoliksi näkyvä maapallo: säde `--lr-R` 45svh, yläreuna
+  55 %:ssa ja keskipiste ruudun alareunassa. Puhelimella pallo on ruutua
+  leveämpi ja kaari on horisontti, työpöydällä ja vaakatilassa kupoli.
+- **Poistui**: Helsingin siluetti, meri ja aallot, kimallus, pilvet,
+  lokit, aurinko ja kuu, ja `<head>`in vuorokaudenajan paletti
+  (`LR_PALETTI`, `?aika=`, `?aurinko=`). Avaruuden pohja on kiinteä
+  (yläreuna `#060912` = kartan `--bg`), joten tilapalkki on 19,9:1 joka
+  vuorokaudenaikana.
+
+### Pallo
+- **Mantereet**: Natural Earth 1:110m land (public domain),
+  `tools/maapallo.mjs` (Douglas–Peucker 0,35°, alle 1,5 neliöasteen
+  renkaat pois): 76 rengasta, 1 910 pistettä, 9 946 merkkiä
+  kymmenesasteina, erotukset base36:nä. Data on `#lr-maa-lahde`ssä
+  (`type="text/plain"`, build ei tiivistä sitä). Suljetun renkaan
+  Douglas–Peucker jaetaan kaukaisimmasta pisteestä — alku- ja loppupiste
+  ovat sama, ja niiden välinen jana pudotti ensimmäisellä yrityksellä
+  koko maailman nollaan renkaaseen.
+- **Projektio** on ortografinen ja lasketaan KERRAN latausruudun
+  skriptissä staattiseksi SVG:ksi (`viewBox -1 -1 2 2`). Keskipiste on
+  35° viimeksi katsotun paikan eteläpuolella (`fs_lr_tuuli`.`lat`/`lng`,
+  ilman sitä Suomen etelärannikko), joten paikka on pallon yläosalla
+  y = sin 35° · R keskipisteestä eikä ruudun alla. Leveys rajataan
+  −55…55°:een. Takapuolen pisteet painetaan reunalle, jolloin täyttö
+  pysyy suljettuna; ääriviiva piirretään vain näkyville janoille, eikä
+  Natural Earthin saumoille (±180°, −90°).
+- **Yö ja päivä ovat todelliset**: auringon alapiste kellosta (sama
+  kaava kuin vanhan paletin auringon korkeus), valo auringon puolelta
+  (säteittäinen liuku alapisteestä) ja yö polygonina: terminaattori
+  näkyvältä puolelta ja reunakaari yön puolelta, reuna sumennettuna
+  hämäräksi (`feGaussianBlur` .05). Testaus `?lraika=<ISO-aika>`.
+- **Pallo ei pyöri** (poikkeama strategiasta, jossa luvattiin hidas
+  pyöritys): oikea pyöritys vaatisi uuden projektion joka ruudussa eli
+  pääsäikeen, ja litteä nauha pyöreässä maskissa ei näytä pallolta.
+  Oikea Maa ei myöskään liiku 1,6 sekunnissa. Liike on tuulessa (kolme
+  kehää), ilmakehän hengityksessä (5 s) ja pallon nousussa (1,5 s).
+- **Tuulen kehät**: säteet 0,74 / 0,88 / 1,03 × R, juovat kehän
+  tangentteina (`rotate(θ) translateX(R·k) rotate(90°)`), kehä on yksi
+  `rotate`-animaatio. Vauhti on kehän säteellä px/s = PX_MS × nopeus,
+  ja viimeksi nähty tuuli skaalaa sen ja peilaa suunnan (`.lr-ita`)
+  kuten ennen.
+- **Paikkamerkki** (`#lr-kohde`): paperinen piste ja laajeneva rengas
+  paikan kohdalla — sama muoto kuin merkin spotti.
+
+### Lähtö
+Edellisen luvun lähtö ja lisäksi **sukellus**: kartan keskipisteen kohta
+pallolla (sama projektio, `#loading._lrMaa.proj`) viedään tähtäimen
+keskelle ja pallo zoomaa sen ympäri 7× (`LAHTO_SUKELLUS`), avaruus
+työntyy perässä 1,06×. Merkin spotti laskeutuu samaan pisteeseen, eli
+paikka ja spotti kohtaavat tähtäimessä. Takapuolen keskipiste (jaettu
+linkki toiselle puolelle maailmaa) sukeltaa pallon omaan paikkamerkkiin.
+Paikkamerkki häipyy heti, koska 7× suurennettuna se oli valopallo
+tähtäimen vieressä aina kun kartta aukesi muualle kuin tallennettuun
+paikkaan. Ensimmäisessä versiossa kiihtyvä käyrä (.55,0,.8,.3) ja
+häivytys 0,22 s kohdalla piilottivat sukelluksen kokonaan; nyt käyrä on
+(.45,0,.6,.75) ja häivytys alkaa 0,32 s.
+
+Ansa: sukelluksen kääre `#lr-maa-zoom` oli lapsenlapsi eikä saanut
+`position: absolute`a, joten sen korkeus oli nolla ja pystysuuntainen
+keskipiste laskettiin väärästä laatikosta (mittari: 75–228 px sivussa).
+
+### Mitattu
+- `tools/lahtomittaus.mjs` (uusi rivi: pallon sukellus): spotti
+  tähtäimessä 0,00 px, lanka kelikaistalla 0,00 px ja kartan
+  keskipiste pallolla tähtäimessä 0,00–0,02 px puhelimella,
+  vaakatilassa, iPadilla ja työpöydällä.
+- Kontrastit tasaista pohjaa vasten: nimi 16,02:1, alanimi 6,44:1,
+  tilarivi 7,10:1, tilapalkin valkoinen 19,9:1.
+- Animaatioita (käynnissä): esittelyssä 31, levossa 7 (edellinen
+  versio 46 / 40).
+- Savutesti ja graafitesti läpi; englanti, vaimennettu liike ja jaettu
+  spottilinkki ilman `pageerror`ia.
+
+### Mitä jäi
+- Laitteella katsomatta: pallon terävyys sukelluksessa (kompositori
+  skaalaa rasteria) ja koko lähdön tuntuma.
+- Ensimmäinen tallennus tapahtuu heti kartan alustuksessa, joten
+  tallennettu paikka voi hetken olla aloitusnäkymän keskipiste ennen
+  kuin oikea näkymä kirjoitetaan (20 s:n välein tai sivun piiloutuessa).

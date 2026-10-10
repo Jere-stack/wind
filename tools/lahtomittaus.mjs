@@ -81,7 +81,7 @@ for (const L of LAITTEET) {
       }).observe(el, { attributes: true, attributeFilter: ['class'] });
     });
   `);
-  await sivu.goto(URL0 + '/?kieli=fi', { waitUntil: 'domcontentloaded' });
+  await sivu.goto(URL0 + '/?kieli=fi&perf=1', { waitUntil: 'domcontentloaded' });
   try {
     await sivu.waitForFunction(() => window.__lahtoAnim, null, { timeout: 60000 });
   } catch (e) {
@@ -107,11 +107,25 @@ for (const L of LAITTEET) {
       kisko: { l: Math.max(0, kisko.left), r: Math.min(innerWidth, kisko.right), y: kisko.bottom - 4.5 },
       rengasOp: op('#crosshair .ch-ring'), tlOp: op('#tl-wrap'), kapOp: op('#kapseli'),
       nayttamoOp: op('#lr-nayttamo'),
+      /* Maapallon sukellus: kartan keskipisteen kohta pallolla
+         (sama projektio kuin latausruudulla) muunnetun laatikon sisällä.
+         Muunnos on siirto ja skaalaus, joten piste on laatikon samassa
+         suhteellisessa kohdassa kuin ennen muunnosta. */
+      maa: (function () {
+        const z = document.getElementById('lr-maa-zoom'), j = document.getElementById('loading');
+        if (!z || !j._lrMaa || !FS || !FS.State.map) return null;
+        const c = FS.State.map.getCenter(), q = j._lrMaa.proj(c.lng, c.lat);
+        const r = z.getBoundingClientRect();
+        return { x: r.left + r.width * (1 + q[0]) / 2, y: r.top + r.height * (1 + q[1]) / 2, z: q[2] };
+      })(),
     };
   });
   tulos(!/lr-ei-/.test(luokat), `${L.nimi}: kaikki lennot käytössä (${luokat})`);
 
   if (KUVAT) {
+    /* `?perf=1` (tarvitaan `FS.State`:a varten) piirtää mittauspaneelin;
+       kuviin se ei kuulu. */
+    await sivu.addStyleTag({ content: '#perf-panel { display: none !important; }' });
     for (let t = 0; t <= 1000; t += 100) {
       await aseta(t);
       await sivu.screenshot({ path: `${KUVAT}/${L.nimi}-${String(t).padStart(4, '0')}.png` });
@@ -139,6 +153,11 @@ for (const L of LAITTEET) {
   const loppu = await mittaa();
   tulos(loppu.rengasOp > 0.95 && loppu.tlOp > 0.95, `${L.nimi}: tähtäin ja aikajana näkyvissä lopussa (${loppu.rengasOp}, ${loppu.tlOp})`);
   tulos(loppu.nayttamoOp < 0.01, `${L.nimi}: näyttämö häipynyt (${loppu.nayttamoOp})`);
+  if (loppu.maa) {
+    const ex = loppu.maa.x - loppu.tahtain.x, ey = loppu.maa.y - loppu.tahtain.y;
+    tulos(loppu.maa.z > 0.15 && Math.hypot(ex, ey) <= 1,
+      `${L.nimi}: pallo sukelsi kartan keskipisteeseen tähtäimessä (ero ${ex.toFixed(2)}, ${ey.toFixed(2)} px)`);
+  } else tulos(false, `${L.nimi}: pallon sukellusta ei voitu mitata`);
 
   /* Lopuksi oikea piilotus: animaatiot jatkuvat ja ruutu poistuu. */
   await sivu.evaluate(() => { window.__lahtoAnim.forEach(a => a.play()); window.__lahtoPiilo && window.__lahtoPiilo(); window.__lahtoSaapuu && window.__lahtoSaapuu(); });

@@ -152,6 +152,11 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   `a0`–`a3`, luettelon OMA avain `aallot`), jakso pistekyselystä.
   `tiilet.mjs` ajaa sen viimeisenä omassa try/catchissaan (`AALLOT=0`
   ohittaa); suoraan `node tools/wam.mjs <hakemisto>` mittausta varten.
+- `tools/maapallo.mjs` — latausruudun maapallon mantereet (Natural
+  Earth 1:110m, public domain): yksinkertaistaa ja koodaa, ja
+  `--kirjoita` vaihtaa `index.html`:n `#lr-maa-lahde`-lohkon. Data on
+  repossa valmiina, joten build ei tarvitse tätä. docs/ui.md
+  "Latausruutu: maapallo".
 - `tools/ikoni.mjs` — sovelluksen merkin (siipi ja spotti) ainoa lähde:
   kirjoittaa `public/icon.svg`:n, `--png` koko PNG-sarjan ja `--inline`
   latausruudun merkkilähteen (`#lr-merkki-lahde`: siiven ja pallon
@@ -225,7 +230,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/eleet.md` | nipistystä, zoomia (**kosketuszoom tähtäimen ympäri**), zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
 | `docs/data.md` | **aaltoennustetta kartalla (FMI WAM, `a0`–`a3`, `tools/wam.mjs`)**, säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja, **havaintoasemien oma historia (Mellsten ja Laru, `havainnot`-haara)**, **Mellstenin katkot: 4 h kuvaaja, arkistovaratie ja ajastinketju**, **kelikameran tila (YouTube, pikkukuvan ETag)** |
 | `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, MET Nordicia, Open-Meteon S3-malleja, näyttötarkkuuden tasoa: tason valinta zoomista, tasojen sekoitus (`karkeaPaino`), lämpökartan kaksi hilaa ja laattojen kaksi kerrosta — miksi lämpökartta ei enää hyppää zoomatessa**, **laatat ajassa paloina (24 askelta, `_palaValmis`)**, **kaukaa kuin läheltä: tiheämpi taso puhelimella, solmubudjetti, l1, alueellinen 1,0° ja `kokoaHila`n muisti** |
-| `docs/ui.md` | **väriteemaa (Yömeri: paneelit, tokenit, `Teema`, `ink()`)**, **kerrosvalitsinta (neljä ruutua esikatselukuvin) ja sadekerroksen GL-piirtoa (häivytykset, B-spline; silmukka on historiaa, ks. docs/sadetutka.md)**, **aaltokerrosta: siru, väri, aallonharjat, aikajana, kapseli, poijukaavion ennuste**, paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa (**toiston liuku, jatkuva päiväkisko, pehmeä valinta ja kelikaista**), kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä (lähtö sovellukseen: spotti tähtäimeksi, palkki kelikaistaksi, oikeat latausvaiheet)**, **kapselin säätä ja tuntisäätä (valittu hetki, paikallinen lähde)**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
+| `docs/ui.md` | **väriteemaa (Yömeri: paneelit, tokenit, `Teema`, `ink()`)**, **kerrosvalitsinta (neljä ruutua esikatselukuvin) ja sadekerroksen GL-piirtoa (häivytykset, B-spline; silmukka on historiaa, ks. docs/sadetutka.md)**, **aaltokerrosta: siru, väri, aallonharjat, aikajana, kapseli, poijukaavion ennuste**, paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa (**toiston liuku, jatkuva päiväkisko, pehmeä valinta ja kelikaista**), kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä (maapallo, todellinen yö ja päivä, sukellus karttaan; lähtö sovellukseen: spotti tähtäimeksi, palkki kelikaistaksi, oikeat latausvaiheet)**, **kapselin säätä ja tuntisäätä (valittu hetki, paikallinen lähde)**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
 | `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit, kaavion venytys** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V11: yksi kaaviomoottori, kortti moduuleina, fonttilattia, laajan valinta, venytys, mallit laajassa, **ennustevalikko, kiinteä lukemarivi ja selkeämpi päiväys**), ja **luku 8: rauhallinen ja vakaa kortti (strategia 3.10., päätetty suosituksen mukaan — kupla jää kiinteän kokoisena; toteutus V12–V16 ja mittari `tools/korttimittaus.mjs`): mallilukemat näkyviin laajassa, ei koon muutoksia, kahdennukset pois, kaavion teksti vain kokonaisena, kuusi kirjasinkokoa ja desimaalipilkku** |
@@ -352,6 +357,7 @@ kokeiltu ja kaadettu mittauksella.
   Merkki yksinkertaistui: siipi ja spotti ·
   Latausruutu vuorokaudenajan mukaan: Helsinki, nivelletty kuski ja hyppy ·
   **Latausruutu muuttuu sovellukseksi (10.10.)** ·
+  **Latausruutu: maapallo (10.10.)** ·
   Aikajanan liukuväri pois — halot tilalle ·
   **Kelikamera: play-kolmio pilleriin ja kamera asemakorttiin** ·
   **Kieli: suomi ja englanti** ·
@@ -721,22 +727,40 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 
 **Latausruutu ja sovelluksen merkki**
 
-- **LATAUSRUUTU ON KARTTAMAAILMAA JA LIIKEGRAFIIKKAA** (docs/ui.md,
-  "Latausruutu liikegrafiikaksi" ja "Merkki yksinkertaistui: siipi ja
-  spotti"): tumma meri, paperinen tuuli, ja merkki (paperinen siipi)
-  avautuu tyvestä ennen kuin spotti syttyy.
-  Kotivalikon ikoni -> latausruutu -> kartta on yksi pohja; paperiruutu
-  teki kaksi kirkkaushyppyä joka käynnistyksessä. Älä palauta
-  valokuvaa paperille: se oli 62 kB base64:ää (gzip 467,7 -> 410,4 kB)
-  ja sisältö näkyi hitaalla verkolla 320 ms myöhemmin (FCP 812 vs
-  492 ms).
+- **LATAUSRUUTU ON MAAPALLO AVARUUDESSA** (vaihtoehto B, käyttäjän
+  päätös 10.10., docs/ui.md "Latausruutu: maapallo"): ylhäällä merkki,
+  nimi ja palkki avaruuden tasaisella pohjalla, alhaalla puoliksi
+  näkyvä tumma maapallo (säde `--lr-R` 45svh, yläreuna 55 %:ssa,
+  keskipiste ruudun alareunassa). Helsingin siluetti, meri, pilvet,
+  lokit ja vuorokaudenajan paletti (`LR_PALETTI`) poistettiin: sovellus
+  on maailmanlaajuinen. Kotivalikon ikoni -> latausruutu -> kartta on
+  yhä yksi tumma pohja. Älä palauta valokuvaa paperille: se oli 62 kB
+  base64:ää ja sisältö näkyi hitaalla verkolla 320 ms myöhemmin.
+- **PALLO ON OIKEA PALLO JA STAATTINEN SVG.** Mantereet ovat Natural
+  Earth 1:110m (`tools/maapallo.mjs --kirjoita` kirjoittaa
+  `#lr-maa-lahde`n: Douglas–Peucker 0,35°, 76 rengasta, 9,9 kt) ja ne
+  projisoidaan ortografisesti KERRAN latausruudun skriptissä;
+  projektion keskipiste on 35° viimeksi katsotun paikan eteläpuolella
+  (`fs_lr_tuuli`: `lat`, `lng`; ilman sitä Suomen etelärannikko), joten
+  oma paikka (`#lr-kohde`) on pallon näkyvällä yläosalla. Takapuolen
+  pisteet painetaan reunalle, ja ääriviiva jättää Natural Earthin saumat
+  (±180°, −90°) pois. **PALLO EI PYÖRI** (käyttäjälle kerrottu): pyöritys
+  vaatisi uuden projektion joka ruudussa tai litteän nauhan maskissa.
+  Liike on tuulen kehissä, ilmakehän hengityksessä ja nousussa. **YÖ JA
+  PÄIVÄ OVAT TODELLISET**: auringon alapiste kellosta (sama kaava kuin
+  vanhan paletin aurinko), valo auringon puolelta ja yöpolygoni
+  terminaattorista hämärällä reunalla; testaus `?lraika=<ISO-aika>`.
 - **MERKKI JA PALKKI OVAT PÄÄOSASSA, JA LÄHTÖ ON SIIRTYMÄ
   SOVELLUKSEEN** (vaihtoehto C, käyttäjän päätös 10.10., docs/ui.md
   "Latausruutu muuttuu sovellukseksi"). Ruutu ei häivy kokonaan:
   merkin SPOTTI LENTÄÄ KARTAN TÄHTÄIMEN PISTEEKSI (pienenee `.ch-dot`in
   kokoiseksi, ja tähtäimen rengas avautuu siitä), PALKKI LENTÄÄ
   PÄIVÄKISKON KELIKAISTAKSI (osat yhdeksi langaksi, kiskon näkyvä
-  leveys, kaistan keskiviiva ja 2 px), ja näyttämö häipyy kartaksi.
+  leveys, kaistan keskiviiva ja 2 px), MAAPALLO SUKELTAA KARTTAAN (7×,
+  `LAHTO_SUKELLUS`): kartan keskipisteen kohta pallolla viedään
+  tähtäimen keskelle ja pallo zoomaa sen ympäri, joten paikka ja spotti
+  kohtaavat tähtäimessä; näyttämö häipyy kartaksi. Merkki on
+  YLÄLAIDASSA (käyttäjän pyyntö 10.10.).
   Kohteet mitataan lähtöhetkellä (`_lahtoLennot`) ja annetaan
   muuttujina; vaaka- ja pystykääre ovat eri käyrillä (`#lr-m-lento-x/-y`,
   `#lr-palkki-x/-y`), joten rata kaartuu ilman `offset-path`ia.
@@ -747,10 +771,11 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   mikään ei lennä (`lr-ei-lentoa`). `display: none` 1 000 ms (ennen
   1 350). Mittari `tools/lahtomittaus.mjs` (pysäyttää siirtymät ja
   asettaa ajan itse): spotti tähtäimen keskellä 0,00 px ja lanka
-  kaistalla 0,00 px puhelimella, vaakatilassa, iPadilla ja työpöydällä.
+  kaistalla 0,00 px ja pallon sukellus tähtäimessä 0,02 px puhelimella,
+  vaakatilassa, iPadilla ja työpöydällä.
   Jos siirrät tähtäintä, kiskoa tai kelikaistaa, aja se.
   **KUSKI ON POISTETTU KOKONAAN** (merkintä, tyylit, roiske ja asun
-  muuttujat; `--lr-kuski` jäi lokkien sävyksi). Sen historia on
+  muuttujat). Sen historia on
   docs/ui.md:ssä ("Latausruutu vuorokaudenajan mukaan", "Merkki ensin,
   kuski vain lähdössä") — älä palauta sitä.
 - **PALKKI ON NELJÄ OIKEAA VAIHETTA** (`Latausvaiheet`): säädata
@@ -762,50 +787,23 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kesken olevan vaiheen vasta 2 s:n jälkeen (`NIMI_MS`), jottei nopea
   käynnistys vilku. Uusi odotettava asia on viides vaihe tai osa
   olemassa olevaa — ei erillinen ajastin.
-- **TILANJAKO ON YHÄ KAKSIOSAINEN: KOHTAUS YLHÄÄLLÄ, NIMILOHKO SYVÄLLÄ
-  MERELLÄ.** Aallot ja juovat häipyvät ennen nimilohkoa, eikä tekstin
-  alla liiku mitään. Mitattu ruudulta: nimi 16,34:1, alanimi 6,47:1,
-  tilarivi 7,25:1, heikoin = mediaani (tasainen alusta). Älä vie tekstiä
-  kohtauksen päälle — valokuvan aikana mitattuna muste oli kuvaa vasten
-  heikoimmillaan 1,62:1, ja sama pätee liikkuvaan kohtaukseen.
-- **LATAUSRUUDUN TUULIJUOVAT OVAT LOGON PAPERIA, HIEMAN
-  LÄPIKUULTAVINA** (`JUOVA_VARI` `#F0E7CE`, `JUOVA_ALFA` 0,62 juovan
-  oman alfan päälle) — käyttäjän päätös 28.9. Ne olivat ennen rampin
-  ankkurin värisiä arkin nopeuden mukaan; nopeus näkyy nyt vauhdissa,
-  pituudessa ja paksuudessa. **Vauhti ja suunta ovat viimeksi nähty
-  tuuli** (`fs_lr_tuuli`, `Crosshair._lrTuuliTalteen` kun valittu hetki
-  on nyt, enintään 20 s välein): vauhti √(ms/7) rajattuna 0,45–2,2, ja
-  selvällä itäkomponentilla juovat kulkevat oikealle (`.lr-ita`;
-  kohtaus katsoo pohjoiseen). Yli 12 h vanha ohitetaan.
-  `data-tuuli` jää `tools/ikoni.mjs`:n
-  tulosteeseen mutta sitä ei lueta. Nimilohko, merkki ja
-  edistymispalkki ovat samaa paperia. Magentaa ei ruudulla ole, joten
-  `--accent` palkissa sanoisi 20 m/s — ja se on tummalla himmein
-  vaihtoehto.
-- **LATAUSRUUTU SEURAA VUOROKAUDENAIKAA** (docs/ui.md, "Latausruutu
-  vuorokaudenajan mukaan"). `<head>`in `LR_PALETTI` laskee auringon
-  korkeuden Helsingissä ja sekoittaa viiden ankkurin paletin (yö,
-  sininen hetki, hämärä, kultainen valo, päivä) `--lr-*`-muuttujiin
-  ENNEN ensimmäistä maalausta; testaus `?aika=yo|sininen|ilta|paiva`
-  tai `?aurinko=<astetta>`. Käyttäjän hyväksymät poikkeukset
-  aiempiin sääntöihin: (1) päivällä taivas vaalenee, mutta yläreuna
-  pysyy niin tummana että tilapalkin valkoinen on VÄHINTÄÄN 10:1
-  (mitattu päivä 10,54, ilta 15,97, sininen 15,51, yö 18,38); (2)
-  illan valo on haalea kupari/ruusu, EI rampin kylläistä oranssia; (3)
-  lokit (`--lr-kuski`) ovat valoisalla (aurinko yli −3°) TUMMA siluetti
-  ja pimeällä paperia — vaihto on kerralla, ei liukuen.
-  Nimilohkon alla on AINA sama syvä meri: tekstien kontrastit ovat
-  samat joka vaiheessa (16,34 / 6,48 / 7,25). Tähtiä ei ylimpään 64
-  px:iin eikä aurinkoa taivaan puoliväliä ylemmäs, koska molemmat
-  vaalensivat tilapalkin alustaa (7,80:1 ja 9,60:1 ennen rajausta).
-- **SILUETTI ON HELSINKI ETELÄSATAMAN SUUNNALTA:** rantarivi ja
-  Kauppatori (teltat, Keisarinnan kivi), mäellä Tuomiokirkko,
-  Katajanokalla Uspenski ja maailmanpyörä, satamassa Silja Linen laiva
-  ja Suomenlinna kirkkomajakkoineen. Käyttäjän päätökset: ensin vain
-  tunnistettavat muodot (stadion, laiva, Lauttasaari ja Harmaja pois),
-  sitten "yleinen siluetti joka sisältää ainakin" Suomenlinnan,
-  Tuomiokirkon, Kauppatorin ja Silja Linen laivan, Haukilahden
-  vesitorni pois. Vilkkuva valo on Suomenlinnan kirkon majakka.
+- **TEKSTI ON AVARUUDEN TASAISELLA POHJALLA, EI LIIKKEEN PÄÄLLÄ.**
+  Nimilohko on ylhäällä pallon yläpuolella, tuulen ulompi kehä jää sen
+  alle, ja tähdet jätetään pois nimilohkon alueelta (kirjainten väliin
+  osunut tähti luki välimerkkinä). Mitattu ruudulta 10.10.: nimi
+  16,02:1, alanimi 6,44:1, tilarivi 7,10:1 tasaista pohjaa vasten. Älä
+  vie tekstiä pallon tai juovien päälle.
+- **TUULIJUOVAT OVAT LOGON PAPERIA JA KIERTÄVÄT PALLOA** (käyttäjän
+  päätös 28.9. värille): kolme kehää (0,74 / 0,88 / 1,03 × R)
+  tangentiaalisia juovia, kehä = YKSI `rotate`-animaatio ja juovat sen
+  staattisia lapsia, joten tuuli kulkee pallon kaaren yli. **Vauhti ja
+  suunta ovat viimeksi nähty tuuli** (`fs_lr_tuuli`,
+  `Crosshair._lrTalteen` kun valittu hetki on nyt; paikka aina, ja
+  `Paluu._piilo` kirjoittaa heti): vauhti √(ms/7) rajattuna 0,45–2,2, ja
+  kun tuuli puhaltaa selvästi itään päin, juovat kulkevat kaaren yllä
+  oikealle (`.lr-ita`). Yli 12 h vanha tuuli ohitetaan. `data-tuuli`
+  jää `tools/ikoni.mjs`:n tulosteeseen mutta sitä ei lueta. Magentaa ei
+  ruudulla ole, joten `--accent` palkissa sanoisi 20 m/s.
 - **KAIKKI LATAUSRUUDUN LIIKE ON `transform`IA TAI `opacity`Ä
   HTML-ELEMENTEILLÄ.** Ei canvasia, ei SVG-attribuutteja, ei
   `stroke-dashoffset`ia, ei `width`iä: käynnistyksen aikana pääsäie on
@@ -871,23 +869,15 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   olisi tehnyt juuri sen (ja se oli kuollut, purettiin riviä ennen
   `main()`ia). Nämä tekstit ovat virheilmoituksia, eivät ohje — sääntö
   "ei Napauta jatkaaksesi -tekstiä" koskee normaalia latausta.
-- **ELÄMÄ KOHTAUKSESSA ON ARKKEJA JA VARJOKOPIOITA** (docs/ui.md,
-  "Pilvet, lokit, kaarron roiske ja jälki"): pilvet ovat YKSI hitaasti
-  ajelehtiva arkki taivaan valon värisiä säteittäisiä liukuvärejä
-  (`--lr-pilvi`, `--lr-pilvi-a`) ja lokkiparvi on yksi lentoanimaatio
-  ja kaksi siiveniskua. Animaatioita latausruudulla (käynnissä olevat,
-  mitattu 10.10.): esittelyssä 46, levossa 40 — vanha build samalla
-  mittarilla 45 / 57.
-- **TILAPALKKI ON VALKOINEN TUMMALLA, VÄHINTÄÄN 10:1 JOKA
-  VUOROKAUDENAIKANA — MYÖS VAAKATILASSA.** Vaakatilassa 7 % on 28 px,
-  joten taivaan yläväri on kiinteä 44 px:iin asti, ylin tuulijuova on
-  vähintään 70 px alhaalla (`YLIN`), kuu `max(92px, 16%)` ja aurinko
-  matalalla ruudulla `max(100px, …)` kapeammalla hehkulla. Ennen
-  vaakatila oli mitattuna yöllä 1,19:1 (kuu) ja päivällä 5,45:1
-  (auringon hehku); nyt vähintään 11,19:1. Pilvet eivät nouse
-  `max(80px, 12%)`:n yläpuolelle. Yöllä ylälaita on kartan `--bg` (18,38:1),
-  päivällä tummansininen (10,54:1). Kun ruutu oli kermaa, valkoinen
-  tilapalkki oli 1,32:1; älä vaalenna ylälaitaa alle rajan.
+- **LEVOSSA ANIMAATIOITA ON SEITSEMÄN** (mitattu 10.10., käynnissä
+  olevat: esittelyssä 31, levossa 7; kuskin ja meren kanssa 46 / 40,
+  sitä ennen 45 / 57): kolme tuulen kehää, ilmakehä, paikkamerkin
+  rengas, palkin kiilto ja yksi muu. Älä lisää juovaa tai tähteä omana
+  animaationaan.
+- **TILAPALKKI ON VALKOINEN TUMMALLA, VÄHINTÄÄN 10:1.** Avaruuden
+  yläreuna on kartan `--bg` (`#060912`) joka vuorokaudenaikana:
+  mitattu 19,9:1, ja tähtiä ei ole ylimpään 64 px:iin. Älä vaalenna
+  ylälaitaa (kermaruudulla valkoinen oli 1,32:1).
 - **MERKKI ON SIIPI JA SPOTTI, JA SE SYNTYY `tools/ikoni.mjs`:STÄ.**
   Wingfoil-siipi yhtenä umpinaisena muotona (etureuna, jättöreuna ja
   alareunan lovi = puomi) ja kärjen yläpuolella pallo = spotti, molemmat
@@ -915,10 +905,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   ja maskin mitoille tehty kelluisi pikkuruisena kotivalikossa
   (`MASKI_SKAALA` 0,8 koko sommitelmalle).
 - **LATAUSRUUDUN RAE JA VINJETTI OVAT STAATTISIA, JA RAE ON MASKATTU
-  POIS YLÄLAIDASTA JA NIMILOHKON ALTA** (`#lr-vinjetti::after`). Rae
-  hajottaa tumman taivasliu'un porrastuksen, mutta se vaalentaa pohjaa:
-  kaikkialla tilapalkki olisi 17,55:1 ja nimi 15,08:1. Maskattuna
-  mitattu 19,65 / 16,34 / 6,48 / 7,25 — samat kuin ennen.
+  POIS YLÄPUOLISKOSTA** (`#lr-vinjetti::after`, 50→60 %): rae hajottaa
+  pallon hehkun porrastuksen, mutta se vaalentaisi tilapalkin ja
+  nimilohkon pohjaa.
 - **`background_color` ON LATAUSRUUTU, `theme_color` ON KARTTA.**
   Edellinen on käynnistyksen välähdys ennen ensimmäistä maalausta, eli
   latausruudun ylälaidan väri; jälkimmäinen värittää järjestelmäpalkit
