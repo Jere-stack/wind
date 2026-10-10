@@ -30415,10 +30415,19 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
        viimeisen `scrollend`insä sormen ollessa vielä kiinni: kisko jäisi
        keskittämättä eikä täystarkkaa kenttää rakennettaisi lainkaan.
        Ajastin antaa heitolle tilaisuuden jatkaa — jokainen uusi
-       scroll-tapahtuma nollaa sen. */
+       scroll-tapahtuma nollaa sen.
+       KOSKETUKSEN NOSTON KERTOO VAIN `touchend`/`touchcancel`. Selain
+       lähettää `pointercancel`in heti kun natiivi vieritys alkaa — sormi
+       on silloin yhä kiskolla. Se luettiin ennen nostoksi, ja kun sormi
+       pysähtyi (pito kesken vedon), ajastin päätti eleen sormen alla:
+       vahvistus ja liuku, liput nollaan, ja jatkovedon scroll-tapahtumat
+       hylättiin portilla — kisko vieri mutta valinta ei liikkunut
+       (käyttäjän raportti 10.10.). */
     ['pointerup', 'pointercancel', 'touchend', 'touchcancel'].forEach(function (n) {
-      window.addEventListener(n, function () {
+      window.addEventListener(n, function (e) {
         if (!_tlKiskoKosketusOma) return;
+        if (e.pointerType === 'touch' && 'ontouchstart' in window) return;
+        if (e.touches && e.touches.length) return;
         _tlKiskoKosketusOma = false;
         clearTimeout(_kiskoAjastin);
         _kiskoAjastin = setTimeout(_kiskoLoppu, 140);
@@ -30577,9 +30586,16 @@ function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
      tikistä, ja renderTimeline() voi rakentaa tikit uudelleen kesken eleen.
      Silloin alkuperäinen kohde on irrotettu DOM:sta eikä touchend enää
      kupli #tl-scroll:iin — lippu jäisi päälle pysyvästi ja koko ohitus
-     lakkaisi toimimasta. Ikkunatasolla tapahtuma tulee aina. */
+     lakkaisi toimimasta. Ikkunatasolla tapahtuma tulee aina.
+     Kosketuksen `pointercancel` tulee jo vierityksen alkaessa sormen
+     ollessa kiinni, joten kosketuksen nosto luetaan vain touch-
+     tapahtumista (sama ansa kuin kiskolla, käyttäjän raportti 10.10.). */
   ['pointerup', 'pointercancel', 'touchend', 'touchcancel'].forEach(function (n) {
-    window.addEventListener(n, function () { State._tlTouching = false; },
+    window.addEventListener(n, function (e) {
+      if (e.pointerType === 'touch' && 'ontouchstart' in window) return;
+      if (e.touches && e.touches.length) return;
+      State._tlTouching = false;
+    },
       { passive: true, capture: true });
   });
 
