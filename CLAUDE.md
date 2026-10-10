@@ -728,8 +728,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 **Latausruutu ja sovelluksen merkki**
 
 - **LATAUSRUUTU ON MAAPALLO AVARUUDESSA** (vaihtoehto B, käyttäjän
-  päätös 10.10., docs/ui.md "Latausruutu: maapallo"): ylhäällä merkki,
-  nimi ja palkki avaruuden tasaisella pohjalla, alhaalla puoliksi
+  päätös 10.10., docs/ui.md "Latausruutu: maapallo"): ylhäällä merkki ja
+  nimi avaruuden tasaisella pohjalla, alalaidassa tilarivi ja palkki,
+  ja alhaalla puoliksi
   näkyvä tumma maapallo (säde `--lr-R` 45svh, yläreuna 55 %:ssa,
   keskipiste ruudun alareunassa). Helsingin siluetti, meri, pilvet,
   lokit ja vuorokaudenajan paletti (`LR_PALETTI`) poistettiin: sovellus
@@ -787,12 +788,16 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kesken olevan vaiheen vasta 2 s:n jälkeen (`NIMI_MS`), jottei nopea
   käynnistys vilku. Uusi odotettava asia on viides vaihe tai osa
   olemassa olevaa — ei erillinen ajastin.
-- **TEKSTI ON AVARUUDEN TASAISELLA POHJALLA, EI LIIKKEEN PÄÄLLÄ.**
-  Nimilohko on ylhäällä pallon yläpuolella, tuulen ulompi kehä jää sen
-  alle, ja tähdet jätetään pois nimilohkon alueelta (kirjainten väliin
-  osunut tähti luki välimerkkinä). Mitattu ruudulta 10.10.: nimi
-  16,02:1, alanimi 6,44:1, tilarivi 7,10:1 tasaista pohjaa vasten. Älä
-  vie tekstiä pallon tai juovien päälle.
+- **TEKSTI EI OLE LIIKKEEN PÄÄLLÄ.** Merkki, nimi ja alanimi ovat
+  ylhäällä avaruuden tasaisella pohjalla, ja tähdet jätetään pois
+  niiden alueelta (kirjainten väliin osunut tähti luki välimerkkinä).
+  TILARIVI JA PALKKI OVAT ALALAIDASSA (käyttäjän pyyntö 10.10.,
+  `#load-bottom` `bottom: --sab + 7vh`) pallon päällä lähellä sen
+  keskipistettä, jossa tuulen kehät eivät kulje (≥ 0,72 × R); hento
+  tumma huntu (`#load-bottom::before`) tasaa pallon ääriviivat ja
+  häipyy lähdössä. Mitattu ruudulta 10.10.: nimi 16,02:1, alanimi
+  6,44:1, tilarivi 7,21:1 (heikoin ääriviivan kohdalla 6,41:1). Älä vie
+  tekstiä tuulen kehien alle.
 - **TUULIJUOVAT OVAT LOGON PAPERIA JA KIERTÄVÄT PALLOA** (käyttäjän
   päätös 28.9. värille): kolme kehää (0,74 / 0,88 / 1,03 × R)
   tangentiaalisia juovia, kehä = YKSI `rotate`-animaatio ja juovat sen

@@ -8467,8 +8467,15 @@ maapallo, C pelkkä tuuli) käyttäjä valitsi B:n ("tehdään huolella").
 Edellisen luvun lähtö (spotti tähtäimeksi, palkki kelikaistaksi) jäi.
 
 ### Näkymä
-- **Ylhäällä** merkki (128 px, ennen 150), nimi, alanimi, tilarivi ja
-  palkki, `padding-top` turva-alue + 8vh (matalalla ruudulla 4vh).
+- **Ylhäällä** merkki (128 px, ennen 150), nimi ja alanimi,
+  `padding-top` turva-alue + 8vh (matalalla ruudulla 4vh).
+- **Alalaidassa** tilarivi ja palkki (käyttäjän pyyntö samana päivänä:
+  "luonnolliseen paikkaan, näytön alalaitaan"), turva-alue + 7vh
+  alareunasta. Kohta on pallon keskipisteen lähellä, jossa tuulen kehät
+  (≥ 0,72 × R) eivät kulje, ja hento tumma huntu tasaa pallon ääriviivat
+  tekstin alla. Mitattu: tilarivi 7,21:1, heikoin ääriviivan kohdalla
+  6,41:1. Palkin lento kelikaistaksi lyheni samalla, ja lähtömittari on
+  yhä 0,00 px.
 - **Alhaalla** puoliksi näkyvä maapallo: säde `--lr-R` 45svh, yläreuna
   55 %:ssa ja keskipiste ruudun alareunassa. Puhelimella pallo on ruutua
   leveämpi ja kaari on horisontti, työpöydällä ja vaakatilassa kupoli.

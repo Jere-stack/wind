@@ -3733,7 +3733,7 @@ html.lr-saapuu #crosshair .ch-ring { animation: lr-rengas .42s cubic-bezier(.2,1
 @keyframes lr-viiva { from { transform: scaleX(0); } to { transform: none; } }
 #load-txt {
   position: relative; z-index: 3;
-  margin-top: 26px;
+  margin-bottom: 14px;
   font-size: var(--fs-11); font-weight: 600; letter-spacing: .12em;
   text-transform: uppercase;
   color: rgba(240,231,206,.66);
@@ -3765,12 +3765,27 @@ html.lr-saapuu #crosshair .ch-ring { animation: lr-rengas .42s cubic-bezier(.2,1
    Palkki on PAPERIA, ei aksenttia: magenta on tällä ruudulla rampin pää
    (20 m/s), ja tummalla se olisi himmein vaihtoehto. Täyttö on
    `scaleX`, ei `width` (asettelu joka ruudussa). */
+/* TILARIVI JA PALKKI OVAT ALALAIDASSA (käyttäjän pyyntö 10.10.:
+   "luonnolliseen paikkaan, näytön alalaitaan"), pallon päällä lähellä
+   sen keskipistettä: tuulen kehät ovat vähintään 0,72 × R:n päässä
+   keskipisteestä, joten tämän alla ei liiku mitään. Pallon ääriviivat
+   ja verkko ovat silti staattisina alla, ja hento tumma huntu
+   (`::before`) pitää tekstin pohjan tasaisena; se häipyy lähdössä
+   näyttämön mukana, koska palkki itse jää lentämään. */
 #load-bottom {
-  position: relative; z-index: 3;
-  margin-top: 14px;
+  position: absolute; z-index: 3;
+  left: 0; right: 0; bottom: calc(var(--sab) + 7vh);
   display: flex; flex-direction: column; align-items: center;
   animation: lr-nouse .8s 1.12s cubic-bezier(.16,1,.3,1) backwards;
 }
+#load-bottom::before {
+  content: ''; position: absolute; z-index: -1;
+  left: 50%; top: 50%; width: 340px; height: 120px; margin: -60px 0 0 -170px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(4,7,14,.72), rgba(4,7,14,.5) 55%, rgba(4,7,14,0));
+  transition: opacity .3s ease .1s;
+}
+#loading.out #load-bottom::before { opacity: 0; }
 #lr-palkki-x, #lr-palkki-y { position: relative; }
 #load-progress-wrap {
   position: relative;
@@ -3824,8 +3839,8 @@ html.lr-saapuu #crosshair .ch-ring { animation: lr-rengas .42s cubic-bezier(.2,1
   #load-logo-icon { width: 84px; height: 84px; margin: -14px 0 -1px; }
   #load-logo-name { font-size: 24px; }
   #load-logo-tag  { display: none; }
-  #load-txt    { margin-top: 12px; }
-  #load-bottom { margin-top: 10px; }
+  #load-txt    { margin-bottom: 10px; }
+  #load-bottom { bottom: calc(var(--sab) + 16px); }
 }
 
 /* Vaimennettu liike: kohtaus on PYSÄYTYSKUVA. Pallo on paikallaan,
@@ -4833,12 +4848,13 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
         <!-- Kielipari eikä `data-en`: latausruutu näkyy ennen pääskriptiä. -->
         <div id="load-logo-tag"><i class="lr-viiva" aria-hidden="true"></i><span data-kieli="fi">Wingfoil-sää</span><span data-kieli="en">Wingfoil weather</span><i class="lr-viiva" aria-hidden="true"></i></div>
       </div>
-      <div id="load-txt"><span data-kieli="fi">Ladataan…</span><span data-kieli="en">Loading…</span></div>
     </div>
-    <!-- Palkki on neljä OIKEAA vaihetta (`Latausvaiheet`): säädata,
-         ennuste, tuulikenttä ja kartta. Lähdössä se lentää aikajanan
-         päiväkiskon kelikaistaksi — siksi vaaka- ja pystykääre. -->
+    <!-- Tilarivi ja palkki ALALAIDASSA (käyttäjän pyyntö 10.10.). Palkki on
+         neljä OIKEAA vaihetta (`Latausvaiheet`): säädata, ennuste,
+         tuulikenttä ja kartta. Lähdössä se lentää aikajanan päiväkiskon
+         kelikaistaksi — siksi vaaka- ja pystykääre. -->
     <div id="load-bottom">
+      <div id="load-txt"><span data-kieli="fi">Ladataan…</span><span data-kieli="en">Loading…</span></div>
       <div id="lr-palkki-x"><div id="lr-palkki-y">
         <div id="load-progress-wrap" aria-hidden="true"><i class="lr-osa" data-vaihe="saadata"><i></i></i><i class="lr-osa" data-vaihe="ennuste"><i></i></i><i class="lr-osa" data-vaihe="tuuli"><i></i></i><i class="lr-osa" data-vaihe="kartta"><i></i></i><i id="lr-lanka"></i></div>
       </div></div>
