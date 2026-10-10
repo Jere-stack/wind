@@ -133,31 +133,10 @@ var LR_PALETTI = (function () {
     '--lr-aurinko-y': Math.max(46, 100 - Math.max(-3, h) * 3.4).toFixed(1) + '%',
     '--lr-aurinko': h < 10 ? '246,214,184' : '255,248,230',
     '--lr-kuu-a': h < -8 ? '1' : h < -3 ? '.5' : '0',
-    /* KUSKI VAIHTAA ASUA KERRAN, EI LIU'U: vaaleaa taivasta vasten
-       paperinen kuski katoaisi, joten valoisalla se on tumma
-       vastavalosiluetti. Välisävy (harmaa) olisi huonompi kuin kumpikaan. */
-    '--lr-kuski': h > -3 ? '#0E1424' : '#F0E7CE',
-    '--lr-roiske': h > -3 ? 'rgba(236,242,248,.8)' : 'rgba(240,231,206,.85)',
-    /* Märkäpuvun kiilto kertoo lihakset; impact vest on puvusta erottuva
-       musta. Valkoinen siipi on sama joka vaiheessa, ja valon puute tulee
-       sen päälle varjona (yö .42, sininen hetki .3, hämärä .16). */
-    '--lr-liivi': '#15181E',
-    '--lr-kiilto': h > -3 ? 'rgba(120,132,150,.45)' : 'rgba(150,165,190,.4)',
-    '--lr-siipi-varjo': h < -8 ? '.42' : h < -3 ? '.3' : h < 2 ? '.16' : '0',
-    /* Käyttäjän päätökset: musta kypärä, musta leukahihna, MUSTA
-       MÄRKÄPUKU kaikkina vuorokaudenaikoina (se on se "musta ulkoasu"),
-       vaalea iho, ruskea surffitukka. Pimeällä puvulla on kuunvalon
-       reunavalo, koska musta yötaivasta vasten katoaisi; valoisalla
-       vastavalossa reunavaloa ei ole ja iho ja kypärä tummuvat hieman. */
-    '--lr-kypara': h > -3 ? '#16181D' : '#20242C',
-    '--lr-puku': '#10141C',
-    '--lr-reuna': h > -3 ? 'rgba(0,0,0,0)' : 'rgba(240,231,206,.5)',
-    '--lr-iho': h > -3 ? '#D2A884' : '#EBC7A5',
-    '--lr-tukka': h > -3 ? '#6A4426' : '#8A5A34',
-    '--lr-lauta': h > -3 ? '#3A4352' : '#C9D0DA',
-    '--lr-lauta-yla': h > -3 ? '#56606F' : '#EEF1F5',
-    '--lr-foili': h > -3 ? '#161B24' : '#3A4150',
-    '--lr-logo': h > -3 ? 'rgba(240,231,206,.7)' : 'rgba(14,20,36,.55)'
+    /* LOKIT VAIHTAVAT SÄVYÄ KERRAN, EIVÄT LIU'U: vaaleaa taivasta vasten
+       paperinen parvi katoaisi, joten valoisalla se on tumma siluetti.
+       (Muuttuja on kuskin ajalta; kuski poistettiin 10.10.) */
+    '--lr-kuski': h > -3 ? '#0E1424' : '#F0E7CE'
   };
   try {
     var st = document.documentElement.style;
@@ -3427,7 +3406,8 @@ html[data-sadekerros="1"] #tutka-aika { max-width: calc(100vw - var(--sal) - var
    LATAUSRUUTU  z:9999
    ============================================================ */
 /* LATAUSRUUTU ON KARTTAMAAILMAA JA LIIKEGRAFIIKKAA: tumma meri, jonka
- * yllä kulkee tuulta, ja foilaaja joka lentää sen läpi. Ennen se oli
+ * yllä kulkee tuulta, ja merkki ja palkki jotka lähdössä muuttuvat
+ * sovellukseksi (ks. LÄHTÖ). Ennen se oli
  * valokuva paperilla. Kolme syytä vaihtoon, ks. docs/ui.md:
  *
  *  1. KOTIVALIKON IKONI -> LATAUSRUUTU -> KARTTA ON YKSI JATKUMO. Ikoni
@@ -3437,7 +3417,7 @@ html[data-sadekerros="1"] #tutka-aika { max-width: calc(100vw - var(--sal) - var
  *     käynnistyksessä, ja selaimessa html:n `--bg` välähti ennen kermaa.
  *  2. VÄRI TARKOITTAA TÄÄLLÄKIN TUULTA. Tuulijuovat ovat rampin värisiä
  *     NOPEUTENSA mukaan (nopeampi juova on kuumempi, ankkurit
- *     tools/ikoni.mjs:stä), ja kaikki muu on paperia: kuski, siipi,
+ *     tools/ikoni.mjs:stä), ja kaikki muu on paperia: siipi,
  *     aallot, nimi. Sama sääntö kuin kartalla.
  *  3. KAIKKI LIIKE ON KOMPOSITORISSA. Käynnistyksen aikana pääsäie
  *     jäsentää 24 000 riviä ja rakentaa kartan; sen varassa pyörivä
@@ -3464,35 +3444,29 @@ html[data-sadekerros="1"] #tutka-aika { max-width: calc(100vw - var(--sal) - var
   --lr-hehku: 150,185,235; --lr-hehku-a: .15;
   --lr-kaupunki: #0F1B36; --lr-saari: #09112A;
   --lr-valo-ikkuna: #F2D9A6; --lr-valot: 1; --lr-tahdet-a: .9;
-  --lr-kuski: #F0E7CE; --lr-roiske: rgba(240,231,206,.85);
-  --lr-kypara: #20242C; --lr-pilvi: 150,185,235; --lr-pilvi-a: .12; --lr-liivi: #15181E; --lr-kiilto: rgba(150,165,190,.4);
-  --lr-siipi-varjo: .42;
-  --lr-puku: #10141C; --lr-reuna: rgba(240,231,206,.5); --lr-iho: #EBC7A5;
-  --lr-tukka: #8A5A34; --lr-lauta: #C9D0DA; --lr-lauta-yla: #EEF1F5;
-  --lr-foili: #3A4150; --lr-logo: rgba(14,20,36,.55);
+  --lr-kuski: #F0E7CE; --lr-pilvi: 150,185,235; --lr-pilvi-a: .12;
   --lr-aurinko-a: 0; --lr-aurinko-y: 60%; --lr-aurinko: 255,246,224;
   --lr-kuu-a: 1; --lr-polku: 240,231,206; --lr-polku-a: .10;
   --lr-vinjetti-a: .5;
 }
 #loading {
   --lr-horisontti: 47%;     /* taivaanranta                               */
-  --lr-pinta: 55%;          /* se vesiviiva jolla kuski ajaa              */
+  --lr-pinta: 55%;          /* vesiviiva: aaltojen syvyyden keskikohta     */
   --lr-koko: min(94vw, 38vh, 540px);   /* kuvituksen laatikon sivu        */
   --lr-syva: #04070E;       /* syvä meri nimilohkon alla                  */
   --lr-paperi: #F0E7CE;     /* = --surface: kaikki mikä ei ole tuulta     */
   position: fixed; inset: 0; z-index: 9999;
-  background: var(--lr-syva);
+  /* Tausta on näyttämön (`#lr-nayttamo`), ei tämän: lähdössä ruutu EI
+     häivy kokonaan, vaan näyttämö häipyy ja merkin spotti ja palkki
+     lentävät sen läpi paikoilleen sovellukseen (ks. LÄHTÖ). Kartta on
+     käytettävissä heti, koska `pointer-events: none` tulee `.out`issa. */
+  background: none;
   display: flex; flex-direction: column;
   align-items: center; justify-content: flex-end;
-  padding: 0 24px calc(var(--sab) + 30px + 7vh);   /* D: merkki lähemmäs keskustaa */
+  padding: 0 24px calc(var(--sab) + 30px + 7vh);   /* merkki lähemmäs keskustaa */
   overflow: hidden;
-  /* Häivytys alkaa vasta kun kuski on lähtenyt liikkeelle (ks. #lr-lahto):
-     lähtö on ruudun ainoa "valmis"-merkki, ja ilman viivettä se häipyisi
-     ennen kuin sen ehtii nähdä. Kartta on käytettävissä koko ajan, koska
-     `pointer-events: none` tulee heti. */
-  transition: opacity .42s cubic-bezier(.4,0,.2,1) .85s;   /* hypyn laki = .45 + .44 s */
 }
-#loading.out { opacity: 0; pointer-events: none; }
+#loading.out { pointer-events: none; }
 /* `display: none` myös PYSÄYTTÄÄ kaikki CSS-animaatiot. Ilman sitä
    parikymmentä ikuista animaatiota jatkaisi kompositorissa kartan alla
    (mitattu piilotuksen jälkeen: 0 jäljellä). */
@@ -3500,6 +3474,7 @@ html[data-sadekerros="1"] #tutka-aika { max-width: calc(100vw - var(--sal) - var
 
 #lr-nayttamo {
   position: absolute; inset: 0; z-index: 0;
+  background: var(--lr-syva);
   overflow: hidden; contain: strict; pointer-events: none;
 }
 #lr-nayttamo > * { position: absolute; }
@@ -3547,8 +3522,7 @@ html[data-sadekerros="1"] #tutka-aika { max-width: calc(100vw - var(--sal) - var
   to   { transform: none; opacity: 1; }
 }
 /* Vinjetti ja rae kaiken kohtauksen päällä, molemmat staattisia.
-   VINJETTI: kulmat painuvat ja katse jää keskelle, siihen missä kuski
-   ja merkki ovat.
+   VINJETTI: kulmat painuvat ja katse jää keskelle.
    RAE: 8-bittinen liuku tummasta sinisestä tummempaan porrastuu
    ruudulla näkyviksi kaistoiksi (koko taivas on noin 16 sävyaskelta),
    ja hieno kohina hajottaa portaat. Se rasteroidaan kerran eikä maksa
@@ -3714,240 +3688,9 @@ html[data-sadekerros="1"] #tutka-aika { max-width: calc(100vw - var(--sal) - var
   88%, 100% { opacity: 0;  transform: translate3d(-22px,0,0) scale(.3); }
 }
 
-/* KUSKI. Laatikko on neliö jonka 300 yksikön viewBoxissa vesiviiva on
-   y 240 eli 80 %: siksi `top` on pinta miinus 0,8 laatikkoa. Jokainen
-   liike on OMA kääreensä, koska saman elementin animaatio ja siirtymä
-   eivät yhdisty (animaatio voittaa):
-     #lr-lahto  hyppy ja poistuminen (.out)
-     #lr-tulo   sisääntulo vasemmalta
-     #lr-keinu  liuku: nousu ja loiva kaarto foilin ympäri
-   NIVELLETTY HAHMO: osat ovat sisäkkäisiä kerroksia omilla
-   nivelpisteillään, kuten luut. Siipi ja molemmat kädet ovat samassa
-   kerroksessa (#lr-kasi, nivel olkapäiden välissä), ja vartalo on
-   niiden PÄÄLLÄ, jotta siluetti lukee selvänä siiven edessä.
-     #lr-jalat  polvijousto nilkoista (`scaleY`)
-     #lr-yla    ylävartalo lantiosta SAMALLA käyrällä (45 × 14 % =
-                6,3 yks. = 2,1 % laatikosta), joten lantio pysyy reisillä
-     #lr-kasi   kädet ja siipi olkapäistä
-     #lr-siipi  siipi etukädestä
-   Roiske ja vana ovat vedessä eivätkä keinu kuskin mukana. */
-#lr-rata {
-  width: var(--lr-koko); height: var(--lr-koko);
-  left: calc(50% - var(--lr-koko) * .54);
-  top: calc(var(--lr-pinta) - var(--lr-koko) * .8);
-}
-#lr-lahto, #lr-tulo, #lr-keinu, #lr-lauta, #lr-kansi, #lr-jalat, #lr-yla, #lr-kasi,
-#lr-siipi, #lr-tukka, #lr-roiske {
-  position: absolute; inset: 0;
-}
-#lr-rata svg {
-  position: absolute; inset: 0; width: 100%; height: 100%;
-  display: block; overflow: visible;
-}
-#lr-tulo { animation: lr-tulo 1.5s .1s cubic-bezier(.16,1,.3,1) backwards; }
-@keyframes lr-tulo {
-  from { transform: translate3d(-62vw,3%,0) rotate(4deg); opacity: 0; }
-  35%  { opacity: 1; }
-  to   { transform: none; opacity: 1; }
-}
-/* LIIKE ON KOLMEA KERROSTA, JA KAIKKI NÄKYVÄT. Ensimmäinen versio
-   liikkui 1–2° ja 7 % joustolla, ja mitattuna se oli käynnissä mutta
-   käyttäjän mukaan "kuski ei liiku": liike oli pienempi kuin silmä
-   erottaa liikkuvan kohtauksen keskellä. Nyt:
-     1. PUMPPAUS 2,2 s (#lr-jalat, #lr-yla, #lr-kasi, #lr-siipi):
-        polvet painuvat 14 %, lantio laskee ja vartalo nojaa eteen, ja
-        kädet vetävät siipeä alas — sama tahti ja SAMAT avainkuvat
-        kaikilla, joten hahmo toimii yhtenä kehona. Painallus on nopea
-        (30 %) ja nousu pitkä, kuten oikeassa pumpussa.
-     2. KAARTO 4,4 s (#lr-keinu + #lr-kansi): kuski hakee linjaa.
-        Sivukuvassa kaarto ei ole kierto ruudun tasossa vaan KÄÄNNÖS ja
-        KALLISTUS kameraa kohti: käännös lyhentää laudan (ja koko rigin)
-        `scaleX`illä, kallistus painaa kuskia kohti kameraa (`scaleY`)
-        ja avaa laudan kannen näkyviin (#lr-kansi). Ala-käännöksen
-        jälkeen lauta oikenee, kuski nojaa taakse ja nousee linjalle —
-        ja juuri siinä kohdassa (~1,6 s, viive −0,3 s) lähtö hyppää.
-     3. LIUKU 9 s (#lr-rata): kuski ajelehtii ruudulla sivuttain ja
-        hieman korkeutta, kuten kamera ei pysy täsmälleen perässä.
-   Asento on otettu oikeasta vastavalokuvasta (Flickr, "Wingfoiling in
-   backlight", CC BY-NC): lähes pystyasento, siipi käsivarren päässä
-   olkapäiden korkeudella, lyhyt lauta pitkän maston päällä. Kuva on
-   mittasuhteiden malli, ei upotettu eikä jäljitetty. */
-#lr-rata { animation: lr-liuku 9s ease-in-out infinite alternate; }
-@keyframes lr-liuku {
-  from { transform: translate3d(-5%,.6%,0); }
-  to   { transform: translate3d(6%,-.8%,0); }
-}
-/* KÄÄNNÖS ON LAUDAN, NOJAUS KUSKIN. Ensimmäinen versio käänsi koko
-   rigin (`scale(.74, .92)`), ja kuski kutistui kaarteessa neljänneksen
-   — käyttäjän mukaan epäluonnollista. Nyt lauta ja foili (#lr-lauta,
-   #lr-kansi) lyhenevät käännöksessä, ja kuski vain nojaa ja painuu:
-   sen mittakaava pysyy vähintään 0,97:ssä. */
-#lr-keinu, #lr-kansi, #lr-lauta { animation: 4.4s -.3s ease-in-out infinite; }
-#lr-keinu { transform-origin: 50% 69%; animation-name: lr-kaarto; opacity: .78; }
-@keyframes lr-kaarto {
-  0%, 100% { transform: translate3d(0,1%,0); }
-  14%      { transform: translate3d(0,1.8%,0) rotate(1.6deg); }
-  30%      { transform: translate3d(-.6%,3%,0) rotate(4.5deg) scale(.98,.97); }
-  44%      { transform: translate3d(1.4%,-1.8%,0) rotate(-3.5deg); }
-  62%      { transform: translate3d(0,-2.6%,0) rotate(-3deg); }
-  80%      { transform: translate3d(0,-.6%,0) rotate(-1deg); }
-}
-#lr-lauta { transform-origin: 49% 69%; animation-name: lr-lauta-kaarto; }
-@keyframes lr-lauta-kaarto {
-  0%, 100% { transform: none; }
-  14%      { transform: scaleX(.9); }
-  30%      { transform: scaleX(.7); }
-  44%      { transform: none; }
-  80%      { transform: scaleX(.86); }
-}
-#lr-kansi { transform-origin: 49% 69.07%; animation-name: lr-kansi; }
-@keyframes lr-kansi {
-  0%, 12%, 46%, 100% { transform: scale(.9,0); opacity: 0; }
-  30%                { transform: scale(.7,1); opacity: 1; }
-}
-/* Lähdössä kaarto pysähtyy siihen mihin se jäi (ei hyppää alkuun), ja
-   hypyn oma avainkuva tekee viimeisen linjanhaun. */
-
-/* Hypyn linjanhaussa kansi avautuu uudelleen: lauta kallistuu
-   kaarteeseen kameraa kohti ennen ponnistusta. */
-
-@keyframes lr-kansi-hyppy {
-  0%, 26%, 100% { transform: scale(.9,0); opacity: 0; }
-  12%           { transform: scale(.68,1); opacity: 1; }
-}
-/* Hypyssä lauta kääntyy linjalle (12 %), oikenee lastauksessa ja
-   ilmassa kuski VÄÄNTÄÄ sen kääntyneeksi jalkojensa alle: nokka
-   nousee ja lauta lyhenee, kuten laudan tweak oikeassa hypyssä. */
-
-@keyframes lr-lauta-hyppy {
-  0%   { transform: none; }
-  12%  { transform: scaleX(.68); }
-  24%  { transform: scaleX(.9); }
-  53%  { transform: rotate(-13deg) scaleX(.76); }
-  100% { transform: rotate(-9deg) scaleX(.8); }
-}
-#lr-jalat, #lr-yla, #lr-kasi, #lr-siipi { animation: 2.2s infinite; }
-#lr-jalat { transform-origin: 50% 67.8%; animation-name: lr-jalat; }
-@keyframes lr-jalat {
-  0%, 100% { transform: none; animation-timing-function: cubic-bezier(.45,0,.55,1); }
-  30%      { transform: scaleY(.86); animation-timing-function: cubic-bezier(.3,0,.35,1); }
-}
-#lr-yla { transform-origin: 48.87% 52.67%; animation-name: lr-yla; }
-@keyframes lr-yla {
-  0%, 100% { transform: none; animation-timing-function: cubic-bezier(.45,0,.55,1); }
-  30%      { transform: translate3d(0,2.1%,0) rotate(4deg); animation-timing-function: cubic-bezier(.3,0,.35,1); }
-}
-#lr-kasi { transform-origin: 48% 41.47%; animation-name: lr-kasi; }
-@keyframes lr-kasi {
-  0%, 100% { transform: rotate(-3deg); animation-timing-function: cubic-bezier(.45,0,.55,1); }
-  30%      { transform: rotate(9deg); animation-timing-function: cubic-bezier(.3,0,.35,1); }
-}
-#lr-siipi { transform-origin: 60.13% 42.53%; animation-name: lr-siipi; }
-@keyframes lr-siipi {
-  0%, 100% { transform: rotate(3deg); animation-timing-function: cubic-bezier(.45,0,.55,1); }
-  30%      { transform: rotate(-6deg); animation-timing-function: cubic-bezier(.3,0,.35,1); }
-}
-/* TUKKA LEPATTAA kypärän alta taakse, helmaa nopeammin ja pienemmin
-   liikkein; nivel niskassa. */
-#lr-tukka {
-  transform-origin: 45% 37%;
-  animation: lr-tukka .7s linear infinite;
-}
-@keyframes lr-tukka {
-  0%, 100% { transform: rotate(0) scaleX(1); }
-  25%      { transform: rotate(-6deg) scaleX(1.1); }
-  50%      { transform: rotate(2deg) scaleX(.94); }
-  75%      { transform: rotate(-3deg) scaleX(1.05); }
-}
-/* Hypyssä siipi nousee pään yli ja polvet vetäytyvät (sama kuin
-   oikeissa hyppykuvissa): pumppaus korvataan hyppyasennolla. */
-
-@keyframes lr-kasi-hyppy {
-  0%   { transform: rotate(-3deg); animation-timing-function: cubic-bezier(.4,0,.6,1); }
-  24%  { transform: rotate(18deg); animation-timing-function: cubic-bezier(.3,0,.2,1); }
-  46%  { transform: rotate(-96deg); animation-timing-function: ease-out; }
-  60%, 100% { transform: rotate(-84deg); }
-}
-
-@keyframes lr-siipi-hyppy {
-  0%   { transform: rotate(3deg); }
-  24%  { transform: rotate(10deg); }
-  46%, 100% { transform: rotate(34deg); }
-}
-
-/* Jalat seuraavat laudan vääntöä (`skewY` = laudan kierto, jolloin
-   takajalka laskee ja etujalka nousee laudan mukana) ja polvet
-   vetäytyvät ilmassa: lantio siirtyy taakse (`skewX`) ja alas. */
-@keyframes lr-jalat-hyppy {
-  0%   { transform: none; }
-  24%  { transform: scaleY(.84); }
-  38%  { transform: none; }
-  53%  { transform: skewY(-15.5deg) scaleY(.8) skewX(7deg); }
-  100% { transform: skewY(-11deg) scaleY(.82) skewX(6deg); }
-}
-
-@keyframes lr-yla-hyppy {
-  0%   { transform: none; }
-  24%  { transform: translate3d(0,2.4%,0) rotate(5deg); }
-  38%  { transform: none; }
-  53%  { transform: translate3d(-1.5%,3%,0) rotate(-3deg); }
-  100% { transform: translate3d(-1.2%,2.7%,0) rotate(-4deg); }
-}
-/* Roiske lähtee maston ja vesiviivan leikkauksesta (49 %, 80 %) taakse
-   ja putoaa: kaksi puolikasta eri hidastuksella on paraabeli ilman
-   omaa pystyanimaatiota.
-   LIIKEMATKA ON ELEMENTIN OMA KOKO. Elementti on läpinäkyvä
-   matkalaatikko (leveys = matka taakse, korkeus = nousu, prosentteina
-   kuskin laatikosta), pisara piirtyy sen oikeaan alakulmaan, ja
-   avainkuvat siirtävät laatikkoa prosentteina itsestään — matka
-   skaalautuu kuskin mukana ilman muuttujia avainkuvissa. (Epäilin
-   ensin muuttujia kalliiksi; mitattuna ne eivät olleet, hinta on
-   animaatioiden määrä, ks. .lr-arkki.) */
-.lr-pisara, .lr-vaahto {
-  position: absolute; left: 49%; top: 80%;
-  opacity: 0;
-  will-change: transform, opacity;
-}
-.lr-pisara {
-  margin: -3% 0 0 -12%; width: 12%; height: 3%;
-  animation: lr-pisara 1.2s linear infinite;
-}
-.lr-pisara::before, .lr-vaahto::before {
-  content: ''; position: absolute; right: 0; bottom: 0;
-  background: var(--lr-paperi);
-}
-/* Varjokopiot kulkevat muuttujana VAIN pisaralle: elementin omassa
-   `box-shadow`issa ne piirtäisivät matkalaatikon ääriviivan. */
-.lr-pisara::before {
-  width: 3px; height: 3px; margin: 0 -1.5px -1.5px 0; border-radius: 50%;
-  box-shadow: var(--varjot, none);
-}
-@keyframes lr-pisara {
-  0%   { transform: translate3d(50%,50%,0); opacity: 0;
-         animation-timing-function: cubic-bezier(.2,.6,.4,1); }
-  12%  { opacity: .85; }
-  48%  { transform: translate3d(0,-50%,0);
-         animation-timing-function: cubic-bezier(.6,0,.8,.4); }
-  100% { transform: translate3d(-50%,40%,0); opacity: 0; }
-}
-.lr-vaahto {
-  left: 45%; margin-left: -34%; width: 34%; height: 2px; margin-top: -1px;
-  animation: lr-vaahto 1.6s linear infinite;
-}
-.lr-vaahto::before {
-  width: 14px; height: 1.5px; border-radius: 1px;
-  background: rgba(240,231,206,.7);
-  box-shadow: -24px 0 0 0 rgba(240,231,206,.45);
-}
-@keyframes lr-vaahto {
-  0%   { transform: translate3d(0,0,0); opacity: 0; }
-  15%  { opacity: .8; }
-  100% { transform: translate3d(-100%,0,0); opacity: 0; }
-}
-
-/* Vesi: vesiviivasta alas läpikuultava meri kuskin PÄÄLLÄ, jolloin
-   masto ja siipi näkyvät veden alla himmeinä. Alhaalla se on
-   umpinaista syvää — nimilohkon pohja, jonka yllä ei liiku mitään. */
+/* Vesi: vesiviivasta alas läpikuultava meri, joka syvenee alaspäin.
+   Alhaalla se on umpinaista syvää — nimilohkon pohja, jonka yllä ei
+   liiku mitään. */
 #lr-vesi {
   left: 0; right: 0; top: var(--lr-pinta); bottom: 0;
   background: linear-gradient(180deg,
@@ -3970,8 +3713,8 @@ html[data-sadekerros="1"] #tutka-aika { max-width: calc(100vw - var(--sal) - var
 }
 .lr-pilvi { position: absolute; }
 /* LOKIT: parvi lentää ruudun poikki 17 s:ssa, siivet lyövät
-   kääntämällä siiven muodon pystysuunnassa (`scaleY`). Väri on kuskin:
-   tumma valoisalla, paperi pimeällä. */
+   kääntämällä siiven muodon pystysuunnassa (`scaleY`). Väri on
+   `--lr-kuski`: tumma valoisalla, paperi pimeällä. */
 #lr-lokit {
   left: 0; top: max(96px, 20%); width: 44px; height: 24px;
   opacity: .62;
@@ -3992,128 +3735,103 @@ html[data-sadekerros="1"] #tutka-aika { max-width: calc(100vw - var(--sal) - var
 }
 .lr-lokki + .lr-lokki svg { animation-duration: .38s; animation-delay: -.2s; }
 @keyframes lr-siivet { from { transform: none; } to { transform: scaleY(-.45); } }
-#lr-jalki { position: absolute; inset: 0; opacity: 0;
-  animation: lr-jalki 4.4s -.3s ease-in-out infinite; will-change: opacity; }
-#lr-jalki svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-@keyframes lr-jalki {
-  0%, 22%   { opacity: 0; }
-  36%       { opacity: 1; }
-  70%       { opacity: .3; }
-  88%, 100% { opacity: 0; }
-}
-
-
-/* D: KUSKI ON LÄHDÖN KOHOKOHTA, EI LEPOTILAN KUVITUS (käyttäjän
-   päätös 28.9., docs/ui.md "Merkki ensin, kuski vain lähdössä").
-   Levossa ruudulla ovat meri, tuuli ja iso merkki latauksineen, ja
-   kuskin koko kerros on `display: none` — sen parikymmentä animaatiota
-   eivät silloin pyöri lainkaan. Kun data on valmis (`.out`), kerros
-   syntyy ja kaikki sen animaatiot alkavat nollasta:
-     0–0,5 s  kuski liukuu sisään vasemmalta (`lr-tulo-lahto`) ja
-              tekee ala-käännöksen (lauta kääntyy, kansi näkyy)
-     0,45 s   hyppy alkaa (`lr-hyppy` ja nivelten hyppyavainkuvat
-              viiveellä .45 s; ennen sitä nivelet pumppaavat)
-     0,9 s    laki, ja ruudun häivytys alkaa
-   Kaksi animaatiota samalla elementillä: jälkimmäinen voittaa vasta
-   kun sen viive on kulunut (ei `backwards`-täyttöä), joten ensin kaarto
-   ja sitten hyppy ilman välihyppyä. */
-#lr-rata { display: none; }
-#loading.out #lr-rata { display: block; }
-#loading.out #lr-tulo { animation: lr-tulo-lahto .5s cubic-bezier(.2,.7,.3,1) backwards; }
-@keyframes lr-tulo-lahto {
-  from { transform: translate3d(-78vw,2%,0) rotate(3deg); }
-  to   { transform: none; }
-}
-#loading.out #lr-keinu { animation: lr-kaarto-lahto .6s ease-in-out forwards; }
-@keyframes lr-kaarto-lahto {
-  0%   { transform: translate3d(0,1%,0) rotate(1deg); }
-  50%  { transform: translate3d(-.6%,3%,0) rotate(4.5deg) scale(.98,.97); }
-  100% { transform: translate3d(1%,-1%,0) rotate(-3deg); }
-}
-#loading.out #lr-lauta { animation: lr-lauta-lahto .6s ease-in-out, lr-lauta-hyppy .85s .45s forwards; }
-@keyframes lr-lauta-lahto {
-  0%   { transform: scaleX(.92); }
-  50%  { transform: scaleX(.7); }
-  100% { transform: scaleX(.9); }
-}
-#loading.out #lr-kansi { animation: lr-kansi-lahto .6s ease-in-out, lr-kansi-hyppy .85s .45s forwards; }
-@keyframes lr-kansi-lahto {
-  0%, 100% { transform: scale(.9,0); opacity: 0; }
-  50%      { transform: scale(.7,1); opacity: 1; }
-}
-#loading.out #lr-kasi   { animation: lr-kasi 2.2s infinite, lr-kasi-hyppy .85s .45s forwards; }
-#loading.out #lr-siipi  { animation: lr-siipi 2.2s infinite, lr-siipi-hyppy .85s .45s forwards; }
-#loading.out #lr-jalat  { animation: lr-jalat 2.2s infinite, lr-jalat-hyppy .85s .45s forwards; }
-#loading.out #lr-yla    { animation: lr-yla 2.2s infinite, lr-yla-hyppy .85s .45s forwards; }
-#loading.out #lr-jalki  { animation: lr-jalki-lahto .9s forwards; }
-@keyframes lr-jalki-lahto { 0% { opacity: 0; } 30% { opacity: .8; } 50%, 100% { opacity: 0; } }
-#loading.out #lr-m-siipi, #loading.out #lr-m-pallo { transition-delay: .45s; }
-
-/* LÄHTÖ. Kuski kiihtyy oikealle ja meri ja tuuli ryntäävät vasemmalle,
-   ja vasta sitten ruutu häipyy kartaksi. Kiihtyvä käyrä (ease-in),
-   koska lähtö on vauhdin kasvua; loppua ei nähdä, joten hidastus olisi
-   turha.
-   `.out` POISTAA SISÄÄNTULOANIMAATION niiltä joilla se on samalle
-   ominaisuudelle kuin lähdön siirtymällä. Päättynytkin animaatio jää
-   elementille, ja Chrome ajoi silloin siirtymän pääsäikeessä
-   (`compositeFailed = 64`, mitattu #lr-meri-* ja #load-bottom) — juuri
-   sillä hetkellä kun sovellus viimeistelee käynnistystään. Siirtymä
-   alkaa animaation senhetkisestä arvosta, joten poisto ei hyppää. */
-#loading.out #lr-tuuli, #loading.out #lr-tuuli-etu,
-#loading.out #lr-meri-taka, #loading.out #lr-meri-etu,
-#loading.out #lr-horisontti, #loading.out #lr-m-pallo,
+/* LÄHTÖ: LATAUSRUUTU MUUTTUU SOVELLUKSEKSI (käyttäjän valinta 10.10.,
+   vaihtoehto C, docs/ui.md "Latausruutu muuttuu sovellukseksi"). Ruutu
+   ei häivy kokonaan, vaan sen osat menevät paikoilleen:
+     MERKIN SPOTTI LENTÄÄ KARTAN TÄHTÄIMEKSI: pienenee tähtäimen
+       pisteen kokoiseksi ja laskeutuu sen päälle, ja tähtäimen rengas
+       avautuu siitä (`lr-rengas`). Siipi kutistuu spotin perään ja
+       häipyy.
+     PALKKI LENTÄÄ PÄIVÄKISKON KELIKAISTAKSI: osien välit sulkeutuvat
+       (`#lr-lanka`), viiva venyy kiskon näkyvän leveyden mittaiseksi ja
+       laskeutuu kelikaistan keskiviivalle, ja aikajana syttyy sen alta.
+     NÄYTTÄMÖ (taivas, kaupunki, meri, tuuli) HÄIPYY KARTAKSI, ja nimi ja
+       tilarivi väistyvät ylös.
+   Kohteet MITATAAN lähtöhetkellä (`_lahtoLennot`, kerran
+   `getBoundingClientRect`) ja annetaan muuttujina (`--lr-pallo-dx` …),
+   joten sama koodi osuu puhelimella, vaakatilassa, iPadilla ja
+   työpöydällä. Jos kohde ei näy (paneeli auki, aikajanaa ei ole), osa
+   häipyy paikallaan (`lr-ei-palloa`, `lr-ei-palkkia`).
+   KAIKKI ON `transform`IA JA `opacity`Ä, ja jokainen liike on OMA
+   kääreensä: vaaka (`-x`) ja pysty (`-y`) eri käyrillä, jolloin rata
+   kaartuu ilman `offset-path`ia (joka ei pysy kompositorissa).
+   Sisääntuloanimaatiot poistetaan samoilta elementeiltä `.out`issa,
+   koska päättynytkin animaatio ajoi siirtymän pääsäikeessä
+   (`compositeFailed = 64`, mitattu ennen).
+   Aikataulu (0 = `.out`):
+     0–0,12 s   palkin osat yhdeksi langaksi, nimi ja tilarivi väistyvät
+     0–0,42 s   siipi kutistuu ja häipyy
+     0,04–0,66  spotti lentää (pystyssä pieni vauhtiliike ensin)
+     0,1–0,7    palkki lentää ja venyy
+     0,12–0,62  näyttämö häipyy kartaksi
+     0,5–1,0    kapseli, napit, aikajana ja tähtäimen rengas syttyvät
+   `display: none` 1 000 ms (ennen 1 350). */
+#lr-nayttamo { transition: opacity .5s cubic-bezier(.4,0,.2,1) .12s; }
+#loading.out #lr-nayttamo { opacity: 0; }
+#loading.out #load-logo-icon, #loading.out #lr-m-pallo,
+#loading.out #load-logo-tag, #loading.out #load-txt,
 #loading.out #load-bottom { animation: none; }
-/* Kamera työntyy eteenpäin lähdön ajan: kohtaus kasvaa 5 % samalla
-   kiihtyvällä käyrällä kuin kuski, joten ruutu tuntuu syöksyvän
-   karttaan eikä vain himmenevän. Säiliö on `contain: strict`, joten
-   skaalaus on yksi kompositorin kerros. */
-#lr-nayttamo { transition: transform .9s cubic-bezier(.42,0,.72,.45) .45s; }
-#loading.out #lr-nayttamo { transform: translate3d(0,4%,0) scale(1.05); }
-/* LÄHTÖ ON HYPPY. Kuski painaa polvet (lastaus), ponnistaa aallosta ja
-   lentää ylös oikealle, ja kamera nousee perässä (#lr-nayttamo). Hyppy
-   on avainkuvat eikä siirtymä, koska siinä on kolme vaihetta eri
-   käyrillä: lastaus hidastuu, ponnistus räjähtää ja hidastuu lakeen,
-   ja lento kiihtyy pois. Laki on 0,44 s kohdalla, ja ruudun häivytys
-   alkaa vasta 0,4 s, jotta hyppy nähdään. */
-#loading.out #lr-lahto { animation: lr-hyppy .85s .45s forwards; }
-/* 0–12 %: viimeinen linjanhaku — lauta kääntyy (scaleX) ja kuski
-   nojaa kaarteeseen; 12–24 %: lauta oikenee ja polvet lastaavat;
-   sitten ponnistus lakeen (0,45 s). */
-@keyframes lr-hyppy {
-  0%   { transform: none; animation-timing-function: cubic-bezier(.3,0,.6,1); }
-  12%  { transform: translate3d(-.4%,3.2%,0) rotate(5.5deg) scale(.98,.97);
-         animation-timing-function: cubic-bezier(.4,0,.6,1); }
-  24%  { transform: translate3d(1.6%,2.8%,0) rotate(1.4deg);
-         animation-timing-function: cubic-bezier(.2,.75,.35,1); }
-  53%  { transform: translate3d(20%,-24%,0) rotate(-9deg);
-         animation-timing-function: cubic-bezier(.55,0,.85,.45); }
-  100% { transform: translate3d(95vw,-36%,0) rotate(-16deg); }
+
+#load-logo-name, #load-logo-tag, #load-txt {
+  transition: opacity .28s ease, transform .4s cubic-bezier(.4,0,.2,1);
 }
-/* Ponnistuksen roiske maston juuresta, kun lauta irtoaa vedestä. */
-#lr-ponnistus {
-  position: absolute; left: 49%; top: 80%;
-  width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%;
+#loading.out #load-logo-name, #loading.out #load-logo-tag, #loading.out #load-txt {
+  opacity: 0; transform: translate3d(0,-8px,0);
+}
+
+#lr-m-siipi {
+  transition: transform .42s cubic-bezier(.5,0,.75,.3), opacity .3s ease .08s;
+}
+#loading.out #lr-m-siipi {
+  transform: translate3d(var(--lr-siipi-dx, 0px), var(--lr-siipi-dy, 0px), 0) scale(.55);
   opacity: 0;
-  box-shadow:
-    -10px -6px 0 -.5px var(--lr-roiske), -18px -14px 0 0 var(--lr-roiske),
-    -26px -8px 0 -.5px var(--lr-roiske), -6px -18px 0 -1px var(--lr-roiske),
-    -32px -18px 0 -1px var(--lr-roiske), 6px -10px 0 -1px var(--lr-roiske),
-    -14px -24px 0 -1.2px var(--lr-roiske), -22px -2px 0 0 var(--lr-roiske);
 }
-#loading.out #lr-ponnistus { animation: lr-ponnistus .6s .65s cubic-bezier(.2,.7,.4,1) forwards; }
-@keyframes lr-ponnistus {
-  0%   { opacity: 0; transform: translate3d(0,0,0) scale(.4); }
-  25%  { opacity: .9; }
-  100% { opacity: 0; transform: translate3d(-20%,40%,0) scale(1.5); }
+#lr-m-lento-x { transition: transform .62s cubic-bezier(.4,0,.2,1) .04s; }
+#lr-m-lento-y {
+  transition: transform .62s cubic-bezier(.5,-.4,.3,1) .04s, opacity .16s ease .62s;
 }
-#loading.out #lr-tuuli, #loading.out #lr-tuuli-etu {
-  transform: translate3d(-45vw,0,0);
-  transition: transform .7s cubic-bezier(.42,0,.72,.45) .45s;
+#loading.out #lr-m-lento-x { transform: translate3d(var(--lr-pallo-dx, 0px), 0, 0); }
+#loading.out #lr-m-lento-y {
+  transform: translate3d(0, var(--lr-pallo-dy, 0px), 0) scale(var(--lr-pallo-s, 1));
+  opacity: 0;
 }
-#loading.out #lr-meri-taka, #loading.out #lr-meri-etu {
-  transform: translate3d(-12vw,0,0);
-  transition: transform .7s cubic-bezier(.42,0,.72,.45) .45s;
+
+#lr-palkki-x { transition: transform .6s cubic-bezier(.65,0,.2,1) .1s; }
+#lr-palkki-y {
+  transition: transform .56s cubic-bezier(.5,0,.3,1) .08s, opacity .25s ease .66s;
 }
+#loading.out .lr-osa { opacity: 0; }
+#loading.out #lr-lanka { opacity: 1; }
+#loading.out #lr-palkki-x {
+  transform: translate3d(var(--lr-palkki-dx, 0px), 0, 0) scaleX(var(--lr-palkki-sx, 1));
+}
+#loading.out #lr-palkki-y {
+  transform: translate3d(0, var(--lr-palkki-dy, 0px), 0) scaleY(var(--lr-palkki-sy, 1));
+  opacity: 0;
+}
+/* Kohde ei näy: osa häipyy paikallaan näyttämön mukana. */
+#loading.out.lr-ei-palloa #lr-m-lento-y,
+#loading.out.lr-ei-palkkia #lr-palkki-y { transition: opacity .3s ease .1s; }
+#loading.out.lr-ei-lentoa #lr-m-lento-y,
+#loading.out.lr-ei-lentoa #lr-palkki-y,
+#loading.out.lr-ei-lentoa #lr-m-siipi { transition: opacity .3s ease .1s; }
+
+/* SOVELLUS SYTTYY LATAUSRUUDUSTA (`html.lr-saapuu`, vain lähdön ajan).
+   Pelkät `from`-avainkuvat: loppuarvo on elementin oma, joten
+   piilotettu kapseli tai paneelin alle väistynyt osa pysyy piilossa.
+   `backwards` piilottaa ne myös viiveen ajaksi — muuten oikea tähtäin
+   ja aikajana näkyisivät häipyvän näyttämön läpi ennen kuin spotti ja
+   palkki ovat perillä, ja ruudulla olisi kaksi tähtäintä. */
+@keyframes lr-ui-esiin { from { opacity: 0; } }
+@keyframes lr-ui-sivulta { from { opacity: 0; transform: translate3d(10px,0,0); } }
+@keyframes lr-ui-ylhaalta {
+  from { opacity: 0; transform: translateX(-50%) translate3d(0,-12px,0) scale(.96); }
+}
+@keyframes lr-rengas { from { opacity: 0; transform: scale(.25); } }
+html.lr-saapuu #tl-wrap { animation: lr-ui-esiin .32s ease .56s backwards; }
+html.lr-saapuu #bottom-bar { animation: lr-ui-sivulta .4s cubic-bezier(.2,.7,.3,1) .5s backwards; }
+html.lr-saapuu #kapseli { animation: lr-ui-ylhaalta .42s cubic-bezier(.2,.7,.3,1) .5s backwards; }
+html.lr-saapuu #crosshair .ch-ring { animation: lr-rengas .42s cubic-bezier(.2,1.5,.45,1) .6s backwards; }
 
 /* Nimilohko: merkki, nimi, alanimi, tilarivi. Syvän meren päällä, ei
    liikkeen — ks. #lr-vesi. Muste on paperia: mitattu kontrasti pohjaa
@@ -4148,7 +3866,7 @@ html[data-sadekerros="1"] #tutka-aika { max-width: calc(100vw - var(--sal) - var
   25%  { opacity: 1; }
   to   { transform: none; opacity: 1; }
 }
-#lr-m-siipi, #lr-m-pallo { position: absolute; inset: 0; }
+#lr-m-siipi, #lr-m-pallo, #lr-m-lento-x, #lr-m-lento-y { position: absolute; inset: 0; }
 #load-logo-icon svg {
   position: absolute; inset: 0; width: 100%; height: 100%; display: block;
 }
@@ -4166,13 +3884,6 @@ html[data-sadekerros="1"] #tutka-aika { max-width: calc(100vw - var(--sal) - var
          animation-timing-function: cubic-bezier(.5,0,.3,1); }
   100% { transform: none; opacity: 1; }
 }
-/* Lähdössä siipi nousee ja spotti jää paikalleen häipyen: sama liike
-   kuin kuskilla, pienempänä. */
-#lr-m-siipi, #lr-m-pallo {
-  transition: transform .6s cubic-bezier(.42,0,.72,.45), opacity .4s ease;
-}
-#loading.out #lr-m-siipi { transform: translate3d(5%,-7%,0) rotate(-3deg); }
-#loading.out #lr-m-pallo { transform: scale(.6); opacity: 0; }
 
 /* Nimi on kevyempi ja väljempi kuin otsikko: 500 eikä 600. Isoina
    kirjaimina ja harvennettuna paino luki raskaana merkin vieressä, jonka
@@ -4240,50 +3951,67 @@ html[data-sadekerros="1"] #tutka-aika { max-width: calc(100vw - var(--sal) - var
   max-width: 280px; margin-left: auto; margin-right: auto; line-height: 1.4;
 }
 
-/* Edistymispalkki on PAPERIA, ei aksenttia. Magenta on tällä ruudulla
-   rampin pää (20 m/s), ja tummalla se olisi myös himmein mahdollinen
-   valinta. Palkki liikkuu `scaleX`illä eikä `width`illä: leveys laskisi
-   asettelun uudelleen joka ruudussa, ja sitä tehtiin ennen
-   rAF-silmukassa koko käynnistyksen ajan. */
+/* EDISTYMISPALKKI ON NELJÄ OIKEAA VAIHETTA (`Latausvaiheet`): säädata
+   (luettelo), ennuste (aikajana), tuulikenttä ja kartta (pohjan laatat
+   ja lämpökartta, `_karttaValmis`). Ennen palkki oli yksi viiva jonka
+   ajastimet nostivat 15 → 45 → 65 → 80 → 90 %:iin latauksesta
+   riippumatta, ja hitaalla verkolla se seisoi 90 %:ssa kertomatta mitä
+   odotetaan. Vaihe täyttyy kun se on valmis, ja ensimmäinen valmistumaton
+   ryömii hitaasti kohti 62 %:a (`.kesken`, 6 s:n hidastuva siirtymä)
+   kiillon kanssa, joten odotus elää. Vaiheet voivat valmistua missä
+   järjestyksessä tahansa (välimuistista tuuli on valmis ennen
+   luetteloa), ja jokainen osa on oma elementtinsä.
+   Palkki on PAPERIA, ei aksenttia: magenta on tällä ruudulla rampin pää
+   (20 m/s), ja tummalla se olisi himmein vaihtoehto. Täyttö on
+   `scaleX`, ei `width` (asettelu joka ruudussa). */
 #load-bottom {
   position: relative; z-index: 3;
   margin-top: 14px;
   display: flex; flex-direction: column; align-items: center;
   animation: lr-nouse .8s 1.12s cubic-bezier(.16,1,.3,1) backwards;
 }
+#lr-palkki-x, #lr-palkki-y { position: relative; }
 #load-progress-wrap {
   position: relative;
   width: 220px; height: 3px;
-  background: rgba(240,231,206,.2);
-  border-radius: 2px; overflow: hidden;
+  display: flex; gap: 4px;
 }
-/* ODOTUS ELÄÄ: valo kulkee uran läpi 1,7 s välein, myös täytetyn osan
-   yli. Palkki kertoo MISSÄ lataus on, kiilto että se on käynnissä —
-   hitaalla verkolla palkki voi seistä pitkäänkin samassa kohdassa, ja
-   pysähtynyt palkki luki jumina. Yksi animaatio, `transform`. */
-#load-progress-wrap::after {
+/* `width` flexin rinnalla: WebKit mitoittaa flex-lapset sisällöstä
+   (ks. päiväkiskon laput), ja tyhjä osa olisi silloin nolla. */
+.lr-osa {
+  position: relative; flex: 1 1 0; width: 52px; height: 100%;
+  border-radius: 2px; overflow: hidden;
+  background: rgba(240,231,206,.2);
+  transition: opacity .12s ease;
+}
+.lr-osa > i {
+  position: absolute; inset: 0;
+  background: var(--lr-paperi); border-radius: 2px;
+  transform-origin: 0 50%; transform: scaleX(0);
+  transition: transform .45s cubic-bezier(.2,.7,.2,1);
+}
+.lr-osa.kesken > i { transform: scaleX(.62); transition: transform 6s cubic-bezier(.08,.6,.3,1); }
+.lr-osa.valmis > i { transform: none; transition: transform .38s cubic-bezier(.2,.7,.2,1); }
+/* KIILTO VAIN KESKEN OLEVASSA OSASSA: yksi animaatio kerrallaan, ja se
+   kertoo MIKÄ on käynnissä. */
+.lr-osa.kesken::after {
   content: ''; position: absolute; top: 0; bottom: 0; left: 0;
-  width: 44px;
+  width: 28px;
   background: linear-gradient(90deg, rgba(255,255,255,0),
     rgba(255,255,255,.7) 50%, rgba(255,255,255,0));
-  transform: translate3d(-44px,0,0);
-  animation: lr-kiilto 1.7s 1.3s cubic-bezier(.45,0,.55,1) infinite;
+  transform: translate3d(-28px,0,0);
+  animation: lr-kiilto 1.5s .4s cubic-bezier(.45,0,.55,1) infinite;
 }
 @keyframes lr-kiilto {
-  from { transform: translate3d(-44px,0,0); }
-  70%, to { transform: translate3d(220px,0,0); }
+  from { transform: translate3d(-28px,0,0); }
+  70%, to { transform: translate3d(56px,0,0); }
 }
-#load-progress-bar {
-  height: 100%; width: 100%;
-  background: var(--lr-paperi);
-  border-radius: 2px;
-  transform-origin: 0 50%; transform: scaleX(0);
-  transition: transform 1.1s cubic-bezier(.2,.7,.2,1);
-}
-#loading.out #load-top, #loading.out #load-bottom {
-  transform: translate3d(0,-8px,0); opacity: 0;
-  /* Nimilohko pysyy kunnes kuski ponnistaa (.45 s), sitten väistyy. */
-  transition: transform .4s cubic-bezier(.4,0,.2,1) .45s, opacity .3s ease .45s;
+/* Yhtenäinen lanka: lähdössä osien välit sulkeutuvat, ja palkki lentää
+   kiskolle yhtenä viivana (välit venyisivät skaalauksessa). */
+#lr-lanka {
+  position: absolute; inset: 0;
+  background: var(--lr-paperi); border-radius: 2px;
+  opacity: 0; transition: opacity .12s ease;
 }
 
 /* Matala ruutu (puhelin vaakatasossa): kohtaus ylemmäs ja pienemmäksi,
@@ -4304,18 +4032,15 @@ html[data-sadekerros="1"] #tutka-aika { max-width: calc(100vw - var(--sal) - var
 
 /* Vaimennettu liike: kohtaus on PYSÄYTYSKUVA. Juovat saavat
    skriptistä paikan johon ne jäävät, merkki on valmiiksi piirretty,
-   roisketta ja kimallusta ei luoda. Häivytys ulos jää — se on
-   tilanvaihdos eikä koriste — mutta kuskin lähtö ja rynnäkkö eivät. */
+   eikä kimallusta luoda. Lähdössä mikään ei lennä (`lr-ei-lentoa`
+   tulee skriptistä): näyttämö, merkki ja palkki häipyvät paikallaan —
+   häivytys on tilanvaihdos eikä koriste. */
 @media (prefers-reduced-motion: reduce) {
   #loading *, #loading *::before, #loading *::after { animation: none !important; }
-  #loading.out #lr-lahto, #loading.out #lr-tuuli, #loading.out #lr-tuuli-etu,
-  #loading.out #lr-meri-taka, #loading.out #lr-meri-etu, #loading.out #lr-nayttamo,
-  #loading.out #lr-m-siipi, #loading.out #lr-m-pallo,
-  #loading.out #lr-ponnistus,
-  #loading.out #load-top, #loading.out #load-bottom { transform: none; }
-  #load-progress-wrap::after { display: none; }
-  #load-progress-bar { transition: none; }
-  #loading.out #lr-rata { display: none; }
+  #loading.out #lr-m-siipi, #loading.out #load-logo-name,
+  #loading.out #load-logo-tag, #loading.out #load-txt { transform: none; }
+  .lr-osa.kesken::after { display: none; }
+  .lr-osa > i, .lr-osa.kesken > i, .lr-osa.valmis > i { transition: none; }
 }
 
 /* ============================================================
@@ -5269,9 +4994,9 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
          Tulostetaan komennolla `node tools/ikoni.mjs --inline` — älä
          muokkaa käsin. -->
     <svg id="lr-merkki-lahde" width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute" data-keski="27.55 80.83" data-alku="-92.54" data-pyyhk="73.16" data-r="75.68" data-pallo="50.79 20.72" data-tuuli="5 #00cddc,6 #00dca5,7 #00e669,8 #3ceb2d,9 #8cf014,10 #cdf000,11.5 #fad700,13 #ffa500" xmlns="http://www.w3.org/2000/svg"><symbol id="lm-siipi" viewBox="0 0 512 512"><path d="M141.06 413.84C139.82 339.08 167.85 283.02 217.69 242.52C273.75 195.8 342.28 164.65 372.18 117.93C367.2 195.8 336.05 283.02 289.33 352.79C281.23 332.85 267.52 320.4 255.07 315.41L299.92 281.77C261.3 295.48 230.15 307.94 211.46 328.49C227.03 328.49 239.49 331.61 243.85 335.97C236.38 364 174.08 376.46 141.06 413.84Z" fill="#F0E7CE"/></symbol><symbol id="lm-pallo" viewBox="0 0 512 512"><circle cx="260.05" cy="106.09" r="19.93" fill="#F0E7CE"/></symbol></svg>
-    <!-- Kohtaus: taivas, tuuli, meri, kuski. Koristetta ruudunlukijalle;
-         sovelluksen nimi on h1:ssä. Juovat, aallot, kimallus ja roiske
-         syntyvät alla olevasta skriptistä. -->
+    <!-- Kohtaus: taivas, tuuli ja meri. Koristetta ruudunlukijalle;
+         sovelluksen nimi on h1:ssä. Juovat, aallot ja kimallus syntyvät
+         alla olevasta skriptistä. -->
     <div id="lr-nayttamo" aria-hidden="true">
       <div id="lr-taivas"></div>
       <div id="lr-horisontti"></div>
@@ -5344,72 +5069,6 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
       <div id="lr-tuuli"></div>
       <div id="lr-meri-taka"></div>
       <div id="lr-kimallus"></div>
-      <!-- Kuski: 300 yksikön viewBox, vesiviiva y 240. Siipi ja kuski
-           ovat eri kerroksia, koska siipi hengittää etukäden ympäri. -->
-      <!-- KUSKI: 300 yksikön viewBox, vesiviiva y 240. Nivelletty: jokainen
-           osa on oma kerroksensa omalla nivelpisteellään, ja kerrokset ovat
-           sisäkkäin kuten luut (lantio kantaa ylävartalon, olkapää käden,
-           käsi siiven). Asento on rento liuku: siipi sivulla nokka ylhäällä
-           etukäden varassa, takakäsi roikkuu, polvet joustavat aalloissa. -->
-      <div id="lr-rata">
-        <div id="lr-lahto"><div id="lr-tulo">
-          <div id="lr-roiske"></div>
-          <!-- KAARRON JÄLKI: ala-käännöksen jälkeen veteen jää kaartuva
-               vaahtojälki, samassa tahdissa kuin kaarto (4,4 s, −0,3 s).
-               Kukonpyrstöroiske poistettiin käyttäjän pyynnöstä. -->
-          <div id="lr-jalki"><svg viewBox="0 0 300 300">
-            <path d="M147 240C128 241 106 244.6 84 249C64 253 40 256 10 256" fill="none" stroke="#F0E7CE" stroke-opacity=".85" stroke-width="2" stroke-linecap="round"/>
-            <path d="M147 240.4C130 238.8 110 238.6 88 239.8C66 241 40 243.2 12 242.8" fill="none" stroke="#F0E7CE" stroke-opacity=".45" stroke-width="1" stroke-linecap="round"/>
-            <path d="M120 243.4C104 245.6 88 248.2 72 251" fill="none" stroke="#F0E7CE" stroke-opacity=".5" stroke-width="3.6" stroke-dasharray="2 5" stroke-linecap="round"/>
-          </svg></div>
-          <!-- KUSKI ON YKSINKERTAINEN TIKKU-UKKO YHDESSÄ SÄVYSSÄ (käyttäjän
-               päätös 29.9.): yksityiskohtainen hahmo (kasvot, liivi,
-               kypärä, lihakset, kaksivärinen siipi) hallitsi ruutua. Koko
-               rigi on `--lr-kuski`-sävyä (valoisalla tumma siluetti,
-               pimeällä paperi) ja himmennetty (`#lr-keinu` opacity), siipi
-               on läpikuultava kangas ja täyttöputki. Nivelpisteet ja
-               animaatiot ovat ennallaan: nilkat, lantio (150,157), olkapää
-               (144,124,4) ja kädet puomilla (160,4/134,6 ja 180,4/128,6). -->
-          <div id="lr-keinu">
-            <div id="lr-lauta"><svg viewBox="0 0 300 300">
-              <g style="fill:var(--lr-kuski)">
-                <path d="M144.6 216.4H152.8L151.6 262.4H146Z"/>
-                <path d="M120.4 263.6C120.4 262.6 121.4 262 123 262H186C191.6 262 195.6 262.6 195.6 263.6C195.6 264.8 191 266 184 266H123C121.4 266 120.4 264.8 120.4 263.6Z"/>
-                <path d="M97.4 207.2H190C198 207.2 205 206.4 210 204.4C210.8 204.2 211.2 204.8 210.8 205.6C208.4 211 202 216.4 192 217.2L101 217.4C98.2 217.4 96.2 215.6 96 213L95.8 209.8C95.8 208.2 96.4 207.2 97.4 207.2Z"/>
-              </g>
-            </svg></div>
-            <div id="lr-kansi"><svg viewBox="0 0 300 300">
-              <path d="M97.6 207.2C118 201.4 180 200.2 210 204.4C200 207 180 207.6 150 207.6C130 207.6 110 207.6 97.6 207.2Z" style="fill:var(--lr-kuski);fill-opacity:.6"/>
-            </svg></div>
-            <div id="lr-jalat"><svg viewBox="0 0 300 300">
-              <g fill="none" style="stroke:var(--lr-kuski)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M126 205.2H133.4L129.4 204L137.4 181L150 157L162.4 180L164.4 204L161 205.2H168.6"/>
-              </g>
-            </svg></div>
-            <div id="lr-yla">
-              <div id="lr-kasi">
-                <div id="lr-siipi"><svg viewBox="0 0 300 300"><g transform="translate(180 128) rotate(-22) scale(.72) translate(-187 -107)">
-                  <path d="M140 34C146 26 156 22 166 22C208 24 239 70 231 112C225 148 209 172 190 186C184 190 178 190 174 186Q148 132 90 92Q122 62 140 34Z" style="fill:var(--lr-kuski);fill-opacity:.26"/>
-                  <path d="M140 34C146 26 156 22 166 22C208 24 239 70 231 112C225 148 209 172 190 186C184 190 178 190 174 186C186 178 200 164 208 144C216 120 216 96 210 76C202 52 184 36 164 34C156 34 148 36 142 40C141 38 140 36 140 34Z" style="fill:var(--lr-kuski);fill-opacity:.8"/>
-                  <path d="M214 101L91.4 92.4" fill="none" style="stroke:var(--lr-kuski);stroke-opacity:.55" stroke-width="3" stroke-linecap="round"/>
-                  <path d="M201 102.6L201.4 109.3M113 95L113.4 100.9M206 109.8L104 100.2" fill="none" style="stroke:var(--lr-kuski)" stroke-width="3.6" stroke-linecap="round"/>
-                </g></svg></div>
-                <svg viewBox="0 0 300 300">
-                  <g fill="none" style="stroke:var(--lr-kuski)" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M144 124.4L150.4 138.4L160.4 134.6M144 124.4L164 131.6L180.4 128.6"/>
-                  </g>
-                </svg>
-              </div>
-              <svg viewBox="0 0 300 300">
-                <path d="M150 157L144 124.4L142 119" fill="none" style="stroke:var(--lr-kuski)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-                <circle cx="140.6" cy="110.4" r="7.6" style="fill:var(--lr-kuski)"/>
-              </svg>
-            </div>
-          </div>
-        </div></div>
-        <!-- Ponnistuksen roiske: vedessä, ei kuskin mukana. Näkyy vain lähdössä. -->
-        <i id="lr-ponnistus"></i>
-      </div>
       <div id="lr-vesi"></div>
       <div id="lr-meri-etu"></div>
       <div id="lr-tuuli-etu"></div>
@@ -5422,10 +5081,12 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
       <div id="load-logo">
         <!-- Merkki on sama sommitelma kuin kotivalikon ikoni: siipi ja
              spotti. Spotti on oma kerroksensa, koska se syttyy eri
-             liikkeellä kuin siipi avautuu. -->
+             liikkeellä kuin siipi avautuu — ja lähdössä se lentää kartan
+             tähtäimeksi: vaaka ja pysty ovat eri kääreet eri käyrillä,
+             joten rata kaartuu (ks. LÄHTÖ tyylissä). -->
         <div id="load-logo-icon" aria-hidden="true">
           <div id="lr-m-siipi"><svg viewBox="0 0 512 512"><use href="#lm-siipi"/></svg></div>
-          <div id="lr-m-pallo"><svg viewBox="0 0 512 512"><use href="#lm-pallo"/></svg></div>
+          <div id="lr-m-lento-x"><div id="lr-m-lento-y"><div id="lr-m-pallo"><svg viewBox="0 0 512 512"><use href="#lm-pallo"/></svg></div></div></div>
         </div>
         <div id="load-logo-name"><span class="vain-ruudunlukijalle">FoilSpot</span><span class="lr-k" aria-hidden="true">F</span><span class="lr-k" aria-hidden="true">o</span><span class="lr-k" aria-hidden="true">i</span><span class="lr-k" aria-hidden="true">l</span><span class="lr-k" aria-hidden="true">S</span><span class="lr-k" aria-hidden="true">p</span><span class="lr-k" aria-hidden="true">o</span><span class="lr-k" aria-hidden="true">t</span></div>
         <!-- Kielipari eikä `data-en`: latausruutu näkyy ennen pääskriptiä. -->
@@ -5433,8 +5094,13 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
       </div>
       <div id="load-txt"><span data-kieli="fi">Ladataan…</span><span data-kieli="en">Loading…</span></div>
     </div>
+    <!-- Palkki on neljä OIKEAA vaihetta (`Latausvaiheet`): säädata,
+         ennuste, tuulikenttä ja kartta. Lähdössä se lentää aikajanan
+         päiväkiskon kelikaistaksi — siksi vaaka- ja pystykääre. -->
     <div id="load-bottom">
-      <div id="load-progress-wrap"><div id="load-progress-bar"></div></div>
+      <div id="lr-palkki-x"><div id="lr-palkki-y">
+        <div id="load-progress-wrap" aria-hidden="true"><i class="lr-osa" data-vaihe="saadata"><i></i></i><i class="lr-osa" data-vaihe="ennuste"><i></i></i><i class="lr-osa" data-vaihe="tuuli"><i></i></i><i class="lr-osa" data-vaihe="kartta"><i></i></i><i id="lr-lanka"></i></div>
+      </div></div>
     </div>
   </div>
 <script>
@@ -5477,7 +5143,7 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
 
   /* TUULIJUOVAT OVAT LOGON PAPERIA, HIEMAN LÄPIKUULTAVINA (käyttäjän
      päätös 28.9.). Ne olivat rampin värisiä arkin nopeuden mukaan, mutta
-     ruudulla ne lukivat värikkäänä kohinana merkin ja kuskin ympärillä.
+     ruudulla ne lukivat värikkäänä kohinana merkin ympärillä.
      Nopeus näkyy yhä vauhdissa, pituudessa ja paksuudessa; alfa on
      juovan oma kerrottuna `JUOVA_ALFA`lla. (`data-tuuli` jää
      `tools/ikoni.mjs`:n tulosteeseen, mutta sitä ei enää lueta.) */
@@ -5498,6 +5164,22 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
    *    niillä on sama väri: väri on yhä nopeus, nyt arkki kerrallaan. */
   var PX_MS = 30 * Math.sqrt(W / 393);   /* px/s per m/s; leveällä ruudulla
                                             juova ei saa laahata */
+  /* VIIMEKSI NÄHTY TUULI (`fs_lr_tuuli`, kirjoittaa `Crosshair._update`
+     kun valittu hetki on nyt). Latausruutu on sovelluksen ensimmäinen
+     näkymä, joten sen tuuli kertoo jo jotain: juovien vauhti on
+     tähtäimen tuulen neliöjuuri suhteessa 7 m/s:iin (rajattu 0,45–2,2,
+     jotta tyyni päivä ei pysähdy eikä myrsky muutu viiruiksi), ja
+     itäkomponentin ollessa selvä juovat kulkevat oikealle (peilaus
+     `.lr-ita`; kohtaus katsoo merelle etelästä pohjoiseen, joten itä
+     on oikealla). Etelä- ja pohjoistuulta ei sivukuvassa näy — silloin
+     suunta jää oletukseksi. Yli 12 h vanha lukema ohitetaan. */
+  try {
+    var lt = JSON.parse(localStorage.getItem('fs_lr_tuuli') || 'null');
+    if (lt && isFinite(lt.ms) && isFinite(lt.dir) && isFinite(lt.t) && Date.now() - lt.t < 12 * 36e5) {
+      PX_MS *= Math.max(0.45, Math.min(2.2, Math.sqrt(Math.max(lt.ms, 0.3) / 7)));
+      if (-Math.sin(lt.dir * Math.PI / 180) > 0.3) juuri.classList.add('lr-ita');
+    }
+  } catch (e) {}
   var LEVEYS = W / 393;
   function aja(el, kesto, viive) {
     if (vahenna) { el.style.animation = 'none'; return; }
@@ -5551,16 +5233,16 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
   var jakso = (W + G) / (PX_MS * 12) / 0.28;
   if (vahenna) puuska.style.display = 'none';
   aja(puuska, jakso, 2.4 - 0.56 * jakso);
-  /* Etualan juovat kuskin EDESSÄ: harvat, paksut ja nopeat. */
+  /* Etualan juovat: harvat, paksut ja nopeat. */
   var eT = Math.round(1.6 * PISIN);
   var etuArkki = juovat(etu, 9.5, Math.max(2, Math.round(3 * TIHEYS)), eT, 30, 58, 150, 2.5, 0.85, 0.1, 2);
   if (vahenna) etuArkki.style.transform = 'translate3d(' + (-Math.round(sat() * eT)) + 'px,0,0)';
   aja(etuArkki, eT / (PX_MS * 9.5), -sat() * eT / (PX_MS * 9.5));
 
-  /* -- Meri. f on syvyys: 0 taivaanrannassa, ~0,45 kuskin vesiviivalla,
+  /* -- Meri. f on syvyys: 0 taivaanrannassa, ~0,45 vesiviivalla (`--lr-pinta`),
         1 lähimpänä. Arkin aallonpituus ja vauhti tulevat sen omasta
         syvyydestä (perspektiivi ja parallaksi); rivin korkeus ja alfa
-        rivin omasta. Alfa on suurin kuskin kohdalla ja häipyy molempiin
+        rivin omasta. Alfa on suurin vesiviivalla ja häipyy molempiin
         suuntiin, ja lähimmät häipyvät kokonaan ennen nimilohkoa. Rivit
         ovat eri vaiheessa, jotteivät saman arkin harjat osu kohdakkain. */
   function meri(kohde, f, rivit) {
@@ -5603,7 +5285,7 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
   meri(mEtu, 0.86, [[0.66, 0.78], [1, 0.95]]);
 
   if (!vahenna) {
-    /* -- Kimallus ja roiske VARJOKOPIOINA: yksi elementti piirtää useamman
+    /* -- Kimallus VARJOKOPIOINA: yksi elementti piirtää useamman
           pisteen (`box-shadow`), eli yksi animaatio useamman sijaan.
           Kimallusryhmän pisteet välkkyvät yhtä aikaa mutta ovat kaukana
           toisistaan, joten sitä ei lue ryhmänä. */
@@ -5623,31 +5305,6 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
         + ';animation-duration:' + (3.2 + sat() * 2.4).toFixed(2) + 's;animation-delay:'
         + (-sat() * 5).toFixed(2) + 's;';
       kim.appendChild(ki);
-    }
-    /* -- Roiske ja vaahto maston juuresta. */
-    var roiske = document.getElementById('lr-roiske');
-    for (var r = 0; r < 3; r++) {
-      var pis = document.createElement('i');
-      pis.className = 'lr-pisara';
-      var kp = 0.9 + r * 0.22;
-      var kv = [];
-      for (var rr = 0; rr < 2; rr++) {
-        kv.push(Math.round((sat() - 0.5) * 10) + 'px ' + Math.round((sat() - 0.6) * 8) + 'px 0 '
-                + (sat() * 0.8 - 0.5).toFixed(1) + 'px rgba(240,231,206,.85)');
-      }
-      /* Matkalaatikko: leveys on matka taakse ja korkeus nousu, rigin
-         prosentteina (ks. .lr-pisara). */
-      var mw = 16 + sat() * 16, mh = 5 + sat() * 7;
-      pis.style.cssText = '--varjot:' + kv.join(',') + ';width:' + mw.toFixed(1) + '%;height:'
-        + mh.toFixed(1) + '%;margin:' + (-mh).toFixed(1) + '% 0 0 ' + (-mw).toFixed(1) + '%;'
-        + 'animation-duration:' + kp.toFixed(2) + 's;animation-delay:' + (-r * kp / 3).toFixed(2) + 's;';
-      roiske.appendChild(pis);
-    }
-    for (var v = 0; v < 2; v++) {
-      var va = document.createElement('i');
-      va.className = 'lr-vaahto';
-      va.style.animationDelay = (-v * 0.8).toFixed(2) + 's';
-      roiske.appendChild(va);
     }
   }
 
@@ -5724,6 +5381,10 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
   var pallo = document.getElementById('lr-m-pallo');
   var pk = (lahde.getAttribute('data-pallo') || '50 50').split(' ');
   if (pallo) pallo.style.transformOrigin = pk[0] + '% ' + pk[1] + '%';
+  /* Lennon pystykääre skaalautuu samasta pisteestä: spotti pienenee
+     tähtäimen pisteeksi paikallaan eikä liu'u skaalauksessa sivuun. */
+  var lentoY = document.getElementById('lr-m-lento-y');
+  if (lentoY) lentoY.style.transformOrigin = pk[0] + '% ' + pk[1] + '%';
   var ikoni = document.getElementById('lr-m-siipi');
   var lepo = ikoni && ikoni.querySelector('svg');
   if (!lepo || vahenna || !lepo.animate) return;
@@ -30119,6 +29780,8 @@ function _tlVarttiTikki(times, i) {
 }
 
 function renderTimeline(times, speeds, dirs, activeIdx, lisa) {
+  /* Latausruudun palkin toinen vaihe (idempotentti, ks. `Latausvaiheet`). */
+  if (times && times.length) Latausvaiheet.valmis('ennuste');
   /* Aaltotilassa palkit ovat aallonkorkeutta samasta paikasta. */
   State._tlAallot = lisa ? _tlAaltoArvot(times, lisa.lat, lisa.lng) : null;
   /* Sadetilassa palkit ovat sadetta samasta paikasta. */
@@ -32461,6 +32124,7 @@ const Crosshair = {
        merkkifontin nuoli kahdeksassa portaassa: 194° näytti samalta kuin
        180°. Piirretty nuoli kääntyy asteen tarkkuudella. */
     this._dir = dir;
+    this._lrTuuliTalteen(tv ? tv.ms : w.ms, dir);
     if (!this._vasenAalto(center)) {
       this._nuoliEl.style.transform = 'rotate(' + ((dir + 180) % 360).toFixed(1) + 'deg)';
       this._nuoliEl.style.color = colorStr;
@@ -32481,6 +32145,22 @@ const Crosshair = {
     } else {
       this._puuskaEl.classList.add('hidden');
     }
+  },
+  /* LATAUSRUUDUN TUULI (`fs_lr_tuuli`): seuraavan käynnistyksen
+     latausruutu ajaa juovansa tällä vauhdilla ja suunnalla (ks.
+     latausruudun skripti). Vain kun valittu hetki on nyt — tulevan
+     tunnin tuuli ei ole "viimeksi nähty keli" — ja enintään kerran
+     20 sekunnissa, koska `_update` ajetaan sormen alla 60 ms välein.
+     Keskituuli myös puuskakerroksella: juova on tuulta, ei puuskaa. */
+  _lrTuuliT: 0,
+  _lrTuuliTalteen(ms, dir) {
+    const nyt = Date.now();
+    if (nyt - this._lrTuuliT < 20000) return;
+    if (!(Math.abs(State.valittuMs - Ennuste.nytTunti()) <= 30 * 60e3)) return;
+    this._lrTuuliT = nyt;
+    try {
+      localStorage.setItem('fs_lr_tuuli', JSON.stringify({ ms: Math.round(ms * 10) / 10, dir: Math.round(dir), t: nyt }));
+    } catch (e) {}
   },
   /* VASEN OSA AALTOINA tuulikerroksella (`KapVasen`). Sama näyte kuin
      aaltotilan kapselissa ja kartalla (`Aallot.arvo`, sama hetki ja
@@ -35215,34 +34895,64 @@ tlScroll.addEventListener('touchstart', e => {
 tlScroll.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
 
 /* -- LOADING & REFRESH ------------------------------------------ */
-/* Edistymispalkki liikkuu CSS-siirtymällä (`scaleX`, kompositorissa).
-   Ennen se oli rAF-silmukka joka kirjoitti `width`iä ruutu kerrallaan
-   koko käynnistyksen ajan, eli asettelu laskettiin uudelleen joka
-   ruudussa juuri silloin kun pääsäikeellä on eniten tekemistä.
-   Siirtymän oma hidastus (1,1 s, ks. #load-progress-bar) tekee saman
-   tasoituksen ilman yhtään JS-ruutua. */
+/* LATAUSVAIHEET: palkin neljä osaa ovat oikeita vaiheita, eivät
+   ajastimia (ks. #load-progress-wrap). Kutsupaikat:
+     saadata  `Saalaatat.alusta()` valmis (main)
+     ennuste  aikajana piirretty ensimmäisen kerran (`renderTimeline`)
+     tuuli    `hideLoading()` eli tuulikenttä valmis
+     kartta   `_karttaValmis()` lähdön odotuksessa
+   Lähtö (`_lahde`) täyttää loput: siihen mennessä jokainen vaihe on
+   joko valmis tai ohitettu katolla. Tilarivi nimeää kesken olevan
+   vaiheen vasta `NIMI_MS`:n jälkeen — tavallinen lähtö on 1,6 s, eikä
+   nopeassa käynnistyksessä teksti saa vilkkua. Vaiheet ovat CSS-
+   siirtymiä (`scaleX`, kompositorissa): ei yhtään JS-ruutua. */
 var _loadDone = false;
-
-function setLoadProgress(target) {
-  if (_loadDone) return;
-  var bar = document.getElementById('load-progress-bar');
-  if (bar) bar.style.transform = 'scaleX(' + (Math.min(99, target) / 100) + ')';
-}
-
-/* Simuloidaan tasaista etenemista vaikka verkko olisi hidas */
-function startProgressSimulation() {
-  /* 0→15%: nopea (init) */
-  setLoadProgress(15);
-  /* 15→45%: DNS + yhteys */
-  setTimeout(function(){ setLoadProgress(45); }, 400);
-  /* 45→65%: data alkaa tulla */
-  setTimeout(function(){ setLoadProgress(65); }, 1200);
-  /* 65→80%: hitaampi, odotellaan dataa */
-  setTimeout(function(){ setLoadProgress(80); }, 2500);
-  /* 80→90%: erittain hidas — data viela matkalla */
-  setTimeout(function(){ setLoadProgress(90); }, 5000);
-  /* Ei mennä yli 90% automaattisesti — hideLoading hoitaa lopun */
-}
+const Latausvaiheet = {
+  NIMI_MS: 2000,
+  NIMET: {
+    saadata: ['Säädata', 'Weather data'],
+    ennuste: ['Ennuste', 'Forecast'],
+    tuuli:   ['Tuulikenttä', 'Wind field'],
+    kartta:  ['Kartta', 'Map'],
+  },
+  _valmiit: {},
+  _nimiAjastin: null,
+  valmis(v) {
+    if (this._valmiit[v]) return;
+    this._valmiit[v] = true;
+    this.piirra();
+  },
+  kaikki() {
+    for (const v in this.NIMET) this._valmiit[v] = true;
+    this.piirra();
+  },
+  piirra() {
+    const osat = document.querySelectorAll('#load-progress-wrap .lr-osa');
+    let kesken = null;
+    for (const o of osat) {
+      const ok = !!this._valmiit[o.dataset.vaihe];
+      o.classList.toggle('valmis', ok);
+      if (!ok && !kesken) kesken = o;
+    }
+    for (const o of osat) o.classList.toggle('kesken', o === kesken);
+    this._nimi(kesken && kesken.dataset.vaihe);
+  },
+  _nimi(v) {
+    if (!v || _lahto.lahti || Kaynnistys._tila) return;
+    const el = document.getElementById('loading');
+    const kulunut = performance.now() - ((el && el._lrAlku) || 0);
+    if (kulunut < this.NIMI_MS) {
+      if (!this._nimiAjastin) {
+        this._nimiAjastin = setTimeout(() => { this._nimiAjastin = null; this.piirra(); },
+          this.NIMI_MS - kulunut + 20);
+      }
+      return;
+    }
+    const t = document.getElementById('load-txt');
+    const n = this.NIMET[v];
+    if (t && n) t.textContent = _t(n[0], n[1]) + '…';
+  },
+};
 
 /* LATAUSRUUDUN LÄHTÖ: DATA, VÄHIMMÄISAIKA JA VALMIS KARTTA.
  *
@@ -35254,11 +34964,10 @@ function startProgressSimulation() {
  *     käynnistettäessä data oli valmis noin sekunnissa, ja lähtö katkaisi
  *     esittelyn ennen kuin merkki ehti piirtyä. 1,3 s + palkin viimeinen
  *     pala (0,3 s) vie lähdön (`.out`) 1,6 s:iin: merkki on piirtynyt
- *     (siipi 1,18 s, merkin tuuli 1,39 s) ja kuskin sisääntulo päättyy
- *     (1,6 s), ja kuski lähtee heti
- *     kun on ehtinyt paikalleen. ALARAJA on merkki: alle 1,1 s:n lähtö
- *     katkaisisi sen piirtymisen. Käyttäjän päätös: 3,4 s ja sitten 2 s
- *     olivat liian pitkiä — kuski seisoi paikallaan liian kauan.
+ *     (siipi 1,18 s, spotti asettunut 1,40 s), joten spotti voi lentää
+ *     tähtäimeksi. ALARAJA on merkki: alle 1,1 s:n lähtö katkaisisi sen
+ *     piirtymisen. Käyttäjän päätös: 3,4 s ja sitten 2 s olivat liian
+ *     pitkiä.
  *     Vaimennetulla liikkeellä esittelyä ei ole, joten raja on silloin
  *     nolla.
  *  2. VALMIS KARTTA: pohjakartan näkyvät laatat ovat tulleet
@@ -35307,24 +35016,20 @@ function hideLoading() {
   if (_loadDone) return;
   _loadDone = true;
   _lahto.data = performance.now();
-  /* Palkki liukuu melkein täyteen vähimmäisajan loppuun mennessä, jotta se
-     liikkuu koko odotuksen ajan; viimeinen pala tulee lähdössä. */
-  const bar = document.getElementById('load-progress-bar');
-  if (bar) {
-    bar.style.transition = 'transform ' + Math.max(300, Math.round(_lahtoMinJaljella())) + 'ms cubic-bezier(.2,.7,.2,1)';
-    bar.style.transform = 'scaleX(.96)';
-  }
+  Latausvaiheet.valmis('tuuli');
   _lahtoTarkista();
 }
 
 function _lahtoTarkista() {
   clearTimeout(_lahto.ajastin); _lahto.ajastin = null;
   if (_lahto.lahti || !_loadDone) return;
+  const valmisKartta = _karttaValmis();
+  if (valmisKartta) Latausvaiheet.valmis('kartta');
   if (!_lahto.ohita) {
     const nyt = performance.now();
     const min = _lahtoMinJaljella();
     const katto = Math.max(_lahto.data, _lahtoMinLoppu()) + LAHTO_KARTTA_MAX_MS;
-    if (min > 0 || (nyt < katto && !_karttaValmis())) {
+    if (min > 0 || (nyt < katto && !valmisKartta)) {
       _lahto.ajastin = setTimeout(_lahtoTarkista, min > 0 ? min : 100);
       return;
     }
@@ -35332,21 +35037,97 @@ function _lahtoTarkista() {
   _lahde();
 }
 
-/* Palkki täyteen, sitten lähtö (#loading.out: kuski kiihtyy pois ja ruutu
-   häipyy kartaksi), ja lopuksi `display: none`, joka myös pysäyttää
-   latausruudun ikuiset animaatiot. 1 350 ms on pisin lähdön osa
-   (häivytys .85 + .42 s, hyppy .45 + .85 s) pyöristettynä ylöspäin. */
+/* LÄHDÖN KOHTEET (ks. LÄHTÖ tyylissä): merkin spotti tähtäimen
+   pisteeseen ja palkki päiväkiskon kelikaistalle. Mitataan kerran,
+   lähtöhetkellä — sovellus on silloin asettunut, ja pääsäie on vapaa.
+   Kohde kelpaa vain jos se on ruudulla ja näkyvissä; paneelin ollessa
+   auki (jaettu linkki avaa kortin, ja puhelimella se peittää sekä
+   tähtäimen että aikajanan) mikään ei lennä. Vaimennetulla liikkeellä
+   ei lennetä eikä sovellus syty erikseen. */
+function _lahtoLennot(el) {
+  if (_lahtoVahenna()) { el.classList.add('lr-ei-lentoa'); return; }
+  const juuri = document.documentElement;
+  if (document.querySelector('#sheet.open') || juuri.classList.contains('paneeli-auki')) {
+    el.classList.add('lr-ei-lentoa');
+    return;
+  }
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const nakyy = function (r) {
+    return r && r.width > 0 && r.height > 0 && r.right > 0 && r.left < vw && r.bottom > 0 && r.top < vh;
+  };
+  const px = function (v) { return v.toFixed(2) + 'px'; };
+  let pallo = false, palkki = false;
+
+  /* Spotti: keskipiste merkkilähteen `data-pallo`sta (sama kuin
+     ponnahduksen skaalauskeskipiste), koko symbolin säteestä. Se
+     pienenee tähtäimen pisteen kokoiseksi (`.ch-dot`). */
+  const ikoni = document.getElementById('load-logo-icon');
+  const rengas = document.querySelector('#crosshair .ch-ring');
+  const piste = document.querySelector('#crosshair .ch-dot');
+  const lahde = document.getElementById('lr-merkki-lahde');
+  const tahtain = document.getElementById('crosshair');
+  if (ikoni && rengas && lahde && tahtain) {
+    const ri = ikoni.getBoundingClientRect(), rr = rengas.getBoundingClientRect();
+    const cs = getComputedStyle(tahtain);
+    if (nakyy(ri) && nakyy(rr) && cs.display !== 'none' && cs.visibility !== 'hidden') {
+      const pk = (lahde.getAttribute('data-pallo') || '50 50').split(' ');
+      const ympyra = lahde.querySelector('#lm-pallo circle');
+      const sade = ympyra ? +ympyra.getAttribute('r') : 19.93;
+      const lx = ri.left + ri.width * pk[0] / 100, ly = ri.top + ri.height * pk[1] / 100;
+      const tx = rr.left + rr.width / 2, ty = rr.top + rr.height / 2;
+      const halk = ri.width * 2 * sade / 512;
+      const kohde = piste ? piste.getBoundingClientRect().width || 5 : 5;
+      el.style.setProperty('--lr-pallo-dx', px(tx - lx));
+      el.style.setProperty('--lr-pallo-dy', px(ty - ly));
+      el.style.setProperty('--lr-pallo-s', (kohde / halk).toFixed(3));
+      /* Siipi seuraa kolmanneksen matkasta, jotta se ei jää paikalleen
+         kutistumaan erilleen spotistaan. */
+      el.style.setProperty('--lr-siipi-dx', px((tx - lx) * 0.3));
+      el.style.setProperty('--lr-siipi-dy', px((ty - ly) * 0.3));
+      pallo = true;
+    }
+  }
+
+  /* Palkki: kiskon NÄKYVÄ leveys (kisko vierii, sisältö on akselin
+     mittainen), korkeus kelikaistan levossa oleva 2 px, ja keskiviiva
+     4,5 px kiskon alareunasta (kaista on kiskon alimmat 9 px). */
+  const wrap = document.getElementById('load-progress-wrap');
+  const kisko = document.getElementById('tl-paivat');
+  if (wrap && kisko) {
+    const rw = wrap.getBoundingClientRect(), rk = kisko.getBoundingClientRect();
+    const l = Math.max(rk.left, 0), r = Math.min(rk.right, vw), y = rk.bottom - 4.5;
+    if (nakyy(rw) && nakyy(rk) && r - l > 40 && y < vh) {
+      el.style.setProperty('--lr-palkki-dx', px((l + r) / 2 - (rw.left + rw.width / 2)));
+      el.style.setProperty('--lr-palkki-dy', px(y - (rw.top + rw.height / 2)));
+      el.style.setProperty('--lr-palkki-sx', ((r - l) / rw.width).toFixed(4));
+      el.style.setProperty('--lr-palkki-sy', (2 / rw.height).toFixed(4));
+      palkki = true;
+    }
+  }
+  if (!pallo) el.classList.add('lr-ei-palloa');
+  if (!palkki) el.classList.add('lr-ei-palkkia');
+  juuri.classList.add('lr-saapuu');
+  setTimeout(function () { juuri.classList.remove('lr-saapuu'); }, 1300);
+}
+
+/* Palkki täyteen, sitten lähtö (#loading.out: spotti ja palkki lentävät
+   paikoilleen ja näyttämö häipyy kartaksi), ja lopuksi `display: none`,
+   joka myös pysäyttää latausruudun ikuiset animaatiot. 1 000 ms on
+   lähdön pisin osa (palkin häivytys .66 + .25 s, sovelluksen syttyminen
+   on sovelluksen omaa) pyöristettynä ylöspäin. */
 function _lahde() {
   if (_lahto.lahti) return;
   _lahto.lahti = true;
-  const bar = document.getElementById('load-progress-bar');
-  if (bar) { bar.style.transition = 'transform .3s ease'; bar.style.transform = 'scaleX(1)'; }
+  Latausvaiheet.kaikki();
   setTimeout(function () {
     const el = document.getElementById('loading');
-    if (el) { el.classList.add('out'); setTimeout(function () {
+    if (!el) return;
+    _lahtoLennot(el);
+    el.classList.add('out');
+    setTimeout(function () {
       el.classList.add('hidden');
       if (typeof Ensikerta !== 'undefined') Ensikerta.kaynnista();
-    }, 1350); }
+    }, 1000);
   }, 300);
 }
 
@@ -35575,7 +35356,7 @@ async function main() {
   KarttaAsetukset.alusta();
   Lahde.alusta();
   startRenderLoop();
-  startProgressSimulation();
+  Latausvaiheet.piirra();
 
   /* Unlock AudioContext (needed for iOS haptics) on first touch */
   document.addEventListener('touchstart', () => Haptics.unlock(), { once: true, passive: true });
@@ -35619,6 +35400,7 @@ async function main() {
      laatat olisivat riittäneet. Epäonnistuminen ei ole virhe — alusta()
      nielee sen ja jättää varaston pois käytöstä. */
   await Saalaatat.alusta();
+  Latausvaiheet.valmis('saadata');
 
   const spotsP    = ViewportGrid.loadSpots().catch(e => console.warn('[loadSpots]', e));
   const viewportP = ViewportGrid.loadViewport(State.map).catch(e => console.warn('[loadViewport]', e));

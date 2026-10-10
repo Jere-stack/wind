@@ -8358,3 +8358,102 @@ päivän välissä. Mitattu: kärjen keskikohta 0,7 px osoittimesta (pillerin
 alipikselisiirto), kärki y 827 kun juovan keskiviiva on 825,5 — sama
 kolmella eri hetkellä. WebKitillä ei mitattu (ei asennettuna kontissa);
 kärki on stickyn pillerin lapsi eikä tarvitse omaa sijoitusta.
+
+## Latausruutu muuttuu sovellukseksi (10.10.)
+
+Käyttäjä: avausruudussa keskitytään merkkiin ja latauspalkkiin eikä
+hyppivään kuskiin, merkki ja värimaailma ennallaan. Kolmesta
+vaihtoehdosta (A tuuli kokoaa merkin, B valo ja portti, C merkki
+muuttuu sovellukseksi) käyttäjä valitsi C:n ("tehdään huolellisesti").
+
+### Mitä muuttui
+- **Kuski poistettiin kokonaan**: merkintä (`#lr-rata` ja sen ~40
+  kerrosta), tyylit (noin 350 riviä), roiske- ja vaahtoskripti ja
+  asun muuttujat (`--lr-kypara`, `--lr-puku` …). `--lr-kuski` jäi,
+  koska lokit lukevat sitä. Lepotila ei muuttunut näkyvästi, koska
+  kuski oli siinä jo piilossa (strategia D).
+- **Palkki on neljä oikeaa vaihetta** (`Latausvaiheet`): säädata
+  (`Saalaatat.alusta`), ennuste (ensimmäinen `renderTimeline`),
+  tuulikenttä (`hideLoading`) ja kartta (`_karttaValmis`). Ennen
+  `startProgressSimulation` nosti yhtä viivaa ajastimilla 15/45/65/80/90
+  %:iin, ja hitaalla verkolla se seisoi 90 %:ssa. Nyt osa täyttyy kun
+  vaihe on valmis; ensimmäinen valmistumaton ryömii 6 s:n hidastuvalla
+  siirtymällä 62 %:iin, ja vain sen yli kulkee kiilto. Tilarivi nimeää
+  kesken olevan vaiheen ("Tuulikenttä…", "Kartta…", englanniksi
+  "Wind field…", "Map…") vasta 2 s:n jälkeen. Mitattu: välimuistista
+  käynnistettäessä tuuli valmistuu ennen luetteloa, eli järjestys
+  todella vaihtelee.
+- **Lähtö on siirtymä**: merkin spotti lentää kartan tähtäimen
+  pisteeksi, palkki päiväkiskon kelikaistaksi, ja näyttämö häipyy
+  kartaksi; kapseli, napit, aikajana ja tähtäimen rengas syttyvät vasta
+  kun spotti ja palkki ovat perillä (`html.lr-saapuu`).
+
+  | aika (0 = `.out`) | tapahtuma |
+  |---|---|
+  | 0–0,12 s | palkin osat yhdeksi langaksi (`#lr-lanka`), nimi ja tilarivi väistyvät ylös |
+  | 0–0,42 s | siipi kutistuu (0,55) kolmanneksen spotin matkasta ja häipyy |
+  | 0,04–0,66 s | spotti lentää: vaaka `ease-in-out`, pysty pienellä vauhtiliikkeellä (`cubic-bezier(.5,-.4,.3,1)`), pienenee 11,7 → 5 px |
+  | 0,1–0,7 s | lanka venyy kiskon näkyvän leveyden mittaiseksi ja laskeutuu kelikaistan keskiviivalle (2 px) |
+  | 0,12–0,62 s | näyttämö häipyy |
+  | 0,5–1,0 s | kapseli ylhäältä, napit sivulta, aikajana esiin, tähtäimen rengas avautuu pisteestä (yliheitto) |
+  | 1,0 s | `display: none` (ennen 1,35 s) |
+
+- **Juovat kertovat viimeksi nähdyn tuulen** (`fs_lr_tuuli`): vauhti
+  √(ms/7) rajattuna 0,45–2,2 ja suunta oikealle kun itäkomponentti on
+  selvä (`.lr-ita` peilaa tuulikerrokset ja pilvet). Etelä- ja
+  pohjoistuulta sivukuva ei näytä, joten silloin suunta on oletus.
+
+### Rakenne
+- Kohteet mitataan KERRAN lähtöhetkellä (`_lahtoLennot`:
+  `getBoundingClientRect` merkistä, tähtäimen renkaasta ja pisteestä,
+  palkista ja kiskosta) ja annetaan muuttujina (`--lr-pallo-dx/-dy/-s`,
+  `--lr-palkki-dx/-dy/-sx/-sy`, `--lr-siipi-dx/-dy`). Spotin
+  keskipiste tulee merkkilähteen `data-pallo`sta ja koko symbolin
+  säteestä; pystykääre skaalautuu samasta pisteestä.
+- Jokainen liike on oma kääreensä (`#lr-m-lento-x/-y`,
+  `#lr-palkki-x/-y`), koska sisääntuloanimaatio ja lähdön siirtymä
+  samalla elementillä eivät yhdisty kompositorissa. Vaaka ja pysty eri
+  käyrillä antavat kaartuvan radan ilman `offset-path`ia.
+- `#loading` ei enää häivy itse (sen läpinäkyvyys kertautuisi
+  lentäviin osiin): tausta siirtyi `#lr-nayttamo`lle, ja se häipyy.
+- Sovelluksen syttyminen on pelkkiä `from`-avainkuvia
+  `backwards`-täytöllä: loppuarvo on elementin oma, joten piilotettu
+  kapseli (`.hidden`, kortti auki) pysyy piilossa, ja viiveen ajan
+  oikea tähtäin ja aikajana ovat piilossa — muuten häipyvän näyttämön
+  läpi näkyisi kaksi tähtäintä.
+- Lento ohitetaan (`lr-ei-lentoa`) vaimennetulla liikkeellä ja kun
+  `#sheet.open` tai `html.paneeli-auki` on päällä; kohde joka ei näy
+  (`lr-ei-palloa`, `lr-ei-palkkia`) häipyy paikallaan.
+
+### Mitattu
+`tools/lahtomittaus.mjs` pysäyttää lähdön siirtymät heti `.out`in
+jälkeen ja asettaa niiden ajan itse (`currentTime`), joten tulos ei
+riipu kontin ruutunopeudesta. Lennon lopussa (0,7 s):
+
+| laite | spotti vs tähtäimen keskus | spotin koko vs piste | lanka vs kaista (y) | lanka vs kisko (x) |
+|---|---|---|---|---|
+| puhelin 390 × 844 | 0,00 px | 5,00 / 4,80 px | 825,5 / 825,5 | 14–376 / 14–376 |
+| puhelin vaaka 844 × 390 | 0,00 px | 5,00 / 4,80 px | 371,5 / 371,5 | 14–830 / 14–830 |
+| iPad 820 × 1180 | 0,00 px | 5,00 / 4,80 px | 1161,5 / 1161,5 | 14–806 / 14–806 |
+| työpöytä 1440 × 900 | 0,00 px | 5,00 / 4,80 px | 881,5 / 881,5 | 14–1426 / 14–1426 |
+
+0,4 s kohdalla rengas ja aikajana ovat läpinäkymättömyydeltään 0, ja
+1,1 s kohdalla 1. Animaatioita latausruudulla (käynnissä olevat,
+`getAnimations`): esittelyssä 46 ja levossa 40, vanha build samalla
+mittarilla 45 ja 57. Savutesti ja graafitesti läpi. Vaimennettu liike,
+englanti ja jaettu spottilinkki ajettu: ei `pageerror`ia.
+
+Mittarin opetus: lähdön ajastimet (piilotus 1 000 ms ja `lr-saapuu`
+1 300 ms) on pidätettävä, koska kuvasarja kestää kauemmin kuin lähtö.
+Ensimmäinen ajo näytti renkaan ja aikajanan näkyvissä 0,4 s kohdalla,
+koska oikea ajastin ehti poistaa luokan kesken sarjan.
+
+### Mitä jäi
+- `compositeFailed` ei mitattu tällä kertaa Chromen jäljityksellä.
+  Kaikki lähdön liikkeet ovat `transform`ia ja `opacity`ä omissa
+  kääreissään, ja muuttujat ratkeavat ennen siirtymää, mutta tämä on
+  rakenteesta päätelty.
+- Laitteella katsomatta: lento kestää 0,66 s, ja sen tuntuma
+  oikealla ruudulla (WebKit, 120 Hz) on vielä käyttäjän arvioitava.
+- Jaetulla spottilinkillä kortti aukeaa yleensä vasta lähdön jälkeen,
+  joten spotti lentää tähtäimeen ja kortti liukuu sen päälle.

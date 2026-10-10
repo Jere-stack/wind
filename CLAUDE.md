@@ -71,6 +71,13 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   CDP:llä: pito + veto) synteettisellä sarjalla, ei verkkoa; jokainen rivi
   `ok`/`VIKA`, poistumiskoodi 1 vialla. CI ajaa sen savutestin perään
   (`Savutesti ja graafitesti`). Ks. docs/graafit.md, luku 7.
+- `tools/lahtomittaus.mjs` — latausruudun lähdön mittari (docs/ui.md,
+  "Latausruutu muuttuu sovellukseksi"): pysäyttää lähdön siirtymät ja
+  asettaa niiden ajan itse, ja tarkistaa neljällä laitteella että
+  merkin spotti laskeutuu tähtäimen pisteeksi ja palkki kelikaistaksi
+  (≤ 1 px) ja että sovellus syttyy vasta niiden ollessa perillä;
+  `--kuvat=<hakemisto>` tallentaa kuvasarjan. Ei CI:ssä (oikea data,
+  noin 3 min).
 - `tools/korttimittaus.mjs` — spottikortin ja laajan näkymän mittari
   (docs/spottikortti.md, luku 8): korkeudet 127 tunnin, leveyksien
   320–430 px, kielten, ennusteiden ja mallimäärien yli, puoliksi näkyvät
@@ -218,7 +225,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/eleet.md` | nipistystä, zoomia (**kosketuszoom tähtäimen ympäri**), zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
 | `docs/data.md` | **aaltoennustetta kartalla (FMI WAM, `a0`–`a3`, `tools/wam.mjs`)**, säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja, **havaintoasemien oma historia (Mellsten ja Laru, `havainnot`-haara)**, **Mellstenin katkot: 4 h kuvaaja, arkistovaratie ja ajastinketju**, **kelikameran tila (YouTube, pikkukuvan ETag)** |
 | `docs/mallit.md` | **kartan säämallia ja sen valintaa, mallien rajoja ja niiden pehmennystä, varaston tasoja ja niiden alueita, MET Nordicia, Open-Meteon S3-malleja, näyttötarkkuuden tasoa: tason valinta zoomista, tasojen sekoitus (`karkeaPaino`), lämpökartan kaksi hilaa ja laattojen kaksi kerrosta — miksi lämpökartta ei enää hyppää zoomatessa**, **laatat ajassa paloina (24 askelta, `_palaValmis`)**, **kaukaa kuin läheltä: tiheämpi taso puhelimella, solmubudjetti, l1, alueellinen 1,0° ja `kokoaHila`n muisti** |
-| `docs/ui.md` | **väriteemaa (Yömeri: paneelit, tokenit, `Teema`, `ink()`)**, **kerrosvalitsinta (neljä ruutua esikatselukuvin) ja sadekerroksen GL-piirtoa (häivytykset, B-spline; silmukka on historiaa, ks. docs/sadetutka.md)**, **aaltokerrosta: siru, väri, aallonharjat, aikajana, kapseli, poijukaavion ennuste**, paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa (**toiston liuku, jatkuva päiväkisko, pehmeä valinta ja kelikaista**), kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä**, **kapselin säätä ja tuntisäätä (valittu hetki, paikallinen lähde)**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
+| `docs/ui.md` | **väriteemaa (Yömeri: paneelit, tokenit, `Teema`, `ink()`)**, **kerrosvalitsinta (neljä ruutua esikatselukuvin) ja sadekerroksen GL-piirtoa (häivytykset, B-spline; silmukka on historiaa, ks. docs/sadetutka.md)**, **aaltokerrosta: siru, väri, aallonharjat, aikajana, kapseli, poijukaavion ennuste**, paletteja, **sateen väriasteikkoa**, paneeleita, spottikorttia, aikajanaa (**toiston liuku, jatkuva päiväkisko, pehmeä valinta ja kelikaista**), kapselia, havaintoasemia, **latausruutua ja sovelluksen merkkiä (lähtö sovellukseen: spotti tähtäimeksi, palkki kelikaistaksi, oikeat latausvaiheet)**, **kapselin säätä ja tuntisäätä (valittu hetki, paikallinen lähde)**, **kelikameraa asemakortissa ja pillerin play-kolmiota**, **kieltä: suomi ja englanti, käännösmekanismi ja sanasto** |
 | `docs/pwa.md` | service workeria, offline-käynnistystä, kotivalikon appia tai **ikonitiedostoja ja manifestia** |
 | `docs/lisadata.md` | uuden datan tai uuden lähteen lisäämistä — mitä on kokeiltu, mikä kaatui mittaukseen |
 | `docs/spottikortti.md` | **spottikortin uudistusta: tuulikaavio (meteogrammi), kortin pääsarja, mallivalikko, kortin rakenne, yhtenäiset komponentit, kaavion venytys** — strategia, päätökset P1–P9 ja toteutuksen mittaukset (V0–V11: yksi kaaviomoottori, kortti moduuleina, fonttilattia, laajan valinta, venytys, mallit laajassa, **ennustevalikko, kiinteä lukemarivi ja selkeämpi päiväys**), ja **luku 8: rauhallinen ja vakaa kortti (strategia 3.10., päätetty suosituksen mukaan — kupla jää kiinteän kokoisena; toteutus V12–V16 ja mittari `tools/korttimittaus.mjs`): mallilukemat näkyviin laajassa, ei koon muutoksia, kahdennukset pois, kaavion teksti vain kokonaisena, kuusi kirjasinkokoa ja desimaalipilkku** |
@@ -344,6 +351,7 @@ kokeiltu ja kaadettu mittauksella.
   Uusi merkki: siipi ja tuuli — ja latausruudun viimeistely ·
   Merkki yksinkertaistui: siipi ja spotti ·
   Latausruutu vuorokaudenajan mukaan: Helsinki, nivelletty kuski ja hyppy ·
+  **Latausruutu muuttuu sovellukseksi (10.10.)** ·
   Aikajanan liukuväri pois — halot tilalle ·
   **Kelikamera: play-kolmio pilleriin ja kamera asemakorttiin** ·
   **Kieli: suomi ja englanti** ·
@@ -715,27 +723,45 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 
 - **LATAUSRUUTU ON KARTTAMAAILMAA JA LIIKEGRAFIIKKAA** (docs/ui.md,
   "Latausruutu liikegrafiikaksi" ja "Merkki yksinkertaistui: siipi ja
-  spotti"): tumma meri, rampin värinen tuuli, paperinvärinen foilaaja,
-  ja merkki (paperinen siipi) avautuu tyvestä ennen kuin spotti syttyy.
+  spotti"): tumma meri, paperinen tuuli, ja merkki (paperinen siipi)
+  avautuu tyvestä ennen kuin spotti syttyy.
   Kotivalikon ikoni -> latausruutu -> kartta on yksi pohja; paperiruutu
   teki kaksi kirkkaushyppyä joka käynnistyksessä. Älä palauta
   valokuvaa paperille: se oli 62 kB base64:ää (gzip 467,7 -> 410,4 kB)
   ja sisältö näkyi hitaalla verkolla 320 ms myöhemmin (FCP 812 vs
   492 ms).
-- **MERKKI ENSIN, KUSKI VAIN LÄHDÖSSÄ (strategia D, käyttäjän päätös
-  29.9.).** Kuski alkoi hallita ruutua ja merkki ja latauspalkki jäivät
-  sen varjoon. Levossa ruudulla on meri, taivas, tuuli ja ISO merkki
-  (150 px, nimi 32 px, palkki 220 × 3 px, lohko nostettu 7vh), ja
-  kuskin kerros `#lr-rata` on `display: none` — sen animaatiot eivät
-  pyöri lainkaan (levossa 22 animaatiota, ennen 37). Kun data on
-  valmis (`.out`), kuski syntyy: liukuu sisään vasemmalta 0,5 s
-  (`lr-tulo-lahto`), tekee ala-käännöksen (`lr-kaarto-lahto`,
-  `lr-lauta-lahto`, `lr-kansi-lahto`) ja hyppää viiveellä 0,45 s
-  (`lr-hyppy` ja nivelten hyppyavainkuvat); laki noin 0,9 s, ja vasta
-  silloin ruutu häipyy (`transition-delay` .85 s) ja nimilohko väistyy
-  (.45 s). `display: none` 1 350 ms. Hinta: kartta on käytettävissä
-  0,45 s myöhemmin kuin ennen. Vaimennetulla liikkeellä kuskia ei
-  näytetä. ÄLÄ PALAUTA KUSKIA LEPOTILAAN.
+- **MERKKI JA PALKKI OVAT PÄÄOSASSA, JA LÄHTÖ ON SIIRTYMÄ
+  SOVELLUKSEEN** (vaihtoehto C, käyttäjän päätös 10.10., docs/ui.md
+  "Latausruutu muuttuu sovellukseksi"). Ruutu ei häivy kokonaan:
+  merkin SPOTTI LENTÄÄ KARTAN TÄHTÄIMEN PISTEEKSI (pienenee `.ch-dot`in
+  kokoiseksi, ja tähtäimen rengas avautuu siitä), PALKKI LENTÄÄ
+  PÄIVÄKISKON KELIKAISTAKSI (osat yhdeksi langaksi, kiskon näkyvä
+  leveys, kaistan keskiviiva ja 2 px), ja näyttämö häipyy kartaksi.
+  Kohteet mitataan lähtöhetkellä (`_lahtoLennot`) ja annetaan
+  muuttujina; vaaka- ja pystykääre ovat eri käyrillä (`#lr-m-lento-x/-y`,
+  `#lr-palkki-x/-y`), joten rata kaartuu ilman `offset-path`ia.
+  Sovellus syttyy `html.lr-saapuu`-luokalla pelkin `from`-avainkuvin
+  ja `backwards`-täytöllä: kapseli, napit, aikajana ja rengas ovat
+  piilossa kunnes spotti ja palkki ovat perillä — muuten ruudulla olisi
+  kaksi tähtäintä. Paneelin ollessa auki ja vaimennetulla liikkeellä
+  mikään ei lennä (`lr-ei-lentoa`). `display: none` 1 000 ms (ennen
+  1 350). Mittari `tools/lahtomittaus.mjs` (pysäyttää siirtymät ja
+  asettaa ajan itse): spotti tähtäimen keskellä 0,00 px ja lanka
+  kaistalla 0,00 px puhelimella, vaakatilassa, iPadilla ja työpöydällä.
+  Jos siirrät tähtäintä, kiskoa tai kelikaistaa, aja se.
+  **KUSKI ON POISTETTU KOKONAAN** (merkintä, tyylit, roiske ja asun
+  muuttujat; `--lr-kuski` jäi lokkien sävyksi). Sen historia on
+  docs/ui.md:ssä ("Latausruutu vuorokaudenajan mukaan", "Merkki ensin,
+  kuski vain lähdössä") — älä palauta sitä.
+- **PALKKI ON NELJÄ OIKEAA VAIHETTA** (`Latausvaiheet`): säädata
+  (`Saalaatat.alusta`), ennuste (`renderTimeline`), tuulikenttä
+  (`hideLoading`) ja kartta (`_karttaValmis`). Ennen ajastimet nostivat
+  yhtä viivaa 15 → 90 %:iin latauksesta riippumatta. Ensimmäinen
+  valmistumaton osa ryömii kohti 62 %:a kiillon kanssa (yksi animaatio),
+  vaiheet valmistuvat missä järjestyksessä tahansa, ja tilarivi nimeää
+  kesken olevan vaiheen vasta 2 s:n jälkeen (`NIMI_MS`), jottei nopea
+  käynnistys vilku. Uusi odotettava asia on viides vaihe tai osa
+  olemassa olevaa — ei erillinen ajastin.
 - **TILANJAKO ON YHÄ KAKSIOSAINEN: KOHTAUS YLHÄÄLLÄ, NIMILOHKO SYVÄLLÄ
   MERELLÄ.** Aallot ja juovat häipyvät ennen nimilohkoa, eikä tekstin
   alla liiku mitään. Mitattu ruudulta: nimi 16,34:1, alanimi 6,47:1,
@@ -746,7 +772,12 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   LÄPIKUULTAVINA** (`JUOVA_VARI` `#F0E7CE`, `JUOVA_ALFA` 0,62 juovan
   oman alfan päälle) — käyttäjän päätös 28.9. Ne olivat ennen rampin
   ankkurin värisiä arkin nopeuden mukaan; nopeus näkyy nyt vauhdissa,
-  pituudessa ja paksuudessa. `data-tuuli` jää `tools/ikoni.mjs`:n
+  pituudessa ja paksuudessa. **Vauhti ja suunta ovat viimeksi nähty
+  tuuli** (`fs_lr_tuuli`, `Crosshair._lrTuuliTalteen` kun valittu hetki
+  on nyt, enintään 20 s välein): vauhti √(ms/7) rajattuna 0,45–2,2, ja
+  selvällä itäkomponentilla juovat kulkevat oikealle (`.lr-ita`;
+  kohtaus katsoo pohjoiseen). Yli 12 h vanha ohitetaan.
+  `data-tuuli` jää `tools/ikoni.mjs`:n
   tulosteeseen mutta sitä ei lueta. Nimilohko, merkki ja
   edistymispalkki ovat samaa paperia. Magentaa ei ruudulla ole, joten
   `--accent` palkissa sanoisi 20 m/s — ja se on tummalla himmein
@@ -761,70 +792,12 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   pysyy niin tummana että tilapalkin valkoinen on VÄHINTÄÄN 10:1
   (mitattu päivä 10,54, ilta 15,97, sininen 15,51, yö 18,38); (2)
   illan valo on haalea kupari/ruusu, EI rampin kylläistä oranssia; (3)
-  kuski on valoisalla (aurinko yli −3°) TUMMA vastavalosiluetti ja
-  pimeällä paperia — vaihto on kerralla, ei liukuen (välisävy harmaa).
+  lokit (`--lr-kuski`) ovat valoisalla (aurinko yli −3°) TUMMA siluetti
+  ja pimeällä paperia — vaihto on kerralla, ei liukuen.
   Nimilohkon alla on AINA sama syvä meri: tekstien kontrastit ovat
   samat joka vaiheessa (16,34 / 6,48 / 7,25). Tähtiä ei ylimpään 64
   px:iin eikä aurinkoa taivaan puoliväliä ylemmäs, koska molemmat
   vaalensivat tilapalkin alustaa (7,80:1 ja 9,60:1 ennen rajausta).
-- **KUSKI ON NIVELLETTY, SE LIIKKUU NÄKYVÄSTI, JA LÄHTÖ ON HYPPY.**
-  Asento on oikeasta vastavalokuvasta (mittasuhteiden malli, ei
-  upotettu): lähes pystyasento ja nojaus taaksepäin, siipi molemmin
-  käsin olkapäiden korkeudella VINOSSA sivulla, ja kädet ovat PUOMILLA.
-  KUSKI ON YKSINKERTAINEN TIKKU-UKKO YHDESSÄ SÄVYSSÄ (käyttäjän päätös
-  29.9.): yksityiskohtainen ihmishahmo (kasvot, kypärä, tukka, impact
-  vest, lihakset, kaksivärinen Droid X -siipi logoineen) oli liian
-  hallitseva. Nyt raajat ja vartalo ovat pyöreäpäisiä viivoja, pää on
-  ympyrä, siipi on läpikuultava kangas (.26) ja täyttöputki (.8),
-  tuki ja puomi, ja lauta ja foili ovat umpinaisia siluetteja — kaikki
-  `--lr-kuski`-sävyä (valoisalla tumma, pimeällä paperi) ja koko rigi
-  `opacity: .78`. ÄLÄ PALAUTA YKSITYISKOHTIA NÄKYVIIN. Muoto ja
-  nivelpisteet säilyivät: nilkat (129,4/204 ja 164,4/204), lantio
-  (150/157), olkapää = `#lr-kasi`n nivel (144/124,4), ja kädet ovat
-  PUOMILLA (160,4/134,6 ja 180,4/128,6; etukäsi on `#lr-siipi`n
-  nivelpisteessä). Jos siirrät kättä tai niveltä, siirrä puomia samassa
-  muutoksessa. Suora vana (`#lr-vana`) poistettiin: se nousi hypyssä
-  kuskin mukana suorana viivana. Kaarron vaahtojälki häipyy ennen
-  ponnistusta. Osat ovat sisäkkäisiä kerroksia omilla
-  nivelpisteillään (`#lr-jalat` nilkoista `scaleY`, `#lr-yla` lantiosta
-  SAMALLA käyrällä, `#lr-kasi` = molemmat kädet ja siipi olkapäistä,
-  `#lr-siipi` etukädestä), ja vartalo piirtyy siiven PÄÄLLE. Liike on
-  kolmea kerrosta: pumppaus 2,2 s (jousto 14 %, kaikki nivelet samoilla
-  avainkuvilla, painallus 30 %), KAARTO 4,4 s ja liuku 9 s (`#lr-rata`
-  sivuttain −5…+6 %). KAARTO ON KÄÄNNÖS JA KALLISTUS, EI KIERTO
-  RUUDUN TASOSSA, JA KÄÄNNÖS ON LAUDAN, EI KUSKIN: sivukuvassa laudan
-  ja foilin käännös on `#lr-lauta`n `scaleX` (0,70 ala-käännöksessä,
-  0,68 hypyn linjanhaussa) ja kallistus kameraa kohti on laudan KANSI
-  joka avautuu näkyviin (`#lr-kansi`, sama `scaleX`). Kuski
-  (`#lr-keinu`) vain nojaa ja painuu, ja sen mittakaava pysyy
-  vähintään 0,97:ssä — koko rigin `scale(.74, .92)` kutisti kuskin
-  neljänneksellä ja luki käyttäjän mukaan epäluonnollisena. Viive
-  −0,3 s asettaa ala-käännöksen noin 1,0 s kohdalle ja linjan (lauta
-  oikenee, kuski nojaa taakse ja nousee) noin 1,6 s kohdalle, eli
-  siihen mihin lähtö osuu; lähdössä kaarto PYSÄYTETÄÄN
-  (`animation-play-state`) eikä vaihdeta, jottei asento hyppää. ÄLÄ PIENENNÄ LIIKETTÄ ALLE
-  TÄMÄN: 1–2°:n ja 7 %:n versio oli mitattuna käynnissä, mutta käyttäjän
-  mukaan "kuski ei liiku". Jos muutat joustoa, muuta ylävartalon siirtoa
-  samassa suhteessa (45 yks. × jousto), muuten lantio irtoaa reisistä.
-  Pään yllä vaakatasossa kelluva siipi luki LIUKUESSA sateenvarjona —
-  HYPYSSÄ se on oikein (siipi nousee pään yli, polvet vetäytyvät, kuten
-  oikeissa hyppykuvissa: `lr-kasi-hyppy`, `lr-jalat-hyppy`,
-  `lr-yla-hyppy`). SIIPI HEILAUTETAAN kuten oikeassa hypyssä
-  (vertailukuvat Roca Cup 2022): lastauksessa siipi painuu alas
-  (`lr-kasi-hyppy` +18°), ponnistuksessa se heilautetaan pään yli
-  yliheitolla (−96° → −84°) ja käännetään lappeelleen etukädestä
-  (`lr-siipi-hyppy` +34°), jolloin laella kuski roikkuu siiven alla
-  kädet suorina. Ilmassa kuski VÄÄNTÄÄ LAUDAN kääntyneeksi jalkojensa
-  alle (`lr-lauta-hyppy`: nokka ylös −13°, `scaleX` .76), ja jalat
-  seuraavat sitä (`lr-jalat-hyppy`: `skewY` = laudan kierto, `scaleY`
-  polvien koukistus, `skewX` lantio taakse; `lr-yla-hyppy` siirtää
-  ylävartaloa samassa suhteessa). Lähtö `.out` ajaa `lr-hyppy`-avainkuvat (viimeinen
-  linjanhaku 0–12 %: lauta kääntyy ja kuski nojaa kaarteeseen;
-  lastaus 24 %, ponnistus, lento, 0,85 s) viiveellä 0,45 s sisääntulon
-  ja ala-käännöksen jälkeen (ks. "Merkki ensin"), ja ruudun häivytys
-  alkaa vasta 0,85 s, jotta laki nähdään; `display: none` 1 350 ms.
-  Levossa pyörivät kaarto (`lr-kaarto`) ja pumppaus ovat yhä
-  koodissa, mutta kerros on levossa piilossa.
 - **SILUETTI ON HELSINKI ETELÄSATAMAN SUUNNALTA:** rantarivi ja
   Kauppatori (teltat, Keisarinnan kivi), mäellä Tuomiokirkko,
   Katajanokalla Uspenski ja maailmanpyörä, satamassa Silja Linen laiva
@@ -848,14 +821,15 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   ajan), selain päivittää jokaisen käynnissä olevan animaation tyylin
   joka ruudussa: 95 animaatiota 1,04 ms/ruutu, 22 animaatiota 0,50,
   pysäytettynä 0,06. Juovat ja aallot ovat arkkeja (yksi animoitu kerros,
-  staattinen sisältö, kaksi jaksoa leveä, -50 %), roiske ja kimallus
+  staattinen sisältö, kaksi jaksoa leveä, -50 %), kimallus
   varjokopioita. Älä lisää juovaa tai aaltoa omana animaationaan.
 - **SISÄÄNTULOT OVAT `backwards`, JA `.out` POISTAA NE.** `both` pitää
   loppuarvon ja voittaa lähdön siirtymän (palkki jäi täytenä ruudulle).
   Päättynytkin sisääntulo samalle ominaisuudelle esti siirtymän
   kompositoinnin (`compositeFailed = 64`). Jokainen liike on OMA
-  kääreensä (`#lr-lahto` / `#lr-tulo` / `#lr-keinu`), koska saman
-  elementin animaatio ja siirtymä eivät yhdisty.
+  kääreensä (spotin ponnahdus `#lr-m-pallo`, lento `#lr-m-lento-x/-y`;
+  palkin sisääntulo `#load-bottom`, lento `#lr-palkki-x/-y`), koska
+  saman elementin animaatio ja siirtymä eivät yhdisty.
 - **LATAUSRUUDUN SKRIPTI EI LUE IKKUNAN MITTOJA.** `innerWidth` pakotti
   koko dokumentin tyylin ja asettelun kesken jäsennyksen (13–21 ms
   ennen ensimmäistä ruutua). Leveys tulee `screen`istä ja suunta media
@@ -872,7 +846,7 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   Lähtö (`.out`) on 0,3 s vähimmäisajan jälkeen eli 1,6 s kohdalla.
   Napautus, klikkaus tai näppäin ohittaa heti kun data on valmis.
   **1,3 s ja ohjeettomuus ovat käyttäjän päätös:** 3,4 s ja sitten 2 s
-  olivat liian pitkiä ("kuski on pysähdystilassa"), eikä ruudulla ole
+  olivat liian pitkiä, eikä ruudulla ole
   "Napauta jatkaaksesi" -tekstiä — älä palauta sitä. **ALARAJA ON
   MERKKI:** siipi on avautunut 1,18 s ja spotti asettunut 1,40 s
   kohdalla, joten `LAHTO_MIN_MS` ei saa laskea alle 1,1 s:n (lähtö
@@ -900,11 +874,10 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **ELÄMÄ KOHTAUKSESSA ON ARKKEJA JA VARJOKOPIOITA** (docs/ui.md,
   "Pilvet, lokit, kaarron roiske ja jälki"): pilvet ovat YKSI hitaasti
   ajelehtiva arkki taivaan valon värisiä säteittäisiä liukuvärejä
-  (`--lr-pilvi`, `--lr-pilvi-a`), lokkiparvi on yksi lentoanimaatio ja
-  kaksi siiveniskua, ja kaarron vaahtojälki (`#lr-jalki`) on yksi
-  opacity kaarron tahdissa (4,4 s, −0,3 s), pysähtyy lähdössä.
-  Kaarron kukonpyrstöroiske poistettiin käyttäjän pyynnöstä — älä
-  palauta sitä. Animaatioita esittelyssä 61, levossa 37.
+  (`--lr-pilvi`, `--lr-pilvi-a`) ja lokkiparvi on yksi lentoanimaatio
+  ja kaksi siiveniskua. Animaatioita latausruudulla (käynnissä olevat,
+  mitattu 10.10.): esittelyssä 46, levossa 40 — vanha build samalla
+  mittarilla 45 / 57.
 - **TILAPALKKI ON VALKOINEN TUMMALLA, VÄHINTÄÄN 10:1 JOKA
   VUOROKAUDENAIKANA — MYÖS VAAKATILASSA.** Vaakatilassa 7 % on 28 px,
   joten taivaan yläväri on kiinteä 44 px:iin asti, ylin tuulijuova on
@@ -928,7 +901,7 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   (`#lr-merkki-lahde`: symbolit `lm-siipi` ja `lm-pallo`, avautumisen
   keskipiste, kulmat ja säde, pallon keskipiste, kohtauksen
   tuulijuovien värit), ja se vaihdetaan kokonaan tulosteella. Merkin id:t ovat
-  `lm-`-alkuisia, koska kohtauksen kuskilla on jo `lr-kangas`:
+  `lm-`-alkuisia, koska kohtauksen kuskilla oli `lr-kangas` (kuski on poistettu, etuliite jää):
   sama id kahdesti antoi merkin kankaalle kuskin liu'un (musta kangas).
   Ramppi PAPERILLA on yhä mitattu ja kaatunut (1,06:1). Älä piirrä
   merkkiä käsin uudestaan.
