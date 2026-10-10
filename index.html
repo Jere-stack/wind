@@ -18071,7 +18071,19 @@ function drawColorField() { LampoGL.paivita(); }
 
 /* -- PARTICLE SYSTEM -------------------------------------------- */
 const PerfTracker = {
-  _frames: [], _targetParticles: 400, _lastAdj: 0,
+  /* SUORITUSKYKY ON KATTO, EI TAVOITE (10.10., käyttäjän raportti:
+     "nipistäessä partikkeleita on paljon, ja kun sormi nousee, määrä
+     putoaa"). Tavoite oli kiinteä luku, joka luettiin `nParticlesBase`sta
+     vain `moveend`issä: kaukaa lähelle zoomatessa koko eleen ajan ruudulla
+     oli kaukaisen zoomin määrä (puhelimella ~1 300) ja sormen noustessa se
+     pudotettiin kerralla oikeaan (~150). Nyt tavoite on perusmäärä NYT,
+     rajattuna laitteen katolla, joten se seuraa zoomia joka ruudussa.
+     Katto on LUKUMÄÄRÄ eikä kerroin, koska hinta on partikkeleissa
+     (~1,4 µs kappale): kaukana opittu katto ei harvenna lähizoomia, jossa
+     määrä on sen alla. Katto säilyy eleiden yli — ennen hidas laite palasi
+     täyteen määrään jokaisen eleen jälkeen ja putosi taas kolmen sekunnin
+     päästä. */
+  _frames: [], _katto: Infinity, _lastAdj: 0,
   frame(ts) {
     this._frames.push(ts);
     if (this._frames.length > 61) this._frames.shift();
@@ -18100,7 +18112,8 @@ const PerfTracker = {
   _adjust(ts) {
     this._lastAdj = ts;
     const fps = this.fps(), base = nParticlesBase();
-    if (fps < 24 && this._targetParticles > 80) {
+    const nyt = this.getTarget();
+    if (fps < 24 && nyt > 80) {
       /* Leikkaus on SUHTEELLINEN siihen kuinka kaukana ruutunopeus on.
          Kiintea 0,7 tarvitsi viidet kierrokset eli noin 15 sekuntia
          ennen kuin maara asettui hitaalla laitteella — ja koko sen ajan
@@ -18108,12 +18121,16 @@ const PerfTracker = {
          pidempi ja askeleen on mukauduttava. 8 fps antaa kertoimen
          0,35 ja maara puolittuu kahdesti yhdessa kierroksessa. */
       const k = Math.max(0.35, Math.min(0.9, fps / 30));
-      this._targetParticles = Math.max(80, Math.round(this._targetParticles * k));
-    } else if (fps > 50 && this._targetParticles < base) {
-      this._targetParticles = Math.min(base, Math.round(this._targetParticles * 1.15));
+      this._katto = Math.max(80, Math.round(nyt * k));
+    } else if (fps > 50 && this._katto < base) {
+      this._katto = Math.round(this._katto * 1.15);
+      if (this._katto >= base) this._katto = Infinity;
     }
   },
-  getTarget() { return this._targetParticles; },
+  getTarget() {
+    const base = nParticlesBase();
+    return base < this._katto ? base : this._katto;
+  },
   /* Näytön ruutuväli: rAF-aikaleimojen välien MEDIAANI. Partikkelien
      askel pyöristetään tähän (ks. `partikkelitAskel`). Mediaani eikä
      keskiarvo, jotta pudonneet ruudut eivät venytä sitä. 0 = ei vielä
@@ -18127,7 +18144,8 @@ const PerfTracker = {
     v.sort((a, b) => a - b);
     return v[n >> 1];
   },
-  reset() { this._targetParticles = nParticlesBase(); this._frames = []; }
+  /* Eleen ja asetuksen jälkeen mitataan ruutunopeus alusta; katto jää. */
+  reset() { this._frames = []; }
 };
 
 /* Partikkelimäärä on RUUDUN PINTA-ALASTA, ei zoomista.
@@ -18204,16 +18222,21 @@ function partikkeliKaukoMaara(ala, lahi, k) {
  * keskizoom täsmälleen ennallaan), 1 kun z ≤ `z0` (3,5), välissä
  * smoothstep — muutos liukuu zoomin mukana eikä hyppää millään rajalla.
  * Painolla 1:
- *   - nopeus × `nopeus` (0,8) kaikille, ja `puristusMs`:n (10 m/s) yli
- *     lisäksi × (10/ms)^`eksponentti` (0,4): 15 m/s 0,68, 20 m/s 0,61,
- *     30 m/s 0,52 entisestä. Ruudun nopeus on yhä nopeuden kasvava
- *     funktio (järjestys säilyy), mutta myrskyalue ei enää viuhu.
- *   - jäljen pituusraja ja leveys × `koko` (0,8): 19 → 15 px. Heikon
- *     tuulen jälki lyhenee nopeuden mukana samassa suhteessa (aikapituus
- *     ennallaan), joten pilkkuja ei synny enempää kuin hitaus tuo.
+ *   - nopeus × `nopeus` (0,8) × (1 + (ms/`polviMs`)²)^(−`eksponentti`/2)
+ *     (polvi 9 m/s, eksponentti 0,6; 10.10. "jyrkemmin ja pehmeästi"):
+ *     4 m/s 0,76, 10 m/s 0,63, 15 m/s 0,54, 20 m/s 0,47, 30 m/s 0,38
+ *     entisestä. Taite on pehmeä (ei kulmaa), ja ruudun nopeus kasvaa
+ *     yhä tuulen mukana (∝ ms^0,4 kovassa päässä), joten järjestys
+ *     säilyy. 9.10. versio oli 10 m/s:n yli × (10/ms)^0,4 terävällä
+ *     taitteella (20 m/s 0,61).
+ *   - leveys × `koko` (0,8) ja jäljen pituusraja × `pituus` (0,65;
+ *     10.10. "aivan ylhäällä jäljen pituus häiritsee"): 19 → 12,4 px.
+ *     Alle 20 px:n jälki luki aikanaan pilkkuna lähizoomissa; kaukaa
+ *     lyhyt jälki on pyydetty ilme. Heikon tuulen jälki lyhenee nopeuden
+ *     mukana (aikapituus ennallaan).
  *   - Windyn kaukomäärä × `maara` (0,8).
  * Puhelimen Suomi-näkymä z5 saa painon 0,35. */
-const PARTIKKELI_RAUHA = { z0: 3.5, z1: 6, nopeus: 0.8, puristusMs: 10, eksponentti: 0.4, koko: 0.8, maara: 0.8 };
+const PARTIKKELI_RAUHA = { z0: 3.5, z1: 6, nopeus: 0.8, polviMs: 9, eksponentti: 0.6, koko: 0.8, pituus: 0.65, maara: 0.8 };
 function partikkeliKauko(z) {
   const R = PARTIKKELI_RAUHA;
   if (!(z < R.z1)) return 0;
@@ -18411,7 +18434,7 @@ function paivitaAlue(s, tx, ty) {
 }
 function makeParticle(rAge) {
   const p = { x: 0, y: 0, vx: 0, vy: 0, u: 0, v: 0, ms: 0, sampleTimer: 0, age: 0,
-              nippu: 0, hn: 0, pit: 0,
+              nippu: 0, hn: 0, pit: 0, tulo: 0, pois: false,
               hx: new Float32Array(JALKI), hy: new Float32Array(JALKI) };
   respawn(p, rAge);
   p.sampleTimer = Math.floor(Math.random() * Config.WIND_SAMPLE_INTERVAL);
@@ -18443,9 +18466,13 @@ function resetParticles(kova) {
   }
   /* Kytkin pitää partikkelit poissa myös kun kenttä ladataan uusiksi */
   if (partikkelitPois()) { State.particles = []; return; }
-  const n = nParticles();
-  while (State.particles.length > n) State.particles.pop();
-  while (State.particles.length < n) State.particles.push(makeParticle(true));
+  /* Määrän sovittaa `partikkelitAskel` pehmeästi (häivytys), ei tämä:
+     kerralla poistetut jäljet olivat sormen noston hyppy. Kova nollaus
+     täyttää heti, koska vanhoja jälkiä ei ole. */
+  if (kova) {
+    const n = nParticles();
+    while (State.particles.length < n) State.particles.push(makeParticle(true));
+  }
 }
 function sampleWind(p) {
   p.sampleTimer++; if (p.sampleTimer < Config.WIND_SAMPLE_INTERVAL) return;
@@ -18476,7 +18503,7 @@ function respawn(p, arvoIka, alue) {
     p.x = a.x0 + Math.random() * (a.x1 - a.x0);
     p.y = a.y0 + Math.random() * (a.y1 - a.y0);
   }
-  p.vx = 0; p.vy = 0; p.hn = 0;
+  p.vx = 0; p.vy = 0; p.hn = 0; p.tulo = 0;
   p.age = arvoIka ? (Math.random() * Config.MAX_AGE) | 0 : 0;
   p.sampleTimer = 0;
   naytteista(p);
@@ -18935,8 +18962,11 @@ function nauha(p, pituus, leveys, nip, laaj) {
    joka seitsemännen jäljen osittain läpinäkyvänä, ja himmeä jälki lukee
    sumeana. */
 const _SYNTY_RUUTUA = 10, _KUOLO_RUUTUA = 18;
+/* Syntymä luetaan `tulo`sta (aika ruudulla), ei iästä: määrän kasvaessa
+   eleen aikana uudet syntyvät arvotulla iällä, ja iästä luettuna ne
+   ilmestyisivät täydellä alfalla. */
 function _pAlfa(p) {
-  let a = p.age / _SYNTY_RUUTUA;
+  let a = p.tulo / _SYNTY_RUUTUA;
   const b = (Config.MAX_AGE - p.age) / _KUOLO_RUUTUA;
   if (b < a) a = b;
   const c = (p.ms - 0.3) / 0.5;
@@ -19043,9 +19073,30 @@ function partikkelitAskel() {
 
   if (Ruudusto.paivita(map) || !GeoProject._valid) GeoProject.update(map);
 
+  /* MÄÄRÄ SEURAA ZOOMIA JOKA RUUDUSSA, PEHMEÄSTI. Ylimääräinen ei katoa
+     kerralla: se merkitään (`pois`) ja vanhennetaan kuoleman häivytykseen
+     (0,3 s), ja vasta kuollessaan se poistetaan. Uusi syntyy arvotulla
+     iällä (muuten saman ruudun syntyjät kuolisivat yhdessä) ja
+     syntymähäivytyksellä (`tulo`). Merkitty palautetaan ennen kuin uutta
+     luodaan. */
   const target = nParticles();
-  while (particles.length > target) particles.pop();
-  while (particles.length < target) particles.push(makeParticle(true));
+  let elavia = 0;
+  for (let i = 0; i < particles.length; i++) if (!particles[i].pois) elavia++;
+  if (elavia > target) {
+    const vanhin = Config.MAX_AGE - _KUOLO_RUUTUA;
+    for (let i = particles.length - 1; i >= 0 && elavia > target; i--) {
+      const p = particles[i];
+      if (p.pois) continue;
+      p.pois = true; elavia--;
+      if (p.age < vanhin) p.age = vanhin;
+    }
+  } else if (elavia < target) {
+    for (let i = 0; i < particles.length && elavia < target; i++) {
+      if (particles[i].pois) { particles[i].pois = false; elavia++; }
+    }
+    while (elavia < target) { particles.push(makeParticle(true)); elavia++; }
+  }
+  let poistettavia = 0;
 
   /* Näkyvä alue on nyt tiedossa: täytetään se mitä siihen paljastui. */
   AlueVahti.tasaa();
@@ -19102,7 +19153,7 @@ function partikkelitAskel() {
   /* Kaukaa rauhallisempi (`partikkeliKauko`): paino 0 = ennallaan. */
   const R = PARTIKKELI_RAUHA, kk = partikkeliKauko(zoom);
   const kKoko = 1 - kk * (1 - R.koko);
-  const maxPx = JalkiViritys.maxPx * kKoko;
+  const maxPx = JalkiViritys.maxPx * (1 - kk * (1 - R.pituus));
   State._pKoko = kKoko;
   const M = maxPx + 4;
   /* Aikapituus 60 Hz:n ruutuina: jälki on enintään tämän ajan liike. */
@@ -19112,19 +19163,25 @@ function partikkelitAskel() {
     const p = particles[i];
     sampleWind(p);
     const speedT = Math.min(1, p.ms / Config.MAX_MS);
-    p.age += f;
-    if (p.age > Config.MAX_AGE) { respawn(p); continue; }
+    p.age += f; p.tulo += f;
+    if (p.age > Config.MAX_AGE) {
+      if (p.pois) { p.poista = true; poistettavia++; continue; }
+      respawn(p); continue;
+    }
     if (p.ms < 0.3) continue;
     let nk = 1;
     if (kk > 0) {
-      nk = p.ms > R.puristusMs ? R.nopeus * Math.pow(R.puristusMs / p.ms, R.eksponentti) : R.nopeus;
-      nk = 1 - kk * (1 - nk);
+      const q = p.ms / R.polviMs;
+      nk = 1 - kk * (1 - R.nopeus * Math.pow(1 + q * q, -0.5 * R.eksponentti));
     }
     p.vx = p.vx * hitaus + p.u * kx * nk * uutta;
     p.vy = p.vy * hitaus + p.v * ky * nk * uutta;
     p.x += p.vx * f; p.y += p.vy * f;
     if (p.x < alue.x0 - M || p.x > alue.x1 + M ||
-        p.y < alue.y0 - M || p.y > alue.y1 + M) { respawn(p); continue; }
+        p.y < alue.y0 - M || p.y > alue.y1 + M) {
+      if (p.pois) { p.poista = true; poistettavia++; continue; }
+      respawn(p); continue;
+    }
     if (talleta) {
       /* Rengaspuskuri: uusin ensimmäisenä, vanhin putoaa pois. */
       const hx = p.hx, hy = p.hy, n = p.hn < JALKI ? p.hn : JALKI - 1;
@@ -19143,6 +19200,11 @@ function partikkelitAskel() {
        eikä pistemäärä — `nauha` leikkaa kaaren tähän kohtaan. */
     const pit = Math.sqrt(p.vx * p.vx + p.vy * p.vy) * aikaRuutua;
     p.pit = pit < maxPx ? pit : maxPx;
+  }
+  if (poistettavia) {
+    let j = 0;
+    for (let i = 0; i < particles.length; i++) if (!particles[i].poista) particles[j++] = particles[i];
+    particles.length = j;
   }
   return true;
 }

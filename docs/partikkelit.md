@@ -1460,3 +1460,56 @@ z ≥ 6 on sama vaihtelun rajoissa (otos on satunnainen). Määrät z5–9 ovat
 kontin `PerfTracker`in pudottamia ja samat molemmissa buildeissa.
 Ruutunopeutta ei voi mitata täällä; kauempana partikkeleita on 20 %
 vähemmän, joten ruutu ei ainakaan raskastu.
+
+## Määrä seuraa zoomia eleen aikana, jäljet lyhyemmiksi kaukaa (10.10.)
+
+**Raportti (käyttäjä, kaksi kuvakaappausta samalta zoomilta):** kun
+zoomaa kaukaa lähemmäs sormet kiinni, partikkeleita on paljon; heti kun
+sormi nousee, määrä putoaa. Lisäksi aivan ylhäällä jäljet ovat liian
+pitkiä, ja kovan tuulen hidastus saa olla jyrkempi.
+
+**Syy.** Tavoitemäärä oli `PerfTracker`in kiinteä luku, joka luettiin
+`nParticlesBase`sta vain `moveend`issä (`PerfTracker.reset`). Eleen ajan
+ruudulla oli siis LÄHTÖZOOMIN määrä, ja sormen noustessa ylimäärä
+poistettiin kerralla (`particles.pop()`, ei häivytystä).
+
+**Korjaus.**
+
+- `PerfTracker` pitää laitteen KATTOA (`_katto`, lukumäärä, alussa ∞),
+  ja tavoite on `min(nParticlesBase(), katto)` joka ruudussa. Katto eikä
+  kerroin, koska hinta on partikkelien lukumäärässä: kaukana opittu
+  katto ei harvenna lähizoomia, jonka määrä on sen alla. Katto säilyy
+  eleiden yli; ennen hidas laite palasi täyteen määrään jokaisen eleen
+  jälkeen ja putosi kolmen sekunnin päästä taas.
+- `partikkelitAskel` sovittaa määrän pehmeästi: ylimääräinen merkitään
+  (`p.pois`) ja vanhennetaan kuoleman häivytykseen (0,3 s), ja vasta
+  kuollessaan (tai ruudulta poistuessaan) se poistetaan. Uusi syntyy
+  arvotulla iällä mutta syntymähäivytyksellä, joka luetaan nyt `p.tulo`sta
+  (aika ruudulla) eikä iästä — iästä luettuna arvotun iän syntyjä olisi
+  ilmestynyt täydellä alfalla. `resetParticles` ei enää sovita määrää
+  (paitsi kova nollaus, joka täyttää tyhjän).
+- `PARTIKKELI_RAUHA`: jäljen pituusrajalle oma kerroin `pituus` 0,65
+  (19 → 12,4 px täydellä painolla; leveys pysyy `koko` 0,8:ssa), ja
+  nopeuskäyrä pehmeällä polvella: `nopeus · (1 + (ms/9)²)^(−0,3)`
+  (9.10.: 10 m/s:n yli × (10/ms)^0,4 terävällä taitteella). Paino on sama
+  `partikkeliKauko` (z ≤ 3,5 täysi, z ≥ 6 nolla).
+
+**Mitattu** (kontti, puhelin 390 × 844, CDP-kosketus: sormet levitetään
+z 3,6 → 7,75 ja pidetään kiinni 1,5 s, `PerfTracker._adjust` pois
+päältä molemmissa, koska kontin ruutunopeus pudottaisi määrää):
+
+```
+                       vanha (98e74ec)     uusi
+alku z 3,6                  1 243          1 243
+ele z 4,94                  1 243            155
+ele z 6,35                  1 243            148
+sormet kiinni z 7,75        1 243            126
+nosto + 0,15 s                126            126
+```
+
+Kertoimet zoomin läpi 0,25 tason välein (uusi): määrä 1 283 → 148
+z 3,5 … 5, jäljen raja 12,3 → 19,0 px ja nopeuskertoimet (20 m/s
+0,47 → 1,00) z 3,5 … 6 ilman portaita; z ≥ 6 kaikki 1,00 ja 19,0 px.
+Lähizoomin vanhat määräportaat (`partikkeliZoomKerroin`: z7 × 0,85,
+z9 × 0,70) jäivät, mutta nekin häivytetään nyt eleen aikana eikä
+pudoteta kerralla sormen noustessa.

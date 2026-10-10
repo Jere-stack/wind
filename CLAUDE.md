@@ -247,7 +247,8 @@ kokeiltu ja kaadettu mittauksella.
   Jälki lyhennettiin puoleen — raja puree, aikapituus ei ·
   Liike ajasta, pää ei sahaa, syntymä ja kuolema häivytetään ·
   **Kaukaa Windyn tiheys (5.10.)** · **Kenttä on lämpökartan kenttä myös
-  tasojen välissä (6.10.)** · **Kaukaa rauhallisempi (9.10.)**
+  tasojen välissä (6.10.)** · **Kaukaa rauhallisempi (9.10.)** ·
+  **Määrä seuraa zoomia eleen aikana, jäljet lyhyemmiksi kaukaa (10.10.)**
 - **eleet**: Kartta on MapLibre GL — mikä tästä tiedostosta on historiaa ·
   **Kosketuszoom tähtäimen ympäri (5.10.)** · Kosketuskohteet ja pseudoelementtien osumapinta · Zoom-alue ·
   Nipistyszoomin pehmennys · Eleen loppu ja tuntuma — kolme asiaa Apple Mapsista ·
@@ -3733,9 +3734,13 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   noin 1,4 µs partikkelia kohti ruudussa (`PartikkeliGL.render`).
   Leveyttä ei muutettu — jäljet ovat jo Windyn kaukaisen zoomin
   levyisiä. **KAUKAA RAUHALLISEMPI** (käyttäjän pyyntö 9.10.,
-  `partikkeliKauko`, `PARTIKKELI_RAUHA`): z ≤ 3,5 nopeus × 0,8 ja 10 m/s:n
-  yli lisäksi × (10/ms)^0,4, jälki ja leveys × 0,8, Windyn määrä × 0,8;
-  z ≥ 6 ennallaan, välissä smoothstep. Lähi- ja keskizoomiin ei kosketa. Ruutunopeus 1 500–2 000 partikkelilla puhelimella on
+  `partikkeliKauko`, `PARTIKKELI_RAUHA`): z ≤ 3,5 nopeus × 0,8 ×
+  (1 + (ms/9)²)^(−0,3) (pehmeä polvi, 10.10.), jäljen raja × 0,65,
+  leveys ja Windyn määrä × 0,8; z ≥ 6 ennallaan, välissä smoothstep.
+  Lähi- ja keskizoomiin ei kosketa. **MÄÄRÄ SEURAA ZOOMIA JOKA RUUDUSSA**
+  (10.10.): `PerfTracker` on laitteen katto eikä kiinteä määrä, ja ylimäärä
+  häivytetään (`p.pois`) eikä pudoteta — tavoite luettiin ennen vain
+  `moveend`issä, ja sormen noustessa määrä putosi kerralla (1 243 → 126). Ruutunopeus 1 500–2 000 partikkelilla puhelimella on
   laitteella mittaamatta; jos se ei riitä, vipu on katto, ei kaava.
 - **Älä jäädytä partikkeleita eleen ajaksi.** Toteutettu, mittarit olivat
   erinomaiset, ja se peruttiin käyttökokemuksen perusteella.
