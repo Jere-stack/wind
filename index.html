@@ -1106,6 +1106,33 @@ html.tyopoyta #btn-spots-wrap .mctl:hover::before {
 }
 .sp-card:last-child { margin-bottom: 0; }
 .sp-card-lista { padding: 0; overflow: hidden; }
+/* ASETUKSET PAIKAN MUKAAN (docs/asetukset.md). Rivi jonka lähteellä ei
+   ole näkymässä mitään on "Muualla saatavilla" -osiossa: nappi on
+   ryhmän nimen kaltainen hiljainen rivi kortin alla, ja avattu osio on
+   tavallinen korttilista, jonka rivit ovat himmeämpiä (ne eivät näy
+   tässä näkymässä vaikka olisivat päällä). */
+.sp-card[hidden], .sp-muualla[hidden], .sp-hav-tyhja[hidden] { display: none; }
+.sp-hav-tyhja { margin: 0; padding: 14px; }
+#sp-hav-kortti:has(#sp-hav-tassa:empty) .sp-hav-tyhja:not([hidden]) + .sp-rows { display: none; }
+.sp-muualla {
+  display: flex; align-items: center; gap: 6px;
+  min-height: 44px; margin: -4px 0 4px; padding: 0 4px;
+  background: none; border: 0; cursor: pointer;
+  color: var(--ink-3); font-size: var(--fs-12); font-weight: 600; text-align: left;
+}
+.sp-muualla svg { transition: transform .2s ease; }
+.sp-muualla[aria-expanded="true"] svg { transform: rotate(180deg); }
+.sp-muualla:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+#sp-hav-muualla .sp-toggle-left { opacity: .72; }
+/* Kerrosruutu jonka lähde ei kata näkymää (aallot Itämeren ulkopuolella):
+   kuva himmenee ja nimen alle tulee syy. Ruutu on yhä valittavissa. */
+.sp-chip.sp-kerros.sp-kerros-ei .sp-kerros-kuva { opacity: .38; }
+.sp-kerros-syy {
+  display: block; margin-top: -3px; text-align: center;
+  font-size: 11px; line-height: 1.2; font-weight: 400; color: var(--ink-3);
+  white-space: normal;
+}
+.sp-kerros-syy[hidden] { display: none; }
 
 /* Valintasirut */
 .sp-chips { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -5435,9 +5462,11 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
                riville eikä yksikään kertonut mistä malli on. Rooli ja
                nuolet tulevat yhä rakenteesta (.sp-chips/.sp-chip). -->
           <div class="sp-chips sp-lista" id="asetus-malli">
-            <div class="sp-chip active" data-arvo="auto"><span class="sp-valinta"><span class="sp-valinta-nimi" data-en="Best available">Paras saatavilla</span><span class="sp-valinta-sub">FMI · MET Nordic · ECMWF</span></span></div>
-            <div class="sp-chip" data-arvo="fmi"><span class="sp-valinta"><span class="sp-valinta-nimi">HARMONIE</span><span class="sp-valinta-sub" data-en="Finnish Meteorological Institute · 2.5 km">Ilmatieteen laitos · 2,5 km</span></span></div>
-            <div class="sp-chip" data-arvo="metnordic"><span class="sp-valinta"><span class="sp-valinta-nimi">MET Nordic</span><span class="sp-valinta-sub">MET Norway · 1 km</span></span></div>
+            <!-- ALUEELLISET MALLIT TULEVAT LUETTELOSTA (docs/asetukset.md, V3):
+                 `AsetusAlue` lisää Paras saatavilla -rivin ja ECMWF:n väliin ne
+                 varaston mallit jotka kattavat näkymän. Kiinteinä vain ne jotka
+                 ovat joka paikassa. -->
+            <div class="sp-chip active" data-arvo="auto"><span class="sp-valinta"><span class="sp-valinta-nimi" data-en="Best available">Paras saatavilla</span><span class="sp-valinta-sub" id="malli-paras-sub" data-en="Most detailed model in each place">Tarkin malli kussakin paikassa</span></span></div>
             <div class="sp-chip" data-arvo="ecmwf"><span class="sp-valinta"><span class="sp-valinta-nimi">ECMWF</span><span class="sp-valinta-sub" data-en="Global · 9 km">Maailma · 9 km</span></span></div>
             <div class="sp-chip" data-arvo="icon"><span class="sp-valinta"><span class="sp-valinta-nimi">ICON</span><span class="sp-valinta-sub">DWD · 7–13 km</span></span></div>
             <div class="sp-chip" data-arvo="gfs"><span class="sp-valinta"><span class="sp-valinta-nimi">GFS</span><span class="sp-valinta-sub">NOAA · 13 km</span></span></div>
@@ -5446,8 +5475,12 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
         </div>
 
         <h3 class="sp-ryhma" data-en="Observations on map">Havainnot kartalla</h3>
-        <div class="sp-card sp-card-lista">
-          <div class="sp-rows">
+        <!-- RIVIT NÄKYMÄN MUKAAN (docs/asetukset.md, V2): `AsetusAlue` siirtää
+             rivin jonka lähteellä ei ole asemaa näkymässä "Muualla saatavilla"
+             -osioon. Tila (`fs_tasot`) ei muutu siirrossa. -->
+        <div class="sp-card sp-card-lista" id="sp-hav-kortti">
+          <div class="sp-vihje sp-hav-tyhja" id="sp-hav-tyhja" hidden data-en="No observation stations in this view.">Näkymässä ei ole havaintoasemia.</div>
+          <div class="sp-rows" id="sp-hav-tassa">
           <div class="sp-toggle-row" data-layer-toggle="fmi-sea">
             <div class="sp-toggle-left">
               <div class="sp-toggle-dot"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><line x1="12" y1="4" x2="12" y2="20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".55"/><path d="M12 7 L19 9 L12 11 Z" fill="currentColor"/><circle cx="12" cy="20" r="1.5" fill="currentColor" opacity=".7"/></svg></div>
@@ -5503,6 +5536,13 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
             <div class="sp-toggle" id="toggle-uiras-sec"></div>
           </div>
           </div>
+        </div>
+        <button type="button" class="sp-muualla" id="sp-hav-muualla-nappi" aria-expanded="false" aria-controls="sp-hav-muualla" hidden>
+          <span class="sp-muualla-teksti" id="sp-hav-muualla-teksti"></span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="sp-card sp-card-lista" id="sp-hav-muualla" hidden>
+          <div class="sp-rows" id="sp-hav-muualla-rivit"></div>
         </div>
 
         <h3 class="sp-ryhma" data-en="About">Tietoa</h3>
@@ -5572,21 +5612,21 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
       <section>
         <h3 data-en="Sources and licences">Lähteet ja lisenssit</h3>
         <dl class="tietoa-lahteet">
-          <dt data-en="Finnish Meteorological Institute (FMI)">Ilmatieteen laitos</dt>
+          <dt data-alue="suomi" data-en="Finnish Meteorological Institute (FMI)">Ilmatieteen laitos</dt>
           <dd><span data-kieli="fi">HARMONIE-ennuste, sää- ja meriasemien havainnot, aaltopoijut,
             aaltoennuste (WAM), vedenkorkeus, sadetutka (250 m komposiitti ja tuntikertymä) ja sateen lähiennusteen lähtödata.
             <a href="https://www.ilmatieteenlaitos.fi/avoin-data" target="_blank" rel="noopener">Avoin data</a>, CC BY 4.0.</span><span data-kieli="en">HARMONIE forecast, weather and marine station observations,
             wave buoys, wave forecast (WAM), sea level, rain radar (250 m composite and hourly accumulation) and the input of the rain nowcast.
             <a href="https://en.ilmatieteenlaitos.fi/open-data" target="_blank" rel="noopener">Open data</a>, CC BY 4.0.</span></dd>
-          <dt>MET Norway</dt>
+          <dt data-alue="pohjola">MET Norway</dt>
           <dd data-en="MET Nordic analysis and forecast (Yr) and rain nowcast. CC BY 4.0.">MET Nordic -analyysi ja -ennuste (Yr) sekä sateen nowcast. CC BY 4.0.</dd>
           <dt>ECMWF</dt>
           <dd data-en="IFS forecast (wind and, after HARMONIE, rain), open data. CC BY 4.0. Source: ECMWF.">IFS-ennuste (tuuli ja HARMONIEn jälkeen sade), avoin data. CC BY 4.0. Lähde: ECMWF.</dd>
           <dt>Deutscher Wetterdienst</dt>
           <dd data-en="ICON and ICON-D2 (2.2 km) forecasts, open data. CC BY 4.0.">ICON- ja ICON-D2 (2,2 km) -ennusteet, avoin data. CC BY 4.0.</dd>
-          <dt data-en="European weather services">Euroopan sääpalvelut</dt>
+          <dt data-alue="eurooppa" data-en="European weather services">Euroopan sääpalvelut</dt>
           <dd data-en="National 1–2.5 km forecasts: Météo-France (AROME 1.3 km, Licence Ouverte 2.0), Met Office (UKV 2 km, CC BY-SA 4.0 — the weather tiles derived from it are shared under the same licence), DMI (HARMONIE DINI 2 km), MeteoSwiss (ICON-CH1 1 km and ICON-CH2 2 km), ItaliaMeteo-ARPAE (ICON-2I 2.2 km), GeoSphere Austria (AROME 2.5 km) and ČHMÚ (ALADIN 1 km and 2.3 km), CC BY 4.0. Distributed by Open-Meteo / AWS Open Data.">Kansalliset 1–2,5 km ennusteet: Météo-France (AROME 1,3 km, Licence Ouverte 2.0), Met Office (UKV 2 km, CC BY-SA 4.0 — siitä johdetut säälaatat jaetaan samalla lisenssillä), DMI (HARMONIE DINI 2 km), MeteoSwiss (ICON-CH1 1 km ja ICON-CH2 2 km), ItaliaMeteo-ARPAE (ICON-2I 2,2 km), GeoSphere Austria (AROME 2,5 km) ja ČHMÚ (ALADIN 1 km ja 2,3 km), CC BY 4.0. Jakelu Open-Meteo / AWS Open Data.</dd>
-          <dt>EUMETNET MeteoGate (E-SOH)</dt>
+          <dt data-alue="eurooppa">EUMETNET MeteoGate (E-SOH)</dt>
           <dd><span data-kieli="fi">Euroopan sääpalvelujen asemahavainnot kartalla ja asemakorteissa. Lähde säilyttää vuorokauden,
             joten FoilSpot kerää tunnin lukemat talteen.
             <a href="https://eumetnet.github.io/meteogate-documentation/" target="_blank" rel="noopener">MeteoGate</a>, CC BY 4.0.</span><span data-kieli="en">Observations of the European weather services on the map and in the station cards. The source keeps one day,
@@ -5597,11 +5637,11 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
           <dt>Open-Meteo</dt>
           <dd><span data-kieli="fi">Mallien jakelu ja ennustesarjat.</span><span data-kieli="en">Model distribution and forecast series.</span>
             <a href="https://open-meteo.com/" target="_blank" rel="noopener">open-meteo.com</a>, CC BY 4.0.</dd>
-          <dt>Forum Virium Helsinki</dt>
+          <dt data-alue="suomi">Forum Virium Helsinki</dt>
           <dd data-en="Beach water temperatures (UiRas).">Uimarantojen vedenlämpö (UiRas).</dd>
-          <dt data-en="Local stations">Paikalliset asemat</dt>
+          <dt data-alue="suomi" data-en="Local stations">Paikalliset asemat</dt>
           <dd data-en="Espoo Haukilahti: Surfing ry (Mellsten). The source only serves the current day’s last half hour, so FoilSpot archives its readings every ten minutes. Lauttasaari: dlarah.org (Laru).">Espoo Haukilahti: Surfing ry (Mellsten). Lähde antaa kuluvalta päivältä vain puoli tuntia, joten FoilSpot kerää sen rivit talteen kymmenen minuutin välein. Lauttasaari: dlarah.org (Laru).</dd>
-          <dt data-en="Webcam">Kelikamera</dt>
+          <dt data-alue="suomi" data-en="Webcam">Kelikamera</dt>
           <dd data-en="Lauttasaari: Lauttasaaren leijalautailijat ry (Larukite), live stream on YouTube.">Lauttasaari: Lauttasaaren leijalautailijat ry (Larukite), suora lähetys YouTubessa.</dd>
           <dt data-en="Base map">Pohjakartta</dt>
           <dd>Powered by <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a> —
@@ -6887,7 +6927,11 @@ const Asetukset = {
   },
   aseta(avain, arvo) {
     if (!(avain in this.arvot)) return false;
-    if (this._sallitut[avain].indexOf(arvo) < 0) return false;
+    /* Alueelliset mallit tulevat luettelosta (`Saalaatat.TILAT`, V3), joten
+       mallin sallitut ovat varaston tilat. Mallia ei tallenneta, joten
+       luettelon muutos ei voi jättää vanhaa arvoa levylle. */
+    const tilat = avain === 'malli' && typeof Saalaatat !== 'undefined' ? Saalaatat.TILAT : null;
+    if (tilat ? !tilat[arvo] : this._sallitut[avain].indexOf(arvo) < 0) return false;
     if (this.arvot[avain] === arvo) return false;
     this.arvot[avain] = arvo;
     this.tallenna();
@@ -7516,6 +7560,13 @@ const Saalaatat = {
       this._pohja = this._perheet.find(p => p.pohja) || null;
       if (!this._pohja) throw new Error('luettelossa ei ole pohjamallia');
       this._alueelliset = this._perheet.filter(p => !p.pohja).map(p => p.id);
+      /* JOKAINEN ALUEELLINEN ON PAKOTETTAVA (docs/asetukset.md, V3): tila
+         on sama muoto kuin `fmi` ja `metnordic` — perhe ja pohja alla —
+         joten uusi malli luettelossa on uusi valinta asetuksissa ilman
+         koodimuutosta. */
+      for (const id of this._alueelliset) {
+        if (!this.TILAT[id]) this.TILAT[id] = { perheet: [id], dyn: 'ecmwf' };
+      }
       /* MALLIN OMA HILA (`MalliHila`): dynaaminen perhe ilman luettelon
          tasoja, alueellisten alla ja varaston ECMWF:n päällä. Laatan
          (näkymän alue, yksi tai useampi tunti) ja sarjan (kartan
@@ -7672,6 +7723,32 @@ const Saalaatat = {
     for (const p of this._perheet) p._aikaW = this._hetkiMs == null ? (p.pois ? 0 : 1) : this._aikaPaino(p, this._hetkiMs);
     this._nollaaMuisti();
   },
+
+  /* KATTAAKO ALUEELLINEN PERHE PISTEEN (asetukset ja kortin mallivalikko,
+     docs/asetukset.md 3). Mallivalinnasta riippumaton: pakotettu AROME ei
+     saa piilottaa listalta ICON-D2:ta, joten tämä ei lue `naytteista`n
+     osuuksia vaan perheen oman laatan PAINOKANAVAN — saman joka kartalla
+     ratkaisee rajan. Hetkestä riippumaton: valinta koskee paikkaa.
+     true = paino > 0, false = ei laattaa tai paino 0, null = laatta on
+     olemassa mutta ei muistissa (tuntematon näytetään, ei piiloteta). */
+  perheKattaa(p, lat, lng, step) {
+    if (!p || p.dyn) return false;
+    if (p.pohja) return true;
+    const lo = ((lng + 180) % 360 + 360) % 360 - 180, bb = p._bb;
+    if (lat < bb[0] || lat > bb[1] || lo < bb[2] || lo > bb[3]) return false;
+    const taso = this._perheenTaso(p, lat, lo, step);
+    if (!taso) return false;
+    const r = this._ruutu(taso, lat, lo);
+    if (!this._onOlemassa(taso, r.la0, r.lo0)) return false;
+    /* Näytteen kentät ja `_vajaa` ovat kartan työtiloja: palautetaan. */
+    const vajaa = this._vajaa, ms = this._pMs, dir = this._pDir, pp = this._pPaino;
+    let tulos = null;
+    const l = this._haePerhe(p, lat, lo, step);
+    if (l) { this._pPaino = 0; this._naytePerhe(l, lat, lo); tulos = this._pPaino > 0.01; }
+    this._vajaa = vajaa; this._pMs = ms; this._pDir = dir; this._pPaino = pp;
+    return tulos;
+  },
+  perhe(id) { return (this._perheet || []).find(p => p.id === id && !p.dyn) || null; },
   /* ICON on palvelimella kaksi hilaa: ICON-EU 7 km omalla alueellaan ja
      ICON 13 km muualla, 50 km:n sekoituksella. Nimi tähtäimen kohdalta
      rajan puolivälistä (25 km sisällä alueesta). */
@@ -20155,6 +20232,9 @@ const EuAsemat = {
      jokainen kartansiirto toista samaa 502:ta. */
   VIRHE_MS: 60e3,
   _laatat: new Map(),
+  /* Kaukopisteiden luettelo `[id, lat, lng, meri, …]` (`?eu=asemat`), kun
+     se on ladattu. Asetusten kate lukee siitä onko näkymässä asemia. */
+  luettelo: null,
 
   avain(x, y) { return x + '_' + y; },
   _xy(lat, lng) { return { x: Math.floor((lng + 180) / this.ASTE), y: Math.floor((lat + 90) / this.ASTE) }; },
@@ -22113,6 +22193,9 @@ function _addObsMarkers(map) {
     return Aaltopoijut.lataa().then(function(asemat) {
       if (!asemat || asemat === _aallotLista) return;
       _aallotLista = asemat;
+      /* Asetusten kate: poijut ovat vastauksessa, eivät listassa. */
+      window._aaltoPoijut = asemat;
+      if (window.AsetusAlue) AsetusAlue.ajasta();
       var nahty = {};
       asemat.forEach(function(s) {
         var onAalto = s.kind === 'aalto', laji = onAalto ? 'aalto' : 'water';
@@ -22344,6 +22427,9 @@ function _addObsMarkers(map) {
       .then(function (d) {
         if (!d || !Array.isArray(d.asemat) || !d.asemat.length) return;
         _euPisteet.data = d.asemat; _euPisteet.t = Date.now();
+        /* Asetusten kate (`Kate`) lukee saman luettelon: onko näkymässä asemia. */
+        EuAsemat.luettelo = d.asemat;
+        if (window.AsetusAlue) AsetusAlue.ajasta();
         map._kunValmis(_euPisteetAsenna);
       })
       .catch(function () { /* verkkovika: pisteet ennallaan, uusi yritys seuraavalla kierroksella */ })
@@ -23568,7 +23654,53 @@ const KorttiSarjat = {
      tunneittain mistä luku tulee. */
   PARAS: { id: 'paras', nimi: _t('Paras saatavilla', 'Best available'), lyhyt: _t('Paras', 'Best'), vari: '#F0E7CE', viiva: '', ala: _t('Paikan tarkin malli tunneittain', 'Most detailed local model, hour by hour') },
   pohja(id) { return id === 'paras' ? this.PARAS : this.malli(id); },
-  malli(id) { return this.MALLIT.find(m => m.id === id) || null; },
+  /* EUROOPAN ALUEELLISET KORTIN MALLEINA (docs/asetukset.md, V5). Väri
+     ja kuvio yhdessä kuten yllä: kolme sävyä (FMI:n, MET Nordicin ja
+     vihreä) ja jokaisella oma kuvionsa, ja naapurimallit (AROME ja
+     ICON-D2, UKV ja DINI, AROME ja ICON-CH) ovat eri sävyä. */
+  ALUE_TYYLIT: {
+    arome_hd: ['#5FD3BE', '7,2'],    ukv: ['#F2928A', '2,2'],
+    icon_d2: ['#9ED36A', '9,2,2,2'], dini: ['#5FD3BE', '4,2,1,2'],
+    icon_ch1: ['#F2928A', '5,2,1,2'], icon_ch2: ['#5FD3BE', '8,3'],
+    icon_2i: ['#F2928A', '6,2,2,2'],  arome_at: ['#5FD3BE', '3,3'],
+    aladin_cz: ['#9ED36A', '2,3'],    aladin_ce: ['#F2928A', '10,2'],
+  },
+  _alue: {},
+  malli(id) {
+    const m = this.MALLIT.find(m => m.id === id);
+    if (m) return m;
+    if (this._alue[id]) return this._alue[id];
+    /* Varaston alueellinen perhe jota taulukossa ei ole: nimi ja alarivi
+       samasta rekisteristä kuin asetuksissa (`AsetusAlue._malliNimet`). */
+    const p = typeof Saalaatat !== 'undefined' && Saalaatat.perhe(id);
+    if (!p || p.pohja) return null;
+    const n = window.AsetusAlue ? window.AsetusAlue._malliNimet(p) : [Lahde.lyhyt(p.malli), ''], ty = this.ALUE_TYYLIT[id] || ['#5FD3BE', '1,2'];
+    return (this._alue[id] = { id: id, nimi: n[0], lahde: p.malli, vari: ty[0], viiva: ty[1], ala: n[1] });
+  },
+  /* Tunnetaanko id kortin malliksi ennen kuin luettelo on ladattu
+     (tallennettu valinta luetaan heti): staattinen tai lähderekisterin
+     alueellinen. */
+  tunnettu(id) { return !!this.MALLIT.find(m => m.id === id) || (id !== 'om' && id !== 'laatta' && !!Lahde.NIMET[id]); },
+  /* Spotin mallit valikkoon: alueelliset jotka kattavat pisteen (sama
+     painokanava kuin kartalla, tuntematon näytetään) etusijajärjestyksessä,
+     sitten maailman mallit. `mukana` = valitut joita ei piiloteta, vaikka
+     ne eivät kattaisi pistettä (niiden "ei sarjaa" sanotaan kortissa). */
+  GLOBAALIT: ['ecmwf', 'icon', 'gfs'],
+  mallitPisteelle(spot, mukana) {
+    const ulos = [];
+    const S = typeof Saalaatat !== 'undefined' && Saalaatat.kaytossa() && Saalaatat._perheet ? Saalaatat : null;
+    if (S) {
+      for (const p of S._perheet) {
+        if (p.dyn || p.pohja) continue;
+        const k = S.perheKattaa(p, spot.lat, spot.lng, this.ASKEL);
+        if (k !== false || (mukana && mukana.indexOf(p.id) >= 0)) { const m = this.malli(p.id); if (m) ulos.push(m); }
+      }
+    } else {
+      /* Ilman varastoa alueellisia sarjoja ei ole: vain valitut. */
+      for (const id of (mukana || [])) if (this.GLOBAALIT.indexOf(id) < 0 && this.malli(id)) ulos.push(this.malli(id));
+    }
+    return ulos.concat(this.GLOBAALIT.map(id => this.malli(id)));
+  },
   /* Kortti lukee hienointa tasoa: spotti on piste, ei näkymä. */
   ASKEL: 0.05,
 
@@ -23661,7 +23793,7 @@ const KorttiSarjat = {
     } else {
       const m = this.malli(id);
       if (!m) return Promise.resolve(null);
-      if (id === 'fmi' || id === 'metnordic') {
+      if (typeof Saalaatat !== 'undefined' && Saalaatat.onAlueellinen(id)) {
         lupaus = Saalaatat.varmistaPiste(lat, lng, A, true).then(function () {
           return Natiivi.pisteenSarjat(lat, lng, [id]);
         }).then(function (nat) {
@@ -25825,7 +25957,7 @@ const Ennuste = {
     if (this._asetus) return this._asetus;
     let a = null;
     try { a = JSON.parse(localStorage.getItem('fs_kortti_mallit') || 'null'); } catch (e) {}
-    const ok = KorttiSarjat.MALLIT.map(m => m.id);
+    const ok = { indexOf: (id) => KorttiSarjat.tunnettu(id) ? 0 : -1 };
     /* POHJA on kaavion pääsarja (`paras` tai yksi malli), VALITUT ovat
        laajan päälle lisättyjä käyriä. Allekkain-asu poistettiin
        käyttäjän päätöksellä 2.10. ("turha"); vanha `asu` ohitetaan. */
@@ -25928,7 +26060,7 @@ const Ennuste = {
   },
   _avaaPohjaValikko(ctx, nappi) {
     const self = this, nyky = this.pohjaId();
-    const vaihtoehdot = [KorttiSarjat.PARAS].concat(KorttiSarjat.MALLIT).map(m => ({
+    const vaihtoehdot = [KorttiSarjat.PARAS].concat(KorttiSarjat.mallitPisteelle(ctx.spot, [nyky])).map(m => ({
       id: m.id, nimi: m.nimi, ala: m.ala, valittu: m.id === nyky }));
     Valikko.avaa(nappi, {
       otsikko: _t('Kaavion ennuste', 'Chart forecast'), vaihtoehdot: vaihtoehdot,
@@ -26061,7 +26193,7 @@ const Ennuste = {
     Valikko.avaa(nappi, {
       otsikko: _t('Vertaa samassa kaaviossa', 'Compare in the same chart'), moni: true, max: this.MAX_VERTAILUT,
       maxSyy: _t('Enintään ' + this.MAX_VERTAILUT + ' mallia kerrallaan — poista ensin yksi.', 'Up to ' + this.MAX_VERTAILUT + ' models at a time — remove one first.'),
-      vaihtoehdot: KorttiSarjat.MALLIT.filter(m => m.id !== pohja).map(m => ({ id: m.id, nimi: m.nimi, ala: m.ala, naute: self._nauteSvg(m) })),
+      vaihtoehdot: KorttiSarjat.mallitPisteelle(ctx.spot, this._naytetyt(ctx)).filter(m => m.id !== pohja).map(m => ({ id: m.id, nimi: m.nimi, ala: m.ala, naute: self._nauteSvg(m) })),
       tila: function () { return self._naytetyt(ctx); },
       valitse: function (id) { self._vaihdaVertailu(ctx, id); },
     });
@@ -32873,6 +33005,8 @@ const KerrosKuvat = {
 
 function _openSettings() {
   KerrosKuvat.piirra();
+  /* Paneeli paikan mukaan ennen kuin se näkyy (docs/asetukset.md). */
+  try { AsetusAlue.paivita(); } catch (e) { console.warn('[asetusalue]', e); }
   document.getElementById('settings-popup').classList.add('open');
   document.getElementById('settings-overlay').classList.add('open');
   Modaali.avaa(document.getElementById('settings-popup'),
@@ -32904,6 +33038,7 @@ const Tietoa = {
     const el = this._el();
     if (!el || this.auki()) return;
     this._asteikko();
+    try { AsetusAlue.tietoaJarjestys(); } catch (e) {}
     el.classList.add('open');
     document.getElementById('tietoa-verho').classList.add('open');
     Modaali.avaa(el, avaaja);
@@ -33201,6 +33336,9 @@ _kerrosSirut();
   /* --- Tilan synkka luokista ariaan --- */
   function synkkaa() {
     for (const ryhma of ryhmat) {
+      /* Mallilista rakentuu luettelosta (`AsetusAlue`), joten uudet sirut
+         saavat roolinsa tässä eivätkä vain alustuksessa. */
+      for (const siru of ryhma.querySelectorAll('.sp-chip:not([role])')) siru.setAttribute('role', 'radio');
       const sirut = [...ryhma.querySelectorAll('.sp-chip')];
       let valittu = sirut.findIndex(c => c.classList.contains('active'));
       /* Jos mikään ei ole valittuna, sarkain pääsee silti ryhmään:
@@ -33219,7 +33357,7 @@ _kerrosSirut();
   }
   synkkaa();
   new MutationObserver(synkkaa).observe(paneeli,
-    { subtree: true, attributes: true, attributeFilter: ['class'] });
+    { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
 
   /* --- Nuolinäppäimet ryhmän sisällä ---
      Radiogroupissa VALINTA SEURAA FOKUSTA: nuoli sekä siirtää että
@@ -34475,6 +34613,19 @@ const KarttaAsetukset = {
     gfs: 'The US GFS, 13 km. Whole globe, 16 days; '
       + 'ECMWF while loading.',
   }),
+  /* Alueellisen mallin kuvaus luettelosta: nimi ja jakson pituus. Uusi
+     malli ei tarvitse käännettyä kuvausta (docs/asetukset.md, V3). */
+  _kuvaus(v) {
+    if (this.MALLI_KUVAUS[v]) return this.MALLI_KUVAUS[v];
+    const p = typeof Saalaatat !== 'undefined' && Saalaatat.perhe(v);
+    if (!p) return this.MALLI_KUVAUS.auto;
+    const ts = p.tasot[0]._ax && p.tasot[0]._ax.tsMs;
+    const vrk = ts && ts.length ? Math.max(0.5, Math.round((ts[ts.length - 1] - Date.now()) / 864e5 * 2) / 2) : null;
+    return Lahde.nimi(p.malli) + '. ' + (vrk != null
+      ? _t('Mallin alueella noin ' + _desim(vrk, vrk % 1 ? 1 : 0) + ' vuorokautta eteenpäin; sen ulkopuolella ja jälkeen ECMWF.',
+           'About ' + _desim(vrk, vrk % 1 ? 1 : 0) + ' days ahead within the model’s area; ECMWF outside it and beyond.')
+      : _t('Mallin alueen ulkopuolella ECMWF.', 'ECMWF outside the model’s area.'));
+  },
   _malliVihje() {
     const el = document.getElementById('malli-vihje');
     if (!el) return;
@@ -34488,7 +34639,7 @@ const KarttaAsetukset = {
         ViewportGrid.laattaStep(Math.round(State.map.getZoom())), LampoGL._hetki());
       if (o) nyt = Lahde.nimiOsuuksista(o);
     }
-    let teksti = (this.MALLI_KUVAUS[v] || this.MALLI_KUVAUS.auto)
+    let teksti = this._kuvaus(v)
       + (nyt ? _t(' Nyt kartan keskellä: ', ' Now at the map centre: ') + nyt + '.' : '');
     /* HAUN KESTO NÄKYVIIN. Viivettä arvioidaan puhelimella, jossa
        kehitystyökaluja ei ole: viimeisen kentän ja sarjan haun kesto
@@ -34629,6 +34780,409 @@ const KarttaAsetukset = {
   }
 };
 
+/* ── ASETUKSET PAIKAN MUKAAN (docs/asetukset.md) ──────────────────────
+ *
+ * Paneeli näyttää vain sen mikä NÄKYMÄSSÄ on mahdollista: Ranskassa
+ * AROME eikä HARMONIEa, Euroopan asemat eikä Helsingin uimarantoja.
+ * Kaksi osaa:
+ *
+ *   Kate        — mitä näkymän lähteet kattavat. EI KÄSIN KIRJOITETTUA
+ *                 KATETTA: mallit luettelon tasoista ja painokanavasta
+ *                 (`Saalaatat.perheKattaa`), aallot WAM-tasojen laatoista,
+ *                 tutka `TutkaKate`sta, havainnot asemaluetteloista
+ *                 (Suomen rekisteri, E-SOH:n `?eu=asemat`, poijujen
+ *                 vastaus, UiRaS).
+ *   AsetusAlue  — kirjoittaa sen paneeliin: mallilista, havaintorivit
+ *                 ("Muualla saatavilla"), kerrosruudut ja asteikkojen
+ *                 tekstit.
+ *
+ * PIILOTUS ON ESITYSTÄ, EI TILAA (P-c): `fs_tasot` ei muutu, ja rivi on
+ * "Muualla saatavilla" -osiossa tavallinen kytkin. TUNTEMATON NÄYTETÄÄN:
+ * jos luettelo tai laatta on vielä matkalla, rivi jää näkyviin — väärä
+ * "näytetään turhaan" on halvempi kuin "piilotetaan oikea". PAIKKA ON
+ * KARTAN NÄKYMÄ (+ 25 % kuten Euroopan merkeillä), ei laitteen sijainti. */
+const Kate = {
+  REUNUS: 0.25,
+  _avain: null, _arvo: null,
+
+  /* 5 × 5 -hila ja keskipiste (sama tiheys kuin `MalliHila`n peittotarkistus). */
+  _pisteet(b, c) {
+    const s = b.getSouth(), w = b.getWest(), dLa = b.getNorth() - s, dLo = b.getEast() - w, ulos = [];
+    for (let j = 0; j < 5; j++) for (let i = 0; i < 5; i++) {
+      ulos.push({ lat: s + dLa * (j + 0.5) / 5, lng: w + dLo * (i + 0.5) / 5, c: false });
+    }
+    ulos.push({ lat: c.lat, lng: c.lng, c: true });
+    return ulos;
+  },
+
+  nakyma() {
+    const map = State.map;
+    if (!map) return null;
+    const b = map.getBounds(), c = map.getCenter(), z = map.getZoom();
+    const S = typeof Saalaatat !== 'undefined' ? Saalaatat : null;
+    const avain = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].map(v => v.toFixed(3)).join(',')
+      + '|' + (S ? S._versio + '/' + S._laatat.size : '') + '|' + (EuAsemat.luettelo ? EuAsemat.luettelo.length : -1)
+      + '|' + EuAsemat._laatat.size + '|' + (window._aaltoPoijut ? window._aaltoPoijut.length : -1)
+      + '|' + (typeof Aallot !== 'undefined' && Aallot._l ? 1 : 0);
+    if (avain === this._avain) return this._arvo;
+    const pts = this._pisteet(b, c);
+    const arvo = { mallit: this._mallit(S, pts, z), aallot: this._aallot(pts),
+                   tutka: TutkaKate.nakyma(map), hav: this._havainnot(b, c) };
+    this._avain = avain; this._arvo = arvo;
+    return arvo;
+  },
+
+  /* Alueelliset perheet joiden paino on näkymässä > 0 (tai tuntematon),
+     luettelon etusijajärjestyksessä. `osuus` = osuneiden näytteiden osuus,
+     `keskella` = kattaa keskipisteen. */
+  _mallit(S, pts, z) {
+    const ulos = [];
+    if (!S || !S.kaytossa() || !S._perheet) return ulos;
+    const st = ViewportGrid.laattaStep(Math.round(z));
+    for (const p of S._perheet) {
+      if (p.dyn || p.pohja) continue;
+      let n = 0, tuntematon = 0, keskella = false;
+      for (const q of pts) {
+        const k = S.perheKattaa(p, q.lat, q.lng, st);
+        if (k === true) { n++; if (q.c) keskella = true; }
+        else if (k === null) tuntematon++;
+      }
+      if (n || tuntematon) ulos.push({ perhe: p.id, malli: p.malli, osuus: n / pts.length, keskella: keskella, varma: n > 0 });
+    }
+    return ulos;
+  },
+
+  /* Aallot: näytteet joiden kohdalla jollakin WAM-tasolla on laatta
+     (laattoja kirjoitetaan vain märkään, docs/data.md "Aallot kartalle").
+     'kaikki' | 'osa' | 'ei', null kun aaltoluetteloa ei ole. */
+  _aallot(pts) {
+    if (typeof Aallot === 'undefined' || !Aallot.kaytossa() || !Aallot.tasot.length) return null;
+    let n = 0;
+    for (const q of pts) {
+      const lo = ((q.lng + 180) % 360 + 360) % 360 - 180;
+      for (const t of Aallot.tasot) {
+        if (!Aallot._kattaaTaso(t, q.lat, lo)) continue;
+        const r = Aallot._ruutu(t, q.lat, lo);
+        if (!t._laatat.size || t._laatat.has(r.la0 + '_' + r.lo0)) { n++; break; }
+      }
+    }
+    return n === pts.length ? 'kaikki' : n ? 'osa' : 'ei';
+  },
+
+  /* Havaintorivit kerroskytkimen avaimella: `{ n, nimet }` tai null
+     (tuntematon). Nimet ovat näkymän keskipistettä lähimmät. */
+  _havainnot(b0, c) {
+    const b = b0.pad(this.REUNUS);
+    const s = b.getSouth(), n = b.getNorth(), w = b.getWest(), e = b.getEast(), kaikki = e - w >= 360;
+    const sis = (la, lo) => la >= s && la <= n && (kaikki || (lo >= w && lo <= e)
+      || (lo + 360 >= w && lo + 360 <= e) || (lo - 360 >= w && lo - 360 <= e));
+    const tulos = {};
+    const uusi = () => ({ n: 0, nimet: [] });
+    const lisaa = (avain, nimi, la, lo) => {
+      const r = tulos[avain] || (tulos[avain] = uusi());
+      r.n++;
+      if (nimi) r.nimet.push({ nimi: nimi, d: _kmValilla(c.lat, c.lng, la, lo) });
+    };
+    tulos['fmi-sea'] = uusi(); tulos['fmi-land'] = uusi();
+    const nahty = {};
+    FMI_MAP_STATIONS.concat(PAIKALLISASEMAT).forEach(function (st) {
+      if (!sis(st.lat, st.lng)) return;
+      nahty[st.place] = true;
+      lisaa(vesiTagi(st.tag) ? 'fmi-sea' : 'fmi-land', st.name, st.lat, st.lng);
+    });
+    /* Euroopan nimet ladatuista laatoista (merkkien zoomista), määrä
+       kaukopisteiden luettelosta. */
+    const nimetty = {};
+    EuAsemat._laatat.forEach(function (l) {
+      if (!l.data) return;
+      l.data._rek.forEach(function (st) {
+        if (nimetty[st.place] || !sis(st.lat, st.lng)) return;
+        nimetty[st.place] = true;
+        const r = tulos[vesiTagi(st.tag) ? 'fmi-sea' : 'fmi-land'];
+        r.nimet.push({ nimi: st.name, d: _kmValilla(c.lat, c.lng, st.lat, st.lng) });
+      });
+    });
+    const lu = EuAsemat.luettelo;
+    if (lu) {
+      for (const a of lu) {
+        if (nahty[a[0]] || !sis(a[1], a[2])) continue;
+        tulos[a[3] ? 'fmi-sea' : 'fmi-land'].n++;
+      }
+    } else {
+      /* Euroopan luettelo matkalla: nollaa ei voi päätellä. */
+      if (!tulos['fmi-sea'].n) tulos['fmi-sea'] = null;
+      if (!tulos['fmi-land'].n) tulos['fmi-land'] = null;
+    }
+    /* Laatassa voi olla asema jota luettelossa ei vielä ole (luettelo
+       päivittyy keräimen ajossa): nimi ei saa jäädä nollan viereen. */
+    ['fmi-sea', 'fmi-land'].forEach(function (k) {
+      const r = tulos[k];
+      if (r && r.nimet.length > r.n) r.n = r.nimet.length;
+    });
+    const poijut = window._aaltoPoijut;
+    if (poijut) {
+      tulos.aallot = uusi();
+      poijut.forEach(function (p) { if (sis(p.lat, p.lng)) lisaa('aallot', poijuNimi(p.station), p.lat, p.lng); });
+    } else tulos.aallot = null;
+    tulos['uiras-prim'] = uusi(); tulos['uiras-sec'] = uusi();
+    UIRAS_STATIONS.forEach(function (st) {
+      if (sis(st.lat, st.lng)) lisaa(st.prim ? 'uiras-prim' : 'uiras-sec', st.name, st.lat, st.lng);
+    });
+    for (const k of Object.keys(tulos)) {
+      if (tulos[k]) tulos[k].nimet.sort((p, q) => p.d - q.d);
+    }
+    return tulos;
+  },
+};
+
+const AsetusAlue = {
+  _ajastin: 0, _kytketty: false, _rivit: null, _muuallaAuki: false, _odottaa: false,
+  auki() { const el = document.getElementById('settings-popup'); return !!el && el.classList.contains('open'); },
+  /* Kun paneeli on auki (sivupaneeli kartan vieressä), rivit päivittyvät
+     kun kartta pysähtyy (P5) — ei liikkeen aikana. */
+  ajasta() {
+    if (!this.auki()) return;
+    clearTimeout(this._ajastin);
+    this._ajastin = setTimeout(() => this.paivita(), 150);
+  },
+  paivita() {
+    if (State.map && !this._kytketty) {
+      this._kytketty = true;
+      State.map.on('moveend', () => this.ajasta());
+    }
+    const k = Kate.nakyma();
+    if (!k) return;
+    this._odottaa = false;
+    this._mallit(k);
+    this._havainnot(k);
+    this._kerrokset(k);
+    /* Fokuksessa olevaa riviä ei siirretä (P-f): uusi yritys kun fokus
+       lähtee siitä. */
+    if (this._odottaa && !this._fokusKuuntelija) {
+      const paneeli = document.getElementById('settings-popup');
+      this._fokusKuuntelija = () => {
+        paneeli.removeEventListener('focusout', this._fokusKuuntelija);
+        this._fokusKuuntelija = null;
+        this.ajasta();
+      };
+      paneeli.addEventListener('focusout', this._fokusKuuntelija);
+    }
+  },
+
+  /* ── Kartan malli ── */
+  /* Valinnan nimi ja alarivi lähderekisteristä (`Lahde.NIMET`):
+     "Météo-France · AROME 1,3 km" -> "AROME", "Météo-France · 1,3 km".
+     FMI:n ja MET Nordicin rivit ovat entiset. */
+  _malliNimet(p) {
+    if (p.id === 'fmi') return ['HARMONIE', _t('Ilmatieteen laitos · 2,5 km', 'Finnish Meteorological Institute · 2.5 km')];
+    if (p.id === 'metnordic') return ['MET Nordic', 'MET Norway · 1 km'];
+    const koko = Lahde.nimi(p.malli), i = koko.indexOf(' · ');
+    const org = i > 0 ? koko.slice(0, i) : '', malli = i > 0 ? koko.slice(i + 3) : koko;
+    const m = /^(.*?)\s+(\d[\d.,]*\s*km)\s*$/.exec(malli);
+    if (!m) return [malli, org];
+    return [m[1], org ? org + ' · ' + m[2] : m[2]];
+  },
+  _malliRivi(p) {
+    const el = document.createElement('div');
+    el.className = 'sp-chip';
+    el.dataset.arvo = p.id;
+    el.dataset.alue = '1';
+    const n = this._malliNimet(p);
+    el.innerHTML = '<span class="sp-valinta"><span class="sp-valinta-nimi"></span><span class="sp-valinta-sub"></span></span>';
+    el.querySelector('.sp-valinta-nimi').textContent = n[0];
+    el.querySelector('.sp-valinta-sub').textContent = n[1];
+    el._ala = n[1];
+    return el;
+  },
+  _mallit(k) {
+    const lista = document.getElementById('asetus-malli');
+    if (!lista || typeof Saalaatat === 'undefined' || !Saalaatat._perheet) return;
+    const valittu = Asetukset.arvot.malli, kattavat = {};
+    for (const m of k.mallit) kattavat[m.perhe] = m;
+    const halutut = Saalaatat._perheet.filter(p => !p.dyn && !p.pohja && (kattavat[p.id] || p.id === valittu));
+    const nykyiset = {};
+    lista.querySelectorAll('.sp-chip[data-alue]').forEach(el => { nykyiset[el.dataset.arvo] = el; });
+    const fokus = document.activeElement;
+    /* Poisto: vain rivit joita ei haluta eikä fokuksessa ole. */
+    for (const id of Object.keys(nykyiset)) {
+      if (halutut.some(p => p.id === id)) continue;
+      if (nykyiset[id] === fokus) { this._odottaa = true; continue; }
+      nykyiset[id].remove();
+      delete nykyiset[id];
+    }
+    /* Lisäys oikeaan kohtaan: järjestys on luettelon etusija, joten
+       olemassa olevat rivit eivät koskaan siirry (siirto veisi fokuksen). */
+    const ecmwf = lista.querySelector('.sp-chip[data-arvo="ecmwf"]');
+    let edellinen = lista.querySelector('.sp-chip[data-arvo="auto"]');
+    for (const p of halutut) {
+      let el = nykyiset[p.id];
+      if (!el) {
+        el = this._malliRivi(p);
+        lista.insertBefore(el, edellinen ? edellinen.nextSibling : ecmwf);
+      }
+      /* Valittu malli jonka kate on lähtenyt näkymästä sanoo sen. */
+      const sub = el.querySelector('.sp-valinta-sub');
+      const teksti = kattavat[p.id] ? el._ala
+        : _t('Ei kata näkymää — kartalla ECMWF', 'Doesn’t cover this view — the map shows ECMWF');
+      if (sub.textContent !== teksti) sub.textContent = teksti;
+      edellinen = el;
+    }
+    /* Paras saatavilla: mitkä mallit täällä ovat (keskipiste ensin). */
+    const sub = document.getElementById('malli-paras-sub');
+    if (sub) {
+      if (!sub.dataset.oletus) sub.dataset.oletus = sub.textContent;
+      const nimet = k.mallit.filter(m => m.varma).sort((a, b) => (b.keskella - a.keskella))
+        .slice(0, 2).map(m => Lahde.lyhyt(m.malli));
+      nimet.push('ECMWF');
+      const t = _t('Täällä: ', 'Here: ') + nimet.join(' · ');
+      if (sub.textContent !== t) sub.textContent = t;
+    }
+    if (typeof KarttaAsetukset !== 'undefined') KarttaAsetukset._merkitse('asetus-malli');
+  },
+
+  /* ── Havainnot kartalla ── */
+  MUUALLA: {
+    'fmi-sea': ['Ei asemia tässä näkymässä', 'No stations in this view'],
+    'fmi-land': ['Ei asemia tässä näkymässä', 'No stations in this view'],
+    'aallot': ['FMI:n poijut Suomen rannikolla', 'FMI buoys on the Finnish coast'],
+    'uiras-prim': ['Vain pääkaupunkiseudulla', 'Helsinki region only'],
+    'uiras-sec': ['Vain pääkaupunkiseudulla', 'Helsinki region only'],
+  },
+  _havainnot(k) {
+    const tassa = document.getElementById('sp-hav-tassa'), muualla = document.getElementById('sp-hav-muualla-rivit');
+    if (!tassa || !muualla) return;
+    if (!this._rivit) {
+      /* Kiinteä järjestys ja käännetty oletusteksti talteen kerran. */
+      this._rivit = [...tassa.querySelectorAll('.sp-toggle-row')];
+      for (const r of this._rivit) {
+        const sub = r.querySelector('.sp-toggle-sub');
+        if (sub) r._oletus = sub.textContent;
+      }
+      const nappi = document.getElementById('sp-hav-muualla-nappi');
+      nappi.addEventListener('click', () => {
+        this._muuallaAuki = !this._muuallaAuki;
+        this._muuallaTila();
+        Haptics.light();
+      });
+    }
+    const fokus = document.activeElement;
+    for (let i = 0; i < this._rivit.length; i++) {
+      const r = this._rivit[i], id = r.dataset.layerToggle, h = k.hav[id];
+      const nakyy = h == null || h.n > 0;
+      const kohde = nakyy ? tassa : muualla;
+      if (r.parentElement !== kohde) {
+        if (r === fokus) { this._odottaa = true; }
+        else {
+          /* Ennen ensimmäistä kiinteässä järjestyksessä seuraavaa riviä
+             joka on jo kohteessa. */
+          let ennen = null;
+          for (let j = i + 1; j < this._rivit.length; j++) {
+            if (this._rivit[j].parentElement === kohde) { ennen = this._rivit[j]; break; }
+          }
+          kohde.insertBefore(r, ennen);
+        }
+      }
+      const sub = r.querySelector('.sp-toggle-sub');
+      if (sub) {
+        let t = r._oletus;
+        if (!nakyy) t = _t(this.MUUALLA[id][0], this.MUUALLA[id][1]);
+        else if (h && (id === 'fmi-sea' || id === 'fmi-land')) {
+          const nimet = [];
+          for (const x of h.nimet) { if (nimet.indexOf(x.nimi) < 0) nimet.push(x.nimi); if (nimet.length === 2) break; }
+          const lkm = h.n + ' ' + (h.n === 1 ? _t('asema', 'station') : _t('asemaa', 'stations'));
+          t = nimet.length ? nimet.join(', ') + (h.n > nimet.length ? '…' : '') + ' · ' + lkm
+            : lkm + _t(' näkymässä', ' in view');
+        }
+        if (t != null && sub.textContent !== t) sub.textContent = t;
+      }
+    }
+    const nMuualla = muualla.querySelectorAll('.sp-toggle-row').length;
+    const nappi = document.getElementById('sp-hav-muualla-nappi');
+    nappi.hidden = !nMuualla;
+    document.getElementById('sp-hav-muualla-teksti').textContent =
+      _t('Muualla saatavilla', 'Available elsewhere') + ' (' + nMuualla + ')';
+    const tyhja = document.getElementById('sp-hav-tyhja');
+    tyhja.hidden = tassa.querySelectorAll('.sp-toggle-row').length > 0;
+    tassa.hidden = !tyhja.hidden;
+    this._muuallaTila();
+  },
+  _muuallaTila() {
+    const nappi = document.getElementById('sp-hav-muualla-nappi'), osio = document.getElementById('sp-hav-muualla');
+    const auki = this._muuallaAuki && !nappi.hidden;
+    nappi.setAttribute('aria-expanded', auki ? 'true' : 'false');
+    osio.hidden = !auki;
+  },
+
+  /* ── Tietoa: näkymän lähteet ensin (V5) ──
+     Lähteet ja lisenssit -lista on Suomen järjestyksessä. Muualla sen
+     paikan lähteet (`data-alue`) nostetaan alkuun, muut pysyvät omassa
+     järjestyksessään. Kaikki lähteet ovat aina listassa: lisenssit
+     koskevat koko sovellusta, eivät vain näkymää. */
+  tietoaJarjestys() {
+    const dl = document.querySelector('#tietoa .tietoa-lahteet');
+    if (!dl) return;
+    if (!this._tietoaParit) {
+      this._tietoaParit = [];
+      for (const dt of dl.querySelectorAll(':scope > dt')) {
+        const dd = dt.nextElementSibling;
+        this._tietoaParit.push({ dt: dt, dd: dd, alue: dt.dataset.alue || '' });
+      }
+    }
+    const k = Kate.nakyma(), tassa = {};
+    if (k) {
+      for (const m of k.mallit) {
+        if (!m.keskella) continue;
+        tassa[m.perhe === 'fmi' ? 'suomi' : m.perhe === 'metnordic' ? 'pohjola' : 'eurooppa'] = true;
+      }
+      if (k.hav['fmi-sea'] && k.hav['fmi-sea'].n && !tassa.suomi) tassa.eurooppa = true;
+    }
+    const ensin = this._tietoaParit.filter(x => tassa[x.alue]), muut = this._tietoaParit.filter(x => !tassa[x.alue]);
+    for (const x of ensin.concat(muut)) { dl.appendChild(x.dt); if (x.dd) dl.appendChild(x.dd); }
+  },
+
+  /* ── Kerrosruudut ja asteikot ── */
+  _kerrokset(k) {
+    const aalto = document.querySelector('#layers .sp-chip[data-layer="aallot"]');
+    if (aalto) {
+      const ei = k.aallot === 'ei';
+      aalto.classList.toggle('sp-kerros-ei', ei);
+      let syy = aalto.querySelector('.sp-kerros-syy');
+      if (!syy) {
+        syy = document.createElement('span');
+        syy.className = 'sp-kerros-syy';
+        aalto.appendChild(syy);
+      }
+      syy.textContent = _t('Ei tässä näkymässä', 'Not in this view');
+      syy.hidden = !ei;
+    }
+    const aNote = document.querySelector('#aalto-scale .sp-note');
+    if (aNote) {
+      if (!aNote.dataset.oletus) aNote.dataset.oletus = aNote.textContent;
+      const t = k.aallot === 'ei'
+        ? _t('FMI:n WAM-aaltomalli kattaa Itämeren: tässä näkymässä ei ole aaltoennustetta.',
+             'The FMI WAM wave model covers the Baltic Sea: there is no wave forecast in this view.')
+        : k.aallot === 'osa'
+          ? aNote.dataset.oletus + _t(' Malli kattaa Itämeren, joten osa näkymästä on ilman aaltoja.', ' The model covers the Baltic Sea, so part of this view has no waves.')
+          : aNote.dataset.oletus;
+      if (aNote.textContent !== t) aNote.textContent = t;
+    }
+    const sNote = document.querySelector('#sade-scale .sp-note');
+    if (sNote) {
+      if (!sNote.dataset.oletus) sNote.dataset.oletus = sNote.textContent;
+      /* HARMONIEn sade on MEPS-alueella, joka on MET Nordicin alue
+         (MET Nordic on jälkikäsitelty MEPS). */
+      const meps = k.mallit.some(m => m.perhe === 'metnordic' && m.varma);
+      const t = k.tutka !== 'ei' ? sNote.dataset.oletus
+        : meps ? _t('Beta. Tässä näkymässä ei ole tutkaa: sade on HARMONIE-ennuste (MEPS 2,5 km) noin kaksi ja puoli vuorokautta, menneet tunnit ja sen jälkeinen jakso ECMWF 9 km.',
+                    'Beta. There is no radar in this view: rain is the HARMONIE forecast (MEPS 2.5 km) about two and a half days ahead, and past hours and beyond that ECMWF 9 km.')
+        : _t('Beta. Tässä näkymässä ei ole tutkaa eikä HARMONIEa: sade on ECMWF 9 km -ennuste, joka on karkea kuurojen sijainnissa.',
+             'Beta. There is no radar or HARMONIE in this view: rain is the ECMWF 9 km forecast, which is coarse for the position of showers.');
+      if (sNote.textContent !== t) sNote.textContent = t;
+    }
+  },
+};
+window.AsetusAlue = AsetusAlue;
+
 document.getElementById('layers').addEventListener('click', e => {
   const b = e.target.closest('.sp-chip'); if (!b) return;
   const layer = b.dataset.layer; if (!layer) return;
@@ -34651,6 +35205,10 @@ document.getElementById('layers').addEventListener('click', e => {
     Haptics.light();
     _closeSettings();
     _aaltotilaAseta(true);
+    /* Valinta on sallittu myös katteen ulkopuolella (kartta voi siirtyä
+       Itämerelle), mutta tyhjä kartta ei jää selittämättä. */
+    const k = Kate.nakyma();
+    if (k && k.aallot === 'ei') Toast.show(_t('Aaltomalli (FMI WAM) kattaa Itämeren — tässä näkymässä ei ole aaltoja.', 'The wave model (FMI WAM) covers the Baltic Sea — there are no waves in this view.'), 4000);
     return;
   }
   const sadeOli = !!window._mapLayerState['tutka'];
@@ -35371,7 +35929,7 @@ setTimeout(function () { Kaynnistys.jumi(); }, Kaynnistys.JUMI_MS);
    * Tämä on saman ?perf=1-portin takana kuin koko paneeli, joten
    * tuotantopolussa globaaliin nimiavaruuteen ei viedä mitään. */
   try {
-    window.FS = { State: State, WindTexture: WindTexture, Saalaatat: Saalaatat, MalliHila: MalliHila, Natiivi: Natiivi, EuAsemat: EuAsemat, Tahtain: Tahtain,
+    window.FS = { State: State, WindTexture: WindTexture, Saalaatat: Saalaatat, Kate: Kate, AsetusAlue: AsetusAlue, MalliHila: MalliHila, Natiivi: Natiivi, EuAsemat: EuAsemat, Tahtain: Tahtain,
       Crosshair: Crosshair, partikkeliZoomKerroin: partikkeliZoomKerroin, nParticlesBase: nParticlesBase,
       ViewportGrid: ViewportGrid, ColorRamp: ColorRamp, PerfTracker: PerfTracker,
       buildWindField: buildWindField, idw: idw, ForecastPanel: ForecastPanel,
