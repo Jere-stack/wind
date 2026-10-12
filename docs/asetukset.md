@@ -6,10 +6,9 @@ havaintoihin eivät osu paikalliseen dataan … asetukset täsmäävät, eikä
 siellä ole alueelle turhia datapisteitä, jotka eivät ole mahdollisia
 sillä alueella."
 
-Tämä on strategia. Mitään ei ole vielä toteutettu. Nykytila on luettu
-koodista (rivinumerot 10.10. `index.html`ssä) ja lähteiden kattavuus
-koodista ja aiemmista mittauksista. Selaimessa ei ole vielä mitattu
-mitään: luvut ovat mittarin (luku 7) ensimmäinen tehtävä.
+Luvut 1–8 ovat strategia (10.10.). Käyttäjä päätti kohdat P1–P6
+suosituksen mukaan 12.10. (P4: aallot koko maapallolle myöhemmin omana
+työnään), ja kaikki vaiheet V1–V5 on toteutettu ja mitattu — ks. luku 9.
 
 ---
 
@@ -376,3 +375,139 @@ asetukset avautuvat Quiberonin näkymässä ilman `pageerror`ia.
 - **P6. Kortin mallivalikko samaan rekisteriin?**
   Suositus: kyllä (V5); muuten paneeli ja kortti olisivat taas kaksi
   eri listaa samasta kysymyksestä.
+
+---
+
+## 9. Toteutus (12.10.2026)
+
+Päätökset: P1 piilotus, P2 näkymä, P3 kyllä, P4 "ei tässä näkymässä"
+nyt ja Euroopan / maailman aallot myöhemmin omana työnään, P5 päivitys
+kun kartta pysähtyy, P6 kyllä.
+
+### 9.1 Rakenne
+
+- **`Kate`** (`index.html`, ennen `#layers`-käsittelijää). `nakyma()`
+  palauttaa `{ mallit, aallot, tutka, hav }` ja muistaa tuloksen
+  näkymän rajojen, varaston rakennuksen ja laattamäärän, E-SOH-luettelon,
+  E-SOH-laattojen ja poijujen avaimella.
+  - **Mallit**: `Saalaatat.perheKattaa(p, lat, lng, step)` — perheen OMAN
+    laatan painokanava (sama joka kartalla ratkaisee rajan), ei
+    `naytteista`n osuuksia, joten pakotettu malli ei piilota muita.
+    Hetkestä riippumaton. Näytteet 5 × 5 + keskipiste, laajassa näkymässä
+    (yli 8° leveä) 11 × 11 + keskipiste.
+  - **Aallot**: WAM-tasojen laatat näytepisteissä ('kaikki' / 'osa' /
+    'ei'; laattoja on vain märässä).
+  - **Tutka**: `TutkaKate.nakyma`. HARMONIEn sade = MET Nordicin kate
+    (MET Nordic on jälkikäsitelty MEPS).
+  - **Havainnot**: näkymä + 25 %, Suomen rekisteri, E-SOH:n kaukopisteiden
+    luettelo (`EuAsemat.luettelo`, nyt tallessa), ladatut E-SOH-laatat
+    (nimet ja luettelosta puuttuvat), poijujen vastaus
+    (`window._aaltoPoijut`) ja `UIRAS_STATIONS`.
+- **`AsetusAlue`**: `paivita()` asetusten avauksessa ja auki ollessa
+  `moveend`issä (150 ms). Kolme osaa:
+  - **Mallilista** (`#asetus-malli`): Paras saatavilla ("Täällä: AROME
+    1,3 km · ECMWF"), näkymän alueelliset luettelon etusijajärjestyksessä,
+    ECMWF, ICON, GFS. Nimi ja alarivi `Lahde.NIMET`istä ("Météo-France ·
+    AROME 1,3 km" → "AROME", "Météo-France · 1,3 km"). Valittu malli joka
+    ei kata näkymää jää listalle: "Ei kata näkymää — kartalla ECMWF".
+    Rivejä lisätään ja poistetaan, olemassa olevia ei siirretä (siirto
+    veisi fokuksen). Kuvaus luettelosta (`KarttaAsetukset._kuvaus`:
+    nimi ja jakson pituus).
+  - **Havainnot**: rivi jonka ryhmällä ei ole näkymässä asemaa siirtyy
+    "Muualla saatavilla (n)" -osioon (`#sp-hav-muualla`), alateksti kertoo
+    missä ("Vain pääkaupunkiseudulla"). Rannikko- ja sisämaarivillä
+    kaksi lähintä asemaa ja määrä ("Belle Ile Le Talut, Ile De Groix… ·
+    3 asemaa"). Tuntematon (luettelo matkalla) jää näkyviin.
+  - **Kerrokset**: Aallot-ruutu himmenee ja sanoo "Ei tässä näkymässä",
+    valinta näyttää toastin; aalto- ja sadeasteikon tekstit kertovat
+    näkymän lähteen (WAM vain Itämerellä; ei tutkaa → HARMONIE tai
+    ECMWF 9 km).
+- **Tuntemattomat laatat haetaan** (`Saalaatat.perheLaatta`): perhe
+  jolla ei ole yhtään varmaa näytettä ja jonka näytteen laatta puuttuu
+  muistista tai on varalaatta. Sama laatta kerran, enintään 24, valitun
+  hetken pala matalalla prioriteetilla. Lista tarkentuu 0,3–0,7 s:ssa.
+- **Pakotus**: `Saalaatat.TILAT` saa jokaiselle luettelon alueelliselle
+  tilan `{ perheet: [id], dyn: 'ecmwf' }` (`_alusta`), ja
+  `Asetukset.aseta('malli', …)` hyväksyy varaston tilat. Mallia ei yhä
+  tallenneta.
+- **Kortti (V5)**: `KorttiSarjat.malli(id)` tuntee varaston alueelliset
+  (`ALUE_TYYLIT`: väri ja kuvio, naapurimallit eri sävyä),
+  `mallitPisteelle(spot)` antaa valikkoon spotin kattavat alueelliset
+  (sama `perheKattaa`) ja maailman mallit, ja alueellisen sarja haetaan
+  samalla polulla kuin FMI:n ja MET Nordicin (`onAlueellinen`).
+- **Tietoa**: lähteet ja lisenssit -listan rivit `data-alue`
+  (suomi/pohjola/eurooppa); näkymän lähteet nostetaan alkuun, kaikki
+  pysyvät listalla.
+
+### 9.2 Kaksi asiaa jotka mittari löysi
+
+1. **Painokanava on reunalla eri levyinen eri tasoilla.** Koko Euroopan
+   näkymässä (z4) AROME AT oli listalla, vaikka pakotettu kartta ei
+   näyttänyt sitä: muistissa oli vain 1,0°:n varalaatta, jonka paino
+   pisteessä 46,45 / 10,00 oli 0,45, ja kartan oma 0,5°:n laatta antaa 0.
+   Varalaatta on nyt tuntematon, ja oikea laatta haetaan. Samoin: paino
+   ilman dataa (reunan interpolointi) ei kata, jos valittu hetki on
+   perheen akselilla.
+2. **5 × 5 -näytteet eivät riitä koko Euroopalle.** Työpöydän z4-näkymästä
+   puuttui HARMONIE, vaikka Suomi on kartalla. Laaja näkymä näytteistetään
+   11 × 11.
+
+### 9.3 Mitattu (`tools/asetusmittaus.mjs`, tuotantobuild, oikea data)
+
+Totuus on KARTTA, ei rekisteri: havaintorivi näkyy ⇔ ryhmällä on
+merkki tai Euroopan piste näkymässä (+ 25 %), ja alueellinen malli on
+listalla ⇔ sen pakottaminen näyttää sen kartalla jossain näytepisteessä.
+13 näkymää, puhelin (390 px, kosketus) ja työpöytä (1 440 px):
+
+| näkymä | havainnot (puhelin) | mallit (puhelin = pakotus) |
+|---|---|---|
+| Helsinki z9 | kaikki 5 | HARMONIE, MET Nordic |
+| Hanko z9 | rannikko, poijut, sisämaa; UiRaS muualla | HARMONIE, MET Nordic |
+| Tallinna z9 | kaikki 5 | HARMONIE, MET Nordic |
+| Oslo z9 | rannikko, sisämaa | MET Nordic |
+| Quiberon z9 | rannikko, sisämaa | AROME |
+| Provence z9 | sisämaa | ICON-CH1, AROME, ICON-CH2, ALADIN CE |
+| Garda z10 | sisämaa | ICON-CH1, AROME, ICON-CH2, ICON-2I, ALADIN CE |
+| Sylt z9 | rannikko, sisämaa | AROME, DINI, ICON-D2, ALADIN CE |
+| Cornwall z9 | sisämaa | UKV, AROME |
+| Biskaja z7 | rannikko, sisämaa | AROME |
+| Kanariansaaret z9 | rannikko, sisämaa | — (Paras: "Täällä: ECMWF") |
+| Eurooppa z4 | kaikki 5 | kaikki 12 |
+| Pampus z10 | rannikko, sisämaa | AROME, DINI, ALADIN CE |
+
+- Näkyvä rivi ilman merkkiä 0, piilotettu rivi jolla on merkki 0, malli
+  puuttuu listalta vaikka pakotus näyttää sen 0, listalla malli jota
+  pakotus ei näytä 0 (tuntemattomat tarkentuivat 0,3–0,7 s:ssa).
+- Aallot-ruutu "ei tässä näkymässä" Ranskassa, Alpeilla, Kanariansaarilla,
+  Cornwallissa ja Pampuksella; Oslossa ja Syltin työpöytänäkymässä WAM
+  kattaa osan.
+- Tila säilyy: Helsinki (rantalämpötilat päälle) → Quiberon (rivi
+  muualla, päällä) → Helsinki, `fs_tasot` tavulleen sama.
+- Pakotettu AROME Quiberonissa: `malliKohdassa` = AROME osuudella 1, ja
+  kuvaus "Météo-France · AROME 1,3 km. Mallin alueella noin 2
+  vuorokautta eteenpäin…".
+- Kortin mallit: Pampus AROME, DINI, ALADIN CE + ECMWF, ICON, GFS (ei
+  HARMONIEa eikä MET Nordicia); Lauttasaari HARMONIE, MET Nordic +
+  maailman mallit.
+- Englanniksi (Quiberon, Helsinki, Muualla-osio auki): ei suomen sanoja,
+  ei pilkkudesimaaleja; suomeksi ei pistedesimaaleja.
+- Mallilista on yksi sarkainpysäkki ja jokaisella sirulla `role="radio"`
+  ja `aria-checked` (myös luettelosta rakennetuilla). Sarkain Quiberonissa:
+  … malli > rannikko > sisämaa > Muualla saatavilla > (Enter avaa) >
+  Aaltopoijut. Fokuksessa oleva rivi ei siirry kun kartta siirtyy
+  Helsinkiin; se siirtyy kun fokus lähtee.
+- Savutesti ja graafitesti läpi, ei `pageerror`ia.
+
+### 9.4 Mitä jäi
+
+- **Aallot muualla kuin Itämerellä** (P4): oma työnsä; ruutu sanoo nyt
+  vain ettei näkymässä ole aaltoja.
+- **Sateen HARMONIE-kate on MET Nordicin kate** (sama MEPS-alue);
+  `Sadeennuste._maski` olisi tarkempi, mutta se on olemassa vain haetulle
+  hilalle.
+- **Euroopan asemaverkon nimeä** (Météo-France, KNMI) ei ole: kaukopisteiden
+  luettelossa ei ole maata, ja WMO-tunnus ei kerro sitä. Alateksti nimeää
+  lähimmät asemat ja määrän.
+- Kontti ei mittaa laitteen tuntumaa: paneelin päivitys `moveend`issä on
+  JS:ltään pieni (näytteitä 26 tai 122 × perheet), mutta iPadilla
+  sivupaneelin rivien vaihtuminen kannattaa katsoa silmällä.

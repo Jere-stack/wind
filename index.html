@@ -7744,11 +7744,40 @@ const Saalaatat = {
     const vajaa = this._vajaa, ms = this._pMs, dir = this._pDir, pp = this._pPaino;
     let tulos = null;
     const l = this._haePerhe(p, lat, lo, step);
-    if (l) { this._pPaino = 0; this._naytePerhe(l, lat, lo); tulos = this._pPaino > 0.01; }
+    /* Varalaatta (karkeampi tai hienompi taso muistista, `_vajaa`) ei
+       kelpaa: painokanava on eri tasoilla reunalla eri levyinen (mitattu
+       AROME AT z4: 1,0°:n laatta 0,45, kartan 0,5°:n laatta 0). Silloin
+       tulos on tuntematon, ja `perheLaatta` hakee oikean. */
+    if (l && this._m_vara(p)) { this._vajaa = vajaa; this._pMs = ms; this._pDir = dir; this._pPaino = pp; return null; }
+    if (l) {
+      /* Paino ja data: painokanava interpoloituu reunalla nollan yli
+         solmuun jossa mallilla ei ole arvoa (mitattu AROME AT:n länsireunalla
+         z4: paino > 0, pakotettu kartta 0). Data tarkistetaan vain kun
+         valittu hetki on perheen akselilla — muuten hetki rajaisi
+         paikan valintoja (+10 vrk:n kohdalla lista tyhjenisi). */
+      const ax = l._ax || this._perus;
+      this._pPaino = 0;
+      const data = this._naytePerhe(l, lat, lo);
+      tulos = this._pPaino > 0.01 && (data || !ax.ok);
+    }
     this._vajaa = vajaa; this._pMs = ms; this._pDir = dir; this._pPaino = pp;
     return tulos;
   },
+  _m_vara(p) { return !!(p._m && p._m.vara); },
   perhe(id) { return (this._perheet || []).find(p => p.id === id && !p.dyn) || null; },
+  /* Perheen laatta pisteeseen valitun hetken palana (asetusten kate: vain
+     tuntemattomille näytteille, muutama laatta). */
+  perheLaatta(p, lat, lng, step) {
+    const lo = ((lng + 180) % 360 + 360) % 360 - 180;
+    const L = this._perheenTaso(p, lat, lo, step);
+    if (!L) return Promise.resolve();
+    const r = this._ruutu(L, lat, lo);
+    if (!this._onOlemassa(L, r.la0, r.lo0)) return Promise.resolve();
+    const ax = L._ax || this._perus;
+    const c = L.pala > 0 ? (ax.ok ? this._palaIndeksi(L, ax.ti) : 0) : -1;
+    if (c >= 0 ? this._onPala(L, this._avain(L, r.la0, r.lo0), c) : this._laatat.has(this._avain(L, r.la0, r.lo0))) return Promise.resolve();
+    return this._lataa(L, r.la0, r.lo0, c, true).catch(function () {});
+  },
   /* ICON on palvelimella kaksi hilaa: ICON-EU 7 km omalla alueellaan ja
      ICON 13 km muualla, 50 km:n sekoituksella. Nimi tähtäimen kohdalta
      rajan puolivälistä (25 km sisällä alueesta). */
@@ -34805,11 +34834,14 @@ const Kate = {
   REUNUS: 0.25,
   _avain: null, _arvo: null,
 
-  /* 5 × 5 -hila ja keskipiste (sama tiheys kuin `MalliHila`n peittotarkistus). */
+  /* 5 × 5 -hila ja keskipiste (sama tiheys kuin `MalliHila`n peittotarkistus).
+     Laajassa näkymässä 11 × 11: koko Euroopan näkymässä 5 × 5 ei osunut
+     Suomeen, vaikka HARMONIE näkyy kartalla (työpöytä z4). */
   _pisteet(b, c) {
     const s = b.getSouth(), w = b.getWest(), dLa = b.getNorth() - s, dLo = b.getEast() - w, ulos = [];
-    for (let j = 0; j < 5; j++) for (let i = 0; i < 5; i++) {
-      ulos.push({ lat: s + dLa * (j + 0.5) / 5, lng: w + dLo * (i + 0.5) / 5, c: false });
+    const N = dLo > 8 ? 11 : 5;
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      ulos.push({ lat: s + dLa * (j + 0.5) / N, lng: w + dLo * (i + 0.5) / N, c: false });
     }
     ulos.push({ lat: c.lat, lng: c.lng, c: true });
     return ulos;
@@ -34835,18 +34867,26 @@ const Kate = {
   /* Alueelliset perheet joiden paino on näkymässä > 0 (tai tuntematon),
      luettelon etusijajärjestyksessä. `osuus` = osuneiden näytteiden osuus,
      `keskella` = kattaa keskipisteen. */
+  /* Tuntemattomat näytteet (laatta ei muistissa tai vain varalaatta):
+     `AsetusAlue` hakee niiden laatat ja laskee uudelleen. */
+  _haettavat: [],
   _mallit(S, pts, z) {
     const ulos = [];
+    this._haettavat = [];
     if (!S || !S.kaytossa() || !S._perheet) return ulos;
     const st = ViewportGrid.laattaStep(Math.round(z));
     for (const p of S._perheet) {
       if (p.dyn || p.pohja) continue;
       let n = 0, tuntematon = 0, keskella = false;
+      const omat = [];
       for (const q of pts) {
         const k = S.perheKattaa(p, q.lat, q.lng, st);
         if (k === true) { n++; if (q.c) keskella = true; }
-        else if (k === null) tuntematon++;
+        else if (k === null) { tuntematon++; omat.push([p, q.lat, q.lng, st]); }
       }
+      /* Haku vain perheille joiden näkyvyys on auki: jo varma perhe ei
+         tarvitse lisää laattoja listan päätökseen. */
+      if (!n) this._haettavat.push(...omat);
       if (n || tuntematon) ulos.push({ perhe: p.id, malli: p.malli, osuus: n / pts.length, keskella: keskella, varma: n > 0 });
     }
     return ulos;
@@ -34953,6 +34993,28 @@ const AsetusAlue = {
     const k = Kate.nakyma();
     if (!k) return;
     this._odottaa = false;
+    /* Tuntemattomat mallinäytteet: haetaan niiden laatat (valitun hetken
+       pala, matala prioriteetti, enintään 16) ja lasketaan uudelleen, joten
+       lista tarkentuu eikä jää arvaukseen. Kerran näkymää kohti. */
+    const haettavat = Kate._haettavat;
+    if (haettavat.length && this._haettu !== Kate._avain) {
+      this._haettu = Kate._avain;
+      /* Sama laatta kerran: monta näytettä osuu samaan ruutuun. */
+      const nahty = {}, ainoat = [];
+      for (const h of haettavat) {
+        const L = Saalaatat._perheenTaso(h[0], h[1], h[2], h[3]);
+        if (!L) continue;
+        const r = Saalaatat._ruutu(L, h[1], h[2]), av = Saalaatat._avain(L, r.la0, r.lo0);
+        if (!nahty[av]) { nahty[av] = true; ainoat.push(h); }
+      }
+      Promise.all(ainoat.slice(0, 24).map(h => Saalaatat.perheLaatta(h[0], h[1], h[2], h[3])))
+        .then(() => {
+          /* Perheen näytemuisti (`_m`) pitää yhä varalaatan: uusi haku. */
+          for (const h of haettavat) h[0]._m.step = -1;
+          Kate._avain = null;
+          if (this.auki()) this.paivita();
+        });
+    }
     this._mallit(k);
     this._havainnot(k);
     this._kerrokset(k);

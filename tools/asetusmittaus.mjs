@@ -31,7 +31,7 @@ const NAKYMAT = [
   ['Biskaja', 45.50, -6.50, 7], ['Kanariansaaret', 28.10, -15.40, 9], ['Eurooppa', 52.0, 10.0, 4],
   ['Pampus', 52.37, 5.07, 10],
 ];
-const NAYTETTAVAT = NOPEA ? NAKYMAT.filter(n => ['Helsinki', 'Quiberon', 'Kanariansaaret'].includes(n[0])) : NAKYMAT;
+const NAYTETTAVAT = NOPEA ? NAKYMAT.filter(n => ['Helsinki', 'Quiberon', 'Kanariansaaret', 'Eurooppa'].includes(n[0])) : NAKYMAT;
 
 const selain = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist', '--ignore-certificate-errors'] });
 const viat = [], rivit = [];
@@ -68,6 +68,11 @@ async function lueTila(s) {
   return s.evaluate(async () => {
     document.getElementById('btn-settings').click();
     await new Promise(r => setTimeout(r, 400));
+    /* Tuntemattomien näytteiden laatat haetaan avauksessa: lista
+       tarkentuu kun ne tulevat (enintään 6 s). */
+    const alku = Date.now();
+    let tuntematonAlussa = FS.Kate.nakyma().mallit.filter(m => !m.varma).length;
+    while (FS.Kate.nakyma().mallit.some(m => !m.varma) && Date.now() - alku < 6000) await new Promise(r => setTimeout(r, 250));
     const p = document.getElementById('settings-popup');
     const mallit = [...p.querySelectorAll('#asetus-malli .sp-chip')].map(c => ({ id: c.dataset.arvo, sub: c.querySelector('.sp-valinta-sub')?.textContent }));
     const tassa = [...document.querySelectorAll('#sp-hav-tassa .sp-toggle-row')].map(r => ({ id: r.dataset.layerToggle, sub: r.querySelector('.sp-toggle-sub').textContent }));
@@ -77,7 +82,7 @@ async function lueTila(s) {
     const roolit = [...p.querySelectorAll('#asetus-malli .sp-chip')].every(c => c.getAttribute('role') === 'radio' && c.hasAttribute('aria-checked'));
     const teksti = p.innerText;
     const kate = FS.Kate.nakyma();
-    return { mallit, tassa, muualla, aallot, pysakit, roolit, teksti,
+    return { mallit, tassa, muualla, aallot, pysakit, roolit, teksti, tuntematonAlussa, tarkentui: Date.now() - alku,
              tuntemattomat: kate.mallit.filter(m => !m.varma).map(m => m.perhe) };
   });
 }
@@ -128,15 +133,20 @@ async function malliTotuus(s) {
       S.asetaTila(p.id);
       /* Paikka, ei hetki: alueellisen jakso on lyhyempi kuin aikajana, joten
          luetaan hetki jolla perhe on varmasti mukana (akselin keskeltä). */
-      const ts = p.tasot[0]._ax.tsMs, h = ts[Math.floor(ts.length / 2)];
+      const ts = p.tasot[0]._ax.tsMs;
+      /* Valittu hetki (sen pala on ladattu) jos perheen jakso kattaa sen
+         täydellä painolla, muuten lähin sellainen hetki. */
+      const h = Math.min(Math.max(hetki, ts[0] + 3 * 3600e3), ts[ts.length - 1] - 7 * 3600e3);
       S.asetaHetki(h);
       await S.varmista(b, st);
       let osui = 0;
-      for (let j = 0; j < 5; j++) for (let i = 0; i < 5; i++) {
-        const la = b.getSouth() + (b.getNorth() - b.getSouth()) * (j + 0.5) / 5;
-        const lo = b.getWest() + (b.getEast() - b.getWest()) * (i + 0.5) / 5;
-        const o = S.malliKohdassa(la, lo, st, h);
-        if (o && o.some(x => x.perhe === p.id && x.osuus > 0.01)) osui++;
+      /* Samat näytepisteet kuin paneelilla: 5 × 5 ja keskipiste. */
+      for (const q of FS.Kate._pisteet(b, map.getCenter())) {
+        const la = q.lat, lo = q.lng;
+        /* Suoraan näytteen osuuksista: `malliKohdassa` palauttaa nullin
+           jos jonkin perheen laatta puuttuu (`_vajaa`), ja laajassa
+           näkymässä jokin puuttuu aina. Pakotettuna mukana on vain p ja pohja. */
+        if (S.naytteista(la, lo, st) && S._osuus[S._perheet.indexOf(p)] > 0.01) osui++;
       }
       if (osui) ulos.push(p.id);
     }
@@ -161,15 +171,13 @@ for (const laite of ['puhelin', 'tyopoyta']) {
     const puuttuvat = ryhmat.filter(g => kartta[g] && nakyvat.indexOf(g) < 0);
     const alue = t.mallit.map(m => m.id).filter(id => !['auto', 'ecmwf', 'icon', 'gfs'].includes(id));
     let totuus = null;
-    if (laite === 'puhelin') {
-      await s.evaluate(() => document.getElementById('btn-settings').click());
-      totuus = await malliTotuus(s);
-    }
+    await s.evaluate(() => document.getElementById('btn-settings').click());
+    totuus = await malliTotuus(s);
     const piilossa = totuus ? totuus.filter(id => alue.indexOf(id) < 0) : [];
     const ylim = totuus ? alue.filter(id => totuus.indexOf(id) < 0) : [];
     const rivi = `${nimi.padEnd(15)} havainnot [${nakyvat.join(', ')}] muualla [${t.muualla.join(', ')}]  mallit [${alue.join(', ')}]`
       + (totuus ? `  pakotus näyttää [${totuus.join(', ')}]` : '') + `  aallot ${t.aallot ? 'ei' : 'on'}`;
-    console.log(rivi);
+    console.log(rivi + (t.tuntematonAlussa ? `  (tuntemattomia avauksessa ${t.tuntematonAlussa}, lista valmis ${t.tarkentui} ms)` : ''));
     console.log('     Paras: ' + t.mallit[0].sub + ' | ' + t.tassa.map(r => r.id + ': ' + r.sub).join(' | '));
     rivit.push(laite + ' ' + rivi);
     if (turhat.length) vika(`${laite} ${nimi}: näkyvä rivi ilman merkkiä: ${turhat.join(', ')}`);
@@ -182,8 +190,7 @@ for (const laite of ['puhelin', 'tyopoyta']) {
     if (t.pysakit !== 1) vika(`${laite} ${nimi}: mallilistassa ${t.pysakit} sarkainpysäkkiä`);
     if (!t.roolit) vika(`${laite} ${nimi}: mallisirulta puuttuu rooli tai aria-checked`);
     if (/\d\.\d/.test(t.teksti.replace(/Version [^\n]*|Versio [^\n]*/g, ''))) vika(`${laite} ${nimi}: pistedesimaali suomeksi`);
-    if (laite === 'puhelin' && totuus) await s.evaluate(() => { if (document.getElementById('settings-popup').classList.contains('open')) document.getElementById('btn-settings').click(); });
-    else await s.evaluate(() => document.getElementById('btn-settings').click());
+    await s.evaluate(() => { if (document.getElementById('settings-popup').classList.contains('open')) document.getElementById('btn-settings').click(); });
   }
 
   /* Tila säilyy matkan yli. */
