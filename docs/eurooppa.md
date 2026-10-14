@@ -574,6 +574,13 @@ Vuorovesi omana rivinään Atlantin, Kanaalin ja Pohjanmeren spoteilla
 (EOT20-harmoninen tai `meteofrance_currents`, mareografia vasten
 mitattuna). Vuorovesivirrat samasta `meteofrance_currents`ista.
 
+**Päivitys 14.10. (docs/aallot.md):** mitattuna globaali pohja on
+ECMWF WAM 9 km eikä MFWAM (poijuja vasten paras tai lähes paras joka
+alueella, MFWAM Itämerellä −0,19 m harha), Copernicuksen alueelliset
+ovat avoimesti saatavilla jo nyt, ja Open-Meteon `meteofrance_wave`- ja
+`meteofrance_currents`-hilojen metatieto on puoli solua väärässä
+paikassa — niitä ei saa georeferoida `crs_wkt`:n reunoilla.
+
 ### S7 — Spotit
 
 - Siemen OSM:stä (614 kohdetta, ODbL-lähdemerkintä) + kuratoitu lista

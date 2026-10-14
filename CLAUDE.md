@@ -249,6 +249,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/oikeellisuus.md` | **datan oikeellisuutta** (auditointi 29.9., toteutus 30.9.): varasto havaintoja vasten, **jatkuva varmennus**, **varaston tuoreus ja Säädatan ajastin**, kapselin ja partikkelien taso vs lämpökartta, **tähtäimen lukema ja zoom (O12, 5.10.)**, **kapselin puuska**, havaintoverkko ja sen päivitys, proxyjen virheenkäsittely, UiRaS — aukot O1–O11, suositusjärjestys ja sujuvuusvaikutus; lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 | `docs/aikahyppy.md` | **aikahypyn latausta** (strategia ja toteutus 9.10.): **koko akselin taustaesilataus (`AikaEsilataus`)**, **perheet rinnakkain**, **hypyn odotus 0,4 s**, palvelinhilan viereiset tunnit, Pages-koti; miksi kartta latautuu hetken kun aikajanalla hypätään historiaan tai kauas tulevaisuuteen — mitattu viive laitteittain ja zoomeittain, **perheet haetaan peräkkäin (12 kierrosta Euroopan näkymässä)**, koko akselin esilatauksen hinta, vaihtoehdot S1–S8, vaiheet V1–V5 ja hyväksymismittarit; lue ennen kuin kosket `Saalaatat.varmista`an, esilataukseen tai hypyn odotukseen (`_odottava`) |
 | `docs/asetukset.md` | **asetuspaneelia paikan mukaan** (strategia 10.10., toteutettu 12.10.: `Kate`, `AsetusAlue`, `perheKattaa`, mittari `tools/asetusmittaus.mjs`): miksi Ranskassa paneelin mallit ja havaintokytkimet eivät osu paikalliseen dataan, katerekisteri (`Kate`) datasta, vaihtoehdot A–E, suositus C (piilotus + "Muualla saatavilla", mallilista luettelosta, alueellisen mallin pakotus), vaiheet V1–V5, mittari ja päätettävät P1–P6; lue ennen kuin kosket `#settings-popup`iin, `Saalaatat.TILAT`iin tai kortin mallivalikkoon |
+| `docs/aallot.md` | **aaltoja koko maailmaan ja vuorovettä** (strategia 14.10., ei vielä toteutettu): aaltomallit mitattuina (**ECMWF WAM 9 km** paras globaali, MFWAM, GFS-Wave, DWD, **Copernicus Marinen alueelliset BAL/NWS/IBI/MED/BLK** avoimesti ARCO-Zarrina) — etäisyys rantaan, osuvuus poijuja vasten, **Open-Meteon MFWAM- ja SMOC-hilat puoli solua väärässä paikassa**, rakentajan rantaviivatesti, rantamaski globaalisti ja ekstrapoloinnin matka mallin tarkkuudesta, sulavuus (aallot tuulen koneistoon, aika GPU:lla, esilataus), varaston koko, **vuorovesi** (asemaennusteet vs FES2014, "Vuorovesi"-näkymä harmonisista vakioista), vaiheet V1–V8 ja päätettävät P1–P10; lue ennen kuin kosket `Aallot`iin, `AaltoGL`iin, `Rantamaski`in tai `tools/wam.mjs`iin tai lisäät meridataa |
 
 <details>
 <summary>Osioiden nimet tiedostoittain (jos et tiedä mistä etsiä)</summary>
@@ -437,6 +438,17 @@ kokeiltu ja kaadettu mittauksella.
   Jälkitarkistus (1.10.): kapselin puuska · **O12 (5.10.): tähtäimen
   lukema riippui zoomista** (tähtäimen sarja, kosketuszoom keskipisteen
   ympäri)
+- **aallot**: Tiivistelmä · Periaatteet P-a–P-g · Nykytila mitattuna
+  (data, kartta, hinta, mikä estää maailman, tuuli vs aallot) ·
+  Aaltodata maailmalle (ehdokkaat, etäisyys rantaan, osuvuus poijuja
+  vasten, järvet, Copernicus Marine, suunta ja jakso, perheet ja
+  järjestys) · Oikea paikka (Open-Meteon puolen solun virhe,
+  rantaviivatesti, maski M1–M4, rannan aukko ja ekstrapolointi,
+  sisävedet) · Sulavuus (tuulen keinot, K1/K2, aika GPU:lla, esilataus,
+  lähizoom, koodaus ja asteikko) · Varasto: koko ja rakennus ·
+  Vuorovesi (lähteet, mitattu tarkkuus, T1–T5, "Vuorovesi"-näkymä,
+  virrat) · Kokonaisvaihtoehdot S1–S5 · Suositus ja vaiheet V1–V8 ·
+  Hyväksymismittarit · Päätettävät P1–P10 · Riskit ja mitä EI tehdä
 
 </details>
 
