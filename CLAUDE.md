@@ -26,13 +26,16 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   pieni yhteensopivuuskerros (`L.marker`, `L.latLng`, `L.Util`…) ja
   `State.map` on `KarttaGL`, Leafletin muotoinen julkisivu jonka
   `map.ml` on varsinainen MapLibre-kartta. Lämpökartta (`LampoGL`),
-  partikkelit (`PartikkeliGL`) ja sadekerros (`SadeKerros`, tutka ja HARMONIE-sade) piirtyvät
+  partikkelit (`PartikkeliGL`), sadekerros (`SadeKerros`, tutka ja HARMONIE-sade),
+  aallot (`AaltoGL`) ja vuorovesi (`VuorovesiGL`, beta) piirtyvät
   MapLibren omaan WebGL-ruutuun custom layereina.
 - `api/*.js` — Vercelin serverless-funktiot (FMI-havainnot, HARMONIE-ennuste,
   mallin oma hila Open-Meteon S3:sta — ECMWF 9 km, ICON, GFS ja Euroopan
   alueelliset mallit lähizoomin natiivihilana (`?malli=<perhe>`, taulukko
   `tools/alueelliset.mjs`:stä) — kenttänä ja sarjana (`malli.js`),
-  aaltoennuste, vedenkorkeus, sade-ennuste GRIB2:sta ja sadetilan
+  aaltoennuste, vedenkorkeus, vuorovesi (`vesi.js?vuorovesi=noaa|kartverket|malli`:
+  NOAA:n asemat, Kartverket ja Copernicus NWS/IBI -vedenkorkeus, apumoduuli
+  `_vuorovesi.js`, docs/aallot.md V6), sade-ennuste GRIB2:sta ja sadetilan
   pistesarja (`sade.js?sarja=1`: tutkan tuntikertymä, vartit, HARMONIE,
   MET Norwayn nowcast), kapselin sää (`harmonie.js?saa=1&malli=<perhe>`:
   FMI HARMONIE + kartan kansallinen malli Open-Meteosta −48 h … +16 vrk,
@@ -51,7 +54,7 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   ES-moduuleja, koska
   `package.json`:ssa on `"type": "module"` — `require()` ei toimi näissä.
   Alaviivalla alkava tiedosto (`_suoja.js`, `_haku.js`, `_mellsten.js`,
-  `_laru.js`, `_varasto.js`, `_kamerat.js`, `_gif.js`, `_esoh.js`) on
+  `_laru.js`, `_varasto.js`, `_kamerat.js`, `_gif.js`, `_esoh.js`, `_vuorovesi.js`) on
   apumoduuli eikä reitti. `_haku.js` on FMI-proxyjen yhteinen haku: tila ja
   ExceptionReport tarkistetaan ja aikaraja on koko haulle — ylävirran
   virhe on 502, ei `no data` (docs/oikeellisuus.md, O5).
@@ -159,6 +162,14 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   `a0`–`a3`, luettelon OMA avain `aallot`), jakso pistekyselystä.
   `tiilet.mjs` ajaa sen viimeisenä omassa try/catchissaan (`AALLOT=0`
   ohittaa); suoraan `node tools/wam.mjs <hakemisto>` mittausta varten.
+- `tools/vuorovesi.py` — vuoroveden harmoniset vakiot EOT20:stä
+  (DGFI-TUM, CC BY 4.0) laatoiksi `public/vuorovesi/` (`FSVV`, tasot t0
+  0,125° rannikolle, t1 0,5° ja t2 2,0°, 8,5 MB), 2°:n katerasteri ja
+  NOAA:n asemat; maski 0 maa, 1 meri, 2 epäluotettava (NOAA:n asemaa vasten
+  tai osavuorovesien suhteet mahdottomia), 3 suljettu vesi. Ajetaan käsin
+  (`python3 tools/vuorovesi.py <EOT20> [public/vuorovesi]`), tulos on
+  repossa; gzip `mtime=0`, joten uusi ajo muuttaa vain muuttuneet laatat.
+  Jos ajat sen, vaihda `public/sw.js`:n `VUOROVESI`-välimuistin nimi.
 - `tools/maapallo.mjs` — latausruudun maapallon mantereet (Natural
   Earth 1:110m, public domain): yksinkertaistaa ja koodaa, ja
   `--kirjoita` vaihtaa `index.html`:n `#lr-maa-lahde`-lohkon. Data on
@@ -614,16 +625,21 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **Kartalla sävy tarkoittaa tuulennopeutta ja vain sitä.** Kaikki muu kartalla
   on joko tummaa pilleriä (mitattu data) tai yömerta (kaikki muu: kapseli,
   spottimerkit, karttanapit; ks. "Yömeri" alla).
-  **Kaksi poikkeusta, ja ne ovat ehdollisia: sadekerros ja aaltokerros**
-  (jälkimmäinen käyttäjän päätöksellä 1.10.). Kun sadetutka on päällä,
+  **Kolme poikkeusta, ja ne ovat ehdollisia: sadekerros, aaltokerros ja
+  vuorovesikerros** (aallot käyttäjän päätöksellä 1.10., vuorovesi beta
+  15.10., docs/aallot.md V7 ja P7). Kun sadetutka on päällä,
   lämpökartta ja partikkelit sammuvat (`_tuulikerrokset-`
-  `Nakyvissa`); aaltotilassa (`aaltotila()`, siru "Aallot") samoin
+  `Nakyvissa`); aaltotilassa (`aaltotila()`, siru "Aallot") ja
+  vuorovesitilassa (`vuorovesitila()`, ruutu "Vuorovesi") samoin
   (`LampoGL._naytetaan`, `partikkelitPois`). Kartan pinnalla on siis
   kerrallaan tasan yksi väriasteikko, ja sävy saa tarkoittaa sateen
-  voimakkuutta tai aallonkorkeutta (`AaltoVari`). Sade ja aallot ovat
-  myös keskenään poissulkevat (`_aaltotilaAseta`). Ehto EI ole
-  neuvoteltavissa: jos lämpökartta joskus palautetaan näkyviin sade- tai
-  aaltokerroksen alle, niiden värit on poistettava samassa muutoksessa.
+  voimakkuutta, aallonkorkeutta (`AaltoVari`) tai vedenkorkeutta
+  keskivedestä (`VuorovesiVari`: kaksisuuntainen, laskuvesi hiekkaa ja
+  nousuvesi sinistä). Kaikki kolme ovat myös keskenään poissulkevat
+  (`_aaltotilaAseta`, `_vuorovesitilaAseta`). Ehto EI ole
+  neuvoteltavissa: jos lämpökartta joskus palautetaan näkyviin sade-,
+  aalto- tai vuorovesikerroksen alle, niiden värit on poistettava samassa
+  muutoksessa.
 - **AIKAJANAN PALKIT OVAT `ColorRamp.rgb()` — SAMA RAMPPI KUIN
   SPOTTIKORTIN KAAVIOSSA JA ASETUSTEN VÄRIASTEIKOSSA.** Poikkeukset ovat
   sadetila (4.10., docs/sadetutka.md: palkki = tunnin sade logaritmisella
@@ -631,7 +647,12 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   jaksolla neljä vartin siivua, `_tlSadePalkki`) ja aaltotila (käyttäjän päätös 1.10.): silloin palkki on aallonkorkeus
   `AaltoVari`-värillä ja omalla akselillaan (`_tlPalkkiTyyli`,
   `_tlAaltoOsuus`, `State._tlAallot`), ja mallin jakson ulkopuolella
-  palkkia ei ole. Kelikaista ja kelihyppy lukevat aina tuulta
+  palkkia ei ole. Vuorovesitilassa (V7) palkki on vedenkorkeus tähtäimen
+  kohdalla KESKIVIIVASTA YLÖS TAI ALAS (`_tlVuorovesiOsuus`,
+  `State._tlVuorovesi`, `margin-bottom`), `VuorovesiVari`-värillä, ja
+  nousu- ja laskuveden tunnilla on reunassa valo (`vv-h`, `vv-l`);
+  harmoninen vuorovesi kattaa koko akselin, joten jaksoa ei rajata.
+  Kelikaista ja kelihyppy lukevat aina tuulta
   (`State._tlSpeeds`) — aallot eivät vaikuta keliin. Käyttäjän
   päätös: kolme paikkaa, yksi väri samalle nopeudelle. Palkeilla oli
   ennen oma `varjo()` (ramppi sekoitettuna valkoiseen 0,45), joka teki
@@ -1084,6 +1105,17 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   napautus valitsee tunnin (`_tlValitseIdx`), tuuli on tähtäimen sarja, ja
   lämpötilan alla on tunnin sademäärä (ei pilvisyyttä, joka oli lähes aina
   100 % ja toisti ikonin).
+- **VUOROVESI KAPSELISSA** (docs/aallot.md V6–V7). Vuorovesirannikolla
+  sääosan toinen rivi on vuorovesi valitulla hetkellä (`KapVuorovesi`:
+  merkki `kapseliVuorovesiSVG` = nuoli vedenpinnasta + "+1,2 m"), samasta
+  parhaasta lähteestä kuin kortilla (`Vuorovesi.paikalle`: NOAA-asema >
+  Kartverket > Copernicus NWS/IBI > EOT20), kartan keskipisteen 0,02°:n
+  ruudusta ja vasta levossa; Itämerellä rasteri sanoo "ei vuorovettä"
+  ilman yhtään hakua. VUOROVESITILASSA pääluku on vedenkorkeus SAMASTA
+  kentästä ja rannasta kuin kartalla (`VuorovesiGL.vakiotKohdassa`, EOT20),
+  vasen osa suunta (nousee / laskee, seuraavasta ääriarvosta) ja alarivi
+  seuraava nousu- tai laskuvesi; syy kun lukua ei ole ("ei merta",
+  "ei vuorovettä", "malli ei luotettava tässä").
 - **KAPSELI VÄISTYY KUN SPOTTIKORTTI ON AUKI**
   (`html:has(#sheet.open) #kapseli`). Kapseli lukee kartan keskipisteen
   ja kortti spotin: mitattuna 2,6 ja 6,9 kts yhtä aikaa samalla
@@ -2311,8 +2343,15 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **SPOTTIKORTTI ON MODUULEJA, JÄRJESTYKSESSÄ NYT → TUNNEITTAIN →
   YKSITYISKOHDAT** (V9, Applen Sään rakenne; V15): hero
   (`.sh-moduli`), tuuliennuste, valitun tunnin laatat (`.sh-laatat`),
-  aallot (ennuste valitulle tunnille ja poiju nyt), tuulihavainto ja
+  aallot (ennuste valitulle tunnille ja poiju nyt), vuorovesirannikolla
+  vuorovesi (V6: käyrä, nousu- ja laskuveden luvut, lähde ja suurin
+  vaihtelu; `buildVuorovesiModuuli`), tuulihavainto ja
   UiRas-spotilla vedenlämpö — kukin oman `.sh-ryhma`-nimensä alla.
+  Vuorovesimoduulin paikka varataan kun spotin tiedetään olevan
+  vuorovesirannikolla (`VuorovesiKate`: muisti, sitten 2°:n rasteri, ja
+  `esitarkista` kirjaa luettelon tultua vakioista ne spotit joilla vuorovettä
+  ei ole — Pampus), ja vedenkorkeuden laatta sanoo silloin "vuorovesi
+  alempana" eikä toista lukua (P15, kohta 4).
   "Havainnot nyt" -laatat (tuuli, ilma, vesi, poiju), "Aallot ·
   ennuste" -laatta ja Spotti-moduuli (`#sh-tiedot`: indeksin erittely,
   suunnat, lähde) POISTETTIIN kahdennuksina (P15): havainnon luvut ovat
@@ -3288,17 +3327,22 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   sateessa (mitattu 4.10.). `prefers-reduced-motion`: ei liukua eikä
   liikekompensaatiota (`_tlVahennaLiiketta`).
 - **KARTAN KERROS ON NELJÄ RUUTUA ESIKATSELUKUVIN: TUULI, PUUSKA,
-  AALLOT, SADE (BETA)** (`#layers`, Windyn valikon tapaan, käyttäjän pyyntö
+  AALLOT, SADE (BETA) — JA VUOROVESI (BETA) VIIDENTENÄ VAIN
+  VUOROVESIRANNIKOLLA** (`#layers`, Windyn valikon tapaan, käyttäjän pyyntö
   1.10.; "(beta)" omana pienempänä spaninaan 4.10.). Sade oli ennen kytkin "Havainnot kartalla" -ryhmässä; tila on
   yhä `_mapLayerState.tutka` (tallentuu `fs_tasot`iin), ja valittu ruutu
-  luetaan kolmesta lipusta yhdessä paikassa (`_kerrosSirut`: sade >
-  aallot > `State.activeLayer`). Kuvat piirtää `KerrosKuvat`
+  luetaan lipuista yhdessä paikassa (`_kerrosSirut`: sade >
+  aallot > vuorovesi > `State.activeLayer`). Vuorovesiruutu (V7) on
+  `hidden` kun näkymässä ei ole vuorovesirannikkoa (`AsetusAlue._kerrokset`,
+  `Vuorovesi.rannikkoAlueella`, Itämerellä ei koskaan), päällä ollessaan aina
+  näkyvissä, ja se on neljän sarakkeen ruudukossa omalla rivillään;
+  piilotettu ruutu ei ole nuolinäppäinten pysäkki. Kuvat piirtää `KerrosKuvat`
   SOVELLUKSEN OMILLA RAMPEILLA (`WindTexture.pikseliLUT`, `AaltoVari`,
-  `Sade.lut`) keksityn rannikon päälle, joten ne näyttävät samat värit
+  `Sade.lut`, `VuorovesiVari`) keksityn rannikon päälle, joten ne näyttävät samat värit
   kuin kartta; lämpökartan voimakkuuden vaihto piirtää ne uudelleen.
   Valinta on mustekehys kuvan ympärillä, ei täyttö. Ruutu on yhä
   `.sp-chip` (radiogroup), ja nimi on omassa spanissaan (`data-en`).
-  Sateen ja aaltojen asteikot ovat samassa kortissa ruutujen alla.
+  Sateen, aaltojen ja vuoroveden asteikot ovat samassa kortissa ruutujen alla.
 - **Kehyksen aikaleima ei ole valinnainen.** Liikkuva kuva ilman kelloa
   ei kerro mitä hetkeä katsoo. Se on samalla rivillä lähdemerkinnän
   kanssa mutta vastakkaisessa reunassa — yksi rivi ylempänä se jäi

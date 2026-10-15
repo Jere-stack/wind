@@ -21,7 +21,9 @@ ja vaiheen erillinen interpolointi ei). Laatta on 41 × 41 solmua
 koko ja osakohtainen skaala), sitten int8-tasot [osa][Re, Im][y][x]
 skaalattuna laatan suurimpaan arvoon (Brestissä M2:n askel 1,5 cm,
 Välimerellä millejä) ja maski [y][x]: 0 maa, 1 meri, 2 meri jossa
-malli on tunnettua asemaa vasten epäluotettava.
+malli on tunnettua asemaa vasten epäluotettava, 3 suljettu vesi (padottu
+järvi tai kanava, `SULJETUT`): ei vuorovettä, eikä kartan "Vuorovesi"-
+näkymä (V7) jatka rannan kenttää sinne.
 
 TASOT: t0 0,125° (mallin oma hila) vain laatoille joissa on rantaa,
 t1 0,5° ja t2 2,0° koko maailmalle (karkeat kompleksikeskiarvoina
@@ -32,6 +34,17 @@ KATE: 2°:n bittirasteri (`kate`), jossa solu on vuorovesirannikkoa kun
 jossakin sen merisolmussa kevätvuoroveden vaihteluväli 2·(M2 + S2 + K1 +
 O1) on yli 0,5 m (docs/aallot.md 8.4, T2). Asiakas päättää siitä
 kortin ja kerrosruudun paikan ennen ensimmäistä laattaa.
+
+EPÄUSKOTTAVA (V7, 15.10.): mallin oma arvo on ristiriidassa vuoroveden
+teorian kanssa — saman lajin osavuorovesien suhde on lähes vakio (P1/K1
+≈ 0,33, K2/S2 ≈ 0,27, N2/M2 ≈ 0,19, Q1/O1 ≈ 0,19), ja S2 on harvoin
+M2:ta suurempi. Solmu jossa P1 > 0,6·K1 + 0,05, K2 > 0,6·S2 + 0,05,
+N2 > 0,6·M2 + 0,1, Q1 > 0,6·O1 + 0,05 tai S2 > 1,5·M2 + 0,3 merkitään
+epäluotettavaksi (2) eikä se ole karkeiden tasojen eikä katteen lähde.
+Mitattu 15.10.: 233 solmua — Saint Lawrence Quebecin kohdalla (S2 31 m,
+P1 11 m), Amazonin suu, Maracaibo, Hudsoninlahti ja Etelämantereen
+rannikko. Kartan näkymässä yksi Quebecin solmu nosti koko maailman
+koodausalueen 39 metriin.
 
 EPÄLUOTETTAVA (hyväksymismittari 6): NOAA:n harmonisilla vakioilla
 (1 371 asemaa) laskettua asemaennustetta vasten; jos mallin solmu (≤ 20 km)
@@ -102,15 +115,17 @@ def lue_eot20(polku):
         RE[k] = np.concatenate([re[:, 1440:2880], re[:, 0:1441]], axis=1)
         IM[k] = np.concatenate([im[:, 1440:2880], im[:, 0:1441]], axis=1)
     meri = (np.abs(RE).sum(0) + np.abs(IM).sum(0)) > 0
+    suljettu = np.zeros(meri.shape, bool)
     for mk in SULJETUT:
         las = [p[0] for p in mk]; los = [p[1] for p in mk]
         for j in range(int((min(las) + 90) / 0.125), int((max(las) + 90) / 0.125) + 2):
             for i in range(int((min(los) + 180) / 0.125), int((max(los) + 180) / 0.125) + 2):
                 if sisalla(mk, -90 + j * 0.125, -180 + i * 0.125):
                     meri[j, i] = False
+                    suljettu[j, i] = True
                     RE[:, j, i] = 0
                     IM[:, j, i] = 0
-    return RE, IM, meri
+    return RE, IM, meri, suljettu
 
 
 def sisalla(mk, la, lo):
@@ -242,6 +257,13 @@ def noaa_asemat():
     return [[x['id'], round(float(x['lat']), 4), round(float(x['lng']), 4), x['name'], x.get('type') or 'R'] for x in s]
 
 
+def epauskottavat(RE, IM, meri):
+    """Solmut joiden osavuorovesien suhteet ovat fysikaalisesti mahdottomia."""
+    M2, S2, N2, K2, K1, O1, P1, Q1 = np.hypot(RE, IM)
+    return ((P1 > 0.6 * K1 + 0.05) | (K2 > 0.6 * S2 + 0.05) | (N2 > 0.6 * M2 + 0.1)
+            | (Q1 > 0.6 * O1 + 0.05) | (S2 > 1.5 * M2 + 0.3)) & meri
+
+
 def karkea(RE, IM, meri, askel):
     """Kompleksikeskiarvo märistä solmuista ± askel/2 -laatikossa."""
     k = int(round(askel / 0.125))
@@ -291,7 +313,9 @@ def kirjoita_taso(ulos, tid, askel, re, im, maski, vain_ranta):
             otsake = b'FSVV' + struct.pack('<BBH', 1, len(OSAT), 0) + struct.pack('<fff', askel, la0, lo0) \
                 + struct.pack('<HH', N, N) + sk.tobytes()
             assert len(otsake) == 56
-            data = gzip.compress(otsake + q.tobytes() + m.astype(np.uint8).tobytes(), 9)
+            # mtime=0: sama sisältö on sama tiedosto, joten uusi ajo muuttaa
+            # repossa vain ne laatat joiden data muuttui.
+            data = gzip.compress(otsake + q.tobytes() + m.astype(np.uint8).tobytes(), 9, mtime=0)
             nimi = f'{la0:g}_{lo0:g}'
             with open(os.path.join(ulos, tid, nimi + '.bin.gz'), 'wb') as f:
                 f.write(data)
@@ -305,17 +329,21 @@ def main():
         print(__doc__)
         sys.exit(1)
     ulos = sys.argv[2] if len(sys.argv) > 2 else 'public/vuorovesi'
-    RE, IM, meri = lue_eot20(sys.argv[1])
+    RE, IM, meri, suljettu = lue_eot20(sys.argv[1])
     print(f'EOT20: merisolmuja {meri.sum()} ({meri.mean() * 100:.1f} %)')
-    epa, vertailut = noaa_validointi(RE, IM, meri)
-    maski0 = meri.astype(np.uint8) + epa.astype(np.uint8)
+    huono = epauskottavat(RE, IM, meri)
+    print(f'epäuskottavia solmuja {int(huono.sum())}')
+    hyva = meri & ~huono
+    epa, vertailut = noaa_validointi(RE, IM, hyva)
+    maski0 = meri.astype(np.uint8) + (epa | huono).astype(np.uint8)
+    maski0[suljettu] = 3
     os.makedirs(ulos, exist_ok=True)
     tasot = []
     for tid, askel, vain_ranta in TASOT:
         if askel == 0.125:
             re, im, m = RE, IM, maski0
         else:
-            re, im, mm = karkea(RE, IM, meri, askel)
+            re, im, mm = karkea(RE, IM, hyva, askel)
             m = mm.astype(np.uint8)
         laatat, tavut = kirjoita_taso(ulos, tid, askel, re, im, m, vain_ranta)
         print(f'{tid}: {askel}°, {len(laatat)} laattaa, {tavut / 1e6:.2f} MB')
@@ -329,7 +357,7 @@ def main():
     for j in range(kny):
         for i in range(knx):
             v = vali[j * k:(j + 1) * k + 1, i * k:(i + 1) * k + 1]
-            mm = meri[j * k:(j + 1) * k + 1, i * k:(i + 1) * k + 1]
+            mm = hyva[j * k:(j + 1) * k + 1, i * k:(i + 1) * k + 1]
             if (v[mm] > KATE_RAJA_M).any():
                 bitit[j * knx + i] = 1
     kate = base64.b64encode(np.packbits(bitit).tobytes()).decode()
