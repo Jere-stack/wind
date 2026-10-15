@@ -33,6 +33,8 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   mallin oma hila Open-Meteon S3:sta — ECMWF 9 km, ICON, GFS ja Euroopan
   alueelliset mallit lähizoomin natiivihilana (`?malli=<perhe>`, taulukko
   `tools/alueelliset.mjs`:stä) — kenttänä ja sarjana (`malli.js`),
+  lähizoomin aallot ECMWF WAM 9 km:n omalla hilalla
+  (`malli.js?muuttuja=aallot`, docs/aallot.md V4),
   aaltoennuste, vedenkorkeus, vuorovesi (`vesi.js?vuorovesi=noaa|kartverket|malli`:
   NOAA:n asemat, Kartverket ja Copernicus NWS/IBI -vedenkorkeus, apumoduuli
   `_vuorovesi.js`, docs/aallot.md V6), sade-ennuste GRIB2:sta ja sadetilan
@@ -123,6 +125,9 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   `tools/saaherate.mjs` (lähettää Säädatan kun FMI:llä on varastoa
   uudempi ajo, O1) ja `tools/varmennus.mjs` (varaston ennuste arkistoon
   ja havaintoja vasten, `varmennus/`, O11) — docs/oikeellisuus.md. Ja
+  `tools/aaltovarmennus.mjs` (`continue-on-error`): aaltovaraston perheet
+  ja Paras FMI:n, NDBC:n ja Marine Instituten poijuja vasten
+  (`varmennus/aallot/`, docs/aallot.md V8 ja luku 14.5). Ja
   `tools/esoh.mjs` (`continue-on-error`): Euroopan asemien tasatunnit
   (`esoh/<päivä>/<x>_<y>.json`, 8 vrk), koska MeteoGate E-SOH säilyttää
   vain vuorokauden (docs/eurooppa.md luku 14), ja kaukopisteiden
@@ -132,15 +137,17 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
 - `tools/tiilet.mjs` — säälaattojen rakennus: ECMWF (AWS Open Data, koko
   maapallo), FMI:n HARMONIE (Suomi), MET Nordic (Yr:n data, Pohjoismaat
   ja Baltia) ja Euroopan kymmenen kansallista 1–2,5 km mallia
-  (`tools/alueelliset.mjs`). Ajetaan GitHub Actionsissa neljästi
+  (`tools/alueelliset.mjs`), ja aallot (alla, noin 9 min ja 240 MB).
+  Ajetaan GitHub Actionsissa neljästi
   vuorokaudessa ajastimella ja lisäksi kun FMI:llä on uudempi ajo
-  (`tools/saaherate.mjs`), noin 26 min ja 267 MB (ennen Eurooppaa
-  10 min ja 107 MB; aikaraja 60 min). ECMWF-puuskan aukot
+  (`tools/saaherate.mjs`), noin 35 min ja 510 MB (tuuli 26 min ja
+  267 MB; ennen Eurooppaa 10 min ja 107 MB; aikaraja 60 min). ECMWF-puuskan aukot
   (analyysihetki, +93 … +144 h) täytetään rakennuksessa (O8).
   Tuulilaatat kirjoitetaan AJASSA PALOINA (`<la>_<lo>.p<c>.bin.gz`,
   24 askelta, yhden askeleen päällekkäisyys, luettelo `versio` 2;
-  `PALAT=0` = vanha muoto); aallot ovat kokonaisia (docs/mallit.md
-  "Laatat ajassa paloina").
+  `PALAT=0` = vanha muoto), samoin aaltovarasto `aallot2`; vain vanha
+  aaltoluettelo `aallot` (`a0`–`a3`) on kokonaisia laattoja
+  (docs/mallit.md "Laatat ajassa paloina").
 - `tools/alueelliset.mjs` — Euroopan alueelliset mallit (AROME, ICON-D2,
   UKV, DINI, ICON-CH1/CH2, ICON-2I, AROME Itävalta, ALADIN CE/CZ)
   Open-Meteon S3:sta: YKSI TAULUKKO (`ALUEELLISET`) omistaa järjestyksen,
@@ -158,10 +165,38 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   `h0`–`h4`), ajo kiinnitettynä `origintime`lla.
 - `tools/metnordic.mjs` — MET Nordic 1 km Lambert-hilasta säännölliseksi
   0,05°:n hilaksi (tasot `n0`–`n4`).
-- `tools/wam.mjs` — FMI WAM -aaltoennuste hilana GRIB2:sta (tasot
-  `a0`–`a3`, luettelon OMA avain `aallot`), jakso pistekyselystä.
-  `tiilet.mjs` ajaa sen viimeisenä omassa try/catchissaan (`AALLOT=0`
-  ohittaa); suoraan `node tools/wam.mjs <hakemisto>` mittausta varten.
+- AALTOVARASTO `aallot2` (docs/aallot.md, luku 14), luettelon oma avain
+  eikä tuulen perhe; `tiilet.mjs` ajaa jokaisen perheen omassa
+  try/catchissaan (`AALLOT=0` ohittaa kaikki, `KOPERNIKUS=0` ja `EWAM=0`
+  omansa):
+  - `tools/aaltopyramidi.mjs` — yhteinen pyramidi kaikille aaltoperheille:
+    √-koodattu Hs (katto 16 m), suunta 2°, keskijakso 0,1 s, painokanava
+    avomeren reunasta, etäisyystaso ja jatke maalle 1,3 × luottoetäisyys,
+    palat 24, ja alueellisen perheen VALTA (`VALTA_KM` 15, `POHJA_MERI_KM`
+    7,5: kuiva solmu väistyy kun ECMWF:llä on siinä merta eikä perheellä
+    omaa vettä). Jokaisella perheellä on rantaviivan savutesti tunnetuilla
+    märillä ja kuivilla pisteillä, ja kaatuva perhe jää pois.
+  - `tools/aallot.mjs` — ECMWF WAM 9 km (O1280) Open-Meteon S3:sta,
+    perhe `ecmwf_wam` (`we0` 0,25° +7 vrk, `we1` 0,5°, `we2` 1,0°), POHJA
+    kaikkialla. Rakennetaan ENSIN: alueellisten valta luetaan sen märistä
+    pisteistä (`pohjaMeri`). Ilman sitä `aallot2`:ta ei julkaista.
+  - `tools/wam.mjs` — FMI WAM GRIB2:sta: perhe `fmi_wam` (`wf0`–`wf5`)
+    ja vanha luettelo `aallot` (versio 1, `a0`–`a3`, vanhoille
+    asiakkaille ja uuden asiakkaan varatieksi `AaltoVarasto._v1`), jakso
+    pistekyselystä; suoraan `node tools/wam.mjs <hakemisto>` mittausta varten.
+  - `tools/copernicus.mjs` + `tools/blosc.mjs` — Copernicus Marinen BAL,
+    NWS, IBI, BLK ja MED ARCO-Zarrista: tuoteversio STAC:sta JOKA AJOLLA
+    (osoitteet vaihtuvat), blosc-lz4 puhtaana JS:nä. Lähdemerkintä
+    "Generated using E.U. Copernicus Marine Service Information" on
+    lisenssin ehto (Tietoa-näkymä).
+  - `tools/ewam.mjs` — DWD EWAM vain IJsselmeerille ja Markermeerille
+    (Pampus): paino 1 monikulmiossa, 0 muualla.
+- `tools/aaltovarmennus.mjs` — aaltojen jatkuva varmennus (havainnot-ajo,
+  docs/aallot.md 14.5): ennuste poijujen kohdalta arkistoon, vertailu
+  tunnin välein ja päättyneet vuorokaudet summina. Näytteistys on
+  `AaltoVarasto._naytePerhe` / `naytteista` — jos muutat asiakkaan
+  aaltosekoitusta, muuta tätä samassa muutoksessa. `SAADATA_KANTA` voi
+  olla paikallinen rakennushakemisto testissä.
 - `tools/vuorovesi.py` — vuoroveden harmoniset vakiot EOT20:stä
   (DGFI-TUM, CC BY 4.0) laatoiksi `public/vuorovesi/` (`FSVV`, tasot t0
   0,125° rannikolle, t1 0,5° ja t2 2,0°, 8,5 MB), 2°:n katerasteri ja
@@ -260,7 +295,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/oikeellisuus.md` | **datan oikeellisuutta** (auditointi 29.9., toteutus 30.9.): varasto havaintoja vasten, **jatkuva varmennus**, **varaston tuoreus ja Säädatan ajastin**, kapselin ja partikkelien taso vs lämpökartta, **tähtäimen lukema ja zoom (O12, 5.10.)**, **kapselin puuska**, havaintoverkko ja sen päivitys, proxyjen virheenkäsittely, UiRaS — aukot O1–O11, suositusjärjestys ja sujuvuusvaikutus; lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 | `docs/aikahyppy.md` | **aikahypyn latausta** (strategia ja toteutus 9.10.): **koko akselin taustaesilataus (`AikaEsilataus`)**, **perheet rinnakkain**, **hypyn odotus 0,4 s**, palvelinhilan viereiset tunnit, Pages-koti; miksi kartta latautuu hetken kun aikajanalla hypätään historiaan tai kauas tulevaisuuteen — mitattu viive laitteittain ja zoomeittain, **perheet haetaan peräkkäin (12 kierrosta Euroopan näkymässä)**, koko akselin esilatauksen hinta, vaihtoehdot S1–S8, vaiheet V1–V5 ja hyväksymismittarit; lue ennen kuin kosket `Saalaatat.varmista`an, esilataukseen tai hypyn odotukseen (`_odottava`) |
 | `docs/asetukset.md` | **asetuspaneelia paikan mukaan** (strategia 10.10., toteutettu 12.10.: `Kate`, `AsetusAlue`, `perheKattaa`, mittari `tools/asetusmittaus.mjs`): miksi Ranskassa paneelin mallit ja havaintokytkimet eivät osu paikalliseen dataan, katerekisteri (`Kate`) datasta, vaihtoehdot A–E, suositus C (piilotus + "Muualla saatavilla", mallilista luettelosta, alueellisen mallin pakotus), vaiheet V1–V5, mittari ja päätettävät P1–P6; lue ennen kuin kosket `#settings-popup`iin, `Saalaatat.TILAT`iin tai kortin mallivalikkoon |
-| `docs/aallot.md` | **aaltoja koko maailmaan ja vuorovettä** (strategia 14.10., ei vielä toteutettu): aaltomallit mitattuina (**ECMWF WAM 9 km** paras globaali, MFWAM, GFS-Wave, DWD, **Copernicus Marinen alueelliset BAL/NWS/IBI/MED/BLK** avoimesti ARCO-Zarrina) — etäisyys rantaan, osuvuus poijuja vasten, **Open-Meteon MFWAM- ja SMOC-hilat puoli solua väärässä paikassa**, rakentajan rantaviivatesti, rantamaski globaalisti ja ekstrapoloinnin matka mallin tarkkuudesta, sulavuus (aallot tuulen koneistoon, aika GPU:lla, esilataus), varaston koko, **vuorovesi** (asemaennusteet vs FES2014, "Vuorovesi"-näkymä harmonisista vakioista), vaiheet V1–V8 ja päätettävät P1–P10; lue ennen kuin kosket `Aallot`iin, `AaltoGL`iin, `Rantamaski`in tai `tools/wam.mjs`iin tai lisäät meridataa |
+| `docs/aallot.md` | **aaltoja koko maailmaan ja vuorovettä** (strategia 14.10., **toteutettu 15.10.: luku 14** — aaltovarasto `aallot2` perheineen (ECMWF WAM 9 km pohjana, FMI WAM, Copernicus BAL/NWS/IBI/BLK/MED, DWD EWAM IJsselmeerille), valta ja olematon laatta kuivana, lähizoom palvelimelta, rantamaski GL-laattoina, vuorovesi kortilla, kapselissa ja "Vuorovesi (beta)" -kartalla EOT20:stä, **jatkuva varmennus poijuja vasten `tools/aaltovarmennus.mjs`**, mittarien tila ja mitä jäi): aaltomallit mitattuina (**ECMWF WAM 9 km** paras globaali, MFWAM, GFS-Wave, DWD, **Copernicus Marinen alueelliset BAL/NWS/IBI/MED/BLK** avoimesti ARCO-Zarrina) — etäisyys rantaan, osuvuus poijuja vasten, **Open-Meteon MFWAM- ja SMOC-hilat puoli solua väärässä paikassa**, rakentajan rantaviivatesti, rantamaski globaalisti ja ekstrapoloinnin matka mallin tarkkuudesta, sulavuus (aallot tuulen koneistoon, aika GPU:lla, esilataus), varaston koko, **vuorovesi** (asemaennusteet vs FES2014, "Vuorovesi"-näkymä harmonisista vakioista), vaiheet V1–V8 ja päätettävät P1–P10; lue ennen kuin kosket `Aallot`iin, `AaltoGL`iin, `Rantamaski`in tai `tools/wam.mjs`iin tai lisäät meridataa |
 
 <details>
 <summary>Osioiden nimet tiedostoittain (jos et tiedä mistä etsiä)</summary>
@@ -459,7 +494,9 @@ kokeiltu ja kaadettu mittauksella.
   lähizoom, koodaus ja asteikko) · Varasto: koko ja rakennus ·
   Vuorovesi (lähteet, mitattu tarkkuus, T1–T5, "Vuorovesi"-näkymä,
   virrat) · Kokonaisvaihtoehdot S1–S5 · Suositus ja vaiheet V1–V8 ·
-  Hyväksymismittarit · Päätettävät P1–P10 · Riskit ja mitä EI tehdä
+  Hyväksymismittarit · Päätettävät P1–P10 · Riskit ja mitä EI tehdä ·
+  **Toteutus (15.10.)**: vaiheet ja poikkeamat, rakentajan koko ja
+  kesto, asiakas, vuorovesi, jatkuva varmennus, mittarien tila, mitä jäi
 
 </details>
 
@@ -3119,36 +3156,70 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   naapurispotit jakavat sen. Kiintiötä säästetään siellä missä se ei
   maksa mitään.
 
-**Aallot kartalla** (docs/data.md "Aallot kartalle", docs/ui.md
-"Aallot kartalla")
+**Aallot kartalla** (docs/aallot.md luku 14; historia docs/data.md
+"Aallot kartalle", docs/ui.md "Aallot kartalla")
 
-- **KARTAN AALLOT TULEVAT VARASTOSTA, LUETTELON OMASTA `aallot`-
-  AVAIMESTA, EIVÄT TUULEN PERHEISTÄ.** `Aallot` lukee laatat
-  `Saalaatat._lataa`lla (sama koti, sama versio, sama LRU), mutta ei
-  koskaan `naytteista`n kautta eikä `tasot`/`lisatasot`-listoista: aalto
-  sekoitettuna tuuleen olisi väärä luku joka ei näytä väärältä.
-- **JAKSO EI OLE HILANA.** Latauspalvelu vastaa `WavePeriod`ille 400;
-  rakentaja hakee sen pistekyselynä märistä soluista (kokonaisina
-  sekunteina). Älä yritä sitä `download`ista uudelleen.
+- **KARTAN AALLOT TULEVAT VARASTOSTA, LUETTELON OMASTA `aallot2`-
+  AVAIMESTA (VERSIO 2), EIVÄT TUULEN PERHEISTÄ.** `AaltoVarasto` on
+  `Object.create(Saalaatat)` OMALLA TILALLAAN (jokainen tilakenttä on
+  kirjoitettu siihen, jotta perityt metodit eivät koskaan lue tuulen
+  tilaa): sama koti, palat, LRU, esilataus ja tasojen sekoitus, mutta ei
+  koskaan tuulen `naytteista`a eikä `tasot`/`lisatasot`-listoja — aalto
+  sekoitettuna tuuleen olisi väärä luku joka ei näytä väärältä. Vanha
+  `aallot` (versio 1, FMI WAM `a0`–`a3`) on varatie kun `aallot2`
+  puuttuu (`_v1`): Itämeri ilman maailmaa, ei tyhjä kartta.
+- **AALTOPERHEIDEN ETUSIJA TULEE LUETTELOSTA** (`aallot2.perheet`):
+  DWD EWAM > FMI WAM > Copernicus BAL > NWS > IBI > BLK > MED > ECMWF
+  WAM 9 km, ja pohja (`ecmwf_wam`) on aina viimeisenä. Paino =
+  painokanava (avomeren reunasta, EI maamaskista — jokainen ranta olisi
+  muuten reuna) × aikapaino, ja perhe peittää alemmat painonsa verran
+  MYÖS KUIVANA. **OLEMATON LAATTA ON KUIVA**, ei puuttuva: muuten
+  ECMWF:n jatke toisi meren aallot alueellisen mallin maa-alueen
+  järville (Bodom 0,55 m). Toista vesialuetta alueellinen perhe ei peitä:
+  rakentaja antaa kuivalle solmulle painon 0 kun ECMWF:llä on siinä
+  merta (VALTA, `tools/aaltopyramidi.mjs`). Älä kirjoita perhelistaa
+  käyttöpaikkaan.
+- **JÄRJESTYS VAHVISTETAAN POIJUJA VASTEN, EI MUUTETA AUTOMAATTISESTI**
+  (`tools/aaltovarmennus.mjs`, docs/aallot.md mittari 5): perhe kuuluu
+  alueensa Parhaaseen vain jos sen ratkaisemat tunnit (`paras←<perhe>`)
+  ovat pareittain vähintään yhtä hyviä kuin ECMWF. Huomio tulee
+  ajon yhteenvetoon; järjestys muutetaan rakentajassa käsin.
+- **LÄHIZOOMIN AALTO ON VAIN KARTALLA** (`AaltoHila`,
+  `api/malli.js?muuttuja=aallot`, zoomista 8 alueellisten
+  ulkopuolella): aikajana, kortti, kate, tuulitilan kapseli ja
+  varmennus lukevat varastoa (`_ilmanDyn`), kuten tuulen O12.
+- **JAKSO ON KESKIJAKSO** (luettelon `jakso: 'keski'`; P9 huippujaksosta
+  on auki). FMI WAM:n jakso ei ole hilana: latauspalvelu vastaa
+  `WavePeriod`ille 400, ja rakentaja hakee sen pistekyselynä märistä
+  soluista (kokonaisina sekunteina). Älä yritä sitä `download`ista
+  uudelleen.
 - **Näyte on märkien solmujen keskiarvo, ja märkyys on alfa.** Maa (255)
   ei ole nolla-aalto: nollana se vetäisi rannikon arvot alas. GL-kerros
-  kantaa saman esikerrottuna tekstuurina (r/a).
-- **Spotti maskin sisällä lukee lähimmän märän solmun 2,5 km:n
-  sisältä**, ja kortti sanoo etäisyyden kun se on yli kilometrin.
-  Kauempaa luettu aalto olisi toisen paikan aalto.
-- **Kortti, aikajana, kapseli ja kartta lukevat samaa sarjaa**
-  (`Aallot.sarja`/`nayte`, `_aaltoEnnusteSarja`); pistekysely
-  (`api/wam.js`) on vain varatie vanhalle varastolle.
+  kantaa saman esikerrottuna tekstuurina (r/a). Rannan luottamus
+  (etäisyystaso) häivyttää jatkeen tason `luottoKm`:stä sen
+  1,3-kertaiseen.
+- **Spotti maskin sisällä lukee lähimmän märän pisteen enintään
+  1,3 × paikan päällimmäisen perheen solmuväli päästä, enintään 15 km**
+  (`luottoKmPaikalle`, P5: FMI WAM 2,5 km, ECMWF 11,7 km), ja kortti
+  sanoo etäisyyden kun se on yli kilometrin. Kauempaa luettu aalto olisi
+  toisen paikan aalto.
+- **Kortti, aikajana ja kapseli lukevat samaa sarjaa**
+  (`Aallot.sarja`/`nayte`, `AaltoVarasto.sarja`, `_aaltoEnnusteSarja`);
+  pistekysely (`api/wam.js`) on vain varatie vanhalle varastolle.
 - **POIJUN KAAVIOSSA ENNUSTE JATKAA MITTAUSTA** (käyttäjän pyyntö
   1.10.): WAM samasta pisteestä katkoviivana NYT-merkin yli, pääsarja on
   yhä mittaus. Spottikortin aaltokaaviossa mittausta ei ole (poiju
   mittaa muualla), joten siellä ennuste on pääsarja.
 - **RANTA PIIRRETÄÄN POHJAKARTAN RANTAVIIVALLA, EI MALLIN MASKILLA**
-  (Windyn tapa, käyttäjän raportti 1.10.). Kenttä ekstrapoloidaan maan
-  puolelle (~4 km), ja `Rantamaski` rajaa sen Esrin tumman pohjan
-  laatoista (vesi kirkkaus ≈ 36, maa ≈ 78, kynnys 48/60). Mallin 1 × 2 km
-  maski jätti aallokon irti rannasta ja valutti sen kaupungin päälle.
-  Kapseli lukee saman kentän ja maskin (`AaltoGL.arvoKohdassa`).
+  (Windyn tapa, käyttäjän raportti 1.10.). Rakentaja jatkaa kenttää maan
+  puolelle 1,3 × tason luottoetäisyys (= max(mallin solmuväli,
+  0,75 × tason askel): ECMWF:n 0,25°:n tasolla 27 km, palvelimen 9 km:n
+  hilalla 12 km; mitattuna 4 km jätti 20–54 % rannikkovedestä aukoksi),
+  ja `Rantamaski` rajaa sen
+  Esrin tumman pohjan laatoista GL-tekstuureina pohjakartan omalla
+  tasolla (vesi kirkkaus ≈ 36, maa ≈ 78, kynnys 48/60; V3). Mallin
+  1 × 2 km maski jätti aallokon irti rannasta ja valutti sen kaupungin
+  päälle. Kapseli lukee saman kentän ja maskin (`AaltoGL.arvoKohdassa`).
 - **AALTOTILASSA AIKAJANA ON AALTODATAN JAKSO** (`_tlAaltoRajaus`,
   käyttäjän pyyntö 1.10.): ei tyhjiä tunteja mallin jakson ulkopuolella.
   Rajattu sarja on muistettava lähdesarjaa kohti — uusi olio joka kutsulla
@@ -3176,7 +3247,9 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
 - **Vedenkorkeuden nollataso on TEOREETTINEN KESKIVESI, ei N2000.**
   Molemmat ovat vastauksessa; kaksi nollatasoa samassa ruudussa olisi
   kaksi merkitystä samalle numerolle. Etumerkki kirjoitetaan aina
-  näkyviin, myös plussalle — se on koko luvun ydin.
+  näkyviin, myös plussalle — se on koko luvun ydin. Vuorovedellä sama
+  (`_vvM`), ja etumerkki luetaan PYÖRISTETYSTÄ luvusta: nolla on ilman
+  merkkiä (−0,04 m näkyi Atlantilla "−0,0 m").
 - **Aaltoennuste ja poijuhavainto ovat ERI RIVIT.** Ennuste on valittu
   tunti, poiju on "nyt" eikä seuraa aikajanaa. Yhdessä rivissä lukija
   joutuisi päättelemään kumpi luku on kumpaa aikaa. Ennusterivillä EI

@@ -1,4 +1,4 @@
-# Aallot koko maailmaan ja vuorovesi (strategia 14.10.)
+# Aallot koko maailmaan ja vuorovesi (strategia 14.10., toteutus 15.10.)
 
 Käyttäjän pyyntö: aaltonäkymä koko maailmaan parhaan mahdollisen datan
 mukaan, ja jos hyödyllistä, samoista lähteistä vuorovesi kartoille —
@@ -7,7 +7,9 @@ yhtä sulava kuin koko maailman tuulen lämpökartta: tarvitaanko
 esilatausta, ja miten varmistetaan että data on oikeassa kohdassa
 karttaa eikä näy mantereen päällä.
 
-Tämä on strategia, ei toteutus: mitään ei ole koodattu. Luvut on mitattu
+Luvut 1–13 ovat strategia sellaisena kuin se päätettiin 14.10. (silloin
+mitään ei ollut koodattu); **toteutus on luvussa 14** (15.10., kaikki
+vaiheet V1–V8 suosituksen mukaan). Strategian luvut on mitattu
 14.10.2026 lähteistä itsestään (Open-Meteon S3-peili, Copernicus
 Marinen ARCO-varastot, FMI:n, NOAA:n, Irlannin Marine Instituten ja
 Kartverketin rajapinnat, Esrin pohjakarttalaatat, Natural Earth 1:10m)
@@ -889,3 +891,218 @@ näkyvissä.
   (`@openmeteo/file-reader` vain palvelimella, kuten nyt).
 - **Ei uusia Vercel-funktioita** (12/12): aallot `api/malli.js`in
   tilaksi, vuorovesiproxyt olemassa olevien tiloiksi.
+
+## 14. Toteutus (15.10.)
+
+Kaikki vaiheet V1–V8 toteutettiin suosituksen mukaan, ja päätettävät
+P1–P10 ratkaistiin suositusten mukaan (P7: "Vuorovesi"-näkymä tehtiin
+betana, P8: virrat jäivät). Tässä luvussa on mitä tehtiin, missä
+toteutus poikkesi strategiasta ja mitä mitattiin. Mittarit ovat
+scratchpadissa kuten strategiassa — paitsi jatkuva varmennus
+(`tools/aaltovarmennus.mjs`), joka on repossa ja ajaa havainnot-työnkulussa.
+
+### 14.1 Vaiheet ja poikkeamat
+
+| vaihe | tehtiin | poikkeama strategiasta |
+|---|---|---|
+| V1 | `tools/aaltopyramidi.mjs` (yhteinen pyramidi kaikille aaltoperheille: √-koodattu Hs katolla 16 m, suunta 2°, keskijakso 0,1 s, painokanava avomeren reunasta, etäisyystaso, jatke maalle 1,3 × luottoetäisyys, palat 24), `tools/aallot.mjs` (ECMWF WAM O1280 Open-Meteon S3:sta, perhe `ecmwf_wam`, tasot `we0` 0,25° +7 vrk, `we1` 0,5°, `we2` 1,0°), FMI WAM perheeksi `fmi_wam` (`wf0`–`wf5`), luettelon avain `aallot2` (versio 2) | Vanha `aallot` (versio 1, `a0`–`a3`) jäi vanhoille asiakkaille ja uuden asiakkaan varatieksi (`AaltoVarasto._v1`): Itämeri ilman maailmaa on parempi kuin tyhjä kartta. |
+| V2 | `AaltoVarasto` = `Object.create(Saalaatat)` omalla tilallaan: perheet ja painokanava, palat, LRU 320, `varmista`, koko akselin esilataus (`AaltoEsilataus`), tasot ja niiden sekoitus, odotus, häivytys, tähtäimen sarja; väriasteikko 0–10 m | **Olematon laatta on kuiva**, ei puuttuva: rakentaja kirjoittaa laatan vain märkien solmujen ympärille, ja ilman tätä ECMWF:n 27 km:n jatke toi meren aallot alueellisen mallin maa-alueen järville (Bodom 0,55 m). **Laattabudjetti** valitsee tason (`AaltoTaso.LAATTABUDJETTI` 70): työpöydän maailmannäkymä oli 19 000 pyyntöä 36 s:ssa. Väriramppi uusiksi (OKLCH sininen → laventeli → violetti → pinkki): Itämeren ramppi piirsi valtameren 1,5–3 m valkoisena. |
+| V3 | Aika GPU:lla (`AaltoGL` piirtää hetket A ja B samasta tekstuurista ja interpoloi varjostimessa), rantamaski M2 (`Rantamaski`: Esrin tumman pohjan laatat GL-tekstuureina pohjakartan omalla tasolla, retinalla taso tarkempi) | — |
+| V4 | `api/malli.js?muuttuja=aallot` (ECMWF WAM O1280 näkymän alueelle valitulle tunnille, märkien naapurien painotettu keskiarvo, jatke 1,3 × 9 km ja etäisyystaso samalla koodauksella kuin varastossa), asiakkaan `AaltoHila` zoomista 8 | Haku ohitetaan kun alueellinen perhe kattaa näkymän (Itämerellä FMI WAM on jo tarkempi). Vain kartta lukee sitä; aikajana, kortti, kate ja tuulitilan kapseli lukevat varastoa (O12). |
+| V5 | `tools/copernicus.mjs` + `tools/blosc.mjs` (BAL, NWS, IBI, BLK, MED ARCO-Zarrista; tuoteversio STAC:sta joka ajolla, blosc-lz4 puhtaana JS:nä), `tools/ewam.mjs` (DWD EWAM vain IJsselmeerille ja Markermeerille) | **Valta:** alueellisen perheen kuiva solmu väistyy (paino 0) kun ECMWF:llä on siinä merta 7,5 km:n sisällä eikä perheellä omaa märkää pistettä 15 km:n sisällä (`VALTA_KM`, `POHJA_MERI_KM`; 5 km jätti O1280:n 10–12 km:n leveyspiirivälin meren keskelle reikiä). Ilman tätä Marmaranmeri oli Mustanmeren laatikossa tyhjä ja Laatokan länsiranta katkesi. ECMWF rakennetaan siksi ensin. Kentän näyte kuutiollisella B-splinillä: 0,05°:n tason bilineaariset taitteet näkyivät Quiberonin lahdessa suorakaiteina. Copernicuksen tunnusta ei tarvittu (anonyymi pääsy toimi). |
+| V6 | `api/_vuorovesi.js` (`api/vesi.js?vuorovesi=noaa\|kartverket\|malli`), `tools/vuorovesi.py` (EOT20 → `public/vuorovesi/`), kortin vuorovesimoduuli (`buildVuorovesiModuuli`), kapselin vuorovesirivi (`KapVuorovesi`) | Lähde T2:n mukaan; vedenkorkeuden laatta sanoo vuorovesirannikolla "vuorovesi alempana" eikä toista lukua (P15). |
+| V7 | `VuorovesiGL` (vakiot näkymän hilaksi, korkeus GPU:lla hetkeä kohti), `VuorovesiVari`, kerrosruutu "Vuorovesi (beta)" vain vuorovesirannikolla, aikajanan palkit keskiviivasta, kapseli | Rakentaja merkitsee fysikaalisesti mahdottomat vakiot epäluotettaviksi (233 solmua: Saint Lawrencen S2 31 m, Amazonin suu, Maracaibo). Virrat (T5) jäivät (P8). |
+| V8 | `tools/aaltovarmennus.mjs` havainnot-työnkulkuun, `api/aallot.js`:n `poijuSarjat`, savutestiin kerrosruutujen tarkistus | EMODnet ei ole mukana: sen ERDDAP katkaisi yhteyden kehitysympäristöstä, joten Välimerellä, Mustallamerellä ja IJsselmeerillä ei vielä ole poijua. Paras verrataan myös pääperheensä mukaan (`paras←<perhe>`), koska se on mittari 5 sellaisenaan. |
+
+### 14.2 Rakentaja: koko ja kesto
+
+Mitattu kontissa 15.10. (täysi rakennus, S3 ja Copernicus verkon yli):
+
+| perhe | tasot | hetkiä | koko | aika | lähteen märkiä / solmuväli |
+|---|---|---|---|---|---|
+| ECMWF WAM 9 km | `we0`–`we2` | 129 | 152,5 MB (`we0` 95,9, `we1` 42,8, `we2` 13,8) | 305 s | 4 716 388 O1280-pistettä |
+| FMI WAM | `wf0`–`wf5` (+ v1 `a0`–`a3`) | 67–73 | noin 14 MB molemmat luettelot | noin 60 s | 1,93 km |
+| Copernicus BAL | `wb0`–`wb5` | 83 | 13,7 MB | 29 s | 147 222 / 1,85 km |
+| Copernicus NWS | `wn0`–`wn4` | 75 | 14,5 MB | 40 s | 731 648 / 1,96 km |
+| Copernicus IBI | `wi0`–`wi4` | 83 | 20,5 MB | 43 s | 547 912 / 3,09 km |
+| Copernicus BLK | `wk0`–`wk4` | 85 | 3,4 MB | 15 s | 81 103 / 2,78 km |
+| Copernicus MED | `wm0`–`wm4` | 85 | 22,9 MB | 33–35 s | 244 255 / 4,63 km |
+| DWD EWAM | `wd0`–`wd2` | 116 | 0,2 MB | 24 s | 43 järvipistettä (luotto 10 km) |
+
+Yhteensä noin 240 MB ja 9 min (Säädata noin 35 min, aikaraja 60 min,
+muistia enimmillään 1,31 GB). Arviot olivat V1:lle +120 MB ja 3–5 min ja
+V5:lle 40–60 MB ja noin 5 min: ECMWF ylitti arvion, koska 0,25°:n taso
+on mukana +7 vrk:een (koko akselilla se olisi ollut 128 MB yksin), ja
+Copernicus koska Välimeri ja Biskaja ovat laajoja. ECMWF:n
+ekstrapoloituja solmuja `we0`:ssa 31 827 (7 kierrosta, 27,1 km). Akseli:
+ECMWF 48 h menneisyyttä → +15 vrk tuoreimmasta ajosta; Copernicus −48 h
+6 h välein, tunneittain +24 h:iin, 3 h +144 h:iin ja 6 h loppuun.
+
+Rantaviivatesti (luku 5.2) ajetaan jokaisessa rakennuksessa jokaiselle
+perheelle tunnetuilla märillä ja kuivilla pisteillä (`EC_MARAT` /
+`EC_KUIVAT`, `FMI_MARAT` / `FMI_KUIVAT`, Copernicuksen ja EWAMin omat);
+perhe joka ei läpäise sitä jää pois, ja ilman pohjaperhettä `aallot2`:ta
+ei julkaista (asiakas on silloin v1-varatiellä).
+
+### 14.3 Asiakas (V2–V5)
+
+- **Tuuli ei muuttunut (K1, mittari 7):** `Saalaatat._asetaAkseli` sai
+  korjauksen (tarkka askel on oma indeksinsä painolla 0 — palan rajalla
+  k = 24, 48, … laatta näytti puuttuvalta ja sen saapuminen ohitettiin).
+  Tuulen näytteet ovat bitilleen ennallaan: 1 584 näytettä ja 6
+  tuntisarjaa vanhaa buildia vasten.
+- **Rantamaski (V3, mittari 2):** puhelimella (dpr 3) Helsingissä rannan
+  maapikselit (2 px vedestä) joihin aalto piirtyi: z11 16,3 → 11,7 %,
+  z12 18,7 → 12,9 %, z13 5,1 → 3,8 %. Vanha versio kokosi koko näkymän
+  yhdeksi kankaaksi pääsäikeessä pyöristetyllä zoomilla.
+- **Lähizoom (V4):** Biarritz 0,02° 30 000 solmua 1,1–1,4 s palvelimella,
+  162 kt. Jokainen tunnin askel tulee esihaun muistista ja hakee
+  taustalla seuraavan; saapuminen häivytetään.
+- **Perheet kartalla (V5, puhelin, testivarasto):** Helsinki FMI WAM
+  0,57 m, Quiberon NWS 1,07 m (lahti suojaisampi), Klitmøller NWS 1,71,
+  Tarifa IBI 1,06, Bol MED 0,09, Marmaranmeri ECMWF 2,82 (myrsky),
+  Mustameri BLK 1,47, Pampus EWAM 0,19, IJsselmeer EWAM 0,50; 0
+  pageerroria. Asetusten aaltoteksti nimeää näkymän mallit ja niiden
+  pituuden ("Met Office WW3 1,5 km 6 vrk, MFWAM 3 km 8 vrk ja ECMWF WAM
+  9 km 14 vrk").
+- **Kortin luku maalla (P5):** lähin märkä piste enintään
+  1,3 × paikan päällimmäisen perheen solmuväli, enintään 15 km
+  (`luottoKmPaikalle`): FMI WAM 2,5 km, BAL 2,4, NWS 2,5, IBI 4,0, BLK
+  3,6, MED 6,0, ECMWF 11,7 ja EWAM 13 km.
+- **Aaltokatteen muisti** (`AaltoKate`) nollautuu kun luettelon perheet
+  vaihtuvat: Pampus oli maata ennen EWAMia.
+
+### 14.4 Vuorovesi (V6–V7)
+
+- **Vakiot:** EOT20:n kahdeksan osavuorovettä laatoiksi (t0 0,125°
+  rannikolle 892 laattaa 6,52 MB, t1 0,5° 153 / 1,83 MB, t2 2,0° 15 /
+  0,14 MB), katerasteri 2° (10 396 / 16 200 solua, raja 0,5 m), NOAA:n
+  asemat 3 502. Suljetut vedet (IJsselmeer ja Markermeer,
+  Noordzeekanaal) ovat maskissa 3. NOAA:n harmonisia vakioita vasten
+  verrattiin 1 242 asemaa; 549 epäluotettavaa (RMS yli 0,3 m tai M2 yli
+  45 min) merkitsee 15 km:n säteen maskiin 2 (Bristol Bay 1,4–1,9 m,
+  Puget Sound 1,3–1,6 m / 4 h). Lisäksi 233 mahdotonta solmua (V7).
+- **Laskenta:** Schuremanin argumentit, vuorokautisilla K1 −90°, O1/P1/Q1
+  +90° (toisin päin Honolulu 0,22 → 0,03 m). NOAA:n ennustetta vasten
+  San Francisco 0,06 m, Key West 0,04, Duck 0,04.
+- **Proxyt:** malli 0,2–0,9 s, NOAA 0,5 s, Kartverket 0,9 s; mallin
+  "ei dataa" (puuttuva pala = S3 403) on "ei vuorovettä" (Pampus).
+- **Kortti (V6):** moduulin korkeus yksi arvo jokaisella spotilla (354 px
+  puhelin, 395 työpöytä), Pampuksen kertaluonteinen 334 px:n siirtymä
+  poistui esitarkistuksella (`VuorovesiKate.esitarkista`).
+- **Kartta (V7, puhelin, 15.10.):**
+
+  | näkymä | hila | kapseli | aikajanan palkit (403 h) |
+  |---|---|---|---|
+  | Bretagne z8 | 0,125°, 2 078 vesisolmua | "laskee +0,7 m, laskuvesi 03:13" | −2,20 … +2,17 m, 32 nousu- ja 32 laskuvettä |
+  | Bretagne z10 | 0,125° | "laskee +0,7 m" (sama luku) | −2,25 … +2,22 m |
+  | Kanaali z6 | 0,125°, 20 283 | "nousee +1,9 m" | −3,74 … +3,70 m |
+  | Fundy z7 | 0,125°, 6 408 | "laskee +2,6 m" | −4,65 … +4,68 m |
+  | San Francisco z10 | 0,125° | "malli ei luotettava tässä" (epäluotettava osuus 0,54) | ei palkkeja |
+  | IJsselmeer z9 | — | "ei merta tässä" | ei palkkeja |
+  | Helsinki z8 | 0 vesisolmua | "ei vuorovettä tässä" | ei palkkeja |
+  | Atlantti z3,5 | 0,5°, 26 426 | "laskee 0,0 m" | −0,61 … +0,61 m |
+
+  Atlantilla luku oli ennen "−0,0 m": etumerkki tuli pyöristämättömästä
+  luvusta (−0,04). Nyt etumerkki luetaan pyöristetystä (`_vvM`).
+  Kerrosruutu näkyy Bretagnessa ja on piilossa Helsingissä.
+
+### 14.5 Jatkuva varmennus (V8)
+
+`tools/aaltovarmennus.mjs` (havainnot-työnkulun askel, `continue-on-error`)
+toimii kuten tuulen `tools/varmennus.mjs` (O11), kolmessa vaiheessa:
+
+1. **Arkisto.** Uuden `aallot2.luotu`n ennuste luetaan poijujen kohdalta
+   tunneittain 0–72 h: jokainen perhe erikseen (kun perhe kattaa poijun:
+   painokanava > 0,5, aikapaino > 0, märkyys ≥ 0,5) ja Paras samalla
+   säännöllä kuin kortti ja aikajana (`AaltoVarasto.naytteista`
+   hienoimmalla tasolla ilman lähizoomin palvelinhilaa; puuttuva laatta
+   tekee tunnista tuntemattoman, kuten `_vajaa` sovelluksessa). Mukana
+   Parhaan pääperhe tunneittain ja jokaisen perheen lähimmän solmun
+   etäisyys mallin märkään pisteeseen. → `varmennus/aallot/ennusteet/`,
+   noin 55 kB rakennusta kohti, 5 vrk.
+2. **Vertailu** enintään kerran tunnissa: FMI:n aaltopoijut (yksi
+   WFS-kysely, `poijuSarjat`, 96 h), NOAA NDBC:n strategian 15 poijua
+   (aseman viiden vuorokauden tiedosto) ja Marine Instituten M-poijut
+   (ERDDAP, yksi kysely; QC-lippu 9 = puuttuva). Tasatunnin havainto on
+   lähin enintään 30 min päästä. Harha, MAE, RMSE ja SI perheittäin,
+   alueittain (Itämeri, Irlanti, USA länsi, USA itä, Havaiji),
+   rannikkopoijuilla (≤ 25 km Natural Earth 1:10m:n rannasta) ja
+   avomerellä sekä ennusteen iän mukaan; suunnan MAE kun havaittu Hs ≥
+   0,5 m. **Pareittain ECMWF:n kanssa** samoista poijuista, tunneista ja
+   ennusteista, ja Paras myös pääperheensä mukaan (`paras←<perhe>`): ne
+   tunnit joilla perhe ratkaisee Parhaan, verrattuna ECMWF:ään samoilla
+   tunneilla — mittari 5 sellaisenaan. → `varmennus/aallot/tulos.json`.
+3. **Vuorokaudet.** Päättynyt UTC-vuorokausi D kirjataan kerran summina
+   (`paivat.json`, 120 vrk) kun D + 27 h ≤ nyt < D + 48 h: viimeinenkin
+   tunti on havaittu, ja ensimmäisen tunnin 72 h:n ennuste on yhä
+   arkistossa — siksi säilytys on 5 vrk eikä 4 kuten tuulella.
+   Yhteenvedon pareittainen taulukko lukee viimeiset 30 vrk.
+
+**Hälytykset** (yhteenvetoon, eivät kaada ajoa): `aallot2` puuttuu,
+perheen ajo yli 36 h vanha rakennushetkellä (Copernicus ja EWAM
+päivittyvät kerran vuorokaudessa, joten 24 h hälyttäisi joka päivä),
+Parhaan harha yli 0,3 m tai SI yli 0,5 alueella (vuorokausi, n ≥ 30),
+Parhaan suunnan **mediaani**ero yli 60° (Hs ≥ 1 m, n ≥ 30). MAE ei
+kelpaa suunnan hälytykseen: poijun suunta on huippujakson suunta (NDBC
+MWD, FMI ModalWDi) tai keskisuunta (Marine Institute), mallin
+keskisuunta, ja Havaijin pasaatiaallokon ja mainingin meressä MAE oli
+47° ilman vikaa (mediaani 45°); käännetty suunta antaisi ~170°.
+**Huomio** (ei hälytys): perhe tai sen ratkaisemat Parhaan tunnit ovat
+pareittain yli 5 % ECMWF:ää heikompia vähintään 200 parilla 30 vrk:ssa
+— silloin perhe ei mittarin 5 mukaan kuulu alueensa Parhaaseen.
+Järjestys muutetaan rakentajassa käsin (`aaltoLuettelo`n perhelista),
+ei automaattisesti.
+
+**Ensimmäinen ajo** (testivaraston rakennus 15.10. klo 03:27 UTC
+havaintoja vasten klo 03–20 UTC, eli yksi ennuste ja 17 tuntia — ei vielä
+johtopäätöksiä, vaan todiste siitä että ketju toimii päästä päähän):
+
+| perhe | alue | n | harha m | RMSE m | pareittain ECMWF |
+|---|---|---|---|---|---|
+| FMI WAM | Itämeri (6) | 94 | +0,05 | 0,21 | 0,27 |
+| Copernicus BAL | Itämeri | 94 | −0,02 | 0,20 | 0,27 |
+| Copernicus NWS | Irlanti (3) | 48 | −0,09 | 0,38 | 0,44 |
+| Copernicus IBI | Irlanti (4) | 64 | −0,46 | 0,59 | 0,42 |
+| ECMWF WAM 9 km | USA länsi (6) / itä (6) / Havaiji (3) | 99 / 96 / 33 | −0,01 / +0,01 / +0,09 | 0,17 / 0,16 / 0,15 | — |
+| Paras ← IBI | Irlanti (M6) | 16 | | 0,59 | 0,35 |
+
+Itämerellä alueelliset ovat ECMWF:ää parempia kuten strategian otoksessa
+(luku 4.3). IBI oli tässä otoksessa Irlannin poijuilla selvästi matala;
+se ratkaisee Parhaan vain M6:lla (NWS:n alueen reunan ulkopuolella), ja
+jos sama toistuu 30 vrk:n summissa, mittari 5 nostaa sen huomioksi.
+Yksikään poiju ei ole minkään perheen jatkeella (etäisyys märkään
+pisteeseen yli mallin solmuvälin), joten **ekstrapoloinnin rajaa ei
+voi vielä mitata poijuilla** — siihen tarvittaisiin lahtien poijuja
+(esim. CDIP:n rantapoijut).
+
+### 14.6 Hyväksymismittarit: tila
+
+| mittari | tila |
+|---|---|
+| 1. Oikea paikka | Rantaviivatesti joka rakennuksessa jokaiselle perheelle. Kortti, aikajana, tuulitilan kapseli ja varmennus lukevat samaa varaston sekoitusta; kartta lukee zoomista 8 alueellisten ulkopuolella palvelimen hilaa (V4), joten siellä väri voi poiketa kortin luvusta. 100 pisteen laattatarkistusta perheittäin ei tehty. |
+| 2. Ei mantereella | Rantamaski pohjakartan tasolla: rannan maapikselit z11–z13 3,8–12,9 % (ennen 5,1–18,7 %); ei mitattu 16 alueella. |
+| 3. Sulavuus | Toisto ja raahaus ilman kokoamista askeleen sisällä (aika GPU:lla); ruutuaikaa ei voi mitata kontissa (CLAUDE.md) — laitteella mittaamatta. |
+| 4. Tavut | Ei mitattu erikseen; laattabudjetti ja esilataus kuten tuulella. |
+| 5. Osuvuus | Mittari käynnissä (`tools/aaltovarmennus.mjs`); päätös 30 vrk:n summista. |
+| 6. Vuorovesi | Harmoninen laskenta NOAA:n ennustetta vasten 0,04–0,06 m; epäluotettava malli ei näytä lukua (maski 2, "malli ei luotettava tässä"). |
+| 7. Ei regressiota tuulessa | Tuulen näytteet bitilleen ennallaan; savu- ja graafitesti läpi. |
+
+### 14.7 Mitä jäi
+
+- **P9 huippujakso:** jakso on kaikilla perheillä keskijakso (luettelon
+  `jakso: 'keski'`); FMI WAM:n jakso on yhä pistekyselystä.
+- **0,02°:n taso** NWS:lle, IBI:lle, MED:lle ja BLK:lle (koko), ja
+  NWS:n lähizoom palvelimelta.
+- **Poijuja Välimerelle, Mustallemerelle ja IJsselmeerille**
+  (EMODnet Physics, Rijkswaterstaat) — tarkistettava Actionsista, koska
+  kontista yhteys katkesi. Lahtien poijut ekstrapoloinnin rajan
+  mittaamiseen.
+- **Virrat** (P8) "Vuorovesi"-näkymän sisälle.
+- **Laitemittaukset** (mittari 3) oikealla puhelimella ja iPadilla.
+- `tools/aaltomittaus.mjs` jäi kirjoittamatta: mittaukset tehtiin
+  scratchpadin skripteillä, ja CI:ssä on kevyt osa (savutestin
+  kerrosruudut: aallot, sade ja tuuli vaihtavat tilan, ja vuorovesiruutu
+  on piilossa Helsingissä ja näkyvissä Bretagnessa — sovelluksen
+  oletusnäkymä kattaa myös Norjan rannikon, joten siellä ruutu kuuluu
+  näkyä).

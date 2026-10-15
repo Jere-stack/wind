@@ -25550,7 +25550,9 @@ function _aaltoKaavio(el, data, jakso, asema, lampoVain, enn, nimi, o) {
    NOUSU- JA LASKUVESISSÄ (`aariarvot`), ei tasatunneissa. Suuntariviä ei
    ole. Etumerkki aina näkyvissä, kuten vedenkorkeudessa. */
 var VV_NAKYVA_H = 36, VV_NAKYVA_H_LAAJA = 72;
-function _vvM(v) { return (v > 0.005 ? '+' : (v < -0.005 ? '−' : '')) + _desim(Math.abs(v), 1); }
+/* Etumerkki PYÖRISTETYSTÄ luvusta: −0,04 m näkyi "−0,0 m" Atlantilla
+   keskiveden kohdalla (mitattu 15.10.). */
+function _vvM(v) { const r = Math.round(v * 10) / 10; return (r > 0 ? '+' : (r < 0 ? '−' : '')) + _desim(Math.abs(r), 1); }
 function _vvAsuKortti() { return Object.assign({}, Tuulikaavio.ASUT.havainto, { plotH: 132, nuoliH: 0 }); }
 function _vvLuuranko(nimi, viesti) {
   var H = Tuulikaavio.korkeus(_vvAsuKortti());

@@ -160,6 +160,36 @@ export default async function handler(req, res) {
   }
 }
 
+/* KAIKKIEN AALTOPOIJUJEN SARJAT (aaltojen jatkuva varmennus,
+   tools/aaltovarmennus.mjs; docs/aallot.md V8): sama yksi kysely ja
+   samat jasentimet kuin reitilla, `hours` taaksepain 30 min askelin.
+   Vain asemat joilla on aaltolukemia — lampoasemat (kohta 3) jaavat
+   pois. Virhe heitetaan kuten reitilla (O5): se ei ole tyhja lista. */
+export async function poijuSarjat(hours, aikaraja) {
+  var h = Math.max(1, Math.min(HISTORY_MAX, hours | 0));
+  var start = new Date(Date.now() - h * 3600000).toISOString().slice(0, 19) + 'Z';
+  var xml = await haeFmi(WFS + '&parameters=' + PARAMS + '&timestep=30&starttime=' + start,
+    { aikaraja: aikaraja || 20000 });
+  var asemat = parseStations(xml), mp = parseRows(xml);
+  if (!mp) return [];
+  var iHs = mp.fields.indexOf('WaveHs'), iDi = mp.fields.indexOf('ModalWDi');
+  if (iHs < 0) return [];
+  var out = [];
+  for (var id in asemat) {
+    var a = asemat[id], rows = mp.byPos[a.lat.toFixed(4) + ',' + a.lng.toFixed(4)];
+    if (!rows) continue;
+    var ms = [], hs = [], dir = [];
+    for (var i = 0; i < rows.length; i++) {
+      var v = rows[i].v;
+      if (isNaN(v[iHs])) continue;
+      ms.push(rows[i].ms); hs.push(v[iHs]);
+      dir.push(iDi >= 0 && !isNaN(v[iDi]) ? v[iDi] : null);
+    }
+    if (ms.length) out.push({ fmisid: a.fmisid, nimi: a.name, lat: a.lat, lng: a.lng, ms: ms, hs: hs, dir: dir });
+  }
+  return out;
+}
+
 function buildLatest(xml, tz) {
   var asemat = parseStations(xml);
   var mp = parseRows(xml);

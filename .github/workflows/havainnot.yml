@@ -21,7 +21,9 @@
 #
 # Ja jatkuva varmennus (tools/varmennus.mjs): varaston ennuste
 # rekisterin asemille arkistoon ja havaintoja vasten tunnin välein
-# (docs/oikeellisuus.md, O11).
+# (docs/oikeellisuus.md, O11). Aalloille sama omana askeleenaan
+# (tools/aaltovarmennus.mjs, docs/aallot.md V8): aaltovaraston perheet
+# FMI:n, NDBC:n ja Marine Instituten poijuja vasten.
 #
 # Ja Euroopan havainnot (tools/esoh.mjs, docs/eurooppa.md 14): MeteoGate
 # E-SOH säilyttää vuorokauden, joten tasatuntien lukemat kerätään
@@ -31,7 +33,8 @@
 # yksi committi, joten satakin ajoa vuorokaudessa ei kasvata repoa.
 # Varasto on noin 3,6 MB (31 vrk: Mellsten 2,4 MB minuutin riveinä,
 # Laru 1,2 MB), varmennuksen arkisto noin 75 kB rakennusta kohti
-# (4 vrk säilytys, enintään noin 2,5 MB) ja Euroopan tunnit noin
+# (4 vrk säilytys, enintään noin 2,5 MB), aaltojen arkisto noin 55 kB
+# rakennusta kohti (5 vrk, noin 1,5 MB) ja Euroopan tunnit noin
 # 1,4 MB vuorokaudessa (8 vrk, noin 11 MB).
 #
 # JULKAISU SIIRTÄÄ VAIN MUUTOKSEN. Noudettu klooni pidetään (`.git`
@@ -169,6 +172,19 @@ jobs:
         continue-on-error: true
         timeout-minutes: 3
         run: node tools/varmennus.mjs varasto >> "$GITHUB_STEP_SUMMARY"
+
+      # AALTOJEN JATKUVA VARMENNUS (tools/aaltovarmennus.mjs, docs/aallot.md
+      # V8): uuden aaltovaraston ennuste poijujen kohdalta perheittäin
+      # arkistoon (`varmennus/aallot/ennusteet/`, 5 vrk), ja enintään
+      # kerran tunnissa FMI:n, NDBC:n ja Marine Instituten poijuja vasten
+      # (`varmennus/aallot/tulos.json`, päättyneet vuorokaudet summina
+      # `paivat.json`iin). Ilman arkistoa ja uutta aaltovarastoa havaintoja
+      # ei haeta. `continue-on-error`: varmennuksen vika ei saa estää
+      # havaintojen julkaisua.
+      - name: Aaltojen varmennus
+        continue-on-error: true
+        timeout-minutes: 3
+        run: node tools/aaltovarmennus.mjs varasto >> "$GITHUB_STEP_SUMMARY"
 
       # EUROOPAN HAVAINNOT (tools/esoh.mjs, docs/eurooppa.md 14): MeteoGate
       # E-SOH säilyttää vuorokauden, joten 3–24 h vanhat tasatunnit
