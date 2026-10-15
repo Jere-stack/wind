@@ -15353,74 +15353,196 @@ const LampoGL = {
  * valmis — se on Mercator-koordinaateissa, joten se skaalautuu eleen
  * mukana. Laatta joka ei latautunut on "vettä": silloin kerros näyttää
  * mallin oman katteen eikä katoa. */
+/* RANTAMASKI GL-LAATTOINA (M2, docs/aallot.md 5.3). Esrin tumman pohjan
+ * laatat SAMALLA TASOLLA KUIN POHJAKARTTA: MapLibre pyöristää rasterin
+ * tason, ja retinalla pohja on 128 px:n laattoina eli tasoa tarkempi
+ * (`POHJA_LAATTA`) — ennen maski oli retinalla tasoa karkeampi kuin
+ * näkyvä ranta (z10/z11 ero 0,16–0,97 % pikseleistä). Kynnys tehdään
+ * KERRAN laatan saapuessa (vesi ≤ 48, maa ≥ 60, väli lineaarisesti:
+ * JPEG:n reuna on rantaviivan antialiasointi) LUMINANCE-tekstuuriksi ja
+ * suorittimen taulukoksi (`vesi`, kapseli ja harjat). Joka ruudussa jossa
+ * näkymä muuttui maski piirretään RUUDUN KOKOISEEN PUSKURIIN samalla
+ * projektiolla kuin pohjakartta (`puskuriin`), joten ranta on
+ * pikselilleen näkyvä ranta myös nipistyksen aikana. Puuttuvan laatan
+ * kohdalla on viereisen tason laatta (emo zoomatessa sisään, lapset
+ * ulos), ja jos mitään ei ole, kohta on vettä (mallin oma märkyys) kuten
+ * ennen. Vanha versio kokosi koko näkymän yhdeksi kankaaksi pääsäikeessä
+ * (`getImageData`, 4096²:n katto) ja vain pyöristetyllä zoomilla.
+ * Satelliittipohjalla maski luetaan yhä tummasta pohjasta. */
 const Rantamaski = {
   URL: 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/',
-  MAX_Z: 16, PEHMUSTE: 0.35,
-  _m: null, _kesken: null, versio: 0,
-  _z(map) { return Math.max(3, Math.min(this.MAX_Z, Math.round(map.getZoom()))); },
-  _ikkuna(map, z, pad) {
-    const v = map._nakyma(), s = Math.pow(2, z - v.zl), N = 256 * Math.pow(2, z);
-    const vx0 = v.x0 * s, vy0 = v.y0 * s, vw = v.w * s, vh = v.h * s;
-    const x0 = Math.floor((vx0 - vw * pad) / 256) * 256, x1 = Math.ceil((vx0 + vw * (1 + pad)) / 256) * 256;
-    const y0 = Math.max(0, Math.floor((vy0 - vh * pad) / 256) * 256), y1 = Math.min(N, Math.ceil((vy0 + vh * (1 + pad)) / 256) * 256);
-    return { z, x0, y0, w: x1 - x0, h: y1 - y0, vx0, vy0, vw, vh };
+  MIN_Z: 3, MAX_Z: 16, MAX_LAATTAA: 200, RINNAKKAIN: 8,
+  _laatat: new Map(), _jono: [], _kaynnissa: 0, _z0: null, _avainVali: '',
+  versio: 0, _gl: null, _fb: null, _ohj: null, _nelio: null, _piirretty: '',
+  _kangas: null, _g: null,
+
+  _z(map) { return Math.max(this.MIN_Z, Math.min(this.MAX_Z, Math.round(map.getZoom()) + (POHJA_LAATTA === 128 ? 1 : 0))); },
+  /* Näkymän laattaväli tasolla z (x kiertämätön) ja `rengas` laattaa. */
+  _vali(v, z, rengas) {
+    const s = Math.pow(2, z - v.zl), n = Math.pow(2, z);
+    return { z, n,
+      x0: Math.floor(v.x0 * s / 256) - rengas, x1: Math.floor((v.x0 + v.w) * s / 256) + rengas,
+      y0: Math.max(0, Math.floor(v.y0 * s / 256) - rengas), y1: Math.min(n - 1, Math.floor((v.y0 + v.h) * s / 256) + rengas) };
   },
-  _kattaa(m, k) {
-    return m && m.z === k.z && k.vx0 >= m.x0 && k.vy0 >= Math.max(0, m.y0 - 1)
-      && k.vx0 + k.vw <= m.x0 + m.w && k.vy0 + k.vh <= m.y0 + m.h + 1;
-  },
+  _avain(z, x, y, n) { return z + '/' + (((x % n) + n) % n) + '/' + y; },
+
+  /* Näkymän laatat jonoon (keskeltä ulos) ja vanhimmat pois muistista.
+     Halpa kun näkymän laattaväli ei muuttunut. */
   varmista(map) {
-    const z = this._z(map);
-    let k = this._ikkuna(map, z, 0);
-    if (this._kattaa(this._m, k) || (this._kesken && this._kattaa(this._kesken, k))) return;
-    if (this._kesken) return;                 /* yksi rakennus kerrallaan */
-    k = this._ikkuna(map, z, this.PEHMUSTE);
-    if (k.w * k.h > 3000 * 3000) k = this._ikkuna(map, z, 0);
-    if (k.w <= 0 || k.h <= 0 || k.w * k.h > 4096 * 4096) return;
-    this._kesken = k;
-    const self = this, n = Math.pow(2, z);
-    const kangas = document.createElement('canvas');
-    kangas.width = k.w; kangas.height = k.h;
-    const g = kangas.getContext('2d', { willReadFrequently: true });
-    const lupaukset = [];
-    for (let ty = k.y0 / 256; ty < (k.y0 + k.h) / 256; ty++) {
-      for (let tx = k.x0 / 256; tx < (k.x0 + k.w) / 256; tx++) {
-        const x = ((tx % n) + n) % n, dx = tx * 256 - k.x0, dy = ty * 256 - k.y0;
-        lupaukset.push(new Promise(function (ok) {
-          const im = new Image();
-          im.crossOrigin = 'anonymous';
-          im.onload = function () { g.drawImage(im, dx, dy); ok(); };
-          /* Lataamaton laatta = vesi (musta), ks. yllä. */
-          im.onerror = function () { g.fillStyle = '#000'; g.fillRect(dx, dy, 256, 256); ok(); };
-          im.src = self.URL + z + '/' + ty + '/' + x;
-        }));
-      }
+    const v = map._nakyma(), z = this._z(map);
+    this._z0 = z;
+    const r = this._vali(v, z, 1);
+    const avainVali = z + ':' + r.x0 + ':' + r.x1 + ':' + r.y0 + ':' + r.y1;
+    if (avainVali === this._avainVali) return;
+    this._avainVali = avainVali;
+    const cx = (r.x0 + r.x1) / 2, cy = (r.y0 + r.y1) / 2, uudet = [];
+    for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) {
+      const k = this._avain(z, x, y, r.n);
+      const t = this._laatat.get(k);
+      if (t) { this._laatat.delete(k); this._laatat.set(k, t); continue; }   /* käyttöjärjestys */
+      uudet.push({ k, z, x: ((x % r.n) + r.n) % r.n, y, e: (x - cx) * (x - cx) + (y - cy) * (y - cy) });
     }
-    Promise.all(lupaukset).then(function () {
-      let kuva;
-      try { kuva = g.getImageData(0, 0, k.w, k.h).data; } catch (e) { self._kesken = null; return; }
-      const d = new Uint8Array(k.w * k.h);
-      /* Vesi kirkkaus ≤ 48, maa ≥ 60; väli lineaarisesti (JPEG:n reuna on
-         rantaviivan antialiasointi). */
-      for (let i = 0, p = 0; i < d.length; i++, p += 4) {
-        const l = (kuva[p] + kuva[p + 1] + kuva[p + 2]) / 3;
-        d[i] = l <= 48 ? 255 : (l >= 60 ? 0 : Math.round((60 - l) / 12 * 255));
-      }
-      self._m = { z: k.z, x0: k.x0, y0: k.y0, w: k.w, h: k.h, d: d };
-      self.versio++;
-      self._kesken = null;
-      if (State.map) State.map.ml.triggerRepaint();
-      if (typeof Crosshair !== 'undefined' && aaltotila()) Crosshair.refresh();
-    });
+    uudet.sort((a, b) => a.e - b.e);
+    this._jono = uudet.concat(this._jono.filter(j => j.z === z && !this._laatat.has(j.k)));
+    this._pumppaa();
   },
-  /* Vettä paikassa 0..1, tai null jos maskia ei ole tälle kohdalle. */
+  /* Vanhimmat pois (käyttöjärjestys: näkymän laatat on juuri kosketettu,
+     joten ne ovat lopussa). Laatta on 64 kt taulukkona ja 64 kt
+     tekstuurina; puhelimen näkymä renkaineen on noin 70 laattaa. */
+  _karsi() {
+    while (this._laatat.size > this.MAX_LAATTAA) {
+      const k = this._laatat.keys().next().value, t = this._laatat.get(k);
+      if (t.tex && this._gl) this._gl.deleteTexture(t.tex);
+      this._laatat.delete(k);
+    }
+  },
+  _pumppaa() {
+    while (this._kaynnissa < this.RINNAKKAIN && this._jono.length) {
+      const j = this._jono.shift();
+      if (this._laatat.has(j.k)) continue;
+      const t = { z: j.z, x: j.x, y: j.y, d: null, tex: null, valmis: false };
+      this._laatat.set(j.k, t);
+      this._karsi();
+      this._kaynnissa++;
+      const self = this, im = new Image();
+      im.crossOrigin = 'anonymous';
+      const loppu = function () { self._kaynnissa--; self.versio++; if (State.map) State.map.ml.triggerRepaint(); self._pumppaa(); };
+      im.onload = function () {
+        try { t.d = self._kynnys(im); } catch (e) { t.d = null; }
+        t.valmis = true;
+        if (typeof Crosshair !== 'undefined' && aaltotila()) Crosshair.refresh();
+        loppu();
+      };
+      /* Lataamaton laatta on vettä (puskurin pohja). */
+      im.onerror = function () { t.valmis = true; loppu(); };
+      im.src = this.URL + j.z + '/' + j.y + '/' + j.x;
+    }
+  },
+  _kynnys(im) {
+    if (!this._kangas) {
+      this._kangas = document.createElement('canvas');
+      this._kangas.width = 256; this._kangas.height = 256;
+      this._g = this._kangas.getContext('2d', { willReadFrequently: true });
+    }
+    this._g.drawImage(im, 0, 0, 256, 256);
+    const kuva = this._g.getImageData(0, 0, 256, 256).data, d = new Uint8Array(65536);
+    for (let i = 0, p = 0; i < 65536; i++, p += 4) {
+      const l = (kuva[p] + kuva[p + 1] + kuva[p + 2]) / 3;
+      d[i] = l <= 48 ? 255 : (l >= 60 ? 0 : Math.round((60 - l) / 12 * 255));
+    }
+    return d;
+  },
+
+  /* Piirtojärjestys: kaukaisin taso ensin ja oma taso viimeisenä, joten
+     oma voittaa ja muut täyttävät vain aukot. */
+  _tasot(z) { return [z - 2, z - 1, z + 1, z].filter(t => t >= this.MIN_Z && t <= this.MAX_Z); },
+
+  /* MASKI RUUDUN KOKOISEEN PUSKURIIN (`AaltoGL.prerender`): r = vettä
+     0..1 joka pikselissä. Palauttaa tekstuurin tai null (ei yhtään
+     laattaa → ei maskia). */
+  puskuriin(gl, map) {
+    if (!this._gl) this._alustaGl(gl);
+    const v = map._nakyma(), W = gl.drawingBufferWidth, H = gl.drawingBufferHeight, z = this._z0;
+    if (z == null) return null;
+    let n = 0;
+    for (const t of this._laatat.values()) {
+      if (!t.d || t.tex) { if (t.tex) n++; continue; }
+      t.tex = GLApu.tekstuuri(gl, gl.LINEAR);
+      gl.bindTexture(gl.TEXTURE_2D, t.tex);
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, 256, 256, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, t.d);
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+      n++;
+    }
+    if (!n) return null;
+    const avain = [v.x0, v.y0, v.zl, v.w, v.h, W, H, z, this.versio].join(',');
+    this._fb = GLApu.fbo(gl, W, H, this._fb);
+    if (avain === this._piirretty) return this._fb.tex;
+    this._piirretty = avain;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this._fb.fb);
+    gl.viewport(0, 0, W, H);
+    gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST); gl.disable(gl.STENCIL_TEST); gl.disable(gl.SCISSOR_TEST);
+    gl.clearColor(1, 1, 1, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+    const self = this, p = this._ohj;
+    GLApu.aja(gl, p, this._nelio, function () {
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+      gl.uniform2f(p.u.u_koko, v.w, v.h);
+      gl.uniform1i(p.u.u_tex, 0);
+      gl.activeTexture(gl.TEXTURE0);
+      for (const L of self._tasot(z)) {
+        const r = self._vali(v, L, 0), sivu = 256 * Math.pow(2, v.zl - L);
+        for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) {
+          const t = self._laatat.get(self._avain(L, x, y, r.n));
+          if (!t || !t.tex) continue;
+          gl.bindTexture(gl.TEXTURE_2D, t.tex);
+          gl.uniform4f(p.u.u_rect, x * sivu - v.x0, y * sivu - v.y0, sivu, sivu);
+          gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        }
+      }
+    });
+    return this._fb.tex;
+  },
+  _alustaGl(gl) {
+    this._gl = gl;
+    this._ohj = GLApu.ohjelma(gl,
+      GL_TARKKUUS
+      + 'attribute vec2 a_pos;\nuniform vec4 u_rect;\nuniform vec2 u_koko;\nvarying vec2 v_uv;\n'
+      + 'void main(){ vec2 p = u_rect.xy + a_pos * u_rect.zw; vec2 c = p / u_koko * 2.0 - 1.0;\n'
+      + '  gl_Position = vec4(c.x, -c.y, 0.0, 1.0); v_uv = a_pos; }\n',
+      GL_TARKKUUS_FS
+      + 'uniform sampler2D u_tex; varying vec2 v_uv;\n'
+      + 'void main(){ gl_FragColor = vec4(texture2D(u_tex, v_uv).r); }\n',
+      ['a_pos'], ['u_rect', 'u_koko', 'u_tex']);
+    this._nelio = GLApu.nelio(gl);
+  },
+  /* GL-konteksti vaihtui tai kerros poistui: tekstuurit pois, taulukot
+     jäävät (seuraava `puskuriin` lataa ne uudelleen). */
+  purku(gl) {
+    for (const t of this._laatat.values()) if (t.tex) { gl.deleteTexture(t.tex); t.tex = null; }
+    if (this._ohj) gl.deleteProgram(this._ohj.o);
+    if (this._nelio) gl.deleteBuffer(this._nelio);
+    GLApu.poistaFbo(gl, this._fb);
+    this._ohj = null; this._nelio = null; this._fb = null; this._gl = null; this._piirretty = '';
+  },
+
+  /* Vettä paikassa 0..1 suorittimella (kapseli, harjat), tai null jos
+     laattaa ei ole. Sama tasojärjestys kuin puskurissa. */
   vesi(lat, lng) {
-    const m = this._m;
-    if (!m) return null;
-    const N = 256 * Math.pow(2, m.z);
-    const x = Math.floor((lng + 180) / 360 * N - m.x0), y = Math.floor((0.5 - ymerc(lat) / (2 * Math.PI)) * N - m.y0);
-    if (x < 0 || y < 0 || x >= m.w || y >= m.h) return null;
-    return m.d[y * m.w + x] / 255;
+    const z = this._z0;
+    if (z == null) return null;
+    const tasot = this._tasot(z);
+    for (let i = tasot.length - 1; i >= 0; i--) {
+      const L = tasot[i], N = 256 * Math.pow(2, L);
+      const px = (lng + 180) / 360 * N, py = (0.5 - ymerc(lat) / (2 * Math.PI)) * N;
+      const tx = Math.floor(px / 256), ty = Math.floor(py / 256);
+      if (ty < 0 || ty >= N / 256) continue;
+      const t = this._laatat.get(this._avain(L, tx, ty, N / 256));
+      if (!t || !t.d) continue;
+      const ix = Math.min(255, Math.floor(px - tx * 256)), iy = Math.min(255, Math.floor(py - ty * 256));
+      return t.d[iy * 256 + ix] / 255;
+    }
+    return null;
   },
 };
 
@@ -15812,7 +15934,7 @@ const AaltoGL = {
       + 'uniform sampler2D u_khila; uniform sampler2D u_kkate; uniform vec2 u_kk; uniform vec3 u_kg; uniform float u_kf; uniform float u_kw; uniform float u_kon;\n'
       + 'uniform sampler2D u_vhila; uniform sampler2D u_vkate; uniform vec2 u_vk; uniform vec3 u_vg; uniform float u_vf; uniform float u_vw;\n'
       + 'uniform sampler2D u_lut; uniform vec4 u_nx; uniform vec2 u_ruutu;\n'
-      + 'uniform sampler2D u_maski; uniform vec4 u_mk; uniform vec2 u_mw;\n'
+      + 'uniform sampler2D u_maski; uniform vec3 u_mk;\n'
       + 'vec3 kentta(sampler2D h, sampler2D kt, vec2 hk, vec3 g, float f, float lng, float la){\n'
       + '  float px = (lng - g.y) / g.z, py = (la - g.x) / g.z;\n'
       + '  if (px < 0.0 || py < 0.0 || px > hk.x - 1.0 || py > hk.y - 1.0) return vec3(0.0);\n'
@@ -15839,11 +15961,10 @@ const AaltoGL = {
       + '  if (o.z <= 0.0 || o.y <= 0.003) { gl_FragColor = vec4(0.0); return; }\n'
       + '  float hs = o.x / o.y;\n'
       /* Rantamaski kun se on: kenttä on jatkettu maan puolelle, ja rannan
-         piirtää pohjakartan rantaviiva. Ilman maskia mallin oma märkyys. */
-      + '  float ranta = 1.0;\n'
-      + '  if (u_mk.w > 0.5) {\n'
-      + '    vec2 mp = (vec2(sx, sy) * u_mk.z + u_mk.xy) / u_mw;\n'
-      + '    ranta = (mp.x < 0.0 || mp.y < 0.0 || mp.x > 1.0 || mp.y > 1.0) ? 0.0 : texture2D(u_maski, mp).r; }\n'
+         piirtää pohjakartan rantaviiva — ruudun kokoisesta puskurista
+         SAMASTA PIKSELISTÄ (`Rantamaski.puskuriin`). Ilman maskia mallin
+         oma märkyys. */
+      + '  float ranta = u_mk.z > 0.5 ? texture2D(u_maski, gl_FragCoord.xy / u_mk.xy).r : 1.0;\n'
       + '  float li = floor(255.0 * sqrt(clamp(hs, 0.0, 10.0) / 10.0) + 0.5);\n'
       + '  vec4 c = texture2D(u_lut, vec2((li + 0.5) / 256.0, 0.5));\n'
       + '  gl_FragColor = vec4(c.rgb * c.a, c.a) * min(o.y, 1.0) * ranta;\n'
@@ -15851,9 +15972,8 @@ const AaltoGL = {
       ['a_pos'], ['u_hila', 'u_kate', 'u_hk', 'u_hg', 'u_f', 'u_hon',
                   'u_khila', 'u_kkate', 'u_kk', 'u_kg', 'u_kf', 'u_kw', 'u_kon',
                   'u_vhila', 'u_vkate', 'u_vk', 'u_vg', 'u_vf', 'u_vw',
-                  'u_lut', 'u_nx', 'u_ruutu', 'u_maski', 'u_mk', 'u_mw']);
-    this._texMaski = GLApu.tekstuuri(gl, gl.LINEAR);
-    this._maskiLadattu = -1;
+                  'u_lut', 'u_nx', 'u_ruutu', 'u_maski', 'u_mk']);
+    this._texMaski = null;
     this._pRintama = GLApu.ohjelma(gl,
       GL_TARKKUUS
       + 'attribute vec2 a_xy; attribute float a_d; attribute float a_a;\n'
@@ -15880,7 +16000,9 @@ const AaltoGL = {
   onRemove(ml, gl) {
     [this._pKentta, this._pRintama].forEach(p => p && gl.deleteProgram(p.o));
     [this._texHila, this._texKate, this._texKHila, this._texKKate, this._texVHila, this._texVKate,
-     this._texLut, this._texMaski].forEach(t => t && gl.deleteTexture(t));
+     this._texLut].forEach(t => t && gl.deleteTexture(t));
+    Rantamaski.purku(gl);
+    this._texMaski = null;
     if (this._nelio) gl.deleteBuffer(this._nelio);
     if (this._puskuri) gl.deleteBuffer(this._puskuri);
     this._gl = null;
@@ -15890,6 +16012,9 @@ const AaltoGL = {
     if (!this._map || !this._pKentta || !this._naytetaan()) { this._rintamat.length = 0; return; }
     Rantamaski.varmista(this._map);
     this._varmistaHila();
+    /* Maskin puskuri ruudun ulkopuolella, kuten lämpökartan vaiheet:
+       MapLibre sitoo oman kehyspuskurinsa takaisin `prerender`in jälkeen. */
+    this._texMaski = Rantamaski.puskuriin(gl, this._map);
   },
 
   _lataa(gl, tex, texK, h) {
@@ -15940,15 +16065,7 @@ const AaltoGL = {
     const kw = !kh ? 0 : (!h ? 1 : this._kwNyt);
     const nx0 = v.x0 / v.W * 360 - 180, nx1 = 360 / v.W;
     const ny0 = (0.5 - v.y0 / v.W) * 2 * Math.PI, ny1 = 2 * Math.PI / v.W;
-    const M = Rantamaski._m;
-    if (M && this._maskiLadattu !== Rantamaski.versio) {
-      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-      gl.bindTexture(gl.TEXTURE_2D, this._texMaski);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, M.w, M.h, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, M.d);
-      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
-      this._maskiLadattu = Rantamaski.versio;
-    }
-    const ms = M ? Math.pow(2, M.z - v.zl) : 1;
+    const M = this._texMaski;
     const self = this, pK = this._pKentta, f = this._f, vh = this._vanha;
     /* Tunti A ja paino B:lle: hila on koottu tälle tunnille, mutta
        odotuksen aikana ruudulla voi olla edellisen tunnin hila (`_odottava`):
@@ -15962,7 +16079,7 @@ const AaltoGL = {
       gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, self._texVHila);
       gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, self._texVKate);
       gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, self._texLut);
-      gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, self._texMaski);
+      gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, M || self._texLut);
       gl.uniform1i(pK.u.u_hila, 0); gl.uniform1i(pK.u.u_kate, 1);
       gl.uniform1i(pK.u.u_khila, 2); gl.uniform1i(pK.u.u_kkate, 3);
       gl.uniform1i(pK.u.u_vhila, 4); gl.uniform1i(pK.u.u_vkate, 5);
@@ -15978,8 +16095,7 @@ const AaltoGL = {
       gl.uniform1f(pK.u.u_vf, vh ? (self._vanhaF || 0) : 0); gl.uniform1f(pK.u.u_vw, vh ? vw : 0);
       gl.uniform4f(pK.u.u_nx, nx0, nx1, ny0, ny1);
       gl.uniform2f(pK.u.u_ruutu, pr, gl.drawingBufferHeight);
-      gl.uniform4f(pK.u.u_mk, M ? v.x0 * ms - M.x0 : 0, M ? v.y0 * ms - M.y0 : 0, ms, M ? 1 : 0);
-      gl.uniform2f(pK.u.u_mw, M ? M.w : 1, M ? M.h : 1);
+      gl.uniform3f(pK.u.u_mk, gl.drawingBufferWidth, gl.drawingBufferHeight, M ? 1 : 0);
       GLApu.sekoitus(gl, 'normaali');
       gl.enableVertexAttribArray(0);
       gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
