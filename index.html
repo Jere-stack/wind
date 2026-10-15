@@ -9320,7 +9320,7 @@ const AaltoVarasto = Object.assign(Object.create(Saalaatat), {
   _ajat: null, _tsMs: null, _perus: null, _akselit: null, _versio: '',
   _uusia: 0, _perheet: null, _pohja: null, _alueelliset: [], _paalla: true,
   _hetkiMs: null, _sarjaTila: false, _malliTila: 'auto',
-  TILAT: { auto: { perheet: null, dyn: null } },
+  TILAT: { auto: { perheet: null, dyn: 'ecmwf_wam' } },
   _dyn: null, _osuus: null, _ajatH: null, _tsMsH: null, _kartta: null, _tiValmis: false,
   _vajaa: false, _vajaat: 0, _kooste: [], _saapuneet: 0,
   _sinT: null, _cosT: null, _sinTA: 0, _puuskaTila: false,
@@ -9411,6 +9411,18 @@ const AaltoVarasto = Object.assign(Object.create(Saalaatat), {
       });
     }
     this._pohja = this._perheet[this._perheet.length - 1];
+    /* LÄHIZOOMIN PERHE (`AaltoHila`, docs/aallot.md V4): ECMWF WAM 9 km
+       palvelimelta alueellisten alla ja varaston ECMWF:n päällä, kuten
+       tuulen `MalliHila`. V1-varatiellä sitä ei ole (pohja on FMI). */
+    const edDyn = this._dyn;
+    this._dyn = null;
+    if (!a._v1) {
+      this._dyn = { id: 'wdyn', dyn: true, api: 'ecmwf_wam', malli: 'ecmwf_wam', tasot: [], pohja: false, pois: false,
+        natiiviKm: 9, ajoAika: null, _bb: [-90, 90, -Infinity, Infinity], _aikaW: 0,
+        _laatta: edDyn && edDyn._laatta || null, _sarja: null,
+        _m: { laatta: null, tyhja: false, vara: false, la0: 0, la1: 0, lo0: 0, lo1: 0, step: -1 } };
+      this._perheet.splice(this._perheet.length - 1, 0, this._dyn);
+    }
     /* Pohjan pisin akseli on varaston akseli: `asetaHetki` kertoo sen
        mukaan voiko varasto palvella hetkeä, ja aikajana rajautuu siihen. */
     this._perus = this._pohja._pisin._ax;
@@ -9589,6 +9601,23 @@ const AaltoVarasto = Object.assign(Object.create(Saalaatat), {
       const p = P[i];
       let w = p._aikaW;
       if (w <= 0) continue;
+      /* LÄHIZOOMIN PERHE (`AaltoHila`): palvelimen hila sellaisenaan, ei
+         tasoja eikä laattoja. Alueensa ulkopuolella se ei osallistu, ja
+         reunan häivytys on sen painotasossa. */
+      if (p.dyn && !this._ilmanDyn) {
+        const l = p._laatta;
+        if (!l || lat < l.la0 || lat > l.la1 || lo < l.lo0 || lo > l.lo1 || !this._naytePerhe(l, lat, lo)) continue;
+        w *= this._pPaino;
+        if (w <= 0) continue;
+        const c = jaljella * w, ca = c * this._pA;
+        if (ca > 0) {
+          sA += ca; sH += ca * this._pHs; sS += ca * this._pS; sC += ca * this._pC;
+          if (this._pTp === this._pTp) { sT += ca * this._pTp; wT += ca; }
+        }
+        sW += c; O[i] = c; jaljella *= (1 - w);
+        continue;
+      }
+      if (p.dyn) continue;
       const bb = p._bb;
       if (lat < bb[0] || lat > bb[1] || lo < bb[2] || lo > bb[3]) {
         /* Pohjan alueen ulkopuolella ei ole aaltoja (vain v1-varatiellä,
@@ -9652,10 +9681,14 @@ const AaltoVarasto = Object.assign(Object.create(Saalaatat), {
      kootaan kerran (`_kooste`, kuten tuulella). */
   _koosteAvainA(laMin, loMin, d, gc, gr, step, tMs) {
     let a = laMin + '|' + loMin + '|' + d + '|' + gc + '|' + gr + '|' + step + '|' + tMs
-      + '|' + this._saapuneet + '|' + this._laatat.size + '|' + this._versio;
+      + '|' + this._saapuneet + '|' + this._laatat.size + '|' + this._versio + '|' + this._dynVersio;
     for (const p of this._perheet) a += '|' + (p.pois ? 1 : 0);
     return a;
   },
+  /* LÄHIZOOMIN PERHE VAIN KARTALLE: kartan hila lukee sen, mutta sarjat
+     (aikajana, kortti), kate ja tuulitilan kapseli lukevat varastoa —
+     niiden luku ei saa riippua zoomista eikä näkymästä (O12). */
+  _ilmanDyn: true, _dynVersio: 0,
   kokoaAallot(laMin, loMin, d, gc, gr, step, tMs, ulos) {
     if (!this.asetaHetki(tMs)) return -1;
     const n = gc * gr, avain = this._koosteAvainA(laMin, loMin, d, gc, gr, step, tMs);
@@ -9667,19 +9700,22 @@ const AaltoVarasto = Object.assign(Object.create(Saalaatat), {
     }
     let puuttuu = 0, vajaat = 0;
     const { hs, s, c, tp, a, maski } = ulos;
-    for (let j = 0; j < gr; j++) {
-      const la = laMin + j * d;
-      for (let i = 0; i < gc; i++) {
-        const k = j * gc + i;
-        if (this.naytteista(la, loMin + i * d, step)) {
-          hs[k] = this._nHs; s[k] = this._nS; c[k] = this._nC; tp[k] = this._nTp; a[k] = this._nA;
-          if (this._vajaa) { vajaat++; maski[k] = 2; } else maski[k] = 1;
-        } else {
-          hs[k] = 0; s[k] = 0; c[k] = 1; tp[k] = NaN; a[k] = 0; maski[k] = 0;
-          puuttuu++;
+    this._ilmanDyn = false;
+    try {
+      for (let j = 0; j < gr; j++) {
+        const la = laMin + j * d;
+        for (let i = 0; i < gc; i++) {
+          const k = j * gc + i;
+          if (this.naytteista(la, loMin + i * d, step)) {
+            hs[k] = this._nHs; s[k] = this._nS; c[k] = this._nC; tp[k] = this._nTp; a[k] = this._nA;
+            if (this._vajaa) { vajaat++; maski[k] = 2; } else maski[k] = 1;
+          } else {
+            hs[k] = 0; s[k] = 0; c[k] = 1; tp[k] = NaN; a[k] = 0; maski[k] = 0;
+            puuttuu++;
+          }
         }
       }
-    }
+    } finally { this._ilmanDyn = true; }
     this._vajaat = vajaat;
     this._kooste.unshift({ avain, hetki: tMs, hs: hs.slice(0, n), s: s.slice(0, n), c: c.slice(0, n), tp: tp.slice(0, n),
                            a: a.slice(0, n), maski: maski.slice(0, n), puuttuu, vajaat });
@@ -10127,6 +10163,166 @@ const Aallot = {
       out[i] = va + (vb - va) * f;
     }
     return out;
+  },
+};
+
+/* AALTOJEN LÄHIZOOM (docs/aallot.md V4 ja 6.5). ECMWF WAM 9 km mallin
+ * omalla O1280-hilalla palvelimelta (`api/malli.js?muuttuja=aallot`)
+ * zoomista 8 valitulle TASATUNNILLE, kun alueellinen perhe (FMI WAM) ei
+ * kata näkymää — varaston hienoin ECMWF-taso on 0,25° (laatikkokeskiarvo
+ * noin 28 km), ja saaren tai lahden rakenne näkyy vasta mallin omalla
+ * hilalla. Se on aaltovaraston dynaaminen perhe (`AaltoVarasto._dyn`)
+ * varaston ECMWF:n päällä: sama malli tarkempana, joten raahauksen ja
+ * toiston varasto vaihtaa vain tarkkuutta (kuten tuulen `MalliHila`).
+ * Palvelin jatkaa kentän maalle samalla säännöllä kuin rakentaja ja
+ * palauttaa etäisyystason, joten laatta luetaan kuten varaston laatta.
+ * Edellinen ja seuraava tunti haetaan taustalla muistiin. Vain kartta
+ * lukee sitä (`_ilmanDyn`): aikajana, kortti ja kate lukevat varastoa. */
+const AaltoHila = {
+  MIN_Z: 8, PEHMUSTE: 0.6, AIKARAJA_MS: 12000,
+  _TASO: { id: 'wdyn', luottoKm: 9, _aalto: true },
+  _kentat: new Map(), _kesken: null, _ajastin: 0, _virheT: 0, _turha: null, _esiKesken: new Set(),
+  tilasto: { kentta: null, virhe: null, ohitettu: 0 },
+
+  _dyn() { return aaltotila() && AaltoVarasto.kaytossa() ? AaltoVarasto._dyn : null; },
+  ajasta(viive) {
+    clearTimeout(this._ajastin);
+    const self = this;
+    this._ajastin = setTimeout(function () {
+      self._hae().then(function () { self.tilasto.virhe = null; }, function (e) {
+        if (e && e.name === 'AbortError') return;
+        self.tilasto.virhe = String(e && e.message || e);
+        self._virheT = Date.now();
+      });
+    }, viive == null ? 350 : viive);
+  },
+  /* Hetki asettui tasatunnille (`AaltoGL._varmistaHila`). */
+  hetkiMuuttui() {
+    if (!this._dyn() || State._tlTouching || State.isPlaying) return;
+    if (Date.now() - this._virheT < 5000) return;
+    this.ajasta();
+  },
+  tyhjenna() {
+    const dyn = AaltoVarasto._dyn;
+    if (!dyn || !dyn._laatta) return;
+    dyn._laatta = null;
+    this._paivita();
+  },
+  _paivita() {
+    AaltoVarasto._dynVersio++;
+    AaltoVarasto.paivitaDyn();
+    if (typeof AaltoGL !== 'undefined') AaltoGL.paivita();
+  },
+  /* Vastaus laatan muotoon (`AaltoVarasto._naytePerhe`): koodaus on
+     varaston, etäisyystaso antaa rannan luottamuksen (`_TASO.luottoKm`),
+     ja painotaso häivyttää alueen reunan 8 %:n matkalla kuten tuulella. */
+  _laatta(o, url) {
+    const ni = o.ni, nj = o.nj, paino = new Uint8Array(ni * nj);
+    const m = Math.max(2, Math.round(0.08 * Math.min(ni, nj)));
+    for (let j = 0; j < nj; j++) for (let i = 0; i < ni; i++) {
+      const d = Math.min(i, ni - 1 - i, j, nj - 1 - j) / m;
+      paino[j * ni + i] = Math.round(255 * (d <= 0 ? 0 : (d >= 1 ? 1 : d * d * (3 - 2 * d))));
+    }
+    const dek = MalliHila._dekoodaa;
+    return {
+      askel: o.askel, la0: o.la0, lo0: o.lo0, ny: nj, nx: ni, nt: 1,
+      la1: o.la0 + (nj - 1) * o.askel, lo1: o.lo0 + (ni - 1) * o.askel,
+      _ax: { ok: false, ti: 0, tf: 0, tsMs: Float64Array.from(o.ajat || [o.t]) }, _taso: this._TASO,
+      nop: dek(o.hs), suunta: dek(o.suunta), puuska: dek(o.jakso), etaisyys: dek(o.km),
+      paino: paino, taysi: false, t: o.t, ajo: o.ajo, api: 'ecmwf_wam', url: url,
+    };
+  },
+  _muista(url, laatta) {
+    this._kentat.delete(url); this._kentat.set(url, laatta);
+    while (this._kentat.size > 12) this._kentat.delete(this._kentat.keys().next().value);
+  },
+  /* Peittääkö alueellinen perhe koko näkyvän alueen? Silloin palvelinta
+     ei kutsuta (Itämerellä FMI WAM on tarkempi). */
+  _peitetty(b, hetki) {
+    const V = AaltoVarasto, ed = V._hetkiMs;
+    try {
+      if (!V.asetaHetki(hetki)) return false;
+      const vLat = b.getNorth() - b.getSouth(), vLng = b.getEast() - b.getWest();
+      for (const fy of [0.02, 0.5, 0.98]) for (const fx of [0.02, 0.5, 0.98]) {
+        if (!V.naytteista(b.getSouth() + vLat * fy, b.getWest() + vLng * fx, 0)) return false;
+        const p = V._perheNaytteesta();
+        if (!p || p.pohja || p.dyn || V._osuus[V._perheet.indexOf(p)] < 0.999) return false;
+      }
+      return true;
+    } finally { if (V._hetkiMs !== ed) V.asetaHetki(ed); }
+  },
+  async _hae() {
+    const dyn = this._dyn();
+    if (!dyn) return;
+    const map = State.map;
+    if (!map || State._tlTouching || State.isPlaying) return;
+    const z = map.getZoom(), hetki = AaltoGL._hetki();
+    if (hetki == null || !isFinite(hetki) || hetki % 3600e3 !== 0) return;
+    if (z < this.MIN_Z || !AaltoVarasto.kattaa(hetki)) { this.tyhjenna(); return; }
+    const askel = Math.max(0.02, Math.min(0.05, AaltoTaso.askel(z)));
+    const A = MalliHila._alue(map, 0.5);
+    if (!A || A.n - A.s > 20 || A.e - A.w > 30) return;
+    const nyk = dyn._laatta;
+    const kattaa = nyk && Math.abs(nyk.askel - askel) < 1e-9 && A.s >= nyk.la0 - 1e-6 && A.n <= nyk.la1 + 1e-6
+        && A.w >= nyk.lo0 - 1e-6 && A.e <= nyk.lo1 + 1e-6;
+    if (kattaa && nyk.t === hetki) { this._esiHae(nyk.url, hetki); return; }
+    if (this._peitetty(A.b, hetki)) {
+      this.tilasto.ohitettu++;
+      if (nyk) this.tyhjenna();
+      return;
+    }
+    /* Sama ikkuna kuin ruudulla olevalla laatalla jos se yhä kattaa
+       näkymän: tunnin askel osuu silloin esihaettuun osoitteeseen. */
+    const url = kattaa ? nyk.url.replace('&t=' + nyk.t + '&', '&t=' + hetki + '&')
+      : API_BASE + '/malli?muuttuja=aallot&t=' + hetki + '&s=' + A.s + '&n=' + A.n + '&w=' + A.w + '&e=' + A.e + '&askel=' + askel;
+    if (url === this._turha) return;
+    let laatta = this._kentat.get(url);
+    if (laatta === null) return;
+    if (!laatta) {
+      if (this._kesken) this._kesken.abort();
+      const ac = this._kesken = new AbortController();
+      const t0 = performance.now();
+      const aj = setTimeout(function () { ac.abort(new Error('aikaraja')); }, this.AIKARAJA_MS);
+      let teksti;
+      try {
+        const r = await fetch(url, { signal: ac.signal });
+        teksti = await r.text();
+      } finally {
+        clearTimeout(aj);
+        if (this._kesken === ac) this._kesken = null;
+      }
+      const o = JSON.parse(teksti);
+      if (o.error) {
+        /* Mallin jakson ulkopuolella ei ole ajoa: muistetaan, ja varasto
+           näkyy. */
+        if (/ei ajoa/.test(o.error)) { this._muista(url, null); return; }
+        throw new Error(o.error);
+      }
+      laatta = this._laatta(o, url);
+      this.tilasto.kentta = { ms: Math.round(performance.now() - t0), palvelin: o.ms ? o.ms.yht : null,
+                              kB: Math.round(teksti.length / 100) / 10, solmuja: o.ni * o.nj };
+    }
+    this._muista(url, laatta);
+    /* Hetki, zoom tai tila ehti vaihtua: tulos jää muistiin. */
+    if (!this._dyn() || State._tlTouching || State.isPlaying || AaltoGL._hetki() !== hetki) return;
+    dyn._laatta = laatta;
+    this._paivita();
+    this._esiHae(url, hetki);
+  },
+  /* Viereiset tunnit taustalla muistiin (kuten `MalliHila._esiHae`):
+     tunnin askel on silloin muistista. */
+  _esiHae(url, tunti) {
+    const H = 3600e3, self = this;
+    for (const d of [1, -1]) {
+      const u = url.replace('&t=' + tunti + '&', '&t=' + (tunti + d * H) + '&');
+      if (u === url || this._kentat.has(u) || this._esiKesken.has(u)) continue;
+      this._esiKesken.add(u);
+      fetch(u, { priority: 'low' }).then(function (r) { return r.text(); }).then(function (t) {
+        const o = JSON.parse(t);
+        if (o.error) { if (/ei ajoa/.test(o.error)) self._muista(u, null); return; }
+        if (!self._kentat.has(u)) self._muista(u, self._laatta(o, u));
+      }).catch(function () {}).finally(function () { self._esiKesken.delete(u); });
+    }
   },
 };
 
@@ -15603,6 +15799,7 @@ const AaltoGL = {
       if (!self._naytetaan()) return;
       self._esilataa();
       AaltoEsilataus.ajasta();
+      AaltoHila.ajasta();
     });
   },
   paivita() {
@@ -15691,6 +15888,7 @@ const AaltoGL = {
       gc: gc, gr: gr, la0: la0, lo0: lo0, d: d, tz: tz, tA: tA, tB: B ? tA + H : null, A: A, B: B,
       tavut: tavut, kate: kate, puuttuu: puuttuu, puuttuuNakyvissa: nakyvissa, tyhjaOsuus: tyhjat / nakyvat,
       kLoW: lo0 + d, kLoE: lo0 + (gc - 2) * d, kLaS: la0 + d, kLaN: la0 + (gr - 2) * d,
+      dynV: AaltoVarasto._dynVersio,
     };
   },
 
@@ -15789,6 +15987,8 @@ const AaltoGL = {
     if (AaltoTaso.karkeaKaytossa(tz) || liike || this._kwNyt > 0) this._varmistaKarkea(map, b, tz, tA, tarvB, nyt, vanhaH);
     else if (this._karkea) { this._karkea = null; this._karkeaVersio++; }
     if (!liike) this._varmistaOma(map, b, tz, tA, tarvB, nyt, vanhaK);
+    /* Lähizoomin hila (`AaltoHila`) asettuneelle tasatunnille. */
+    if (!liike && this._f === 0 && t !== this._dynHetki) { this._dynHetki = t; AaltoHila.hetkiMuuttui(); }
   },
 
   _varmistaKarkea(map, b, tz, tA, tarvB, nyt, vanhaH) {
@@ -16046,7 +16246,7 @@ const AaltoGL = {
       if (ed && ed.tA !== h.tA) {
         if (Haivytys.ota('_aalto')) vaihda(Haivytys.MS, 0); else this._vanha = null;
       } else if (ed && ed !== h && ed.tA === h.tA && this._kwEd < 0.99
-                 && (ed.d !== h.d || ed.puuttuuNakyvissa > 0) && !Haivytys.vahennetty()) {
+                 && (ed.d !== h.d || ed.puuttuuNakyvissa > 0 || ed.dynV !== h.dynV) && !Haivytys.vahennetty()) {
         vaihda(this.TASO_HAIVYTYS_MS, this._f);
       }
       this._lataa(gl, this._texHila, this._texKate, h);
@@ -34641,6 +34841,7 @@ function _aaltotilaAseta(paalla) {
       if (!aaltotila()) return;
       AaltoGL.paivita(); AaltoGL._esiT = 0; AaltoGL._esilataa();
       AaltoEsilataus.ajasta(1500);
+      AaltoHila.ajasta(600);
       State._tlMuisti = null; updateTimelineToCenter();
       Crosshair.refresh();
     };

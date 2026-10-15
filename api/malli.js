@@ -399,7 +399,7 @@ class Esiluku {
 /* Pidettävät muuttujat: tuuli ja (sadetilan jatkoennuste, `muuttuja=sade`)
    ECMWF:n sademäärä. */
 const TUULI_NIMET = new Set(['wind_u_component_10m', 'wind_v_component_10m', 'wind_gusts_10m', 'precipitation',
-  'wind_speed_10m', 'wind_direction_10m']);
+  'wind_speed_10m', 'wind_direction_10m', 'wave_height', 'wave_direction', 'wave_period']);
 const avoimet = new Map();
 function avaa(url) {
   const vanha = avoimet.get(url);
@@ -850,11 +850,130 @@ async function sadeKentta(q) {
            mmh: tavut.toString('base64'), max: Math.round(suurin * 100) / 100 };
 }
 
+/* -- AALLOT LÄHIZOOMIIN (docs/aallot.md V4) ------------------------------
+ *
+ * ECMWF WAM 9 km mallin omalla O1280-hilalla näkymän alueelle valitulle
+ * tunnille: korkeus, suunta (MISTÄ) ja keskijakso solmuihin `askel`in
+ * välein MÄRKIEN naapurien painotettuna keskiarvona (maa on NaN, ja
+ * nollana se vetäisi rannan aallot alas). Varaston aaltolaatat on
+ * jatkettu maalle (`tools/aaltopyramidi.mjs`), joten tämäkin: kierroksina
+ * naapurien keskiarvolla 1,3 × 9 km:iin, ja etäisyys lähimpään märkään
+ * solmuun palautetaan samalla koodauksella (√16), josta sovellus laskee
+ * rannan luottamuksen kuten laatasta. Koodaus on varaston: korkeus
+ * √(Hs/16 m), suunta 2°, jakso 0,1 s, tyhjä 255. */
+const AALTO = { id: 'ecmwf_wam', hila: o1280(), ajoVali: 6, sarjaTunnit: 504 };
+const AALTO_NIMET = ['wave_height', 'wave_direction', 'wave_period'];
+const AALTO_NATIIVI_KM = 9, AALTO_KERROIN = 1.3, AALTO_HS_KATTO = 16;
+const koodaaHs = (h) => (Number.isFinite(h) ? Math.min(254, Math.max(0, Math.round(254 * Math.sqrt(Math.max(0, h) / AALTO_HS_KATTO)))) : TYHJA);
+const koodaaKm = (d) => (Number.isFinite(d) ? Math.min(254, Math.round(16 * Math.sqrt(Math.max(0, d)))) : TYHJA);
+
+async function aaltoKentta(q) {
+  const t = Math.round(Number(q.t) / H) * H;
+  const s = Math.max(-85, Number(q.s)), n = Math.min(85, Number(q.n));
+  const w = Number(q.w), e = Number(q.e);
+  const askel = Math.min(0.25, Math.max(0.02, Number(q.askel) || 0.05));
+  if (![t, s, n, w, e].every(Number.isFinite) || n <= s || e <= w) throw new Error('virheellinen rajaus');
+  if (e - w > 30 || n - s > 20) throw new Error('liian laaja rajaus');
+  if (w < -180 || e > 180) throw new Error('päivämääräraja');
+  const la0 = Math.floor(s / askel) * askel, lo0 = Math.floor(w / askel) * askel;
+  const nj = Math.round((Math.ceil(n / askel) * askel - la0) / askel) + 1;
+  const ni = Math.round((Math.ceil(e / askel) * askel - lo0) / askel) + 1;
+  if (ni * nj > 90000) throw new Error('liian laaja rajaus');
+  const N = ni * nj, t0 = Date.now();
+  const aj = await etsiAjo(AALTO, t);
+  if (!aj) throw new Error('ei ajoa joka kattaa hetken');
+  const la1 = la0 + (nj - 1) * askel, lo1 = lo0 + (ni - 1) * askel;
+  const ikkuna = AALTO.hila.ikkuna(la0, la1, lo0, lo1);
+  const [A, B] = await Promise.all([lueTiedosto(aj.A, AALTO_NIMET, ikkuna.ranges),
+                                    aj.B ? lueTiedosto(aj.B, AALTO_NIMET, ikkuna.ranges) : null]);
+  if (!A || !A.wave_height || (aj.B && (!B || !B.wave_height))) throw new Error('ei dataa');
+  /* Solmun arvo märistä naapureista; maski (märkyys) on sama joka
+     hetkellä, joten se luetaan A:sta. */
+  const hs = new Float32Array(N).fill(NaN), ss_ = new Float32Array(N), cc = new Float32Array(N), tp = new Float32Array(N).fill(NaN);
+  const yksi = (T, nn) => {
+    let sw = 0, sh = 0, sS = 0, sC = 0, st = 0, wt = 0;
+    for (const [a, p] of nn) {
+      const h = T.wave_height[a];
+      if (!Number.isFinite(h)) continue;
+      sw += p; sh += h * p;
+      const d = T.wave_direction ? T.wave_direction[a] : NaN;
+      if (Number.isFinite(d)) { sS += Math.sin(d * RAD) * p; sC += Math.cos(d * RAD) * p; }
+      const x = T.wave_period ? T.wave_period[a] : NaN;
+      if (Number.isFinite(x)) { st += x * p; wt += p; }
+    }
+    return sw > 0 ? { h: sh / sw, s: sS / sw, c: sC / sw, tp: wt > 0 ? st / wt : NaN } : null;
+  };
+  for (let j = 0; j < nj; j++) for (let i = 0; i < ni; i++) {
+    const k = j * ni + i;
+    const nn = AALTO.hila.naapurit(la0 + j * askel, lo0 + i * askel).map(([a, p]) => [ikkuna.paikka(a), p]).filter(([a]) => a >= 0);
+    const x = yksi(A, nn);
+    if (!x) continue;
+    let y = x;
+    if (B) {
+      const b = yksi(B, nn);
+      if (b) {
+        const f = aj.f;
+        y = { h: x.h + (b.h - x.h) * f, s: x.s + (b.s - x.s) * f, c: x.c + (b.c - x.c) * f,
+              tp: Number.isFinite(x.tp) && Number.isFinite(b.tp) ? x.tp + (b.tp - x.tp) * f : (Number.isFinite(x.tp) ? x.tp : b.tp) };
+      }
+    }
+    hs[k] = y.h; ss_[k] = y.s; cc[k] = y.c; tp[k] = y.tp;
+  }
+  /* JATKE MAALLE kierroksittain: kuiva solmu jolla on tunnettu naapuri
+     saa niiden keskiarvon (suorat 1, vinot 0,7) ja etäisyyden lähimmän
+     naapurin kautta, kunnes 1,3 × 9 km on täynnä. */
+  const km = new Float32Array(N).fill(Infinity);
+  for (let k = 0; k < N; k++) if (Number.isFinite(hs[k])) km[k] = 0;
+  const maxKm = AALTO_NATIIVI_KM * AALTO_KERROIN;
+  const NAAP = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 0.7], [1, -1, 0.7], [-1, 1, 0.7], [-1, -1, 0.7]];
+  for (let kierros = 0; kierros < 64; kierros++) {
+    const uudet = [];
+    for (let j = 0; j < nj; j++) {
+      const kx = askel * 111.2 * Math.cos((la0 + j * askel) * RAD), ky = askel * 111.2;
+      for (let i = 0; i < ni; i++) {
+        const k = j * ni + i;
+        if (km[k] !== Infinity) continue;
+        let sw = 0, sh = 0, sS = 0, sC = 0, st = 0, wt = 0, d = Infinity;
+        for (const [dx, dy, p] of NAAP) {
+          const x = i + dx, y = j + dy;
+          if (x < 0 || y < 0 || x >= ni || y >= nj) continue;
+          const m = y * ni + x;
+          if (km[m] === Infinity || !Number.isFinite(hs[m])) continue;
+          sw += p; sh += hs[m] * p; sS += ss_[m] * p; sC += cc[m] * p;
+          if (Number.isFinite(tp[m])) { st += tp[m] * p; wt += p; }
+          d = Math.min(d, km[m] + Math.hypot(dx * kx, dy * ky));
+        }
+        if (sw > 0 && d <= maxKm) uudet.push([k, sh / sw, sS / sw, sC / sw, wt > 0 ? st / wt : NaN, d]);
+      }
+    }
+    if (!uudet.length) break;
+    for (const [k, h, a, b, x, d] of uudet) { hs[k] = h; ss_[k] = a; cc[k] = b; tp[k] = x; km[k] = d; }
+  }
+  const hsK = new Uint8Array(N), suK = new Uint8Array(N), tpK = new Uint8Array(N), kmK = new Uint8Array(N);
+  for (let k = 0; k < N; k++) {
+    if (!Number.isFinite(hs[k])) { hsK[k] = suK[k] = tpK[k] = kmK[k] = TYHJA; continue; }
+    hsK[k] = koodaaHs(hs[k]);
+    suK[k] = ss_[k] || cc[k] ? pakkaaSuunta(Math.atan2(ss_[k], cc[k]) / RAD) : TYHJA;
+    tpK[k] = Number.isFinite(tp[k]) ? Math.min(254, Math.max(0, Math.round(tp[k] / 0.1))) : TYHJA;
+    kmK[k] = koodaaKm(km[k]);
+  }
+  const b64 = (a) => Buffer.from(a.buffer, a.byteOffset, a.byteLength).toString('base64');
+  return {
+    tila: 'kentta', muuttuja: 'aallot', malli: 'ecmwf_wam', t, ajat: [t], ajo: aj.ajo,
+    la0: +la0.toFixed(4), lo0: +lo0.toFixed(4), askel, ni, nj, tyhja: TYHJA,
+    hsKatto: AALTO_HS_KATTO, suuntaAskel: SUUNTA_ASKEL, jaksoAskel: 0.1,
+    luottoKm: AALTO_NATIIVI_KM, luottoKerroin: AALTO_KERROIN,
+    hs: b64(hsK), suunta: b64(suK), jakso: b64(tpK), km: b64(kmK),
+    ms: { yht: Date.now() - t0 },
+  };
+}
+
 export default async function handler(req, res) {
   if (!suojaa(req, res)) return;
   const q = req.query || {};
   try {
-    const tulos = q.tila === 'sarja' ? await sarja(q) : q.muuttuja === 'sade' ? await sadeKentta(q) : await kentta(q);
+    const tulos = q.tila === 'sarja' ? await sarja(q) : q.muuttuja === 'sade' ? await sadeKentta(q)
+      : q.muuttuja === 'aallot' ? await aaltoKentta(q) : await kentta(q);
     /* Sama osoite antaa saman ajon vastauksen tunnin ajan; uusi ajo
        tulee 3–6 tunnin välein. */
     res.setHeader('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=1800');
