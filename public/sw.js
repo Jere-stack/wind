@@ -44,7 +44,20 @@ const SAA_ETULIITE = 'saa-';
    toisen välimuistin joka haulla. */
 const SAA_AALTO = 'saa-a-';
 const saaViimeVersio = { tuuli: null, aalto: null };
-const onAaltoLaatta = (u) => /\/a[0-3]\/[^/]+\.bin\.gz$/.test(u.pathname);
+/* Vanhat `a0`–`a3` ja aaltovaraston tasot (`we0`, `wf0`, `wb0`, … — kaikki
+   alkavat w-kirjaimella ja perheen kirjaimella, docs/aallot.md). Tuulen
+   tasot ovat `l`, `h`, `n` ja alueellisten tunnukset (`cz`, `uk`, …), eikä
+   yksikään ala w:llä. Ennen V5:tä uudet aaltotasot menivät tuulen
+   sukupolveen, ja aaltoluettelon päivitys kesken istunnon olisi
+   tyhjentänyt tuulen välimuistin. */
+const onAaltoLaatta = (u) => /\/(a[0-3]|w[a-z]\d)\/[^/]+\.bin\.gz$/.test(u.pathname);
+/* VUOROVESIVAKIOT samasta originista (`/vuorovesi/`, docs/aallot.md V6):
+   staattisia, ja laattojen osoite on versioitu (?v=<luotu>), joten laatta
+   välimuisti edellä; luettelo ja NOAA:n asemalista verkko edellä ja
+   välimuisti varalla kuten säälaattojen luettelo. Ilman tätä rannalla
+   ilman verkkoa vuorovettä ei olisi, vaikka laskenta on selaimessa. */
+const VUOROVESI = 'vuorovesi-v1';   /* vaihda kun `tools/vuorovesi.py` ajetaan uudelleen */
+const onVuorovesi = (u) => u.origin === self.location.origin && u.pathname.startsWith('/vuorovesi/');
 
 /* MapLibre tulee samasta originista versioidulla nimellä (vite.config.js,
    `karttakirjasto`). Ennen se oli jsDelivristä, ja CDN:n katko kaatoi
@@ -92,6 +105,9 @@ self.addEventListener('activate', (e) => {
     for (const n of await caches.keys()) {
       if (n.startsWith('kuori-') && n !== KUORI) await caches.delete(n);
       if (n.startsWith('laatat-') && n !== LAATAT) await caches.delete(n);
+      /* Vuorovesivakiot ovat koko aineiston kokoiset enintään (8,5 MB);
+         uusi rakennus (`tools/vuorovesi.py`) vaihtaa nimen. */
+      if (n.startsWith('vuorovesi-') && n !== VUOROVESI) await caches.delete(n);
     }
     await self.clients.claim();
   })());
@@ -170,6 +186,30 @@ self.addEventListener('fetch', (e) => {
       if (osuma) return osuma;
       const r = await haku;
       return r || Response.error();
+    })());
+    return;
+  }
+
+  if (onVuorovesi(u)) {
+    const laatta = u.pathname.endsWith('.bin.gz');
+    e.respondWith((async () => {
+      const c = await caches.open(VUOROVESI);
+      if (laatta) {
+        const osuma = await c.match(e.request);
+        if (osuma) return osuma;
+        const r = await fetch(e.request);
+        if (r.ok) c.put(e.request, r.clone());
+        return r;
+      }
+      try {
+        const r = await fetch(e.request);
+        if (r.ok) c.put(e.request, r.clone());
+        return r;
+      } catch (err) {
+        const osuma = await c.match(e.request);
+        if (osuma) return osuma;
+        throw err;
+      }
     })());
     return;
   }

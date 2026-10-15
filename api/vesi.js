@@ -16,6 +16,8 @@
  *
  *   ?asemat=1        kaikki 14 mareografia YHDELLA kutsulla
  *   ?lat=&lng=&tz=   ennuste yhteen pisteeseen, 48 h, tuntiaskel
+ *   ?vuorovesi=…     vuorovesi asemalta tai alueellisesta mallista
+ *                    (api/_vuorovesi.js, docs/aallot.md V6)
  *
  * Havainto on omassa osoitteessaan tarkoituksella: sen vastaus on sama
  * riippumatta siita mita spottia katsotaan, joten jaettuna se on yksi
@@ -61,6 +63,7 @@
  */
 import { suojaa } from './_suoja.js';
 import { haeFmi } from './_haku.js';
+import { vuorovesi } from './_vuorovesi.js';
 
 const WFS = 'https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature';
 const HAVAINTO = WFS + '&storedquery_id=fmi::observations::mareograph::instant::multipointcoverage';
@@ -209,6 +212,14 @@ export default async function handler(req, res) {
   var tz = kelpoTz(req.query.tz) || 'Europe/Helsinki';
 
   try {
+    /* VUOROVESI (docs/aallot.md V6): asemaennuste tai alueellinen malli
+       tilana, ei uutena funktiona (`api/_vuorovesi.js`). */
+    if (req.query.vuorovesi) {
+      var v = await vuorovesi(req.query);
+      if (v.virhe) return res.status(v.tila || 400).json({ error: v.virhe });
+      res.setHeader('Cache-Control', 'public, s-maxage=' + v.ika + ', stale-while-revalidate=600');
+      return res.status(200).json(v.tulos);
+    }
     if (req.query.asemat) {
       var st = new Date(Date.now() - IKKUNA_MIN * 60000).toISOString().slice(0, 17) + '00Z';
       var xml = await fetchUrl(HAVAINTO + '&starttime=' + st

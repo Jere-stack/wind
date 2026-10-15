@@ -655,6 +655,21 @@ html:has(#sheet.open) #kapseli { opacity: 0; pointer-events: none; }
   letter-spacing: -0.03em; color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
+/* VUOROVESI SÄÄOSAN TOISENA RIVINÄ (docs/aallot.md V6), kuten puuska
+   tuuliosassa: pienempi ja harmaa. Merkki (nuoli vedenpinnasta,
+   `kapseliVuorovesiSVG`) kertoo suureen ja suunnan, etumerkki korkeuden
+   keskivedestä ("+1,2 m"). Vain vuorovesirannikolla — muualla rivi on
+   poissa virrasta ja sääosa on yksirivinen kuten ennen. */
+.kap-osa.kap-saa { flex-direction: column; gap: 2px; }
+.kap-saa-rivi { display: flex; align-items: center; gap: 6px; }
+@media (max-width: 360px) { .kap-saa-rivi { gap: 5px; } }
+.kap-vv {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: var(--fs-105); line-height: 1;
+  color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.kap-vv svg { display: block; flex-shrink: 0; }
+.kap-vv[hidden] { display: none; }
 
 /* Kapein laite: 320 px:n ruudulla kapseli mahtuu vielä levein sisällöin,
    mutta reunoihin jäisi vain 20 px. Tiivistetään välit. */
@@ -5276,8 +5291,12 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
     </button>
     <span class="kap-jako"></span>
     <button class="kap-osa kap-saa" type="button" aria-label="N&auml;yt&auml; tuntis&auml;&auml;" data-en-aria-label="Show hourly weather">
-      <span class="kap-ikoni" id="kap-saa-ikoni"></span>
-      <span class="kap-lampo" id="kap-lampo">--&deg;</span>
+      <span class="kap-saa-rivi">
+        <span class="kap-ikoni" id="kap-saa-ikoni"></span>
+        <span class="kap-lampo" id="kap-lampo">--&deg;</span>
+      </span>
+      <!-- Vuorovesi vuorovesirannikolla (`KapVuorovesi`, docs/aallot.md V6). -->
+      <span class="kap-vv" id="kap-vv" hidden></span>
     </button>
   </div>
 
@@ -5625,7 +5644,13 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
           <dt>Deutscher Wetterdienst</dt>
           <dd data-en="ICON and ICON-D2 (2.2 km) forecasts and the EWAM wave model (IJsselmeer and Markermeer), open data. CC BY 4.0.">ICON- ja ICON-D2 (2,2 km) -ennusteet ja EWAM-aaltomalli (IJsselmeer ja Markermeer), avoin data. CC BY 4.0.</dd>
           <dt data-alue="eurooppa">Copernicus Marine Service</dt>
-          <dd data-en="Regional wave models: Baltic Sea (FMI WAM 1.9 km), North-West European Shelf (Met Office WW3 1.5 km), Bay of Biscay and Iberia (Météo-France MFWAM 3 km), Mediterranean (HCMR WAM 4.2 km) and Black Sea (Hereon WAM 2.5 km). Generated using E.U. Copernicus Marine Service Information.">Alueelliset aaltomallit: Itämeri (FMI WAM 1,9 km), Luoteis-Euroopan hyllymeri (Met Office WW3 1,5 km), Biskaja ja Iberia (Météo-France MFWAM 3 km), Välimeri (HCMR WAM 4,2 km) ja Mustameri (Hereon WAM 2,5 km). Generated using E.U. Copernicus Marine Service Information.</dd>
+          <dd data-en="Regional wave models: Baltic Sea (FMI WAM 1.9 km), North-West European Shelf (Met Office WW3 1.5 km), Bay of Biscay and Iberia (Météo-France MFWAM 3 km), Mediterranean (HCMR WAM 4.2 km) and Black Sea (Hereon WAM 2.5 km). Sea level (tide and storm surge) on the North-West European Shelf (Met Office AMM15 1.5 km) and in Biscay and Iberia (IBI 3 km). Generated using E.U. Copernicus Marine Service Information.">Alueelliset aaltomallit: Itämeri (FMI WAM 1,9 km), Luoteis-Euroopan hyllymeri (Met Office WW3 1,5 km), Biskaja ja Iberia (Météo-France MFWAM 3 km), Välimeri (HCMR WAM 4,2 km) ja Mustameri (Hereon WAM 2,5 km). Vedenkorkeus (vuorovesi ja myrskynousu) Luoteis-Euroopan hyllymerellä (Met Office AMM15 1,5 km) sekä Biskajalla ja Iberiassa (IBI 3 km). Generated using E.U. Copernicus Marine Service Information.</dd>
+          <dt>DGFI-TUM (EOT20)</dt>
+          <dd><span data-kieli="fi">Vuoroveden harmoniset vakiot maailman merille (kahdeksan osavuorovettä); vuorovesi lasketaan niistä laitteessa.
+            Hart-Davis ym. 2021, <a href="https://doi.org/10.17882/79489" target="_blank" rel="noopener">SEANOE</a>, CC BY 4.0.</span><span data-kieli="en">Harmonic tide constants for the world’s seas (eight constituents); the tide is computed from them on the device.
+            Hart-Davis et al. 2021, <a href="https://doi.org/10.17882/79489" target="_blank" rel="noopener">SEANOE</a>, CC BY 4.0.</span></dd>
+          <dt data-alue="pohjola">Kartverket</dt>
+          <dd data-en="Tide and sea level forecast for the Norwegian coast. CC BY 4.0.">Norjan rannikon vuorovesi- ja vedenkorkeusennuste. CC BY 4.0.</dd>
           <dt data-alue="eurooppa" data-en="European weather services">Euroopan sääpalvelut</dt>
           <dd data-en="National 1–2.5 km forecasts: Météo-France (AROME 1.3 km, Licence Ouverte 2.0), Met Office (UKV 2 km, CC BY-SA 4.0 — the weather tiles derived from it are shared under the same licence), DMI (HARMONIE DINI 2 km), MeteoSwiss (ICON-CH1 1 km and ICON-CH2 2 km), ItaliaMeteo-ARPAE (ICON-2I 2.2 km), GeoSphere Austria (AROME 2.5 km) and ČHMÚ (ALADIN 1 km and 2.3 km), CC BY 4.0. Distributed by Open-Meteo / AWS Open Data.">Kansalliset 1–2,5 km ennusteet: Météo-France (AROME 1,3 km, Licence Ouverte 2.0), Met Office (UKV 2 km, CC BY-SA 4.0 — siitä johdetut säälaatat jaetaan samalla lisenssillä), DMI (HARMONIE DINI 2 km), MeteoSwiss (ICON-CH1 1 km ja ICON-CH2 2 km), ItaliaMeteo-ARPAE (ICON-2I 2,2 km), GeoSphere Austria (AROME 2,5 km) ja ČHMÚ (ALADIN 1 km ja 2,3 km), CC BY 4.0. Jakelu Open-Meteo / AWS Open Data.</dd>
           <dt data-alue="eurooppa">EUMETNET MeteoGate (E-SOH)</dt>
@@ -5635,7 +5660,7 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
             so FoilSpot archives the hourly readings.
             <a href="https://eumetnet.github.io/meteogate-documentation/" target="_blank" rel="noopener">MeteoGate</a>, CC BY 4.0.</span></dd>
           <dt>NOAA</dt>
-          <dd data-en="GFS forecast (US federal public-domain data).">GFS-ennuste (Yhdysvaltain liittovaltion julkista dataa).</dd>
+          <dd data-en="GFS forecast and the tide predictions of the CO-OPS tide stations (US federal public-domain data).">GFS-ennuste ja CO-OPS-vuorovesiasemien ennusteet (Yhdysvaltain liittovaltion julkista dataa).</dd>
           <dt>Open-Meteo</dt>
           <dd><span data-kieli="fi">Mallien jakelu ja ennustesarjat.</span><span data-kieli="en">Model distribution and forecast series.</span>
             <a href="https://open-meteo.com/" target="_blank" rel="noopener">open-meteo.com</a>, CC BY 4.0.</dd>
@@ -21784,6 +21809,405 @@ const AaltoKate = {
   },
 };
 
+/* -- VUOROVESI (docs/aallot.md V6–V7) ---------------------------------
+ *
+ * Itämerellä vuorovettä ei ole (CLAUDE.md), ja vedenkorkeus on oma
+ * suureensa (`Vedenkorkeus`). Atlantilla ja valtamerillä vuorovesi päättää
+ * spotin käytettävyyden, joten kortti ja kapseli kertovat sen PARHAASTA
+ * LÄHTEESTÄ (T2): asema (NOAA ≤ 15 km, Kartverket Norjassa) > alueellinen
+ * malli (Copernicus NWS 1,5 km / IBI 0,027°: vuorovesi ja myrskynousu
+ * yhdessä) > EOT20 harmonisista vakioista. Kaikki ovat metrejä
+ * PAIKALLISESTA KESKIVEDESTÄ (`api/_vuorovesi.js`).
+ *
+ * EOT20 (DGFI-TUM, CC BY 4.0) on samasta originista (`/vuorovesi/`,
+ * `tools/vuorovesi.py`): kahdeksan osavuoroveden kompleksivakiot
+ * (Re = A cos G, Im = A sin G) laattoina, ja korkeus lasketaan selaimessa
+ * mihin tahansa hetkeen: h = Σ f·(Re·cos(V + u) + Im·sin(V + u)).
+ * Tähtitieteelliset argumentit ja nodaalikorjaukset Schuremanin mukaan;
+ * vuorokautisten vaihe −90 (K1) / +90 (O1, P1, Q1) — toisin päin
+ * Honolulun ero NOAA:n ennusteeseen oli 0,22 m, näin 0,03 m (mitattu
+ * 15.10.: San Francisco 0,06, Key West 0,04, Duck 0,04 m).
+ *
+ * NÄYTETÄÄN VAIN VUOROVESIRANNIKOLLA: kevätvuoroveden vaihteluväli
+ * 2·(M2 + S2 + K1 + O1) > 0,5 m — ennen vakioita luettelon 2°:n
+ * `kate`-rasterista, sitten pisteen vakioista. EOT20:tä ei näytetä
+ * solmussa jonka NOAA:n asema on mitannut epäluotettavaksi (maski 2:
+ * yli 0,3 m tai 45 min), eikä yli 15 km:n päästä mallin merestä (Pampus
+ * on IJsselmeerillä, jossa vuorovettä ei ole). */
+const Vuorovesi = {
+  KANTA: '/vuorovesi/',
+  MAX_KM: 15, ASEMA_KM: 15, RAJA_M: 0.5,
+  OSAT: ['M2', 'S2', 'N2', 'K2', 'K1', 'O1', 'P1', 'Q1'],
+  _luettelo: null, _alustaP: null, _kate: null,
+  _laatat: new Map(), _kesken: new Map(), _MAX: 48,
+  _noaa: null, _noaaP: null, _lahteet: new Map(),
+
+  alusta() {
+    if (this._alustaP) return this._alustaP;
+    const self = this;
+    this._alustaP = fetch(this.KANTA + 'luettelo.json').then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (l) {
+      if (!l || l.versio !== 1 || !Array.isArray(l.tasot)) return false;
+      for (const t of l.tasot) t._laatat = new Set(t.laatat.map(x => x[0] + '_' + x[1]));
+      const b = atob(l.kate.bitit), k = new Uint8Array(b.length);
+      for (let i = 0; i < b.length; i++) k[i] = b.charCodeAt(i);
+      self._kate = k;
+      self._luettelo = l;
+      return true;
+    }).catch(function () { self._alustaP = null; return false; });
+    return this._alustaP;
+  },
+  kaytossa() { return !!this._luettelo; },
+  /* Onko paikan 2°-solussa vuorovesirannikkoa? null kun luettelo ei ole
+     vielä tullut. */
+  rannikko(lat, lng) {
+    const L = this._luettelo;
+    if (!L) return null;
+    const K = L.kate, lo = ((lng + 180) % 360 + 360) % 360 - 180;
+    const j = Math.min(K.ny - 1, Math.max(0, Math.floor((lat - K.la0) / K.askel)));
+    const i = Math.min(K.nx - 1, Math.max(0, Math.floor((lo - K.lo0) / K.askel)));
+    const n = j * K.nx + i;
+    return !!(this._kate[n >> 3] & (0x80 >> (n & 7)));
+  },
+  /* Onko näkymässä vuorovesirannikkoa (kerrosruutu, V7)? */
+  rannikkoAlueella(s, w, n, e) {
+    if (!this._luettelo) return null;
+    const a = this._luettelo.kate.askel;
+    for (let la = Math.floor(s / a) * a; la <= n; la += a) {
+      for (let lo = Math.floor(w / a) * a; lo <= e; lo += a) {
+        if (this.rannikko(Math.min(89.9, Math.max(-89.9, la + a / 2)), lo + a / 2)) return true;
+      }
+    }
+    return false;
+  },
+
+  /* ── Vakiolaatat ── */
+  _laatta(taso, la0, lo0) {
+    const avain = taso.id + '/' + la0 + '_' + lo0;
+    const vanha = this._laatat.get(avain);
+    if (vanha) { this._laatat.delete(avain); this._laatat.set(avain, vanha); return Promise.resolve(vanha); }
+    if (this._kesken.has(avain)) return this._kesken.get(avain);
+    const self = this;
+    const p = fetch(this.KANTA + avain + '.bin.gz?v=' + encodeURIComponent(this._luettelo.luotu || '')).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.arrayBuffer();
+    }).then(function (b) {
+      const raaka = new Uint8Array(b);
+      return (raaka[0] === 0x1f && raaka[1] === 0x8b)
+        ? new Response(new Blob([raaka]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer() : b;
+    }).then(function (b) {
+      const dv = new DataView(b), u8 = new Uint8Array(b);
+      if (String.fromCharCode(u8[0], u8[1], u8[2], u8[3]) !== 'FSVV') throw new Error('väärä tunniste');
+      const nk = dv.getUint8(5), nx = dv.getUint16(20, true), ny = dv.getUint16(22, true);
+      const sk = new Float32Array(nk);
+      for (let k = 0; k < nk; k++) sk[k] = dv.getFloat32(24 + 4 * k, true);
+      const o = 24 + 4 * nk;
+      const l = { askel: dv.getFloat32(8, true), la0: dv.getFloat32(12, true), lo0: dv.getFloat32(16, true), nx, ny, nk, sk,
+        q: new Int8Array(b, o, nk * 2 * nx * ny), maski: new Uint8Array(b, o + nk * 2 * nx * ny, nx * ny) };
+      self._laatat.set(avain, l);
+      while (self._laatat.size > self._MAX) self._laatat.delete(self._laatat.keys().next().value);
+      return l;
+    }).finally(function () { self._kesken.delete(avain); });
+    this._kesken.set(avain, p);
+    return p;
+  },
+  /* Solmun vakiot laatasta: re/im Float64Array(nk) tai null (maa). */
+  _solmu(l, j, i, re, im) {
+    const k0 = j * l.nx + i;
+    if (!l.maski[k0]) return false;
+    const L = l.nx * l.ny;
+    for (let k = 0; k < l.nk; k++) {
+      re[k] = l.q[(2 * k) * L + k0] / 127 * l.sk[k];
+      im[k] = l.q[(2 * k + 1) * L + k0] / 127 * l.sk[k];
+    }
+    return true;
+  },
+  /* Taso jolla piste on: hienoin jonka laatta on olemassa. */
+  _taso(lat, lo) {
+    for (const t of this._luettelo.tasot) {
+      const la0 = Math.floor((lat + 90) / t.span) * t.span - 90, lo0 = Math.floor((lo + 180) / t.span) * t.span - 180;
+      const r = (x) => +x.toFixed(4);
+      if (t._laatat.has(r(la0) + '_' + r(lo0))) return { t, la0: r(la0), lo0: r(lo0) };
+    }
+    return null;
+  },
+  /* PISTEEN VAKIOT: lähimmän merisolmun (≤ MAX_KM) vakiot, tai
+     käänteisellä etäisyydellä painotettu keskiarvo jos piste on merisolmujen
+     keskellä. { re, im, km, epavarma } tai null (ei merta lähellä). */
+  async vakiot(lat, lng) {
+    if (!(await this.alusta())) return null;
+    const lo = ((lng + 180) % 360 + 360) % 360 - 180;
+    const T = this._taso(lat, lo);
+    if (!T) return null;
+    const l = await this._laatta(T.t, T.la0, T.lo0);
+    const s = l.askel, ky = Math.cos(lat * Math.PI / 180);
+    const fy = (lat - l.la0) / s, fx = (lo - l.lo0) / s;
+    const r = Math.ceil(this.MAX_KM / (s * 111.2)) + 1;
+    const re = new Float64Array(l.nk), im = new Float64Array(l.nk);
+    const sRe = new Float64Array(l.nk), sIm = new Float64Array(l.nk);
+    let sw = 0, lahinKm = Infinity, epavarma = false;
+    for (let j = Math.max(0, Math.floor(fy) - r); j <= Math.min(l.ny - 1, Math.ceil(fy) + r); j++) {
+      for (let i = Math.max(0, Math.floor(fx) - r); i <= Math.min(l.nx - 1, Math.ceil(fx) + r); i++) {
+        if (!this._solmu(l, j, i, re, im)) continue;
+        const km = Math.hypot((j - fy) * s * 111.2, (i - fx) * s * 111.2 * ky);
+        if (km > this.MAX_KM) continue;
+        if (km < lahinKm) { lahinKm = km; epavarma = l.maski[j * l.nx + i] === 2; }
+        /* Painot vain lähimmän solmun ympäriltä (yksi solmuväli): kauempaa
+           tullut vakio olisi toisen rannan vuorovesi. */
+        const w = 1 / Math.max(0.3, km) ** 2;
+        if (km > s * 111.2 * 1.5) continue;
+        for (let k = 0; k < l.nk; k++) { sRe[k] += w * re[k]; sIm[k] += w * im[k]; }
+        sw += w;
+      }
+    }
+    if (!isFinite(lahinKm)) return null;
+    if (!sw) return null;
+    for (let k = 0; k < l.nk; k++) { sRe[k] /= sw; sIm[k] /= sw; }
+    return { re: sRe, im: sIm, km: lahinKm, epavarma, taso: T.t.id };
+  },
+  /* Kevätvuoroveden vaihteluväli: 2·(M2 + S2 + K1 + O1). */
+  vaihteluvali(v) {
+    const a = (k) => Math.hypot(v.re[k], v.im[k]);
+    return 2 * (a(0) + a(1) + a(4) + a(5));
+  },
+
+  /* ── Harmoninen laskenta ── */
+  _args(ms, c, s) {
+    const RAD = Math.PI / 180;
+    const D = (ms - Date.UTC(2000, 0, 1, 12)) / 864e5;
+    const sm = 218.3164477 + 13.17639648 * D, h = 280.4664567 + 0.98564736 * D;
+    const p = 83.3532465 + 0.11140353 * D, N = (125.0445479 - 0.05295377 * D) * RAD;
+    const T = 180 + 15 * (((ms % 864e5) + 864e5) % 864e5) / 36e5;
+    const cN = Math.cos(N), c2 = Math.cos(2 * N), sN = Math.sin(N), s2 = Math.sin(2 * N);
+    const fO = 1.009 + 0.187 * cN - 0.015 * c2, uO = 10.8 * sN - 1.3 * s2;
+    const V = [2 * T - 2 * sm + 2 * h, 2 * T, 2 * T - 3 * sm + 2 * h + p, 2 * T + 2 * h,
+               T + h - 90, T - 2 * sm + h + 90, T - h + 90, T - 3 * sm + h + p + 90];
+    const f = [1 - 0.037 * cN, 1, 1 - 0.037 * cN, 1.024 + 0.286 * cN + 0.008 * c2,
+               1.006 + 0.115 * cN - 0.009 * c2, fO, 1, fO];
+    const u = [-2.1 * sN, 0, -2.1 * sN, -17.7 * sN + 0.7 * s2, -8.9 * sN + 0.7 * s2, uO, 0, uO];
+    for (let k = 0; k < 8; k++) {
+      const a = ((V[k] + u[k]) % 360) * RAD;
+      c[k] = f[k] * Math.cos(a); s[k] = f[k] * Math.sin(a);
+    }
+  },
+  _c: new Float64Array(8), _s: new Float64Array(8),
+  korkeus(v, ms) {
+    this._args(ms, this._c, this._s);
+    let h = 0;
+    for (let k = 0; k < 8; k++) h += this._c[k] * v.re[k] + this._s[k] * v.im[k];
+    return h;
+  },
+  /* Tuntisarja ja ääriarvot vakioista: { t0, dt, h[], aariarvot }. */
+  sarjaVakioista(v, alku, loppu) {
+    const H = 36e5, t0 = Math.floor(alku / H) * H, h = [];
+    for (let t = t0; t <= loppu; t += H) h.push(this.korkeus(v, t));
+    /* Ääriarvot 10 min välein ja paraabelilla minuutin tarkkuuteen. */
+    const aa = [], M = 6e5, f = (t) => this.korkeus(v, t);
+    let a = f(t0 - M), b = f(t0);
+    for (let t = t0 + M; t <= loppu; t += M) {
+      const c = f(t);
+      if ((b > a && b >= c) || (b < a && b <= c)) {
+        const den = a - 2 * b + c, x = den ? 0.5 * (a - c) / den : 0;
+        const tt = t - M + x * M;
+        aa.push({ t: tt, h: f(tt), tyyppi: b > a ? 'H' : 'L' });
+      }
+      a = b; b = c;
+    }
+    return { t0, dt: H, h, aariarvot: aa };
+  },
+  /* Ääriarvot tuntisarjasta (asema ilman niitä, malli): kuutiollinen
+     interpolointi 10 min välein ääriarvon tunnin ympärillä. */
+  aariarvotSarjasta(S) {
+    const h = S.h, aa = [];
+    const arvo = (x) => {
+      const i = Math.floor(x), u = x - i, g = (k) => h[Math.max(0, Math.min(h.length - 1, k))];
+      const p0 = g(i - 1), p1 = g(i), p2 = g(i + 1), p3 = g(i + 2);
+      return p1 + 0.5 * u * (p2 - p0 + u * (2 * p0 - 5 * p1 + 4 * p2 - p3 + u * (3 * (p1 - p2) + p3 - p0)));
+    };
+    for (let i = 1; i < h.length - 1; i++) {
+      if (h[i - 1] == null || h[i] == null || h[i + 1] == null) continue;
+      const yla = h[i] > h[i - 1] && h[i] >= h[i + 1], ala = h[i] < h[i - 1] && h[i] <= h[i + 1];
+      if (!yla && !ala) continue;
+      let paras = i, pv = h[i];
+      for (let x = i - 1; x <= i + 1; x += 1 / 6) {
+        const y = arvo(x);
+        if (yla ? y > pv : y < pv) { pv = y; paras = x; }
+      }
+      aa.push({ t: S.t0 + paras * S.dt, h: pv, tyyppi: yla ? 'H' : 'L' });
+    }
+    return aa;
+  },
+
+  /* ── Paras lähde paikalle ── */
+  async _noaaAsemat() {
+    if (this._noaa) return this._noaa;
+    if (!this._noaaP) {
+      const self = this;
+      this._noaaP = fetch(this.KANTA + 'noaa.json').then(r => (r.ok ? r.json() : [])).then(function (a) { self._noaa = a; return a; })
+        .catch(function () { self._noaaP = null; return []; });
+    }
+    return this._noaaP;
+  },
+  async _noaaLahin(lat, lng) {
+    /* NOAA:n asemat ovat Yhdysvalloissa ja Tyynellämerellä (Guam, Saipan). */
+    if (!(lng < -50 || lng > 130)) return null;
+    const A = await this._noaaAsemat();
+    let paras = null;
+    const ky = Math.cos(lat * Math.PI / 180);
+    for (const a of A) {
+      if (Math.abs(a[1] - lat) > 0.2) continue;
+      const km = Math.hypot((a[1] - lat) * 111.2, (((a[2] - lng + 540) % 360) - 180) * 111.2 * ky);
+      if (km <= this.ASEMA_KM && (!paras || km < paras.km)) paras = { id: a[0], nimi: a[3], km };
+    }
+    return paras;
+  },
+  async _api(q) {
+    const r = await fetch(API_BASE + '/vesi?vuorovesi=' + q);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    return d && !d.error && Array.isArray(d.h) && d.h.length > 24 ? d : null;
+  },
+  /* { lahde, nimi, km, t0, dt, h[], aariarvot[], malli } tai null (ei
+     vuorovettä tai ei luotettavaa lähdettä; `syy` kertoo kumpi). Muistetaan
+     paikalle tunniksi. */
+  async paikalle(lat, lng) {
+    const avain = lat.toFixed(3) + ',' + lng.toFixed(3);
+    const vanha = this._lahteet.get(avain);
+    if (vanha && Date.now() - vanha.ts < 36e5) return vanha.p;
+    const self = this;
+    const p = (async function () {
+      const v = await self.vakiot(lat, lng);
+      if (!v) return { syy: 'ei' };
+      if (self.vaihteluvali(v) < self.RAJA_M) return { syy: 'ei' };
+      const alku = Date.now() - 24 * 36e5, loppu = Date.now() + 8 * 864e5;
+      const ll = '&lat=' + lat.toFixed(4) + '&lng=' + lng.toFixed(4);
+      const valmis = (d, o) => {
+        const S = Object.assign({ t0: d.t0, dt: d.dt, h: d.h }, o);
+        S.aariarvot = d.aariarvot && d.aariarvot.length ? d.aariarvot : self.aariarvotSarjasta(S);
+        S.vaihteluvali = self.vaihteluvali(v);
+        return S;
+      };
+      try {
+        const a = await self._noaaLahin(lat, lng);
+        if (a) {
+          const d = await self._api('noaa&asema=' + a.id);
+          if (d) return valmis(d, { lahde: 'noaa', nimi: a.nimi, km: a.km, malli: false });
+        }
+        if (lat >= 57.5 && lat <= 81 && lng >= 3.5 && lng <= 32) {
+          const d = await self._api('kartverket' + ll);
+          if (d) return valmis(d, { lahde: 'kartverket', nimi: d.nimi, km: null, malli: false });
+        }
+        /* ALUEELLINEN MALLI ON TOTUUS SIITÄ ONKO PAIKASSA VUOROVETTÄ: 1,5 km
+           erottaa padot (IJsselmeer, Noordzeekanaal) ja laguunit, EOT20:n
+           0,125° ei (se piti Markermeeriä merenä, M2 0,7 m). Mallin "ei
+           dataa" on siis "ei vuorovettä" eikä EOT20:n vuoro; vain verkkovika
+           vie EOT20:een. */
+        if ((lat >= 46 && lat <= 62.75 && lng >= -16 && lng <= 13) || (lat >= 26 && lat <= 56 && lng >= -19 && lng <= 5)) {
+          const d = await self._api('malli' + ll);
+          if (d) return valmis(d, { lahde: d.lahde, nimi: null, km: d.km, malli: true });
+          return { syy: 'ei' };
+        }
+      } catch (e) { /* asema tai malli ei vastannut: EOT20 */ }
+      if (v.epavarma) return { syy: 'epavarma', km: v.km };
+      const S = self.sarjaVakioista(v, alku, loppu);
+      return Object.assign(S, { lahde: 'eot20', nimi: null, km: v.km, malli: true, vaihteluvali: self.vaihteluvali(v) });
+    })();
+    this._lahteet.set(avain, { ts: Date.now(), p });
+    /* Kapseli kysyy jokaisen pysähdyksen ruudun: muisti ei saa kasvaa
+       istunnon mittaan rajatta. */
+    while (this._lahteet.size > 200) this._lahteet.delete(this._lahteet.keys().next().value);
+    p.catch(function () { self._lahteet.delete(avain); });
+    return p;
+  },
+  /* Sarjan arvo hetkellä (tunnit lineaarisesti) ja suunta. */
+  arvo(S, t) {
+    const x = (t - S.t0) / S.dt, i = Math.floor(x);
+    if (i < 0 || i >= S.h.length - 1 || S.h[i] == null || S.h[i + 1] == null) return null;
+    const u = x - i;
+    return { h: S.h[i] + (S.h[i + 1] - S.h[i]) * u, nousee: S.h[i + 1] > S.h[i] };
+  },
+  seuraava(S, t) {
+    for (const a of S.aariarvot) if (a.t > t) return a;
+    return null;
+  },
+  /* SUUNTA SEURAAVASTA ÄÄRIARVOSTA, EI TUNTIEN KALTEVUUDESTA: matalan
+     laskuveden kohdalla tuntisarja voi jo nousta kun todellinen käyrä vielä
+     laskee (Golden Gate klo 18: "↑ nousee" ja "laskuvesi 18.29" samalla
+     rivillä). Seuraavaa kohti mennään aina. */
+  nousee(S, t) {
+    const s = this.seuraava(S, t);
+    if (s) return s.tyyppi === 'H';
+    const a = this.arvo(S, t);
+    return a ? a.nousee : null;
+  },
+  /* Lähteen nimi rivillä: asema ja etäisyys, tai malli ja matka merelle. */
+  /* Vedenkorkeuden mallit ovat Copernicuksen FYSIIKKAmalleja, eivät
+     aaltomalleja (`Lahde.NIMET.cmems_nws` on Met Officen WW3). */
+  MALLIT: {
+    cmems_nws: _t('Copernicus Marine · Met Office AMM15 1,5 km', 'Copernicus Marine · Met Office AMM15 1.5 km'),
+    cmems_ibi: 'Copernicus Marine · IBI 3 km',
+  },
+  lahdeTeksti(S) {
+    const km = S.km != null && S.km >= 1 ? ' · ' + _desim(S.km, S.km < 10 ? 1 : 0) + ' km' : '';
+    if (S.lahde === 'noaa') return 'NOAA · ' + escHtml(S.nimi || '') + km;
+    if (S.lahde === 'kartverket') return 'Kartverket' + (S.nimi ? ' · ' + escHtml(S.nimi) : '');
+    if (S.lahde === 'eot20') return _t('Malli', 'Model') + ' · EOT20 (DGFI-TUM)' + km;
+    return _t('Malli', 'Model') + ' · ' + (this.MALLIT[S.lahde] || S.lahde) + km;
+  },
+};
+/* Luettelo haetaan taustalla 4 s käynnistyksen jälkeen (`VuorovesiKate`
+   alla): kortti tietää vuorovesirannikon ennen ensimmäistä laattaa (paikka
+   varataan, V15). */
+
+/* VUOROVESIMODUULIN PAIKKA (kuten `AaltoKate`): tieto siitä onko spotilla
+   vuorovettä muistetaan ensimmäisestä hausta, jotta paikka varataan vain
+   sinne missä moduuli on (2°:n rasterin solu voi sisältää vuorovesirannikon
+   ja silti spotti on järvellä, kuten Pampus). */
+const VuorovesiKate = {
+  AVAIN: 'fs_vuorovesikate',
+  _d: null,
+  _lue() {
+    if (!this._d) { try { this._d = JSON.parse(localStorage.getItem(this.AVAIN) || '{}') || {}; } catch (e) { this._d = {}; } }
+    return this._d;
+  },
+  /* true = varaa, false = ei moduulia, null = tuntematon. */
+  lue(spot) {
+    const v = this._lue()[spot.lat.toFixed(3) + ',' + spot.lng.toFixed(3)];
+    if (v === 1) return true;
+    if (v === 0) return false;
+    const r = Vuorovesi.rannikko(spot.lat, spot.lng);
+    return r === false ? false : (r ? true : null);
+  },
+  kirjaa(spot, on) {
+    const d = this._lue(), k = spot.lat.toFixed(3) + ',' + spot.lng.toFixed(3), v = on ? 1 : 0;
+    if (d[k] === v) return;
+    d[k] = v;
+    try { localStorage.setItem(this.AVAIN, JSON.stringify(d)); } catch (e) {}
+  },
+  /* SPOTTIEN KATE TAUSTALLA HETI LUETTELON JÄLKEEN: 2°:n rasteri pitää
+     järven spottia vuorovesirannikkona (Pampus, ruudussa on Pohjanmeren
+     ranta), ja ilman tätä ensimmäinen avaus varasi paikan ja poisti sen —
+     mitattu siirtymä 334 px. Vain vakiot (laatat samasta originista, yksi
+     alueelle), ei lähdehakuja, ja vain "ei vuorovettä" kirjataan: "on"
+     vaatii lähteen (alueellisen mallin "ei dataa" on "ei vuorovettä"). */
+  async esitarkista() {
+    const d = this._lue();
+    for (const s of SPOTS) {
+      const k = s.lat.toFixed(3) + ',' + s.lng.toFixed(3);
+      if (d[k] != null || !Vuorovesi.rannikko(s.lat, s.lng)) continue;
+      try {
+        const v = await Vuorovesi.vakiot(s.lat, s.lng);
+        if (!v || Vuorovesi.vaihteluvali(v) < Vuorovesi.RAJA_M) this.kirjaa(s, false);
+      } catch (e) { /* laatta ei tullut: avaus päättää */ }
+    }
+  },
+};
+setTimeout(function () {
+  Vuorovesi.alusta().then(function (ok) { if (ok) VuorovesiKate.esitarkista(); });
+}, 4000);
+
 /* -- VEDENKORKEUS — mareografit ja FMI:n 48 h ennuste --------------
  *
  * Kaksi lähdettä, kaksi eri kuviota, ja se on mitattu eikä makuasia:
@@ -24545,6 +24969,142 @@ function _aaltoKaavio(el, data, jakso, asema, lampoVain, enn, nimi, o) {
 }
 
 
+/* -- VUOROVESIKAAVIO (docs/aallot.md V6) -----------------------------
+   Sama moottori kuin aalloilla (`Tuulikaavio.piirra`, laji 'arvo'):
+   asteikko symmetrinen nollan (paikallinen keskivesi) ympäri, täyttö
+   veden värillä (`--info`, kuten aalloilla ja vedenlämmöllä) ja luvut
+   NOUSU- JA LASKUVESISSÄ (`aariarvot`), ei tasatunneissa. Suuntariviä ei
+   ole. Etumerkki aina näkyvissä, kuten vedenkorkeudessa. */
+var VV_NAKYVA_H = 36, VV_NAKYVA_H_LAAJA = 72;
+function _vvM(v) { return (v > 0.005 ? '+' : (v < -0.005 ? '−' : '')) + _desim(Math.abs(v), 1); }
+function _vvAsuKortti() { return Object.assign({}, Tuulikaavio.ASUT.havainto, { plotH: 132, nuoliH: 0 }); }
+function _vvLuuranko(nimi, viesti) {
+  var H = Tuulikaavio.korkeus(_vvAsuKortti());
+  return '<div class="hav-tyokalut"><span class="osio-ala">' + nimi + '</span>' + _havLaajennaNappi('', true) + '</div>'
+    + '<div class="en-lukema" aria-hidden="true"></div>'
+    + '<div class="ak-kehys"><div class="en-kaare"><div class="en-paikka" style="height:' + H + 'px;min-height:0">' + (viesti || '') + '</div></div>' + Aikakaavio.tyokalutPaikka() + '</div>';
+}
+function _vvPiirros(S, asu, W0, nakyvaH, plotH, valittu) {
+  var t = [], h = [], A = 0.3;
+  for (var i = 0; i < S.h.length; i++) {
+    if (S.h[i] == null) continue;
+    t.push(S.t0 + i * S.dt); h.push(S.h[i]);
+    A = Math.max(A, Math.abs(S.h[i]));
+  }
+  var alku = t[0], loppu = t[t.length - 1];
+  var W = Math.max(W0, Math.round((loppu - alku) / 36e5 * W0 / nakyvaH));
+  /* ASTEIKKO PIKSELEISTÄ, EI KERTOIMISTA: laskuveden luku tarvitsee käyrän
+     alle 19 px ja nousuveden luku käyrän ylle 24 px (moottorin oma ylävara
+     16 px tulee lisäksi), jotta seuraavan nousuveden luku jää NYT-lapun
+     alle eikä sen taakse. Kertoimilla (−1,18 A … 1,32 A) se katosi lapun
+     alle aina kun nousuvesi oli alle kolmen tunnin päässä, ja laskuveden
+     luku osui käyrään. Nolla on aina samassa kohdassa (paikallinen
+     keskivesi), koska asteikko on symmetrinen. */
+  var fs = asu.fs || 1, pH = plotH || asu.plotH;
+  var ala = 19 * fs, yla = 24 * fs, kayra = Math.max(24, pH - 16 * fs - ala - yla);
+  var k = 2 * A / kayra;
+  var y = { min: -A - ala * k, max: A + yla * k };
+  var piirros = Tuulikaavio.piirra({
+    laji: 'arvo', asu: asu, plotH: plotH || 0, W: W, alku: alku, loppu: loppu, y: y, vari: Teema.info, yks: 'm',
+    luku: _vvM, ruutu: function (x, st) { return (x > 0 ? '+' : (x < 0 ? '−' : '')) + (st < 1 ? _desim(Math.abs(x), 1) : String(Math.round(Math.abs(x)))); },
+    nyt: Date.now(), valittu: valittu, paa: { t: t, ms: h, dir: null }, aariarvot: S.aariarvot,
+    ikkunaLuvut: false, loppuPiste: false, akseli: 'kiintea',
+    aria: _t('Vuorovesi', 'Tide'),
+  });
+  return { piirros: piirros, alku: alku, loppu: loppu };
+}
+/* Lukema hetkelle: korkeus, suunta (nousee / laskee) ja seuraava nousu-
+   tai laskuvesi. Solut aina samat ("–" kun sarja ei kata hetkeä). */
+function _vvLukema(S, t) {
+  var d = new Date(t), a = Vuorovesi.arvo(S, t), s = Vuorovesi.seuraava(S, t);
+  var nytH = Math.abs(t - Date.now()) < 1800e3;
+  var kello = function (ms) { var x = new Date(ms); return ('0' + x.getHours()).slice(-2) + ':' + ('0' + x.getMinutes()).slice(-2); };
+  var nousee = Vuorovesi.nousee(S, t);
+  return [{ nimi: nytH ? _t('Nyt', 'Now') : pvmLyhyt(d), arvo: ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2), ala: '', aika: true },
+          { nimi: _t('Korkeus', 'Height'), arvo: a ? _vvM(a.h) : '–', ala: 'm', paa: true },
+          { nimi: _t('Suunta', 'Direction'), arvo: a ? (nousee ? '↑ ' + _t('nousee', 'rising') : '↓ ' + _t('laskee', 'falling')) : '–', ala: '' },
+          { nimi: s ? (s.tyyppi === 'H' ? _t('Nousuvesi', 'High tide') : _t('Laskuvesi', 'Low tide')) : _t('Seuraava', 'Next'),
+            arvo: s ? kello(s.t) : '–', ala: s ? _vvM(s.h) + ' m' : '' }];
+}
+function _vuorovesiKaavio(el, S, nimi, o) {
+  o = o || {};
+  var vid = 'ak-' + Math.random().toString(36).slice(2, 7);
+  el.innerHTML =
+    '<div class="hav-tyokalut"><span class="osio-ala">' + nimi + '</span>' + _havLaajennaNappi(vid) + '</div>'
+    + '<div class="en-lukema" data-ak-lukema aria-live="off"></div>'
+    + '<div class="ak-kehys"><div class="en-kaare" data-ak-kaare tabindex="0" role="group"'
+      + ' aria-label="' + _t('Vuorovesi. Vieritä sivuttain, napauta hetkeä.', 'Tide. Scroll sideways, tap a time.') + '"></div></div>';
+  var kaare = el.querySelector('[data-ak-kaare]'), lukema = el.querySelector('[data-ak-lukema]');
+  var W0 = Aikakaavio.leveys(kaare, 'kortti');
+  kaare._W0 = W0;
+  var asu = _vvAsuKortti(), p, osoitettu = false;
+  var valittu = function () { return o.valittu ? o.valittu() : Date.now(); };
+  var piirra = function () {
+    p = _vvPiirros(S, asu, W0, Aikakaavio.nakyva('vuorovesi', VV_NAKYVA_H), 0, valittu());
+    Aikakaavio.aseta(kaare, [p.piirros], valittu(), 0.3);
+  };
+  piirra();
+  var lepo = function () {
+    lukema.innerHTML = Aikakaavio.lukemaHtml(_vvLukema(S, valittu()));
+    lukema.classList.remove('osoitettu');
+    osoitettu = false;
+  };
+  lepo();
+  var palaa = null;
+  Aikakaavio.osoitin(kaare, {
+    nayta: function (t) {
+      Aikakaavio.hover(kaare, t);
+      clearTimeout(palaa);
+      if (t == null) { lepo(); return; }
+      lukema.innerHTML = Aikakaavio.lukemaHtml(_vvLukema(S, t));
+      lukema.classList.add('osoitettu');
+      osoitettu = true;
+      palaa = setTimeout(function () { Aikakaavio.hover(kaare, null); lepo(); }, 4000);
+    },
+  });
+  /* Valitun tunnin vaihto (spottikortin päivityspolku), sama liitäntä
+     kuin aaltokaaviolla. */
+  kaare._aaltoValitse = function (t) {
+    if (kaare._geot) {
+      kaare.querySelectorAll('svg.tk-svg').forEach(function (svg, k) { Tuulikaavio.siirraValittu(svg, kaare._geot[k], t); });
+      Aikakaavio.naytaHetki(kaare, t, true);
+    }
+    if (!osoitettu) lepo();
+  };
+  Aikakaavio.venytys(kaare, { avain: 'vuorovesi', oletus: VV_NAKYVA_H, min: 12, max: 24 * 9, piirra: piirra });
+  var nappi = el.querySelector('[data-hav-laajenna]');
+  if (nappi) {
+    nappi._havLaajaLahde = function () {
+      return {
+        el: el, jaksot: '[data-ei-jaksoja]', otsikko: o.otsikko || _t('Vuorovesi', 'Tide'), sub: nimi,
+        piirra: function (kaavio, laatikko, laaja) {
+          var W0L = Math.max(280, Math.round(laatikko.w));
+          var asuL = Object.assign({}, Tuulikaavio.ASUT.laaja, { fs: Tuulikaavio.laajaFs(W0L), lahdeH: 0, sadeH: 0, lampoH: 0, nuoliH: 0 });
+          var plotH = Math.max(120, Math.round(laatikko.h - asuL.paivaH - asuL.tuntiH - 4));
+          var pL = _vvPiirros(S, asuL, W0L, Aikakaavio.nakyva('vuorovesi-laaja', VV_NAKYVA_H_LAAJA), plotH, valittu());
+          var k = kaavio.querySelector('[data-ak-kaare]');
+          if (!k) {
+            kaavio.innerHTML = '<div class="ak-kehys ak-kehys-laaja"><div class="en-kaare en-kaare-laaja" data-ak-kaare></div></div>';
+            k = kaavio.querySelector('[data-ak-kaare]');
+          }
+          k._W0 = W0L;
+          Aikakaavio.aseta(k, [pL.piirros], valittu(), 0.3);
+          laaja.rivi(_vvLukema(S, k._akHoverT != null ? k._akHoverT : valittu()));
+          Aikakaavio.osoitin(k, {
+            nayta: function (t) {
+              Aikakaavio.hover(k, t);
+              laaja.rivi(_vvLukema(S, t != null ? t : valittu()));
+            },
+          });
+          Aikakaavio.venytys(k, { avain: 'vuorovesi-laaja', oletus: VV_NAKYVA_H_LAAJA, min: 12, max: 24 * 9,
+            piirra: function () { HavLaaja.paivita(); } });
+        },
+      };
+    };
+    nappi.addEventListener('click', function () { HavLaaja.avaa(nappi._havLaajaLahde(), nappi); }, { passive: true });
+  }
+}
+
 /* -- AURINKO ----------------------------------------------------- */
 /* Auringon korkeuskulma ja siitä johdetut valon vaiheet.
  *
@@ -25355,6 +25915,8 @@ const Tuulikaavio = {
    *   ruutu(v)              ruudukon luvun teksti ('arvo')
    *   ikkunaLuvut           havainto: luku on ikkunan keskiarvo ja
    *                         puuska sen maksimi, ei yksittäinen näyte
+   *   aariarvot             [{ t, h, tyyppi: 'H'|'L' }] ('arvo'): luvut
+   *                         nousu- ja laskuvedelle tuntien lukujen sijaan
    *   nytMerkki, menneisyys oletuksena tosi kun `nyt` on ikkunassa
    *   lat, lng, bestDirs, saa, otsikot, nimi, nimiVari, aria
    * }
@@ -25522,6 +26084,11 @@ const Tuulikaavio = {
         + '" stroke="rgba(240,231,206,.11)" stroke-width="' + (0.8 * lw).toFixed(2) + '"/>';
       /* Luku jää pois jos foilausrajan oma luku olisi sen päällä. */
       if (tuuli && fyLuku > y0 + 4 && Math.abs(y - fyLuku) < 11 * fs) continue;
+      /* Akselin yksikkö on ylälaidassa (`_akseli`, y0 + 12·fs): sen alle
+         osuva luku jää pois ja viiva jää. Tuulella ylin luku on aina
+         portaan verran asteikon alla; 'arvo'-lajin asteikko ei ole (vuorovesi:
+         "+2" yksikön "m" päällä). */
+      if (!tuuli && o.yks && y < y0 + 23 * fs + 3) continue;
       ruudLaput.push([y, tk.lbl]);
     }
     /* Foilausrajalla on oma luku (näyttöyksikössä, tuulen värinen ruskea):
@@ -25772,7 +26339,8 @@ const Tuulikaavio = {
         viimeTunti = x;
         merkitytX.add(Math.round(x));
       }
-      if (!P) return;
+      /* Ääriarvojen luvut (vuorovesi) korvaavat tuntien luvut. */
+      if (!P || o.aariarvot) return;
       let v = null, g = null;
       if (o.ikkunaLuvut) {
         const ii = ikkuna(P, t, askelH * 36e5 / 2);
@@ -25876,6 +26444,29 @@ const Tuulikaavio = {
         luvutRect.push(r);
         luvut += '<text x="' + x.toFixed(1) + '" y="' + ya.toFixed(1) + '" font-size="' + lukuKoko.toFixed(1)
           + '" font-weight="700" fill="' + this.INK + '" text-anchor="middle"' + this._halo(fs) + '>' + luku(h.v) + '</text>';
+      });
+    }
+    /* NOUSU- JA LASKUVESI (vuorovesi, docs/aallot.md V6): luku jokaisessa
+       ääriarvossa, nousuvesi käyrän yläpuolella ja laskuvesi sen alla —
+       laskuvesi on foilaajalle yhtä tärkeä kuin nousuvesi (matala ranta,
+       laguuni), joten laaksot saavat lapun toisin kuin tuulella.
+       Törmäyksenesto kuten huipuilla. */
+    if (o.aariarvot) {
+      if (nytIkkunassa0) {
+        const nx = xOf(o.nyt), nl = 34 * fs / 2 + 3;
+        luvutRect.push([nx - nl, nx + nl, y0 + 3, y0 + 3 + 16 * fs + 2]);
+      }
+      o.aariarvot.forEach((a) => {
+        if (a.t < alku || a.t > loppu) return;
+        const x = xOf(a.t);
+        if (x < 10 * fs || x > W - 10 * fs) return;
+        const yv = yOf(a.h), w = lukuLev(a.h);
+        const ya = a.tyyppi === 'H' ? Math.max(y0 + lukuKoko + 2 * fs, yv - 5 * fs) : Math.min(pohja - 3 * fs, yv + lukuKoko + 3 * fs);
+        const r = [x - w / 2, x + w / 2, ya - lukuKoko, ya + 3];
+        if (luvutRect.some((q) => r[0] < q[1] && r[1] > q[0] && r[2] < q[3] && r[3] > q[2])) return;
+        luvutRect.push(r);
+        luvut += '<text x="' + x.toFixed(1) + '" y="' + ya.toFixed(1) + '" font-size="' + lukuKoko.toFixed(1)
+          + '" font-weight="700" fill="' + this.INK + '" text-anchor="middle"' + this._halo(fs) + '>' + luku(a.h) + '</text>';
       });
     }
     /* JAKSON KOVIN PUUSKA SAA AINA LAPUN (CLAUDE.md). Ikkunaluvuissa se
@@ -28247,6 +28838,13 @@ const Laatat = {
         ? [(m.cm > 0 ? _t('nousee ', 'rising ') : _t('laskee ', 'falling ')) + Math.abs(Math.round(m.cm)) + ' cm / ' + m.tunnit + ' h',
            (m.cm > 0 ? '↑ ' : '↓ ') + Math.abs(Math.round(m.cm)) + ' cm / ' + m.tunnit + ' h']
         : ['', ''];
+    } else if (!data && spot._vvVaraus) {
+      /* VUOROVESIRANNIKOLLA laatta ei sano "ei ennustetta" (eikä "ladataan…"
+         FMI:n pisteennustetta, joka ei kata Atlanttia): vedenkorkeus on
+         siellä vuorovesi, ja se on omassa moduulissaan alempana. Lukua ei
+         toisteta tässä (P15, kohta 4: valitun tunnin aaltoennuste on
+         aaltomoduulin lukemarivillä eikä laatassa — sama sääntö). */
+      eka = [_t('vuorovesi alempana', 'tide further down'), _t('vuorovesi alla', 'tide below')];
     } else if (!data && (Vedenkorkeus._ennusteKesken[k] || !Vedenkorkeus._asemat)) {
       eka = [_t('ladataan…', 'loading…'), _t('ladataan…', 'loading…')];
     } else if (data) {
@@ -28530,6 +29128,74 @@ function openSheet(spot, hourIdx) {
       + '</section>';
   }
 
+  /* VUOROVESI (docs/aallot.md V6, T2): parhaasta lähteestä (asema >
+     alueellinen malli > EOT20), vain vuorovesirannikolla. Paikka varataan
+     kun spotin tiedetään (muisti) tai oletetaan (2°:n rasteri) olevan
+     vuorovesirannikolla; jos haku sanoo "ei vuorovettä", ryhmä poistuu
+     kerran ja muisti estää sen seuraavalla avauksella. Alarivi kertoo
+     lähteen ja etäisyyden — mallilähteellä aina "Malli". */
+  function buildVuorovesiModuuli() {
+    if (!spot._vvVaraus) {
+      /* Tuntematon ennen luetteloa: ei varata (Suomen spotit ovat valtaosa,
+         ja jokaiselle varattu ja poistettu paikka olisi siirtymä). Haku
+         kirjaa tuloksen muistiin seuraavaa avausta varten. */
+      if (VuorovesiKate.lue(spot) === null) Vuorovesi.paikalle(spot.lat, spot.lng).then(function (S) { VuorovesiKate.kirjaa(spot, !!(S && S.h)); }).catch(function () {});
+      return '';
+    }
+    const mid = 'sh-vv-' + spot.name.replace(/[^a-z0-9]/gi, '_');
+    const nimi = _t('Vuorovesi', 'Tide');
+    setTimeout(function () {
+      const el = document.getElementById(mid);
+      if (!el) return;
+      const k = el.querySelector('[data-vv-kaavio]'), ala = el.querySelector('[data-vv-lahde]');
+      const pois = function () {
+        const o = document.getElementById(mid + '-otsikko');
+        if (o) o.remove();
+        el.remove();
+        /* Vedenkorkeuden laatta viittasi tähän moduuliin. */
+        spot._vvVaraus = false;
+        Laatat.paivitaVesi(spot);
+      };
+      const virhe = function (teksti) {
+        const p = k.querySelector('.en-paikka');
+        if (p) p.textContent = teksti || _t('Vuorovesiennustetta ei saatu', 'Couldn’t load the tide forecast');
+      };
+      const vahti = setTimeout(virhe, 15000);
+      Vuorovesi.paikalle(spot.lat, spot.lng).then(function (S) {
+        clearTimeout(vahti);
+        if (!k.isConnected) return;
+        if (!S || !S.h) {
+          if (S && S.syy === 'epavarma') {
+            VuorovesiKate.kirjaa(spot, true);
+            virhe(_t('Mallin vuorovesi ei ole täällä luotettava, eikä asemaa ole lähellä', 'The model tide is not reliable here, and there is no station nearby'));
+            if (ala) ala.textContent = _t('Malli · EOT20 (DGFI-TUM)', 'Model · EOT20 (DGFI-TUM)');
+            return;
+          }
+          VuorovesiKate.kirjaa(spot, false);
+          pois();
+          return;
+        }
+        VuorovesiKate.kirjaa(spot, true);
+        spot._vuorovesi = S;
+        _vuorovesiKaavio(k, S, _t('Vedenkorkeus keskivedestä', 'Height above mean sea level'), {
+          otsikko: spot.name + ' · ' + nimi,
+          valittu: function () { return State.valittuMs != null ? State.valittuMs : Ennuste.nytTunti(); } });
+        if (ala) {
+          /* Vaihtelu on 2·(M2 + S2 + K1 + O1) EOT20:n vakioista: kaikki
+             osavuorovedet samassa vaiheessa eli suurin vaihtelu, ei
+             keskimääräinen kevätvuorovesi (sekavuorovedellä, kuten Golden
+             Gatessa, se on suurempi kuin tavallinen päivä). */
+          ala.innerHTML = Vuorovesi.lahdeTeksti(S) + ' · ' + _t('suurin vaihtelu noin ', 'max range about ') + _desim(S.vaihteluvali, 1) + ' m';
+        }
+      }, function () { clearTimeout(vahti); virhe(); });
+    }, 0);
+    return '<h3 class="sh-ryhma" id="' + mid + '-otsikko">' + nimi + '</h3>'
+      + '<section class="sh-moduli sh-vuorovesi-moduli" id="' + mid + '" aria-label="' + nimi + '">'
+        + '<div data-vv-kaavio>' + _vvLuuranko(_t('Vedenkorkeus keskivedestä', 'Height above mean sea level'), _t('Ladataan vuorovettä…', 'Loading the tide…')) + '</div>'
+        + '<div class="sh-poiju-rivi" data-vv-lahde>' + _t('Lähde: ladataan…', 'Source: loading…') + '</div>'
+      + '</section>';
+  }
+
   const fmiId = 'fmi-' + spot.name.replace(/\s/g, '_');
 
   /* ── SPOTTIKORTIN RAKENNE (docs/spottikortti.md, V9 ja luku 8) ──────
@@ -28559,8 +29225,9 @@ function openSheet(spot, hourIdx) {
    * (`Ennuste.asetaValittu`), ja aaltokaavio seuraa (`_aaltoValitse`). */
   const _laatatHtml = function () { return Laatat.html(spot, _hetkiMs, ms); };
   const _aaltoValitse = function () {
-    const k = _sc.querySelector('.sh-aalto-moduli [data-ak-kaare]');
-    if (k && k._aaltoValitse) k._aaltoValitse(_hetkiMs);
+    _sc.querySelectorAll('.sh-aalto-moduli [data-ak-kaare], .sh-vuorovesi-moduli [data-ak-kaare]').forEach(function (k) {
+      if (k._aaltoValitse) k._aaltoValitse(_hetkiMs);
+    });
   };
 
   const _sc = document.getElementById('sheet-content');
@@ -28588,6 +29255,9 @@ function openSheet(spot, hourIdx) {
   const _havKaukana = (!_asemaLahin || _asemaLahin.km > HAVAINTO_MAX_KM)
     && EuAsemat.kattaa(spot.lat, spot.lng, HAVAINTO_MAX_KM);
   const _osuvuus = Osuvuus.teksti(spot.name);
+  /* Vuorovesimoduulin paikka päätetään kerran rakennusta kohti, koska
+     vedenkorkeuden laatta (rakennetaan ennen moduulia) viittaa siihen. */
+  spot._vvVaraus = VuorovesiKate.lue(spot) === true;
   _sc.dataset.spotti = spot.name;
   _sc.innerHTML =
     '<div class="sh-yla">'
@@ -28606,6 +29276,7 @@ function openSheet(spot, hourIdx) {
     + build24hChart()
     + '<div id="sh-laatat-tunti">' + _laatatHtml() + '</div>'
     + buildAaltoModuuli()
+    + buildVuorovesiModuuli()
     /* TUULIHAVAINTO: ei seuraa aikajanaa — lukemarivi sanoo hetken, ja
        aseman nimi on valitsimessa (P15, kohta 7). */
     + '<h3 class="sh-ryhma">' + _t('Tuulihavainto', 'Wind observation') + '</h3>'
@@ -32896,6 +33567,19 @@ function kapseliAaltoSVG(koko) {
     + '</svg>';
 }
 
+/* VUOROVEDEN MERKKI kapselin sääosan toisella rivillä (docs/aallot.md V6):
+   sama perhe ja sama vesi kuin aaltomerkissä, ja nuoli vedenpinnasta ylös
+   (nousee) tai alas sitä kohti (laskee). Merkki on luvun sana: "puuska"
+   sanotaan tuuliosassa sanana, mutta "vuorovesi" ei mahtuisi kapseliin
+   320 px:n puhelimella aaltojen kanssa. */
+function kapseliVuorovesiSVG(koko, nousee) {
+  return '<svg width="' + koko + '" height="' + koko + '" viewBox="0 0 24 24" fill="none" '
+    + 'stroke="#7FB4F2" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    + (nousee ? '<path d="M12 14V3.5M7.5 8l4.5-4.5L16.5 8"/>' : '<path d="M12 3.5V14M7.5 9.5L12 14l4.5-4.5"/>')
+    + '<path d="M2.5 19.5c1.6 0 2.4-1.1 3.6-1.1s2 1.1 3.6 1.1 2.4-1.1 3.6-1.1 2 1.1 3.6 1.1 2.4-1.1 3.6-1.1"/>'
+    + '</svg>';
+}
+
 /* WMO-koodi -> ikonin avain. Sama jako kuin sanallisessa kuvauksessa. */
 function wxIconKey(code) {
   if (code === 0) return 'selkea';
@@ -33016,6 +33700,7 @@ const WeatherWidget = {
        kolmanneksella. */
     this._ikoniEl = document.getElementById('kap-saa-ikoni');
     this._tempEl = document.getElementById('kap-lampo');
+    KapVuorovesi.init();
     this._lueValimuisti();
     /* Paikka vaihtuu kartan pysähtyessä; vanhentunut sarja haetaan
        uudelleen etualalla (TTL 30 min). */
@@ -33213,7 +33898,82 @@ const WeatherWidget = {
     const perhe = this._perhe(c);
     if (!e || Date.now() - e.ts >= this.SAA_TTL || (perhe && perhe !== e.perhe)) this.scheduleUpdate();
     if (typeof WxPanel !== 'undefined' && WxPanel._open) WxPanel.paivita();
+    /* Sama hetki ja paikka: kartan pysähdys ja aikajanan valinta. */
+    KapVuorovesi.paivita();
   }
+};
+
+/* -- KAPSELIN VUOROVESI (docs/aallot.md V6) ---------------------------
+ *
+ * Sääosan toinen rivi vuorovesirannikolla, kuten puuska tuuliosassa:
+ * korkeus paikallisesta keskivedestä valitulla hetkellä ja suunta
+ * seuraavasta ääriarvosta ("↑ +1,2 m"). Lähde on sama kuin kortilla
+ * (`Vuorovesi.paikalle`: asema > alueellinen malli > EOT20) kartan
+ * keskipisteen 0,02°:n ruudusta (noin 2 km; sama ruutu on sama haku ja sama
+ * CDN-osoite kaikille). Haku vasta kun kartta on levossa. Liikkeen ja haun
+ * aikana edellisen ruudun sarja saa jäädä alle 5 km:n matkalla; kauempana
+ * rivi piiloutuu, koska toisen paikan vuorovesi olisi väärä luku joka ei
+ * näytä väärältä. Itämerellä rasteri sanoo "ei vuorovettä" ilman yhtään
+ * hakua. */
+const KapVuorovesi = {
+  RUUTU: 0.02, PITO_KM: 5,
+  _el: null, _osa: null, _S: null, _paikka: null, _haettava: '', _ajastin: null, _teksti: null,
+  init() {
+    this._el = document.getElementById('kap-vv');
+    this._osa = document.querySelector('.kap-saa');
+  },
+  paivita() {
+    if (!this._el || !State.map) return;
+    const c = State.map.getCenter();
+    const lat = Math.round(c.lat / this.RUUTU) * this.RUUTU, lng = Math.round(c.lng / this.RUUTU) * this.RUUTU;
+    const avain = lat.toFixed(2) + ',' + lng.toFixed(2);
+    if (this._paikka && this._paikka.avain !== avain) {
+      const km = Math.hypot((this._paikka.lat - lat) * 111.2, (this._paikka.lng - lng) * 111.2 * Math.cos(lat * Math.PI / 180));
+      if (km > this.PITO_KM) { this._S = null; this._paikka = null; }
+    }
+    if (avain !== this._haettava && !State.liikkeessa) this._hae(avain, lat, lng);
+    this._piirra();
+  },
+  _hae(avain, lat, lng) {
+    this._haettava = avain;
+    clearTimeout(this._ajastin);
+    const self = this;
+    this._ajastin = setTimeout(function () {
+      const r = Vuorovesi.rannikko(lat, lng);
+      if (r === null) {
+        /* Luettelo ei ole vielä tullut: uusi yritys kun se on. */
+        self._haettava = '';
+        Vuorovesi.alusta().then(function (ok) { if (ok) self.paivita(); });
+        return;
+      }
+      if (!r) { self._aseta(avain, lat, lng, null); return; }
+      Vuorovesi.paikalle(+lat.toFixed(2), +lng.toFixed(2)).then(function (S) {
+        if (self._haettava === avain) self._aseta(avain, lat, lng, S && S.h ? S : null);
+      }, function () { if (self._haettava === avain) self._haettava = ''; });
+    }, 250);
+  },
+  _aseta(avain, lat, lng, S) {
+    this._S = S;
+    this._paikka = S ? { avain: avain, lat: lat, lng: lng } : null;
+    this._piirra();
+  },
+  _piirra() {
+    const S = this._S, t = WeatherWidget._hetki();
+    const a = S ? Vuorovesi.arvo(S, t) : null;
+    const nousee = a ? Vuorovesi.nousee(S, t) : null;
+    const teksti = a ? (nousee ? '↑' : '↓') + _vvM(a.h) : '';
+    if (teksti === this._teksti) return;
+    this._teksti = teksti;
+    this._el.innerHTML = a ? kapseliVuorovesiSVG(13, nousee) + '<span>' + _vvM(a.h) + ' m</span>' : '';
+    this._el.hidden = !teksti;
+    /* Napin nimi kertoo rivin ruudunlukijalle (nimi korvaa sisällön). */
+    if (this._osa) {
+      const perus = _t('Näytä tuntisää', 'Show hourly weather');
+      this._osa.setAttribute('aria-label', a
+        ? perus + '. ' + _t('Vuorovesi ', 'Tide ') + _vvM(a.h) + ' m, ' + (nousee ? _t('nousee', 'rising') : _t('laskee', 'falling'))
+        : perus);
+    }
+  },
 };
 
 /* -- CROSSHAIR -------------------------------------------------- */
