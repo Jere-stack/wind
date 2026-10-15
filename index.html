@@ -5389,7 +5389,7 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
             <div class="sp-sadeasteikko-otsikko" data-en="Significant wave height (m)">Merkitsevä aallonkorkeus (m)</div>
             <div id="aalto-scale-bar"></div>
             <div id="aalto-scale-ticks"></div>
-            <div class="sp-note" data-en="FMI WAM wave model, about 2.5 days ahead. Moving crests show where the waves are heading; their speed follows the wave period.">FMI:n WAM-aaltomalli, noin 2,5 vrk eteenp&auml;in. Liikkuvat aallonharjat kertovat mihin aallot etenev&auml;t; niiden nopeus seuraa aallon jaksoa.</div>
+            <div class="sp-note" data-en="ECMWF WAM 9 km wave model worldwide for 15 days, and FMI WAM in the Baltic Sea about 2.5 days ahead. Moving crests show where the waves are heading; their speed follows the wave period.">ECMWF WAM 9 km -aaltomalli koko maailmassa 15 vrk ja It&auml;merell&auml; FMI:n WAM noin 2,5 vrk eteenp&auml;in. Liikkuvat aallonharjat kertovat mihin aallot etenev&auml;t; niiden nopeus seuraa aallon jaksoa.</div>
           </div>
           <!-- Sateen asteikko: vain sadetilassa, samasta syystä. Foilaajalle
                tutka ei ole "sataako" vaan MISSÄ KUUROT OVAT: kuuron reuna on
@@ -7844,6 +7844,10 @@ const Saalaatat = {
     for (const t of p.tasot) {
       if (lat < t.lat[0] || lat > t.lat[1]) continue;
       if ((t.lng[0] > -180 || t.lng[1] < 180) && (lo < t.lng[0] || lo > t.lng[1])) continue;
+      /* PERHETTÄ LYHYEMPI TASO (aallot: ECMWF:n 0,25° +7 vrk:een) ei ole
+         valittavissa akselinsa ulkopuolella; silloin karkeampi kattaa.
+         Tuulen tasoilla perheen akseli on yhteinen, eikä lippua ole. */
+      if (t._lyhyt && !(t._ax && t._ax.ok)) continue;
       if (!hienoin) hienoin = t;
       if (t.askel <= step + 1e-9) paras = t;
     }
@@ -7954,6 +7958,12 @@ const Saalaatat = {
          alemmat perheet kokonaan, eikä niiden laattoja haeta sen alle. */
       const paino = (dv.getUint8(39) & 1) && tavut.length >= ot + 3 * koko + ny * nx
         ? tavut.subarray(ot + 3 * koko, ot + 3 * koko + ny * nx) : null;
+      /* Bitti 1 = ETÄISYYSTASO painon perässä (aaltovarasto,
+         `tools/aaltopyramidi.mjs`): etäisyys mallin lähimpään märkään
+         pisteeseen, josta `AaltoVarasto` laskee rannan luottamuksen.
+         Tuulen laatoissa bittiä ei ole. */
+      const eo = ot + 3 * koko + (paino ? ny * nx : 0);
+      const etaisyys = (dv.getUint8(39) & 2) && tavut.length >= eo + ny * nx ? tavut.slice(eo, eo + ny * nx) : null;
       let taysi = true;
       if (paino) for (let i = 0; i < paino.length; i++) if (paino[i] !== 255) { taysi = false; break; }
       const nop = tavut.subarray(ot, ot + koko), suunta = tavut.subarray(ot + koko, ot + 2 * koko),
@@ -7973,7 +7983,7 @@ const Saalaatat = {
           nop: K ? new Uint8Array(kokoK).fill(this._luettelo.tyhja) : nop,
           suunta: K ? new Uint8Array(kokoK).fill(this._luettelo.tyhja) : suunta,
           puuska: K ? new Uint8Array(kokoK).fill(this._luettelo.tyhja) : puuska,
-          paino, taysi,
+          paino, taysi, etaisyys,
           palat: K ? new Uint8Array(this._palaMaara(taso)) : null,
         };
         /* Muistikatto: pudotetaan vähiten äskettäin käytetty. Map säilyttää
@@ -8061,6 +8071,12 @@ const Saalaatat = {
     if (W ? (W.vajaa && osuu(W, W.dStep)) : (typeof WindTexture !== 'undefined' && WindTexture._hilaHylatty)) WindTexture._taydennaLevossa();
   },
 
+  /* Kartan hetki jonka palat `varmista` hakee. Koukku, koska aaltovarasto
+     (`AaltoVarasto`) lukee saman koneiston eri kerroksen hetkeä. */
+  _karttaHetki() {
+    return typeof LampoGL !== 'undefined' && LampoGL._map ? LampoGL._hetki() : this._hetkiMs;
+  },
+
   /* Pituusasteväli normalisoituna, tarvittaessa kahtena palana
      päivämäärärajan yli. MapLibre antaa rajoja myös ±180:n ulkopuolelta. */
   _lngValit(w, e) {
@@ -8135,7 +8151,7 @@ const Saalaatat = {
        perään hakisi väärän palan. Toistossa ja raahauksessa myös seuraava
        pala kun hetki on sen kynnyksellä, jotta kenttä ei putoa varalle
        palan vaihtuessa. */
-    if (tMs == null) tMs = typeof LampoGL !== 'undefined' && LampoGL._map ? LampoGL._hetki() : this._hetkiMs;
+    if (tMs == null) tMs = this._karttaHetki();
     const liike = typeof State !== 'undefined' && (State.isPlaying || State._tlTouching);
     const palatNyt = (taso) => {
       if (!(taso.pala > 0)) return [-1];
@@ -8307,6 +8323,13 @@ const Saalaatat = {
     if (tMs >= ts[viim]) { ax.ti = viim; ax.tf = 0; ax.ok = true; return true; }
     let lo = 0, hi = viim;
     while (lo < hi) { const m = (lo + hi) >> 1; if (ts[m] < tMs) lo = m + 1; else hi = m; }
+    /* TARKKA ASKEL ON OMA INDEKSINSÄ PAINOLLA 0, ei edellinen painolla 1.
+       Luku on sama, mutta pala ei: `varmista` hakee hetken palan
+       `_indeksiHetkelle`n mukaan (askel k), ja `_palaValmis` vaati
+       edellisen askeleen palan. Palan rajalla (k = 24, 48, …) laatta
+       näytti puuttuvalta ja sen saapuminen ohitettiin (`_kunUusia`), ja
+       kenttään jäi aukko koko laatan kokoisena. */
+    if (ts[lo] === tMs) { ax.ti = lo; ax.tf = 0; ax.ok = true; return true; }
     const b = lo, a = lo - 1;
     ax.ti = a;
     ax.tf = (tMs - ts[a]) / (ts[b] - ts[a]);
@@ -8445,6 +8468,7 @@ const Saalaatat = {
   },
   _varaMuistiin(m, t, lat, lo, r, taso, step) {
     if (lat < t.lat[0] || lat > t.lat[1]) return null;
+    if (t._lyhyt && !(t._ax && t._ax.ok)) return null;
     if ((t.lng[0] > -180 || t.lng[1] < 180) && (lo < t.lng[0] || lo > t.lng[1])) return null;
     const r2 = this._ruutu(t, lat, lo);
     const l2 = this._laatat.get(this._avain(t, r2.la0, r2.lo0));
@@ -9146,7 +9170,10 @@ const Saalaatat = {
           lahde2[i] = p2 ? (p2.dyn ? this._dynMalli(p2, lat, lo) : p2.malli) : null;
           osuus2[i] = p2 && yht > 0 ? O[toinen] / yht : 0;
           ecmwfOs[i] = yht > 0 ? ec / yht : 0;
-          const ax = this._perus, axTs = ax.tsMs, ai = Math.min(ax.ti, axTs.length - 2);
+          /* Askel jonka maksimi tämä hetki on: tarkalla askeleella se on
+             sitä edeltävä väli (`_asetaAkseli` antaa silloin askeleen
+             itsensä painolla 0). */
+          const ax = this._perus, axTs = ax.tsMs, ai = ax.tf === 0 && ax.ti > 0 ? ax.ti - 1 : Math.min(ax.ti, axTs.length - 2);
           akseliH[i] = ai >= 0 ? (axTs[ai + 1] - axTs[ai]) / 3600e3 : null;
         }
         /* Puuska samasta sekoituksesta. Varaston ECMWF-puuska puuttuu joka
@@ -9208,51 +9235,762 @@ const Saalaatat = {
   },
 };
 
-/* -- AALLOT — FMI:n WAM säälaattavarastosta -------------------------
+/* -- AALLOT — AALTOVARASTO SAMASSA KONEISTOSSA KUIN TUULI ----------
  *
- * Aaltoennuste kartalle, kapseliin, aikajanaan ja kortteihin tulee
- * SAMASTA varastosta kuin tuuli (`tools/wam.mjs`, luettelon
- * `aallot`-avain, tasot `a0`–`a3`), samasta kodista ja samalla
- * versioavaimella (`Saalaatat._lataa`). Aallot eivät ole tuulen perhe:
- * niitä ei sekoiteta `naytteista`an eikä niillä ole painokanavaa.
+ * docs/aallot.md (strategia 14.10., toteutus V1–V3). Aaltoennuste
+ * kartalle, kapseliin, aikajanaan ja kortteihin tulee SAMASTA varastosta
+ * ja samasta kodista kuin tuuli, luettelon omasta avaimesta `aallot2`
+ * (`tools/aallot.mjs`, `tools/aaltopyramidi.mjs`):
+ *
+ *   PERHEET painokanavalla, tärkein ensin: FMI WAM Itämerellä (≈ 1 × 2 km,
+ *   noin 66 h), pohjana ECMWF WAM 9 km koko maailmassa (−48 h … +15 vrk).
+ *   Alueellisen perheen paino tulee ALUEEN AVOMEREN REUNASTA, ei maskista:
+ *   alueen sisällä alueellisen mallin maski päättää mikä on maata.
+ *
+ * Aallot EIVÄT ole tuulen perhe (CLAUDE.md): `AaltoVarasto` on oma
+ * olionsa omalla tilallaan, mutta sen KONEISTO on `Saalaatat`in
+ * (prototyyppi): palat ajassa, perheiden aikapaino, `varmista` ja sen
+ * peitto, koko akselin esilataus (`esilatausTehtavat`), laattamuisti ja
+ * varalaatat. Kopio olisi kaksi koneistoa jotka ajautuvat erilleen
+ * (docs/aallot.md 6.2, K1). Omat ovat vain kentän näyte (`naytteista`,
+ * `_naytePerhe`), hilan kokoaminen ja pisteen sarja.
  *
  * KOLME SUURETTA LAATAN KOLMESSA TASOSSA: merkitsevä aallonkorkeus
- * (`nop`, 0,03 m), suunta MISTÄ (`suunta`, 2°) ja jakso (`puuska`,
- * 0,1 s). 255 on maa — se on läpinäkyvää eikä arvattua.
- *
- * MALLIN JAKSO ON NOIN 66 TUNTIA. Sen ulkopuolella kerros tyhjenee ja
- * sanoo sen (`_lahde`), kuten sadetutka arkistonsa ulkopuolella. ECMWF:n
- * aaltomallia ei käytetä jatkona: 0,25° on Suomenlahdella kolme solmua,
- * ja lähin märkä solmu Helsingin spoteille on 17–24 km ulkomerellä
- * (docs/lisadata.md). */
+ * neliöjuurena (`nop`: q = 254 · √(Hs / 16 m)), suunta MISTÄ (`suunta`,
+ * 2°) ja keskijakso (`puuska`, 0,1 s). 255 on ei arvoa. Lisäksi
+ * aikariippumaton ETÄISYYSTASO (`etaisyys`, km neliöjuurena): kenttä on
+ * rakentajassa jatkettu maan puolelle tason luottoetäisyyden verran
+ * (`luottoKm` × 1,3), ja tämä häivyttää sen. Rannan piirtää pohjakartan
+ * rantaviiva (`Rantamaski`). */
+
+/* NÄYTTÖTARKKUUDEN TASO AALLOILLE: tuulen `laattaStep`, ja hienoimpana
+   0,02° (FMI WAM ≈ mallin oma hila) zoomista 9, kun se mahtuu
+   solmubudjettiin. Ennen aaltokerros valitsi tason portaittain ilman
+   tasojen sekoitusta (docs/aallot.md 3.2), ja rajan yli kenttä vaihtui
+   kerralla. Nyt sama sekoitus kuin tuulella (`karkeaPaino`). */
+const AaltoTaso = {
+  /* LAATTABUDJETTI: tason laattoja näkymässä enintään tämän verran
+     (21 × 21 solmua eli 400 solmuväliä laattaa kohti, näkymä zoomilla
+     z − 0,5 kuten `_nakymaSolmut`). Työpöydän maailmannäkymä z 3,6:lla
+     tarvitsi 0,5°:n tasolla noin 170 laattaa karkean tason kanssa, ja
+     laattamuisti ruuhkautui: 19 000 pyyntöä 36 sekunnissa, laatat
+     häätivät toisiaan eikä kenttä valmistunut. Budjetin yli taso on
+     seuraava karkeampi; käytännössä vain työpöytä z ≤ 4 → 1,0°
+     (solmu ~9 px), puhelin ja tabletti pitävät tasonsa. */
+  LAATTABUDJETTI: 70,
+  _PORTAAT: [0.02, 0.05, 0.1, 0.25, 0.5, 1.0],
+  askel(z) {
+    z = Math.round(z);
+    let s = z >= 9 && ViewportGrid._nakymaSolmut(0.02, z) <= ViewportGrid.SOLMUBUDJETTI ? 0.02 : ViewportGrid.laattaStep(z);
+    let i = this._PORTAAT.indexOf(s);
+    while (i >= 0 && i < this._PORTAAT.length - 1 && ViewportGrid._nakymaSolmut(s, z) / 400 > this.LAATTABUDJETTI) s = this._PORTAAT[++i];
+    return s;
+  },
+  karkeaPaino(zoom) {
+    if (State.isPlaying || State._tlTouching) return 1;
+    const tz = Math.round(zoom);
+    if (this.askel(tz - 1) === this.askel(tz)) return 0;
+    const x = Math.min(1, Math.max(0, 2 * (tz - zoom)));
+    return x * x * (3 - 2 * x);
+  },
+  karkeaKaytossa(tz) { return this.askel(tz - 1) !== this.askel(tz); },
+};
+
+/* Neliöjuurikoodin purku (`tools/aaltopyramidi.mjs`). */
+const AALTO_HS = (function () {
+  const t = new Float32Array(256);
+  for (let q = 0; q < 255; q++) t[q] = 16 * (q / 254) * (q / 254);
+  t[255] = NaN;
+  return t;
+})();
+
+const AaltoVarasto = Object.assign(Object.create(Saalaatat), {
+  /* OMA TILA. Prototyypin (`Saalaatat`) kentät olisivat tuulen; jokainen
+     tila-arvo on siksi kirjoitettu tähän, myös ne joita aallot eivät
+     käytä (`_dyn`, `_alueelliset`), jotta perityt metodit eivät koskaan
+     lue tuulen tilaa. */
+  _luettelo: null, _tila: 'alustamaton', _alustaP: null,
+  _laatat: new Map(), _kesken: new Map(),
+  /* Aaltolaatta on purettuna 3 × 98–129 × 441 tavua ≈ 130–170 kt, joten
+     320 laattaa on enintään noin 54 Mt (sama katto kuin tuulella).
+     Näkymä tarvitsee laattabudjetin (`AaltoTaso.LAATTABUDJETTI`) verran
+     omaa tasoaan, karkean tason, pisteen sarjan laatat ja edellisen
+     näkymän reunat: 200 ruuhkautui työpöydän maailmannäkymässä. */
+  _MAX_LAATTAA: 320,
+  _ajat: null, _tsMs: null, _perus: null, _akselit: null, _versio: '',
+  _uusia: 0, _perheet: null, _pohja: null, _alueelliset: [], _paalla: true,
+  _hetkiMs: null, _sarjaTila: false, _malliTila: 'auto',
+  TILAT: { auto: { perheet: null, dyn: null } },
+  _dyn: null, _osuus: null, _ajatH: null, _tsMsH: null, _kartta: null, _tiValmis: false,
+  _vajaa: false, _vajaat: 0, _kooste: [], _saapuneet: 0,
+  _sinT: null, _cosT: null, _sinTA: 0, _puuskaTila: false,
+  _pMs: 0, _pDir: 0, _pPaino: 1,
+  /* Pohjaperhe: kattaa koko maailman ja koko akselin. */
+  POHJA: 'ecmwf_wam',
+
+  /* Luettelo on `Saalaatat`in luettelon avain: sama koti, sama versio. */
+  async _alusta() {
+    this._tila = 'lataa';
+    try {
+      await Saalaatat.alusta();
+      const L = Saalaatat._luettelo;
+      if (this._ota(L && L.aallot2, Saalaatat._versio) || this._ota(this._v1(L && L.aallot), Saalaatat._versio)) return true;
+      this._tila = 'pois';
+      return false;
+    } catch (e) {
+      this._tila = 'pois';
+      return false;
+    }
+  },
+  /* VANHA LUETTELO (versio 1, `aallot`) VARATIENÄ: FMI WAM Itämerellä,
+     lineaarinen korkeus (`hsAskel`), kokonaiset laatat, ei painoa eikä
+     etäisyyttä. Rakentaja kirjoittaa sen yhä vanhoille asiakkaille, ja
+     uusi asiakas lukee sitä kun `aallot2` puuttuu: julkaisun ja ensimmäisen
+     uuden Säädata-ajon välissä, ja jos ECMWF:n rakennus epäonnistuu.
+     Perhe on silloin pohja, ja sen alueen ulkopuolella aaltoja ei ole —
+     kuten ennen, eikä tyhjä kartta Itämerellä. */
+  _v1(a) {
+    if (!a || a.versio !== 1 || !Array.isArray(a.tasot) || !Array.isArray(a.ajat) || a.ajat.length < 2) return null;
+    const hsT = new Float32Array(256);
+    for (let q = 0; q < 255; q++) hsT[q] = q * (a.hsAskel || 0.03);
+    hsT[255] = NaN;
+    return {
+      versio: 2, _v1: true, luotu: a.ajoAika || null, otsake: (Saalaatat._luettelo && Saalaatat._luettelo.otsake) || 40,
+      tyhja: a.tyhja != null ? a.tyhja : 255, suuntaAskel: a.suuntaAskel || 2, jaksoAskel: a.jaksoAskel || 0.1,
+      perheet: ['fmi_wam'],
+      tasot: a.tasot.map(t => Object.assign({}, t, { perhe: 'fmi_wam', malli: 'fmi_wam', ajat: a.ajat, nt: a.ajat.length,
+                                                      ajoAika: a.ajoAika, natiiviKm: 1.93, _hsT: hsT })),
+    };
+  },
+  _ota(a, versio) {
+    if (!a || a.versio !== 2 || !Array.isArray(a.tasot) || !a.tasot.length) return false;
+    const POHJA = a._v1 ? 'fmi_wam' : this.POHJA;
+    const perheet = new Map(), akselit = [];
+    for (const t0 of a.tasot) {
+      if (!Array.isArray(t0.ajat) || t0.ajat.length < 2 || !t0.perhe) continue;
+      const t = Object.assign({}, t0);
+      const avain = t.ajat[0] + '_' + t.ajat[t.ajat.length - 1] + '_' + t.ajat.length;
+      t._ax = akselit.find(x => x._avain === avain) || null;
+      if (!t._ax) { t._ax = this._teeAkseli(t.ajat); t._ax._avain = avain; akselit.push(t._ax); }
+      t._laatat = new Set((t.laatat || []).map(r => r[0] + '_' + r[1]));
+      t._aalto = true;
+      if (!perheet.has(t.perhe)) perheet.set(t.perhe, []);
+      perheet.get(t.perhe).push(t);
+    }
+    if (!perheet.has(POHJA)) return false;
+    /* Uusi luettelo kesken istunnon (`paivita`): vanhat laatat ja koosteet
+       pois, ne ovat edellisestä rakennuksesta. */
+    this._laatat.clear(); this._kesken.clear(); this._kooste = [];
+    this._luettelo = a;
+    this._versio = String(a.luotu || versio || '');
+    this._akselit = akselit;
+    const jarjestys = (Array.isArray(a.perheet) && a.perheet.length ? a.perheet : [...perheet.keys()])
+      .filter(pid => pid !== POHJA).concat([POHJA]);
+    this._perheet = [];
+    for (const pid of jarjestys) {
+      const tasot = perheet.get(pid);
+      if (!tasot || !tasot.length) continue;
+      tasot.sort((x, y) => x.askel - y.askel);
+      /* Perhettä lyhyempi taso (ECMWF:n 0,25° +7 vrk) ohitetaan akselinsa
+         ulkopuolella (`_perheenTaso`). */
+      const loppu = Math.max(...tasot.map(t => t._ax.tsMs[t._ax.tsMs.length - 1]));
+      for (const t of tasot) t._lyhyt = t._ax.tsMs[t._ax.tsMs.length - 1] < loppu - 60e3;
+      const bb = [Infinity, -Infinity, Infinity, -Infinity];
+      for (const t of tasot) {
+        bb[0] = Math.min(bb[0], t.lat[0]); bb[1] = Math.max(bb[1], t.lat[1]);
+        const kaikki = !(t.lng[0] > -180 || t.lng[1] < 180);
+        bb[2] = Math.min(bb[2], kaikki ? -Infinity : t.lng[0]); bb[3] = Math.max(bb[3], kaikki ? Infinity : t.lng[1]);
+      }
+      const pisin = tasot.filter(t => !t._lyhyt)[0] || tasot[0];
+      this._perheet.push({
+        _bb: bb, id: pid, tasot: tasot, pohja: pid === POHJA, pois: false,
+        malli: tasot[0].malli || pid, natiivi: 0, _nat: null, _natSarja: null,
+        natiiviKm: tasot[0].natiiviKm || 9, ajoAika: tasot[0].ajoAika || null, _pisin: pisin,
+        _aikaW: 1,
+        _m: { laatta: null, tyhja: false, vara: false, la0: 0, la1: 0, lo0: 0, lo1: 0, step: -1 },
+      });
+    }
+    this._pohja = this._perheet[this._perheet.length - 1];
+    /* Pohjan pisin akseli on varaston akseli: `asetaHetki` kertoo sen
+       mukaan voiko varasto palvella hetkeä, ja aikajana rajautuu siihen. */
+    this._perus = this._pohja._pisin._ax;
+    this._ajat = this._perus.ajat; this._tsMs = this._perus.tsMs;
+    this._osuus = new Float64Array(this._perheet.length);
+    this._ajatH = null; this._tsMsH = null; this._kartta = null;
+    this._sarjat.clear();
+    this.asetaTila('auto');
+    this._tila = 'ok';
+    return true;
+  },
+
+  /* LUETTELO UUDELLEEN KESKEN ISTUNNON (kuten ennen `Aallot.paivita`):
+     sovellus voi olla auki kun Säädata julkaisee uudet aallot. Haetaan
+     kun aaltoja ei ole tai niiden akseli loppuu alle 12 h päästä,
+     enintään kerran viidessä minuutissa. Toden jos aallot vaihtuivat. */
+  _paivitysT: 0, _paivitys: null,
+  paivita() {
+    const loppu = this.loppu();
+    /* Vanhalla luettelolla (v1-varatie) haetaan aina: uusi voi tuoda
+       maailman aallot. */
+    if (this.kaytossa() && !this._luettelo._v1 && loppu != null && loppu > Date.now() + 12 * 3600e3) return Promise.resolve(false);
+    if (this._paivitys) return this._paivitys;
+    if (Date.now() - this._paivitysT < 5 * 60e3 || typeof SAALAATAT_KANTA === 'undefined') return Promise.resolve(false);
+    this._paivitysT = Date.now();
+    const self = this;
+    this._paivitys = fetch(SAALAATAT_KANTA + 'luettelo.json', { cache: 'no-cache' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (l) {
+        const a = l && (l.aallot2 || self._v1(l.aallot));
+        if (!a || (self._luettelo && a.luotu === self._luettelo.luotu && !!a._v1 === !!self._luettelo._v1)) return false;
+        if (!self._ota(a, String(l.luotu || ''))) return false;
+        self._tila = 'ok';
+        return true;
+      })
+      .catch(function () { return false; })
+      .finally(function () { self._paivitys = null; });
+    return this._paivitys;
+  },
+
+  alku() { return this._tsMs ? this._tsMs[0] : null; },
+  loppu() { return this._tsMs ? this._tsMs[this._tsMs.length - 1] : null; },
+  /* Kattaako akseli hetken (tunnin toleranssi kuten tuulella)? */
+  kattaa(tMs) {
+    const a = this.alku(), b = this.loppu();
+    return a != null && tMs != null && tMs >= a - 3600e3 && tMs <= b + 3600e3;
+  },
+
+  /* Palat aaltokerroksen hetkille (`AaltoGL`), ei tuulen. */
+  _karttaHetki() {
+    return typeof AaltoGL !== 'undefined' && AaltoGL._map && AaltoGL._tA != null ? AaltoGL._tA : this._hetkiMs;
+  },
+
+  /* Laatta tuli: ruudulla oleva aaltokenttä joka luki varalta tai jolta
+     puuttui jotain kootaan uudelleen (sama sopimus kuin tuulen
+     `_kunUusia`, mutta aaltokerroksen hiloille ja hetkille A ja B). */
+  _kunUusia(taso, la0, lo0, c) {
+    if (!taso || !taso._aalto) return;
+    const G = typeof AaltoGL !== 'undefined' ? AaltoGL : null;
+    if (c != null && c >= 0 && taso.pala > 0) {
+      const ajat = G && G._tA != null ? [G._tA, G._tA + 3600e3] : [];
+      const osuuPalaan = (t) => t != null && this._palaIndeksi(taso, this._indeksiHetkelle(taso, t)) === c;
+      if (!ajat.some(osuuPalaan) && !osuuPalaan(this._hetkiMs)) {
+        if (this._kooste.length) this._kooste = this._kooste.filter(k => ajat.indexOf(k.hetki) >= 0);
+        return;
+      }
+    }
+    this._saapuneet++;
+    if (!G || !G._map) return;
+    const s = taso.span;
+    const osuu = (h) => {
+      if (!h || !h.gc) return false;
+      const ha1 = h.la0 + (h.gr - 1) * h.d, ho1 = h.lo0 + (h.gc - 1) * h.d;
+      if (la0 > ha1 + 1e-6 || la0 + s < h.la0 - 1e-6) return false;
+      for (let k = -1; k <= 1; k++) if (lo0 + 360 * k <= ho1 + 1e-6 && lo0 + 360 * k + s >= h.lo0 - 1e-6) return true;
+      return false;
+    };
+    const o = G._odottava, h = G._hila, k = G._karkea;
+    if ((o && osuu(o)) || (h && h.puuttuu > 0 && osuu(h)) || (k && k.puuttuu > 0 && osuu(k))) {
+      this._uusia++;
+      G._map.ml.triggerRepaint();
+    }
+  },
+
+  /* RANNAN LUOTTAMUS ETÄISYYDESTÄ (`tools/aaltopyramidi.mjs`): täysi tason
+     luottoetäisyyteen asti ja nolla sen 1,3-kertaisena, smoothstep
+     välissä. Taulukko tasoa kohti, koska koodi on tavu. */
+  _luotto(taso) {
+    if (taso._luottoT) return taso._luottoT;
+    const t = new Float32Array(256), L = taso.luottoKm || 9, K = (this._luettelo && this._luettelo.luottoKerroin) || 1.3;
+    for (let q = 0; q < 255; q++) {
+      const d = (q / 16) * (q / 16);
+      const x = Math.min(1, Math.max(0, (d - L) / ((K - 1) * L)));
+      t[q] = 1 - x * x * (3 - 2 * x);
+    }
+    t[255] = 0;
+    return (taso._luottoT = t);
+  },
+
+  /* YHDEN PERHEEN NÄYTE laatasta: paikassa bilineaarinen MÄRKIEN
+     solmujen kesken (solmun paino × luottamus; maa ja ekstrapoloinnin
+     ulkopuoli ovat nolla), ajassa korkeus ja jakso lineaarisesti ja
+     suunta yksikkövektoreina. Tulos kenttiin `_pHs`, `_pS`/`_pC` (MISTÄ),
+     `_pTp`, `_pA` (märkyys 0..1) ja `_pPaino` (painokanava). Palauttaa
+     epätoden vain jos hetki on tason akselin ulkopuolella; kuiva paikka
+     on dataa (`_pA` = 0). */
+  _pHs: 0, _pS: 0, _pC: 1, _pTp: NaN, _pA: 0,
+  _naytePerhe(l, lat, lo) {
+    const fy = (lat - l.la0) / l.askel, fx = (lo - l.lo0) / l.askel;
+    let iy = Math.floor(fy), ix = Math.floor(fx);
+    if (iy < 0) iy = 0; else if (iy > l.ny - 2) iy = l.ny - 2;
+    if (ix < 0) ix = 0; else if (ix > l.nx - 2) ix = l.nx - 2;
+    let wy = fy - iy; wy = wy < 0 ? 0 : (wy > 1 ? 1 : wy);
+    let wx = fx - ix; wx = wx < 0 ? 0 : (wx > 1 ? 1 : wx);
+    const k0 = iy * l.nx + ix, k1 = k0 + 1, k2 = k0 + l.nx, k3 = k2 + 1;
+    const w0 = (1 - wy) * (1 - wx), w1 = (1 - wy) * wx, w2 = wy * (1 - wx), w3 = wy * wx;
+    const P = l.paino;
+    this._pPaino = P ? (P[k0] * w0 + P[k1] * w1 + P[k2] * w2 + P[k3] * w3) / 255 : 1;
+    if (this._pPaino <= 0) return true;
+    const ax = l._ax || this._perus;
+    if (!ax.ok) return false;
+    if (this._sinTA !== this._luettelo.suuntaAskel) this._suuntaTaulu();
+    const SIN = this._sinT, COS = this._cosT, LU = this._luotto(l._taso), E = l.etaisyys;
+    /* Korkeuden purku tasolta: v1-varatien laatat ovat lineaarisia. */
+    const HS = l._taso._hsT || AALTO_HS;
+    const L2 = l.ny * l.nx, ia = ax.ti * L2, ib = Math.min(ax.ti + 1, l.nt - 1) * L2;
+    const f = ib === ia ? 0 : ax.tf, JA = this._luettelo.jaksoAskel || 0.1;
+    const H = l.nop, D = l.suunta, T = l.puuska;
+    let sA = 0, sH = 0, sS = 0, sC = 0, sT = 0, wT = 0;
+    for (let c = 0; c < 4; c++) {
+      const k = c === 0 ? k0 : c === 1 ? k1 : c === 2 ? k2 : k3;
+      const w = c === 0 ? w0 : c === 1 ? w1 : c === 2 ? w2 : w3;
+      if (w <= 1e-6) continue;
+      const luotto = E ? LU[E[k]] : 1;
+      if (luotto <= 0) continue;
+      const hA = H[ia + k], hB = H[ib + k];
+      if (hA === 255 && hB === 255) continue;
+      const wa = hA === 255 ? 0 : (hB === 255 ? 1 : 1 - f), wb = 1 - wa;
+      const ww = w * luotto;
+      sA += ww;
+      sH += ww * ((wa > 0 ? HS[hA] * wa : 0) + (wb > 0 ? HS[hB] * wb : 0));
+      const dA = D[ia + k], dB = D[ib + k];
+      if (dA !== 255 && wa > 0) { sS += ww * wa * SIN[dA]; sC += ww * wa * COS[dA]; }
+      if (dB !== 255 && wb > 0) { sS += ww * wb * SIN[dB]; sC += ww * wb * COS[dB]; }
+      const pA = T[ia + k], pB = T[ib + k];
+      const tp = pA === 255 ? (pB === 255 ? NaN : pB * JA) : (pB === 255 ? pA * JA : (pA * (1 - f) + pB * f) * JA);
+      if (tp === tp) { sT += ww * tp; wT += ww; }
+    }
+    this._pA = sA > 1 ? 1 : sA;
+    if (sA <= 1e-6) { this._pHs = 0; this._pS = 0; this._pC = 1; this._pTp = NaN; return true; }
+    this._pHs = sH / sA;
+    const m = Math.hypot(sS, sC);
+    this._pS = m > 1e-6 ? sS / m : 0; this._pC = m > 1e-6 ? sC / m : 1;
+    this._pTp = wT > 0 ? sT / wT : NaN;
+    return true;
+  },
+
+  /* YKSI VALINTASÄÄNTÖ AALLOILLE (kuten tuulen `naytteista`): perheet
+     tärkeimmästä alkaen, kunkin paino = painokanava × aikapaino, ja se
+     peittää alemmat painonsa verran — MYÖS KUIVANA: alueellisen mallin
+     maski on alueen sisällä totuus, eikä sen maa-alueelle tuoda alemman
+     mallin aaltoa. Sekoitus märkyydellä painotettuna: korkeus ja jakso
+     keskiarvona, suunta yksikkövektoreista. Tulos kenttiin `_nHs`,
+     `_nS`/`_nC` (MISTÄ), `_nTp` ja `_nA` (märkyys 0..1, rannan alfa).
+     `_vajaa` kuten tuulella: jonkin perheen laatta puuttui muistista. */
+  _nHs: 0, _nS: 0, _nC: 1, _nTp: NaN, _nA: 0,
+  naytteista(lat, lng, step) {
+    this._vajaa = false;
+    if (!this._tiValmis) return false;
+    const lo = ((lng + 180) % 360 + 360) % 360 - 180;
+    const P = this._perheet, O = this._osuus;
+    let jaljella = 1, sW = 0, sA = 0, sH = 0, sS = 0, sC = 0, sT = 0, wT = 0;
+    for (let i = 0; i < P.length; i++) {
+      O[i] = 0;
+      if (jaljella <= 0.002) continue;
+      const p = P[i];
+      let w = p._aikaW;
+      if (w <= 0) continue;
+      const bb = p._bb;
+      if (lat < bb[0] || lat > bb[1] || lo < bb[2] || lo > bb[3]) {
+        /* Pohjan alueen ulkopuolella ei ole aaltoja (vain v1-varatiellä,
+           jossa pohja on FMI WAM): tieto, ei puute. */
+        if (p.pohja) { const c = jaljella * w; sW += c; O[i] = c; jaljella *= (1 - w); }
+        continue;
+      }
+      const l = this._haePerhe(p, lat, lo, step);
+      if (!l && this._olematon(p, lat, lo, step)) {
+        /* OLEMATON LAATTA ON KUIVA, ei puuttuva: rakentaja kirjoittaa
+           laatan vain märkien solmujen ja niiden renkaan ympärille, joten
+           laatan puute on perheen totuus "tässä ei ole merta". Se on dataa
+           (ei odoteta eikä koota uudelleen) ja peittää alemmat kuten kuiva
+           solmu laatassa — muuten ECMWF:n 27 km:n jatke toisi meren aallot
+           alueellisen mallin maa-alueen järville (mitattu Bodom 0,55 m). */
+        const c = jaljella * w;
+        sW += c; O[i] = c; jaljella *= (1 - w);
+        continue;
+      }
+      if (!l || !this._naytePerhe(l, lat, lo)) {
+        if (p.pohja) { if (!sW) return false; this._vajaa = true; }
+        continue;
+      }
+      if (!p.pohja) w *= this._pPaino;
+      if (w <= 0) continue;
+      const c = jaljella * w, ca = c * this._pA;
+      if (ca > 0) {
+        sA += ca; sH += ca * this._pHs; sS += ca * this._pS; sC += ca * this._pC;
+        if (this._pTp === this._pTp) { sT += ca * this._pTp; wT += ca; }
+      }
+      sW += c;
+      O[i] = c;
+      jaljella *= (1 - w);
+    }
+    if (!sW) return false;
+    this._nA = sA / sW;
+    if (sA > 1e-6) {
+      this._nHs = sH / sA;
+      const m = Math.hypot(sS, sC);
+      this._nS = m > 1e-6 ? sS / m : 0; this._nC = m > 1e-6 ? sC / m : 1;
+      this._nTp = wT > 0 ? sT / wT : NaN;
+    } else { this._nHs = 0; this._nS = 0; this._nC = 1; this._nTp = NaN; }
+    return true;
+  },
+  /* Oliko `_haePerhe`n null OLEMATON laatta (eikä vielä hakematon)?
+     Olemattoman laatan alue jää perheen muistiin `tyhja`-lipulla, ja
+     hakematon ei muuta muistia — jos muisti olisi kattanut pisteen,
+     `_haePerhe` olisi palannut siitä. */
+  _olematon(p, lat, lo, step) {
+    const m = p._m;
+    return !!m.tyhja && m.step === step && lat >= m.la0 && lat < m.la1 && lo >= m.lo0 && lo < m.lo1;
+  },
+  /* Suunta MISTÄ asteina viimeisimmästä näytteestä. */
+  suunta() { return (Math.atan2(this._nS, this._nC) * 180 / Math.PI + 360) % 360; },
+
+  /* SOLMUHILA kartalle (`AaltoGL`): kenttä hetkelle `tMs` solmuihin
+     `laMin + j·d`, `loMin + i·d`. `ulos` = { hs, s, c, tp, a: Float32Array,
+     maski: Uint8Array } (maski 0 = laatta puuttui, 1 = data, 2 = alempi
+     malli tai karkeampi taso odottaessa oikeaa). Palauttaa puuttuvien
+     määrän tai -1 jos hetki on varaston ulkopuolella. Sama hila
+     kootaan kerran (`_kooste`, kuten tuulella). */
+  _koosteAvainA(laMin, loMin, d, gc, gr, step, tMs) {
+    let a = laMin + '|' + loMin + '|' + d + '|' + gc + '|' + gr + '|' + step + '|' + tMs
+      + '|' + this._saapuneet + '|' + this._laatat.size + '|' + this._versio;
+    for (const p of this._perheet) a += '|' + (p.pois ? 1 : 0);
+    return a;
+  },
+  kokoaAallot(laMin, loMin, d, gc, gr, step, tMs, ulos) {
+    if (!this.asetaHetki(tMs)) return -1;
+    const n = gc * gr, avain = this._koosteAvainA(laMin, loMin, d, gc, gr, step, tMs);
+    for (const k of this._kooste) {
+      if (k.avain !== avain) continue;
+      ulos.hs.set(k.hs); ulos.s.set(k.s); ulos.c.set(k.c); ulos.tp.set(k.tp); ulos.a.set(k.a); ulos.maski.set(k.maski);
+      this._vajaat = k.vajaat;
+      return k.puuttuu;
+    }
+    let puuttuu = 0, vajaat = 0;
+    const { hs, s, c, tp, a, maski } = ulos;
+    for (let j = 0; j < gr; j++) {
+      const la = laMin + j * d;
+      for (let i = 0; i < gc; i++) {
+        const k = j * gc + i;
+        if (this.naytteista(la, loMin + i * d, step)) {
+          hs[k] = this._nHs; s[k] = this._nS; c[k] = this._nC; tp[k] = this._nTp; a[k] = this._nA;
+          if (this._vajaa) { vajaat++; maski[k] = 2; } else maski[k] = 1;
+        } else {
+          hs[k] = 0; s[k] = 0; c[k] = 1; tp[k] = NaN; a[k] = 0; maski[k] = 0;
+          puuttuu++;
+        }
+      }
+    }
+    this._vajaat = vajaat;
+    this._kooste.unshift({ avain, hetki: tMs, hs: hs.slice(0, n), s: s.slice(0, n), c: c.slice(0, n), tp: tp.slice(0, n),
+                           a: a.slice(0, n), maski: maski.slice(0, n), puuttuu, vajaat });
+    if (this._kooste.length > 4) this._kooste.length = 4;
+    return puuttuu;
+  },
+
+  /* PISTEEN LAATAT koko akselille (aikajana, kortti, kapseli): jokaisen
+     perheen hienoin kattava taso ja, jos se on perhettä lyhyempi, myös
+     hienoin koko akselin taso — sarja lukee +7 vrk:n jälkeen sitä. */
+  async varmistaPiste(lat, lng) {
+    if (!this.kaytossa()) return 0;
+    const lo = ((lng + 180) % 360 + 360) % 360 - 180;
+    const tarvitaan = [];
+    for (const p of this._perheet) {
+      const lista = [];
+      for (const t of p.tasot) {
+        if (lat < t.lat[0] || lat > t.lat[1]) continue;
+        if ((t.lng[0] > -180 || t.lng[1] < 180) && (lo < t.lng[0] || lo > t.lng[1])) continue;
+        if (!lista.length) lista.push(t);
+        if (!t._lyhyt) { if (lista[lista.length - 1] !== t) lista.push(t); break; }
+      }
+      /* Pisteen laatta JA naapurit 15 km:n säteellä: maalla oleva spotti
+         lukee lähimmän meren luottoetäisyyden sisältä (`_lahinMeri`), ja
+         laatan reunan lähellä se voi olla naapurilaatassa. */
+      const dy = 15 / 111.2, dx = dy / Math.max(0.1, Math.cos(lat * Math.PI / 180));
+      for (const L of lista) {
+        const ruudut = new Map();
+        for (const y of [lat - dy, lat, lat + dy]) for (const x of [lo - dx, lo, lo + dx]) {
+          if (y < L.lat[0] || y > L.lat[1]) continue;
+          const r = this._ruutu(L, y, x);
+          ruudut.set(r.la0 + '_' + r.lo0, r);
+        }
+        for (const r of ruudut.values()) {
+          if (!this._onOlemassa(L, r.la0, r.lo0)) continue;
+          const avain = this._avain(L, r.la0, r.lo0);
+          if (L.pala > 0) {
+            for (let c = 0; c < this._palaMaara(L); c++) if (!this._onPala(L, avain, c)) tarvitaan.push([L, r, c]);
+          } else if (!this._laatat.has(avain)) tarvitaan.push([L, r, -1]);
+        }
+      }
+    }
+    if (!tarvitaan.length) return 0;
+    const t = await Promise.allSettled(tarvitaan.map(([L, r, c]) => this._lataa(L, r.la0, r.lo0, c)));
+    return t.filter(x => x.status === 'fulfilled').length;
+  },
+
+  /* MERI PAIKASSA ajasta riippumatta (asetusten kate, `Kate._aallot`):
+     onko jonkin perheen laatta olemassa tässä. */
+  laattaPaikassa(lat, lng) {
+    if (!this.kaytossa()) return false;
+    const lo = ((lng + 180) % 360 + 360) % 360 - 180;
+    for (const p of this._perheet) for (const t of p.tasot) {
+      if (lat < t.lat[0] || lat > t.lat[1]) continue;
+      if ((t.lng[0] > -180 || t.lng[1] < 180) && (lo < t.lng[0] || lo > t.lng[1])) continue;
+      const r = this._ruutu(t, lat, lo);
+      if (this._onOlemassa(t, r.la0, r.lo0)) return true;
+    }
+    return false;
+  },
+
+  /* MERTA NÄKYMÄSSÄ asetusten katteelle (`Kate._aallot`): pisteittäin
+     tosi = märkä (≥ 0,5), epätosi = kuiva tai olematon laatta, null =
+     tuntematon (laatta ei muistissa; tuntematon näytetään,
+     docs/asetukset.md). Laatan olemassaolo ei riitä: ECMWF:n 5°:n laatta
+     on olemassa jos missä tahansa sen kulmassa on merta, ja Pariisikin
+     oli "merellä". Taso on kartan (`AaltoTaso.askel`), ja hetki valittu
+     hetki tai akselin alku — maski ei muutu ajassa, mutta alueellisen
+     perheen paino muuttuu. */
+  _mertaHetki() {
+    const t = State.valittuMs;
+    return t != null && this.kattaa(t) ? t : this._perus.tsMs[0];
+  },
+  merta(pts, step) {
+    const ulos = new Array(pts.length).fill(null);
+    if (!this.kaytossa()) return ulos;
+    const ed = this._hetkiMs;
+    try {
+      if (!this.asetaHetki(this._mertaHetki())) return ulos;
+      for (let i = 0; i < pts.length; i++) {
+        const ok = this.naytteista(pts[i].lat, pts[i].lng, step);
+        if (ok && this._nA >= 0.5) ulos[i] = true;
+        else if (ok && !this._vajaa) ulos[i] = false;
+      }
+    } finally { if (ed !== this._hetkiMs) this.asetaHetki(ed); }
+    return ulos;
+  },
+  /* Tuntemattomien näytteiden laatat (kartan taso, valitun hetken pala,
+     matala prioriteetti, sama laatta kerran, enintään 16). */
+  mertaLaatat(pts, step) {
+    if (!this.kaytossa()) return Promise.resolve();
+    const t = this._mertaHetki(), nahty = new Set(), haut = [];
+    for (const q of pts) {
+      const lo = ((q.lng + 180) % 360 + 360) % 360 - 180;
+      for (const p of this._perheet) {
+        const L = this._perheenTaso(p, q.lat, lo, step);
+        if (!L) continue;
+        const r = this._ruutu(L, q.lat, lo);
+        if (!this._onOlemassa(L, r.la0, r.lo0)) continue;
+        const c = L.pala > 0 ? this._palaIndeksi(L, this._indeksiHetkelle(L, t)) : -1;
+        const av = this._avain(L, r.la0, r.lo0);
+        if (nahty.has(av + '|' + c)) continue;
+        nahty.add(av + '|' + c);
+        if (c >= 0 ? this._onPala(L, av, c) : this._laatat.has(av)) continue;
+        if (haut.length < 16) haut.push(this._lataa(L, r.la0, r.lo0, c, true).catch(function () {}));
+      }
+    }
+    return Promise.all(haut);
+  },
+
+  /* PERHE PAIKASSA: suurin osuus viimeisimmästä näytteestä. */
+  _perheNaytteesta() {
+    const O = this._osuus;
+    let paras = -1;
+    for (let i = 0; i < O.length; i++) if (O[i] > 0 && (paras < 0 || O[i] > O[paras])) paras = i;
+    return paras >= 0 ? this._perheet[paras] : null;
+  },
+
+  /* LUOTTOETÄISYYS PAIKALLE (P5, docs/aallot.md 5.4): kortti ja aikajana
+     lukevat lähimmän märän pisteen enintään 1,3 × mallin solmuvälin
+     päästä, enintään 15 km. Malli on se perhe joka paikassa on päällimmäinen. */
+  luottoKmPaikalle(lat, lng) {
+    if (!this.kaytossa()) return 0;
+    const lo = ((lng + 180) % 360 + 360) % 360 - 180;
+    for (const p of this._perheet) {
+      const bb = p._bb;
+      if (lat < bb[0] || lat > bb[1] || lo < bb[2] || lo > bb[3]) continue;
+      if (!p.pohja) {
+        const L = this._perheenTaso(p, lat, lo, 0);
+        if (!L) continue;
+        const r = this._ruutu(L, lat, lo);
+        if (!this._onOlemassa(L, r.la0, r.lo0)) continue;
+        const l = this._laatat.get(this._avain(L, r.la0, r.lo0));
+        if (l && l.paino) {
+          const iy = Math.max(0, Math.min(l.ny - 1, Math.round((lat - l.la0) / l.askel)));
+          const ix = Math.max(0, Math.min(l.nx - 1, Math.round((lo - l.lo0) / l.askel)));
+          if (l.paino[iy * l.nx + ix] < 128) continue;
+        }
+      }
+      return Math.min(15, 1.3 * p.natiiviKm);
+    }
+    return 0;
+  },
+
+  /* PISTEEN SARJA tuntiakselilla (varaston akseli, `_tunnit`): { t[],
+     hs[], dir[], tp[], malli[], km?, lat, lng } tai null. Kun paikka on
+     maalla tai mallin rannan ulkopuolella (märkyys < 0,5 koko akselilla),
+     sarja luetaan lähimmästä märästä pisteestä luottoetäisyyden sisältä
+     (`luottoKmPaikalle`), ja `km` kertoo matkan. Laattojen on oltava
+     muistissa (`varmistaPiste`). Muistetaan paikalle ja rakennukselle. */
+  _sarjat: new Map(),
+  sarja(lat, lng) {
+    if (!this.kaytossa() || !this._tunnit()) return null;
+    const avain = lat.toFixed(3) + ',' + lng.toFixed(3) + '|' + this._versio;
+    if (this._sarjat.has(avain)) return this._sarjat.get(avain);
+    const entinen = this._hetkiMs;
+    let ulos = null, vajaa = false;
+    this._vajaaHaku = false;
+    this._vajaaSarja = false;
+    try {
+      let y = lat, x = lng, km = null;
+      if (!this._markaPaikka(y, x)) {
+        const maxKm = this.luottoKmPaikalle(lat, lng);
+        const p = maxKm > 0 ? this._lahinMeri(lat, lng, maxKm) : null;
+        /* Ei merta luottoetäisyydellä: tieto vain jos yksikään haun
+           laatta ei puuttunut (`_vajaaSarja`), muuten kutsuja kokeilee
+           varatietä. */
+        if (!p) { this._vajaaSarja = this._vajaaHaku; return null; }
+        y = p[0]; x = p[1]; km = p[2];
+      }
+      const n = this._ajatH.length, ts = this._tsMsH;
+      const hs = new Array(n), dir = new Array(n), tp = new Array(n), malli = new Array(n);
+      let kelpoja = 0;
+      for (let i = 0; i < n; i++) {
+        this.asetaHetki(ts[i]);
+        const ok = this.naytteista(y, x, 0);
+        if (this._vajaa) vajaa = true;
+        if (!ok || this._nA < 0.5) { hs[i] = null; dir[i] = null; tp[i] = null; malli[i] = null; continue; }
+        hs[i] = this._nHs; dir[i] = this.suunta(); tp[i] = this._nTp === this._nTp ? this._nTp : null;
+        const pp = this._perheNaytteesta();
+        malli[i] = pp ? pp.malli : null;
+        kelpoja++;
+      }
+      if (!kelpoja) { this._vajaaSarja = vajaa; return null; }
+      ulos = { t: Array.from(ts), hs, dir, tp, malli, km, lat: y, lng: x };
+    } finally {
+      this.asetaHetki(entinen);
+    }
+    if (ulos && !vajaa) this._sarjat.set(avain, ulos);
+    if (this._sarjat.size > 60) this._sarjat.delete(this._sarjat.keys().next().value);
+    return ulos;
+  },
+  /* Onko paikka märkä (≥ 0,5) jollakin akselin hetkellä? Näytteet
+     vuorokauden välein riittävät: maski ei muutu ajassa. Puuttunut laatta
+     KERÄTÄÄN `_vajaaHaku`un (kutsuja nollaa sen): lähimmän meren haku
+     kysyy kymmeniä pisteitä, ja yksikin puuttuva laatta tekee "ei merta"
+     -vastauksesta arvauksen. */
+  _vajaaHaku: false, _vajaaSarja: false,
+  _markaPaikka(lat, lng) {
+    const ts = this._tsMs;
+    for (let i = 0; i < ts.length; i += 8) {
+      this.asetaHetki(ts[i]);
+      if (this.naytteista(lat, lng, 0)) { if (this._nA >= 0.5) return true; }
+      if (this._vajaa) this._vajaaHaku = true;
+    }
+    return false;
+  },
+  /* LÄHIN MÄRKÄ PISTE renkaittain hienoimman kattavan tason välein
+     (`maxKm`:n sisältä). Palauttaa [lat, lng, km] tai null. */
+  _lahinMeri(lat, lng, maxKm) {
+    const lo = ((lng + 180) % 360 + 360) % 360 - 180;
+    let askel = 0.25;
+    for (const p of this._perheet) {
+      const L = this._perheenTaso(p, lat, lo, 0);
+      if (L && L.askel < askel) askel = L.askel;
+    }
+    const ky = Math.max(0.05, Math.cos(lat * Math.PI / 180));
+    const kmAste = 111.2;
+    const r = Math.max(askel * kmAste * 0.5, 0.5);
+    const kierroksia = Math.min(40, Math.ceil(maxKm / r));
+    for (let k = 1; k <= kierroksia; k++) {
+      const rKm = k * r;
+      const n = Math.max(8, Math.ceil(2 * Math.PI * rKm / r));
+      let paras = null;
+      for (let q = 0; q < n; q++) {
+        const kulma = q / n * 2 * Math.PI;
+        const y = lat + Math.sin(kulma) * rKm / kmAste, x = lng + Math.cos(kulma) * rKm / (kmAste * ky);
+        if (!this._markaPaikka(y, x)) continue;
+        if (!paras) paras = [y, x, rKm];
+      }
+      if (paras) return paras;
+    }
+    return null;
+  },
+
+  /* Yksi hetki paikassa: { hs, dir, tp, km?, malli } tai null (kapseli).
+     `maxKm` > 0: maalla lähin märkä piste sen sisältä. Tila palautetaan. */
+  arvo(lat, lng, tMs, step, maxKm) {
+    if (!this.kaytossa() || !this.kattaa(tMs)) return null;
+    const ed = this._hetkiMs;
+    try {
+      if (!this.asetaHetki(tMs)) return null;
+      if (this.naytteista(lat, lng, step) && this._nA >= 0.5) {
+        const p = this._perheNaytteesta();
+        return { hs: this._nHs, dir: this.suunta(), tp: this._nTp, malli: p ? p.malli : null };
+      }
+      if (!maxKm) return null;
+      const v = this._vajaa;
+      const q = this._lahinMeri(lat, lng, maxKm);
+      this.asetaHetki(tMs);
+      if (q && this.naytteista(q[0], q[1], 0) && this._nA >= 0.5) {
+        const p = this._perheNaytteesta();
+        return { hs: this._nHs, dir: this.suunta(), tp: this._nTp, km: q[2], malli: p ? p.malli : null };
+      }
+      this._vajaa = this._vajaa || v;
+      return null;
+    } finally { if (ed !== this._hetkiMs) this.asetaHetki(ed); }
+  },
+
+  /* Mallin ajohetki (ms) paikassa ja hetkellä: päällimmäinen perhe. */
+  ajoPaikassa(lat, lng, tMs) {
+    if (!this.kaytossa()) return null;
+    const ed = this._hetkiMs;
+    try {
+      if (tMs != null) this.asetaHetki(tMs);
+      if (!this.naytteista(lat, lng, 0)) return null;
+      const p = this._perheNaytteesta() || this._pohja;
+      return { malli: p.malli, ajo: p.ajoAika ? Date.parse(p.ajoAika) : null };
+    } finally { if (ed !== this._hetkiMs) this.asetaHetki(ed); }
+  },
+});
 
 /* AALLONKORKEUDEN VÄRIASTEIKKO. Kartalla on kerrallaan yksi asteikko
    (CLAUDE.md, "Väri"): aaltokerroksen ollessa päällä lämpökartta ja
-   partikkelit sammuvat, ja sävy tarkoittaa aallonkorkeutta. Ramppi on
-   kapea sävyalue (syvä sininen -> sinivihreä -> vaahdon paperi), jonka
-   läpi KIRKKAUS kulkee: se ei ole tuulen sateenkaari eikä sateen
-   sinivioletti (212–278°), joten kuvakaappaus ei sekoitu kumpaankaan.
-   Rajat ovat foilaajan: 0,3 m on jo tuntuva, 0,6 m vaatii kalustoa, yli
-   metrin meri on kova. Ankkurit [m, r, g, b, alfa]. */
+   partikkelit sammuvat, ja sävy tarkoittaa aallonkorkeutta.
+   MAAILMAAN 0–10 m (docs/aallot.md P6), LUT neliöjuuriasteikolla, jotta
+   0–3 m:n wingfoil-alue saa puolet rampista. SÄVYPOLKU ON SININEN →
+   LAVENTELI → VIOLETTI → PINKKI → VAALEA (OKLCH-ankkureista, 15.10.):
+   Itämeren rampin vaahdon paperi oli 1,5 m:ssä (OKLCH L 0,92) ja 2,2–3,5
+   m:ssä lähes valkoinen (L 0,95–0,99), joten valtameren tavallinen
+   1,5–3 m piirtyi kartalle valkoisena. Nyt kirkkaus nousee jyrkästi
+   0–0,5 m:ssä (L 0,42 → 0,65: tyyni, tuntuva ja kalustoa vaativa eroavat
+   kuten ennen) ja sitten hitaasti (1 m 0,72, 3 m 0,76), ja 1–4 m:n erot
+   tulevat sävystä (272° → 334°). Myrsky on pinkki ja ääripää vaalea.
+   Polku on kapea eikä kulje vihreän, keltaisen tai oranssin kautta,
+   joten se ei ole tuulen sateenkaari eikä sateen tutkaväri.
+   Ankkurit [m, r, g, b, alfa]. */
 const AaltoVari = {
   ANKKURIT: [
     /* ALAPÄÄ ON NÄKYVÄ (käyttäjän raportti 1.10.): ensimmäinen versio
        alkoi tummasta sinisestä alfalla 0,22–0,42, ja 0,1–0,2 m:n päivänä
        (tavallinen Suomenlahdella) aaltokerros näytti tummalla pohjalla
        siltä kuin kartalta olisi lähtenyt kaikki värit. */
-    [0.00,  28,  78, 128, 0.40],
-    [0.10,  34, 104, 168, 0.58],
-    [0.25,  38, 140, 196, 0.68],
-    [0.45,  52, 176, 206, 0.74],
-    [0.70,  94, 202, 208, 0.78],
-    [1.00, 152, 224, 216, 0.82],
-    [1.50, 206, 238, 226, 0.85],
-    [2.20, 240, 238, 222, 0.88],
-    [3.50, 255, 250, 238, 0.90],
+    [0.00,  28,  79, 129, 0.40],
+    [0.10,  34, 102, 164, 0.58],
+    [0.25,  46, 128, 191, 0.68],
+    [0.45,  74, 148, 215, 0.74],
+    [0.70, 105, 156, 232, 0.78],
+    [1.00, 137, 159, 243, 0.80],
+    [1.50, 166, 155, 246, 0.82],
+    [2.00, 189, 150, 246, 0.84],
+    [3.00, 218, 143, 240, 0.86],
+    [4.00, 244, 142, 225, 0.88],
+    [5.50, 255, 158, 204, 0.90],
+    [7.50, 255, 193, 205, 0.92],
+    [10.0, 255, 228, 227, 0.93],
   ],
-  /* LUT: indeksi i = Hs / 0,02 m (0 … 5,1 m), sama porras kuin
-     varjostimessa. */
-  LUT_ASKEL: 0.02,
+  MAKS: 10,
+  /* LUT: indeksi i = 255 · √(Hs / 10 m), sama kaava varjostimessa. */
+  indeksi(hs) { return Math.max(0, Math.min(255, Math.round(255 * Math.sqrt(Math.max(0, Math.min(hs, this.MAKS)) / this.MAKS)))); },
+  _lutHs(i) { return this.MAKS * (i / 255) * (i / 255); },
   rgba(hs) {
     const A = this.ANKKURIT;
     if (!(hs > 0)) return { r: A[0][1], g: A[0][2], b: A[0][3], a: A[0][4] };
@@ -9274,14 +10012,14 @@ const AaltoVari = {
      ~0,3 m) nousee; sävypolku pysyy aaltojen. */
   _tekstiMuisti: new Map(),
   teksti(hs) {
-    const k = Math.max(0, Math.min(255, Math.round((hs > 0 ? hs : 0) / this.LUT_ASKEL)));
+    const k = this.indeksi(hs > 0 ? hs : 0);
     let v = this._tekstiMuisti.get(k);
     if (v) return v;
     const lum = (c) => [c.r, c.g, c.b].map((x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); })
       .reduce((a, x, i) => a + x * [0.2126, 0.7152, 0.0722][i], 0);
     const h = Teema.pinta.replace('#', '');
     const pL = lum({ r: parseInt(h.substr(0, 2), 16), g: parseInt(h.substr(2, 2), 16), b: parseInt(h.substr(4, 2), 16) });
-    const c = this.rgba(k * this.LUT_ASKEL);
+    const c = this.rgba(this._lutHs(k));
     let o = c;
     for (let f = 0; f <= 1.0001; f += 0.02) {
       o = { r: Math.round(c.r + (255 - c.r) * f), g: Math.round(c.g + (255 - c.g) * f), b: Math.round(c.b + (255 - c.b) * f) };
@@ -9296,17 +10034,18 @@ const AaltoVari = {
     if (this._lut) return this._lut;
     const t = new Uint8Array(256 * 4);
     for (let i = 0; i < 256; i++) {
-      const c = this.rgba(i * this.LUT_ASKEL);
+      const c = this.rgba(this._lutHs(i));
       t[i * 4] = c.r; t[i * 4 + 1] = c.g; t[i * 4 + 2] = c.b; t[i * 4 + 3] = Math.round(c.a * 255);
     }
     return (this._lut = t);
   },
-  /* Asetuspaneelin asteikko: lukemat metreinä, ei yksikkövalintaa. */
-  TIKIT: [0, 0.25, 0.5, 1, 1.5, 2.5],
+  /* Asetuspaneelin asteikko: lukemat metreinä, ei yksikkövalintaa;
+     paikka neliöjuurena kuten LUT. */
+  TIKIT: [0, 0.5, 1, 2, 3, 5, 10],
+  paikka(hs) { return Math.sqrt(Math.max(0, Math.min(hs, this.MAKS)) / this.MAKS); },
   gradientti() {
-    const max = 3;
     const st = [];
-    for (let k = 0; k <= 24; k++) { const h = max * k / 24; st.push(this.css(h) + ' ' + (k / 24 * 100).toFixed(1) + '%'); }
+    for (let k = 0; k <= 30; k++) { const x = k / 30, h = this.MAKS * x * x; st.push(this.css(h) + ' ' + (x * 100).toFixed(1) + '%'); }
     return 'linear-gradient(90deg,' + st.join(',') + ')';
   },
 };
@@ -9320,305 +10059,55 @@ function aaltotila() { return !!State.aallot; }
    0,23–0,95 m), muuten yksi. */
 function _aaltoM(hs) { return _desim(hs, hs < 0.995 ? 2 : 1); }
 
+/* AALTOJEN JULKISIVU muulle sovellukselle (kortti, aikajana, kapseli,
+   lähdemerkintä, asetusten kate). Rajapinta on sama kuin ennen
+   varastoa, joten käyttöpaikat eivät tiedä perheistä; data tulee
+   `AaltoVarasto`sta. Vanha luettelon `aallot` (versio 1) on vain vanhoja
+   asiakkaita varten eikä tämä lue sitä. */
 const Aallot = {
-  _l: null, tasot: [], _ax: null, _hetki: null,
-  /* Viimeisin näyte (`nayte`): ei varauksia, kuten `Saalaatat._nU`. */
-  _hs: 0, _s: 0, _c: 0, _tp: NaN, _w: 0, _vajaa: false,
-
-  /* Luettelo ladataan `Saalaatat.alusta`ssa; tämä lukee siitä vain
-     oman avaimensa. Vanha varasto (ilman avainta) = ei aaltoja, kunnes
-     `paivita` löytää uudemman. */
-  alusta() {
-    if (this._l) return true;
-    const L = typeof Saalaatat !== 'undefined' ? Saalaatat._luettelo : null;
-    return this._ota(L && L.aallot, null);
+  _vajaa: false,
+  kaytossa() {
+    if (AaltoVarasto.kaytossa()) return true;
+    if (AaltoVarasto._tila === 'alustamaton' && Saalaatat._luettelo) AaltoVarasto.alusta();
+    return false;
   },
-  _ota(a, versio) {
-    if (!a || a.versio !== 1 || !Array.isArray(a.tasot) || !Array.isArray(a.ajat) || a.ajat.length < 2) return false;
-    /* Vanhat aaltolaatat pois muistista: sama avain, eri rakennus. */
-    if (this._l && typeof Saalaatat !== 'undefined') {
-      for (const k of [...Saalaatat._laatat.keys()]) if (/^a\d\//.test(k)) Saalaatat._laatat.delete(k);
-      Saalaatat._nollaaMuisti();
-    }
-    this._l = a;
-    this._sarjat.clear();
-    this._ax = Saalaatat._teeAkseli(a.ajat);
-    this.tasot = a.tasot.map(t => Object.assign({}, t, {
-      _ax: this._ax, _versio: versio || undefined,
-      _laatat: new Set((t.laatat || []).map(r => r[0] + '_' + r[1])),
-    })).sort((x, y) => x.askel - y.askel);
-    return true;
+  /* Valmis jos luettelo on jo saatu (aaltotilaan siirryttäessä). */
+  alusta() { return AaltoVarasto.alusta(); },
+  paivita() { return AaltoVarasto.paivita(); },
+  alku() { return AaltoVarasto.alku(); },
+  loppu() { return AaltoVarasto.loppu(); },
+  kattaa(tMs) { return AaltoVarasto.kattaa(tMs); },
+  /* Mallin ajohetki (ms): tähtäimen paikan perheen, muuten pohjan. */
+  ajo(lat, lng, tMs) {
+    if (lat != null) { const r = AaltoVarasto.ajoPaikassa(lat, lng, tMs); if (r) return r.ajo; }
+    const p = AaltoVarasto._pohja;
+    return p && p.ajoAika ? Date.parse(p.ajoAika) : null;
   },
-  /* LUETTELO UUDELLEEN KESKEN ISTUNNON. Sovellus voi olla auki kun
-     Säädata julkaisee uudet aallot (tai ensimmäiset — käyttäjän raportti
-     1.10.: aaltotila sammutti tuulen värit eikä tilalle tullut mitään,
-     koska istunnon luettelossa ei ollut vielä aaltoja). Haetaan kun
-     aaltoja ei ole tai niiden akseli loppuu alle 12 h päästä, enintään
-     kerran viidessä minuutissa. Palauttaa toden jos aallot vaihtuivat. */
-  _paivitysT: 0, _paivitys: null,
-  paivita() {
-    const loppu = this.loppu();
-    if (this.kaytossa() && loppu != null && loppu > Date.now() + 12 * 3600e3) return Promise.resolve(false);
-    if (this._paivitys) return this._paivitys;
-    if (Date.now() - this._paivitysT < 5 * 60e3 || typeof SAALAATAT_KANTA === 'undefined') return Promise.resolve(false);
-    this._paivitysT = Date.now();
-    const self = this;
-    this._paivitys = fetch(SAALAATAT_KANTA + 'luettelo.json', { cache: 'no-cache' })
-      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-      .then(function (l) {
-        const a = l && l.aallot;
-        if (!a || (self._l && a.ajoAika === self._l.ajoAika && a.ajat.length === self._l.ajat.length)) return false;
-        return self._ota(a, String(l.luotu || a.ajoAika || ''));
-      })
-      .catch(function () { return false; })
-      .finally(function () { self._paivitys = null; });
-    return this._paivitys;
+  /* Lähdeperhe paikassa (`Lahde.NIMET`-avain) ja ajo. */
+  lahdePaikassa(lat, lng, tMs) { return AaltoVarasto.ajoPaikassa(lat, lng, tMs); },
+  varmistaPiste(lat, lng) { return AaltoVarasto.varmistaPiste(lat, lng); },
+  /* Koko akseli pisteeseen tuntiakselilla, lähin märkä piste
+     luottoetäisyyden sisältä (P5). `maxKm` jätetään huomiotta: raja tulee
+     mallin tarkkuudesta paikassa (`AaltoVarasto.luottoKmPaikalle`). */
+  sarja(lat, lng) {
+    /* Tosi ellei laskenta ehdi asettaa sitä: varasto käyttämättä on aina
+       "ei tiedetä" eikä "ei merta". */
+    AaltoVarasto._vajaaSarja = true;
+    const s = AaltoVarasto.sarja(lat, lng);
+    this._vajaa = !s && AaltoVarasto._vajaaSarja;
+    return s;
   },
-  kaytossa() { return this._l ? true : this.alusta(); },
-  alku() { return this._l ? this._l.ajat[0] : null; },
-  loppu() { return this._l ? this._l.ajat[this._l.ajat.length - 1] : null; },
-  ajo() { return this._l ? Date.parse(this._l.ajoAika) || null : null; },
-  /* Kattaako akseli hetken (tunnin toleranssi kuten tuulella)? */
-  kattaa(tMs) {
-    const a = this.alku(), b = this.loppu();
-    return a != null && tMs != null && tMs >= a - 3600e3 && tMs <= b + 3600e3;
-  },
-
-  /* TARKKUUS ZOOMISTA. Hienoin taso (0,02° ≈ mallin hila) jo zoomista 9,
-     koska aallonkorkeus muuttuu rannikolla kilometrin matkalla. Tuulen
-     `laattaStep` antaisi z9:llä 0,1° eli koko Suomenlahden saaristo
-     sulautuisi kahdeksi solmuksi. */
-  askelZoomille(z) {
-    z = Math.round(z);
-    return z >= 9 ? 0.02 : (z >= 8 ? 0.05 : (z >= 7 ? 0.1 : 0.25));
-  },
-
-  _kattaaTaso(t, lat, lng) { return lat >= t.lat[0] && lat <= t.lat[1] && lng >= t.lng[0] && lng <= t.lng[1]; },
-  /* Suurin askel joka on <= step, muuten hienoin joka kattaa paikan. */
-  _taso(lat, lng, step) {
-    let paras = null, hienoin = null;
-    for (const t of this.tasot) {
-      if (!this._kattaaTaso(t, lat, lng)) continue;
-      if (!hienoin) hienoin = t;
-      if (t.askel <= step + 1e-9) paras = t;
-    }
-    return paras || hienoin;
-  },
-  _ruutu(t, lat, lng) {
-    return { la0: +(Math.floor(lat / t.span) * t.span).toFixed(4), lo0: +(Math.floor(lng / t.span) * t.span).toFixed(4) };
-  },
-  _avain(t, la0, lo0) { return t.id + '/' + la0 + '_' + lo0; },
-
-  /* Laatta paikalle ja tasolle: { laatta } kun ladattu, { puuttuu }
-     kun olemassa mutta ei ladattu, null kun laattaa ei ole (pelkkää
-     maata tai alueen ulkopuolella). */
-  _laatta(t, lat, lng) {
-    const r = this._ruutu(t, lat, lng);
-    if (!t._laatat.has(r.la0 + '_' + r.lo0)) return null;
-    const l = Saalaatat._laatat.get(this._avain(t, r.la0, r.lo0));
-    return l ? { laatta: l } : { puuttuu: r };
-  },
-
-  /* Alueen laatat valitulta tasolta (ja karkeammalta siellä minne
-     hienoin ei ulotu). Palauttaa montako uutta tuli. */
-  async varmista(bounds, step) {
-    if (!this.kaytossa()) return 0;
-    const s = bounds.getSouth(), n = bounds.getNorth(), w = bounds.getWest(), e = bounds.getEast();
-    const tarve = new Map();
-    for (const t of this.tasot) {
-      const a0 = Math.max(s, t.lat[0]), a1 = Math.min(n, t.lat[1]);
-      const b0 = Math.max(w, t.lng[0]), b1 = Math.min(e, t.lng[1]);
-      if (a0 >= a1 || b0 >= b1) continue;
-      const sp = t.span;
-      for (let ty = Math.floor(a0 / sp); ty * sp < a1; ty++) {
-        for (let tx = Math.floor(b0 / sp); tx * sp < b1; tx++) {
-          const la0 = +(ty * sp).toFixed(4), lo0 = +(tx * sp).toFixed(4);
-          if (!t._laatat.has(la0 + '_' + lo0)) continue;
-          const y0 = Math.max(a0, la0) + 1e-6, y1 = Math.min(a1, la0 + sp) - 1e-6;
-          const x0 = Math.max(b0, lo0) + 1e-6, x1 = Math.min(b1, lo0 + sp) - 1e-6;
-          const pts = [[y0, x0], [y0, x1], [y1, x0], [y1, x1], [(y0 + y1) / 2, (x0 + x1) / 2]];
-          if (!pts.some(([y, x]) => this._taso(y, x, step) === t)) continue;
-          const k = this._avain(t, la0, lo0);
-          if (!Saalaatat._laatat.has(k)) tarve.set(k, { t, la0, lo0 });
-        }
-      }
-    }
-    if (tarve.size > 60) return 0;      /* näkymä liian laaja tälle tasolle */
-    const r = await Promise.allSettled([...tarve.values()].map(x => Saalaatat._lataa(x.t, x.la0, x.lo0)));
-    return r.filter(x => x.status === 'fulfilled').length;
-  },
-  /* Pisteen laatat kaikilta tasoilta (kortti, kapseli, aikajana). */
-  async varmistaPiste(lat, lng) {
-    if (!this.kaytossa()) return 0;
-    const lista = [];
-    for (const t of this.tasot) {
-      if (!this._kattaaTaso(t, lat, lng)) continue;
-      const r = this._ruutu(t, lat, lng);
-      if (!t._laatat.has(r.la0 + '_' + r.lo0) || Saalaatat._laatat.has(this._avain(t, r.la0, r.lo0))) continue;
-      lista.push(Saalaatat._lataa(t, r.la0, r.lo0));
-      break;                 /* hienoin kattava riittää */
-    }
-    const r = await Promise.allSettled(lista);
-    return r.filter(x => x.status === 'fulfilled').length;
-  },
-
-  /* Hetki akselille. Palauttaa voiko varasto palvella hetkeä. */
-  asetaHetki(tMs) {
-    this._hetki = tMs;
-    if (!this.kaytossa() || tMs == null) return false;
-    return Saalaatat._asetaAkseli(this._ax, tMs);
-  },
-
-  /* Yksi hetki laatan solmusta k: korkeus, suunnan yksikkövektori
-     (MISTÄ) ja jakso. Ajassa korkeus ja jakso lineaarisesti, suunta
-     vektoreina. Palauttaa painon (0 = maa). */
-  _solmu(l, k) {
-    const L = l.ny * l.nx, ax = this._ax, a = this._l;
-    const t0 = ax.ti, f = ax.tf, t1 = Math.min(l.nt - 1, t0 + 1);
-    const h0 = l.nop[t0 * L + k], h1 = l.nop[t1 * L + k];
-    if (h0 === 255 && h1 === 255) return 0;
-    const w0 = h0 === 255 ? 0 : (h1 === 255 ? 1 : 1 - f), w1 = 1 - w0;
-    _aSolmu.hs = (h0 === 255 ? 0 : h0 * w0) * a.hsAskel + (h1 === 255 ? 0 : h1 * w1) * a.hsAskel;
-    let s = 0, c = 0;
-    const d0 = l.suunta[t0 * L + k], d1 = l.suunta[t1 * L + k];
-    if (d0 !== 255 && w0 > 0) { const r = d0 * a.suuntaAskel * Math.PI / 180; s += Math.sin(r) * w0; c += Math.cos(r) * w0; }
-    if (d1 !== 255 && w1 > 0) { const r = d1 * a.suuntaAskel * Math.PI / 180; s += Math.sin(r) * w1; c += Math.cos(r) * w1; }
-    const m = Math.hypot(s, c);
-    _aSolmu.s = m > 1e-6 ? s / m : 0; _aSolmu.c = m > 1e-6 ? c / m : 0;
-    const p0 = l.puuska[t0 * L + k], p1 = l.puuska[t1 * L + k];
-    _aSolmu.tp = p0 === 255 ? (p1 === 255 ? NaN : p1 * a.jaksoAskel)
-      : (p1 === 255 ? p0 * a.jaksoAskel : (p0 * (1 - f) + p1 * f) * a.jaksoAskel);
-    return 1;
-  },
-
-  /* NÄYTE PAIKASSA nykyiselle hetkelle (`asetaHetki`). Bilineaarinen
-     märkien solmujen kesken: maasolmun paino jaetaan märille, ja
-     kokonaispaino `_w` (0..1) on rannikon alfa. Palauttaa toden jos
-     paikassa on merta. */
-  nayte(lat, lng, step) {
-    this._vajaa = false; this._w = 0;
-    if (!this._l || !this._ax.ok) return false;
-    let t = this._taso(lat, lng, step);
-    if (!t) return false;
-    let x = this._laatta(t, lat, lng);
-    if (x && x.puuttuu) {
-      this._vajaa = true;
-      /* Karkeampi ladattu taso kelpaa sillä aikaa. */
-      x = null;
-      for (const u of this.tasot) {
-        if (u.askel <= t.askel || !this._kattaaTaso(u, lat, lng)) continue;
-        const y = this._laatta(u, lat, lng);
-        if (y && y.laatta) { x = y; break; }
-      }
-    }
-    if (!x || !x.laatta) return false;
-    const l = x.laatta;
-    let fy = (lat - l.la0) / l.askel, fx = (lng - l.lo0) / l.askel;
-    let iy = Math.floor(fy), ix = Math.floor(fx);
-    if (iy >= l.ny - 1) iy = l.ny - 2; if (ix >= l.nx - 1) ix = l.nx - 2;
-    if (iy < 0) iy = 0; if (ix < 0) ix = 0;
-    fy -= iy; fx -= ix;
-    fy = fy < 0 ? 0 : (fy > 1 ? 1 : fy); fx = fx < 0 ? 0 : (fx > 1 ? 1 : fx);
-    const W = [(1 - fy) * (1 - fx), (1 - fy) * fx, fy * (1 - fx), fy * fx];
-    const K = [iy * l.nx + ix, iy * l.nx + ix + 1, (iy + 1) * l.nx + ix, (iy + 1) * l.nx + ix + 1];
-    let wS = 0, hs = 0, s = 0, c = 0, tp = 0, wT = 0;
-    for (let q = 0; q < 4; q++) {
-      if (W[q] <= 1e-6 || !this._solmu(l, K[q])) continue;
-      const w = W[q];
-      wS += w; hs += _aSolmu.hs * w; s += _aSolmu.s * w; c += _aSolmu.c * w;
-      if (_aSolmu.tp === _aSolmu.tp) { tp += _aSolmu.tp * w; wT += w; }
-    }
-    if (wS <= 1e-6) return false;
-    this._w = wS > 1 ? 1 : wS;
-    this._hs = hs / wS;
-    const m = Math.hypot(s, c);
-    this._s = m > 1e-6 ? s / m : 0; this._c = m > 1e-6 ? c / m : 0;
-    this._tp = wT > 0 ? tp / wT : NaN;
-    return true;
-  },
-  /* Suunta MISTÄ asteina viimeisimmästä näytteestä. */
-  suunta() { return (Math.atan2(this._s, this._c) * 180 / Math.PI + 360) % 360; },
-
-  /* Näyte nykyhetkelle paikassa — kapseli ja lähin märkä solmu.
-     Palauttaa { hs, dir, tp } tai null. Tila palautetaan. */
+  /* Yksi hetki: `maxKm` > 0 = maalla lähin märkä piste luottoetäisyyden
+     (P5) sisältä — luku on silloin vain ehto, ei matka. */
   arvo(lat, lng, tMs, step, maxKm) {
-    if (!this.kaytossa() || !this.kattaa(tMs)) return null;
-    const ed = this._hetki;
-    try {
-      if (!this.asetaHetki(tMs)) return null;
-      if (this.nayte(lat, lng, step) && this._w >= 0.5) return { hs: this._hs, dir: this.suunta(), tp: this._tp };
-      if (!maxKm) return null;
-      /* LÄHIN MÄRKÄ SOLMU (spotit mallin maamaskin sisällä): hienoimman
-         tason solmuista enintään `maxKm` päästä. Spotti on rannalla, ja
-         2 km on mallin oma hilaväli — kauempaa luettu aalto olisi toisen
-         paikan aalto. */
-      const p = this._lahinMarka(lat, lng, maxKm);
-      if (p && this.nayte(p[0], p[1], 0.02) && this._w >= 0.5) return { hs: this._hs, dir: this.suunta(), tp: this._tp, km: p[2] };
-      return null;
-    } finally { if (ed !== this._hetki) this.asetaHetki(ed); }
+    const r = AaltoVarasto.arvo(lat, lng, tMs, step || 0, maxKm ? AaltoVarasto.luottoKmPaikalle(lat, lng) : 0);
+    this._vajaa = AaltoVarasto._vajaa;
+    return r;
   },
-  _lahinMarka(lat, lng, maxKm) {
-    const t = this.tasot[0];
-    if (!t) return null;
-    const ky = Math.cos(lat * Math.PI / 180);
-    let paras = null, pd = maxKm;
-    const r = Math.ceil(maxKm / (111.2 * t.askel * ky)) + 1;
-    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
-      const y = Math.round(lat / t.askel + dy) * t.askel, x = Math.round(lng / t.askel + dx) * t.askel;
-      const d = Math.hypot((y - lat) * 111.2, (x - lng) * 111.2 * ky);
-      if (d >= pd) continue;
-      const z = this._laatta(t, y, x);
-      if (!z || !z.laatta) continue;
-      const l = z.laatta;
-      const iy = Math.round((y - l.la0) / l.askel), ix = Math.round((x - l.lo0) / l.askel);
-      if (iy < 0 || ix < 0 || iy >= l.ny || ix >= l.nx) continue;
-      const k = iy * l.nx + ix;
-      let marka = false;
-      for (let ti = 0; ti < l.nt && !marka; ti += 6) if (l.nop[ti * l.ny * l.nx + k] !== 255) marka = true;
-      if (marka) { pd = d; paras = [y, x, d]; }
-    }
-    return paras;
-  },
-
-  /* KOKO AKSELI PISTEESEEN: { t[], hs[], dir[], tp[], km? } tai null.
-     Spottikortti, poijukaavion ennuste ja aikajana lukevat tätä. Laatan
-     on oltava ladattu (`varmistaPiste`). Muistetaan paikalle. */
-  _sarjat: new Map(),
-  sarja(lat, lng, maxKm) {
-    if (!this.kaytossa()) return null;
-    const avain = lat.toFixed(3) + ',' + lng.toFixed(3) + '|' + (maxKm || 0) + '|' + this._l.ajoAika;
-    if (this._sarjat.has(avain)) return this._sarjat.get(avain);
-    const ed = this._hetki;
-    let ulos = null;
-    try {
-      let y = lat, x = lng, km = null;
-      this.asetaHetki(this._l.ajat[0]);
-      const marka = (yy, xx) => {
-        for (let i = 0; i < this._l.ajat.length; i += 6) {
-          this.asetaHetki(this._l.ajat[i]);
-          if (this.nayte(yy, xx, 0.02) && this._w >= 0.5) return true;
-        }
-        return false;
-      };
-      if (!marka(y, x) && maxKm) {
-        const p = this._lahinMarka(lat, lng, maxKm);
-        if (p) { y = p[0]; x = p[1]; km = p[2]; } else return null;
-      }
-      const T = this._l.ajat, hs = [], dir = [], tp = [];
-      let vajaa = false;
-      for (let i = 0; i < T.length; i++) {
-        this.asetaHetki(T[i]);
-        const ok = this.nayte(y, x, 0.02) && this._w >= 0.5;
-        if (this._vajaa) vajaa = true;
-        hs.push(ok ? this._hs : null); dir.push(ok ? this.suunta() : null);
-        tp.push(ok && this._tp === this._tp ? this._tp : null);
-      }
-      if (!hs.some(v => v != null)) return null;
-      ulos = { t: T.slice(), hs, dir, tp, km, lat: y, lng: x };
-      if (!vajaa) this._sarjat.set(avain, ulos);
-    } finally { this.asetaHetki(ed); }
-    return ulos;
-  },
+  luottoKm(lat, lng) { return AaltoVarasto.luottoKmPaikalle(lat, lng); },
+  laattaPaikassa(lat, lng) { return AaltoVarasto.laattaPaikassa(lat, lng); },
+  merta(pts, step) { return AaltoVarasto.merta(pts, step); },
+  mertaLaatat(pts, step) { return AaltoVarasto.mertaLaatat(pts, step); },
   /* Sarja toisen aika-akselin hetkille (aikajana: ISO-merkkijonot).
      Akselin ulkopuolella null. */
   akselille(sarja, ajat) {
@@ -9640,7 +10129,6 @@ const Aallot = {
     return out;
   },
 };
-const _aSolmu = { hs: 0, s: 0, c: 0, tp: NaN };
 
 /* -- MALLIN OMA HILA ------------------------------------------------
  *
@@ -13109,12 +13597,12 @@ function px2ll(x, y) { const ll = State.map.containerPointToLatLng(L.point(x, y)
  * tarkoituksella, ja niissä hetki vaihtuu jatkuvasti. */
 const Haivytys = {
   MS: 450,
-  _lampo: 0, _part: 0,
+  _lampo: 0, _part: 0, _aalto: 0,
   pyyda() {
     let vahenna = false;
     try { vahenna = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
     const t = vahenna ? 0 : performance.now();
-    this._lampo = t; this._part = t;
+    this._lampo = t; this._part = t; this._aalto = t;
   },
   ota(avain) {
     const t = this[avain]; this[avain] = 0;
@@ -13946,6 +14434,15 @@ const WindTexture = {
 const AikaEsilataus = {
   RINNAKKAIN: 6, VIIVE_MS: 1200, HYPPY_VIIVE_MS: 300,
   _sp: 0, _jono: [], _kaynnissa: 0, _ajastin: null, _haettu: 0, _tavut: 0,
+  /* KOUKUT KERROKSELLE: tuulen varasto ja lämpökartan tasot. Aaltojen
+     esilataus (`AaltoEsilataus`) on sama koneisto aaltovarastolle; vain
+     näkyvän kerroksen akseli esiladataan (aaltotilassa tuulen lämpökarttaa
+     ei ole ruudulla). */
+  _S() { return Saalaatat; },
+  _paalla() { return !aaltotila() && Saalaatat.kartallaKaytossa(); },
+  _askeleet(tz) { return [ViewportGrid.laattaStep(tz), ViewportGrid.ennakkoStep(tz)]; },
+  _hetki() { return LampoGL._hetki(); },
+  _reunus() { return LampoGL.ENNAKKO_REUNUS; },
   ajasta(viive) {
     this._sp++;
     this._jono = [];
@@ -13955,18 +14452,19 @@ const AikaEsilataus = {
   },
   _aloita() {
     const map = LampoGL._map;
-    if (!map || !map.ml || typeof Saalaatat === 'undefined' || !Saalaatat.kartallaKaytossa()) return;
+    if (!map || !map.ml || !this._paalla()) return;
     if (State.liikkeessa) { this.ajasta(); return; }
     try {
+      const S = this._S();
       const b = map.getBounds(), tz = Math.round(map.getZoom());
-      const st = ViewportGrid.laattaStep(tz), sk = ViewportGrid.ennakkoStep(tz);
-      const tMs = LampoGL._hetki();
+      const [st, sk] = this._askeleet(tz);
+      const tMs = this._hetki();
       if (tMs == null) return;
-      const vLat = b.getNorth() - b.getSouth(), vLng = b.getEast() - b.getWest(), R = LampoGL.ENNAKKO_REUNUS;
+      const vLat = b.getNorth() - b.getSouth(), vLng = b.getEast() - b.getWest(), R = this._reunus();
       const ra = L.latLngBounds(L.latLng(Math.max(-85, b.getSouth() - vLat * R), b.getWest() - vLng * R),
         L.latLng(Math.min(85, b.getNorth() + vLat * R), b.getEast() + vLng * R));
-      const lista = sk === st ? Saalaatat.esilatausTehtavat(ra, sk, tMs)
-        : Saalaatat.esilatausTehtavat(b, st, tMs).concat(Saalaatat.esilatausTehtavat(ra, sk, tMs));
+      const lista = sk === st ? S.esilatausTehtavat(ra, sk, tMs)
+        : S.esilatausTehtavat(b, st, tMs).concat(S.esilatausTehtavat(ra, sk, tMs));
       /* Saman laatan sama pala kerran, lähin aika ensin. */
       const nahty = new Set();
       this._jono = lista.sort((a, c) => a.eta - c.eta || a.pi - c.pi).filter(t => {
@@ -13978,7 +14476,7 @@ const AikaEsilataus = {
     } catch (e) {}
   },
   _pumppaa(sp) {
-    const S = Saalaatat, self = this;
+    const S = this._S(), self = this;
     while (sp === this._sp && this._kaynnissa < this.RINNAKKAIN && this._jono.length) {
       if (State.liikkeessa) { this.ajasta(); return; }
       const t = this._jono.shift();
@@ -13994,6 +14492,19 @@ const AikaEsilataus = {
     }
   },
 };
+/* AALTOJEN KOKO AKSELIN ESILATAUS (docs/aallot.md 6.4): sama koneisto
+   aaltovarastolle (`AaltoVarasto.esilatausTehtavat`) aaltotilassa. Ilman
+   sitä jokainen aikapalan raja toistossa ja jokainen hyppy uuteen palaan
+   olisi hetken vajaa kenttä. Näkymän koko akseli on mitatusta datasta
+   laskettuna 0,2–1,7 MB. */
+const AaltoEsilataus = Object.assign(Object.create(AikaEsilataus), {
+  _sp: 0, _jono: [], _kaynnissa: 0, _ajastin: null, _haettu: 0, _tavut: 0,
+  _S() { return AaltoVarasto; },
+  _paalla() { return aaltotila() && AaltoVarasto.kartallaKaytossa(); },
+  _askeleet(tz) { return [AaltoTaso.askel(tz), AaltoTaso.askel(tz - 1)]; },
+  _hetki() { return AaltoGL._tA != null ? AaltoGL._tA : AaltoGL._hetki(); },
+  _reunus() { return AaltoGL.ENNAKKO_REUNUS; },
+});
 
 const LampoGL = {
   id: 'lampokartta', type: 'custom', renderingMode: '2d',
@@ -14917,32 +15428,48 @@ const Rantamaski = {
  *
  * Yksi custom-kerros samassa GL-ruudussa kuin lämpökartta, ja se
  * piirtyy vain aaltotilassa (`aaltotila()`), jolloin lämpökartta ja
- * partikkelit ovat poissa. Kaksi osaa:
+ * partikkelit ovat poissa. Rakenne on lämpökartan (`LampoGL`, docs/aallot.md
+ * 6.1–6.3), koska aallot ovat sen koneistossa (`AaltoVarasto`):
  *
- * 1. KENTTÄ. Solmuhila näkymän pehmustetulle alueelle (`Aallot.nayte`
- *    jokaiseen solmuun), RGBA8-tekstuurina ESIKERROTTUNA MÄRKYYDELLÄ:
- *    r = Hs/0,03·m, g/b = suunnan yksikkövektori·m, a = m (märkyys 0..1).
- *    Lineaarinen suodatus antaa silloin suoraan märkien solmujen
- *    painotetun keskiarvon (r/a), ja a itse on rannikon pehmeä reuna —
- *    maa ei vuoda mereen eikä meri maalle. Väri `AaltoVari`-LUT:sta.
- *    Ei sumennusta: aallonkorkeuden rakenne on rannikolla kilometrin
- *    kokoista, ja sumennus pyyhkisi juuri sen.
+ * 1. KENTTÄ KAHTENA HILANA. Oma hila näyttötarkkuuden tasolla
+ *    (`AaltoTaso.askel(tz)`) ja karkea yhtä tasoa harvempi, sekoitettuna
+ *    zoomin mukaan (`AaltoTaso.karkeaPaino`, kuten mipmap) — zoomin rajan
+ *    yli kenttä ei hyppää. Toistossa ja raahauksessa kenttä on kokonaan
+ *    karkea (budjetti `TOISTO_SOLMUT`). Uusi hila ruudulle vasta kun sen
+ *    näkyvältä alueelta ei puutu dataa (`_odottava`; hetken vaihdossa
+ *    0,4 s), ja hyppy häivytetään (`Haivytys`, 0,45 s).
  *
- * 2. AALTORINTAMAT. Lyhyitä paperinvärisiä kaaria kohtisuoraan
+ * 2. AIKA NÄYTÖNOHJAIMELLA (docs/aallot.md 6.3). Hila kootaan kahdelle
+ *    tasatunnille A ja A + 1 h, ja ne ovat SAMASSA RGBA8-tekstuurissa
+ *    märkyydellä esikerrottuina: r = qA·aA, g = qB·aB, b = aA, a = aB
+ *    (q = 254·√(Hs/16)). Lineaarinen suodatus antaa silloin märkien
+ *    solmujen painotetun keskiarvon (r/b), ja b/a on rannan pehmeä reuna.
+ *    Toisto ja raahaus tunnin sisällä ovat pelkkä `u_f`; uusi hila vain
+ *    tunnin rajalla, ja silloinkin edellinen B on uusi A. Ei sumennusta:
+ *    aallonkorkeuden rakenne on rannikolla kilometrin kokoista.
+ *
+ * 3. AALTORINTAMAT. Lyhyitä paperinvärisiä kaaria kohtisuoraan
  *    etenemissuuntaan, jotka kulkevat aallon suuntaan (MISTÄ + 180°).
- *    Nopeus tulee jaksosta (pitkä jakso = nopeampi), pituus ja
- *    peittävyys korkeudesta; tyynellä (< 4 cm) rintamia ei synny. Liike
- *    on ajasta, ei ruuduista, kuten partikkeleilla. Rintamat elävät
- *    Mercator-koordinaateissa, joten panorointi ja zoom kuljettavat ne
- *    mukanaan. Vaimennetulla liikkeellä ne seisovat.
+ *    Nopeus tulee jaksosta, pituus ja peittävyys korkeudesta; tyynellä
+ *    (< 4 cm) rintamia ei synny. Liike on ajasta, ei ruuduista. Rintamat
+ *    lukevat saman kentän suorittimella (`_nayte`).
  *
- * Puuttuva data on läpinäkyvää (maa, mallin ulkopuoli, jakson
- * ulkopuolinen hetki). */
+ * Rannan piirtää pohjakartan rantaviiva (`Rantamaski`), ja kentän oma
+ * häivytys (rakentajan ekstrapolointi + etäisyystaso) rajaa sen matkan
+ * jonka malli tietää. Puuttuva data on läpinäkyvää. */
 const AaltoGL = {
   id: 'aallot', type: 'custom', renderingMode: '2d',
-  PEHMUSTE: 0.5,
-  _map: null, _gl: null, _hila: null, _versio: 0, _ladattu: -1, _likainen: true,
-  _tyhja: false, _rintamat: [], _edT: 0,
+  REUNUS: 0.6, REUNUS_ULKO: 0.3, REUNUS_MIN_Z: 6, OMA_REUNUS: 0.25, ENNAKKO_REUNUS: 0.25,
+  ODOTUS_MS: 6000, ODOTUS_HYPPY_MS: 400, ODOTUS_HYPPY_MAX_MS: 2000, TASO_HAIVYTYS_MS: 300,
+  TOISTO_SOLMUT: 9000,
+  _map: null, _gl: null, _maxTex: 4096,
+  _hila: null, _karkea: null, _odottava: null,
+  _hilaVersio: 0, _karkeaVersio: 0, _ladattu: -1, _karkeaLadattu: -1,
+  _likainen: true, _karkeaLikainen: true, _tyhja: false,
+  _tA: null, _f: 0,
+  _kwNyt: 0, _kwEd: 0, _kwAlku: 0, _kwAika: 0, _edToisto: false,
+  _vanha: null, _haivAlku: 0, _haivMs: 0, _ladattuHila: null,
+  _rintamat: [], _edT: 0,
 
   kiinnita(map) {
     this._map = map;
@@ -14950,192 +15477,381 @@ const AaltoGL = {
     map._kunValmis(function () {
       map.ml.addLayer(self, map.ml.getLayer('partikkelit') ? 'partikkelit' : undefined);
     });
-    map.ml.on('moveend', function () { if (self._naytetaan()) self._pyydaData(true); });
+    map.ml.on('moveend', function () {
+      if (!self._naytetaan()) return;
+      self._esilataa();
+      AaltoEsilataus.ajasta();
+    });
   },
   paivita() {
     this._likainen = true;
+    this._karkeaLikainen = true;
     if (this._map) this._map.ml.triggerRepaint();
   },
-  _naytetaan() { return aaltotila() && !State._perfNoHeatmap && Aallot.kaytossa(); },
-  _hetki() { return LampoGL._hetki(); },
+  _naytetaan() { return aaltotila() && !State._perfNoHeatmap && AaltoVarasto.kartallaKaytossa(); },
 
-  _pyydaData(heti) {
-    const map = this._map;
-    if (!map) return;
-    const nyt = performance.now();
-    if (!heti && nyt - (this._pyyntoT || 0) < 800) return;
-    this._pyyntoT = nyt;
-    const self = this, b = map.getBounds().pad(this.PEHMUSTE);
-    const d = Aallot.askelZoomille(map.getZoom()), c = map.getCenter();
-    Promise.all([Aallot.varmista(b, d), Aallot.varmistaPiste(c.lat, c.lng)])
-      .then(function (r) {
-        if (r[0] + r[1] > 0) {
-          self.paivita();
-          /* Aikajana ja kapseli lukevat samoja laattoja. */
-          if (aaltotila() && typeof updateTimelineToCenter === 'function' && !State._tlTouching) updateTimelineToCenter();
-          if (typeof Crosshair !== 'undefined') Crosshair.refresh();
-        }
-      }, function () {});
-  },
-
-  _kattaa(h, b) {
-    return h && b.getWest() >= h.kLoW && b.getEast() <= h.kLoE && b.getSouth() >= h.kLaS && b.getNorth() <= h.kLaN;
-  },
-
-  _varmistaHila() {
-    const map = this._map, b = map.getBounds();
-    const d = Aallot.askelZoomille(map.getZoom()), hetki = this._hetki();
-    const h = this._hila;
-    if (!this._likainen && h && h.d === d && h.hetki === hetki && this._kattaa(h, b)) return;
-    /* Raahauksen aikana hetki vaihtuu joka ruudussa; hila on pieni
-       (z10: noin 60 × 40 solmua), mutta kuristus pitää sen kurissa. */
-    const nyt = performance.now();
-    if (!this._likainen && h && h.d === d && this._kattaa(h, b) && nyt - (this._rakT || 0) < 60) return;
-    this._rakT = nyt;
-    this._likainen = false;
-    if (!Aallot.asetaHetki(hetki)) {
-      this._tyhja = true;
-      if (this._hila) { this._hila = null; this._versio++; }
-      return;
+  /* NÄYTÖN HETKI: toistossa ja raahauksessa jatkuva (`State._tlNaytto`,
+     sama lähde kuin sadekerroksella), levossa valittu hetki. Kenttä
+     tunnin sisällä on silloin varjostimen `u_f` eikä uusi hila. */
+  _hetki() {
+    const m = State._tlNaytto;
+    if (m && !State._tlLiuku && (State.isPlaying || State._tlTouching) && performance.now() - m.t < 450) {
+      const t = _tlTimeAt(m.frac);
+      if (t != null && isFinite(t)) return t;
     }
-    this._tyhja = false;
-    const vLat = b.getNorth() - b.getSouth(), vLng = b.getEast() - b.getWest(), P = this.PEHMUSTE;
-    const laS = Math.max(-80, b.getSouth() - vLat * P), laN = Math.min(80, b.getNorth() + vLat * P);
+    return LampoGL._hetki();
+  },
+
+  _pehmuste(zoom) { return zoom >= this.REUNUS_MIN_Z ? this.REUNUS : this.REUNUS_ULKO; },
+  _pehmusteOma(zoom, tz) {
+    return AaltoTaso.karkeaKaytossa(tz) && zoom >= this.REUNUS_MIN_Z ? this.OMA_REUNUS : this._pehmuste(zoom);
+  },
+  _kattaa(h, b) {
+    if (!h) return false;
+    const S = Math.max(-84, b.getSouth()), N = Math.min(84, b.getNorth());
+    return b.getWest() >= h.kLoW && b.getEast() <= h.kLoE && S >= h.kLaS && N <= h.kLaN;
+  },
+
+  /* Hila tasatunnille tA (ja B = tA + 1 h jos `tarvB`). `vanha` = edellinen
+     samalla tasolla: saman geometrian valmis tunti kelpaa sellaisenaan
+     (toistossa edellinen B on uusi A, joten tunnin rajalla kootaan yksi
+     tunti). */
+  _rakenna(map, b, tz, d, tA, tarvB, P, vanha) {
+    const vLat = b.getNorth() - b.getSouth(), vLng = b.getEast() - b.getWest();
+    const laS = Math.max(-85, b.getSouth() - vLat * P), laN = Math.min(85, b.getNorth() + vLat * P);
     const loW = b.getWest() - vLng * P, loE = b.getEast() + vLng * P;
     const la0 = Math.floor(laS / d) * d, lo0 = Math.floor(loW / d) * d;
     const gc = Math.ceil((loE - lo0) / d) + 1, gr = Math.ceil((laN - la0) / d) + 1;
-    if (gc < 2 || gr < 2 || gc * gr > 400000) { if (this._hila) { this._hila = null; this._versio++; } return; }
-    const n = gc * gr;
-    const tavut = new Uint8Array(n * 4);
-    const hs = new Float32Array(n), s = new Float32Array(n), c = new Float32Array(n), tp = new Float32Array(n), w = new Float32Array(n);
-    let puuttuu = 0;
-    for (let j = 0; j < gr; j++) {
-      const lat = la0 + j * d;
-      for (let i = 0; i < gc; i++) {
-        const k = j * gc + i, lng = lo0 + i * d;
-        const ok = Aallot.nayte(lat, lng, d);
-        if (Aallot._vajaa) puuttuu++;
-        if (!ok) continue;
-        hs[k] = Aallot._hs; s[k] = Aallot._s; c[k] = Aallot._c; tp[k] = Aallot._tp; w[k] = Aallot._w;
+    if (gc < 3 || gr < 3 || gc > this._maxTex || gr > this._maxTex) return null;
+    const n = gc * gr, S = AaltoVarasto, H = 3600e3;
+    const osa = () => ({ hs: new Float32Array(n), s: new Float32Array(n), c: new Float32Array(n),
+                         tp: new Float32Array(n), a: new Float32Array(n), maski: new Uint8Array(n), puuttuu: 0, vajaat: 0 });
+    const sama = vanha && vanha.d === d && vanha.la0 === la0 && vanha.lo0 === lo0 && vanha.gc === gc && vanha.gr === gr;
+    const valmis = (x) => x && !x.puuttuu && !x.vajaat && x._versio === S._versio;
+    const kokoa = (t) => {
+      const x = osa();
+      const p = S.kokoaAallot(la0, lo0, d, gc, gr, d, t, x);
+      if (p < 0) return null;
+      x.puuttuu = p; x.vajaat = S._vajaat; x._versio = S._versio;
+      return x;
+    };
+    let A = null, B = null;
+    if (sama && vanha.tB === tA && valmis(vanha.B)) A = vanha.B;
+    else if (sama && vanha.tA === tA && valmis(vanha.A)) A = vanha.A;
+    if (!A) A = kokoa(tA);
+    if (!A) return { tyhja: true, d: d, tA: tA };
+    if (tarvB) {
+      if (sama && vanha.tA === tA && valmis(vanha.B)) B = vanha.B;
+      else B = kokoa(tA + H);
+    }
+    const BB = B || A;
+    const tavut = new Uint8Array(n * 4), kate = new Uint8Array(n);
+    for (let k = 0, p = 0; k < n; k++, p += 4) {
+      const aA = A.a[k], aB = BB.a[k];
+      const qA = aA > 0 ? 254 * Math.sqrt(Math.min(A.hs[k], 16) / 16) : 0;
+      const qB = aB > 0 ? 254 * Math.sqrt(Math.min(BB.hs[k], 16) / 16) : 0;
+      tavut[p] = Math.round(qA * aA); tavut[p + 1] = Math.round(qB * aB);
+      tavut[p + 2] = Math.round(255 * aA); tavut[p + 3] = Math.round(255 * aB);
+      kate[k] = (A.maski[k] || BB.maski[k]) ? 255 : 0;
+    }
+    const puuttuu = A.puuttuu + A.vajaat + (B ? B.puuttuu + B.vajaat : 0);
+    let nakyvissa = 0, tyhjat = 0, nakyvat = 1;
+    if (puuttuu) {
+      const i0 = Math.max(0, Math.floor((b.getWest() - lo0) / d) - 1), i1 = Math.min(gc - 1, Math.ceil((b.getEast() - lo0) / d) + 1);
+      const j0 = Math.max(0, Math.floor((b.getSouth() - la0) / d) - 1), j1 = Math.min(gr - 1, Math.ceil((b.getNorth() - la0) / d) + 1);
+      nakyvat = Math.max(1, (i1 - i0 + 1) * (j1 - j0 + 1));
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+        const k = j * gc + i, m = A.maski[k], mb = B ? B.maski[k] : 1;
+        if (m !== 1 || mb !== 1) { nakyvissa++; if (!m) tyhjat++; }
       }
     }
-    /* EKSTRAPOLOINTI MAAN PUOLELLE (Windyn tapa, ks. `Rantamaski`): maa-
-       solmu saa märkien naapuriensa keskiarvon, kerros kerrokselta noin
-       4 km:n matkalle. Mallin oma kate (`w`) säilyy erikseen: kapseli ja
-       harjat lukevat sitä kun maskia ei ole. Rajaus tehdään piirrossa
-       pohjakartan rantaviivalla. */
-    const kelpo = new Float32Array(n);
-    for (let k = 0; k < n; k++) kelpo[k] = w[k] > 0 ? 1 : 0;
-    const kmSolmu = d * 111.2 * Math.cos(((laS + laN) / 2) * Math.PI / 180);
-    const kierroksia = Math.max(1, Math.min(4, Math.ceil(4 / Math.max(0.5, kmSolmu))));
-    for (let kr = 0; kr < kierroksia; kr++) {
-      const uudet = [];
-      for (let j = 0; j < gr; j++) for (let i = 0; i < gc; i++) {
-        const k = j * gc + i;
-        if (kelpo[k]) continue;
-        let ws = 0, H = 0, S = 0, C = 0, T = 0, wt = 0;
-        for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
-          if (!di && !dj) continue;
-          const jj = j + dj, ii = i + di;
-          if (jj < 0 || ii < 0 || jj >= gr || ii >= gc) continue;
-          const q = jj * gc + ii;
-          if (!kelpo[q]) continue;
-          const pw = di && dj ? 0.7 : 1;
-          ws += pw; H += hs[q] * pw; S += s[q] * pw; C += c[q] * pw;
-          if (tp[q] === tp[q] && tp[q] > 0) { T += tp[q] * pw; wt += pw; }
-        }
-        if (ws > 0) uudet.push([k, H / ws, S, C, wt > 0 ? T / wt : NaN]);
-      }
-      if (!uudet.length) break;
-      for (const u of uudet) {
-        const k = u[0], r = Math.hypot(u[2], u[3]) || 1;
-        hs[k] = u[1]; s[k] = u[2] / r; c[k] = u[3] / r; tp[k] = u[4]; kelpo[k] = 1;
-      }
-    }
-    for (let k = 0; k < n; k++) {
-      if (!kelpo[k]) continue;
-      const p = k * 4;
-      tavut[p] = Math.round(Math.min(255, hs[k] / 0.03));
-      tavut[p + 1] = Math.round(255 * w[k]);
-      tavut[p + 3] = 255;
-    }
-    if (puuttuu) this._pyydaData(false);
-    this._hila = { d, hetki, la0, lo0, gc, gr, tavut, hs, s, c, tp, w, kelpo,
-                   kLoW: lo0 + d, kLoE: lo0 + (gc - 2) * d, kLaS: la0 + d, kLaN: la0 + (gr - 2) * d };
-    this._versio++;
+    return {
+      gc: gc, gr: gr, la0: la0, lo0: lo0, d: d, tz: tz, tA: tA, tB: B ? tA + H : null, A: A, B: B,
+      tavut: tavut, kate: kate, puuttuu: puuttuu, puuttuuNakyvissa: nakyvissa, tyhjaOsuus: tyhjat / nakyvat,
+      kLoW: lo0 + d, kLoE: lo0 + (gc - 2) * d, kLaS: la0 + d, kLaN: la0 + (gr - 2) * d,
+    };
   },
 
-  /* Kapselin luku SAMASTA kentästä ja maskista kuin kartta. null jos
-     hila ei ole tälle hetkelle tai paikka on maata. */
+  /* Näkymän oma taso näkymälle, karkea näkymälle ja reunukselle (kuten
+     `LampoGL.varmistaAlue`), molemmille tunneille A ja B. */
+  varmistaAlue(alue, tz, nakyma, tA) {
+    const S = AaltoVarasto, b = nakyma || (this._map && this._map.getBounds());
+    const st = AaltoTaso.askel(tz), sk = AaltoTaso.askel(tz - 1);
+    const ajat = tA != null ? [tA, tA + 3600e3] : [undefined];
+    const kaikki = (alue2, s) => Promise.all(ajat.map(t => S.varmista(alue2, s, t))).then(r => r.reduce((x, y) => x + y, 0));
+    if (!b) return { tarkka: Promise.resolve(0), ennakko: kaikki(alue, sk) };
+    const vLat = b.getNorth() - b.getSouth(), vLng = b.getEast() - b.getWest();
+    const rajaa = (R) => {
+      const s = Math.max(alue.getSouth(), b.getSouth() - vLat * R), n = Math.min(alue.getNorth(), b.getNorth() + vLat * R);
+      const w = Math.max(alue.getWest(), b.getWest() - vLng * R), e = Math.min(alue.getEast(), b.getEast() + vLng * R);
+      return n > s && e > w ? L.latLngBounds(L.latLng(s, w), L.latLng(n, e)) : null;
+    };
+    const ra = rajaa(this.ENNAKKO_REUNUS), rt = sk === st ? null : rajaa(0);
+    return { tarkka: rt ? kaikki(rt, st) : Promise.resolve(0), ennakko: ra ? kaikki(ra, sk) : Promise.resolve(0) };
+  },
+  _pyydaData(h) {
+    const avain = h.d + '|' + h.la0.toFixed(3) + '|' + h.lo0.toFixed(3) + '|' + h.gc + '|' + h.gr + '|' + h.tA;
+    const nyt = performance.now();
+    if (avain === this._pyyntoAvain && nyt - (this._pyyntoT || 0) < 1500) return;
+    this._pyyntoAvain = avain; this._pyyntoT = nyt;
+    try {
+      const p = this.varmistaAlue(L.latLngBounds(
+        L.latLng(Math.max(-85, h.la0), h.lo0),
+        L.latLng(Math.min(85, h.la0 + (h.gr - 1) * h.d), h.lo0 + (h.gc - 1) * h.d)), h.tz, null, h.tA);
+      p.tarkka.catch(function () {}); p.ennakko.catch(function () {});
+    } catch (e) {}
+  },
+  /* Esilataus kun kartta pysähtyy tai aaltotila kytketään: näkymän tasot
+     pehmusteineen ja keskipisteen kaikkien perheiden laatat (aikajana ja
+     kapseli lukevat niistä koko akselin). */
+  _esilataa() {
+    const map = this._map;
+    if (!map || !this._naytetaan()) return;
+    const nyt = performance.now(), kulunut = nyt - (this._esiT || 0);
+    if (kulunut < 500) {
+      if (!this._esiAjastin) {
+        const self = this;
+        this._esiAjastin = setTimeout(function () { self._esiAjastin = null; self._esilataa(); }, 500 - kulunut);
+      }
+      return;
+    }
+    this._esiT = nyt;
+    try {
+      const b = map.getBounds(), p = b.pad(this._pehmuste(map.getZoom())), c = map.getCenter();
+      const tz = Math.round(map.getZoom()), t = this._hetki();
+      const tA = t != null ? Math.floor(t / 3600e3) * 3600e3 : null;
+      const v = this.varmistaAlue(L.latLngBounds(
+        L.latLng(Math.max(-85, p.getSouth()), p.getWest()),
+        L.latLng(Math.min(85, p.getNorth()), p.getEast())), tz, b, tA);
+      Promise.all([v.tarkka, v.ennakko, AaltoVarasto.varmistaPiste(c.lat, c.lng)])
+        .then(function (r) { return r[0] + r[1] + r[2]; })
+        .then(function (n) {
+          if (n <= 0 || !aaltotila()) return;
+          if (State._tlTimes && State._tlTimes.length && !State._tlTouching && typeof updateTimelineToCenter === 'function') {
+            State._tlMuisti = null; updateTimelineToCenter();
+          }
+          if (typeof Crosshair !== 'undefined') Crosshair.refresh();
+        }, function () {});
+    } catch (e) {}
+  },
+
+  /* Ruudun hilat (ks. `LampoGL._varmistaHila`): karkea aina kun tasot
+     eroavat ja toistossa, oma levossa. */
+  _varmistaHila() {
+    const map = this._map;
+    if (!AaltoVarasto.kartallaKaytossa()) {
+      if (this._hila) { this._hila = null; this._hilaVersio++; }
+      if (this._karkea) { this._karkea = null; this._karkeaVersio++; }
+      return;
+    }
+    const b = map.getBounds(), z = map.getZoom(), tz = Math.round(z);
+    const t = this._hetki();
+    if (t == null || !isFinite(t)) return;
+    const H = 3600e3, tA = Math.floor(t / H) * H;
+    this._f = (t - tA) / H;
+    this._tA = tA;
+    const liike = !!(State.isPlaying || State._tlTouching);
+    const tarvB = liike || this._f > 1e-6;
+    const nyt = performance.now();
+    const tavoite = AaltoTaso.karkeaPaino(z);
+    this._kwEd = this._kwNyt;
+    if (liike !== this._edToisto) { this._edToisto = liike; this._kwAlku = this._kwNyt; this._kwAika = nyt; }
+    const x = (nyt - this._kwAika) / this.TASO_HAIVYTYS_MS;
+    if (x >= 1 || Haivytys.vahennetty()) this._kwNyt = tavoite;
+    else {
+      const s = x <= 0 ? 0 : x * x * (3 - 2 * x);
+      this._kwNyt = this._kwAlku + (tavoite - this._kwAlku) * s;
+      map.ml.triggerRepaint();
+    }
+    const vanhaH = this._hila, vanhaK = this._karkea;
+    if (AaltoTaso.karkeaKaytossa(tz) || liike || this._kwNyt > 0) this._varmistaKarkea(map, b, tz, tA, tarvB, nyt, vanhaH);
+    else if (this._karkea) { this._karkea = null; this._karkeaVersio++; }
+    if (!liike) this._varmistaOma(map, b, tz, tA, tarvB, nyt, vanhaK);
+  },
+
+  _varmistaKarkea(map, b, tz, tA, tarvB, nyt, vanhaH) {
+    let d = AaltoTaso.askel(tz - 1);
+    const liike = State.isPlaying || State._tlTouching;
+    if (liike) {
+      const vLat = b.getNorth() - b.getSouth(), vLng = b.getEast() - b.getWest(), k = 1 + 2 * this.OMA_REUNUS;
+      for (let n = 2; n <= 4 && (vLat * k / d) * (vLng * k / d) > this.TOISTO_SOLMUT; n++) d = Math.max(d, AaltoTaso.askel(tz - n));
+    }
+    const k = this._karkea;
+    const tuli = k && k.puuttuu > 0 && AaltoVarasto._uusia !== this._kRakUusia;
+    if (tuli && nyt - (this._kRakT || 0) <= 250) map.ml.triggerRepaint();
+    const kelpaa = (x) => x && x.d === d && x.tA === tA && (!tarvB || x.B) && this._kattaa(x, b);
+    const likainen = this._karkeaLikainen && !State.liikkeessa;
+    if (kelpaa(k) && !likainen && !(tuli && nyt - (this._kRakT || 0) > 250)) return;
+    const h = vanhaH;
+    if (!likainen && h && h !== k && kelpaa(h)) { this._karkea = h; this._karkeaVersio++; return; }
+    this._karkeaLikainen = false;
+    this._kRakUusia = AaltoVarasto._uusia; this._kRakT = nyt;
+    const uusi = this._rakenna(map, b, tz, d, tA, tarvB, liike ? this.OMA_REUNUS : this._pehmuste(map.getZoom()),
+      k && k.d === d ? k : (h && h.d === d ? h : null));
+    if (!uusi || uusi.tyhja) { if (this._karkea) { this._karkea = null; this._karkeaVersio++; } return; }
+    if (uusi.puuttuu > 0) this._pyydaData(uusi);
+    this._karkea = uusi;
+    this._karkeaVersio++;
+  },
+
+  _varmistaOma(map, b, tz, tA, tarvB, nyt, vanhaK) {
+    const d = AaltoTaso.askel(tz);
+    const h = this._hila, o = this._odottava;
+    if (AaltoVarasto._uusia !== this._rakUusia && ((h && h.puuttuu > 0) || o)) {
+      if (nyt - (this._rakT || 0) > 250) this._likainen = true;
+      else map.ml.triggerRepaint();
+    }
+    const raja = !(o ? o.tA !== (h && h.tA) : (h && h.tA !== tA)) ? this.ODOTUS_MS
+      : o && o.tyhjaOsuus > 0.1 ? this.ODOTUS_HYPPY_MAX_MS : this.ODOTUS_HYPPY_MS;
+    const tarve = this._likainen || !h || h.d !== d || h.tA !== tA || (tarvB && !h.B) || !this._kattaa(h, b)
+      || !!(o && nyt - o.t0 >= raja);
+    if (!tarve) return;
+    const sama = o && o.d === d && o.tA === tA && (!tarvB || o.B);
+    if (sama && !this._likainen && this._kattaa(o, b) && nyt - o.t0 < raja) return;
+    const k = vanhaK;
+    if (!this._likainen && k && k !== h && k.d === d && k.tA === tA && (!tarvB || k.B) && this._kattaa(k, b)) {
+      this._odottava = null; this._tyhja = false;
+      this._hila = k; this._hilaVersio++;
+      try { Lahde.paivita(); } catch (e) {}
+      return;
+    }
+    if (State.liikkeessa && h && !this._likainen && h.tA === tA && AaltoTaso.karkeaKaytossa(tz)
+        && this._karkea && this._kattaa(this._karkea, b)) return;
+    this._likainen = false;
+    this._rakUusia = AaltoVarasto._uusia; this._rakT = nyt;
+    const uusi = this._rakenna(map, b, tz, d, tA, tarvB, this._pehmusteOma(map.getZoom(), tz), h && h.d === d ? h : null);
+    if (!uusi) return;
+    if (uusi.tyhja) {
+      this._odottava = null;
+      this._tyhja = true;
+      if (this._hila) { this._hila = null; this._hilaVersio++; }
+      return;
+    }
+    this._tyhja = false;
+    if (uusi.puuttuu > 0) this._pyydaData(uusi);
+    if (uusi.puuttuuNakyvissa > 0) {
+      uusi.t0 = sama ? o.t0 : nyt;
+      const hyppy = h && h.tA !== uusi.tA;
+      const raja2 = !hyppy ? this.ODOTUS_MS : uusi.tyhjaOsuus > 0.1 ? this.ODOTUS_HYPPY_MAX_MS : this.ODOTUS_HYPPY_MS;
+      if (h && this._kattaa(h, b) && h.puuttuuNakyvissa < uusi.puuttuuNakyvissa && nyt - uusi.t0 < raja2) {
+        this._odottava = uusi;
+        if (!sama) setTimeout(function () { if (map.ml) map.ml.triggerRepaint(); }, raja2 - (nyt - uusi.t0) + 30);
+        return;
+      }
+    }
+    this._odottava = null;
+    this._hila = uusi;
+    this._hilaVersio++;
+    try { Lahde.paivita(); } catch (e) {}
+  },
+
+  /* KAPSELIN LUKU SAMASTA KENTÄSTÄ, HETKESTÄ JA MASKISTA KUIN KARTTA.
+     null jos hila ei ole tälle tunnille tai paikka on maata. */
   arvoKohdassa(lat, lng, hetki) {
-    const h = this._hila;
-    if (!h || h.hetki !== hetki || !this._naytetaan()) return null;
-    if (!this._nayte(lat, lng, this._o) || this._o.w < 0.5) return null;
+    if (!this._naytetaan() || hetki == null) return null;
     const o = this._o;
+    if (!this._nayte(lat, lng, o, hetki) || o.w < 0.5) return null;
     return { hs: o.hs, dir: (Math.atan2(o.s, o.c) * 180 / Math.PI + 360) % 360, tp: o.tp };
   },
-  /* Hilan arvo paikassa (rintamat, kapseli): bilineaarinen ekstrapoloidun
-     kentän solmuista; `o.w` on merta (maski tai mallin kate). */
-  _nayte(lat, lng, o) {
-    const h = this._hila;
+  /* Kentän arvo paikassa (rintamat, kapseli): oma hila jos se kattaa
+     paikan, muuten karkea; tunnit A ja B `_f`:llä kuten varjostimessa.
+     `o.w` = märkyys × rantamaski. `hetki` (valinnainen) vaatii hilan
+     samalta tunnilta. */
+  _nayte(lat, lng, o, hetki) {
     o.w = 0;
+    const H = 3600e3;
+    const tA = hetki != null ? Math.floor(hetki / H) * H : this._tA;
+    const f = hetki != null ? (hetki - tA) / H : this._f;
+    const sopii = (h) => h && h.tA === tA && (f <= 1e-6 || h.B);
+    let h = sopii(this._hila) ? this._hila : null;
+    if (h && !this._sisalla(h, lat, lng)) h = null;
+    if (!h) { h = sopii(this._karkea) ? this._karkea : null; if (h && !this._sisalla(h, lat, lng)) h = null; }
     if (!h) return false;
-    let fx = (lng - h.lo0) / h.d, fy = (lat - h.la0) / h.d;
-    const i = Math.floor(fx), j = Math.floor(fy);
-    if (i < 0 || j < 0 || i >= h.gc - 1 || j >= h.gr - 1) return false;
-    fx -= i; fy -= j;
+    let x = lng;
+    while (x < h.lo0) x += 360;
+    while (x > h.lo0 + (h.gc - 1) * h.d) x -= 360;
+    let fx = (x - h.lo0) / h.d, fy = (lat - h.la0) / h.d;
+    const i = Math.min(h.gc - 2, Math.max(0, Math.floor(fx))), j = Math.min(h.gr - 2, Math.max(0, Math.floor(fy)));
+    fx = Math.min(1, Math.max(0, fx - i)); fy = Math.min(1, Math.max(0, fy - j));
     const K = [j * h.gc + i, j * h.gc + i + 1, (j + 1) * h.gc + i, (j + 1) * h.gc + i + 1];
     const W = [(1 - fx) * (1 - fy), fx * (1 - fy), (1 - fx) * fy, fx * fy];
-    let ws = 0, hs = 0, s = 0, c = 0, tp = 0, wt = 0, mw = 0;
-    for (let q = 0; q < 4; q++) {
-      mw += h.w[K[q]] * W[q];
-      const m = h.kelpo[K[q]] * W[q];
-      if (m <= 0) continue;
-      ws += m; hs += h.hs[K[q]] * m; s += h.s[K[q]] * m; c += h.c[K[q]] * m;
-      const t = h.tp[K[q]];
-      if (t === t && t > 0) { tp += t * m; wt += m; }
+    const osat = h.B && f > 1e-6 ? [[h.A, 1 - f], [h.B, f]] : [[h.A, 1]];
+    let wa = 0, hs = 0, s = 0, c = 0, tp = 0, wt = 0;
+    for (const [X, wf] of osat) {
+      for (let q = 0; q < 4; q++) {
+        const k = K[q], w = W[q] * wf * X.a[k];
+        if (w <= 0) continue;
+        wa += w; hs += X.hs[k] * w; s += X.s[k] * w; c += X.c[k] * w;
+        const t = X.tp[k];
+        if (t === t && t > 0) { tp += t * w; wt += w; }
+      }
     }
-    if (ws <= 1e-4) return false;
-    /* Merta paikassa: rantamaskista kun se on, muuten mallin katteesta. */
+    if (wa <= 1e-4) return false;
     const vesi = Rantamaski.vesi(lat, lng);
-    o.w = vesi != null ? (ws > 0.5 ? vesi : 0) : mw;
-    o.hs = hs / ws;
+    o.w = (vesi != null ? vesi : 1) * Math.min(1, wa);
+    o.hs = hs / wa;
     const r = Math.hypot(s, c) || 1;
     o.s = s / r; o.c = c / r; o.tp = wt > 0 ? tp / wt : 3;
     return true;
   },
+  _sisalla(h, lat, lng) {
+    if (lat < h.la0 || lat > h.la0 + (h.gr - 1) * h.d) return false;
+    const w = h.lo0, e = h.lo0 + (h.gc - 1) * h.d;
+    return (lng >= w && lng <= e) || (lng + 360 >= w && lng + 360 <= e) || (lng - 360 >= w && lng - 360 <= e);
+  },
 
   onAdd(ml, gl) {
     this._gl = gl;
+    this._maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE) || 4096;
+    /* Kenttä: (Hs·a, a, kate) kultakin hilalta, sekoitukset ESIKERROTTUINA
+       (märkyys ei vuoda: kuiva solmu ei vedä korkeutta nollaan). */
     this._pKentta = GLApu.ohjelma(gl,
       GL_TARKKUUS + 'attribute vec2 a_pos;\nvoid main(){ gl_Position = vec4(a_pos * 2.0 - 1.0, 0.0, 1.0); }\n',
       GL_TARKKUUS_FS
-      + 'uniform sampler2D u_hila; uniform sampler2D u_lut;\n'
-      + 'uniform vec4 u_nx; uniform vec3 u_hg; uniform vec2 u_hk; uniform vec2 u_ruutu;\n'
+      + 'uniform sampler2D u_hila; uniform sampler2D u_kate; uniform vec2 u_hk; uniform vec3 u_hg; uniform float u_f; uniform float u_hon;\n'
+      + 'uniform sampler2D u_khila; uniform sampler2D u_kkate; uniform vec2 u_kk; uniform vec3 u_kg; uniform float u_kf; uniform float u_kw; uniform float u_kon;\n'
+      + 'uniform sampler2D u_vhila; uniform sampler2D u_vkate; uniform vec2 u_vk; uniform vec3 u_vg; uniform float u_vf; uniform float u_vw;\n'
+      + 'uniform sampler2D u_lut; uniform vec4 u_nx; uniform vec2 u_ruutu;\n'
       + 'uniform sampler2D u_maski; uniform vec4 u_mk; uniform vec2 u_mw;\n'
+      + 'vec3 kentta(sampler2D h, sampler2D kt, vec2 hk, vec3 g, float f, float lng, float la){\n'
+      + '  float px = (lng - g.y) / g.z, py = (la - g.x) / g.z;\n'
+      + '  if (px < 0.0 || py < 0.0 || px > hk.x - 1.0 || py > hk.y - 1.0) return vec3(0.0);\n'
+      + '  vec2 uv = (vec2(px, py) + 0.5) / hk;\n'
+      + '  vec4 c = texture2D(h, uv);\n'
+      + '  float k = texture2D(kt, uv).r;\n'
+      + '  float qa = c.b > 0.002 ? c.r / c.b * 1.003937 : 0.0;\n'
+      + '  float qb = c.a > 0.002 ? c.g / c.a * 1.003937 : 0.0;\n'
+      + '  float a = mix(c.b, c.a, f);\n'
+      + '  float ha = mix(16.0 * qa * qa * c.b, 16.0 * qb * qb * c.a, f);\n'
+      + '  return vec3(ha, a, k); }\n'
       + 'void main(){\n'
       + '  float sx = gl_FragCoord.x / u_ruutu.x, sy = (u_ruutu.y - gl_FragCoord.y) / u_ruutu.x;\n'
       + '  float lng = u_nx.x + sx * u_nx.y;\n'
       + '  float la = degrees(2.0 * atan(exp(u_nx.z - sy * u_nx.w)) - 1.5707963267948966);\n'
-      + '  vec2 uv = vec2(((lng - u_hg.y) / u_hg.z + 0.5) / u_hk.x, ((la - u_hg.x) / u_hg.z + 0.5) / u_hk.y);\n'
-      + '  if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) { gl_FragColor = vec4(0.0); return; }\n'
-      + '  vec4 t = texture2D(u_hila, uv);\n'
-      + '  if (t.a < 0.02) { gl_FragColor = vec4(0.0); return; }\n'
-      + '  float hs = t.r / t.a * 255.0 * 0.03;\n'
-      /* Rantamaski kun se on: kenttä on ekstrapoloitu maan puolelle, ja
-         rannan piirtää pohjakartan rantaviiva. Ilman maskia mallin oma
-         kate (g) kuten ennen. */
-      + '  float ranta;\n'
+      + '  vec3 o = vec3(0.0);\n'
+      + '  if (u_hon > 0.5 && u_kw < 1.0) o = kentta(u_hila, u_kate, u_hk, u_hg, u_f, lng, la);\n'
+      + '  if (u_kon > 0.5 && (u_kw > 0.0 || o.z <= 0.0)) {\n'
+      + '    vec3 q = kentta(u_khila, u_kkate, u_kk, u_kg, u_kf, lng, la);\n'
+      + '    if (q.z > 0.0) o = o.z > 0.0 ? mix(o, q, u_kw) : q; }\n'
+      + '  if (u_vw > 0.0) {\n'
+      + '    vec3 v = kentta(u_vhila, u_vkate, u_vk, u_vg, u_vf, lng, la);\n'
+      + '    if (v.z > 0.0) o = o.z > 0.0 ? mix(o, v, u_vw) : v; else o *= 1.0 - u_vw; }\n'
+      + '  if (o.z <= 0.0 || o.y <= 0.003) { gl_FragColor = vec4(0.0); return; }\n'
+      + '  float hs = o.x / o.y;\n'
+      /* Rantamaski kun se on: kenttä on jatkettu maan puolelle, ja rannan
+         piirtää pohjakartan rantaviiva. Ilman maskia mallin oma märkyys. */
+      + '  float ranta = 1.0;\n'
       + '  if (u_mk.w > 0.5) {\n'
       + '    vec2 mp = (vec2(sx, sy) * u_mk.z + u_mk.xy) / u_mw;\n'
-      + '    float m = (mp.x < 0.0 || mp.y < 0.0 || mp.x > 1.0 || mp.y > 1.0) ? 0.0 : texture2D(u_maski, mp).r;\n'
-      + '    ranta = m * smoothstep(0.35, 0.75, t.a);\n'
-      + '  } else ranta = smoothstep(0.30, 0.70, t.g / max(t.a, 0.001));\n'
-      + '  float li = clamp(floor(hs / 0.02 + 0.5), 0.0, 255.0);\n'
+      + '    ranta = (mp.x < 0.0 || mp.y < 0.0 || mp.x > 1.0 || mp.y > 1.0) ? 0.0 : texture2D(u_maski, mp).r; }\n'
+      + '  float li = floor(255.0 * sqrt(clamp(hs, 0.0, 10.0) / 10.0) + 0.5);\n'
       + '  vec4 c = texture2D(u_lut, vec2((li + 0.5) / 256.0, 0.5));\n'
-      + '  gl_FragColor = vec4(c.rgb * c.a, c.a) * ranta;\n'
+      + '  gl_FragColor = vec4(c.rgb * c.a, c.a) * min(o.y, 1.0) * ranta;\n'
       + '}\n',
-      ['a_pos'], ['u_hila', 'u_lut', 'u_nx', 'u_hg', 'u_hk', 'u_ruutu', 'u_maski', 'u_mk', 'u_mw']);
+      ['a_pos'], ['u_hila', 'u_kate', 'u_hk', 'u_hg', 'u_f', 'u_hon',
+                  'u_khila', 'u_kkate', 'u_kk', 'u_kg', 'u_kf', 'u_kw', 'u_kon',
+                  'u_vhila', 'u_vkate', 'u_vk', 'u_vg', 'u_vf', 'u_vw',
+                  'u_lut', 'u_nx', 'u_ruutu', 'u_maski', 'u_mk', 'u_mw']);
     this._texMaski = GLApu.tekstuuri(gl, gl.LINEAR);
     this._maskiLadattu = -1;
     this._pRintama = GLApu.ohjelma(gl,
@@ -15149,16 +15865,22 @@ const AaltoGL = {
       ['a_xy', 'a_d', 'a_a'], ['u_koko', 'u_pr', 'u_hw', 'u_vari']);
     this._nelio = GLApu.nelio(gl);
     this._texHila = GLApu.tekstuuri(gl, gl.LINEAR);
+    this._texKate = GLApu.tekstuuri(gl, gl.LINEAR);
+    this._texKHila = GLApu.tekstuuri(gl, gl.LINEAR);
+    this._texKKate = GLApu.tekstuuri(gl, gl.LINEAR);
+    this._texVHila = GLApu.tekstuuri(gl, gl.LINEAR);
+    this._texVKate = GLApu.tekstuuri(gl, gl.LINEAR);
     this._texLut = GLApu.tekstuuri(gl, gl.NEAREST);
     gl.bindTexture(gl.TEXTURE_2D, this._texLut);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, AaltoVari.lut());
     this._puskuri = gl.createBuffer();
     this._puskuriKoko = 0;
-    this._ladattu = -1;
+    this._ladattu = -1; this._karkeaLadattu = -1; this._ladattuHila = null; this._vanha = null;
   },
   onRemove(ml, gl) {
     [this._pKentta, this._pRintama].forEach(p => p && gl.deleteProgram(p.o));
-    [this._texHila, this._texLut, this._texMaski].forEach(t => t && gl.deleteTexture(t));
+    [this._texHila, this._texKate, this._texKHila, this._texKKate, this._texVHila, this._texVKate,
+     this._texLut, this._texMaski].forEach(t => t && gl.deleteTexture(t));
     if (this._nelio) gl.deleteBuffer(this._nelio);
     if (this._puskuri) gl.deleteBuffer(this._puskuri);
     this._gl = null;
@@ -15170,17 +15892,52 @@ const AaltoGL = {
     this._varmistaHila();
   },
 
+  _lataa(gl, tex, texK, h) {
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, h.gc, h.gr, 0, gl.RGBA, gl.UNSIGNED_BYTE, h.tavut);
+    gl.bindTexture(gl.TEXTURE_2D, texK);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, h.gc, h.gr, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, h.kate);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+  },
+
   render(gl) {
-    if (!this._map || !this._pKentta || !this._naytetaan() || !this._hila) return;
-    const map = this._map, h = this._hila, v = map._nakyma();
+    if (!this._map || !this._pKentta || !this._naytetaan()) return;
+    const h = this._hila, kh = this._karkea;
+    if (!h && !kh) return;
+    const map = this._map, v = map._nakyma();
     const pr = map.ml.getPixelRatio ? map.ml.getPixelRatio() : (window.devicePixelRatio || 1);
-    if (this._ladattu !== this._versio) {
-      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-      gl.bindTexture(gl.TEXTURE_2D, this._texHila);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, h.gc, h.gr, 0, gl.RGBA, gl.UNSIGNED_BYTE, h.tavut);
-      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
-      this._ladattu = this._versio;
+    /* Hypyn häivytys: uusi tunti omaan hilaan → ladattu siirtyy vanhaksi
+       vaihtamalla tekstuurit (kuten `LampoGL`). Saman tunnin uusi versio
+       (laatat tulivat, näkymä siirtyi, tarkkuus vaihtui) liukuu
+       `TASO_HAIVYTYS_MS`:ssä kun näkyvältä alueelta puuttui jotain. */
+    if (h && this._ladattu !== this._hilaVersio) {
+      const ed = this._ladattuHila;
+      const vaihda = (ms, f) => {
+        let t = this._texHila; this._texHila = this._texVHila; this._texVHila = t;
+        t = this._texKate; this._texKate = this._texVKate; this._texVKate = t;
+        this._vanha = ed; this._vanhaF = f; this._haivAlku = performance.now(); this._haivMs = ms;
+      };
+      if (ed && ed.tA !== h.tA) {
+        if (Haivytys.ota('_aalto')) vaihda(Haivytys.MS, 0); else this._vanha = null;
+      } else if (ed && ed !== h && ed.tA === h.tA && this._kwEd < 0.99
+                 && (ed.d !== h.d || ed.puuttuuNakyvissa > 0) && !Haivytys.vahennetty()) {
+        vaihda(this.TASO_HAIVYTYS_MS, this._f);
+      }
+      this._lataa(gl, this._texHila, this._texKate, h);
+      this._ladattu = this._hilaVersio;
+      this._ladattuHila = h;
     }
+    if (kh && this._karkeaLadattu !== this._karkeaVersio) {
+      this._lataa(gl, this._texKHila, this._texKKate, kh);
+      this._karkeaLadattu = this._karkeaVersio;
+    }
+    let vw = 0;
+    if (this._vanha) {
+      vw = Haivytys.paino(this._haivAlku, this._haivMs);
+      if (vw <= 0) { vw = 0; this._vanha = null; }
+    }
+    const kw = !kh ? 0 : (!h ? 1 : this._kwNyt);
     const nx0 = v.x0 / v.W * 360 - 180, nx1 = 360 / v.W;
     const ny0 = (0.5 - v.y0 / v.W) * 2 * Math.PI, ny1 = 2 * Math.PI / v.W;
     const M = Rantamaski._m;
@@ -15192,17 +15949,35 @@ const AaltoGL = {
       this._maskiLadattu = Rantamaski.versio;
     }
     const ms = M ? Math.pow(2, M.z - v.zl) : 1;
-    const self = this, pK = this._pKentta;
+    const self = this, pK = this._pKentta, f = this._f, vh = this._vanha;
+    /* Tunti A ja paino B:lle: hila on koottu tälle tunnille, mutta
+       odotuksen aikana ruudulla voi olla edellisen tunnin hila (`_odottava`):
+       silloin sen oma tunti, ilman B:tä. */
+    const fh = (x) => !x ? 0 : (x.tA === this._tA && x.B ? f : 0);
     GLApu.aja(gl, pK, this._nelio, function () {
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, self._texHila);
-      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, self._texLut);
-      gl.uniform1i(pK.u.u_hila, 0); gl.uniform1i(pK.u.u_lut, 1);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, self._texKate);
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, self._texKHila);
+      gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, self._texKKate);
+      gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, self._texVHila);
+      gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, self._texVKate);
+      gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, self._texLut);
+      gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, self._texMaski);
+      gl.uniform1i(pK.u.u_hila, 0); gl.uniform1i(pK.u.u_kate, 1);
+      gl.uniform1i(pK.u.u_khila, 2); gl.uniform1i(pK.u.u_kkate, 3);
+      gl.uniform1i(pK.u.u_vhila, 4); gl.uniform1i(pK.u.u_vkate, 5);
+      gl.uniform1i(pK.u.u_lut, 6); gl.uniform1i(pK.u.u_maski, 7);
+      gl.uniform2f(pK.u.u_hk, h ? h.gc : 4, h ? h.gr : 4);
+      gl.uniform3f(pK.u.u_hg, h ? h.la0 : 0, h ? h.lo0 : 0, h ? h.d : 1);
+      gl.uniform1f(pK.u.u_f, fh(h)); gl.uniform1f(pK.u.u_hon, h ? 1 : 0);
+      gl.uniform2f(pK.u.u_kk, kh ? kh.gc : 4, kh ? kh.gr : 4);
+      gl.uniform3f(pK.u.u_kg, kh ? kh.la0 : 0, kh ? kh.lo0 : 0, kh ? kh.d : 1);
+      gl.uniform1f(pK.u.u_kf, fh(kh)); gl.uniform1f(pK.u.u_kw, kw); gl.uniform1f(pK.u.u_kon, kh ? 1 : 0);
+      gl.uniform2f(pK.u.u_vk, vh ? vh.gc : 4, vh ? vh.gr : 4);
+      gl.uniform3f(pK.u.u_vg, vh ? vh.la0 : 0, vh ? vh.lo0 : 0, vh ? vh.d : 1);
+      gl.uniform1f(pK.u.u_vf, vh ? (self._vanhaF || 0) : 0); gl.uniform1f(pK.u.u_vw, vh ? vw : 0);
       gl.uniform4f(pK.u.u_nx, nx0, nx1, ny0, ny1);
-      gl.uniform3f(pK.u.u_hg, h.la0, h.lo0, h.d);
-      gl.uniform2f(pK.u.u_hk, h.gc, h.gr);
       gl.uniform2f(pK.u.u_ruutu, pr, gl.drawingBufferHeight);
-      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, self._texMaski);
-      gl.uniform1i(pK.u.u_maski, 2);
       gl.uniform4f(pK.u.u_mk, M ? v.x0 * ms - M.x0 : 0, M ? v.y0 * ms - M.y0 : 0, ms, M ? 1 : 0);
       gl.uniform2f(pK.u.u_mw, M ? M.w : 1, M ? M.h : 1);
       GLApu.sekoitus(gl, 'normaali');
@@ -15232,8 +16007,9 @@ const AaltoGL = {
         gl.drawArrays(gl.TRIANGLES, 0, n);
       });
     }
-    /* Rintamat liikkuvat: uusi ruutu niin kauan kuin kerros näkyy. */
-    if (!this._paikallaan) map.ml.triggerRepaint();
+    /* Rintamat liikkuvat ja häivytys kulkee: uusi ruutu niin kauan kuin
+       kerros näkyy. */
+    if (!this._paikallaan || vh) map.ml.triggerRepaint();
   },
 
   /* -- AALTORINTAMAT ----------------------------------------------- */
@@ -17612,7 +18388,9 @@ const SadeKerros = GLRuudukko.extend({
 function _sadeNayttoHetki(frac) {
   if (State._tlLiuku) return;
   State._tlNaytto = { frac: frac, t: performance.now() };
-  if (window._mapLayerState && window._mapLayerState['tutka'] && State.map) State.map.ml.triggerRepaint();
+  /* Aaltokerros lukee saman jatkuvan hetken (`AaltoGL._hetki`): tunnin
+     sisällä se on varjostimen paino, joten ruutu riittää. */
+  if (((window._mapLayerState && window._mapLayerState['tutka']) || aaltotila()) && State.map) State.map.ml.triggerRepaint();
 }
 function _sadeLiike() {
   const m = State._tlNaytto;
@@ -23112,10 +23890,32 @@ function _aaltoEnnusteSarja(lat, lng, maxKm) {
       return t.length ? { t: t, ms: ms, dir: dir, tp: tp } : null;
     });
   };
-  if (!Aallot.kaytossa()) return pisteesta();
+  if (!Aallot.kaytossa()) {
+    /* Varasto vielä alustamatta (ensimmäinen kortti ennen aaltotilaa):
+       alustus on sama luettelo kuin tuulella, joten odotetaan sitä
+       ennen kuin pudotaan pistekyselyyn. */
+    return Aallot.alusta().then(function (ok) { return ok ? _aaltoEnnusteSarja(lat, lng, maxKm) : pisteesta(); }, pisteesta);
+  }
   return Aallot.varmistaPiste(lat, lng).then(function () {
     const sa = Aallot.sarja(lat, lng, maxKm);
-    if (sa) return { t: sa.t, ms: sa.hs, dir: sa.dir, tp: sa.tp, km: sa.km };
+    if (sa) {
+      /* Lähteet järjestyksessä NYKYHETKESTÄ (perhe vaihtuu mallin jakson
+         päässä): menneisyys on Itämerelläkin ECMWF:ää, koska FMI:n jakso
+         alkaa tuoreimmasta ajosta, ja "ECMWF → FMI" luettiin väärin päin. */
+      const lahteet = [], nyt = Date.now() - 1800e3;
+      let i0 = sa.t.findIndex(t => t >= nyt);
+      if (i0 < 0) i0 = 0;
+      for (let i = i0; i < sa.malli.length; i++) { const m = sa.malli[i]; if (m && lahteet[lahteet.length - 1] !== m) lahteet.push(m); }
+      if (!lahteet.length) for (const m of sa.malli) if (m && lahteet[lahteet.length - 1] !== m) lahteet.push(m);
+      return { t: sa.t, ms: sa.hs, dir: sa.dir, tp: sa.tp, km: sa.km, lahteet: lahteet.filter((m, i) => lahteet.indexOf(m) === i) };
+    }
+    /* VARASTO TIETÄÄ ETTEI MERTA OLE (kaikki laatat luettu, ei märkää
+       pistettä luottoetäisyydellä): maamaski kuten pistekyselyn tyhjä
+       kate — ei kutsua FMI:n pistepalveluun, joka kattaa vain Itämeren. */
+    if (!Aallot._vajaa) {
+      Aaltoennuste._tyhjat[Aaltoennuste._avain(lat, lng)] = true;
+      return null;
+    }
     return pisteesta();
   }, pisteesta);
 }
@@ -23308,7 +24108,9 @@ function _aaltoKaavio(el, data, jakso, asema, lampoVain, enn, nimi, o) {
     nappi._havLaajaLahde = function () {
       return {
         el: el, jaksot: '[data-ei-jaksoja]', otsikko: (asema && asema.name) || otsikko,
-        sub: otsikko + (enn && !sarja.length ? _t(' · FMI WAM', ' · FMI WAM') : _t(' · Ilmatieteen laitos', ' · Finnish Meteorological Institute')),
+        sub: otsikko + (enn && !sarja.length
+          ? ' · ' + (enn.lahteet && enn.lahteet.length ? enn.lahteet.map(function (m) { return Lahde.lyhyt(m); }).join(' → ') : 'WAM')
+          : _t(' · Ilmatieteen laitos', ' · Finnish Meteorological Institute')),
         piirra: function (kaavio, laatikko, laaja) {
           var W0L = Math.max(280, Math.round(laatikko.w));
           var asuL = Object.assign({}, Tuulikaavio.ASUT.laaja, { fs: Tuulikaavio.laajaFs(W0L), lahdeH: 0, sadeH: 0, lampoH: 0 });
@@ -27216,8 +28018,8 @@ function openSheet(spot, hourIdx) {
   const AALTO_MAX_KM = 60;
 
   /* AALLOT (V15, P15 kohdat 3 ja 4): yksi moduuli. Lukemarivi ja kaavio
-     ovat valitun tunnin aaltoennuste (FMI WAM, sama sarja kuin kartalla,
-     `_aaltoEnnusteSarja`), ja alarivi on lähin poiju NYT — eri aikaa,
+     ovat valitun tunnin aaltoennuste (aaltovarasto, sama sarja kuin
+     kartalla, `_aaltoEnnusteSarja`), ja alarivi on lähin poiju NYT — eri aikaa,
      joten eri rivi (CLAUDE.md "Aaltoennuste ja poijuhavainto ovat ERI
      RIVIT"). Ennen sama ennuste oli laattana JA moduulin lukemarivillä,
      ja poiju omana laattanaan.
@@ -27259,8 +28061,13 @@ function openSheet(spot, hourIdx) {
     const kate = AaltoKate.lue(spot);
     const poijutTiedossa = !!Aaltopoijut._cache;
     if (kate === false && poijutTiedossa && !poijuMuodot()) return '';
-    const nimi = function (km) {
-      return 'FMI WAM' + (km != null && km >= 1 ? _t(' · ' + _desim(km, 1) + ' km merelle', ' · ' + _desim(km, 1) + ' km offshore') : '');
+    /* Lähde sarjan perheistä (Itämerellä FMI WAM → ECMWF WAM 9 km sen
+       jakson jälkeen), ja matka merelle kun sarja on luettu lähimmästä
+       märästä pisteestä (P5: luku nimeää etäisyyden). */
+    const nimi = function (E) {
+      const m = E && E.lahteet && E.lahteet.length ? E.lahteet.map(x => Lahde.lyhyt(x)).join(' → ') : 'WAM';
+      const km = E ? E.km : null;
+      return m + (km != null && km >= 1 ? _t(' · ' + _desim(km, 1) + ' km merelle', ' · ' + _desim(km, 1) + ' km offshore') : '');
     };
     setTimeout(function () {
       const el = document.getElementById(mid);
@@ -27295,7 +28102,7 @@ function openSheet(spot, hourIdx) {
           AaltoKate.kirjaa(spot, true);
           spot._aaltoSarja = E;
           el._kaavio = 'on';
-          _aaltoKaavio(k, { hs: [] }, null, { name: spot.name }, false, E, nimi(E.km), {
+          _aaltoKaavio(k, { hs: [] }, null, { name: spot.name }, false, E, nimi(E), {
             valittu: function () { return State.valittuMs != null ? State.valittuMs : Ennuste.nytTunti(); } });
           return;
         }
@@ -29612,13 +30419,19 @@ function _tlPaivitaPalkit(speeds, keskiIdx) {
    Mallin jakson (≈ 66 h) ulkopuolella ja maalla palkkia ei ole: tyhjä
    tunti on rehellisempi kuin keksitty. Kelikaista ja kelihyppy lukevat
    yhä tuulta (`State._tlSpeeds`). */
+/* AALTOPALKIN KORKEUS: epälineaarinen, wingfoilin 0–2 m saa 85 % ja
+   maailman myrskymeri yltää 8 m:iin AINA KASVAVANA (docs/aallot.md P6;
+   sama periaate kuin tuulen palkin katossa: korkeus ei saa vaieta siellä
+   missä lukema on vaarallisin). 3 m 0,90, 5 m 0,95, 8 m 1,0. */
 function _tlAaltoOsuus(hs) {
   const m = Math.max(0, hs || 0);
-  if (m <= 0.3) return m / 0.3 * 0.30;
-  if (m <= 0.6) return 0.30 + (m - 0.3) / 0.3 * 0.22;
-  if (m <= 1)   return 0.52 + (m - 0.6) / 0.4 * 0.18;
-  if (m <= 2)   return 0.70 + (m - 1) * 0.20;
-  return Math.min(1, 0.90 + (m - 2) / 2 * 0.10);
+  if (m <= 0.3) return m / 0.3 * 0.28;
+  if (m <= 0.6) return 0.28 + (m - 0.3) / 0.3 * 0.20;
+  if (m <= 1)   return 0.48 + (m - 0.6) / 0.4 * 0.17;
+  if (m <= 2)   return 0.65 + (m - 1) * 0.20;
+  if (m <= 3)   return 0.85 + (m - 2) * 0.05;
+  if (m <= 5)   return 0.90 + (m - 3) / 2 * 0.05;
+  return Math.min(1, 0.95 + (m - 5) / 3 * 0.05);
 }
 /* SADETILASSA PALKKI ON SATEEN MÄÄRÄ (docs/sadetutka.md, V3): tunnin
    kertymä keskipisteessä, väri kartan sateen rampista (`Sade.lut`) ja
@@ -29664,11 +30477,12 @@ function _tlPalkkiTyyli(i, speeds) {
 }
 /* Aaltosarja aikajanan akselille kartan keskeltä. Muistetaan, jotta
    vertailu (`_tlMuisti`) näkee saman viitteen kun mikään ei muuttunut.
-   Keskipiste maalla: lähin märkä solmu 3 km:n sisältä, muuten tyhjä. */
+   Keskipiste maalla: lähin märkä piste mallin luottoetäisyyden sisältä
+   (P5: 1,3 × solmuväli, enintään 15 km), muuten tyhjä. */
 let _tlAaltoKehe = { avain: '', arvot: null };
 function _tlAaltoArvot(times, lat, lng) {
   if (!aaltotila() || !times || !times.length || lat == null || !Aallot.kaytossa()) return null;
-  const sarja = Aallot.sarja(lat, lng, 3);
+  const sarja = Aallot.sarja(lat, lng);
   const avain = times.length + '|' + times[0] + '|' + lat.toFixed(3) + ',' + lng.toFixed(3);
   if (_tlAaltoKehe.avain === avain && _tlAaltoKehe.sarja === sarja && _tlAaltoKehe.times === times) return _tlAaltoKehe.arvot;
   if (!sarja) {
@@ -30506,8 +31320,10 @@ function _tlValitseIdx(idx, vartti) {
   if (vartti) _sadeVarttiAseta(vartti);
   Haivytys.pyyda();
   buildWindField(idx).then(function () { drawColorField(); resetParticles(); });
-  /* Jäljellä oleva esilataus uuden hetken ympäriltä ensin. */
+  /* Jäljellä oleva esilataus uuden hetken ympäriltä ensin (näkyvän
+     kerroksen varasto: tuuli tai aallot). */
   AikaEsilataus.ajasta(AikaEsilataus.HYPPY_VIIVE_MS);
+  AaltoEsilataus.ajasta(AikaEsilataus.HYPPY_VIIVE_MS);
   /* Liuku VIIMEISENÄ: `_tlSeuraaHetkea`n keskitys ehti viedä kiskon
      kohteeseen, ja liu'un ensimmäinen kirjoitus palauttaa sen alkuun
      samassa suorituksessa — ruudulle ei piirry kumpikaan väliasento. */
@@ -32223,20 +33039,20 @@ const Crosshair = {
   },
   /* AALTOTILASSA KAPSELI ON AALTO: korkeus, suunta (MISTÄ, nuoli
      etenemissuuntaan kuten tuulella) ja jakso puuskan rivillä. Sama
-     näyte kuin kartalla (`Aallot.nayte`, sama hetki ja taso). Maalla ja
-     mallin jakson ulkopuolella kapseli piiloutuu kuten tyynellä.
-     Korkeus on mustetta: tuulen ramppi kertoisi nopeuden. */
+     kenttä, hetki ja rantamaski kuin kartalla (`AaltoGL.arvoKohdassa`,
+     toistossa ja raahauksessa myös tunnin sisällä). Maalla ja mallin
+     jakson ulkopuolella luvun paikalla on viiva ja syy. */
   _aaltoUpdate(center) {
-    const t = LampoGL._hetki();
+    const t = AaltoGL._hetki();
     /* Ensin SAMA kenttä ja rantamaski kuin kartalla (`AaltoGL`), jotta
        luku ja väri tähtäimen alla ovat yhtä mieltä myös rannassa. */
     const vesi = Rantamaski.vesi(center.lat, center.lng);
     let a = AaltoGL.arvoKohdassa(center.lat, center.lng, t);
-    /* Varatie (hila matkalla tai eri hetkeltä): varaston näyte, ja maskin
-       mukaan merellä lähin mallin märkä solmu 4 km:n sisältä — sama matka
-       jonka ekstrapolointi kattaa. */
+    /* Varatie (hila matkalla tai eri hetkeltä): varaston näyte samalla
+       tasolla, ja maskin mukaan merellä lähin mallin märkä piste mallin
+       luottoetäisyyden sisältä (P5, docs/aallot.md 5.4). */
     if (!a && (vesi == null || vesi >= 0.5)) {
-      a = Aallot.arvo(center.lat, center.lng, t, Aallot.askelZoomille(State.map.getZoom()), vesi != null ? 4 : 0);
+      a = Aallot.arvo(center.lat, center.lng, t, AaltoTaso.askel(State.map.getZoom()), vesi != null ? 1 : 0);
     }
     /* KAPSELI EI PIILOUDU AALTOTILASSA (käyttäjän raportti 1.10.): se on
        ainoa paikka joka kertoo että kartta näyttää aaltoja. Ilman arvoa
@@ -32388,7 +33204,7 @@ const Crosshair = {
       if (!(yht > 0)) return null;
       if (ecmwf / yht > 0.01) {
         const ax = S._perus, ts = ax.tsMs;
-        const i = Math.min(ax.ti, ts.length - 2);
+        const i = ax.tf === 0 && ax.ti > 0 ? ax.ti - 1 : Math.min(ax.ti, ts.length - 2);
         if (!(ts[i + 1] - ts[i] <= 3 * 3600e3)) return null;
       }
       const tuuli = Math.hypot(S._nU, S._nV);
@@ -32553,7 +33369,11 @@ const Lahde = {
     icon_d2: _t('DWD · ICON-D2 2,2 km', 'DWD · ICON-D2 2.2 km'),
     icon_2i: _t('ItaliaMeteo · ICON-2I 2,2 km', 'ItaliaMeteo · ICON-2I 2.2 km'),
     arome_at: _t('GeoSphere Austria · AROME 2,5 km', 'GeoSphere Austria · AROME 2.5 km'),
-    aladin_ce: _t('ČHMÚ · ALADIN 2,3 km', 'ČHMÚ · ALADIN 2.3 km')
+    aladin_ce: _t('ČHMÚ · ALADIN 2,3 km', 'ČHMÚ · ALADIN 2.3 km'),
+    /* Aaltovaraston perheet (`AaltoVarasto`, docs/aallot.md): avain on
+       rakentajan perhe (`tools/aallot.mjs`, `tools/wam.mjs`). */
+    ecmwf_wam: 'ECMWF · WAM 9 km',
+    fmi_wam: _t('Ilmatieteen laitos · WAM 1–2 km', 'FMI · WAM 1–2 km')
   },
   /* SAMAT LÄHTEET LYHYESSÄ MUODOSSA — samasta objektista, ei omasta
      taulukostaan. Kaavion selite ja työkaluvihje eivät mahduta
@@ -32579,7 +33399,9 @@ const Lahde = {
     icon_d2: _t('ICON-D2 2,2 km', 'ICON-D2 2.2 km'),
     icon_2i: _t('ICON-2I 2,2 km', 'ICON-2I 2.2 km'),
     arome_at: _t('AROME AT 2,5 km', 'AROME AT 2.5 km'),
-    aladin_ce: _t('ALADIN 2,3 km', 'ALADIN 2.3 km')
+    aladin_ce: _t('ALADIN 2,3 km', 'ALADIN 2.3 km'),
+    ecmwf_wam: 'ECMWF WAM 9 km',
+    fmi_wam: 'FMI WAM'
   },
   /* Perhe jota rekisteri ei vielä tunne (uudempi varasto kuin sivu):
      nimi luettelon tason `lahde`sta ilman jakelutietoja, ettei merkintä
@@ -32625,16 +33447,19 @@ const Lahde = {
     if (!this._el || !State.map) return;
     const c = center || State.map.getCenter();
 
-    /* AALTOTILASSA KARTTA ON WAMia, ja merkintä sanoo sen — myös silloin
-       kun valittu tunti on mallin jakson ulkopuolella eikä kartalla ole
-       aaltoja (kuten sadetutka arkistonsa ulkopuolella). */
+    /* AALTOTILASSA MERKINTÄ NIMEÄÄ TÄHTÄIMEN KOHDAN AALTOPERHEEN ja sen
+       ajon (kuten tuulen `malliKohdassa`): Itämerellä FMI:n WAM, muualla
+       ECMWF WAM 9 km — myös silloin kun valittu tunti on mallin jakson
+       ulkopuolella eikä kartalla ole aaltoja. */
     if (aaltotila()) {
       let teksti;
+      const th = AaltoGL._hetki();
       if (!Aallot.kaytossa()) teksti = _t('Aallot · ei saatavilla', 'Waves · unavailable');
-      else if (!Aallot.kattaa(LampoGL._hetki())) teksti = _t('FMI WAM · ei aaltoennustetta tälle tunnille', 'FMI WAM · no wave forecast for this hour');
+      else if (!Aallot.kattaa(th)) teksti = _t('Aallot · ei aaltoennustetta tälle tunnille', 'Waves · no wave forecast for this hour');
       else {
-        teksti = _t('Ilmatieteen laitos · WAM-aaltomalli', 'FMI · WAM wave model');
-        const t = Aallot.ajo();
+        const lp = Aallot.lahdePaikassa(c.lat, c.lng, th);
+        teksti = this.nimi(lp ? lp.malli : AaltoVarasto.POHJA);
+        const t = lp && lp.ajo ? lp.ajo : Aallot.ajo();
         if (t) {
           const d = new Date(t), nyt = new Date(), hh = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
           const samaPv = d.toDateString() === nyt.toDateString();
@@ -33655,16 +34480,19 @@ function buildAaltoAsteikko() {
   const bar = document.getElementById('aalto-scale-bar');
   const ticks = document.getElementById('aalto-scale-ticks');
   if (!bar || !ticks) return;
-  const MAX = 3, osat = [];
+  /* 0–10 m NELIÖJUURIASTEIKOLLA, sama kuin kartan LUT (`AaltoVari.paikka`,
+     docs/aallot.md P6): wingfoilin 0–3 m saa yli puolet palkista, ja
+     maailman myrskymeri mahtuu. */
+  const osat = [];
   for (let i = 0; i <= 30; i++) {
-    const c = AaltoVari.rgba(MAX * i / 30);
-    osat.push('rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + c.a.toFixed(2) + ') ' + (i / 30 * 100).toFixed(1) + '%');
+    const x = i / 30, c = AaltoVari.rgba(AaltoVari.MAKS * x * x);
+    osat.push('rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + c.a.toFixed(2) + ') ' + (x * 100).toFixed(1) + '%');
   }
   bar.style.background = 'linear-gradient(to right,' + osat.join(',') + '),rgb(' + Sade.POHJA_TUMMA.join(',') + ')';
-  const arvot = [0, 0.5, 1, 1.5, 2, 3];
+  const arvot = AaltoVari.TIKIT;
   ticks.innerHTML = arvot.map(function (m, i) {
     const luokka = i === 0 ? ' ws-alku' : (i === arvot.length - 1 ? ' ws-loppu' : '');
-    return '<span class="ws-tick' + luokka + '" style="left:' + (m / MAX * 100).toFixed(1) + '%">' + String(m).replace('.', DESIM) + '</span>';
+    return '<span class="ws-tick' + luokka + '" style="left:' + (AaltoVari.paikka(m) * 100).toFixed(1) + '%">' + String(m).replace('.', DESIM) + '</span>';
   }).join('');
 }
 
@@ -33691,12 +34519,18 @@ function _aaltotilaAseta(paalla) {
   AaltoGL._rintamat.length = 0;
   AaltoGL.paivita();
   if (paalla) {
-    AaltoGL._pyydaData(true);
-    Aallot.paivita().then(function (uusi) {
-      if (!uusi || !aaltotila()) return;
-      AaltoGL.paivita(); AaltoGL._pyydaData(true);
+    /* Varasto alustetaan ensimmäisellä kerralla (luettelo on jo haettu
+       tuulen kanssa), sitten näkymän laatat ja koko akselin esilataus. */
+    const kaynnista = function () {
+      if (!aaltotila()) return;
+      AaltoGL.paivita(); AaltoGL._esiT = 0; AaltoGL._esilataa();
+      AaltoEsilataus.ajasta(1500);
       State._tlMuisti = null; updateTimelineToCenter();
       Crosshair.refresh();
+    };
+    Aallot.alusta().then(function (ok) {
+      if (ok) kaynnista();
+      Aallot.paivita().then(function (uusi) { if (uusi) kaynnista(); });
     });
   }
   State._tlMuisti = null;
@@ -34855,10 +35689,10 @@ const Kate = {
     const avain = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].map(v => v.toFixed(3)).join(',')
       + '|' + (S ? S._versio + '/' + S._laatat.size : '') + '|' + (EuAsemat.luettelo ? EuAsemat.luettelo.length : -1)
       + '|' + EuAsemat._laatat.size + '|' + (window._aaltoPoijut ? window._aaltoPoijut.length : -1)
-      + '|' + (typeof Aallot !== 'undefined' && Aallot._l ? 1 : 0);
+      + '|' + (typeof AaltoVarasto !== 'undefined' ? AaltoVarasto._tila + AaltoVarasto._versio + '/' + AaltoVarasto._saapuneet : '');
     if (avain === this._avain) return this._arvo;
     const pts = this._pisteet(b, c);
-    const arvo = { mallit: this._mallit(S, pts, z), aallot: this._aallot(pts),
+    const arvo = { mallit: this._mallit(S, pts, z), aallot: this._aallot(pts, z),
                    tutka: TutkaKate.nakyma(map), hav: this._havainnot(b, c) };
     this._avain = avain; this._arvo = arvo;
     return arvo;
@@ -34892,21 +35726,24 @@ const Kate = {
     return ulos;
   },
 
-  /* Aallot: näytteet joiden kohdalla jollakin WAM-tasolla on laatta
-     (laattoja kirjoitetaan vain märkään, docs/data.md "Aallot kartalle").
-     'kaikki' | 'osa' | 'ei', null kun aaltoluetteloa ei ole. */
-  _aallot(pts) {
-    if (typeof Aallot === 'undefined' || !Aallot.kaytossa() || !Aallot.tasot.length) return null;
+  /* Aallot: näytteet joissa on MERTA kartan tasolla (`Aallot.merta`).
+     Pohja (ECMWF WAM) kattaa koko maailman meret, joten 'ei' tarkoittaa
+     näkymää jossa ei ole merta. Laatan olemassaolo ei riitä (5°:n laatta
+     kattaa Pariisin), joten tuntemattomien näytteiden laatat haetaan
+     (`_aaltoHaettavat`, `AsetusAlue`) ja vastaus on siihen asti
+     'tuntematon' — tuntematon näytetään (P-c).
+     'kaikki' | 'osa' | 'ei' | 'tuntematon', null kun aaltovarastoa ei ole. */
+  _aaltoHaettavat: [],
+  _aallot(pts, z) {
+    this._aaltoHaettavat = [];
+    if (typeof Aallot === 'undefined' || !Aallot.kaytossa()) return null;
+    const m = Aallot.merta(pts, AaltoTaso.askel(z));
     let n = 0;
-    for (const q of pts) {
-      const lo = ((q.lng + 180) % 360 + 360) % 360 - 180;
-      for (const t of Aallot.tasot) {
-        if (!Aallot._kattaaTaso(t, q.lat, lo)) continue;
-        const r = Aallot._ruutu(t, q.lat, lo);
-        if (!t._laatat.size || t._laatat.has(r.la0 + '_' + r.lo0)) { n++; break; }
-      }
+    for (let i = 0; i < m.length; i++) {
+      if (m[i] === true) n++;
+      else if (m[i] === null) this._aaltoHaettavat.push(pts[i]);
     }
-    return n === pts.length ? 'kaikki' : n ? 'osa' : 'ei';
+    return n === pts.length ? 'kaikki' : n ? 'osa' : this._aaltoHaettavat.length ? 'tuntematon' : 'ei';
   },
 
   /* Havaintorivit kerroskytkimen avaimella: `{ n, nimet }` tai null
@@ -35014,6 +35851,16 @@ const AsetusAlue = {
           Kate._avain = null;
           if (this.auki()) this.paivita();
         });
+    }
+    /* Tuntemattomat aaltonäytteet samoin: kartan tason laatat, sitten
+       uusi laskenta ("ei merta" vasta kun se tiedetään). */
+    const aHaettavat = Kate._aaltoHaettavat;
+    if (aHaettavat.length && this._aHaettu !== Kate._avain) {
+      this._aHaettu = Kate._avain;
+      Aallot.mertaLaatat(aHaettavat, AaltoTaso.askel(State.map.getZoom())).then(() => {
+        Kate._avain = null;
+        if (this.auki()) this.paivita();
+      });
     }
     this._mallit(k);
     this._havainnot(k);
@@ -35220,12 +36067,12 @@ const AsetusAlue = {
     const aNote = document.querySelector('#aalto-scale .sp-note');
     if (aNote) {
       if (!aNote.dataset.oletus) aNote.dataset.oletus = aNote.textContent;
+      /* Aaltomalli kattaa maailman meret (ECMWF WAM 9 km), joten "ei" on
+         näkymä jossa ei ole merta; järvet ovat malleissa maata. */
       const t = k.aallot === 'ei'
-        ? _t('FMI:n WAM-aaltomalli kattaa Itämeren: tässä näkymässä ei ole aaltoennustetta.',
-             'The FMI WAM wave model covers the Baltic Sea: there is no wave forecast in this view.')
-        : k.aallot === 'osa'
-          ? aNote.dataset.oletus + _t(' Malli kattaa Itämeren, joten osa näkymästä on ilman aaltoja.', ' The model covers the Baltic Sea, so part of this view has no waves.')
-          : aNote.dataset.oletus;
+        ? _t('Tässä näkymässä ei ole merta: aaltoennustetta ei ole järville eikä maalle.',
+             'There is no sea in this view: there is no wave forecast for lakes or land.')
+        : aNote.dataset.oletus;
       if (aNote.textContent !== t) aNote.textContent = t;
     }
     const sNote = document.querySelector('#sade-scale .sp-note');
@@ -35268,9 +36115,21 @@ document.getElementById('layers').addEventListener('click', e => {
     _closeSettings();
     _aaltotilaAseta(true);
     /* Valinta on sallittu myös katteen ulkopuolella (kartta voi siirtyä
-       Itämerelle), mutta tyhjä kartta ei jää selittämättä. */
-    const k = Kate.nakyma();
-    if (k && k.aallot === 'ei') Toast.show(_t('Aaltomalli (FMI WAM) kattaa Itämeren — tässä näkymässä ei ole aaltoja.', 'The wave model (FMI WAM) covers the Baltic Sea — there are no waves in this view.'), 4000);
+       merelle), mutta tyhjä kartta ei jää selittämättä. Varasto ja
+       näkymän laatat ovat usein vielä matkalla, joten päätös odottaa niitä
+       ("ei merta" vasta kun se tiedetään). */
+    const ilmoita = (k) => {
+      if (k && k.aallot === 'ei' && aaltotila()) Toast.show(_t('Tässä näkymässä ei ole merta — aaltoja ei ole.', 'There is no sea in this view — no waves here.'), 4000);
+    };
+    Aallot.alusta().then((ok) => {
+      if (!ok || !aaltotila()) return;
+      const k = Kate.nakyma();
+      if (!k || k.aallot !== 'tuntematon') { ilmoita(k); return; }
+      Aallot.mertaLaatat(Kate._aaltoHaettavat, AaltoTaso.askel(State.map.getZoom())).then(() => {
+        Kate._avain = null;
+        ilmoita(Kate.nakyma());
+      });
+    });
     return;
   }
   const sadeOli = !!window._mapLayerState['tutka'];

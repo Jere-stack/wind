@@ -38,6 +38,9 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { sanoma } from './harmonie.mjs';
 import { N, TYHJA, laatanRuudukko, kirjoitaLaatta, onDataa } from './pyramidi.mjs';
+import {
+  luoAaltoPyramidi, kirjoitaAaltoHetki, tiivistaAaltoAika, kirjoitaAaltoTasot, tarkistaPisteet, avomeriPaino,
+} from './aaltopyramidi.mjs';
 
 const WFS = 'https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature';
 const DL = 'https://opendata.fmi.fi/download';
@@ -62,6 +65,50 @@ export const AALTO_TASOT = [
 
 const LAHDE = 'Ilmatieteen laitos · WAM · CC BY 4.0';
 const iso = (ms) => new Date(ms).toISOString().slice(0, 19) + 'Z';
+
+/* SAMA MALLI AALTOVARASTON PERHEENÄ (docs/aallot.md, V1; luettelon
+   `aallot2`, `tools/aaltopyramidi.mjs`): √-koodattu korkeus, palat
+   ajassa, etäisyystaso ja painokanava AVOMEREN REUNASTA (alue päättyy
+   merellä vain Skagerrakissa, 9°E). Tasot `wf0`–`wf5`; vanhat `a0`–`a3`
+   kirjoitetaan samasta datasta vanhoille asiakkaille (luettelon
+   `aallot`, versio 1). Mallin solmuväli on 0,01707° × 0,01746° eli
+   noin 1 × 2 km: luottoetäisyys hienoimmalla tasolla 2 km. */
+export const FMI_PERHE_TASOT = [
+  { id: 'wf0', askel: 0.02, lat: [59.2, 66],  lng: [19, 30.4] },
+  { id: 'wf1', askel: 0.05, lat: [53, 66.85], lng: [9, 30.5] },
+  { id: 'wf2', askel: 0.1,  lat: [53, 66.85], lng: [9, 30.5] },
+  { id: 'wf3', askel: 0.25, lat: [53, 66.85], lng: [9, 30.5] },
+  { id: 'wf4', askel: 0.5,  lat: [53, 66.85], lng: [9, 30.5] },
+  { id: 'wf5', askel: 1.0,  lat: [53, 66.85], lng: [9, 30.5] },
+];
+const FMI_ALUE = { lat: [BBOX[1], BBOX[3]], lng: [BBOX[0], BBOX[2]] };
+export const FMI_MARAT = [
+  ['Suomenlahti', 59.85, 25.5], ['Selkämeri', 62.0, 19.5], ['Gotlannin syvänne', 57.3, 20.1],
+  ['Perämeri', 64.8, 23.5], ['Saaristomeri ulko', 59.6, 21.0],
+];
+export const FMI_KUIVAT = [
+  ['Tampere', 61.5, 23.8], ['Vilna', 54.7, 25.3], ['Kuopio', 62.9, 27.7], ['Uppsala', 59.86, 17.64],
+];
+
+/* Märät lähdepisteet ensimmäisestä kentästä (rivit etelästä pohjoiseen). */
+function fmiLahde(g, hs) {
+  let n = 0;
+  for (let i = 0; i < hs.length; i++) if (Number.isFinite(hs[i])) n++;
+  const lat = new Float32Array(n), lon = new Float32Array(n), idx = new Int32Array(n);
+  const siemenet = [];
+  let p = 0;
+  for (let j = 0; j < g.nj; j++) for (let i = 0; i < g.ni; i++) {
+    const k = j * g.ni + i;
+    if (!Number.isFinite(hs[k])) continue;
+    lat[p] = g.la0 + j * g.dj; lon[p] = g.lo0 + i * g.di; idx[p] = k; p++;
+    /* Kolmen solun reunarengas: rajauksen uloin sarake (tasan 9,000°E) on
+       latauspalvelulta kokonaan tyhjä, ja märkä Skagerrak alkaa toisesta
+       (mitattu 15.10.: sarake 0 märkiä 0, sarake 1 17, sarake 2 60). */
+    if (j < 3 || j >= g.nj - 3 || i < 3 || i >= g.ni - 3) siemenet.push([g.la0 + j * g.dj, g.lo0 + i * g.di]);
+  }
+  const natiiviKm = +Math.max(g.dj * 111.2, g.di * 111.2 * Math.cos(60 * Math.PI / 180)).toFixed(2);
+  return { n, lat, lon, idx, natiiviKm, siemenet };
+}
 
 function pakkaa(v, askel) {
   if (!Number.isFinite(v)) return TYHJA;
@@ -285,7 +332,7 @@ function liitaJaksopisteet(tasot, pisteet, sarjat) {
    ja palauttaa luettelon `aallot`-avaimen. Heittää jos yhtään hetkeä ei
    saatu; tiilet.mjs ajaa tämän omassa try/catchissaan, jolloin varasto
    julkaistaan ilman aaltoja eikä tuuli kärsi. */
-export async function rakennaAallot({ ulos, log = () => {} }) {
+export async function rakennaAallot({ ulos, log = () => {}, perhe = false, pala = 24 }) {
   const alkoi = Date.now();
   const ajot = await wamAjot();
   if (!ajot.length) throw new Error('WAM: ei ajoja');
@@ -317,6 +364,54 @@ export async function rakennaAallot({ ulos, log = () => {} }) {
     let paras = NaN, pd = Infinity;
     for (const [tt, v] of s) { const d = Math.abs(tt - t); if (d < pd) { pd = d; paras = v; } }
     return paras;
+  };
+
+  /* Uuden muodon perhe (`perhe`): lähde, rakenne ja jakson lähin piste
+     jokaiselle märälle lähdepisteelle, luodaan ensimmäisestä kentästä. */
+  let pL = null, lahdeL = null, jpL = null, savu = null;
+  const perheHetki = (ti, k) => {
+    if (!perhe) return;
+    if (!pL) {
+      lahdeL = fmiLahde(g, k.hs);
+      const paino = avomeriPaino(lahdeL.siemenet, FMI_ALUE);
+      pL = luoAaltoPyramidi(FMI_PERHE_TASOT.map(t => ({ ...t, paino })), lahdeL, nt, log);
+      log(`  perhe fmi_wam: märkiä ${lahdeL.n}, avomeren reunalla ${lahdeL.siemenet.length}, solmuväli ${lahdeL.natiiviKm} km`);
+      jpL = new Int32Array(lahdeL.n).fill(-1);
+      if (pisteet && jaksot) {
+        const L = 0.5, lok = new Map();
+        pisteet.forEach((q, i) => {
+          if (!jaksot[i].size) return;
+          const a = Math.floor(q[0] / L) + ':' + Math.floor(q[1] / L);
+          if (!lok.has(a)) lok.set(a, []);
+          lok.get(a).push(i);
+        });
+        for (let p = 0; p < lahdeL.n; p++) {
+          const la = lahdeL.lat[p], lo = lahdeL.lon[p], ky = Math.cos(la * Math.PI / 180);
+          let pi = -1, pd = 0.4 * 0.4;
+          const ly = Math.floor(la / L), lx = Math.floor(lo / L);
+          for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+            for (const i of (lok.get((ly + dy) + ':' + (lx + dx)) || [])) {
+              const a = pisteet[i][0] - la, b = (pisteet[i][1] - lo) * ky, d = a * a + b * b;
+              if (d < pd) { pd = d; pi = i; }
+            }
+          }
+          jpL[p] = pi;
+        }
+      }
+    }
+    const hs = new Float32Array(lahdeL.n), dir = new Float32Array(lahdeL.n), tp = new Float32Array(lahdeL.n);
+    const jf = jakso(ti), arvo = new Map();
+    for (let p = 0; p < lahdeL.n; p++) {
+      const s = lahdeL.idx[p];
+      hs[p] = k.hs[s]; dir[p] = k.dir[s];
+      const pi = jpL[p];
+      if (pi < 0) { tp[p] = NaN; continue; }
+      let v = arvo.get(pi);
+      if (v === undefined) { v = jf(pi); arvo.set(pi, v); }
+      tp[p] = v;
+    }
+    kirjoitaAaltoHetki(pL, ti, { hs, dir, tp });
+    if (!savu) savu = tarkistaPisteet(pL, FMI_MARAT, FMI_KUIVAT);
   };
 
   /* Jaksot haetaan kerran, ensimmäisen luetun hetken märistä soluista.
@@ -353,6 +448,7 @@ export async function rakennaAallot({ ulos, log = () => {} }) {
       }
       await jaksoLupaus;
       kirjoitaHetki(tasot, ti, g, k.hs, k.dir, jakso(ti));
+      perheHetki(ti, k);
       kirjoitetut.add(ti);
       hetkia++;
     }
@@ -409,19 +505,36 @@ export async function rakennaAallot({ ulos, log = () => {} }) {
   }
   log(`  ${ajat.length} hetkeä, haettu ${(tavuja / 1e6).toFixed(0)} MB, laatat ${(tavutUlos / 1e6).toFixed(1)} MB, `
     + `${((Date.now() - alkoi) / 1000).toFixed(0)} s`);
-  return {
+  const vanha = {
     versio: 1, lahde: LAHDE, malli: 'wam',
     ajoAika: new Date(ajot[0].ajo).toISOString(),
     ajat, nt: ajat.length, t0: ajat[0], dtSek: 3600,
     hsAskel: HS_ASKEL, suuntaAskel: SUUNTA_ASKEL, jaksoAskel: JAKSO_ASKEL, tyhja: TYHJA,
     tasot: rivit,
   };
+  if (!perhe) return vanha;
+  /* Uuden muodon perhe. Savutestin vika jättää perheen pois (vanhat
+     tasot julkaistaan silti): ECMWF kattaa Itämeren alla. */
+  let uusi = null;
+  if (!pL) log('  ! perhe fmi_wam: ei hetkiä');
+  else if (savu && savu.length) log('  ! perhe fmi_wam jäi pois, savutesti: ' + savu.join('; '));
+  else {
+    if (sailyta.length < pL.nt) tiivistaAaltoAika(pL, sailyta);
+    const { rivit: rivitL, tavut } = kirjoitaAaltoTasot(pL, ajat, ulos, pala, {
+      perhe: 'fmi_wam', malli: 'fmi_wam', lahde: LAHDE, ajoAika: new Date(ajot[0].ajo).toISOString(),
+    }, log);
+    uusi = { rivit: rivitL, tilasto: { perhe: 'fmi_wam', hetkia: ajat.length, kaikkiaan: nt, puuttui: nt - ajat.length,
+      markia: lahdeL.n, alku: new Date(ajat[0]).toISOString(), loppu: new Date(ajat[ajat.length - 1]).toISOString(),
+      mb: tavut / 1e6, s: (Date.now() - alkoi) / 1000 } };
+  }
+  return { vanha, perhe: uusi };
 }
 
 /* Suora ajo mittausta varten: `node tools/wam.mjs ulos-hakemisto`. */
 if (import.meta.url === 'file://' + process.argv[1]) {
   const ulos = process.argv[2] || 'aallot-testi';
   mkdirSync(ulos, { recursive: true });
-  const a = await rakennaAallot({ ulos, log: (s) => console.log(s) });
-  writeFileSync(join(ulos, 'aallot.json'), JSON.stringify(a));
+  const a = await rakennaAallot({ ulos, log: (s) => console.log(s), perhe: true });
+  writeFileSync(join(ulos, 'aallot.json'), JSON.stringify(a.vanha));
+  if (a.perhe) writeFileSync(join(ulos, 'fmi_wam.json'), JSON.stringify(a.perhe));
 }

@@ -47,6 +47,7 @@ import { haeHarmonie, harmonieAjot } from './harmonie.mjs';
 import * as MetNordic from './metnordic.mjs';
 import * as Alueelliset from './alueelliset.mjs';
 import { rakennaAallot } from './wam.mjs';
+import { rakennaEcmwfAallot, aaltoLuettelo } from './aallot.mjs';
 import {
   N, TYHJA, NOP_ASKEL, SUUNTA_ASKEL, OTSAKE,
   luoPyramidi, uvHilaksi, kirjoitaHetki, tiivistaAika, kirjoitaLaatta, onDataa,
@@ -733,16 +734,44 @@ if (process.env.EUROOPPA !== '0') {
 luettelo.perheet = Alueelliset.JARJESTYS;
 
 /* ==================================================================
-   FMI WAM — aaltoennuste (`tools/wam.mjs`). Oma luetteloavaimensa
-   (`aallot`), ei tuulen perhe. Omassa try/catchissaan: aaltojen vika ei
-   estä tuulen julkaisua. */
+   AALLOT — oma luetteloavaimensa, ei tuulen perhe (docs/aallot.md).
+   Jokainen omassa try/catchissaan: aaltojen vika ei estä tuulen
+   julkaisua.
+
+   `aallot2` (versio 2) on aaltovarasto koko maailmaan: perheet
+   painokanavalla (FMI WAM Itämerellä, ECMWF WAM 9 km pohjana), palat,
+   √-koodaus ja etäisyystaso (`tools/aaltopyramidi.mjs`). Ilman
+   pohjaperhettä sitä ei julkaista: asiakas tarvitsee pohjan joka kattaa
+   kaiken, ja perheen puuttuminen näkyy silloin yhteenvedossa.
+   `aallot` (versio 1, FMI WAM a0–a3) on SIIRTYMÄÄ JA VARATIETÄ VARTEN:
+   vanha asiakas lukee vain sen, ja uusi lukee sitä kun `aallot2` puuttuu
+   (`AaltoVarasto._v1`: Itämeri ilman maailmaa on parempi kuin tyhjä
+   kartta). Sama FMI:n data kirjoitetaan molempiin samalla latauksella
+   (`rakennaAallot`, `perhe: true`). */
+const aaltoTilasto = [];
 if (process.env.AALLOT !== '0') {
+  let fmiPerhe = null, ecPerhe = null;
   try {
     console.log('\nFMI WAM (aallot):');
-    luettelo.aallot = await rakennaAallot({ ulos: ULOS, log: (s) => console.log(s) });
+    const a = await rakennaAallot({ ulos: ULOS, log: (s) => console.log(s), perhe: true, pala: PALA });
+    luettelo.aallot = a.vanha;
+    fmiPerhe = a.perhe;
+    if (fmiPerhe) aaltoTilasto.push(fmiPerhe.tilasto);
   } catch (e) {
-    console.warn(`  ! aaltotasot jäivät pois: ${e.message}`);
+    aaltoTilasto.push({ perhe: 'fmi_wam', virhe: e.message });
+    console.warn(`  ! FMI WAM -aaltotasot jäivät pois: ${e.message}`);
   }
+  try {
+    console.log('\nECMWF WAM 9 km (aallot koko maailmaan):');
+    ecPerhe = await rakennaEcmwfAallot({ ulos: ULOS, log: (s) => console.log(s), menneisyysH: MENNEISYYS_H,
+      rinnakkainN: +(process.env.AALTO_RINNAKKAIN || 8), maxAskelta: MAX_ASKELTA, pala: PALA });
+    aaltoTilasto.push(ecPerhe.tilasto);
+  } catch (e) {
+    aaltoTilasto.push({ perhe: 'ecmwf_wam', virhe: e.message });
+    console.warn(`  ! ECMWF WAM -aaltotasot jäivät pois: ${e.message}`);
+  }
+  if (ecPerhe) luettelo.aallot2 = aaltoLuettelo([fmiPerhe, ecPerhe], luettelo.luotu);
+  else console.warn('  ! aallot2 jäi pois: pohjaperhe (ECMWF WAM) puuttuu');
 }
 
 writeFileSync(join(ULOS, 'luettelo.json'), JSON.stringify(luettelo));
@@ -753,5 +782,10 @@ console.log(`  ECMWF-hetkiä  ${ecmwfOk.length}/${ecmwfOk.length + puuttuvat}${p
 for (const t of euTilasto) {
   console.log(`  ${t.perhe.padEnd(10)} ` + (t.virhe ? `POIS: ${t.virhe}`
     : `${t.hetkia}/${t.kaikkiaan} h, ${t.laattoja} laattaa, ${t.mb.toFixed(1)} MB, ${t.s.toFixed(0)} s`));
+}
+for (const t of aaltoTilasto) {
+  console.log(`  ${t.perhe.padEnd(10)} ` + (t.virhe ? `POIS: ${t.virhe}`
+    : `${t.hetkia}/${t.kaikkiaan} hetkeä, ${t.mb.toFixed(1)} MB, ${t.s.toFixed(0)} s`
+      + (t.tiiviste ? `, märkiä ${t.markia} (${t.tiiviste})` : '')));
 }
 console.log(`  aika    ${aika()}`);

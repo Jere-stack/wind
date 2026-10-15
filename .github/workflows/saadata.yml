@@ -165,10 +165,22 @@ jobs:
               }
               console.log("| Lisätasot | " + (l.lisatasot || []).map(t => t.id + " " + t.laatat.length).join(", ") + " |");
               const a = l.aallot;
-              console.log("| Aallot (WAM) | " + (a
+              console.log("| Aallot (WAM, vanha) | " + (a
                 ? a.tasot.map(t => t.id + " " + t.laatat.length).join(", ") + ", " + a.nt + " tuntia, "
                   + new Date(a.ajat[0]).toISOString() + " … " + new Date(a.ajat[a.nt-1]).toISOString()
                 : "EI MUKANA") + " |");
+              /* Aaltovarasto (docs/aallot.md): perheet hienoimman tasonsa
+                 laattamäärällä, akseli ja ajo. Perhe jota ei ole, puuttuu
+                 listalta; pohjan (ecmwf_wam) puuttuessa koko avain puuttuu. */
+              const a2 = l.aallot2;
+              if (!a2) console.log("| Aallot (aallot2) | EI MUKANA |");
+              else for (const p of a2.perheet) {
+                const t0 = a2.tasot.filter(t => t.perhe === p).sort((x, y) => x.askel - y.askel)[0];
+                const ika = (Date.now() - Date.parse(t0.ajoAika)) / 3600e3;
+                console.log("| Aallot " + p + " | " + t0.laatat.length + " laattaa (" + t0.id + "), " + t0.nt + " hetkeä, "
+                  + new Date(t0.ajat[0]).toISOString() + " … " + new Date(t0.ajat[t0.nt-1]).toISOString()
+                  + ", ajo " + t0.ajoAika + (ika > 24 ? " ⚠️ yli 24 h vanha" : "") + " |");
+              }
               console.log("| Koko | " + mb.toFixed(1) + " MB |");
               console.log("| Puuttuvia hetkiä | " + l.puuttuvia + " |");
             '
