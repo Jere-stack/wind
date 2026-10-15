@@ -245,6 +245,16 @@ async function rinnakkain(lista, raja, tyo) {
   }));
 }
 
+/* Pelkät märät pisteet (alueellisten perheiden suora testiajo ilman koko
+   ECMWF-rakennusta): tuoreimman ajon ensimmäinen hetki. */
+export async function ecmwfMarat() {
+  const ajot = await haeAjot(4);
+  const ajo = ajot[0], ms = Math.min(...ajo.ajat);
+  const k = await lueHetki(url(ajo, ms), null);
+  const m = marat(k.wave_height, o1280Pisteet(), EC_NATIIVI_KM);
+  return { n: m.n, lat: m.lat, lon: m.lon };
+}
+
 /* ------------------------------------------------------------------
    `rakennaEcmwfAallot({ ulos, log, menneisyysH, rinnakkain, maxAskelta,
    pala })` kirjoittaa tasot `we0`–`we2` ja palauttaa { rivit, tilasto }.
@@ -318,7 +328,8 @@ export async function rakennaEcmwfAallot({ ulos, log = () => {}, menneisyysH = 4
     alku: iso(ajat[0]), loppu: iso(ajat[ajat.length - 1]), mb: tavut / 1e6, s: (Date.now() - alkoi) / 1000 };
   log(`  ${ajat.length} hetkeä, ${(tavut / 1e6).toFixed(1)} MB, ${tilasto.s.toFixed(0)} s`
     + (tilasto.puuttui ? `, ${tilasto.puuttui} puuttui` : '') + (varalta ? `, ${varalta} vanhemmasta ajosta` : ''));
-  return { rivit, tilasto };
+  /* Märät pisteet alueellisten perheiden valtaa varten (`pohjaMeri`). */
+  return { rivit, tilasto, meri: { n: lahde.n, lat: lahde.lat, lon: lahde.lon } };
 }
 
 /* Luettelon `aallot2`-avain perheistä (tärkein ensin, pohja viimeisenä). */

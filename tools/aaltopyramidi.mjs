@@ -49,6 +49,17 @@ export const SUUNTA_ASKEL = 2;
 export const JAKSO_ASKEL = 0.1;
 export const LUOTTO_KERROIN = 1.3;
 export const SEKOITUS_KM = 50;
+/* ALUEELLISEN PERHEEN VALTA (V5): kuiva solmu peittää alemmat vain
+   omalla vesialueellaan. Kun pohjamallilla (ECMWF WAM) on solmussa merta
+   (märkä piste `POHJA_MERI_KM`:n sisällä; O1280:n pisteväli on
+   leveyspiirin suunnassa 10–12 km, joten 5 km jätti meren keskelle
+   reikiä) eikä perheellä omaa märkää
+   pistettä `VALTA_KM`:n sisällä, kyse on vesialueesta jota alueellinen
+   malli ei sisällä — Marmaranmeri Mustanmeren laatikossa, Laatokka
+   Itämeren, Kielin lahti Luoteis-Euroopan — ja solmun paino on 0. Rannan
+   maa ja rannikon järvet (Bodom 9 km rannasta) jäävät perheen maaksi. */
+export const VALTA_KM = 15;
+export const POHJA_MERI_KM = 7.5;
 const KM_ASTE = 111.2;
 
 export function koodaaHs(h) {
@@ -83,12 +94,50 @@ export function luottoKm(askel, natiiviKm) { return Math.max(natiiviKm, 0.75 * a
 const _SIN = new Float32Array(721), _COS = new Float32Array(721);
 for (let i = 0; i <= 720; i++) { const r = i * 0.5 * Math.PI / 180; _SIN[i] = Math.sin(r); _COS[i] = Math.cos(r); }
 
+/* POHJAN MERI RASTERINA (0,02°): solu on merta kun pohjamallin märkä
+   piste on `POHJA_MERI_KM`:n sisällä. Rakennetaan kerran ECMWF WAM:n
+   märistä pisteistä alueellisten perheiden yhteiselle alueelle, ja
+   `luoAaltoPyramidi` kysyy sitä alueellisen tason kuivilta solmuilta
+   (`valta`). */
+export function pohjaMeri(lahde, alue, askel = 0.02) {
+  const la0 = alue.lat[0], lo0 = alue.lng[0];
+  const ny = Math.round((alue.lat[1] - la0) / askel) + 1, nx = Math.round((alue.lng[1] - lo0) / askel) + 1;
+  const r = new Uint8Array(ny * nx), R = POHJA_MERI_KM;
+  const dj = Math.ceil(R / (askel * KM_ASTE)) + 1;
+  let n = 0;
+  for (let p = 0; p < lahde.n; p++) {
+    const la = lahde.lat[p], lo = lahde.lon[p];
+    if (la < alue.lat[0] - 0.2 || la > alue.lat[1] + 0.2 || lo < alue.lng[0] - 0.4 || lo > alue.lng[1] + 0.4) continue;
+    n++;
+    const ky = Math.max(0.05, Math.cos(la * Math.PI / 180));
+    const di = Math.ceil(R / (askel * KM_ASTE * ky)) + 1;
+    const jc = Math.round((la - la0) / askel), ic = Math.round((lo - lo0) / askel);
+    for (let j = Math.max(0, jc - dj); j <= Math.min(ny - 1, jc + dj); j++) {
+      const dy = (la0 + j * askel - la) * KM_ASTE;
+      if (dy > R || dy < -R) continue;
+      for (let i = Math.max(0, ic - di); i <= Math.min(nx - 1, ic + di); i++) {
+        const dx = (lo0 + i * askel - lo) * KM_ASTE * ky;
+        if (dx * dx + dy * dy <= R * R) r[j * nx + i] = 1;
+      }
+    }
+  }
+  return {
+    pisteita: n,
+    meri(lat, lng) {
+      const j = Math.round((lat - la0) / askel), i = Math.round((lng - lo0) / askel);
+      return j >= 0 && j < ny && i >= 0 && i < nx && r[j * nx + i] === 1;
+    },
+  };
+}
+
 /* ------------------------------------------------------------------
    Pyramidin rakenne (aikariippumaton). `lahde` = { n, lat, lon, natiiviKm }
    (Float32Arrayt märille pisteille, pituus −180…180), `tasot` =
    [{ id, askel, lat: [a, b], lng: [a, b], paino?: (lat, lng) => 0..1 }].
+   `pohjaMeri` (valinnainen, `pohjaMeri()`): painollisen tason kuivat
+   solmut väistyvät toisen vesialueen kohdalla (`VALTA_KM`).
    Palauttaa pyramidin; `kirjoitaAaltoHetki` täyttää sen aika-askeleet. */
-export function luoAaltoPyramidi(tasot, lahde, nt, log = () => {}) {
+export function luoAaltoPyramidi(tasot, lahde, nt, log = () => {}, { pohjaMeri: PM = null } = {}) {
   const pyr = { tasot: [], lahde, nt };
   for (const t of tasot) {
     const s = t.askel, span = (N - 1) * s;
@@ -108,6 +157,9 @@ export function luoAaltoPyramidi(tasot, lahde, nt, log = () => {}) {
       return c >= 0 && c < WI ? c : -1;
     };
     const lK = luottoKm(s, lahde.natiiviKm), R = LUOTTO_KERROIN * lK;
+    /* Valta tarvitsee oman veden etäisyyden `VALTA_KM`:iin asti. */
+    const valta = t.paino && PM ? PM : null;
+    const Rd = valta ? Math.max(R, VALTA_KM) : R;
     /* Lähdepiste -> solmu (laatikko = lähin solmu), ja märkien määrä. */
     const pnode = new Int32Array(lahde.n);
     const cnt = new Uint32Array(W);
@@ -121,18 +173,19 @@ export function luoAaltoPyramidi(tasot, lahde, nt, log = () => {}) {
       pnode[p] = w;
       cnt[w]++;
     }
-    /* ETÄISYYS LÄHIMPÄÄN MÄRKÄÄN PISTEESEEN, solmuille R:n sisällä
-       (tasa-alueinen likiarvo, pituusaste kiertää). Kauempana Infinity. */
-    const rj = Math.ceil(R / (s * KM_ASTE)) + 1;
+    /* ETÄISYYS LÄHIMPÄÄN MÄRKÄÄN PISTEESEEN, solmuille R:n (valtaa
+       laskettaessa `Rd`:n) sisällä (tasa-alueinen likiarvo, pituusaste
+       kiertää). Kauempana Infinity. */
+    const rj = Math.ceil(Rd / (s * KM_ASTE)) + 1;
     for (let p = 0; p < lahde.n; p++) {
       const la = lahde.lat[p], lo = lahde.lon[p];
       const jj = Math.round(la / s), ii = Math.round(lo / s);
       const ky = Math.max(0.02, Math.cos(la * Math.PI / 180));
-      const ri = Math.min(glob ? Math.floor(NI / 2) : WI, Math.ceil(R / (s * KM_ASTE * ky)) + 1);
+      const ri = Math.min(glob ? Math.floor(NI / 2) : WI, Math.ceil(Rd / (s * KM_ASTE * ky)) + 1);
       for (let j = jj - rj; j <= jj + rj; j++) {
         if (j < jA || j > jB) continue;
         const dy = (j * s - la) * KM_ASTE;
-        if (Math.abs(dy) > R) continue;
+        if (Math.abs(dy) > Rd) continue;
         const kx = KM_ASTE * Math.max(0.02, Math.cos((la + j * s) / 2 * Math.PI / 180));
         const rivi = (j - jA) * WI;
         for (let i = ii - ri; i <= ii + ri; i++) {
@@ -142,7 +195,7 @@ export function luoAaltoPyramidi(tasot, lahde, nt, log = () => {}) {
           if (glob) dl = ((dl + 540) % 360) - 180;
           const dx = dl * kx;
           const d2 = dx * dx + dy * dy;
-          if (d2 > R * R) continue;
+          if (d2 > Rd * Rd) continue;
           const w = rivi + c;
           const d = Math.sqrt(d2);
           if (d < dmin[w]) dmin[w] = d;
@@ -185,9 +238,17 @@ export function luoAaltoPyramidi(tasot, lahde, nt, log = () => {}) {
                         naap: Int32Array.from(naap), pain: Float32Array.from(pain) });
       reuna = seur;
     }
-    /* Laatat: vain ne joissa on märkä tai ekstrapoloitu solmu. */
+    /* Laatat: ne joissa on märkä tai ekstrapoloitu solmu, ja painollisella
+       tasolla myös kuivat joiden jossakin VESISOLMUSSA perheen paino on
+       alle 1 (väistyvä solmu, avomeren reunan häivytys, alueen
+       ulkopuoli). Puuttuva laatta on asiakkaalle perheen kuiva maa joka
+       peittää alemmat täysin (`AaltoVarasto._olematon`), joten kohta jossa
+       perhe ei saa peittää toista vettä tarvitsee laatan. Vesisolmu on
+       pohjan meri (`pohjaMeri`); ilman sitä jokainen solmu. */
+    const vaistyy = (w, la, lo) => valta && w >= 0 && tila[w] !== 1 && !(dmin[w] <= VALTA_KM) && valta.meri(la, lo);
+    const vesi = PM ? (la, lo) => PM.meri(la, lo) : () => true;
     const ruudut = [];
-    let marat = 0, ekstr = 0;
+    let marat = 0, ekstr = 0, vaistoja = 0, kuivia = 0;
     for (let w = 0; w < W; w++) { if (tila[w] === 1) marat++; else if (tila[w] === 2) ekstr++; }
     for (let ry = 0; ry < ruutuRivit; ry++) {
       for (let rx = 0; rx < ruutuSar; rx++) {
@@ -204,12 +265,21 @@ export function luoAaltoPyramidi(tasot, lahde, nt, log = () => {}) {
             if (tila[w]) onko = true;
           }
         }
-        if (!onko) continue;
+        if (!onko) {
+          if (!t.paino) continue;
+          let v = false;
+          for (let k = 0; k < N * N && !v; k++) {
+            const la = lat0 + Math.floor(k / N) * s, lo = lng0 + (k % N) * s;
+            if (vesi(la, lo)) v = vaistyy(solmu[k], la, lo) || Math.round(255 * t.paino(la, lo)) < 255;
+          }
+          if (!v) continue;
+          kuivia++;
+        }
         const r = { lat0, lng0, solmu,
           nop: new Uint8Array(nt * N * N).fill(TYHJA),
           suunta: new Uint8Array(nt * N * N).fill(TYHJA),
           puuska: new Uint8Array(nt * N * N).fill(TYHJA),
-          etaisyys: new Uint8Array(N * N), paino: null };
+          etaisyys: new Uint8Array(N * N), paino: null, pakko: !onko };
         for (let k = 0; k < N * N; k++) {
           const w = solmu[k];
           r.etaisyys[k] = w >= 0 && tila[w] ? koodaaKm(cnt[w] > 0 ? Math.min(dmin[w], lK) : dmin[w]) : TYHJA;
@@ -217,7 +287,9 @@ export function luoAaltoPyramidi(tasot, lahde, nt, log = () => {}) {
         if (t.paino) {
           r.paino = new Uint8Array(N * N);
           for (let iy = 0; iy < N; iy++) for (let ix = 0; ix < N; ix++) {
-            r.paino[iy * N + ix] = Math.round(255 * t.paino(lat0 + iy * s, lng0 + ix * s));
+            const k = iy * N + ix, la = lat0 + iy * s, lo = lng0 + ix * s;
+            if (vaistyy(solmu[k], la, lo)) { r.paino[k] = 0; vaistoja++; continue; }
+            r.paino[k] = Math.round(255 * t.paino(la, lo));
           }
         }
         ruudut.push(r);
@@ -227,7 +299,8 @@ export function luoAaltoPyramidi(tasot, lahde, nt, log = () => {}) {
       sH: new Float32Array(W), n: new Uint32Array(W), sS: new Float32Array(W), sC: new Float32Array(W),
       sT: new Float32Array(W), nT: new Uint32Array(W) });
     log(`  ${t.id}: askel ${s}°, solmuja märkiä ${marat}, ekstrapoloituja ${ekstr} (${kierrokset.length} kierrosta, `
-      + `${R.toFixed(1)} km), laattoja ${ruudut.length}`);
+      + `${R.toFixed(1)} km), laattoja ${ruudut.length}`
+      + (valta ? `, väistyviä solmuja ${vaistoja}` : '') + (kuivia ? `, kuivia laattoja ${kuivia}` : ''));
   }
   return pyr;
 }
@@ -357,8 +430,10 @@ export function kirjoitaAaltoTasot(pyr, ajatMs, ulos, pala, lisat, log = () => {
     for (const r of t.ruudut) {
       let onko = false;
       for (let i = 0; i < r.nop.length; i++) if (r.nop[i] !== TYHJA) { onko = true; break; }
-      if (!onko) continue;
-      if (r.paino && !r.paino.some(v => v > 0)) continue;
+      /* Kuiva laatta kirjoitetaan kun sen puute peittäisi toista vettä
+         (`luoAaltoPyramidi`, `pakko`). Painoton laatta kirjoitetaan myös:
+         puuttuvana se olisi täysi peitto. */
+      if (!onko && !r.pakko) continue;
       for (let c = 0; c < P; c++) {
         const i0 = pala > 0 ? c * pala : 0;
         const n = pala > 0 ? Math.min(i0 + pala, nt - 1) - i0 + 1 : nt;

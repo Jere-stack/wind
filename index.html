@@ -5389,7 +5389,7 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
             <div class="sp-sadeasteikko-otsikko" data-en="Significant wave height (m)">Merkitsevä aallonkorkeus (m)</div>
             <div id="aalto-scale-bar"></div>
             <div id="aalto-scale-ticks"></div>
-            <div class="sp-note" data-en="ECMWF WAM 9 km wave model worldwide for 15 days, and FMI WAM in the Baltic Sea about 2.5 days ahead. Moving crests show where the waves are heading; their speed follows the wave period.">ECMWF WAM 9 km -aaltomalli koko maailmassa 15 vrk ja It&auml;merell&auml; FMI:n WAM noin 2,5 vrk eteenp&auml;in. Liikkuvat aallonharjat kertovat mihin aallot etenev&auml;t; niiden nopeus seuraa aallon jaksoa.</div>
+            <div class="sp-note" data-en="The best wave model for each place: regional models on European coasts (FMI, Copernicus Marine, DWD) and ECMWF WAM 9 km worldwide for 15 days. Moving crests show where the waves are heading; their speed follows the wave period.">Paras aaltomalli paikan mukaan: alueelliset mallit Euroopan rannikoilla (Ilmatieteen laitos, Copernicus Marine, DWD) ja ECMWF WAM 9 km koko maailmassa 15 vrk. Liikkuvat aallonharjat kertovat mihin aallot etenev&auml;t; niiden nopeus seuraa aallon jaksoa.</div>
           </div>
           <!-- Sateen asteikko: vain sadetilassa, samasta syystä. Foilaajalle
                tutka ei ole "sataako" vaan MISSÄ KUUROT OVAT: kuuron reuna on
@@ -5621,9 +5621,11 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
           <dt data-alue="pohjola">MET Norway</dt>
           <dd data-en="MET Nordic analysis and forecast (Yr) and rain nowcast. CC BY 4.0.">MET Nordic -analyysi ja -ennuste (Yr) sekä sateen nowcast. CC BY 4.0.</dd>
           <dt>ECMWF</dt>
-          <dd data-en="IFS forecast (wind and, after HARMONIE, rain), open data. CC BY 4.0. Source: ECMWF.">IFS-ennuste (tuuli ja HARMONIEn jälkeen sade), avoin data. CC BY 4.0. Lähde: ECMWF.</dd>
+          <dd data-en="IFS forecast (wind and, after HARMONIE, rain) and the WAM 9 km wave model, open data. CC BY 4.0. Source: ECMWF.">IFS-ennuste (tuuli ja HARMONIEn jälkeen sade) ja WAM 9 km -aaltomalli, avoin data. CC BY 4.0. Lähde: ECMWF.</dd>
           <dt>Deutscher Wetterdienst</dt>
-          <dd data-en="ICON and ICON-D2 (2.2 km) forecasts, open data. CC BY 4.0.">ICON- ja ICON-D2 (2,2 km) -ennusteet, avoin data. CC BY 4.0.</dd>
+          <dd data-en="ICON and ICON-D2 (2.2 km) forecasts and the EWAM wave model (IJsselmeer and Markermeer), open data. CC BY 4.0.">ICON- ja ICON-D2 (2,2 km) -ennusteet ja EWAM-aaltomalli (IJsselmeer ja Markermeer), avoin data. CC BY 4.0.</dd>
+          <dt data-alue="eurooppa">Copernicus Marine Service</dt>
+          <dd data-en="Regional wave models: Baltic Sea (FMI WAM 1.9 km), North-West European Shelf (Met Office WW3 1.5 km), Bay of Biscay and Iberia (Météo-France MFWAM 3 km), Mediterranean (HCMR WAM 4.2 km) and Black Sea (Hereon WAM 2.5 km). Generated using E.U. Copernicus Marine Service Information.">Alueelliset aaltomallit: Itämeri (FMI WAM 1,9 km), Luoteis-Euroopan hyllymeri (Met Office WW3 1,5 km), Biskaja ja Iberia (Météo-France MFWAM 3 km), Välimeri (HCMR WAM 4,2 km) ja Mustameri (Hereon WAM 2,5 km). Generated using E.U. Copernicus Marine Service Information.</dd>
           <dt data-alue="eurooppa" data-en="European weather services">Euroopan sääpalvelut</dt>
           <dd data-en="National 1–2.5 km forecasts: Météo-France (AROME 1.3 km, Licence Ouverte 2.0), Met Office (UKV 2 km, CC BY-SA 4.0 — the weather tiles derived from it are shared under the same licence), DMI (HARMONIE DINI 2 km), MeteoSwiss (ICON-CH1 1 km and ICON-CH2 2 km), ItaliaMeteo-ARPAE (ICON-2I 2.2 km), GeoSphere Austria (AROME 2.5 km) and ČHMÚ (ALADIN 1 km and 2.3 km), CC BY 4.0. Distributed by Open-Meteo / AWS Open Data.">Kansalliset 1–2,5 km ennusteet: Météo-France (AROME 1,3 km, Licence Ouverte 2.0), Met Office (UKV 2 km, CC BY-SA 4.0 — siitä johdetut säälaatat jaetaan samalla lisenssillä), DMI (HARMONIE DINI 2 km), MeteoSwiss (ICON-CH1 1 km ja ICON-CH2 2 km), ItaliaMeteo-ARPAE (ICON-2I 2,2 km), GeoSphere Austria (AROME 2,5 km) ja ČHMÚ (ALADIN 1 km ja 2,3 km), CC BY 4.0. Jakelu Open-Meteo / AWS Open Data.</dd>
           <dt data-alue="eurooppa">EUMETNET MeteoGate (E-SOH)</dt>
@@ -9237,15 +9239,21 @@ const Saalaatat = {
 
 /* -- AALLOT — AALTOVARASTO SAMASSA KONEISTOSSA KUIN TUULI ----------
  *
- * docs/aallot.md (strategia 14.10., toteutus V1–V3). Aaltoennuste
+ * docs/aallot.md (strategia 14.10., toteutus V1–V5). Aaltoennuste
  * kartalle, kapseliin, aikajanaan ja kortteihin tulee SAMASTA varastosta
  * ja samasta kodista kuin tuuli, luettelon omasta avaimesta `aallot2`
  * (`tools/aallot.mjs`, `tools/aaltopyramidi.mjs`):
  *
- *   PERHEET painokanavalla, tärkein ensin: FMI WAM Itämerellä (≈ 1 × 2 km,
- *   noin 66 h), pohjana ECMWF WAM 9 km koko maailmassa (−48 h … +15 vrk).
+ *   PERHEET painokanavalla, tärkein ensin (luettelon `perheet`): DWD EWAM
+ *   vain IJsselmeerillä ja Markermeerillä, FMI WAM Itämerellä (≈ 1 × 2 km,
+ *   noin 72 h), Copernicus Marinen alueelliset (Itämeri ~9 vrk,
+ *   Luoteis-Euroopan hyllymeri 1,5 km, Biskaja–Iberia, Mustameri,
+ *   Välimeri) ja pohjana ECMWF WAM 9 km koko maailmassa (−48 h … +15 vrk).
  *   Alueellisen perheen paino tulee ALUEEN AVOMEREN REUNASTA, ei maskista:
- *   alueen sisällä alueellisen mallin maski päättää mikä on maata.
+ *   alueen sisällä alueellisen mallin maski päättää mikä on maata — paitsi
+ *   toisen vesialueen kohdalla (Marmaranmeri Mustanmeren laatikossa), jossa
+ *   rakentaja on kirjoittanut painoksi 0 (`tools/aaltopyramidi.mjs`,
+ *   `VALTA_KM`).
  *
  * Aallot EIVÄT ole tuulen perhe (CLAUDE.md): `AaltoVarasto` on oma
  * olionsa omalla tilallaan, mutta sen KONEISTO on `Saalaatat`in
@@ -9428,6 +9436,7 @@ const AaltoVarasto = Object.assign(Object.create(Saalaatat), {
     this._perus = this._pohja._pisin._ax;
     this._ajat = this._perus.ajat; this._tsMs = this._perus.tsMs;
     this._osuus = new Float64Array(this._perheet.length);
+    this._osuusM = new Float64Array(this._perheet.length);
     this._ajatH = null; this._tsMsH = null; this._kartta = null;
     this._sarjat.clear();
     this.asetaTila('auto');
@@ -9593,10 +9602,10 @@ const AaltoVarasto = Object.assign(Object.create(Saalaatat), {
     this._vajaa = false;
     if (!this._tiValmis) return false;
     const lo = ((lng + 180) % 360 + 360) % 360 - 180;
-    const P = this._perheet, O = this._osuus;
+    const P = this._perheet, O = this._osuus, OM = this._osuusM;
     let jaljella = 1, sW = 0, sA = 0, sH = 0, sS = 0, sC = 0, sT = 0, wT = 0;
     for (let i = 0; i < P.length; i++) {
-      O[i] = 0;
+      O[i] = 0; OM[i] = 0;
       if (jaljella <= 0.002) continue;
       const p = P[i];
       let w = p._aikaW;
@@ -9613,6 +9622,7 @@ const AaltoVarasto = Object.assign(Object.create(Saalaatat), {
         if (ca > 0) {
           sA += ca; sH += ca * this._pHs; sS += ca * this._pS; sC += ca * this._pC;
           if (this._pTp === this._pTp) { sT += ca * this._pTp; wT += ca; }
+          OM[i] = ca;
         }
         sW += c; O[i] = c; jaljella *= (1 - w);
         continue;
@@ -9647,6 +9657,7 @@ const AaltoVarasto = Object.assign(Object.create(Saalaatat), {
       if (ca > 0) {
         sA += ca; sH += ca * this._pHs; sS += ca * this._pS; sC += ca * this._pC;
         if (this._pTp === this._pTp) { sT += ca * this._pTp; wT += ca; }
+        OM[i] = ca;
       }
       sW += c;
       O[i] = c;
@@ -9802,6 +9813,39 @@ const AaltoVarasto = Object.assign(Object.create(Saalaatat), {
       }
     } finally { if (ed !== this._hetkiMs) this.asetaHetki(ed); }
     return ulos;
+  },
+  /* AALTOMALLIT NÄKYMÄSSÄ asetusten tekstiin (`Kate`, `AsetusAlue`):
+     perheet jotka antavat näkymän merinäytteille MÄRÄN arvon (`_osuusM`,
+     ei kuivaa peittoa) nykyhetkestä alkaen ja kunkin jakson jälkeen —
+     teksti kertoo mallit ja niiden pituuden, ei valitun tunnin lähdettä.
+     Ajassa järjestyksessä, [{ id, loppu }]; tyhjä kun ei tiedetä. */
+  perheetNakymassa(pts, step) {
+    if (!this.kaytossa()) return [];
+    const ed = this._hetkiMs, ts = this._tsMs, loppuP = ts[ts.length - 1], P = this._perheet;
+    const loput = P.map(p => p.dyn ? 0 : Math.max(...p.tasot.map(L => L._ax.tsMs[L._ax.tsMs.length - 1])));
+    const mukana = new Map();
+    let t = Math.min(Math.max(Math.floor(Date.now() / 3600e3) * 3600e3, ts[0]), loppuP);
+    try {
+      for (let kierros = 0; kierros < 8 && t <= loppuP; kierros++) {
+        if (!this.asetaHetki(t)) break;
+        const S = new Float64Array(P.length);
+        let n = 0;
+        for (const q of pts) {
+          if (!this.naytteista(q.lat, q.lng, step) || this._nA < 0.5) continue;
+          n++;
+          for (let i = 0; i < S.length; i++) S[i] += this._osuusM[i];
+        }
+        let seur = Infinity;
+        P.forEach((p, i) => {
+          if (p.dyn || S[i] < Math.max(0.5, 0.05 * n)) return;
+          if (!mukana.has(i)) mukana.set(i, loput[i]);
+          if (!p.pohja && loput[i] < seur) seur = loput[i];
+        });
+        if (!isFinite(seur)) break;
+        t = Math.floor(seur / 3600e3) * 3600e3 + 3600e3;
+      }
+    } finally { if (ed !== this._hetkiMs) this.asetaHetki(ed); }
+    return [...mukana].sort((a, b) => a[1] - b[1]).map(([i, loppu]) => ({ id: P[i].id, loppu }));
   },
   /* Tuntemattomien näytteiden laatat (kartan taso, valitun hetken pala,
      matala prioriteetti, sama laatta kerran, enintään 16). */
@@ -10144,6 +10188,7 @@ const Aallot = {
   laattaPaikassa(lat, lng) { return AaltoVarasto.laattaPaikassa(lat, lng); },
   merta(pts, step) { return AaltoVarasto.merta(pts, step); },
   mertaLaatat(pts, step) { return AaltoVarasto.mertaLaatat(pts, step); },
+  perheetNakymassa(pts, step) { return AaltoVarasto.perheetNakymassa(pts, step); },
   /* Sarja toisen aika-akselin hetkille (aikajana: ISO-merkkijonot).
      Akselin ulkopuolella null. */
   akselille(sarja, ajat) {
@@ -16072,14 +16117,17 @@ const AaltoGL = {
   arvoKohdassa(lat, lng, hetki) {
     if (!this._naytetaan() || hetki == null) return null;
     const o = this._o;
-    if (!this._nayte(lat, lng, o, hetki) || o.w < 0.5) return null;
+    if (!this._nayte(lat, lng, o, hetki, true) || o.w < 0.5) return null;
     return { hs: o.hs, dir: (Math.atan2(o.s, o.c) * 180 / Math.PI + 360) % 360, tp: o.tp };
   },
   /* Kentän arvo paikassa (rintamat, kapseli): oma hila jos se kattaa
      paikan, muuten karkea; tunnit A ja B `_f`:llä kuten varjostimessa.
      `o.w` = märkyys × rantamaski. `hetki` (valinnainen) vaatii hilan
-     samalta tunnilta. */
-  _nayte(lat, lng, o, hetki) {
+     samalta tunnilta. `pehmea`: kuutiollisen B-splinin painot 4 × 4
+     solmusta kuten varjostimessa (kapseli: luku ja väri ovat sama asia);
+     rintamat lukevat bilineaarisesti, koska niille riittää suunta ja
+     jakso ja niitä on satoja ruudussa. */
+  _nayte(lat, lng, o, hetki, pehmea) {
     o.w = 0;
     const H = 3600e3;
     const tA = hetki != null ? Math.floor(hetki / H) * H : this._tA;
@@ -16095,12 +16143,22 @@ const AaltoGL = {
     let fx = (x - h.lo0) / h.d, fy = (lat - h.la0) / h.d;
     const i = Math.min(h.gc - 2, Math.max(0, Math.floor(fx))), j = Math.min(h.gr - 2, Math.max(0, Math.floor(fy)));
     fx = Math.min(1, Math.max(0, fx - i)); fy = Math.min(1, Math.max(0, fy - j));
-    const K = [j * h.gc + i, j * h.gc + i + 1, (j + 1) * h.gc + i, (j + 1) * h.gc + i + 1];
-    const W = [(1 - fx) * (1 - fy), fx * (1 - fy), (1 - fx) * fy, fx * fy];
+    const K = [], W = [];
+    if (pehmea) {
+      const bs = (t) => { const u = 1 - t; return [u * u * u / 6, (3 * t * t * t - 6 * t * t + 4) / 6, (-3 * t * t * t + 3 * t * t + 3 * t + 1) / 6, t * t * t / 6]; };
+      const wx = bs(fx), wy = bs(fy);
+      for (let b = 0; b < 4; b++) {
+        const jj = Math.min(h.gr - 1, Math.max(0, j + b - 1));
+        for (let a = 0; a < 4; a++) { K.push(jj * h.gc + Math.min(h.gc - 1, Math.max(0, i + a - 1))); W.push(wx[a] * wy[b]); }
+      }
+    } else {
+      K.push(j * h.gc + i, j * h.gc + i + 1, (j + 1) * h.gc + i, (j + 1) * h.gc + i + 1);
+      W.push((1 - fx) * (1 - fy), fx * (1 - fy), (1 - fx) * fy, fx * fy);
+    }
     const osat = h.B && f > 1e-6 ? [[h.A, 1 - f], [h.B, f]] : [[h.A, 1]];
     let wa = 0, hs = 0, s = 0, c = 0, tp = 0, wt = 0;
     for (const [X, wf] of osat) {
-      for (let q = 0; q < 4; q++) {
+      for (let q = 0; q < K.length; q++) {
         const k = K[q], w = W[q] * wf * X.a[k];
         if (w <= 0) continue;
         wa += w; hs += X.hs[k] * w; s += X.s[k] * w; c += X.c[k] * w;
@@ -16135,11 +16193,30 @@ const AaltoGL = {
       + 'uniform sampler2D u_vhila; uniform sampler2D u_vkate; uniform vec2 u_vk; uniform vec3 u_vg; uniform float u_vf; uniform float u_vw;\n'
       + 'uniform sampler2D u_lut; uniform vec4 u_nx; uniform vec2 u_ruutu;\n'
       + 'uniform sampler2D u_maski; uniform vec3 u_mk;\n'
+      /* KUUTIOLLINEN B-SPLINE (neljä bilineaarista hakua, kuten
+         sadekerroksen `bspline`): alueellisen perheen 0,05°:n taso näkyi
+         0,02°:n solmuhilassa bilineaarisina taitteina — Quiberonin
+         lahdessa suorakaiteen muotoinen laikku solmulinjojen välissä
+         (docs/aallot.md V5). Pehmentää eikä interpoloi; kapseli lukee
+         samoilla painoilla (`_nayte`, `pehmea`). */
+      + 'vec4 _kuutio(float v){ vec4 n = vec4(1.0, 2.0, 3.0, 4.0) - v; vec4 s = n * n * n;\n'
+      + '  float x = s.x; float y = s.y - 4.0 * s.x; float z = s.z - 4.0 * s.y + 6.0 * s.x;\n'
+      + '  return vec4(x, y, z, 6.0 - x - y - z) * (1.0 / 6.0); }\n'
+      + 'vec4 bspline4(sampler2D t, vec2 uv, vec2 k){\n'
+      + '  vec2 p = uv * k - 0.5; vec2 f = fract(p); p -= f;\n'
+      + '  vec4 xc = _kuutio(f.x), yc = _kuutio(f.y);\n'
+      + '  vec4 c = p.xxyy + vec2(-0.5, 1.5).xyxy;\n'
+      + '  vec4 s = vec4(xc.xz + xc.yw, yc.xz + yc.yw);\n'
+      + '  vec4 o = (c + vec4(xc.yw, yc.yw) / s) / k.xxyy;\n'
+      + '  vec4 s0 = texture2D(t, o.xz), s1 = texture2D(t, o.yz);\n'
+      + '  vec4 s2 = texture2D(t, o.xw), s3 = texture2D(t, o.yw);\n'
+      + '  float sx = s.x / (s.x + s.y), sy = s.z / (s.z + s.w);\n'
+      + '  return mix(mix(s3, s2, sx), mix(s1, s0, sx), sy); }\n'
       + 'vec3 kentta(sampler2D h, sampler2D kt, vec2 hk, vec3 g, float f, float lng, float la){\n'
       + '  float px = (lng - g.y) / g.z, py = (la - g.x) / g.z;\n'
       + '  if (px < 0.0 || py < 0.0 || px > hk.x - 1.0 || py > hk.y - 1.0) return vec3(0.0);\n'
       + '  vec2 uv = (vec2(px, py) + 0.5) / hk;\n'
-      + '  vec4 c = texture2D(h, uv);\n'
+      + '  vec4 c = bspline4(h, uv, hk);\n'
       + '  float k = texture2D(kt, uv).r;\n'
       + '  float qa = c.b > 0.002 ? c.r / c.b * 1.003937 : 0.0;\n'
       + '  float qb = c.a > 0.002 ? c.g / c.a * 1.003937 : 0.0;\n'
@@ -21680,10 +21757,20 @@ const Aaltoennuste = {
 const AaltoKate = {
   AVAIN: 'fs_aaltokate',
   _d: null,
+  /* Muisti on aaltoperheiden: uusi perhe muuttaa katetta (Pampus oli
+     maata ennen DWD EWAMia, docs/aallot.md V5), joten muisti nollataan
+     kun luettelon perheet vaihtuvat (`_p`). */
   _lue() {
-    if (this._d) return this._d;
-    try { this._d = JSON.parse(localStorage.getItem(this.AVAIN) || '{}') || {}; } catch (e) { this._d = {}; }
-    return this._d;
+    const L = typeof AaltoVarasto !== 'undefined' && AaltoVarasto._luettelo;
+    const p = L && Array.isArray(L.perheet) ? L.perheet.join(',') : null;
+    if (this._d && (!p || this._d._p === p)) return this._d;
+    let d = this._d;
+    if (!d) { try { d = JSON.parse(localStorage.getItem(this.AVAIN) || '{}') || {}; } catch (e) { d = {}; } }
+    if (p && d._p !== p) {
+      d = { _p: p };
+      try { localStorage.setItem(this.AVAIN, JSON.stringify(d)); } catch (e) {}
+    }
+    return (this._d = d);
   },
   lue(spot) {
     const v = this._lue()[Aaltoennuste._avain(spot.lat, spot.lng)];
@@ -33687,9 +33774,17 @@ const Lahde = {
     arome_at: _t('GeoSphere Austria · AROME 2,5 km', 'GeoSphere Austria · AROME 2.5 km'),
     aladin_ce: _t('ČHMÚ · ALADIN 2,3 km', 'ČHMÚ · ALADIN 2.3 km'),
     /* Aaltovaraston perheet (`AaltoVarasto`, docs/aallot.md): avain on
-       rakentajan perhe (`tools/aallot.mjs`, `tools/wam.mjs`). */
+       rakentajan perhe (`tools/aallot.mjs`, `tools/wam.mjs`,
+       `tools/copernicus.mjs`, `tools/ewam.mjs`). Copernicus Marine nimetään
+       aina: sen ehto on lähdemerkintä. */
     ecmwf_wam: 'ECMWF · WAM 9 km',
-    fmi_wam: _t('Ilmatieteen laitos · WAM 1–2 km', 'FMI · WAM 1–2 km')
+    fmi_wam: _t('Ilmatieteen laitos · WAM 1–2 km', 'FMI · WAM 1–2 km'),
+    cmems_bal: _t('Copernicus Marine · FMI WAM 1,9 km', 'Copernicus Marine · FMI WAM 1.9 km'),
+    cmems_nws: _t('Copernicus Marine · Met Office WW3 1,5 km', 'Copernicus Marine · Met Office WW3 1.5 km'),
+    cmems_ibi: 'Copernicus Marine · Météo-France MFWAM 3 km',
+    cmems_blk: _t('Copernicus Marine · Hereon WAM 2,5 km', 'Copernicus Marine · Hereon WAM 2.5 km'),
+    cmems_med: _t('Copernicus Marine · HCMR WAM 4,2 km', 'Copernicus Marine · HCMR WAM 4.2 km'),
+    dwd_ewam: 'DWD · EWAM 6 km'
   },
   /* SAMAT LÄHTEET LYHYESSÄ MUODOSSA — samasta objektista, ei omasta
      taulukostaan. Kaavion selite ja työkaluvihje eivät mahduta
@@ -33717,7 +33812,13 @@ const Lahde = {
     arome_at: _t('AROME AT 2,5 km', 'AROME AT 2.5 km'),
     aladin_ce: _t('ALADIN 2,3 km', 'ALADIN 2.3 km'),
     ecmwf_wam: 'ECMWF WAM 9 km',
-    fmi_wam: 'FMI WAM'
+    fmi_wam: 'FMI WAM',
+    cmems_bal: 'FMI WAM (Copernicus)',
+    cmems_nws: _t('Met Office WW3 1,5 km', 'Met Office WW3 1.5 km'),
+    cmems_ibi: 'MFWAM 3 km',
+    cmems_blk: _t('Hereon WAM 2,5 km', 'Hereon WAM 2.5 km'),
+    cmems_med: _t('HCMR WAM 4,2 km', 'HCMR WAM 4.2 km'),
+    dwd_ewam: 'DWD EWAM'
   },
   /* Perhe jota rekisteri ei vielä tunne (uudempi varasto kuin sivu):
      nimi luettelon tason `lahde`sta ilman jakelutietoja, ettei merkintä
@@ -36009,7 +36110,7 @@ const Kate = {
       + '|' + (typeof AaltoVarasto !== 'undefined' ? AaltoVarasto._tila + AaltoVarasto._versio + '/' + AaltoVarasto._saapuneet : '');
     if (avain === this._avain) return this._arvo;
     const pts = this._pisteet(b, c);
-    const arvo = { mallit: this._mallit(S, pts, z), aallot: this._aallot(pts, z),
+    const arvo = { mallit: this._mallit(S, pts, z), aallot: this._aallot(pts, z), aaltoMallit: this._aaltoMallit,
                    tutka: TutkaKate.nakyma(map), hav: this._havainnot(b, c) };
     this._avain = avain; this._arvo = arvo;
     return arvo;
@@ -36050,11 +36151,13 @@ const Kate = {
      (`_aaltoHaettavat`, `AsetusAlue`) ja vastaus on siihen asti
      'tuntematon' — tuntematon näytetään (P-c).
      'kaikki' | 'osa' | 'ei' | 'tuntematon', null kun aaltovarastoa ei ole. */
-  _aaltoHaettavat: [],
+  _aaltoHaettavat: [], _aaltoMallit: [],
   _aallot(pts, z) {
     this._aaltoHaettavat = [];
+    this._aaltoMallit = [];
     if (typeof Aallot === 'undefined' || !Aallot.kaytossa()) return null;
     const m = Aallot.merta(pts, AaltoTaso.askel(z));
+    this._aaltoMallit = Aallot.perheetNakymassa(pts, AaltoTaso.askel(z));
     let n = 0;
     for (let i = 0; i < m.length; i++) {
       if (m[i] === true) n++;
@@ -36339,6 +36442,19 @@ const AsetusAlue = {
     osio.hidden = !auki;
   },
 
+  /* Näkymän aaltomallit tekstiksi: lyhyt nimi ja ennusteen pituus
+     vuorokausina nykyhetkestä, tärkein ensin. */
+  _aaltoMallitTeksti(am) {
+    const osat = am.map(p => {
+      const pv = Math.max(1, Math.round((p.loppu - Date.now()) / 86400e3));
+      return Lahde.lyhyt(p.id) + ' ' + _t(pv + ' vrk', pv + (pv === 1 ? ' day' : ' days'));
+    });
+    const lista = osat.length > 1 ? osat.slice(0, -1).join(', ') + _t(' ja ', ' and ') + osat[osat.length - 1] : osat[0];
+    return _t('Aaltomallit tässä näkymässä: ', 'Wave models in this view: ') + lista + '. '
+      + _t('Liikkuvat aallonharjat kertovat mihin aallot etenevät; niiden nopeus seuraa aallon jaksoa.',
+           'Moving crests show where the waves are heading; their speed follows the wave period.');
+  },
+
   /* ── Tietoa: näkymän lähteet ensin (V5) ──
      Lähteet ja lisenssit -lista on Suomen järjestyksessä. Muualla sen
      paikan lähteet (`data-alue`) nostetaan alkuun, muut pysyvät omassa
@@ -36385,11 +36501,14 @@ const AsetusAlue = {
     if (aNote) {
       if (!aNote.dataset.oletus) aNote.dataset.oletus = aNote.textContent;
       /* Aaltomalli kattaa maailman meret (ECMWF WAM 9 km), joten "ei" on
-         näkymä jossa ei ole merta; järvet ovat malleissa maata. */
+         näkymä jossa ei ole merta; järvet ovat malleissa maata (paitsi
+         IJsselmeer, DWD EWAM). Muuten teksti nimeää näkymän aaltomallit
+         ja niiden pituuden (`AaltoVarasto.perheetNakymassa`). */
+      const am = k.aaltoMallit || [];
       const t = k.aallot === 'ei'
         ? _t('Tässä näkymässä ei ole merta: aaltoennustetta ei ole järville eikä maalle.',
              'There is no sea in this view: there is no wave forecast for lakes or land.')
-        : aNote.dataset.oletus;
+        : am.length ? this._aaltoMallitTeksti(am) : aNote.dataset.oletus;
       if (aNote.textContent !== t) aNote.textContent = t;
     }
     const sNote = document.querySelector('#sade-scale .sp-note');

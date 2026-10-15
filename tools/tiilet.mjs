@@ -48,6 +48,9 @@ import * as MetNordic from './metnordic.mjs';
 import * as Alueelliset from './alueelliset.mjs';
 import { rakennaAallot } from './wam.mjs';
 import { rakennaEcmwfAallot, aaltoLuettelo } from './aallot.mjs';
+import { KOPERNIKUS, rakennaKopernikus, ALUEELLISTEN_ALUE } from './copernicus.mjs';
+import { rakennaEwam } from './ewam.mjs';
+import { pohjaMeri } from './aaltopyramidi.mjs';
 import {
   N, TYHJA, NOP_ASKEL, SUUNTA_ASKEL, OTSAKE,
   luoPyramidi, uvHilaksi, kirjoitaHetki, tiivistaAika, kirjoitaLaatta, onDataa,
@@ -735,13 +738,24 @@ luettelo.perheet = Alueelliset.JARJESTYS;
 
 /* ==================================================================
    AALLOT — oma luetteloavaimensa, ei tuulen perhe (docs/aallot.md).
-   Jokainen omassa try/catchissaan: aaltojen vika ei estä tuulen
-   julkaisua.
+   Jokainen perhe omassa try/catchissaan: aaltojen vika ei estä tuulen
+   julkaisua, eikä yhden aaltoperheen vika muiden.
 
    `aallot2` (versio 2) on aaltovarasto koko maailmaan: perheet
-   painokanavalla (FMI WAM Itämerellä, ECMWF WAM 9 km pohjana), palat,
-   √-koodaus ja etäisyystaso (`tools/aaltopyramidi.mjs`). Ilman
-   pohjaperhettä sitä ei julkaista: asiakas tarvitsee pohjan joka kattaa
+   painokanavalla, palat, √-koodaus ja etäisyystaso
+   (`tools/aaltopyramidi.mjs`). Etusija (luettelon `perheet`, tärkein
+   ensin; docs/aallot.md 4.7):
+     DWD EWAM        vain IJsselmeer ja Markermeer (muut mallit: maata)
+     FMI WAM         Itämeri, FMI:n avoin data, tuorein ajo (+72 h)
+     Copernicus BAL  Itämeri jatkona (~9 vrk, sama FMI:n malli)
+     Copernicus NWS, IBI, BLK, MED   Luoteis-Eurooppa, Biskaja–Iberia,
+                     Mustameri, Välimeri
+     ECMWF WAM 9 km  pohja kaikkialla
+   ECMWF rakennetaan ENSIN: sen märistä pisteistä tehdään pohjan meri
+   (`pohjaMeri`), jonka kohdalla alueellisen perheen kuiva solmu väistyy
+   kun perheellä ei ole siellä omaa vettä (Marmaranmeri Mustanmeren
+   laatikossa, Laatokka Itämeren; `VALTA_KM`). Ilman pohjaperhettä
+   `aallot2`:ta ei julkaista: asiakas tarvitsee pohjan joka kattaa
    kaiken, ja perheen puuttuminen näkyy silloin yhteenvedossa.
    `aallot` (versio 1, FMI WAM a0–a3) on SIIRTYMÄÄ JA VARATIETÄ VARTEN:
    vanha asiakas lukee vain sen, ja uusi lukee sitä kun `aallot2` puuttuu
@@ -750,10 +764,25 @@ luettelo.perheet = Alueelliset.JARJESTYS;
    (`rakennaAallot`, `perhe: true`). */
 const aaltoTilasto = [];
 if (process.env.AALLOT !== '0') {
-  let fmiPerhe = null, ecPerhe = null;
+  const loki = (s) => console.log(s);
+  let ecPerhe = null, fmiPerhe = null, ewamPerhe = null, meri = null;
+  const kopPerheet = [];
+  try {
+    console.log('\nECMWF WAM 9 km (aallot koko maailmaan):');
+    ecPerhe = await rakennaEcmwfAallot({ ulos: ULOS, log: loki, menneisyysH: MENNEISYYS_H,
+      rinnakkainN: +(process.env.AALTO_RINNAKKAIN || 8), maxAskelta: MAX_ASKELTA, pala: PALA });
+    aaltoTilasto.push(ecPerhe.tilasto);
+    const t0 = Date.now();
+    meri = pohjaMeri(ecPerhe.meri, ALUEELLISTEN_ALUE);
+    ecPerhe.meri = null;
+    console.log(`  pohjan meri: ${meri.pisteita} märkää pistettä alueellisten alueella, ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+  } catch (e) {
+    aaltoTilasto.push({ perhe: 'ecmwf_wam', virhe: e.message });
+    console.warn(`  ! ECMWF WAM -aaltotasot jäivät pois: ${e.message}`);
+  }
   try {
     console.log('\nFMI WAM (aallot):');
-    const a = await rakennaAallot({ ulos: ULOS, log: (s) => console.log(s), perhe: true, pala: PALA });
+    const a = await rakennaAallot({ ulos: ULOS, log: loki, perhe: true, pala: PALA, pohjaMeri: meri });
     luettelo.aallot = a.vanha;
     fmiPerhe = a.perhe;
     if (fmiPerhe) aaltoTilasto.push(fmiPerhe.tilasto);
@@ -761,16 +790,31 @@ if (process.env.AALLOT !== '0') {
     aaltoTilasto.push({ perhe: 'fmi_wam', virhe: e.message });
     console.warn(`  ! FMI WAM -aaltotasot jäivät pois: ${e.message}`);
   }
-  try {
-    console.log('\nECMWF WAM 9 km (aallot koko maailmaan):');
-    ecPerhe = await rakennaEcmwfAallot({ ulos: ULOS, log: (s) => console.log(s), menneisyysH: MENNEISYYS_H,
-      rinnakkainN: +(process.env.AALTO_RINNAKKAIN || 8), maxAskelta: MAX_ASKELTA, pala: PALA });
-    aaltoTilasto.push(ecPerhe.tilasto);
-  } catch (e) {
-    aaltoTilasto.push({ perhe: 'ecmwf_wam', virhe: e.message });
-    console.warn(`  ! ECMWF WAM -aaltotasot jäivät pois: ${e.message}`);
+  if (ecPerhe && process.env.KOPERNIKUS !== '0') {
+    console.log('\nCopernicus Marine (alueelliset aaltomallit):');
+    for (const P of KOPERNIKUS) {
+      try {
+        const r = await rakennaKopernikus(P, { ulos: ULOS, log: loki, pala: PALA, menneisyysH: MENNEISYYS_H,
+          maxAskelta: MAX_ASKELTA, pohjaMeri: meri });
+        kopPerheet.push(r);
+        aaltoTilasto.push(r.tilasto);
+      } catch (e) {
+        aaltoTilasto.push({ perhe: P.perhe, virhe: e.message });
+        console.warn(`  ! ${P.perhe} jäi pois: ${e.message}`);
+      }
+    }
   }
-  if (ecPerhe) luettelo.aallot2 = aaltoLuettelo([fmiPerhe, ecPerhe], luettelo.luotu);
+  if (ecPerhe && process.env.EWAM !== '0') {
+    try {
+      console.log('\nDWD EWAM (IJsselmeer):');
+      ewamPerhe = await rakennaEwam({ ulos: ULOS, log: loki, pala: PALA, menneisyysH: MENNEISYYS_H, maxAskelta: MAX_ASKELTA });
+      aaltoTilasto.push(ewamPerhe.tilasto);
+    } catch (e) {
+      aaltoTilasto.push({ perhe: 'dwd_ewam', virhe: e.message });
+      console.warn(`  ! DWD EWAM jäi pois: ${e.message}`);
+    }
+  }
+  if (ecPerhe) luettelo.aallot2 = aaltoLuettelo([ewamPerhe, fmiPerhe, ...kopPerheet, ecPerhe], luettelo.luotu);
   else console.warn('  ! aallot2 jäi pois: pohjaperhe (ECMWF WAM) puuttuu');
 }
 
@@ -786,6 +830,6 @@ for (const t of euTilasto) {
 for (const t of aaltoTilasto) {
   console.log(`  ${t.perhe.padEnd(10)} ` + (t.virhe ? `POIS: ${t.virhe}`
     : `${t.hetkia}/${t.kaikkiaan} hetkeä, ${t.mb.toFixed(1)} MB, ${t.s.toFixed(0)} s`
-      + (t.tiiviste ? `, märkiä ${t.markia} (${t.tiiviste})` : '')));
+      + (t.tiiviste ? `, märkiä ${t.markia} (${t.tiiviste})` : '') + (t.versio ? `, ${t.versio}` : '')));
 }
 console.log(`  aika    ${aika()}`);

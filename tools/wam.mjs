@@ -332,7 +332,7 @@ function liitaJaksopisteet(tasot, pisteet, sarjat) {
    ja palauttaa luettelon `aallot`-avaimen. Heittää jos yhtään hetkeä ei
    saatu; tiilet.mjs ajaa tämän omassa try/catchissaan, jolloin varasto
    julkaistaan ilman aaltoja eikä tuuli kärsi. */
-export async function rakennaAallot({ ulos, log = () => {}, perhe = false, pala = 24 }) {
+export async function rakennaAallot({ ulos, log = () => {}, perhe = false, pala = 24, pohjaMeri = null }) {
   const alkoi = Date.now();
   const ajot = await wamAjot();
   if (!ajot.length) throw new Error('WAM: ei ajoja');
@@ -374,7 +374,7 @@ export async function rakennaAallot({ ulos, log = () => {}, perhe = false, pala 
     if (!pL) {
       lahdeL = fmiLahde(g, k.hs);
       const paino = avomeriPaino(lahdeL.siemenet, FMI_ALUE);
-      pL = luoAaltoPyramidi(FMI_PERHE_TASOT.map(t => ({ ...t, paino })), lahdeL, nt, log);
+      pL = luoAaltoPyramidi(FMI_PERHE_TASOT.map(t => ({ ...t, paino })), lahdeL, nt, log, { pohjaMeri });
       log(`  perhe fmi_wam: märkiä ${lahdeL.n}, avomeren reunalla ${lahdeL.siemenet.length}, solmuväli ${lahdeL.natiiviKm} km`);
       jpL = new Int32Array(lahdeL.n).fill(-1);
       if (pisteet && jaksot) {

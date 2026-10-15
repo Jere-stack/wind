@@ -535,7 +535,7 @@ export async function akseli(m, menneisyysH) {
  * KENTTÄ RIVIPALOISSA: lukijan WASM-keko ei kasva, ja kokonainen
  * 4–5 M pisteen kenttä useassa rinnakkaisessa lukijassa kaatui MET
  * Nordicilla `Aborted(OOM)`:iin (`tools/metnordic.mjs`). */
-class Esiluku {
+export class Esiluku {
   constructor(url) { this.b = new OmHttpBackend({ url, timeoutMs: 20000, retries: 2 }); this.alue = null; }
   count(signal) { return this.b.count(signal); }
   close() { return this.b.close(); }
