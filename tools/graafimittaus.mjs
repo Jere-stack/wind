@@ -401,12 +401,14 @@ const liuku = (a, b, n) => Array.from({ length: n }, (_, i) => Math.round(a + (b
    kolmesta, ja CI:ssä "pystyviiva ei jää" ei saanut merkkiä näkyviin
    (16.10., kolme kaatunutta ajoa kahdestatoista, yksi pelkästä
    dokumentaatiosta). Kaavio on levossa kun vieritys ei ole liikkunut
-   kahteen peräkkäiseen 150 ms:n näytteeseen. */
+   eikä kaavio ole piirtynyt uudelleen (`__piirroksia`) kahdessa
+   peräkkäisessä 150 ms:n näytteessä. */
+const tila = () => ks.evaluate(() => document.querySelector('.__k .en-kaare').scrollLeft + ':' + window.__piirroksia);
 async function lepo() {
-  let edel = await slK(), samoja = 0;
+  let edel = await tila(), samoja = 0;
   for (let i = 0; i < 20 && samoja < 2; i++) {
     await nuku(150);
-    const nyt = await slK();
+    const nyt = await tila();
     samoja = nyt === edel ? samoja + 1 : 0;
     edel = nyt;
   }
@@ -456,13 +458,16 @@ await ele({ x0: 280, pito: 50, liikkeet: [260] });
    28 px:n tartunta-alue aloittaa skrubin heti, ja edellisen kierroksen
    valinta jättää kursorin sormen viimeiseen kohtaan). */
 const kursoriX = () => ks.evaluate(() => { const k = document.querySelector('.__k .en-kaare'), g = k._geot[0], svg = k.querySelector('svg'); return svg.getBoundingClientRect().left + g.xOf(window.__valittu()) - k.getBoundingClientRect().left; });
-/* Veto uusitaan (enintään kolme yritystä) vain kun sen ennakkoehto ei
+/* Veto uusitaan (enintään kolme yritystä) kun sen ennakkoehto ei
    täyttynyt: ensimmäinen touchmove tuli sivulle ≥ 200 ms touchstartin
-   jälkeen (`viive`), jolloin harness teki vedosta pidon. Muu vika ei
-   käynnistä uusintaa. */
+   jälkeen (`viive`), tai pidon ajastin (seinäkello) ehti laueta ennen kuin
+   ensimmäinen liike käsiteltiin, koska pääsäie oli varattu — silloin
+   merkki välähtää ja liike perii sen (`peruMerkki`), mikä on suunniteltu
+   käytös; CI:ssä yksi lukema 58 ms:n ensimmäisellä liikkeellä (16.10.).
+   Kolmella epäonnistumisella testi kaatuu kuten ennenkin. */
 for (let kierros = 1; kierros <= 2; kierros++) {
   let A = null;
-  for (let yritys = 0; yritys < 3 && !(A && A.viive != null && A.viive < 200); yritys++) {
+  for (let yritys = 0; yritys < 3 && !(A && A.viive != null && A.viive < 200 && A.nayta.length === 0); yritys++) {
     await lepo();
     const cx = await kursoriX(), a0 = cx > 190 ? 70 : 300, a1 = a0 + (a0 < 190 ? 200 : -200);
     A = await ele({ x0: a0, pito: 0, liikkeet: liuku(a0, a1, 14) });
