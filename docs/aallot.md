@@ -1043,11 +1043,33 @@ toimii kuten tuulen `tools/varmennus.mjs` (O11), kolmessa vaiheessa:
 perheen ajo yli 36 h vanha rakennushetkellä (Copernicus ja EWAM
 päivittyvät kerran vuorokaudessa, joten 24 h hälyttäisi joka päivä),
 Parhaan harha yli 0,3 m tai SI yli 0,5 alueella (vuorokausi, n ≥ 30),
-Parhaan suunnan **mediaani**ero yli 60° (Hs ≥ 1 m, n ≥ 30). MAE ei
-kelpaa suunnan hälytykseen: poijun suunta on huippujakson suunta (NDBC
-MWD, FMI ModalWDi) tai keskisuunta (Marine Institute), mallin
-keskisuunta, ja Havaijin pasaatiaallokon ja mainingin meressä MAE oli
-47° ilman vikaa (mediaani 45°); käännetty suunta antaisi ~170°.
+Parhaan suunnan **mediaani**ero yli 60° (Hs ≥ 1 m, n ≥ 30); käännetty
+suunta antaisi ~170°.
+
+**Suunta verrataan samaan suureeseen** (korjattu 16.10. ensimmäisten
+tuotantoajojen jälkeen). Mallin suunta on koko spektrin keskisuunta,
+NDBC:n MWD huippujakson (DPD) suunta, ja ne ovat sama asia vain
+yksihuippuisessa meressä. Havaijilla luoteen maininki ja koillisen
+pasaatiaallokko vuorottelevat spektrin huippuna (Waimea 16.10.:
+maininki 0,6 m 11,8 s luoteesta, tuuliaallokko 1,4 m 6,2 s koillisesta,
+MWD vaihtelee 318° ↔ 41°), ja suunnan hälytys laukesi joka tunti:
+mediaaniero 72°. NDBC:n suunta luetaan nyt vain kun DPD ≤ 1,6 × APD
+(`NDBC_YKSIHUIPPU`). Mitattuna 15.–16.10. arkistojen ja NDBC:n
+viidentoista poijun pareista (Hs ≥ 1 m):
+
+| DPD / APD | ≤ 1,3 | 1,3–1,45 | 1,45–1,6 | 1,6–1,8 | 1,8–2,0 | > 2,0 |
+|---|---|---|---|---|---|---|
+| n | 50 | 39 | 50 | 99 | 107 | 87 |
+| suunnan mediaaniero | 14° | 13° | 20° | 32° | 41° | 34° |
+
+Havaijin pareista 88/96 oli suhteen 1,6 yli (mediaaniero 73°), ja
+yksihuippuiset 8 paria osuivat 11°:een. Vuorokauden mediaani laski
+Havaijilla 72° → 11° (n 78 → 7) ja USA:n länsirannikolla 25° → 12°
+(n 234 → 65); muut ennallaan. Samalla NDBC:n 10 min säärivit, joissa
+aaltomittaus toistuu ilman DPD:tä, jätetään pois (täydet rivit kattavat
+1 700 tuntia 1 712:sta). Marine Institute antaa keskisuunnan ja FMI
+huipun suunnan (ModalWDi) Itämeren yksihuippuisessa meressä (mediaani
+7–8°), joten niihin ei tarvittu sääntöä.
 **Huomio** (ei hälytys): perhe tai sen ratkaisemat Parhaan tunnit ovat
 pareittain yli 5 % ECMWF:ää heikompia vähintään 200 parilla 30 vrk:ssa
 — silloin perhe ei mittarin 5 mukaan kuulu alueensa Parhaaseen.
@@ -1075,6 +1097,32 @@ Yksikään poiju ei ole minkään perheen jatkeella (etäisyys märkään
 pisteeseen yli mallin solmuvälin), joten **ekstrapoloinnin rajaa ei
 voi vielä mitata poijuilla** — siihen tarvittaisiin lahtien poijuja
 (esim. CDIP:n rantapoijut).
+
+**Ensimmäiset tuotantoajot (15.–16.10.).** Säädata #293 (herättimen
+lähettämä, 15.10. klo 22:36–23:10 UTC) oli ensimmäinen uudella
+rakentajalla, ja 16.10. klo 12 mennessä kuusi ajoa oli onnistunut:
+20–35 min (vaihtelu on verkkoa — samat perheet 1,5–2 kertaa nopeampia
+lyhyissä ajoissa), 4 418 laattaa, gzip 288–290 MB, ja luettelossa
+`aallot2` kahdeksalla perheellä. ECMWF WAM 129 hetkeä (we0 98, +7 vrk),
+150–153 MB, 198–358 s. FMI WAM:n yksi pala (06Z-ajon tunnit 06–11)
+vastasi #293:ssa HTTP 400, joten perheessä oli 67/73 hetkeä ja ECMWF
+täytti välin; seuraavissa 73/73. Varmennus arkistoi jokaisen
+rakennuksen (noin 53 kB) ja vertaa tunnin välein: FMI 6, NDBC 15/15,
+Marine Institute 4 (M4 hiljaa). Ensimmäinen hälytys oli Havaijin suunta,
+ja se oli vertailun vika (ks. yllä "Suunta verrataan samaan
+suureeseen").
+
+Varhainen havainto, ei päätös (mittari 5 ratkaisee 30 vrk:n summista):
+**FMI WAM on kahdella rantaa lähimmällä poijulla korkea.** Suomenlinnan
+poijulla (2,5 km rannasta) FMI WAM +0,75 m / RMSE 0,77 m (n 45),
+Copernicus BAL +0,07 / 0,11 ja ECMWF +0,38 / 0,39; Orrengrundissa
+(16 km) FMI WAM +0,32 / 0,43 ja ECMWF −0,09 / 0,13. Muilla neljällä
+poijulla (23–69 km) FMI WAM 0,11–0,29 m.
+Varasto toistaa mallin: FMI:n oma pistekysely Suomenlinnan kohdalla
+16.10. klo 12–18 UTC 1,61 … 1,27 m, varaston `fmi_wam` 1,57 … 1,24 m.
+FMI WAM on järjestyksessä BAL:n yläpuolella, joten Helsingin spottien
+kortti näyttää sen — kuten ennen `aallot2`:ta (vanha `aallot` ja
+pistekysely olivat myös FMI WAM:ia).
 
 ### 14.6 Hyväksymismittarit: tila
 

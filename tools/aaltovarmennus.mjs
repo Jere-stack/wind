@@ -53,14 +53,25 @@
  * ja EWAM päivittyvät kerran vuorokaudessa, joten 24 h hälyttäisi joka
  * päivä); Parhaan harha yli 0,3 m tai SI yli 0,5 alueella viimeisen
  * vuorokauden pareissa (n ≥ 30); Parhaan suunnan MEDIAANIero yli 60°
- * (Hs ≥ 1 m, n ≥ 30) — ei MAE: poijun suunta on huippujakson suunta ja
- * mallin keskisuunta, ja Havaijin pasaatiaallokon ja mainingin meressä
- * MAE oli 47° ilman vikaa; käännetty suunta antaa mediaaniksi ~170°.
+ * (Hs ≥ 1 m, n ≥ 30) — ei MAE, koska yksittäinen kahden aallokon tunti
+ * on aito suuri ero; käännetty suunta antaa mediaaniksi ~170°.
  * HUOMIO (ei hälytys): alueellinen perhe tai sen ratkaisemat Parhaan
  * tunnit heikompia kuin ECMWF pareittain (RMSE yli 5 %, vähintään 200
  * paria 30 vrk:ssa) — mittari 5 sanoo että silloin perhe ei kuulu
  * alueensa Parhaaseen; järjestys muutetaan rakentajassa käsin, ei
  * tästä.
+ *
+ * SUUNTA VERRATAAN SAMAAN SUUREESEEN. Mallin suunta on koko spektrin
+ * keskisuunta, NDBC:n MWD huippujakson (DPD) suunta. Ne ovat sama asia
+ * vain yksihuippuisessa meressä, joten NDBC:n suunta jätetään pois kun
+ * DPD > 1,6 × APD (`NDBC_YKSIHUIPPU`): Havaijilla luoteen maininki ja
+ * koillisen pasaatiaallokko vuorottelevat huippuna, ja 15.–16.10. 88
+ * paria 96:sta (Hs ≥ 1 m) oli suhteen 1,6 yli, mediaaniero 73° —
+ * hälytys joka tunti ilman vikaa. Suhteen mukaan koko NDBC-otoksessa
+ * mediaaniero ≤ 1,3: 14°, 1,3–1,45: 13°, 1,45–1,6: 20°, 1,6–1,8: 32°,
+ * 1,8–2,0: 41°; Havaijin yksihuippuiset parit 11°. Marine Institute
+ * antaa keskisuunnan ja FMI huipun suunnan (ModalWDi) Itämeren
+ * yksihuippuisessa meressä (mediaani 8°).
  *
  * EMODnet Physics (Välimeri, Mustameri, Iberia) ei ole mukana: sen
  * ERDDAP katkaisi yhteyden kehitysympäristöstä 15.10.2026, joten
@@ -88,6 +99,9 @@ const TUNNETTU_MS = 14 * 864e5;
 const KAISTAT = [[0, 6], [6, 12], [12, 24], [24, 48], [48, 73]];
 const RANTA_KM = 25;
 const SUUNTA_MIN_HS = 0.5;
+/* NDBC:n huippujakson suunta kelpaa mallin keskisuunnaksi vain kun
+   DPD ≤ tämä × APD (yksihuippuinen meri; ks. alun "SUUNTA"). */
+const NDBC_YKSIHUIPPU = 1.6;
 const POHJA = 'ecmwf_wam';
 const AJO_IKA_RAJA_H = 36;
 
@@ -137,21 +151,28 @@ async function haeFmiPoijut() {
 }
 
 /* NDBC:n viiden vuorokauden tiedosto (realtime2-muoto, uusin ensin,
-   puuttuva "MM"). WVHT on merkitsevä aallonkorkeus m ja MWD suunta MISTÄ. */
+   puuttuva "MM"). WVHT on merkitsevä aallonkorkeus m ja MWD huippujakson
+   (DPD) suunta MISTÄ. Aaltomittaus toistuu 10 min säärivillä ilman
+   DPD:tä (sama WVHT, APD ja MWD kuin viereisellä täydellä rivillä);
+   vain täydet rivit luetaan — ne kattavat 1 700 tuntia 1 712:sta
+   (16.10.). Suunta vain yksihuippuisesta merestä (`NDBC_YKSIHUIPPU`:
+   54 % täysistä suuntariveistä 16.10.). */
 function jasennaNdbc(teksti) {
   const rivit = teksti.split('\n');
   const otsake = (rivit[0] || '').replace(/^#/, '').trim().split(/\s+/);
   const i = (n) => otsake.indexOf(n);
   const iY = i('YY'), iM = i('MM'), iD = i('DD'), ih = i('hh'), im = i('mm'), iH = i('WVHT'), iW = i('MWD');
-  if ([iY, iM, iD, ih, im, iH].some((x) => x < 0)) return null;
+  const iP = i('DPD'), iA = i('APD');
+  if ([iY, iM, iD, ih, im, iH, iP, iA].some((x) => x < 0)) return null;
   const r = [];
   for (const rivi of rivit) {
     if (!rivi || rivi[0] === '#') continue;
     const c = rivi.trim().split(/\s+/);
-    const h = parseFloat(c[iH]);
-    if (!(h >= 0 && h < 30)) continue;
+    const h = parseFloat(c[iH]), dpd = parseFloat(c[iP]), apd = parseFloat(c[iA]);
+    if (!(h >= 0 && h < 30) || !(dpd > 0) || !(apd > 0)) continue;
     const d = iW >= 0 ? parseFloat(c[iW]) : NaN;
-    r.push([Date.UTC(+c[iY], +c[iM] - 1, +c[iD], +c[ih], +c[im]), h, d >= 0 && d <= 360 ? d : null]);
+    r.push([Date.UTC(+c[iY], +c[iM] - 1, +c[iD], +c[ih], +c[im]), h,
+      d >= 0 && d <= 360 && dpd <= NDBC_YKSIHUIPPU * apd ? d : null]);
   }
   r.sort((a, b) => a[0] - b[0]);
   return { ms: r.map((x) => x[0]), hs: r.map((x) => x[1]), dir: r.map((x) => x[2]) };
@@ -601,11 +622,9 @@ function vertaa(poijut, nyt, paivat) {
     if (t > nyt - 864e5 && p === 'paras') {
       const vk = p + '|' + alue;
       lisaa(kVrk[vk] || (kVrk[vk] = kerain()), fv, ov, fd, od);
-      /* Suunnan hälytys mediaanista: poijun suunta on huippujakson
-         (NDBC MWD, FMI ModalWDi) tai keskisuunta (Marine Institute),
-         mallin keskisuunta, ja kahden aallokon meressä (pasaati ja
-         maininki) ero on aitoa. Käännetty suunta antaa mediaaniksi
-         ~170°. */
+      /* Suunnan hälytys mediaanista: yksittäinen kahden aallokon tunti
+         voi erota aidosti (NDBC:n kaksihuippuiset tunnit on jo jätetty
+         pois, `NDBC_YKSIHUIPPU`), käännetty suunta antaa ~170°. */
       if (ov >= 1 && fd != null && od != null) (vrkSuunta[alue] || (vrkSuunta[alue] = [])).push(Math.abs(((fd - od) % 360 + 540) % 360 - 180));
     }
   });
