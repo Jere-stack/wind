@@ -16847,17 +16847,22 @@ const VuorovesiGL = {
       if (koodi[k] === 1) w[k] = 1;
     }
     this._jatka(gc, gr, RE, IM, koodi, w, d <= 0.125 ? [0.9, 0.45] : [0.9]);
-    /* ITÄMERI: vedenkorkeus korvaa vuoroveden painolla R (`BalVesi.paino`).
-       Vuoroveden paino kerrotaan (1 − R):llä jo tässä, joten varjostin,
-       kapseli ja aikajana näkevät saman jaon; Itämeren arvot tulevat
-       tunneittain omasta tekstuuristaan (`_balPaivita`). */
+    /* ITÄMERI: vedenkorkeus korvaa vuoroveden painolla R (`BalVesi.paino`)
+       — MUTTA VAIN SIELLÄ MISSÄ ITÄMEREN MALLISSA ON VETTÄ. R on
+       maantieteellinen suorakaide, ja sen sisällä on myös Norjanmeren
+       rannikko 62–65,9° N (käyttäjän raportti 16.10.: "Norjan rannikoilla on
+       data-aukko"), Oslonvuonon sisäosa, Elbe ja Limvuono, joita mallissa ei
+       ole. Vuoroveden painoa ei siksi kerrota (1 − R):llä tässä, vaan
+       varjostin vähentää sen solmun Itämeri-painolla R × mallin meri
+       (`_balPaivita`: tekstuurin a). Kapseli, aikajana ja lähdemerkintä
+       lukevat saman jaon (`vakiotKohdassa`, `BalVesi.osuus`). */
     const R = new Float32Array(n);
     let balissa = false;
     for (let j = 0; j < gr; j++) {
       const la = la0 + j * d;
       for (let i = 0; i < gc; i++) {
         const r = BalVesi.paino(la, ((lo0 + i * d + 180) % 360 + 360) % 360 - 180);
-        if (r > 0) { const k = j * gc + i; R[k] = r; w[k] *= 1 - r; balissa = true; }
+        if (r > 0) { R[j * gc + i] = r; balissa = true; }
       }
     }
     /* Osakohtainen skaala ja korkeuden koodausalue (8-bittinen, ±Hm). */
@@ -16891,7 +16896,7 @@ const VuorovesiGL = {
          Perämeren ennätyksen (+2,01 m), ja neliöjuuri pitää nollan lähellä
          alle sentin askeleen. */
       tex: tex, wt: wt, S: S, hm: balissa ? Math.max(hm * 1.35, 2) : hm * 1.35,
-      R: R, balissa: balissa, balTex: null,
+      R: R, balissa: balissa, balTex: null, balMeri: null, balMeriK: null,
       kLoW: lo0 + d, kLoE: lo0 + (gc - 2) * d, kLaS: la0 + d, kLaN: la0 + (gr - 2) * d,
     };
   },
@@ -16965,9 +16970,14 @@ const VuorovesiGL = {
   /* ITÄMEREN TUNTIPARI SOLMUIHIN: kentät tunneille tA ja tA + 1 h
      (`BalVesi.kentta`), arvo bilineaarisesti meren soluista ja rannan jatke
      kuten vuorovedellä (`_jatka`). Tekstuuri RGBA: r = tA, g = tA + 1 h
-     (neliöjuurikoodaus ±`hm`), b = paino R · meri. Kesken saapuva kenttä ei
-     tyhjennä merta: edellinen pari jää enintään 6 h:n päähän. Palauttaa
-     avaimen (laskennan muisti) ja asettaa `_balF`n (osuus tuntien välissä). */
+     (neliöjuurikoodaus ±`hm`), b = paino R · meri, a = VUOROVEDEN
+     VAIMENNUS: R niissä solmuissa joissa mallilla on arvo (jatke mukana),
+     muualla 0. Ennen vaimennus oli R koko suorakaiteessa, ja Norjanmeren
+     rannikolla (mallissa maata) ei näkynyt mitään (16.10.). Kesken saapuva
+     kenttä ei tyhjennä merta: edellinen pari jää enintään 6 h:n päähän, ja
+     ilman paria vaimennus tulee maskista (`_balMeriSolmut`), joten
+     Itämeri on hetken tyhjä mutta Norjan rannikko ei. Palauttaa avaimen
+     (laskennan muisti) ja asettaa `_balF`n (osuus tuntien välissä). */
   _balViime: null, _balF: 0,
   _balPaivita(gl, h, t) {
     const H = 36e5, tA = Math.floor(t / H) * H;
@@ -16980,11 +16990,19 @@ const VuorovesiGL = {
       return v.avain;
     }
     if (KA && !KB) KB = KA;
-    const avain = this._hilaVersio + '|' + (KA ? tA : '-') + '|' + (KB === KA ? 1 : 2) + '|' + BalVesi.versio;
+    /* Maski: mallin meri solmuissa. Sitä odotellessa vaimennus on koko R
+       (kuten ennen), ja jos kenttiä ei saada lainkaan, 0 (vuorovesi). */
+    const M = this._balMeriSolmut(h), odottaa = !M && BalVesi.maskiOdottaa();
+    const avain = this._hilaVersio + '|' + (KA ? tA : '-') + '|' + (KB === KA ? 1 : 2) + '|' + BalVesi.versio
+      + '|' + (M ? 'm' : odottaa ? 'o' : 'e');
     this._balF = KA ? Math.min(1, Math.max(0, (t - tA) / H)) : 0;
     if (v && v.avain === avain && h.balTex) return avain;
     const n = h.gc * h.gr, tex = h.balTex || (h.balTex = new Uint8Array(n * 4));
     tex.fill(0);
+    for (let k = 0; k < n; k++) {
+      const r = h.R[k];
+      if (r > 0 && (M ? M[k] > 0 : odottaa)) tex[k * 4 + 3] = Math.round(255 * Math.min(1, r));
+    }
     if (KA) {
       const A = this._balSolmut(h, KA), B = KB === KA ? A : this._balSolmut(h, KB);
       const enc = (x) => Math.max(0, Math.min(255, Math.round(127.5 + 127 * Math.sign(x) * Math.sqrt(Math.min(Math.abs(x) / h.hm, 1)))));
@@ -16994,6 +17012,7 @@ const VuorovesiGL = {
         tex[k * 4] = enc(A.v[k]);
         tex[k * 4 + 1] = enc(B.w[k] > 0 ? B.v[k] : A.v[k]);
         tex[k * 4 + 2] = Math.round(255 * Math.min(1, wb));
+        tex[k * 4 + 3] = Math.round(255 * Math.min(1, h.R[k]));
       }
     }
     gl.bindTexture(gl.TEXTURE_2D, this._texB);
@@ -17032,6 +17051,15 @@ const VuorovesiGL = {
     }
     return { v: v, w: w };
   },
+  /* Mallin meri solmuissa (paino rannan jatkeineen kuten arvoilla) maskista
+     (`BalVesi._maski`: mallin maa on sama joka tunnilla), kerran hilaa
+     kohti; null kun yhtään kenttää ei ole vielä tullut. */
+  _balMeriSolmut(h) {
+    const K = BalVesi._maski;
+    if (!h.balissa || !K) return null;
+    if (h.balMeriK !== K) { h.balMeri = this._balSolmut(h, K).w; h.balMeriK = K; }
+    return h.balMeri;
+  },
 
   onAdd(ml, gl) {
     this._gl = gl;
@@ -17052,9 +17080,12 @@ const VuorovesiGL = {
       + 'void main(){ vec2 uv = gl_FragCoord.xy / u_koko;\n'
       + '  float h = dot(dek(u_c0, uv), u_k0) + dot(dek(u_c1, uv), u_k1) + dot(dek(u_c2, uv), u_k2) + dot(dek(u_c3, uv), u_k3);\n'
       + '  float w = texture2D(u_w, uv).r;\n'
-      /* Itämeren vedenkorkeus (`_balPaivita`): tuntien välissä lineaarisesti,
-         ja painot yhteen vuoroveden (1 − R) -painon kanssa. */
+      /* Itämeren vedenkorkeus (`_balPaivita`): tuntien välissä lineaarisesti.
+         Vuoroveden paino vähenee vaimennuksen (a) verran — vain siellä missä
+         mallilla on arvo, joten Norjanmeren rannikko pitää vuorovetensä —
+         ja painot summataan. */
       + '  if (u_bal > 0.5) { vec4 b = texture2D(u_b, uv);\n'
+      + '    w *= 1.0 - b.a;\n'
       + '    if (b.b > 0.0) { vec2 q = (b.rg * 255.0 - 127.5) / 127.0;\n'
       + '      float hb = mix(sign(q.x) * q.x * q.x, sign(q.y) * q.y * q.y, u_bf) * u_hm;\n'
       + '      float s = w + b.b; h = (h * w + hb * b.b) / s; w = min(s, 1.0); } }\n'
@@ -22955,7 +22986,15 @@ setTimeout(function () {
  *
  * Mallin alue on Itämeri Skagerrakin itäpäästä alkaen. Länsireunalla paino
  * liukuu EOT20:een (`RAJA`, 9,3 → 10,3° E), jotta Skagerrakin vuorovesi ja
- * Kattegatin vedenkorkeus eivät kohtaa kovana rajana. */
+ * Kattegatin vedenkorkeus eivät kohtaa kovana rajana.
+ *
+ * PAINO ON SUORAKAIDE, MUTTA ITÄMERI ON VAIN MALLIN VESI (käyttäjän raportti
+ * 16.10.: "Norjan rannikoilla on data-aukko vuorovedessä"). Suorakaiteen
+ * sisällä on vettä jota mallissa ei ole: Norjanmeren rannikko 62–65,9° N
+ * (Helgeland, Trondheiminvuono, Kristiansund), Oslonvuonon sisäosa, Elbe ja
+ * Limvuono. Siellä pelkkä `paino` sammutti vuoroveden eikä tilalle tullut
+ * mitään. Todellinen paino on `osuus` = `paino` × mallin meri, ja mallin
+ * meri on kentän oma maski (`_maski`: mallin maa on sama joka tunnilla). */
 const BalVesi = {
   ALA: [53.0, 65.9, 9.04, 30.21],
   RAJA: [9.3, 10.3],
@@ -22964,20 +23003,73 @@ const BalVesi = {
   MAX: 24,
   _kentat: new Map(), _kesken: new Map(), _eiDataa: new Map(),
   _sarjat: new Map(),
+  /* Ensimmäinen saapunut kenttä (mallin meri), ja tieto siitä ettei
+     nykyhetken kenttää saatu (silloin vuorovesi jää voimaan). */
+  _maski: null, _maskiTunti: null, _maskiVirhe: false,
   /* Kasvaa kun uusi kenttä tai sarja saapuu (kartan ja aikajanan avain). */
   versio: 0,
   kunUusi: null,
 
-  /* Itämeren paino paikassa 0..1 (EOT20 saa loput). */
+  /* Suorakaiteen paino paikassa 0..1 (EOT20 saa loput). Ei kerro onko
+     mallissa vettä: se on `osuus`. */
   paino(lat, lng) {
     const A = this.ALA;
     if (!(lat >= A[0] && lat <= A[1] && lng >= A[2] && lng <= A[3])) return 0;
     const x = Math.min(1, Math.max(0, (lng - this.RAJA[0]) / (this.RAJA[1] - this.RAJA[0])));
     return x * x * (3 - 2 * x);
   },
+  /* Näkymässä on Itämeren mallin vettä. Maskia odotellessa suorakaide. */
   alueella(s, w, n, e) {
     const A = this.ALA;
-    return !(n < A[0] || s > A[1] || e < this.RAJA[0] || w > A[3]);
+    if (n < A[0] || s > A[1] || e < this.RAJA[0] || w > A[3]) return false;
+    const K = this._maski;
+    if (!K) return true;
+    const j0 = Math.max(0, Math.floor((s - K.la0) / K.dla)), j1 = Math.min(K.ny - 1, Math.ceil((n - K.la0) / K.dla));
+    const i0 = Math.max(0, Math.floor((Math.max(w, this.RAJA[0]) - K.lo0) / K.dlo)), i1 = Math.min(K.nx - 1, Math.ceil((e - K.lo0) / K.dlo));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) if (K.h[j * K.nx + i] === K.h[j * K.nx + i]) return true;
+    return false;
+  },
+  /* Maskia odotetaan (ei vielä yhtään kenttää eikä nykyhetken haku ole
+     epäonnistunut). Käynnistää nykyhetken kentän haun: se on aina mallin
+     jaksolla, joten kaukana valittu tunti ei jätä maskia saamatta. */
+  maskiOdottaa() {
+    if (this._maski) return false;
+    const nyt = Math.floor(Date.now() / 36e5) * 36e5;
+    this._maskiTunti = nyt;
+    this._hae(nyt);
+    return !this._maskiVirhe;
+  },
+  /* Nykyhetken kenttää ei saatu: maskia ei enää odoteta, joten vuorovesi
+     näkyy koko suorakaiteessa eikä aukko jää pysyväksi. Haku yrittää yhä
+     taustalla (`_hae`:n tauko), ja onnistunut kenttä tuo maskin. */
+  _maskiEiTullut(tunti) {
+    if (this._maski || this._maskiVirhe || tunti !== this._maskiTunti) return;
+    this._maskiVirhe = true;
+    this.versio++;
+    if (this.kunUusi) this.kunUusi('maski');
+  },
+  /* Mallin meri paikassa: 1 kun maskin solu on vettä viereisissä soluissa
+     (noin 5 km, kuten pisteen sarjan 4 km), 0 muuten; null ilman maskia. */
+  meri(lat, lng) {
+    const K = this._maski;
+    if (!K) return null;
+    const o = { w: 0 };
+    this.arvo(K, lat, lng, o);
+    return o.w > 0 ? 1 : 0;
+  },
+  /* ITÄMEREN TODELLINEN PAINO paikassa 0..1: `paino` × mallin meri. Pisteen
+     oma sarja tietää parhaiten (mallin meri 4 km:n sisällä tai ei), sitten
+     maski. null = vielä tuntematon (kartalla hetken tyhjä, kapselissa
+     "ladataan…"); jos kenttiä ei saada lainkaan, 0 eli vuorovesi. */
+  osuus(lat, lng) {
+    const R = this.paino(lat, lng);
+    if (!(R > 0)) return 0;
+    const e = this._sarjat.get(this._avain(lat, lng));
+    if (e && e.S) return R;
+    if (e && e.ei) return 0;
+    const m = this.meri(lat, lng);
+    if (m != null) return R * m;
+    return this.maskiOdottaa() ? null : 0;
   },
 
   /* ── Kenttä tunneittain ── */
@@ -22997,21 +23089,32 @@ const BalVesi = {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
     }).then(function (d) {
-      if (!d || d.error || !Array.isArray(d.h)) { self._eiDataa.set(tunti, Date.now() + 15 * 60e3); return; }
+      if (!d || d.error || !Array.isArray(d.h)) {
+        self._eiDataa.set(tunti, Date.now() + 15 * 60e3);
+        self._maskiEiTullut(tunti);
+        return;
+      }
+      let K = null;
       for (let i = 0; i < d.h.length; i++) {
         const b = atob(d.h[i]), u8 = new Uint8Array(b.length);
         for (let q = 0; q < b.length; q++) u8[q] = b.charCodeAt(q);
         const raaka = new Int16Array(u8.buffer), h = new Float32Array(raaka.length);
         for (let q = 0; q < raaka.length; q++) h[q] = raaka[q] === d.puuttuva ? NaN : raaka[q] * d.yks;
-        self._kentat.set(d.t0 + i * d.dt, { la0: d.la0, lo0: d.lo0, dla: d.dla, dlo: d.dlo, nx: d.nx, ny: d.ny, h: h });
+        K = { la0: d.la0, lo0: d.lo0, dla: d.dla, dlo: d.dlo, nx: d.nx, ny: d.ny, h: h };
+        self._kentat.set(d.t0 + i * d.dt, K);
       }
       while (self._kentat.size > self.MAX) self._kentat.delete(self._kentat.keys().next().value);
       if (!self._kentat.has(tunti)) self._eiDataa.set(tunti, Date.now() + 15 * 60e3);
       self.versio++;
-      if (self.kunUusi) self.kunUusi('kentta');
+      /* Ensimmäinen kenttä on myös mallin meri: kapseli, aikajana ja
+         asetusten lähteet tietävät nyt missä Itämeri on. */
+      const maski = K && !self._maski;
+      if (maski) { self._maski = K; self._maskiVirhe = false; }
+      if (self.kunUusi) self.kunUusi(maski ? 'maski' : 'kentta');
     }).catch(function () {
       /* Verkkovika: uusi yritys minuutin päästä, ei heti joka ruudussa. */
       self._eiDataa.set(tunti, Date.now() + 60e3);
+      self._maskiEiTullut(tunti);
     }).finally(function () { self._kesken.delete(tunti); });
     this._kesken.set(tunti, p);
   },
@@ -23044,6 +23147,9 @@ const BalVesi = {
     const avain = this._avain(lat, lng), m = this._sarjat.get(avain);
     if (m && Date.now() - m.ts < 36e5) return m.S;
     if (hae === false || (m && m.p)) return m ? m.S : null;
+    /* Maskin mukaan mallin vettä ei ole lähellä (Norjanmeren rannikko):
+       ei pyyntöä, sarjaa ei ole (`osuus` lukee saman maskin). */
+    if (this.meri(lat, lng) === 0) return null;
     const self = this, [la, lo] = avain.split(',');
     const e = { ts: Date.now(), S: m ? m.S : null, p: null };
     e.p = fetch(API_BASE + '/vesi?vesitaso=sarja&lat=' + la + '&lng=' + lo).then(function (r) {
@@ -23074,15 +23180,17 @@ const BalVesi = {
     return { h: S.h[i] + (S.h[i + 1] - S.h[i]) * u, nousee: S.h[i + 1] > S.h[i] };
   },
 };
-/* Saapunut kenttä on uusi ruutu kartalle ja kapselille; saapunut sarja myös
-   aikajanalle (sen palkit ja kelikaista ovat pisteen sarjaa). */
+/* Saapunut kenttä on uusi ruutu kartalle ja kapselille; saapunut sarja ja
+   maski myös aikajanalle (sen palkit ja kelikaista ovat pisteen sarjaa, ja
+   maski ratkaisee onko piste Itämerta) ja asetusten lähteille. */
 BalVesi.kunUusi = function (laji) {
   if (!vuorovesitila()) return;
   if (State.map) State.map.ml.triggerRepaint();
-  if (laji === 'sarja' && !State._tlTouching && typeof updateTimelineToCenter === 'function') {
+  if (laji !== 'kentta' && !State._tlTouching && typeof updateTimelineToCenter === 'function') {
     State._tlMuisti = null; updateTimelineToCenter();
   }
   if (typeof Crosshair !== 'undefined' && Crosshair._el) Crosshair.refresh();
+  if (laji === 'maski' && typeof AsetusAlue !== 'undefined') AsetusAlue.ajasta();
 };
 
 /* -- VEDENKORKEUS — mareografit ja FMI:n 48 h ennuste --------------
@@ -32440,6 +32548,12 @@ function _tlPalkkiTyyli(i, speeds) {
     if (hs == null) return { h: '0px', c: 'transparent', f: false };
     return { h: Math.max(3, _tlAaltoOsuus(hs) * TL_PALKKI_H) + 'px', c: AaltoVari.css(hs), f: false };
   }
+  /* KERROKSEN DATA PUUTTUU (maa, ei mallia, haku kesken): ei palkkia. Tuulen
+     palkki sateen, aaltojen tai vuoroveden kartalla luettaisiin sen
+     kerroksen arvona (käyttäjän kuva Norjan rannikolta 16.10.: vihreät ja
+     keltaiset palkit vuorovesinäkymässä). Kelikaista on samassa kohdassa
+     lepoväriä (`_tlKaistaArvo`). */
+  if (vuorovesitila() || aaltotila() || _sadetila()) return { h: '0px', c: 'transparent', f: false };
   const ms = speeds[i] || 0, bc = ColorRamp.rgb(ms);
   return { h: _tlPalkkiPx(ms) + 'px', c: 'rgb(' + bc.r + ',' + bc.g + ',' + bc.b + ')', f: ms >= Keli.HYVA };
 }
@@ -32468,15 +32582,18 @@ function _tlVuorovesiArvot(times, lat, lng) {
   if (!vuorovesitila() || !times || !times.length || lat == null || !Vuorovesi.kaytossa()) return null;
   const vesi = Rantamaski.vesi(lat, lng), maalla = vesi != null && vesi < 0.5;
   /* ITÄMERI (16.10.): vedenkorkeus pisteen sarjasta (`BalVesi.sarja`) painolla
-     R, vuorovesi (1 − R) -painolla kuten kartalla. Sarja kuuluu avaimeen:
-     sen saapuminen on uusi jana (`BalVesi.kunUusi`). */
+     R, vuorovesi (1 − osuus) -painolla kuten kartalla: osuus on R vain siellä
+     missä Itämeren mallissa on vettä (`BalVesi.osuus`; Norjanmeren
+     rannikolla 0). Sarja ja osuus kuuluvat avaimeen: niiden saapuminen on
+     uusi jana (`BalVesi.kunUusi`). */
   const R = maalla ? 0 : BalVesi.paino(lat, lng);
   const S = R > 0 ? BalVesi.sarja(lat, lng, !State.liikkeessa) : null;
+  const ob = R > 0 ? (S ? R : BalVesi.osuus(lat, lng)) : 0;
   const avain = times.length + '|' + times[0] + '|' + lat.toFixed(3) + ',' + lng.toFixed(3)
-    + '|' + VuorovesiGL._hilaVersio + '|' + (maalla ? 'm' : 'v');
+    + '|' + VuorovesiGL._hilaVersio + '|' + (maalla ? 'm' : 'v') + '|' + ob;
   if (_tlVvKehe.avain === avain && _tlVvKehe.times === times && _tlVvKehe.S === S) return _tlVvKehe.arvot;
   const v = maalla ? null : VuorovesiGL.vakiotKohdassa(lat, lng);
-  const wt = v && v.re ? v.w : 0;
+  const wt = v && v.re ? v.w * (1 - (ob == null ? R : ob)) : 0;
   let arvot = null;
   if (wt >= 0.5 || (S && R > 0)) {
     const n = times.length, H = new Float32Array(n), X = new Int8Array(n);
@@ -32488,7 +32605,7 @@ function _tlVuorovesiArvot(times, lat, lng) {
     }
     /* Nousu- ja laskuveden valo vain vuorovedelle: Itämeren vedenkorkeudella
        ei ole vuoroveden ääriarvoja. */
-    if (wt > R) {
+    if (wt > (S ? R : 0)) {
       for (let i = 1; i < n - 1; i++) {
         if (H[i] > H[i - 1] && H[i] >= H[i + 1]) X[i] = 1;
         else if (H[i] < H[i - 1] && H[i] <= H[i + 1]) X[i] = -1;
@@ -33726,6 +33843,9 @@ function _tlKaistaVari(laji, v) {
   return c;
 }
 function _tlKaistaPiirra() {
+  /* Kelihypyn näkyvyys ensin: kerros vaihtui, vaikka kisko olisi vielä
+     kesken rakennuksen (alla varhainen paluu). */
+  _tlKeliNappiNakyvyys();
   const cv = State._tlKaistaEl;
   const T = State._tlTimes, sp = State._tlSpeeds;
   if (!cv || !cv.isConnected || !T || !T.length || !sp) return;
@@ -33736,7 +33856,6 @@ function _tlKaistaPiirra() {
   const nyt = nowIdx(T);
   const dpr = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
   const laji = _tlKaistaLaji();
-  _tlKeliNappiNakyvyys();
   /* Kerroksen sarjat kuuluvat avaimeen: ne vaihtuvat paikan mukana
      vaikka tuulen sarja ja akseli pysyisivät. */
   const data = laji === 'aallot' ? State._tlAallot : laji === 'vuorovesi' ? State._tlVuorovesi
@@ -35263,7 +35382,10 @@ const Crosshair = {
     const v = t != null && !maalla ? VuorovesiGL.vakiotKohdassa(lat, lng) : null;
     /* ITÄMERI (16.10.): vedenkorkeus pisteen sarjasta (`BalVesi.sarja`, sama
        luku kuin aikajanan palkissa) tai sitä odotellessa kartan kentästä.
-       Paino R ja vuoroveden (1 − R) -paino kuten kartalla (`_kokoa`). */
+       Paino R ja vuoroveden (1 − osuus) -paino kuten kartalla: osuus on R
+       vain siellä missä Itämeren mallissa on vettä (`BalVesi.osuus`), joten
+       Norjanmeren rannikolla luku on vuorovesi. Tuntematon osuus (maski ja
+       sarja matkalla) vaimentaa koko R:n kuten kartta. */
     const R = t != null && !maalla ? BalVesi.paino(lat, lng) : 0;
     const H = 36e5, tA = t != null ? Math.floor(t / H) * H : 0;
     let hb = null, nb = null, S = null;
@@ -35281,7 +35403,8 @@ const Crosshair = {
         }
       }
     }
-    const wt = v && v.re ? v.w : 0, wb = hb != null ? R : 0;
+    const ob = R > 0 ? (hb != null ? R : BalVesi.osuus(lat, lng)) : 0;
+    const wt = v && v.re ? v.w * (1 - (ob == null ? R : ob)) : 0, wb = hb != null ? R : 0;
     const ikoni = document.getElementById('kap-aalto-ikoni');
     const merkki = (nousee) => {
       const k = nousee ? 'ylos' : 'alas';
@@ -35289,7 +35412,7 @@ const Crosshair = {
     };
     if (wt + wb < 0.5) {
       const Hila = VuorovesiGL._hila;
-      const balLataa = R >= 0.5 && (BalVesi.sarjaTila(lat, lng) === 'lataa'
+      const balLataa = R >= 0.5 && ob !== 0 && (ob == null || BalVesi.sarjaTila(lat, lng) === 'lataa'
         || (!S && !BalVesi._kentat.has(tA) && !BalVesi._eiDataa.has(tA)));
       const balJakso = R >= 0.5 && S && (t < S.t0 || t > S.t0 + (S.h.length - 1) * S.dt);
       const syy = maalla ? _t('ei merta tässä', 'no sea here')
@@ -35757,10 +35880,14 @@ const Lahde = {
     /* VUOROVESITILASSA (V7) kartta, kapseli ja aikajana ovat EOT20:tä, ja
        Itämerellä vedenkorkeutta (`BalVesi`, 16.10.). */
     if (vuorovesitila()) {
-      /* Sama jako kuin kapselissa: Itämeri kun sen paino voittaa
-         vuoroveden (1 − R) -painon (`Crosshair._vuorovesiUpdate`). */
-      const R = BalVesi.paino(c.lat, c.lng), vv = R > 0 ? VuorovesiGL.vakiotKohdassa(c.lat, c.lng) : null;
-      const teksti = R > 0 && R > (vv && vv.re ? vv.w : 0)
+      /* Sama jako kuin kapselissa: Itämeri kun sen osuus (paino siellä
+         missä mallissa on vettä, `BalVesi.osuus`) voittaa vuoroveden
+         (1 − osuus) -painon (`Crosshair._vuorovesiUpdate`). Norjanmeren
+         rannikolla osuus on 0, joten merkintä on vuorovesi. */
+      const ob = BalVesi.osuus(c.lat, c.lng);
+      const vv = ob !== 0 ? VuorovesiGL.vakiotKohdassa(c.lat, c.lng) : null;
+      const obR = ob == null ? BalVesi.paino(c.lat, c.lng) : ob;
+      const teksti = obR > 0 && obR > (vv && vv.re ? vv.w * (1 - obR) : 0)
         ? _t('Vedenkorkeus · Copernicus Marine, Itämeren malli (2 km)', 'Water level · Copernicus Marine Baltic model (2 km)')
         : _t('Vuorovesi · EOT20-malli (DGFI-TUM), ilman myrskynousua', 'Tide · EOT20 model (DGFI-TUM), without storm surge');
       if (this._el.textContent !== teksti) this._el.textContent = teksti;
@@ -36875,6 +37002,9 @@ function _kerrosSirut() {
   document.querySelectorAll('#layers .sp-chip').forEach(function (b) {
     b.classList.toggle('active', b.dataset.layer === valittu);
   });
+  /* Kelihyppy kuuluu kerrokseen eikä aikajanan dataan: uuden paikan sarjaa
+     odotellessa jana ei piirry, ja nappi jäi edelliseen kerrokseen. */
+  _tlKeliNappiNakyvyys();
 }
 /* VUOROVESITILA PÄÄLLE/POIS (docs/aallot.md V7, beta) — kuten aaltotila:
    tuulen kerrokset sammuvat, aalto- ja sadetila sammuvat (yksi asteikko

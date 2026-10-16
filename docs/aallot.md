@@ -1281,8 +1281,10 @@ base64:nä, ~23 kt gzip kahdelle tunnille; kylmänä 5 s, sitten 1 s), ja
 sarja samalla tunnilla 26,8 cm.
 
 **Sovellus** (`BalVesi`):
-- Paino R = Itämeren mallin alue, länsireunalla smoothstep 9,3 → 10,3° E
-  (Skagerrak). Vuoroveden paino kerrotaan (1 − R):llä solmuissa, ja
+- Paino R = Itämeren mallin suorakaide, länsireunalla smoothstep 9,3 →
+  10,3° E (Skagerrak). Vuoroveden paino vähenee R:n verran VAIN siellä
+  missä mallissa on vettä (15.6; ensimmäinen versio kertoi koko
+  suorakaiteen (1 − R):llä ja jätti Norjan rannikon tyhjäksi), ja
   vedenkorkeus tulee tunneittain omasta tekstuuristaan (`_balPaivita`:
   tunnit tA ja tA + 1 h, sama neliöjuurikoodaus, rannan jatke kuten
   vuorovedellä). Varjostin sekoittaa painoilla; Itämeren näkymässä
@@ -1340,7 +1342,82 @@ edustalla: lista "Paras saatavilla (Täällä: FMI WAM · FMI WAM
 pakotus vaihtaa kapselin (1,1 → 1,2 m) ja lähdemerkinnän, ja englanniksi
 "Map wave model", "1.9 km".
 
-### 15.6 Mitä jäi
+### 15.6 Norjan rannikon aukko: Itämeri on mallin vesi, ei suorakaide
+
+Käyttäjän raportti 16.10. (kuva 65° N 12° E, vuorovesinäkymä): "Norjan
+rannikoilla on data-aukko vuorovedessä". Kartalla oli tumma suorakaide
+rannikon edustalla, kapseli sanoi "ei vuorovettä tässä", lähdemerkintä
+"Vedenkorkeus · Copernicus Marine, Itämeren malli" ja aikajanalla oli
+tuulen palkit.
+
+**Syy:** `BalVesi.paino` on mallin hilan suorakaide 53–65,9° N,
+9,04–30,21° E, ja vuoroveden paino kerrottiin (1 − R):llä koko
+suorakaiteessa. Suorakaiteen sisällä on vettä jota Itämeren mallissa ei
+ole. Mitattu mallin omasta kentästä (3 × 3 harvennettu hila, 255 × 258):
+maata ovat Helgeland 65,3° N 11,8° E, Trondheiminvuono 63,5/10,5,
+Kristiansund 63,1/9,3, Oslonvuonon sisäosa 59,6/10,6, Elbe 53,6/9,8 ja
+Limvuono 56,9/9,5; vettä Oslonvuonon suu 59,0/10,5 ja Kielinlahti
+54,4/10,2. Norjanmeren rannikolla 62–65,9° N vuorovesi sammui eikä
+tilalle tullut mitään.
+
+**Korjaus: Itämeren osuus = R × mallin vesi.**
+- Mallin vesi on kentän oma maski (`BalVesi._maski`: ensimmäinen
+  saapunut kenttä, koska mallin maa on sama joka tunnilla). Maskia
+  varten haetaan tarvittaessa nykyhetken kenttä (`maskiOdottaa`), joten
+  kaukana valittu tunti ei jätä sitä saamatta.
+- Kartta: vuoroveden painoa EI enää kerrota `_kokoa`ssa. Itämeren
+  tekstuurin neljäs kanava on vaimennus (`_balPaivita`, a): R niissä
+  solmuissa joissa mallilla on arvo (rannan jatke mukana, `_balMeriSolmut`),
+  muualla 0, ja varjostin kertoo vuoroveden painon (1 − a):lla.
+  Vaimennus on kynnys eikä mallin painon jatke: jatkeen 0,45-solmussa
+  vuorovesi laimentaisi vedenkorkeuden alle puoleen.
+- Piste (kapseli, aikajana, lähdemerkintä): `BalVesi.osuus` — pisteen
+  sarja ensin (mallin vesi 4 km:n sisällä tai ei), sitten maski (vesi
+  viereisissä soluissa, noin 5 km). Maskin tultua sarjaa ei haeta
+  pisteeseen jonka lähellä mallin vettä ei ole.
+- Maskia odotellessa vaimennus on koko R (kuten ennen): Itämeri on hetken
+  tyhjä eikä vilauta vuorovettä ennen vedenkorkeutta. Jos nykyhetken
+  kenttää ei saada, vaimennus on 0 ja koko suorakaide on EOT20:tä (ei
+  pysyvää aukkoa); haku yrittää taustalla, ja kenttä tuo maskin.
+- Asetusten lähdelista ja asteikon selite (`BalVesi.alueella`) kysyvät
+  maskista onko näkymässä mallin vettä: Helgelandin näkymässä vain EOT20,
+  z5-näkymässä Pohjanlahden kanssa myös vedenkorkeus.
+
+**Palkit ilman kerroksen dataa:** vuorovesi-, aalto- ja sadetilassa
+palkkia ei ole kun kerroksen data puuttuu (maa, ei mallia, haku kesken;
+`_tlPalkkiTyyli`). Ennen vuorovesitila piirsi silloin tuulen palkit, ja
+ne luettiin vedenkorkeutena (raportin kuva). Aaltotilassa palkki oli jo
+tyhjä maalla. Kelihyppy piiloutuu kerroksen vaihdossa (`_kerrosSirut`)
+eikä vasta aikajanan piirrossa: uuden paikan sarjaa odotellessa jana ei
+piirry, ja kun aaltotila kytkettiin heti paikan vaihdon perään, nappi
+näkyi vielä 500 ms:n kohdalla.
+
+**Mitattu** (puhelin, vuorovesitila; mittari laskee näkymän
+merisolmut, Rantamaskin vesi, joissa ei ole vuorovettä eikä
+vedenkorkeutta, samalla kaavalla kuin varjostin; vanha build 421a519
+kontrollina, aukkoja / merisolmuja):
+
+| paikka | vanha | uusi |
+|---|---|---|
+| Helgeland 65,3/11,8 z7 | 222 / 557 | 25 / 557 |
+| Trondheiminvuono 63,58/9,95 z8 | 25 / 95 | 0 / 95 |
+| Norjan rannikko 64/11,5 z6 | 232 / 1 508 | 41 / 1 508 |
+
+Helsingissä, Perämerellä, Kattegatissa, Skagerrakissa ja Oslonvuonossa
+kapseli, palkit ja solmut ovat samat kuin vanhalla buildilla.
+Jäljelle jääneet 25 Helgelandin solmua ovat kaikki sisämaan järviä
+(63,4–66,3° N, 12,1–13,9° E; vuoroveden paino 0, vaimennus 0) — EOT20:llä
+ei ole suljetulle vedelle vuorovettä. Suorakaiteen ulkopuolella samaa
+luokkaa: Sognefjord 3 / 873, Møre 3 / 708, Lofootit 14 / 696, Skotlanti
+4 / 836. Kapseli Helgelandissa ennen "— m · ei vuorovettä tässä", nyt
+"−0,5 m · laskee · laskuvesi 23:18", lähdemerkintä EOT20 ja aikajana
+394 / 394 tuntia −1,23 … +1,21 m (ennen tuulen palkit). Kentän
+viive 3 s (reititetty): Helsinki tyhjä → vedenkorkeus ilman
+vuorovesivälähdystä, Helgeland 222 → 25 maskin saapuessa. Itämeren
+rajapinta 502:lla: koko suorakaide EOT20:tä, ei virheitä. Englanniksi
+"low tide 23:18", "Tide · EOT20 model". Savutesti ja graafimittaus läpi.
+
+### 15.7 Mitä jäi
 
 - Spottikortin vuorovesimoduuli on yhä vain vuorovesirannikolla (0,5 m);
   Itämeren spottien kortilla on FMI:n vedenkorkeus kuten ennen.
