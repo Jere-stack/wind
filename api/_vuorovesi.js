@@ -8,6 +8,12 @@
  *                                      hyllymeri 1,5 km ja Biskaja–Iberia
  *                                      0,027° — vedenkorkeus (vuorovesi ja
  *                                      myrskynousu yhdessä)
+ *   ?vesitaso=sarja&lat=&lng=          Itämeren vedenkorkeus pisteessä
+ *                                      (Copernicus Marine BAL PHY 2 km),
+ *                                      −48 h … mallin loppu (~+9 vrk)
+ *   ?vesitaso=kentta&t=<ISO|ms>        sama kenttänä koko Itämerelle sen
+ *                                      2 tunnin palan tunneille joka
+ *                                      sisältää hetken t (vuorovesikartta)
  *
  * VASTAUS AINA SAMASSA MUODOSSA: { lahde, nimi?, km?, t0, dt, h: [m],
  * aariarvot?: [{ t, h, tyyppi: 'H'|'L' }] }. Korkeus on metreinä
@@ -31,7 +37,18 @@
  * MALLI: ARCO-Zarrin `geoChunked`-varasto (palat [~3 700 h, 16, 16]),
  * joten pisteen koko sarja on yksi pala (blosc-lz4, `tools/blosc.mjs`).
  * Keskiarvo lasketaan palan kaikista tunneista (~5 kk). Osoite luetaan
- * STAC:sta kuten rakentajassa (`tools/copernicus.mjs`): versio vaihtuu. */
+ * STAC:sta kuten rakentajassa (`tools/copernicus.mjs`): versio vaihtuu.
+ *
+ * ITÄMERI (vesitaso, 16.10.): vuorovesi on Itämerellä muutamia senttejä,
+ * joten vuorovesikartta näyttää siellä vedenkorkeuden (`sla`, "sea surface
+ * height above sea level"). Se on jo keskivedestä: mitattuna FMI:n 14
+ * mareografia vasten 72 h (16.10.) ero teoreettiseen keskiveteen on
+ * −0,3 … +3 cm ja Perämerellä +7 … +13 cm, tunneittainen hajonta 2–6 cm.
+ * Siksi keskiarvoa EI vähennetä (`keskiarvo: false`); palan keskiarvo
+ * (~8 kk, kausivaihtelu mukana) olisi siirtänyt nollaa 1–9 cm. Kenttä
+ * luetaan `timeChunked`-varastosta, jonka pala on 2 tuntia koko alueelta
+ * ([2, 774, 763], ~1 Mt): palvelin harventaa sen 3 × 3 solun meren
+ * keskiarvoiksi (255 × 258, cm Int16, ~23 kt gzip kahdelle tunnille). */
 import { bloscPura } from '../tools/blosc.mjs';
 
 const H = 3600e3;
@@ -46,6 +63,13 @@ export const MALLIT = [
   { perhe: 'cmems_ibi', tuote: 'IBI_ANALYSISFORECAST_PHY_005_001', aineisto: 'cmems_mod_ibi_phy_anfc_0.027deg-2D_PT1H-m',
     ala: [26.0, 56.0, -19.0, 5.0], maxKm: 4 },
 ];
+/* Itämeren vedenkorkeus: ei vuorovesilähde vaan vuorovesikartan Itämeri
+   (ks. tiedoston alku). Ala on mallin hila; asiakas painottaa sen
+   länsireunan (Skagerrak) EOT20:een (`BalVesi.paino`). */
+export const ITAMERI = { perhe: 'cmems_bal', tuote: 'BALTICSEA_ANALYSISFORECAST_PHY_003_006',
+  aineisto: 'cmems_mod_bal_phy_anfc_PT1H-i', ala: [53.0, 65.9, 9.04, 30.21], maxKm: 4,
+  muuttuja: 'sla', keskiarvo: false, mennytH: 48 };
+const KENTTA_HARVENNUS = 3;
 
 class Tyhja extends Error {}
 
@@ -148,23 +172,28 @@ async function varasto(M) {
   const p = await hae(`${STAC}/${M.tuote}/product.stac.json`);
   const hrefit = ((p && p.links) || []).filter(l => l.rel === 'item' && l.href.startsWith(M.aineisto + '_'))
     .map(l => l.href).sort().reverse();
-  let geo = null;
+  let geo = null, aikaHref = null;
   for (const h of hrefit) {
     const d = await hae(`${STAC}/${M.tuote}/${h}`);
     const pr = (d && d.properties) || {};
     if (pr.admp_in_preparation || !d.assets || !d.assets.geoChunked) continue;
     geo = d.assets.geoChunked.href;
+    /* Kenttä (koko alue yhdellä hetkellä) luetaan aikapaloista. */
+    aikaHref = d.assets.timeChunked ? d.assets.timeChunked.href : null;
     break;
   }
   if (!geo) throw new Error(M.perhe + ': ei geoChunked-varastoa');
   const meta = (await hae(geo + '/.zmetadata')).metadata;
-  const yks = /^(seconds|hours) since (.+)$/.exec((meta['time/.zattrs'] || {}).units || '');
+  /* Itämeren varasto on "days since 1900-01-01" (pelkkä päivä). */
+  const yks = /^(seconds|minutes|hours|days) since (.+)$/.exec((meta['time/.zattrs'] || {}).units || '');
   if (!yks) throw new Error(M.perhe + ': aikayksikkö');
-  const e = Date.parse(yks[2].trim().replace(' ', 'T').replace(/(\+00:00|Z)?$/, 'Z'));
-  const kerroin = yks[1] === 'seconds' ? 1e3 : H;
+  let alku = yks[2].trim().replace(' ', 'T');
+  if (alku.indexOf('T') < 0) alku += 'T00:00:00';
+  const e = Date.parse(alku.replace(/(\+00:00|Z)?$/, 'Z'));
+  const kerroin = { seconds: 1e3, minutes: 6e4, hours: H, days: 24 * H }[yks[1]];
   const aika = (await taulu(geo, meta, 'time')).map(x => e + x * kerroin);
   const lat = await taulu(geo, meta, 'latitude'), lon = await taulu(geo, meta, 'longitude');
-  const uusi = { ts: Date.now(), geo, meta, aika, lat, lon };
+  const uusi = { ts: Date.now(), geo, meta, aika, lat, lon, aikaHref, aikaMeta: null };
   _varastot.set(M.perhe, uusi);
   return uusi;
 }
@@ -177,8 +206,15 @@ function lahin(a, x) {
 export async function malli(lat, lng) {
   const M = MALLIT.find(m => lat >= m.ala[0] && lat <= m.ala[1] && lng >= m.ala[2] && lng <= m.ala[3]);
   if (!M) throw new Tyhja();
+  return sarja(M, lat, lng);
+}
+
+/* Pisteen sarja mallin aikasarjapaloista: lähin meren solmu `maxKm`:n
+   sisältä, −`mennytH` … aika-akselin loppu. */
+async function sarja(M, lat, lng) {
   const V = await varasto(M);
-  const za = V.meta['zos/.zarray'], zt = V.meta['zos/.zattrs'] || {};
+  const mu = M.muuttuja || 'zos';
+  const za = V.meta[mu + '/.zarray'], zt = V.meta[mu + '/.zattrs'] || {};
   const [Ct, Cy, Cx] = za.chunks, sep = za.dimension_separator || '.';
   const sk = zt.scale_factor != null ? zt.scale_factor : 1, so = zt.add_offset != null ? zt.add_offset : 0;
   const j0 = lahin(V.lat, lat), i0 = lahin(V.lon, lng);
@@ -194,14 +230,14 @@ export async function malli(lat, lng) {
   ehd.sort((a, b) => a.km - b.km);
   if (!ehd.length) throw new Tyhja();
   const nyt = Date.now();
-  const ta = lahin(V.aika, nyt - MENNYT_H * H);
+  const ta = lahin(V.aika, nyt - (M.mennytH || MENNYT_H) * H);
   /* Viimeinen hetki jolla datan kuuluisi olla: aika-akselin loppu. */
   const tb = V.aika.length - 1;
   const palat = new Map();
   const pala = async (ct, cy, cx) => {
     const k = ct + sep + cy + sep + cx;
     if (!palat.has(k)) {
-      const raaka = await hae(`${V.geo}/zos/${k}`, 'bin', 20000, true);
+      const raaka = await hae(`${V.geo}/${mu}/${k}`, 'bin', 20000, true);
       palat.set(k, raaka ? tyypitetty(bloscPura(raaka), za.dtype) : null);
     }
     return palat.get(k);
@@ -223,13 +259,80 @@ export async function malli(lat, lng) {
     if (kaikki.length < 24 * 7 || sarja.filter(Number.isFinite).length < 48) continue;
     /* Keskiarvo palan kaikista tunneista: kuukausien keskivesi, ei vain
        näytetyn jakson (jakson keskiarvo siirtäisi nollaa myrskynousun
-       mukana). */
-    const ka = kaikki.reduce((s, v) => s + v, 0) / kaikki.length;
+       mukana). Itämeren `sla` on jo keskivedestä (`keskiarvo: false`). */
+    const ka = M.keskiarvo === false ? 0 : kaikki.reduce((s, v) => s + v, 0) / kaikki.length;
     while (sarja.length && !Number.isFinite(sarja[sarja.length - 1])) sarja.pop();
     const { h } = keskiarvoPois(sarja, ka);
     return { lahde: M.perhe, km: Math.round(e.km * 10) / 10, t0: V.aika[ta], dt: H, h };
   }
   throw new Tyhja();
+}
+
+/* Itämeren vedenkorkeus kenttänä: hetken t sisältävän aikapalan tunnit
+   harvennettuina (ks. tiedoston alku). Arvot cm Int16 base64:nä, rivi
+   etelästä pohjoiseen; `puuttuva` on maa. */
+export async function itameriKentta(tMs) {
+  const M = ITAMERI, V = await varasto(M);
+  if (!V.aikaHref) throw new Error(M.perhe + ': ei timeChunked-varastoa');
+  if (!V.aikaMeta) V.aikaMeta = (await hae(V.aikaHref + '/.zmetadata')).metadata;
+  const mu = M.muuttuja;
+  const za = V.aikaMeta[mu + '/.zarray'], zt = V.aikaMeta[mu + '/.zattrs'] || {};
+  const [Ct, Cy, Cx] = za.chunks, sep = za.dimension_separator || '.';
+  const NY = V.lat.length, NX = V.lon.length;
+  if (Cy < NY || Cx < NX) throw new Error(M.perhe + ': aikapala ei kata aluetta');
+  const ti = lahin(V.aika, tMs);
+  if (Math.abs(V.aika[ti] - tMs) > H / 2) throw new Tyhja();
+  const ct = Math.floor(ti / Ct);
+  const raaka = await hae(`${V.aikaHref}/${mu}/${ct}${sep}0${sep}0`, 'bin', 20000, true);
+  if (!raaka) throw new Tyhja();
+  const x = tyypitetty(bloscPura(raaka), za.dtype);
+  const sk = zt.scale_factor != null ? zt.scale_factor : 1, so = zt.add_offset != null ? zt.add_offset : 0;
+  const F = KENTTA_HARVENNUS, ny = Math.ceil(NY / F), nx = Math.ceil(NX / F);
+  const n = Math.min(Ct, V.aika.length - ct * Ct), h = [];
+  for (let k = 0; k < n; k++) {
+    const o = new Int16Array(ny * nx), pohja = k * NY * NX;
+    let meri = 0;
+    for (let r = 0; r < ny; r++) for (let c = 0; c < nx; c++) {
+      let s = 0, m = 0;
+      for (let j = r * F; j < Math.min(NY, r * F + F); j++) {
+        for (let i = c * F; i < Math.min(NX, c * F + F); i++) {
+          const q = x[pohja + j * NX + i];
+          if (q === za.fill_value || q == null || !Number.isFinite(q)) continue;
+          s += q * sk + so; m++;
+        }
+      }
+      if (m) { o[r * nx + c] = Math.max(-32767, Math.min(32767, Math.round(s / m * 100))); meri++; }
+      else o[r * nx + c] = -32768;
+    }
+    if (!meri) break;
+    h.push(Buffer.from(o.buffer).toString('base64'));
+  }
+  if (!h.length) throw new Tyhja();
+  const dla = (V.lat[NY - 1] - V.lat[0]) / (NY - 1), dlo = (V.lon[NX - 1] - V.lon[0]) / (NX - 1);
+  return { lahde: M.perhe, t0: V.aika[ct * Ct], dt: H, n: h.length, nx, ny,
+    la0: +(V.lat[0] + dla * (F - 1) / 2).toFixed(6), lo0: +(V.lon[0] + dlo * (F - 1) / 2).toFixed(6),
+    dla: +(dla * F).toFixed(8), dlo: +(dlo * F).toFixed(8), yks: 0.01, puuttuva: -32768, h };
+}
+
+export async function vesitaso(q) {
+  try {
+    if (q.vesitaso === 'kentta') {
+      const raaka = String(q.t || '');
+      const t = /^\d+$/.test(raaka) ? +raaka : Date.parse(raaka);
+      if (!Number.isFinite(t)) return { virhe: 't required', tila: 400 };
+      return { tulos: await itameriKentta(Math.round(t / H) * H), ika: 3600 };
+    }
+    if (q.vesitaso === 'sarja') {
+      const lat = parseFloat(q.lat), lng = parseFloat(q.lng), A = ITAMERI.ala;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return { virhe: 'lat/lng required', tila: 400 };
+      if (!(lat >= A[0] && lat <= A[1] && lng >= A[2] && lng <= A[3])) throw new Tyhja();
+      return { tulos: await sarja(ITAMERI, lat, lng), ika: 3600 };
+    }
+    return { virhe: 'unknown vesitaso mode', tila: 400 };
+  } catch (e) {
+    if (e instanceof Tyhja) return { tulos: { error: 'no data' }, ika: 3600 };
+    throw e;
+  }
 }
 
 export async function vuorovesi(q) {

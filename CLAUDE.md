@@ -37,7 +37,9 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   (`malli.js?muuttuja=aallot`, docs/aallot.md V4),
   aaltoennuste, vedenkorkeus, vuorovesi (`vesi.js?vuorovesi=noaa|kartverket|malli`:
   NOAA:n asemat, Kartverket ja Copernicus NWS/IBI -vedenkorkeus, apumoduuli
-  `_vuorovesi.js`, docs/aallot.md V6), sade-ennuste GRIB2:sta ja sadetilan
+  `_vuorovesi.js`, docs/aallot.md V6), Itämeren vedenkorkeus vuorovesikartalle
+  (`vesi.js?vesitaso=sarja|kentta`: Copernicus BAL PHY, pisteen sarja ja koko
+  meren kenttä 2 tunnin paloina, docs/aallot.md luku 15), sade-ennuste GRIB2:sta ja sadetilan
   pistesarja (`sade.js?sarja=1`: tutkan tuntikertymä, vartit, HARMONIE,
   MET Norwayn nowcast), kapselin sää (`harmonie.js?saa=1&malli=<perhe>`:
   FMI HARMONIE + kartan kansallinen malli Open-Meteosta −48 h … +16 vrk,
@@ -298,7 +300,7 @@ kokeiltu ja kaadettu mittauksella.
 | `docs/oikeellisuus.md` | **datan oikeellisuutta** (auditointi 29.9., toteutus 30.9.): varasto havaintoja vasten, **jatkuva varmennus**, **varaston tuoreus ja Säädatan ajastin**, kapselin ja partikkelien taso vs lämpökartta, **tähtäimen lukema ja zoom (O12, 5.10.)**, **kapselin puuska**, havaintoverkko ja sen päivitys, proxyjen virheenkäsittely, UiRaS — aukot O1–O11, suositusjärjestys ja sujuvuusvaikutus; lue ennen kuin toteutat jonkin niistä, ja merkitse tehdyt |
 | `docs/aikahyppy.md` | **aikahypyn latausta** (strategia ja toteutus 9.10.): **koko akselin taustaesilataus (`AikaEsilataus`)**, **perheet rinnakkain**, **hypyn odotus 0,4 s**, palvelinhilan viereiset tunnit, Pages-koti; miksi kartta latautuu hetken kun aikajanalla hypätään historiaan tai kauas tulevaisuuteen — mitattu viive laitteittain ja zoomeittain, **perheet haetaan peräkkäin (12 kierrosta Euroopan näkymässä)**, koko akselin esilatauksen hinta, vaihtoehdot S1–S8, vaiheet V1–V5 ja hyväksymismittarit; lue ennen kuin kosket `Saalaatat.varmista`an, esilataukseen tai hypyn odotukseen (`_odottava`) |
 | `docs/asetukset.md` | **asetuspaneelia paikan mukaan** (strategia 10.10., toteutettu 12.10.: `Kate`, `AsetusAlue`, `perheKattaa`, mittari `tools/asetusmittaus.mjs`): miksi Ranskassa paneelin mallit ja havaintokytkimet eivät osu paikalliseen dataan, katerekisteri (`Kate`) datasta, vaihtoehdot A–E, suositus C (piilotus + "Muualla saatavilla", mallilista luettelosta, alueellisen mallin pakotus), vaiheet V1–V5, mittari ja päätettävät P1–P6; lue ennen kuin kosket `#settings-popup`iin, `Saalaatat.TILAT`iin tai kortin mallivalikkoon |
-| `docs/aallot.md` | **aaltoja koko maailmaan ja vuorovettä** (strategia 14.10., **toteutettu 15.10.: luku 14** — aaltovarasto `aallot2` perheineen (ECMWF WAM 9 km pohjana, FMI WAM, Copernicus BAL/NWS/IBI/BLK/MED, DWD EWAM IJsselmeerille), valta ja olematon laatta kuivana, lähizoom palvelimelta, rantamaski GL-laattoina, vuorovesi kortilla, kapselissa ja "Vuorovesi (beta)" -kartalla EOT20:stä, **jatkuva varmennus poijuja vasten `tools/aaltovarmennus.mjs`**, mittarien tila ja mitä jäi): aaltomallit mitattuina (**ECMWF WAM 9 km** paras globaali, MFWAM, GFS-Wave, DWD, **Copernicus Marinen alueelliset BAL/NWS/IBI/MED/BLK** avoimesti ARCO-Zarrina) — etäisyys rantaan, osuvuus poijuja vasten, **Open-Meteon MFWAM- ja SMOC-hilat puoli solua väärässä paikassa**, rakentajan rantaviivatesti, rantamaski globaalisti ja ekstrapoloinnin matka mallin tarkkuudesta, sulavuus (aallot tuulen koneistoon, aika GPU:lla, esilataus), varaston koko, **vuorovesi** (asemaennusteet vs FES2014, "Vuorovesi"-näkymä harmonisista vakioista), vaiheet V1–V8 ja päätettävät P1–P10; lue ennen kuin kosket `Aallot`iin, `AaltoGL`iin, `Rantamaski`in tai `tools/wam.mjs`iin tai lisäät meridataa |
+| `docs/aallot.md` | **aaltoja koko maailmaan ja vuorovettä** (strategia 14.10., **toteutettu 15.10.: luku 14**; **parannukset 16.10.: luku 15** — vuorovesiruutu aina näkyvissä, Atlantin amfidromi ja Välimeri näkyviin (vaihteluvälin raja pois), Itämerellä vedenkorkeus Copernicus BAL:sta (`BalVesi`), kelikaista kerroksen mukaan ja kelihyppy vain tuulella, asetusten mallilista kerroksen mukaan ja aaltomallin pakotus; aaltovarasto `aallot2` perheineen (ECMWF WAM 9 km pohjana, FMI WAM, Copernicus BAL/NWS/IBI/BLK/MED, DWD EWAM IJsselmeerille), valta ja olematon laatta kuivana, lähizoom palvelimelta, rantamaski GL-laattoina, vuorovesi kortilla, kapselissa ja "Vuorovesi (beta)" -kartalla EOT20:stä, **jatkuva varmennus poijuja vasten `tools/aaltovarmennus.mjs`**, mittarien tila ja mitä jäi): aaltomallit mitattuina (**ECMWF WAM 9 km** paras globaali, MFWAM, GFS-Wave, DWD, **Copernicus Marinen alueelliset BAL/NWS/IBI/MED/BLK** avoimesti ARCO-Zarrina) — etäisyys rantaan, osuvuus poijuja vasten, **Open-Meteon MFWAM- ja SMOC-hilat puoli solua väärässä paikassa**, rakentajan rantaviivatesti, rantamaski globaalisti ja ekstrapoloinnin matka mallin tarkkuudesta, sulavuus (aallot tuulen koneistoon, aika GPU:lla, esilataus), varaston koko, **vuorovesi** (asemaennusteet vs FES2014, "Vuorovesi"-näkymä harmonisista vakioista), vaiheet V1–V8 ja päätettävät P1–P10; lue ennen kuin kosket `Aallot`iin, `AaltoGL`iin, `Rantamaski`in tai `tools/wam.mjs`iin tai lisäät meridataa |
 
 <details>
 <summary>Osioiden nimet tiedostoittain (jos et tiedä mistä etsiä)</summary>
@@ -499,7 +501,10 @@ kokeiltu ja kaadettu mittauksella.
   virrat) · Kokonaisvaihtoehdot S1–S5 · Suositus ja vaiheet V1–V8 ·
   Hyväksymismittarit · Päätettävät P1–P10 · Riskit ja mitä EI tehdä ·
   **Toteutus (15.10.)**: vaiheet ja poikkeamat, rakentajan koko ja
-  kesto, asiakas, vuorovesi, jatkuva varmennus, mittarien tila, mitä jäi
+  kesto, asiakas, vuorovesi, jatkuva varmennus, mittarien tila, mitä jäi ·
+  **Parannukset (16.10.)**: vuorovesiruutu aina, amfidromi ja
+  vaihteluvälin raja, Itämeren vedenkorkeus (nollataso mareografeja
+  vasten), kelikaista kerroksen mukaan, mallilista ja aaltomallin pakotus
 
 </details>
 
@@ -691,9 +696,10 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   kohdalla KESKIVIIVASTA YLÖS TAI ALAS (`_tlVuorovesiOsuus`,
   `State._tlVuorovesi`, `margin-bottom`), `VuorovesiVari`-värillä, ja
   nousu- ja laskuveden tunnilla on reunassa valo (`vv-h`, `vv-l`);
-  harmoninen vuorovesi kattaa koko akselin, joten jaksoa ei rajata.
-  Kelikaista ja kelihyppy lukevat aina tuulta
-  (`State._tlSpeeds`) — aallot eivät vaikuta keliin. Käyttäjän
+  harmoninen vuorovesi kattaa koko akselin, joten jaksoa ei rajata
+  (Itämerellä palkki on vedenkorkeuden sarja, `BalVesi`, luku 15).
+  KELIKAISTA SEURAA KERROSTA (16.10., ks. "PÄIVÄKISKOSSA ON KELIKAISTA"),
+  ja kelihyppy on vain tuulella. Käyttäjän
   päätös: kolme paikkaa, yksi väri samalle nopeudelle. Palkeilla oli
   ennen oma `varjo()` (ramppi sekoitettuna valkoiseen 0,45), joka teki
   niistä pastellin eivätkä ne näyttäneet samoilta kuin kaavio; taulu
@@ -760,6 +766,17 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   päiväkohtaista lukua äläkä vie kaistaa palkkien alle tuntiriville:
   siellä se luettaisiin tuntien asteikolla vaikka sen asteikko on
   kiskon (2,5 px/h).
+  **KAISTA SEURAA KARTAN KERROSTA** (käyttäjän päätös 16.10.,
+  `_tlKaistaLaji`, docs/aallot.md 15.4): yllä oleva kelikaista on
+  TUULEN kaista. Puuskalla, aalloilla, vuorovedellä ja sateella juova on
+  KOKO AJAN sen kerroksen asteikon värinen (`ColorRamp`, `AaltoVari`,
+  `VuorovesiVari`, sateen ramppi) ja paksuus kasvaa arvon mukana palkin
+  käyrällä; lepoväri vain siellä missä dataa ei ole (maa, jakson
+  ulkopuoli, pouta). Kynnys on vain tuulella. **KELIHYPPY ON VAIN
+  TUULELLA**: muissa kerroksissa nappi on piilossa (`hidden`, ei
+  himmennys) ja K-näppäin ei tee mitään (`_tlKeliNappiNakyvyys`, ajetaan
+  kaistan piirrossa, joten nappi ja kaista vaihtuvat samassa
+  suorituksessa).
 - **Kortin paljas paperi mitataan RIVIEN VÄLISTÄ.** Rivin sisältä otettu
   näyte osuu palkkiin, yökaistaan, NYT-osoittimeen tai napin varjoon —
   ja väittää sitten että sama paperi on eri väristä eri kohdissa.
@@ -1153,9 +1170,23 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   ruudusta ja vasta levossa; Itämerellä rasteri sanoo "ei vuorovettä"
   ilman yhtään hakua. VUOROVESITILASSA pääluku on vedenkorkeus SAMASTA
   kentästä ja rannasta kuin kartalla (`VuorovesiGL.vakiotKohdassa`, EOT20),
-  vasen osa suunta (nousee / laskee, seuraavasta ääriarvosta) ja alarivi
+  vasen osa suunta (nousee / laskee, seuraavasta ääriarvosta 26 h:n
+  sisältä — sekavuorovedellä nousu voi kestää yli 15 h) ja alarivi
   seuraava nousu- tai laskuvesi; syy kun lukua ei ole ("ei merta",
-  "ei vuorovettä", "malli ei luotettava tässä").
+  "ei vuorovettä" vain suljetulla vedellä, "malli ei luotettava tässä").
+  **PIENI VUOROVESI ON LUKU, EI "EI VUOROVETTÄ"** (16.10.): kartan
+  vaihteluvälin raja (0,3 → 0,5 m) poistettiin, koska se teki
+  Pohjois-Atlantin amfidromista (50° N 40° W, M2 3 cm) tumman läiskän
+  ja tyhjensi Välimeren; kortin moduuli ja tuulitilan kapselirivi pitävät
+  rajan (`Vuorovesi.RAJA_M`). **ITÄMERELLÄ VUOROVESIKARTTA ON
+  VEDENKORKEUTTA** (käyttäjän päätös 16.10., `BalVesi`, docs/aallot.md
+  15.3): Copernicus BAL PHY `sla` on jo keskivedestä (FMI:n 14
+  mareografia vasten harha −0,3 … +3 cm, Perämerellä +7 … +13), joten
+  keskiarvoa EI vähennetä. Paino R liukuu Skagerrakissa 9,3 → 10,3° E,
+  vuoroveden paino on (1 − R); kartta lukee kentän tunneittain
+  (`api/vesi?vesitaso=kentta`), kapseli ja aikajana pisteen sarjan
+  (`?vesitaso=sarja`), alarivi "Itämeren vedenkorkeus" eikä nousu- tai
+  laskuvettä.
 - **KAPSELI VÄISTYY KUN SPOTTIKORTTI ON AUKI**
   (`html:has(#sheet.open) #kapseli`). Kapseli lukee kartan keskipisteen
   ja kortti spotin: mitattuna 2,6 ja 6,9 kts yhtä aikaa samalla
@@ -1479,7 +1510,13 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   tuntematon, ja sen laatta haetaan (`perheLaatta`). Rivejä ei siirretä
   fokuksen alta. Kortin mallivalikko lukee saman katteen
   (`KorttiSarjat.mallitPisteelle`). Mittari: `tools/asetusmittaus.mjs`.
-- **MALLIVALINTAA EI TALLENNETA** (`Asetukset.TALLENTAMATTOMAT`).
+  **MALLILISTA ON KERROKSEN** (käyttäjän pyyntö 16.10.,
+  `AsetusAlue._malliOsio`): tuulella ja puuskalla tuulimallit, aalloilla
+  aaltomallit (pakotettavissa, kate `AaltoVarasto.perheMarka`:
+  painokanava JA märkyys, pakotuksesta riippumaton), vuorovedellä ja
+  sateella kartan lähteet tietona ilman valintaa.
+- **MALLIVALINTAA EI TALLENNETA** (`Asetukset.TALLENTAMATTOMAT`: `malli`
+  ja `aaltomalli`).
   Sovellus käynnistyy aina "Paras saatavilla" -tilassa; pakotus on
   hetken vertailu, ja tallennettu pakotus näyttäisi seuraavalla
   avauksella huonomman mallin ilman muistutusta. Käyttäjän päätös.
@@ -3181,7 +3218,11 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   järville (Bodom 0,55 m). Toista vesialuetta alueellinen perhe ei peitä:
   rakentaja antaa kuivalle solmulle painon 0 kun ECMWF:llä on siinä
   merta (VALTA, `tools/aaltopyramidi.mjs`). Älä kirjoita perhelistaa
-  käyttöpaikkaan.
+  käyttöpaikkaan. **AALTOMALLIN PAKOTUS ON PERHEVALINTA** (16.10.):
+  `AaltoVarasto.TILAT` rakennetaan luettelosta (jokainen perhe yksin pohjan
+  päällä, kuten tuulen alueelliset), ja pisteen sarjan muisti on tilan
+  mukaan — pakotettu malli näkyy kartalla, kapselissa, aikajanassa ja
+  kortin aaltomoduulissa.
 - **JÄRJESTYS VAHVISTETAAN POIJUJA VASTEN, EI MUUTETA AUTOMAATTISESTI**
   (`tools/aaltovarmennus.mjs`, docs/aallot.md mittari 5): perhe kuuluu
   alueensa Parhaaseen vain jos sen ratkaisemat tunnit (`paras←<perhe>`)
@@ -3402,17 +3443,17 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   enintään kaksi latausta kerrallaan. Laatta on 512 px:nä 12–20 kB
   sateessa (mitattu 4.10.). `prefers-reduced-motion`: ei liukua eikä
   liikekompensaatiota (`_tlVahennaLiiketta`).
-- **KARTAN KERROS ON NELJÄ RUUTUA ESIKATSELUKUVIN: TUULI, PUUSKA,
-  AALLOT, SADE (BETA) — JA VUOROVESI (BETA) VIIDENTENÄ VAIN
-  VUOROVESIRANNIKOLLA** (`#layers`, Windyn valikon tapaan, käyttäjän pyyntö
+- **KARTAN KERROS ON VIISI RUUTUA ESIKATSELUKUVIN: TUULI, PUUSKA,
+  AALLOT, SADE (BETA) JA VUOROVESI (BETA), KAIKKI AINA NÄKYVISSÄ**
+  (`#layers`, Windyn valikon tapaan, käyttäjän pyyntö
   1.10.; "(beta)" omana pienempänä spaninaan 4.10.). Sade oli ennen kytkin "Havainnot kartalla" -ryhmässä; tila on
   yhä `_mapLayerState.tutka` (tallentuu `fs_tasot`iin), ja valittu ruutu
   luetaan lipuista yhdessä paikassa (`_kerrosSirut`: sade >
-  aallot > vuorovesi > `State.activeLayer`). Vuorovesiruutu (V7) on
-  `hidden` kun näkymässä ei ole vuorovesirannikkoa (`AsetusAlue._kerrokset`,
-  `Vuorovesi.rannikkoAlueella`, Itämerellä ei koskaan), päällä ollessaan aina
-  näkyvissä, ja se on neljän sarakkeen ruudukossa omalla rivillään;
-  piilotettu ruutu ei ole nuolinäppäinten pysäkki. Kuvat piirtää `KerrosKuvat`
+  aallot > vuorovesi > `State.activeLayer`). Vuorovesiruutu on AINA
+  näkyvissä (käyttäjän pyyntö 16.10.: sen valitsee myös Suomen yllä ja
+  loitontaa katsomaan missä vuorovettä on; 15.–16.10. se piiloutui
+  näkymästä jossa ei ollut vuorovesirannikkoa), ja se on neljän sarakkeen
+  ruudukossa omalla rivillään. Kuvat piirtää `KerrosKuvat`
   SOVELLUKSEN OMILLA RAMPEILLA (`WindTexture.pikseliLUT`, `AaltoVari`,
   `Sade.lut`, `VuorovesiVari`) keksityn rannikon päälle, joten ne näyttävät samat värit
   kuin kartta; lämpökartan voimakkuuden vaihto piirtää ne uudelleen.

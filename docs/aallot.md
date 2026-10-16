@@ -1005,7 +1005,10 @@ ei julkaista (asiakas on silloin v1-varatiellä).
 
   Atlantilla luku oli ennen "−0,0 m": etumerkki tuli pyöristämättömästä
   luvusta (−0,04). Nyt etumerkki luetaan pyöristetystä (`_vvM`).
-  Kerrosruutu näkyy Bretagnessa ja on piilossa Helsingissä.
+  Kerrosruutu näkyi Bretagnessa ja oli piilossa Helsingissä. **16.10.
+  muuttui (luku 15):** ruutu on aina näkyvissä, Helsingissä kartta näyttää
+  Itämeren vedenkorkeuden, ja pieni vuorovesi näkyy lukuna eikä
+  "ei vuorovettä tässä".
 
 ### 14.5 Jatkuva varmennus (V8)
 
@@ -1156,7 +1159,196 @@ pistekysely olivat myös FMI WAM:ia).
 - **Laitemittaukset** (mittari 3) oikealla puhelimella ja iPadilla.
 - `tools/aaltomittaus.mjs` jäi kirjoittamatta: mittaukset tehtiin
   scratchpadin skripteillä, ja CI:ssä on kevyt osa (savutestin
-  kerrosruudut: aallot, sade ja tuuli vaihtavat tilan, ja vuorovesiruutu
-  on piilossa Helsingissä ja näkyvissä Bretagnessa — sovelluksen
-  oletusnäkymä kattaa myös Norjan rannikon, joten siellä ruutu kuuluu
-  näkyä).
+  kerrosruudut: aallot, sade, vuorovesi ja tuuli vaihtavat tilan, ja
+  vuorovesiruutu näkyy sekä Helsingissä että Bretagnessa, 16.10.).
+
+## 15. Parannukset (16.10.): vuorovesi kaikkialla, Itämeren vedenkorkeus, kelikaista ja aaltomallit
+
+Käyttäjän pyynnöt 16.10.: vuorovesiruutu aina näkyviin, Itämerelle ja
+Välimerelle vuorovesi tai vastaava, Atlantin tumma kohta korjattava,
+asetusten mallilista kerroksen mukaan, kelikaista kerroksen datasta ja
+kelihyppy pois muista kuin tuulinäkymästä. Vastaukset suunnitelman
+kysymyksiin: Itämerellä näytetään vedenkorkeus, aaltomallit pakotetaan
+kuten tuulimallit, ja kelikaista on koko ajan värikäs (lepoväri vain
+siellä missä dataa ei ole).
+
+### 15.1 Vuorovesiruutu aina näkyvissä
+
+`AsetusAlue._kerrokset` piilotti ruudun kun näkymässä ei ollut
+vuorovesirannikkoa (`Vuorovesi.rannikkoAlueella`, 2°:n katerasteri), joten
+Suomen yllä sitä ei löytänyt lainkaan. Nyt ruutu on aina näkyvissä
+(käyttäjä: "haluat todennäköisesti nähdä missä kaikkialla vuorovettä on"),
+`rannikkoAlueella` poistettiin (ei muita käyttäjiä), ja asteikon selite
+kertoo Itämeren näkymässä että siellä kartta on vedenkorkeutta. Savutesti
+vaatii ruudun sekä Helsingissä että Bretagnessa ja kytkee sen päälle
+(tila `001`).
+
+### 15.2 Atlantin tumma kohta oli amfidromi ja vaihteluvälin raja
+
+Kartan solmun paino oli smoothstep kevätvuoroveden vaihteluvälistä
+2·(M2 + S2 + K1 + O1) 0,3 → 0,5 m (V7: "±4 cm:n vuorovesi olisi harmaa
+huntu"). Mitattu EOT20:n t1-laatoista:
+
+| paikka | M2 | vaihteluväli |
+|---|---|---|
+| 57° N 40° W | 0,44 m | 1,53 m |
+| 55° N 40° W | 0,30 | 1,09 |
+| 52° N 36° W | 0,17 | 0,65 |
+| **50° N 40° W** | **0,03** | **0,30** |
+| 48° N 38° W | 0,08 | 0,36 |
+| Välimeri 40° N 5° E | 0,05 | 0,26 |
+| Tyrrhenanmeri 38° N 15° E | 0,08 | 0,28 |
+| Ligurianmeri 43° N 7,5° E | 0,08 | 0,32 |
+| Adrianmeren pohjukka 45° N 13° E | 0,20 | 1,05 |
+| Gabèsinlahti 33,5° N 10,5° E | 0,50 | 1,75 |
+| Mustameri 42° N 30° E | 0,01 | 0,08 |
+| Itämeri 59,5° N 22° E | 0,01 | 0,08 |
+
+Tumma läiskä oli Pohjois-Atlantin M2-amfidromi (50° N, 40° W), jossa
+vuorovesi on fysikaalisesti lähes nolla — sitä ympäröivä meri ylitti rajan,
+joten läiskä näytti puuttuvalta datalta ja kapseli sanoi "ei vuorovettä
+tässä". Sama raja tyhjensi Välimeren valtaosan (0,1–0,3 m). Data ja maski
+olivat kunnossa (maski 1 kaikissa pisteissä).
+
+**Korjaus:** jokaisen märän solmun paino on 1 (`VuorovesiGL._kokoa`), ja
+pieni vuorovesi on asteikon hiljaista harmaata (keskivesi on
+`VuorovesiVari`n neutraali kohta). Mitattu puhelimella: amfidromi
+"0,0 m · laskee · laskuvesi 23:29", aikajana −0,11 … +0,16 m; Välimeri
+40° N 5° E "0,0 m · laskuvesi 22:14", −0,10 … +0,11 m; Adrianmeri
+−0,54 … +0,49 m. "Ei vuorovettä tässä" jää vain suljetulle vedelle
+(maski 3) ja ladattaessa. Spottikortin vuorovesimoduuli ja tuulitilan
+kapselin vuorovesirivi pitävät rajan 0,5 m (`Vuorovesi.RAJA_M`): niissä
+vuorovesi on lisätieto, ei kerros.
+
+**Sekavuorovesi:** `Vuorovesi.seuraavaVakioista` haki seuraavaa nousu- tai
+laskuvettä 14 h eteenpäin. Adrianmeren pohjukassa 16.10. laskuvedestä
+(18:00 UTC) seuraavaan nousuveteen oli 15,5 h (olkapää 02–04), ja kapselin
+alarivi jäi tyhjäksi. Haku on nyt 26 h.
+
+### 15.3 Itämeren vedenkorkeus vuorovesikartalle
+
+Itämerellä vuorovesi on muutamia senttejä, mutta vedenkorkeus liikkuu
+tuulen ja ilmanpaineen mukana yli metrin. Vuorovesikartta näyttää siellä
+vedenkorkeuden (käyttäjän päätös), nimellä "vedenkorkeus".
+
+**Data:** Copernicus Marine BALTICSEA_ANALYSISFORECAST_PHY_003_006,
+aineisto `cmems_mod_bal_phy_anfc_PT1H-i` (versio 202411; 202611 on
+STAC:ssa "in preparation"), muuttuja `sla` ("sea surface height above sea
+level"), hila 774 × 763 (1 mpk, 53,0–65,9° N, 9,04–30,21° E), tunneittain
+2022-12-02 → noin +9 vrk. ARCO-Zarr:
+`timeChunked` palat [2, 774, 763] (koko alue kahdelle tunnille, 1,04 Mt
+blosc-lz4, haku 0,85 s kontista) ja `geoChunked` [5844, 16, 8] (pisteen
+sarja yhdestä palasta). Aikayksikkö on "days since 1900-01-01" — pelkkä
+päivä, jota `varasto()` ei ennen jäsentänyt.
+
+**Nollataso mitattuna:** `sla` FMI:n 14 mareografin havaintoja vasten
+(WATLEV, teoreettinen keskivesi), 72 h, 16.10.:
+
+| asema | harha | hajonta |
+|---|---|---|
+| Föglö Degerby | −0,3 cm | 2,0 cm |
+| Hanko | +0,4 | 2,6 |
+| Rauma | +0,5 | 2,5 |
+| Pori | +0,9 | 1,8 |
+| Turku | +1,4 | 3,9 |
+| Porvoo Emäsalo | +1,9 | 2,2 |
+| Kaskinen | +2,1 | 2,6 |
+| Helsinki | +2,4 | 2,0 |
+| Hamina | +2,8 | 3,1 |
+| Pietarsaari | +3,0 | 3,5 |
+| Vaasa | +4,7 | 3,2 |
+| Oulu | +6,8 | 6,4 |
+| Raahe | +6,9 | 4,4 |
+| Kemi | +12,5 | 5,6 |
+
+`sla` on siis jo keskivedestä (harhojen itseisarvojen keskiarvo 3,3 cm,
+suurin Kemi +12,5 cm), eikä palan keskiarvoa vähennetä
+(`keskiarvo: false`), vaikka tässä 72 h:n otoksessa se olisi pienentänyt
+harhaa (3,3 → 2,3 cm, suurin 12,5 → 5,9 cm). Vähennys ei ole vakaa: palan
+keskiarvo on sen tuntien keskiarvo (nyt huhti–lokakuu, 4 920 h), ja uuden
+palan alussa se kattaa vain päiviä — myrskyviikko siirtäisi nollaa
+kymmeniä senttejä. Se myös poistaisi kausivaihtelun, joka kuuluu lukuun:
+teoreettisesta keskivedestä mitattuna syksyn korkea vesi on plussalla.
+Perämeren +7 … +13 cm (maankohoaminen ja mallin keskivesi) jää tunnetuksi
+harhaksi.
+
+**Palvelin** (`api/vesi.js`, funktioita yhä 12):
+`?vesitaso=kentta&t=<ms>` palauttaa hetken sisältävän 2 tunnin palan
+harvennettuna 3 × 3 meren solun keskiarvoiksi (255 × 258, cm Int16
+base64:nä, ~23 kt gzip kahdelle tunnille; kylmänä 5 s, sitten 1 s), ja
+`?vesitaso=sarja&lat=&lng=` pisteen sarjan −48 h … mallin loppu
+(lähin meren solmu 4 km:n sisältä). Kenttä Helsingin kohdalla 26 cm,
+sarja samalla tunnilla 26,8 cm.
+
+**Sovellus** (`BalVesi`):
+- Paino R = Itämeren mallin alue, länsireunalla smoothstep 9,3 → 10,3° E
+  (Skagerrak). Vuoroveden paino kerrotaan (1 − R):llä solmuissa, ja
+  vedenkorkeus tulee tunneittain omasta tekstuuristaan (`_balPaivita`:
+  tunnit tA ja tA + 1 h, sama neliöjuurikoodaus, rannan jatke kuten
+  vuorovedellä). Varjostin sekoittaa painoilla; Itämeren näkymässä
+  koodausalue on vähintään ±2 m (Perämeren ennätys +2,01 m).
+- Kesken saapuva kenttä ei tyhjennä merta: edellinen pari jää enintään
+  6 h:n päähän. Toistossa haetaan kaksi tuntia eteenpäin. Muistissa 24
+  tuntia (~6 Mt).
+- Kapseli ja aikajana lukevat pisteen sarjaa (0,02°:n ruutu, CDN-osuma),
+  kapseli kenttää sarjaa odotellessa. Alarivi "Itämeren vedenkorkeus",
+  suunta sarjan kaltevuudesta; nousu- ja laskuveden valoja ei ole.
+  Lähdemerkintä "Vedenkorkeus · Copernicus Marine, Itämeren malli (2 km)".
+- Mitattu puhelimella: Helsinki "+0,2 m · laskee · Itämeren
+  vedenkorkeus", palkit 246/397 tuntia (sarjan jakso) −0,05 … +0,36 m;
+  Kattegat 246/397, −0,82 … +0,29 m; Skagerrak 9,8° E (R 0,5) vuorovesi.
+  Tietoa-näkymä nimeää aineiston (Baltic Sea Physics, 2 km).
+
+### 15.4 Kelikaista seuraa kerrosta
+
+Ennen (1.10.–16.10.) kaista ja kelihyppy lukivat aina tuulta. Nyt
+(`_tlKaistaPiirra`, `_tlKaistaLaji`):
+
+| kerros | kaista | kelihyppy |
+|---|---|---|
+| tuuli | kelikaista kuten ennen (kynnys `Keli.AJETTAVA`) | näkyy |
+| puuska | puuska `ColorRamp`illa | piilossa |
+| aallot | aallonkorkeus `AaltoVari`llä | piilossa |
+| vuorovesi | vedenkorkeus `VuorovesiVari`llä | piilossa |
+| sade | sade sateen rampilla, pouta lepovärillä | piilossa |
+
+Muilla kuin tuulella juova on koko ajan värikäs ja paksuus kasvaa arvon
+mukana samalla käyrällä kuin palkki (2,8 → 5 px); lepoväri vain siellä
+missä dataa ei ole (maa, mallin jakson ulkopuoli). Puuskalla kelihyppy
+hyppäsi ennen puuskaan ≥ 8 m/s — väärä kynnys väärälle sarjalle. K-näppäin
+toimii kuten nappi (pikanäppäinohje: "tuulikerroksella"). Mitattu
+kaistan kankaasta: värillisiä pikseleitä tuuli 1 928 (loput lepoväriä),
+puuska 12 790 / 0, aallot 10 450, vedenkorkeus Helsinki 4 002 ja lepoväri
+1 460 sarjan jälkeen, sade 1 124 / 2 280.
+
+### 15.5 Asetusten mallilista kerroksen mukaan, aaltomallin pakotus
+
+`AsetusAlue._malliOsio`: tuulella ja puuskalla tuulimallit kuten ennen,
+aalloilla **Kartan aaltomalli** -lista (Paras saatavilla, näkymää kattavat
+aaltoperheet luettelon järjestyksessä, ECMWF WAM), vuorovedellä ja
+sateella kartan lähteet tietona (EOT20 + Itämeren vedenkorkeus; tutka,
+HARMONIE, ECMWF) ilman valintaa.
+
+Aaltoperheen pakotus on tuulen mallien tapaan perhevalinta
+(`AaltoVarasto.TILAT` luettelosta: jokainen perhe yksin pohjan päällä, ECMWF
+WAM sen alueen ulkopuolella ja jakson jälkeen; `Asetukset.arvot.aaltomalli`,
+ei tallennu). Kate on pakotuksesta riippumaton (`AaltoVarasto.perheMarka`:
+painokanava ja märkyys, olematon laatta kuiva), joten pakotettu malli ei
+piilota muita. Pisteen sarjan muisti on tilan mukaan. Mitattu Helsingin
+edustalla: lista "Paras saatavilla (Täällä: FMI WAM · FMI WAM
+(Copernicus) · ECMWF WAM), FMI WAM, FMI WAM (Copernicus), ECMWF WAM";
+pakotus vaihtaa kapselin (1,1 → 1,2 m) ja lähdemerkinnän, ja englanniksi
+"Map wave model", "1.9 km".
+
+### 15.6 Mitä jäi
+
+- Spottikortin vuorovesimoduuli on yhä vain vuorovesirannikolla (0,5 m);
+  Itämeren spottien kortilla on FMI:n vedenkorkeus kuten ennen.
+- Luoteis-Euroopan ja Biskajan vedenkorkeusmallit (NWS, IBI) ovat
+  kortilla mutta eivät kartalla; kartta on niillä EOT20:tä (ilman
+  myrskynousua).
+- Välimeren ja Mustanmeren vedenkorkeusmallit (Copernicus MED, BLK PHY)
+  mittaamatta; kartta näyttää niillä EOT20:n vuoroveden.
+- Kentän tarkkuus 3 × 1 mpk; kartan solmuhila on enintään 0,125°, joten
+  tarkempaa ei tarvita.
+

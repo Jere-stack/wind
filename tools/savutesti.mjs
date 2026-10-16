@@ -8,8 +8,8 @@
  *   2. latausruutu poistuu (`#loading.hidden`) — sovellus ei jää sen alle
  *   3. aikajana rakentuu ja spottimerkit piirtyvät
  *   4. spottikortti, asetukset ja Tietoa-näkymä aukeavat ja Esc sulkee ne
- *   5. kerrosruudut (aallot, sade, tuuli) vaihtavat tilan, ja
- *      vuorovesiruutu on piilossa Helsingissä ja näkyvissä Bretagnessa
+ *   5. kerrosruudut (aallot, sade, vuorovesi, tuuli) vaihtavat tilan, ja
+ *      vuorovesiruutu näkyy sekä Helsingissä että Bretagnessa
  *
  * Käyttö:  npm run build && npx vite preview --port 4173 &
  *          node tools/savutesti.mjs [http://localhost:4173]
@@ -132,18 +132,18 @@ async function aja(nimi, asetus) {
   await sivu.evaluate(() => document.getElementById('btn-settings').click());
   if (!(await nakyy('settings-popup'))) vika('asetukset eivät auenneet');
 
-  /* Kerrosruudut (docs/aallot.md, tuotantokelpoisuus): aallot, sade ja
-     tuuli vaihtavat tilan eikä mikään kaadu. Vuorovesiruutu seuraa
-     näkymää: Helsingissä piilossa, Bretagnessa näkyvissä (oletusnäkymä
-     ei kelpaa, koska se kattaa myös Norjan ja Pohjanmeren rannikon).
-     Aaltojen ja tutkan data ei ole tässä ehto (ulkoinen palvelu);
+  /* Kerrosruudut (docs/aallot.md, tuotantokelpoisuus): aallot, sade,
+     vuorovesi ja tuuli vaihtavat tilan eikä mikään kaadu. Vuorovesiruutu
+     on AINA näkyvissä (käyttäjän pyyntö 16.10.): Helsingissä, jossa se
+     ennen piiloutui, ja Bretagnessa. Aaltojen, tutkan ja Itämeren
+     vedenkorkeuden data ei ole tässä ehto (ulkoinen palvelu);
      vuorovesiluettelo on samasta originista. */
   const kerrokset = await sivu.evaluate(async () => {
     const odota = (ms) => new Promise((res) => setTimeout(res, ms));
     const ruutu = (k) => document.querySelector('#layers .sp-chip[data-layer="' + k + '"]');
     const tila = () => [aaltotila(), _sadetila(), vuorovesitila()].map(Number).join('');
     const ulos = {};
-    for (const k of ['aallot', 'sade', 'wind']) {
+    for (const k of ['aallot', 'sade', 'vuorovesi', 'wind']) {
       const r = ruutu(k);
       if (!r) { ulos[k] = 'ei ruutua'; continue; }
       r.click();
@@ -151,8 +151,8 @@ async function aja(nimi, asetus) {
       ulos[k] = tila();
     }
     const vv = ruutu('vuorovesi');
-    if (!vv) ulos.vuorovesi = 'ei ruutua';
-    else if (!(await Vuorovesi.alusta())) ulos.vuorovesi = 'luettelo ei latautunut';
+    if (!vv) ulos.nakyvyys = 'ei ruutua';
+    else if (!(await Vuorovesi.alusta())) ulos.nakyvyys = 'luettelo ei latautunut';
     else {
       for (const [nimi, lat, lng] of [['helsinki', 60.15, 24.9], ['bretagne', 47.4, -3.4]]) {
         window.FS.State.map.setView([lat, lng], 9, { animate: false });
@@ -163,11 +163,11 @@ async function aja(nimi, asetus) {
     }
     return ulos;
   });
-  if (kerrokset.aallot !== '100' || kerrokset.sade !== '010' || kerrokset.wind !== '000') {
+  if (kerrokset.aallot !== '100' || kerrokset.sade !== '010' || kerrokset.vuorovesi !== '001' || kerrokset.wind !== '000') {
     vika('kerrosruudut eivät vaihda tilaa (aallot, sade, vuorovesi): ' + JSON.stringify(kerrokset));
   }
-  if (kerrokset.helsinki !== 'piilossa' || kerrokset.bretagne !== 'näkyy') {
-    vika('vuorovesiruutu ei seuraa näkymää: ' + JSON.stringify(kerrokset));
+  if (kerrokset.helsinki !== 'näkyy' || kerrokset.bretagne !== 'näkyy') {
+    vika('vuorovesiruutu ei ole aina näkyvissä: ' + JSON.stringify(kerrokset));
   }
 
   /* Tietoa asetuksista */

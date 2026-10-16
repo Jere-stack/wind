@@ -18,6 +18,8 @@
  *   ?lat=&lng=&tz=   ennuste yhteen pisteeseen, 48 h, tuntiaskel
  *   ?vuorovesi=…     vuorovesi asemalta tai alueellisesta mallista
  *                    (api/_vuorovesi.js, docs/aallot.md V6)
+ *   ?vesitaso=…      Itämeren vedenkorkeus vuorovesikartalle: pisteen
+ *                    sarja tai koko meren kenttä (api/_vuorovesi.js)
  *
  * Havainto on omassa osoitteessaan tarkoituksella: sen vastaus on sama
  * riippumatta siita mita spottia katsotaan, joten jaettuna se on yksi
@@ -63,7 +65,7 @@
  */
 import { suojaa } from './_suoja.js';
 import { haeFmi } from './_haku.js';
-import { vuorovesi } from './_vuorovesi.js';
+import { vuorovesi, vesitaso } from './_vuorovesi.js';
 
 const WFS = 'https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature';
 const HAVAINTO = WFS + '&storedquery_id=fmi::observations::mareograph::instant::multipointcoverage';
@@ -214,8 +216,8 @@ export default async function handler(req, res) {
   try {
     /* VUOROVESI (docs/aallot.md V6): asemaennuste tai alueellinen malli
        tilana, ei uutena funktiona (`api/_vuorovesi.js`). */
-    if (req.query.vuorovesi) {
-      var v = await vuorovesi(req.query);
+    if (req.query.vuorovesi || req.query.vesitaso) {
+      var v = req.query.vesitaso ? await vesitaso(req.query) : await vuorovesi(req.query);
       if (v.virhe) return res.status(v.tila || 400).json({ error: v.virhe });
       res.setHeader('Cache-Control', 'public, s-maxage=' + v.ika + ', stale-while-revalidate=600');
       return res.status(200).json(v.tulos);
