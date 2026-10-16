@@ -411,9 +411,18 @@ async function lepo() {
     edel = nyt;
   }
 }
-async function ele({ x0, pito, liikkeet, y = 90, loppuun = 0 }) {
+/* SIVUN OMAT AIKALEIMAT. Sovellus päättää pidon touchstartin ja
+   ensimmäisen touchmoven aikaleimoista (PITO_MS 200), joten testin
+   ennakkoehto "veto alkoi ennen pitoa" luetaan samoista: CDP:n kierros voi
+   kontissa viedä ensimmäisen liikkeen yli 200 ms:n päähän, ja silloin ele
+   OLI sovelluksen sääntöjen mukaan pito (yksi lukema vedossa, 16.10.). */
+await ks.evaluate(() => {
+  document.addEventListener('touchstart', (e) => { window.__kt = { t0: e.timeStamp, t1: null }; }, { capture: true, passive: true });
+  document.addEventListener('touchmove', (e) => { if (window.__kt && window.__kt.t1 == null) window.__kt.t1 = e.timeStamp; }, { capture: true, passive: true });
+});
+async function ele({ x0, pito, liikkeet, y = 90, loppuun = 0, vieritaVahintaan = 0 }) {
   await lepo();
-  await ks.evaluate(() => { window.__loki = []; });
+  await ks.evaluate(() => { window.__loki = []; window.__kt = null; });
   const a = await slK();
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: lk.x + x0, y: lk.y + y }] });
   await nuku(pito);
@@ -424,10 +433,15 @@ async function ele({ x0, pito, liikkeet, y = 90, loppuun = 0 }) {
     if (i === 5) keskella = await ks.evaluate(() => ({ skrubi: !!document.querySelector('.__k .en-kaare')._akSkrubi, luokka: document.querySelector('.__k .en-kaare').classList.contains('skrubaa'), rivi: document.getElementById('__lk').classList.contains('skrubaa') }));
   }
   await nuku(loppuun);
+  /* Reunavieritys on `setInterval(16)`: hidas kone tikittää harvemmin, joten
+     sormi pysyy reunassa kunnes kaavio on vierinyt vaaditun matkan
+     (enintään 5 s) — mitataan että kaavio vierii, ei ajastimen tahtia. */
+  for (let t = 0; vieritaVahintaan && t < 5000 && Math.abs((await slK()) - a) < vieritaVahintaan; t += 100) await nuku(100);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await nuku(450);
-  const loki = await ks.evaluate(() => window.__loki);
-  return { scroll: (await slK()) - a, keskella: keskella, nayta: loki.filter((l) => l[0] === 'nayta' && l[1] != null).map((l) => l[1]), valitse: loki.filter((l) => l[0] === 'valitse').map((l) => l[1]) };
+  const loki = await ks.evaluate(() => window.__loki), kt = await ks.evaluate(() => window.__kt);
+  return { scroll: (await slK()) - a, keskella: keskella, nayta: loki.filter((l) => l[0] === 'nayta' && l[1] != null).map((l) => l[1]), valitse: loki.filter((l) => l[0] === 'valitse').map((l) => l[1]),
+    viive: kt && kt.t1 != null ? kt.t1 - kt.t0 : null };
 }
 /* Lämmittely: ensimmäinen CDP-ele on hidas (kosketuskohteen haku), ja sen
    touchstart–touchmove-väli ylittäisi 200 ms ilman että sormi pitäisi
@@ -437,14 +451,19 @@ await ele({ x0: 280, pito: 50, liikkeet: [260] });
    28 px:n tartunta-alue aloittaa skrubin heti, ja edellisen kierroksen
    valinta jättää kursorin sormen viimeiseen kohtaan). */
 const kursoriX = () => ks.evaluate(() => { const k = document.querySelector('.__k .en-kaare'), g = k._geot[0], svg = k.querySelector('svg'); return svg.getBoundingClientRect().left + g.xOf(window.__valittu()) - k.getBoundingClientRect().left; });
-/* Yksi uusinta: hidas CI-kone voi viivästyttää touchmovea yli 200 ms:n
-   (harness, ei sovellus) ja tehdä vedosta pidon. */
-const uusinnalla = async (ajo, ok) => { let r = await ajo(); if (!ok(r)) r = await ajo(); return r; };
+/* Veto uusitaan (enintään kolme yritystä) vain kun sen ennakkoehto ei
+   täyttynyt: ensimmäinen touchmove tuli sivulle ≥ 200 ms touchstartin
+   jälkeen (`viive`), jolloin harness teki vedosta pidon. Muu vika ei
+   käynnistä uusintaa. */
 for (let kierros = 1; kierros <= 2; kierros++) {
-  await lepo();
-  const cx = await kursoriX(), a0 = cx > 190 ? 70 : 300, a1 = a0 + (a0 < 190 ? 200 : -200);
-  const A = await uusinnalla(() => ele({ x0: a0, pito: 0, liikkeet: liuku(a0, a1, 14) }), (r) => Math.abs(r.scroll) > 150);
-  tarkista('veto heti vierittää (kierros ' + kierros + ')', Math.abs(A.scroll) > 150 && A.nayta.length === 0 && A.valitse.length === 0, A.scroll + ' px, lukemia ' + A.nayta.length);
+  let A = null;
+  for (let yritys = 0; yritys < 3 && !(A && A.viive != null && A.viive < 200); yritys++) {
+    await lepo();
+    const cx = await kursoriX(), a0 = cx > 190 ? 70 : 300, a1 = a0 + (a0 < 190 ? 200 : -200);
+    A = await ele({ x0: a0, pito: 0, liikkeet: liuku(a0, a1, 14) });
+  }
+  tarkista('veto heti vierittää (kierros ' + kierros + ')', Math.abs(A.scroll) > 150 && A.nayta.length === 0 && A.valitse.length === 0,
+    A.scroll + ' px, lukemia ' + A.nayta.length + ', ensimmäinen liike ' + (A.viive == null ? '–' : Math.round(A.viive) + ' ms'));
   await lepo();
   const cx2 = await kursoriX(), b0 = cx2 > 190 ? 70 : 300, b1 = b0 + (b0 < 190 ? 200 : -200);
   const B = await ele({ x0: b0, pito: 260, liikkeet: liuku(b0, b1, 14) });
@@ -465,9 +484,10 @@ const E = await ele({ x0: Math.round(kx) + 6, pito: 0, liikkeet: liuku(kx + 6, k
 tarkista('kursorin tartunta aloittaa skrubin heti', E.keskella && E.keskella.skrubi && E.scroll === 0 && E.valitse.length === 1, 'kursori x ' + Math.round(kx) + ', lukemia ' + E.nayta.length);
 /* Reunavieritys on `setInterval(16)`: CI-koneella tikkejä tulee paljon
    harvemmin kuin 62/s (mitattu 172 px 700 ms:ssa vs 388 px kehityskoneella),
-   joten sormi pidetään reunassa 2 s — testi mittaa että kaavio vierii
-   jatkuvasti, ei kuinka monta tikkiä ajastin ehtii. */
-const F = await ele({ x0: 150, pito: 260, liikkeet: liuku(150, 350, 12), loppuun: 2000 });
+   ja kiinteä 2 s jäi kontissa 180 px:iin (16.10.). Sormi pysyy reunassa
+   kunnes kaavio on vierinyt 220 px (enintään 5 s) — testi mittaa että
+   kaavio vierii, ei kuinka monta tikkiä ajastin ehtii. */
+const F = await ele({ x0: 150, pito: 260, liikkeet: liuku(150, 350, 12), vieritaVahintaan: 220 });
 tarkista('skrubi reunaan vierittää kaaviota', F.scroll > 200 && F.valitse.length === 1, F.scroll + ' px, ' + F.nayta[0] + '…' + F.nayta[F.nayta.length - 1] + ' h');
 /* PYSTYVIIVA EI JÄÄ (30.9.): sormi paikallaan pidon yli sytyttää merkin, ja
    jos selain vie eleen vierityksenä (`touchmove` ei tule peruttavana) merkki
