@@ -1880,3 +1880,19 @@ kerran), regressio (hero = Paras, merkki = heron indeksi, kortti =
 aikajana 0,0000 m/s), `tools/graafimittaus.mjs` 96/96 ja
 `tools/savutesti.mjs`. `?kieli=en`: ei suomea kortissa (ainoa osuma on
 paikannimi Kruunuvuorenselkä asemavalikossa).
+
+### Laajan Nyt-nappi ja vertailujen määrä (16.10.)
+
+Käyttäjän pyynnöstä laajan tuuliennusteen työkalurivillä on sama Nyt-nappi
+kuin kortin ylärivillä (`Ennuste._nytNappiHtml`, Vertaa-napin vieressä):
+näkyy kun valittu tunti tai laajan vieritetty näkymä on muualla kuin
+nykyhetkessä, ja vie `nytTunti()`in samaa polkua (`valitse`). Paikka on
+varattu piilossakin, joten rivi ei muutu.
+
+Vertailtavien mallien raja (3, `MAX_VERTAILUT`) poistettiin käyttäjän
+päätöksellä: Vertaa-valikossa voi valita kaikki pisteen mallit. Laajan
+lukemarivin korkeus pysyy kiinteänä: mallisolut kapenevat (nimi katkeaa
+kolmeen pisteeseen, viivanäyte ja luku jäävät, vähintään 44 px), ja jos
+ne eivät silti mahdu, mallirivi vierii sivuttain. Kohdan V11/P12 maininnat
+"enintään kolme" ovat historiaa.
+

@@ -1218,8 +1218,10 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   mallia). **Kortilla kaavio näyttää vain valitun ennusteen.** Laajassa
   sama kenttä valitsee pohjan, ja sen
   vieressä on **"Vertaa"-nappi**, joka avaa monivalinnan muille malleille
-  (`Valikko` `moni`, enintään 3; neljäs on pois käytöstä ja valikko
-  sanoo miksi) — kaikki samaan kaavioon (P12, 3.10.). "Lisää"-sirurivi
+  (`Valikko` `moni`, EI ENIMMÄISMÄÄRÄÄ — käyttäjän päätös 16.10.; ennen
+  enintään 3) — kaikki samaan kaavioon (P12, 3.10.). Lukemarivin
+  mallisolut kapenevat (nimi katkeaa, viivanäyte ja luku jäävät) ja
+  viimeisenä keinona vierivät; rivin korkeus ei muutu. "Lisää"-sirurivi
   POISTETTIIN: se vieri sivuttain ilman merkkiä jatkosta, ja valitut
   näkyivät puhelimilla 0–14 % (docs/spottikortti.md, 8.2.1). Älä palauta
   sirurivejä laajaan. Tila on yksi
@@ -2523,6 +2525,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   (ennen 418–448 px sadekaistan ja latauksen mukaan). Jos lisäät osioon
   jotain, varaa sen paikka myös silloin kun sitä ei näytetä.
 - **NYKYHETKI: NYT-LAPPU, KATKOVIIVA, MENNEISYYS HARSOLLA JA NYT-NAPPI.**
+  Nappi on kortin ylärivillä JA laajan työkalurivillä (Vertaa-napin
+  vieressä, käyttäjän pyyntö 16.10.; sama `_nytNappiHtml`, näkyvyys
+  kummankin kaavion omasta vierityksestä, `_nytNappiTila`).
   Nappi näkyy vain kun valinta tai näkymä on muualla, ja se vie
   `Ennuste.nytTunti()`in — sama pyöristys kuin aikajanan `nowIdx`
   (kahta "nyt"-sääntöä ei saa olla). Lappu piirretään kursorin PÄÄLLE.

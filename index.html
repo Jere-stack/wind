@@ -4377,8 +4377,15 @@ h3.fc-day-label { margin: 0; }
   flex: 0 0 100%; display: flex; flex-wrap: nowrap; gap: 0 14px; align-items: flex-end;
   height: 40px; box-sizing: border-box; margin-top: 6px; padding-top: 7px; border-top: 1px solid var(--hairline);
 }
-.en-solu-malli .en-solu-nimi { display: inline-flex; align-items: center; gap: 5px; overflow: visible; }
+.en-solu-malli .en-solu-nimi { display: inline-flex; align-items: center; gap: 5px; overflow: hidden; }
 .en-solu-malli .en-naute { flex: 0 0 auto; }
+/* MALLEJA EI RAJATA (16.10.): kun ne eivät mahdu, solut kapenevat
+   (nimi katkeaa kolmeen pisteeseen, viivanäyte ja luku jäävät), ja
+   viimeisenä keinona rivi vierii sivuttain. Korkeus ei muutu. */
+.en-lk-mallit { min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; touch-action: pan-x; }
+.en-lk-mallit::-webkit-scrollbar { display: none; }
+.en-lukema .en-solu.en-solu-malli { flex: 0 1 auto; min-width: 44px; }
+.en-solu-malli .en-solu-nimi > .en-malli-nimi { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .en-lk-tyhja {
   display: inline-flex; align-items: center; gap: 6px; align-self: stretch; margin: -7px 0 0 -6px; padding: 0 6px;
   border: 0; background: transparent; color: var(--ink-3); cursor: pointer; font-size: 13px; font-weight: 500;
@@ -28424,7 +28431,7 @@ const Aikakaavio = {
     const mallit = solut.filter(s => s.malli), rivi = solut.some(s => s.mallirivi);
     const solu = (s) => '<span class="en-solu' + (s.aika ? ' en-solu-aika' : '') + (s.paa ? ' en-solu-paa' : '') + (s.malli ? ' en-solu-malli' : '') + '"'
       + (s.malli ? ' data-lk-malli="' + s.id + '"' : '') + '>'
-      + '<span class="en-solu-nimi">' + (s.naute || '') + s.nimi + '</span><span class="en-solu-arvo">'
+      + '<span class="en-solu-nimi">' + (s.naute || '') + (s.malli ? '<span class="en-malli-nimi">' + s.nimi + '</span>' : s.nimi) + '</span><span class="en-solu-arvo">'
       + (s.luku ? '<span class="en-luku">' + s.arvo + '</span>' : s.arvo)
       + (s.ala ? ' <small>' + s.ala + '</small>' : '')
       + (s.suunta != null ? ' <small class="en-suunta">' + s.suunta + '</small>' : '') + '</span></span>';
@@ -28763,7 +28770,6 @@ const Ennuste = {
   /* Kortin leveydelle mahtuu 48 tuntia; laajassa 72. */
   NAKYVA_H: 48,
   NAKYVA_H_LAAJA: 72,
-  MAX_VERTAILUT: 3,
   _asetus: null,
   asetus() {
     if (this._asetus) return this._asetus;
@@ -28776,7 +28782,7 @@ const Ennuste = {
     const pohja = a && (a.pohja === 'paras' || ok.indexOf(a.pohja) >= 0) ? a.pohja : 'paras';
     this._asetus = {
       pohja: pohja,
-      valitut: (a && Array.isArray(a.valitut) ? a.valitut : []).filter(x => ok.indexOf(x) >= 0 && x !== pohja).slice(0, this.MAX_VERTAILUT),
+      valitut: (a && Array.isArray(a.valitut) ? a.valitut : []).filter(x => ok.indexOf(x) >= 0 && x !== pohja),
     };
     return this._asetus;
   },
@@ -28795,9 +28801,9 @@ const Ennuste = {
     const v = this.asetus().valitut.filter(id => id !== pohja);
     const kartta = (typeof Asetukset !== 'undefined' && Asetukset.arvot) ? Asetukset.arvot.malli : 'auto';
     if (kartta && kartta !== 'auto' && kartta !== pohja && KorttiSarjat.malli(kartta) && v.indexOf(kartta) < 0) v.unshift(kartta);
-    /* Enintään kolme myös kun kartan pakotus tuo neljännen: lukemarivillä
-       on kolmen mallin paikat (P12). */
-    return v.slice(0, this.MAX_VERTAILUT);
+    /* Vertailtavien määrää EI rajata (käyttäjän pyyntö 16.10.; ennen
+       enintään kolme): lukemarivin mallisolut kapenevat ja vierivät. */
+    return v;
   },
   /* Nykyhetken tunti samalla pyöristyksellä kuin aikajanan `nowIdx`
      (lähin tasatunti) — kahta "nyt"-sääntöä ei saa olla. */
@@ -28822,8 +28828,7 @@ const Ennuste = {
          kaavion sinne. Se näkyy vain kun valinta tai näkymä on muualla —
          nappi joka ei tee mitään olisi turha pysäkki — mutta sen paikka
          on varattu (`visibility`). */
-      + '<button type="button" class="en-nyt" data-en-nyt hidden aria-label="' + _t('Palaa nykyhetkeen', 'Back to now') + '">'
-      + _PALUU_SVG + _t('Nyt', 'Now') + '</button>'
+      + this._nytNappiHtml()
       + _havLaajennaNappi('ennuste') + '</div>'
       /* Kaavio on fokusoitava: nuolet vaihtavat tuntia. */
       + '<div class="ak-kehys"><div class="en-kaare" data-en-kaare tabindex="0" role="group"'
@@ -28997,14 +29002,20 @@ const Ennuste = {
     if (c) { c.textContent = String(n || 0); c.hidden = !n; }
     b.setAttribute('aria-label', this._vertaaNimi(n));
   },
+  /* Laajassa sama Nyt-nappi kuin kortin ylärivillä (käyttäjän pyyntö
+     16.10.): näkyy kun valinta tai laajan näkymä on muualla kuin
+     nykyhetkessä, ja paikka on varattu piilossakin. */
+  _nytNappiHtml() {
+    return '<button type="button" class="en-nyt" data-en-nyt hidden aria-label="' + _t('Palaa nykyhetkeen', 'Back to now') + '">'
+      + _PALUU_SVG + _t('Nyt', 'Now') + '</button>';
+  },
   _laajaTyokalutHtml(ctx) {
-    return this._pohjaNappiHtml(ctx.spot, ctx.valittu, true) + this._vertaaNappiHtml(ctx);
+    return this._pohjaNappiHtml(ctx.spot, ctx.valittu, true) + this._vertaaNappiHtml(ctx) + this._nytNappiHtml();
   },
   _avaaVertaaValikko(ctx, nappi) {
     const self = this, pohja = this.pohjaId();
     Valikko.avaa(nappi, {
-      otsikko: _t('Vertaa samassa kaaviossa', 'Compare in the same chart'), moni: true, max: this.MAX_VERTAILUT,
-      maxSyy: _t('Enintään ' + this.MAX_VERTAILUT + ' mallia kerrallaan — poista ensin yksi.', 'Up to ' + this.MAX_VERTAILUT + ' models at a time — remove one first.'),
+      otsikko: _t('Vertaa samassa kaaviossa', 'Compare in the same chart'), moni: true,
       vaihtoehdot: KorttiSarjat.mallitPisteelle(ctx.spot, this._naytetyt(ctx)).filter(m => m.id !== pohja).map(m => ({ id: m.id, nimi: m.nimi, ala: m.ala, naute: self._nauteSvg(m) })),
       tila: function () { return self._naytetyt(ctx); },
       valitse: function (id) { self._vaihdaVertailu(ctx, id); },
@@ -29018,7 +29029,6 @@ const Ennuste = {
       ctx.piilotettu = id;
     } else if (i >= 0) a.valitut.splice(i, 1);
     else {
-      if (naytetyt.length >= this.MAX_VERTAILUT) return;
       a.valitut.push(id);
       if (ctx.piilotettu === id) ctx.piilotettu = null;
       const self = this;
@@ -29032,8 +29042,8 @@ const Ennuste = {
     const self = this;
     /* Uudelleenrakennus korvaa kentän: fokus siirtyy uuteen kenttään,
        muuten valikon sulku jättäisi sen irronneeseen nappiin. */
-    const fokus = document.activeElement && el.contains(document.activeElement) && document.activeElement.matches('[data-en-pohja], [data-en-vertaa]')
-      ? (document.activeElement.matches('[data-en-pohja]') ? '[data-en-pohja]' : '[data-en-vertaa]') : null;
+    const fokus = document.activeElement && el.contains(document.activeElement) && document.activeElement.matches('[data-en-pohja], [data-en-vertaa], [data-en-nyt]')
+      ? ['[data-en-pohja]', '[data-en-vertaa]', '[data-en-nyt]'].find(q => document.activeElement.matches(q)) : null;
     el.innerHTML = this._laajaTyokalutHtml(ctx);
     el._pohja = this.pohjaId();
     if (fokus) { const u = el.querySelector(fokus); if (u) { try { u.focus({ preventScroll: true }); } catch (e) {} } }
@@ -29042,6 +29052,14 @@ const Ennuste = {
     if (pn) pn.addEventListener('click', function () { self._avaaPohjaValikko(ctx, pn); });
     const vn = el.querySelector('[data-en-vertaa]');
     if (vn) vn.addEventListener('click', function () { self._avaaVertaaValikko(ctx, vn); });
+    const nn = el.querySelector('[data-en-nyt]');
+    if (nn) nn.addEventListener('click', function () {
+      const t = self.nytTunti();
+      if (ctx.laajaKaare && ctx.laajaKaare.isConnected) Aikakaavio.naytaHetki(ctx.laajaKaare, t, true);
+      self.valitse(ctx, t);
+      if (typeof Haptics !== 'undefined') Haptics.light();
+    });
+    this._paivitaNytNappi(ctx);
   },
   /* Valinta tai data muuttui: kortti, valikkokenttä ja (jos auki) laaja.
      `vainData` = sarja saapui, valinnat eivät muuttuneet. */
@@ -29138,11 +29156,16 @@ const Ennuste = {
     Hero.nayta(ctx.spot, t, ctx.hover != null);
   },
   _paivitaNytNappi(ctx) {
-    const b = ctx.osio.querySelector('[data-en-nyt]');
+    this._nytNappiTila(ctx, ctx.osio.querySelector('[data-en-nyt]'), ctx.osio.querySelector('[data-en-kaare]'));
+    const laajaOma = typeof HavLaaja !== 'undefined' && HavLaaja.auki() && HavLaaja._lahde && HavLaaja._lahde.enCtx === ctx;
+    const ls = laajaOma ? ctx.laajaSirut : null;
+    if (ls && ls.isConnected) this._nytNappiTila(ctx, ls.querySelector('[data-en-nyt]'), ctx.laajaKaare && ctx.laajaKaare.isConnected ? ctx.laajaKaare : null);
+  },
+  _nytNappiTila(ctx, b, k) {
     if (!b) return;
     const nyt = this.nytTunti();
     let muualla = ctx.valittu != null && Math.abs(ctx.valittu - nyt) >= 36e5;
-    const k = ctx.osio.querySelector('[data-en-kaare]'), g = k && k._geot && k._geot[0];
+    const g = k && k._geot && k._geot[0];
     if (!muualla && g && k._W0 && g.W > k._W0 + 1) {
       /* Ennen ensimmäistä vieritystä sijainti on se jonne `aseta` on
          juuri vierittämässä — `scrollLeft`in luku pakottaisi juuri
@@ -29402,7 +29425,19 @@ const Ennuste = {
       },
     });
     Aikakaavio.venytys(kaare, { avain: 'ennuste-laaja', oletus: this.NAKYVA_H_LAAJA, min: 12, max: 240,
-      piirra: function () { HavLaaja.paivita(); } });
+      piirra: function () { HavLaaja.paivita(); }, valmis: function () { self._paivitaNytNappi(ctx); } });
+    /* Nyt-nappi seuraa myös laajan vieritystä, kuten kortilla. */
+    if (!kaare._enVieritys) {
+      kaare._enVieritys = true;
+      let viim = 0;
+      kaare.addEventListener('scroll', function () {
+        const n = Date.now();
+        if (n - viim < 100) return;
+        viim = n;
+        self._paivitaNytNappi(ctx);
+      }, { passive: true });
+    }
+    this._paivitaNytNappi(ctx);
   },
 };
 
