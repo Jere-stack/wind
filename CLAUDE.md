@@ -196,7 +196,10 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   tunnin välein ja päättyneet vuorokaudet summina. Näytteistys on
   `AaltoVarasto._naytePerhe` / `naytteista` — jos muutat asiakkaan
   aaltosekoitusta, muuta tätä samassa muutoksessa. `SAADATA_KANTA` voi
-  olla paikallinen rakennushakemisto testissä.
+  olla paikallinen rakennushakemisto testissä. NDBC:n suunta on
+  huippujakson suunta, joten sitä verrataan mallin keskisuuntaan vain
+  yksihuippuisessa meressä (DPD ≤ 1,6 × APD): kaksihuippuinen Havaiji
+  antoi 72° ja hälytyksen joka tunti ilman vikaa (16.10.).
 - `tools/vuorovesi.py` — vuoroveden harmoniset vakiot EOT20:stä
   (DGFI-TUM, CC BY 4.0) laatoiksi `public/vuorovesi/` (`FSVV`, tasot t0
   0,125° rannikolle, t1 0,5° ja t2 2,0°, 8,5 MB), 2°:n katerasteri ja

@@ -1104,13 +1104,19 @@ rakentajalla, ja 16.10. klo 12 mennessä kuusi ajoa oli onnistunut:
 20–35 min (vaihtelu on verkkoa — samat perheet 1,5–2 kertaa nopeampia
 lyhyissä ajoissa), 4 418 laattaa, gzip 288–290 MB, ja luettelossa
 `aallot2` kahdeksalla perheellä. ECMWF WAM 129 hetkeä (we0 98, +7 vrk),
-150–153 MB, 198–358 s. FMI WAM:n yksi pala (06Z-ajon tunnit 06–11)
-vastasi #293:ssa HTTP 400, joten perheessä oli 67/73 hetkeä ja ECMWF
-täytti välin; seuraavissa 73/73. Varmennus arkistoi jokaisen
-rakennuksen (noin 53 kB) ja vertaa tunnin välein: FMI 6, NDBC 15/15,
-Marine Institute 4 (M4 hiljaa). Ensimmäinen hälytys oli Havaijin suunta,
-ja se oli vertailun vika (ks. yllä "Suunta verrataan samaan
-suureeseen").
+150–153 MB, 198–358 s. FMI WAM:n VANHIMMAN luetellun ajon ensimmäinen
+pala (6 h, 12–18 h menneisyydessä) vastasi kolmessa ajossa kuudesta
+HTTP 400 (#293, #294, #296: 67/73 hetkeä), muissa 73/73. Kaikki kolme
+luetteloitua ajoa latautuivat klo 12:37 UTC, joten kyse on ajonvaihdon
+hetkestä jolloin WFS-luettelo ja latauspalvelu ovat eri mieltä
+vanhimmasta ajosta. Rakentaja jättää puuttuvat tunnit pois akselilta
+kuten tuulella, eli FMI WAM:n jakso alkaa 6 h myöhemmin ja alempi
+perhe (BAL, ECMWF) kattaa ne; muuta korjattavaa ei ole. Copernicus
+IBI:ltä puuttui #294:ssä 4 hetkeä 84:stä ja MED:ltä 2 / 86, muissa
+ajoissa ei mitään. Varmennus arkistoi jokaisen rakennuksen (noin
+53 kB) ja vertaa tunnin välein: FMI 6, NDBC 15/15, Marine Institute 4
+(M4 hiljaa). Ensimmäinen hälytys oli Havaijin suunta, ja se oli
+vertailun vika (ks. yllä "Suunta verrataan samaan suureeseen").
 
 Varhainen havainto, ei päätös (mittari 5 ratkaisee 30 vrk:n summista):
 **FMI WAM on kahdella rantaa lähimmällä poijulla korkea.** Suomenlinnan

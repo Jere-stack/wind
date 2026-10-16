@@ -394,7 +394,25 @@ const cdp = await kos.kons.newCDPSession(ks);
 const lk = await ks.evaluate(() => { const r = document.querySelector('.__k .en-kaare').getBoundingClientRect(); return { x: r.left, y: r.top }; });
 const slK = () => ks.evaluate(() => document.querySelector('.__k .en-kaare').scrollLeft);
 const liuku = (a, b, n) => Array.from({ length: n }, (_, i) => Math.round(a + (b - a) * (i + 1) / n));
+/* LEPO ENNEN ELETTÄ: edellisen eleen heitto (CDP:n veto jatkuu
+   vierityksenä noston jälkeen) ja asteikon sovitus (`scrollend` + 160 ms)
+   saavat päättyä ensin. Ilman tätä ne osuivat seuraavaan eleeseen:
+   "veto heti vierittää" mittasi kontissa −106 ja 0 px kahdessa ajossa
+   kolmesta, ja CI:ssä "pystyviiva ei jää" ei saanut merkkiä näkyviin
+   (16.10., kolme kaatunutta ajoa kahdestatoista, yksi pelkästä
+   dokumentaatiosta). Kaavio on levossa kun vieritys ei ole liikkunut
+   kahteen peräkkäiseen 150 ms:n näytteeseen. */
+async function lepo() {
+  let edel = await slK(), samoja = 0;
+  for (let i = 0; i < 20 && samoja < 2; i++) {
+    await nuku(150);
+    const nyt = await slK();
+    samoja = nyt === edel ? samoja + 1 : 0;
+    edel = nyt;
+  }
+}
 async function ele({ x0, pito, liikkeet, y = 90, loppuun = 0 }) {
+  await lepo();
   await ks.evaluate(() => { window.__loki = []; });
   const a = await slK();
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: lk.x + x0, y: lk.y + y }] });
@@ -423,9 +441,11 @@ const kursoriX = () => ks.evaluate(() => { const k = document.querySelector('.__
    (harness, ei sovellus) ja tehdä vedosta pidon. */
 const uusinnalla = async (ajo, ok) => { let r = await ajo(); if (!ok(r)) r = await ajo(); return r; };
 for (let kierros = 1; kierros <= 2; kierros++) {
+  await lepo();
   const cx = await kursoriX(), a0 = cx > 190 ? 70 : 300, a1 = a0 + (a0 < 190 ? 200 : -200);
   const A = await uusinnalla(() => ele({ x0: a0, pito: 0, liikkeet: liuku(a0, a1, 14) }), (r) => Math.abs(r.scroll) > 150);
   tarkista('veto heti vierittää (kierros ' + kierros + ')', Math.abs(A.scroll) > 150 && A.nayta.length === 0 && A.valitse.length === 0, A.scroll + ' px, lukemia ' + A.nayta.length);
+  await lepo();
   const cx2 = await kursoriX(), b0 = cx2 > 190 ? 70 : 300, b1 = b0 + (b0 < 190 ? 200 : -200);
   const B = await ele({ x0: b0, pito: 260, liikkeet: liuku(b0, b1, 14) });
   tarkista('pito + veto: ei vieritä, lukema seuraa, nosto valitsee kerran (kierros ' + kierros + ')',
@@ -456,10 +476,14 @@ tarkista('skrubi reunaan vierittää kaaviota', F.scroll > 200 && F.valitse.leng
 const hoverNakyy = () => ks.evaluate(() => { const h = document.querySelector('.__k .en-kaare svg.tk-svg [data-tk-hover]'); return h && h.getAttribute('visibility') === 'visible'; });
 await ks.evaluate(() => { document.querySelector('.__k .en-kaare').scrollLeft += 0; });
 {
+  await lepo();
   const kx0 = await kursoriX(), x0 = kx0 > 190 ? 70 : 300;
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: lk.x + x0, y: lk.y + 90 }] });
-  await nuku(320);
-  const pidossa = await hoverNakyy();
+  /* Merkki syttyy pidon ajastimesta (200 ms); odotetaan sitä ehtona eikä
+     kiinteänä aikana, koska hidas kone viivästyttää ajastinta. Sormi on
+     koko ajan paikallaan, joten odotus on yhä pito. */
+  let pidossa = false;
+  for (let i = 0; i < 30 && !pidossa; i++) { await nuku(50); pidossa = await hoverNakyy(); }
   await ks.evaluate(() => { document.querySelector('.__k .en-kaare').scrollLeft += 40; });
   await nuku(120);
   const vierityksessa = await hoverNakyy();
