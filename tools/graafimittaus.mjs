@@ -420,12 +420,17 @@ await ks.evaluate(() => {
   document.addEventListener('touchstart', (e) => { window.__kt = { t0: e.timeStamp, t1: null }; }, { capture: true, passive: true });
   document.addEventListener('touchmove', (e) => { if (window.__kt && window.__kt.t1 == null) window.__kt.t1 = e.timeStamp; }, { capture: true, passive: true });
 });
-async function ele({ x0, pito, liikkeet, y = 90, loppuun = 0, vieritaVahintaan = 0 }) {
+async function ele({ x0, pito, liikkeet, y = 90, loppuun = 0, vieritaVahintaan = 0, pitoMerkkiin = false }) {
   await lepo();
   await ks.evaluate(() => { window.__loki = []; window.__kt = null; });
   const a = await slK();
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: lk.x + x0, y: lk.y + y }] });
   await nuku(pito);
+  /* Pidon merkki syttyy ajastimesta (200 ms), ja hidas kone viivästyttää
+     sitä: kiinteä 300 ms ei kontissa aina riittänyt (lukemia 0, 16.10.).
+     `pitoMerkkiin` pitää sormea paikallaan kunnes merkki on syttynyt
+     (lokissa lukema), enintään 1,5 s. */
+  for (let t = 0; pitoMerkkiin && t < 1500 && !(await ks.evaluate(() => window.__loki.some((l) => l[0] === 'nayta' && l[1] != null))); t += 50) await nuku(50);
   let keskella = null;
   for (let i = 0; i < liikkeet.length; i++) {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: lk.x + liikkeet[i], y: lk.y + y }] });
@@ -474,7 +479,7 @@ for (let kierros = 1; kierros <= 2; kierros++) {
 }
 const C = await ele({ x0: 200, pito: 30, liikkeet: [] });
 tarkista('napautus valitsee kerran', C.valitse.length === 1 && C.scroll === 0, 'valintoja ' + C.valitse.length);
-const D = await ele({ x0: 200, pito: 300, liikkeet: [] });
+const D = await ele({ x0: 200, pito: 300, liikkeet: [], pitoMerkkiin: true });
 tarkista('pito paikallaan ja nosto valitsee kerran (lukema syttyy)', D.valitse.length === 1 && D.nayta.length >= 1, 'valintoja ' + D.valitse.length + ', lukemia ' + D.nayta.length);
 /* Tuo kursori näkyviin ja aloita 6 px sen oikealta puolelta. */
 await ks.evaluate(() => { const k = document.querySelector('.__k .en-kaare'), g = k._geot[0]; k.scrollLeft = Math.max(0, g.xOf(window.__valittu()) - 150); });
@@ -521,6 +526,7 @@ await ks.evaluate(() => { document.querySelector('.__k .en-kaare').scrollLeft +=
 {
   const kx0 = await kursoriX(), x0 = kx0 > 190 ? 70 : 300, x1 = x0 + (x0 < 190 ? 150 : -150);
   const kuplaKosk = () => ks.evaluate(() => { const kg = document.querySelector('.__k .en-kaare svg.tk-svg [data-tk-kupla]'); return !!kg && getComputedStyle(kg).visibility === 'visible'; });
+  await lepo();
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: lk.x + x0, y: lk.y + 90 }] });
   await nuku(300);
   for (const x of liuku(x0, x1, 8)) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: lk.x + x, y: lk.y + 90 }] }); await nuku(16); }
