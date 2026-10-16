@@ -7490,6 +7490,13 @@ yö luetaan lappujen rajoilta. Tarkistettu synteettisellä sarjalla (kova
 tuuli pe 12 → la 18): juova on yhtenäinen keskiyön yli. Kelihyppy vaatii
 yhä valoisan tunnin (`_tlAurinko`).
 
+**16.10.: kaista seuraa kartan kerrosta** (käyttäjän päätös, toteutus ja
+mittaukset docs/aallot.md 15.4). Yllä kuvattu kelikaista on nyt TUULEN
+kaista. Puuskalla, aalloilla, vuorovedellä ja sateella juova on koko ajan
+sen kerroksen asteikon värinen (`_tlKaistaLaji`, `_tlKaistaArvo`) ja
+paksuus kasvaa arvon mukana palkin käyrällä; lepoväri vain siellä missä
+dataa ei ole. Kelihyppy (nappi ja K) on vain tuulella.
+
 ### Mitä jäi auki
 
 - **Kontti ei mittaa laitteen sujuvuutta.** Sekoitustila, sticky ja
