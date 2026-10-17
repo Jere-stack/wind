@@ -400,9 +400,11 @@ Tarkistettu selaimessa: luettelo aukeaa raw:sta (`tila ok`), Range-
 haut ilman esitarkistusta, nimet suomeksi ja englanniksi (`?kieli=en`),
 aaltotilan ranta oman vektorin maskista, satelliitti tummennettuna,
 maailma z1,8 … Helsinki z13,2. Savutesti läpi puhelimella ja
-työpöydällä. `tools/graafimittaus.mjs` antaa kontissa yhden vian ("veto
-heti vierittää, kierros 2") — sama vika edellisellä versiolla (sama
-build ilman tätä muutosta, portti 4174), eli se ei ole tämän muutoksen.
+työpöydällä. `tools/graafimittaus.mjs` kaatui kontissa (myös edellisellä versiolla)
+ja CI:ssä tämän muutoksen jälkeen kohtaan "veto heti vierittää, kierros
+2": −106 px joka kerta, eli kierroksen 1 heitto oli jättänyt kaavion
+106 px:n päähän päädystä ja testi mittasi rajaa eikä elettä. Testin veto
+alkaa nyt vierityksen keskeltä; 2/2 ajoa läpi.
 
 ### Mitä jäi
 

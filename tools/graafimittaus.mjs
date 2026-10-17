@@ -468,6 +468,11 @@ const kursoriX = () => ks.evaluate(() => { const k = document.querySelector('.__
 for (let kierros = 1; kierros <= 2; kierros++) {
   let A = null;
   for (let yritys = 0; yritys < 3 && !(A && A.viive != null && A.viive < 200 && A.nayta.length === 0); yritys++) {
+    /* Veto vaatii yli 150 px vieritysvaraa vedon suuntaan. Kierroksen 1
+       heitto voi jättää kaavion päätyyn: kierros 2 mittasi kontissa ja
+       CI:ssä joka kerta −106 px eli matkan päätyyn (17.10.), eli rajan eikä
+       eleen. Aloitus vierityksen keskeltä. */
+    await ks.evaluate(() => { const k = document.querySelector('.__k .en-kaare'); k.scrollLeft = (k.scrollWidth - k.clientWidth) / 2; });
     await lepo();
     const cx = await kursoriX(), a0 = cx > 190 ? 70 : 300, a1 = a0 + (a0 < 190 ? 200 : -200);
     A = await ele({ x0: a0, pito: 0, liikkeet: liuku(a0, a1, 14) });
