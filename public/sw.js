@@ -68,20 +68,6 @@ const KUORI_TIEDOSTOT = [
   '/vendor/maplibre-gl-5.24.0.js',
 ];
 
-/* OMA POHJAKARTTA (docs/pohjakartta.md): PMTiles-arkistot ja fontit
-   haarasta `pohjakartta`. Arkiston nimi on versioitu (`pohja-<aika>-…`),
-   joten sen tavut eivät muutu: välimuisti edellä. Arkisto luetaan
-   Range-pyynnöillä, ja Cache API ei talleta 206-vastausta, joten avain on
-   osoite + tavuväli kyselynä (`?tavut=a-b`) ja talletettu vastaus on 200 täsmälleen pyydetyn
-   mittaisena (sovelluksen `Pmtiles` hyväksyy sen). Luettelo
-   (`luettelo.json`) kulkee säälaattojen luettelon polkua (verkko edellä). */
-/* v2: v1:n avaimet olivat rikki (ks. käsittelijä), ja activate poistaa
-   sen välimuistin. */
-const POHJAKARTTA = 'pohjakartta-v2';
-const POHJA_KATTO = 4000;
-const onPohjakartta = (u) => u.hostname === 'raw.githubusercontent.com' && u.pathname.includes('/pohjakartta/')
-  && (u.pathname.endsWith('.pmtiles') || u.pathname.endsWith('.pbf'));
-
 /* OPENFREEMAPIN VEKTORILAATAT (docs/pohjakartta.md, strategia 2): osoite
    on versioitu (`/planet/<rakennus>/z/x/y.pbf`, max-age 10 v), joten
    välimuisti edellä. Oma välimuisti ja pienempi katto, koska laatta on
@@ -89,6 +75,9 @@ const onPohjakartta = (u) => u.hostname === 'raw.githubusercontent.com' && u.pat
 const OFM = 'ofm-v1';
 const OFM_KATTO = 800;
 const onOfm = (u) => u.hostname === 'tiles.openfreemap.org' && /^\/planet\/[^/]+\/\d+\/\d+\/\d+\.pbf$/.test(u.pathname);
+/* Rinnevarjostuksen korkeusmalli (Mapzen Terrain Tiles, muuttumaton
+   aineisto): sama välimuisti. */
+const onDem = (u) => u.hostname === 'elevation-tiles-prod.s3.amazonaws.com' && /^\/terrarium\/\d+\/\d+\/\d+\.png$/.test(u.pathname);
 let ofmLaskuri = 0;
 async function siivoaOfm() {
   if (++ofmLaskuri % 100) return;
@@ -138,7 +127,9 @@ self.addEventListener('activate', (e) => {
       /* Vuorovesivakiot ovat koko aineiston kokoiset enintään (8,5 MB);
          uusi rakennus (`tools/vuorovesi.py`) vaihtaa nimen. */
       if (n.startsWith('vuorovesi-') && n !== VUOROVESI) await caches.delete(n);
-      if (n.startsWith('pohjakartta-') && n !== POHJAKARTTA) await caches.delete(n);
+      /* Oma PMTiles-pohja (`pohjakartta`-haara) poistui 17.10.: sovellus
+         ei lue sitä enää, joten sen välimuisti pois kokonaan. */
+      if (n.startsWith('pohjakartta-')) await caches.delete(n);
       if (n.startsWith('ofm-') && n !== OFM) await caches.delete(n);
     }
     await self.clients.claim();
@@ -153,15 +144,6 @@ async function siivoaLaatat() {
   const c = await caches.open(LAATAT);
   const avaimet = await c.keys();
   const yli = avaimet.length - LAATTA_KATTO;
-  for (let i = 0; i < yli; i++) await c.delete(avaimet[i]);
-}
-
-let pohjaLaskuri = 0;
-async function siivoaPohja() {
-  if (++pohjaLaskuri % 100) return;
-  const c = await caches.open(POHJAKARTTA);
-  const avaimet = await c.keys();
-  const yli = avaimet.length - POHJA_KATTO;
   for (let i = 0; i < yli; i++) await c.delete(avaimet[i]);
 }
 
@@ -211,38 +193,13 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  if (onOfm(u)) {
+  if (onOfm(u) || onDem(u)) {
     e.respondWith((async () => {
       const c = await caches.open(OFM);
       const osuma = await c.match(e.request);
       if (osuma) return osuma;
       const r = await fetch(e.request);
       if (r.ok) c.put(e.request, r.clone()).then(siivoaOfm).catch(() => {});
-      return r;
-    })());
-    return;
-  }
-
-  if (onPohjakartta(u)) {
-    e.respondWith((async () => {
-      const vali = e.request.headers.get('Range') || '';
-      /* Tavuväli KYSELYOSAAN, ei fragmenttiin: Cache API jättää `#…`:n
-         avaimesta pois, ja jokainen väli osui samaan avaimeen — kartta sai
-         joka laatan paikalle ensimmäisen talletetun välin tavut (v1). */
-      const avain = new Request(u.origin + u.pathname + '?tavut=' + vali.replace(/[^0-9-]/g, ''));
-      const c = await caches.open(POHJAKARTTA);
-      const osuma = await c.match(avain);
-      if (osuma) return osuma;
-      const r = await fetch(e.request);
-      if (r.status === 200 || r.status === 206) {
-        const runko = await r.arrayBuffer();
-        const t = new Response(runko, { status: 200, headers: { 'Content-Type': r.headers.get('Content-Type') || 'application/octet-stream' } });
-        /* Talletetaan vain täsmälleen pyydetyn mittainen väli: koko
-           tiedoston 200 välin avaimella olisi väärät tavut. */
-        const m = /bytes=(\d+)-(\d+)/.exec(vali);
-        if (!vali || (m && runko.byteLength === +m[2] - +m[1] + 1)) c.put(avain, t.clone()).then(siivoaPohja).catch(() => {});
-        return t;
-      }
       return r;
     })());
     return;

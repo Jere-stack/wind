@@ -618,3 +618,104 @@ näkyvät z15:ssä; rannan ero vähintään nykyisen tasolla.
 - **Q3** Pidetäänkö rantavarjo? Se on suurin yksittäinen kustannus;
   V1 puolittaa sen liikkeessä. Suositus pidetään ja mitataan V1:n jälkeen.
 - **Q4** Satelliitin katuviivat z ≥ 13 (K6)? Suositus kyllä.
+
+## Toteutus 2 (17.10.): OpenFreeMap, rinne korkeusmallista ja korjaukset
+
+Q1–Q4 suosituksen mukaan (käyttäjä: "tehdään suosituksella").
+
+### Rakenne
+
+- **Lähde `ofm`** (`OFM_TILEJSON` = `tiles.openfreemap.org/planet`,
+  OpenMapTiles z0–14). `Pohjakartta.alusta` hakee TileJSONin 8 s:n
+  rajalla; ilman sitä tila on `'pois'` ja kartta on Esrin tummalla
+  rasterilla (varatie, ennallaan). Laattojen osoite on versioitu
+  (`/planet/<rakennus>/z/x/y.pbf`, max-age 10 v), joten SW pitää ne
+  välimuisti edellä (`ofm-v1`, katto 800).
+- **Kerrokset** (MapLibren zoomit; sovelluksen tarkin on 15):
+  vesi, joet z8 ja purot z12, rakennukset z13 alfa .07, laiturit z12,
+  tiet `tie()`-apurilla — pääväylät z5, muut tiet z9, kadut z11,
+  huoltotiet z13, kevyt liikenne z14 — valtion raja, ja nimet sään
+  päällä: meret, valtiot (z < 8), kaupungit, kylät z10, saaret z11,
+  kaupunginosat z12, kadunnimet z13 tien suuntaan ja pysäköinti "P" z14.
+  Tokenit `--kartta-tie-paa` .24, `-katu` .17, `-polku` .10, `-laituri`
+  .30, `-rakennus` .07, `-pysakointi` ja `-tie-sat`.
+- **Pysäköinti on `poi`-piste `class=parking`, rajattu laatan
+  `rank`illa** (≤ 8, z14,5:stä ≤ 20) ja `text-padding` 14: ilman rajaa
+  jokaisen pihan P peitti korttelin.
+- **Kynnykset laskettiin tasolla** suunnitelmasta (kadut z12 → z11
+  jne.): suunnitelma oli kirjoitettu Leafletin asteikolla, ja MapLibren
+  z15 on sovelluksen katto, joten kevyt liikenne z15 → olisi näkynyt
+  vain aivan pohjalla.
+- **Satelliitti (K6)**: `metadata.pohja = 'satelliitti'` -katuviiva
+  (`ofm-tie-sat`, z12, valkoinen .34) ja `'kaikki'`-nimet ilmakuvan
+  päällä. Varatiellä mikään OFM-kerros ei näy.
+- **Fontit OpenFreeMapista** (`/fonts/{fontstack}/{range}.pbf`, Noto
+  Sans Regular ja Bold; Mediumia ei ole, 404 → Bold). Oman haaran
+  fonteista puuttuivat mm. arabian alueet (404 kartan nimille).
+- **Rinnevarjostus on MapLibren `hillshade`** `raster-dem`-lähteestä
+  (`DEM_LAATAT`, Mapzen Terrain Tiles AWS:ssä, `terrarium`, CORS `*`,
+  noin 0,2 s/laatta, maxzoom 8), veden täytön alla: liioittelu 0,5,
+  varjo musta .6, valo valkoinen .10, korostus .25. Varjostus lasketaan
+  GPU:lla eikä pääsäikeessä, ja `pohjakartta`-haaran arkisto,
+  `Pmtiles`, `fsp://`-protokolla ja SW:n tavuvälivälimuisti poistettiin
+  koodista (SW poistaa vanhan `pohjakartta-*`-välimuistin).
+- **Vesimaski työntekijässä** (`VesiTyo`: Blob-URL-työntekijä,
+  `Mvt.monikulmiot` + `_vesiRasteroi` OffscreenCanvasilla, 24 laatan
+  hakumuisti; varatie pääsäie). Maskin laatta z lukee OFM:n laatan
+  z − 1 (retinalla z − 2), eli saman jonka MapLibre jo haki. Jono
+  puretaan vain levossa (`Rantamaski._pumppaa`, `moveend`).
+- **Rantavarjo kevyemmin liikkeessä**: sumea maa 1/8-resoluutiolla
+  liikkeessä, 1/4 levossa (Q3: pidetään).
+- **Emojen esilataus** (`Pohjakartta.esilataa`, `moveend`): näkymän
+  laatat kolmelta karkeammalta tasolta (≤ 9 laattaa tasoa kohti,
+  `priority: 'low'`), maailma z0–1 käynnistyksessä. MapLibre piirtää
+  puuttuvan laatan paikalle muistissa olevat lapset — juuri ne neliöt
+  jotka käyttäjä näki — ja emon ollessa selaimen välimuistissa se
+  tulee ensin.
+
+### Kaksi vikaa matkalla
+
+- **Nimet ja kaikki niiden jälkeiset kerrokset puuttuivat.**
+  `ofm-kaupunki`n `text-size` oli `interpolate`+`zoom` `match`in
+  sisällä: MapLibre hylkää sellaisen kerroksen, ja `validateStyle:
+  false`:lla myös kaikki sen jälkeen lisätyt — virhe näkyi vasta
+  `_updatePlacement`in TypeErrorina. Zoomin interpolointi on nyt
+  lausekkeen uloin (sääntö CLAUDE.md:ssä).
+- **Ulkomaiset nimet ilman kirjaimia**: oma fonttiarkisto ei kattanut
+  kaikkia alueita → OFM:n fontit.
+
+### Mitattu
+
+Sama asetelma kuin strategiassa (puhelin, SwiftShader, 6 näkymän
+liikesarja, 3 kierrosta vuorotellen, mediaanit):
+
+```
+                              liikkuva ruutu   kartta valmis   pitkät tehtävät
+                              med / p90        liikkeen jälkeen  / liike
+oma PMTiles-vektori (ennen)    271 / 351 ms      4,9 s             4,2 s
+OFM + rinne raw-PNG:nä         —                 3,6 s             3,1 s
+OFM ilman rinnettä (erittely)  —                 2,35 s            2,09 s
+OFM + rinne korkeusmallista    314 / 413 ms      2,67 s            2,26 s
+Esri-rasteri (sama ajo)        273 / 336 ms      2,57 s            2,33 s
+```
+
+Hyväksymismittari (Esri + 10 %) täyttyy: asettuminen +4 %, pitkät
+tehtävät −3 %. Liikkuva ruutu on vektorilla ~15 % raskaampi kuin
+rasterilla (tiet ja nimet piirretään joka ruudussa); kontti ei mittaa
+laitteen ruutunopeutta, joten se on varmistettava puhelimella.
+
+- **Ulos-zoomi** z9 → z3,6 700 ms:ssa: 1,5 s:n kuvassa ei yhtään
+  tarkempaa suorakaidetta (ennen lapsilaattojen neliöt).
+- **SW päällä, kaksi latausta + lähizoom**: tila `ok` kaikissa, samat
+  piirretyt kohteet molemmilla latauksilla (vesi 46, kaupungit 40),
+  Helsingissä z11 tiet 50 ja kylä-/saarinimet 29.
+- **Savutesti** läpi (puhelin ja työpöytä, 0 virhettä).
+
+### Mitä jäi
+
+- Rannan kirkkausero ja lämpökartan värit (`varit.mjs`) mittaamatta
+  uuden pohjan päällä; maan ja veden tokenit ovat ennallaan, joten
+  ero on odotettavasti sama kuin oman vektorin.
+- WebKit-puhelinkonteksti ja oikea laite (ruutunopeus liikkeessä).
+- K5 (oma laattakoti) vain jos OpenFreeMapin saatavuus osoittautuu
+  ongelmaksi; tyyli siirtyy sellaisenaan, koska skeema on OpenMapTiles.

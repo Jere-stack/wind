@@ -161,14 +161,13 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   käyttöalueiden maarasterin `tools/maat.json` (Natural Earth, ajetaan
   käsin), ja `tools/jarvet.mjs` järvirasterin `tools/jarvet.json`
   (Euroopan aseman `Jarvi`-tagi, `api/_esoh.js`; ajetaan käsin). docs/eurooppa.md.
-- `tools/pohjakartta.mjs` + `tools/pmtiles.mjs` — pohjakartan RINNE-
-  VARJOSTUS (docs/pohjakartta.md): Mapzen Terrain Tiles -korkeusmallista
-  harmaa + alfa PNG (maailma z0–6, Eurooppa z7–8) PMTiles v3 -arkistoina
-  ALLE 90 Mt:n OSINA, orpoon haaraan `pohjakartta` (ajetaan käsin,
-  `--vain=rinne`). Rakentaja osaa yhä Protomapsin vektoritasot ja fontit
-  (17.10. ensimmäinen versio), mutta sovellus ei lue niitä enää: vektori
-  ja fontit tulevat OpenFreeMapista (strategia 2). Vain Noden omia
-  moduuleita.
+- `tools/pohjakartta.mjs` + `tools/pmtiles.mjs` — HISTORIAA (17.10.
+  ensimmäinen oma pohja): Protomapsin vektoritasot, fontit ja
+  rinnevarjostus PMTiles-arkistoina orpoon haaraan `pohjakartta`.
+  Sovellus EI lue haaraa enää: vektori ja fontit tulevat OpenFreeMapista
+  ja rinnevarjostus MapLibren `hillshade`-kerroksena suoraan Mapzen
+  Terrain Tiles -korkeusmallista (docs/pohjakartta.md, "Toteutus 2").
+  Työkalu jää mittauksia varten.
 - `tools/pyramidi.mjs` — säännöllisestä hilasta suodatettu laattapyramidi
   ja painokanava; kaikki mallit kirjoitetaan sen kautta.
 - `tools/harmonie.mjs` — FMI HARMONIE 2,5 km hilana GRIB2:sta (tasot
@@ -276,10 +275,10 @@ se vastaa yhtä tuoreella luettelolla.
 
 Havaintoasemien oma historia on orpossa `havainnot`-haarassa (sama
 malli: yksi committi, pakkopäivitys, kymmenen minuutin välein; myös
-Euroopan tasatunnit `esoh/`). Pohjakartan rinnevarjostus on orvossa
-`pohjakartta`-haarassa (`tools/pohjakartta.mjs`, julkaistaan käsin;
-sovellus lukee sen raw.githubusercontent.comista; vektori ja fontit
-tulevat OpenFreeMapista, docs/pohjakartta.md). Vercel
+Euroopan tasatunnit `esoh/`). Orpo `pohjakartta`-haara on ensimmäisen
+oman pohjan arkisto (`tools/pohjakartta.mjs`), eikä sovellus lue sitä
+enää: pohja tulee OpenFreeMapista ja rinne korkeusmallista
+(docs/pohjakartta.md). Vercel
 (`git.deploymentEnabled`) ja Tarkistus (`branches-ignore`) ohittavat
 kaikki kolme datahaaraa — jos lisäät neljännen, lisää se molempiin.
 
@@ -294,7 +293,7 @@ kokeiltu ja kaadettu mittauksella.
 
 | tiedosto | lue kun työ koskee |
 |---|---|
-| `docs/pohjakartta.md` | **pohjakarttaa, rantojen erottuvuutta, karttanimiä ja rinnevarjostusta** (strategia ja toteutus 17.10.: oma tiedosto `pohjakartta`-haarassa, `Pmtiles`, `Pohjakartta`, `RantavarjoGL`, nimet sään päällä, mitattu rannan ero ja hinta): Windyn tapa mitattuna sen laatoista (rantavarjo veden puolella, kartta sään päällä), vaihtoehdot A–F kuvattuina oikean sovelluksen päällä, rannan kirkkausero mitattuna, maan tummennus hylätty, oma vektoripohja (OpenFreeMap, Mapterhorn-rinne, nimet), satelliitti, vaiheet V1–V4 ja päätettävät P1–P5; **strategia 2 (17.10.): laattaneliöt nopeassa ulos-zoomissa, kömpelyys mitattuna (oma vektori vs Esri, erittely maski/rinne/nimet, raw-viive) ja kaupunkitaso (kadut, pysäköinti): vaihtoehdot K1–K6, suositus OpenFreeMap + korjaukset, päätettävät Q1–Q4** |
+| `docs/pohjakartta.md` | **pohjakarttaa, rantojen erottuvuutta, karttanimiä ja rinnevarjostusta** (strategia ja toteutus 17.10.: ensin oma tiedosto `pohjakartta`-haarassa (`Pmtiles`, historiaa), sitten OpenFreeMap, `Pohjakartta`, `RantavarjoGL`, nimet sään päällä, mitattu rannan ero ja hinta): Windyn tapa mitattuna sen laatoista (rantavarjo veden puolella, kartta sään päällä), vaihtoehdot A–F kuvattuina oikean sovelluksen päällä, rannan kirkkausero mitattuna, maan tummennus hylätty, oma vektoripohja (OpenFreeMap, Mapterhorn-rinne, nimet), satelliitti, vaiheet V1–V4 ja päätettävät P1–P5; **strategia 2 (17.10.): laattaneliöt nopeassa ulos-zoomissa, kömpelyys mitattuna (oma vektori vs Esri, erittely maski/rinne/nimet, raw-viive) ja kaupunkitaso (kadut, pysäköinti): vaihtoehdot K1–K6, suositus OpenFreeMap + korjaukset, päätettävät Q1–Q4**; **toteutus 2 (17.10.): OpenFreeMap-tyyli kaupunkitasoineen, OFM:n fontit, rinne korkeusmallista GPU:lla, vesimaski työntekijässä, emojen esilataus, mitattu Esriä vasten** |
 | `docs/lampokartta.md` | (pohjakartan historia: Esri ja CARTO), lämpökarttaa, väriramppia, tekstuurin mitoitusta tai projektiota, kartan asetuksia |
 | `docs/partikkelit.md` | tuulipartikkeleita, jäljen muotoa, tiheyttä (**kaukaa Windyn tiheys**), ruutuaikabudjettia tai **partikkelien kenttää tasojen välissä (sama sekoitus kuin lämpökartalla)** |
 | `docs/eleet.md` | nipistystä, zoomia (**kosketuszoom tähtäimen ympäri**), zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
@@ -859,7 +858,7 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   mitattuna hidas ja hauras — älä palauta sitä: kaksi Range-kierrosta
   laattaa kohti (mediaani 0,40 s), kartta asettui liikkeen jälkeen 4,9 s
   vs Esrin 2,8 s, ja ulos-zoomissa jäi lapsilaattojen neliöitä.
-  `pohjakartta`-haarasta luetaan enää VAIN RINNEVARJOSTUS (`fsp://rinne`).
+  `pohjakartta`-haaraa ei lueta lainkaan.
   Esrin tumma rasteri on VARATIE (`Pohjakartta.tila === 'pois'`:
   TileJSON ei vastannut 8 s:ssa), ja sen koneisto (`--pohja-suodin`,
   CARTO-varatie, Esri-maski) jää sitä varten.
@@ -882,19 +881,20 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   tarkemmat lapset, eli juuri katsotun alueen. Näkymän emot kolmelta
   karkeammalta tasolta (1–4 laattaa tasoa kohti) ovat siksi valmiiksi
   selaimen välimuistissa; maailma z0–1 käynnistyksessä.
-- **RINTEEN ARKISTO: OSA ALLE 90 Mt, NIMESSÄ RAKENNUSHETKI, RAW:LLE VAIN
-  `Range: bytes=a-b`.** GitHub hylkää yli 100 Mt:n tiedoston; versioitu
-  nimi pitää vanhan luettelon istunnon vanhassa hakemistossa; raw vastaa
-  OPTIONSiin 403:lla, joten muu otsake kaataisi haun. Kaatunut arkiston
-  avaus EI jää muistiin (`_unohdaKaatunut`): yksi katko jätti ennen osan
-  rikki istunnon loppuun.
-- **SW:N TAVUVÄLIN AVAIN ON KYSELY (`?tavut=a-b`), EI FRAGMENTTI.**
-  Cache API jättää `#…`:n avaimesta pois: `pohjakartta-v1` antoi
-  jokaiselle välille saman arkiston ensimmäisen talletetun välin, ja
-  puhelimella pohja katosi heti kun SW otti ohjat (käyttäjän raportti
-  17.10.). Pohjakartan testi ajetaan SW:n kanssa ja kahdesti
-  (`serviceWorkers: 'block'` ei näe tätä). OpenFreeMapin laatat ovat
-  omassa välimuistissaan (`ofm-v1`, osoite versioitu, katto 800).
+- **RINNEVARJOSTUS ON MapLibren `hillshade` GPU:LLA** (`rinne`,
+  `raster-dem` `terrarium`, `DEM_LAATAT` = Mapzen Terrain Tiles AWS:ssä,
+  CORS `*`, maxzoom 8), veden täytön ALLA joten se näkyy vain maalla.
+  Valmiiksi varjostetut PNG:t raw.githubusercontentista olivat OFM:n
+  jälkeen hitauden suurin jäljellä oleva osa; korkeusmallista kartta
+  asettuu mitattuna Esrin tasolla (2,67 vs 2,57 s, pitkät tehtävät
+  2,26 vs 2,33 s). Älä palauta arkistoa.
+- **SW: OPENFREEMAPIN LAATAT JA KORKEUSMALLI OVAT VÄLIMUISTI EDELLÄ**
+  (`ofm-v1`, osoitteet versioituja tai muuttumattomia, katto 800);
+  TileJSON kulkee verkosta. Vanha `pohjakartta-*`-välimuisti poistetaan
+  activatessa. Opetus 17.10. jää: Cache API jättää `#…`:n avaimesta pois
+  (tavuvälit fragmentissa antoivat jokaiselle välille saman vastauksen),
+  ja pohjakartan testi ajetaan SW:n kanssa ja kahdesti
+  (`serviceWorkers: 'block'` ei näe välimuistin vikoja).
 - **NIMET OVAT SÄÄN PÄÄLLÄ (Windyn tapa) ja sovelluksen kielellä.**
   Kartan custom-kerrokset lisätään `kerrosEnnen(ml)`:n eteen
   (partikkelit tai `yla-raja`), partikkelit `yla-raja`n eteen. Uusi
