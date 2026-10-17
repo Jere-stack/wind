@@ -433,3 +433,188 @@ alkaa nyt vierityksen keskeltä; 2/2 ajoa läpi.
 - **Kerrosvalitsimen esikatselukuvat** (`KerrosKuvat`) piirtävät yhä
   vanhan pohjan sävyt ja vaalean rantaviivan; pieni ero.
 - Ruutunopeus puhelimella ja iPadilla mittaamatta.
+
+## Strategia 2 (17.10.): laattaneliöt, kömpelyys ja kaupunkitaso
+
+Käyttäjän raportti oman pohjan julkaisun jälkeen (iPhone, kuvakaappaus):
+nopeassa ulos-zoomissa kartalle jää **neliöitä** (Suomen kohdalla
+tarkempi suorakaide järvineen muun kartan keskellä), kartta tuntuu
+**kömpelömmältä ja hitaammalta** kuin Esrin aikana, ja lähellä halutaan
+**kadut, tiet ja kaupungit**, jotta spotin ja parkkipaikan voi
+kohdistaa. Tämä luku on strategia; mitään ei ole vielä koodattu.
+
+### Mitattu
+
+Tuotantobuild, puhelinkonteksti (390 × 844, `hasTouch`), SwiftShader.
+Kontti ei mittaa laitteen aikaa, mutta kahden pohjan SUHDE on mitattavissa
+samalla liikesarjalla (`easeTo` 900 ms × 6 näkymää z4,2–11, Helsinki ↔
+Saaristomeri ↔ Itämeri), kolme kierrosta vuorotellen, mediaanit:
+
+```
+                     liikkuvan ruudun   kartta valmis    pääsäikeen pitkät
+                     aika (med / p90)   liikkeen jälkeen  tehtävät / liike
+Esri-rasteri (ennen)    272 / 345 ms       2,8 s (max 3,4)      2,4 s
+oma vektori (nyt)       271 / 351 ms       4,9 s (max 7,8)      4,2 s
+```
+
+**Liike itse ei ole raskaampi; raskaus tulee liikkeen PERÄÄN**: kartta
+asettuu 77 % hitaammin ja pääsäie on 73 % pidempään varattu. Se on juuri
+"kömpelö": seuraava ele osuu kesken laattojen käsittelyä. Erittely
+(sama asetelma, osa kerrallaan pois, idle / pitkät tehtävät, liikkuva
+ruutu):
+
+```
+oma vektori, kaikki            4,5 s / 3,8 s   316 ms
+ilman vesimaskia + rantavarjoa 3,7 s / 3,3 s   216 ms
+ilman rinnevarjostusta         4,0 s / 3,3 s   255 ms
+ilman nimiä                    4,3 s / 3,6 s   288 ms
+```
+
+- **Vesimaski + rantavarjo on suurin yksittäinen erä** (−0,8 s, liikkuva
+  ruutu kolmanneksen kevyempi). `Pohjakartta.vesimaski` purkaa MVT:n ja
+  rasteroi sen 2D-kankaalle ja `getImageData`lla PÄÄSÄIKEESSÄ jokaiselle
+  maskilaatalle, ja `RantavarjoGL` ajaa kolme puskurivaihetta jokaisessa
+  liikkuvassa ruudussa.
+- **Rinne** −0,5 s: puuttuva laatta (Euroopan ulkopuolella z7–8)
+  suurennetaan kankaalla ja koodataan PNG:ksi pääsäikeessä, vaikka
+  MapLibre osaisi suurentaa rasterin itse GPU:lla.
+- **Nimet** −0,1…0,3 s (symbolien sijoittelu).
+- **Loput ~1,5–2 s on laattaputki itse**: jokainen laatta on raw.
+  githubusercontent.comista kaksi peräkkäistä Range-pyyntöä (lehti-
+  hakemisto, sitten laatta), mediaani **0,40 s**, p90 0,95 s, max 1,8 s
+  pyyntöä kohti (231 pyyntöä yhdessä ulos-zoomissa). raw on
+  tiedostopalvelin eikä laatta-CDN: välimuisti 300 s, ja harvoin luettu
+  tavuväli on aina välimuistin ohi. Vertailuksi OpenFreeMapin laatta
+  (yksi pyyntö, Cloudflare): 0,19–0,75 s kylmänä, 0,16–0,18 s toisella
+  kerralla, ja selaimen HTTP-välimuisti toimii tavallisesti.
+
+**Neliöt** toistuvat kontissa: ulos-zoomin jälkeen 1,5 s:n kohdalla
+kartta on tilkkutäkki (vaakasauma ja Suomen kohdalla z6-laatat järvineen
+z4,6:ssa), 12 s:n kohdalla valmis. Syy on MapLibren oma tapa: kun
+uuden zoomin laatta ei ole vielä valmis, se piirtää paikalle muistissa
+olevat TARKEMMAT lapsilaatat — ja muistissa ovat juuri ne joita katsottiin
+äsken, eli spotin ympäristö. Puhelimella hitaammalla yhteydellä
+välitila kestää pidempään, ja kaksi omaa vikaa pidentää sitä:
+
+1. **Protokolla ei kuuntele keskeytystä** (`addProtocol`in
+   `AbortController`): nopeassa eleessä hylätyt laatat haetaan silti
+   loppuun ja ne jonottavat uusien edellä.
+2. **Kaatunut arkiston avaus muistetaan istunnon loppuun**
+   (`Pohjakartta._arkistot`: `a.alku` hylätty → jokainen sen osan laatta
+   kaatuu). Yksi verkkokatko otsakkeen haun aikana jättää osan alueesta
+   lapsilaattojen varaan pysyvästi — tämä selittää "jää".
+
+### Kaupunkitaso: mitä tarvitaan
+
+Spotin ja parkkipaikan kohdistus vaatii z13–16: kadut ja niiden nimet,
+pysäköintialueet (P), kevyen liikenteen väylät, laiturit ja hento
+rakennuskerros. Nyt arkisto loppuu z12:een ja siinä on vain moottoritiet;
+Suomen rannikon z11–12 on raakana 134 Mt ja suodatettuna 22 Mt.
+OpenFreeMapin z14-laatassa Helsingissä (tarkistettu) on `transportation`
+(`service`, `parking_aisle`, `footway`), `transportation_name`, `poi`
+(`parking`), `building` ja `landuse` — 85–155 kt laatta.
+
+### Vaihtoehdot
+
+**K1. Korjataan oma pohja, ei kaupunkitasoa.** Keskeytys protokollaan,
+kaatuneen arkiston uusinta, maailman z0–4 esiladataan käynnistyksessä
+(noin 2 Mt: ulos-zoomissa on aina emo eikä lapsia), rinne kahtena
+natiivina rasterilähteenä rajoineen (ei kangasta), vesimaski
+työntekijäsäikeeseen (`OffscreenCanvas`) ja vain levossa. Arvio: neliöt
+lyhenevät ja jälkikuorma laskee lähelle Esriä, mutta 0,4 s:n raw-viive
+ja kaksi kierrosta laattaa kohti jäävät. **Ei katuja.**
+
+**K2. Oma arkisto z13–15 rannikolle ja spottien ympärille.** Sama
+rakentaja, `TASOT`iin uusi kerros (kadut, nimet, pysäköinti, rakennukset).
+Arvio Suomen rannikolle 0,5–1 Gt (z11–12 raaka 134 Mt, jokainen taso
+noin 2,5–3 ×), eli kymmenkunta 90 Mt:n osaa raw:ssa — hitain koti
+suurimmalle datalle. Kaupunkitaso vain siellä missä se on rakennettu:
+Euroopassa ei. **Ei suositella.**
+
+**K3. OpenFreeMap koko vektoripohjaksi** (OpenMapTiles-skeema, koko
+maailma z0–14 ja suurennus z18:aan, ei avainta eikä kiintiötä, OSM ODbL).
+Yksi lähde maalle, vedelle, rannalle, teille, kaduille, pysäköinnille ja
+nimille kaikilla zoomeilla — eli käyttäjän ehto "yhdellä levyllä, ettei
+pompi eri aikaan" täyttyy LAATAN sisällä, ja tavallinen `z/x/y`-laatta
+CDN:stä poistaa koko Range-koneiston (protokolla, hakemistot, SW:n
+tavuvälivälimuisti — se jossa oli 17.10. vika). Tyyli on omamme samoilla
+tokeneilla; rinne jää omasta tiedostosta (OpenFreeMapissa ei ole sitä),
+ja vesimaski luetaan samasta laatasta (`water`). Hinta: kolmas osapuoli
+ilman palvelutasolupausta (lahjoitusrahoitteinen, julkinen vuodesta
+2024), ja CLAUDE.md:n sääntö "älä lisää kolmannen osapuolen tyyliä tai
+laattoja tumman pohjan osaksi" kumoutuu — käyttäjän päätös. Laatat ovat
+suodattamattomina isompia (z14 kaupungissa ~100 kt; mobiilidata on
+käyttäjän linjauksella rajaton). Varatie: Esri tumma kuten nyt.
+
+**K4. Hybridi: oma z0–12 + OpenFreeMap z ≥ 12.** Kaukaa oma pohja,
+lähellä katutaso. Kaksi lähdettä ja raja z12:ssa — juuri se "pomppiminen"
+josta käyttäjä halusi eroon, ja oman pohjan viat (K1) on korjattava
+silti. Vain jos oma kaukonäkymä on itsessään arvo.
+
+**K5. Oma koti oikeaan CDN:ään** (Cloudflare R2 + Worker, Protomapsin
+oma malli: PMTiles → `z/x/y` reunalla välimuistiin). Koko arkisto omana,
+nopea, kaupunkitaso koko Euroopalle (Protomapsin Eurooppa z15 noin
+40 Gt). Vaatii käyttäjän Cloudflare-tilin ja muutaman euron kuussa yli
+ilmaiskiintiön, ja rakennus ajetaan muualla kuin Actionsissa (koko).
+Riippumaton, mutta isoin työ ja ylläpito.
+
+**K6 (lisä mihin tahansa): satelliitti + kadut ja nimet päälle
+lähizoomissa.** Pysäköintialue näkyy ilmakuvassa paremmin kuin
+vektorina; satelliitilla on jo nimet ja rajat, katuviivat ja -nimet
+z ≥ 13 lisätään samasta vektorilähteestä.
+
+### Suositus
+
+**K3 + K1:n yleiset osat + K6**, ja K5 myöhemmäksi jos riippumattomuus
+osoittautuu tarpeelliseksi (tyyli ja tokenit siirtyvät sellaisinaan,
+koska OpenMapTiles-skeeman voi rakentaa myös itse). Perustelu: kaikki
+kolme oiretta tulevat samasta juuresta — raw.githubusercontent ei ole
+laattapalvelin, ja sen päälle rakennettu Range-koneisto on hidas (0,4 s
+× 2 kierrosta) ja hauras (17.10. SW-vika, kaatuneen avauksen muisti).
+K3 poistaa koneiston kokonaan ja tuo kaupunkitason koko maailmaan
+samalla kertaa; oma tiedosto ei olisi tuonut kumpaakaan ilman K5:n
+infraa.
+
+Vaiheet:
+
+1. **V1 Korjaukset jotka pätevät kaikissa** (pieni): protokollan
+   keskeytys (jos protokolla jää), kaatuneen avauksen uusinta, rinne
+   natiivina rasterina (kaksi lähdettä rajoineen), vesimaski
+   työntekijään ja vain levossa, rantavarjon puskurit puoleen
+   resoluutioon liikkeen aikana. Mittari: liikesarja kuten yllä.
+2. **V2 OpenFreeMap-pohja** (`POHJAT.tumma`): lähde
+   `tiles.openfreemap.org/planet`, kerrokset maa (`landcover`/`landuse`
+   tummana maana), vesi (`water`), rannan ja tiet zoomin mukaan
+   (moottoritie z5 →, päätiet z8 →, kadut z12 →, pysäköinti- ja
+   huoltotiet z14 →, kevyt liikenne z15 →), rakennukset z14 → hennosti,
+   pysäköintialue (`landuse`/`poi` parking) täyttönä ja P-merkkinä
+   z15 →, nimet: valtiot, kaupungit, kaupunginosat z11 →, kadunnimet
+   z14 → tien suuntaan. Kaikki värit tokeneina, katu ei saa kilpailla
+   lämpökartan kanssa (muste .13–.30); rannan ero mitataan uudelleen
+   (taulukko yllä) ja lämpökartan värit `varit.mjs`:llä.
+3. **V3 Nopea ulos-zoomi**: maailman z0–4 laatat esiladataan
+   käynnistyksessä (MapLibren `preloadTiles` tai oma kutsu), jolloin
+   välitila on karkea emo eikä tarkka lapsineliö. Mittari: kuvat 0,3 / 1 /
+   3 s ulos-zoomin jälkeen vs. asettunut kuva — ei yhtään tarkempaa
+   suorakaidetta 1 s:n jälkeen (puhelin, työpöytä, SW päällä).
+4. **V4 Satelliitin katutaso** (K6): katuviivat ja -nimet z ≥ 13.
+5. **V5 Oma arkisto** (`pohjakartta`-haara) jää vain rinteelle ja
+   fonteille, tai fontit OpenFreeMapista; vektoriosat poistetaan
+   luettelosta. Esri pysyy varatienä.
+
+Hyväksymismittarit: liikkeen jälkeinen asettuminen ja pitkät tehtävät
+enintään Esrin tasolla +10 % (yllä oleva asetelma, 5 kierrosta);
+ulos-zoomissa ei neliöitä 1 s:n jälkeen; pohja kahdella latauksella SW
+päällä; WebKit-puhelinkonteksti; Helsingin kadut ja pysäköintialueet
+näkyvät z15:ssä; rannan ero vähintään nykyisen tasolla.
+
+### Päätettävät
+
+- **Q1** Hyväksytäänkö OpenFreeMap (kolmas osapuoli) tumman pohjan
+  lähteeksi (K3), vai rakennetaanko oma CDN-koti (K5)? Suositus K3.
+- **Q2** Mitä kaupunkitasolla näytetään: kadut ja nimet, pysäköinti
+  (alue + P), kevyt liikenne, laiturit, rakennukset hennosti?
+  Suositus kaikki, rakennukset .06–.10 alfalla.
+- **Q3** Pidetäänkö rantavarjo? Se on suurin yksittäinen kustannus;
+  V1 puolittaa sen liikkeessä. Suositus pidetään ja mitataan V1:n jälkeen.
+- **Q4** Satelliitin katuviivat z ≥ 13 (K6)? Suositus kyllä.
