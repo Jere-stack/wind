@@ -865,6 +865,12 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **RAW:LLE VAIN `Range: bytes=a-b`.** Yksinkertainen tavuväli on
   CORS-turvallinen otsake eikä aiheuta esitarkistusta; raw vastaa
   OPTIONSiin 403:lla, joten MIKÄ TAHANSA muu otsake kaataisi haun.
+- **SW:N TAVUVÄLIN AVAIN ON KYSELY (`?tavut=a-b`), EI FRAGMENTTI.**
+  Cache API jättää `#…`:n avaimesta pois: `pohjakartta-v1` antoi
+  jokaiselle välille saman arkiston ensimmäisen talletetun välin, ja
+  puhelimella pohja katosi heti kun SW otti ohjat (käyttäjän raportti
+  17.10.). Pohjakartan testi ajetaan SW:n kanssa ja kahdesti
+  (`serviceWorkers: 'block'` ei näe tätä).
 - **KOLME KERROSTA, JOKAINEN OMA LÄHDE, JA TARKEMPI PIIRTÄÄ MAAN JA
   VEDEN TÄYTTEENÄ** (`POHJA_TASOT` = rakentajan `TASOT`; muuta molempia).
   Puuttuva tarkempi laatta näyttää siis karkeamman suurennettuna eikä

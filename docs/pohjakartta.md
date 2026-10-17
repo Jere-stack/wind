@@ -361,10 +361,21 @@ tummennettuna Esrinä** (P5).
     vuorovesitilassa, sadetilassa 0,6-kertainen, mukana satelliitilla.
   - **Satelliitti**: Esrin World Imagery `contrast(1.2) brightness(0.62)`
     (`--pohja-suodin`), nimet ja rajat päällä, rantavarjo päällä.
-  - **Service worker**: arkistot ja fontit välimuistiin (`pohjakartta-v1`,
-    avain osoite + tavuväli, vastaus 200 täsmälleen pyydetyn mittaisena,
-    katto 4 000 riviä) — kartta toimii rannalla ilman verkkoa jos alue
-    on katsottu.
+  - **Service worker**: arkistot ja fontit välimuistiin (`pohjakartta-v2`,
+    avain osoite + tavuväli KYSELYNÄ `?tavut=a-b`, vastaus 200 täsmälleen
+    pyydetyn mittaisena ja talletetaan vain silloin, katto 4 000 riviä) —
+    kartta toimii rannalla ilman verkkoa jos alue on katsottu.
+    **v1:n avain oli `osoite#bytes=a-b`, ja Cache API jättää fragmentin
+    avaimesta pois** (käyttäjän raportti 17.10.: "todella sumea näkymä,
+    hetkellisesti tarkempia laattoja mutta ei mitään pysyvää"): jokainen
+    tavuväli osui saman arkiston ensimmäiseen talletettuun väliin, joten
+    ensimmäinen lataus piirsi kartan ja SW:n ottaessa ohjat yksikään
+    laatta ei jäsentynyt — ruudulla oli pelkkä lämpökartta. Mitattu
+    puhelinkontekstissa SW päällä: toinen lataus 0 piirrettyä
+    pohjapiirrettä (v1) → sama kuin ensimmäinen (v2), z11 rannikko 11
+    vesimonikulmiota. Aiemmat testit ajettiin `serviceWorkers: 'block'`,
+    eivätkä ne nähneet tätä — pohjakartan testi ajetaan SW:n kanssa ja
+    kahdesti.
   - Lähdemerkintä (`POHJAT.tumma.attr`, Tietoa): OpenStreetMap-tekijät,
     Protomaps, Mapzen Terrain Tiles; varatiellä Esri.
 

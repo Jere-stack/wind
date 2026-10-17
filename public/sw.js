@@ -72,10 +72,12 @@ const KUORI_TIEDOSTOT = [
    haarasta `pohjakartta`. Arkiston nimi on versioitu (`pohja-<aika>-…`),
    joten sen tavut eivät muutu: välimuisti edellä. Arkisto luetaan
    Range-pyynnöillä, ja Cache API ei talleta 206-vastausta, joten avain on
-   osoite + tavuväli ja talletettu vastaus on 200 täsmälleen pyydetyn
+   osoite + tavuväli kyselynä (`?tavut=a-b`) ja talletettu vastaus on 200 täsmälleen pyydetyn
    mittaisena (sovelluksen `Pmtiles` hyväksyy sen). Luettelo
    (`luettelo.json`) kulkee säälaattojen luettelon polkua (verkko edellä). */
-const POHJAKARTTA = 'pohjakartta-v1';
+/* v2: v1:n avaimet olivat rikki (ks. käsittelijä), ja activate poistaa
+   sen välimuistin. */
+const POHJAKARTTA = 'pohjakartta-v2';
 const POHJA_KATTO = 4000;
 const onPohjakartta = (u) => u.hostname === 'raw.githubusercontent.com' && u.pathname.includes('/pohjakartta/')
   && (u.pathname.endsWith('.pmtiles') || u.pathname.endsWith('.pbf'));
@@ -195,7 +197,10 @@ self.addEventListener('fetch', (e) => {
   if (onPohjakartta(u)) {
     e.respondWith((async () => {
       const vali = e.request.headers.get('Range') || '';
-      const avain = new Request(u.href + (vali ? '#' + vali.replace(/\s/g, '') : ''));
+      /* Tavuväli KYSELYOSAAN, ei fragmenttiin: Cache API jättää `#…`:n
+         avaimesta pois, ja jokainen väli osui samaan avaimeen — kartta sai
+         joka laatan paikalle ensimmäisen talletetun välin tavut (v1). */
+      const avain = new Request(u.origin + u.pathname + '?tavut=' + vali.replace(/[^0-9-]/g, ''));
       const c = await caches.open(POHJAKARTTA);
       const osuma = await c.match(avain);
       if (osuma) return osuma;
@@ -203,7 +208,10 @@ self.addEventListener('fetch', (e) => {
       if (r.status === 200 || r.status === 206) {
         const runko = await r.arrayBuffer();
         const t = new Response(runko, { status: 200, headers: { 'Content-Type': r.headers.get('Content-Type') || 'application/octet-stream' } });
-        c.put(avain, t.clone()).then(siivoaPohja).catch(() => {});
+        /* Talletetaan vain täsmälleen pyydetyn mittainen väli: koko
+           tiedoston 200 välin avaimella olisi väärät tavut. */
+        const m = /bytes=(\d+)-(\d+)/.exec(vali);
+        if (!vali || (m && runko.byteLength === +m[2] - +m[1] + 1)) c.put(avain, t.clone()).then(siivoaPohja).catch(() => {});
         return t;
       }
       return r;
