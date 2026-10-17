@@ -1,4 +1,4 @@
-# Pohjakartta ja rannat (strategia 17.10.2026)
+# Pohjakartta ja rannat (strategia ja toteutus 17.10.2026)
 
 Käyttäjän pyyntö 17.10.: "Windyssä saarten, mantereen ja rantojen värit
 ovat liukuvärjätty, hieman tummennettu, jotta ne erottaa selkeästi siitä
@@ -6,7 +6,8 @@ mistä vesi alkaa. Tarkistetaan parhaat karttavaihtoehdot jokaiselle
 näkymälle ja tehdään suunnitelma. Ei vielä koodata." Tämä on se
 suunnitelma: nykytila mitattuna, Windyn tapa sen omista laatoista,
 vaihtoehdot kuvattuina oikean sovelluksen päällä ja suositus vaiheineen.
-Mitään sovelluksen koodia ei muutettu.
+Strategiavaiheessa koodia ei muutettu; toteutus on luvussa
+"Toteutus (17.10.)" lopussa.
 
 ## Tiivistelmä
 
@@ -268,3 +269,154 @@ eli kuvat näyttävät varjostimen tuloksen ilman varjostinta. OpenFreeMapin
 ja Esrin rantaviivat eroavat paikoin pikselin tai kaksi, mikä näkyy
 A-kuvissa ohuena erona maskin ja Esrin rannan välillä; toteutuksessa
 maski on aina näkyvän pohjan oma.
+
+
+## Toteutus (17.10.)
+
+Käyttäjän päätökset strategian jälkeen: suositus C (oma vektoripohja +
+rantavarjo + nimet), rantavarjo **kevyempi** kuin kuvissa ("se oli aika
+vahva"), **nimet kartalle** (P2), **rinnevarjostus** (P3), **oma
+karttatiedosto alusta asti** (P4: "jotta kaikki ovat yhdellä levyllä,
+ettei ne pompi eri aikaan tai lataudu huonosti") ja **satelliitti
+tummennettuna Esrinä** (P5).
+
+### Rakenne
+
+- **Rakentaja `tools/pohjakartta.mjs`** (vain Noden omat moduulit) ja
+  **`tools/pmtiles.mjs`** (PMTiles v3 -kirjoitus ja -luku). Ajo käsin:
+  `node tools/pohjakartta.mjs <hakemisto>`, noin 12 min ja 250 Mt.
+  - **Vektori** Protomapsin päivittäisestä OpenStreetMap-rakennuksesta
+    (`build.protomaps.com/<pvm>.pmtiles`, ODbL), luettuna Range-
+    pyynnöillä vain tarvittavat laatat. Laatoista jätetään maa (`earth`),
+    vesialueet (`water`, ei riuttoja; merten nimipisteet), valtioiden
+    rajat, paikat (valtio, taajama) ja moottoritiet — kohteiden tavut
+    kopioidaan sellaisinaan, joten geometriaa ei koodata uudelleen.
+    Suodatus pudottaa 1 578 Mt → 196 Mt (maankäyttö oli valtaosa).
+  - **Kolme kerrosta** (`TASOT`, sovelluksessa `POHJA_TASOT`): maailma
+    z0–6 (17,6 Mt), Eurooppa z7–10 (−32…45° E, 26…72° N; 153 Mt kolmessa
+    osassa), rannikko z11–12 (Suomen rannikko ja Pampus; 21,7 Mt).
+  - **Osat alle 90 Mt**: GitHubin tiedostoraja on 100 Mt. Liian suuri
+    kerros jaetaan pituussuunnassa kerroksen alimman zoomin laattarajalta
+    (`kirjoitaOsat`), joten jokainen tarkempi laatta kuuluu kokonaan
+    yhteen osaan. Luettelo kertoo osan z-välin ja x-välin.
+  - **Rinne** Mapzen Terrain Tiles -korkeusmallista (AWS Open Data,
+    Terrarium-PNG): 3 × 3 -mosaiikista, joten laattarajalla ei ole
+    saumaa; Sobel-rinne, valo luoteesta (45°) ja heikompi lännestä,
+    korostus kasvaa loitonnettaessa (z9 2,2× … z0 14×). Tulos harmaa +
+    alfa (varjo musta ≤ 0,62, valo valkoinen ≤ 0,20), meri ja tasainen
+    läpinäkyviä, alfa 8:n portain (tiedosto puolittuu, porras ei näy).
+    Maailma z0–6 ja Eurooppa z7–8: 56,7 Mt, 4 241 / 9 494 laattaa tyhjiä
+    (tallentuvat kerran).
+  - **Fontit** Noto Sans Regular ja Medium (SIL OFL,
+    protomaps/basemaps-assets), seitsemän Unicode-aluetta: 1,4 Mt.
+  - Jokainen kirjoitettu laatta luetaan takaisin omalla lukijalla ennen
+    kuin rakennus on valmis.
+- **Julkaisu: orpo haara `pohjakartta`** (yksi committi, pakkopäivitys,
+  kuten `saadata`), luettuna `raw.githubusercontent.com/Jere-stack/wind/
+  pohjakartta/`. Vercel ja Tarkistus ohittavat haaran (`vercel.json`,
+  `ci.yml`). Tiedostonimissä on rakennushetki, joten vanha istunto ei
+  koskaan lue uutta tiedostoa vanhalla hakemistolla.
+  ```
+  node tools/pohjakartta.mjs /tmp/pk
+  git worktree add --orphan -b pk-uusi /tmp/pkwt && cp -r /tmp/pk/* /tmp/pkwt/
+  (cd /tmp/pkwt && git add -A && git commit -m "Pohjakartta <versio>" \
+     && git push -f origin pk-uusi:pohjakartta)
+  ```
+  (Mukaan `vercel.json` `{ "git": { "deploymentEnabled": { "pohjakartta":
+  false } } }` ja README, kuten ensimmäisessä julkaisussa.)
+  **Pages ei ole päällä** (404), joten koti on raw. Range-pyyntö
+  `bytes=a-b` on CORS-turvallinen otsake kaikissa nykyselaimissa
+  (Chromium, Firefox 117, WebKit 2022), joten raw ei tarvitse
+  esitarkistusta — sen OPTIONS-vastaus on 403, joten muu otsake ei
+  toimisi.
+- **Sovellus**:
+  - `Pmtiles` — selaimen PMTiles-lukija (otsake + juuri yhdellä
+    16 kt:n pyynnöllä, lehdet muistiin, purku `DecompressionStream`illa).
+  - `Pohjakartta` — luettelo (8 s:n aikaraja), osan valinta (z, x),
+    MapLibren protokolla `fsp://pohja/…` ja `fsp://rinne/…`, rinteen
+    puuttuvan laatan suurennus emosta (Euroopan ulkopuolella z7–8) ja
+    **vesimaski** `Rantamaski`lle: maskilaatta piirretään saman vektorin
+    vesialueista syvimmästä kerroksesta jolla on laatta (`Mvt` purkaa vain
+    `water`-tason renkaat, Canvas 2D täyttää). Tila `pois` (luettelo ei
+    auennut tai selain ei osaa purkaa) → Esrin tumma rasteri ja sen
+    maski kuten ennen.
+  - **Tyyli** (`karttaTyyli`): jokaisella kerroksella oma lähde, ja maa
+    ja vesi täytteinä karkeimmasta tarkimpaan; rinne täyttöjen päällä
+    (opasiteetti 0,85); viivat ja nimet maailmasta alle z7 ja Euroopasta
+    z7:stä ylöspäin (Euroopan ulkopuolella z ≥ 7 ei siis rajoja eikä
+    nimiä — hinta tiedoston koosta). Värit ovat tokeneita (`--kartta-maa`
+    `#2B3039`, `--kartta-vesi` `#04070D`, raja, tie, nimi, halo) Esrin
+    suodatetun pohjan tasolla, koska lämpökartta summataan pohjaan.
+  - **Nimet sään päällä** (Windyn tapa): custom-kerrokset lisätään
+    `yla-raja`-kerroksen eteen (`kerrosEnnen`), partikkelit mukaan
+    lukien. Kieli `KIELI`stä (`name:fi` → `name:en` → `name`), valtiot
+    versaalina ja himmeämpänä, kaupungit väestön mukaan, Protomapsin
+    `min_zoom` harventaa.
+  - **`RantavarjoGL`** lämpökartan, sateen, aaltojen ja vuoroveden päällä
+    ja partikkelien alla: `Rantamaski`n ruudun kokoinen vesimaski →
+    maa sumeaksi neljännesresoluutiolla (kaksi erotettavaa 25 haun
+    vaihetta, vain kun maski tai leveys muuttui) → yksi veto: varjo =
+    vesi · (2,2 · sumea maa)^0,9 · 0,38 ja rantaviiva 0,34 maskin
+    gradientista. σ = 3 + 0,6·z CSS px, enintään 10. Pois aalto- ja
+    vuorovesitilassa, sadetilassa 0,6-kertainen, mukana satelliitilla.
+  - **Satelliitti**: Esrin World Imagery `contrast(1.2) brightness(0.62)`
+    (`--pohja-suodin`), nimet ja rajat päällä, rantavarjo päällä.
+  - **Service worker**: arkistot ja fontit välimuistiin (`pohjakartta-v1`,
+    avain osoite + tavuväli, vastaus 200 täsmälleen pyydetyn mittaisena,
+    katto 4 000 riviä) — kartta toimii rannalla ilman verkkoa jos alue
+    on katsottu.
+  - Lähdemerkintä (`POHJAT.tumma.attr`, Tietoa): OpenStreetMap-tekijät,
+    Protomaps, Mapzen Terrain Tiles; varatiellä Esri.
+
+### Mitattu
+
+Rannan kirkkausero (maa 0–6 px − vesi 0–6 px rannasta, 0–255), oikea
+sovellus, tuotantobuild, sama hetki, partikkelit, nimet, rinne ja viivat
+pois mittauksen ajaksi; maski samasta näkymästä lämpökartta pois:
+
+```
+näkymä         Esri (ennen)   oma ilman varjoa   oma + rantavarjo
+helsinki          +44,6            +37,2              +52,4
+saaristo          +30,6            +29,8              +45,8
+suomenlahti       +24,6            +23,1              +40,8
+eurooppa           +8,4            +18,1              +28,6
+bretagne          +30,6            +31,1              +54,7
+```
+
+Kevennetty varjo (0,38 / 0,34) antaa saman suuruusluokan kuin
+suunnitelman 0,55 (suunnitelmassa 59,5 / 43,8 / 44,0 / 28,5 / 62,2).
+Eurooppa paranee myös ilman varjoa, koska vektorin vesi on tummempaa
+kuin Esrin.
+
+Hinta liikkuvassa ruudussa (SwiftShader, 900 × 620, sama näkymä,
+24 siirtoa kierroksella, viisi kierrosta vuorotellen, mediaanit):
+rantavarjo päällä 238,6 / 201,4 / 192,1 / 210,2 / 191,6 ms, pois
+177,7 / 188,8 / 172,8 / 175,4 / 175,5 ms → **201,4 vs 175,5 ms (+15 %)**.
+Kontti ei mittaa laitteen aikaa; suhde kertoo että hinta on pieni
+lämpökartan liikkuvaan ruutuun nähden (docs/lampokartta.md). Puhelimella
+mittaamatta.
+
+Tarkistettu selaimessa: luettelo aukeaa raw:sta (`tila ok`), Range-
+haut ilman esitarkistusta, nimet suomeksi ja englanniksi (`?kieli=en`),
+aaltotilan ranta oman vektorin maskista, satelliitti tummennettuna,
+maailma z1,8 … Helsinki z13,2. Savutesti läpi puhelimella ja
+työpöydällä. `tools/graafimittaus.mjs` antaa kontissa yhden vian ("veto
+heti vierittää, kierros 2") — sama vika edellisellä versiolla (sama
+build ilman tätä muutosta, portti 4174), eli se ei ole tämän muutoksen.
+
+### Mitä jäi
+
+- **Euroopan ulkopuolella z ≥ 7** pohja on maailman z6-laatta
+  suurennettuna, ilman rajoja ja nimiä, ja rinne suurennettu z6:sta.
+  Laajennus on rivi `TASOT`iin (ja koko kasvaa).
+- **Rannikko z11–12** vain Suomen rannikolla ja Pampuksella. Muualla
+  Euroopassa lähizoom on z10-geometriaa suurennettuna (pienet saaret
+  pyöristyvät). Uusi spotti Suomen ulkopuolelle → `SPOTIT`.
+- **Päivitys on käsityötä** (kuten `tools/vuorovesi.py`): OSM:n muutokset
+  rantaviivassa ovat harvinaisia. Jos ajastat sen, julkaise kuten
+  `saadata` (orpo committi, pakkopäivitys).
+- **Pages**: kun Pages kytketään päälle, kodiksi voi lisätä Pagesin kuten
+  säälaatoille (`SAALAATAT_KANNAT`) — nyt yksi koti.
+- **Kerrosvalitsimen esikatselukuvat** (`KerrosKuvat`) piirtävät yhä
+  vanhan pohjan sävyt ja vaalean rantaviivan; pieni ero.
+- Ruutunopeus puhelimella ja iPadilla mittaamatta.

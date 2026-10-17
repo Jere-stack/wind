@@ -68,6 +68,18 @@ const KUORI_TIEDOSTOT = [
   '/vendor/maplibre-gl-5.24.0.js',
 ];
 
+/* OMA POHJAKARTTA (docs/pohjakartta.md): PMTiles-arkistot ja fontit
+   haarasta `pohjakartta`. Arkiston nimi on versioitu (`pohja-<aika>-…`),
+   joten sen tavut eivät muutu: välimuisti edellä. Arkisto luetaan
+   Range-pyynnöillä, ja Cache API ei talleta 206-vastausta, joten avain on
+   osoite + tavuväli ja talletettu vastaus on 200 täsmälleen pyydetyn
+   mittaisena (sovelluksen `Pmtiles` hyväksyy sen). Luettelo
+   (`luettelo.json`) kulkee säälaattojen luettelon polkua (verkko edellä). */
+const POHJAKARTTA = 'pohjakartta-v1';
+const POHJA_KATTO = 4000;
+const onPohjakartta = (u) => u.hostname === 'raw.githubusercontent.com' && u.pathname.includes('/pohjakartta/')
+  && (u.pathname.endsWith('.pmtiles') || u.pathname.endsWith('.pbf'));
+
 const onLaatta = (u) =>
   u.hostname === 'services.arcgisonline.com' ||
   u.hostname.endsWith('.basemaps.cartocdn.com');
@@ -108,6 +120,7 @@ self.addEventListener('activate', (e) => {
       /* Vuorovesivakiot ovat koko aineiston kokoiset enintään (8,5 MB);
          uusi rakennus (`tools/vuorovesi.py`) vaihtaa nimen. */
       if (n.startsWith('vuorovesi-') && n !== VUOROVESI) await caches.delete(n);
+      if (n.startsWith('pohjakartta-') && n !== POHJAKARTTA) await caches.delete(n);
     }
     await self.clients.claim();
   })());
@@ -121,6 +134,15 @@ async function siivoaLaatat() {
   const c = await caches.open(LAATAT);
   const avaimet = await c.keys();
   const yli = avaimet.length - LAATTA_KATTO;
+  for (let i = 0; i < yli; i++) await c.delete(avaimet[i]);
+}
+
+let pohjaLaskuri = 0;
+async function siivoaPohja() {
+  if (++pohjaLaskuri % 100) return;
+  const c = await caches.open(POHJAKARTTA);
+  const avaimet = await c.keys();
+  const yli = avaimet.length - POHJA_KATTO;
   for (let i = 0; i < yli; i++) await c.delete(avaimet[i]);
 }
 
@@ -165,6 +187,25 @@ self.addEventListener('fetch', (e) => {
       if (osuma) return osuma;
       const r = await fetch(e.request);
       if (r.ok) c.put(e.request, r.clone());
+      return r;
+    })());
+    return;
+  }
+
+  if (onPohjakartta(u)) {
+    e.respondWith((async () => {
+      const vali = e.request.headers.get('Range') || '';
+      const avain = new Request(u.href + (vali ? '#' + vali.replace(/\s/g, '') : ''));
+      const c = await caches.open(POHJAKARTTA);
+      const osuma = await c.match(avain);
+      if (osuma) return osuma;
+      const r = await fetch(e.request);
+      if (r.status === 200 || r.status === 206) {
+        const runko = await r.arrayBuffer();
+        const t = new Response(runko, { status: 200, headers: { 'Content-Type': r.headers.get('Content-Type') || 'application/octet-stream' } });
+        c.put(avain, t.clone()).then(siivoaPohja).catch(() => {});
+        return t;
+      }
       return r;
     })());
     return;

@@ -93,7 +93,11 @@ ole tehty, koska sitä ei ole mitattu tarpeelliseksi.
 
 ## Pohjakartta
 
-Oletus on Esri Dark Gray Canvas,
+**17.10.: tumma pohja on oma tiedosto** (OpenStreetMap-vektori,
+rinnevarjostus, nimet ja rantavarjo; docs/pohjakartta.md). Alla oleva on
+Esri-ajan historiaa ja pätee yhä Esrin varatiehen ja satelliittiin.
+
+Oletus oli Esri Dark Gray Canvas,
 `services.arcgisonline.com/.../World_Dark_Gray_Base`. Asetuspaneelista voi
 valita myös vaalean tai satelliitin — ks. *Kartan asetukset*, jossa on
 niiden omat sävynsäätimet ja se miksi vaalea kääntää koko sekoituksen

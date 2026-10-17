@@ -161,6 +161,16 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   käyttöalueiden maarasterin `tools/maat.json` (Natural Earth, ajetaan
   käsin), ja `tools/jarvet.mjs` järvirasterin `tools/jarvet.json`
   (Euroopan aseman `Jarvi`-tagi, `api/_esoh.js`; ajetaan käsin). docs/eurooppa.md.
+- `tools/pohjakartta.mjs` + `tools/pmtiles.mjs` — OMA POHJAKARTTA
+  (docs/pohjakartta.md, toteutus 17.10.): OpenStreetMap-vektorilaatat
+  Protomapsin päivittäisestä rakennuksesta Range-pyynnöillä ja
+  suodatettuina (maa, vesi, valtioiden rajat, paikat, moottoritiet),
+  kolmena kerroksena (maailma z0–6, Eurooppa z7–10, rannikko z11–12),
+  rinnevarjostus Mapzen Terrain Tiles -korkeusmallista (harmaa + alfa
+  PNG, maailma z0–6, Eurooppa z7–8) ja Noto Sans -fontit, PMTiles v3
+  -arkistoina ALLE 90 Mt:n OSINA (GitHubin 100 Mt:n raja). Ajetaan käsin
+  (noin 12 min, 250 Mt), tulos orpoon haaraan `pohjakartta`. Vain Noden
+  omia moduuleita.
 - `tools/pyramidi.mjs` — säännöllisestä hilasta suodatettu laattapyramidi
   ja painokanava; kaikki mallit kirjoitetaan sen kautta.
 - `tools/harmonie.mjs` — FMI HARMONIE 2,5 km hilana GRIB2:sta (tasot
@@ -268,9 +278,11 @@ se vastaa yhtä tuoreella luettelolla.
 
 Havaintoasemien oma historia on orpossa `havainnot`-haarassa (sama
 malli: yksi committi, pakkopäivitys, kymmenen minuutin välein; myös
-Euroopan tasatunnit `esoh/`). Vercel
+Euroopan tasatunnit `esoh/`). Pohjakartta on orpossa `pohjakartta`-
+haarassa (`tools/pohjakartta.mjs`, julkaistaan käsin; sovellus lukee sen
+raw.githubusercontent.comista, docs/pohjakartta.md). Vercel
 (`git.deploymentEnabled`) ja Tarkistus (`branches-ignore`) ohittavat
-molemmat datahaarat — jos lisäät kolmannen, lisää se molempiin.
+kaikki kolme datahaaraa — jos lisäät neljännen, lisää se molempiin.
 
 ---
 
@@ -283,8 +295,8 @@ kokeiltu ja kaadettu mittauksella.
 
 | tiedosto | lue kun työ koskee |
 |---|---|
-| `docs/pohjakartta.md` | **pohjakartan vaihtoa ja rantojen erottuvuutta** (strategia 17.10., ei toteutettu): Windyn tapa mitattuna sen laatoista (rantavarjo veden puolella, kartta sään päällä), vaihtoehdot A–F kuvattuina oikean sovelluksen päällä, rannan kirkkausero mitattuna, maan tummennus hylätty, oma vektoripohja (OpenFreeMap, Mapterhorn-rinne, nimet), satelliitti, vaiheet V1–V4 ja päätettävät P1–P5 |
-| `docs/lampokartta.md` | pohjakarttaa, lämpökarttaa, väriramppia, tekstuurin mitoitusta tai projektiota, kartan asetuksia |
+| `docs/pohjakartta.md` | **pohjakarttaa, rantojen erottuvuutta, karttanimiä ja rinnevarjostusta** (strategia ja toteutus 17.10.: oma tiedosto `pohjakartta`-haarassa, `Pmtiles`, `Pohjakartta`, `RantavarjoGL`, nimet sään päällä, mitattu rannan ero ja hinta): Windyn tapa mitattuna sen laatoista (rantavarjo veden puolella, kartta sään päällä), vaihtoehdot A–F kuvattuina oikean sovelluksen päällä, rannan kirkkausero mitattuna, maan tummennus hylätty, oma vektoripohja (OpenFreeMap, Mapterhorn-rinne, nimet), satelliitti, vaiheet V1–V4 ja päätettävät P1–P5 |
+| `docs/lampokartta.md` | (pohjakartan historia: Esri ja CARTO), lämpökarttaa, väriramppia, tekstuurin mitoitusta tai projektiota, kartan asetuksia |
 | `docs/partikkelit.md` | tuulipartikkeleita, jäljen muotoa, tiheyttä (**kaukaa Windyn tiheys**), ruutuaikabudjettia tai **partikkelien kenttää tasojen välissä (sama sekoitus kuin lämpökartalla)** |
 | `docs/eleet.md` | nipistystä, zoomia (**kosketuszoom tähtäimen ympäri**), zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
 | `docs/data.md` | **aaltoennustetta kartalla (FMI WAM, `a0`–`a3`, `tools/wam.mjs`)**, säälaattoja, rajapintoja, tuulikentän rakennusta, välimuisteja, käynnistystä, aaltopoijuja, **havaintoasemien oma historia (Mellsten ja Laru, `havainnot`-haara)**, **Mellstenin katkot: 4 h kuvaaja, arkistovaratie ja ajastinketju**, **kelikameran tila (YouTube, pikkukuvan ETag)** |
@@ -835,6 +847,50 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   vieressä.
 - **`var()` ei toimi SVG:n esitysattribuuteissa.** Kaavioiden `fill=` tarvitsee
   literaalin; inline-tyyleissä tokenit toimivat.
+
+**Pohjakartta** (docs/pohjakartta.md, toteutus 17.10.)
+
+- **TUMMA POHJA ON OMA TIEDOSTO, YHDESSÄ KODISSA** (käyttäjän päätös
+  17.10.: "yhdellä levyllä, ettei ne pompi eri aikaan"): vektori, rinne
+  ja fontit ovat `pohjakartta`-haarassa, ja `luettelo.json` kertoo
+  arkistojen osat. Älä lisää kolmannen osapuolen tyyliä, laattoja tai
+  fontteja (OpenFreeMap, MapTiler, Mapterhorn) tumman pohjan osaksi.
+  Esrin tumma rasteri on VARATIE (`Pohjakartta.tila === 'pois'`), ja sen
+  koneisto (`--pohja-suodin`, CARTO-varatie, Esri-maski) jää sitä varten.
+- **ARKISTON OSA ON ALLE 90 Mt JA SEN NIMESSÄ ON RAKENNUSHETKI.** GitHub
+  hylkää yli 100 Mt:n tiedoston, ja raw.githubusercontent on koti.
+  Versioitu nimi tarkoittaa ettei vanhan luettelon istunto lue uutta
+  tiedostoa vanhalla hakemistolla (ja SW voi pitää tavuvälit
+  välimuistissa). Rakentaja jakaa osat itse (`kirjoitaOsat`).
+- **RAW:LLE VAIN `Range: bytes=a-b`.** Yksinkertainen tavuväli on
+  CORS-turvallinen otsake eikä aiheuta esitarkistusta; raw vastaa
+  OPTIONSiin 403:lla, joten MIKÄ TAHANSA muu otsake kaataisi haun.
+- **KOLME KERROSTA, JOKAINEN OMA LÄHDE, JA TARKEMPI PIIRTÄÄ MAAN JA
+  VEDEN TÄYTTEENÄ** (`POHJA_TASOT` = rakentajan `TASOT`; muuta molempia).
+  Puuttuva tarkempi laatta näyttää siis karkeamman suurennettuna eikä
+  reikää. Viivat ja nimet ovat vain maailmasta (z < 7) ja Euroopasta
+  (z ≥ 7) — kahdesta kerroksesta samaan aikaan ne kahdentuisivat.
+- **NIMET OVAT SÄÄN PÄÄLLÄ (Windyn tapa) ja sovelluksen kielellä.**
+  Kartan custom-kerrokset lisätään `kerrosEnnen(ml)`:n eteen
+  (partikkelit tai `yla-raja`), partikkelit `yla-raja`n eteen. Uusi
+  säätä piirtävä kerros EI saa mennä pinon huipulle (`addLayer(self)`
+  ilman ankkuria piirtäisi nimien päälle).
+- **RANTAVARJO ON RANTAVEDESSÄ, EI MAALLA** (`RantavarjoGL`): Windyn
+  laatat tummentavat rantaveden (mitattu). Maan tummennus kokeiltiin ja
+  se HUONONSI rannan eroa (Helsinki 44,6 → 20,8), koska meillä maa on
+  vettä vaaleampi. Voima 0,38 ja viiva 0,34 ovat käyttäjän "kevyempi"
+  (suunnitelmassa 0,55 / 0,5). Pois aalto- ja vuorovesitilassa,
+  sadetilassa 0,6×. Mitattu rannan ero oma + varjo: Helsinki 52,4,
+  Saaristomeri 45,8, Eurooppa 28,6 (Esrillä 44,6 / 30,6 / 8,4); hinta
+  liikkuvassa ruudussa +15 % SwiftShaderilla.
+- **`Rantamaski` LUKEE OMAN POHJAN VEDEN** (`Pohjakartta.vesimaski`):
+  ranta on täsmälleen näkyvä ranta, ja suurennettu geometria on terävä
+  millä zoomilla tahansa. Esrin laatta ja kynnys vain varatiellä.
+- **POHJAN VÄRIT OVAT TOKENEITA** (`--kartta-maa` `#2B3039`,
+  `--kartta-vesi` `#04070D`, raja, tie, nimi, halo) Esrin suodatetun
+  pohjan tasolla (vesi ~0, maa ~50/255): lämpökartta summataan pohjaan,
+  ja sen kylläisyys on kalibroitu sitä vasten. Älä vaalenna maata
+  mittaamatta rannan eroa ja lämpökartan värejä.
 
 **Latausruutu ja sovelluksen merkki**
 
@@ -1702,7 +1758,10 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **Oletus on siruryhmässä ensimmäisenä vasemmalla** (tuuli, kts,
   tumma, partikkelit-Normaali). Poikkeus: lämpökartan voimakkuus on
   asteikko, jossa järjestys on itsessään tieto.
-- **POHJAKARTTOJA ON KAKSI: TUMMA JA SATELLIITTI.** Vaalea pohja
+- **POHJAKARTTOJA ON KAKSI: TUMMA JA SATELLIITTI, JA TUMMA ON OMA
+  TIEDOSTO** (17.10., ks. "Pohjakartta" ylempänä). Satelliitti on Esrin
+  World Imagery tummennettuna (`contrast(1.2) brightness(0.62)`).
+  Pohjakarttoja oli kolme: vaalea pohja
   poistettiin valitsimesta käyttäjän päätöksellä ("se ei ole toimiva").
   Sen koneisto (`Asetukset.paperi()`, multiply-sekoitus, `RAMP_INK`,
   sateen paperipaletti) jäi koodiin mutta on käyttämätön, koska
@@ -3278,8 +3337,10 @@ aaltoennuste tulee nyt FMI:n WAMista, ks. yllä)
   0,75 × tason askel): ECMWF:n 0,25°:n tasolla 27 km, palvelimen 9 km:n
   hilalla 12 km; mitattuna 4 km jätti 20–54 % rannikkovedestä aukoksi),
   ja `Rantamaski` rajaa sen
-  Esrin tumman pohjan laatoista GL-tekstuureina pohjakartan omalla
-  tasolla (vesi kirkkaus ≈ 36, maa ≈ 78, kynnys 48/60; V3). Mallin
+  pohjakartan rannalla GL-tekstuureina pohjakartan omalla tasolla: oman
+  pohjan vesialueista (`Pohjakartta.vesimaski`, 17.10.), ja varatiellä
+  Esrin tumman pohjan laatoista (vesi kirkkaus ≈ 36, maa ≈ 78, kynnys
+  48/60; V3). Mallin
   1 × 2 km maski jätti aallokon irti rannasta ja valutti sen kaupungin
   päälle. Kapseli lukee saman kentän ja maskin (`AaltoGL.arvoKohdassa`).
 - **AALTOTILASSA AIKAJANA ON AALTODATAN JAKSO** (`_tlAaltoRajaus`,

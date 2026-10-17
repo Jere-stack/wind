@@ -86,7 +86,7 @@ if ('serviceWorker' in navigator) {
      ja API-ikkuna kattoi 74 % siita. Preconnect sailoo DNS:n ja TLS:n
      ennen ensimmaista pyyntoa, joka lahtee vasta 1125 ms kohdalla. -->
 <link rel="preconnect" href="https://api.open-meteo.com" crossorigin>
-<link rel="preconnect" href="https://services.arcgisonline.com" crossorigin>
+<link rel="preconnect" href="https://raw.githubusercontent.com" crossorigin>
 <!-- Kartta on MapLibre GL: pohjakartta, lämpökartta, partikkelit ja
      sadetutka piirtyvät SAMAAN WebGL-ruutuun, kuten Windyssä. Leaflet
      maalasi lämpökartan laatat uudelleen joka eleen jälkeen, ja se oli
@@ -159,6 +159,17 @@ if ('serviceWorker' in navigator) {
      mukana (ks. POHJAT). Oletus on tumma. JS lukee sen ja kääntää
      MapLibren rasterimaaliksi (pohjanMaali) — arvot ovat vain täällä. */
   --pohja-suodin: contrast(1.4);
+  /* OMA POHJAKARTTA (docs/pohjakartta.md). Maa ja vesi ovat Esrin
+     suodatetun pohjan tasolla (vesi ~0, maa ~50/255), koska lämpökartta
+     summataan pohjaan (plus-lighter) ja sen kylläisyys on kalibroitu sitä
+     vasten. Nimet ovat siiven kermaa ja halo kartan yötä. */
+  --kartta-maa: #2B3039;
+  --kartta-vesi: #04070D;
+  --kartta-raja: rgba(210,214,222,0.38);
+  --kartta-tie: rgba(210,214,222,0.13);
+  --kartta-nimi: rgba(240,231,206,0.86);
+  --kartta-nimi-2: rgba(195,191,178,0.72);
+  --kartta-nimi-halo: rgba(6,9,18,0.82);
   /* Kartan päällä kelluva pikkuteksti (lähdemerkintä). Ei paneelimuste:
      tämä on kartan maailmaa, joten se on valkoinen kuten kartan muutkin
      merkinnät — ja kääntyy mustaksi vaalealla pohjakartalla. */
@@ -288,10 +299,14 @@ html[lang="en"] [data-kieli="fi"] { display: none !important; }
    kuten tummalla pohjalla. 1.2 mitattuna ruudulta: ero 38.0 -> 45.7 ja
    yksityiskohdat 4.15 -> 4.98. 1.35 antaisi 47.6/5.45 mutta puhtaalta
    laatalta mitattuna se painaisi 14 % pikseleistä puhtaaseen mustaan —
-   syvä vesi ja varjot menettäisivät kaiken sisältönsä. 1.2:lla 0.7 %. */
+   syvä vesi ja varjot menettäisivät kaiken sisältönsä. 1.2:lla 0.7 %.
+   TUMMENNETTU (17.10., käyttäjän päätös, docs/pohjakartta.md): lämpökartta
+   summataan pohjaan, ja täysikirkas ilmakuva pesi sään — rannan ero oli
+   0,1 … −20 (vesi kuvassa maata vaaleampaa). brightness 0.62 tuo kuvan
+   tumman pohjan tasolle, ja rannan erottaa rantavarjo. */
 :root[data-pohja="satelliitti"] {
   --bg: #0B1020;
-  --pohja-suodin: contrast(1.2);
+  --pohja-suodin: contrast(1.2) brightness(0.62);
 }
 
 
@@ -5727,10 +5742,8 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
           <dt data-alue="suomi" data-en="Webcam">Kelikamera</dt>
           <dd data-en="Lauttasaari: Lauttasaaren leijalautailijat ry (Larukite), live stream on YouTube.">Lauttasaari: Lauttasaaren leijalautailijat ry (Larukite), suora lähetys YouTubessa.</dd>
           <dt data-en="Base map">Pohjakartta</dt>
-          <dd>Powered by <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a> —
-            <span id="pohja-lahteet">Esri, HERE, Garmin,
-            © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>&nbsp;contributors.</span>
-            <span data-en="Fallback map © CARTO, © OpenStreetMap contributors.">Varapohja © CARTO, © OpenStreetMap-tekijät.</span></dd>
+          <dd><span id="pohja-lahteet">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>&nbsp;contributors, Protomaps.</span>
+            <span data-en="The map data (ODbL) and terrain shading are FoilSpot’s own file. Satellite and fallback map: Powered by Esri (Esri, Maxar, Earthstar Geographics, HERE, Garmin) and © CARTO. Place names in Noto Sans (SIL OFL).">Kartta-aineisto (ODbL) ja rinnevarjostus ovat FoilSpotin oma tiedosto. Satelliitti ja varapohja: Powered by Esri (Esri, Maxar, Earthstar Geographics, HERE, Garmin) ja © CARTO. Paikannimet Noto Sans -fontilla (SIL OFL).</span></dd>
           <dt data-en="Map rendering">Kartan piirto</dt>
           <dd>MapLibre GL JS (BSD-3-Clause).</dd>
         </dl>
@@ -6939,17 +6952,29 @@ const Units = {
  * Attribuutio vaihtuu palvelun mukana: Esrin ehdot vaativat "Powered by
  * Esri" -maininnan JA sen palvelun datalähteet, ja World_Imageryn lähteet
  * ovat eri kuin Canvas-karttojen. Tätä riviä ei saa pudottaa. */
+/* TUMMA ON OMA POHJAKARTTA (docs/pohjakartta.md, `Pohjakartta`):
+ * OpenStreetMap-vektorilaatat, rinnevarjostus ja nimet omasta
+ * tiedostoparista. Esrin tumma rasteri (`url`) on sen VARATIE, jos oma
+ * tiedosto ei aukea (`Pohjakartta.tila === 'pois'`), ja silloin
+ * lähdemerkintä on `attrVara`. */
 const POHJAT = {
   tumma: {
     nimi: _t('Tumma', 'Dark'),
+    vektori: true,
     url: 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-    attr: 'Esri, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>&nbsp;contributors.'
+    attr: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
+      + _t('-tekijät', '&nbsp;contributors') + ', <a href="https://protomaps.com/" target="_blank" rel="noopener">Protomaps</a>. '
+      + _t('Rinnevarjostus', 'Terrain shading') + ': <a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md" target="_blank" rel="noopener">Mapzen Terrain Tiles</a>'
+      + ' (SRTM, GMTED2010, ETOPO1, EU-DEM, ArcticDEM).',
+    attrVara: 'Powered by Esri — Esri, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>&nbsp;contributors.'
   },
   satelliitti: {
     nimi: _t('Satelliitti', 'Satellite'),
     url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attr: _t('Esri, Maxar, Earthstar Geographics ja GIS-käyttäjäyhteisö.',
-             'Esri, Maxar, Earthstar Geographics and the GIS User Community.')
+    attr: 'Powered by Esri — ' + _t('Esri, Maxar, Earthstar Geographics ja GIS-käyttäjäyhteisö. Rajat ja nimet',
+             'Esri, Maxar, Earthstar Geographics and the GIS User Community. Borders and names')
+      + ' &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
+      + _t('-tekijät', '&nbsp;contributors') + ', Protomaps.'
   }
 };
 
@@ -12803,43 +12828,432 @@ function _cssVari(nimi, oletus) {
    Leafletin oma (`devicePixelRatio > 1`). */
 const POHJA_LAATTA = (window.devicePixelRatio || 1) > 1 ? 128 : 256;
 
+/* ── OMA POHJAKARTTA (docs/pohjakartta.md) ─────────────────────────────
+ *
+ * Tumma pohja on oma tiedostopari orvossa haarassa `pohjakartta`
+ * (`tools/pohjakartta.mjs`): OpenStreetMapin vektorilaatat (maa, vesi,
+ * rajat, moottoritiet, nimet; Protomapsin rakennuksesta) ja niistä
+ * erillinen rinnevarjostus, molemmat PMTiles-arkistoina, ja nimien fontit
+ * samassa kodissa. Käyttäjän päätös 17.10.: "oma karttatiedosto, jotta
+ * kaikki ovat yhdellä levyllä" — kolme ulkoista palvelua (OpenFreeMap,
+ * korkeusmalli, Esri) olisivat kolme latautumisrytmiä ja kolme
+ * katkoriskiä. Esrin tumma rasteri on varatie.
+ *
+ * Arkisto luetaan HTTP:n Range-pyynnöillä (`Pmtiles`), ja MapLibre saa
+ * laatat omasta protokollasta `fsp://` (`Pohjakartta.protokolla`).
+ * Vektori on kolmena kerroksena eri zoomeille (POHJA_TASOT, sama taulukko
+ * kuin rakentajan TASOT): maailma z0–6, Eurooppa z7–10 ja rannikko z11–12.
+ * Jokainen kerros on oma lähteensä, ja tarkempi piirtää maan JA veden
+ * täytenä karkeamman päälle — puuttuva tarkempi laatta näyttää siis
+ * karkeamman kerroksen ylisuurennettuna eikä reikää. Viivat ja nimet
+ * tulevat vain maailmasta (z < 7) ja Euroopasta (z ≥ 7). */
+const POHJAKARTTA_KANTA = 'https://raw.githubusercontent.com/Jere-stack/wind/pohjakartta/';
+const POHJA_TASOT = [
+  { id: 'maailma', min: 0, max: 6 },
+  { id: 'eurooppa', min: 7, max: 10 },
+  { id: 'rannikko', min: 11, max: 12 },
+];
+
+/* PMTILES v3 -LUKIJA. Otsake ja juurihakemisto ovat arkiston ensimmäiset
+ * 16 384 tavua (yksi pyyntö), lehtihakemistot haetaan tarvittaessa ja
+ * muistetaan. Sama hakemistomuoto kuin `tools/pmtiles.mjs`. Range-pyyntö
+ * `bytes=a-b` on CORS-turvallinen otsake (ei esitarkistusta), joten
+ * raw.githubusercontent.com kelpaa kodiksi; 200-vastaus kelpaa vain jos
+ * se on täsmälleen pyydetyn mittainen (service workerin välimuisti). */
+const Pmtiles = {
+  avaa(url) {
+    const a = { url: url, h: null, juuri: null, lehdet: new Map() };
+    a.alku = this._alku(a);
+    a.alku.catch(function () {});
+    return a;
+  },
+  async _hae(url, alku, pituus) {
+    const r = await fetch(url, { headers: { Range: 'bytes=' + alku + '-' + (alku + pituus - 1) } });
+    if (r.status !== 206 && r.status !== 200) throw new Error('pmtiles ' + r.status);
+    const b = new Uint8Array(await r.arrayBuffer());
+    if (r.status === 200 && b.length !== pituus) throw new Error('pmtiles: palvelin ei tue Range-pyyntöä');
+    return b;
+  },
+  async _pura(b) {
+    const s = new Blob([b]).stream().pipeThrough(new DecompressionStream('gzip'));
+    return new Uint8Array(await new Response(s).arrayBuffer());
+  },
+  _u64(d, i) { return d.getUint32(i, true) + d.getUint32(i + 4, true) * 4294967296; },
+  async _alku(a) {
+    const b = await this._hae(a.url, 0, 16384);
+    const d = new DataView(b.buffer, b.byteOffset, b.byteLength);
+    if (String.fromCharCode.apply(null, b.subarray(0, 7)) !== 'PMTiles' || b[7] !== 3) throw new Error('pmtiles: ei versio 3');
+    a.h = { juuri: this._u64(d, 8), juuriP: this._u64(d, 16), lehdet: this._u64(d, 40), data: this._u64(d, 56),
+            sisainen: b[97], laattaPakkaus: b[98], min: b[100], max: b[101] };
+    a.juuri = await this._hakemisto(a, b.subarray(a.h.juuri, a.h.juuri + a.h.juuriP));
+  },
+  async _hakemisto(a, b) {
+    if (a.h.sisainen === 2) b = await this._pura(b);
+    const o = { i: 0 }, lv = function () { let v = 0, s = 1, c; do { c = b[o.i++]; v += (c & 0x7f) * s; s *= 128; } while (c & 0x80); return v; };
+    const n = lv(), id = new Float64Array(n), ajo = new Uint32Array(n), pit = new Uint32Array(n), siirto = new Float64Array(n);
+    let t = 0;
+    for (let i = 0; i < n; i++) { t += lv(); id[i] = t; }
+    for (let i = 0; i < n; i++) ajo[i] = lv();
+    for (let i = 0; i < n; i++) pit[i] = lv();
+    for (let i = 0; i < n; i++) { const v = lv(); siirto[i] = v === 0 && i > 0 ? siirto[i - 1] + pit[i - 1] : v - 1; }
+    return { id: id, ajo: ajo, pit: pit, siirto: siirto };
+  },
+  /* Laatan tunniste: matalampien tasojen laatat + Hilbert-indeksi. */
+  laattaId(z, x, y) {
+    let acc = (Math.pow(4, z) - 1) / 3, d = 0;
+    for (let s = Math.pow(2, z - 1); s >= 1; s /= 2) {
+      const rx = (x & s) > 0 ? 1 : 0, ry = (y & s) > 0 ? 1 : 0;
+      d += s * s * ((3 * rx) ^ ry);
+      if (ry === 0) { if (rx === 1) { x = s - 1 - x; y = s - 1 - y; } const q = x; x = y; y = q; }
+    }
+    return acc + d;
+  },
+  _etsi(h, id) {
+    let a = 0, z = h.id.length - 1;
+    while (a <= z) { const m = (a + z) >> 1; if (h.id[m] < id) a = m + 1; else if (h.id[m] > id) z = m - 1; else return m; }
+    return z >= 0 && (h.ajo[z] === 0 || id - h.id[z] < h.ajo[z]) ? z : -1;
+  },
+  /* Laatan tavut purettuina, tai null jos arkistossa ei ole laattaa. */
+  async laatta(a, z, x, y) {
+    await a.alku;
+    const id = this.laattaId(z, x, y);
+    let h = a.juuri;
+    for (let k = 0; k < 4; k++) {
+      const i = this._etsi(h, id);
+      if (i < 0) return null;
+      if (h.ajo[i] > 0) {
+        const b = await this._hae(a.url, a.h.data + h.siirto[i], h.pit[i]);
+        return a.h.laattaPakkaus === 2 ? this._pura(b) : b;
+      }
+      const avain = h.siirto[i];
+      if (!a.lehdet.has(avain)) {
+        const lupaus = this._hae(a.url, a.h.lehdet + h.siirto[i], h.pit[i]).then(b => this._hakemisto(a, b));
+        lupaus.catch(function () { a.lehdet.delete(avain); });
+        a.lehdet.set(avain, lupaus);
+      }
+      h = await a.lehdet.get(avain);
+    }
+    return null;
+  },
+};
+
+/* POHJAKARTTA: luettelo, arkiston osat ja MapLibren protokolla.
+ * Luettelo (`luettelo.json`) kertoo osat: jokainen osa on yksi arkisto,
+ * yksi kerros (z-väli) ja sen alimman zoomin x-väli — rakentaja jakaa yli
+ * 90 Mt:n kerroksen pituussuunnassa (GitHubin 100 Mt:n tiedostoraja).
+ * `tila`: 'odottaa' → 'ok' tai 'pois' (luettelo ei auennut 8 s:ssa tai
+ * selain ei osaa purkaa gzipiä): silloin tumma pohja on Esrin rasteri. */
+const Pohjakartta = {
+  tila: 'odottaa', _luettelo: null, _arkistot: new Map(), valmis: null,
+  alusta() {
+    if (this.valmis) return this.valmis;
+    const self = this;
+    const ok = typeof DecompressionStream === 'function';
+    const haku = ok ? fetch(POHJAKARTTA_KANTA + 'luettelo.json').then(r => { if (!r.ok) throw new Error('luettelo ' + r.status); return r.json(); })
+                    : Promise.reject(new Error('DecompressionStream puuttuu'));
+    const aikaraja = new Promise((f, h) => setTimeout(() => h(new Error('luettelo: aikaraja')), 8000));
+    this.valmis = Promise.race([haku, aikaraja]).then(function (l) {
+      if (!l || !l.pohja || !l.pohja.osat) throw new Error('luettelo ilman pohjaa');
+      self._luettelo = l; self.tila = 'ok';
+      return true;
+    }).catch(function (e) {
+      if (window.console) console.warn('pohjakartta:', e && e.message);
+      self.tila = 'pois';
+      /* Kartta ei ehkä ole vielä valmis (luettelo kaatui heti): vaihto
+         sen valmistuttua, muuten vektorikerrokset jäisivät tyhjinä päälle. */
+      if (State.map) State.map._kunValmis(function () { pohjaKarttaVaihda(State.map); });
+      if (typeof KarttaAsetukset !== 'undefined' && KarttaAsetukset._lahteet) KarttaAsetukset._lahteet();
+      return false;
+    });
+    return this.valmis;
+  },
+  _osa(laji, z, x) {
+    const l = this._luettelo && this._luettelo[laji];
+    if (!l) return null;
+    for (const o of l.osat) {
+      if (z < o.z[0] || z > o.z[1]) continue;
+      const xa = Math.floor(x / Math.pow(2, z - o.z[0]));
+      if (xa >= o.x[0] && xa <= o.x[1]) {
+        let a = this._arkistot.get(o.tiedosto);
+        if (!a) { a = Pmtiles.avaa(POHJAKARTTA_KANTA + o.tiedosto); this._arkistot.set(o.tiedosto, a); }
+        return a;
+      }
+    }
+    return null;
+  },
+  /* Vektorilaatta (purettu MVT) tai null. */
+  async vektori(z, x, y) {
+    if (!(await this.alusta())) return null;
+    const a = this._osa('pohja', z, x);
+    return a ? Pmtiles.laatta(a, z, x, y) : null;
+  },
+  /* Rinnelaatta PNG-tavuina. Puuttuva laatta (Euroopan ulkopuolella
+     z7–8) suurennetaan lähimmästä emosta, ja jos sitäkään ei ole,
+     palautetaan läpinäkyvä laatta. */
+  async rinne(z, x, y) {
+    if (!(await this.alusta())) return this._tyhjaPng();
+    for (let k = 0; k <= 6 && k <= z; k++) {
+      const tz = z - k, tx = Math.floor(x / Math.pow(2, k)), ty = Math.floor(y / Math.pow(2, k));
+      const a = this._osa('rinne', tz, tx);
+      if (!a) continue;
+      const b = await Pmtiles.laatta(a, tz, tx, ty);
+      if (!b) continue;
+      if (k === 0) return b;
+      return this._suurenna(b, k, x - tx * Math.pow(2, k), y - ty * Math.pow(2, k));
+    }
+    return this._tyhjaPng();
+  },
+  _kangas(w) {
+    if (typeof OffscreenCanvas === 'function') return new OffscreenCanvas(w, w);
+    const c = document.createElement('canvas'); c.width = w; c.height = w; return c;
+  },
+  async _png(c) {
+    const blob = c.convertToBlob ? await c.convertToBlob({ type: 'image/png' })
+      : await new Promise(f => c.toBlob(f, 'image/png'));
+    return new Uint8Array(await blob.arrayBuffer());
+  },
+  async _suurenna(b, k, ox, oy) {
+    const kuva = await createImageBitmap(new Blob([b], { type: 'image/png' }));
+    const n = Math.pow(2, k), s = kuva.width / n, c = this._kangas(256), g = c.getContext('2d');
+    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+    g.drawImage(kuva, ox * s, oy * s, s, s, 0, 0, 256, 256);
+    if (kuva.close) kuva.close();
+    return this._png(c);
+  },
+  _tyhjaPng() {
+    if (!this._tyhja) this._tyhja = this._png(this._kangas(256));
+    return this._tyhja;
+  },
+  /* MapLibren protokolla: fsp://pohja/z/x/y ja fsp://rinne/z/x/y. */
+  protokolla() {
+    if (this._protokolla || !maplibregl.addProtocol) return;
+    this._protokolla = true;
+    const self = this;
+    maplibregl.addProtocol('fsp', async function (p) {
+      const m = /^fsp:\/\/(\w+)\/(\d+)\/(\d+)\/(\d+)/.exec(p.url);
+      if (!m) throw new Error('fsp: ' + p.url);
+      const z = +m[2], x = +m[3], y = +m[4];
+      const b = m[1] === 'rinne' ? await self.rinne(z, x, y) : await self.vektori(z, x, y);
+      if (!b) return { data: new ArrayBuffer(0) };
+      return { data: b.byteOffset === 0 && b.byteLength === b.buffer.byteLength ? b.buffer : b.slice().buffer };
+    });
+  },
+  /* VESIMASKI `Rantamaski`lle: 256 × 256 tavua, 255 = vesi, samasta
+     vektorista kuin näkyvä pohja. Laatta (z, x, y) piirretään syvimmästä
+     kerroksesta jolla on laatta sen kohdalla (rannikko → Eurooppa →
+     maailma), suurennettuna geometriana — reuna on terävä millä zoomilla
+     tahansa. null = ei laattaa (maski käsittelee sen vetenä). */
+  async vesimaski(z, x, y) {
+    if (!(await this.alusta())) return null;
+    for (let tz = Math.min(z, POHJA_TASOT[POHJA_TASOT.length - 1].max); tz >= 0; tz--) {
+      const k = z - tz, n = Math.pow(2, k), tx = Math.floor(x / n), ty = Math.floor(y / n);
+      const a = this._osa('pohja', tz, tx);
+      if (!a) continue;
+      const b = await Pmtiles.laatta(a, tz, tx, ty);
+      if (!b) continue;
+      return this._rasteroi(b, n, x - tx * n, y - ty * n);
+    }
+    return null;
+  },
+  _rasteroi(b, n, ox, oy) {
+    if (!this._mk) {
+      this._mk = document.createElement('canvas'); this._mk.width = 256; this._mk.height = 256;
+      this._mg = this._mk.getContext('2d', { willReadFrequently: true });
+    }
+    const g = this._mg, vesi = Mvt.monikulmiot(b, 'water');
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.fillStyle = '#000'; g.fillRect(0, 0, 256, 256);
+    if (vesi) {
+      const s = 256 * n / vesi.extent;
+      g.setTransform(s, 0, 0, s, -ox * 256, -oy * 256);
+      g.fillStyle = '#fff';
+      g.beginPath();
+      for (const r of vesi.renkaat) {
+        g.moveTo(r[0], r[1]);
+        for (let i = 2; i < r.length; i += 2) g.lineTo(r[i], r[i + 1]);
+        g.closePath();
+      }
+      g.fill('nonzero');
+    }
+    const kuva = g.getImageData(0, 0, 256, 256).data, d = new Uint8Array(65536);
+    for (let i = 0, p = 0; i < 65536; i++, p += 4) d[i] = kuva[p];
+    return d;
+  },
+};
+
+/* MVT-PURKU vesimaskia varten: yhden tason monikulmioiden renkaat
+ * laattakoordinaateissa. Vain se mitä maski tarvitsee — piirto on
+ * MapLibren. */
+const Mvt = {
+  monikulmiot(b, nimi) {
+    const o = { i: 0 };
+    const lv = function () { let v = 0, s = 1, c; do { c = b[o.i++]; v += (c & 0x7f) * s; s *= 128; } while (c & 0x80); return v; };
+    const ohita = function (t) { if (t === 0) lv(); else if (t === 2) { const n = lv(); o.i += n; } else if (t === 1) o.i += 8; else if (t === 5) o.i += 4; else throw new Error('mvt ' + t); };
+    while (o.i < b.length) {
+      const k = lv(), f = k >> 3, t = k & 7;
+      if (f !== 3 || t !== 2) { ohita(t); continue; }
+      const n = lv(), loppu = o.i + n;
+      let tasoNimi = null, extent = 4096;
+      const piirteet = [];
+      while (o.i < loppu) {
+        const kk = lv(), ff = kk >> 3, tt = kk & 7;
+        if (ff === 1 && tt === 2) { const m = lv(); tasoNimi = new TextDecoder().decode(b.subarray(o.i, o.i + m)); o.i += m; }
+        else if (ff === 2 && tt === 2) { const m = lv(); piirteet.push([o.i, o.i + m]); o.i += m; }
+        else if (ff === 5 && tt === 0) extent = lv();
+        else ohita(tt);
+      }
+      o.i = loppu;
+      if (tasoNimi !== nimi) continue;
+      const renkaat = [];
+      for (const [ps, pe] of piirteet) {
+        o.i = ps;
+        let tyyppi = 0, gs = -1, ge = -1;
+        while (o.i < pe) {
+          const kk = lv(), ff = kk >> 3, tt = kk & 7;
+          if (ff === 3 && tt === 0) tyyppi = lv();
+          else if (ff === 4 && tt === 2) { const m = lv(); gs = o.i; ge = o.i + m; o.i += m; }
+          else ohita(tt);
+        }
+        if (tyyppi !== 3 || gs < 0) continue;
+        o.i = gs;
+        let x = 0, y = 0, rengas = null;
+        while (o.i < ge) {
+          const c = lv(), id = c & 7, lkm = c >> 3;
+          if (id === 7) { if (rengas && rengas.length >= 6) renkaat.push(rengas); rengas = null; continue; }
+          for (let j = 0; j < lkm; j++) {
+            const dx = lv(), dy = lv();
+            x += (dx >> 1) ^ -(dx & 1); y += (dy >> 1) ^ -(dy & 1);
+            if (id === 1) { if (rengas && rengas.length >= 6) renkaat.push(rengas); rengas = [x, y]; }
+            else if (rengas) rengas.push(x, y);
+          }
+        }
+        if (rengas && rengas.length >= 6) renkaat.push(rengas);
+      }
+      o.i = loppu;
+      return { extent: extent, renkaat: renkaat };
+    }
+    return null;
+  },
+};
+
+/* Kerros jonka eteen kartan custom-kerrokset lisätään: partikkelien alle
+   kun ne ovat jo kartalla, muuten nimien alle (`yla-raja`). Nimet ovat
+   sään päällä (Windyn tapa), joten mikään säätä piirtävä ei saa mennä
+   pinon huipulle. */
+function kerrosEnnen(ml) {
+  if (ml.getLayer('partikkelit')) return 'partikkelit';
+  return ml.getLayer('yla-raja') ? 'yla-raja' : undefined;
+}
+
+/* Pohjan kerrokset joiden näkyvyys vaihtuu pohjan mukana (tumma vektori,
+   tumma varatie, satelliitti). Nimet ja rajat näkyvät myös satelliitilla. */
+function pohjanVektoriKerrokset(ml) {
+  return ml.getStyle().layers.filter(l => l.metadata && l.metadata.pohja).map(l => l.id);
+}
+
 function karttaTyyli() {
   const p = Asetukset.pohja();
   const maali = pohjanMaali();
+  const vektori = !!p.vektori;
+  const vari = {
+    maa: _cssVari('--kartta-maa', '#2B3039'), vesi: _cssVari('--kartta-vesi', '#04070D'),
+    raja: _cssVari('--kartta-raja', 'rgba(210,214,222,0.38)'), tie: _cssVari('--kartta-tie', 'rgba(210,214,222,0.13)'),
+    nimi: _cssVari('--kartta-nimi', 'rgba(240,231,206,0.86)'), nimi2: _cssVari('--kartta-nimi-2', 'rgba(195,191,178,0.72)'),
+    halo: _cssVari('--kartta-nimi-halo', 'rgba(6,9,18,0.82)'),
+  };
+  const nakyy = (b) => ({ visibility: b ? 'visible' : 'none' });
+  const sources = {
+    'pohja-tausta': { type: 'raster', tiles: [p.url], tileSize: 256, maxzoom: 2 },
+    /* maxzoom 16: z17 palauttaa vaalean "ei dataa" -laatan. */
+    'pohja': { type: 'raster', tiles: [p.url], tileSize: POHJA_LAATTA, maxzoom: 16 },
+    'rinne': { type: 'raster', tiles: ['fsp://rinne/{z}/{x}/{y}'], tileSize: 256, maxzoom: 8 },
+  };
+  POHJA_TASOT.forEach(function (t) {
+    sources['pv-' + t.id] = { type: 'vector', tiles: ['fsp://pohja/{z}/{x}/{y}'], minzoom: t.min, maxzoom: t.max };
+  });
+  const layers = [
+    { id: 'tausta', type: 'background', paint: { 'background-color': vektori ? vari.maa : _cssVari('--bg', '#060912') } },
+    { id: 'pohja-tausta', type: 'raster', source: 'pohja-tausta', paint: maali, layout: nakyy(!vektori) },
+    { id: 'pohja', type: 'raster', source: 'pohja', paint: maali, layout: nakyy(!vektori) },
+  ];
+  /* Täytöt: jokainen kerros maan ja veden täytenä, karkein alimpana. */
+  POHJA_TASOT.forEach(function (t) {
+    layers.push({ id: 'pv-' + t.id + '-maa', type: 'fill', source: 'pv-' + t.id, 'source-layer': 'earth', minzoom: t.min,
+      metadata: { pohja: 'tumma' }, layout: nakyy(vektori), paint: { 'fill-color': vari.maa, 'fill-antialias': false } });
+    layers.push({ id: 'pv-' + t.id + '-vesi', type: 'fill', source: 'pv-' + t.id, 'source-layer': 'water', minzoom: t.min,
+      filter: ['match', ['geometry-type'], ['Polygon', 'MultiPolygon'], true, false],
+      metadata: { pohja: 'tumma' }, layout: nakyy(vektori), paint: { 'fill-color': vari.vesi, 'fill-antialias': true } });
+  });
+  /* Rinnevarjostus: harmaa + alfa (varjo musta, valo valkoinen), maalla. */
+  layers.push({ id: 'rinne', type: 'raster', source: 'rinne', metadata: { pohja: 'tumma' }, layout: nakyy(vektori),
+    paint: { 'raster-opacity': 0.85, 'raster-fade-duration': 0, 'raster-resampling': 'linear' } });
+  /* Viivat: maailma alle z7, Eurooppa siitä ylöspäin. */
+  [['maailma', 0, 7], ['eurooppa', 7, 24]].forEach(function (r) {
+    layers.push({ id: 'pv-' + r[0] + '-tie', type: 'line', source: 'pv-' + r[0], 'source-layer': 'roads',
+      minzoom: Math.max(r[1], 5), maxzoom: r[2], metadata: { pohja: 'tumma' }, layout: nakyy(vektori),
+      paint: { 'line-color': vari.tie, 'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.5, 10, 1, 14, 1.6] } });
+    layers.push({ id: 'pv-' + r[0] + '-raja', type: 'line', source: 'pv-' + r[0], 'source-layer': 'boundaries',
+      minzoom: r[1], maxzoom: r[2], metadata: { pohja: 'kaikki' },
+      paint: { 'line-color': vari.raja, 'line-width': ['interpolate', ['linear'], ['zoom'], 2, 0.6, 8, 1.1], 'line-dasharray': [3, 2] } });
+  });
+  /* Kartan custom-kerrokset (sää) lisätään tämän eteen: `kerrosEnnen`. */
+  layers.push({ id: 'yla-raja', type: 'background', layout: { visibility: 'none' }, paint: { 'background-color': '#000' } });
+  /* NIMET SÄÄN PÄÄLLÄ, sovelluksen kielellä. Valtiot versaalina ja
+     himmeämpänä, kaupungit väestön mukaan (`population_rank`), ja
+     Protomapsin `min_zoom` harventaa — törmäys hoitaa loput. */
+  const nimi = KIELI === 'en'
+    ? ['coalesce', ['get', 'name:en'], ['get', 'name']]
+    : ['coalesce', ['get', 'name:fi'], ['get', 'name:en'], ['get', 'name']];
+  [['maailma', 0, 7], ['eurooppa', 7, 24]].forEach(function (r) {
+    layers.push({ id: 'pv-' + r[0] + '-meri', type: 'symbol', source: 'pv-' + r[0], 'source-layer': 'water',
+      minzoom: r[1], maxzoom: r[2], metadata: { pohja: 'kaikki' },
+      filter: ['all', ['match', ['geometry-type'], ['Point', 'MultiPoint'], true, false], ['<=', ['coalesce', ['get', 'min_zoom'], 0], ['+', ['zoom'], 1]]],
+      layout: { 'text-field': nimi, 'text-font': ['Noto Sans Regular'], 'text-size': 11, 'text-letter-spacing': 0.08,
+        'text-max-width': 7, 'symbol-sort-key': ['coalesce', ['get', 'min_zoom'], 0] },
+      paint: { 'text-color': vari.nimi2, 'text-halo-color': vari.halo, 'text-halo-width': 1.2 } });
+    layers.push({ id: 'pv-' + r[0] + '-valtio', type: 'symbol', source: 'pv-' + r[0], 'source-layer': 'places',
+      minzoom: r[1], maxzoom: Math.min(r[2], 8), metadata: { pohja: 'kaikki' },
+      filter: ['==', ['get', 'kind'], 'country'],
+      layout: { 'text-field': nimi, 'text-font': ['Noto Sans Medium'], 'text-size': 11, 'text-transform': 'uppercase',
+        'text-letter-spacing': 0.1, 'text-max-width': 7, 'symbol-sort-key': ['coalesce', ['get', 'min_zoom'], 0] },
+      paint: { 'text-color': vari.nimi2, 'text-halo-color': vari.halo, 'text-halo-width': 1.2 } });
+    layers.push({ id: 'pv-' + r[0] + '-paikka', type: 'symbol', source: 'pv-' + r[0], 'source-layer': 'places',
+      minzoom: r[1], maxzoom: r[2], metadata: { pohja: 'kaikki' },
+      filter: ['all', ['==', ['get', 'kind'], 'locality'], ['<=', ['coalesce', ['get', 'min_zoom'], 0], ['+', ['zoom'], 0.5]]],
+      layout: { 'text-field': nimi, 'text-font': ['Noto Sans Medium'], 'text-max-width': 8,
+        'text-size': ['interpolate', ['linear'], ['coalesce', ['get', 'population_rank'], 6], 6, 11, 10, 12, 13, 13.5],
+        'symbol-sort-key': ['-', 20, ['coalesce', ['get', 'population_rank'], 0]] },
+      paint: { 'text-color': vari.nimi, 'text-halo-color': vari.halo, 'text-halo-width': 1.3 } });
+  });
   return {
     version: 8,
-    sources: {
-      /* Taustalaatta: kartta ei saa koskaan olla musta. Sama minkä
-         Leaflet-versio teki `maxNativeZoom: 2` -kerroksella — tasot
-         0–2 ovat aina samat, joten niitä ei tarvitse odottaa eleen
-         aikana. MapLibre pitää lisäksi vanhemmat laatat näkyvissä kunnes
-         lapset ovat valmiit, joten tämä on toinen varmistus. */
-      'pohja-tausta': { type: 'raster', tiles: [p.url], tileSize: 256, maxzoom: 2 },
-      /* maxzoom 16: z17 palauttaa vaalean "ei dataa" -laatan. */
-      'pohja': { type: 'raster', tiles: [p.url], tileSize: POHJA_LAATTA, maxzoom: 16,
-        attribution: 'Powered by Esri — ' + p.attr }
-    },
-    layers: [
-      { id: 'tausta', type: 'background', paint: { 'background-color': _cssVari('--bg', '#060912') } },
-      { id: 'pohja-tausta', type: 'raster', source: 'pohja-tausta', paint: maali },
-      { id: 'pohja', type: 'raster', source: 'pohja', paint: maali }
-    ]
+    glyphs: POHJAKARTTA_KANTA + 'fontit/{fontstack}/{range}.pbf',
+    sources: sources,
+    layers: layers,
   };
 }
 
-/* Pohjakartan vaihto: osoitteet ja sävy. Kutsutaan KarttaAsetuksista. */
+/* Pohjakartan vaihto: tumma (oma vektori tai sen Esri-varatie) ja
+   satelliitti. Kutsutaan KarttaAsetuksista ja kun oma pohja ei auennut. */
 function pohjaKarttaVaihda(map) {
   const ml = map && map.ml;
   if (!ml || !map._valmis) return;
   const p = Asetukset.pohja();
   const maali = pohjanMaali();
+  const vektori = !!p.vektori && Pohjakartta.tila !== 'pois';
   try {
     ml.getSource('pohja').setTiles([p.url]);
     ml.getSource('pohja-tausta').setTiles([p.url]);
     ['pohja', 'pohja-tausta'].forEach(function (id) {
       for (const k in maali) ml.setPaintProperty(id, k, maali[k]);
+      ml.setLayoutProperty(id, 'visibility', vektori ? 'none' : 'visible');
     });
-    ml.setPaintProperty('tausta', 'background-color', _cssVari('--bg', '#060912'));
+    ml.getStyle().layers.forEach(function (l) {
+      if (!l.metadata || !l.metadata.pohja) return;
+      const nayta = l.metadata.pohja === 'kaikki' ? Pohjakartta.tila !== 'pois' : vektori;
+      ml.setLayoutProperty(l.id, 'visibility', nayta ? 'visible' : 'none');
+    });
+    ml.setPaintProperty('tausta', 'background-color', vektori ? _cssVari('--kartta-maa', '#2B3039') : _cssVari('--bg', '#060912'));
   } catch (e) { if (window.console) console.warn('pohjakartta:', e); }
 }
 
@@ -12976,7 +13390,7 @@ GLRuudukko.prototype.addTo = function (map) {
   map.ml.on('moveend', this._moveend);
   map._kunValmis(function () {
     if (self._map !== map) return;
-    const ennen = map.ml.getLayer('partikkelit') ? 'partikkelit' : undefined;
+    const ennen = kerrosEnnen(map.ml);
     map.ml.addLayer({
       id: self._id, type: 'custom', renderingMode: '2d',
       onAdd: function (ml, gl) { self._glAlusta(gl); },
@@ -13196,6 +13610,10 @@ function initMap() {
    *   - heiton katto zoomin mukaan (`dragPan`in `maxSpeed`)
    *   - uloin näkymä leveysasteista, avausnäkymä sen suhteen
    *   - zoom ei napsahda: MapLibre jättää sen sinne mihin ele päättyi. */
+  /* Oma pohjakartta: protokolla ennen tyyliä, luettelo samaan aikaan
+     (docs/pohjakartta.md). */
+  Pohjakartta.protokolla();
+  Pohjakartta.alusta();
   const ml = new maplibregl.Map({
     container: 'map',
     style: karttaTyyli(),
@@ -13374,6 +13792,7 @@ function initMap() {
   PartikkeliGL.kiinnita(map);
   AaltoGL.kiinnita(map);
   VuorovesiGL.kiinnita(map);
+  RantavarjoGL.kiinnita(map);
 
   map.on('moveend', () => {
     PerfTracker.reset();
@@ -14972,7 +15391,7 @@ const LampoGL = {
     this._map = map;
     const self = this;
     map._kunValmis(function () {
-      map.ml.addLayer(self, map.ml.getLayer('partikkelit') ? 'partikkelit' : undefined);
+      map.ml.addLayer(self, kerrosEnnen(map.ml));
     });
     /* Esilataus: koko pehmustettu alue heti kun kartta pysähtyy, jotta
        seuraava siirto ei odota yhtään laattaa. Kuristus SIIRTÄÄ eikä
@@ -15797,7 +16216,15 @@ const LampoGL = {
  * valmis — se on Mercator-koordinaateissa, joten se skaalautuu eleen
  * mukana. Laatta joka ei latautunut on "vettä": silloin kerros näyttää
  * mallin oman katteen eikä katoa. */
-/* RANTAMASKI GL-LAATTOINA (M2, docs/aallot.md 5.3). Esrin tumman pohjan
+/* OMAN POHJAN VEDESTÄ (17.10., docs/pohjakartta.md): kun tumma pohja on
+ * oma vektorikartta, maskilaatta piirretään saman vektorin vesialueista
+ * (`Pohjakartta.vesimaski`, 255 = vesi kuten kynnystetyssä Esri-laatassa)
+ * — ranta on täsmälleen näkyvä ranta, ja suurennettu geometria pysyy
+ * terävänä lähizoomissa. Esrin laatta ja sen kynnys (alla) ovat varatie,
+ * kun oma pohja ei auennut. Sama maski piirtää rantavarjon
+ * (`RantavarjoGL`) myös satelliitilla.
+ *
+ * RANTAMASKI GL-LAATTOINA (M2, docs/aallot.md 5.3). Esrin tumman pohjan
  * laatat SAMALLA TASOLLA KUIN POHJAKARTTA: MapLibre pyöristää rasterin
  * tason, ja retinalla pohja on 128 px:n laattoina eli tasoa tarkempi
  * (`POHJA_LAATTA`) — ennen maski oli retinalla tasoa karkeampi kuin
@@ -15868,18 +16295,27 @@ const Rantamaski = {
       this._laatat.set(j.k, t);
       this._karsi();
       this._kaynnissa++;
-      const self = this, im = new Image();
-      im.crossOrigin = 'anonymous';
+      const self = this;
       const loppu = function () { self._kaynnissa--; self.versio++; if (State.map) State.map.ml.triggerRepaint(); self._pumppaa(); };
-      im.onload = function () {
-        try { t.d = self._kynnys(im); } catch (e) { t.d = null; }
-        t.valmis = true;
+      const valmis = function (d) {
+        t.d = d; t.valmis = true;
         if (typeof Crosshair !== 'undefined' && (aaltotila() || vuorovesitila())) Crosshair.refresh();
         loppu();
       };
-      /* Lataamaton laatta on vettä (puskurin pohja). */
-      im.onerror = function () { t.valmis = true; loppu(); };
-      im.src = this.URL + j.z + '/' + j.y + '/' + j.x;
+      /* OMA POHJA ENSIN (docs/pohjakartta.md): maski samasta vektorista
+         kuin näkyvä ranta. Esrin tumma laatta vain varatiellä. */
+      Pohjakartta.alusta().then(function (ok) {
+        if (ok) {
+          Pohjakartta.vesimaski(j.z, j.x, j.y).then(valmis, function () { valmis(null); });
+          return;
+        }
+        const im = new Image();
+        im.crossOrigin = 'anonymous';
+        im.onload = function () { let d = null; try { d = self._kynnys(im); } catch (e) {} valmis(d); };
+        /* Lataamaton laatta on vettä (puskurin pohja). */
+        im.onerror = function () { valmis(null); };
+        im.src = self.URL + j.z + '/' + j.y + '/' + j.x;
+      });
     }
   },
   _kynnys(im) {
@@ -15990,6 +16426,133 @@ const Rantamaski = {
   },
 };
 
+/* -- RANTAVARJO — rannan liukuväri sään päällä (docs/pohjakartta.md) --
+ *
+ * Windyn tapa, mitattu sen laatoista 17.10.: kartta ei tummenna maata vaan
+ * RANTAVEDEN — veden puolelle rannasta lähtee musta liukuväri ja ohut
+ * rantaviiva, ja se piirretään SÄÄN PÄÄLLÄ. Meillä maa on vettä
+ * vaaleampi (lämpökartta summataan pohjaan), joten ranta erottuu siitä
+ * että rantavesi tummuu: rannan kirkkausero mitattuna Helsinki 44,6 → 59,5,
+ * Saaristomeri 30,6 → 43,8, Eurooppa 8,4 → 28,5. Maan tummennus kokeiltiin
+ * ja se HUONONSI eroa (44,6 → 20,8) — älä palauta sitä.
+ *
+ * Kevyempi kuin suunnitelman kuvat (käyttäjän päätös: "varjo oli aika
+ * vahva"): enintään VOIMA 0,38 (kuvissa 0,55), rantaviiva 0,34 (0,5), ja
+ * leveys σ = 3 + 0,6·z CSS px, enintään 10 (Eurooppa ~6, lähellä ~9).
+ *
+ * Syöte on `Rantamaski`n ruudun kokoinen vesimaski (sama kuin aaltojen
+ * rannalla, oman pohjan vektorista). Maa sumennetaan NELJÄNNESRESOLUUTIOLLA
+ * kahdessa erotettavassa vaiheessa (25 hakua kumpikin, 1/16 ruudun
+ * pikseleistä), ja vain kun maski tai leveys muuttui. Ruudussa jää yksi
+ * veto: varjo = vesi · (2,2 · sumea maa)^0,9 · VOIMA, ja viiva maskin
+ * gradientista. Aalto- ja vuorovesitilassa varjoa ei ole (niissä maa on
+ * jo tumma ja ranta maskattu), sadetilassa se on 0,6-kertainen. */
+const RantavarjoGL = {
+  id: 'rantavarjo', type: 'custom', renderingMode: '2d',
+  VOIMA: 0.38, VIIVA: 0.34, KERROIN: 2.2,
+  _gl: null, _map: null, _pSumea: null, _pVarjo: null, _nelio: null,
+  _fbA: null, _fbB: null, _maski: null, _sumeaAvain: '', _sumeaOk: false,
+
+  kiinnita(map) {
+    this._map = map;
+    const self = this;
+    map._kunValmis(function () { map.ml.addLayer(self, kerrosEnnen(map.ml)); });
+  },
+  _naytetaan() { return !State._perfNoRantavarjo && !aaltotila() && !vuorovesitila(); },
+  _sigma() { return Math.min(10, 3 + 0.6 * this._map.getZoom()); },
+
+  onAdd(ml, gl) {
+    this._gl = gl;
+    const vs = GL_TARKKUUS + 'attribute vec2 a_pos;\nvoid main(){ gl_Position = vec4(a_pos * 2.0 - 1.0, 0.0, 1.0); }\n';
+    this._pSumea = GLApu.ohjelma(gl, vs, GL_TARKKUUS_FS
+      + 'uniform sampler2D u_tex; uniform vec2 u_askel; uniform vec2 u_koko; uniform float u_maa;\n'
+      + 'float arvo(vec2 uv){ float r = texture2D(u_tex, uv).r; return u_maa > 0.5 ? 1.0 - r : r; }\n'
+      + 'void main(){ vec2 uv = gl_FragCoord.xy / u_koko; float s = 0.0; float w = 0.0;\n'
+      + '  for (int i = -12; i <= 12; i++) { float f = float(i) / 4.0; float k = exp(-0.5 * f * f);\n'
+      + '    s += k * arvo(uv + u_askel * float(i)); w += k; }\n'
+      + '  gl_FragColor = vec4(s / w, 0.0, 0.0, 1.0); }\n',
+      ['a_pos'], ['u_tex', 'u_askel', 'u_koko', 'u_maa']);
+    this._pVarjo = GLApu.ohjelma(gl, vs, GL_TARKKUUS_FS
+      + 'uniform sampler2D u_m; uniform sampler2D u_b; uniform vec2 u_ruutu; uniform vec2 u_px;\n'
+      + 'uniform float u_voima; uniform float u_k; uniform float u_viiva;\n'
+      + 'float m(vec2 uv){ return texture2D(u_m, uv).r; }\n'
+      + 'void main(){ vec2 uv = gl_FragCoord.xy / u_ruutu; float vesi = m(uv);\n'
+      + '  float b = texture2D(u_b, uv).r;\n'
+      + '  float varjo = vesi * pow(clamp(b * u_k, 0.0, 1.0), 0.9) * u_voima;\n'
+      + '  float e = abs(m(uv + vec2(u_px.x, 0.0)) - m(uv - vec2(u_px.x, 0.0))) + abs(m(uv + vec2(0.0, u_px.y)) - m(uv - vec2(0.0, u_px.y)));\n'
+      + '  float viiva = clamp(e * 0.8, 0.0, 1.0) * u_viiva;\n'
+      + '  float a = 1.0 - (1.0 - varjo) * (1.0 - viiva);\n'
+      + '  gl_FragColor = vec4(0.0, 0.0, 0.0, a); }\n',
+      ['a_pos'], ['u_m', 'u_b', 'u_ruutu', 'u_px', 'u_voima', 'u_k', 'u_viiva']);
+    this._nelio = GLApu.nelio(gl);
+  },
+  onRemove(ml, gl) {
+    [this._pSumea, this._pVarjo].forEach(p => p && gl.deleteProgram(p.o));
+    if (this._nelio) gl.deleteBuffer(this._nelio);
+    GLApu.poistaFbo(gl, this._fbA); GLApu.poistaFbo(gl, this._fbB);
+    this._fbA = this._fbB = null; this._sumeaAvain = ''; this._gl = null;
+  },
+
+  prerender(gl) {
+    this._maski = null;
+    if (!this._map || !this._pSumea || !this._naytetaan()) return;
+    Rantamaski.varmista(this._map);
+    const M = Rantamaski.puskuriin(gl, this._map);
+    if (!M) return;
+    this._maski = M;
+    const W = gl.drawingBufferWidth, H = gl.drawingBufferHeight;
+    const w = Math.max(1, Math.ceil(W / 4)), h = Math.max(1, Math.ceil(H / 4));
+    const pr = this._map.ml.getPixelRatio ? this._map.ml.getPixelRatio() : (window.devicePixelRatio || 1);
+    const sq = this._sigma() * pr / 4;            /* σ neljännesresoluution tekseleinä */
+    const avain = Rantamaski._piirretty + '|' + w + 'x' + h + '|' + sq.toFixed(2);
+    if (avain === this._sumeaAvain && this._sumeaOk) return;
+    this._sumeaAvain = avain;
+    this._fbA = GLApu.fbo(gl, w, h, this._fbA);
+    this._fbB = GLApu.fbo(gl, w, h, this._fbB);
+    gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST); gl.disable(gl.STENCIL_TEST); gl.disable(gl.SCISSOR_TEST);
+    gl.viewport(0, 0, w, h);
+    const p = this._pSumea, self = this, askel = sq / 4;
+    const vaihe = function (kohde, lahde, ax, ay, maa) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, kohde.fb);
+      GLApu.aja(gl, p, self._nelio, function () {
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, lahde);
+        gl.uniform1i(p.u.u_tex, 0);
+        gl.uniform2f(p.u.u_askel, ax, ay);
+        gl.uniform2f(p.u.u_koko, w, h);
+        gl.uniform1f(p.u.u_maa, maa);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      });
+    };
+    vaihe(this._fbA, M, askel / w, 0, 1);
+    vaihe(this._fbB, this._fbA.tex, 0, askel / h, 0);
+    this._sumeaOk = true;
+  },
+
+  render(gl) {
+    if (!this._maski || !this._fbB || !this._naytetaan()) return;
+    const W = gl.drawingBufferWidth, H = gl.drawingBufferHeight;
+    const p = this._pVarjo, self = this, M = this._maski;
+    const kerroin = _sadetila() ? 0.6 : 1;
+    GLApu.sekoitus(gl, 'normaali');
+    GLApu.aja(gl, p, this._nelio, function () {
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, M);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, self._fbB.tex);
+      gl.uniform1i(p.u.u_m, 0); gl.uniform1i(p.u.u_b, 1);
+      gl.uniform2f(p.u.u_ruutu, W, H);
+      gl.uniform2f(p.u.u_px, 1 / W, 1 / H);
+      gl.uniform1f(p.u.u_voima, self.VOIMA * kerroin);
+      gl.uniform1f(p.u.u_k, self.KERROIN);
+      gl.uniform1f(p.u.u_viiva, self.VIIVA * kerroin);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      gl.activeTexture(gl.TEXTURE0);
+    });
+  },
+};
+
 /* -- AALTOKERROS — aallonkorkeus värinä ja aaltorintamat liikkeenä ---
  *
  * Yksi custom-kerros samassa GL-ruudussa kuin lämpökartta, ja se
@@ -16041,7 +16604,7 @@ const AaltoGL = {
     this._map = map;
     const self = this;
     map._kunValmis(function () {
-      map.ml.addLayer(self, map.ml.getLayer('partikkelit') ? 'partikkelit' : undefined);
+      map.ml.addLayer(self, kerrosEnnen(map.ml));
     });
     map.ml.on('moveend', function () {
       if (!self._naytetaan()) return;
@@ -16712,7 +17275,7 @@ const VuorovesiGL = {
     this._map = map;
     const self = this;
     map._kunValmis(function () {
-      map.ml.addLayer(self, map.ml.getLayer('partikkelit') ? 'partikkelit' : undefined);
+      map.ml.addLayer(self, kerrosEnnen(map.ml));
     });
     map.ml.on('moveend', function () { if (self._naytetaan()) self.paivita(); });
   },
@@ -20740,7 +21303,8 @@ const PartikkeliGL = {
   _gl: null,
   kiinnita(map) {
     const self = this;
-    map._kunValmis(function () { map.ml.addLayer(self); });
+    /* Partikkelit nimien alle (`yla-raja`): nimet ovat sään päällä. */
+    map._kunValmis(function () { map.ml.addLayer(self, map.ml.getLayer('yla-raja') ? 'yla-raja' : undefined); });
   },
   onAdd(ml, gl) {
     this._gl = gl;
@@ -37992,7 +38556,8 @@ const KarttaAsetukset = {
 
   _lahteet() {
     const el = document.getElementById('pohja-lahteet');
-    if (el) el.innerHTML = Asetukset.pohja().attr;
+    const p = Asetukset.pohja();
+    if (el) el.innerHTML = p.vektori && Pohjakartta.tila === 'pois' ? p.attrVara : p.attr;
   },
 
   _partikkeliNakyvyys() { partikkelitNakyvyys(); },
@@ -39765,10 +40330,14 @@ setTimeout(function () { Kaynnistys.jumi(); }, Kaynnistys.JUMI_MS);
     else if (k === 'tiles') {
       /* Pohjakartta (ja sen taustalaatta). Jos tämäkään ei vaikuta,
          jäljellä on kartan oma ruutu ja selaimen kompositointi. */
+      /* Oma pohja on monta kerrosta (`metadata.pohja`); päälle palatessa
+         `pohjaKarttaVaihda` palauttaa oikeat näkyvyydet. */
       if (State.map && State.map._valmis) {
-        ['pohja', 'pohja-tausta'].forEach(function (id) {
-          State.map.ml.setLayoutProperty(id, 'visibility', off.tiles ? 'none' : 'visible');
-        });
+        if (off.tiles) {
+          ['pohja', 'pohja-tausta'].concat(pohjanVektoriKerrokset(State.map.ml)).forEach(function (id) {
+            State.map.ml.setLayoutProperty(id, 'visibility', 'none');
+          });
+        } else pohjaKarttaVaihda(State.map);
       }
     } else if (k === 'snap') {
       /* Leafletin napsautuskytkin. MapLibressa zoom ei napsahda koskaan,
