@@ -283,6 +283,7 @@ kokeiltu ja kaadettu mittauksella.
 
 | tiedosto | lue kun työ koskee |
 |---|---|
+| `docs/pohjakartta.md` | **pohjakartan vaihtoa ja rantojen erottuvuutta** (strategia 17.10., ei toteutettu): Windyn tapa mitattuna sen laatoista (rantavarjo veden puolella, kartta sään päällä), vaihtoehdot A–F kuvattuina oikean sovelluksen päällä, rannan kirkkausero mitattuna, maan tummennus hylätty, oma vektoripohja (OpenFreeMap, Mapterhorn-rinne, nimet), satelliitti, vaiheet V1–V4 ja päätettävät P1–P5 |
 | `docs/lampokartta.md` | pohjakarttaa, lämpökarttaa, väriramppia, tekstuurin mitoitusta tai projektiota, kartan asetuksia |
 | `docs/partikkelit.md` | tuulipartikkeleita, jäljen muotoa, tiheyttä (**kaukaa Windyn tiheys**), ruutuaikabudjettia tai **partikkelien kenttää tasojen välissä (sama sekoitus kuin lämpökartalla)** |
 | `docs/eleet.md` | nipistystä, zoomia (**kosketuszoom tähtäimen ympäri**), zoom-aluetta, inertiaa, kosketuskohteita tai kerrosten tahtia eleen jälkeen — **alkuosa kertoo mikä on Leaflet-historiaa** |
