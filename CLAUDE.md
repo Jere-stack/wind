@@ -161,16 +161,14 @@ npm run saadata   # rakenna säälaatat (tools/tiilet.mjs)
   käyttöalueiden maarasterin `tools/maat.json` (Natural Earth, ajetaan
   käsin), ja `tools/jarvet.mjs` järvirasterin `tools/jarvet.json`
   (Euroopan aseman `Jarvi`-tagi, `api/_esoh.js`; ajetaan käsin). docs/eurooppa.md.
-- `tools/pohjakartta.mjs` + `tools/pmtiles.mjs` — OMA POHJAKARTTA
-  (docs/pohjakartta.md, toteutus 17.10.): OpenStreetMap-vektorilaatat
-  Protomapsin päivittäisestä rakennuksesta Range-pyynnöillä ja
-  suodatettuina (maa, vesi, valtioiden rajat, paikat, moottoritiet),
-  kolmena kerroksena (maailma z0–6, Eurooppa z7–10, rannikko z11–12),
-  rinnevarjostus Mapzen Terrain Tiles -korkeusmallista (harmaa + alfa
-  PNG, maailma z0–6, Eurooppa z7–8) ja Noto Sans -fontit, PMTiles v3
-  -arkistoina ALLE 90 Mt:n OSINA (GitHubin 100 Mt:n raja). Ajetaan käsin
-  (noin 12 min, 250 Mt), tulos orpoon haaraan `pohjakartta`. Vain Noden
-  omia moduuleita.
+- `tools/pohjakartta.mjs` + `tools/pmtiles.mjs` — pohjakartan RINNE-
+  VARJOSTUS (docs/pohjakartta.md): Mapzen Terrain Tiles -korkeusmallista
+  harmaa + alfa PNG (maailma z0–6, Eurooppa z7–8) PMTiles v3 -arkistoina
+  ALLE 90 Mt:n OSINA, orpoon haaraan `pohjakartta` (ajetaan käsin,
+  `--vain=rinne`). Rakentaja osaa yhä Protomapsin vektoritasot ja fontit
+  (17.10. ensimmäinen versio), mutta sovellus ei lue niitä enää: vektori
+  ja fontit tulevat OpenFreeMapista (strategia 2). Vain Noden omia
+  moduuleita.
 - `tools/pyramidi.mjs` — säännöllisestä hilasta suodatettu laattapyramidi
   ja painokanava; kaikki mallit kirjoitetaan sen kautta.
 - `tools/harmonie.mjs` — FMI HARMONIE 2,5 km hilana GRIB2:sta (tasot
@@ -278,9 +276,10 @@ se vastaa yhtä tuoreella luettelolla.
 
 Havaintoasemien oma historia on orpossa `havainnot`-haarassa (sama
 malli: yksi committi, pakkopäivitys, kymmenen minuutin välein; myös
-Euroopan tasatunnit `esoh/`). Pohjakartta on orpossa `pohjakartta`-
-haarassa (`tools/pohjakartta.mjs`, julkaistaan käsin; sovellus lukee sen
-raw.githubusercontent.comista, docs/pohjakartta.md). Vercel
+Euroopan tasatunnit `esoh/`). Pohjakartan rinnevarjostus on orvossa
+`pohjakartta`-haarassa (`tools/pohjakartta.mjs`, julkaistaan käsin;
+sovellus lukee sen raw.githubusercontent.comista; vektori ja fontit
+tulevat OpenFreeMapista, docs/pohjakartta.md). Vercel
 (`git.deploymentEnabled`) ja Tarkistus (`branches-ignore`) ohittavat
 kaikki kolme datahaaraa — jos lisäät neljännen, lisää se molempiin.
 
@@ -848,34 +847,54 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **`var()` ei toimi SVG:n esitysattribuuteissa.** Kaavioiden `fill=` tarvitsee
   literaalin; inline-tyyleissä tokenit toimivat.
 
-**Pohjakartta** (docs/pohjakartta.md, toteutus 17.10.)
+**Pohjakartta** (docs/pohjakartta.md, toteutus ja strategia 2, 17.10.)
 
-- **TUMMA POHJA ON OMA TIEDOSTO, YHDESSÄ KODISSA** (käyttäjän päätös
-  17.10.: "yhdellä levyllä, ettei ne pompi eri aikaan"): vektori, rinne
-  ja fontit ovat `pohjakartta`-haarassa, ja `luettelo.json` kertoo
-  arkistojen osat. Älä lisää kolmannen osapuolen tyyliä, laattoja tai
-  fontteja (OpenFreeMap, MapTiler, Mapterhorn) tumman pohjan osaksi.
-  Esrin tumma rasteri on VARATIE (`Pohjakartta.tila === 'pois'`), ja sen
-  koneisto (`--pohja-suodin`, CARTO-varatie, Esri-maski) jää sitä varten.
-- **ARKISTON OSA ON ALLE 90 Mt JA SEN NIMESSÄ ON RAKENNUSHETKI.** GitHub
-  hylkää yli 100 Mt:n tiedoston, ja raw.githubusercontent on koti.
-  Versioitu nimi tarkoittaa ettei vanhan luettelon istunto lue uutta
-  tiedostoa vanhalla hakemistolla (ja SW voi pitää tavuvälit
-  välimuistissa). Rakentaja jakaa osat itse (`kirjoitaOsat`).
-- **RAW:LLE VAIN `Range: bytes=a-b`.** Yksinkertainen tavuväli on
-  CORS-turvallinen otsake eikä aiheuta esitarkistusta; raw vastaa
-  OPTIONSiin 403:lla, joten MIKÄ TAHANSA muu otsake kaataisi haun.
+- **TUMMAN POHJAN VEKTORI ON OPENFREEMAP** (käyttäjän päätös 17.10.,
+  strategia 2 K3, "tehdään suosituksella"): yksi lähde `ofm`
+  (`OFM_TILEJSON`, OpenMapTiles-skeema z0–14) kantaa maan, veden,
+  rannan, tiet, kadut, pysäköinnin, rakennukset ja nimet, ja fontit ovat
+  samasta palvelusta (Noto Sans Regular ja Bold, kaikki Unicode-alueet).
+  "Yhdellä levyllä, ettei ne pompi" täyttyy LAATAN sisällä. Ensimmäinen
+  oma tiedosto (PMTiles raw.githubusercontentista, kolme kerrosta) oli
+  mitattuna hidas ja hauras — älä palauta sitä: kaksi Range-kierrosta
+  laattaa kohti (mediaani 0,40 s), kartta asettui liikkeen jälkeen 4,9 s
+  vs Esrin 2,8 s, ja ulos-zoomissa jäi lapsilaattojen neliöitä.
+  `pohjakartta`-haarasta luetaan enää VAIN RINNEVARJOSTUS (`fsp://rinne`).
+  Esrin tumma rasteri on VARATIE (`Pohjakartta.tila === 'pois'`:
+  TileJSON ei vastannut 8 s:ssa), ja sen koneisto (`--pohja-suodin`,
+  CARTO-varatie, Esri-maski) jää sitä varten.
+- **KERROKSEN `metadata.pohja` RATKAISEE NÄKYVYYDEN** (`pohjaKarttaVaihda`):
+  `'tumma'` vain tummalla vektorilla, `'kaikki'` myös satelliitilla
+  (nimet, rajat, katunimet, P), `'satelliitti'` vain satelliitilla
+  (katuviiva ilmakuvan päällä, K6). Varatiellä mikään niistä ei näy.
+- **KAUPUNKITASO ON MapLibren ZOOMEILLA** (sovelluksen tarkin on 15 =
+  Leafletin 16): kadut z11, laiturit ja satelliitin katuviiva z12,
+  rakennukset (alfa .07), huoltotiet ja katunimet z13, kevyt liikenne ja
+  pysäköinti (P, laatan `rank` ≤ 8 → ≤ 20 z14,5:stä) z14. Ilman rank-
+  rajaa jokainen pihan P peitti korttelin. Tunnelit eivät näy.
+- **ZOOMIN INTERPOLOINTI ON LAUSEKKEEN ULOIN.** `interpolate`+`zoom`
+  `match`in sisällä: MapLibre hylkää kerroksen JA KAIKKI SEN JÄLKEEN
+  TULEVAT (`validateStyle: false`, joten virhe näkyy vasta
+  `_updatePlacement`in TypeErrorina). Tarkista `style._order` vs
+  `style._layers` kun lisäät kerroksen.
+- **ULOS-ZOOMIN NELIÖT ESTÄÄ EMOJEN ESILATAUS** (`Pohjakartta.esilataa`,
+  `moveend`): MapLibre piirtää puuttuvan laatan paikalle muistissa olevat
+  tarkemmat lapset, eli juuri katsotun alueen. Näkymän emot kolmelta
+  karkeammalta tasolta (1–4 laattaa tasoa kohti) ovat siksi valmiiksi
+  selaimen välimuistissa; maailma z0–1 käynnistyksessä.
+- **RINTEEN ARKISTO: OSA ALLE 90 Mt, NIMESSÄ RAKENNUSHETKI, RAW:LLE VAIN
+  `Range: bytes=a-b`.** GitHub hylkää yli 100 Mt:n tiedoston; versioitu
+  nimi pitää vanhan luettelon istunnon vanhassa hakemistossa; raw vastaa
+  OPTIONSiin 403:lla, joten muu otsake kaataisi haun. Kaatunut arkiston
+  avaus EI jää muistiin (`_unohdaKaatunut`): yksi katko jätti ennen osan
+  rikki istunnon loppuun.
 - **SW:N TAVUVÄLIN AVAIN ON KYSELY (`?tavut=a-b`), EI FRAGMENTTI.**
   Cache API jättää `#…`:n avaimesta pois: `pohjakartta-v1` antoi
   jokaiselle välille saman arkiston ensimmäisen talletetun välin, ja
   puhelimella pohja katosi heti kun SW otti ohjat (käyttäjän raportti
   17.10.). Pohjakartan testi ajetaan SW:n kanssa ja kahdesti
-  (`serviceWorkers: 'block'` ei näe tätä).
-- **KOLME KERROSTA, JOKAINEN OMA LÄHDE, JA TARKEMPI PIIRTÄÄ MAAN JA
-  VEDEN TÄYTTEENÄ** (`POHJA_TASOT` = rakentajan `TASOT`; muuta molempia).
-  Puuttuva tarkempi laatta näyttää siis karkeamman suurennettuna eikä
-  reikää. Viivat ja nimet ovat vain maailmasta (z < 7) ja Euroopasta
-  (z ≥ 7) — kahdesta kerroksesta samaan aikaan ne kahdentuisivat.
+  (`serviceWorkers: 'block'` ei näe tätä). OpenFreeMapin laatat ovat
+  omassa välimuistissaan (`ofm-v1`, osoite versioitu, katto 800).
 - **NIMET OVAT SÄÄN PÄÄLLÄ (Windyn tapa) ja sovelluksen kielellä.**
   Kartan custom-kerrokset lisätään `kerrosEnnen(ml)`:n eteen
   (partikkelit tai `yla-raja`), partikkelit `yla-raja`n eteen. Uusi
@@ -889,9 +908,13 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
   sadetilassa 0,6×. Mitattu rannan ero oma + varjo: Helsinki 52,4,
   Saaristomeri 45,8, Eurooppa 28,6 (Esrillä 44,6 / 30,6 / 8,4); hinta
   liikkuvassa ruudussa +15 % SwiftShaderilla.
-- **`Rantamaski` LUKEE OMAN POHJAN VEDEN** (`Pohjakartta.vesimaski`):
-  ranta on täsmälleen näkyvä ranta, ja suurennettu geometria on terävä
-  millä zoomilla tahansa. Esrin laatta ja kynnys vain varatiellä.
+- **`Rantamaski` LUKEE POHJAN VEDEN SAMASTA LAATASTA** (`Pohjakartta.vesimaski`):
+  OpenFreeMapin `water` tasolta z − 1 (retinalla z − 2), eli sama laatta
+  jonka MapLibre jo haki. Purku ja rasterointi ovat TYÖNTEKIJÄSSÄ
+  (`VesiTyo`, varatie pääsäie), ja jono puretaan VAIN LEVOSSA
+  (`_pumppaa`, `moveend`). Rantavarjon sumea maa on liikkeessä
+  kahdeksasosaresoluutiolla, levossa neljänneksellä. Esrin laatta ja
+  kynnys vain varatiellä.
 - **POHJAN VÄRIT OVAT TOKENEITA** (`--kartta-maa` `#2B3039`,
   `--kartta-vesi` `#04070D`, raja, tie, nimi, halo) Esrin suodatetun
   pohjan tasolla (vesi ~0, maa ~50/255): lämpökartta summataan pohjaan,
@@ -1764,8 +1787,9 @@ tiedostossa; tässä on vain se mitä ei saa tehdä vahingossa.
 - **Oletus on siruryhmässä ensimmäisenä vasemmalla** (tuuli, kts,
   tumma, partikkelit-Normaali). Poikkeus: lämpökartan voimakkuus on
   asteikko, jossa järjestys on itsessään tieto.
-- **POHJAKARTTOJA ON KAKSI: TUMMA JA SATELLIITTI, JA TUMMA ON OMA
-  TIEDOSTO** (17.10., ks. "Pohjakartta" ylempänä). Satelliitti on Esrin
+- **POHJAKARTTOJA ON KAKSI: TUMMA JA SATELLIITTI, JA TUMMA ON
+  OPENFREEMAPIN VEKTORI** (strategia 2, 17.10., ks. "Pohjakartta"
+  ylempänä). Satelliitti on Esrin
   World Imagery tummennettuna (`contrast(1.2) brightness(0.62)`).
   Pohjakarttoja oli kolme: vaalea pohja
   poistettiin valitsimesta käyttäjän päätöksellä ("se ei ole toimiva").

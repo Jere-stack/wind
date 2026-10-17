@@ -87,6 +87,7 @@ if ('serviceWorker' in navigator) {
      ennen ensimmaista pyyntoa, joka lahtee vasta 1125 ms kohdalla. -->
 <link rel="preconnect" href="https://api.open-meteo.com" crossorigin>
 <link rel="preconnect" href="https://raw.githubusercontent.com" crossorigin>
+<link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin>
 <!-- Kartta on MapLibre GL: pohjakartta, lämpökartta, partikkelit ja
      sadetutka piirtyvät SAMAAN WebGL-ruutuun, kuten Windyssä. Leaflet
      maalasi lämpökartan laatat uudelleen joka eleen jälkeen, ja se oli
@@ -167,6 +168,16 @@ if ('serviceWorker' in navigator) {
   --kartta-vesi: #04070D;
   --kartta-raja: rgba(210,214,222,0.38);
   --kartta-tie: rgba(210,214,222,0.13);
+  /* Kaupunkitaso (strategia 2, OpenFreeMap): pääväylät, kadut, hennot
+     rakennukset, laiturit, pysäköinti ja satelliitin katuviiva
+     (`karttaTyyli`). Katu ei saa kilpailla lämpökartan kanssa. */
+  --kartta-tie-paa: rgba(210,214,222,0.24);
+  --kartta-katu: rgba(210,214,222,0.17);
+  --kartta-polku: rgba(210,214,222,0.10);
+  --kartta-laituri: rgba(210,214,222,0.30);
+  --kartta-rakennus: rgba(210,214,222,0.07);
+  --kartta-pysakointi: rgba(240,231,206,0.88);
+  --kartta-tie-sat: rgba(255,255,255,0.34);
   --kartta-nimi: rgba(240,231,206,0.86);
   --kartta-nimi-2: rgba(195,191,178,0.72);
   --kartta-nimi-halo: rgba(6,9,18,0.82);
@@ -5742,8 +5753,8 @@ html.tyopoyta { --ty-11: 12.5px; --ty-13: 14px; }
           <dt data-alue="suomi" data-en="Webcam">Kelikamera</dt>
           <dd data-en="Lauttasaari: Lauttasaaren leijalautailijat ry (Larukite), live stream on YouTube.">Lauttasaari: Lauttasaaren leijalautailijat ry (Larukite), suora lähetys YouTubessa.</dd>
           <dt data-en="Base map">Pohjakartta</dt>
-          <dd><span id="pohja-lahteet">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>&nbsp;contributors, Protomaps.</span>
-            <span data-en="The map data (ODbL) and terrain shading are FoilSpot’s own file. Satellite and fallback map: Powered by Esri (Esri, Maxar, Earthstar Geographics, HERE, Garmin) and © CARTO. Place names in Noto Sans (SIL OFL).">Kartta-aineisto (ODbL) ja rinnevarjostus ovat FoilSpotin oma tiedosto. Satelliitti ja varapohja: Powered by Esri (Esri, Maxar, Earthstar Geographics, HERE, Garmin) ja © CARTO. Paikannimet Noto Sans -fontilla (SIL OFL).</span></dd>
+          <dd><span id="pohja-lahteet">OpenFreeMap © OpenMapTiles, © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>&nbsp;contributors.</span>
+            <span data-en="Map data (ODbL) as vector tiles from OpenFreeMap; terrain shading is FoilSpot’s own file. Satellite and fallback map: Powered by Esri (Esri, Maxar, Earthstar Geographics, HERE, Garmin) and © CARTO. Place names in Noto Sans (SIL OFL).">Kartta-aineisto (ODbL) vektorilaattoina OpenFreeMapista; rinnevarjostus on FoilSpotin oma tiedosto. Satelliitti ja varapohja: Powered by Esri (Esri, Maxar, Earthstar Geographics, HERE, Garmin) ja © CARTO. Paikannimet Noto Sans -fontilla (SIL OFL).</span></dd>
           <dt data-en="Map rendering">Kartan piirto</dt>
           <dd>MapLibre GL JS (BSD-3-Clause).</dd>
         </dl>
@@ -6952,18 +6963,19 @@ const Units = {
  * Attribuutio vaihtuu palvelun mukana: Esrin ehdot vaativat "Powered by
  * Esri" -maininnan JA sen palvelun datalähteet, ja World_Imageryn lähteet
  * ovat eri kuin Canvas-karttojen. Tätä riviä ei saa pudottaa. */
-/* TUMMA ON OMA POHJAKARTTA (docs/pohjakartta.md, `Pohjakartta`):
- * OpenStreetMap-vektorilaatat, rinnevarjostus ja nimet omasta
- * tiedostoparista. Esrin tumma rasteri (`url`) on sen VARATIE, jos oma
- * tiedosto ei aukea (`Pohjakartta.tila === 'pois'`), ja silloin
- * lähdemerkintä on `attrVara`. */
+/* TUMMA ON OPENFREEMAPIN VEKTORI (docs/pohjakartta.md, strategia 2,
+ * `Pohjakartta`): OpenStreetMapin kadut, nimet ja ranta OpenMapTiles-
+ * skeemalla, rinnevarjostus omasta tiedostosta. Esrin tumma rasteri
+ * (`url`) on sen VARATIE, jos OpenFreeMap ei vastaa
+ * (`Pohjakartta.tila === 'pois'`), ja silloin lähdemerkintä on `attrVara`. */
 const POHJAT = {
   tumma: {
     nimi: _t('Tumma', 'Dark'),
     vektori: true,
     url: 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-    attr: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
-      + _t('-tekijät', '&nbsp;contributors') + ', <a href="https://protomaps.com/" target="_blank" rel="noopener">Protomaps</a>. '
+    attr: '<a href="https://openfreemap.org/" target="_blank" rel="noopener">OpenFreeMap</a> &copy; <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> '
+      + _t('Aineisto', 'Data') + ' &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
+      + _t('-tekijät', '&nbsp;contributors') + '. '
       + _t('Rinnevarjostus', 'Terrain shading') + ': <a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md" target="_blank" rel="noopener">Mapzen Terrain Tiles</a>'
       + ' (SRTM, GMTED2010, ETOPO1, EU-DEM, ArcticDEM).',
     attrVara: 'Powered by Esri — Esri, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>&nbsp;contributors.'
@@ -6974,7 +6986,7 @@ const POHJAT = {
     attr: 'Powered by Esri — ' + _t('Esri, Maxar, Earthstar Geographics ja GIS-käyttäjäyhteisö. Rajat ja nimet',
              'Esri, Maxar, Earthstar Geographics and the GIS User Community. Borders and names')
       + ' &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
-      + _t('-tekijät', '&nbsp;contributors') + ', Protomaps.'
+      + _t('-tekijät', '&nbsp;contributors') + ', OpenFreeMap, OpenMapTiles.'
   }
 };
 
@@ -12828,31 +12840,27 @@ function _cssVari(nimi, oletus) {
    Leafletin oma (`devicePixelRatio > 1`). */
 const POHJA_LAATTA = (window.devicePixelRatio || 1) > 1 ? 128 : 256;
 
-/* ── OMA POHJAKARTTA (docs/pohjakartta.md) ─────────────────────────────
+/* ── POHJAKARTTA (docs/pohjakartta.md, strategia 2) ─────────────────────
  *
- * Tumma pohja on oma tiedostopari orvossa haarassa `pohjakartta`
- * (`tools/pohjakartta.mjs`): OpenStreetMapin vektorilaatat (maa, vesi,
- * rajat, moottoritiet, nimet; Protomapsin rakennuksesta) ja niistä
- * erillinen rinnevarjostus, molemmat PMTiles-arkistoina, ja nimien fontit
- * samassa kodissa. Käyttäjän päätös 17.10.: "oma karttatiedosto, jotta
- * kaikki ovat yhdellä levyllä" — kolme ulkoista palvelua (OpenFreeMap,
- * korkeusmalli, Esri) olisivat kolme latautumisrytmiä ja kolme
- * katkoriskiä. Esrin tumma rasteri on varatie.
+ * TUMMAN POHJAN VEKTORI ON OPENFREEMAP (käyttäjän päätös 17.10.,
+ * "tehdään suosituksella", K3): OpenMapTiles-skeeman laatat koko
+ * maailmalle z0–14 (suurennus z18:aan) tavallisina `z/x/y`-laattoina
+ * Cloudflaren CDN:stä. Yksi lähde kantaa maan, veden, rannan, tiet,
+ * kadut, pysäköinnin, rakennukset ja nimet, joten "yhdellä levyllä,
+ * ettei ne pompi" täyttyy LAATAN sisällä. Ensimmäinen oma tiedosto
+ * (`pohjakartta`-haaran PMTiles raw.githubusercontentista) oli mitattuna
+ * hidas ja hauras: kaksi Range-kierrosta laattaa kohti, mediaani 0,40 s
+ * pyyntöä kohti, kartta asettui liikkeen jälkeen 4,9 s vs Esrin 2,8 s, ja
+ * ulos-zoomissa jäi lapsilaattojen neliöitä (strategia 2, mitattu).
+ * Laattojen osoite on versioitu ja `max-age` kymmenen vuotta, joten
+ * selaimen välimuisti toimii ilman omaa koneistoa.
  *
- * Arkisto luetaan HTTP:n Range-pyynnöillä (`Pmtiles`), ja MapLibre saa
- * laatat omasta protokollasta `fsp://` (`Pohjakartta.protokolla`).
- * Vektori on kolmena kerroksena eri zoomeille (POHJA_TASOT, sama taulukko
- * kuin rakentajan TASOT): maailma z0–6, Eurooppa z7–10 ja rannikko z11–12.
- * Jokainen kerros on oma lähteensä, ja tarkempi piirtää maan JA veden
- * täytenä karkeamman päälle — puuttuva tarkempi laatta näyttää siis
- * karkeamman kerroksen ylisuurennettuna eikä reikää. Viivat ja nimet
- * tulevat vain maailmasta (z < 7) ja Euroopasta (z ≥ 7). */
+ * Omasta tiedostosta jäävät RINNEVARJOSTUS ja FONTIT (`pohjakartta`-haara,
+ * `luettelo.json`), koska OpenFreeMapissa ei ole rinnettä. Esrin tumma
+ * rasteri on yhä varatie (`Pohjakartta.tila === 'pois'`: OpenFreeMapin
+ * TileJSON ei vastannut 8 s:ssa). */
 const POHJAKARTTA_KANTA = 'https://raw.githubusercontent.com/Jere-stack/wind/pohjakartta/';
-const POHJA_TASOT = [
-  { id: 'maailma', min: 0, max: 6 },
-  { id: 'eurooppa', min: 7, max: 10 },
-  { id: 'rannikko', min: 11, max: 12 },
-];
+const OFM_TILEJSON = 'https://tiles.openfreemap.org/planet';
 
 /* PMTILES v3 -LUKIJA. Otsake ja juurihakemisto ovat arkiston ensimmäiset
  * 16 384 tavua (yksi pyyntö), lehtihakemistot haetaan tarvittaessa ja
@@ -12937,35 +12945,48 @@ const Pmtiles = {
   },
 };
 
-/* POHJAKARTTA: luettelo, arkiston osat ja MapLibren protokolla.
- * Luettelo (`luettelo.json`) kertoo osat: jokainen osa on yksi arkisto,
- * yksi kerros (z-väli) ja sen alimman zoomin x-väli — rakentaja jakaa yli
- * 90 Mt:n kerroksen pituussuunnassa (GitHubin 100 Mt:n tiedostoraja).
- * `tila`: 'odottaa' → 'ok' tai 'pois' (luettelo ei auennut 8 s:ssa tai
- * selain ei osaa purkaa gzipiä): silloin tumma pohja on Esrin rasteri. */
+/* POHJAKARTTA: OpenFreeMapin TileJSON (vektorin tila), rinteen luettelo,
+ * MapLibren rinneprotokolla, vesimaski ja ulos-zoomin esilataus.
+ * `tila`: 'odottaa' → 'ok' tai 'pois' (TileJSON ei auennut 8 s:ssa):
+ * silloin tumma pohja on Esrin rasteri. Rinne on erillinen: sen luettelo
+ * voi puuttua ilman että vektori kärsii (rinne on silloin tyhjä). */
 const Pohjakartta = {
-  tila: 'odottaa', _luettelo: null, _arkistot: new Map(), valmis: null,
+  tila: 'odottaa', _ofm: null, _luettelo: null, _arkistot: new Map(), valmis: null, _rinneLupaus: null,
+  _esiladatut: new Set(),
   alusta() {
     if (this.valmis) return this.valmis;
     const self = this;
-    const ok = typeof DecompressionStream === 'function';
-    const haku = ok ? fetch(POHJAKARTTA_KANTA + 'luettelo.json').then(r => { if (!r.ok) throw new Error('luettelo ' + r.status); return r.json(); })
-                    : Promise.reject(new Error('DecompressionStream puuttuu'));
-    const aikaraja = new Promise((f, h) => setTimeout(() => h(new Error('luettelo: aikaraja')), 8000));
-    this.valmis = Promise.race([haku, aikaraja]).then(function (l) {
-      if (!l || !l.pohja || !l.pohja.osat) throw new Error('luettelo ilman pohjaa');
-      self._luettelo = l; self.tila = 'ok';
+    const haku = fetch(OFM_TILEJSON).then(r => { if (!r.ok) throw new Error('tilejson ' + r.status); return r.json(); });
+    const aikaraja = new Promise((f, h) => setTimeout(() => h(new Error('tilejson: aikaraja')), 8000));
+    this.valmis = Promise.race([haku, aikaraja]).then(function (j) {
+      if (!j || !j.tiles || !j.tiles[0]) throw new Error('tilejson ilman laattoja');
+      self._ofm = { url: j.tiles[0], max: j.maxzoom || 14 };
+      self.tila = 'ok';
+      self._esilataaMaailma();
       return true;
     }).catch(function (e) {
       if (window.console) console.warn('pohjakartta:', e && e.message);
       self.tila = 'pois';
-      /* Kartta ei ehkä ole vielä valmis (luettelo kaatui heti): vaihto
+      /* Kartta ei ehkä ole vielä valmis (TileJSON kaatui heti): vaihto
          sen valmistuttua, muuten vektorikerrokset jäisivät tyhjinä päälle. */
       if (State.map) State.map._kunValmis(function () { pohjaKarttaVaihda(State.map); });
       if (typeof KarttaAsetukset !== 'undefined' && KarttaAsetukset._lahteet) KarttaAsetukset._lahteet();
       return false;
     });
     return this.valmis;
+  },
+  laattaUrl(z, x, y) { return this._ofm.url.replace('{z}', z).replace('{x}', x).replace('{y}', y); },
+
+  /* RINTEEN LUETTELO (`pohjakartta`-haara): arkiston osat. Lukija tarvitsee
+     gzipin purun; ilman sitä rinne on tyhjä eikä kartta kärsi. */
+  _rinneLuettelo() {
+    if (this._rinneLupaus) return this._rinneLupaus;
+    const self = this;
+    this._rinneLupaus = typeof DecompressionStream !== 'function' ? Promise.resolve(false)
+      : fetch(POHJAKARTTA_KANTA + 'luettelo.json').then(r => { if (!r.ok) throw new Error('luettelo ' + r.status); return r.json(); })
+        .then(function (l) { if (!l || !l.rinne || !l.rinne.osat) throw new Error('luettelo ilman rinnettä'); self._luettelo = l; return true; })
+        .catch(function (e) { if (window.console) console.warn('pohjakartta:', e && e.message); return false; });
+    return this._rinneLupaus;
   },
   _osa(laji, z, x) {
     const l = this._luettelo && this._luettelo[laji];
@@ -12981,22 +13002,22 @@ const Pohjakartta = {
     }
     return null;
   },
-  /* Vektorilaatta (purettu MVT) tai null. */
-  async vektori(z, x, y) {
-    if (!(await this.alusta())) return null;
-    const a = this._osa('pohja', z, x);
-    return a ? Pmtiles.laatta(a, z, x, y) : null;
+  /* Kaatunut arkiston avaus EI jää muistiin: yksi verkkokatko otsakkeen
+     haussa jätti ennen koko osan rikki istunnon loppuun (strategia 2). */
+  _unohdaKaatunut(a) {
+    for (const [k, v] of this._arkistot) if (v === a) this._arkistot.delete(k);
   },
   /* Rinnelaatta PNG-tavuina. Puuttuva laatta (Euroopan ulkopuolella
      z7–8) suurennetaan lähimmästä emosta, ja jos sitäkään ei ole,
      palautetaan läpinäkyvä laatta. */
   async rinne(z, x, y) {
-    if (!(await this.alusta())) return this._tyhjaPng();
+    if (!(await this._rinneLuettelo())) return this._tyhjaPng();
     for (let k = 0; k <= 6 && k <= z; k++) {
       const tz = z - k, tx = Math.floor(x / Math.pow(2, k)), ty = Math.floor(y / Math.pow(2, k));
       const a = this._osa('rinne', tz, tx);
       if (!a) continue;
-      const b = await Pmtiles.laatta(a, tz, tx, ty);
+      let b;
+      try { b = await Pmtiles.laatta(a, tz, tx, ty); } catch (e) { this._unohdaKaatunut(a); throw e; }
       if (!b) continue;
       if (k === 0) return b;
       return this._suurenna(b, k, x - tx * Math.pow(2, k), y - ty * Math.pow(2, k));
@@ -13024,60 +13045,165 @@ const Pohjakartta = {
     if (!this._tyhja) this._tyhja = this._png(this._kangas(256));
     return this._tyhja;
   },
-  /* MapLibren protokolla: fsp://pohja/z/x/y ja fsp://rinne/z/x/y. */
+  /* MapLibren protokolla rinteelle: fsp://rinne/z/x/y. */
   protokolla() {
     if (this._protokolla || !maplibregl.addProtocol) return;
     this._protokolla = true;
     const self = this;
     maplibregl.addProtocol('fsp', async function (p) {
-      const m = /^fsp:\/\/(\w+)\/(\d+)\/(\d+)\/(\d+)/.exec(p.url);
+      const m = /^fsp:\/\/rinne\/(\d+)\/(\d+)\/(\d+)/.exec(p.url);
       if (!m) throw new Error('fsp: ' + p.url);
-      const z = +m[2], x = +m[3], y = +m[4];
-      const b = m[1] === 'rinne' ? await self.rinne(z, x, y) : await self.vektori(z, x, y);
+      const b = await self.rinne(+m[1], +m[2], +m[3]);
       if (!b) return { data: new ArrayBuffer(0) };
       return { data: b.byteOffset === 0 && b.byteLength === b.buffer.byteLength ? b.buffer : b.slice().buffer };
     });
   },
+
   /* VESIMASKI `Rantamaski`lle: 256 × 256 tavua, 255 = vesi, samasta
-     vektorista kuin näkyvä pohja. Laatta (z, x, y) piirretään syvimmästä
-     kerroksesta jolla on laatta sen kohdalla (rannikko → Eurooppa →
-     maailma), suurennettuna geometriana — reuna on terävä millä zoomilla
-     tahansa. null = ei laattaa (maski käsittelee sen vetenä). */
+     vektorilaatasta kuin näkyvä pohja. Maskin 256 px:n laatta tasolla z
+     on OpenFreeMapin 512 px:n laatan neljännes tasolla z − 1 (retinalla
+     z − 2, koska maski on silloin tasoa tarkempi) — sama laatta jonka
+     MapLibre jo haki, eli osuma selaimen välimuistiin, ja geometria on
+     näytön tarkkuudella. Rasterointi on työntekijäsäikeessä (`VesiTyo`).
+     null = ei laattaa (maski käsittelee sen vetenä). */
   async vesimaski(z, x, y) {
     if (!(await this.alusta())) return null;
-    for (let tz = Math.min(z, POHJA_TASOT[POHJA_TASOT.length - 1].max); tz >= 0; tz--) {
-      const k = z - tz, n = Math.pow(2, k), tx = Math.floor(x / n), ty = Math.floor(y / n);
-      const a = this._osa('pohja', tz, tx);
-      if (!a) continue;
-      const b = await Pmtiles.laatta(a, tz, tx, ty);
-      if (!b) continue;
-      return this._rasteroi(b, n, x - tx * n, y - ty * n);
-    }
-    return null;
+    const tz = Math.max(0, Math.min(z - (POHJA_LAATTA === 128 ? 2 : 1), this._ofm.max));
+    const n = Math.pow(2, z - tz), tx = Math.floor(x / n), ty = Math.floor(y / n);
+    return VesiTyo.maski(this.laattaUrl(tz, tx, ty), n, x - tx * n, y - ty * n);
   },
-  _rasteroi(b, n, ox, oy) {
-    if (!this._mk) {
-      this._mk = document.createElement('canvas'); this._mk.width = 256; this._mk.height = 256;
-      this._mg = this._mk.getContext('2d', { willReadFrequently: true });
+
+  /* ULOS-ZOOMIN NELIÖT POIS (strategia 2, V3): MapLibre piirtää uuden
+     zoomin puuttuvan laatan paikalle muistissa olevat TARKEMMAT
+     lapsilaatat, ja ne ovat juuri katsotun alueen — ruudulle jäi
+     tarkempi suorakaide. Kun näkymän emolaatat kolmelta karkeammalta
+     tasolta ovat jo selaimen välimuistissa, ulos-zoomin laatta on heti
+     valmis. Näkymän emot ovat 1–4 laattaa tasoa kohti; muualle ei
+     neliöitä synny, koska siellä ei ole lapsia. */
+  esilataa(ml) {
+    if (this.tila !== 'ok' || !this._ofm || !Asetukset.pohja().vektori) return;
+    const zm = Math.min(Math.floor(ml.getZoom()), this._ofm.max), b = ml.getBounds();
+    for (let L = zm - 1; L >= Math.max(0, zm - 3); L--) {
+      const n = Math.pow(2, L);
+      const xa = Math.floor((b.getWest() + 180) / 360 * n), xb = Math.floor((b.getEast() + 180) / 360 * n);
+      const y = function (lat) { return Math.floor((0.5 - ymerc(Math.max(-85, Math.min(85, lat))) / (2 * Math.PI)) * n); };
+      const ya = Math.max(0, y(b.getNorth())), yb = Math.min(n - 1, y(b.getSouth()));
+      if ((xb - xa + 1) * (yb - ya + 1) > 9) continue;
+      for (let ty = ya; ty <= yb; ty++) for (let tx = xa; tx <= xb; tx++) this._esilataaLaatta(L, ((tx % n) + n) % n, ty);
     }
-    const g = this._mg, vesi = Mvt.monikulmiot(b, 'water');
-    g.setTransform(1, 0, 0, 1, 0, 0);
-    g.fillStyle = '#000'; g.fillRect(0, 0, 256, 256);
-    if (vesi) {
-      const s = 256 * n / vesi.extent;
-      g.setTransform(s, 0, 0, s, -ox * 256, -oy * 256);
-      g.fillStyle = '#fff';
-      g.beginPath();
-      for (const r of vesi.renkaat) {
-        g.moveTo(r[0], r[1]);
-        for (let i = 2; i < r.length; i += 2) g.lineTo(r[i], r[i + 1]);
-        g.closePath();
+  },
+  _esilataaMaailma() {
+    for (let z = 0; z <= 1; z++) for (let x = 0; x < (1 << z); x++) for (let y = 0; y < (1 << z); y++) this._esilataaLaatta(z, x, y);
+  },
+  _esilataaLaatta(z, x, y) {
+    const url = this.laattaUrl(z, x, y);
+    if (this._esiladatut.has(url)) return;
+    this._esiladatut.add(url);
+    if (this._esiladatut.size > 600) this._esiladatut.delete(this._esiladatut.values().next().value);
+    fetch(url, { priority: 'low' }).catch(() => this._esiladatut.delete(url));
+  },
+};
+
+/* VESIMASKIN RASTEROINTI: vesimonikulmiot (laattakoordinaatit) 256 × 256
+ * tavuksi, 255 = vesi. Sama funktio ajetaan työntekijässä (merkkijonona)
+ * ja varatiellä pääsäikeessä. `n` on suurennus (2^k) ja `ox`, `oy` maskin
+ * laatan paikka vektorilaatan sisällä. */
+function _vesiRasteroi(g, b, n, ox, oy) {
+  const vesi = Mvt.monikulmiot(b, 'water');
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.fillStyle = '#000'; g.fillRect(0, 0, 256, 256);
+  if (vesi) {
+    const s = 256 * n / vesi.extent;
+    g.setTransform(s, 0, 0, s, -ox * 256, -oy * 256);
+    g.fillStyle = '#fff';
+    g.beginPath();
+    for (const r of vesi.renkaat) {
+      g.moveTo(r[0], r[1]);
+      for (let i = 2; i < r.length; i += 2) g.lineTo(r[i], r[i + 1]);
+      g.closePath();
+    }
+    g.fill('nonzero');
+  }
+  const kuva = g.getImageData(0, 0, 256, 256).data, d = new Uint8Array(65536);
+  for (let i = 0, p = 0; i < 65536; i++, p += 4) d[i] = kuva[p];
+  return d;
+}
+
+/* VESIMASKI TYÖNTEKIJÄSSÄ (strategia 2, V1): MVT:n purku, kankaan
+ * täyttö ja `getImageData` olivat pääsäikeessä jokaiselle maskilaatalle,
+ * ja vesimaski + rantavarjo oli liikkeen jälkeisen kuorman suurin erä
+ * (asettuminen −0,8 s ilman sitä). Työntekijä hakee vektorilaatan itse
+ * (muisti 24 laattaa: yksi vektorilaatta on neljä maskilaattaa) ja
+ * palauttaa taulukon siirtona. Ilman `OffscreenCanvas`ia (Safari < 16.4)
+ * sama koodi ajetaan pääsäikeessä. */
+const VesiTyo = {
+  _w: null, _ok: null, _id: 0, _odot: new Map(), _muisti: new Map(), _g: null,
+  _koodi() {
+    return 'const Mvt = { ' + Mvt.monikulmiot.toString() + ' };\n'
+      + _vesiRasteroi.toString() + '\n'
+      + 'const muisti = new Map(); let g = null;\n'
+      + 'function hae(url) { let p = muisti.get(url);\n'
+      + '  if (!p) { p = fetch(url).then(function (r) { if (!r.ok) throw new Error("laatta " + r.status); return r.arrayBuffer(); })\n'
+      + '      .then(function (b) { return new Uint8Array(b); });\n'
+      + '    muisti.set(url, p); p.catch(function () { muisti.delete(url); });\n'
+      + '    if (muisti.size > 24) muisti.delete(muisti.keys().next().value); }\n'
+      + '  return p; }\n'
+      + 'onmessage = function (e) { const m = e.data;\n'
+      + '  hae(m.url).then(function (b) {\n'
+      + '    if (!g) g = new OffscreenCanvas(256, 256).getContext("2d", { willReadFrequently: true });\n'
+      + '    const d = _vesiRasteroi(g, b, m.n, m.ox, m.oy); postMessage({ id: m.id, d: d }, [d.buffer]);\n'
+      + '  }).catch(function (err) { postMessage({ id: m.id, virhe: String(err && err.message || err) }); }); };\n';
+  },
+  _luo() {
+    if (this._ok !== null) return this._ok;
+    try {
+      if (typeof Worker !== 'function' || typeof OffscreenCanvas !== 'function') throw new Error('ei työntekijää');
+      const url = URL.createObjectURL(new Blob([this._koodi()], { type: 'text/javascript' }));
+      this._w = new Worker(url);
+      const self = this;
+      this._w.onmessage = function (e) {
+        const m = e.data, o = self._odot.get(m.id);
+        if (!o) return;
+        self._odot.delete(m.id);
+        if (m.virhe) o.h(new Error(m.virhe)); else o.f(m.d);
+      };
+      this._w.onerror = function () {
+        /* Työntekijä kaatui: odottavat pääsäikeelle ja jatkossa sinne. */
+        self._ok = false;
+        const odot = Array.from(self._odot.values());
+        self._odot.clear();
+        odot.forEach(o => self._paasaie(o.m).then(o.f, o.h));
+      };
+      this._ok = true;
+    } catch (e) { this._ok = false; }
+    return this._ok;
+  },
+  maski(url, n, ox, oy) {
+    const m = { url: url, n: n, ox: ox, oy: oy };
+    if (!this._luo()) return this._paasaie(m);
+    const self = this;
+    return new Promise(function (f, h) {
+      m.id = ++self._id;
+      self._odot.set(m.id, { f: f, h: h, m: m });
+      self._w.postMessage(m);
+    });
+  },
+  _paasaie(m) {
+    let p = this._muisti.get(m.url);
+    if (!p) {
+      p = fetch(m.url).then(r => { if (!r.ok) throw new Error('laatta ' + r.status); return r.arrayBuffer(); }).then(b => new Uint8Array(b));
+      this._muisti.set(m.url, p);
+      p.catch(() => this._muisti.delete(m.url));
+      if (this._muisti.size > 24) this._muisti.delete(this._muisti.keys().next().value);
+    }
+    const self = this;
+    return p.then(function (b) {
+      if (!self._g) {
+        const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+        self._g = c.getContext('2d', { willReadFrequently: true });
       }
-      g.fill('nonzero');
-    }
-    const kuva = g.getImageData(0, 0, 256, 256).data, d = new Uint8Array(65536);
-    for (let i = 0, p = 0; i < 65536; i++, p += 4) d[i] = kuva[p];
-    return d;
+      return _vesiRasteroi(self._g, b, m.n, m.ox, m.oy);
+    });
   },
 };
 
@@ -13158,6 +13284,10 @@ function karttaTyyli() {
   const vari = {
     maa: _cssVari('--kartta-maa', '#2B3039'), vesi: _cssVari('--kartta-vesi', '#04070D'),
     raja: _cssVari('--kartta-raja', 'rgba(210,214,222,0.38)'), tie: _cssVari('--kartta-tie', 'rgba(210,214,222,0.13)'),
+    paa: _cssVari('--kartta-tie-paa', 'rgba(210,214,222,0.24)'), katu: _cssVari('--kartta-katu', 'rgba(210,214,222,0.17)'),
+    polku: _cssVari('--kartta-polku', 'rgba(210,214,222,0.10)'), laituri: _cssVari('--kartta-laituri', 'rgba(210,214,222,0.30)'),
+    rakennus: _cssVari('--kartta-rakennus', 'rgba(210,214,222,0.07)'), pysakointi: _cssVari('--kartta-pysakointi', 'rgba(240,231,206,0.88)'),
+    tieSat: _cssVari('--kartta-tie-sat', 'rgba(255,255,255,0.34)'),
     nimi: _cssVari('--kartta-nimi', 'rgba(240,231,206,0.86)'), nimi2: _cssVari('--kartta-nimi-2', 'rgba(195,191,178,0.72)'),
     halo: _cssVari('--kartta-nimi-halo', 'rgba(6,9,18,0.82)'),
   };
@@ -13167,80 +13297,140 @@ function karttaTyyli() {
     /* maxzoom 16: z17 palauttaa vaalean "ei dataa" -laatan. */
     'pohja': { type: 'raster', tiles: [p.url], tileSize: POHJA_LAATTA, maxzoom: 16 },
     'rinne': { type: 'raster', tiles: ['fsp://rinne/{z}/{x}/{y}'], tileSize: 256, maxzoom: 8 },
+    'ofm': { type: 'vector', url: OFM_TILEJSON },
   };
-  POHJA_TASOT.forEach(function (t) {
-    sources['pv-' + t.id] = { type: 'vector', tiles: ['fsp://pohja/{z}/{x}/{y}'], minzoom: t.min, maxzoom: t.max };
-  });
+  /* metadata.pohja: 'tumma' näkyy vain tummalla vektoripohjalla, 'kaikki'
+     myös satelliitilla (nimet, rajat), 'satelliitti' vain satelliitilla
+     (katuviiva ilmakuvan päällä). Varatiellä (Esri) mikään ei näy. */
+  const L = function (id, tyyppi, lahdeKerros, minz, laji, o) {
+    const l = { id: id, type: tyyppi, source: 'ofm', 'source-layer': lahdeKerros, minzoom: minz, metadata: { pohja: laji } };
+    if (laji !== 'kaikki') l.layout = nakyy(laji === 'tumma' ? vektori : !vektori);
+    for (const k in o) l[k] = k === 'layout' ? Object.assign(l.layout || {}, o[k]) : o[k];
+    return l;
+  };
+  const luokka = (lista) => ['match', ['get', 'class'], lista, true, false];
+  const eiTunneli = ['!=', ['get', 'brunnel'], 'tunnel'];
+  const viiva = (pysakit) => ['interpolate', ['exponential', 1.6], ['zoom']].concat(pysakit);
   const layers = [
     { id: 'tausta', type: 'background', paint: { 'background-color': vektori ? vari.maa : _cssVari('--bg', '#060912') } },
     { id: 'pohja-tausta', type: 'raster', source: 'pohja-tausta', paint: maali, layout: nakyy(!vektori) },
     { id: 'pohja', type: 'raster', source: 'pohja', paint: maali, layout: nakyy(!vektori) },
+    /* Maa on tausta, vesi täyte: yksi lähde, joten ranta on yksi viiva. */
+    L('ofm-vesi', 'fill', 'water', 0, 'tumma', { filter: eiTunneli, paint: { 'fill-color': vari.vesi, 'fill-antialias': true } }),
+    L('ofm-joki', 'line', 'waterway', 8, 'tumma', { filter: ['all', luokka(['river', 'canal']), eiTunneli],
+      paint: { 'line-color': vari.vesi, 'line-width': viiva([8, 0.6, 12, 1.6, 16, 5]) } }),
+    L('ofm-puro', 'line', 'waterway', 12, 'tumma', { filter: ['all', luokka(['stream']), eiTunneli],
+      paint: { 'line-color': vari.vesi, 'line-width': viiva([12, 0.5, 16, 1.6]) } }),
+    /* Kaupunkitaso: rakennukset hennosti, laiturit selvästi (spotin ranta). */
+    L('ofm-rakennus', 'fill', 'building', 13, 'tumma', { paint: { 'fill-color': vari.rakennus, 'fill-antialias': false } }),
+    L('ofm-laituri-ala', 'fill', 'transportation', 12, 'tumma', { filter: ['all', luokka(['pier']), ['match', ['geometry-type'], ['Polygon', 'MultiPolygon'], true, false]],
+      paint: { 'fill-color': vari.laituri } }),
   ];
-  /* Täytöt: jokainen kerros maan ja veden täytenä, karkein alimpana. */
-  POHJA_TASOT.forEach(function (t) {
-    layers.push({ id: 'pv-' + t.id + '-maa', type: 'fill', source: 'pv-' + t.id, 'source-layer': 'earth', minzoom: t.min,
-      metadata: { pohja: 'tumma' }, layout: nakyy(vektori), paint: { 'fill-color': vari.maa, 'fill-antialias': false } });
-    layers.push({ id: 'pv-' + t.id + '-vesi', type: 'fill', source: 'pv-' + t.id, 'source-layer': 'water', minzoom: t.min,
-      filter: ['match', ['geometry-type'], ['Polygon', 'MultiPolygon'], true, false],
-      metadata: { pohja: 'tumma' }, layout: nakyy(vektori), paint: { 'fill-color': vari.vesi, 'fill-antialias': true } });
-  });
   /* Rinnevarjostus: harmaa + alfa (varjo musta, valo valkoinen), maalla. */
   layers.push({ id: 'rinne', type: 'raster', source: 'rinne', metadata: { pohja: 'tumma' }, layout: nakyy(vektori),
     paint: { 'raster-opacity': 0.85, 'raster-fade-duration': 0, 'raster-resampling': 'linear' } });
-  /* Viivat: maailma alle z7, Eurooppa siitä ylöspäin. */
-  [['maailma', 0, 7], ['eurooppa', 7, 24]].forEach(function (r) {
-    layers.push({ id: 'pv-' + r[0] + '-tie', type: 'line', source: 'pv-' + r[0], 'source-layer': 'roads',
-      minzoom: Math.max(r[1], 5), maxzoom: r[2], metadata: { pohja: 'tumma' }, layout: nakyy(vektori),
-      paint: { 'line-color': vari.tie, 'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.5, 10, 1, 14, 1.6] } });
-    layers.push({ id: 'pv-' + r[0] + '-raja', type: 'line', source: 'pv-' + r[0], 'source-layer': 'boundaries',
-      minzoom: r[1], maxzoom: r[2], metadata: { pohja: 'kaikki' },
-      paint: { 'line-color': vari.raja, 'line-width': ['interpolate', ['linear'], ['zoom'], 2, 0.6, 8, 1.1], 'line-dasharray': [3, 2] } });
-  });
+  /* Tiet ja kadut (MapLibren zoom; sovelluksen tarkin on 15 = Leafletin
+     16): pääväylät kaukaa, kadut z11, huoltotiet ja pysäköinnin käytävät
+     z13, kevyt liikenne z14. Tunnelit eivät näy. */
+  const tie = function (id, lista, minz, vari_, leveys) {
+    return L(id, 'line', 'transportation', minz, 'tumma', { filter: ['all', luokka(lista), eiTunneli,
+      ['match', ['geometry-type'], ['LineString', 'MultiLineString'], true, false]],
+      layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': vari_, 'line-width': viiva(leveys) } });
+  };
+  layers.push(
+    tie('ofm-polku', ['path', 'track'], 14, vari.polku, [14, 0.6, 18, 1.6]),
+    tie('ofm-huolto', ['service'], 13, vari.katu, [13, 0.5, 18, 2.4]),
+    tie('ofm-katu', ['minor'], 11, vari.katu, [11, 0.4, 14, 1.1, 18, 4.5]),
+    tie('ofm-tie', ['secondary', 'tertiary'], 9, vari.katu, [9, 0.5, 12, 1.0, 16, 4]),
+    tie('ofm-paatie', ['motorway', 'trunk', 'primary'], 5, vari.paa, [5, 0.5, 10, 1.2, 16, 5]),
+    tie('ofm-laituri', ['pier'], 12, vari.laituri, [12, 0.8, 18, 3.5]),
+  );
+  /* Satelliitin katuviiva lähizoomissa (K6): pysäköinti näkyy ilmakuvasta,
+     ja viiva + nimi kertovat mikä katu se on. */
+  layers.push(L('ofm-tie-sat', 'line', 'transportation', 12, 'satelliitti', {
+    filter: ['all', luokka(['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'minor', 'service']), eiTunneli,
+      ['match', ['geometry-type'], ['LineString', 'MultiLineString'], true, false]],
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': vari.tieSat, 'line-width': viiva([12, 0.5, 18, 2.5]) } }));
+  /* Valtioiden rajat (ei merirajoja). */
+  layers.push(L('ofm-raja', 'line', 'boundary', 0, 'kaikki', {
+    filter: ['all', ['==', ['get', 'admin_level'], 2], ['!=', ['get', 'maritime'], 1]],
+    paint: { 'line-color': vari.raja, 'line-width': ['interpolate', ['linear'], ['zoom'], 2, 0.6, 8, 1.1], 'line-dasharray': [3, 2] } }));
   /* Kartan custom-kerrokset (sää) lisätään tämän eteen: `kerrosEnnen`. */
   layers.push({ id: 'yla-raja', type: 'background', layout: { visibility: 'none' }, paint: { 'background-color': '#000' } });
-  /* NIMET SÄÄN PÄÄLLÄ, sovelluksen kielellä. Valtiot versaalina ja
-     himmeämpänä, kaupungit väestön mukaan (`population_rank`), ja
-     Protomapsin `min_zoom` harventaa — törmäys hoitaa loput. */
-  const nimi = KIELI === 'en'
+  /* NIMET SÄÄN PÄÄLLÄ, sovelluksen kielellä. Valtiot ja meret
+     käännettyinä, paikat suomeksi kun nimi on, kadut paikallisella
+     nimellä. Laatan oma rank harventaa ja törmäys hoitaa loput. */
+  const maaNimi = KIELI === 'en'
     ? ['coalesce', ['get', 'name:en'], ['get', 'name']]
     : ['coalesce', ['get', 'name:fi'], ['get', 'name:en'], ['get', 'name']];
-  [['maailma', 0, 7], ['eurooppa', 7, 24]].forEach(function (r) {
-    layers.push({ id: 'pv-' + r[0] + '-meri', type: 'symbol', source: 'pv-' + r[0], 'source-layer': 'water',
-      minzoom: r[1], maxzoom: r[2], metadata: { pohja: 'kaikki' },
-      filter: ['all', ['match', ['geometry-type'], ['Point', 'MultiPoint'], true, false], ['<=', ['coalesce', ['get', 'min_zoom'], 0], ['+', ['zoom'], 1]]],
-      layout: { 'text-field': nimi, 'text-font': ['Noto Sans Regular'], 'text-size': 11, 'text-letter-spacing': 0.08,
-        'text-max-width': 7, 'symbol-sort-key': ['coalesce', ['get', 'min_zoom'], 0] },
-      paint: { 'text-color': vari.nimi2, 'text-halo-color': vari.halo, 'text-halo-width': 1.2 } });
-    layers.push({ id: 'pv-' + r[0] + '-valtio', type: 'symbol', source: 'pv-' + r[0], 'source-layer': 'places',
-      minzoom: r[1], maxzoom: Math.min(r[2], 8), metadata: { pohja: 'kaikki' },
-      filter: ['==', ['get', 'kind'], 'country'],
-      layout: { 'text-field': nimi, 'text-font': ['Noto Sans Medium'], 'text-size': 11, 'text-transform': 'uppercase',
-        'text-letter-spacing': 0.1, 'text-max-width': 7, 'symbol-sort-key': ['coalesce', ['get', 'min_zoom'], 0] },
-      paint: { 'text-color': vari.nimi2, 'text-halo-color': vari.halo, 'text-halo-width': 1.2 } });
-    layers.push({ id: 'pv-' + r[0] + '-paikka', type: 'symbol', source: 'pv-' + r[0], 'source-layer': 'places',
-      minzoom: r[1], maxzoom: r[2], metadata: { pohja: 'kaikki' },
-      filter: ['all', ['==', ['get', 'kind'], 'locality'], ['<=', ['coalesce', ['get', 'min_zoom'], 0], ['+', ['zoom'], 0.5]]],
-      layout: { 'text-field': nimi, 'text-font': ['Noto Sans Medium'], 'text-max-width': 8,
-        'text-size': ['interpolate', ['linear'], ['coalesce', ['get', 'population_rank'], 6], 6, 11, 10, 12, 13, 13.5],
-        'symbol-sort-key': ['-', 20, ['coalesce', ['get', 'population_rank'], 0]] },
-      paint: { 'text-color': vari.nimi, 'text-halo-color': vari.halo, 'text-halo-width': 1.3 } });
-  });
+  const paikkaNimi = KIELI === 'en'
+    ? ['coalesce', ['get', 'name:en'], ['get', 'name']]
+    : ['coalesce', ['get', 'name:fi'], ['get', 'name']];
+  const nimiMaali = (v, h) => ({ 'text-color': v, 'text-halo-color': vari.halo, 'text-halo-width': h || 1.2 });
+  layers.push(
+    L('ofm-meri', 'symbol', 'water_name', 0, 'kaikki', {
+      filter: ['all', ['match', ['geometry-type'], ['Point', 'MultiPoint'], true, false],
+        ['any', luokka(['ocean', 'sea', 'bay', 'strait']), ['>=', ['zoom'], 9]]],
+      layout: { 'text-field': maaNimi, 'text-font': ['Noto Sans Regular'], 'text-size': 11, 'text-letter-spacing': 0.08,
+        'text-max-width': 7, 'symbol-sort-key': ['coalesce', ['get', 'rank'], 9] },
+      paint: nimiMaali(vari.nimi2) }),
+    L('ofm-valtio', 'symbol', 'place', 0, 'kaikki', {
+      maxzoom: 8, filter: luokka(['country']),
+      layout: { 'text-field': maaNimi, 'text-font': ['Noto Sans Bold'], 'text-size': 11, 'text-transform': 'uppercase',
+        'text-letter-spacing': 0.1, 'text-max-width': 7, 'symbol-sort-key': ['coalesce', ['get', 'rank'], 9] },
+      paint: nimiMaali(vari.nimi2) }),
+    L('ofm-kaupunki', 'symbol', 'place', 3, 'kaikki', {
+      filter: luokka(['city', 'town']),
+      layout: { 'text-field': paikkaNimi, 'text-font': ['Noto Sans Bold'], 'text-max-width': 8,
+        /* Zoomin interpolointi on lausekkeen uloin: `match`in sisällä
+           MapLibre hylkää kerroksen ja kaikki sen jälkeen tulevat. */
+        'text-size': ['interpolate', ['linear'], ['zoom'],
+          4, ['match', ['get', 'class'], 'city', 11.5, 10.5],
+          10, ['match', ['get', 'class'], 'city', 14, 12],
+          14, ['match', ['get', 'class'], 'city', 15, 13]],
+        'symbol-sort-key': ['+', ['match', ['get', 'class'], 'city', 0, 20], ['coalesce', ['get', 'rank'], 10]] },
+      paint: nimiMaali(vari.nimi, 1.3) }),
+    L('ofm-kyla', 'symbol', 'place', 10, 'kaikki', {
+      filter: ['any', luokka(['village']), ['all', luokka(['island']), ['>=', ['zoom'], 11]],
+        ['all', luokka(['suburb', 'quarter', 'neighbourhood', 'hamlet']), ['>=', ['zoom'], 12]]],
+      layout: { 'text-field': paikkaNimi, 'text-font': ['Noto Sans Regular'], 'text-size': 11.5, 'text-max-width': 8,
+        'symbol-sort-key': ['coalesce', ['get', 'rank'], 30] },
+      paint: nimiMaali(vari.nimi2) }),
+    L('ofm-katunimi', 'symbol', 'transportation_name', 13, 'kaikki', {
+      filter: luokka(['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'minor', 'service']),
+      layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Regular'], 'text-size': 11,
+        'symbol-placement': 'line', 'text-max-angle': 30, 'text-padding': 4 },
+      paint: nimiMaali(vari.nimi2) }),
+    L('ofm-pysakointi', 'symbol', 'poi', 14, 'kaikki', {
+      /* Laatan oma `rank` (pienempi = tärkeämpi): ilman rajaa jokainen
+         pihan ja pysäköintitalon P peitti korttelin. */
+      filter: ['all', luokka(['parking']), ['==', ['get', 'subclass'], 'parking'],
+        ['<=', ['coalesce', ['get', 'rank'], 99], ['step', ['zoom'], 8, 14.5, 20]]],
+      layout: { 'text-field': 'P', 'text-font': ['Noto Sans Bold'], 'text-size': 12, 'text-padding': 14,
+        'symbol-sort-key': ['coalesce', ['get', 'rank'], 99] },
+      paint: nimiMaali(vari.pysakointi, 2.4) }),
+  );
   return {
     version: 8,
-    glyphs: POHJAKARTTA_KANTA + 'fontit/{fontstack}/{range}.pbf',
+    /* Fontit OpenFreeMapista (Noto Sans Regular ja Bold, kaikki Unicode-
+       alueet): oman haaran seitsemän aluetta eivät kattaneet esimerkiksi
+       arabiaa, ja Euroopan näkymässä nimet putosivat selaimen fonttiin. */
+    glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
     sources: sources,
     layers: layers,
   };
 }
 
-/* Pohjakartan vaihto: tumma (oma vektori tai sen Esri-varatie) ja
-   satelliitti. Kutsutaan KarttaAsetuksista ja kun oma pohja ei auennut. */
+/* Pohjakartan vaihto: tumma (OpenFreeMap tai sen Esri-varatie) ja
+   satelliitti. Kutsutaan KarttaAsetuksista ja kun vektori ei auennut. */
 function pohjaKarttaVaihda(map) {
   const ml = map && map.ml;
   if (!ml || !map._valmis) return;
   const p = Asetukset.pohja();
   const maali = pohjanMaali();
-  const vektori = !!p.vektori && Pohjakartta.tila !== 'pois';
+  const ok = Pohjakartta.tila !== 'pois';
+  const vektori = !!p.vektori && ok;
   try {
     ml.getSource('pohja').setTiles([p.url]);
     ml.getSource('pohja-tausta').setTiles([p.url]);
@@ -13250,7 +13440,8 @@ function pohjaKarttaVaihda(map) {
     });
     ml.getStyle().layers.forEach(function (l) {
       if (!l.metadata || !l.metadata.pohja) return;
-      const nayta = l.metadata.pohja === 'kaikki' ? Pohjakartta.tila !== 'pois' : vektori;
+      const laji = l.metadata.pohja;
+      const nayta = laji === 'kaikki' ? ok : laji === 'satelliitti' ? ok && !p.vektori : vektori;
       ml.setLayoutProperty(l.id, 'visibility', nayta ? 'visible' : 'none');
     });
     ml.setPaintProperty('tausta', 'background-color', vektori ? _cssVari('--kartta-maa', '#2B3039') : _cssVari('--bg', '#060912'));
@@ -13610,8 +13801,8 @@ function initMap() {
    *   - heiton katto zoomin mukaan (`dragPan`in `maxSpeed`)
    *   - uloin näkymä leveysasteista, avausnäkymä sen suhteen
    *   - zoom ei napsahda: MapLibre jättää sen sinne mihin ele päättyi. */
-  /* Oma pohjakartta: protokolla ennen tyyliä, luettelo samaan aikaan
-     (docs/pohjakartta.md). */
+  /* Pohjakartta: rinteen protokolla ennen tyyliä, OpenFreeMapin TileJSON
+     samaan aikaan (docs/pohjakartta.md, strategia 2). */
   Pohjakartta.protokolla();
   Pohjakartta.alusta();
   const ml = new maplibregl.Map({
@@ -13639,6 +13830,9 @@ function initMap() {
   });
   const map = new KarttaGL(ml);
   State.map = map;
+  /* Ulos-zoomin emolaatat selaimen välimuistiin levossa (ei neliöitä). */
+  ml.on('moveend', function () { Pohjakartta.esilataa(ml); });
+  Pohjakartta.alusta().then(function (ok) { if (ok) Pohjakartta.esilataa(ml); });
   ml.touchZoomRotate.disableRotation();
   ml.keyboard.disableRotation();
   /* KOSKETUSZOOM PITÄÄ TÄHTÄIMEN PAIKALLAAN (käyttäjän raportti 5.10.,
@@ -16287,7 +16481,12 @@ const Rantamaski = {
       this._laatat.delete(k);
     }
   },
+  /* VAIN LEVOSSA (strategia 2, V1): eleen aikana vanha maski skaalautuu
+     mukana, ja uusi taso haetaan kun kartta pysähtyy (`moveend`,
+     `RantavarjoGL.kiinnita`). Ennen jokainen eleen läpi kulkenut taso
+     haettiin ja rasteroitiin, ja kuorma osui seuraavan eleen alle. */
   _pumppaa() {
+    if (State.liikkeessa) return;
     while (this._kaynnissa < this.RINNAKKAIN && this._jono.length) {
       const j = this._jono.shift();
       if (this._laatat.has(j.k)) continue;
@@ -16302,8 +16501,9 @@ const Rantamaski = {
         if (typeof Crosshair !== 'undefined' && (aaltotila() || vuorovesitila())) Crosshair.refresh();
         loppu();
       };
-      /* OMA POHJA ENSIN (docs/pohjakartta.md): maski samasta vektorista
-         kuin näkyvä ranta. Esrin tumma laatta vain varatiellä. */
+      /* VEKTORIPOHJA ENSIN (docs/pohjakartta.md): maski samasta
+         OpenFreeMapin laatasta kuin näkyvä ranta. Esrin tumma laatta vain
+         varatiellä. */
       Pohjakartta.alusta().then(function (ok) {
         if (ok) {
           Pohjakartta.vesimaski(j.z, j.x, j.y).then(valmis, function () { valmis(null); });
@@ -16457,6 +16657,15 @@ const RantavarjoGL = {
     this._map = map;
     const self = this;
     map._kunValmis(function () { map.ml.addLayer(self, kerrosEnnen(map.ml)); });
+    /* Maskin jono puretaan vasta levossa (`Rantamaski._pumppaa`). */
+    /* Ajastettuna: `State.liikkeessa` nollataan toisessa moveend-
+       kuuntelijassa, jonka järjestystä tämä ei tiedä. */
+    map.ml.on('moveend', function () {
+      setTimeout(function () {
+        Rantamaski._pumppaa();
+        if (self._naytetaan()) map.ml.triggerRepaint();   /* sumea takaisin neljännekseen */
+      }, 0);
+    });
   },
   _naytetaan() { return !State._perfNoRantavarjo && !aaltotila() && !vuorovesitila(); },
   _sigma() { return Math.min(10, 3 + 0.6 * this._map.getZoom()); },
@@ -16501,9 +16710,13 @@ const RantavarjoGL = {
     if (!M) return;
     this._maski = M;
     const W = gl.drawingBufferWidth, H = gl.drawingBufferHeight;
-    const w = Math.max(1, Math.ceil(W / 4)), h = Math.max(1, Math.ceil(H / 4));
+    /* Liikkeessä kahdeksasosa (strategia 2, Q3): sumea maa on 6–10 px:n
+       liukuväri, ja eleen aikana sen terävyyttä ei erota; hinta putoaa
+       neljäsosaan. Levossa taas neljännes. */
+    const jako = State.liikkeessa ? 8 : 4;
+    const w = Math.max(1, Math.ceil(W / jako)), h = Math.max(1, Math.ceil(H / jako));
     const pr = this._map.ml.getPixelRatio ? this._map.ml.getPixelRatio() : (window.devicePixelRatio || 1);
-    const sq = this._sigma() * pr / 4;            /* σ neljännesresoluution tekseleinä */
+    const sq = this._sigma() * pr / jako;         /* σ sumean puskurin tekseleinä */
     const avain = Rantamaski._piirretty + '|' + w + 'x' + h + '|' + sq.toFixed(2);
     if (avain === this._sumeaAvain && this._sumeaOk) return;
     this._sumeaAvain = avain;

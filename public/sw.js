@@ -82,6 +82,22 @@ const POHJA_KATTO = 4000;
 const onPohjakartta = (u) => u.hostname === 'raw.githubusercontent.com' && u.pathname.includes('/pohjakartta/')
   && (u.pathname.endsWith('.pmtiles') || u.pathname.endsWith('.pbf'));
 
+/* OPENFREEMAPIN VEKTORILAATAT (docs/pohjakartta.md, strategia 2): osoite
+   on versioitu (`/planet/<rakennus>/z/x/y.pbf`, max-age 10 v), joten
+   välimuisti edellä. Oma välimuisti ja pienempi katto, koska laatta on
+   kaupungissa ~100 kt; TileJSON (`/planet`) kulkee verkosta. */
+const OFM = 'ofm-v1';
+const OFM_KATTO = 800;
+const onOfm = (u) => u.hostname === 'tiles.openfreemap.org' && /^\/planet\/[^/]+\/\d+\/\d+\/\d+\.pbf$/.test(u.pathname);
+let ofmLaskuri = 0;
+async function siivoaOfm() {
+  if (++ofmLaskuri % 100) return;
+  const c = await caches.open(OFM);
+  const avaimet = await c.keys();
+  const yli = avaimet.length - OFM_KATTO;
+  for (let i = 0; i < yli; i++) await c.delete(avaimet[i]);
+}
+
 const onLaatta = (u) =>
   u.hostname === 'services.arcgisonline.com' ||
   u.hostname.endsWith('.basemaps.cartocdn.com');
@@ -123,6 +139,7 @@ self.addEventListener('activate', (e) => {
          uusi rakennus (`tools/vuorovesi.py`) vaihtaa nimen. */
       if (n.startsWith('vuorovesi-') && n !== VUOROVESI) await caches.delete(n);
       if (n.startsWith('pohjakartta-') && n !== POHJAKARTTA) await caches.delete(n);
+      if (n.startsWith('ofm-') && n !== OFM) await caches.delete(n);
     }
     await self.clients.claim();
   })());
@@ -189,6 +206,18 @@ self.addEventListener('fetch', (e) => {
       if (osuma) return osuma;
       const r = await fetch(e.request);
       if (r.ok) c.put(e.request, r.clone());
+      return r;
+    })());
+    return;
+  }
+
+  if (onOfm(u)) {
+    e.respondWith((async () => {
+      const c = await caches.open(OFM);
+      const osuma = await c.match(e.request);
+      if (osuma) return osuma;
+      const r = await fetch(e.request);
+      if (r.ok) c.put(e.request, r.clone()).then(siivoaOfm).catch(() => {});
       return r;
     })());
     return;
